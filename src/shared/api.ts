@@ -4622,9 +4622,9 @@ export const fireworksModels = {
 		outputPrice: 0.6,
 		description: "Qwen3-VL instruct model with strong multimodal reasoning, long context support, and function calling.",
 	},
-	"accounts/fireworks/models/deepseek-v3p2": {
+	"accounts/fireworks/models/deepseek-v3": {
 		maxTokens: 16384,
-		contextWindow: 163840,
+		contextWindow: 131100,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.56,
@@ -4633,16 +4633,16 @@ export const fireworksModels = {
 		cacheReadsPrice: 0.28,
 		description: "DeepSeek V3.2 model tuned for high computational efficiency and strong reasoning and agent performance.",
 	},
-	"accounts/fireworks/models/deepseek-v3p1": {
+	"accounts/fireworks/models/minimax-m2p5": {
 		maxTokens: 16384,
-		contextWindow: 163840,
+		contextWindow: 196600,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0.56,
-		outputPrice: 1.68,
-		cacheWritesPrice: 0.56,
-		cacheReadsPrice: 0.28,
-		description: "DeepSeek V3.1 long-context model with improved reasoning, agentic behavior, and function calling.",
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
+		description: "MiniMax M2.5 is built for state-of-the-art coding, agentic tool use.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
