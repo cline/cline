@@ -177,6 +177,11 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			cached.readCount++
 			config.taskState.fileReadCache.set(cacheKey, cached)
 
+			// Re-push image block for multimodal models so image context is not lost on cached reads
+			if (cached.imageBlock) {
+				config.taskState.userMessageContent.push(cached.imageBlock)
+			}
+
 			if (cached.readCount >= 3) {
 				return `[DUPLICATE READ DETECTED] You have already read the file '${displayPath}' ${cached.readCount} times in this conversation. The content has NOT changed since your last read. Please use the information you already have and proceed with your task. Do NOT read this file again.\n\nCached content from previous read:\n${cached.content}`
 			}
@@ -208,10 +213,11 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
-		// Cache the result for deduplication
+		// Cache the result for deduplication (including imageBlock for multimodal models)
 		config.taskState.fileReadCache.set(cacheKey, {
 			content: typeof fileContent.text === "string" ? fileContent.text : "",
 			readCount: 1,
+			imageBlock: fileContent.imageBlock,
 		})
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent

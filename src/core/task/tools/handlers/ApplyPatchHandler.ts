@@ -356,9 +356,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
 					config.taskState.didEditFile = true
-					// Invalidate file read cache for deleted file
-					const deletedAbsPath = resolvePath(config.cwd, path).toLowerCase()
-					config.taskState.fileReadCache.delete(deletedAbsPath)
+					// Note: cache invalidation for deleted files is already handled in the changedFiles loop above
 					responseLines.push(`\n${path}: [deleted]`)
 				} else {
 					// Format response similar to WriteToFileToolHandler

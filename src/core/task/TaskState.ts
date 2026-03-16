@@ -46,8 +46,8 @@ export class TaskState {
 	lastToolName = "" // Track last tool used for consecutive call detection
 
 	// File read deduplication cache - prevents the model from endlessly reading the same files
-	// Maps absolute file path → { content: cached result, readCount: times read in this task }
-	fileReadCache: Map<string, { content: string; readCount: number }> = new Map()
+	// Maps absolute file path → { content: cached result, readCount: times read in this task, imageBlock: optional image data for multimodal models }
+	fileReadCache: Map<string, { content: string; readCount: number; imageBlock?: Anthropic.ImageBlockParam }> = new Map()
 
 	// Error tracking
 	consecutiveMistakeCount = 0
