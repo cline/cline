@@ -361,9 +361,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
-			// Invalidate file read cache for this file so re-reads get fresh content
-			config.taskState.fileReadCache.delete(absolutePath.toLowerCase())
-
 			// Track file edit operation
 			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
 

@@ -2,7 +2,7 @@ import path from "node:path"
 import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
-import { extractFileContent, type FileContentResult } from "@integrations/misc/extract-file-content"
+import { extractFileContent } from "@integrations/misc/extract-file-content"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { telemetryService } from "@/services/telemetry"
 import { ClineSayTool } from "@/shared/ExtensionMessage"
@@ -75,6 +75,8 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 			return formatResponse.toolError(formatResponse.clineIgnoreError(relPath!))
 		}
+
+		config.taskState.consecutiveMistakeCount = 0
 
 		// Resolve the absolute path based on multi-workspace configuration
 		const pathResult = resolveWorkspacePath(config, relPath!, "ReadFileToolHandler.execute")
@@ -167,52 +169,12 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			throw error
 		}
 
-		// === File Read Deduplication ===
-		// Check if we've already read this exact file in this task.
-		// This prevents the model from endlessly reading the same file, which wastes API tokens.
-		const cacheKey = absolutePath.toLowerCase()
-		const cached = config.taskState.fileReadCache.get(cacheKey)
-
-		if (cached) {
-			cached.readCount++
-			config.taskState.fileReadCache.set(cacheKey, cached)
-
-			if (cached.readCount >= 3) {
-				return `[DUPLICATE READ DETECTED] You have already read the file '${displayPath}' ${cached.readCount} times in this conversation. The content has NOT changed since your last read. Please use the information you already have and proceed with your task. Do NOT read this file again.\n\nCached content from previous read:\n${cached.content}`
-			}
-
-			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning cached content:\n${cached.content}`
-		}
-
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
-		let fileContent: FileContentResult
-		try {
-			fileContent = await extractFileContent(absolutePath, supportsImages)
-		} catch (error) {
-			// Return a graceful tool error instead of crashing. This allows the
-			// model to see the error (e.g. "File not found") and recover by
-			// trying a different path, rather than terminating the entire task.
-			config.taskState.consecutiveMistakeCount++
-			const errorMessage = error instanceof Error ? error.message : String(error)
-			const normalizedMessage = errorMessage.startsWith("Error reading file:")
-				? errorMessage
-				: `Error reading file: ${errorMessage}`
-			return formatResponse.toolError(normalizedMessage)
-		}
-
-		// Only reset mistake count after a successful read, so that repeated
-		// file-not-found errors accumulate toward the yolo-mode mistake limit.
-		config.taskState.consecutiveMistakeCount = 0
+		const fileContent = await extractFileContent(absolutePath, supportsImages)
 
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
-
-		// Cache the result for deduplication
-		config.taskState.fileReadCache.set(cacheKey, {
-			content: typeof fileContent.text === "string" ? fileContent.text : "",
-			readCount: 1,
-		})
 
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {

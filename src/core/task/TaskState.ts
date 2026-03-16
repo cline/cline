@@ -45,10 +45,6 @@ export class TaskState {
 	didEditFile = false
 	lastToolName = "" // Track last tool used for consecutive call detection
 
-	// File read deduplication cache - prevents the model from endlessly reading the same files
-	// Maps absolute file path → { content: cached result, readCount: times read in this task }
-	fileReadCache: Map<string, { content: string; readCount: number }> = new Map()
-
 	// Error tracking
 	consecutiveMistakeCount = 0
 	doubleCheckCompletionPending = false
