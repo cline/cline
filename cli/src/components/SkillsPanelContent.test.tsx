@@ -120,7 +120,9 @@ describe("SkillsPanelContent", () => {
 			await delay()
 
 			// Navigate down to marketplace (past the one skill)
-			stdin.write("\x1B[B") // Down arrow
+			// Use vim-style navigation here because it's more deterministic in the
+			// full suite than raw arrow escape sequences on Windows.
+			stdin.write("j")
 			await delay()
 
 			stdin.write("\r") // Enter

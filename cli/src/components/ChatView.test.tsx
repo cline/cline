@@ -12,7 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { ChatView } from "./ChatView"
 
 // Helper to wait for async state updates
-const delay = (ms: number = 60) => new Promise((resolve) => setTimeout(resolve, ms))
+const delay = (ms = 60) => new Promise((resolve) => setTimeout(resolve, ms))
 
 // Type for our exit mock function
 type ExitMockFn = ReturnType<typeof vi.fn> & (() => void)
@@ -126,12 +126,16 @@ vi.mock("../utils/file-search", () => ({
 	searchWorkspaceFiles: vi.fn(async () => []),
 }))
 
-vi.mock("../utils/slash-commands", () => ({
-	extractSlashQuery: vi.fn(() => ({ inSlashMode: false, query: "", slashIndex: -1 })),
-	filterCommands: vi.fn(() => []),
-	insertSlashCommand: vi.fn((text: string) => text),
-	sortCommandsWorkflowsFirst: vi.fn((cmds: unknown[]) => cmds),
-}))
+vi.mock("../utils/slash-commands", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("../utils/slash-commands")>()
+	return {
+		...actual,
+		extractSlashQuery: vi.fn(() => ({ inSlashMode: false, query: "", slashIndex: -1 })),
+		filterCommands: vi.fn(() => []),
+		insertSlashCommand: vi.fn((text: string) => text),
+		sortCommandsWorkflowsFirst: vi.fn((cmds: unknown[]) => cmds),
+	}
+})
 
 vi.mock("../utils/input", () => ({
 	isMouseEscapeSequence: vi.fn(() => false),
