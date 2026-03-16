@@ -88,15 +88,14 @@ export class ClaudeCodeHandler implements ApiHandler {
 				const message = chunk.message
 
 				// Check for error field on the message (newer CLI format)
-				if ("error" in message && message.error) {
-					const firstContent = message.content.length > 0 ? message.content[0] : undefined
-					const errorText =
-						firstContent && "text" in firstContent ? firstContent.text : `Claude Code error: ${message.error}`
-					throw new Error(errorText)
+				if (message.error) {
+					const firstContent = message.content?.[0]
+					const errorText = firstContent && "text" in firstContent ? firstContent.text : undefined
+					throw new Error(errorText ?? `Claude Code error: ${message.error}`)
 				}
 
 				if (message.stop_reason !== null) {
-					const firstContent = message.content.length > 0 ? message.content[0] : undefined
+					const firstContent = message.content?.[0]
 					const content = firstContent && "text" in firstContent ? firstContent : undefined
 
 					// Check if content exists before accessing its properties
@@ -155,19 +154,21 @@ export class ClaudeCodeHandler implements ApiHandler {
 								},
 							}
 							break
-						default:
+						default: {
 							// Handle unknown content block types gracefully.
 							// Newer Anthropic models or CLI versions may introduce new content types
 							// (e.g., server_tool_use, mcp_tool_use). Log them instead of silently dropping.
-							Logger.warn(`Unhandled content type in Claude Code response: ${(content as any).type}`)
+							const unknownBlock = content as { type: string; text?: string }
+							Logger.warn(`Unhandled content type in Claude Code response: ${unknownBlock.type}`)
 							// If the unknown block has a text-like field, try to yield it as text
-							if ("text" in (content as any) && typeof (content as any).text === "string") {
+							if (typeof unknownBlock.text === "string") {
 								yield {
 									type: "text",
-									text: (content as any).text,
+									text: unknownBlock.text,
 								}
 							}
 							break
+						}
 					}
 				}
 
