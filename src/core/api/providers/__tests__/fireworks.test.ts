@@ -52,4 +52,46 @@ describe("FireworksHandler", () => {
 			},
 		])
 	})
+
+	it("should read cache hits from prompt_tokens_details when hit tokens are not present", async () => {
+		const handler = new FireworksHandler({
+			fireworksApiKey: "test-api-key",
+			fireworksModelId: "accounts/fireworks/models/llama-v3p1-8b-instruct",
+		})
+		const fakeClient = {
+			chat: {
+				completions: {
+					create: sinon.stub().resolves(
+						createAsyncIterable([
+							{
+								choices: [{}],
+								usage: {
+									prompt_tokens: 60,
+									completion_tokens: 12,
+									prompt_tokens_details: { cached_tokens: 20 },
+									prompt_cache_miss_tokens: 40,
+								},
+							},
+						]),
+					),
+				},
+			},
+		}
+		sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+		const chunks: any[] = []
+		for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+			chunks.push(chunk)
+		}
+
+		chunks.should.deepEqual([
+			{
+				type: "usage",
+				inputTokens: 60,
+				outputTokens: 12,
+				cacheReadTokens: 20,
+				cacheWriteTokens: 40,
+			},
+		])
+	})
 })

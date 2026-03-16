@@ -4596,6 +4596,7 @@ export const fireworksModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.6,
 		outputPrice: 3,
+		cacheWritesPrice: 0.6,
 		cacheReadsPrice: 0.1,
 		description:
 			"Moonshot's flagship open agentic model. Kimi K2.5 unifies vision and text, thinking and non-thinking modes, and single-agent and multi-agent execution.",
@@ -4607,6 +4608,7 @@ export const fireworksModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.15,
 		outputPrice: 0.6,
+		cacheWritesPrice: 0.15,
 		cacheReadsPrice: 0.07,
 		description:
 			"Reasoning-enabled Qwen3-VL model with strong multimodal understanding, long context support, and function calling.",
@@ -4627,6 +4629,7 @@ export const fireworksModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.56,
 		outputPrice: 1.68,
+		cacheWritesPrice: 0.56,
 		cacheReadsPrice: 0.28,
 		description: "DeepSeek V3.2 model tuned for high computational efficiency and strong reasoning and agent performance.",
 	},
@@ -4637,6 +4640,7 @@ export const fireworksModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.56,
 		outputPrice: 1.68,
+		cacheWritesPrice: 0.56,
 		cacheReadsPrice: 0.28,
 		description: "DeepSeek V3.1 long-context model with improved reasoning, agentic behavior, and function calling.",
 	},
