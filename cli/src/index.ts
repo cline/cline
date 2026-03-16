@@ -1149,8 +1149,8 @@ program
 		}
 	})
 
-// Initialize VCR (nock-based HTTP record/playback) before parsing commands.
-// This must happen before any HTTP requests are made so nock can intercept them.
+// Initialize VCR (HTTP record/playback) before parsing commands.
+// This must happen before any HTTP requests are made so VCR can intercept them.
 // Does nothing if CLINE_VCR env var is not set.
 if (process.env.VITEST !== "true") {
 	await initVcr(process.env.CLINE_VCR)

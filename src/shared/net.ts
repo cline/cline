@@ -118,15 +118,15 @@ export const fetch: typeof globalThis.fetch = (() => {
 	// We must use explicit string comparison because "false" is truthy in JS.
 	if (process.env.IS_STANDALONE === "true" && !process.env.CLINE_VCR) {
 		// Configure undici with ProxyAgent
-		// Skip when CLINE_VCR is set so nock can intercept via globalThis.fetch
+		// Skip when CLINE_VCR is set so VCR can intercept via globalThis.fetch
 		const agent = new EnvHttpProxyAgent({})
 		setGlobalDispatcher(agent)
 		baseFetch = undiciFetch as any as typeof globalThis.fetch
 	}
 
 	// When CLINE_VCR is set, baseFetch is null and we reference globalThis.fetch
-	// lazily at call time. This is required because nock patches globalThis.fetch
-	// AFTER module initialization, so an eagerly-captured reference would bypass nock.
+	// lazily at call time. This is required because VCR patches globalThis.fetch
+	// AFTER module initialization, so an eagerly-captured reference would bypass VCR.
 	return (input: string | URL | Request, init?: RequestInit): Promise<Response> =>
 		(mockFetch || baseFetch || globalThis.fetch)(input, init)
 })()

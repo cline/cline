@@ -1,8 +1,8 @@
 [
 	{
-		"scope": "https://api.cline.bot:443",
+		"scope": "https://api.cline.bot",
 		"method": "GET",
-		"path": "/api/v1/organizations/org-test/remote-config",
+		"path": "/api/v1/organizations/org-REDACTED/remote-config",
 		"body": "",
 		"status": 200,
 		"response": {
@@ -12,22 +12,173 @@
 			},
 			"success": true
 		},
-		"responseIsBinary": false
+		"responseIsBinary": false,
+		"contentType": "application/json"
 	},
 	{
-		"scope": "https://data.cline.bot:443",
+		"scope": "https://data.cline.bot",
 		"method": "POST",
 		"path": "/flags/?v=2&config=true",
 		"status": 200,
-		"response": [
-			"1f8b0800000000000013cd56ef6fe23810fd57d07c4e8e5f8142be71b4bda3eade56bdeabaa75245269e800fc7ced9130aadf8df4f4e4208dd76b73a69a5e54be49987f3deccb3332f80c66863ef5742e254a7594e422d2f255b5a0813262d7a9094ab17d06aa199e1422da354739445708d3b08df4879808a2d247208c9e4e8c18619c11441a872293d30c8ac566e875873841062adb820a15594328a57e035224271dc42d8f180a38d8dc85c1442f8e490c85b35b265915a5dd87b902231ce88b937080e612fe89d0dfa1e6cd0d8e2cfc1abcd4a5a19db49cd3884f03257739a4329670e61ab0cd01cb63e13eda5d16bdf51f71366c9ef36113407a1127d1a2a82594e3746c4e8521daf99d3399d240fb9fd11052bc1392a972e5a53266a00e80c956396913f28a86d5f93e22e700afca57b80365ea4588a25f473866a320b5bbfdddc396c6bfa15f66d52eeb19fab3decf71e3ce182b46efaa58efc089b743f6693de9b36198e87dd51c326fd6fdbc42d0b89daacc920fab8cd1a329bd186d4ea647d4fabd2d1ff39157fe85601166a792af92dc1fd716f180c1a825f57ef1dc106534de83fa18c758afe822985a6d1e177f23fdbb530189d059d4e43fef063f2632914fa06639da6a83872bfbc28fc3cb36490a5c74a7c1ffa238af2dab7ef142578b328e3fee8e4aeec7dac28b82554ee1f51d9fda8ea7a44248ff5f826eae7f3c7781c743e7e3c60340c3aee07fbf294fc9ba3a599cbc4e338c084319f0d16033f4878df1ff5c77d3fee8c927167dcef0c93c4e9df309933423e2108bb6767fda03fec9f0583b391072c271db38c728317db180b0af650a9e24b7e6758bc166ae9f87f1c3d3922ef8c582e8b935c2ab3799619b44efc6d2ed142f8f0b8773548582e69c651914804f2cf4aeeeabd25a6a8c84e574ca889fd934cc1a84cda6a338c75313094bd54564bbcd6cb3a7c716a03543cd3c2f900dab65d9409151dc93e3c7a20855a2377c3cb817cca6c598c6a299448f3f43c37ccd5e293905258742ea8e52a247769df94fd9c9635399acf9143f3d7c10cb0e9810796a599c45b4635b0f4c754ab4414faca358490694b2bbdf40f3b39cb5129a230e5dd2eab37c98dfc55ea782d85a552606e6453f1de03a9cbd1ac6adeb4aee3617cdb971dd48690bbf9ae6a25840fb07c16eea3e41efe3f161e3d20bd46a72a5bc5d1fdf05cc8d9f397eb671ddfff7ebededc04c9eceacbf0d324904ff2e26f7d75b5185ccf2e6fafefc18315324a5956bbcb0ac24996558dc98ce6794c773a37c7b1b2e1ce486714e99cea5c15bf419368933215a31359f526229136fcf4848b68238849fb75246252ea27e4518a64445c7579ef01534ceea888bc9c784bb4379d36b65d5f2a12e7c8f8548a787da4be62f612994b569372f9de582b774db0ea9c55609b9b0deeea7efc079cd237ef720b0000"
-		],
-		"responseIsBinary": false
+		"response": {
+			"errorsWhileComputingFlags": false,
+			"flags": {
+				"onboarding_models": {
+					"key": "onboarding_models",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 0,
+						"description": "Matched condition set 1"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 4,
+						"description": null,
+						"payload": "{\"models\":{\"x-ai/grok-code-fast-1\":{\"info\":{\"inputPrice\":0,\"outputPrice\":0},\"hidden\":false},\"openai/gpt-5-codex\":{\"id\":\"REDACTED\",\"name\":\"OpenAI: GPT-5.1 Codex\",\"hidden\":false}}}"
+					}
+				},
+				"cline-recommended-models-upstream": {
+					"key": "cline-recommended-models-upstream",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 3,
+						"description": "Matched condition set 4"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 2,
+						"description": null,
+						"payload": null
+					}
+				},
+				"webtools": {
+					"key": "webtools",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 1,
+						"description": "Matched condition set 2"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 3,
+						"description": null,
+						"payload": null
+					}
+				},
+				"remote-welcome-banners": {
+					"key": "remote-welcome-banners",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 0,
+						"description": "Matched condition set 1"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 6,
+						"description": null,
+						"payload": null
+					}
+				},
+				"extension_remote_banners_ttl": {
+					"key": "extension_remote_banners_ttl",
+					"enabled": true,
+					"variant": null,
+					"reason": {
+						"code": "condition_match",
+						"condition_index": 0,
+						"description": "Matched condition set 1"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 1,
+						"description": null,
+						"payload": "86400000"
+					}
+				},
+				"worktree-exp": {
+					"key": "worktree-exp",
+					"enabled": false,
+					"variant": null,
+					"reason": {
+						"code": "no_condition_match",
+						"condition_index": 0,
+						"description": "No matching condition set"
+					},
+					"metadata": {
+						"id": "REDACTED",
+						"version": 1,
+						"description": null,
+						"payload": null
+					}
+				}
+			},
+			"requestId": "REDACTED",
+			"evaluatedAt": 1773683241316,
+			"elementsChainAsString": true,
+			"sessionRecording": {
+				"consoleLogRecordingEnabled": true,
+				"endpoint": "/s/",
+				"eventTriggers": [],
+				"linkedFlag": null,
+				"masking": null,
+				"minimumDurationMilliseconds": null,
+				"networkPayloadCapture": null,
+				"recorderVersion": "v2",
+				"sampleRate": null,
+				"scriptConfig": {
+					"script": "posthog-recorder"
+				},
+				"triggerMatchType": null,
+				"urlBlocklist": [],
+				"urlTriggers": []
+			},
+			"hasFeatureFlags": true,
+			"defaultIdentifiedOnly": true,
+			"supportedCompression": [
+				"gzip",
+				"gzip-js"
+			],
+			"autocaptureExceptions": true,
+			"siteApps": [],
+			"logs": {
+				"captureConsoleLogs": false
+			},
+			"analytics": {
+				"endpoint": "/i/v0/e/"
+			},
+			"heatmaps": true,
+			"capturePerformance": {
+				"network_timing": true,
+				"web_vitals": true,
+				"web_vitals_allowed_metrics": null
+			},
+			"surveys": false,
+			"errorTracking": {
+				"autocaptureExceptions": true,
+				"errorTrackingAutocaptureTriggers": null,
+				"suppressionRules": []
+			},
+			"productTours": false,
+			"token": "REDACTED",
+			"captureDeadClicks": false,
+			"conversations": false,
+			"autocapture_opt_out": false
+		},
+		"responseIsBinary": false,
+		"contentType": "application/json"
 	},
 	{
-		"scope": "https://api.cline.bot:443",
+		"scope": "https://api.cline.bot",
 		"method": "GET",
-		"path": "/api/v1/organizations/org-test/remote-config",
+		"path": "/api/v1/organizations/org-REDACTED/remote-config",
 		"body": "",
 		"status": 200,
 		"response": {
@@ -37,24 +188,25 @@
 			},
 			"success": true
 		},
-		"responseIsBinary": false
+		"responseIsBinary": false,
+		"contentType": "application/json"
 	},
 	{
-		"scope": "https://data.cline.bot:443",
-		"method": "POST",
-		"path": "/batch/",
-		"status": 200,
-		"response": {
-			"status": "Ok"
-		},
-		"responseIsBinary": false
-	},
-	{
-		"scope": "https://s3.us-west-2.amazonaws.com:443",
+		"scope": "https://s3.us-west-2.amazonaws.com",
 		"method": "PUT",
-		"path": "/cline-tasks/usr-test/taskid/api_conversation_history.json",
+		"path": "/cline-tasks/tasks/usr-test/taskid/api_conversation_history.json",
 		"status": 200,
 		"response": "",
 		"responseIsBinary": false
+	},
+	{
+		"scope": "https://data.cline.bot",
+		"method": "POST",
+		"path": "/batch/",
+		"body": "",
+		"status": 200,
+		"response": "",
+		"responseIsBinary": false,
+		"contentType": "application/json"
 	}
 ]
