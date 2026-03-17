@@ -79,7 +79,7 @@ export class CliDiffServiceClient implements DiffServiceClientInterface {
  * CLI implementation of EnvService - handles environment operations
  */
 export class CliEnvServiceClient implements EnvServiceClientInterface {
-	private clipboardContent: string = ""
+	private clipboardContent = ""
 
 	private getTelemetrySetting(): proto.host.Setting {
 		// Read from StateManager - defaults to ENABLED if not set or "unset"
@@ -102,6 +102,8 @@ export class CliEnvServiceClient implements EnvServiceClientInterface {
 			version: CLI_VERSION,
 			platform: "Cline CLI - Node.js",
 			clineType: ClineClient.Cli,
+			// remoteName is intentionally omitted — the CLI runs locally on the user's machine.
+			// If CLI-in-container scenarios arise, populate this field to enable remote cadence tuning.
 		})
 	}
 

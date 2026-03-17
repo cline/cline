@@ -23,20 +23,20 @@ describe("TaskPresentationScheduler", () => {
 			})
 	})
 
-	it("reschedules an existing timer when a higher delayed priority is requested", () => {
+	it("coalesces multiple normal-priority requests into a single timer", () => {
 		const clock = sinon.useFakeTimers()
 		const flushSpy = sinon.spy(async () => {})
 
 		const scheduler = new TaskPresentationScheduler({
 			flush: flushSpy,
-			getDelayMs: (priority) => (priority === "low" ? 100 : 10),
+			getDelayMs: () => 50,
 		})
 
-		scheduler.requestFlush("low")
-		clock.tick(20)
+		scheduler.requestFlush("normal")
+		scheduler.requestFlush("normal")
 		scheduler.requestFlush("normal")
 
-		clock.tick(9)
+		clock.tick(49)
 		flushSpy.callCount.should.equal(0)
 
 		clock.tick(1)
@@ -109,5 +109,69 @@ describe("TaskPresentationScheduler", () => {
 			.catch((error: Error) => {
 				error.message.should.equal("flush failed")
 			})
+	})
+
+	it("reset() cancels pending timers without marking the scheduler as disposed", () => {
+		const clock = sinon.useFakeTimers()
+		const flushSpy = sinon.spy(async () => {})
+
+		const scheduler = new TaskPresentationScheduler({
+			flush: flushSpy,
+			getDelayMs: () => 50,
+		})
+
+		scheduler.requestFlush("normal")
+		scheduler.reset()
+
+		// The pending timer should have been cancelled
+		clock.tick(100)
+		flushSpy.callCount.should.equal(0)
+
+		// Scheduler should still be usable after reset (not disposed)
+		scheduler.requestFlush("normal")
+		clock.tick(50)
+		flushSpy.callCount.should.equal(1)
+
+		clock.restore()
+	})
+
+	it("immediate priority bypasses the timer and flushes synchronously", () => {
+		const clock = sinon.useFakeTimers()
+		const flushSpy = sinon.spy(async () => {})
+
+		const scheduler = new TaskPresentationScheduler({
+			flush: flushSpy,
+			getDelayMs: () => 100,
+		})
+
+		scheduler.requestFlush("immediate")
+		// immediate fires via void runFlushCycle, which starts synchronously
+		flushSpy.callCount.should.equal(1)
+
+		clock.restore()
+	})
+
+	it("upgrades a pending normal timer to immediate when immediate is requested", () => {
+		const clock = sinon.useFakeTimers()
+		const flushSpy = sinon.spy(async () => {})
+
+		const scheduler = new TaskPresentationScheduler({
+			flush: flushSpy,
+			getDelayMs: () => 100,
+		})
+
+		scheduler.requestFlush("normal")
+		clock.tick(50)
+		flushSpy.callCount.should.equal(0)
+
+		// Upgrade to immediate — should cancel the timer and flush now
+		scheduler.requestFlush("immediate")
+		flushSpy.callCount.should.equal(1)
+
+		// Original timer should not fire again
+		clock.tick(100)
+		flushSpy.callCount.should.equal(1)
+
+		clock.restore()
 	})
 })

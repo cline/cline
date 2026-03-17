@@ -1,4 +1,4 @@
-type PresentationPriority = "immediate" | "normal" | "low"
+type PresentationPriority = "immediate" | "normal"
 
 type TaskPresentationSchedulerOptions = {
 	flush: () => Promise<void>
@@ -93,6 +93,24 @@ export class TaskPresentationScheduler {
 		await this.runFlushCycle({ rethrowErrors: true })
 	}
 
+	/**
+	 * Cancel any pending timers and clear queued state without marking the scheduler
+	 * as disposed. Use this between API request retries within the same task to prevent
+	 * stale timers from firing against reset streaming state.
+	 */
+	reset(): void {
+		if (this.scheduledTimer) {
+			this.clearTimeoutFn(this.scheduledTimer)
+			this.scheduledTimer = undefined
+		}
+		this.scheduledPriority = undefined
+		this.pendingPriority = undefined
+		this.pendingWhileFlushing = false
+		// Note: we intentionally do NOT clear flushInProgress or currentFlushCompletion
+		// here. If a flush is in-flight it will complete naturally. The reset only
+		// prevents *new* timer-driven flushes from firing on stale state.
+	}
+
 	async dispose(): Promise<void> {
 		this.disposed = true
 		if (this.scheduledTimer) {
@@ -170,9 +188,8 @@ export class TaskPresentationScheduler {
 		}
 
 		const rank: Record<PresentationPriority, number> = {
-			low: 0,
-			normal: 1,
-			immediate: 2,
+			normal: 0,
+			immediate: 1,
 		}
 
 		return rank[next] > rank[current] ? next : current

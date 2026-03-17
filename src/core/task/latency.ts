@@ -1,6 +1,7 @@
+import { Logger } from "@/shared/services/Logger"
 import type { PresentationPriority } from "./TaskPresentationScheduler"
 
-export type TaskLatencyTrigger = "text" | "reasoning" | "tool" | "finalization" | "other"
+export type TaskLatencyTrigger = "text" | "reasoning" | "tool"
 
 function readBooleanEnv(envVarName: string): boolean {
 	const rawValue = process.env[envVarName]?.toLowerCase()
@@ -15,6 +16,7 @@ function readCadenceOverride(envVarName: string): number | undefined {
 
 	const parsed = Number.parseInt(rawValue, 10)
 	if (!Number.isFinite(parsed) || parsed < 0) {
+		Logger.warn(`[latency] Ignoring invalid cadence override ${envVarName}="${rawValue}" (must be a non-negative integer)`)
 		return undefined
 	}
 
@@ -25,6 +27,18 @@ function getCadenceOverride(args: { isRemoteWorkspace: boolean; localEnvVar: str
 	return args.isRemoteWorkspace ? readCadenceOverride(args.remoteEnvVar) : readCadenceOverride(args.localEnvVar)
 }
 
+/**
+ * Determines whether the host is connected to a remote workspace.
+ *
+ * The primary signal is `remoteName` which is populated from `vscode.env.remoteName`
+ * (e.g. `"ssh-remote"`, `"dev-container"`, `"codespaces"`). When this field is present
+ * the host is definitively remote.
+ *
+ * The `platform`/`version` heuristic is a best-effort fallback for non-VSCode hosts
+ * (e.g. JetBrains) that may not populate `remoteName` but include "remote" in their
+ * platform or version strings. This can produce false positives for strings like
+ * "1.0.0-remote-fix" — prefer populating `remoteName` in host bridges when possible.
+ */
 export function isRemoteWorkspaceEnvironment(host: { platform?: string; version?: string; remoteName?: string | null }): boolean {
 	if (host.remoteName) {
 		return true
@@ -46,16 +60,14 @@ export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: P
 
 	const override = getCadenceOverride({
 		isRemoteWorkspace,
-		localEnvVar: priority === "low" ? "CLINE_PRESENTATION_LOW_CADENCE_MS" : "CLINE_PRESENTATION_CADENCE_MS",
-		remoteEnvVar: priority === "low" ? "CLINE_REMOTE_PRESENTATION_LOW_CADENCE_MS" : "CLINE_REMOTE_PRESENTATION_CADENCE_MS",
+		localEnvVar: "CLINE_PRESENTATION_CADENCE_MS",
+		remoteEnvVar: "CLINE_REMOTE_PRESENTATION_CADENCE_MS",
 	})
 	if (override !== undefined) {
 		return override
 	}
 
-	if (priority === "low") {
-		return isRemoteWorkspace ? 125 : 50
-	}
-
+	// Default cadences: remote workspaces use a higher interval to reduce
+	// message-passing overhead over the network.
 	return isRemoteWorkspace ? 90 : 40
 }

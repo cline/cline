@@ -550,6 +550,10 @@ export class Task {
 
 		this.commandExecutor = new CommandExecutor(commandExecutorConfig, commandExecutorCallbacks)
 
+		// Note: the scheduler's getDelayMs reads this.isRemoteWorkspaceEnvironment which is
+		// populated asynchronously by remoteWorkspaceDetectionPromise. The promise is awaited
+		// before streaming begins (in recursivelyMakeClineRequests) so the cadence is always
+		// correct by the time the first flush is scheduled.
 		this.presentationScheduler = new TaskPresentationScheduler({
 			flush: async () => this.flushAssistantPresentation(),
 			getDelayMs: (priority) => getPresentationCadenceMs(this.isRemoteWorkspaceEnvironment, priority),
@@ -2766,6 +2770,7 @@ export class Task {
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
 			this.streamHandler.reset()
+			this.presentationScheduler.reset()
 			this.taskState.toolUseIdMap.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
@@ -2779,6 +2784,7 @@ export class Task {
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 			let didFinalizeReasoningForUi = false
+			let didPresentAnyContent = false // Tracks whether any content (text or reasoning) has been flushed to the UI
 
 			const finalizePendingReasoningMessage = async (thinking: string): Promise<boolean> => {
 				const pendingReasoningIndex = findLastIndex(
@@ -2830,7 +2836,10 @@ export class Task {
 					if (!chunk) {
 						break
 					}
-					const hadVisibleAssistantContent = assistantMessage.trim().length > 0
+					// Track whether any content (text or reasoning) has been presented to the UI.
+					// Using assistantMessage alone would miss reasoning-only streams where text hasn't
+					// started yet, causing every reasoning chunk to get "immediate" priority.
+					const hadVisibleAssistantContent = didPresentAnyContent
 					if (!this.taskState.taskFirstTokenTimeMs) {
 						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
 					}
@@ -2861,6 +2870,7 @@ export class Task {
 								"reasoning",
 								this.getPresentationPriorityForChunk({ chunkType: "reasoning", hadVisibleAssistantContent }),
 							)
+							didPresentAnyContent = true
 
 							break
 						}
