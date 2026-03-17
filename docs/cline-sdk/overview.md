@@ -180,12 +180,15 @@ await agent.prompt({
 
 #### Stop Reasons
 
-`prompt()` resolves with a `stopReason`:
+`prompt()` resolves with a `stopReason`. The ACP `StopReason` type defines the full set of possible values:
 
 | Value | Meaning |
 |-------|---------|
 | `"end_turn"` | Agent finished normally (completed task or waiting for user input) |
+| `"cancelled"` | The prompt was cancelled via `cancel()` |
 | `"error"` | An error occurred |
+
+> **Note:** Cline currently returns `"end_turn"` or `"error"`. Other `StopReason` values like `"max_tokens"` or `"cancelled"` are part of the ACP type but may not be produced by the current implementation.
 
 ### Streaming Events
 
@@ -343,6 +346,8 @@ interface ClineAgentOptions {
   debug?: boolean
   /** Custom Cline config directory (default: ~/.cline) */
   clineDir?: string
+  /** Additional runtime hooks directory */
+  hooksDir?: string
 }
 ```
 
@@ -374,7 +379,7 @@ const response = await agent.initialize({
     promptCapabilities: { image: true, audio: false, embeddedContext: true },
     mcpCapabilities: { http: true, sse: false }
   },
-  agentInfo: { name: "cline", version: "2.2.3" },
+  agentInfo: { name: "cline", version: "<installed_version>" },
   authMethods: [
     { id: "cline-oauth", name: "Sign in with Cline", description: "..." },
     { id: "openai-codex-oauth", name: "Sign in with ChatGPT", description: "..." }
@@ -411,8 +416,8 @@ const session = await agent.newSession({
     currentModeId: "act"
   },
   models: {
-    currentModelId: "anthropic/claude-sonnet-4-5-20241022",
-    availableModels: [{ modelId: "anthropic/claude-3-5-sonnet-20241022", name: "..." }]
+    currentModelId: "anthropic/claude-sonnet-4-20250514",
+    availableModels: [{ modelId: "anthropic/claude-sonnet-4-20250514", name: "claude-sonnet-4-20250514" }, ...]
   }
 }
 ```
@@ -487,11 +492,18 @@ await agent.shutdown()
 
 #### `setPermissionHandler(handler)`
 
-Set a callback to handle tool permission requests.
+Set a callback to handle tool permission requests. The handler receives a `RequestPermissionRequest` and must return a `Promise<RequestPermissionResponse>`.
 
 ```typescript
-agent.setPermissionHandler((request, resolve) => {
-  resolve({ outcome: { outcome: "selected", optionId: "allow_once" } })
+agent.setPermissionHandler(async (request) => {
+  // request.toolCall — details about what the agent wants to do
+  // request.options — available choices (allow_once, reject_once, etc.)
+  const allow = request.options.find(o => o.kind === "allow_once")
+  return {
+    outcome: allow
+      ? { outcome: "selected", optionId: allow.optionId }
+      : { outcome: "cancelled" }
+  }
 })
 ```
 
@@ -519,7 +531,7 @@ for (const [sessionId, session] of agent.sessions) {
 import { ClineAgent } from "cline";
 
 async function runTask(taskPrompt: string, cwd: string) {
-    const agent = new ClineAgent({ clineDir: "/Users/maxpaulus/.cline" });
+    const agent = new ClineAgent({ clineDir: "/path/to/.cline" });
 
     await agent.initialize({
         protocolVersion: 1,
@@ -642,23 +654,34 @@ All types are re-exported from the `cline` package. Key types:
 |------|-------------|
 | `ClineAgent` | Main agent class |
 | `ClineSessionEmitter` | Typed event emitter for session events |
-| `ClineAgentOptions` | Constructor options |
+| `ClineAgentOptions` | Constructor options (`debug`, `clineDir`, `hooksDir`) |
 | `ClineAcpSession` | Session metadata (read-only) |
 | `ClineSessionEvents` | Event name → handler signature map |
-| `PermissionHandler` | `(request, resolve) => void` callback |
-| `PermissionResolver` | `(response) => void` callback |
+| `AcpSessionStatus` | Session lifecycle enum: `Idle`, `Processing`, `Cancelled` |
+| `AcpSessionState` | Session state tracking (status, pending tool calls) |
+| `PermissionHandler` | `(request: RequestPermissionRequest) => Promise<RequestPermissionResponse>` |
+| `RequestPermissionRequest` | Permission request details (sessionId, toolCall, options) |
+| `RequestPermissionResponse` | Permission response with outcome |
+| `PermissionOption` | Permission choice (`kind`, `optionId`, `name`) |
 | `SessionUpdate` | Union of all session update types |
 | `SessionUpdateType` | Discriminator values (`"agent_message_chunk"`, `"tool_call"`, etc.) |
+| `SessionUpdatePayload` | Typed payload for a given `SessionUpdateType` |
+| `SessionModelState` | Current model and available models |
 | `ToolCall` | Tool call details (id, title, kind, status, content) |
 | `ToolCallUpdate` | Partial update to an existing tool call |
 | `ToolCallStatus` | `"pending" \| "in_progress" \| "completed" \| "failed"` |
 | `ToolKind` | `"read" \| "edit" \| "delete" \| "execute" \| "search" \| ...` |
 | `StopReason` | `"end_turn" \| "cancelled" \| "error" \| "max_tokens" \| ...` |
 | `ContentBlock` | `TextContent \| ImageContent \| AudioContent \| ...` |
+| `TextContent` / `ImageContent` / `AudioContent` | Individual content block types |
 | `McpServer` | MCP server configuration (stdio, http) |
+| `ModelInfo` | Model metadata (`modelId`, `name`) |
 | `PromptRequest` / `PromptResponse` | Prompt call types |
 | `NewSessionRequest` / `NewSessionResponse` | Session creation types |
 | `InitializeRequest` / `InitializeResponse` | Initialization types |
+| `SetSessionModeRequest` / `SetSessionModeResponse` | Mode switching types |
+| `SetSessionModelRequest` / `SetSessionModelResponse` | Model switching types |
+| `TranslatedMessage` | Result of translating a Cline message to ACP updates |
 
 See the [ACP Schema](https://agentclientprotocol.com/protocol/schema) for the full type definitions.
 
