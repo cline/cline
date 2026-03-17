@@ -394,7 +394,7 @@ export class OcaHandler implements ApiHandler {
 				strict: tool.function.strict ?? true, // Responses API defaults to strict mode
 			}))
 
-		let temperature: number | undefined = this.options.ocaModelInfo?.temperature
+		let temperature: number | undefined = this.options.ocaModelInfo?.temperature ?? 0
 		const maxOutputTokens: number | undefined = this.options.ocaModelInfo?.maxTokens
 
 		const ocaModelInfo = this.options.ocaModelInfo
