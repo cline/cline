@@ -114,9 +114,16 @@ import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
+import {
+	getPresentationCadenceMs,
+	isPresentationSchedulingDisabled,
+	isRemoteWorkspaceEnvironment,
+	type TaskLatencyTrigger,
+} from "./latency"
 import { MessageStateHandler } from "./message-state"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
+import { type PresentationPriority, TaskPresentationScheduler } from "./TaskPresentationScheduler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -256,6 +263,10 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
+	private isRemoteWorkspaceEnvironment = false
+	private readonly remoteWorkspaceDetectionPromise: Promise<void>
+	private readonly presentationScheduler: TaskPresentationScheduler
+	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
 
 	constructor(params: TaskParams) {
 		const {
@@ -283,6 +294,14 @@ export class Task {
 
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
+		this.remoteWorkspaceDetectionPromise = HostProvider.env
+			.getHostVersion({})
+			.then((hostVersion) => {
+				this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(hostVersion)
+			})
+			.catch((error) => {
+				Logger.debug(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
+			})
 		this.controller = controller
 		this.mcpHub = mcpHub
 		this.updateTaskHistory = updateTaskHistory
@@ -531,6 +550,12 @@ export class Task {
 
 		this.commandExecutor = new CommandExecutor(commandExecutorConfig, commandExecutorCallbacks)
 
+		this.presentationScheduler = new TaskPresentationScheduler({
+			flush: async () => this.flushAssistantPresentation(),
+			getDelayMs: (priority) => getPresentationCadenceMs(this.isRemoteWorkspaceEnvironment, priority),
+			onFlushError: (error) => Logger.debug(`[Task] Failed scheduled presentation flush: ${error}`),
+		})
+
 		this.toolExecutor = new ToolExecutor(
 			this.taskState,
 			this.messageStateHandler,
@@ -567,6 +592,42 @@ export class Task {
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
 		)
+	}
+
+	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
+		if (this.presentationSchedulingDisabled) {
+			void this.flushAssistantPresentation().catch((error) =>
+				Logger.debug(`[Task] Failed immediate presentation flush: ${error}`),
+			)
+			return
+		}
+
+		// Immediate semantic boundaries: first visible token, tool transitions, finalization, and cleanup drains.
+		Logger.debug(`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`)
+		this.presentationScheduler.requestFlush(priority)
+	}
+
+	private async flushAssistantPresentation() {
+		await this.presentAssistantMessage()
+	}
+
+	private async flushAssistantPresentationOrThrow() {
+		await this.presentationScheduler.flushNow()
+	}
+
+	private getPresentationPriorityForChunk(args: {
+		chunkType: "text" | "reasoning" | "tool_calls"
+		hadVisibleAssistantContent: boolean
+	}): PresentationPriority {
+		if (!args.hadVisibleAssistantContent) {
+			return "immediate"
+		}
+
+		if (args.chunkType === "tool_calls") {
+			return "immediate"
+		}
+
+		return "normal"
 	}
 
 	// Communicate with webview
@@ -1583,6 +1644,7 @@ export class Task {
 			if (this.FocusChainManager) {
 				this.FocusChainManager.dispose()
 			}
+			await this.presentationScheduler.dispose()
 		} finally {
 			// Release task folder lock
 			if (this.taskLockAcquired) {
@@ -2271,6 +2333,10 @@ export class Task {
 			throw new Error("Task instance aborted")
 		}
 
+		// Ensure remote workspace detection completes before streaming begins so
+		// the presentation scheduler uses the correct cadence from the first flush.
+		await this.remoteWorkspaceDetectionPromise
+
 		// Increment API request counter for focus chain list management
 		this.taskState.apiRequestCount++
 		this.taskState.apiRequestsSinceLastTodoUpdate++
@@ -2764,6 +2830,7 @@ export class Task {
 					if (!chunk) {
 						break
 					}
+					const hadVisibleAssistantContent = assistantMessage.trim().length > 0
 					if (!this.taskState.taskFirstTokenTimeMs) {
 						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
 					}
@@ -2790,6 +2857,10 @@ export class Task {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
+							this.scheduleAssistantPresentation(
+								"reasoning",
+								this.getPresentationPriorityForChunk({ chunkType: "reasoning", hadVisibleAssistantContent }),
+							)
 
 							break
 						}
@@ -2812,6 +2883,10 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							this.scheduleAssistantPresentation(
+								"tool",
+								this.getPresentationPriorityForChunk({ chunkType: "tool_calls", hadVisibleAssistantContent }),
+							)
 							break
 						}
 						case "text": {
@@ -2839,15 +2914,13 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
+							this.scheduleAssistantPresentation(
+								"text",
+								this.getPresentationPriorityForChunk({ chunkType: "text", hadVisibleAssistantContent }),
+							)
 							break
 						}
 					}
-
-					// Present content once per chunk. Calling this from multiple case branches can
-					// race partial updates and duplicate text rows in the chat.
-					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
-					)
 
 					if (this.taskState.abort) {
 						this.api.abort?.()
@@ -3075,10 +3148,7 @@ export class Task {
 			// in case there are native tool calls pending
 			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
 			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
-
-			if (partialBlocks.length > 0) {
-				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
-			}
+			await this.flushAssistantPresentationOrThrow() // finalization is immediate so no coalesced content remains pending
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
