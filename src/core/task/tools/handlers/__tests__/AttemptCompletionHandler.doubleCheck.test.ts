@@ -97,14 +97,17 @@ describe("AttemptCompletionHandler double-check completion", () => {
 		it("should start as false", () => {
 			taskState.doubleCheckCompletionPending.should.be.false()
 			taskState.doubleCheckCompletionLatched.should.be.false()
+			taskState.doubleCheckCompletionRejectionCount.should.equal(0)
 		})
 
 		it("should reset with new TaskState (new task)", () => {
 			taskState.doubleCheckCompletionPending = true
 			taskState.doubleCheckCompletionLatched = true
+			taskState.doubleCheckCompletionRejectionCount = 3
 			const newTaskState = new TaskState()
 			newTaskState.doubleCheckCompletionPending.should.be.false()
 			newTaskState.doubleCheckCompletionLatched.should.be.false()
+			newTaskState.doubleCheckCompletionRejectionCount.should.equal(0)
 		})
 	})
 })

@@ -349,6 +349,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				config.taskState.didEditFile = true
 				config.taskState.doubleCheckCompletionPending = false
 				config.taskState.doubleCheckCompletionLatched = false
+				config.taskState.doubleCheckCompletionRejectionCount = 0
 			}
 
 			for (const [path, result] of Object.entries(applyResults)) {

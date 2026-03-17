@@ -20,6 +20,65 @@ import { getTaskCompletionTelemetry } from "../utils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
 const TASK_PREVIEW_MAX_CHARS = 8000
+export const DOUBLE_CHECK_MAX_GATE_REJECTIONS = 3
+export const DOUBLE_CHECK_FINALIZATION_RESERVE_SEC = 90
+const DOUBLE_CHECK_TASK_TIMEOUT_ENV_KEY = "CLINE_TASK_TIMEOUT_SECONDS"
+
+export type DoubleCheckGateBypassReason = "max_gate_rejections" | "finalization_reserve"
+
+export function resolveDoubleCheckTaskTimeoutSeconds(env: NodeJS.ProcessEnv = process.env): number | undefined {
+	const rawValue = env[DOUBLE_CHECK_TASK_TIMEOUT_ENV_KEY]
+	if (!rawValue) {
+		return undefined
+	}
+
+	const parsed = Number.parseInt(rawValue, 10)
+	return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined
+}
+
+export function evaluateDoubleCheckGateFuse(args: {
+	rejectionCount: number
+	taskStartTimeMs: number
+	taskTimeoutSeconds?: number
+	maxGateRejections?: number
+	finalizationReserveSec?: number
+	nowMs?: number
+}): {
+	shouldBypass: boolean
+	reason?: DoubleCheckGateBypassReason
+	remainingSeconds?: number
+} {
+	const maxGateRejections = args.maxGateRejections ?? DOUBLE_CHECK_MAX_GATE_REJECTIONS
+	if (args.rejectionCount >= maxGateRejections) {
+		return {
+			shouldBypass: true,
+			reason: "max_gate_rejections",
+		}
+	}
+
+	if (args.taskTimeoutSeconds === undefined) {
+		return {
+			shouldBypass: false,
+		}
+	}
+
+	const nowMs = args.nowMs ?? Date.now()
+	const elapsedSeconds = Math.max(0, (nowMs - args.taskStartTimeMs) / 1000)
+	const remainingSeconds = args.taskTimeoutSeconds - elapsedSeconds
+	const finalizationReserveSec = args.finalizationReserveSec ?? DOUBLE_CHECK_FINALIZATION_RESERVE_SEC
+	if (remainingSeconds <= finalizationReserveSec) {
+		return {
+			shouldBypass: true,
+			reason: "finalization_reserve",
+			remainingSeconds,
+		}
+	}
+
+	return {
+		shouldBypass: false,
+		remainingSeconds,
+	}
+}
 
 function getInitialTaskPreview(config: TaskConfig): string | undefined {
 	const firstTaskMessage = config.messageState
@@ -71,29 +130,55 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// - Latch remains until invalidated by a later edit.
 		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionLatched) {
 			if (!config.taskState.doubleCheckCompletionPending) {
-				config.taskState.doubleCheckCompletionPending = true
-				// Remove the partial completion_result message that was shown during streaming
-				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
+				const nextRejectionCount = config.taskState.doubleCheckCompletionRejectionCount + 1
+				config.taskState.doubleCheckCompletionRejectionCount = nextRejectionCount
 
-				const taskPreview = getInitialTaskPreview(config)
-				const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
+				const fuseDecision = evaluateDoubleCheckGateFuse({
+					rejectionCount: nextRejectionCount,
+					taskStartTimeMs: config.taskState.taskStartTimeMs,
+					taskTimeoutSeconds: resolveDoubleCheckTaskTimeoutSeconds(),
+				})
 
-				return formatResponse.toolError(
-					"Before completing, re-verify your work against the original task requirements. Check that:\n" +
-						"1. All requested changes have been made\n" +
-						"2. No steps were skipped or partially completed\n" +
-						"3. Edge cases and error handling are addressed\n" +
-						"4. The solution matches what was asked for, not just what was convenient\n" +
-						"5. Output files contain exactly what was specified--no extra columns, fields, debug output, or commentary\n" +
-						"6. If the task specifies numerical thresholds or accuracy targets, verify your result meets the criteria. If close but not passing, iterate rather than declaring completion" +
-						taskSection +
-						"\n\nIf everything checks out, call attempt_completion again with your final result.",
-				)
+				if (!fuseDecision.shouldBypass) {
+					config.taskState.doubleCheckCompletionPending = true
+					// Remove the partial completion_result message that was shown during streaming
+					await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
+
+					const taskPreview = getInitialTaskPreview(config)
+					const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
+
+					return formatResponse.toolError(
+						"Before completing, re-verify your work against the original task requirements. Check that:\n" +
+							"1. All requested changes have been made\n" +
+							"2. No steps were skipped or partially completed\n" +
+							"3. Edge cases and error handling are addressed\n" +
+							"4. The solution matches what was asked for, not just what was convenient\n" +
+							"5. Output files contain exactly what was specified--no extra columns, fields, debug output, or commentary\n" +
+							"6. If the task specifies numerical thresholds or accuracy targets, verify your result meets the criteria. If close but not passing, iterate rather than declaring completion" +
+							taskSection +
+							"\n\nIf everything checks out, call attempt_completion again with your final result.",
+					)
+				}
+
+				config.taskState.doubleCheckCompletionPending = false
+				config.taskState.doubleCheckCompletionLatched = true
+
+				const reasonText =
+					fuseDecision.reason === "finalization_reserve"
+						? `Bypassing completion re-check: remaining task budget (${Math.max(
+								0,
+								Math.floor(fuseDecision.remainingSeconds ?? 0),
+							)}s) is within finalization reserve (${DOUBLE_CHECK_FINALIZATION_RESERVE_SEC}s).`
+						: `Bypassing completion re-check after ${nextRejectionCount} gate rejections to avoid retry loops.`
+
+				Logger.warn(`[AttemptCompletionHandler] ${reasonText}`)
+				await config.callbacks.say("info", reasonText)
 			}
 
 			// Follow-up completion attempt passes and sets the latch.
 			config.taskState.doubleCheckCompletionPending = false
 			config.taskState.doubleCheckCompletionLatched = true
+			config.taskState.doubleCheckCompletionRejectionCount = 0
 		}
 
 		// Run PreToolUse hook before execution
