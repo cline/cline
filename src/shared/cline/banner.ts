@@ -87,6 +87,22 @@ export interface BannerAction {
  */
 
 export const BANNER_DATA: BannerCardData[] = [
+	// Kanban launch banner
+	{
+		id: "kanban-launch-2026-mar-16",
+		icon: "layout-dashboard",
+		title: "Introducing Kanban",
+		description:
+			"Run many CLI agents in parallel with isolated worktrees and real-time diffs. Install with `npm i -g kanban`.",
+		actions: [
+			{
+				title: "View on GitHub",
+				action: BannerActionType.Link,
+				arg: "https://github.com/cline/kanban",
+			},
+		],
+	},
+
 	// Sonnet 4.6 banner
 	{
 		// Bump this version string when copy/CTA changes and you want the banner to reappear.

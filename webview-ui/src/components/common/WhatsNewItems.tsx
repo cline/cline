@@ -31,6 +31,17 @@ export const WhatsNewItems: React.FC<WhatsNewItemsProps> = ({
 
 	return (
 		<ul className="text-sm pl-3 list-disc" style={{ color: "var(--vscode-descriptionForeground)" }}>
+			<li className="mb-2">
+				<strong>Introducing Kanban:</strong> Run many CLI agents in parallel with worktrees and real-time diffs. Install
+				with <code style={inlineCodeStyle}>npm i -g kanban</code> or <code style={inlineCodeStyle}>npx kanban</code>.{" "}
+				<a
+					href="https://github.com/cline/kanban"
+					rel="noopener noreferrer"
+					style={{ color: "var(--vscode-textLink-foreground)" }}
+					target="_blank">
+					View on GitHub
+				</a>
+			</li>
 			{hasWelcomeBanners ? (
 				welcomeBanners.map((banner) => (
 					<li className="mb-2" key={banner.id}>
