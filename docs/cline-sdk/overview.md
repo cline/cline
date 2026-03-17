@@ -186,7 +186,9 @@ await agent.prompt({
 | Value | Meaning |
 |-------|---------|
 | `"end_turn"` | Agent finished normally (completed task or waiting for user input) |
-| `"cancelled"` | The prompt was cancelled via `cancel()` |
+| Value | Meaning |
+|-------|---------|
+| `"end_turn"` | Agent finished normally (completed task or waiting for user input) |
 | `"error"` | An error occurred |
 
 > **Note:** Cline currently returns `"end_turn"` or `"error"`. Other `StopReason` values like `"max_tokens"` or `"cancelled"` are part of the ACP type but may not be produced by the current implementation.
@@ -418,7 +420,7 @@ const session = await agent.newSession({
   },
   models: {
     currentModelId: "anthropic/claude-sonnet-4-20250514",
-    availableModels: [{ modelId: "anthropic/claude-sonnet-4-20250514", name: "claude-sonnet-4-20250514" }, ...]
+    availableModels: [{ modelId: "anthropic/claude-sonnet-4-20250514", name: "claude-sonnet-4-20250514" } /* ... */]
   }
 }
 ```
