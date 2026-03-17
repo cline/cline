@@ -1,5 +1,6 @@
 ---
 title: "Cline SDK"
+sidebarTitle: "SDK (Programmatic Use)"
 description: "Embed Cline as a programmable coding agent in your Node.js applications using an ACP-compatible TypeScript API."
 ---
 
