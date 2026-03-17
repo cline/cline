@@ -264,6 +264,7 @@ export class Task {
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
 	private isRemoteWorkspaceEnvironment = false
+	private remoteWorkspaceDetectionSettled = false
 	private readonly remoteWorkspaceDetectionPromise: Promise<void>
 	private readonly presentationScheduler: TaskPresentationScheduler
 	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
@@ -301,6 +302,9 @@ export class Task {
 			})
 			.catch((error) => {
 				Logger.debug(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
+			})
+			.finally(() => {
+				this.remoteWorkspaceDetectionSettled = true
 			})
 		this.controller = controller
 		this.mcpHub = mcpHub
@@ -556,7 +560,17 @@ export class Task {
 		// correct by the time the first flush is scheduled.
 		this.presentationScheduler = new TaskPresentationScheduler({
 			flush: async () => this.flushAssistantPresentation(),
-			getDelayMs: (priority) => getPresentationCadenceMs(this.isRemoteWorkspaceEnvironment, priority),
+			getDelayMs: (priority) => {
+				if (!this.remoteWorkspaceDetectionSettled) {
+					// This should never fire in production because recursivelyMakeClineRequests
+					// awaits remoteWorkspaceDetectionPromise before the first flush is scheduled.
+					// If it does fire, we fall back to the local cadence (safe default).
+					Logger.warn(
+						`[Task ${taskId}] getDelayMs called before remote workspace detection settled — using local cadence as fallback`,
+					)
+				}
+				return getPresentationCadenceMs(this.isRemoteWorkspaceEnvironment, priority)
+			},
 			onFlushError: (error) => Logger.debug(`[Task] Failed scheduled presentation flush: ${error}`),
 		})
 
@@ -601,7 +615,7 @@ export class Task {
 	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
 		if (this.presentationSchedulingDisabled) {
 			void this.flushAssistantPresentation().catch((error) =>
-				Logger.debug(`[Task] Failed immediate presentation flush: ${error}`),
+				Logger.warn(`[Task] Failed immediate presentation flush: ${error}`),
 			)
 			return
 		}
@@ -2897,6 +2911,7 @@ export class Task {
 								"tool",
 								this.getPresentationPriorityForChunk({ chunkType: "tool_calls", hadVisibleAssistantContent }),
 							)
+							didPresentAnyContent = true
 							break
 						}
 						case "text": {
@@ -2928,6 +2943,7 @@ export class Task {
 								"text",
 								this.getPresentationPriorityForChunk({ chunkType: "text", hadVisibleAssistantContent }),
 							)
+							didPresentAnyContent = true
 							break
 						}
 					}

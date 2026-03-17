@@ -34,19 +34,14 @@ function getCadenceOverride(args: { isRemoteWorkspace: boolean; localEnvVar: str
  * (e.g. `"ssh-remote"`, `"dev-container"`, `"codespaces"`). When this field is present
  * the host is definitively remote.
  *
- * The `platform`/`version` heuristic is a best-effort fallback for non-VSCode hosts
- * (e.g. JetBrains) that may not populate `remoteName` but include "remote" in their
- * platform or version strings. This can produce false positives for strings like
- * "1.0.0-remote-fix" — prefer populating `remoteName` in host bridges when possible.
+ * For non-VSCode hosts (e.g. JetBrains) that do not populate `remoteName`, this
+ * function conservatively returns `false` and uses the local cadence. This avoids
+ * false positives from version strings that happen to contain the word "remote"
+ * (e.g. `"1.0.0-remote-fix"`). Host bridges for remote-capable environments should
+ * populate `remoteName` explicitly to opt in to the higher cadence.
  */
 export function isRemoteWorkspaceEnvironment(host: { platform?: string; version?: string; remoteName?: string | null }): boolean {
-	if (host.remoteName) {
-		return true
-	}
-
-	const platform = host.platform?.toLowerCase() ?? ""
-	const version = host.version?.toLowerCase() ?? ""
-	return platform.includes("remote") || version.includes("remote")
+	return !!host.remoteName
 }
 
 export function isPresentationSchedulingDisabled(): boolean {

@@ -78,6 +78,15 @@ export class TaskPresentationScheduler {
 		}, delayMs)
 	}
 
+	/**
+	 * Flush immediately and await completion.
+	 *
+	 * If the scheduler has already been disposed this is a no-op and resolves
+	 * without error. Callers that need a guarantee that the final presentation
+	 * was delivered should ensure `dispose()` has not been called before
+	 * invoking `flushNow()` (the task streaming finalization path does this
+	 * correctly because `dispose()` is only called during `abortTask()`).
+	 */
 	async flushNow(): Promise<void> {
 		if (this.disposed) {
 			return
@@ -99,6 +108,9 @@ export class TaskPresentationScheduler {
 	 * stale timers from firing against reset streaming state.
 	 */
 	reset(): void {
+		if (this.disposed) {
+			return
+		}
 		if (this.scheduledTimer) {
 			this.clearTimeoutFn(this.scheduledTimer)
 			this.scheduledTimer = undefined
@@ -137,7 +149,11 @@ export class TaskPresentationScheduler {
 			if (options.rethrowErrors && inFlightResult?.error) {
 				throw inFlightResult.error
 			}
-			if (this.disposed || !this.pendingPriority) {
+			// Re-check flushInProgress: another concurrent caller may have already
+			// started a new flush cycle after the same in-flight flush resolved.
+			// Without this guard both callers would proceed past the pendingPriority
+			// check and start concurrent flushes against the same presentation state.
+			if (this.flushInProgress || this.disposed || !this.pendingPriority) {
 				return
 			}
 		}
