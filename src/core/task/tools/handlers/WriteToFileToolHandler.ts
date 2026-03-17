@@ -360,6 +360,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			config.taskState.consecutiveMistakeCount = 0
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+			config.taskState.doubleCheckCompletionPending = false
+			config.taskState.doubleCheckCompletionLatched = false
+			config.taskState.doubleCheckCompletionRejectionCount = 0
 
 			// Track file edit operation
 			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
