@@ -4,14 +4,31 @@ set -euo pipefail
 # Script to add endpoints.json to a JetBrains plugin ZIP for enterprise distribution
 # Usage: ./add-endpoints-to-jetbrains.sh <source.zip> <output.zip> <endpoints.json>
 
+#!/bin/bash
+
 if [ "$#" -ne 3 ]; then
-    echo "Error: Invalid number of arguments"
-    echo "Usage: $0 <source.zip> <output.zip> <endpoints.json>"
-    echo ""
-    echo "Example:"
-    echo "  $0 cline-jetbrains-3.55.0.zip cline-jetbrains-3.55.0-enterprise.zip endpoints.json"
+    script_name=$(basename "$0")
+    printf "\033[1;31mError:\033[0m Invalid number of arguments\n\n"
+    printf "Usage: %s <source.zip> <output.zip> <endpoints.json>\n\n" "$script_name"
+    printf "Example:\n  %s cline-jetbrains-3.55.0.zip cline-jetbrains-3.55.0-enterprise.zip endpoints.json\n" "$script_name"
     exit 1
 fi
+
+SOURCE="$1"
+OUTPUT="$2"
+ENDPOINTS="$3"
+
+if [ ! -f "$SOURCE" ]; then
+    printf "\033[1;31mError:\033[0m Source file '%s' does not exist\n" "$SOURCE"
+    exit 1
+fi
+
+if [ ! -f "$ENDPOINTS" ]; then
+    printf "\033[1;31mError:\033[0m Endpoints file '%s' does not exist\n" "$ENDPOINTS"
+    exit 1
+fi
+
+echo "All input files exist. Proceeding with processing..."
 
 SOURCE_ZIP="$1"
 OUTPUT_ZIP="$2"
