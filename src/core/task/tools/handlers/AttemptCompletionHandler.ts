@@ -65,29 +65,36 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Double-check completion: reject attempt_completion calls that haven't been re-verified
-		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionPending) {
-			config.taskState.doubleCheckCompletionPending = true
-			// Remove the partial completion_result message that was shown during streaming
-			await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
+		// Double-check completion with a latch:
+		// - First completion attempt after edits is rejected with guidance.
+		// - Immediate follow-up attempt is accepted and latched.
+		// - Latch remains until invalidated by a later edit.
+		if (config.doubleCheckCompletionEnabled && !config.taskState.doubleCheckCompletionLatched) {
+			if (!config.taskState.doubleCheckCompletionPending) {
+				config.taskState.doubleCheckCompletionPending = true
+				// Remove the partial completion_result message that was shown during streaming
+				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "completion_result")
 
-			const taskPreview = getInitialTaskPreview(config)
-			const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
+				const taskPreview = getInitialTaskPreview(config)
+				const taskSection = taskPreview ? `\n\n<initial_task>\n${taskPreview}\n</initial_task>` : ""
 
-			return formatResponse.toolError(
-				"Before completing, re-verify your work against the original task requirements. Check that:\n" +
-					"1. All requested changes have been made\n" +
-					"2. No steps were skipped or partially completed\n" +
-					"3. Edge cases and error handling are addressed\n" +
-					"4. The solution matches what was asked for, not just what was convenient\n" +
-					"5. Output files contain exactly what was specified--no extra columns, fields, debug output, or commentary\n" +
-					"6. If the task specifies numerical thresholds or accuracy targets, verify your result meets the criteria. If close but not passing, iterate rather than declaring completion" +
-					taskSection +
-					"\n\nIf everything checks out, call attempt_completion again with your final result.",
-			)
+				return formatResponse.toolError(
+					"Before completing, re-verify your work against the original task requirements. Check that:\n" +
+						"1. All requested changes have been made\n" +
+						"2. No steps were skipped or partially completed\n" +
+						"3. Edge cases and error handling are addressed\n" +
+						"4. The solution matches what was asked for, not just what was convenient\n" +
+						"5. Output files contain exactly what was specified--no extra columns, fields, debug output, or commentary\n" +
+						"6. If the task specifies numerical thresholds or accuracy targets, verify your result meets the criteria. If close but not passing, iterate rather than declaring completion" +
+						taskSection +
+						"\n\nIf everything checks out, call attempt_completion again with your final result.",
+				)
+			}
+
+			// Follow-up completion attempt passes and sets the latch.
+			config.taskState.doubleCheckCompletionPending = false
+			config.taskState.doubleCheckCompletionLatched = true
 		}
-		// Reset so the next attempt_completion pair triggers double-check again
-		config.taskState.doubleCheckCompletionPending = false
 
 		// Run PreToolUse hook before execution
 		try {

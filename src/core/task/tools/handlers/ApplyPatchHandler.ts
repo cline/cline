@@ -344,10 +344,15 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 
 			// Build response with file contents and diagnostics
 			const responseLines = ["Successfully applied patch to the following files:"]
+			const hasAppliedChanges = Object.keys(applyResults).length > 0
+			if (hasAppliedChanges) {
+				config.taskState.didEditFile = true
+				config.taskState.doubleCheckCompletionPending = false
+				config.taskState.doubleCheckCompletionLatched = false
+			}
 
 			for (const [path, result] of Object.entries(applyResults)) {
 				if (result.deleted) {
-					config.taskState.didEditFile = true
 					responseLines.push(`\n${path}: [deleted]`)
 				} else {
 					// Format response similar to WriteToFileToolHandler

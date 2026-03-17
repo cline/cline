@@ -7,9 +7,8 @@ import { TaskState } from "../../../TaskState"
  * Tests for the double-check completion feature in AttemptCompletionHandler.
  *
  * When doubleCheckCompletionEnabled is true, each attempt_completion call
- * is rejected the first time (setting pending=true), then accepted on the
- * immediate follow-up (resetting pending=false). This means every completion
- * attempt gets double-checked, not just the first one in a task.
+ * is rejected once, then accepted on the immediate follow-up and latched.
+ * The latch remains until invalidated by an edit.
  */
 describe("AttemptCompletionHandler double-check completion", () => {
 	let taskState: TaskState
@@ -42,7 +41,7 @@ describe("AttemptCompletionHandler double-check completion", () => {
 			taskState.doubleCheckCompletionPending = true
 		})
 
-		it("should accept the second completion attempt and reset pending", () => {
+		it("should accept the second completion attempt and latch completion gate", () => {
 			const enabled = true
 
 			// Simulate first call rejected
@@ -52,38 +51,36 @@ describe("AttemptCompletionHandler double-check completion", () => {
 			const shouldReject = enabled && !taskState.doubleCheckCompletionPending
 			shouldReject.should.be.false()
 
-			// Handler resets pending after acceptance
+			// Handler resets pending and latches after acceptance
 			taskState.doubleCheckCompletionPending = false
+			taskState.doubleCheckCompletionLatched = true
 			taskState.doubleCheckCompletionPending.should.be.false()
+			taskState.doubleCheckCompletionLatched.should.be.true()
 		})
 
-		it("should reject again after the pending flag is reset (third call)", () => {
+		it("should not reject subsequent attempts while latched", () => {
 			const enabled = true
 
-			// After a full reject/accept cycle, pending is back to false
+			// After a full reject/accept cycle, pending is false and latch is true
 			taskState.doubleCheckCompletionPending = false
+			taskState.doubleCheckCompletionLatched = true
 
-			const shouldReject = enabled && !taskState.doubleCheckCompletionPending
-			shouldReject.should.be.true()
+			const shouldReject = enabled && !taskState.doubleCheckCompletionLatched && !taskState.doubleCheckCompletionPending
+			shouldReject.should.be.false()
 		})
 
-		it("should double-check every completion attempt across a full task lifecycle", () => {
-			const shouldReject = () => !taskState.doubleCheckCompletionPending
-
-			// Cycle 1: reject, then accept
-			shouldReject().should.be.true()
-			taskState.doubleCheckCompletionPending = true
-			shouldReject().should.be.false()
+		it("should require re-check again after edit invalidates latch", () => {
+			// Simulate a previously latched state
+			taskState.doubleCheckCompletionLatched = true
 			taskState.doubleCheckCompletionPending = false
 
-			// Cycle 2: reject, then accept
-			shouldReject().should.be.true()
-			taskState.doubleCheckCompletionPending = true
-			shouldReject().should.be.false()
+			// Edit invalidates latch
+			taskState.doubleCheckCompletionLatched = false
 			taskState.doubleCheckCompletionPending = false
 
-			// Cycle 3: still triggers
-			shouldReject().should.be.true()
+			// First completion attempt after invalidation should be rejected again
+			const shouldReject = !taskState.doubleCheckCompletionLatched && !taskState.doubleCheckCompletionPending
+			shouldReject.should.be.true()
 		})
 	})
 
@@ -99,12 +96,15 @@ describe("AttemptCompletionHandler double-check completion", () => {
 	describe("initialization and lifecycle", () => {
 		it("should start as false", () => {
 			taskState.doubleCheckCompletionPending.should.be.false()
+			taskState.doubleCheckCompletionLatched.should.be.false()
 		})
 
 		it("should reset with new TaskState (new task)", () => {
 			taskState.doubleCheckCompletionPending = true
+			taskState.doubleCheckCompletionLatched = true
 			const newTaskState = new TaskState()
 			newTaskState.doubleCheckCompletionPending.should.be.false()
+			newTaskState.doubleCheckCompletionLatched.should.be.false()
 		})
 	})
 })
