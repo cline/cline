@@ -5,8 +5,8 @@ import * as path from "path"
 import "should"
 import { listFiles } from "../list-files"
 
-function normalizeForComparison(value: string): string {
-	return path.normalize(value)
+function normalizeForComparison(filePath: string): string {
+	return filePath.replaceAll("\\", "/")
 }
 
 describe("listFiles", () => {

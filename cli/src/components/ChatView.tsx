@@ -108,7 +108,6 @@ import type { ClineAsk, ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import type { SlashCommandInfo } from "@shared/proto/cline/slash"
-import { CLI_ONLY_COMMANDS } from "@shared/slashCommands"
 import { getProviderDefaultModelId, getProviderModelIdKey } from "@shared/storage"
 import type { Mode } from "@shared/storage/types"
 import { execSync } from "child_process"
@@ -137,7 +136,14 @@ import {
 } from "../utils/file-search"
 import { isMouseEscapeSequence } from "../utils/input"
 import { jsonParseSafe, parseImagesFromInput } from "../utils/parser"
-import { extractSlashQuery, filterCommands, insertSlashCommand, sortCommandsWorkflowsFirst } from "../utils/slash-commands"
+import {
+	createCliOnlySlashCommands,
+	extractSlashQuery,
+	filterCommands,
+	getStandaloneSlashCommandToExecute,
+	insertSlashCommand,
+	sortCommandsWorkflowsFirst,
+} from "../utils/slash-commands"
 import { waitFor } from "../utils/timeout"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
 import { shutdownEvent } from "../vscode-shim"
@@ -403,7 +409,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
 
 	// Slash command state
-	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>([])
+	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>(() => createCliOnlySlashCommands())
 	const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
 	const [slashMenuDismissed, setSlashMenuDismissed] = useState(false)
 	const lastSlashIndexRef = useRef<number>(-1)
@@ -614,16 +620,15 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			try {
 				const response = await getAvailableSlashCommands(ctrl, EmptyRequest.create())
 				const cliCommands = response.commands.filter((cmd) => cmd.cliCompatible !== false)
-				// Add CLI-only commands (like /settings) that are handled locally
-				const cliOnlyCommands: SlashCommandInfo[] = CLI_ONLY_COMMANDS.map((cmd) => ({
-					name: cmd.name,
-					description: cmd.description || "",
-					section: cmd.section || "default",
-					cliCompatible: true,
-				}))
+				// Add CLI-only commands (like /settings) that are handled locally.
+				// Seed these synchronously on first render so locally handled commands like
+				// /q and /exit are immediately available, even before the async command
+				// fetch completes. This avoids a race that can make the quit command tests
+				// flaky on slower Windows CI runners.
+				const cliOnlyCommands = createCliOnlySlashCommands()
 				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(cliCommands)])
 			} catch {
-				// Fallback: commands will be empty, menu won't show
+				// Keep CLI-only commands available even if backend command loading fails.
 			}
 		}
 		loadCommands()
@@ -842,6 +847,77 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			onExit?.()
 		}, 150)
 	}, [inkExit, onExit])
+
+	const handleCliOnlySlashCommand = useCallback(
+		(commandName: string): boolean => {
+			if (commandName === "help") {
+				setActivePanel({ type: "help" })
+				setTextInput("")
+				setCursorPos(0)
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return true
+			}
+
+			if (commandName === "settings") {
+				setActivePanel({ type: "settings" })
+				setTextInput("")
+				setCursorPos(0)
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return true
+			}
+
+			if (commandName === "models") {
+				const apiConfig = StateManager.get().getApiConfiguration()
+				const provider =
+					mode === "act"
+						? apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
+						: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
+				const initialMode = !provider ? undefined : provider === "cline" ? "featured-models" : "model-picker"
+				const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
+				setActivePanel({ type: "settings", initialMode, initialModelKey })
+				setTextInput("")
+				setCursorPos(0)
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return true
+			}
+
+			if (commandName === "history") {
+				setActivePanel({ type: "history" })
+				setTextInput("")
+				setCursorPos(0)
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return true
+			}
+
+			if (commandName === "skills") {
+				setActivePanel({ type: "skills" })
+				setTextInput("")
+				setCursorPos(0)
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return true
+			}
+
+			if (commandName === "clear") {
+				void clearViewAndResetTask()
+				setSelectedSlashIndex(0)
+				setSlashMenuDismissed(true)
+				return true
+			}
+
+			if (commandName === "exit" || commandName === "q") {
+				handleExit()
+				return true
+			}
+
+			return false
+		},
+		[clearViewAndResetTask, handleExit, mode, setCursorPos, setTextInput],
+	)
 
 	// Get button config based on the last message state
 	const buttonConfig = useMemo(() => {
@@ -1102,6 +1178,17 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 		const inSlashMenu = slashInfo.inSlashMode && filteredCommands.length > 0 && !slashMenuDismissed
 		const inFileMenu = mentionInfo.inMentionMode && fileResults.length > 0 && !inSlashMenu
+		const standaloneSlashCommand = getStandaloneSlashCommandToExecute({
+			prompt,
+			inSlashMode: slashInfo.inSlashMode,
+			hasSlashMenu: inSlashMenu,
+			hasPendingAsk: !!pendingAsk,
+			isSpinnerActive,
+		})
+
+		if (key.return && standaloneSlashCommand && handleCliOnlySlashCommand(standaloneSlashCommand)) {
+			return
+		}
 
 		// 5. Slash command menu navigation (takes priority over file menu)
 		if (inSlashMenu) {
@@ -1116,64 +1203,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			if (key.tab || key.return) {
 				const cmd = filteredCommands[selectedSlashIndex]
 				if (cmd) {
-					// Handle CLI-only commands locally
-					if (cmd.name === "help") {
-						setActivePanel({ type: "help" })
-						setTextInput("")
-						setCursorPos(0)
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "settings") {
-						setActivePanel({ type: "settings" })
-						setTextInput("")
-						setCursorPos(0)
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "models") {
-						const apiConfig = StateManager.get().getApiConfiguration()
-						// Use current mode's provider to determine picker type
-						const provider =
-							mode === "act"
-								? apiConfig.actModeApiProvider || apiConfig.planModeApiProvider
-								: apiConfig.planModeApiProvider || apiConfig.actModeApiProvider
-						const initialMode = !provider ? undefined : provider === "cline" ? "featured-models" : "model-picker"
-						// Set model for current mode (plan or act)
-						const initialModelKey = mode === "act" ? "actModelId" : "planModelId"
-						setActivePanel({ type: "settings", initialMode, initialModelKey })
-						setTextInput("")
-						setCursorPos(0)
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "history") {
-						setActivePanel({ type: "history" })
-						setTextInput("")
-						setCursorPos(0)
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "skills") {
-						setActivePanel({ type: "skills" })
-						setTextInput("")
-						setCursorPos(0)
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "clear") {
-						clearViewAndResetTask()
-						setSelectedSlashIndex(0)
-						setSlashMenuDismissed(true)
-						return
-					}
-					if (cmd.name === "exit" || cmd.name === "q") {
-						handleExit()
+					if (handleCliOnlySlashCommand(cmd.name)) {
 						return
 					}
 					const newText = insertSlashCommand(textInput, slashInfo.slashIndex, cmd.name)

@@ -683,13 +683,19 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
-		// Notification hook marks that Cline is waiting for user input.
-		await this.runNotificationHook({
-			event: "user_attention",
-			source: type,
-			message: text || "",
-			waitingForUserInput: true,
-		})
+		if (type !== "command_output") {
+			// command_output is a special ask used by the webview command stream UI.
+			// It powers "Proceed While Running" and incremental output updates, so it is
+			// not a strict approval boundary that should force external "user_attention"
+			// handling. In auto-approve flows, command_output asks can still be emitted,
+			// so we intentionally skip Notification hook emission for this ask type.
+			await this.runNotificationHook({
+				event: "user_attention",
+				source: type,
+				message: text || "",
+				waitingForUserInput: true,
+			})
+		}
 
 		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
 			interval: 100,
@@ -2980,7 +2986,11 @@ export class Task {
 			}
 
 			// Stored the assistant API response immediately after the stream finishes in the same turn
-			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls
+			// Check if the stream produced any content — either text or native tool calls.
+			// toolUseHandler may have accumulated tool_use blocks even when useNativeToolCalls is false
+			// (e.g., from Claude Code provider when the model returns native tool_use blocks).
+			const hasAccumulatedToolCalls = toolUseHandler.getAllFinalizedToolUses().length > 0
+			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls || hasAccumulatedToolCalls
 			if (assistantHasContent) {
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
