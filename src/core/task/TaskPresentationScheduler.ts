@@ -81,6 +81,10 @@ export class TaskPresentationScheduler {
 	/**
 	 * Flush immediately and await completion.
 	 *
+	 * Guarantees that at least one flush runs at "immediate" priority after this
+	 * call returns, even if a concurrent flush cycle consumed the pending priority
+	 * before this call could start its own cycle.
+	 *
 	 * If the scheduler has already been disposed this is a no-op and resolves
 	 * without error. Callers that need a guarantee that the final presentation
 	 * was delivered should ensure `dispose()` has not been called before
@@ -92,13 +96,38 @@ export class TaskPresentationScheduler {
 			return
 		}
 
-		this.pendingPriority = this.mergePriority(this.pendingPriority, "immediate")
 		if (this.scheduledTimer) {
 			this.clearTimeoutFn(this.scheduledTimer)
 			this.scheduledTimer = undefined
 			this.scheduledPriority = undefined
 		}
 
+		// If a flush is already in-flight, wait for it to complete. After it
+		// finishes, the post-flush continuation in runFlushCycle may have already
+		// consumed our pendingPriority. We therefore set pendingPriority *after*
+		// the in-flight flush resolves so it cannot be stolen by the continuation.
+		if (this.flushInProgress) {
+			const inFlightResult = await this.currentFlushCompletion
+			if (inFlightResult?.error) {
+				throw inFlightResult.error
+			}
+			// Another concurrent caller may have started a new flush cycle after
+			// the same in-flight flush resolved. If one is now in progress, wait
+			// for it too — we need a flush to run *after* we set pendingPriority.
+			while (this.flushInProgress) {
+				const result = await this.currentFlushCompletion
+				if (result?.error) {
+					throw result.error
+				}
+			}
+		}
+
+		if (this.disposed) {
+			return
+		}
+
+		// Now that no flush is in-flight, set pendingPriority and run our own cycle.
+		this.pendingPriority = this.mergePriority(this.pendingPriority, "immediate")
 		await this.runFlushCycle({ rethrowErrors: true })
 	}
 
@@ -106,6 +135,12 @@ export class TaskPresentationScheduler {
 	 * Cancel any pending timers and clear queued state without marking the scheduler
 	 * as disposed. Use this between API request retries within the same task to prevent
 	 * stale timers from firing against reset streaming state.
+	 *
+	 * Note: any flush that is already in-flight when reset() is called will complete
+	 * naturally. The flush callback (presentAssistantMessage) will operate on the
+	 * already-reset task state, but since currentStreamingContentIndex will be 0 and
+	 * assistantMessageContent will be empty, it will hit the out-of-bounds early-return
+	 * path and do nothing harmful.
 	 */
 	reset(): void {
 		if (this.disposed) {
@@ -145,6 +180,10 @@ export class TaskPresentationScheduler {
 		}
 
 		if (this.flushInProgress) {
+			// flushNow() handles the in-flight case itself before calling runFlushCycle,
+			// so this branch is only reached from requestFlush() (which returns early when
+			// flushInProgress is true) — meaning this path should not be hit in practice.
+			// Guard it defensively anyway.
 			const inFlightResult = await this.currentFlushCompletion
 			if (options.rethrowErrors && inFlightResult?.error) {
 				throw inFlightResult.error

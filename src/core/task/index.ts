@@ -301,7 +301,7 @@ export class Task {
 				this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(hostVersion)
 			})
 			.catch((error) => {
-				Logger.debug(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
+				Logger.warn(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
 			})
 			.finally(() => {
 				this.remoteWorkspaceDetectionSettled = true
@@ -614,9 +614,13 @@ export class Task {
 
 	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
 		if (this.presentationSchedulingDisabled) {
-			void this.flushAssistantPresentation().catch((error) =>
-				Logger.warn(`[Task] Failed immediate presentation flush: ${error}`),
-			)
+			// Scheduling is disabled: flush synchronously via the scheduler's flushNow so that
+			// the presentAssistantMessage lock/pending-updates mechanism is respected. Using a
+			// fire-and-forget void call would bypass the lock and miss pending updates when
+			// presentAssistantMessage is already executing.
+			void this.presentationScheduler
+				.flushNow()
+				.catch((error) => Logger.warn(`[Task] Failed immediate presentation flush: ${error}`))
 			return
 		}
 
@@ -2798,7 +2802,7 @@ export class Task {
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 			let didFinalizeReasoningForUi = false
-			let didPresentAnyContent = false // Tracks whether any content (text or reasoning) has been flushed to the UI
+			let didScheduleAnyContent = false // Tracks whether any content chunk has been scheduled for presentation (not necessarily flushed yet)
 
 			const finalizePendingReasoningMessage = async (thinking: string): Promise<boolean> => {
 				const pendingReasoningIndex = findLastIndex(
@@ -2850,10 +2854,10 @@ export class Task {
 					if (!chunk) {
 						break
 					}
-					// Track whether any content (text or reasoning) has been presented to the UI.
+					// Track whether any content chunk has been scheduled for presentation (not necessarily flushed yet).
 					// Using assistantMessage alone would miss reasoning-only streams where text hasn't
 					// started yet, causing every reasoning chunk to get "immediate" priority.
-					const hadVisibleAssistantContent = didPresentAnyContent
+					const hadVisibleAssistantContent = didScheduleAnyContent
 					if (!this.taskState.taskFirstTokenTimeMs) {
 						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
 					}
@@ -2884,7 +2888,7 @@ export class Task {
 								"reasoning",
 								this.getPresentationPriorityForChunk({ chunkType: "reasoning", hadVisibleAssistantContent }),
 							)
-							didPresentAnyContent = true
+							didScheduleAnyContent = true
 
 							break
 						}
@@ -2911,7 +2915,7 @@ export class Task {
 								"tool",
 								this.getPresentationPriorityForChunk({ chunkType: "tool_calls", hadVisibleAssistantContent }),
 							)
-							didPresentAnyContent = true
+							didScheduleAnyContent = true
 							break
 						}
 						case "text": {
@@ -2943,7 +2947,7 @@ export class Task {
 								"text",
 								this.getPresentationPriorityForChunk({ chunkType: "text", hadVisibleAssistantContent }),
 							)
-							didPresentAnyContent = true
+							didScheduleAnyContent = true
 							break
 						}
 					}

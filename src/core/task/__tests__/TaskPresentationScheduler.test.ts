@@ -111,6 +111,56 @@ describe("TaskPresentationScheduler", () => {
 			})
 	})
 
+	it("flushNow guarantees a flush even when the post-flush continuation consumed pendingPriority", async () => {
+		// Regression test for the race condition where:
+		// 1. A timer fires → runFlushCycle starts, sets flushInProgress=true, clears pendingPriority
+		// 2. flushNow() is called → sets pendingPriority="immediate", enters runFlushCycle
+		// 3. runFlushCycle sees flushInProgress, awaits currentFlushCompletion
+		// 4. In-flight flush completes → post-flush continuation sees pendingPriority="immediate",
+		//    calls runFlushCycle recursively → clears pendingPriority, runs flush #2
+		// 5. flushNow()'s runFlushCycle resumes → pendingPriority is now undefined → would return
+		//    without flushing (the bug)
+		//
+		// The fix: flushNow() waits for all in-flight flushes to drain *before* setting
+		// pendingPriority, so the continuation cannot steal it.
+
+		let resolveFirstFlush: (() => void) | undefined
+		let flushCount = 0
+
+		const scheduler = new TaskPresentationScheduler({
+			flush: async () => {
+				flushCount += 1
+				if (flushCount === 1) {
+					// First flush: pause so flushNow() arrives while it's in-flight
+					await new Promise<void>((resolve) => {
+						resolveFirstFlush = resolve
+					})
+				}
+			},
+			getDelayMs: () => 0,
+		})
+
+		// Start the first flush (via immediate requestFlush)
+		scheduler.requestFlush("immediate")
+		// Yield so the async flush body starts executing
+		await Promise.resolve()
+		await Promise.resolve()
+
+		// flushNow() is called while flush #1 is paused mid-execution
+		let flushNowResolved = false
+		const flushNowPromise = scheduler.flushNow().then(() => {
+			flushNowResolved = true
+		})
+
+		// Unblock flush #1
+		resolveFirstFlush?.()
+		await flushNowPromise
+
+		// flushNow must have triggered a second flush after flush #1 completed
+		flushNowResolved.should.equal(true)
+		flushCount.should.equal(2)
+	})
+
 	it("reset() cancels pending timers without marking the scheduler as disposed", () => {
 		const clock = sinon.useFakeTimers()
 		const flushSpy = sinon.spy(async () => {})
