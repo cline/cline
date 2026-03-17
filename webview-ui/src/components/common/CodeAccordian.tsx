@@ -20,10 +20,11 @@ interface CodeAccordianProps {
 /*
 We need to remove leading non-alphanumeric characters from the path in order for our leading ellipses trick to work.
 ^: Anchors the match to the start of the string.
-[^a-zA-Z0-9]+: Matches one or more characters that are not alphanumeric.
-The replace method removes these matched characters, effectively trimming the string up to the first alphanumeric character.
+[^\p{L}0-9]+: Matches one or more characters that are not Unicode letters or digits.
+The replace method removes these matched characters, effectively trimming the string up to the first letter or digit.
+The `u` flag enables Unicode-aware matching so \p{L} covers all scripts (Latin, CJK, Korean, Japanese, Arabic, etc.).
 */
-export const cleanPathPrefix = (path: string): string => path.replace(/^[^\u4e00-\u9fa5a-zA-Z0-9]+/, "")
+export const cleanPathPrefix = (path: string): string => path.replace(/^[^\p{L}0-9]+/u, "")
 
 const CodeAccordian = ({
 	code,
