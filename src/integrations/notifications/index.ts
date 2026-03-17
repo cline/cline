@@ -1,11 +1,14 @@
+import path from "node:path"
 import { execa } from "execa"
 import { platform } from "os"
+import { HostProvider } from "@/hosts/host-provider"
 import { Logger } from "@/shared/services/Logger"
 
 interface NotificationOptions {
 	title?: string
 	subtitle?: string
 	message: string
+	iconPath?: string
 }
 
 export interface ApprovalNotificationOptions {
@@ -58,13 +61,19 @@ export function createApprovalNotificationMessage(options: ApprovalNotificationO
 }
 
 /**
- * Note: `title` is not rendered on Windows because the ToastText02 template only exposes
- * two text slots, which we use for subtitle (id=1) and message (id=2).
+ * Note: `title` is not rendered on Windows because the ToastGeneric template uses
+ * two text slots for subtitle (id=1) and message (id=2). When iconPath is provided,
+ * the Cline logo is shown via AppLogoOverride.
  */
 export function buildWindowsToastNotificationScript(options: NotificationOptions): string {
-	const { subtitle = "", message } = options
+	const { subtitle = "", message, iconPath } = options
 	const safeSubtitle = escapePowerShellSingleQuotedString(subtitle)
 	const safeMessage = escapePowerShellSingleQuotedString(message)
+
+	// Use ToastGeneric binding to support AppLogoOverride for the Cline icon
+	const imageElement = iconPath
+		? `<image placement="appLogoOverride" src="${escapePowerShellSingleQuotedString(iconPath)}" />`
+		: ""
 
 	return `
     [Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
@@ -74,7 +83,7 @@ export function buildWindowsToastNotificationScript(options: NotificationOptions
     $message = '${safeMessage}'
 
     $xml = New-Object Windows.Data.Xml.Dom.XmlDocument
-    $xml.LoadXml('<toast><visual><binding template="ToastText02"><text id="1"></text><text id="2"></text></binding></visual></toast>')
+    $xml.LoadXml('<toast><visual><binding template="ToastGeneric"><text id="1"></text><text id="2"></text>${imageElement}</binding></visual></toast>')
 
     $textNodes = $xml.GetElementsByTagName('text')
     $textNodes.Item(0).InnerText = $subtitle
@@ -109,16 +118,30 @@ async function showWindowsNotification(options: NotificationOptions): Promise<vo
 }
 
 async function showLinuxNotification(options: NotificationOptions): Promise<void> {
-	const { title = "", subtitle = "", message } = options
+	const { title = "", subtitle = "", message, iconPath } = options
 
 	// Combine subtitle and message if subtitle exists
 	const fullMessage = subtitle ? `${subtitle}\n${message}` : message
 
+	const args = iconPath ? [`--icon=${iconPath}`, title, fullMessage] : [title, fullMessage]
+
 	try {
-		await execaImpl("notify-send", [title, fullMessage])
+		await execaImpl("notify-send", args)
 	} catch (error) {
 		throw new Error(`Failed to show Linux notification: ${error}`)
 	}
+}
+
+function resolveIconPath(): string | undefined {
+	try {
+		const extensionFsPath = HostProvider.get().extensionFsPath
+		if (extensionFsPath) {
+			return path.join(extensionFsPath, "assets", "icons", "icon.png")
+		}
+	} catch {
+		// HostProvider may not be initialized (e.g., in tests)
+	}
+	return undefined
 }
 
 export async function showSystemNotification(options: NotificationOptions): Promise<void> {
@@ -133,6 +156,7 @@ export async function showSystemNotification(options: NotificationOptions): Prom
 			...options,
 			title,
 			subtitle: options.subtitle || "",
+			iconPath: options.iconPath ?? resolveIconPath(),
 		}
 
 		switch (platformImpl()) {
