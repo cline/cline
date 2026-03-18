@@ -2,8 +2,6 @@
  * Rotating feature tips shown during thinking/acting phases.
  * Appears after a brief delay and cycles through tips to educate users
  * about Cline features while they wait.
- *
- * Ported from webview-ui/src/components/chat/FeatureTip.tsx
  */
 
 import { Box, Text } from "ink"
