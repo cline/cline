@@ -325,7 +325,17 @@ await agent.authenticate({ methodId: "openai-codex-oauth" })
 
 Both methods open a browser window for the OAuth flow and block until authentication completes (5-minute timeout for Cline OAuth).
 
-For BYO (bring-your-own) API key providers, configure the key through the cline config directory before creating a session. The `authenticate()` call is not needed for BYO providers. We plan to support more auth providers in the near future.
+For BYO (bring-your-own) API key providers, you can pre-configure credentials using the Cline CLI before using the SDK:
+
+```bash
+# Configure an Anthropic API key
+cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-20250514
+
+# Configure an OpenRouter API key
+cline auth -p openrouter -k "sk-or-..." -m openrouter/anthropic/claude-sonnet-4
+```
+
+This writes credentials to the Cline config directory (`~/.cline/data/` by default, or your custom `clineDir`). Once configured, the SDK will use these credentials automatically — no `authenticate()` call needed.
 
 ### Cancellation
 
@@ -389,6 +399,34 @@ const response = await agent.initialize({
   ]
 }
 ```
+
+#### Client Capabilities
+
+The `clientCapabilities` object in `initialize()` tells the agent what your environment supports. This affects how the agent executes tools:
+
+| Capability | Type | Effect |
+|------------|------|--------|
+| `fs.readTextFile` | `boolean` | Agent can request file reads through your client |
+| `fs.writeTextFile` | `boolean` | Agent can request file writes through your client |
+| `terminal` | `boolean` | Agent can execute commands through your client's terminal |
+
+When capabilities are provided, the agent uses your client's implementations for file operations and terminal commands. When omitted, the agent falls back to standalone providers (direct filesystem access and local shell execution).
+
+```typescript
+// Minimal — agent uses standalone file/terminal providers
+await agent.initialize({ protocolVersion: 1, clientCapabilities: {} })
+
+// Full — agent delegates file and terminal operations to your client
+await agent.initialize({
+  protocolVersion: 1,
+  clientCapabilities: {
+    fs: { readTextFile: true, writeTextFile: true },
+    terminal: true,
+  },
+})
+```
+
+For most SDK use cases (scripts, automation), passing `{}` is fine — the agent handles file and terminal operations directly.
 
 #### `newSession(params): Promise<NewSessionResponse>`
 
@@ -526,6 +564,38 @@ Access active sessions:
 for (const [sessionId, session] of agent.sessions) {
   console.log(sessionId, session.cwd, session.mode)
 }
+```
+
+## Error Handling
+
+SDK methods throw standard JavaScript errors. Key error scenarios:
+
+| Method | Error | Cause |
+|--------|-------|-------|
+| `newSession()` | `RequestError` (auth required) | No credentials configured — call `authenticate()` or pre-configure via CLI |
+| `prompt()` | `Error("Session not found")` | Invalid `sessionId` |
+| `prompt()` | `Error("already processing")` | Called `prompt()` while a previous prompt is still running on the same session |
+| `unstable_setSessionModel()` | `Error("Invalid modelId format")` | Model ID must be `"provider/modelId"` format (e.g., `"anthropic/claude-sonnet-4-20250514"`) |
+| `authenticate()` | `Error("Unknown authentication method")` | Invalid `methodId` — use `"cline-oauth"` or `"openai-codex-oauth"` |
+| `authenticate()` | `Error("Authentication timed out")` | OAuth flow not completed within 5 minutes |
+
+```typescript
+try {
+  const { sessionId } = await agent.newSession({ cwd: process.cwd(), mcpServers: [] })
+} catch (error) {
+  if (error.message?.includes("auth")) {
+    // Need to authenticate first
+    await agent.authenticate({ methodId: "cline-oauth" })
+  }
+}
+```
+
+Session-level errors during `prompt()` execution are emitted on the session emitter rather than thrown:
+
+```typescript
+emitter.on("error", (err) => {
+  console.error("Session error:", err.message)
+})
 ```
 
 ## Full Example: Auto-Approve Agent
