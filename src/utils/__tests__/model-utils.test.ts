@@ -16,11 +16,21 @@ import {
 const m = (id: string): ApiHandlerModel => ({ id, info: {} as any })
 
 describe("shouldSkipReasoningForModel", () => {
-	it("should return true for grok-4 models", () => {
+	it("should return true for original grok-4 models", () => {
 		shouldSkipReasoningForModel("grok-4").should.equal(true)
 		shouldSkipReasoningForModel("x-ai/grok-4").should.equal(true)
-		shouldSkipReasoningForModel("openrouter/grok-4-turbo").should.equal(true)
-		shouldSkipReasoningForModel("some-provider/grok-4-mini").should.equal(true)
+		shouldSkipReasoningForModel("grok-4-0709").should.equal(true)
+		shouldSkipReasoningForModel("grok-4-fast-reasoning").should.equal(true)
+	})
+
+	it("should return false for grok-4.20 models (they don't emit reasoning_content at all)", () => {
+		shouldSkipReasoningForModel("grok-4.20-beta-0309-reasoning").should.equal(false)
+		shouldSkipReasoningForModel("grok-4.20-beta-0309-non-reasoning").should.equal(false)
+	})
+
+	it("should return false for grok-4-1 models (they don't emit reasoning_content at all)", () => {
+		shouldSkipReasoningForModel("grok-4-1-fast-reasoning").should.equal(false)
+		shouldSkipReasoningForModel("grok-4-1-fast-non-reasoning").should.equal(false)
 	})
 
 	it("should return false for non-grok-4 models", () => {

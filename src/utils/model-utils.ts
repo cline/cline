@@ -38,14 +38,19 @@ export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolea
 /**
  * Determines if reasoning content should be skipped for a given model
  * Currently skips reasoning for:
- * - Grok-4 models since they only display "thinking" without useful information
+ * - Original Grok-4 (grok-4-0709 / grok-4) since Grok doesn't provide a thinking payload
+ *   Grok 4.20 and 4.1 models don't expose reasoning_content at all via Chat Completions
+ *   (reasoning is internal), so this skip is irrelevant for them but we exclude them to be safe.
  * - Devstral models since they don't support reasoning_details field
  */
 export function shouldSkipReasoningForModel(modelId?: string): boolean {
 	if (!modelId) {
 		return false
 	}
-	return modelId.includes("grok-4") || modelId.includes("devstral") || modelId.includes("glm")
+	// Only skip for original grok-4 which doesn't provide a thinking payload;
+	// grok-4.20/4.1 don't emit reasoning_content at all so this won't trigger for them
+	const isOriginalGrok4 = modelId.includes("grok-4") && !modelId.includes("grok-4.") && !modelId.includes("grok-4-1")
+	return isOriginalGrok4 || modelId.includes("devstral") || modelId.includes("glm")
 }
 
 export function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {

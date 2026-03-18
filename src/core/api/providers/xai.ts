@@ -81,7 +81,7 @@ export class XAIHandler implements ApiHandler {
 			}
 
 			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				// Skip reasoning content for Grok models since they don't provide a thinking payload via Chat Completions
 				if (!shouldSkipReasoningForModel(modelId)) {
 					yield {
 						type: "reasoning",

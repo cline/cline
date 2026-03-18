@@ -169,7 +169,7 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
+				// Skip reasoning content for Grok models since they don't provide a thinking payload via Chat Completions
 				if (
 					delta &&
 					"reasoning" in delta &&
