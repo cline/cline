@@ -1,5 +1,5 @@
 import { Logger } from "@/shared/services/Logger"
-import type { PresentationPriority } from "./TaskPresentationScheduler"
+import type { PresentationPriority } from "./presentation-types"
 
 export type TaskLatencyTrigger = "text" | "reasoning" | "tool"
 
@@ -23,9 +23,11 @@ function readCadenceOverride(envVarName: string): number | undefined {
 	return parsed
 }
 
-function getCadenceOverride(args: { isRemoteWorkspace: boolean; localEnvVar: string; remoteEnvVar: string }): number | undefined {
-	return args.isRemoteWorkspace ? readCadenceOverride(args.remoteEnvVar) : readCadenceOverride(args.localEnvVar)
-}
+// Cadence overrides are read once at module load. Env vars do not change at
+// runtime, and getPresentationCadenceMs is called on every flush (hot path).
+const localCadenceOverride = readCadenceOverride("CLINE_PRESENTATION_CADENCE_MS")
+const remoteCadenceOverride = readCadenceOverride("CLINE_REMOTE_PRESENTATION_CADENCE_MS")
+const schedulingDisabled = readBooleanEnv("CLINE_DISABLE_PRESENTATION_SCHEDULER")
 
 /**
  * Determines whether the host is connected to a remote workspace.
@@ -45,7 +47,7 @@ export function isRemoteWorkspaceEnvironment(host: { platform?: string; version?
 }
 
 export function isPresentationSchedulingDisabled(): boolean {
-	return readBooleanEnv("CLINE_DISABLE_PRESENTATION_SCHEDULER")
+	return schedulingDisabled
 }
 
 export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: PresentationPriority): number {
@@ -53,11 +55,7 @@ export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: P
 		return 0
 	}
 
-	const override = getCadenceOverride({
-		isRemoteWorkspace,
-		localEnvVar: "CLINE_PRESENTATION_CADENCE_MS",
-		remoteEnvVar: "CLINE_REMOTE_PRESENTATION_CADENCE_MS",
-	})
+	const override = isRemoteWorkspace ? remoteCadenceOverride : localCadenceOverride
 	if (override !== undefined) {
 		return override
 	}

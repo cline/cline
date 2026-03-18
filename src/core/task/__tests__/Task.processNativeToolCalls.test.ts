@@ -55,7 +55,9 @@ describe("Task.processNativeToolCalls", () => {
 		}
 
 		try {
-			await (Task.prototype as any).processNativeToolCalls.call(fakeTask, "visible streamed text", toolBlocks)
+			await (
+				Task.prototype as unknown as { processNativeToolCalls: (text: string, blocks: ToolUse[]) => Promise<void> }
+			).processNativeToolCalls.call(fakeTask, "visible streamed text", toolBlocks)
 
 			assert.equal(clineMessages[0].text, "visible streamed text")
 			assert.equal(clineMessages[0].partial, false)

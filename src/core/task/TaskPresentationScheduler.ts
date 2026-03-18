@@ -1,4 +1,6 @@
-type PresentationPriority = "immediate" | "normal"
+import type { PresentationPriority } from "./presentation-types"
+
+export type { PresentationPriority }
 
 type TaskPresentationSchedulerOptions = {
 	flush: () => Promise<void>
@@ -15,7 +17,6 @@ export class TaskPresentationScheduler {
 	private flushInProgress = false
 	private currentFlushCompletion: Promise<{ error?: unknown }> | undefined
 	private disposed = false
-	private pendingWhileFlushing = false
 
 	private readonly flush: () => Promise<void>
 	private readonly getDelayMs: (priority: PresentationPriority) => number
@@ -39,7 +40,8 @@ export class TaskPresentationScheduler {
 		this.pendingPriority = this.mergePriority(this.pendingPriority, priority)
 
 		if (this.flushInProgress) {
-			this.pendingWhileFlushing = true
+			// pendingPriority is already set above; runFlushCycle's post-flush
+			// continuation will pick it up after the in-flight flush completes.
 			return
 		}
 
@@ -152,7 +154,6 @@ export class TaskPresentationScheduler {
 		}
 		this.scheduledPriority = undefined
 		this.pendingPriority = undefined
-		this.pendingWhileFlushing = false
 		// Note: we intentionally do NOT clear flushInProgress or currentFlushCompletion
 		// here. If a flush is in-flight it will complete naturally. The reset only
 		// prevents *new* timer-driven flushes from firing on stale state.
@@ -166,7 +167,6 @@ export class TaskPresentationScheduler {
 		}
 		this.scheduledPriority = undefined
 		this.pendingPriority = undefined
-		this.pendingWhileFlushing = false
 
 		const inFlightFlush = this.currentFlushCompletion
 		if (inFlightFlush) {
@@ -203,7 +203,6 @@ export class TaskPresentationScheduler {
 
 		this.flushInProgress = true
 		this.pendingPriority = undefined
-		this.pendingWhileFlushing = false
 
 		this.currentFlushCompletion = (async () => {
 			try {
@@ -227,12 +226,12 @@ export class TaskPresentationScheduler {
 			return
 		}
 
-		if (this.pendingPriority || this.pendingWhileFlushing) {
+		if (this.pendingPriority) {
 			const priorityToRun = this.pendingPriority
 			if (priorityToRun === "immediate") {
 				await this.runFlushCycle(options)
 			} else {
-				this.requestFlush(priorityToRun ?? "normal")
+				this.requestFlush(priorityToRun)
 			}
 		}
 	}
@@ -250,5 +249,3 @@ export class TaskPresentationScheduler {
 		return rank[next] > rank[current] ? next : current
 	}
 }
-
-export type { PresentationPriority }

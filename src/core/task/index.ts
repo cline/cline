@@ -121,9 +121,10 @@ import {
 	type TaskLatencyTrigger,
 } from "./latency"
 import { MessageStateHandler } from "./message-state"
+import type { PresentationPriority } from "./presentation-types"
 import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
-import { type PresentationPriority, TaskPresentationScheduler } from "./TaskPresentationScheduler"
+import { TaskPresentationScheduler } from "./TaskPresentationScheduler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -559,7 +560,7 @@ export class Task {
 		// before streaming begins (in recursivelyMakeClineRequests) so the cadence is always
 		// correct by the time the first flush is scheduled.
 		this.presentationScheduler = new TaskPresentationScheduler({
-			flush: async () => this.flushAssistantPresentation(),
+			flush: () => this.presentAssistantMessage(),
 			getDelayMs: (priority) => {
 				if (!this.remoteWorkspaceDetectionSettled) {
 					// This should never fire in production because recursivelyMakeClineRequests
@@ -627,10 +628,6 @@ export class Task {
 		// Immediate semantic boundaries: first visible token, tool transitions, finalization, and cleanup drains.
 		Logger.debug(`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`)
 		this.presentationScheduler.requestFlush(priority)
-	}
-
-	private async flushAssistantPresentation() {
-		await this.presentAssistantMessage()
 	}
 
 	private async flushAssistantPresentationOrThrow() {
@@ -3438,7 +3435,7 @@ export class Task {
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
-	async processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
+	protected async processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
 		if (!toolBlocks?.length) {
 			return
 		}
