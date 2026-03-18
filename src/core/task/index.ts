@@ -613,14 +613,17 @@ export class Task {
 		)
 	}
 
-	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
+	private async scheduleAssistantPresentation(
+		trigger: TaskLatencyTrigger,
+		priority: PresentationPriority = "normal",
+	): Promise<void> {
 		if (this.presentationSchedulingDisabled) {
-			// Scheduling is disabled, but we still route through flushNow() so the
-			// presentAssistantMessage lock/pending-updates mechanism is respected even
-			// when back-to-back chunks arrive while a flush is already running.
-			void this.presentationScheduler
-				.flushNow()
-				.catch((error) => Logger.warn(`[Task] Failed immediate presentation flush: ${error}`))
+			// Scheduling is disabled: preserve the old per-chunk synchronisation
+			// semantics by awaiting flushNow() directly, while still routing through
+			// the scheduler so its serialisation/locking guarantees are respected.
+			await this.presentationScheduler.flushNow().catch((error) => {
+				Logger.warn(`[Task] Failed immediate presentation flush: ${error}`)
+			})
 			return
 		}
 
@@ -2880,7 +2883,7 @@ export class Task {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
-							this.scheduleAssistantPresentation(
+							await this.scheduleAssistantPresentation(
 								"reasoning",
 								this.getPresentationPriorityForChunk({ chunkType: "reasoning", hadVisibleAssistantContent }),
 							)
@@ -2907,7 +2910,7 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
-							this.scheduleAssistantPresentation(
+							await this.scheduleAssistantPresentation(
 								"tool",
 								this.getPresentationPriorityForChunk({ chunkType: "tool_calls", hadVisibleAssistantContent }),
 							)
@@ -2939,7 +2942,7 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
-							this.scheduleAssistantPresentation(
+							await this.scheduleAssistantPresentation(
 								"text",
 								this.getPresentationPriorityForChunk({ chunkType: "text", hadVisibleAssistantContent }),
 							)

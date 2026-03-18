@@ -109,12 +109,12 @@ export class TaskPresentationScheduler {
 		// consumed our pendingPriority. We therefore set pendingPriority *after*
 		// the in-flight flush resolves so it cannot be stolen by the continuation.
 		if (this.flushInProgress) {
-			await this.currentFlushCompletion
+			await (this.currentFlushCompletion ?? Promise.resolve())
 			// Another concurrent caller may have started a new flush cycle after
 			// the same in-flight flush resolved. If one is now in progress, wait
 			// for it too — we need a flush to run *after* we set pendingPriority.
 			while (this.flushInProgress) {
-				await this.currentFlushCompletion
+				await (this.currentFlushCompletion ?? Promise.resolve())
 			}
 		}
 
