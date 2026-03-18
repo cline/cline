@@ -79,12 +79,12 @@ const Select: React.FC<{
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	useInput(
-		(_, key) => {
+		(input, key) => {
 			if (key.upArrow) {
 				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
 			} else if (key.downArrow) {
 				setSelectedIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))
-			} else if (isEnterKey("", key)) {
+			} else if (isEnterKey(input, key)) {
 				onSelect(items[selectedIndex].value)
 			}
 		},
