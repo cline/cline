@@ -173,69 +173,68 @@ export class TaskPresentationScheduler {
 			return
 		}
 
-		if (this.flushInProgress) {
-			// flushNow() handles the in-flight case itself before calling runFlushCycle,
-			// so this branch is only reached from requestFlush() (which returns early when
-			// flushInProgress is true) — meaning this path should not be hit in practice.
-			// Guard it defensively anyway.
-			const inFlightResult = await this.currentFlushCompletion
-			if (options.rethrowErrors && inFlightResult?.error) {
-				throw inFlightResult.error
+		while (true) {
+			if (this.flushInProgress) {
+				// flushNow() handles the in-flight case itself before calling runFlushCycle,
+				// so this branch is only reached from requestFlush() (which returns early when
+				// flushInProgress is true) — meaning this path should not be hit in practice.
+				// Guard it defensively anyway.
+				const inFlightResult = await this.currentFlushCompletion
+				if (options.rethrowErrors && inFlightResult?.error) {
+					throw inFlightResult.error
+				}
+				// Re-check flushInProgress: another concurrent caller may have already
+				// started a new flush cycle after the same in-flight flush resolved.
+				// Without this guard both callers would proceed past the pendingPriority
+				// check and start concurrent flushes against the same presentation state.
+				if (this.flushInProgress || this.disposed || !this.pendingPriority) {
+					return
+				}
 			}
-			// Re-check flushInProgress: another concurrent caller may have already
-			// started a new flush cycle after the same in-flight flush resolved.
-			// Without this guard both callers would proceed past the pendingPriority
-			// check and start concurrent flushes against the same presentation state.
-			if (this.flushInProgress || this.disposed || !this.pendingPriority) {
+
+			if (!this.pendingPriority) {
 				return
 			}
-		}
 
-		if (!this.pendingPriority) {
-			return
-		}
-
-		this.flushInProgress = true
-		this.pendingPriority = undefined
-
-		this.currentFlushCompletion = (async () => {
-			try {
-				await this.flush()
-				return {}
-			} catch (error) {
-				this.onFlushError?.(error)
-				return { error }
-			} finally {
-				this.flushInProgress = false
-			}
-		})()
-
-		const result = await this.currentFlushCompletion
-		// If an immediate follow-up flush is pending, keep the scheduler in an
-		// in-progress state until the continuation below re-enters runFlushCycle.
-		// JavaScript's single-threaded execution already makes the hand-off safe,
-		// but preserving the invariant here prevents concurrent callers from
-		// observing a brief "idle" window between flush cycles.
-		if (!this.disposed && this.pendingPriority === "immediate") {
 			this.flushInProgress = true
-		}
-		this.currentFlushCompletion = undefined
-		if (result.error && options.rethrowErrors) {
-			this.flushInProgress = false
-			throw result.error
-		}
+			this.pendingPriority = undefined
 
-		if (this.disposed) {
-			return
-		}
+			this.currentFlushCompletion = (async () => {
+				try {
+					await this.flush()
+					return {}
+				} catch (error) {
+					this.onFlushError?.(error)
+					return { error }
+				} finally {
+					this.flushInProgress = false
+				}
+			})()
 
-		if (this.pendingPriority) {
-			const priorityToRun = this.pendingPriority
-			if (priorityToRun === "immediate") {
-				await this.runFlushCycle(options)
-			} else {
-				this.requestFlush(priorityToRun)
+			const result = await this.currentFlushCompletion
+			this.currentFlushCompletion = undefined
+			if (result.error && options.rethrowErrors) {
+				throw result.error
 			}
+
+			if (this.disposed) {
+				return
+			}
+
+			const priorityToRun = this.pendingPriority
+			if (!priorityToRun) {
+				return
+			}
+
+			if (priorityToRun !== "immediate") {
+				this.requestFlush(priorityToRun)
+				return
+			}
+
+			// Continue the loop synchronously for immediate follow-up work. Because
+			// there is no await between clearing currentFlushCompletion above and
+			// re-entering the loop here, no other caller can observe an interleaved
+			// "idle" state before the immediate flush is started.
 		}
 	}
 

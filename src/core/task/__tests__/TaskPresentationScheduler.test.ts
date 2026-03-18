@@ -160,6 +160,33 @@ describe("TaskPresentationScheduler", () => {
 		flushCount.should.equal(2)
 	})
 
+	it("runs an immediate follow-up flush requested during an in-flight flush", async () => {
+		let resolveFirstFlush: (() => void) | undefined
+		let flushCount = 0
+
+		const scheduler = new TaskPresentationScheduler({
+			flush: async () => {
+				flushCount += 1
+				if (flushCount === 1) {
+					await new Promise<void>((resolve) => {
+						resolveFirstFlush = resolve
+					})
+				}
+			},
+			getDelayMs: () => 0,
+		})
+
+		scheduler.requestFlush("immediate")
+		await Promise.resolve()
+		await Promise.resolve()
+
+		scheduler.requestFlush("immediate")
+		resolveFirstFlush?.()
+
+		await scheduler.flushNow()
+		flushCount.should.equal(3)
+	})
+
 	it("reset() cancels pending timers without marking the scheduler as disposed", () => {
 		const clock = sinon.useFakeTimers()
 		const flushSpy = sinon.spy(async () => {})
