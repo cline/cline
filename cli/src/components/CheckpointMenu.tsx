@@ -7,6 +7,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Box, Text, useInput } from "ink"
 import React, { useState } from "react"
 import { useStdinContext } from "../context/StdinContext"
+import { isEnterKey } from "../utils/input"
 
 export type RestoreType = "task" | "workspace" | "taskAndWorkspace"
 
@@ -101,7 +102,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 					setSelectedCheckpoint((i) => Math.max(0, i - 1))
 				} else if (key.downArrow) {
 					setSelectedCheckpoint((i) => Math.min(checkpoints.length - 1, i + 1))
-				} else if (key.return && checkpoints.length > 0) {
+				} else if (isEnterKey(input, key) && checkpoints.length > 0) {
 					setStage("restoreType")
 				}
 			} else if (stage === "restoreType") {
@@ -109,7 +110,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 					setSelectedRestoreType((i) => Math.max(0, i - 1))
 				} else if (key.downArrow) {
 					setSelectedRestoreType((i) => Math.min(RESTORE_TYPE_OPTIONS.length - 1, i + 1))
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					const checkpoint = checkpoints[selectedCheckpoint]
 					const restoreType = RESTORE_TYPE_OPTIONS[selectedRestoreType]
 					if (checkpoint && restoreType) {
@@ -120,7 +121,7 @@ export const CheckpointMenu: React.FC<CheckpointMenuProps> = ({ messages, onSele
 
 			// Quick number selection for checkpoints
 			if (stage === "checkpoint") {
-				const num = parseInt(input, 10)
+				const num = Number.parseInt(input, 10)
 				if (!Number.isNaN(num) && num >= 1 && num <= checkpoints.length) {
 					setSelectedCheckpoint(num - 1)
 					setStage("restoreType")
