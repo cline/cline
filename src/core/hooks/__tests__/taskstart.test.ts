@@ -5,20 +5,14 @@ import path from "path"
 import sinon from "sinon"
 import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
-import {
-	createHookTestEnv,
-	HookTestEnv,
-	loadFixture,
-	stubHookDirs,
-	withFixtureRunner,
-	writeHookScriptForPlatform,
-} from "./test-utils"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskStart Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
 	let hookTestEnv: HookTestEnv
+	const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
@@ -466,26 +460,23 @@ console.log(JSON.stringify({
 		})
 
 		it("should preserve fixture-based failure behavior", async () => {
-			await loadFixture("hooks/taskstart/error", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskStart")
-
-			try {
-				await runner.run({
-					taskId: "test-task-id",
-					taskStart: {
-						taskMetadata: {
-							taskId: "test-task-id",
-							ulid: "test-ulid",
-							initialTask: "Test task",
+			await withFixtureRunner("TaskStart", "hooks/taskstart/error", hookTestEnv, async (runner) => {
+				try {
+					await runner.run({
+						taskId: "test-task-id",
+						taskStart: {
+							taskMetadata: {
+								taskId: "test-task-id",
+								ulid: "test-ulid",
+								initialTask: "Test task",
+							},
 						},
-					},
-				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/TaskStart.*exited with code 1/)
-			}
+					})
+					throw new Error("Should have thrown")
+				} catch (error: unknown) {
+					getErrorMessage(error).should.match(/TaskStart.*exited with code 1/)
+				}
+			})
 		})
 	})
 })
