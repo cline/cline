@@ -218,6 +218,22 @@ describe("Hook Management", () => {
 				.catch(() => false)
 			exists.should.equal(true)
 		})
+
+		it("should create Notification hook with valid template", async function () {
+			this.timeout(5000)
+
+			const request = CreateHookRequest.create({
+				hookName: "Notification",
+				isGlobal: true,
+			})
+
+			const response = await createHook(mockController, request, globalHooksDir)
+			const hookPath = path.join(globalHooksDir, hookFileName("Notification"))
+			const content = await fs.readFile(hookPath, "utf-8")
+
+			content.should.containEql("Notification Hook")
+			response.hooksToggles!.globalHooks.some((h) => h.name === "Notification").should.equal(true)
+		})
 	})
 
 	describe("deleteHook", () => {

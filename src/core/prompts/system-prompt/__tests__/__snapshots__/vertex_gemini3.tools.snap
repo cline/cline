@@ -6,10 +6,12 @@
       "type": "OBJECT",
       "properties": {
         "command": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The CLI command to execute. This should be valid for the current operating system. For command chaining, use proper shell operators like && to chain commands (e.g., 'cd path && command'). Do not use the ~ character or $HOME to refer to the home directory. Always use absolute paths. Do not run search/grep commands that may return thousands of results."
         },
         "requires_approval": {
-          "type": "BOOLEAN"
+          "type": "BOOLEAN",
+          "description": "To indicate whether this command requires explicit user approval or interaction before it should be executed. For system/file altering operations like installing/uninstalling packages, removing/overwriting files, system configuration changes, network operations, or any commands that are considered potentially dangerous must be set to true. False for safe operations like running development servers, building projects, and other non-destructive operations."
         }
       },
       "required": [
@@ -25,10 +27,12 @@
       "type": "OBJECT",
       "properties": {
         "path": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The path of the file to read (relative to the current working directory /test/project)"
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -43,13 +47,16 @@
       "type": "OBJECT",
       "properties": {
         "path": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The path of the file to write to (relative to the current working directory /test/project)"
         },
         "content": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The content to write to the file. ALWAYS provide the COMPLETE intended content of the file, without any truncation or omissions. You MUST include ALL parts of the file, even if they haven't been modified."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -65,13 +72,16 @@
       "type": "OBJECT",
       "properties": {
         "path": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The path of the file to modify (relative to the current working directory /test/project)"
         },
         "diff": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "One or more SEARCH/REPLACE blocks following this exact format:\n  ```\n  ------- SEARCH\n  [exact content to find]\n  =======\n  [new content to replace with]\n  +++++++ REPLACE\n  ```\n  Critical rules:\n  1. SEARCH content must match the associated file section to find EXACTLY:\n     * Match character-for-character including whitespace, indentation, line endings\n     * Include all comments, docstrings, etc.\n  2. SEARCH/REPLACE blocks will ONLY replace the first match occurrence.\n     * Including multiple unique SEARCH/REPLACE blocks if you need to make multiple changes.\n     * Include *just* enough lines in each SEARCH section to uniquely match each set of lines that need to change.\n     * When using multiple SEARCH/REPLACE blocks, list them in the order they appear in the file.\n  3. Keep SEARCH/REPLACE blocks concise:\n     * Break large SEARCH/REPLACE blocks into a series of smaller blocks that each change a small portion of the file.\n     * Include just the changing lines, and a few surrounding lines if needed for uniqueness.\n     * Do not include long runs of unchanging lines in SEARCH/REPLACE blocks.\n     * Each line must be complete. Never truncate lines mid-way through as this can cause matching failures.\n  4. Special operations:\n     * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)\n     * To delete code: Use empty REPLACE section"
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -87,16 +97,20 @@
       "type": "OBJECT",
       "properties": {
         "path": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched."
         },
         "regex": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The regular expression pattern to search for. Uses Rust regex syntax."
         },
         "file_pattern": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Glob pattern to filter files (e.g., '*.ts' for TypeScript files). If not provided, it will search all files (*)."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -112,13 +126,16 @@
       "type": "OBJECT",
       "properties": {
         "path": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The path of the directory to list contents for (relative to the current working directory /test/project)"
         },
         "recursive": {
-          "type": "BOOLEAN"
+          "type": "BOOLEAN",
+          "description": "Whether to list files recursively. Use true for recursive listing, false or omit for top-level only."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -133,10 +150,12 @@
       "type": "OBJECT",
       "properties": {
         "path": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The path of a directory (not a file) relative to the current working directory /test/project. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -151,16 +170,20 @@
       "type": "OBJECT",
       "properties": {
         "action": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The action to perform. The available actions are: \n\t* launch: Launch a new Puppeteer-controlled browser instance at the specified URL. This **must always be the first action**. \n\t\t- Use with the `url` parameter to provide the URL. \n\t\t- Ensure the URL is valid and includes the appropriate protocol (e.g. http://localhost:3000/page, file:///path/to/file.html, etc.) \n\t* click: Click at a specific x,y coordinate. \n\t\t- Use with the `coordinate` parameter to specify the location. \n\t\t- Always click in the center of an element (icon, button, link, etc.) based on coordinates derived from a screenshot. \n\t* type: Type a string of text on the keyboard. You might use this after clicking on a text field to input text. \n\t\t- Use with the `text` parameter to provide the string to type. \n\t* scroll_down: Scroll down the page by one page height. \n\t* scroll_up: Scroll up the page by one page height. \n\t* close: Close the Puppeteer-controlled browser instance. This **must always be the final browser action**. \n\t    - Example: `<action>close</action>`"
         },
         "url": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Use this for providing the URL for the `launch` action. \n\t* Example: <url>https://example.com</url>"
         },
         "coordinate": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The X and Y coordinates for the `click` action. Coordinates should be within the **1280x720** resolution. \n\t* Example: <coordinate>450,300</coordinate>"
         },
         "text": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Use this for providing the text for the `type` action. \n\t* Example: <text>Hello, world!</text>"
         }
       },
       "required": [
@@ -175,16 +198,20 @@
       "type": "OBJECT",
       "properties": {
         "server_name": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The name of the MCP server providing the tool"
         },
         "tool_name": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The name of the tool to execute"
         },
         "arguments": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A JSON object containing the tool's input parameters, following the tool's input schema"
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -201,13 +228,16 @@
       "type": "OBJECT",
       "properties": {
         "server_name": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The name of the MCP server providing the resource"
         },
         "uri": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The URI identifying the specific resource to access"
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -223,13 +253,16 @@
       "type": "OBJECT",
       "properties": {
         "question": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The question to ask the user. This should be a clear, specific question that addresses the information you need."
         },
         "options": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "An array of 2-5 options for the user to choose from. Each option should be a string describing a possible answer. You may not always need to provide options, but it may be helpful in many cases where it can save the user from having to type out a response manually. IMPORTANT: NEVER include an option to toggle to Act mode, as this would be something you need to direct the user to do manually themselves if needed."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. The task_progress parameter must be included as a separate parameter inside of the parent tool call, it must be separate from other parameters such as content, arguments, etc. (See 'UPDATING TASK PROGRESS' section for more details)"
         }
       },
       "required": [
@@ -244,13 +277,16 @@
       "type": "OBJECT",
       "properties": {
         "result": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The result of the tool use. This should be a clear, specific description of the result."
         },
         "command": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A CLI command to execute to show a live demo of the result to the user. For example, use `open index.html` to display a created html website, or `open localhost:3000` to display a locally running development server. But DO NOT use commands like `echo` or `cat` that merely print text. This command should be valid for the current operating system. Ensure the command is properly formatted and does not contain any harmful instructions"
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)"
         }
       },
       "required": [
@@ -265,7 +301,8 @@
       "type": "OBJECT",
       "properties": {
         "context": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The context to preload the new task with. If applicable based on the current task, this should include:\n  1. Current Work: Describe in detail what was being worked on prior to this request to create a new task. Pay special attention to the more recent messages / conversation.\n  2. Key Technical Concepts: List all important technical concepts, technologies, coding conventions, and frameworks discussed, which might be relevant for the new task.\n  3. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.\n  4. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.\n  5. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks. It's important to be detailed here."
         }
       },
       "required": [
@@ -280,13 +317,16 @@
       "type": "OBJECT",
       "properties": {
         "response": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A chat message response to the user."
         },
         "needs_more_exploration": {
-          "type": "BOOLEAN"
+          "type": "BOOLEAN",
+          "description": "needs_more_exploration can be set to true if it is determined that further exploration with read_file/search tools is necessary to formulate a complete plan. This determination can be reached during the response generation process, but should not be acknowledged until this parameter is set to true if required."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress after this tool use is completed. If you are presenting a final implementation plan to the user with needs_more_exploration set to false, you should include a checklist of items to be completed during Act Mode when implementation is underway. (See 'Updating Task Progress' section for more details)"
         }
       },
       "required": [
@@ -301,10 +341,12 @@
       "type": "OBJECT",
       "properties": {
         "response": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The message to provide to the user. This should explain what you're about to do, your current progress, or your reasoning. The response should be brief and conversational in tone, aiming to keep the user informed without overwhelming them with details."
         },
         "task_progress": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A checklist showing task progress with the latest status of each subtasks included previously if any."
         }
       },
       "required": [
@@ -328,13 +370,16 @@
       "type": "OBJECT",
       "properties": {
         "title": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "A descriptive title for the diff view (e.g., 'Changes in commit abc123', 'PR #42: Add authentication', 'Changes between main and feature-branch')"
         },
         "from_ref": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The git reference for the 'before' state. Can be a commit hash, branch name, tag, or relative reference like HEAD~1, HEAD^, origin/main, etc."
         },
         "to_ref": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "The git reference for the 'after' state. Can be a commit hash, branch name, tag, or relative reference. If not provided, compares to the current working directory (including uncommitted changes)."
         }
       },
       "required": [
@@ -350,19 +395,24 @@
       "type": "OBJECT",
       "properties": {
         "prompt_1": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "First subagent prompt."
         },
         "prompt_2": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Optional second subagent prompt."
         },
         "prompt_3": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Optional third subagent prompt."
         },
         "prompt_4": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Optional fourth subagent prompt."
         },
         "prompt_5": {
-          "type": "STRING"
+          "type": "STRING",
+          "description": "Optional fifth subagent prompt."
         }
       },
       "required": [

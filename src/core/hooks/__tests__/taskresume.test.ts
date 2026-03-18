@@ -71,7 +71,8 @@ console.log(JSON.stringify({
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
-                     input.taskId && input.workspaceRoots !== undefined;
+                     input.taskId && input.workspaceRoots !== undefined &&
+                     input.model && input.model.provider && input.model.slug;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
@@ -214,7 +215,11 @@ console.log(JSON.stringify({
 	})
 
 	describe("Message Count Analysis", () => {
-		it("should analyze message count thresholds", async () => {
+		it("should analyze message count thresholds", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));

@@ -26,6 +26,9 @@ import { useCallback, useEffect, useRef, useState } from "react"
  *    to unmount and remount everything from scratch. This resets Ink's internal tracking
  *    AND re-renders Static content since the components are brand new instances.
  *
+ * We only run this full recovery when terminal width changes. Height-only resizes do not
+ * affect wrapping in the same way and should not restart the task view.
+ *
  * Gemini CLI does the same thing in AppContainer.tsx: debounce 300ms, then
  * stdout.write(ansiEscapes.clearTerminal) + setHistoryRemountKey(prev => prev + 1).
  *
@@ -41,6 +44,8 @@ export function useTerminalSize() {
 	})
 	const [resizeKey, setResizeKey] = useState(0)
 	const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const previousColumnsRef = useRef(process.stdout.columns || 80)
+	const pendingWidthRefreshRef = useRef(false)
 
 	const refreshAfterResize = useCallback(() => {
 		// Clear terminal + scrollback to wipe stale content from old width
@@ -56,17 +61,33 @@ export function useTerminalSize() {
 
 	useEffect(() => {
 		function updateSize() {
+			const nextColumns = process.stdout.columns || 80
+			const nextRows = process.stdout.rows || 24
+			const didWidthChange = nextColumns !== previousColumnsRef.current
+			previousColumnsRef.current = nextColumns
+
 			setSize({
-				columns: process.stdout.columns || 80,
-				rows: process.stdout.rows || 24,
+				columns: nextColumns,
+				rows: nextRows,
 			})
+
+			if (didWidthChange) {
+				pendingWidthRefreshRef.current = true
+			}
+
+			if (!pendingWidthRefreshRef.current) {
+				return
+			}
 
 			// Debounce: wait 300ms after last resize event to do full recovery
 			if (debounceRef.current) {
 				clearTimeout(debounceRef.current)
 			}
 			debounceRef.current = setTimeout(() => {
-				refreshAfterResize()
+				if (pendingWidthRefreshRef.current) {
+					refreshAfterResize()
+					pendingWidthRefreshRef.current = false
+				}
 				debounceRef.current = null
 			}, 300)
 		}
@@ -76,6 +97,7 @@ export function useTerminalSize() {
 			if (debounceRef.current) {
 				clearTimeout(debounceRef.current)
 			}
+			pendingWidthRefreshRef.current = false
 		}
 	}, [refreshAfterResize])
 

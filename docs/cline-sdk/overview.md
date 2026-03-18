@@ -1,3 +1,8 @@
+---
+title: "Cline SDK"
+description: "Embed Cline as a programmable coding agent in your Node.js applications using an ACP-compatible TypeScript API."
+---
+
 # Cline SDK
 
 The Cline SDK lets you embed Cline as a programmable coding agent in your Node.js applications. It exposes the same capabilities as the Cline CLI and VS Code extension — file editing, command execution, browser use, MCP servers — through a TypeScript API that conforms to the [Agent Client Protocol (ACP)](https://agentclientprotocol.com/protocol/schema).
@@ -667,4 +672,4 @@ The Cline SDK implements the [Agent Client Protocol](https://agentclientprotocol
 | Permissions requested via `connection.requestPermission()` | Permissions requested via `setPermissionHandler()` callback |
 | Single process, single connection | Embeddable, multiple concurrent sessions |
 
-If you need stdio-based ACP communication (e.g., for IDE integration), use the `cline` CLI binary directly. The SDK is for embedding Cline in your own Nodke.js processes.
+If you need stdio-based ACP communication (e.g., for IDE integration), use the `cline` CLI binary directly. The SDK is for embedding Cline in your own Node.js processes.

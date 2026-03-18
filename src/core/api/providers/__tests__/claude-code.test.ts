@@ -226,6 +226,136 @@ describe("ClaudeCodeHandler", () => {
 		})
 	})
 
+	describe("error handling", () => {
+		it("should not crash when assistant message has empty content array", async () => {
+			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
+			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
+
+			async function* mockGenerator() {
+				yield {
+					type: "assistant",
+					message: {
+						content: [], // empty content — triggered TypeError in older code
+						usage: {
+							input_tokens: 10,
+							output_tokens: 0,
+						},
+						stop_reason: "end_turn",
+					},
+				}
+
+				yield {
+					type: "result",
+					result: {},
+					total_cost_usd: 0,
+				}
+			}
+
+			runClaudeCodeStub.returns(mockGenerator() as any)
+
+			const chunks: any[] = []
+			// Should not throw
+			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+				chunks.push(chunk)
+			}
+
+			const usageChunk = chunks.find((c) => c.type === "usage")
+			usageChunk.should.be.ok()
+			usageChunk.inputTokens.should.equal(10)
+		})
+
+		it("should throw when result has is_error=true (e.g. rate limit with no assistant message)", async () => {
+			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
+			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
+
+			async function* mockGenerator() {
+				yield {
+					type: "system",
+					subtype: "init",
+					apiKeySource: "none",
+				}
+
+				yield {
+					type: "system",
+					subtype: "rate_limit_event",
+					message: "Rate limit hit",
+					retryAfterSeconds: 30,
+				}
+
+				// No assistant message — CLI hit rate limit and gave up
+				yield {
+					type: "result",
+					subtype: "error",
+					is_error: true,
+					result: "Rate limit exceeded",
+					total_cost_usd: 0,
+					duration_ms: 1000,
+					duration_api_ms: 500,
+					num_turns: 0,
+					session_id: "test",
+				}
+			}
+
+			runClaudeCodeStub.returns(mockGenerator() as any)
+
+			let thrownError: Error | undefined
+			try {
+				for await (const _ of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+					// consume
+				}
+			} catch (err) {
+				thrownError = err as Error
+			}
+
+			thrownError!.message.should.containEql("Rate limit exceeded")
+		})
+
+		it("should ignore rate_limit_event system messages without throwing", async () => {
+			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
+			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
+
+			async function* mockGenerator() {
+				yield {
+					type: "system",
+					subtype: "init",
+					apiKeySource: "none",
+				}
+
+				// Newer Claude Code CLI emits this during rate limiting
+				yield {
+					type: "system",
+					subtype: "rate_limit_event",
+					message: "Rate limit hit, retrying...",
+					retryAfterSeconds: 30,
+				}
+
+				yield {
+					type: "assistant",
+					message: {
+						content: [{ type: "text", text: "Response after retry" }],
+						usage: { input_tokens: 20, output_tokens: 10 },
+						stop_reason: "end_turn",
+					},
+				}
+
+				yield {
+					type: "result",
+					result: {},
+					total_cost_usd: 0,
+				}
+			}
+
+			runClaudeCodeStub.returns(mockGenerator() as any)
+
+			const textChunks: string[] = []
+			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+				if (chunk.type === "text") textChunks.push(chunk.text)
+			}
+
+			textChunks.should.deepEqual(["Response after retry"])
+		})
+	})
+
 	describe("getModel", () => {
 		it("should return the correct model when specified", () => {
 			const handler = new ClaudeCodeHandler({

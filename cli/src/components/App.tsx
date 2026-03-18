@@ -3,14 +3,15 @@
  * Routes between different views (task, history, config)
  */
 
-import { Box } from "ink"
-import React, { ReactNode, useCallback, useState } from "react"
+import { Box, useApp } from "ink"
+import React, { ReactNode, useCallback, useEffect, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
 import { useTerminalSize } from "../hooks/useTerminalSize"
 import { AuthView } from "./AuthView"
 import { ChatView } from "./ChatView"
 import { ConfigView } from "./ConfigView"
+import { ErrorBoundary } from "./ErrorBoundary"
 import { HistoryView } from "./HistoryView"
 import { TaskJsonView } from "./TaskJsonView"
 
@@ -90,7 +91,17 @@ interface AppProps {
 	isRawModeSupported?: boolean
 }
 
-export const App: React.FC<AppProps> = ({
+export const App: React.FC<AppProps> = (props) => {
+	const { exit } = useApp()
+
+	return (
+		<ErrorBoundary exit={exit}>
+			<InternalApp {...props} />
+		</ErrorBoundary>
+	)
+}
+
+const InternalApp: React.FC<AppProps> = ({
 	view: initialView,
 	taskId,
 	verbose = false,
@@ -135,6 +146,17 @@ export const App: React.FC<AppProps> = ({
 	const { resizeKey } = useTerminalSize()
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
+	const [pendingInitialPrompt, setPendingInitialPrompt] = useState<string | undefined>(initialPrompt)
+	const [pendingInitialImages, setPendingInitialImages] = useState<string[] | undefined>(initialImages)
+
+	useEffect(() => {
+		if (!pendingInitialPrompt && (!pendingInitialImages || pendingInitialImages.length === 0)) {
+			return
+		}
+
+		setPendingInitialPrompt(undefined)
+		setPendingInitialImages(undefined)
+	}, [pendingInitialPrompt, pendingInitialImages])
 
 	const handleSelectTask = useCallback((taskId: string) => {
 		setSelectedTaskId(taskId)
@@ -242,8 +264,8 @@ export const App: React.FC<AppProps> = ({
 					) : (
 						<ChatView
 							controller={controller}
-							initialImages={initialImages}
-							initialPrompt={initialPrompt}
+							initialImages={pendingInitialImages}
+							initialPrompt={pendingInitialPrompt}
 							onComplete={onComplete}
 							onError={onError}
 							onExit={onWelcomeExit}

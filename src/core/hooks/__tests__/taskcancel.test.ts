@@ -102,7 +102,8 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName === 'TaskCancel' && 
                      input.timestamp && input.taskId && 
-                     input.workspaceRoots !== undefined;
+                     input.workspaceRoots !== undefined &&
+                     input.model && input.model.provider && input.model.slug;
 // Exit with error if fields are missing (for test verification)
 if (!hasAllFields) {
   process.exit(1);

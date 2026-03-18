@@ -94,6 +94,18 @@ export type TelemetryMetadata = {
 }
 
 /**
+ * Token usage data shared across telemetry capture methods.
+ * Used by both `captureTokenUsage` and `captureConversationTurnEvent`.
+ */
+export interface TokenUsage {
+	tokensIn?: number
+	tokensOut?: number
+	cacheWriteTokens?: number
+	cacheReadTokens?: number
+	totalCost?: number
+}
+
+/**
  * Maximum length for error messages to prevent excessive data
  */
 const MAX_ERROR_MESSAGE_LENGTH = 500
@@ -161,6 +173,23 @@ export class TelemetryService {
 			CANCELLATIONS_TOTAL: "cline.hooks.cancellations.total",
 			CONTEXT_MODIFICATIONS_TOTAL: "cline.hooks.context_modifications.total",
 			CACHE_ACCESSES_TOTAL: "cline.hooks.cache.accesses.total",
+		},
+		AI_OUTPUT: {
+			ACCEPTED_LINES_ADDED: "cline.ai_output.accepted.lines_added.total",
+			ACCEPTED_LINES_DELETED: "cline.ai_output.accepted.lines_deleted.total",
+			ACCEPTED_LINES_CHANGED: "cline.ai_output.accepted.lines_changed.total",
+			ACCEPTED_FILES_CREATED: "cline.ai_output.accepted.files_created.total",
+			ACCEPTED_FILES_DELETED: "cline.ai_output.accepted.files_deleted.total",
+			ACCEPTED_FILES_MOVED: "cline.ai_output.accepted.files_moved.total",
+			REJECTED_LINES_ADDED: "cline.ai_output.rejected.lines_added.total",
+			REJECTED_LINES_DELETED: "cline.ai_output.rejected.lines_deleted.total",
+			REJECTED_LINES_CHANGED: "cline.ai_output.rejected.lines_changed.total",
+			REJECTED_FILES_CREATED: "cline.ai_output.rejected.files_created.total",
+			REJECTED_FILES_DELETED: "cline.ai_output.rejected.files_deleted.total",
+			REJECTED_FILES_MOVED: "cline.ai_output.rejected.files_moved.total",
+		},
+		GRPC: {
+			RESPONSE_SIZE_BYTES: "cline.grpc.response.size_bytes",
 		},
 	}
 	// Event constants for tracking user interactions and system events
@@ -733,13 +762,7 @@ export class TelemetryService {
 		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
-		tokenUsage: {
-			tokensIn?: number
-			tokensOut?: number
-			cacheWriteTokens?: number
-			cacheReadTokens?: number
-			totalCost?: number
-		} = {},
+		tokenUsage: TokenUsage = {},
 		isNativeToolCall?: boolean,
 	) {
 		// Ensure required parameters are provided
@@ -813,29 +836,60 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tokensIn Number of input tokens consumed
 	 * @param tokensOut Number of output tokens generated
+	 * @param provider The API provider identifier (e.g. "anthropic", "openai", "cline")
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(ulid: string, tokensIn: number, tokensOut: number, model: string) {
+	public captureTokenUsage(
+		ulid: string,
+		tokensIn: number,
+		tokensOut: number,
+		provider: string,
+		model: string,
+		options?: TokenUsage,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
 			properties: {
 				ulid,
 				tokensIn,
 				tokensOut,
+				provider,
 				model,
+				...options,
 			},
 		})
 
+		const attributes = { ulid, provider, model }
+
 		if (Number.isFinite(tokensIn)) {
 			const value = tokensIn ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, attributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, attributes)
 		}
 
 		if (Number.isFinite(tokensOut)) {
 			const value = tokensOut ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, attributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, attributes)
+		}
+
+		if (Number.isFinite(options?.cacheWriteTokens)) {
+			const cacheWriteTokens = options!.cacheWriteTokens ?? 0
+			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, attributes)
+			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, attributes)
+		}
+
+		if (Number.isFinite(options?.cacheReadTokens)) {
+			const cacheReadTokens = options!.cacheReadTokens ?? 0
+			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, attributes)
+			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, attributes)
+		}
+
+		if (Number.isFinite(options?.totalCost)) {
+			const totalCost = options!.totalCost ?? 0
+			const costAttributes = { ...attributes, currency: "USD" }
+			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
 		}
 	}
 
@@ -2174,6 +2228,108 @@ export class TelemetryService {
 		})
 	}
 
+	/**
+	 * Records when a file edit (write_to_file, replace_in_file, apply_patch) is accepted by the user
+	 * Tracks lines added, deleted, and changed for the accepted edit.
+	 *
+	 * @param args Properties for the accepted AI output event
+	 */
+	public captureAiOutputAccepted(args: {
+		ulid: string
+		tool: string
+		provider?: string
+		model?: string
+		source: "agent" | "human"
+		linesAdded: number
+		linesDeleted: number
+		linesChanged: number
+		filesCreated?: number
+		filesDeleted?: number
+		filesMoved?: number
+	}): void {
+		this.capture({
+			event: "task.ai_output.accepted",
+			properties: {
+				ulid: args.ulid,
+				tool: args.tool,
+				provider: args.provider,
+				model: args.model,
+				source: args.source,
+				linesAdded: args.linesAdded,
+				linesDeleted: args.linesDeleted,
+				linesChanged: args.linesChanged,
+				filesCreated: args.filesCreated ?? 0,
+				filesDeleted: args.filesDeleted ?? 0,
+				filesMoved: args.filesMoved ?? 0,
+			},
+		})
+
+		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_ADDED, args.linesAdded, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_DELETED, args.linesDeleted, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_LINES_CHANGED, args.linesChanged, attrs)
+		if (args.filesCreated) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_CREATED, args.filesCreated, attrs)
+		}
+		if (args.filesDeleted) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_DELETED, args.filesDeleted, attrs)
+		}
+		if (args.filesMoved) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.ACCEPTED_FILES_MOVED, args.filesMoved, attrs)
+		}
+	}
+
+	/**
+	 * Records when a file edit (write_to_file, replace_in_file, apply_patch) is rejected by the user
+	 * Tracks lines that would have been added, deleted, and changed.
+	 *
+	 * @param args Properties for the rejected AI output event
+	 */
+	public captureAiOutputRejected(args: {
+		ulid: string
+		tool: string
+		provider?: string
+		model?: string
+		source: "agent" | "human"
+		linesAdded: number
+		linesDeleted: number
+		linesChanged: number
+		filesCreated?: number
+		filesDeleted?: number
+		filesMoved?: number
+	}): void {
+		this.capture({
+			event: "task.ai_output.rejected",
+			properties: {
+				ulid: args.ulid,
+				tool: args.tool,
+				provider: args.provider,
+				model: args.model,
+				source: args.source,
+				linesAdded: args.linesAdded,
+				linesDeleted: args.linesDeleted,
+				linesChanged: args.linesChanged,
+				filesCreated: args.filesCreated ?? 0,
+				filesDeleted: args.filesDeleted ?? 0,
+				filesMoved: args.filesMoved ?? 0,
+			},
+		})
+
+		const attrs = { ulid: args.ulid, tool: args.tool, provider: args.provider, model: args.model, source: args.source }
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_ADDED, args.linesAdded, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_DELETED, args.linesDeleted, attrs)
+		this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_LINES_CHANGED, args.linesChanged, attrs)
+		if (args.filesCreated) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_CREATED, args.filesCreated, attrs)
+		}
+		if (args.filesDeleted) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_DELETED, args.filesDeleted, attrs)
+		}
+		if (args.filesMoved) {
+			this.recordCounter(TelemetryService.METRICS.AI_OUTPUT.REJECTED_FILES_MOVED, args.filesMoved, attrs)
+		}
+	}
+
 	public captureHostEvent(name: string, content: string) {
 		this.capture({
 			event: TelemetryService.EVENTS.HOST.DETECTED,
@@ -2182,6 +2338,35 @@ export class TelemetryService {
 				content,
 			},
 		})
+	}
+
+	/**
+	 * Records the size of a gRPC response message for observability.
+	 *
+	 * @param sizeUtf8Bytes Size in UTF-8 bytes (use `Buffer.byteLength`, not `string.length`)
+	 * @param service The gRPC service name
+	 * @param method The gRPC method name
+	 * @param requestId Optional request ID for correlation
+	 */
+	public captureGrpcResponseSize(sizeUtf8Bytes: number, service: string, method: string, requestId?: string): void {
+		this.recordHistogram(
+			TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES,
+			sizeUtf8Bytes,
+			{
+				service,
+				method,
+				...(requestId && { request_id: requestId }),
+			},
+			"Size of gRPC response messages in bytes",
+		)
+
+		if (sizeUtf8Bytes > 4 * 1024 * 1024) {
+			Logger.warn(
+				`[TelemetryService] Large gRPC response: ${service}.${method} ` +
+					`size=${(sizeUtf8Bytes / (1024 * 1024)).toFixed(1)}MB` +
+					(requestId ? ` request_id=${requestId}` : ""),
+			)
+		}
 	}
 
 	/**

@@ -508,10 +508,22 @@ export async function getGlobalHooksDir(): Promise<string | undefined> {
 	return (await isDirectory(globalHooksDir)) ? globalHooksDir : undefined
 }
 
+let runtimeHooksDir: string | undefined
+
+/**
+ * Sets a runtime hooks directory, typically passed via the --hooks-dir CLI flag.
+ * This directory is included alongside global and workspace hooks directories
+ * when discovering hooks.
+ */
+export function setRuntimeHooksDir(dir: string | undefined): void {
+	runtimeHooksDir = dir
+}
+
 /**
  * Gets the paths to all hooks directories to search for hooks, including:
- * 1. The global hooks directory (if it exists)
- * 2. Each workspace root's .clinerules/hooks directory (if they exist)
+ * 1. The runtime hooks directory (if set via --hooks-dir CLI flag)
+ * 2. The global hooks directory (if it exists)
+ * 3. Each workspace root's .clinerules/hooks directory (if they exist)
  *
  * Note: Hooks from different directories may be executed concurrently.
  * No execution order is guaranteed between hooks from different directories.
@@ -520,6 +532,11 @@ export async function getGlobalHooksDir(): Promise<string | undefined> {
  */
 export async function getAllHooksDirs(): Promise<string[]> {
 	const hooksDirs: string[] = []
+
+	// Add runtime hooks directory (set by --hooks-dir CLI flag)
+	if (runtimeHooksDir && (await isDirectory(runtimeHooksDir))) {
+		hooksDirs.push(runtimeHooksDir)
+	}
 
 	// Add global hooks directory (if it exists)
 	const globalHooksDir = await getGlobalHooksDir()

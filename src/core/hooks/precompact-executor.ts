@@ -4,6 +4,7 @@ import type { ClineStorageMessage } from "@shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import type { ContextManager } from "../context/context-management/ContextManager"
 import type { MessageStateHandler } from "../task/message-state"
+import type { HookModelInputContext } from "./hook-factory"
 
 /**
  * Active hook execution state
@@ -119,6 +120,8 @@ export interface PreCompactHookParams {
 	taskId: string
 	/** ULID for telemetry */
 	ulid: string
+	/** Active hook model context */
+	modelContext: HookModelInputContext
 
 	// Conversation state
 	/** API conversation history */
@@ -241,6 +244,7 @@ export async function executePreCompactHookWithCleanup(params: PreCompactHookPar
 			messageStateHandler: params.messageStateHandler,
 			taskId: params.taskId,
 			hooksEnabled: params.hooksEnabled,
+			model: params.modelContext,
 		})
 
 		// Handle cancellation from hook

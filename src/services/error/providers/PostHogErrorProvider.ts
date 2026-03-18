@@ -14,6 +14,10 @@ import type { ErrorSettings, IErrorProvider } from "./IErrorProvider"
 
 const isDev = process.env.IS_DEV === "true"
 
+type PostHogErrorClient = PostHogClientValidConfig & {
+	enableExceptionAutocapture: boolean
+}
+
 /**
  * PostHog implementation of the error provider interface
  * Handles PostHog-specific error tracking and logging
@@ -24,11 +28,11 @@ export class PostHogErrorProvider implements IErrorProvider {
 	// Does not accept shared client
 	private readonly isSharedClient = false
 
-	constructor(clientConfig: PostHogClientValidConfig) {
+	constructor(clientConfig: PostHogErrorClient) {
 		this.client = new PostHog(clientConfig.errorTrackingApiKey, {
 			host: clientConfig.host,
 			fetch: (url, options) => fetch(url, options),
-			enableExceptionAutocapture: false, // NOTE: Re-enable it once the api key is set to env var
+			enableExceptionAutocapture: clientConfig.enableExceptionAutocapture,
 			before_send: (event) => PostHogClientProvider.eventFilter(event),
 		})
 		// Initialize error settings
@@ -59,6 +63,21 @@ export class PostHogErrorProvider implements IErrorProvider {
 		this.errorSettings.level = getErrorLevelFromString(hostSettings.errorLevel)
 
 		return this
+	}
+
+	captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void> {
+		if (!this.isEnabled() || this.errorSettings.level === "off") {
+			return Promise.resolve()
+		}
+
+		const errorDetails = {
+			name: error.name,
+			extension_version: pkg.version,
+			is_dev: isDev,
+			...properties,
+		}
+
+		return this.client.captureExceptionImmediate(error, this.distinctId, errorDetails)
 	}
 
 	public logException(error: Error | ClineError, properties: Record<string, unknown> = {}): void {
