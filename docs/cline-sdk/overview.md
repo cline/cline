@@ -270,9 +270,8 @@ Each permission request includes an array of `PermissionOption` objects:
 | `kind` | Meaning |
 |--------|---------|
 | `allow_once` | Approve this single operation |
-| `allow_always` | Approve and remember for future operations |
+| `allow_always` | Approve and remember for future operations (sent for commands, tools, MCP servers) |
 | `reject_once` | Deny this single operation |
-| `reject_always` | Deny and remember for future operations |
 
 **Important:** If no permission handler is set, all tool calls are rejected for safety.
 
@@ -383,7 +382,7 @@ const response = await agent.initialize({
 
 // Response includes:
 {
-  protocolVersion: "0.9.0",
+  protocolVersion: 1,
   agentCapabilities: {
     loadSession: true,
     promptCapabilities: { image: true, audio: false, embeddedContext: true },
@@ -399,31 +398,21 @@ const response = await agent.initialize({
 
 #### Client Capabilities
 
-The `clientCapabilities` object in `initialize()` tells the agent what your environment supports. This affects how the agent executes tools:
+The `clientCapabilities` object in `initialize()` declares what your environment supports. It is part of the ACP protocol handshake.
 
-| Capability | Type | Effect |
-|------------|------|--------|
-| `fs.readTextFile` | `boolean` | Agent can request file reads through your client |
-| `fs.writeTextFile` | `boolean` | Agent can request file writes through your client |
-| `terminal` | `boolean` | Agent can execute commands through your client's terminal |
+| Capability | Type | Description |
+|------------|------|-------------|
+| `fs.readTextFile` | `boolean` | Client supports file read requests |
+| `fs.writeTextFile` | `boolean` | Client supports file write requests |
+| `terminal` | `boolean` | Client supports terminal command execution |
 
-When capabilities are provided, the agent uses your client's implementations for file operations and terminal commands. When omitted, the agent falls back to standalone providers (direct filesystem access and local shell execution).
+**When using `ClineAgent` directly (SDK use)**, the agent always uses standalone providers for file operations and terminal commands — it reads/writes files and runs shell commands on the local machine regardless of what you pass here. Simply pass `{}`:
 
 ```typescript
-// Minimal — agent uses standalone file/terminal providers
 await agent.initialize({ protocolVersion: 1, clientCapabilities: {} })
-
-// Full — agent delegates file and terminal operations to your client
-await agent.initialize({
-  protocolVersion: 1,
-  clientCapabilities: {
-    fs: { readTextFile: true, writeTextFile: true },
-    terminal: true,
-  },
-})
 ```
 
-For most SDK use cases (scripts, automation), passing `{}` is fine — the agent handles file and terminal operations directly.
+These capabilities only affect behavior when `ClineAgent` is used through the `AcpAgent` stdio wrapper (e.g., IDE integrations), where an ACP connection delegates operations back to the client.
 
 #### `newSession(params): Promise<NewSessionResponse>`
 
