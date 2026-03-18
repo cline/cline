@@ -148,7 +148,10 @@ export class GeminiHandler implements ApiHandler {
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: GoogleTool[]): ApiStream {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
-		const contents = messages.map(convertAnthropicMessageToGemini)
+		const contents = messages.flatMap((m) => {
+			const result = convertAnthropicMessageToGemini(m)
+			return Array.isArray(result) ? result : [result]
+		})
 		// Gemini may emit multiple function calls under the same responseId and without functionCall.id.
 		// Track a local sequence so each emitted tool call has a stable unique ID.
 		const responseToolCallCount = new Map<string, number>()
