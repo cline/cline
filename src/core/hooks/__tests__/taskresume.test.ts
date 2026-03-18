@@ -157,7 +157,11 @@ console.log(JSON.stringify({
 			}
 		})
 
-		it("should handle very old timestamps (days ago)", async () => {
+		it("should handle very old timestamps (days ago)", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));

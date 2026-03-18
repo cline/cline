@@ -227,7 +227,7 @@ setTimeout(() => {
 
 	describe("Cancellable Hooks", () => {
 		it("should support user cancellation for cancellable hooks", async function () {
-			this.timeout(5000)
+			this.timeout(isWindows ? 10000 : 5000)
 
 			// Create a hook that takes some time to execute
 			await createHookScript(
@@ -236,7 +236,7 @@ setTimeout(() => {
 					cancel: false,
 				},
 				0,
-				250, // keep the process alive briefly without making CI pay a 2s startup cost
+				isWindows ? 1500 : 250,
 			)
 
 			let capturedAbortController: AbortController | null = null
@@ -259,10 +259,14 @@ setTimeout(() => {
 				setActiveHookExecution: async (execution) => {
 					setHookCalled = true
 					capturedAbortController = execution.abortController
-					// Abort after capturing the controller
-					setTimeout(() => {
-						capturedAbortController?.abort()
-					}, 25)
+					// Give the spawned hook process enough time to become fully active,
+					// especially on slower Windows/PowerShell CI runners, before aborting.
+					setTimeout(
+						() => {
+							capturedAbortController?.abort()
+						},
+						isWindows ? 300 : 50,
+					)
 				},
 				clearActiveHookExecution: async () => {
 					clearHookCalled = true
