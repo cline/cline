@@ -507,6 +507,12 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 						setHeadersError('Must be a JSON object, e.g. {"X-Key": "value"}')
 						return
 					}
+					// Validate all values are strings (HTTP headers must be string values)
+					const allStrings = Object.values(parsed).every((v) => typeof v === "string")
+					if (!allStrings) {
+						setHeadersError('All header values must be strings, e.g. {"X-Key": "value"}')
+						return
+					}
 					parsedHeaders = parsed as Record<string, string>
 				} catch {
 					setHeadersError('Invalid JSON. Try: {"X-Key": "value"}')
