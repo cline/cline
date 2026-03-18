@@ -615,10 +615,9 @@ export class Task {
 
 	private scheduleAssistantPresentation(trigger: TaskLatencyTrigger, priority: PresentationPriority = "normal") {
 		if (this.presentationSchedulingDisabled) {
-			// Scheduling is disabled: flush synchronously via the scheduler's flushNow so that
-			// the presentAssistantMessage lock/pending-updates mechanism is respected. Using a
-			// fire-and-forget void call would bypass the lock and miss pending updates when
-			// presentAssistantMessage is already executing.
+			// Scheduling is disabled, but we still route through flushNow() so the
+			// presentAssistantMessage lock/pending-updates mechanism is respected even
+			// when back-to-back chunks arrive while a flush is already running.
 			void this.presentationScheduler
 				.flushNow()
 				.catch((error) => Logger.warn(`[Task] Failed immediate presentation flush: ${error}`))

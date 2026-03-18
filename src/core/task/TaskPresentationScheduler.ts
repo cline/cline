@@ -109,18 +109,12 @@ export class TaskPresentationScheduler {
 		// consumed our pendingPriority. We therefore set pendingPriority *after*
 		// the in-flight flush resolves so it cannot be stolen by the continuation.
 		if (this.flushInProgress) {
-			const inFlightResult = await this.currentFlushCompletion
-			if (inFlightResult?.error) {
-				throw inFlightResult.error
-			}
+			await this.currentFlushCompletion
 			// Another concurrent caller may have started a new flush cycle after
 			// the same in-flight flush resolved. If one is now in progress, wait
 			// for it too — we need a flush to run *after* we set pendingPriority.
 			while (this.flushInProgress) {
-				const result = await this.currentFlushCompletion
-				if (result?.error) {
-					throw result.error
-				}
+				await this.currentFlushCompletion
 			}
 		}
 
@@ -217,8 +211,17 @@ export class TaskPresentationScheduler {
 		})()
 
 		const result = await this.currentFlushCompletion
+		// If an immediate follow-up flush is pending, keep the scheduler in an
+		// in-progress state until the continuation below re-enters runFlushCycle.
+		// JavaScript's single-threaded execution already makes the hand-off safe,
+		// but preserving the invariant here prevents concurrent callers from
+		// observing a brief "idle" window between flush cycles.
+		if (!this.disposed && this.pendingPriority === "immediate") {
+			this.flushInProgress = true
+		}
 		this.currentFlushCompletion = undefined
 		if (result.error && options.rethrowErrors) {
+			this.flushInProgress = false
 			throw result.error
 		}
 

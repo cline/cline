@@ -80,7 +80,7 @@ describe("TaskPresentationScheduler", () => {
 		didResolve.should.equal(true)
 	})
 
-	it("rethrows errors from an overlapping in-flight flush when flushNow is called", async () => {
+	it("does not rethrow errors from an overlapping in-flight flush when flushNow is called", async () => {
 		let rejectFirstFlush: ((error: Error) => void) | undefined
 		let flushCount = 0
 
@@ -99,16 +99,15 @@ describe("TaskPresentationScheduler", () => {
 		scheduler.requestFlush("immediate")
 		await Promise.resolve()
 
-		const flushNowPromise = scheduler.flushNow()
+		let flushNowResolved = false
+		const flushNowPromise = scheduler.flushNow().then(() => {
+			flushNowResolved = true
+		})
 		rejectFirstFlush?.(new Error("flush failed"))
 
 		await flushNowPromise
-			.then(() => {
-				throw new Error("expected overlapping flushNow to reject")
-			})
-			.catch((error: Error) => {
-				error.message.should.equal("flush failed")
-			})
+		flushNowResolved.should.equal(true)
+		flushCount.should.equal(2)
 	})
 
 	it("flushNow guarantees a flush even when the post-flush continuation consumed pendingPriority", async () => {
