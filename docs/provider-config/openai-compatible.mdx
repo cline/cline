@@ -15,24 +15,50 @@ This document focuses on setting up providers _other than_ the official OpenAI A
 
 The key to using an OpenAI-compatible provider with Cline is to configure these main settings:
 
-1.  **Base URL:** This is the API endpoint specific to the provider. It will _not_ be `https://api.openai.com/v1` (that URL is for the official OpenAI API).
-2.  **API Key:** This is the secret key you obtain from your chosen provider. (or **Use Azure Identity Authentication**)
-3.  **Model ID:** This is the specific name or identifier for the model you wish to use.
+1.  **Base URL:** The API endpoint for your provider. This will _not_ be `https://api.openai.com/v1` (that URL is for the official OpenAI API).
+2.  **API Key:** The secret key from your provider. (or **Use Azure Identity Authentication**)
+3.  **Model ID:** The specific model name or identifier.
 
 You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 
 -   **API Provider:** Select "OpenAI Compatible".
--   **Base URL:** Enter the base URL provided by your chosen provider. **This is a crucial step.**
+-   **Base URL:** Enter the base URL provided by your chosen provider. **This is required** - without it, requests will fail.
 -   **API Key:** Enter your API key from the provider.
 -   **Model:** Choose or enter the model ID.
--   **Use Azure Identity Authentication:** Check the box to authenticate with your Azure managed identity (Note that this will not trigger the authentication, it will use the existing one (e.g., "az login"))
--   **Model Configuration:** This section allows you to customize advanced parameters for the model, such as:
-    -   Max Output Tokens
-    -   Context Window size
-    -   Image Support capabilities
-    -   Computer Use (e.g., for models with tool/function calling)
-    -   Input Price (per token/million tokens)
-    -   Output Price (per token/million tokens)
+-   **Use Azure Identity Authentication:** Check the box to authenticate with your Azure managed identity (this uses an existing auth session, e.g. from `az login`).
+
+### Custom Headers
+
+Some providers require additional HTTP headers for authentication or routing - for example, `X-API-Key`, organization identifiers, or proxy routing headers. You can add these in the VS Code extension settings panel under **Custom Headers**.
+
+Headers are key-value pairs. Common uses:
+
+-   `Authorization: Bearer <token>` (alternative auth schemes)
+-   `X-Organization-ID: your-org-id` (for multi-tenant endpoints)
+-   `X-API-Key: your-key` (API key passed via header instead of Bearer token)
+
+**CLI users:** The `cline auth` wizard does not currently have a UI for custom headers. Set them manually in `~/.cline/data/globalState.json`:
+
+```json
+"openAiHeaders": {
+  "X-Custom-Header": "value",
+  "Another-Header": "another-value"
+}
+```
+
+### Model Configuration
+
+This section lets you override the model's reported capabilities. Useful when the provider doesn't return accurate model info or you need to set pricing for cost tracking:
+
+-   **Max Output Tokens:** Maximum tokens the model can generate per response.
+-   **Context Window:** Total token limit (input + output).
+-   **Image Support:** Enable if the model accepts image inputs.
+-   **R1 Format:** Enable for DeepSeek R1-style reasoning models.
+-   **Input Price:** Cost per million input tokens (for usage tracking).
+-   **Output Price:** Cost per million output tokens (for usage tracking).
+-   **Temperature:** Default sampling temperature for the model.
+
+**CLI users:** Model configuration overrides are not available through `cline auth`. You can set them via `cline config` (Settings tab) or directly in `~/.cline/data/globalState.json` using the `openAiModelInfo` key.
 
 ### Supported Models (for OpenAI Native Endpoint)
 
@@ -68,5 +94,6 @@ While the "OpenAI Compatible" provider type allows connecting to various endpoin
 -   **"Model Not Found":** Ensure you're using a valid model ID for your chosen provider and that it's available at the specified Base URL.
 -   **Connection Errors:** Verify the Base URL is correct, that your provider's API is accessible from your machine, and that there are no firewall or network issues.
 -   **Unexpected Results:** If you're getting unexpected outputs, try a different model or double-check all configuration parameters.
+-   **CLI - missing base URL prompt:** If you're using the CLI and the setup wizard didn't ask for a base URL, update to CLI v2.8.0 or later. Earlier versions skipped that step for openai-compatible.
 
 By using an OpenAI-compatible provider, you can leverage the flexibility of Cline with a wider array of AI models. Remember to always consult your provider's documentation for the most accurate and up-to-date information.
