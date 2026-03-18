@@ -37,14 +37,7 @@ Headers are key-value pairs. Common uses:
 -   `X-Organization-ID: your-org-id` (for multi-tenant endpoints)
 -   `X-API-Key: your-key` (API key passed via header instead of Bearer token)
 
-**CLI users:** The `cline auth` wizard does not currently have a UI for custom headers. Set them manually in `~/.cline/data/globalState.json`:
-
-```json
-"openAiHeaders": {
-  "X-Custom-Header": "value",
-  "Another-Header": "another-value"
-}
-```
+**CLI users:** The `cline auth` wizard now prompts for custom headers as the last step of the `openai-compatible` setup flow. Enter headers as a JSON object, e.g. `{"X-API-Key": "your-key"}`, or press Enter to skip.
 
 ### Model Configuration
 
