@@ -7,7 +7,7 @@ import { Box, Text, useInput } from "ink"
 import React from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
-import { isMouseEscapeSequence } from "../utils/input"
+import { isEnterKey, isMouseEscapeSequence } from "../utils/input"
 
 interface ApiKeyInputProps {
 	providerName: string
@@ -39,7 +39,7 @@ export const ApiKeyInput: React.FC<ApiKeyInputProps> = ({
 				onCancel()
 				return
 			}
-			if (key.return) {
+			if (isEnterKey(input, key)) {
 				onSubmit(value)
 				return
 			}

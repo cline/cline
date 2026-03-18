@@ -1,5 +1,18 @@
 # cline
 
+## [2.8.0]
+
+### Added
+
+- Added W&B Inference by CoreWeave as a new API provider with 17 models including DeepSeek-V3.1, Llama 4, and Qwen3-Coder
+- Added CLI TUI end-to-end test suite
+
+### Fixed
+
+- Claude Code: handle rate limit events, empty content arrays, error results, and unknown content types without crashing
+- CLI: `/q` and `/exit` slash commands now execute immediately on Enter without requiring the slash menu to be visible
+- CLI: slash command filtering now prioritizes exact and prefix matches over fuzzy matches
+
 ## [2.7.0]
 
 ### Added

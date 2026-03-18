@@ -19,7 +19,7 @@ import { useClineFeaturedModels } from "../hooks/useClineFeaturedModels"
 import { useOcaAuth } from "../hooks/useOcaAuth"
 import { useScrollableList } from "../hooks/useScrollableList"
 import { type DetectedSources, detectImportSources, type ImportSource } from "../utils/import-configs"
-import { isMouseEscapeSequence } from "../utils/input"
+import { isEnterKey, isMouseEscapeSequence } from "../utils/input"
 import { applyBedrockConfig, applyProviderConfig } from "../utils/provider-config"
 import { useValidProviders } from "../utils/providers"
 import { ApiKeyInput } from "./ApiKeyInput"
@@ -79,12 +79,12 @@ const Select: React.FC<{
 	const [selectedIndex, setSelectedIndex] = useState(0)
 
 	useInput(
-		(_, key) => {
+		(input, key) => {
 			if (key.upArrow) {
 				setSelectedIndex((prev) => (prev > 0 ? prev - 1 : items.length - 1))
 			} else if (key.downArrow) {
 				setSelectedIndex((prev) => (prev < items.length - 1 ? prev + 1 : 0))
-			} else if (key.return) {
+			} else if (isEnterKey(input, key)) {
 				onSelect(items[selectedIndex].value)
 			}
 		},
@@ -130,7 +130,7 @@ const TextInput: React.FC<{
 				return
 			}
 
-			if (key.return) {
+			if (isEnterKey(input, key)) {
 				onSubmit(value)
 			} else if (key.backspace || key.delete) {
 				onChange(value.slice(0, -1))
@@ -853,7 +853,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setMenuIndex((prev) => (prev > 0 ? prev - 1 : mainMenuItems.length - 1))
 				} else if (key.downArrow) {
 					setMenuIndex((prev) => (prev < mainMenuItems.length - 1 ? prev + 1 : 0))
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					handleMainMenuSelect(mainMenuItems[menuIndex].value)
 				}
 			} else if (step === "provider") {
@@ -861,7 +861,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setProviderIndex((prev) => (prev > 0 ? prev - 1 : providerItems.length - 1))
 				} else if (key.downArrow) {
 					setProviderIndex((prev) => (prev < providerItems.length - 1 ? prev + 1 : 0))
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					if (providerItems[providerIndex]) {
 						handleProviderSelect(providerItems[providerIndex].value)
 					}
@@ -877,7 +877,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 					setClineModelIndex((prev) => (prev > 0 ? prev - 1 : maxIndex))
 				} else if (key.downArrow) {
 					setClineModelIndex((prev) => (prev < maxIndex ? prev + 1 : 0))
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					if (isBrowseAllSelected(clineModelIndex, featuredModels)) {
 						setStep("modelid")
 					} else {
