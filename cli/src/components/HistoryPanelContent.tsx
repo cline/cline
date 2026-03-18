@@ -13,7 +13,7 @@ import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
 import { useTerminalSize } from "../hooks/useTerminalSize"
-import { isMouseEscapeSequence } from "../utils/input"
+import { isEnterKey, isMouseEscapeSequence } from "../utils/input"
 import { Panel } from "./Panel"
 
 interface TaskHistoryItem {
@@ -142,7 +142,7 @@ export const HistoryPanelContent: React.FC<HistoryPanelContentProps> = ({ onClos
 				return
 			}
 
-			if (key.return && items[selectedIndex]) {
+			if (isEnterKey(input, key) && items[selectedIndex]) {
 				handleSelect(items[selectedIndex])
 				return
 			}
