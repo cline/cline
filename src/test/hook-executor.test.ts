@@ -236,7 +236,7 @@ setTimeout(() => {
 					cancel: false,
 				},
 				0,
-				2000, // 2 second delay
+				250, // keep the process alive briefly without making CI pay a 2s startup cost
 			)
 
 			let capturedAbortController: AbortController | null = null
@@ -262,7 +262,7 @@ setTimeout(() => {
 					// Abort after capturing the controller
 					setTimeout(() => {
 						capturedAbortController?.abort()
-					}, 100)
+					}, 25)
 				},
 				clearActiveHookExecution: async () => {
 					clearHookCalled = true

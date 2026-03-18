@@ -3,8 +3,16 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
-import { createHookTestEnv, HookTestEnv, loadFixture, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
+import {
+	createHookTestEnv,
+	HookTestEnv,
+	loadFixture,
+	stubHookDirs,
+	withFixtureRunner,
+	writeHookScriptForPlatform,
+} from "./test-utils"
 
 describe("TaskComplete Hook", () => {
 	let tempDir: string
@@ -432,29 +440,55 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fixture-Based Tests", () => {
-		it("should work with success fixture", async () => {
-			await loadFixture("hooks/taskcomplete/success", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskComplete")
-
-			const result = await runner.run({
-				taskId: "test-task-id",
-				taskComplete: {
-					taskMetadata: {
-						taskId: "test-task-id",
-						ulid: "test-ulid",
-						result: "Test task",
-						command: "",
+		it("should validate representative fixtures end-to-end", async () => {
+			const scenarios: Array<{
+				fixtureName: string
+				resultText: string
+				assert: (result: HookOutput) => void
+			}> = [
+				{
+					fixtureName: "success",
+					resultText: "Test task",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("TaskComplete hook executed successfully")
 					},
 				},
-			})
+				{
+					fixtureName: "context-injection",
+					resultText: "Build a todo app",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("COMPLETED: Build a todo app")
+					},
+				},
+			]
 
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TaskComplete hook executed successfully")
+			for (const scenario of scenarios) {
+				await withFixtureRunner(
+					"TaskComplete",
+					`hooks/taskcomplete/${scenario.fixtureName}`,
+					hookTestEnv,
+					async (runner) => {
+						const result = await runner.run({
+							taskId: "test-task-id",
+							taskComplete: {
+								taskMetadata: {
+									taskId: "test-task-id",
+									ulid: "test-ulid",
+									result: scenario.resultText,
+									command: "",
+								},
+							},
+						})
+
+						scenario.assert(result)
+					},
+				)
+			}
 		})
 
-		it("should work with error fixture", async () => {
+		it("should preserve fixture-based failure behavior", async () => {
 			await loadFixture("hooks/taskcomplete/error", getEnv().tempDir)
 
 			const factory = new HookFactory()
@@ -476,28 +510,6 @@ console.log(JSON.stringify({
 			} catch (error: any) {
 				error.message.should.match(/TaskComplete.*exited with code 1/)
 			}
-		})
-
-		it("should work with context-injection fixture", async () => {
-			await loadFixture("hooks/taskcomplete/context-injection", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskComplete")
-
-			const result = await runner.run({
-				taskId: "test-task-id",
-				taskComplete: {
-					taskMetadata: {
-						taskId: "test-task-id",
-						ulid: "test-ulid",
-						result: "Build a todo app",
-						command: "",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("COMPLETED: Build a todo app")
 		})
 	})
 })

@@ -3,8 +3,16 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
-import { createHookTestEnv, HookTestEnv, loadFixture, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
+import {
+	createHookTestEnv,
+	HookTestEnv,
+	loadFixture,
+	stubHookDirs,
+	withFixtureRunner,
+	writeHookScriptForPlatform,
+} from "./test-utils"
 
 describe("TaskStart Hook", () => {
 	let tempDir: string
@@ -421,49 +429,43 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fixture-Based Tests", () => {
-		it("should work with success fixture", async () => {
-			await loadFixture("hooks/taskstart/success", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskStart")
-
-			const result = await runner.run({
-				taskId: "test-task-id",
-				taskStart: {
-					taskMetadata: {
-						taskId: "test-task-id",
-						ulid: "test-ulid",
-						initialTask: "Test task",
+		it("should validate representative fixtures end-to-end", async () => {
+			const scenarios: Array<{ fixtureName: string; assert: (result: HookOutput) => void }> = [
+				{
+					fixtureName: "success",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("TaskStart hook executed successfully")
 					},
 				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TaskStart hook executed successfully")
-		})
-
-		it("should work with blocking fixture", async () => {
-			await loadFixture("hooks/taskstart/blocking", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskStart")
-
-			const result = await runner.run({
-				taskId: "test-task-id",
-				taskStart: {
-					taskMetadata: {
-						taskId: "test-task-id",
-						ulid: "test-ulid",
-						initialTask: "Test task",
+				{
+					fixtureName: "blocking",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.true()
+						result.errorMessage?.should.equal("Task execution blocked by hook")
 					},
 				},
-			})
+			]
 
-			result.cancel.should.be.true()
-			result.errorMessage?.should.equal("Task execution blocked by hook")
+			for (const scenario of scenarios) {
+				await withFixtureRunner("TaskStart", `hooks/taskstart/${scenario.fixtureName}`, hookTestEnv, async (runner) => {
+					const result = await runner.run({
+						taskId: "test-task-id",
+						taskStart: {
+							taskMetadata: {
+								taskId: "test-task-id",
+								ulid: "test-ulid",
+								initialTask: "Test task",
+							},
+						},
+					})
+
+					scenario.assert(result)
+				})
+			}
 		})
 
-		it("should work with error fixture", async () => {
+		it("should preserve fixture-based failure behavior", async () => {
 			await loadFixture("hooks/taskstart/error", getEnv().tempDir)
 
 			const factory = new HookFactory()

@@ -7,7 +7,7 @@ import { HookOutput } from "../../../shared/proto/cline/hooks"
 import * as diskModule from "../../storage/disk"
 import { StateManager } from "../../storage/StateManager"
 import { HookDiscoveryCache } from "../HookDiscoveryCache"
-import { Hooks, NamedHookInput } from "../hook-factory"
+import { HookFactory, Hooks, NamedHookInput } from "../hook-factory"
 
 // Define HookName locally since it's not exported from hook-factory
 type HookName = keyof Hooks
@@ -573,6 +573,52 @@ export async function loadFixture(fixtureName: string, destDir: string): Promise
 			// Set executable permission (not needed on Windows)
 			const stats = await fs.stat(sourceFile)
 			await fs.chmod(destFile, stats.mode)
+		}
+	}
+}
+
+/**
+ * Creates an isolated hook test environment, loads a fixture into it, creates a runner,
+ * and guarantees cleanup once the callback completes.
+ *
+ * This is useful for fixture suites that want to iterate through multiple scenarios
+ * without sharing hook directories, discovery cache state, or filesystem artifacts
+ * between scenarios.
+ */
+export async function withFixtureRunner<Name extends HookName, TResult>(
+	hookName: Name,
+	fixtureName: string,
+	callback: (runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>,
+): Promise<TResult>
+export async function withFixtureRunner<Name extends HookName, TResult>(
+	hookName: Name,
+	fixtureName: string,
+	env: HookTestEnv,
+	callback: (runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>,
+): Promise<TResult>
+export async function withFixtureRunner<Name extends HookName, TResult>(
+	hookName: Name,
+	fixtureName: string,
+	envOrCallback: HookTestEnv | ((runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>),
+	maybeCallback?: (runner: Awaited<ReturnType<HookFactory["create"]>>, env: HookTestEnv) => Promise<TResult>,
+): Promise<TResult> {
+	const usingExistingEnv = typeof envOrCallback !== "function"
+	const env = usingExistingEnv ? envOrCallback : await createHookTestEnv()
+	const runCallback = usingExistingEnv ? maybeCallback : envOrCallback
+	if (!runCallback) {
+		throw new Error("withFixtureRunner requires a callback")
+	}
+	try {
+		await fs.rm(env.hooksDir, { recursive: true, force: true })
+		await createHooksDirectory(env.tempDir)
+		resetHookCache()
+		await loadFixture(fixtureName, env.tempDir)
+		const factory = new HookFactory()
+		const runner = await factory.create(hookName)
+		return await runCallback(runner, env)
+	} finally {
+		if (!usingExistingEnv) {
+			await env.cleanup()
 		}
 	}
 }
