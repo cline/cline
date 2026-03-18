@@ -186,9 +186,6 @@ await agent.prompt({
 | Value | Meaning |
 |-------|---------|
 | `"end_turn"` | Agent finished normally (completed task or waiting for user input) |
-| Value | Meaning |
-|-------|---------|
-| `"end_turn"` | Agent finished normally (completed task or waiting for user input) |
 | `"error"` | An error occurred |
 
 > **Note:** Cline currently returns `"end_turn"` or `"error"`. Other `StopReason` values like `"max_tokens"` or `"cancelled"` are part of the ACP type but may not be produced by the current implementation.
