@@ -16,10 +16,13 @@ import {
 const m = (id: string): ApiHandlerModel => ({ id, info: {} as any })
 
 describe("shouldSkipReasoningForModel", () => {
-	it("should return true for grok-4 models", () => {
+	it("should return true for grok-4 models (no thinking payload via Chat Completions)", () => {
 		shouldSkipReasoningForModel("grok-4").should.equal(true)
 		shouldSkipReasoningForModel("x-ai/grok-4").should.equal(true)
-		shouldSkipReasoningForModel("openrouter/grok-4-turbo").should.equal(true)
+		shouldSkipReasoningForModel("grok-4-0709").should.equal(true)
+		shouldSkipReasoningForModel("grok-4-fast-reasoning").should.equal(true)
+		shouldSkipReasoningForModel("grok-4.20").should.equal(true)
+		shouldSkipReasoningForModel("grok-4-1-fast-reasoning").should.equal(true)
 		shouldSkipReasoningForModel("some-provider/grok-4-mini").should.equal(true)
 	})
 

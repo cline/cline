@@ -83,7 +83,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				}
 
 				// Reasoning tokens are returned separately from the content
-				// Skip reasoning content for models that don't support it (e.g., devstral, grok-4)
+				// Skip reasoning content for models that don't support it (e.g., devstral, grok)
 				if (
 					delta &&
 					"reasoning" in delta &&

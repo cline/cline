@@ -38,7 +38,8 @@ export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolea
 /**
  * Determines if reasoning content should be skipped for a given model
  * Currently skips reasoning for:
- * - Grok-4 models since they only display "thinking" without useful information
+ * - Grok models since they don't provide a thinking payload via Chat Completions
+ *   (the native xAI provider uses the Responses API which handles reasoning separately)
  * - Devstral models since they don't support reasoning_details field
  */
 export function shouldSkipReasoningForModel(modelId?: string): boolean {

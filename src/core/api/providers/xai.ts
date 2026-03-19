@@ -1,15 +1,14 @@
 import { ModelInfo, XAIModelId, xaiDefaultModelId, xaiModels } from "@shared/api"
-import { shouldSkipReasoningForModel } from "@utils/model-utils"
+import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
-import { ChatCompletionReasoningEffort } from "openai/resources/chat/completions"
+import type { ChatCompletionFunctionTool, ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
-import { convertToOpenAiMessages } from "../transform/openai-format"
+import { convertToOpenAIResponsesInput } from "../transform/openai-response-format"
 import { ApiStream } from "../transform/stream"
-import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { handleResponsesApiStreamResponse } from "../utils/responses_api_support"
 
 interface XAIHandlerOptions extends CommonApiHandlerOptions {
 	xaiApiKey?: string
@@ -42,66 +41,49 @@ export class XAIHandler implements ApiHandler {
 		return this.client
 	}
 
+	private mapResponseTools(tools?: OpenAITool[]): OpenAI.Responses.Tool[] {
+		if (!tools?.length) {
+			return []
+		}
+		return tools
+			.filter((tool): tool is ChatCompletionFunctionTool => tool?.type === "function")
+			.map((tool) => ({
+				type: "function" as const,
+				name: tool.function.name,
+				description: tool.function.description,
+				parameters: tool.function.parameters ?? null,
+				strict: false,
+			}))
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
-		const modelId = this.getModel().id
-		// ensure reasoning effort is either "low" or "high" for grok-3-mini
-		let reasoningEffort: ChatCompletionReasoningEffort | undefined
-		if (modelId.includes("3-mini")) {
-			let reasoningEffort = this.options.reasoningEffort
-			if (reasoningEffort && !["low", "high"].includes(reasoningEffort)) {
-				reasoningEffort = undefined
-			}
-		}
-		const stream = await client.chat.completions.create({
-			model: modelId,
-			max_completion_tokens: this.getModel().info.maxTokens,
+		const model = this.getModel()
+
+		// Convert directly from Cline/Anthropic format to Responses API input format
+		const { input } = convertToOpenAIResponsesInput(messages)
+		const responseTools = this.mapResponseTools(tools)
+
+		const stream = await client.responses.create({
+			model: model.id,
+			instructions: systemPrompt,
+			input: input,
+			max_output_tokens: model.info.maxTokens,
 			temperature: 0,
-			messages: [{ role: "system", content: systemPrompt }, ...convertToOpenAiMessages(messages)],
 			stream: true,
-			stream_options: { include_usage: true },
-			reasoning_effort: reasoningEffort,
-			...getOpenAIToolParams(tools),
+			store: false, // Don't store responses server-side for privacy
+			tools: responseTools.length > 0 ? responseTools : undefined,
+			tool_choice: responseTools.length > 0 ? "auto" : undefined,
+			include: ["reasoning.encrypted_content"],
 		})
 
-		const toolCallProcessor = new ToolCallProcessor()
-
-		for await (const chunk of stream) {
-			const delta = chunk.choices?.[0]?.delta
-			if (delta?.content) {
-				yield {
-					type: "text",
-					text: delta.content,
-				}
-			}
-
-			if (delta?.tool_calls) {
-				yield* toolCallProcessor.processToolCallDeltas(delta.tool_calls)
-			}
-
-			if (delta && "reasoning_content" in delta && delta.reasoning_content) {
-				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-				if (!shouldSkipReasoningForModel(modelId)) {
-					yield {
-						type: "reasoning",
-						// @ts-expect-error-next-line
-						reasoning: delta.reasoning_content,
-					}
-				}
-			}
-
-			if (chunk.usage) {
-				yield {
-					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-expect-error-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
-				}
-			}
-		}
+		yield* handleResponsesApiStreamResponse(
+			stream,
+			model.info,
+			async (modelInfo, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens) =>
+				calculateApiCostOpenAI(modelInfo, inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens),
+		)
 	}
 
 	getModel(): { id: XAIModelId; info: ModelInfo } {
