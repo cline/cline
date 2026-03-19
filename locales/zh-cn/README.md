@@ -1,5 +1,5 @@
 <div align="center"><sub>
-<a href="../../README.md" target="_blank">English</a> | <a href="../es/README.md" target="_blank">Español</a> | <a href="../de/README.md" target="_blank">Deutsch</a> | <a href="../ja/README.md" target="_blank">日本語</a> | 简体中文 | <a href="../zh-tw/README.md" target="_blank">繁體中文</a> | <a href="../ko/README.md" target="_blank">한국어</a>
+<a href="https://github.com/cline/cline/blob/main/README.md" target="_blank">English</a> | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md" target="_blank">Español</a> | <a href="https://github.com/cline/cline/blob/main/locales/de/README.md" target="_blank">Deutsch</a> | <a href="https://github.com/cline/cline/blob/main/locales/ja/README.md" target="_blank">日本語</a> | 简体中文 | <a href="https://github.com/cline/cline/blob/main/locales/zh-tw/README.md" target="_blank">繁體中文</a> | <a href="https://github.com/cline/cline/blob/main/locales/ko/README.md" target="_blank">한국어</a>
 </sub></div>
 
 # Cline
