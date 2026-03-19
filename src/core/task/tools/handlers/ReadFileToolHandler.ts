@@ -190,7 +190,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 		}
 
-		// Execute the actual file read operation
+		// Execute the actual file read operation.
+		// Always read from disk — the cache stores only metadata (readCount, mtime),
+		// not file content, to keep memory usage minimal.
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
 		let fileContent: FileContentResult
 		try {
