@@ -4735,7 +4735,7 @@ export const minimaxModels = {
 		inputPrice: 0.3,
 		outputPrice: 1.2,
 		cacheWritesPrice: 0.0375,
-		cacheReadsPrice: 0.015,
+		cacheReadsPrice: 0.03,
 		description: "Latest flagship model with enhanced reasoning and coding",
 	},
 	"MiniMax-M2.7-highspeed": {
@@ -4747,7 +4747,7 @@ export const minimaxModels = {
 		inputPrice: 0.3,
 		outputPrice: 1.2,
 		cacheWritesPrice: 0.0375,
-		cacheReadsPrice: 0.015,
+		cacheReadsPrice: 0.03,
 		description: "High-speed version of M2.7 for low-latency scenarios",
 	},
 	"MiniMax-M2.5": {
