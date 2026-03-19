@@ -16,6 +16,7 @@ import {
 	importFromCodex,
 	importFromOpenCode,
 } from "../utils/import-configs"
+import { isEnterKey } from "../utils/input"
 import { applyProviderConfig } from "../utils/provider-config"
 
 type ImportStep = "select" | "confirm" | "saving" | "error"
@@ -95,13 +96,13 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 					setSelectedIndex((prev) => (prev > 0 ? prev - 1 : keys.length - 1))
 				} else if (key.downArrow) {
 					setSelectedIndex((prev) => (prev < keys.length - 1 ? prev + 1 : 0))
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					setStep("confirm")
 				}
 			} else if (step === "confirm") {
 				if (key.upArrow || key.downArrow) {
 					setConfirmIndex((prev) => (prev === 0 ? 1 : 0))
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					if (confirmIndex === 0) {
 						handleConfirm()
 					} else {
@@ -109,7 +110,7 @@ export const ImportView: React.FC<ImportViewProps> = ({ source, onComplete, onCa
 					}
 				}
 			} else if (step === "error") {
-				if (key.return) {
+				if (isEnterKey(input, key)) {
 					onCancel()
 				}
 			}

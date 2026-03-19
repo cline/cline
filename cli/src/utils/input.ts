@@ -15,3 +15,13 @@ export function isMouseEscapeSequence(input: string): boolean {
 	// They contain [< followed by numbers, semicolons, and end with M or m
 	return input.includes("[<") && /\[<\d+;\d+;\d+[Mm]/.test(input)
 }
+
+/**
+ * Ink's key metadata can be inconsistent across platforms/test environments for Enter.
+ * In particular, some Windows CI/test runs surface Enter as raw "\r" input without
+ * setting key.return. Treat either representation as Enter so keyboard handlers remain
+ * stable in production and in tests across platforms.
+ */
+export function isEnterKey(input: string, key: { return?: boolean }): boolean {
+	return key.return === true || input === "\r" || input === "\n"
+}
