@@ -74,7 +74,7 @@ const CYCLE_INTERVAL_MS = 8000
  */
 export const FeatureTip: React.FC = () => {
 	const [isVisible, setIsVisible] = useState(false)
-	const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * FEATURE_TIPS.length))
+export const FeatureTip: React.FC = React.memo(() => {
 	const cycleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 	const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
