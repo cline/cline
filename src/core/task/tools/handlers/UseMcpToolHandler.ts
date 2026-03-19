@@ -74,6 +74,15 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("error", `Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
 				return formatResponse.toolError(formatResponse.invalidMcpToolArgumentError(server_name, tool_name))
 			}
+
+			// Strip task_progress from arguments before sending to MCP server.
+			// The model may include task_progress inside the arguments JSON because
+			// the system prompt instructs it to include task_progress with every tool
+			// call. MCP servers don't expect this parameter and will reject it,
+			// causing an infinite retry loop. (See #9684)
+			if (parsedArguments && "task_progress" in parsedArguments) {
+				delete parsedArguments.task_progress
+			}
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
