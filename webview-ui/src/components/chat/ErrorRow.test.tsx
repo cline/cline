@@ -115,7 +115,7 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Request ID: req_123456")).toBeInTheDocument()
 		})
 
-		it("renders auth error with sign in button when user is not signed in", async () => {
+		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
 			const mockClineError = {
 				message: "Authentication failed",
 				isErrorType: vi.fn((type) => type === "auth"),
@@ -128,7 +128,8 @@ describe("ErrorRow", () => {
 
 			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
 
-			expect(screen.getByText("Authentication failed")).toBeInTheDocument()
+			expect(screen.queryByText("Authentication failed")).not.toBeInTheDocument()
+			expect(screen.getByText(/Whoops looks like you're logged out/)).toBeInTheDocument()
 			expect(screen.getByText("Sign in to Cline")).toBeInTheDocument()
 		})
 
