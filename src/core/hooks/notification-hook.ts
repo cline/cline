@@ -29,7 +29,7 @@ type BaseNotificationInput = {
 }
 
 export function buildNotificationData(input: BaseNotificationInput): NotificationData {
-	const message = input.message ?? ""
+	const message = input.message
 	const messageTruncated = message.length > NOTIFICATION_MESSAGE_MAX_LENGTH
 
 	return {
