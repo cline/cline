@@ -22,6 +22,7 @@ import {
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import * as NotificationHook from "@core/hooks/notification-hook"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
@@ -771,12 +772,18 @@ export class Task {
 			// not a strict approval boundary that should force external "user_attention"
 			// handling. In auto-approve flows, command_output asks can still be emitted,
 			// so we intentionally skip Notification hook emission for this ask type.
-			await this.runNotificationHook({
-				event: "user_attention",
-				source: type,
-				message: text || "",
-				waitingForUserInput: true,
-			})
+			await NotificationHook.emitUserAttentionNotification(
+				{
+					messageStateHandler: this.messageStateHandler,
+					taskId: this.taskId,
+					hooksEnabled: getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled")),
+					model: getHookModelContext(this.api, this.stateManager),
+				},
+				{
+					source: type,
+					message: text || "",
+				},
+			)
 		}
 
 		const shouldWakeOnAbort = type !== "resume_task" && type !== "resume_completed_task"
@@ -804,35 +811,6 @@ export class Task {
 		this.taskState.askResponseImages = undefined
 		this.taskState.askResponseFiles = undefined
 		return result
-	}
-
-	private async runNotificationHook(notification: {
-		event: string
-		source: string
-		message: string
-		waitingForUserInput: boolean
-	}): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
-		if (!hooksEnabled) {
-			return
-		}
-
-		try {
-			await executeHook({
-				hookName: "Notification",
-				hookInput: {
-					notification,
-				},
-				isCancellable: false,
-				say: async () => undefined,
-				messageStateHandler: this.messageStateHandler,
-				taskId: this.taskId,
-				hooksEnabled,
-				model: getHookModelContext(this.api, this.stateManager),
-			})
-		} catch (error) {
-			Logger.error("[Notification Hook] Failed (non-fatal):", error)
-		}
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
