@@ -1,5 +1,11 @@
 # cline
 
+## [2.9.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
 ## [2.8.2]
 
 ### Fixed
