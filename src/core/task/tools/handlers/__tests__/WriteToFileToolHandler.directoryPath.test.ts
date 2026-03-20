@@ -76,13 +76,25 @@ function createConfig() {
 	return { config, callbacks, taskState, validator }
 }
 
-function makeReplaceInFileBlock(relPath: string): ToolUse {
+function makeReplaceInFileBlock(relPath: string, partial = false): ToolUse {
 	return {
 		type: "tool_use",
 		name: ClineDefaultTool.FILE_EDIT,
 		params: {
 			path: relPath,
 			diff: "------- SEARCH\nnope\n=======\nstill no\n+++++++ REPLACE\n",
+		},
+		partial,
+	}
+}
+
+function makeWriteToFileBlock(relPath: string): ToolUse {
+	return {
+		type: "tool_use",
+		name: ClineDefaultTool.FILE_NEW,
+		params: {
+			path: relPath,
+			content: "// new file body",
 		},
 		partial: false,
 	}
@@ -149,5 +161,56 @@ describe("WriteToFileToolHandler.validateAndPrepareFileOperation – directory p
 		await handler.validateAndPrepareFileOperation(config, block, "dir2", block.params.diff as string, undefined)
 
 		assert.equal(taskState.didAlreadyUseTool, true)
+	})
+
+	it("does not push errors on partial blocks when path is a directory (streaming)", async () => {
+		const subDir = path.join(tmpDir, "partial_dir")
+		await fs.mkdir(subDir, { recursive: true })
+
+		const { config, callbacks, taskState, validator } = createConfig()
+		const handler = new WriteToFileToolHandler(validator)
+		const block = makeReplaceInFileBlock("partial_dir", true)
+
+		const result = await handler.validateAndPrepareFileOperation(
+			config,
+			block,
+			"partial_dir",
+			block.params.diff as string,
+			undefined,
+		)
+
+		assert.equal(result, undefined)
+		assert.equal(taskState.consecutiveMistakeCount, 0)
+		assert.ok(pushToolResultStub.notCalled)
+		assert.ok((callbacks.say as sinon.SinonStub).notCalled)
+		assert.ok((config.services.diffViewProvider.reset as sinon.SinonStub).notCalled)
+	})
+
+	it("returns early with a tool error when write_to_file targets a directory", async () => {
+		const subDir = path.join(tmpDir, "write_to_dir")
+		await fs.mkdir(subDir, { recursive: true })
+
+		const { config, callbacks, taskState, validator } = createConfig()
+		const handler = new WriteToFileToolHandler(validator)
+		const block = makeWriteToFileBlock("write_to_dir")
+
+		const result = await handler.validateAndPrepareFileOperation(
+			config,
+			block,
+			"write_to_dir",
+			undefined,
+			block.params.content as string,
+		)
+
+		assert.equal(result, undefined)
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+		assert.ok(
+			(callbacks.say as sinon.SinonStub).calledWith("error", EXPECTED_DIRECTORY_ERROR),
+			"expected say('error', directory message)",
+		)
+		assert.ok(pushToolResultStub.calledOnce)
+		const pushed = pushToolResultStub.firstCall.args[0] as string
+		assert.ok(pushed.includes(EXPECTED_DIRECTORY_ERROR))
+		assert.ok((config.services.diffViewProvider.open as sinon.SinonStub).notCalled)
 	})
 })

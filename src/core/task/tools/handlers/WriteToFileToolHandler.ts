@@ -473,6 +473,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		// Reject directories before any read/open — fileExistsAtPath uses fs.access, which is true for dirs, then readFile throws EISDIR.
 		if (await isDirectory(absolutePath)) {
+			// During streaming, the path is complete before the full diff/content; skip error side effects until the final block (matches diff-error path).
+			if (block.partial) {
+				return
+			}
 			config.taskState.consecutiveMistakeCount++
 			const errorResponse = formatResponse.toolError(DIRECTORY_PATH_TOOL_ERROR)
 			ToolResultUtils.pushToolResult(
