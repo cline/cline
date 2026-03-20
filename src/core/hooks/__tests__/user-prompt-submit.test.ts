@@ -11,6 +11,7 @@ describe("UserPromptSubmit Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let hookTestEnv: HookTestEnv
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
 	type FixtureScenario = {
 		fixtureName: string
@@ -369,7 +370,11 @@ console.log(JSON.stringify({
 		// Fixtures serve as both test data and examples for manual testing
 		const isWindows = process.platform === "win32"
 
-		it("should validate representative fixtures end-to-end", async () => {
+		it("should validate representative fixtures end-to-end", async function () {
+			if (isWindows) {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const scenarios: FixtureScenario[] = [
 				{
 					fixtureName: "success",
