@@ -451,19 +451,21 @@ const ClineRulesToggleModal: React.FC = () => {
 			{isVisible && (
 				<PopupModalContainer $arrowPosition={arrowPosition} $menuPosition={menuPosition}>
 					{/* Fixed header section - tabs and description */}
-					<div className="flex-shrink-0 px-2 pt-0">
+					<div className="flex-shrink-0 px-3 pt-2">
 						{/* Tabs container */}
 						<div
 							style={{
 								display: "flex",
 								justifyContent: "space-between",
 								marginBottom: "10px",
+								overflow: "hidden",
 							}}>
 							<div
 								style={{
 									display: "flex",
 									gap: "1px",
 									borderBottom: "1px solid var(--vscode-panel-border)",
+									flexWrap: "wrap",
 								}}>
 								<TabButton isActive={currentView === "rules"} onClick={() => setCurrentView("rules")}>
 									Rules
@@ -484,7 +486,7 @@ const ClineRulesToggleModal: React.FC = () => {
 
 						{/* Remote config banner */}
 						{(currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows) ? (
-							<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
+							<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 								<i className="codicon codicon-lock text-sm" />
 								<span className="text-base">
 									{currentView === "rules"
@@ -534,7 +536,7 @@ const ClineRulesToggleModal: React.FC = () => {
 					</div>
 
 					{/* Scrollable content area */}
-					<div className="flex-1 overflow-y-auto px-2 pb-3" style={{ minHeight: 0 }}>
+					<div className="flex-1 overflow-y-auto px-3 pb-3" style={{ minHeight: 0 }}>
 						{currentView === "rules" ? (
 							<>
 								{/* Remote Rules Section */}
@@ -694,12 +696,12 @@ const ClineRulesToggleModal: React.FC = () => {
 								{/* Hooks Tab */}
 								{/* Windows warning banner */}
 								{isWindows && (
-									<div className="flex items-center gap-2 px-5 py-3 mb-4 bg-vscode-inputValidation-warningBackground border-l-[3px] border-vscode-inputValidation-warningBorder">
+									<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-inputValidation-warningBackground border-l-[3px] border-vscode-inputValidation-warningBorder">
 										<i className="codicon codicon-warning text-sm" />
 										<span className="text-base">
-											Hook toggling is not yet supported on Windows in this foundation PR. Hooks can be created,
-											edited, and deleted, and execute whenever the hook file exists. Coming next: JSON-backed
-											hook enabled/disabled state across platforms.
+											Hook toggling is not yet supported on Windows in this foundation PR. Hooks can be
+											created, edited, and deleted, and execute whenever the hook file exists. Coming next:
+											JSON-backed hook enabled/disabled state across platforms.
 										</span>
 									</div>
 								)}
@@ -831,11 +833,12 @@ const StyledTabButton = styled.button<{ isActive: boolean }>`
 	border: none;
 	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
 	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
-	padding: 8px 16px;
+	padding: 8px 12px;
 	cursor: pointer;
 	font-size: 13px;
 	margin-bottom: -1px;
 	font-family: inherit;
+	white-space: nowrap;
 
 	&:hover {
 		color: var(--vscode-foreground);
