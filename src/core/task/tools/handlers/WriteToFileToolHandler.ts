@@ -7,7 +7,7 @@ import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
 import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
-import { fileExistsAtPath } from "@utils/fs"
+import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
 import { applyPatch } from "diff"
 import { telemetryService } from "@/services/telemetry"
@@ -22,6 +22,10 @@ import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutpu
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
+
+/** Returned to the model when replace_in_file / write_to_file target a directory (avoids EISDIR and unclear retries). */
+const DIRECTORY_PATH_TOOL_ERROR =
+	"The provided path is a directory, not a file. Please specify the exact file within this directory that you wish to edit."
 
 export class WriteToFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_NEW // This handler supports write_to_file, replace_in_file, and new_rule
@@ -464,6 +468,26 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				config.taskState.didAlreadyUseTool = true
 			}
 
+			return
+		}
+
+		// Reject directories before any read/open — fileExistsAtPath uses fs.access, which is true for dirs, then readFile throws EISDIR.
+		if (await isDirectory(absolutePath)) {
+			config.taskState.consecutiveMistakeCount++
+			const errorResponse = formatResponse.toolError(DIRECTORY_PATH_TOOL_ERROR)
+			ToolResultUtils.pushToolResult(
+				errorResponse,
+				block,
+				config.taskState.userMessageContent,
+				ToolDisplayUtils.getToolDescription,
+				config.coordinator,
+				config.taskState.toolUseIdMap,
+			)
+			if (!config.enableParallelToolCalling) {
+				config.taskState.didAlreadyUseTool = true
+			}
+			await config.callbacks.say("error", DIRECTORY_PATH_TOOL_ERROR)
+			await config.services.diffViewProvider.reset()
 			return
 		}
 
