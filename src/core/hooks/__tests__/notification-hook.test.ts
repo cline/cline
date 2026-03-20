@@ -72,7 +72,7 @@ describe("notification-hook", () => {
 		})
 
 		notification.messageTruncated.should.equal(true)
-		notification.message.length.should.be.greaterThan(NOTIFICATION_MESSAGE_MAX_LENGTH)
+		notification.message.length.should.equal(NOTIFICATION_MESSAGE_MAX_LENGTH + "\n...[truncated]".length)
 		notification.message.should.match(/\.\.\.\[truncated\]$/)
 	})
 
