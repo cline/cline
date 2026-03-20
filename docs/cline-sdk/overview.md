@@ -331,7 +331,7 @@ cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-20250514
 cline auth -p openrouter -k "sk-or-..." -m openrouter/anthropic/claude-sonnet-4
 ```
 
-This writes credentials to the Cline config directory (`~/.cline/data/` by default). Once configured, the SDK will use these credentials automatically — no `authenticate()` call needed.
+This writes credentials to `~/.cline/data/`. Once configured, the SDK will use these credentials automatically — no `authenticate()` call needed.
 
 **Using a custom directory:** If you specify a custom `clineDir` when creating `ClineAgent`, you must use the same path with `--config` when running `cline auth`:
 
