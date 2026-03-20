@@ -324,14 +324,26 @@ Both methods open a browser window for the OAuth flow and block until authentica
 For BYO (bring-your-own) API key providers, you can pre-configure credentials using the Cline CLI before using the SDK:
 
 ```bash
-# Configure an Anthropic API key
+# Configure an Anthropic API key (default directory: ~/.cline/data/)
 cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-20250514
 
 # Configure an OpenRouter API key
 cline auth -p openrouter -k "sk-or-..." -m openrouter/anthropic/claude-sonnet-4
 ```
 
-This writes credentials to the Cline config directory (`~/.cline/data/` by default, or your custom `clineDir`). Once configured, the SDK will use these credentials automatically — no `authenticate()` call needed.
+This writes credentials to the Cline config directory (`~/.cline/data/` by default). Once configured, the SDK will use these credentials automatically — no `authenticate()` call needed.
+
+**Using a custom directory:** If you specify a custom `clineDir` when creating `ClineAgent`, you must use the same path with `--config` when running `cline auth`:
+
+```typescript
+// SDK code using custom directory
+const agent = new ClineAgent({ clineDir: "/custom/path" })
+```
+
+```bash
+# CLI auth command must use the same path
+cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-20250514 --config /custom/path
+```
 
 ### Cancellation
 
