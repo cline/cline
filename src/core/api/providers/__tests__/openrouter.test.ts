@@ -101,7 +101,7 @@ describe("OpenRouterHandler", () => {
 				type: "usage",
 				cacheWriteTokens: 300,
 				cacheReadTokens: 500,
-				inputTokens: 500,
+				inputTokens: 200,
 				outputTokens: 200,
 				totalCost: 0,
 			},
