@@ -779,11 +779,15 @@ export class Task {
 			})
 		}
 
+		const shouldWakeOnAbort = type !== "resume_task" && type !== "resume_completed_task"
 		await pWaitFor(
-			() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs || this.taskState.abort,
+			() =>
+				this.taskState.askResponse !== undefined ||
+				this.taskState.lastMessageTs !== askTs ||
+				(shouldWakeOnAbort && this.taskState.abort),
 			{ interval: 100 },
 		)
-		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
+		if (shouldWakeOnAbort && this.taskState.abort) {
 			throw new Error("Cline instance aborted")
 		}
 		if (this.taskState.lastMessageTs !== askTs) {
