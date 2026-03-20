@@ -779,9 +779,13 @@ export class Task {
 			})
 		}
 
-		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
-			interval: 100,
-		})
+		await pWaitFor(
+			() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs || this.taskState.abort,
+			{ interval: 100 },
+		)
+		if (this.taskState.abort && type !== "resume_task" && type !== "resume_completed_task") {
+			throw new Error("Cline instance aborted")
+		}
 		if (this.taskState.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
