@@ -55,6 +55,56 @@ describe("Task.ask", () => {
 		assert.equal(clineMessages[0].ask, "resume_task")
 	})
 
+	it("keeps resume-completed asks waiting for a user response even when the task is aborted", async () => {
+		const clineMessages: ClineMessage[] = []
+		const taskState: {
+			abort: boolean
+			askResponse: string | undefined
+			askResponseText: string | undefined
+			askResponseImages: string[] | undefined
+			askResponseFiles: string[] | undefined
+			lastMessageTs: number | undefined
+		} = {
+			abort: true,
+			askResponse: undefined,
+			askResponseText: undefined,
+			askResponseImages: undefined,
+			askResponseFiles: undefined,
+			lastMessageTs: undefined,
+		}
+
+		const fakeTask = {
+			taskState,
+			messageStateHandler: {
+				addToClineMessages: async (message: ClineMessage) => {
+					clineMessages.push(message)
+				},
+				getClineMessages: () => clineMessages,
+			},
+			postStateToWebview: async () => undefined,
+			runNotificationHook: async () => undefined,
+		}
+
+		const askPromise = (
+			Task.prototype as unknown as {
+				ask: (type: "resume_completed_task") => Promise<{ response: string; text?: string }>
+			}
+		).ask.call(fakeTask, "resume_completed_task")
+
+		await delay(150)
+		assert.equal(taskState.askResponse, undefined)
+
+		taskState.askResponse = "yesButtonClicked"
+		taskState.askResponseText = "resume completed"
+
+		const result = await askPromise
+
+		assert.equal(result.response, "yesButtonClicked")
+		assert.equal(result.text, "resume completed")
+		assert.equal(clineMessages.length, 1)
+		assert.equal(clineMessages[0].ask, "resume_completed_task")
+	})
+
 	it("still wakes non-resume asks when abort is triggered after the ask is shown", async () => {
 		const clineMessages: ClineMessage[] = []
 		const taskState: {
