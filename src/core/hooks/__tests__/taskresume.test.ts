@@ -3,14 +3,25 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
-import { createHookTestEnv, HookTestEnv, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskResume Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let hookTestEnv: HookTestEnv
 	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
+
+	type FixtureScenario = {
+		fixtureName: string
+		lastMessageTs: string
+		messageCount: string
+		conversationHistoryDeleted: string
+		assert: (result: HookOutput) => void
+	}
+
+	const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
@@ -146,7 +157,11 @@ console.log(JSON.stringify({
 			}
 		})
 
-		it("should handle very old timestamps (days ago)", async () => {
+		it("should handle very old timestamps (days ago)", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
@@ -537,149 +552,114 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fixture-Based Tests", () => {
-		const loadFixtureAndCreateRunner = async (fixtureName: string) => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture(`hooks/taskresume/${fixtureName}`, tempDir)
-
-			const factory = new HookFactory()
-			return await factory.create("TaskResume")
-		}
-
-		it("should work with success fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("success")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: Date.now().toString(),
-						messageCount: "5",
-						conversationHistoryDeleted: "false",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TaskResume hook executed successfully")
-		})
-
-		it("should work with recent-resume fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("recent-resume")
-
-			const twoMinutesAgo = Date.now() - 2 * 60 * 1000
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: twoMinutesAgo.toString(),
-						messageCount: "5",
-						conversationHistoryDeleted: "false",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.match(/Recently paused task/)
-		})
-
-		it("should work with long-pause fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("long-pause")
-
-			const twoDaysAgo = Date.now() - 48 * 60 * 60 * 1000
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: twoDaysAgo.toString(),
-						messageCount: "5",
-						conversationHistoryDeleted: "false",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.match(/paused 48 hours ago/)
-		})
-
-		it("should work with context-deleted fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("context-deleted")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: Date.now().toString(),
-						messageCount: "50",
-						conversationHistoryDeleted: "true",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.match(/truncated/)
-		})
-
-		it("should work with message-count fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("message-count")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: Date.now().toString(),
-						messageCount: "25",
-						conversationHistoryDeleted: "false",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
-		})
-
-		it("should work with context-injection fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("context-injection")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: Date.now().toString(),
-						messageCount: "5",
-						conversationHistoryDeleted: "false",
-					},
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("WORKSPACE_RULES: Task test-task resumed - review previous context")
-		})
-
-		it("should work with error fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("error")
-
-			try {
-				await runner.run({
-					taskId: "test-task",
-					taskResume: {
-						taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-						previousState: {
-							lastMessageTs: Date.now().toString(),
-							messageCount: "5",
-							conversationHistoryDeleted: "false",
-						},
-					},
-				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/exited with code 1/)
+		it("should validate representative fixtures end-to-end", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 			}
+
+			const scenarios: FixtureScenario[] = [
+				{
+					fixtureName: "success",
+					lastMessageTs: Date.now().toString(),
+					messageCount: "5",
+					conversationHistoryDeleted: "false",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("TaskResume hook executed successfully")
+					},
+				},
+				{
+					fixtureName: "recent-resume",
+					lastMessageTs: (Date.now() - 2 * 60 * 1000).toString(),
+					messageCount: "5",
+					conversationHistoryDeleted: "false",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.match(/Recently paused task/)
+					},
+				},
+				{
+					fixtureName: "long-pause",
+					lastMessageTs: (Date.now() - 48 * 60 * 60 * 1000).toString(),
+					messageCount: "5",
+					conversationHistoryDeleted: "false",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.match(/paused 48 hours ago/)
+					},
+				},
+				{
+					fixtureName: "context-deleted",
+					lastMessageTs: Date.now().toString(),
+					messageCount: "50",
+					conversationHistoryDeleted: "true",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.match(/truncated/)
+					},
+				},
+				{
+					fixtureName: "message-count",
+					lastMessageTs: Date.now().toString(),
+					messageCount: "25",
+					conversationHistoryDeleted: "false",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
+					},
+				},
+				{
+					fixtureName: "context-injection",
+					lastMessageTs: Date.now().toString(),
+					messageCount: "5",
+					conversationHistoryDeleted: "false",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal(
+							"WORKSPACE_RULES: Task test-task resumed - review previous context",
+						)
+					},
+				},
+			]
+
+			for (const scenario of scenarios) {
+				await withFixtureRunner("TaskResume", `hooks/taskresume/${scenario.fixtureName}`, hookTestEnv, async (runner) => {
+					const result = await runner.run({
+						taskId: "test-task",
+						taskResume: {
+							taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+							previousState: {
+								lastMessageTs: scenario.lastMessageTs,
+								messageCount: scenario.messageCount,
+								conversationHistoryDeleted: scenario.conversationHistoryDeleted,
+							},
+						},
+					})
+
+					scenario.assert(result)
+				})
+			}
+		})
+
+		it("should preserve fixture-based failure behavior", async () => {
+			await withFixtureRunner("TaskResume", "hooks/taskresume/error", hookTestEnv, async (runner) => {
+				try {
+					await runner.run({
+						taskId: "test-task",
+						taskResume: {
+							taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+							previousState: {
+								lastMessageTs: Date.now().toString(),
+								messageCount: "5",
+								conversationHistoryDeleted: "false",
+							},
+						},
+					})
+					throw new Error("Should have thrown")
+				} catch (error: unknown) {
+					getErrorMessage(error).should.match(/exited with code 1/)
+				}
+			})
 		})
 	})
 })

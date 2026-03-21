@@ -9,6 +9,7 @@ import { Box, Text, useInput } from "ink"
 import React, { useCallback, useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { isEnterKey } from "../utils/input"
 import { getModelList } from "./ModelPicker"
 import { SearchableList } from "./SearchableList"
 
@@ -43,7 +44,7 @@ export const BedrockCustomModelFlow: React.FC<BedrockCustomModelFlowProps> = ({ 
 			if (step === "arn_input") {
 				if (key.escape) {
 					onCancel()
-				} else if (key.return) {
+				} else if (isEnterKey(input, key)) {
 					handleArnSubmit()
 				} else if (key.backspace || key.delete) {
 					setCustomArn((prev) => prev.slice(0, -1))
