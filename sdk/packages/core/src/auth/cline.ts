@@ -1,3 +1,11 @@
+import type { ITelemetryService } from "@clinebot/shared";
+import {
+	captureAuthFailed,
+	captureAuthLoggedOut,
+	captureAuthStarted,
+	captureAuthSucceeded,
+	identifyAccount,
+} from "../telemetry/core-events";
 import { startLocalOAuthServer } from "./server.js";
 import type {
 	OAuthCredentials,
@@ -63,6 +71,7 @@ export interface ClineOAuthProviderOptions {
 	callbackPath?: string;
 	callbackPorts?: number[];
 	requestTimeoutMs?: number;
+	telemetry?: ITelemetryService;
 	/**
 	 * Optional identity provider name for token exchange.
 	 */
@@ -253,6 +262,7 @@ export async function loginClineOAuth(
 		callbacks: OAuthLoginCallbacks;
 	},
 ): Promise<ClineOAuthCredentials> {
+	captureAuthStarted(options.telemetry, options.provider ?? "cline");
 	const callbackPorts = options.callbackPorts?.length
 		? options.callbackPorts
 		: DEFAULT_CALLBACK_PORTS;
@@ -312,7 +322,26 @@ export async function loginClineOAuth(
 			throw new Error("Missing authorization code");
 		}
 
-		return exchangeAuthorizationCode(code, callbackUrl, options, provider);
+		const credentials = await exchangeAuthorizationCode(
+			code,
+			callbackUrl,
+			options,
+			provider,
+		);
+		captureAuthSucceeded(options.telemetry, provider ?? "cline");
+		identifyAccount(options.telemetry, {
+			id: credentials.accountId,
+			email: credentials.email,
+			provider: provider ?? "cline",
+		});
+		return credentials;
+	} catch (error) {
+		captureAuthFailed(
+			options.telemetry,
+			options.provider ?? "cline",
+			error instanceof Error ? error.message : String(error),
+		);
+		throw error;
 	} finally {
 		localServer.close();
 	}
@@ -384,6 +413,11 @@ export async function getValidClineCredentials(
 		return await refreshClineToken(currentCredentials, providerOptions);
 	} catch (error) {
 		if (error instanceof ClineOAuthTokenError && error.isLikelyInvalidGrant()) {
+			captureAuthLoggedOut(
+				providerOptions.telemetry,
+				providerOptions.provider ?? "cline",
+				"invalid_grant",
+			);
 			return null;
 		}
 		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {

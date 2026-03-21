@@ -1,3 +1,5 @@
+import type { ITelemetryService } from "@clinebot/shared";
+
 export interface OAuthPrompt {
 	message: string;
 	defaultValue?: string;
@@ -69,6 +71,7 @@ export interface OcaOAuthProviderOptions {
 	requestTimeoutMs?: number;
 	refreshBufferMs?: number;
 	retryableTokenGraceMs?: number;
+	telemetry?: ITelemetryService;
 }
 
 export interface OcaTokenResolution {

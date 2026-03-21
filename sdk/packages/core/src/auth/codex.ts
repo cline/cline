@@ -5,7 +5,15 @@
  * It is only intended for CLI use, not browser environments.
  */
 
+import type { ITelemetryService } from "@clinebot/shared";
 import { nanoid } from "nanoid";
+import {
+	captureAuthFailed,
+	captureAuthLoggedOut,
+	captureAuthStarted,
+	captureAuthSucceeded,
+	identifyAccount,
+} from "../telemetry/core-events";
 import { startLocalOAuthServer } from "./server.js";
 import type {
 	OAuthCredentials,
@@ -295,7 +303,9 @@ export async function loginOpenAICodex(options: {
 	onProgress?: (message: string) => void;
 	onManualCodeInput?: () => Promise<string>;
 	originator?: string;
+	telemetry?: ITelemetryService;
 }): Promise<OAuthCredentials> {
+	captureAuthStarted(options.telemetry, "openai-codex");
 	const callbackConfig = resolveCallbackServerConfig();
 	const { verifier, state, url } = await createAuthorizationFlow(
 		options.originator,
@@ -352,7 +362,21 @@ export async function loginOpenAICodex(options: {
 			throw new Error("Token exchange failed");
 		}
 
-		return toCodexCredentials(tokenResult);
+		const credentials = toCodexCredentials(tokenResult);
+		captureAuthSucceeded(options.telemetry, "openai-codex");
+		identifyAccount(options.telemetry, {
+			id: credentials.accountId,
+			email: credentials.email,
+			provider: "openai-codex",
+		});
+		return credentials;
+	} catch (error) {
+		captureAuthFailed(
+			options.telemetry,
+			"openai-codex",
+			error instanceof Error ? error.message : String(error),
+		);
+		throw error;
 	} finally {
 		server.close();
 	}
@@ -378,7 +402,7 @@ export async function refreshOpenAICodexToken(
 
 export async function getValidOpenAICodexCredentials(
 	currentCredentials: OAuthCredentials | null,
-	options?: RefreshTokenResolution,
+	options?: RefreshTokenResolution & { telemetry?: ITelemetryService },
 ): Promise<OAuthCredentials | null> {
 	if (!currentCredentials) {
 		return null;
@@ -409,6 +433,7 @@ export async function getValidOpenAICodexCredentials(
 			error instanceof OpenAICodexOAuthTokenError &&
 			error.isLikelyInvalidGrant()
 		) {
+			captureAuthLoggedOut(options?.telemetry, "openai-codex", "invalid_grant");
 			return null;
 		}
 		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {

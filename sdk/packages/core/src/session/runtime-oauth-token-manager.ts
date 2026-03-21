@@ -1,4 +1,5 @@
 import type { LlmsProviders } from "@clinebot/llms";
+import type { ITelemetryService } from "@clinebot/shared";
 import {
 	type ClineOAuthCredentials,
 	getValidClineCredentials,
@@ -143,14 +144,19 @@ export type RuntimeOAuthResolution = {
 
 export class RuntimeOAuthTokenManager {
 	private readonly providerSettingsManager: ProviderSettingsManager;
+	private readonly telemetry?: ITelemetryService;
 	private readonly refreshInFlight = new Map<
 		ManagedOAuthProviderId,
 		Promise<RuntimeOAuthResolution | null>
 	>();
 
-	constructor(options?: { providerSettingsManager?: ProviderSettingsManager }) {
+	constructor(options?: {
+		providerSettingsManager?: ProviderSettingsManager;
+		telemetry?: ITelemetryService;
+	}) {
 		this.providerSettingsManager =
 			options?.providerSettingsManager ?? new ProviderSettingsManager();
+		this.telemetry = options?.telemetry;
 	}
 
 	public async resolveProviderApiKey(input: {
@@ -249,6 +255,7 @@ export class RuntimeOAuthTokenManager {
 				currentCredentials,
 				{
 					apiBaseUrl: settings.baseUrl?.trim() || DEFAULT_CLINE_API_BASE_URL,
+					telemetry: this.telemetry,
 				},
 				{ forceRefresh },
 			);
@@ -256,10 +263,13 @@ export class RuntimeOAuthTokenManager {
 		if (providerId === "oca") {
 			return getValidOcaCredentials(
 				currentCredentials,
-				{ forceRefresh },
-				{ mode: settings.oca?.mode },
+				{ forceRefresh, telemetry: this.telemetry },
+				{ mode: settings.oca?.mode, telemetry: this.telemetry },
 			);
 		}
-		return getValidOpenAICodexCredentials(currentCredentials, { forceRefresh });
+		return getValidOpenAICodexCredentials(currentCredentials, {
+			forceRefresh,
+			telemetry: this.telemetry,
+		});
 	}
 }

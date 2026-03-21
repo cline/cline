@@ -1,4 +1,12 @@
+import type { ITelemetryService } from "@clinebot/shared";
 import { nanoid } from "nanoid";
+import {
+	captureAuthFailed,
+	captureAuthLoggedOut,
+	captureAuthStarted,
+	captureAuthSucceeded,
+	identifyAccount,
+} from "../telemetry/core-events";
 import { startLocalOAuthServer } from "./server.js";
 import type {
 	OAuthCredentials,
@@ -325,8 +333,12 @@ function buildAuthorizationUrl(input: {
 }
 
 export async function loginOcaOAuth(
-	options: OcaOAuthProviderOptions & { callbacks: OAuthLoginCallbacks },
+	options: OcaOAuthProviderOptions & {
+		callbacks: OAuthLoginCallbacks;
+		telemetry?: ITelemetryService;
+	},
 ): Promise<OAuthCredentials> {
+	captureAuthStarted(options.telemetry, "oca");
 	const config = resolveConfig(options.config);
 	const mode = resolveMode(options.mode);
 	const callbackPorts = options.callbackPorts?.length
@@ -391,13 +403,27 @@ export async function loginOcaOAuth(
 			throw new Error("State mismatch");
 		}
 
-		return await exchangeAuthorizationCode({
+		const credentials = await exchangeAuthorizationCode({
 			code,
 			state: returnedState,
 			mode,
 			config,
 			requestTimeoutMs,
 		});
+		captureAuthSucceeded(options.telemetry, "oca");
+		identifyAccount(options.telemetry, {
+			id: credentials.accountId,
+			email: credentials.email,
+			provider: "oca",
+		});
+		return credentials;
+	} catch (error) {
+		captureAuthFailed(
+			options.telemetry,
+			"oca",
+			error instanceof Error ? error.message : String(error),
+		);
+		throw error;
 	} finally {
 		localServer.close();
 	}
@@ -447,8 +473,8 @@ export async function refreshOcaToken(
 
 export async function getValidOcaCredentials(
 	currentCredentials: OAuthCredentials | null,
-	options?: OcaTokenResolution,
-	providerOptions?: OcaOAuthProviderOptions,
+	options?: OcaTokenResolution & { telemetry?: ITelemetryService },
+	providerOptions?: OcaOAuthProviderOptions & { telemetry?: ITelemetryService },
 ): Promise<OAuthCredentials | null> {
 	if (!currentCredentials) {
 		return null;
@@ -475,6 +501,7 @@ export async function getValidOcaCredentials(
 		return await refreshOcaToken(currentCredentials, providerOptions);
 	} catch (error) {
 		if (error instanceof OcaOAuthTokenError && error.isLikelyInvalidGrant()) {
+			captureAuthLoggedOut(providerOptions?.telemetry, "oca", "invalid_grant");
 			return null;
 		}
 		if (currentCredentials.expires - Date.now() > retryableTokenGraceMs) {

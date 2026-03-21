@@ -13,6 +13,7 @@ export interface MentionEnricherOptions extends FastFileIndexOptions {
 
 export interface MentionEnrichmentResult {
 	prompt: string;
+	mentions: string[];
 	matchedFiles: string[];
 	ignoredMentions: string[];
 }
@@ -60,6 +61,7 @@ export async function enrichPromptWithMentions(
 	if (mentions.length === 0) {
 		return {
 			prompt: input,
+			mentions: [],
 			matchedFiles: [],
 			ignoredMentions: [],
 		};
@@ -113,6 +115,7 @@ export async function enrichPromptWithMentions(
 
 	return {
 		prompt: input,
+		mentions,
 		matchedFiles: matched,
 		ignoredMentions: ignored,
 	};

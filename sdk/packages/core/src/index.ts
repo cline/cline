@@ -124,6 +124,29 @@ export {
 	buildTeamProgressSummary,
 	toTeamProgressLifecycleEvent,
 } from "./team";
+export {
+	captureAuthFailed,
+	captureAuthLoggedOut,
+	captureAuthStarted,
+	captureAuthSucceeded,
+	captureConversationTurnEvent,
+	captureDiffEditFailure,
+	captureHookDiscovery,
+	captureMentionFailed,
+	captureMentionSearchResults,
+	captureMentionUsed,
+	captureModeSwitch,
+	captureProviderApiError,
+	captureSkillUsed,
+	captureSubagentExecution,
+	captureTaskCompleted,
+	captureTaskCreated,
+	captureTaskRestarted,
+	captureTokenUsage,
+	captureToolUsage,
+	identifyAccount,
+	LegacyTelemetryEvents,
+} from "./telemetry/core-events";
 export type { ITelemetryAdapter } from "./telemetry/ITelemetryAdapter";
 export {
 	LoggerTelemetryAdapter,

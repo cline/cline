@@ -21,6 +21,10 @@ import {
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
+import {
+	listHookConfigFiles,
+	resolveDocumentsHooksDirectoryPath,
+} from "../agents/hooks-config-loader";
 import { resolveAndLoadAgentPlugins } from "../agents/plugin-config-loader";
 import { enrichPromptWithMentions } from "../input";
 import {
@@ -35,6 +39,23 @@ import {
 	buildTeamProgressSummary,
 	toTeamProgressLifecycleEvent,
 } from "../team";
+import {
+	captureConversationTurnEvent,
+	captureDiffEditFailure,
+	captureHookDiscovery,
+	captureMentionFailed,
+	captureMentionSearchResults,
+	captureMentionUsed,
+	captureModeSwitch,
+	captureProviderApiError,
+	captureSkillUsed,
+	captureSubagentExecution,
+	captureTaskCompleted,
+	captureTaskCreated,
+	captureTaskRestarted,
+	captureTokenUsage,
+	captureToolUsage,
+} from "../telemetry/core-events";
 import { createBuiltinTools, type ToolExecutors, ToolPresets } from "../tools";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
@@ -132,6 +153,13 @@ export class DefaultSessionManager implements SessionManager {
 	private readonly listeners = new Set<(event: CoreSessionEvent) => void>();
 	private readonly sessions = new Map<string, ActiveSession>();
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
+	private readonly subAgentStarts = new Map<
+		string,
+		{
+			startedAt: number;
+			rootSessionId: string;
+		}
+	>();
 
 	constructor(options: DefaultSessionManagerOptions) {
 		const homeDir = homedir();
@@ -148,6 +176,7 @@ export class DefaultSessionManager implements SessionManager {
 			options.oauthTokenManager ??
 			new RuntimeOAuthTokenManager({
 				providerSettingsManager: this.providerSettingsManager,
+				telemetry: options.telemetry,
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultRequestToolApproval = options.requestToolApproval;
@@ -296,6 +325,21 @@ export class DefaultSessionManager implements SessionManager {
 				input.defaultToolExecutors ?? this.defaultToolExecutors,
 		});
 		const tools = [...runtime.tools, ...(effectiveConfig.extraTools ?? [])];
+		const requestedExistingSession = requestedSessionId.length > 0;
+		if (requestedExistingSession) {
+			captureTaskRestarted(effectiveConfig.telemetry, {
+				ulid: sessionId,
+				apiProvider: effectiveConfig.providerId,
+			});
+		} else {
+			captureTaskCreated(effectiveConfig.telemetry, {
+				ulid: sessionId,
+				apiProvider: effectiveConfig.providerId,
+			});
+		}
+		this.captureHookDiscoveryTelemetry(effectiveConfig.telemetry, {
+			workspacePath: input.config.workspaceRoot ?? input.config.cwd,
+		});
 		effectiveConfig.telemetry?.capture({
 			event: "session.started",
 			properties: {
@@ -337,6 +381,65 @@ export class DefaultSessionManager implements SessionManager {
 			logger: runtime.logger ?? effectiveConfig.logger,
 			onEvent: (event: AgentEvent) => {
 				const liveSession = this.sessions.get(sessionId);
+				if (
+					event.type === "content_start" &&
+					event.contentType === "tool" &&
+					event.toolName === "skills"
+				) {
+					const skillName = this.extractSkillNameFromToolInput(event.input);
+					if (skillName) {
+						captureSkillUsed(effectiveConfig.telemetry, {
+							ulid: sessionId,
+							skillName,
+							skillSource: "project",
+							skillsAvailableGlobal: 0,
+							skillsAvailableProject: 0,
+							provider: effectiveConfig.providerId,
+							modelId: effectiveConfig.modelId,
+						});
+					}
+				}
+				if (event.type === "content_end" && event.contentType === "tool") {
+					const toolName = event.toolName ?? "unknown";
+					const success = !event.error;
+					captureToolUsage(effectiveConfig.telemetry, {
+						ulid: sessionId,
+						tool: toolName,
+						autoApproved: undefined,
+						success,
+						modelId: effectiveConfig.modelId,
+						provider: effectiveConfig.providerId,
+						isNativeToolCall: false,
+					});
+					if (
+						!success &&
+						(toolName === "editor" || toolName === "apply_patch")
+					) {
+						captureDiffEditFailure(effectiveConfig.telemetry, {
+							ulid: sessionId,
+							modelId: effectiveConfig.modelId,
+							provider: effectiveConfig.providerId,
+							errorType: event.error,
+							isNativeToolCall: false,
+						});
+					}
+				}
+				if (event.type === "notice" && event.reason === "api_error") {
+					captureProviderApiError(effectiveConfig.telemetry, {
+						ulid: sessionId,
+						model: effectiveConfig.modelId,
+						provider: effectiveConfig.providerId,
+						errorMessage: event.message,
+					});
+				}
+				if (event.type === "error") {
+					captureProviderApiError(effectiveConfig.telemetry, {
+						ulid: sessionId,
+						model: effectiveConfig.modelId,
+						provider: effectiveConfig.providerId,
+						errorMessage: event.error?.message ?? "unknown error",
+					});
+				}
 				if (event.type === "usage" && liveSession?.turnUsageBaseline) {
 					this.usageBySession.set(
 						sessionId,
@@ -346,6 +449,25 @@ export class DefaultSessionManager implements SessionManager {
 							totalCost: event.totalCost,
 						}),
 					);
+					captureConversationTurnEvent(effectiveConfig.telemetry, {
+						ulid: sessionId,
+						provider: effectiveConfig.providerId,
+						model: effectiveConfig.modelId,
+						source: "assistant",
+						mode: effectiveConfig.mode,
+						tokensIn: event.inputTokens,
+						tokensOut: event.outputTokens,
+						cacheWriteTokens: event.cacheWriteTokens,
+						cacheReadTokens: event.cacheReadTokens,
+						totalCost: event.cost,
+						isNativeToolCall: false,
+					});
+					captureTokenUsage(effectiveConfig.telemetry, {
+						ulid: sessionId,
+						tokensIn: event.inputTokens,
+						tokensOut: event.outputTokens,
+						model: effectiveConfig.modelId,
+					});
 				}
 				if (event.type === "iteration_end") {
 					void this.invoke<void>(
@@ -648,6 +770,19 @@ export class DefaultSessionManager implements SessionManager {
 			this.usageBySession.get(session.sessionId) ??
 			createInitialAccumulatedUsage();
 		session.turnUsageBaseline = usageBaseline;
+		captureModeSwitch(
+			session.config.telemetry,
+			session.sessionId,
+			session.config.mode,
+		);
+		captureConversationTurnEvent(session.config.telemetry, {
+			ulid: session.sessionId,
+			provider: session.config.providerId,
+			model: session.config.modelId,
+			source: "user",
+			mode: session.config.mode,
+			isNativeToolCall: false,
+		});
 		try {
 			const result = shouldContinue
 				? await this.runWithAuthRetry(
@@ -715,6 +850,26 @@ export class DefaultSessionManager implements SessionManager {
 			normalizedPrompt,
 			mentionBaseDir,
 		);
+		for (const mention of enriched.mentions) {
+			captureMentionSearchResults(
+				session.config.telemetry,
+				mention,
+				enriched.matchedFiles.includes(mention) ? 1 : 0,
+				"file",
+				!enriched.matchedFiles.includes(mention),
+			);
+		}
+		for (const matched of enriched.matchedFiles) {
+			captureMentionUsed(session.config.telemetry, "file", matched.length);
+		}
+		for (const ignored of enriched.ignoredMentions) {
+			captureMentionFailed(
+				session.config.telemetry,
+				"file",
+				"not_found",
+				ignored,
+			);
+		}
 		const prompt = formatUserInputBlock(
 			enriched.prompt,
 			session.config.mode === "plan" ? "plan" : "act",
@@ -815,6 +970,15 @@ export class DefaultSessionManager implements SessionManager {
 			endReason: string;
 		},
 	): Promise<void> {
+		if (input.status === "completed") {
+			captureTaskCompleted(session.config.telemetry, {
+				ulid: session.sessionId,
+				provider: session.config.providerId,
+				modelId: session.config.modelId,
+				mode: session.config.mode,
+				durationMs: Date.now() - Date.parse(session.startedAt),
+			});
+		}
 		this.notifyTeamRunWaiters(session);
 		if (session.artifacts) {
 			await this.updateStatus(session, input.status, input.exitCode);
@@ -936,12 +1100,73 @@ export class DefaultSessionManager implements SessionManager {
 			requestToolApproval: this.defaultRequestToolApproval,
 			logger: config.logger,
 			onSubAgentStart: (context) => {
+				this.subAgentStarts.set(context.subAgentId, {
+					startedAt: Date.now(),
+					rootSessionId,
+				});
 				void this.invokeOptional("handleSubAgentStart", rootSessionId, context);
 			},
 			onSubAgentEnd: (context) => {
+				const started = this.subAgentStarts.get(context.subAgentId);
+				const durationMs = started ? Date.now() - started.startedAt : 0;
+				const outputLines = context.result?.text
+					? context.result.text.split("\n").length
+					: 0;
+				captureSubagentExecution(config.telemetry, {
+					ulid: rootSessionId,
+					durationMs,
+					outputLines,
+					success: !context.error,
+				});
+				this.subAgentStarts.delete(context.subAgentId);
 				void this.invokeOptional("handleSubAgentEnd", rootSessionId, context);
 			},
 		}) as Tool;
+	}
+
+	private extractSkillNameFromToolInput(input: unknown): string | undefined {
+		if (!input || typeof input !== "object") {
+			return undefined;
+		}
+		const record = input as Record<string, unknown>;
+		const skillName = record.skill ?? record.skill_name ?? record.skillName;
+		if (typeof skillName !== "string") {
+			return undefined;
+		}
+		const trimmed = skillName.trim();
+		return trimmed.length > 0 ? trimmed : undefined;
+	}
+
+	private captureHookDiscoveryTelemetry(
+		telemetry: ITelemetryService | undefined,
+		options: { workspacePath: string },
+	): void {
+		const workspaceHooksDir = join(
+			options.workspacePath,
+			".clinerules",
+			"hooks",
+		);
+		const globalHooksDir = resolveDocumentsHooksDirectoryPath();
+		const entries = listHookConfigFiles(options.workspacePath);
+		const counts = new Map<string, { global: number; workspace: number }>();
+		for (const entry of entries) {
+			const hookName = entry.hookEventName ?? "unknown";
+			const current = counts.get(hookName) ?? { global: 0, workspace: 0 };
+			if (entry.path.startsWith(`${workspaceHooksDir}/`)) {
+				current.workspace += 1;
+			} else if (
+				entry.path === globalHooksDir ||
+				entry.path.startsWith(`${globalHooksDir}/`)
+			) {
+				current.global += 1;
+			} else {
+				current.workspace += 1;
+			}
+			counts.set(hookName, current);
+		}
+		for (const [hookName, count] of counts.entries()) {
+			captureHookDiscovery(telemetry, hookName, count.global, count.workspace);
+		}
 	}
 
 	private async handleTeamEvent(

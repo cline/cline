@@ -32,6 +32,7 @@ describe("enrichPromptWithMentions", () => {
 				cwd,
 			);
 
+			expect(result.mentions).toEqual(["src/index.ts"]);
 			expect(result.matchedFiles).toEqual(["src/index.ts"]);
 			expect(result.ignoredMentions).toEqual([]);
 			expect(result.prompt).toBe("Review @src/index.ts");
@@ -50,6 +51,7 @@ describe("enrichPromptWithMentions", () => {
 				cwd,
 			);
 
+			expect(result.mentions).toEqual(["missing/file.ts"]);
 			expect(result.matchedFiles).toEqual([]);
 			expect(result.ignoredMentions).toEqual(["missing/file.ts"]);
 			expect(result.prompt).toBe(
@@ -72,6 +74,7 @@ describe("enrichPromptWithMentions", () => {
 				{ maxTotalBytes: 5, maxFiles: 2, maxFileBytes: 5 },
 			);
 
+			expect(result.mentions).toEqual(["a.ts", "b.ts"]);
 			expect(result.matchedFiles).toEqual(["a.ts"]);
 			expect(result.ignoredMentions).toEqual(["b.ts"]);
 			expect(result.prompt).toBe("Use @a.ts and @b.ts");
