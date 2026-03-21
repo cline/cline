@@ -90,5 +90,49 @@ describe("VercelAIGatewayHandler", () => {
 				},
 			])
 		})
+
+		it("should read cache write tokens from cache_creation_input_tokens", async () => {
+			const handler = new VercelAIGatewayHandler({
+				vercelAiGatewayApiKey: "test-api-key",
+			})
+			const fakeClient = {
+				chat: {
+					completions: {
+						create: sinon.stub().resolves(
+							createAsyncIterable([
+								{
+									choices: [{}],
+									usage: {
+										prompt_tokens: 90,
+										completion_tokens: 6,
+										cache_creation_input_tokens: 20,
+										prompt_tokens_details: {
+											cached_tokens: 60,
+										},
+									},
+								},
+							]),
+						),
+					},
+				},
+			}
+			sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+			const chunks: any[] = []
+			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+				chunks.push(chunk)
+			}
+
+			chunks.should.deepEqual([
+				{
+					type: "usage",
+					cacheWriteTokens: 20,
+					cacheReadTokens: 60,
+					inputTokens: 10,
+					outputTokens: 6,
+					totalCost: 0,
+				},
+			])
+		})
 	})
 })
