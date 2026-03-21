@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@clinebot/agents";
+import type { AgentEvent, AgentResult } from "@clinebot/agents";
 import {
 	type LlmsProviders,
 	prewarmFileIndex,
@@ -26,24 +26,81 @@ import { buildUserInputMessage } from "./prompt";
 import { subscribeToAgentEvents } from "./session-events";
 
 function printModelProviderInfo(config: Config): void {
-	const modelSource = config.knownModels ? "live" : "bundled";
-	const thinkingStatus = config.thinking ? "on" : "off";
-	const mode = config.mode;
+	const catalog = config.knownModels ? "live" : "bundled";
+	const thinking = config.thinking ? "on" : "off";
+	const { mode, providerId, modelId } = config;
 	if (config.outputMode === "json") {
 		emitJsonLine("stdout", {
 			type: "run_start",
-			providerId: config.providerId,
-			modelId: config.modelId,
-			catalog: modelSource,
-			thinking: thinkingStatus,
+			providerId,
+			modelId,
+			catalog,
+			thinking,
 			mode,
 			sessionId: getActiveCliSession()?.manifest.session_id,
 		});
 		return;
 	}
 	writeln(
-		`${c.dim}[model] provider=${config.providerId} model=${config.modelId} catalog=${modelSource} thinking=${thinkingStatus} mode=${mode}${c.reset}\n`,
+		`${c.dim}[model] provider=${providerId} model=${modelId} catalog=${catalog} thinking=${thinking} mode=${mode}${c.reset}\n`,
 	);
+}
+
+function emitAbortRequested(
+	config: Config,
+	reason: "sigint" | "sigterm",
+): void {
+	if (config.outputMode === "json") {
+		emitJsonLine("stdout", { type: "run_abort_requested", reason });
+	} else if (reason === "sigint") {
+		writeln(`\n${c.dim}[abort] requested${c.reset}`);
+	}
+}
+
+function emitTeamRestored(config: Config): void {
+	const teamName = config.teamName ?? "(unknown team)";
+	if (config.outputMode === "json") {
+		emitJsonLine("stdout", { type: "team_restored", teamName });
+		return;
+	}
+	writeln(
+		`${c.dim}[team] restored persisted team state for "${teamName}"${c.reset}`,
+	);
+}
+
+function printRunStats(
+	config: Config,
+	result: AgentResult,
+	usage: AgentResult["usage"],
+	startTime: number,
+	reasoningChunkCount: number,
+	redactedReasoningChunkCount: number,
+): void {
+	if (config.outputMode !== "text") {
+		return;
+	}
+	writeln();
+	if (config.showTimings || config.showUsage) {
+		const parts: string[] = [];
+		if (config.showTimings) {
+			parts.push(`${((performance.now() - startTime) / 1000).toFixed(2)}s`);
+		}
+		if (config.showUsage) {
+			parts.push(`${usage.inputTokens + usage.outputTokens} tokens`);
+			if (typeof usage.totalCost === "number") {
+				parts.push(`${formatUsd(usage.totalCost)} est. cost`);
+			}
+			if (result.iterations > 1) {
+				parts.push(`${result.iterations} iterations`);
+			}
+		}
+		writeln(`${c.dim}[${parts.join(" | ")}]${c.reset}`);
+	}
+	if (config.thinking) {
+		writeln(
+			`${c.dim}[thinking] chunks=${reasoningChunkCount} redacted=${redactedReasoningChunkCount}${c.reset}`,
+		);
+	}
 }
 
 export async function runAgent(
@@ -60,19 +117,19 @@ export async function runAgent(
 		clineApiBaseUrl: options?.clineApiBaseUrl,
 		clineProviderSettings: options?.clineProviderSettings,
 	});
-	if (clineWelcomeLine) {
+	if (clineWelcomeLine && config.outputMode !== "json") {
 		writeln(clineWelcomeLine);
 	}
+
 	const startTime = performance.now();
 	void prewarmFileIndex(config.cwd);
+
 	const runtimeHooks = createRuntimeHooks({
 		verbose: config.verbose,
 		yolo: config.yolo,
 	});
 	const sessionManager = await createDefaultCliSessionManager({
-		defaultToolExecutors: {
-			askQuestion: askQuestionInTerminal,
-		},
+		defaultToolExecutors: { askQuestion: askQuestionInTerminal },
 		logger: config.logger,
 		toolPolicies: config.toolPolicies,
 		requestToolApproval,
@@ -81,6 +138,7 @@ export async function runAgent(
 	let errorAlreadyReported = false;
 	let reasoningChunkCount = 0;
 	let redactedReasoningChunkCount = 0;
+
 	const onAgentEvent = (event: AgentEvent) => {
 		if (event.type === "error") {
 			errorAlreadyReported = true;
@@ -94,36 +152,14 @@ export async function runAgent(
 		handleEvent(event, config);
 	};
 	const unsubscribe = subscribeToAgentEvents(sessionManager, onAgentEvent);
+
+	// --- Abort & signal handling ---
 	let abortRequested = false;
+	let timedOut = false;
 	let activeSessionId: string | undefined;
-	let cleanupPromise: Promise<void> | undefined;
-	const cleanupRuntime = async () => {
-		if (cleanupPromise) {
-			return await cleanupPromise;
-		}
-		cleanupPromise = (async () => {
-			process.off("SIGINT", handleSigint);
-			process.off("SIGTERM", handleSigterm);
-			unsubscribe();
-			try {
-				if (activeSessionId) {
-					await sessionManager.stop(activeSessionId);
-				}
-			} finally {
-				try {
-					await sessionManager.dispose("cli_run_shutdown");
-				} finally {
-					await runtimeHooks.shutdown();
-				}
-			}
-			setActiveRuntimeAbort(undefined);
-		})();
-		return await cleanupPromise;
-	};
+
 	const abortAll = () => {
-		if (abortRequested) {
-			return false;
-		}
+		if (abortRequested) return false;
 		abortRequested = true;
 		if (activeSessionId) {
 			void sessionManager.abort(activeSessionId);
@@ -131,16 +167,26 @@ export async function runAgent(
 		return true;
 	};
 	setActiveRuntimeAbort(abortAll);
+
+	let cleanupDone: Promise<void> | undefined;
+	const cleanupRuntime = () => {
+		cleanupDone ??= (async () => {
+			process.off("SIGINT", handleSigint);
+			process.off("SIGTERM", handleSigterm);
+			unsubscribe();
+			if (activeSessionId) {
+				await sessionManager.stop(activeSessionId).catch(() => {});
+			}
+			await sessionManager.dispose("cli_run_shutdown").catch(() => {});
+			await runtimeHooks.shutdown();
+			setActiveRuntimeAbort(undefined);
+		})();
+		return cleanupDone;
+	};
+
 	const handleSigint = () => {
 		if (abortAll()) {
-			if (config.outputMode === "json") {
-				emitJsonLine("stdout", {
-					type: "run_abort_requested",
-					reason: "sigint",
-				});
-				return;
-			}
-			writeln(`\n${c.dim}[abort] requested${c.reset}`);
+			emitAbortRequested(config, "sigint");
 			return;
 		}
 		void cleanupRuntime().finally(() => {
@@ -149,18 +195,14 @@ export async function runAgent(
 		});
 	};
 	const handleSigterm = () => {
-		if (abortAll() && config.outputMode === "json") {
-			emitJsonLine("stdout", {
-				type: "run_abort_requested",
-				reason: "sigterm",
-			});
+		if (abortAll()) {
+			emitAbortRequested(config, "sigterm");
 		}
 	};
 	process.on("SIGINT", handleSigint);
 	process.on("SIGTERM", handleSigterm);
 
-	let runFailed = false;
-	let timedOut = false;
+	// --- Main execution ---
 	try {
 		printModelProviderInfo(config);
 		const userInput = await buildUserInputMessage(
@@ -179,19 +221,9 @@ export async function runAgent(
 			prompt,
 			interactive: false,
 			userInstructionWatcher,
-			onTeamRestored: () => {
-				if (config.outputMode === "json") {
-					emitJsonLine("stdout", {
-						type: "team_restored",
-						teamName: config.teamName ?? "(unknown team)",
-					});
-					return;
-				}
-				writeln(
-					`${c.dim}[team] restored persisted team state for "${config.teamName ?? "(unknown team)"}"${c.reset}`,
-				);
-			},
+			onTeamRestored: () => emitTeamRestored(config),
 		});
+
 		activeSessionId = started.sessionId;
 		setActiveCliSession({
 			manifestPath: started.manifestPath,
@@ -200,33 +232,44 @@ export async function runAgent(
 			messagesPath: started.messagesPath,
 			manifest: started.manifest,
 		});
-		let timeoutId: NodeJS.Timeout | undefined;
-		if (
+
+		// Schedule timeout abort if configured.
+		const timeoutMs =
 			typeof config.timeoutSeconds === "number" &&
 			Number.isFinite(config.timeoutSeconds) &&
 			config.timeoutSeconds > 0
-		) {
-			timeoutId = setTimeout(() => {
-				timedOut = true;
-				abortAll();
-			}, config.timeoutSeconds * 1000);
+				? config.timeoutSeconds * 1000
+				: undefined;
+		const timeoutId = timeoutMs
+			? setTimeout(() => {
+					timedOut = true;
+					abortAll();
+				}, timeoutMs)
+			: undefined;
+		const clearRunTimeout = () => {
+			if (timeoutId) clearTimeout(timeoutId);
+		};
+
+		// When start() already ran the first turn (non-interactive with prompt),
+		// the session is finalized before start() returns. Use that result
+		// directly; calling send() would fail with "session not found".
+		let result: AgentResult | undefined;
+		if (started.result) {
+			clearRunTimeout();
+			result = started.result;
+		} else {
+			result = await sessionManager
+				.send({ sessionId: started.sessionId, prompt: userInput })
+				.finally(clearRunTimeout);
 		}
-		const result = await sessionManager
-			.send({
-				sessionId: started.sessionId,
-				prompt: userInput,
-			})
-			.finally(() => {
-				if (timeoutId) {
-					clearTimeout(timeoutId);
-				}
-			});
 		if (!result) {
 			throw new Error("session manager did not return a result");
 		}
+
 		const usage =
 			(await sessionManager.getAccumulatedUsage(started.sessionId)) ??
 			result.usage;
+
 		if (config.outputMode === "json") {
 			emitJsonLine("stdout", {
 				type: "run_result",
@@ -238,6 +281,7 @@ export async function runAgent(
 				model: result.model,
 			});
 		}
+
 		if (abortRequested || result.finishReason === "aborted") {
 			if (timedOut) {
 				writeErr(`run timed out after ${config.timeoutSeconds}s`);
@@ -246,58 +290,26 @@ export async function runAgent(
 				emitJsonLine("stdout", {
 					type: "run_aborted",
 					reason: abortRequested ? "local_abort" : "external_abort",
-					message: describeAbortSource({
-						abortRequested,
-						timedOut,
-					}),
+					message: describeAbortSource({ abortRequested, timedOut }),
 				});
 			} else {
 				writeln(
-					`${c.dim}[abort] ${describeAbortSource({
-						abortRequested,
-						timedOut,
-					})}${c.reset}`,
+					`${c.dim}[abort] ${describeAbortSource({ abortRequested, timedOut })}${c.reset}`,
 				);
 			}
 			writeln();
 			return;
 		}
 
-		if (config.outputMode === "text") {
-			writeln();
-		}
-
-		if (
-			config.outputMode === "text" &&
-			(config.showTimings || config.showUsage)
-		) {
-			const elapsed = ((performance.now() - startTime) / 1000).toFixed(2);
-			const parts: string[] = [];
-
-			if (config.showTimings) {
-				parts.push(`${elapsed}s`);
-			}
-
-			if (config.showUsage) {
-				const tokens = usage.inputTokens + usage.outputTokens;
-				parts.push(`${tokens} tokens`);
-				if (typeof usage.totalCost === "number") {
-					parts.push(`${formatUsd(usage.totalCost)} est. cost`);
-				}
-				if (result.iterations > 1) {
-					parts.push(`${result.iterations} iterations`);
-				}
-			}
-
-			writeln(`${c.dim}[${parts.join(" | ")}]${c.reset}`);
-		}
-		if (config.outputMode === "text" && config.thinking) {
-			writeln(
-				`${c.dim}[thinking] chunks=${reasoningChunkCount} redacted=${redactedReasoningChunkCount}${c.reset}`,
-			);
-		}
+		printRunStats(
+			config,
+			result,
+			usage,
+			startTime,
+			reasoningChunkCount,
+			redactedReasoningChunkCount,
+		);
 	} catch (err) {
-		runFailed = true;
 		if (config.outputMode === "text") {
 			writeln();
 		}
@@ -307,8 +319,5 @@ export async function runAgent(
 		process.exitCode = 1;
 	} finally {
 		await cleanupRuntime();
-	}
-	if (runFailed) {
-		return;
 	}
 }

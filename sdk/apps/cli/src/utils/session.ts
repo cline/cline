@@ -28,6 +28,7 @@ import {
 } from "@clinebot/core/node";
 import { getRpcServerDefaultAddress, RpcSessionClient } from "@clinebot/rpc";
 import { ensureRpcRuntimeAddress } from "../commands/rpc";
+import { createCliLoggerAdapter } from "../logging/adapter";
 import { getCliTelemetryService } from "./telemetry";
 
 function resolveRpcAddress(): string {
@@ -518,6 +519,10 @@ function createRpcRuntimeCliSessionManager(
 	});
 	const sessionConfigs = new Map<string, RpcChatStartSessionRequest>();
 	const accumulatedUsageBySession = new Map<string, SessionAccumulatedUsage>();
+	const sessionLogger = createCliLoggerAdapter({
+		runtime: "rpc-runtime",
+		component: "session",
+	}).core;
 
 	return {
 		start: async (input) => {
@@ -549,6 +554,10 @@ function createRpcRuntimeCliSessionManager(
 		send: async (input) => {
 			const config = sessionConfigs.get(input.sessionId);
 			if (!config) {
+				sessionLogger.debug?.("send() session not found", {
+					sessionId: input.sessionId,
+					knownSessions: [...sessionConfigs.keys()],
+				});
 				throw new Error(`session not found: ${input.sessionId}`);
 			}
 			const attachmentFiles = await toRpcAttachmentFiles(
@@ -688,9 +697,15 @@ function createRpcRuntimeCliSessionManager(
 					},
 				},
 			);
+			sessionLogger.debug?.("calling sendRuntimeSession", {
+				sessionId: input.sessionId,
+			});
 			const response = await client
 				.sendRuntimeSession(input.sessionId, request)
 				.finally(() => {
+					sessionLogger.debug?.("sendRuntimeSession completed/failed", {
+						sessionId: input.sessionId,
+					});
 					stopStreaming();
 				});
 			const result = response.result as RpcChatTurnResult;
@@ -767,6 +782,7 @@ function createRpcRuntimeCliSessionManager(
 			await client.abortRuntimeSession(sessionId);
 		},
 		stop: async (sessionId) => {
+			sessionLogger.debug?.("stop() called", { sessionId });
 			try {
 				await client.stopRuntimeSession(sessionId);
 			} catch (error) {
@@ -781,6 +797,10 @@ function createRpcRuntimeCliSessionManager(
 			accumulatedUsageBySession.delete(sessionId);
 		},
 		dispose: async () => {
+			sessionLogger.debug?.("dispose() called", {
+				sessionCount: sessionConfigs.size,
+				sessions: [...sessionConfigs.keys()],
+			});
 			const sessionIds = [...sessionConfigs.keys()];
 			await Promise.allSettled(
 				sessionIds.map(async (sessionId) => {

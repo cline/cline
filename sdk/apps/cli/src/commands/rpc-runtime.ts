@@ -40,7 +40,11 @@ import {
 } from "./rpc-runtime/session-helpers";
 
 const RPC_RUNTIME_NAME = "rpc-runtime";
-const RPC_SESSION_COMPONENT = "rpc-runtime-session";
+const moduleLogger = createCliLoggerAdapter({
+	runtime: RPC_RUNTIME_NAME,
+	component: "rpc-runtime",
+}).core;
+
 type HookRunStartContext = Parameters<NonNullable<AgentHooks["onRunStart"]>>[0];
 type HookSessionShutdownContext = Parameters<
 	NonNullable<AgentHooks["onSessionShutdown"]>
@@ -280,6 +284,7 @@ class RpcRuntimeHookService {
 }
 
 export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
+	const RPC_SESSION_COMPONENT = "rpc-runtime-session";
 	const sessionManager = new DefaultSessionManager({
 		distinctId: process.pid.toString(),
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
@@ -382,6 +387,10 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 			};
 		},
 		sendSession: async (sessionId, requestInput) => {
+			moduleLogger.debug?.("sendSession called", {
+				sessionId,
+				activeSessions: [...activeSessions],
+			});
 			const request = parseSendPayload(requestInput);
 			applyHomeDir(request.config);
 			const runtimeLogger = createCliLoggerAdapter({
