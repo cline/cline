@@ -762,7 +762,9 @@ function ChatThreadPane({
 						onSwitchGitBranch={switchGitBranch}
 						onRefreshGitBranch={() => void refreshGitBranch()}
 						onModelChange={(nextModel) =>
-							setConfig((prev) => ({ ...prev, model: nextModel }))
+							setConfig((prev) =>
+								prev.model === nextModel ? prev : { ...prev, model: nextModel },
+							)
 						}
 						onModeToggle={() =>
 							setConfig((prev) => ({
@@ -774,10 +776,17 @@ function ChatThreadPane({
 						onProviderChange={(nextProvider) =>
 							setConfig((prev) => {
 								const selected = providerCredentials[nextProvider];
+								const nextApiKey = selected?.apiKey ?? "";
+								if (
+									prev.provider === nextProvider &&
+									prev.apiKey === nextApiKey
+								) {
+									return prev;
+								}
 								return {
 									...prev,
 									provider: nextProvider,
-									apiKey: selected?.apiKey ?? "",
+									apiKey: nextApiKey,
 								};
 							})
 						}

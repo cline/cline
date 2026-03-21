@@ -599,24 +599,34 @@ function ModelSelector({
 			return;
 		}
 
-		if (!providers.includes(provider)) {
-			onProviderChange(providers[0]);
-			return;
+		const rememberedProvider = lastSelection.lastProvider.trim();
+		const resolvedProvider = providers.includes(provider)
+			? provider
+			: rememberedProvider && providers.includes(rememberedProvider)
+				? rememberedProvider
+				: providers[0];
+		if (resolvedProvider && resolvedProvider !== provider) {
+			onProviderChange(resolvedProvider);
 		}
 
-		if (!modelsForProvider.includes(model)) {
-			const firstModel = modelsForProvider[0];
-			if (firstModel) {
-				onModelChange(firstModel);
-			}
+		const providerModelIds = visibleProviderModels[resolvedProvider] ?? [];
+		const rememberedModel = lastSelection.lastModelByProvider[resolvedProvider];
+		const resolvedModel =
+			rememberedModel && providerModelIds.includes(rememberedModel)
+				? rememberedModel
+				: providerModelIds[0];
+		if (resolvedModel && resolvedModel !== model) {
+			onModelChange(resolvedModel);
 		}
 	}, [
+		lastSelection.lastModelByProvider,
+		lastSelection.lastProvider,
 		model,
-		modelsForProvider,
 		onModelChange,
 		onProviderChange,
 		provider,
 		providers,
+		visibleProviderModels,
 	]);
 
 	useEffect(() => {
