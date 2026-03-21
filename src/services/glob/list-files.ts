@@ -196,10 +196,13 @@ async function globbyLevelByLevel(limit: number, options?: Options) {
 					// name collides with DEFAULT_IGNORE_DIRECTORIES (e.g., /tmp on Linux).
 					const cwd = options?.cwd?.toString() ?? ""
 					const relativeDir = path.relative(cwd, file)
-					// Escape parentheses in the path to prevent glob pattern interpretation
-					// This is crucial for NextJS folder naming conventions which use parentheses like (auth), (dashboard)
-					// Without escaping, glob treats parentheses as special pattern grouping characters
-					const escapedDir = relativeDir.replace(/\(/g, "\\(").replace(/\)/g, "\\)")
+					// Escape backslashes and parentheses in the path to prevent glob pattern interpretation.
+					// This is crucial for NextJS folder naming conventions which use parentheses like (auth), (dashboard).
+					// Without escaping, glob treats backslashes as escapes and parentheses as special pattern grouping characters.
+					const escapedDir = relativeDir
+						.replace(/\\/g, "\\\\")
+						.replace(/\(/g, "\\(")
+						.replace(/\)/g, "\\)")
 					queue.push(`${escapedDir}/*`)
 				}
 			}
