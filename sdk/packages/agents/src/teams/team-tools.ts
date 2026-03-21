@@ -1,5 +1,5 @@
 import { basename, resolve } from "node:path";
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import { type Tool, validateWithZod, zodToJsonSchema } from "@clinebot/shared";
 import { z } from "zod";
 import { getClineDefaultSystemPrompt } from "../prompts/cline.js";

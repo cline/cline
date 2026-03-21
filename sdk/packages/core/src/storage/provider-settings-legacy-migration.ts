@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { models, providers } from "@clinebot/llms";
+import { LlmsModels, LlmsProviders } from "@clinebot/llms";
 import { resolveClineDataDir } from "@clinebot/shared/storage";
 import type { ProviderSettings } from "../types/provider-settings";
 import { emptyStoredProviderSettings } from "../types/provider-settings";
@@ -373,7 +373,7 @@ function resolveLegacyCodexAuth(
 }
 
 function getDefaultModelForProvider(providerId: string): string | undefined {
-	const builtInModels = models.getGeneratedModelsForProvider(providerId);
+	const builtInModels = LlmsModels.getGeneratedModelsForProvider(providerId);
 	const firstModelId = Object.keys(builtInModels)[0];
 	return firstModelId ?? undefined;
 }
@@ -568,7 +568,7 @@ function buildLegacyProviderSettings(
 		...(timeout ? { timeout } : {}),
 		...providerSpecific,
 	};
-	const parsed = providers.ProviderSettingsSchema.safeParse(settings);
+	const parsed = LlmsProviders.ProviderSettingsSchema.safeParse(settings);
 	if (!parsed.success) {
 		return undefined;
 	}

@@ -1,10 +1,10 @@
 import type { AgentEvent } from "@clinebot/agents";
 import {
+	type LlmsProviders,
 	prewarmFileIndex,
 	SessionSource,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
-import type { providers } from "@clinebot/llms";
 import { render } from "ink";
 import React from "react";
 import { InteractiveTui } from "../tui/interactive-tui";
@@ -38,7 +38,7 @@ export async function runInteractive(
 	resumeSessionId?: string,
 	options?: {
 		clineApiBaseUrl?: string;
-		clineProviderSettings?: providers.ProviderSettings;
+		clineProviderSettings?: LlmsProviders.ProviderSettings;
 		initialView?: "chat" | "config";
 	},
 ): Promise<void> {

@@ -498,7 +498,7 @@ export async function runCli(): Promise<void> {
 			createUserInstructionConfigWatcher,
 			loadRulesForSystemPromptFromWatcher,
 		},
-		llms: { providers },
+		llms: { LlmsProviders: providers },
 		resolveSystemPrompt,
 		runAgent,
 	} = await loadCliRuntimeModules();

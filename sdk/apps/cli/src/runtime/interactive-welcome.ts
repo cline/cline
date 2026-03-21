@@ -1,10 +1,10 @@
 import {
 	ClineAccountService,
 	getFileIndex,
+	type LlmsProviders,
 	listAvailableWorkflowsFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core/node";
-import type { providers } from "@clinebot/llms";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import type { Config } from "../utils/types";
 
@@ -102,7 +102,7 @@ export async function searchWorkspaceFilesForMention(input: {
 export async function resolveClineWelcomeLine(input: {
 	config: Config;
 	clineApiBaseUrl?: string;
-	clineProviderSettings?: providers.ProviderSettings;
+	clineProviderSettings?: LlmsProviders.ProviderSettings;
 }): Promise<string | undefined> {
 	if (input.config.providerId !== "cline") {
 		return undefined;

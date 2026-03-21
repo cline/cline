@@ -77,7 +77,7 @@ vi.mock("@clinebot/core/node", () => ({
 }));
 vi.mock("./commands/auth", () => authMocks);
 vi.mock("@clinebot/llms", () => ({
-	providers: {
+	LlmsProviders: {
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 	},
 }));

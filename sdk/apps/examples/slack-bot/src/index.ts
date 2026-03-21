@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
 import { Agent } from "@clinebot/agents";
-import { providers } from "@clinebot/llms";
+import { LlmsProviders as providers } from "@clinebot/llms";
 import {
 	Chat,
 	ConsoleLogger,

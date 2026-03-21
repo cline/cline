@@ -1,4 +1,4 @@
-import type { providers } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import {
 	executeToolsInParallel,
 	formatStructuredToolResult,
@@ -153,8 +153,8 @@ export class ToolOrchestrator {
 			afterIterations: number;
 			text: string;
 		},
-	): providers.Message {
-		const content: providers.ContentBlock[] = [];
+	): LlmsProviders.Message {
+		const content: LlmsProviders.ContentBlock[] = [];
 
 		for (const result of results) {
 			content.push({

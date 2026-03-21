@@ -13,6 +13,7 @@ export {
 	type ToolApprovalResult,
 	type ToolContext,
 } from "@clinebot/agents";
+export { LlmsModels, LlmsProviders } from "@clinebot/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AgentMode,

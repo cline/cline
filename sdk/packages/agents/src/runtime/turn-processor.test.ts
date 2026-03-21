@@ -1,18 +1,20 @@
-import type { providers } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import { describe, expect, it } from "vitest";
 import { MessageBuilder } from "../message-builder.js";
 import { TurnProcessor } from "./turn-processor.js";
 
 async function* streamChunks(
-	chunks: providers.ApiStreamChunk[],
-): AsyncGenerator<providers.ApiStreamChunk> {
+	chunks: LlmsProviders.ApiStreamChunk[],
+): AsyncGenerator<LlmsProviders.ApiStreamChunk> {
 	for (const chunk of chunks) {
 		yield chunk;
 	}
 }
 
-function createProcessor(chunks: providers.ApiStreamChunk[]): TurnProcessor {
-	const handler: providers.ApiHandler = {
+function createProcessor(
+	chunks: LlmsProviders.ApiStreamChunk[],
+): TurnProcessor {
+	const handler: LlmsProviders.ApiHandler = {
 		getMessages: () => [],
 		createMessage: () => streamChunks(chunks),
 		getModel: () => ({

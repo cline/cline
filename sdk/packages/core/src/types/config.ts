@@ -7,7 +7,7 @@ import type {
 	TeamEvent,
 	Tool,
 } from "@clinebot/agents";
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import type {
 	AgentMode,
 	BasicLogger,

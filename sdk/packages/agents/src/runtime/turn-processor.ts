@@ -1,4 +1,4 @@
-import type { providers } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import { parseJsonStream } from "@clinebot/shared";
 import type { MessageBuilder } from "../message-builder.js";
 import { toToolDefinitions } from "../tools/index.js";
@@ -10,13 +10,13 @@ import type {
 } from "../types.js";
 
 export interface TurnProcessorOptions {
-	handler: providers.ApiHandler;
+	handler: LlmsProviders.ApiHandler;
 	messageBuilder: MessageBuilder;
 	emit: (event: AgentEvent) => void;
 }
 
 export class TurnProcessor {
-	private readonly handler: providers.ApiHandler;
+	private readonly handler: LlmsProviders.ApiHandler;
 	private readonly messageBuilder: MessageBuilder;
 	private readonly emit: (event: AgentEvent) => void;
 
@@ -27,11 +27,14 @@ export class TurnProcessor {
 	}
 
 	async processTurn(
-		messages: providers.Message[],
+		messages: LlmsProviders.Message[],
 		systemPrompt: string,
 		tools: Tool[],
 		abortSignal: AbortSignal,
-	): Promise<{ turn: ProcessedTurn; assistantMessage?: providers.Message }> {
+	): Promise<{
+		turn: ProcessedTurn;
+		assistantMessage?: LlmsProviders.Message;
+	}> {
 		const toolDefinitions = toToolDefinitions(tools);
 		const requestMessages = this.messageBuilder.buildForApi(messages);
 		const stream = this.handler.createMessage(
@@ -132,7 +135,7 @@ export class TurnProcessor {
 
 		const toolCalls = this.finalizePendingToolCalls(pendingToolCallsMap);
 		const invalidToolCalls = this.collectInvalidToolCalls(pendingToolCallsMap);
-		const assistantContent: providers.ContentBlock[] = [];
+		const assistantContent: LlmsProviders.ContentBlock[] = [];
 
 		if (text) {
 			this.emit({
@@ -203,7 +206,7 @@ export class TurnProcessor {
 	}
 
 	private processToolCallChunk(
-		chunk: providers.ApiStreamChunk & { type: "tool_calls" },
+		chunk: LlmsProviders.ApiStreamChunk & { type: "tool_calls" },
 		pendingMap: Map<
 			string,
 			{ name?: string; arguments: string; signature?: string }

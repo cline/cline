@@ -1,10 +1,10 @@
 import type { AgentEvent } from "@clinebot/agents";
 import {
+	type LlmsProviders,
 	prewarmFileIndex,
 	SessionSource,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core/node";
-import type { providers } from "@clinebot/llms";
 import { askQuestionInTerminal, requestToolApproval } from "../utils/approval";
 import { handleEvent, handleTeamEvent } from "../utils/events";
 import { createRuntimeHooks } from "../utils/hooks";
@@ -52,7 +52,7 @@ export async function runAgent(
 	userInstructionWatcher?: UserInstructionConfigWatcher,
 	options?: {
 		clineApiBaseUrl?: string;
-		clineProviderSettings?: providers.ProviderSettings;
+		clineProviderSettings?: LlmsProviders.ProviderSettings;
 	},
 ): Promise<void> {
 	const clineWelcomeLine = await resolveClineWelcomeLine({

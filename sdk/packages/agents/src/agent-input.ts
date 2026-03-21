@@ -1,11 +1,11 @@
-import type { providers } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 
 export async function buildInitialUserContent(
 	userMessage: string,
 	userImages?: string[],
 	userFiles?: string[],
 	userFileContentLoader?: (path: string) => Promise<string>,
-): Promise<string | providers.ContentBlock[]> {
+): Promise<string | LlmsProviders.ContentBlock[]> {
 	const imageBlocks = buildImageBlocks(userImages);
 	const fileTextBlocks = await buildUserFileContentBlock(
 		userFiles,
@@ -16,7 +16,7 @@ export async function buildInitialUserContent(
 		return userMessage;
 	}
 
-	const content: providers.ContentBlock[] = [
+	const content: LlmsProviders.ContentBlock[] = [
 		{
 			type: "text",
 			text: userMessage,
@@ -29,12 +29,12 @@ export async function buildInitialUserContent(
 	return content;
 }
 
-function buildImageBlocks(userImages?: string[]): providers.ImageContent[] {
+function buildImageBlocks(userImages?: string[]): LlmsProviders.ImageContent[] {
 	if (!userImages || userImages.length === 0) {
 		return [];
 	}
 
-	const blocks: providers.ImageContent[] = [];
+	const blocks: LlmsProviders.ImageContent[] = [];
 	for (const image of userImages) {
 		const block = parseDataUrlImage(image);
 		if (block) {
@@ -44,7 +44,9 @@ function buildImageBlocks(userImages?: string[]): providers.ImageContent[] {
 	return blocks;
 }
 
-function parseDataUrlImage(image: string): providers.ImageContent | undefined {
+function parseDataUrlImage(
+	image: string,
+): LlmsProviders.ImageContent | undefined {
 	const value = image.trim();
 	if (!value) {
 		return undefined;
@@ -75,7 +77,7 @@ function parseDataUrlImage(image: string): providers.ImageContent | undefined {
 async function buildUserFileContentBlock(
 	userFiles?: string[],
 	userFileContentLoader?: (path: string) => Promise<string>,
-): Promise<providers.FileContent[] | undefined> {
+): Promise<LlmsProviders.FileContent[] | undefined> {
 	if (!userFiles || userFiles.length === 0) {
 		return undefined;
 	}
@@ -97,14 +99,14 @@ async function buildUserFileContentBlock(
 					type: "file",
 					path: normalizedPath,
 					content,
-				} satisfies providers.FileContent;
+				} satisfies LlmsProviders.FileContent;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				return {
 					type: "file",
 					path: normalizedPath,
 					content: `Error fetching content: ${message}`,
-				} satisfies providers.FileContent;
+				} satisfies LlmsProviders.FileContent;
 			}
 		}),
 	);

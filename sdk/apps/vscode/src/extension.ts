@@ -4,6 +4,8 @@ import { getClineDefaultSystemPrompt } from "@clinebot/agents";
 import {
 	type BasicLogger,
 	type ITelemetryService,
+	LlmsModels as llmModels,
+	LlmsProviders as llmProviders,
 	ProviderSettingsManager,
 	type RpcProviderModel,
 	type ToolPolicy,
@@ -14,7 +16,6 @@ import {
 	type SessionHost,
 } from "@clinebot/core/node";
 import { createConfiguredTelemetryService } from "@clinebot/core/telemetry/opentelemetry";
-import { models as llmModels, providers as llmProviders } from "@clinebot/llms";
 import {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,

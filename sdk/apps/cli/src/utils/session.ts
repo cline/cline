@@ -9,6 +9,7 @@ import type {
 } from "@clinebot/agents";
 import type {
 	BasicLogger,
+	LlmsProviders,
 	RpcChatMessage,
 	RpcChatRunTurnRequest,
 	RpcChatRuntimeLoggerConfig,
@@ -53,7 +54,7 @@ export interface CliSessionManager {
 		source?: import("@clinebot/core/node").SessionSource;
 		prompt?: string;
 		interactive?: boolean;
-		initialMessages?: import("@clinebot/llms").providers.Message[];
+		initialMessages?: LlmsProviders.Message[];
 		userImages?: string[];
 		userFiles?: string[];
 		userInstructionWatcher?: import("@clinebot/core/node").UserInstructionConfigWatcher;
@@ -81,9 +82,7 @@ export interface CliSessionManager {
 	getAccumulatedUsage(
 		sessionId: string,
 	): Promise<SessionAccumulatedUsage | undefined>;
-	readMessages(
-		sessionId: string,
-	): Promise<import("@clinebot/llms").providers.Message[]>;
+	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
 	abort(sessionId: string): Promise<void>;
 	stop(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
@@ -759,7 +758,7 @@ function createRpcRuntimeCliSessionManager(
 					: Array.isArray(parsed.messages)
 						? parsed.messages
 						: [];
-				return messages as import("@clinebot/llms").providers.Message[];
+				return messages as LlmsProviders.Message[];
 			} catch {
 				return [];
 			}

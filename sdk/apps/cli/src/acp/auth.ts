@@ -1,5 +1,4 @@
-import type { ProviderSettingsManager } from "@clinebot/core";
-import type { providers } from "@clinebot/llms";
+import type { LlmsProviders, ProviderSettingsManager } from "@clinebot/core";
 import type { OAuthCredentials } from "../commands/auth";
 import {
 	getPersistedProviderApiKey,
@@ -32,7 +31,7 @@ export function isAcpAuthMethodId(id: string): id is AcpAuthMethodId {
  */
 async function performOAuthLogin(
 	providerId: AcpAuthMethodId,
-	existingSettings: providers.ProviderSettings | undefined,
+	existingSettings: LlmsProviders.ProviderSettings | undefined,
 ): Promise<OAuthCredentials> {
 	const [{ createOAuthClientCallbacks }, { default: open }, coreOAuth] =
 		await Promise.all([

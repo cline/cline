@@ -1,7 +1,6 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import type { providers as LlmsProviders } from "@clinebot/llms";
-import { models } from "@clinebot/llms";
+import { LlmsModels, type LlmsProviders } from "@clinebot/llms";
 import type {
 	RpcAddProviderActionRequest,
 	RpcOAuthProviderId,
@@ -215,7 +214,7 @@ function registerCustomProvider(
 		]),
 	);
 
-	models.registerProvider({
+	LlmsModels.registerProvider({
 		provider: {
 			id: providerId,
 			name: entry.provider.name.trim() || titleCaseFromId(providerId),
@@ -318,7 +317,7 @@ export async function addLocalProvider(
 }> {
 	const providerId = request.providerId.trim().toLowerCase();
 	if (!providerId) throw new Error("providerId is required");
-	if (models.hasProvider(providerId)) {
+	if (LlmsModels.hasProvider(providerId)) {
 		throw new Error(`provider "${providerId}" already exists`);
 	}
 	const providerName = request.name.trim();
@@ -411,10 +410,10 @@ export async function listLocalProviders(
 	settingsPath: string;
 }> {
 	const state = manager.read();
-	const ids = models.getProviderIds().sort((a, b) => a.localeCompare(b));
+	const ids = LlmsModels.getProviderIds().sort((a, b) => a.localeCompare(b));
 	const providerItems = await Promise.all(
 		ids.map(async (id): Promise<RpcProviderListItem> => {
-			const info = await models.getProvider(id);
+			const info = await LlmsModels.getProvider(id);
 			const providerModels = await getLocalProviderModels(id);
 			const persistedSettings = state.providers[id]?.settings;
 			const providerName = info?.name ?? titleCaseFromId(id);
@@ -450,7 +449,7 @@ export async function getLocalProviderModels(
 	providerId: string,
 ): Promise<{ providerId: string; models: RpcProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await models.getModelsForProvider(id);
+	const modelMap = await LlmsModels.getModelsForProvider(id);
 	const items = Object.entries(modelMap)
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([modelId, info]) => toRpcProviderModel(modelId, info));

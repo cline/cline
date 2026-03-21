@@ -13,7 +13,7 @@
  * - Using the models package to query available models
  */
 
-import { providers } from "@clinebot/llms";
+import { LlmsProviders as providers } from "@clinebot/llms";
 import { Agent, type AgentEvent, createTool, type Tool } from "./index.js";
 
 // Note: When workspace is linked, you can also import from @clinebot/llms:

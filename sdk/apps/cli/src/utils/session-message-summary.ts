@@ -1,5 +1,5 @@
+import type { LlmsProviders } from "@clinebot/core";
 import { normalizeUserInput } from "@clinebot/core";
-import type { providers as LlmsProviders } from "@clinebot/llms";
 
 type StoredSessionMessage = LlmsProviders.Message & {
 	metrics?: {

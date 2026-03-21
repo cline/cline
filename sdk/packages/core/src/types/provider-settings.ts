@@ -1,11 +1,11 @@
-import { providers } from "@clinebot/llms";
+import { LlmsProviders } from "@clinebot/llms";
 import { z } from "zod";
 
-export type ProviderConfig = providers.ProviderConfig;
-export type ProviderSettings = providers.ProviderSettings;
+export type ProviderConfig = LlmsProviders.ProviderConfig;
+export type ProviderSettings = LlmsProviders.ProviderSettings;
 export const ProviderSettingsSchema: z.ZodType<ProviderSettings> =
-	providers.ProviderSettingsSchema;
-export const toProviderConfig = providers.toProviderConfig;
+	LlmsProviders.ProviderSettingsSchema;
+export const toProviderConfig = LlmsProviders.toProviderConfig;
 
 export type ProviderTokenSource = "manual" | "oauth" | "migration";
 
@@ -23,7 +23,7 @@ export interface StoredProviderSettings {
 
 export const StoredProviderSettingsEntrySchema: z.ZodType<StoredProviderSettingsEntry> =
 	z.object({
-		settings: providers.ProviderSettingsSchema,
+		settings: LlmsProviders.ProviderSettingsSchema,
 		updatedAt: z.string().datetime(),
 		tokenSource: z.enum(["manual", "oauth", "migration"]).default("manual"),
 	});

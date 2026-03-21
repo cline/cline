@@ -5,7 +5,7 @@
  * for agent configuration, tools, events, and results.
  */
 
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import {
 	type BasicLogger,
 	type Tool,

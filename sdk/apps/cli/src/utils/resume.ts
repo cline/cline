@@ -1,4 +1,4 @@
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/core";
 import type { CliSessionManager } from "./session";
 
 export async function loadInteractiveResumeMessages(

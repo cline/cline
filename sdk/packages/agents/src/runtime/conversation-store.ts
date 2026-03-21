@@ -1,15 +1,15 @@
-import type { providers } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 
 function createConversationId(): string {
 	return `conv_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 }
 
 export class ConversationStore {
-	private messages: providers.MessageWithMetadata[] = [];
+	private messages: LlmsProviders.MessageWithMetadata[] = [];
 	private conversationId = createConversationId();
 	private sessionStarted = false;
 
-	constructor(initialMessages?: providers.MessageWithMetadata[]) {
+	constructor(initialMessages?: LlmsProviders.MessageWithMetadata[]) {
 		if ((initialMessages?.length ?? 0) > 0) {
 			this.restore(initialMessages ?? []);
 		}
@@ -19,15 +19,15 @@ export class ConversationStore {
 		return this.conversationId;
 	}
 
-	getMessages(): providers.MessageWithMetadata[] {
+	getMessages(): LlmsProviders.MessageWithMetadata[] {
 		return [...this.messages];
 	}
 
-	appendMessage(message: providers.MessageWithMetadata): void {
+	appendMessage(message: LlmsProviders.MessageWithMetadata): void {
 		this.messages.push(message);
 	}
 
-	appendMessages(messages: providers.MessageWithMetadata[]): void {
+	appendMessages(messages: LlmsProviders.MessageWithMetadata[]): void {
 		if (messages.length === 0) {
 			return;
 		}
@@ -46,7 +46,7 @@ export class ConversationStore {
 		this.sessionStarted = false;
 	}
 
-	restore(messages: providers.MessageWithMetadata[]): void {
+	restore(messages: LlmsProviders.MessageWithMetadata[]): void {
 		this.messages = [...messages];
 		this.sessionStarted = false;
 	}

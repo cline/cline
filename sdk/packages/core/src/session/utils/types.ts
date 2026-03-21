@@ -1,5 +1,5 @@
 import type { Agent } from "@clinebot/agents";
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import type { BuiltRuntime } from "../../runtime/session-runtime";
 import type { SessionSource } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";

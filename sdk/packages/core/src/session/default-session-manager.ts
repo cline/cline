@@ -13,7 +13,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@clinebot/agents";
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import {
 	formatUserInputBlock,
 	type ITelemetryService,

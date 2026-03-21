@@ -4,7 +4,7 @@
  * Functions for creating tools with proper typing.
  */
 
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import { type Tool, type ToolContext, zodToJsonSchema } from "@clinebot/shared";
 import { z } from "zod";
 

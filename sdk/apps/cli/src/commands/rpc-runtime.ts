@@ -7,9 +7,9 @@ import { createPersistentSubprocessHooks } from "@clinebot/agents";
 import {
 	CoreSessionService,
 	DefaultSessionManager,
+	type LlmsProviders,
 	SqliteSessionStore,
 } from "@clinebot/core/node";
-import type { providers as LlmsProviders } from "@clinebot/llms";
 import { type RpcRuntimeHandlers, RpcSessionClient } from "@clinebot/rpc";
 import type {
 	HookSessionContext,

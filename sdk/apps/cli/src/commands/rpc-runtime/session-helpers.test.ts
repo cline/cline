@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@clinebot/core", () => ({
+	LlmsProviders: {
+		normalizeProviderId: vi.fn((provider: string) => provider),
+	},
 	setHomeDir: vi.fn(),
 	setHomeDirIfUnset: vi.fn(),
 }));
@@ -8,12 +11,6 @@ vi.mock("@clinebot/core", () => ({
 vi.mock("@clinebot/core/node", () => ({
 	SessionSource: {
 		CLI: "cli",
-	},
-}));
-
-vi.mock("@clinebot/llms", () => ({
-	providers: {
-		normalizeProviderId: vi.fn((provider: string) => provider),
 	},
 }));
 

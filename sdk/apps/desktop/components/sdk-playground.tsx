@@ -4,7 +4,7 @@ import type {
 	CustomProviderConfig,
 	ProviderSelectionConfig,
 } from "@clinebot/llms";
-import { models } from "@clinebot/llms";
+import { LlmsModels } from "@clinebot/llms";
 import {
 	AlertCircle,
 	Braces,
@@ -75,7 +75,7 @@ interface ProviderConfig {
 	>;
 }
 
-type CatalogProviderCapability = models.ProviderCapability;
+type CatalogProviderCapability = LlmsModels.ProviderCapability;
 
 interface TestResult {
 	providerId: string;
@@ -232,12 +232,12 @@ const BUILT_IN_PROVIDERS: BuiltInProviderPreset[] = [
 				models: Record<string, unknown>;
 			}
 		> = {
-			anthropic: models.ANTHROPIC_PROVIDER,
-			bedrock: models.BEDROCK_PROVIDER,
-			gemini: models.GEMINI_PROVIDER,
-			vertex: models.VERTEX_PROVIDER,
-			cline: models.CLINE_PROVIDER,
-			"claude-code": models.CLAUDE_CODE_PROVIDER,
+			anthropic: LlmsModels.ANTHROPIC_PROVIDER,
+			bedrock: LlmsModels.BEDROCK_PROVIDER,
+			gemini: LlmsModels.GEMINI_PROVIDER,
+			vertex: LlmsModels.VERTEX_PROVIDER,
+			cline: LlmsModels.CLINE_PROVIDER,
+			"claude-code": LlmsModels.CLAUDE_CODE_PROVIDER,
 		};
 
 		const collection = collectionById[id];

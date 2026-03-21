@@ -1,4 +1,4 @@
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const TARGET_TOOL_NAMES = new Set([

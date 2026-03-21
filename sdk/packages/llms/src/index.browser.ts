@@ -1,6 +1,6 @@
 export { defineLlmsConfig, loadLlmsConfigFromFile } from "./config-browser";
-export * as models from "./models/index";
-export * as providers from "./providers/public.browser";
+export * as LlmsModels from "./models/index";
+export * as LlmsProviders from "./providers/public.browser";
 export type {
 	CustomProviderConfig,
 	LlmsConfig,

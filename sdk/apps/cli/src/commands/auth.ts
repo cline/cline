@@ -2,10 +2,10 @@ import { createInterface } from "node:readline";
 import {
 	createOAuthClientCallbacks,
 	ensureCustomProvidersLoaded,
+	LlmsProviders,
 	listLocalProviders,
 	type ProviderSettingsManager,
 } from "@clinebot/core/node";
-import { providers } from "@clinebot/llms";
 import { Command } from "commander";
 import { Box, render, Text, useApp, useInput } from "ink";
 import open from "open";
@@ -111,7 +111,7 @@ async function getCoreOAuthApi(): Promise<CoreOAuthApi> {
 }
 
 export function normalizeProviderId(providerId: string): string {
-	return providers.normalizeProviderId(providerId.trim());
+	return LlmsProviders.normalizeProviderId(providerId.trim());
 }
 
 export function normalizeAuthProviderId(providerId: string): string {
@@ -142,7 +142,7 @@ export function toProviderApiKey(
 
 export function getPersistedProviderApiKey(
 	providerId: string,
-	settings?: providers.ProviderSettings,
+	settings?: LlmsProviders.ProviderSettings,
 ): string | undefined {
 	// OAuth access token takes priority (most recent credential)
 	const accessToken = settings?.auth?.accessToken?.trim();
@@ -252,11 +252,11 @@ function saveQuickAuthProviderSettings(input: {
 	const existing = input.providerSettingsManager.getProviderSettings(
 		input.providerId,
 	);
-	const nextSettings: providers.ProviderSettings = {
+	const nextSettings: LlmsProviders.ProviderSettings = {
 		...(existing ?? {
-			provider: input.providerId as providers.ProviderSettings["provider"],
+			provider: input.providerId as LlmsProviders.ProviderSettings["provider"],
 		}),
-		provider: input.providerId as providers.ProviderSettings["provider"],
+		provider: input.providerId as LlmsProviders.ProviderSettings["provider"],
 		apiKey: input.apikey,
 		model: input.modelid,
 	};
@@ -311,7 +311,7 @@ function createOAuthCallbacks(io: AuthIo): {
 
 async function loginWithOAuthProvider(
 	providerId: string,
-	existing: providers.ProviderSettings | undefined,
+	existing: LlmsProviders.ProviderSettings | undefined,
 	io: AuthIo,
 ): Promise<OAuthCredentials> {
 	const oauthApi = await getCoreOAuthApi();
@@ -344,21 +344,21 @@ async function loginWithOAuthProvider(
 export function saveOAuthProviderSettings(
 	providerSettingsManager: ProviderSettingsManager,
 	providerId: string,
-	existing: providers.ProviderSettings | undefined,
+	existing: LlmsProviders.ProviderSettings | undefined,
 	credentials: OAuthCredentials,
-): providers.ProviderSettings {
+): LlmsProviders.ProviderSettings {
 	const auth = {
 		...(existing?.auth ?? {}),
 		accessToken: toProviderApiKey(providerId, credentials),
 		refreshToken: credentials.refresh,
 		accountId: credentials.accountId,
-	} as providers.ProviderSettings["auth"] & { expiresAt?: number };
+	} as LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number };
 	auth.expiresAt = credentials.expires;
-	const merged: providers.ProviderSettings = {
+	const merged: LlmsProviders.ProviderSettings = {
 		...(existing ?? {
-			provider: providerId as providers.ProviderSettings["provider"],
+			provider: providerId as LlmsProviders.ProviderSettings["provider"],
 		}),
-		provider: providerId as providers.ProviderSettings["provider"],
+		provider: providerId as LlmsProviders.ProviderSettings["provider"],
 		auth,
 	};
 	providerSettingsManager.saveProviderSettings(merged, {
@@ -370,12 +370,12 @@ export function saveOAuthProviderSettings(
 export async function ensureOAuthProviderApiKey(input: {
 	providerId: string;
 	currentApiKey?: string;
-	existingSettings?: providers.ProviderSettings;
+	existingSettings?: LlmsProviders.ProviderSettings;
 	providerSettingsManager: ProviderSettingsManager;
 	io: AuthIo;
 }): Promise<{
 	apiKey?: string;
-	selectedProviderSettings?: providers.ProviderSettings;
+	selectedProviderSettings?: LlmsProviders.ProviderSettings;
 }> {
 	if (input.currentApiKey || !isOAuthProvider(input.providerId)) {
 		return {

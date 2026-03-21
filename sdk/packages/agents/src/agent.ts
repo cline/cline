@@ -4,7 +4,7 @@
  * The main class for building and running agentic loops with LLMs.
  */
 
-import { providers } from "@clinebot/llms";
+import { LlmsProviders } from "@clinebot/llms";
 import { nanoid } from "nanoid";
 import { buildInitialUserContent } from "./agent-input.js";
 import {
@@ -72,7 +72,7 @@ function isNonRecoverableApiError(error: Error): boolean {
 
 function resolveKnownModelsFromConfig(
 	config: AgentConfig,
-): Record<string, providers.ModelInfo> | undefined {
+): Record<string, LlmsProviders.ModelInfo> | undefined {
 	if (config.providerConfig?.knownModels) {
 		return config.providerConfig.knownModels;
 	}
@@ -81,7 +81,7 @@ function resolveKnownModelsFromConfig(
 	}
 
 	try {
-		const providerConfig = providers.toProviderConfig({
+		const providerConfig = LlmsProviders.toProviderConfig({
 			provider: config.providerId,
 			model: config.modelId,
 			apiKey: config.apiKey,
@@ -112,7 +112,7 @@ export class Agent {
 		>
 	> &
 		AgentConfig;
-	private handler: providers.ApiHandler;
+	private handler: LlmsProviders.ApiHandler;
 	private toolRegistry: Map<string, Tool>;
 	private abortController: AbortController | null = null;
 	private contributionRegistry: ContributionRegistry;
@@ -293,7 +293,7 @@ export class Agent {
 		return this.executeLoop(preparedInput.input);
 	}
 
-	getMessages(): providers.Message[] {
+	getMessages(): LlmsProviders.Message[] {
 		return this.conversationStore.getMessages();
 	}
 
@@ -301,7 +301,7 @@ export class Agent {
 		this.conversationStore.clearHistory();
 	}
 
-	restore(messages: providers.MessageWithMetadata[]): void {
+	restore(messages: LlmsProviders.MessageWithMetadata[]): void {
 		this.conversationStore.restore(messages);
 	}
 
@@ -389,12 +389,14 @@ export class Agent {
 		}
 	}
 
-	private createHandlerFromConfig(config: AgentConfig): providers.ApiHandler {
+	private createHandlerFromConfig(
+		config: AgentConfig,
+	): LlmsProviders.ApiHandler {
 		const baseProviderConfig =
 			config.providerConfig?.providerId === config.providerId
 				? config.providerConfig
 				: undefined;
-		const normalizedProviderConfig: providers.ProviderConfig = {
+		const normalizedProviderConfig: LlmsProviders.ProviderConfig = {
 			...(baseProviderConfig ?? {}),
 			providerId: config.providerId,
 			modelId: config.modelId,
@@ -408,7 +410,7 @@ export class Agent {
 			thinking: config.thinking,
 			abortSignal: config.abortSignal,
 		};
-		return providers.createHandler(normalizedProviderConfig);
+		return LlmsProviders.createHandler(normalizedProviderConfig);
 	}
 
 	private createApiTimeoutSignal(): AbortSignal | undefined {
@@ -604,7 +606,7 @@ export class Agent {
 					apiTimeoutSignal,
 				);
 				(
-					this.handler as providers.ApiHandler & {
+					this.handler as LlmsProviders.ApiHandler & {
 						setAbortSignal?: (signal: AbortSignal | undefined) => void;
 					}
 				).setAbortSignal?.(turnAbortSignal);
@@ -981,7 +983,7 @@ export class Agent {
 			input?: unknown;
 			reason: "missing_name" | "missing_arguments" | "invalid_arguments";
 		}>,
-	): providers.Message {
+	): LlmsProviders.Message {
 		return {
 			role: "user",
 			content: invalidToolCalls.map((call) => ({
@@ -1163,7 +1165,7 @@ export class Agent {
 		userMessage: string,
 		userImages?: string[],
 		userFiles?: string[],
-	): Promise<string | providers.ContentBlock[]> {
+	): Promise<string | LlmsProviders.ContentBlock[]> {
 		return buildInitialUserContent(
 			userMessage,
 			userImages,

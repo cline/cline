@@ -1,5 +1,5 @@
 import type { AgentConfig, AgentEvent, AgentResult } from "@clinebot/agents";
-import type { providers as LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import type { SessionSource } from "../../types/common";
 import type { SessionRecord } from "../../types/sessions";
 import { nowIso } from "../session-artifacts";

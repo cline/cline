@@ -3,6 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { AgentHooks } from "@clinebot/agents";
 import type {
+	LlmsProviders,
 	RpcChatMessage,
 	RpcChatRunTurnRequest,
 	RpcChatRuntimeConfigBase,
@@ -11,8 +12,6 @@ import type {
 } from "@clinebot/core";
 import { setHomeDir, setHomeDirIfUnset } from "@clinebot/core";
 import { type DefaultSessionManager, SessionSource } from "@clinebot/core/node";
-import type { providers as LlmsProviders } from "@clinebot/llms";
-import { providers } from "@clinebot/llms";
 import { createCliLoggerAdapter } from "../../logging/adapter";
 import { resolveSystemPrompt } from "../../runtime/prompt";
 import { getCliTelemetryService } from "../../utils/telemetry";
@@ -90,7 +89,7 @@ export async function buildSessionStartInput(input: {
 	const { config } = input;
 	const mode = resolveMode(config);
 	const cwd = resolveSessionCwd(config);
-	const providerId = providers.normalizeProviderId(config.provider);
+	const providerId = LlmsProviders.normalizeProviderId(config.provider);
 	const systemPrompt = await resolveSystemPrompt({
 		cwd,
 		explicitSystemPrompt: config.systemPrompt,
