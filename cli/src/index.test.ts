@@ -80,7 +80,7 @@ describe("CLI Commands", () => {
 
 		program
 			.command("kanban")
-			.description("Run npx kanban@latest --agent cline")
+			.description("Run npx -y kanban@latest")
 			.action(() => {})
 
 		// Default command for interactive mode
@@ -97,7 +97,7 @@ describe("CLI Commands", () => {
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.option("--auto-approve-all", "Enable auto-approve all")
-			.option("--kanban", "Run npx kanban@latest --agent cline")
+			.option("--kanban", "Run npx -y kanban@latest")
 			.action(() => {})
 	})
 
