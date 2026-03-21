@@ -1,3 +1,10 @@
+export type { OAuthProviderId } from "./auth/constants";
+export {
+	AUTH_ERROR_PATTERNS,
+	isLikelyAuthError,
+	isOAuthProviderId,
+	OAUTH_PROVIDER_IDS,
+} from "./auth/constants";
 export type {
 	ConnectorHookEvent,
 	ConnectorHookEventName,

@@ -1,5 +1,9 @@
 import type { LlmsProviders } from "@clinebot/llms";
-import type { ITelemetryService } from "@clinebot/shared";
+import {
+	type ITelemetryService,
+	isOAuthProviderId,
+	type OAuthProviderId,
+} from "@clinebot/shared";
 import {
 	type ClineOAuthCredentials,
 	getValidClineCredentials,
@@ -12,14 +16,7 @@ import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 const DEFAULT_CLINE_API_BASE_URL = "https://api.cline.bot";
 const WORKOS_TOKEN_PREFIX = "workos:";
 
-const MANAGED_OAUTH_PROVIDERS = ["cline", "oca", "openai-codex"] as const;
-type ManagedOAuthProviderId = (typeof MANAGED_OAUTH_PROVIDERS)[number];
-
-function isManagedOAuthProviderId(
-	providerId: string,
-): providerId is ManagedOAuthProviderId {
-	return (MANAGED_OAUTH_PROVIDERS as readonly string[]).includes(providerId);
-}
+type ManagedOAuthProviderId = OAuthProviderId;
 
 function toStoredAccessToken(
 	providerId: ManagedOAuthProviderId,
@@ -163,7 +160,7 @@ export class RuntimeOAuthTokenManager {
 		providerId: string;
 		forceRefresh?: boolean;
 	}): Promise<RuntimeOAuthResolution | null> {
-		if (!isManagedOAuthProviderId(input.providerId)) {
+		if (!isOAuthProviderId(input.providerId)) {
 			return null;
 		}
 		return this.resolveWithSingleFlight(input.providerId, input.forceRefresh);

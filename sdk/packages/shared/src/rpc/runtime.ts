@@ -217,7 +217,9 @@ export interface RpcClineAccountOrganizationUsageTransaction {
 	userId: string;
 }
 
-export type RpcOAuthProviderId = "cline" | "oca" | "openai-codex";
+import type { OAuthProviderId } from "../auth/constants";
+
+export type RpcOAuthProviderId = OAuthProviderId;
 
 export type RpcProviderCapability =
 	| "reasoning"

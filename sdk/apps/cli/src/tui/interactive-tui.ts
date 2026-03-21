@@ -1303,6 +1303,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		renderAutoApprove,
 	);
 
+	const isMenuOpen =
+		!isConfigViewOpen && (mentionInfo.inMentionMode || slashInfo.inSlashMode);
+
 	return React.createElement(
 		Box,
 		{ flexDirection: "column", paddingX: 1 },
@@ -1312,6 +1315,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		renderConfigView,
 		renderMentionMenu,
 		renderSlashMenu,
-		renderStatusBar,
+		isMenuOpen ? null : renderStatusBar,
 	);
 }

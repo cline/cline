@@ -15,55 +15,26 @@ import {
 } from "@clinebot/agents";
 import type { LlmsProviders } from "@clinebot/llms";
 import {
-	formatUserInputBlock,
 	type ITelemetryService,
+	isLikelyAuthError,
 	normalizeUserInput,
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
-import {
-	listHookConfigFiles,
-	resolveDocumentsHooksDirectoryPath,
-} from "../agents/hooks-config-loader";
-import { resolveAndLoadAgentPlugins } from "../agents/plugin-config-loader";
 import { enrichPromptWithMentions } from "../input";
-import {
-	createHookAuditHooks,
-	createHookConfigFileHooks,
-	mergeAgentHooks,
-} from "../runtime/hook-file-hooks";
 import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type { RuntimeBuilder } from "../runtime/session-runtime";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
-	buildTeamProgressSummary,
-	toTeamProgressLifecycleEvent,
-} from "../team";
-import {
 	captureConversationTurnEvent,
-	captureDiffEditFailure,
-	captureHookDiscovery,
-	captureMentionFailed,
-	captureMentionSearchResults,
-	captureMentionUsed,
 	captureModeSwitch,
-	captureProviderApiError,
-	captureSkillUsed,
 	captureSubagentExecution,
 	captureTaskCompleted,
-	captureTaskCreated,
-	captureTaskRestarted,
-	captureTokenUsage,
-	captureToolUsage,
 } from "../telemetry/core-events";
 import { createBuiltinTools, type ToolExecutors, ToolPresets } from "../tools";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
-import {
-	type ProviderSettings,
-	toProviderConfig,
-} from "../types/provider-settings";
 import type { SessionRecord } from "../types/sessions";
 import type { RpcCoreSessionService } from "./rpc-session-service";
 import {
@@ -71,7 +42,17 @@ import {
 	type RuntimeOAuthResolution,
 	RuntimeOAuthTokenManager,
 } from "./runtime-oauth-token-manager";
+import {
+	type AgentEventContext,
+	handleAgentEvent,
+} from "./session-agent-events";
 import { nowIso } from "./session-artifacts";
+import {
+	buildEffectiveConfig,
+	buildResolvedProviderConfig,
+	resolveReasoningSettings,
+	resolveWorkspacePath,
+} from "./session-config-builder";
 import type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
@@ -86,39 +67,32 @@ import type {
 	SessionRowShape,
 } from "./session-service";
 import {
+	buildTeamRunContinuationPrompt,
+	dispatchTeamEventToBackend,
+	emitTeamProgress,
+	formatModePrompt,
+	hasPendingTeamRunWork,
+	notifyTeamRunWaiters,
+	shouldAutoContinueTeamRuns,
+	trackTeamRunState,
+	waitForTeamRunUpdates,
+} from "./session-team-coordination";
+import {
+	emitMentionTelemetry,
+	emitSessionCreationTelemetry,
+} from "./session-telemetry";
+import {
 	extractWorkspaceMetadataFromSystemPrompt,
-	hasRuntimeHooks,
-	mergeAgentExtensions,
-	serializeAgentEvent,
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "./utils/helpers";
-import type {
-	ActiveSession,
-	PreparedTurnInput,
-	TeamRunUpdate,
-} from "./utils/types";
+import type { ActiveSession, PreparedTurnInput } from "./utils/types";
 import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
 } from "./utils/usage";
 
 type SessionBackend = CoreSessionService | RpcCoreSessionService;
-
-export interface DefaultSessionManagerOptions {
-	distinctId: string;
-	sessionService: SessionBackend;
-	runtimeBuilder?: RuntimeBuilder;
-	createAgent?: (config: AgentConfig) => Agent;
-	defaultToolExecutors?: Partial<ToolExecutors>;
-	toolPolicies?: AgentConfig["toolPolicies"];
-	providerSettingsManager?: ProviderSettingsManager;
-	oauthTokenManager?: RuntimeOAuthTokenManager;
-	telemetry?: ITelemetryService;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
-}
 
 const MAX_SCAN_LIMIT = 5000;
 const MAX_USER_FILE_BYTES = 20 * 1_000 * 1_024;
@@ -138,6 +112,21 @@ async function loadUserFileContent(path: string): Promise<string> {
 	return content;
 }
 
+export interface DefaultSessionManagerOptions {
+	distinctId: string;
+	sessionService: SessionBackend;
+	runtimeBuilder?: RuntimeBuilder;
+	createAgent?: (config: AgentConfig) => Agent;
+	defaultToolExecutors?: Partial<ToolExecutors>;
+	toolPolicies?: AgentConfig["toolPolicies"];
+	providerSettingsManager?: ProviderSettingsManager;
+	oauthTokenManager?: RuntimeOAuthTokenManager;
+	telemetry?: ITelemetryService;
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult>;
+}
+
 export class DefaultSessionManager implements SessionManager {
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
@@ -155,10 +144,7 @@ export class DefaultSessionManager implements SessionManager {
 	private readonly usageBySession = new Map<string, SessionAccumulatedUsage>();
 	private readonly subAgentStarts = new Map<
 		string,
-		{
-			startedAt: number;
-			rootSessionId: string;
-		}
+		{ startedAt: number; rootSessionId: string }
 	>();
 
 	constructor(options: DefaultSessionManagerOptions) {
@@ -182,47 +168,7 @@ export class DefaultSessionManager implements SessionManager {
 		this.defaultRequestToolApproval = options.requestToolApproval;
 	}
 
-	private resolveStoredProviderSettings(providerId: string): ProviderSettings {
-		const stored = this.providerSettingsManager.getProviderSettings(providerId);
-		if (stored) {
-			return stored;
-		}
-		return {
-			provider: providerId,
-		};
-	}
-
-	private buildResolvedProviderConfig(
-		config: CoreSessionConfig,
-	): LlmsProviders.ProviderConfig {
-		const settings = this.resolveStoredProviderSettings(config.providerId);
-		const mergedSettings: ProviderSettings = {
-			...settings,
-			provider: config.providerId,
-			model: config.modelId,
-			apiKey: config.apiKey ?? settings.apiKey,
-			baseUrl: config.baseUrl ?? settings.baseUrl,
-			headers: config.headers ?? settings.headers,
-			reasoning:
-				typeof config.thinking === "boolean" ||
-				typeof config.reasoningEffort === "string"
-					? {
-							...(settings.reasoning ?? {}),
-							...(typeof config.thinking === "boolean"
-								? { enabled: config.thinking }
-								: {}),
-							...(typeof config.reasoningEffort === "string"
-								? { effort: config.reasoningEffort }
-								: {}),
-						}
-					: settings.reasoning,
-		};
-		const providerConfig = toProviderConfig(mergedSettings);
-		if (config.knownModels) {
-			providerConfig.knownModels = config.knownModels;
-		}
-		return providerConfig;
-	}
+	// ── Public API ──────────────────────────────────────────────────────
 
 	async start(input: StartSessionInput): Promise<StartSessionResult> {
 		const source = input.source ?? SessionSource.CLI;
@@ -233,6 +179,7 @@ export class DefaultSessionManager implements SessionManager {
 				? requestedSessionId
 				: `${Date.now()}_${nanoid(5)}`;
 		this.usageBySession.set(sessionId, createInitialAccumulatedUsage());
+
 		const sessionsDir =
 			((await this.invokeOptionalValue("ensureSessionsDir")) as
 				| string
@@ -242,11 +189,14 @@ export class DefaultSessionManager implements SessionManager {
 				"session service method not available: ensureSessionsDir",
 			);
 		}
+
 		const sessionDir = join(sessionsDir, sessionId);
 		const transcriptPath = join(sessionDir, `${sessionId}.log`);
 		const hookPath = join(sessionDir, `${sessionId}.hooks.jsonl`);
 		const messagesPath = join(sessionDir, `${sessionId}.messages.json`);
 		const manifestPath = join(sessionDir, `${sessionId}.json`);
+		const workspacePath = resolveWorkspacePath(input.config);
+
 		const manifest = SessionManifestSchema.parse({
 			version: 1,
 			session_id: sessionId,
@@ -258,7 +208,7 @@ export class DefaultSessionManager implements SessionManager {
 			provider: input.config.providerId,
 			model: input.config.modelId,
 			cwd: input.config.cwd,
-			workspace_root: input.config.workspaceRoot ?? input.config.cwd,
+			workspace_root: workspacePath,
 			team_name: input.config.teamName,
 			enable_tools: input.config.enableTools,
 			enable_spawn: input.config.enableSpawnAgent,
@@ -267,91 +217,50 @@ export class DefaultSessionManager implements SessionManager {
 			messages_path: messagesPath,
 		});
 
-		const fileHooks = createHookConfigFileHooks({
-			cwd: input.config.cwd,
-			workspacePath: input.config.workspaceRoot ?? input.config.cwd,
-			rootSessionId: sessionId,
-			hookLogPath: hookPath,
-			logger: input.config.logger,
-		});
-		const auditHooks = hasRuntimeHooks(input.config.hooks)
-			? undefined
-			: createHookAuditHooks({
-					hookLogPath: hookPath,
-					rootSessionId: sessionId,
-					workspacePath: input.config.workspaceRoot ?? input.config.cwd,
-				});
-		const effectiveHooks = mergeAgentHooks([
-			input.config.hooks,
-			fileHooks,
-			auditHooks,
-		]);
-		const loadedPlugins = await resolveAndLoadAgentPlugins({
-			pluginPaths: input.config.pluginPaths,
-			workspacePath: input.config.workspaceRoot ?? input.config.cwd,
-			cwd: input.config.cwd,
-		});
-		const effectiveExtensions = mergeAgentExtensions(
-			input.config.extensions,
-			loadedPlugins.extensions,
+		const { config: effectiveConfig, pluginSandboxShutdown } =
+			await buildEffectiveConfig(
+				input,
+				hookPath,
+				sessionId,
+				this.defaultTelemetry,
+			);
+		const providerConfig = buildResolvedProviderConfig(
+			effectiveConfig,
+			this.providerSettingsManager,
+			resolveReasoningSettings,
 		);
-		const effectiveConfigBase: CoreSessionConfig = {
-			...input.config,
-			hooks: effectiveHooks,
-			extensions: effectiveExtensions,
-			telemetry: input.config.telemetry ?? this.defaultTelemetry,
-		};
-		const providerConfig =
-			this.buildResolvedProviderConfig(effectiveConfigBase);
-		const effectiveConfig: CoreSessionConfig = {
-			...effectiveConfigBase,
+		const configWithProvider: CoreSessionConfig = {
+			...effectiveConfig,
 			providerConfig,
 		};
 
 		const runtime = this.runtimeBuilder.build({
-			config: effectiveConfig,
-			hooks: effectiveHooks,
-			extensions: effectiveExtensions,
-			logger: effectiveConfig.logger,
-			telemetry: effectiveConfig.telemetry,
+			config: configWithProvider,
+			hooks: effectiveConfig.hooks,
+			extensions: effectiveConfig.extensions,
+			logger: configWithProvider.logger,
+			telemetry: configWithProvider.telemetry,
 			onTeamEvent: (event: TeamEvent) => {
 				void this.handleTeamEvent(sessionId, event);
-				effectiveConfig.onTeamEvent?.(event);
+				configWithProvider.onTeamEvent?.(event);
 			},
-			createSpawnTool: () => this.createSpawnTool(effectiveConfig, sessionId),
+			createSpawnTool: () =>
+				this.createSpawnTool(configWithProvider, sessionId),
 			onTeamRestored: input.onTeamRestored,
 			userInstructionWatcher: input.userInstructionWatcher,
 			defaultToolExecutors:
 				input.defaultToolExecutors ?? this.defaultToolExecutors,
 		});
-		const tools = [...runtime.tools, ...(effectiveConfig.extraTools ?? [])];
-		const requestedExistingSession = requestedSessionId.length > 0;
-		if (requestedExistingSession) {
-			captureTaskRestarted(effectiveConfig.telemetry, {
-				ulid: sessionId,
-				apiProvider: effectiveConfig.providerId,
-			});
-		} else {
-			captureTaskCreated(effectiveConfig.telemetry, {
-				ulid: sessionId,
-				apiProvider: effectiveConfig.providerId,
-			});
-		}
-		this.captureHookDiscoveryTelemetry(effectiveConfig.telemetry, {
-			workspacePath: input.config.workspaceRoot ?? input.config.cwd,
-		});
-		effectiveConfig.telemetry?.capture({
-			event: "session.started",
-			properties: {
-				sessionId,
-				source,
-				providerId: effectiveConfig.providerId,
-				modelId: effectiveConfig.modelId,
-				enableTools: effectiveConfig.enableTools,
-				enableSpawnAgent: effectiveConfig.enableSpawnAgent,
-				enableAgentTeams: effectiveConfig.enableAgentTeams,
-			},
-		});
+
+		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
+		emitSessionCreationTelemetry(
+			configWithProvider,
+			sessionId,
+			source,
+			requestedSessionId.length > 0,
+			workspacePath,
+		);
+
 		const agent = this.createAgentInstance({
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,
@@ -360,145 +269,32 @@ export class DefaultSessionManager implements SessionManager {
 			headers: providerConfig.headers,
 			knownModels: providerConfig.knownModels,
 			providerConfig,
-			thinking: effectiveConfig.thinking,
+			thinking: configWithProvider.thinking,
 			reasoningEffort:
-				effectiveConfig.reasoningEffort ?? providerConfig.reasoningEffort,
-			systemPrompt: effectiveConfig.systemPrompt,
-			maxIterations: effectiveConfig.maxIterations,
-			maxConsecutiveMistakes: effectiveConfig.maxConsecutiveMistakes,
+				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
+			systemPrompt: configWithProvider.systemPrompt,
+			maxIterations: configWithProvider.maxIterations,
+			maxConsecutiveMistakes: configWithProvider.maxConsecutiveMistakes,
 			tools,
-			hooks: effectiveHooks,
-			extensions: effectiveExtensions,
-			hookErrorMode: effectiveConfig.hookErrorMode,
+			hooks: effectiveConfig.hooks,
+			extensions: effectiveConfig.extensions,
+			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: input.initialMessages,
 			userFileContentLoader: loadUserFileContent,
 			toolPolicies: input.toolPolicies ?? this.defaultToolPolicies,
 			requestToolApproval:
 				input.requestToolApproval ?? this.defaultRequestToolApproval,
 			onConsecutiveMistakeLimitReached:
-				effectiveConfig.onConsecutiveMistakeLimitReached,
+				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionGuard: runtime.completionGuard,
-			logger: runtime.logger ?? effectiveConfig.logger,
-			onEvent: (event: AgentEvent) => {
-				const liveSession = this.sessions.get(sessionId);
-				if (
-					event.type === "content_start" &&
-					event.contentType === "tool" &&
-					event.toolName === "skills"
-				) {
-					const skillName = this.extractSkillNameFromToolInput(event.input);
-					if (skillName) {
-						captureSkillUsed(effectiveConfig.telemetry, {
-							ulid: sessionId,
-							skillName,
-							skillSource: "project",
-							skillsAvailableGlobal: 0,
-							skillsAvailableProject: 0,
-							provider: effectiveConfig.providerId,
-							modelId: effectiveConfig.modelId,
-						});
-					}
-				}
-				if (event.type === "content_end" && event.contentType === "tool") {
-					const toolName = event.toolName ?? "unknown";
-					const success = !event.error;
-					captureToolUsage(effectiveConfig.telemetry, {
-						ulid: sessionId,
-						tool: toolName,
-						autoApproved: undefined,
-						success,
-						modelId: effectiveConfig.modelId,
-						provider: effectiveConfig.providerId,
-						isNativeToolCall: false,
-					});
-					if (
-						!success &&
-						(toolName === "editor" || toolName === "apply_patch")
-					) {
-						captureDiffEditFailure(effectiveConfig.telemetry, {
-							ulid: sessionId,
-							modelId: effectiveConfig.modelId,
-							provider: effectiveConfig.providerId,
-							errorType: event.error,
-							isNativeToolCall: false,
-						});
-					}
-				}
-				if (event.type === "notice" && event.reason === "api_error") {
-					captureProviderApiError(effectiveConfig.telemetry, {
-						ulid: sessionId,
-						model: effectiveConfig.modelId,
-						provider: effectiveConfig.providerId,
-						errorMessage: event.message,
-					});
-				}
-				if (event.type === "error") {
-					captureProviderApiError(effectiveConfig.telemetry, {
-						ulid: sessionId,
-						model: effectiveConfig.modelId,
-						provider: effectiveConfig.providerId,
-						errorMessage: event.error?.message ?? "unknown error",
-					});
-				}
-				if (event.type === "usage" && liveSession?.turnUsageBaseline) {
-					this.usageBySession.set(
-						sessionId,
-						accumulateUsageTotals(liveSession.turnUsageBaseline, {
-							inputTokens: event.totalInputTokens,
-							outputTokens: event.totalOutputTokens,
-							totalCost: event.totalCost,
-						}),
-					);
-					captureConversationTurnEvent(effectiveConfig.telemetry, {
-						ulid: sessionId,
-						provider: effectiveConfig.providerId,
-						model: effectiveConfig.modelId,
-						source: "assistant",
-						mode: effectiveConfig.mode,
-						tokensIn: event.inputTokens,
-						tokensOut: event.outputTokens,
-						cacheWriteTokens: event.cacheWriteTokens,
-						cacheReadTokens: event.cacheReadTokens,
-						totalCost: event.cost,
-						isNativeToolCall: false,
-					});
-					captureTokenUsage(effectiveConfig.telemetry, {
-						ulid: sessionId,
-						tokensIn: event.inputTokens,
-						tokensOut: event.outputTokens,
-						model: effectiveConfig.modelId,
-					});
-				}
-				if (event.type === "iteration_end") {
-					void this.invoke<void>(
-						"persistSessionMessages",
-						sessionId,
-						liveSession?.agent.getMessages() ?? [],
-						liveSession?.config.systemPrompt,
-					);
-				}
-				this.emit({
-					type: "agent_event",
-					payload: {
-						sessionId,
-						event,
-					},
-				});
-				this.emit({
-					type: "chunk",
-					payload: {
-						sessionId,
-						stream: "agent",
-						chunk: serializeAgentEvent(event),
-						ts: Date.now(),
-					},
-				});
-			},
+			logger: runtime.logger ?? configWithProvider.logger,
+			onEvent: (event: AgentEvent) =>
+				this.onAgentEvent(sessionId, configWithProvider, event),
 		});
 
 		const active: ActiveSession = {
 			sessionId,
-			config: effectiveConfig,
+			config: configWithProvider,
 			source,
 			startedAt,
 			pendingPrompt: manifest.prompt,
@@ -510,10 +306,10 @@ export class DefaultSessionManager implements SessionManager {
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
-			pluginSandboxShutdown: loadedPlugins.shutdown,
+			pluginSandboxShutdown,
 		};
-		this.sessions.set(active.sessionId, active);
-		this.emitStatus(active.sessionId, "running");
+		this.sessions.set(sessionId, active);
+		this.emitStatus(sessionId, "running");
 
 		let result: AgentResult | undefined;
 		try {
@@ -544,10 +340,7 @@ export class DefaultSessionManager implements SessionManager {
 	}
 
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
-		const session = this.sessions.get(input.sessionId);
-		if (!session) {
-			throw new Error(`session not found: ${input.sessionId}`);
-		}
+		const session = this.getSessionOrThrow(input.sessionId);
 		session.config.telemetry?.capture({
 			event: "session.input_sent",
 			properties: {
@@ -577,17 +370,12 @@ export class DefaultSessionManager implements SessionManager {
 		sessionId: string,
 	): Promise<SessionAccumulatedUsage | undefined> {
 		const usage = this.usageBySession.get(sessionId);
-		if (!usage) {
-			return undefined;
-		}
-		return { ...usage };
+		return usage ? { ...usage } : undefined;
 	}
 
 	async abort(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session) {
-			return;
-		}
+		if (!session) return;
 		session.config.telemetry?.capture({
 			event: "session.aborted",
 			properties: { sessionId },
@@ -598,9 +386,7 @@ export class DefaultSessionManager implements SessionManager {
 
 	async stop(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session) {
-			return;
-		}
+		if (!session) return;
 		session.config.telemetry?.capture({
 			event: "session.stopped",
 			properties: { sessionId },
@@ -615,18 +401,16 @@ export class DefaultSessionManager implements SessionManager {
 
 	async dispose(reason = "session_manager_dispose"): Promise<void> {
 		const sessions = [...this.sessions.values()];
-		if (sessions.length === 0) {
-			return;
-		}
+		if (sessions.length === 0) return;
 		await Promise.allSettled(
-			sessions.map(async (session) => {
-				await this.shutdownSession(session, {
+			sessions.map((session) =>
+				this.shutdownSession(session, {
 					status: "cancelled",
 					exitCode: null,
 					shutdownReason: reason,
 					endReason: "disposed",
-				});
-			}),
+				}),
+			),
 		);
 		this.usageBySession.clear();
 	}
@@ -638,7 +422,7 @@ export class DefaultSessionManager implements SessionManager {
 
 	async list(limit = 200): Promise<SessionRecord[]> {
 		const rows = await this.listRows(limit);
-		return rows.map((row) => toSessionRecord(row));
+		return rows.map(toSessionRecord);
 	}
 
 	async delete(sessionId: string): Promise<boolean> {
@@ -657,9 +441,7 @@ export class DefaultSessionManager implements SessionManager {
 
 	async readTranscript(sessionId: string, maxChars?: number): Promise<string> {
 		const row = await this.getRow(sessionId);
-		if (!row?.transcript_path || !existsSync(row.transcript_path)) {
-			return "";
-		}
+		if (!row?.transcript_path || !existsSync(row.transcript_path)) return "";
 		const raw = readFileSync(row.transcript_path, "utf8");
 		if (typeof maxChars === "number" && Number.isFinite(maxChars)) {
 			return raw.slice(-Math.max(0, Math.floor(maxChars)));
@@ -670,21 +452,17 @@ export class DefaultSessionManager implements SessionManager {
 	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
 		const row = await this.getRow(sessionId);
 		const messagesPath = row?.messages_path?.trim();
-		if (!messagesPath || !existsSync(messagesPath)) {
-			return [];
-		}
+		if (!messagesPath || !existsSync(messagesPath)) return [];
 		try {
-			const raw = readFileSync(messagesPath, "utf8");
-			if (!raw.trim()) {
-				return [];
+			const raw = readFileSync(messagesPath, "utf8").trim();
+			if (!raw) return [];
+			const parsed = JSON.parse(raw) as unknown;
+			if (Array.isArray(parsed)) return parsed as LlmsProviders.Message[];
+			if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+				const messages = (parsed as { messages?: unknown }).messages;
+				if (Array.isArray(messages)) return messages as LlmsProviders.Message[];
 			}
-			const parsed = JSON.parse(raw) as { messages?: unknown } | unknown[];
-			const messages = Array.isArray(parsed)
-				? parsed
-				: Array.isArray((parsed as { messages?: unknown }).messages)
-					? ((parsed as { messages: unknown[] }).messages ?? [])
-					: [];
-			return messages as LlmsProviders.Message[];
+			return [];
 		} catch {
 			return [];
 		}
@@ -692,15 +470,11 @@ export class DefaultSessionManager implements SessionManager {
 
 	async readHooks(sessionId: string, limit = 200): Promise<unknown[]> {
 		const row = await this.getRow(sessionId);
-		if (!row?.hook_path || !existsSync(row.hook_path)) {
-			return [];
-		}
+		if (!row?.hook_path || !existsSync(row.hook_path)) return [];
 		const lines = readFileSync(row.hook_path, "utf8")
 			.split("\n")
-			.map((line) => line.trim())
-			.filter((line) => line.length > 0);
-		const sliced = lines.slice(-Math.max(1, Math.floor(limit)));
-		return sliced.map((line) => {
+			.filter((line) => line.trim().length > 0);
+		return lines.slice(-Math.max(1, Math.floor(limit))).map((line) => {
 			try {
 				return JSON.parse(line) as unknown;
 			} catch {
@@ -716,6 +490,14 @@ export class DefaultSessionManager implements SessionManager {
 		};
 	}
 
+	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
+		const session = this.getSessionOrThrow(sessionId);
+		session.config.modelId = modelId;
+		this.updateAgentConnection(session, { modelId });
+	}
+
+	// ── Turn execution ──────────────────────────────────────────────────
+
 	private async runTurn(
 		session: ActiveSession,
 		input: {
@@ -726,9 +508,8 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
 		const prompt = preparedInput.prompt.trim();
-		if (!prompt) {
-			throw new Error("prompt cannot be empty");
-		}
+		if (!prompt) throw new Error("prompt cannot be empty");
+
 		if (!session.artifacts && !session.pendingPrompt) {
 			session.pendingPrompt = prompt;
 		}
@@ -742,12 +523,10 @@ export class DefaultSessionManager implements SessionManager {
 			preparedInput.userFiles,
 		);
 
-		while (this.shouldAutoContinueTeamRuns(session, result.finishReason)) {
-			const updates = await this.waitForTeamRunUpdates(session);
-			if (updates.length === 0) {
-				break;
-			}
-			const continuationPrompt = this.buildTeamRunContinuationPrompt(
+		while (shouldAutoContinueTeamRuns(session, result.finishReason)) {
+			const updates = await waitForTeamRunUpdates(session);
+			if (updates.length === 0) break;
+			const continuationPrompt = buildTeamRunContinuationPrompt(
 				session,
 				updates,
 			);
@@ -770,6 +549,7 @@ export class DefaultSessionManager implements SessionManager {
 			this.usageBySession.get(session.sessionId) ??
 			createInitialAccumulatedUsage();
 		session.turnUsageBaseline = usageBaseline;
+
 		captureModeSwitch(
 			session.config.telemetry,
 			session.sessionId,
@@ -783,18 +563,17 @@ export class DefaultSessionManager implements SessionManager {
 			mode: session.config.mode,
 			isNativeToolCall: false,
 		});
+
 		try {
-			const result = shouldContinue
-				? await this.runWithAuthRetry(
-						session,
-						() => session.agent.continue(prompt, userImages, userFiles),
-						baselineMessages,
-					)
-				: await this.runWithAuthRetry(
-						session,
-						() => session.agent.run(prompt, userImages, userFiles),
-						baselineMessages,
-					);
+			const runFn = shouldContinue
+				? () => session.agent.continue(prompt, userImages, userFiles)
+				: () => session.agent.run(prompt, userImages, userFiles);
+			const result = await this.runWithAuthRetry(
+				session,
+				runFn,
+				baselineMessages,
+			);
+
 			session.started = true;
 			const persistedMessages = withLatestAssistantTurnMetadata(
 				result.messages,
@@ -812,7 +591,6 @@ export class DefaultSessionManager implements SessionManager {
 			);
 			return result;
 		} catch (error) {
-			// Persist whatever was rendered so far even when a turn fails.
 			await this.invoke<void>(
 				"persistSessionMessages",
 				session.sessionId,
@@ -833,7 +611,7 @@ export class DefaultSessionManager implements SessionManager {
 			userFiles?: string[];
 		},
 	): Promise<PreparedTurnInput> {
-		const mentionBaseDir = session.config.workspaceRoot ?? session.config.cwd;
+		const mentionBaseDir = resolveWorkspacePath(session.config);
 		const normalizedPrompt = normalizeUserInput(input.prompt).trim();
 		if (!normalizedPrompt) {
 			return {
@@ -850,30 +628,9 @@ export class DefaultSessionManager implements SessionManager {
 			normalizedPrompt,
 			mentionBaseDir,
 		);
-		for (const mention of enriched.mentions) {
-			captureMentionSearchResults(
-				session.config.telemetry,
-				mention,
-				enriched.matchedFiles.includes(mention) ? 1 : 0,
-				"file",
-				!enriched.matchedFiles.includes(mention),
-			);
-		}
-		for (const matched of enriched.matchedFiles) {
-			captureMentionUsed(session.config.telemetry, "file", matched.length);
-		}
-		for (const ignored of enriched.ignoredMentions) {
-			captureMentionFailed(
-				session.config.telemetry,
-				"file",
-				"not_found",
-				ignored,
-			);
-		}
-		const prompt = formatUserInputBlock(
-			enriched.prompt,
-			session.config.mode === "plan" ? "plan" : "act",
-		);
+		emitMentionTelemetry(session.config.telemetry, enriched);
+
+		const prompt = formatModePrompt(enriched.prompt, session.config.mode);
 		const explicitUserFiles = this.resolveAbsoluteFilePaths(
 			session.config.cwd,
 			input.userFiles,
@@ -893,23 +650,11 @@ export class DefaultSessionManager implements SessionManager {
 		};
 	}
 
-	private resolveAbsoluteFilePaths(cwd: string, paths?: string[]): string[] {
-		if (!paths || paths.length === 0) {
-			return [];
-		}
-		const resolved = paths
-			.map((filePath) => filePath.trim())
-			.filter((filePath) => filePath.length > 0)
-			.map((filePath) =>
-				isAbsolute(filePath) ? filePath : resolve(cwd, filePath),
-			);
-		return Array.from(new Set(resolved));
-	}
+	// ── Session lifecycle ───────────────────────────────────────────────
 
 	private async ensureSessionPersisted(session: ActiveSession): Promise<void> {
-		if (session.artifacts) {
-			return;
-		}
+		if (session.artifacts) return;
+		const workspacePath = resolveWorkspacePath(session.config);
 		session.artifacts = (await this.invoke("createRootSessionWithArtifacts", {
 			sessionId: session.sessionId,
 			source: session.source,
@@ -918,7 +663,7 @@ export class DefaultSessionManager implements SessionManager {
 			provider: session.config.providerId,
 			model: session.config.modelId,
 			cwd: session.config.cwd,
-			workspaceRoot: session.config.workspaceRoot ?? session.config.cwd,
+			workspaceRoot: workspacePath,
 			teamName: session.config.teamName,
 			enableTools: session.config.enableTools,
 			enableSpawn: session.config.enableSpawnAgent,
@@ -932,24 +677,14 @@ export class DefaultSessionManager implements SessionManager {
 		session: ActiveSession,
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
-		if (this.hasPendingTeamRunWork(session)) {
-			return;
-		}
-		if (finishReason === "aborted" || session.aborting) {
-			await this.shutdownSession(session, {
-				status: "cancelled",
-				exitCode: null,
-				shutdownReason: "session_complete",
-				endReason: finishReason,
-			});
-		} else {
-			await this.shutdownSession(session, {
-				status: "completed",
-				exitCode: 0,
-				shutdownReason: "session_complete",
-				endReason: finishReason,
-			});
-		}
+		if (hasPendingTeamRunWork(session)) return;
+		const isAborted = finishReason === "aborted" || session.aborting;
+		await this.shutdownSession(session, {
+			status: isAborted ? "cancelled" : "completed",
+			exitCode: isAborted ? null : 0,
+			shutdownReason: "session_complete",
+			endReason: finishReason,
+		});
 	}
 
 	private async failSession(session: ActiveSession): Promise<void> {
@@ -979,17 +714,14 @@ export class DefaultSessionManager implements SessionManager {
 				durationMs: Date.now() - Date.parse(session.startedAt),
 			});
 		}
-		this.notifyTeamRunWaiters(session);
+		notifyTeamRunWaiters(session);
+
 		if (session.artifacts) {
 			await this.updateStatus(session, input.status, input.exitCode);
-		}
-		if (session.artifacts) {
 			await session.agent.shutdown(input.shutdownReason);
 		}
 		await Promise.resolve(session.runtime.shutdown(input.shutdownReason));
-		if (session.pluginSandboxShutdown) {
-			await session.pluginSandboxShutdown();
-		}
+		await session.pluginSandboxShutdown?.();
 		this.sessions.delete(session.sessionId);
 		this.emit({
 			type: "ended",
@@ -1006,18 +738,14 @@ export class DefaultSessionManager implements SessionManager {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<void> {
-		if (!session.artifacts) {
-			return;
-		}
+		if (!session.artifacts) return;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
 			status,
 			exitCode,
 		);
-		if (!result.updated) {
-			return;
-		}
+		if (!result.updated) return;
 		session.artifacts.manifest.status = status;
 		session.artifacts.manifest.ended_at = result.endedAt ?? nowIso();
 		session.artifacts.manifest.exit_code =
@@ -1030,51 +758,47 @@ export class DefaultSessionManager implements SessionManager {
 		this.emitStatus(session.sessionId, status);
 	}
 
-	private emitStatus(sessionId: string, status: string): void {
-		this.emit({
-			type: "status",
-			payload: { sessionId, status },
-		});
-	}
+	// ── Agent event handling ────────────────────────────────────────────
 
-	private async listRows(limit: number): Promise<SessionRowShape[]> {
-		const normalizedLimit = Math.max(1, Math.floor(limit));
-		return this.invoke<SessionRowShape[]>(
-			"listSessions",
-			Math.min(normalizedLimit, MAX_SCAN_LIMIT),
-		);
-	}
-
-	private async getRow(
+	private onAgentEvent(
 		sessionId: string,
-	): Promise<SessionRowShape | undefined> {
-		const target = sessionId.trim();
-		if (!target) {
-			return undefined;
-		}
-		const rows = await this.listRows(MAX_SCAN_LIMIT);
-		return rows.find((row) => row.session_id === target);
+		config: CoreSessionConfig,
+		event: AgentEvent,
+	): void {
+		const ctx: AgentEventContext = {
+			sessionId,
+			config,
+			liveSession: this.sessions.get(sessionId),
+			usageBySession: this.usageBySession,
+			persistMessages: (sid, messages, systemPrompt) => {
+				void this.invoke<void>(
+					"persistSessionMessages",
+					sid,
+					messages,
+					systemPrompt,
+				);
+			},
+			emit: (e) => this.emit(e),
+		};
+		handleAgentEvent(ctx, event);
 	}
+
+	// ── Spawn / sub-agents ──────────────────────────────────────────────
 
 	private createSpawnTool(
 		config: CoreSessionConfig,
 		rootSessionId: string,
 	): Tool {
-		const createBaseTools = () => {
-			if (!config.enableTools) {
-				return [] as Tool[];
-			}
-			const preset =
-				config.mode === "plan" ? ToolPresets.readonly : ToolPresets.development;
-			return createBuiltinTools({
-				cwd: config.cwd,
-				...preset,
-				executors: this.defaultToolExecutors,
-			});
-		};
-
 		const createSubAgentTools = () => {
-			const tools = createBaseTools();
+			const tools: Tool[] = config.enableTools
+				? createBuiltinTools({
+						cwd: config.cwd,
+						...(config.mode === "plan"
+							? ToolPresets.readonly
+							: ToolPresets.development),
+						executors: this.defaultToolExecutors,
+					})
+				: [];
 			if (config.enableSpawnAgent) {
 				tools.push(this.createSpawnTool(config, rootSessionId));
 			}
@@ -1124,50 +848,7 @@ export class DefaultSessionManager implements SessionManager {
 		}) as Tool;
 	}
 
-	private extractSkillNameFromToolInput(input: unknown): string | undefined {
-		if (!input || typeof input !== "object") {
-			return undefined;
-		}
-		const record = input as Record<string, unknown>;
-		const skillName = record.skill ?? record.skill_name ?? record.skillName;
-		if (typeof skillName !== "string") {
-			return undefined;
-		}
-		const trimmed = skillName.trim();
-		return trimmed.length > 0 ? trimmed : undefined;
-	}
-
-	private captureHookDiscoveryTelemetry(
-		telemetry: ITelemetryService | undefined,
-		options: { workspacePath: string },
-	): void {
-		const workspaceHooksDir = join(
-			options.workspacePath,
-			".clinerules",
-			"hooks",
-		);
-		const globalHooksDir = resolveDocumentsHooksDirectoryPath();
-		const entries = listHookConfigFiles(options.workspacePath);
-		const counts = new Map<string, { global: number; workspace: number }>();
-		for (const entry of entries) {
-			const hookName = entry.hookEventName ?? "unknown";
-			const current = counts.get(hookName) ?? { global: 0, workspace: 0 };
-			if (entry.path.startsWith(`${workspaceHooksDir}/`)) {
-				current.workspace += 1;
-			} else if (
-				entry.path === globalHooksDir ||
-				entry.path.startsWith(`${globalHooksDir}/`)
-			) {
-				current.global += 1;
-			} else {
-				current.workspace += 1;
-			}
-			counts.set(hookName, current);
-		}
-		for (const [hookName, count] of counts.entries()) {
-			captureHookDiscovery(telemetry, hookName, count.global, count.workspace);
-		}
-	}
+	// ── Team run coordination ───────────────────────────────────────────
 
 	private async handleTeamEvent(
 		rootSessionId: string,
@@ -1175,228 +856,21 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<void> {
 		const session = this.sessions.get(rootSessionId);
 		if (session) {
-			switch (event.type) {
-				case "run_queued":
-				case "run_started":
-					session.activeTeamRunIds.add(event.run.id);
-					break;
-				case "run_completed":
-				case "run_failed":
-				case "run_cancelled":
-				case "run_interrupted": {
-					let runError: string | undefined;
-					if (event.type === "run_failed") {
-						runError = event.run.error;
-					} else if (event.type === "run_cancelled") {
-						runError = event.run.error ?? event.reason;
-					} else if (event.type === "run_interrupted") {
-						runError = event.run.error ?? event.reason;
-					}
-					session.activeTeamRunIds.delete(event.run.id);
-					session.pendingTeamRunUpdates.push({
-						runId: event.run.id,
-						agentId: event.run.agentId,
-						taskId: event.run.taskId,
-						status: event.type.replace("run_", "") as TeamRunUpdate["status"],
-						error: runError,
-						iterations: event.run.result?.iterations,
-					});
-					this.notifyTeamRunWaiters(session);
-					break;
-				}
-				default:
-					break;
-			}
+			trackTeamRunState(session, event);
 		}
 
-		switch (event.type) {
-			case "task_start":
-				await this.invokeOptional(
-					"onTeamTaskStart",
-					rootSessionId,
-					event.agentId,
-					event.message,
-				);
-				break;
-			case "task_end":
-				if (event.error) {
-					await this.invokeOptional(
-						"onTeamTaskEnd",
-						rootSessionId,
-						event.agentId,
-						"failed",
-						`[error] ${event.error.message}`,
-						event.messages,
-					);
-					break;
-				}
-				if (event.result?.finishReason === "aborted") {
-					await this.invokeOptional(
-						"onTeamTaskEnd",
-						rootSessionId,
-						event.agentId,
-						"cancelled",
-						"[done] aborted",
-						event.result.messages,
-					);
-					break;
-				}
-				await this.invokeOptional(
-					"onTeamTaskEnd",
-					rootSessionId,
-					event.agentId,
-					"completed",
-					`[done] ${event.result?.finishReason ?? "completed"}`,
-					event.result?.messages,
-				);
-				break;
-			default:
-				break;
-		}
-
-		if (!session?.runtime.teamRuntime) {
-			return;
-		}
-		const teamName = session.config.teamName?.trim() || "team";
-		this.emit({
-			type: "team_progress",
-			payload: {
-				sessionId: rootSessionId,
-				teamName,
-				lifecycle: toTeamProgressLifecycleEvent({
-					teamName,
-					sessionId: rootSessionId,
-					event,
-				}),
-				summary: buildTeamProgressSummary(
-					teamName,
-					session.runtime.teamRuntime.exportState(),
-				),
-			},
-		});
-	}
-
-	private hasPendingTeamRunWork(session: ActiveSession): boolean {
-		return (
-			session.activeTeamRunIds.size > 0 ||
-			session.pendingTeamRunUpdates.length > 0
+		await dispatchTeamEventToBackend(
+			rootSessionId,
+			event,
+			this.invokeOptional.bind(this),
 		);
-	}
 
-	private shouldAutoContinueTeamRuns(
-		session: ActiveSession,
-		finishReason: AgentResult["finishReason"],
-	): boolean {
-		if (
-			session.aborting ||
-			finishReason === "aborted" ||
-			finishReason === "error"
-		) {
-			return false;
-		}
-		if (!session.config.enableAgentTeams) {
-			return false;
-		}
-		return this.hasPendingTeamRunWork(session);
-	}
-
-	private notifyTeamRunWaiters(session: ActiveSession): void {
-		const waiters = session.teamRunWaiters.splice(0);
-		for (const resolve of waiters) {
-			resolve();
+		if (session) {
+			emitTeamProgress(session, rootSessionId, event, (e) => this.emit(e));
 		}
 	}
 
-	private async waitForTeamRunUpdates(
-		session: ActiveSession,
-	): Promise<TeamRunUpdate[]> {
-		while (true) {
-			if (session.aborting) {
-				return [];
-			}
-			if (session.pendingTeamRunUpdates.length > 0) {
-				const updates = [...session.pendingTeamRunUpdates];
-				session.pendingTeamRunUpdates.length = 0;
-				return updates;
-			}
-			if (session.activeTeamRunIds.size === 0) {
-				return [];
-			}
-			await new Promise<void>((resolve) => {
-				session.teamRunWaiters.push(resolve);
-			});
-		}
-	}
-
-	private buildTeamRunContinuationPrompt(
-		session: ActiveSession,
-		updates: TeamRunUpdate[],
-	): string {
-		const lines = updates.map((update) => {
-			const base = `- ${update.runId} (${update.agentId}) -> ${update.status}`;
-			const task = update.taskId ? ` task=${update.taskId}` : "";
-			const iterations =
-				typeof update.iterations === "number"
-					? ` iterations=${update.iterations}`
-					: "";
-			const error = update.error ? ` error=${update.error}` : "";
-			return `${base}${task}${iterations}${error}`;
-		});
-		const remaining = session.activeTeamRunIds.size;
-		const instruction =
-			remaining > 0
-				? `There are still ${remaining} teammate run(s) in progress. Continue coordination and decide whether to wait for more updates.`
-				: "No teammate runs are currently in progress. Continue coordination using these updates.";
-		return formatUserInputBlock(
-			`System-delivered teammate async run updates:\n${lines.join("\n")}\n\n${instruction}`,
-			session.config.mode === "plan" ? "plan" : "act",
-		);
-	}
-
-	private emit(event: CoreSessionEvent): void {
-		for (const listener of this.listeners) {
-			listener(event);
-		}
-	}
-
-	private async invoke<T>(method: string, ...args: unknown[]): Promise<T> {
-		const callable = (
-			this.sessionService as unknown as Record<string, unknown>
-		)[method];
-		if (typeof callable !== "function") {
-			throw new Error(`session service method not available: ${method}`);
-		}
-		const fn = callable as (...params: unknown[]) => T | Promise<T>;
-		return Promise.resolve(fn.apply(this.sessionService, args));
-	}
-
-	private async invokeOptional(
-		method: string,
-		...args: unknown[]
-	): Promise<void> {
-		const callable = (
-			this.sessionService as unknown as Record<string, unknown>
-		)[method];
-		if (typeof callable !== "function") {
-			return;
-		}
-		const fn = callable as (...params: unknown[]) => unknown;
-		await Promise.resolve(fn.apply(this.sessionService, args));
-	}
-
-	private async invokeOptionalValue<T = unknown>(
-		method: string,
-		...args: unknown[]
-	): Promise<T | undefined> {
-		const callable = (
-			this.sessionService as unknown as Record<string, unknown>
-		)[method];
-		if (typeof callable !== "function") {
-			return undefined;
-		}
-		const fn = callable as (...params: unknown[]) => T | Promise<T>;
-		return await Promise.resolve(fn.apply(this.sessionService, args));
-	}
+	// ── OAuth & auth ────────────────────────────────────────────────────
 
 	private async runWithAuthRetry(
 		session: ActiveSession,
@@ -1406,35 +880,13 @@ export class DefaultSessionManager implements SessionManager {
 		try {
 			return await run();
 		} catch (error) {
-			if (!this.isLikelyAuthError(error, session.config.providerId)) {
+			if (!isLikelyAuthError(error, session.config.providerId)) {
 				throw error;
 			}
-
 			await this.syncOAuthCredentials(session, { forceRefresh: true });
 			session.agent.restore(baselineMessages);
 			return run();
 		}
-	}
-
-	private isLikelyAuthError(error: unknown, providerId: string): boolean {
-		if (
-			providerId !== "cline" &&
-			providerId !== "oca" &&
-			providerId !== "openai-codex"
-		) {
-			return false;
-		}
-		const message =
-			error instanceof Error ? error.message.toLowerCase() : String(error);
-		return (
-			message.includes("401") ||
-			message.includes("403") ||
-			message.includes("unauthorized") ||
-			message.includes("forbidden") ||
-			message.includes("invalid token") ||
-			message.includes("expired token") ||
-			message.includes("authentication")
-		);
 	}
 
 	private async syncOAuthCredentials(
@@ -1455,32 +907,117 @@ export class DefaultSessionManager implements SessionManager {
 			}
 			throw error;
 		}
-		if (!resolved?.apiKey) {
-			return;
-		}
-		if (session.config.apiKey === resolved.apiKey) {
-			return;
-		}
+		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
 		session.config.apiKey = resolved.apiKey;
-		const agentWithConnection = session.agent as Agent & {
-			updateConnection?: (overrides: { apiKey?: string }) => void;
-		};
-		agentWithConnection.updateConnection?.({ apiKey: resolved.apiKey });
-		// Propagate refreshed credentials to all active teammate agents
+		this.updateAgentConnection(session, { apiKey: resolved.apiKey });
 		session.runtime.teamRuntime?.updateTeammateConnections({
 			apiKey: resolved.apiKey,
 		});
 	}
 
-	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
+	// ── Utility methods ─────────────────────────────────────────────────
+
+	private getSessionOrThrow(sessionId: string): ActiveSession {
 		const session = this.sessions.get(sessionId);
-		if (!session) {
-			throw new Error(`session not found: ${sessionId}`);
-		}
-		session.config.modelId = modelId;
+		if (!session) throw new Error(`session not found: ${sessionId}`);
+		return session;
+	}
+
+	private resolveAbsoluteFilePaths(cwd: string, paths?: string[]): string[] {
+		if (!paths || paths.length === 0) return [];
+		const resolved = paths
+			.map((p) => p.trim())
+			.filter((p) => p.length > 0)
+			.map((p) => (isAbsolute(p) ? p : resolve(cwd, p)));
+		return Array.from(new Set(resolved));
+	}
+
+	private updateAgentConnection(
+		session: ActiveSession,
+		overrides: { apiKey?: string; modelId?: string },
+	): void {
 		const agentWithConnection = session.agent as Agent & {
-			updateConnection?: (overrides: { modelId?: string }) => void;
+			updateConnection?: (overrides: {
+				apiKey?: string;
+				modelId?: string;
+			}) => void;
 		};
-		agentWithConnection.updateConnection?.({ modelId });
+		agentWithConnection.updateConnection?.(overrides);
+	}
+
+	private emitStatus(sessionId: string, status: string): void {
+		this.emit({
+			type: "status",
+			payload: { sessionId, status },
+		});
+	}
+
+	private emit(event: CoreSessionEvent): void {
+		for (const listener of this.listeners) listener(event);
+	}
+
+	private async listRows(limit: number): Promise<SessionRowShape[]> {
+		return this.invoke<SessionRowShape[]>(
+			"listSessions",
+			Math.min(Math.max(1, Math.floor(limit)), MAX_SCAN_LIMIT),
+		);
+	}
+
+	private async getRow(
+		sessionId: string,
+	): Promise<SessionRowShape | undefined> {
+		const target = sessionId.trim();
+		if (!target) return undefined;
+		const rows = await this.listRows(MAX_SCAN_LIMIT);
+		return rows.find((row) => row.session_id === target);
+	}
+
+	// ── Session service invocation ──────────────────────────────────────
+
+	private async invoke<T>(method: string, ...args: unknown[]): Promise<T> {
+		const callable = (
+			this.sessionService as unknown as Record<string, unknown>
+		)[method];
+		if (typeof callable !== "function") {
+			throw new Error(`session service method not available: ${method}`);
+		}
+		return Promise.resolve(
+			(callable as (...params: unknown[]) => T | Promise<T>).apply(
+				this.sessionService,
+				args,
+			),
+		);
+	}
+
+	private async invokeOptional(
+		method: string,
+		...args: unknown[]
+	): Promise<void> {
+		const callable = (
+			this.sessionService as unknown as Record<string, unknown>
+		)[method];
+		if (typeof callable !== "function") return;
+		await Promise.resolve(
+			(callable as (...params: unknown[]) => unknown).apply(
+				this.sessionService,
+				args,
+			),
+		);
+	}
+
+	private async invokeOptionalValue<T = unknown>(
+		method: string,
+		...args: unknown[]
+	): Promise<T | undefined> {
+		const callable = (
+			this.sessionService as unknown as Record<string, unknown>
+		)[method];
+		if (typeof callable !== "function") return undefined;
+		return await Promise.resolve(
+			(callable as (...params: unknown[]) => T | Promise<T>).apply(
+				this.sessionService,
+				args,
+			),
+		);
 	}
 }
