@@ -83,10 +83,11 @@ Changes to `packages/*` require a rebuild (`bun run build:sdk`) and an RPC serve
   - `bun run test`
   - `bun scripts/version.ts <version> --publish --check`
   - `bun scripts/version.ts <version> --publish`
-  - `cd packages/llms && npm publish`
+  - `cd packages/shared && npm publish`
+  - `cd ../llms && npm publish`
   - `cd ../agents && npm publish`
   - `cd ../core && npm publish`
-- CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same rule: it runs `version.ts --publish --check`, then re-runs `version.ts --publish` before publishing `llms -> agents -> core`.
+- CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same rule: it runs `version.ts --publish --check`, then re-runs `version.ts --publish` before publishing `shared -> llms -> agents -> core`.
 
 ### Change Routing
 - **Model/Provider schemas**: `@clinebot/llms`
