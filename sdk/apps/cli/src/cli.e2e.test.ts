@@ -127,9 +127,7 @@ describe("cli e2e", () => {
 		expect(asText(result.stdout)).toContain("--thinking");
 		expect(asText(result.stdout)).toContain("--reasoning-effort");
 		expect(asText(result.stdout)).toContain("--refresh-models");
-		expect(asText(result.stdout)).toContain(
-			"list <workflows|rules|skills|agents|hooks|mcp>",
-		);
+		expect(asText(result.stdout)).toContain("List configs or hook paths");
 	});
 
 	it("prints version output", () => {

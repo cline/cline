@@ -1,4 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("@clinebot/agents", () => ({
+	createPersistentSubprocessHooks: vi.fn(() => ({
+		hooks: {},
+		client: { close: vi.fn() },
+	})),
+}));
+
 import { createRuntimeHooks } from "./hooks";
 
 describe("createRuntimeHooks", () => {

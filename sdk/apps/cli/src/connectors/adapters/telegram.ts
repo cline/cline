@@ -219,8 +219,9 @@ function showConnectTelegramHelp(io: ConnectIo): void {
 	);
 }
 
-function parseConnectTelegramArgs(rawArgs: string[]): ConnectTelegramOptions {
-	const connectArgs = rawArgs.slice(2);
+function parseConnectTelegramArgs(
+	connectArgs: string[],
+): ConnectTelegramOptions {
 	if (
 		parseBooleanFlag(connectArgs, "-h") ||
 		parseBooleanFlag(connectArgs, "--help")

@@ -14,6 +14,7 @@ import {
 	type SkillConfig,
 	type WorkflowConfig,
 } from "@clinebot/core/node";
+import { Command } from "commander";
 import type { CliOutputMode } from "../utils/types";
 
 type ListIo = {
@@ -334,33 +335,80 @@ async function runMcpListCommand(
 	}
 }
 
-export async function runListCommand(input: {
-	rawArgs: string[];
-	cwd: string;
-	outputMode: CliOutputMode;
-	io: ListIo;
-}): Promise<number> {
-	const listTarget = input.rawArgs[1]?.trim().toLowerCase();
-	if (listTarget === "workflows") {
-		return runWorkflowsListCommand(input.cwd, input.outputMode, input.io);
-	}
-	if (listTarget === "rules") {
-		return runRulesListCommand(input.cwd, input.outputMode, input.io);
-	}
-	if (listTarget === "skills") {
-		return runSkillsListCommand(input.cwd, input.outputMode, input.io);
-	}
-	if (listTarget === "agents") {
-		return runAgentsListCommand(input.outputMode, input.io);
-	}
-	if (listTarget === "hooks") {
-		return runHooksListCommand(input.cwd, input.outputMode, input.io);
-	}
-	if (listTarget === "mcp") {
-		return runMcpListCommand(input.outputMode, input.io);
-	}
-	input.io.writeErr(
-		`list requires one of: workflows, rules, skills, agents, hooks, mcp (got "${input.rawArgs[1] ?? ""}")`,
-	);
-	return 1;
+export function createListCommand(
+	getCwd: () => string,
+	getOutputMode: () => CliOutputMode,
+	io: ListIo,
+	setExitCode: (code: number) => void,
+): Command {
+	let actionExitCode = 0;
+
+	const list = new Command("list")
+		.description("List configs or hook paths")
+		.argument("[target]")
+		.option("--json", "Output as JSON")
+		.exitOverride()
+		.action((target?: string) => {
+			if (target) {
+				io.writeErr(
+					`list requires one of: workflows, rules, skills, agents, hooks, mcp (got "${target}")`,
+				);
+				actionExitCode = 1;
+			}
+		})
+		.hook("postAction", () => {
+			setExitCode(actionExitCode);
+		});
+
+	list
+		.command("workflows")
+		.description("List available workflows")
+		.action(async () => {
+			actionExitCode = await runWorkflowsListCommand(
+				getCwd(),
+				getOutputMode(),
+				io,
+			);
+		});
+
+	list
+		.command("rules")
+		.description("List enabled rules")
+		.action(async () => {
+			actionExitCode = await runRulesListCommand(getCwd(), getOutputMode(), io);
+		});
+
+	list
+		.command("skills")
+		.description("List enabled skills")
+		.action(async () => {
+			actionExitCode = await runSkillsListCommand(
+				getCwd(),
+				getOutputMode(),
+				io,
+			);
+		});
+
+	list
+		.command("agents")
+		.description("List configured agents")
+		.action(async () => {
+			actionExitCode = await runAgentsListCommand(getOutputMode(), io);
+		});
+
+	list
+		.command("hooks")
+		.description("List hook files")
+		.action(async () => {
+			actionExitCode = await runHooksListCommand(getCwd(), getOutputMode(), io);
+		});
+
+	list
+		.command("mcp")
+		.description("List configured MCP servers")
+		.action(async () => {
+			actionExitCode = await runMcpListCommand(getOutputMode(), io);
+		});
+
+	return list;
 }

@@ -15,6 +15,7 @@ import {
 	startRpcServer,
 	stopRpcServer,
 } from "@clinebot/rpc";
+import { Command } from "commander";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
 import { createRpcRuntimeHandlers } from "./rpc-runtime";
@@ -40,6 +41,34 @@ type EnsureCompatibleRpcAddressOptions = {
 	lockHeld?: boolean;
 };
 
+const DEFAULT_RPC_ADDRESS = "127.0.0.1:4317";
+
+interface RpcCommandIo {
+	writeln: (text?: string) => void;
+	writeErr: (text: string) => void;
+}
+
+function collectMeta(value: string, previous: string[]): string[] {
+	return previous.concat(value);
+}
+
+function parseMetaEntries(entries: string[]): Record<string, string> {
+	const metadata: Record<string, string> = {};
+	for (const raw of entries) {
+		const trimmed = raw.trim();
+		const separator = trimmed.indexOf("=");
+		if (separator <= 0 || separator >= trimmed.length - 1) {
+			continue;
+		}
+		const key = trimmed.slice(0, separator).trim();
+		const value = trimmed.slice(separator + 1).trim();
+		if (!key || !value) {
+			continue;
+		}
+		metadata[key] = value;
+	}
+	return metadata;
+}
 function parseRpcAddress(address: string): { host: string; port: number } {
 	const trimmed = address.trim();
 	const idx = trimmed.lastIndexOf(":");
@@ -52,45 +81,6 @@ function parseRpcAddress(address: string): { host: string; port: number } {
 		throw new Error(`invalid rpc port in address: ${address}`);
 	}
 	return { host, port };
-}
-
-function resolveRpcAddress(rawArgs: string[]): string {
-	const addressIndex = rawArgs.indexOf("--address");
-	const address =
-		(addressIndex >= 0 && addressIndex + 1 < rawArgs.length
-			? rawArgs[addressIndex + 1]
-			: process.env.CLINE_RPC_ADDRESS) || "127.0.0.1:4317";
-	return address.trim();
-}
-
-function resolveArgValue(rawArgs: string[], flag: string): string | undefined {
-	const flagIndex = rawArgs.indexOf(flag);
-	if (flagIndex < 0 || flagIndex + 1 >= rawArgs.length) {
-		return undefined;
-	}
-	const value = rawArgs[flagIndex + 1]?.trim();
-	return value ? value : undefined;
-}
-
-function resolveRpcMetadata(rawArgs: string[]): Record<string, string> {
-	const metadata: Record<string, string> = {};
-	for (let index = 0; index < rawArgs.length; index += 1) {
-		if (rawArgs[index] !== "--meta" || index + 1 >= rawArgs.length) {
-			continue;
-		}
-		const raw = rawArgs[index + 1]?.trim() || "";
-		const separator = raw.indexOf("=");
-		if (separator <= 0 || separator >= raw.length - 1) {
-			continue;
-		}
-		const key = raw.slice(0, separator).trim();
-		const value = raw.slice(separator + 1).trim();
-		if (!key || !value) {
-			continue;
-		}
-		metadata[key] = value;
-	}
-	return metadata;
 }
 
 function isUnimplementedError(error: unknown): boolean {
@@ -467,13 +457,46 @@ async function ensureRpcRuntimeAddressFromResolved(ensured: {
 	return ensured.address;
 }
 
+function formatUptime(startedAt: string): string {
+	const startMs = new Date(startedAt).getTime();
+	if (!Number.isFinite(startMs)) {
+		return "unknown";
+	}
+	let seconds = Math.floor((Date.now() - startMs) / 1000);
+	if (seconds < 0) {
+		return "0s";
+	}
+	const days = Math.floor(seconds / 86400);
+	seconds %= 86400;
+	const hours = Math.floor(seconds / 3600);
+	seconds %= 3600;
+	const minutes = Math.floor(seconds / 60);
+	seconds %= 60;
+	const parts: string[] = [];
+	if (days > 0) {
+		parts.push(`${days}d`);
+	}
+	if (hours > 0) {
+		parts.push(`${hours}h`);
+	}
+	if (minutes > 0) {
+		parts.push(`${minutes}m`);
+	}
+	parts.push(`${seconds}s`);
+	return parts.join(" ");
+}
+
+// ---------------------------------------------------------------------------
+// Exported command handlers — accept parsed options instead of rawArgs
+// ---------------------------------------------------------------------------
+
 export async function runRpcEnsureCommand(
-	rawArgs: string[],
+	options: { address: string; json?: boolean },
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
-	const requestedAddress = resolveRpcAddress(rawArgs);
-	const jsonOutput = rawArgs.includes("--json");
+	const requestedAddress = options.address;
+	const jsonOutput = !!options.json;
 	let ensured:
 		| { address: string; action: "reuse" | "new-port" | "started" }
 		| undefined;
@@ -511,8 +534,8 @@ export async function runRpcEnsureCommand(
 	return 0;
 }
 
-export async function runRpcStartCommand(
-	rawArgs: string[],
+async function runRpcStartCommand(
+	options: { address: string },
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
@@ -520,7 +543,7 @@ export async function runRpcStartCommand(
 		runtime: "cli",
 		component: "rpc-start",
 	}).core;
-	const normalizedAddress = resolveRpcAddress(rawArgs);
+	const normalizedAddress = options.address;
 	if (!normalizedAddress) {
 		writeErr("rpc start requires a non-empty address");
 		startupLogger.error?.("RPC start rejected: empty address");
@@ -597,46 +620,17 @@ export async function runRpcStartCommand(
 	return 0;
 }
 
-function formatUptime(startedAt: string): string {
-	const startMs = new Date(startedAt).getTime();
-	if (!Number.isFinite(startMs)) {
-		return "unknown";
-	}
-	let seconds = Math.floor((Date.now() - startMs) / 1000);
-	if (seconds < 0) {
-		return "0s";
-	}
-	const days = Math.floor(seconds / 86400);
-	seconds %= 86400;
-	const hours = Math.floor(seconds / 3600);
-	seconds %= 3600;
-	const minutes = Math.floor(seconds / 60);
-	seconds %= 60;
-	const parts: string[] = [];
-	if (days > 0) {
-		parts.push(`${days}d`);
-	}
-	if (hours > 0) {
-		parts.push(`${hours}h`);
-	}
-	if (minutes > 0) {
-		parts.push(`${minutes}m`);
-	}
-	parts.push(`${seconds}s`);
-	return parts.join(" ");
-}
-
-export async function runRpcStatusCommand(
-	rawArgs: string[],
+async function runRpcStatusCommand(
+	options: { address: string; json?: boolean },
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
-	const normalizedAddress = resolveRpcAddress(rawArgs);
+	const normalizedAddress = options.address;
 	if (!normalizedAddress) {
 		writeErr("rpc status requires a non-empty address");
 		return 1;
 	}
-	const jsonOutput = rawArgs.includes("--json");
+	const jsonOutput = !!options.json;
 
 	const health = await getRpcServerHealth(normalizedAddress);
 	if (!health?.running) {
@@ -675,12 +669,12 @@ export async function runRpcStatusCommand(
 	return 0;
 }
 
-export async function runRpcStopCommand(
-	rawArgs: string[],
+async function runRpcStopCommand(
+	options: { address: string },
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
-	const normalizedAddress = resolveRpcAddress(rawArgs);
+	const normalizedAddress = options.address;
 	if (!normalizedAddress) {
 		writeErr("rpc stop requires a non-empty address");
 		return 1;
@@ -718,8 +712,13 @@ export async function runRpcStopCommand(
 	return 1;
 }
 
-export async function runRpcRegisterCommand(
-	rawArgs: string[],
+async function runRpcRegisterCommand(
+	options: {
+		address: string;
+		clientType: string;
+		clientId?: string;
+		meta: string[];
+	},
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
@@ -727,16 +726,16 @@ export async function runRpcRegisterCommand(
 		runtime: "cli",
 		component: "rpc-register",
 	}).core;
-	const normalizedAddress = resolveRpcAddress(rawArgs);
+	const normalizedAddress = options.address;
 	if (!normalizedAddress) {
 		writeErr("rpc register requires a non-empty address");
 		registerLogger.error?.("RPC client registration rejected: empty address");
 		return 1;
 	}
 
-	const clientType = resolveArgValue(rawArgs, "--client-type") || "desktop";
-	const requestedClientId = resolveArgValue(rawArgs, "--client-id");
-	const metadata = resolveRpcMetadata(rawArgs);
+	const clientType = options.clientType;
+	const requestedClientId = options.clientId;
+	const metadata = parseMetaEntries(options.meta);
 
 	const registration = await registerRpcClient(normalizedAddress, {
 		clientId: requestedClientId,
@@ -767,4 +766,146 @@ export async function runRpcRegisterCommand(
 		`${c.dim}[rpc] registered client_id=${registration.clientId} address=${normalizedAddress}${c.reset}`,
 	);
 	return 0;
+}
+
+// ---------------------------------------------------------------------------
+// Commander command tree
+// ---------------------------------------------------------------------------
+
+export function createRpcCommand(
+	io: RpcCommandIo,
+	setExitCode: (code: number) => void,
+): Command {
+	const rpc = new Command("rpc")
+		.description("Manage the local RPC runtime server")
+		.exitOverride()
+		.allowExcessArguments()
+		.argument("[subcommand]");
+
+	const addressOption = (description?: string) =>
+		`--address <host:port>${description ? ` ${description}` : ""}`;
+
+	rpc
+		.command("ensure")
+		.description("Ensure the RPC runtime is running")
+		.option(
+			addressOption(),
+			"RPC server address",
+			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
+		)
+		.option("--json", "Output as JSON")
+		.action(async function (this: Command) {
+			const opts = this.opts<{ address: string; json?: boolean }>();
+			setExitCode(
+				await runRpcEnsureCommand(
+					{ address: opts.address, json: opts.json },
+					io.writeln,
+					io.writeErr,
+				),
+			);
+		});
+
+	rpc
+		.command("register")
+		.description("Register an RPC client")
+		.option(
+			addressOption(),
+			"RPC server address",
+			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
+		)
+		.option("--client-id <id>", "Client ID")
+		.option("--client-type <type>", "Client type", "desktop")
+		.option(
+			"--meta <key=value>",
+			"Metadata entry (repeatable)",
+			collectMeta,
+			[],
+		)
+		.action(async function (this: Command) {
+			const opts = this.opts<{
+				address: string;
+				clientId?: string;
+				clientType: string;
+				meta: string[];
+			}>();
+			setExitCode(
+				await runRpcRegisterCommand(
+					{
+						address: opts.address,
+						clientType: opts.clientType,
+						clientId: opts.clientId,
+						meta: opts.meta,
+					},
+					io.writeln,
+					io.writeErr,
+				),
+			);
+		});
+
+	rpc
+		.command("start")
+		.description("Start the RPC server")
+		.option(
+			addressOption(),
+			"RPC server address",
+			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
+		)
+		.action(async function (this: Command) {
+			const opts = this.opts<{ address: string }>();
+			setExitCode(
+				await runRpcStartCommand(
+					{ address: opts.address },
+					io.writeln,
+					io.writeErr,
+				),
+			);
+		});
+
+	rpc
+		.command("status")
+		.description("Show RPC server status")
+		.option(
+			addressOption(),
+			"RPC server address",
+			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
+		)
+		.option("--json", "Output as JSON")
+		.action(async function (this: Command) {
+			const opts = this.opts<{ address: string; json?: boolean }>();
+			setExitCode(
+				await runRpcStatusCommand(
+					{ address: opts.address, json: opts.json },
+					io.writeln,
+					io.writeErr,
+				),
+			);
+		});
+
+	rpc
+		.command("stop")
+		.description("Stop the RPC server")
+		.option(
+			addressOption(),
+			"RPC server address",
+			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
+		)
+		.action(async function (this: Command) {
+			const opts = this.opts<{ address: string }>();
+			setExitCode(
+				await runRpcStopCommand(
+					{ address: opts.address },
+					io.writeln,
+					io.writeErr,
+				),
+			);
+		});
+
+	rpc.action((subcommand?: string) => {
+		if (subcommand) {
+			io.writeErr(`unknown rpc subcommand "${subcommand}"`);
+			setExitCode(1);
+		}
+	});
+
+	return rpc;
 }

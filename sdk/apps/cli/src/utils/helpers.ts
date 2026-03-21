@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { type HookEventPayload, parseHookEventPayload } from "@clinebot/agents";
 import { ensureHookLogDir, resolveHookLogPath } from "@clinebot/core";
 import { nanoid } from "nanoid";
+import { commanderToParsedArgs, createProgram } from "../commands/program";
 import type { ParsedArgs } from "./types";
 
 export function sanitizeSessionToken(value: string): string {
@@ -379,178 +380,15 @@ export function parseCliHookPayload(
 }
 
 export function parseArgs(args: string[]): ParsedArgs {
-	const result: ParsedArgs = {
-		verbose: false,
-		interactive: false,
-		showHelp: false,
-		showVersion: false,
-		showUsage: false,
-		showTimings: false,
-		outputMode: "text",
-		mode: "act",
-		yolo: false,
-		sandbox: false,
-		acpMode: false,
-		thinking: false,
-		reasoningEffort: undefined,
-		liveModelCatalog: false,
-		enableSpawnAgent: true,
-		enableAgentTeams: true,
-		enableTools: true,
-		defaultToolAutoApprove: true,
-		toolPolicies: {},
-	};
-
-	const positional: string[] = [];
-	let i = 0;
-
-	while (i < args.length) {
-		const arg = args[i];
-
-		if (arg === "-h" || arg === "--help") {
-			result.showHelp = true;
-		} else if (arg === "-v" || arg === "--verbose") {
-			result.verbose = true;
-		} else if (arg === "-V" || arg === "--version") {
-			result.showVersion = true;
-		} else if (arg === "-a" || arg === "--act") {
-			result.mode = "act";
-		} else if (arg === "-p" || arg === "--plan") {
-			result.mode = "plan";
-		} else if (arg === "-i" || arg === "--interactive") {
-			result.interactive = true;
-		} else if (arg === "-u" || arg === "--usage") {
-			result.showUsage = true;
-		} else if (arg === "--timings") {
-			result.showTimings = true;
-		} else if (arg === "-t" || arg === "--timeout") {
-			const raw = (args[++i] ?? "").trim();
-			const parsed = Number.parseInt(raw, 10);
-			if (raw && Number.isInteger(parsed) && parsed >= 1) {
-				result.timeoutSeconds = parsed;
-			} else if (raw) {
-				result.invalidTimeoutSeconds = raw;
-			}
-		} else if (arg === "--thinking") {
-			result.thinking = true;
-		} else if (arg === "--reasoning-effort" || arg === "--reasoning-effor") {
-			const effort = (args[++i] ?? "").trim().toLowerCase();
-			if (
-				effort === "none" ||
-				effort === "low" ||
-				effort === "medium" ||
-				effort === "high" ||
-				effort === "xhigh"
-			) {
-				result.reasoningEffort = effort;
-			} else if (effort) {
-				result.invalidReasoningEffort = effort;
-			}
-		} else if (arg === "--refresh-models") {
-			result.liveModelCatalog = true;
-		} else if (arg === "--json") {
-			result.outputMode = "json";
-		} else if (arg === "--acp") {
-			result.acpMode = true;
-		} else if (arg === "--sandbox") {
-			result.sandbox = true;
-		} else if (arg === "--sandbox-dir") {
-			result.sandboxDir = args[++i];
-		} else if (arg === "--config") {
-			result.configDir = args[++i];
-		} else if (arg === "--hooks-dir") {
-			result.hooksDir = args[++i];
-		} else if (arg === "--spawn" || arg === "--enable-spawn") {
-			result.enableSpawnAgent = true;
-		} else if (arg === "--no-spawn") {
-			result.enableSpawnAgent = false;
-		} else if (arg === "--teams") {
-			result.enableAgentTeams = true;
-		} else if (arg === "--no-teams") {
-			result.enableAgentTeams = false;
-		} else if (arg === "--tools") {
-			result.enableTools = true;
-		} else if (arg === "--no-tools") {
-			result.enableTools = false;
-		} else if (arg === "--auto-approve-all") {
-			result.defaultToolAutoApprove = true;
-		} else if (arg === "--yolo") {
-			result.yolo = true;
-			result.defaultToolAutoApprove = true;
-		} else if (arg === "--require-tool-approval") {
-			result.defaultToolAutoApprove = false;
-		} else if (arg === "--tool-enable") {
-			const name = (args[++i] ?? "").trim();
-			if (name) {
-				result.toolPolicies[name] = {
-					...(result.toolPolicies[name] ?? {}),
-					enabled: true,
-				};
-			}
-		} else if (arg === "--tool-disable") {
-			const name = (args[++i] ?? "").trim();
-			if (name) {
-				result.toolPolicies[name] = {
-					...(result.toolPolicies[name] ?? {}),
-					enabled: false,
-				};
-			}
-		} else if (arg === "--tool-autoapprove") {
-			const name = (args[++i] ?? "").trim();
-			if (name) {
-				result.toolPolicies[name] = {
-					...(result.toolPolicies[name] ?? {}),
-					autoApprove: true,
-				};
-			}
-		} else if (arg === "--tool-require-approval") {
-			const name = (args[++i] ?? "").trim();
-			if (name) {
-				result.toolPolicies[name] = {
-					...(result.toolPolicies[name] ?? {}),
-					autoApprove: false,
-				};
-			}
-		} else if (arg === "-c" || arg === "--cwd") {
-			result.cwd = args[++i];
-		} else if (arg === "--team-name") {
-			result.teamName = args[++i];
-		} else if (arg === "--mission-step-interval") {
-			result.missionLogIntervalSteps = Number.parseInt(args[++i], 10);
-		} else if (arg === "--mission-time-interval-ms") {
-			result.missionLogIntervalMs = Number.parseInt(args[++i], 10);
-		} else if (arg === "-s" || arg === "--system") {
-			result.systemPrompt = args[++i];
-		} else if (arg === "-m" || arg === "--model") {
-			result.model = args[++i];
-		} else if (arg === "-P" || arg === "--provider") {
-			result.provider = args[++i];
-		} else if (arg === "-k" || arg === "--key") {
-			result.key = args[++i];
-		} else if (arg === "-T" || arg === "--taskId") {
-			result.taskId = args[++i] ?? "";
-		} else if (arg === "-n" || arg === "--max-iterations") {
-			result.maxIterations = Number.parseInt(args[++i], 10);
-		} else if (arg === "--max-consecutive-mistakes") {
-			const raw = (args[++i] ?? "").trim();
-			const parsed = Number.parseInt(raw, 10);
-			if (raw && Number.isInteger(parsed) && parsed >= 1) {
-				result.maxConsecutiveMistakes = parsed;
-			} else if (raw) {
-				result.invalidMaxConsecutiveMistakes = raw;
-			}
-		} else if (!arg.startsWith("-")) {
-			positional.push(arg);
-		}
-
-		i++;
+	const program = createProgram();
+	try {
+		program.parse(args, { from: "user" });
+	} catch (_: unknown) {
+		// exitOverride throws CommanderError on --help / --version; commander
+		// handles output directly, and we treat the thrown error as a signal
+		// to exit gracefully in the caller.
 	}
-
-	if (positional.length > 0) {
-		result.prompt = positional.join(" ");
-	}
-
-	return result;
+	return commanderToParsedArgs(program);
 }
 
 export function resolveSandboxDataDir(

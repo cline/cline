@@ -1,32 +1,11 @@
 import { readFile } from "node:fs/promises";
 import { getRpcServerHealth, RpcSessionClient } from "@clinebot/rpc";
+import { Command } from "commander";
 import { runRpcEnsureCommand } from "./rpc";
 
 interface CommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
-}
-
-function resolveRpcAddress(rawArgs: string[]): string {
-	const addressIndex = rawArgs.indexOf("--address");
-	const address =
-		(addressIndex >= 0 && addressIndex + 1 < rawArgs.length
-			? rawArgs[addressIndex + 1]
-			: process.env.CLINE_RPC_ADDRESS) || "127.0.0.1:4317";
-	return address.trim();
-}
-
-function hasFlag(rawArgs: string[], flag: string): boolean {
-	return rawArgs.includes(flag);
-}
-
-function getFlagValue(rawArgs: string[], flag: string): string | undefined {
-	const index = rawArgs.indexOf(flag);
-	if (index < 0 || index + 1 >= rawArgs.length) {
-		return undefined;
-	}
-	const value = rawArgs[index + 1]?.trim();
-	return value ? value : undefined;
 }
 
 function parseList(raw: string | undefined): string[] | undefined {
@@ -55,12 +34,17 @@ function parseJsonObjectFlag(
 
 function mergeScheduleDeliveryMetadata(
 	base: Record<string, unknown> | undefined,
-	rawArgs: string[],
+	delivery: {
+		deliveryAdapter?: string;
+		deliveryThread?: string;
+		deliveryChannel?: string;
+		deliveryBot?: string;
+	},
 ): Record<string, unknown> | undefined {
-	const adapter = getFlagValue(rawArgs, "--delivery-adapter")?.trim();
-	const threadId = getFlagValue(rawArgs, "--delivery-thread")?.trim();
-	const channelId = getFlagValue(rawArgs, "--delivery-channel")?.trim();
-	const botUserName = getFlagValue(rawArgs, "--delivery-bot")?.trim();
+	const adapter = delivery.deliveryAdapter?.trim();
+	const threadId = delivery.deliveryThread?.trim();
+	const channelId = delivery.deliveryChannel?.trim();
+	const botUserName = delivery.deliveryBot?.trim();
 	if (!adapter && !threadId && !channelId && !botUserName) {
 		return base;
 	}
@@ -83,12 +67,17 @@ function mergeScheduleDeliveryMetadata(
 
 function mergeScheduleAutonomousMetadata(
 	base: Record<string, unknown> | undefined,
-	rawArgs: string[],
+	autonomous: {
+		autonomous?: true;
+		noAutonomous?: true;
+		idleTimeout?: string;
+		pollInterval?: string;
+	},
 ): Record<string, unknown> | undefined {
-	const autonomousEnabled = hasFlag(rawArgs, "--autonomous");
-	const autonomousDisabled = hasFlag(rawArgs, "--no-autonomous");
-	const idleTimeoutSeconds = getFlagValue(rawArgs, "--idle-timeout");
-	const pollIntervalSeconds = getFlagValue(rawArgs, "--poll-interval");
+	const autonomousEnabled = !!autonomous.autonomous;
+	const autonomousDisabled = !!autonomous.noAutonomous;
+	const idleTimeoutSeconds = autonomous.idleTimeout;
+	const pollIntervalSeconds = autonomous.pollInterval;
 	if (
 		!autonomousEnabled &&
 		!autonomousDisabled &&
@@ -118,27 +107,36 @@ function mergeScheduleAutonomousMetadata(
 	return next;
 }
 
-function hasMetadataPatchFlags(rawArgs: string[]): boolean {
+function hasMetadataPatchOpts(opts: Record<string, unknown>): boolean {
 	return (
-		!!getFlagValue(rawArgs, "--metadata-json") ||
-		!!getFlagValue(rawArgs, "--delivery-adapter") ||
-		!!getFlagValue(rawArgs, "--delivery-thread") ||
-		!!getFlagValue(rawArgs, "--delivery-channel") ||
-		!!getFlagValue(rawArgs, "--delivery-bot") ||
-		hasFlag(rawArgs, "--autonomous") ||
-		hasFlag(rawArgs, "--no-autonomous") ||
-		!!getFlagValue(rawArgs, "--idle-timeout") ||
-		!!getFlagValue(rawArgs, "--poll-interval")
+		!!opts.metadataJson ||
+		!!opts.deliveryAdapter ||
+		!!opts.deliveryThread ||
+		!!opts.deliveryChannel ||
+		!!opts.deliveryBot ||
+		!!opts.autonomous ||
+		!!opts.noAutonomous ||
+		!!opts.idleTimeout ||
+		!!opts.pollInterval
 	);
 }
 
 function mergeScheduleMetadata(
 	base: Record<string, unknown> | undefined,
-	rawArgs: string[],
+	opts: {
+		deliveryAdapter?: string;
+		deliveryThread?: string;
+		deliveryChannel?: string;
+		deliveryBot?: string;
+		autonomous?: true;
+		noAutonomous?: true;
+		idleTimeout?: string;
+		pollInterval?: string;
+	},
 ): Record<string, unknown> | undefined {
 	return mergeScheduleAutonomousMetadata(
-		mergeScheduleDeliveryMetadata(base, rawArgs),
-		rawArgs,
+		mergeScheduleDeliveryMetadata(base, opts),
+		opts,
 	);
 }
 
@@ -163,7 +161,7 @@ async function ensureSchedulerRpc(
 	}
 	let ensuredAddress = address;
 	const code = await runRpcEnsureCommand(
-		["rpc", "ensure", "--address", address, "--json"],
+		{ address, json: true },
 		(text) => {
 			if (!text) {
 				return;
@@ -185,12 +183,8 @@ async function ensureSchedulerRpc(
 	return { ok: true, address: ensuredAddress };
 }
 
-function emitJsonOrText(
-	rawArgs: string[],
-	io: CommandIo,
-	value: unknown,
-): void {
-	if (hasFlag(rawArgs, "--json")) {
+function emitJsonOrText(json: boolean, io: CommandIo, value: unknown): void {
+	if (json) {
 		io.writeln(JSON.stringify(value));
 		return;
 	}
@@ -209,385 +203,671 @@ function toPositiveInt(value: string | undefined, fallback: number): number {
 	return parsed;
 }
 
-export async function runScheduleCommand(
-	rawArgs: string[],
+function resolveAddress(address: string | undefined): string {
+	return (address ?? process.env.CLINE_RPC_ADDRESS ?? "127.0.0.1:4317").trim();
+}
+
+function addSharedOptions(cmd: Command): Command {
+	return cmd
+		.option("--address <host:port>", "RPC server address")
+		.option("--json", "Output as JSON");
+}
+
+function addDeliveryOptions(cmd: Command): Command {
+	return cmd
+		.option("--delivery-adapter <name>", "Delivery adapter name")
+		.option("--delivery-bot <name>", "Delivery bot user name")
+		.option("--delivery-channel <id>", "Delivery channel ID")
+		.option("--delivery-thread <id>", "Delivery thread ID");
+}
+
+function addAutonomousOptions(cmd: Command): Command {
+	return cmd
+		.option("--autonomous", "Enable autonomous mode")
+		.option("--no-autonomous", "Disable autonomous mode")
+		.option("--idle-timeout <seconds>", "Autonomous idle timeout in seconds")
+		.option("--poll-interval <seconds>", "Autonomous poll interval in seconds");
+}
+
+export function createScheduleCommand(
 	io: CommandIo,
-): Promise<number> {
-	let client: RpcSessionClient | undefined;
-	try {
-		const subcommand = rawArgs[1]?.trim().toLowerCase();
-		if (!subcommand) {
-			io.writeErr("missing schedule subcommand");
-			return 1;
-		}
+	setExitCode: (code: number) => void,
+): Command {
+	let actionExitCode = 0;
+	const fail = () => {
+		actionExitCode = 1;
+	};
 
-		const requestedAddress = resolveRpcAddress(rawArgs);
-		const ensured = await ensureSchedulerRpc(requestedAddress, io);
-		if (!ensured.ok) {
-			io.writeErr(`failed to ensure rpc server at ${requestedAddress}`);
-			return 1;
-		}
-
-		client = new RpcSessionClient({ address: ensured.address });
-		if (subcommand === "create") {
-			const name = rawArgs[2]?.trim() || "";
-			const cronPattern = getFlagValue(rawArgs, "--cron") ?? "";
-			const prompt = getFlagValue(rawArgs, "--prompt") ?? "";
-			const provider = getFlagValue(rawArgs, "--provider") ?? "cline";
-			const model = getFlagValue(rawArgs, "--model") ?? "openai/gpt-5.3-codex";
-			const workspaceRoot = getFlagValue(rawArgs, "--workspace");
-			if (!name || !cronPattern || !prompt || !workspaceRoot) {
-				io.writeErr(
-					"schedule create requires: <name> --cron <pattern> --prompt <text> --workspace <path>",
-				);
-				return 1;
+	/** Wrap an async action with error handling. */
+	function action<T extends unknown[]>(
+		fn: (...args: T) => Promise<void>,
+	): (...args: T) => Promise<void> {
+		return async (...args: T) => {
+			try {
+				await fn(...args);
+			} catch (error) {
+				io.writeErr(error instanceof Error ? error.message : String(error));
+				fail();
 			}
-			const metadata = mergeScheduleMetadata(
-				parseJsonObjectFlag(getFlagValue(rawArgs, "--metadata-json")),
-				rawArgs,
-			);
-			const created = await client.createSchedule({
-				name,
-				cronPattern,
-				prompt,
-				provider,
-				model,
-				mode: getFlagValue(rawArgs, "--mode") === "plan" ? "plan" : "act",
-				workspaceRoot,
-				cwd: getFlagValue(rawArgs, "--cwd"),
-				systemPrompt: getFlagValue(rawArgs, "--system-prompt"),
-				maxIterations: getFlagValue(rawArgs, "--max-iterations")
-					? toPositiveInt(getFlagValue(rawArgs, "--max-iterations"), 1)
-					: undefined,
-				timeoutSeconds: getFlagValue(rawArgs, "--timeout")
-					? toPositiveInt(getFlagValue(rawArgs, "--timeout"), 1)
-					: undefined,
-				maxParallel: toPositiveInt(getFlagValue(rawArgs, "--max-parallel"), 1),
-				enabled: !hasFlag(rawArgs, "--disabled"),
-				createdBy: getFlagValue(rawArgs, "--created-by"),
-				tags: parseList(getFlagValue(rawArgs, "--tags")),
-				metadata,
-			});
-			if (!created) {
-				io.writeErr("failed to create schedule");
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, created);
-			return 0;
-		}
-
-		if (subcommand === "list") {
-			const enabled = hasFlag(rawArgs, "--enabled")
-				? true
-				: hasFlag(rawArgs, "--disabled")
-					? false
-					: undefined;
-			const schedules = await client.listSchedules({
-				limit: toPositiveInt(getFlagValue(rawArgs, "--limit"), 100),
-				enabled,
-				tags: parseList(getFlagValue(rawArgs, "--tags")),
-			});
-			if (
-				!hasFlag(rawArgs, "--json") &&
-				Array.isArray(schedules) &&
-				schedules.length === 0
-			) {
-				io.writeln("No schedules found.");
-				return 0;
-			}
-			emitJsonOrText(rawArgs, io, schedules);
-			return 0;
-		}
-
-		if (subcommand === "get") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule get requires <schedule-id>");
-				return 1;
-			}
-			const schedule = await client.getSchedule(scheduleId);
-			if (!schedule) {
-				io.writeErr(`schedule not found: ${scheduleId}`);
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, schedule);
-			return 0;
-		}
-
-		if (subcommand === "export") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule export requires <schedule-id>");
-				return 1;
-			}
-			const schedule = await client.getSchedule(scheduleId);
-			if (!schedule) {
-				io.writeErr(`schedule not found: ${scheduleId}`);
-				return 1;
-			}
-			const outputPath = getFlagValue(rawArgs, "--to");
-			if (
-				hasFlag(rawArgs, "--json") ||
-				(outputPath && isJsonPath(outputPath))
-			) {
-				io.writeln(JSON.stringify(schedule, null, 2));
-				return 0;
-			}
-			const yaml = await import("yaml");
-			io.writeln(yaml.stringify(schedule));
-			return 0;
-		}
-
-		if (subcommand === "import") {
-			const sourcePath = rawArgs[2]?.trim() || "";
-			if (!sourcePath) {
-				io.writeErr("schedule import requires <path>");
-				return 1;
-			}
-			const sourceRaw = await readFile(sourcePath, "utf8");
-			let parsed: Record<string, unknown>;
-			if (isJsonPath(sourcePath)) {
-				parsed = JSON.parse(sourceRaw) as Record<string, unknown>;
-			} else {
-				const yaml = await import("yaml");
-				parsed = yaml.parse(sourceRaw) as Record<string, unknown>;
-			}
-			const workspaceRoot = String(
-				parsed.workspaceRoot ?? parsed.workspace_root ?? "",
-			).trim();
-			if (!workspaceRoot) {
-				io.writeErr(
-					"schedule import requires workspaceRoot/workspace_root in the source file",
-				);
-				return 1;
-			}
-			const created = await client.createSchedule({
-				name: String(parsed.name ?? "").trim(),
-				cronPattern: String(parsed.cronPattern ?? parsed.cron ?? "").trim(),
-				prompt: String(parsed.prompt ?? "").trim(),
-				provider: String(parsed.provider ?? "cline").trim(),
-				model: String(parsed.model ?? "openai/gpt-5.3-codex").trim(),
-				mode: parsed.mode === "plan" ? "plan" : "act",
-				workspaceRoot,
-				cwd: String(parsed.cwd ?? "").trim() || undefined,
-				systemPrompt:
-					String(parsed.systemPrompt ?? parsed.system_prompt ?? "").trim() ||
-					undefined,
-				maxIterations:
-					typeof parsed.maxIterations === "number"
-						? parsed.maxIterations
-						: typeof parsed.max_iterations === "number"
-							? parsed.max_iterations
-							: undefined,
-				timeoutSeconds:
-					typeof parsed.timeoutSeconds === "number"
-						? parsed.timeoutSeconds
-						: typeof parsed.timeout_seconds === "number"
-							? parsed.timeout_seconds
-							: undefined,
-				maxParallel:
-					typeof parsed.maxParallel === "number"
-						? parsed.maxParallel
-						: typeof parsed.max_parallel === "number"
-							? parsed.max_parallel
-							: 1,
-				enabled: parsed.enabled !== false,
-				createdBy:
-					String(parsed.createdBy ?? parsed.created_by ?? "").trim() ||
-					undefined,
-				tags: Array.isArray(parsed.tags)
-					? parsed.tags
-							.map((item) => (typeof item === "string" ? item.trim() : ""))
-							.filter((item) => item.length > 0)
-					: undefined,
-				metadata: mergeScheduleMetadata(
-					parsed.metadata && typeof parsed.metadata === "object"
-						? (parsed.metadata as Record<string, unknown>)
-						: undefined,
-					rawArgs,
-				),
-			});
-			if (!created) {
-				io.writeErr("failed to import schedule");
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, created);
-			return 0;
-		}
-
-		if (subcommand === "update") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule update requires <schedule-id>");
-				return 1;
-			}
-			if (hasFlag(rawArgs, "--pause")) {
-				const schedule = await client.pauseSchedule(scheduleId);
-				emitJsonOrText(rawArgs, io, schedule ?? { updated: false });
-				return schedule ? 0 : 1;
-			}
-			if (hasFlag(rawArgs, "--resume")) {
-				const schedule = await client.resumeSchedule(scheduleId);
-				emitJsonOrText(rawArgs, io, schedule ?? { updated: false });
-				return schedule ? 0 : 1;
-			}
-			let metadata: Record<string, unknown> | undefined;
-			if (hasMetadataPatchFlags(rawArgs)) {
-				const current = await client.getSchedule(scheduleId);
-				if (!current) {
-					io.writeErr(`schedule not found: ${scheduleId}`);
-					return 1;
-				}
-				const metadataBase = {
-					...((current.metadata as Record<string, unknown> | undefined) ?? {}),
-					...(parseJsonObjectFlag(getFlagValue(rawArgs, "--metadata-json")) ??
-						{}),
-				};
-				metadata = mergeScheduleMetadata(metadataBase, rawArgs);
-			}
-			const updated = await client.updateSchedule(scheduleId, {
-				name: getFlagValue(rawArgs, "--name"),
-				cronPattern: getFlagValue(rawArgs, "--cron"),
-				prompt: getFlagValue(rawArgs, "--prompt"),
-				provider: getFlagValue(rawArgs, "--provider"),
-				model: getFlagValue(rawArgs, "--model"),
-				mode: parseMode(getFlagValue(rawArgs, "--mode")),
-				workspaceRoot: getFlagValue(rawArgs, "--workspace"),
-				cwd: getFlagValue(rawArgs, "--cwd"),
-				systemPrompt: getFlagValue(rawArgs, "--system-prompt"),
-				maxIterations: getFlagValue(rawArgs, "--max-iterations")
-					? toPositiveInt(getFlagValue(rawArgs, "--max-iterations"), 1)
-					: hasFlag(rawArgs, "--clear-max-iterations")
-						? null
-						: undefined,
-				timeoutSeconds: getFlagValue(rawArgs, "--timeout")
-					? toPositiveInt(getFlagValue(rawArgs, "--timeout"), 1)
-					: hasFlag(rawArgs, "--clear-timeout")
-						? null
-						: undefined,
-				maxParallel: getFlagValue(rawArgs, "--max-parallel")
-					? toPositiveInt(getFlagValue(rawArgs, "--max-parallel"), 1)
-					: undefined,
-				enabled: hasFlag(rawArgs, "--enabled")
-					? true
-					: hasFlag(rawArgs, "--disabled")
-						? false
-						: undefined,
-				tags: getFlagValue(rawArgs, "--tags")
-					? parseList(getFlagValue(rawArgs, "--tags"))
-					: undefined,
-				metadata,
-			});
-			if (!updated) {
-				io.writeErr(`schedule not found: ${scheduleId}`);
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, updated);
-			return 0;
-		}
-
-		if (subcommand === "delete") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule delete requires <schedule-id>");
-				return 1;
-			}
-			const deleted = await client.deleteSchedule(scheduleId);
-			emitJsonOrText(rawArgs, io, { deleted });
-			return deleted ? 0 : 1;
-		}
-
-		if (subcommand === "pause") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule pause requires <schedule-id>");
-				return 1;
-			}
-			const schedule = await client.pauseSchedule(scheduleId);
-			if (!schedule) {
-				io.writeErr(`schedule not found: ${scheduleId}`);
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, schedule);
-			return 0;
-		}
-
-		if (subcommand === "resume") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule resume requires <schedule-id>");
-				return 1;
-			}
-			const schedule = await client.resumeSchedule(scheduleId);
-			if (!schedule) {
-				io.writeErr(`schedule not found: ${scheduleId}`);
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, schedule);
-			return 0;
-		}
-
-		if (subcommand === "trigger") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule trigger requires <schedule-id>");
-				return 1;
-			}
-			const execution = await client.triggerScheduleNow(scheduleId);
-			if (!execution) {
-				io.writeErr(`schedule not found: ${scheduleId}`);
-				return 1;
-			}
-			emitJsonOrText(rawArgs, io, execution);
-			return 0;
-		}
-
-		if (subcommand === "history") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule history requires <schedule-id>");
-				return 1;
-			}
-			const executions = await client.listScheduleExecutions({
-				scheduleId,
-				status: getFlagValue(rawArgs, "--status"),
-				limit: toPositiveInt(getFlagValue(rawArgs, "--limit"), 20),
-			});
-			emitJsonOrText(rawArgs, io, executions);
-			return 0;
-		}
-
-		if (subcommand === "stats") {
-			const scheduleId = rawArgs[2]?.trim() || "";
-			if (!scheduleId) {
-				io.writeErr("schedule stats requires <schedule-id>");
-				return 1;
-			}
-			const stats = await client.getScheduleStats(scheduleId);
-			emitJsonOrText(rawArgs, io, stats);
-			return 0;
-		}
-
-		if (subcommand === "active") {
-			const active = await client.getActiveScheduledExecutions();
-			emitJsonOrText(rawArgs, io, active);
-			return 0;
-		}
-
-		if (subcommand === "upcoming") {
-			const runs = await client.getUpcomingScheduledRuns(
-				toPositiveInt(getFlagValue(rawArgs, "--limit"), 20),
-			);
-			emitJsonOrText(rawArgs, io, runs);
-			return 0;
-		}
-
-		io.writeErr(`unknown schedule subcommand "${subcommand}"`);
-		return 1;
-	} catch (error) {
-		io.writeErr(error instanceof Error ? error.message : String(error));
-		return 1;
-	} finally {
-		client?.close();
+		};
 	}
+
+	const schedule = new Command("schedule")
+		.description("Create and manage scheduled runs")
+		.exitOverride()
+		.hook("postAction", () => {
+			setExitCode(actionExitCode);
+		});
+
+	// --- schedule active ---
+	const activeCmd = schedule
+		.command("active")
+		.description("Show currently active executions");
+	addSharedOptions(activeCmd);
+	activeCmd.action(
+		action(async () => {
+			const opts = activeCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const active = await client.getActiveScheduledExecutions();
+				emitJsonOrText(!!opts.json, io, active);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule create ---
+	const createCmd = schedule
+		.command("create")
+		.description("Create a new schedule")
+		.argument("<name>", "Schedule name")
+		.requiredOption("--cron <pattern>", "Cron pattern")
+		.requiredOption("--prompt <text>", "Task prompt")
+		.requiredOption("--workspace <path>", "Workspace root path")
+		.option("--created-by <name>", "Creator name")
+		.option("--cwd <path>", "Working directory")
+		.option("--disabled", "Create in disabled state")
+		.option("--max-iterations <n>", "Maximum iterations")
+		.option("--max-parallel <n>", "Max parallel executions", "1")
+		.option("--metadata-json <json>", "Metadata as JSON object")
+		.option("--mode <act|plan>", "Execution mode")
+		.option("--model <model>", "Model to use", "openai/gpt-5.3-codex")
+		.option("--provider <id>", "Provider ID", "cline")
+		.option("--system-prompt <text>", "System prompt override")
+		.option("--tags <list>", "Comma-separated tags")
+		.option("--timeout <seconds>", "Timeout in seconds");
+	addDeliveryOptions(createCmd);
+	addAutonomousOptions(createCmd);
+	addSharedOptions(createCmd);
+	createCmd.action(
+		action(async (name: string) => {
+			const opts = createCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const metadata = mergeScheduleMetadata(
+					parseJsonObjectFlag(opts.metadataJson),
+					opts,
+				);
+				const created = await client.createSchedule({
+					name,
+					cronPattern: opts.cron,
+					prompt: opts.prompt,
+					provider: opts.provider,
+					model: opts.model,
+					mode: opts.mode === "plan" ? "plan" : "act",
+					workspaceRoot: opts.workspace,
+					cwd: opts.cwd,
+					systemPrompt: opts.systemPrompt,
+					maxIterations: opts.maxIterations
+						? toPositiveInt(opts.maxIterations, 1)
+						: undefined,
+					timeoutSeconds: opts.timeout
+						? toPositiveInt(opts.timeout, 1)
+						: undefined,
+					maxParallel: toPositiveInt(opts.maxParallel, 1),
+					enabled: !opts.disabled,
+					createdBy: opts.createdBy,
+					tags: parseList(opts.tags),
+					metadata,
+				});
+				if (!created) {
+					io.writeErr("failed to create schedule");
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, created);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule delete ---
+	const deleteCmd = schedule
+		.command("delete")
+		.description("Delete a schedule")
+		.argument("<schedule-id>", "Schedule ID");
+	addSharedOptions(deleteCmd);
+	deleteCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = deleteCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const deleted = await client.deleteSchedule(scheduleId);
+				emitJsonOrText(!!opts.json, io, { deleted });
+				if (!deleted) fail();
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule export ---
+	const exportCmd = schedule
+		.command("export")
+		.description("Export a schedule")
+		.argument("<schedule-id>", "Schedule ID")
+		.option("--to <path>", "Output file path");
+	addSharedOptions(exportCmd);
+	exportCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = exportCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const result = await client.getSchedule(scheduleId);
+				if (!result) {
+					io.writeErr(`schedule not found: ${scheduleId}`);
+					fail();
+					return;
+				}
+				if (opts.json || (opts.to && isJsonPath(opts.to))) {
+					io.writeln(JSON.stringify(result, null, 2));
+					return;
+				}
+				const yaml = await import("yaml");
+				io.writeln(yaml.stringify(result));
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule get ---
+	const getCmd = schedule
+		.command("get")
+		.description("Get a schedule by ID")
+		.argument("<schedule-id>", "Schedule ID");
+	addSharedOptions(getCmd);
+	getCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = getCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const result = await client.getSchedule(scheduleId);
+				if (!result) {
+					io.writeErr(`schedule not found: ${scheduleId}`);
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, result);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule history ---
+	const historyCmd = schedule
+		.command("history")
+		.description("Show execution history for a schedule")
+		.argument("<schedule-id>", "Schedule ID")
+		.option("--limit <n>", "Maximum number of results", "20")
+		.option("--status <status>", "Filter by execution status");
+	addSharedOptions(historyCmd);
+	historyCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = historyCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const executions = await client.listScheduleExecutions({
+					scheduleId,
+					status: opts.status,
+					limit: toPositiveInt(opts.limit, 20),
+				});
+				emitJsonOrText(!!opts.json, io, executions);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule import ---
+	const importCmd = schedule
+		.command("import")
+		.description("Import a schedule from file")
+		.argument("<path>", "Source file path");
+	addSharedOptions(importCmd);
+	importCmd.action(
+		action(async (sourcePath: string) => {
+			const opts = importCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const sourceRaw = await readFile(sourcePath, "utf8");
+				let parsed: Record<string, unknown>;
+				if (isJsonPath(sourcePath)) {
+					parsed = JSON.parse(sourceRaw) as Record<string, unknown>;
+				} else {
+					const yaml = await import("yaml");
+					parsed = yaml.parse(sourceRaw) as Record<string, unknown>;
+				}
+				const workspaceRoot = String(
+					parsed.workspaceRoot ?? parsed.workspace_root ?? "",
+				).trim();
+				if (!workspaceRoot) {
+					io.writeErr(
+						"schedule import requires workspaceRoot/workspace_root in the source file",
+					);
+					fail();
+					return;
+				}
+				const created = await client.createSchedule({
+					name: String(parsed.name ?? "").trim(),
+					cronPattern: String(parsed.cronPattern ?? parsed.cron ?? "").trim(),
+					prompt: String(parsed.prompt ?? "").trim(),
+					provider: String(parsed.provider ?? "cline").trim(),
+					model: String(parsed.model ?? "openai/gpt-5.3-codex").trim(),
+					mode: parsed.mode === "plan" ? "plan" : "act",
+					workspaceRoot,
+					cwd: String(parsed.cwd ?? "").trim() || undefined,
+					systemPrompt:
+						String(parsed.systemPrompt ?? parsed.system_prompt ?? "").trim() ||
+						undefined,
+					maxIterations:
+						typeof parsed.maxIterations === "number"
+							? parsed.maxIterations
+							: typeof parsed.max_iterations === "number"
+								? parsed.max_iterations
+								: undefined,
+					timeoutSeconds:
+						typeof parsed.timeoutSeconds === "number"
+							? parsed.timeoutSeconds
+							: typeof parsed.timeout_seconds === "number"
+								? parsed.timeout_seconds
+								: undefined,
+					maxParallel:
+						typeof parsed.maxParallel === "number"
+							? parsed.maxParallel
+							: typeof parsed.max_parallel === "number"
+								? parsed.max_parallel
+								: 1,
+					enabled: parsed.enabled !== false,
+					createdBy:
+						String(parsed.createdBy ?? parsed.created_by ?? "").trim() ||
+						undefined,
+					tags: Array.isArray(parsed.tags)
+						? parsed.tags
+								.map((item) => (typeof item === "string" ? item.trim() : ""))
+								.filter((item) => item.length > 0)
+						: undefined,
+					metadata: mergeScheduleMetadata(
+						parsed.metadata && typeof parsed.metadata === "object"
+							? (parsed.metadata as Record<string, unknown>)
+							: undefined,
+						opts,
+					),
+				});
+				if (!created) {
+					io.writeErr("failed to import schedule");
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, created);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule list ---
+	const listCmd = schedule
+		.command("list")
+		.description("List schedules")
+		.option("--disabled", "Show only disabled schedules")
+		.option("--enabled", "Show only enabled schedules")
+		.option("--limit <n>", "Maximum number of results", "100")
+		.option("--tags <list>", "Filter by comma-separated tags");
+	addSharedOptions(listCmd);
+	listCmd.action(
+		action(async () => {
+			const opts = listCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const enabled = opts.enabled ? true : opts.disabled ? false : undefined;
+				const schedules = await client.listSchedules({
+					limit: toPositiveInt(opts.limit, 100),
+					enabled,
+					tags: parseList(opts.tags),
+				});
+				if (!opts.json && Array.isArray(schedules) && schedules.length === 0) {
+					io.writeln("No schedules found.");
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, schedules);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule pause ---
+	const pauseCmd = schedule
+		.command("pause")
+		.description("Pause a schedule")
+		.argument("<schedule-id>", "Schedule ID");
+	addSharedOptions(pauseCmd);
+	pauseCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = pauseCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const result = await client.pauseSchedule(scheduleId);
+				if (!result) {
+					io.writeErr(`schedule not found: ${scheduleId}`);
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, result);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule resume ---
+	const resumeCmd = schedule
+		.command("resume")
+		.description("Resume a schedule")
+		.argument("<schedule-id>", "Schedule ID");
+	addSharedOptions(resumeCmd);
+	resumeCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = resumeCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const result = await client.resumeSchedule(scheduleId);
+				if (!result) {
+					io.writeErr(`schedule not found: ${scheduleId}`);
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, result);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule stats ---
+	const statsCmd = schedule
+		.command("stats")
+		.description("Show statistics for a schedule")
+		.argument("<schedule-id>", "Schedule ID");
+	addSharedOptions(statsCmd);
+	statsCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = statsCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const stats = await client.getScheduleStats(scheduleId);
+				emitJsonOrText(!!opts.json, io, stats);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule trigger ---
+	const triggerCmd = schedule
+		.command("trigger")
+		.description("Trigger a schedule immediately")
+		.argument("<schedule-id>", "Schedule ID");
+	addSharedOptions(triggerCmd);
+	triggerCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = triggerCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const execution = await client.triggerScheduleNow(scheduleId);
+				if (!execution) {
+					io.writeErr(`schedule not found: ${scheduleId}`);
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, execution);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule upcoming ---
+	const upcomingCmd = schedule
+		.command("upcoming")
+		.description("Show upcoming scheduled runs")
+		.option("--limit <n>", "Maximum number of results", "20");
+	addSharedOptions(upcomingCmd);
+	upcomingCmd.action(
+		action(async () => {
+			const opts = upcomingCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				const runs = await client.getUpcomingScheduledRuns(
+					toPositiveInt(opts.limit, 20),
+				);
+				emitJsonOrText(!!opts.json, io, runs);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	// --- schedule update ---
+	const updateCmd = schedule
+		.command("update")
+		.description("Update a schedule")
+		.argument("<schedule-id>", "Schedule ID")
+		.option("--clear-max-iterations", "Clear max iterations")
+		.option("--clear-timeout", "Clear timeout")
+		.option("--cron <pattern>", "New cron pattern")
+		.option("--cwd <path>", "New working directory")
+		.option("--disabled", "Disable the schedule")
+		.option("--enabled", "Enable the schedule")
+		.option("--max-iterations <n>", "New max iterations")
+		.option("--max-parallel <n>", "New max parallel executions")
+		.option("--metadata-json <json>", "New metadata as JSON object")
+		.option("--mode <act|plan>", "New execution mode")
+		.option("--model <model>", "New model")
+		.option("--name <name>", "New name")
+		.option("--pause", "Pause the schedule")
+		.option("--prompt <text>", "New prompt")
+		.option("--provider <id>", "New provider ID")
+		.option("--resume", "Resume the schedule")
+		.option("--system-prompt <text>", "New system prompt")
+		.option("--tags <list>", "New comma-separated tags")
+		.option("--timeout <n>", "New timeout in seconds")
+		.option("--workspace <path>", "New workspace root");
+	addDeliveryOptions(updateCmd);
+	addAutonomousOptions(updateCmd);
+	addSharedOptions(updateCmd);
+	updateCmd.action(
+		action(async (scheduleId: string) => {
+			const opts = updateCmd.opts();
+			const address = resolveAddress(opts.address);
+			const ensured = await ensureSchedulerRpc(address, io);
+			if (!ensured.ok) {
+				io.writeErr(`failed to ensure rpc server at ${address}`);
+				fail();
+				return;
+			}
+			const client = new RpcSessionClient({ address: ensured.address });
+			try {
+				if (opts.pause) {
+					const result = await client.pauseSchedule(scheduleId);
+					emitJsonOrText(!!opts.json, io, result ?? { updated: false });
+					if (!result) fail();
+					return;
+				}
+				if (opts.resume) {
+					const result = await client.resumeSchedule(scheduleId);
+					emitJsonOrText(!!opts.json, io, result ?? { updated: false });
+					if (!result) fail();
+					return;
+				}
+				let metadata: Record<string, unknown> | undefined;
+				if (hasMetadataPatchOpts(opts)) {
+					const current = await client.getSchedule(scheduleId);
+					if (!current) {
+						io.writeErr(`schedule not found: ${scheduleId}`);
+						fail();
+						return;
+					}
+					const metadataBase = {
+						...((current.metadata as Record<string, unknown> | undefined) ??
+							{}),
+						...(parseJsonObjectFlag(opts.metadataJson) ?? {}),
+					};
+					metadata = mergeScheduleMetadata(metadataBase, opts);
+				}
+				const updated = await client.updateSchedule(scheduleId, {
+					name: opts.name,
+					cronPattern: opts.cron,
+					prompt: opts.prompt,
+					provider: opts.provider,
+					model: opts.model,
+					mode: parseMode(opts.mode),
+					workspaceRoot: opts.workspace,
+					cwd: opts.cwd,
+					systemPrompt: opts.systemPrompt,
+					maxIterations: opts.maxIterations
+						? toPositiveInt(opts.maxIterations, 1)
+						: opts.clearMaxIterations
+							? null
+							: undefined,
+					timeoutSeconds: opts.timeout
+						? toPositiveInt(opts.timeout, 1)
+						: opts.clearTimeout
+							? null
+							: undefined,
+					maxParallel: opts.maxParallel
+						? toPositiveInt(opts.maxParallel, 1)
+						: undefined,
+					enabled: opts.enabled ? true : opts.disabled ? false : undefined,
+					tags: opts.tags ? parseList(opts.tags) : undefined,
+					metadata,
+				});
+				if (!updated) {
+					io.writeErr(`schedule not found: ${scheduleId}`);
+					fail();
+					return;
+				}
+				emitJsonOrText(!!opts.json, io, updated);
+			} finally {
+				client.close();
+			}
+		}),
+	);
+
+	return schedule;
 }

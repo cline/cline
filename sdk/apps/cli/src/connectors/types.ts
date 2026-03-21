@@ -11,7 +11,7 @@ export type ConnectStopResult = {
 export interface ConnectCommandDefinition {
 	name: string;
 	description: string;
-	run(rawArgs: string[], io: ConnectIo): Promise<number>;
+	run(args: string[], io: ConnectIo): Promise<number>;
 	showHelp(io: ConnectIo): void;
 	stopAll?(io: ConnectIo): Promise<ConnectStopResult>;
 }

@@ -120,3 +120,5 @@ export type {
 	SessionWorkspaceConfig,
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
+export type { VcrRecording } from "./vcr";
+export { initVcr } from "./vcr";

@@ -1,6 +1,7 @@
 import { appendFileSync, mkdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@clinebot/core";
+import { Command } from "commander";
 import open from "open";
 import { getCliBuildInfo } from "../utils/common";
 
@@ -9,7 +10,7 @@ type DevCommandIo = {
 	writeErr: (text: string) => void;
 };
 
-type RunDevCommandDeps = {
+export type RunDevCommandDeps = {
 	openPath?: (target: string) => Promise<void> | void;
 };
 
@@ -27,27 +28,31 @@ async function defaultOpenPath(target: string): Promise<void> {
 	await open(target, { wait: false });
 }
 
-export async function runDevCommand(
-	rawArgs: string[],
+export function createDevCommand(
 	io: DevCommandIo,
+	setExitCode: (code: number) => void,
 	deps: RunDevCommandDeps = {},
-): Promise<number> {
-	const subcommand = rawArgs[1]?.trim().toLowerCase();
-	if (subcommand !== "log") {
-		io.writeErr(`unknown dev subcommand "${rawArgs[1] ?? ""}"`);
-		return 1;
-	}
+): Command {
+	const dev = new Command("dev")
+		.description("Developer tools and utilities")
+		.exitOverride();
 
-	const logPath = resolveCliLogPath();
-	const openPath = deps.openPath ?? defaultOpenPath;
-	try {
-		ensureFileExists(logPath);
-		await openPath(logPath);
-		io.writeln(logPath);
-		return 0;
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		io.writeErr(`failed to open log file "${logPath}": ${message}`);
-		return 1;
-	}
+	dev
+		.command("log")
+		.description("Open the CLI log file")
+		.action(async () => {
+			const logPath = resolveCliLogPath();
+			const openPath = deps.openPath ?? defaultOpenPath;
+			try {
+				ensureFileExists(logPath);
+				await openPath(logPath);
+				io.writeln(logPath);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				io.writeErr(`failed to open log file "${logPath}": ${message}`);
+				setExitCode(1);
+			}
+		});
+
+	return dev;
 }

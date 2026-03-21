@@ -241,9 +241,8 @@ function showConnectGoogleChatHelp(io: ConnectIo): void {
 }
 
 function parseConnectGoogleChatArgs(
-	rawArgs: string[],
+	connectArgs: string[],
 ): ConnectGoogleChatOptions {
-	const connectArgs = rawArgs.slice(2);
 	if (
 		parseBooleanFlag(connectArgs, "-h") ||
 		parseBooleanFlag(connectArgs, "--help")

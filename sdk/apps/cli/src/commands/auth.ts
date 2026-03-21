@@ -6,6 +6,7 @@ import {
 	type ProviderSettingsManager,
 } from "@clinebot/core/node";
 import { providers } from "@clinebot/llms";
+import { Command } from "commander";
 import { Box, render, Text, useApp, useInput } from "ink";
 import open from "open";
 import React, { useEffect, useMemo, useState } from "react";
@@ -159,36 +160,47 @@ export function getPersistedProviderApiKey(
 	return undefined;
 }
 
+/**
+ * Create the `auth` subcommand for Commander.
+ *
+ * In the auth context, `-p` means `--provider` and `-m` means `--modelid`,
+ * which intentionally shadows the global `-p` (--plan) and `-m` (--model)
+ * short flags. Commander scopes options per-command, so there is no conflict.
+ */
+export function createAuthCommand(): Command {
+	const cmd = new Command("auth")
+		.description("Authenticate with an LLM provider")
+		.exitOverride()
+		.configureOutput({ writeOut: () => {}, writeErr: () => {} })
+		.argument("[provider]", "provider id (positional shorthand for -p)")
+		.option("-p, --provider <id>", "provider id")
+		.option("-k, --apikey <key>", "API key")
+		.option("-m, --modelid <id>", "model id")
+		.option("-b, --baseurl <url>", "base URL");
+	return cmd;
+}
+
 export function parseAuthCommandArgs(args: string[]): ParsedAuthCommandArgs {
-	const parsed: ParsedAuthCommandArgs = {};
-	const positional: string[] = [];
-	let i = 0;
-	while (i < args.length) {
-		const arg = args[i];
-		if (!arg) {
-			i++;
-			continue;
-		}
-		if (arg === "-p" || arg === "--provider") {
-			parsed.explicitProvider = args[++i];
-		} else if (arg === "-k" || arg === "--apikey") {
-			parsed.apikey = args[++i];
-		} else if (arg === "-m" || arg === "--modelid") {
-			parsed.modelid = args[++i];
-		} else if (arg === "-b" || arg === "--baseurl") {
-			parsed.baseurl = args[++i];
-		} else if (arg.startsWith("-")) {
-			parsed.parseError = `unknown auth option "${arg}"`;
-			return parsed;
-		} else {
-			positional.push(arg);
-		}
-		i++;
+	const cmd = createAuthCommand();
+	try {
+		cmd.parse(args, { from: "user" });
+	} catch {
+		// Commander throws on --help / --version / unknown flags via exitOverride
+		return { parseError: `unknown auth option in: ${args.join(" ")}` };
 	}
-	if (!parsed.explicitProvider && positional.length > 0) {
-		parsed.explicitProvider = positional[0];
-	}
-	return parsed;
+	const opts = cmd.opts<{
+		provider?: string;
+		apikey?: string;
+		modelid?: string;
+		baseurl?: string;
+	}>();
+	const positionalProvider = cmd.args[0];
+	return {
+		explicitProvider: opts.provider ?? positionalProvider,
+		apikey: opts.apikey,
+		modelid: opts.modelid,
+		baseurl: opts.baseurl,
+	};
 }
 
 async function loadProviderCatalog(

@@ -26,16 +26,10 @@ type HistoryIo = {
 };
 
 async function runHistoryDelete(
-	rawArgs: string[],
+	sessionId: string | undefined,
 	outputMode: CliOutputMode,
 	io: HistoryIo,
 ): Promise<number> {
-	const idIndex = rawArgs.indexOf("--session-id");
-	const sessionId =
-		idIndex >= 0 && idIndex + 1 < rawArgs.length
-			? rawArgs[idIndex + 1]?.trim()
-			: undefined;
-
 	if (!sessionId) {
 		io.writeErr("history delete requires --session-id <id>");
 		return 1;
@@ -60,38 +54,17 @@ async function runHistoryDelete(
 }
 
 async function runHistoryUpdate(
-	rawArgs: string[],
+	sessionId: string | undefined,
+	prompt: string | undefined,
+	title: string | undefined,
+	metadataStr: string | undefined,
 	outputMode: CliOutputMode,
 	io: HistoryIo,
 ): Promise<number> {
-	const idIndex = rawArgs.indexOf("--session-id");
-	const sessionId =
-		idIndex >= 0 && idIndex + 1 < rawArgs.length
-			? rawArgs[idIndex + 1]?.trim()
-			: undefined;
-
 	if (!sessionId) {
 		io.writeErr("history update requires --session-id <id>");
 		return 1;
 	}
-
-	const promptIndex = rawArgs.indexOf("--prompt");
-	const prompt =
-		promptIndex >= 0 && promptIndex + 1 < rawArgs.length
-			? rawArgs[promptIndex + 1]?.trim()
-			: undefined;
-
-	const metadataIndex = rawArgs.indexOf("--metadata");
-	const metadataStr =
-		metadataIndex >= 0 && metadataIndex + 1 < rawArgs.length
-			? rawArgs[metadataIndex + 1]?.trim()
-			: undefined;
-
-	const titleIndex = rawArgs.indexOf("--title");
-	const title =
-		titleIndex >= 0 && titleIndex + 1 < rawArgs.length
-			? rawArgs[titleIndex + 1]?.trim()
-			: undefined;
 
 	let metadata: Record<string, unknown> | undefined;
 	if (metadataStr) {
@@ -207,8 +180,8 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 	);
 }
 
-export async function runHistoryCommand(input: {
-	rawArgs: string[];
+export async function runHistoryList(input: {
+	limit: number;
 	outputMode: CliOutputMode;
 	io?: HistoryIo;
 }): Promise<number | string> {
@@ -216,28 +189,14 @@ export async function runHistoryCommand(input: {
 		writeln,
 		writeErr: (text: string) => process.stderr.write(`${text}\n`),
 	};
-	const subcommand = input.rawArgs[1]?.trim().toLowerCase();
-	if (subcommand === "delete") {
-		return await runHistoryDelete(input.rawArgs, input.outputMode, io);
-	}
-	if (subcommand === "update") {
-		return await runHistoryUpdate(input.rawArgs, input.outputMode, io);
-	}
+	const limit = Number.isFinite(input.limit) ? input.limit : 200;
 
-	const limitIndex = input.rawArgs.indexOf("--limit");
-	const limit =
-		limitIndex >= 0 && limitIndex + 1 < input.rawArgs.length
-			? Number.parseInt(input.rawArgs[limitIndex + 1] ?? "200", 10)
-			: 200;
-
-	const hydratedRows = await listHistoryRows(
-		Number.isFinite(limit) ? limit : 200,
-	);
+	const hydratedRows = await listHistoryRows(limit);
 	if (hydratedRows.length === 0) {
 		if (input.outputMode === "json") {
 			process.stdout.write(JSON.stringify([]));
 		} else {
-			writeln("No history found.");
+			io.writeln("No history found.");
 		}
 		return 0;
 	}
@@ -264,3 +223,5 @@ export async function runHistoryCommand(input: {
 		);
 	});
 }
+
+export { runHistoryDelete, runHistoryUpdate };

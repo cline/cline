@@ -124,7 +124,8 @@ function accumulateUsageTotals(
 
 async function getCoreSessions(): Promise<SessionBackend> {
 	const backendMode = resolveSessionBackendMode();
-	if (backendMode === "local") {
+	if (backendMode === "local" || process.env.CLINE_VCR) {
+		process.stderr.write(`Forcing local in-process sessions\n`);
 		return await resolveSessionBackend({
 			backendMode,
 			autoStartRpcServer: false,

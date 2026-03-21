@@ -88,25 +88,30 @@ function encodeWorkerResponse(response: HookWorkerResponse): string {
 	return `${JSON.stringify(response)}\n`;
 }
 
-export async function runHookCommand(writeErr: (text: string) => void) {
+type HookIo = {
+	writeln: (text?: string) => void;
+	writeErr: (text: string) => void;
+};
+
+export async function runHookCommand(io: HookIo) {
 	try {
 		const raw = (await readStdinUtf8()).trim();
 		if (!raw) {
-			writeErr("hook command expects JSON payload on stdin");
+			io.writeErr("hook command expects JSON payload on stdin");
 			return 1;
 		}
 
 		const parsed = JSON.parse(raw) as unknown;
 		const payload = parseCliHookPayload(parsed);
 		if (!payload) {
-			writeErr("invalid hook payload");
+			io.writeErr("invalid hook payload");
 			return 1;
 		}
 
 		writeHookJson(await handleHookPayload(payload));
 		return 0;
 	} catch (error) {
-		writeErr(error instanceof Error ? error.message : String(error));
+		io.writeErr(error instanceof Error ? error.message : String(error));
 		return 1;
 	}
 }

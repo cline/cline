@@ -74,8 +74,6 @@ export interface ParsedArgs {
 	key?: string;
 	verbose: boolean;
 	interactive: boolean;
-	showHelp: boolean;
-	showVersion: boolean;
 	showUsage: boolean;
 	showTimings: boolean;
 	outputMode: CliOutputMode;

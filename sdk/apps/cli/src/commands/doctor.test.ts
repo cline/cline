@@ -71,12 +71,15 @@ describe("runDoctorCommand", () => {
 		});
 
 		const output: string[] = [];
-		const code = await runDoctorCommand(["doctor", "--json"], {
-			writeln: (text) => {
-				output.push(text ?? "");
+		const code = await runDoctorCommand(
+			{ address: "127.0.0.1:4317", json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
 			},
-			writeErr: () => {},
-		});
+		);
 
 		expect(code).toBe(0);
 		expect(output).toHaveLength(1);

@@ -91,7 +91,7 @@ describe("runRpcEnsureCommand", () => {
 		const output: string[] = [];
 		const errors: string[] = [];
 		const code = await runRpcEnsureCommand(
-			["rpc", "ensure", "--address", address, "--json"],
+			{ address, json: true },
 			(text) => {
 				output.push(text ?? "");
 			},

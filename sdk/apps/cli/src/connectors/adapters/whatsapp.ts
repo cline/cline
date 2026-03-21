@@ -257,8 +257,9 @@ function showConnectWhatsAppHelp(io: ConnectIo): void {
 	io.writeln("  WHATSAPP_BOT_USERNAME       Bot username label");
 }
 
-function parseConnectWhatsAppArgs(rawArgs: string[]): ConnectWhatsAppOptions {
-	const connectArgs = rawArgs.slice(2);
+function parseConnectWhatsAppArgs(
+	connectArgs: string[],
+): ConnectWhatsAppOptions {
 	if (
 		parseBooleanFlag(connectArgs, "-h") ||
 		parseBooleanFlag(connectArgs, "--help")

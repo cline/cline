@@ -3,6 +3,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { resolveClineDataDir } from "@clinebot/core";
 import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
+import { Command } from "commander";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
 import { c, writeln } from "../utils/output";
@@ -47,15 +48,6 @@ type ProcessRecord = {
 	pid: number;
 	command: string;
 };
-
-function resolveRpcAddress(rawArgs: string[]): string {
-	const addressIndex = rawArgs.indexOf("--address");
-	const address =
-		(addressIndex >= 0 && addressIndex + 1 < rawArgs.length
-			? rawArgs[addressIndex + 1]
-			: process.env.CLINE_RPC_ADDRESS) || getRpcServerDefaultAddress();
-	return address.trim();
-}
 
 function parsePids(raw: string): number[] {
 	return raw
@@ -397,13 +389,13 @@ function killPids(pids: number[]): number {
 }
 
 export async function runDoctorCommand(
-	rawArgs: string[],
+	opts: { address: string; json?: boolean; fix?: boolean; verbose?: boolean },
 	io: DoctorIo,
 ): Promise<number> {
-	const jsonOutput = rawArgs.includes("--json");
-	const fix = rawArgs.includes("--fix");
-	const verbose = rawArgs.includes("--verbose") || rawArgs.includes("-v");
-	const address = resolveRpcAddress(rawArgs);
+	const jsonOutput = opts.json === true;
+	const fix = opts.fix === true;
+	const verbose = opts.verbose === true;
+	const address = opts.address;
 	const before = await collectDoctorStatus(address);
 
 	if (!fix) {
@@ -478,4 +470,31 @@ export async function runDoctorCommand(
 	writeln(formatPidList("remaining cli processes", after.staleCliPids));
 	writeln(formatPidList("remaining hook workers", after.hookWorkerPids));
 	return 0;
+}
+
+export function createDoctorCommand(
+	io: DoctorIo,
+	setExitCode: (code: number) => void,
+): Command {
+	const doctor = new Command("doctor")
+		.description("Diagnose and fix local process issues")
+		.exitOverride()
+		.option(
+			"--address <host:port>",
+			"RPC server address",
+			process.env.CLINE_RPC_ADDRESS || getRpcServerDefaultAddress(),
+		)
+		.option("--json", "Output as JSON")
+		.option("--fix", "Kill stale local processes")
+		.option("-v, --verbose", "Show additional diagnostic details")
+		.action(async function (this: Command) {
+			const opts = this.opts<{
+				address: string;
+				json?: boolean;
+				fix?: boolean;
+				verbose?: boolean;
+			}>();
+			setExitCode(await runDoctorCommand(opts, io));
+		});
+	return doctor;
 }

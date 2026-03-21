@@ -33,7 +33,9 @@ const runtimeMocks = vi.hoisted(() => ({
 	runInteractive: vi.fn(),
 }));
 const historyMocks = vi.hoisted(() => ({
-	runHistoryCommand: vi.fn(async () => 0),
+	runHistoryList: vi.fn(async () => 0),
+	runHistoryDelete: vi.fn(async () => 0),
+	runHistoryUpdate: vi.fn(async () => 0),
 }));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({

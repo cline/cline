@@ -1,29 +1,13 @@
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { getCliBuildInfo } from "../utils/common";
-import { runDevCommand } from "./dev";
+import { createDevCommand } from "./dev";
 
-const { resolveClineDataDir } = vi.hoisted(() => ({
-	resolveClineDataDir: vi.fn(),
-}));
-
-vi.mock("@clinebot/core", () => ({
-	resolveClineDataDir,
-}));
-
-vi.mock("open", () => ({
-	default: vi.fn(),
-}));
-
-describe("runDevCommand", () => {
+describe("createDevCommand", () => {
 	const tempDirs: string[] = [];
 	const commandName = getCliBuildInfo().name;
-
-	beforeEach(() => {
-		resolveClineDataDir.mockReset();
-	});
 
 	afterEach(() => {
 		delete process.env.CLINE_DATA_DIR;
@@ -38,14 +22,13 @@ describe("runDevCommand", () => {
 		);
 		tempDirs.push(dataDir);
 		process.env.CLINE_DATA_DIR = dataDir;
-		resolveClineDataDir.mockReturnValue(dataDir);
 
 		const opened: string[] = [];
 		const output: string[] = [];
 		const errors: string[] = [];
+		let exitCode = 0;
 
-		const code = await runDevCommand(
-			["dev", "log"],
+		const cmd = createDevCommand(
 			{
 				writeln: (text) => {
 					output.push(text ?? "");
@@ -54,6 +37,9 @@ describe("runDevCommand", () => {
 					errors.push(text);
 				},
 			},
+			(code) => {
+				exitCode = code;
+			},
 			{
 				openPath: async (target) => {
 					opened.push(target);
@@ -61,24 +47,28 @@ describe("runDevCommand", () => {
 			},
 		);
 
+		await cmd.parseAsync(["log"], { from: "user" });
+
 		const expectedPath = path.join(dataDir, "logs", `${commandName}.log`);
-		expect(code).toBe(0);
+		expect(exitCode).toBe(0);
 		expect(errors).toHaveLength(0);
 		expect(opened).toEqual([expectedPath]);
 		expect(output).toEqual([expectedPath]);
 		expect(existsSync(expectedPath)).toBe(true);
 	});
 
-	it("returns an error for unknown dev subcommands", async () => {
-		const errors: string[] = [];
-		const code = await runDevCommand(["dev", "unknown"], {
-			writeln: () => {},
-			writeErr: (text) => {
-				errors.push(text);
+	it("shows help for unknown subcommands", async () => {
+		const cmd = createDevCommand(
+			{
+				writeln: () => {},
+				writeErr: () => {},
 			},
-		});
-		expect(code).toBe(1);
-		expect(errors).toEqual(['unknown dev subcommand "unknown"']);
+			() => {},
+		);
+
+		await expect(
+			cmd.parseAsync(["unknown"], { from: "user" }),
+		).rejects.toThrow();
 	});
 
 	it("returns an error if opening log file fails", async () => {
@@ -87,16 +77,19 @@ describe("runDevCommand", () => {
 		);
 		tempDirs.push(dataDir);
 		process.env.CLINE_DATA_DIR = dataDir;
-		resolveClineDataDir.mockReturnValue(dataDir);
 
 		const errors: string[] = [];
-		const code = await runDevCommand(
-			["dev", "log"],
+		let exitCode = 0;
+
+		const cmd = createDevCommand(
 			{
 				writeln: () => {},
 				writeErr: (text) => {
 					errors.push(text);
 				},
+			},
+			(code) => {
+				exitCode = code;
 			},
 			{
 				openPath: async () => {
@@ -105,7 +98,9 @@ describe("runDevCommand", () => {
 			},
 		);
 
-		expect(code).toBe(1);
+		await cmd.parseAsync(["log"], { from: "user" });
+
+		expect(exitCode).toBe(1);
 		expect(errors[0]).toContain("failed to open log file");
 		expect(errors[0]).toContain("open failed");
 	});

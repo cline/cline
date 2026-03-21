@@ -1,24 +1,34 @@
 import { homedir } from "node:os";
 import type { ToolPolicy } from "@clinebot/core";
 import { setHomeDir } from "@clinebot/core";
+import type { Command } from "commander";
 import {
 	ensureOAuthProviderApiKey,
 	getPersistedProviderApiKey,
 	isOAuthProvider,
 	normalizeProviderId,
-	parseAuthCommandArgs,
 	runAuthCommand,
 } from "./commands/auth";
-import { runConnectCommand } from "./commands/connect";
-import { runDevCommand } from "./commands/dev";
-import { runDoctorCommand } from "./commands/doctor";
-import { showHelp, showVersion } from "./commands/help";
+import {
+	formatAdapterList,
+	runConnectAdapter,
+	runStopAllConnectors,
+	runStopConnector,
+} from "./commands/connect";
+import { createDevCommand } from "./commands/dev";
+import { createDoctorCommand } from "./commands/doctor";
+import { showVersion } from "./commands/help";
 import { runHookCommand, runHookWorkerCommand } from "./commands/hook";
-import { runScheduleCommand } from "./commands/schedule";
+import { createListCommand } from "./commands/list";
+import {
+	CommanderError,
+	commanderToParsedArgs,
+	createProgram,
+} from "./commands/program";
+import { createScheduleCommand } from "./commands/schedule";
 import { createCliLoggerAdapter } from "./logging/adapter";
 import {
 	configureSandboxEnvironment,
-	parseArgs,
 	resolveWorkspaceRoot,
 } from "./utils/helpers";
 import {
@@ -66,42 +76,326 @@ async function loadInteractiveRuntimeModule() {
 	return runInteractive;
 }
 
-function resolveConfigDirArg(rawArgs: string[]): string | undefined {
-	const index = rawArgs.indexOf("--config");
-	if (index < 0 || index + 1 >= rawArgs.length) {
+/**
+ * Two-pass approach for --config: a quick scan of process.argv extracts the
+ * config directory before commander parses, because setHomeDir() must run
+ * before any code that reads the home/config directory.
+ */
+function resolveConfigDirArg(argv: string[]): string | undefined {
+	const index = argv.indexOf("--config");
+	if (index < 0 || index + 1 >= argv.length) {
 		return undefined;
 	}
-	const value = rawArgs[index + 1]?.trim();
+	const value = argv[index + 1]?.trim();
 	return value ? value : undefined;
-}
-
-function normalizeTopLevelArgs(rawArgs: string[]): string[] {
-	const command = rawArgs[0]?.trim().toLowerCase();
-	if (command === "task" || command === "t") {
-		return rawArgs.slice(1);
-	}
-	if (command === "h") {
-		return ["history", ...rawArgs.slice(1)];
-	}
-	return rawArgs;
 }
 
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
 
-	const rawArgsInput = process.argv.slice(2);
-	const rawArgs = normalizeTopLevelArgs(rawArgsInput);
-	setHomeDir(resolveConfigDirArg(rawArgsInput) ?? homedir());
-	if (rawArgs[0] === "connect") {
-		const code = await runConnectCommand(rawArgs, {
-			writeln,
-			writeErr,
-		});
-		process.exit(code);
+	const cliArgs = process.argv.slice(2);
+	setHomeDir(resolveConfigDirArg(cliArgs) ?? homedir());
+
+	// "config" opens the interactive configuration view.
+	// It is stripped so global options that follow are parsed as root-level.
+	const firstCmd = cliArgs[0]?.trim().toLowerCase();
+	let launchConfigView = false;
+	let normalizedArgs: string[];
+	if (firstCmd === "config") {
+		launchConfigView = true;
+		normalizedArgs = cliArgs.slice(1);
+	} else {
+		normalizedArgs = cliArgs;
 	}
-	const launchConfigView = rawArgs[0]?.trim().toLowerCase() === "config";
-	const parsedArgsInput = launchConfigView ? rawArgs.slice(1) : rawArgs;
-	let args = parseArgs(parsedArgsInput);
+
+	// Subcommand routing via Commander
+	const ctx: { exitCode?: number; resumeSessionId?: string } = {};
+	const io = { writeln, writeErr };
+	const program = createProgram();
+	// Re-enable built-in help/version output for the routing program
+	program.configureOutput({
+		writeOut: (str: string) => process.stdout.write(str),
+		writeErr: (str: string) => process.stderr.write(str),
+	});
+	// Default action handles non-subcommand args (e.g. prompt text)
+	program.action(() => {});
+	let taskParsedProgram: Command | undefined;
+
+	// Auth subcommand — defines its own options so commander parses them
+	// directly. The short flags -p/-m intentionally shadow the root's -p (plan)
+	// and -m (model); commander scopes options per-command so there is no
+	// conflict.
+	const authCmd = program
+		.command("auth")
+		.description("Authenticate a provider and configure what model is used")
+		.argument("[provider]", "Provider id (positional shorthand for -p)")
+		.option("-p, --provider <id>", "Provider id")
+		.option("-k, --apikey <key>", "API key")
+		.option("-m, --modelid <id>", "Model id")
+		.option("-b, --baseurl <url>", "Base URL")
+		.action(async (positionalProvider: string | undefined) => {
+			const providerSettingsManager = await createProviderSettingsManager();
+			const opts = authCmd.opts<{
+				provider?: string;
+				apikey?: string;
+				modelid?: string;
+				baseurl?: string;
+			}>();
+			ctx.exitCode = await runAuthCommand({
+				providerSettingsManager,
+				explicitProvider: opts.provider ?? positionalProvider,
+				apikey: opts.apikey,
+				modelid: opts.modelid,
+				baseurl: opts.baseurl,
+				io,
+			});
+		});
+
+	program
+		.command("config")
+		.description("Show current configuration")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.action(() => {
+			// Fall through to default flow with config view.
+			// Handles: clite --json config (options before subcommand name).
+			// The common case (clite config ...) is handled by prefix stripping above.
+			launchConfigView = true;
+		});
+	program
+		.command("hook-worker")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.action(async () => {
+			ctx.exitCode = await runHookWorkerCommand(writeErr);
+		});
+
+	const connectCmd = program
+		.command("connect")
+		.description("Connect to an editor or IDE adapter")
+		.argument("[adapter]", "Adapter to connect")
+		.option("--stop", "Stop running connector(s)")
+		.allowUnknownOption()
+		.passThroughOptions()
+		.addHelpText("after", () => `\nAdapters:\n${formatAdapterList()}`)
+		.action(async (adapter: string | undefined) => {
+			const opts = connectCmd.opts();
+			if (opts.stop) {
+				if (adapter) {
+					ctx.exitCode = await runStopConnector(adapter, io);
+				} else {
+					ctx.exitCode = await runStopAllConnectors(io);
+				}
+			} else if (adapter) {
+				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
+				// connector-specific flags (everything after the adapter name).
+				ctx.exitCode = await runConnectAdapter(
+					adapter,
+					connectCmd.args.slice(1),
+					io,
+				);
+			} else {
+				connectCmd.help();
+			}
+		});
+
+	const devCmd = createDevCommand(io, (code) => {
+		ctx.exitCode = code;
+	});
+	program.addCommand(devCmd);
+
+	const doctorCmd = createDoctorCommand(io, (code) => {
+		ctx.exitCode = code;
+	});
+	program.addCommand(doctorCmd);
+
+	const historyCmd = program
+		.command("history")
+		.alias("h")
+		.description("List session history or manage saved sessions")
+		.option("--json", "Output as JSON")
+		.option("--limit <count>", "Maximum number of sessions to show", "200")
+		.option("--page <number>", "Page number for paginated results")
+		.action(async () => {
+			const opts = historyCmd.opts();
+			const limit = Number.parseInt(opts.limit, 10);
+			const outputMode =
+				program.opts().json || opts.json
+					? ("json" as const)
+					: ("text" as const);
+			const { runHistoryList } = await import("./commands/history");
+			const result = await runHistoryList({
+				limit,
+				outputMode,
+				io,
+			});
+			if (typeof result === "string") {
+				ctx.resumeSessionId = result;
+			} else {
+				ctx.exitCode = result;
+			}
+		});
+
+	const historyDeleteCmd = historyCmd
+		.command("delete")
+		.description("Delete a session from history")
+		.option("--session-id <id>", "Session ID to delete")
+		.action(async () => {
+			const opts = historyDeleteCmd.opts();
+			if (!opts.sessionId) {
+				writeErr("history delete requires --session-id <id>");
+				ctx.exitCode = 1;
+				return;
+			}
+			const outputMode =
+				program.opts().json || historyCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			const { runHistoryDelete } = await import("./commands/history");
+			ctx.exitCode = await runHistoryDelete(opts.sessionId, outputMode, io);
+		});
+
+	const historyUpdateCmd = historyCmd
+		.command("update")
+		.description("Update a session in history")
+		.option("--metadata <json>", "Metadata as JSON string")
+		.option("--prompt <text>", "New prompt text")
+		.option("--session-id <id>", "Session ID to update")
+		.option("--title <text>", "New title")
+		.action(async () => {
+			const opts = historyUpdateCmd.opts();
+			if (!opts.sessionId) {
+				writeErr("history update requires --session-id <id>");
+				ctx.exitCode = 1;
+				return;
+			}
+			const outputMode =
+				program.opts().json || historyCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			const { runHistoryUpdate } = await import("./commands/history");
+			ctx.exitCode = await runHistoryUpdate(
+				opts.sessionId,
+				opts.prompt,
+				opts.title,
+				opts.metadata,
+				outputMode,
+				io,
+			);
+		});
+
+	program
+		.command("hook")
+		.description("Handle a hook payload from stdin")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.action(async () => {
+			ctx.exitCode = await runHookCommand(io);
+		});
+
+	const listCmd = createListCommand(
+		() => resolveWorkspaceRoot(program.opts().cwd ?? process.cwd()),
+		() => {
+			const outputMode =
+				program.opts().json || listCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			setCurrentOutputMode(outputMode);
+			return outputMode;
+		},
+		io,
+		(code) => {
+			ctx.exitCode = code;
+		},
+	);
+	program.addCommand(listCmd);
+
+	const { createRpcCommand } = await import("./commands/rpc");
+	const rpcCmd = createRpcCommand(io, (code) => {
+		ctx.exitCode = code;
+	});
+	program.addCommand(rpcCmd);
+
+	const scheduleCmd = createScheduleCommand(io, (code) => {
+		ctx.exitCode = code;
+	});
+	program.addCommand(scheduleCmd);
+
+	// 'task' is syntactic sugar for the default prompt flow.
+	// Re-parse everything after 'task'/'t' through a fresh root program
+	// so that global options (--model, --timeout, etc.) are properly resolved.
+	program
+		.command("task")
+		.alias("t")
+		.description("Run a task with the given prompt")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.enablePositionalOptions()
+		.passThroughOptions()
+		.action(async (_options: Record<string, unknown>, taskCmd: Command) => {
+			const rootParser = createProgram();
+			rootParser.action(() => {});
+			try {
+				await rootParser.parseAsync(taskCmd.args, { from: "user" });
+			} catch (err) {
+				if (err instanceof CommanderError) {
+					process.exit(0);
+				}
+				throw err;
+			}
+			taskParsedProgram = rootParser;
+		});
+
+	program
+		.command("update")
+		.description("[TODO] Check for updates and install if available")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.action(async () => {
+			const { requestRpcServerShutdown } = await import("@clinebot/rpc");
+			const address = process.env.CLINE_RPC_ADDRESS || "127.0.0.1:4317";
+			requestRpcServerShutdown(address).catch(() => {});
+			writeErr(
+				"update command is not implemented yet (use your package manager to update manually)",
+			);
+			ctx.exitCode = 1;
+		});
+
+	program
+		.command("version")
+		.description("Show Cline CLI version number")
+		.action(() => {
+			showVersion();
+			ctx.exitCode = 0;
+		});
+
+	try {
+		await program.parseAsync(normalizedArgs, { from: "user" });
+	} catch (err: unknown) {
+		if (err instanceof CommanderError) {
+			if (err.exitCode !== 0) {
+				// Map Commander errors to user-friendly messages
+				if (err.message.includes("taskId")) {
+					writeErr("--taskId requires <id>");
+				} else {
+					writeErr(err.message);
+				}
+				process.exit(1);
+			}
+			// Commander throws on --help / --version with exitOverride;
+			// exit cleanly since output was already printed.
+			process.exit(0);
+		}
+		throw err;
+	}
+
+	if (ctx.exitCode !== undefined) {
+		process.exit(ctx.exitCode);
+	}
+
+	// Default flow: no subcommand matched, or fall-through from config/history/task.
+	// When 'task'/'t' was used, options were re-parsed into taskParsedProgram.
+	let args = commanderToParsedArgs(taskParsedProgram ?? program);
 	const cwd = args.cwd ?? process.cwd();
 	const sandboxEnabled =
 		args.sandbox || process.env.CLINE_SANDBOX?.trim() === "1";
@@ -111,118 +405,13 @@ export async function runCli(): Promise<void> {
 		explicitDir: args.sandboxDir,
 	});
 
-	if (rawArgs[0] === "hook") {
-		const code = await runHookCommand(writeErr);
-		process.exit(code);
-	}
-	if (rawArgs[0] === "hook-worker") {
-		const code = await runHookWorkerCommand(writeErr);
-		process.exit(code);
-	}
-	if (rawArgs[0] === "dev") {
-		const code = await runDevCommand(rawArgs, { writeln, writeErr });
-		process.exit(code);
-	}
-	if (rawArgs[0] === "doctor") {
-		const code = await runDoctorCommand(rawArgs, { writeln, writeErr });
-		process.exit(code);
-	}
-	if (rawArgs[0] === "version") {
-		showVersion();
-		process.exit(0);
-	}
-	if (rawArgs[0] === "update") {
-		const { runRpcStopCommand } = await import("./commands/rpc");
-		runRpcStopCommand(rawArgs, writeln, writeErr).catch(() => {});
-		writeErr(
-			"update command is not implemented yet (use your package manager to update manually)",
-		);
-		process.exit(1);
-	}
-	if (rawArgs[0] === "rpc") {
-		const {
-			runRpcEnsureCommand,
-			runRpcRegisterCommand,
-			runRpcStartCommand,
-			runRpcStatusCommand,
-			runRpcStopCommand,
-		} = await import("./commands/rpc");
-		const rpcSubcommand = rawArgs[1]?.trim().toLowerCase();
-		if (rpcSubcommand === "start") {
-			const code = await runRpcStartCommand(rawArgs, writeln, writeErr);
-			process.exit(code);
-		}
-		if (rpcSubcommand === "status") {
-			const code = await runRpcStatusCommand(rawArgs, writeln, writeErr);
-			process.exit(code);
-		}
-		if (rpcSubcommand === "stop") {
-			const code = await runRpcStopCommand(rawArgs, writeln, writeErr);
-			process.exit(code);
-		}
-		if (rpcSubcommand === "ensure") {
-			const code = await runRpcEnsureCommand(rawArgs, writeln, writeErr);
-			process.exit(code);
-		}
-		if (rpcSubcommand === "register") {
-			const code = await runRpcRegisterCommand(rawArgs, writeln, writeErr);
-			process.exit(code);
-		}
-		writeErr(`unknown rpc subcommand "${rawArgs[1] ?? ""}"`);
-		process.exit(1);
-	}
-	if (rawArgs[0] === "auth") {
-		const providerSettingsManager = await createProviderSettingsManager();
-		const parsedAuthArgs = parseAuthCommandArgs(rawArgs.slice(1));
-		if (parsedAuthArgs.parseError) {
-			writeErr(parsedAuthArgs.parseError);
-			process.exit(1);
-		}
-		const code = await runAuthCommand({
-			providerSettingsManager,
-			explicitProvider: parsedAuthArgs.explicitProvider,
-			apikey: parsedAuthArgs.apikey,
-			modelid: parsedAuthArgs.modelid,
-			baseurl: parsedAuthArgs.baseurl,
-			io: { writeln, writeErr },
-		});
-		process.exit(code);
-	}
-	let resumeSessionId: string | undefined;
-	if (rawArgs[0] === "schedule") {
-		const code = await runScheduleCommand(rawArgs, { writeln, writeErr });
-		process.exit(code);
-	}
-	if (rawArgs[0] === "history") {
-		const { runHistoryCommand } = await import("./commands/history");
-		const result = await runHistoryCommand({
-			rawArgs,
-			outputMode: args.outputMode,
-			io: { writeln, writeErr },
-		});
-		if (typeof result === "string") {
-			resumeSessionId = result;
-			args = {
-				...args,
-				interactive: true,
-				prompt: undefined,
-			};
-		} else {
-			process.exit(result);
-		}
-	}
-
-	if (rawArgs[0] === "list") {
-		const { runListCommand } = await import("./commands/list");
-		setCurrentOutputMode(args.outputMode);
-		const listCwd = resolveWorkspaceRoot(cwd);
-		const code = await runListCommand({
-			rawArgs,
-			cwd: listCwd,
-			outputMode: args.outputMode,
-			io: { writeln, writeErr },
-		});
-		process.exit(code);
+	let resumeSessionId: string | undefined = ctx.resumeSessionId;
+	if (resumeSessionId) {
+		args = {
+			...args,
+			interactive: true,
+			prompt: undefined,
+		};
 	}
 
 	if (args.taskId !== undefined) {
@@ -282,16 +471,6 @@ export async function runCli(): Promise<void> {
 			enabled: policy.enabled,
 			autoApprove: policy.autoApprove ?? defaultToolAutoApprove,
 		};
-	}
-
-	if (args.showHelp) {
-		showHelp();
-		process.exit(0);
-	}
-
-	if (args.showVersion) {
-		showVersion();
-		process.exit(0);
 	}
 
 	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {

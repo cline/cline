@@ -40,8 +40,6 @@ describe("parseArgs", () => {
 		expect(parsed).toEqual({
 			verbose: false,
 			interactive: false,
-			showHelp: false,
-			showVersion: false,
 			showUsage: false,
 			showTimings: false,
 			outputMode: "text",

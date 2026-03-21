@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { runScheduleCommand } from "./schedule";
+import { createScheduleCommand } from "./schedule";
 
 const mockListSchedules = vi.hoisted(() => vi.fn());
 const mockClientClose = vi.hoisted(() => vi.fn());
@@ -22,6 +22,18 @@ vi.mock("./rpc", () => ({
 	runRpcEnsureCommand: vi.fn(async () => 0),
 }));
 
+async function runScheduleCommand(
+	args: string[],
+	io: { writeln: (text?: string) => void; writeErr: (text: string) => void },
+): Promise<number> {
+	let exitCode = 0;
+	const cmd = createScheduleCommand(io, (code) => {
+		exitCode = code;
+	});
+	await cmd.parseAsync(args, { from: "user" });
+	return exitCode;
+}
+
 describe("runScheduleCommand list output", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
@@ -33,11 +45,11 @@ describe("runScheduleCommand list output", () => {
 
 		const output: string[] = [];
 		const errors: string[] = [];
-		const code = await runScheduleCommand(["schedule", "list"], {
-			writeln: (text) => {
+		const code = await runScheduleCommand(["list"], {
+			writeln: (text?: string) => {
 				output.push(text ?? "");
 			},
-			writeErr: (text) => {
+			writeErr: (text: string) => {
 				errors.push(text);
 			},
 		});
@@ -59,11 +71,11 @@ describe("runScheduleCommand list output", () => {
 
 		const output: string[] = [];
 		const errors: string[] = [];
-		const code = await runScheduleCommand(["schedule", "list", "--json"], {
-			writeln: (text) => {
+		const code = await runScheduleCommand(["list", "--json"], {
+			writeln: (text?: string) => {
 				output.push(text ?? "");
 			},
-			writeErr: (text) => {
+			writeErr: (text: string) => {
 				errors.push(text);
 			},
 		});
