@@ -15,7 +15,6 @@ import {
 } from "lucide-react";
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
@@ -87,9 +86,7 @@ function ChatMessagesImpl({
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 
 	const getViewport = useCallback(() => {
-		return scrollAreaRef.current?.querySelector(
-			"[data-slot='scroll-area-viewport']",
-		) as HTMLDivElement | null;
+		return scrollAreaRef.current;
 	}, []);
 
 	const scrollToBottom = useCallback(
@@ -99,18 +96,18 @@ function ChatMessagesImpl({
 				return;
 			}
 			viewport.scrollTo({ top: viewport.scrollHeight, behavior });
-			setShowScrollToBottom(false);
+			setShowScrollToBottom((prev) => (prev ? false : prev));
 		},
 		[getViewport],
 	);
 
 	useEffect(() => {
 		if (!isSessionSwitching) {
-			setShowSwitchTransition(false);
+			setShowSwitchTransition((prev) => (prev ? false : prev));
 			return;
 		}
 		const timer = window.setTimeout(() => {
-			setShowSwitchTransition(true);
+			setShowSwitchTransition((prev) => (prev ? prev : true));
 		}, 180);
 		return () => {
 			window.clearTimeout(timer);
@@ -126,7 +123,10 @@ function ChatMessagesImpl({
 		const updateScrollToBottomVisibility = () => {
 			const distanceFromBottom =
 				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-			setShowScrollToBottom(distanceFromBottom > 120);
+			const shouldShow = distanceFromBottom > 120;
+			setShowScrollToBottom((prev) =>
+				prev === shouldShow ? prev : shouldShow,
+			);
 		};
 
 		updateScrollToBottomVisibility();
@@ -162,20 +162,8 @@ function ChatMessagesImpl({
 		const activeRequestIds = new Set(
 			pendingToolApprovals.map((item) => item.requestId),
 		);
-		setToolApprovalActions((prev) =>
-			Object.fromEntries(
-				Object.entries(prev).filter(([requestId]) =>
-					activeRequestIds.has(requestId),
-				),
-			),
-		);
-		setToolApprovalErrors((prev) =>
-			Object.fromEntries(
-				Object.entries(prev).filter(([requestId]) =>
-					activeRequestIds.has(requestId),
-				),
-			),
-		);
+		setToolApprovalActions((prev) => pruneRequestMap(prev, activeRequestIds));
+		setToolApprovalErrors((prev) => pruneRequestMap(prev, activeRequestIds));
 	}, [pendingToolApprovals]);
 
 	const handleToolApprovalDecision = useCallback(
@@ -215,7 +203,10 @@ function ChatMessagesImpl({
 
 	return (
 		<div className="relative h-full min-h-0 min-w-0">
-			<ScrollArea className="h-full min-h-0 min-w-0" ref={scrollAreaRef}>
+			<div
+				className="h-full min-h-0 min-w-0 overflow-y-auto"
+				ref={scrollAreaRef}
+			>
 				<div className="relative mx-auto w-full px-6 py-6">
 					{showIdleDetails ? (
 						<WelcomeScreen
@@ -298,7 +289,7 @@ function ChatMessagesImpl({
 						</div>
 					) : null}
 				</div>
-			</ScrollArea>
+			</div>
 			{showScrollToBottom ? (
 				<Button
 					className="absolute bottom-4 right-4 z-20 size-9 rounded-full shadow-sm"
@@ -485,6 +476,22 @@ type ToolSummary = {
 	label: string;
 	details: string[];
 };
+
+function pruneRequestMap<T extends string>(
+	prev: Record<string, T>,
+	activeRequestIds: Set<string>,
+): Record<string, T> {
+	let hasRemoved = false;
+	const next: Record<string, T> = {};
+	for (const [requestId, value] of Object.entries(prev)) {
+		if (activeRequestIds.has(requestId)) {
+			next[requestId] = value;
+			continue;
+		}
+		hasRemoved = true;
+	}
+	return hasRemoved ? next : prev;
+}
 
 function parseJsonString(value: string): unknown {
 	try {

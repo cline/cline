@@ -540,7 +540,41 @@ function ModelSelector({
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
 	);
-	const modelsForProvider = visibleProviderModels[provider] ?? [];
+	const resolvedProvider = useMemo(() => {
+		if (providers.length === 0) {
+			return "";
+		}
+		const rememberedProvider = lastSelection.lastProvider.trim();
+		if (provider && providers.includes(provider)) {
+			return provider;
+		}
+		if (rememberedProvider && providers.includes(rememberedProvider)) {
+			return rememberedProvider;
+		}
+		return providers[0] ?? "";
+	}, [lastSelection.lastProvider, provider, providers]);
+	const modelsForProvider = useMemo(
+		() => visibleProviderModels[resolvedProvider] ?? [],
+		[resolvedProvider, visibleProviderModels],
+	);
+	const resolvedModel = useMemo(() => {
+		if (modelsForProvider.length === 0) {
+			return "";
+		}
+		const rememberedModel = lastSelection.lastModelByProvider[resolvedProvider];
+		if (model && modelsForProvider.includes(model)) {
+			return model;
+		}
+		if (rememberedModel && modelsForProvider.includes(rememberedModel)) {
+			return rememberedModel;
+		}
+		return modelsForProvider[0] ?? "";
+	}, [
+		lastSelection.lastModelByProvider,
+		model,
+		modelsForProvider,
+		resolvedProvider,
+	]);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -598,35 +632,20 @@ function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
-
-		const rememberedProvider = lastSelection.lastProvider.trim();
-		const resolvedProvider = providers.includes(provider)
-			? provider
-			: rememberedProvider && providers.includes(rememberedProvider)
-				? rememberedProvider
-				: providers[0];
 		if (resolvedProvider && resolvedProvider !== provider) {
 			onProviderChange(resolvedProvider);
 		}
-
-		const providerModelIds = visibleProviderModels[resolvedProvider] ?? [];
-		const rememberedModel = lastSelection.lastModelByProvider[resolvedProvider];
-		const resolvedModel =
-			rememberedModel && providerModelIds.includes(rememberedModel)
-				? rememberedModel
-				: providerModelIds[0];
 		if (resolvedModel && resolvedModel !== model) {
 			onModelChange(resolvedModel);
 		}
 	}, [
-		lastSelection.lastModelByProvider,
-		lastSelection.lastProvider,
 		model,
 		onModelChange,
 		onProviderChange,
 		provider,
 		providers,
-		visibleProviderModels,
+		resolvedModel,
+		resolvedProvider,
 	]);
 
 	useEffect(() => {
@@ -664,7 +683,7 @@ function ModelSelector({
 						onModelChange(firstModel);
 					}
 				}}
-				value={provider}
+				value={resolvedProvider}
 			>
 				<ComboboxInput
 					className="h-7 text-xxs"
@@ -693,7 +712,7 @@ function ModelSelector({
 					}
 					onModelChange(value);
 				}}
-				value={model}
+				value={resolvedModel}
 			>
 				<ComboboxInput
 					className="h-7"
