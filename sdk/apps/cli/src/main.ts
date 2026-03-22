@@ -1,3 +1,4 @@
+import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import type { ToolPolicy } from "@clinebot/core";
 import { setClineDir, setHomeDir } from "@clinebot/core";
@@ -40,6 +41,16 @@ import {
 	writeln,
 } from "./utils/output";
 import type { Config } from "./utils/types";
+
+export function stdinHasPipedInput(): boolean {
+	if (process.stdin.isTTY) return false;
+	try {
+		const stats = fstatSync(0);
+		return stats.isFIFO() || stats.isFile();
+	} catch {
+		return false;
+	}
+}
 
 function mergeToolPolicies(
 	base: Record<string, ToolPolicy>,
@@ -673,8 +684,8 @@ export async function runCli(): Promise<void> {
 				`${c.dim}[provider-settings] failed to persist selection (${message})${c.reset}`,
 			);
 		}
-		// Check for piped input
-		if (!process.stdin.isTTY && !args.interactive) {
+		// Check for piped input (skip when stdin is not a real pipe/file, e.g. headless CI)
+		if (stdinHasPipedInput() && !args.interactive) {
 			const chunks: Buffer[] = [];
 			for await (const chunk of process.stdin) {
 				chunks.push(chunk as Buffer);
