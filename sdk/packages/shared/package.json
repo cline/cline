@@ -30,7 +30,6 @@
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "bun tsc --noEmit"
 	},
-	"internal": true,
 	"dependencies": {
 		"better-sqlite3": "^11.10.0",
 		"jsonrepair": "^3.13.2",

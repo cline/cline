@@ -124,7 +124,15 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         run: bun scripts/version.ts "${{ steps.version.outputs.version }}" --publish
 
-      # Publish sequentially in dependency order: llms → agents → core
+      # Publish sequentially in dependency order: shared → llms → agents → core
+      - name: Publish @clinebot/shared
+        if: steps.check_commits.outputs.skip != 'true'
+        run: |
+          CHANNEL="${{ steps.channel.outputs.channel }}"
+          echo "Publishing @clinebot/shared@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
+          cd packages/shared
+          npm publish --tag "$CHANNEL" --access restricted
+
       - name: Publish @clinebot/llms
         if: steps.check_commits.outputs.skip != 'true'
         run: |
@@ -157,7 +165,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for PKG in llms agents core; do
+          for PKG in shared llms agents core; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"
@@ -176,11 +184,13 @@ jobs:
           VERSION="${{ steps.version.outputs.version }}"
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "✅ Published SDK packages with tag '${CHANNEL}':"
+          echo "  - @clinebot/shared@${VERSION}"
           echo "  - @clinebot/llms@${VERSION}"
           echo "  - @clinebot/agents@${VERSION}"
           echo "  - @clinebot/core@${VERSION}"
           if [ "$CHANNEL" = "latest" ]; then
             echo "✅ Created git tags:"
+            echo "  - sdk/shared/v${VERSION}"
             echo "  - sdk/llms/v${VERSION}"
             echo "  - sdk/agents/v${VERSION}"
             echo "  - sdk/core/v${VERSION}"
