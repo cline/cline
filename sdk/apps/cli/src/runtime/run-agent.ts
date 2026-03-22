@@ -180,7 +180,7 @@ export async function runAgent(
 				await sessionManager.stop(activeSessionId).catch(() => {});
 			}
 			await sessionManager.dispose("cli_run_shutdown").catch(() => {});
-			await runtimeHooks.shutdown();
+			await runtimeHooks.shutdown().catch(() => {});
 			setActiveRuntimeAbort(undefined);
 		})();
 		return cleanupDone;

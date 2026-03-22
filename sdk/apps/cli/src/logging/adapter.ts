@@ -118,7 +118,7 @@ function getOrCreatePinoLogger(
 			timestamp: pino.stdTimeFunctions.isoTime,
 			enabled: config.enabled,
 		},
-		destination ?? pino.destination(2),
+		destination ?? createFallbackDestination(runtime),
 	);
 	loggerCache.set(key, { logger: created, destination });
 	return created;
@@ -126,7 +126,7 @@ function getOrCreatePinoLogger(
 
 function createWritableDestination(
 	destinationPath: string,
-	runtime: "cli" | "rpc-runtime",
+	_runtime: "cli" | "rpc-runtime",
 ): DestinationStream | undefined {
 	try {
 		mkdirSync(dirname(destinationPath), { recursive: true });
@@ -135,7 +135,7 @@ function createWritableDestination(
 		const dest = pino.destination({
 			dest: destinationPath,
 			mkdir: true,
-			sync: runtime === "cli",
+			sync: true,
 		});
 		// SonicBoom registers its own process 'exit' handler that calls
 		// flushSync().  When the process exits before the async stream is
@@ -154,6 +154,15 @@ function createWritableDestination(
 	} catch {
 		return undefined;
 	}
+}
+
+function createFallbackDestination(
+	runtime: "cli" | "rpc-runtime",
+): DestinationStream {
+	return pino.destination({
+		dest: 2,
+		sync: runtime === "cli",
+	});
 }
 
 function cleanupStaleLogFile(destination: string): void {
@@ -265,21 +274,63 @@ export function createCliLoggerAdapter(
 	return createAdapterFromPino(logger, runtimeConfig);
 }
 
+function isIgnorableLoggerShutdownError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return (
+		message.includes("sonic boom is not ready yet") ||
+		message.includes("SonicBoom destroyed")
+	);
+}
+
+function flushLoggerEntry(entry: {
+	logger: PinoLogger;
+	destination?: DestinationStream;
+}): void {
+	try {
+		const syncFlusher = entry.destination as DestinationStream & {
+			flushSync?: () => void;
+		};
+		if (syncFlusher && typeof syncFlusher.flushSync === "function") {
+			syncFlusher.flushSync();
+			return;
+		}
+		if (typeof entry.logger.flush === "function") {
+			entry.logger.flush();
+		}
+	} catch (error) {
+		if (!isIgnorableLoggerShutdownError(error)) {
+			throw error;
+		}
+	}
+}
+
 export function flushCliLoggerAdapters(): void {
-	for (const { logger, destination } of loggerCache.values()) {
+	for (const entry of loggerCache.values()) {
 		try {
-			const syncFlusher = destination as DestinationStream & {
-				flushSync?: () => void;
-			};
-			if (syncFlusher && typeof syncFlusher.flushSync === "function") {
-				syncFlusher.flushSync();
-				continue;
-			}
-			if (typeof logger.flush === "function") {
-				logger.flush();
-			}
+			flushLoggerEntry(entry);
 		} catch {
 			// no-op: shutdown flush is best-effort.
 		}
 	}
+}
+
+export function shutdownCliLoggerAdapters(): void {
+	for (const entry of loggerCache.values()) {
+		try {
+			flushLoggerEntry(entry);
+		} catch {
+			// no-op: shutdown flush is best-effort.
+		}
+		try {
+			const closableDestination = entry.destination as DestinationStream & {
+				end?: () => void;
+			};
+			closableDestination.end?.();
+		} catch (error) {
+			if (!isIgnorableLoggerShutdownError(error)) {
+				// no-op: shutdown close is best-effort.
+			}
+		}
+	}
+	loggerCache.clear();
 }

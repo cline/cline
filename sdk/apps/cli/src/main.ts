@@ -341,7 +341,7 @@ export async function runCli(): Promise<void> {
 				await rootParser.parseAsync(taskCmd.args, { from: "user" });
 			} catch (err) {
 				if (err instanceof CommanderError) {
-					process.exit(0);
+					return;
 				}
 				throw err;
 			}
@@ -379,23 +379,22 @@ export async function runCli(): Promise<void> {
 	} catch (err: unknown) {
 		if (err instanceof CommanderError) {
 			if (err.exitCode !== 0) {
-				// Map Commander errors to user-friendly messages
 				if (err.message.includes("taskId")) {
 					writeErr("--taskId requires <id>");
 				} else {
 					writeErr(err.message);
 				}
-				process.exit(1);
+				process.exitCode = 1;
+				return;
 			}
-			// Commander throws on --help / --version with exitOverride;
-			// exit cleanly since output was already printed.
-			process.exit(0);
+			return;
 		}
 		throw err;
 	}
 
 	if (ctx.exitCode !== undefined) {
-		process.exit(ctx.exitCode);
+		process.exitCode = ctx.exitCode;
+		return;
 	}
 
 	// Default flow: no subcommand matched, or fall-through from config/history/task.
@@ -423,7 +422,8 @@ export async function runCli(): Promise<void> {
 		const sessionId = args.taskId.trim();
 		if (!sessionId) {
 			writeErr("--taskId requires <id>");
-			process.exit(1);
+			process.exitCode = 1;
+			return;
 		}
 		resumeSessionId = sessionId;
 		process.env.CLINE_HOOK_AGENT_RESUME = "1";
@@ -447,13 +447,15 @@ export async function runCli(): Promise<void> {
 		writeErr(
 			`invalid reasoning effort "${args.invalidReasoningEffort}" (expected "none", "low", "medium", "high", or "xhigh")`,
 		);
-		process.exit(1);
+		process.exitCode = 1;
+		return;
 	}
 	if (args.invalidTimeoutSeconds) {
 		writeErr(
 			`invalid timeout "${args.invalidTimeoutSeconds}" (expected integer >= 1)`,
 		);
-		process.exit(1);
+		process.exitCode = 1;
+		return;
 	}
 	if (args.invalidMaxConsecutiveMistakes) {
 		writeln(
@@ -482,7 +484,8 @@ export async function runCli(): Promise<void> {
 		writeErr(
 			"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)",
 		);
-		process.exit(1);
+		process.exitCode = 1;
+		return;
 	}
 
 	// ACP mode: mutually exclusive with interactive/piped modes.

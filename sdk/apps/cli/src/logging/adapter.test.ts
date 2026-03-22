@@ -10,7 +10,11 @@ import { dirname, join } from "node:path";
 import pino from "pino";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { getCliBuildInfo } from "../utils/common";
-import { createCliLoggerAdapter, flushCliLoggerAdapters } from "./adapter";
+import {
+	createCliLoggerAdapter,
+	flushCliLoggerAdapters,
+	shutdownCliLoggerAdapters,
+} from "./adapter";
 
 const envKeys = [
 	"CLINE_DATA_DIR",
@@ -50,6 +54,7 @@ const commandName = getCliBuildInfo().name;
 
 describe("createCliLoggerAdapter", () => {
 	afterEach(() => {
+		shutdownCliLoggerAdapters();
 		vi.restoreAllMocks();
 	});
 
@@ -151,6 +156,28 @@ describe("createCliLoggerAdapter", () => {
 		}
 	});
 
+	it("uses a sync stderr fallback for cli runtime", () => {
+		const snapshot = withEnvSnapshot();
+		delete process.env.CLINE_DATA_DIR;
+		process.env.CLINE_LOG_PATH = `/dev/null/${commandName}.log`;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		const destinationSpy = vi.spyOn(pino, "destination");
+		try {
+			createCliLoggerAdapter({ runtime: "cli" });
+			expect(destinationSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					dest: 2,
+					sync: true,
+				}),
+			);
+		} finally {
+			restoreEnv(snapshot);
+		}
+	});
+
 	it("uses sync pino destination for cli runtime", () => {
 		const snapshot = withEnvSnapshot();
 		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-log-test-`));
@@ -220,6 +247,31 @@ describe("createCliLoggerAdapter", () => {
 
 			const logPath = join(dataDir, "logs", `${commandName}.log`);
 			expect(readFileSync(logPath, "utf8")).toContain("normal logging");
+		} finally {
+			restoreEnv(snapshot);
+		}
+	});
+
+	it("closes cli loggers cleanly during shutdown", async () => {
+		const snapshot = withEnvSnapshot();
+		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-close-test-`));
+		process.env.CLINE_DATA_DIR = dataDir;
+		delete process.env.CLINE_LOG_PATH;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		try {
+			const adapter = createCliLoggerAdapter({
+				runtime: "cli",
+				component: "close-test",
+			});
+			adapter.core.info?.("shutdown logging");
+
+			expect(() => shutdownCliLoggerAdapters()).not.toThrow();
+
+			const logPath = join(dataDir, "logs", `${commandName}.log`);
+			expect(readFileSync(logPath, "utf8")).toContain("shutdown logging");
 		} finally {
 			restoreEnv(snapshot);
 		}

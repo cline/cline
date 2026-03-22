@@ -102,20 +102,12 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
 
-		const exitSignal = new Error("process.exit");
-		vi.spyOn(process, "exit").mockImplementation(((code?: string | number) => {
-			(exitSignal as Error & { code?: string | number }).code = code;
-			throw exitSignal;
-		}) as never);
-
 		process.argv = ["bun", "src/index.ts", "history", "--json"];
 
 		const { runCli } = await import("./main");
 
-		await expect(runCli()).rejects.toMatchObject({
-			message: "process.exit",
-			code: 0,
-		});
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
