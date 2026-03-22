@@ -41,6 +41,14 @@ await runBuild("node", {
 	sourcemap: "none",
 });
 
+await runBuild("browser", {
+	entrypoints: ["./src/index.browser.ts"],
+	outdir: "./dist",
+	target: "browser",
+	minify: true,
+	sourcemap: "none",
+});
+
 if (shouldEmitTypes) {
 	const tsc = Bun.spawn(
 		[

@@ -7,9 +7,15 @@
 	"types": "dist/index.d.ts",
 	"exports": {
 		".": {
+			"browser": "./dist/index.browser.js",
 			"development": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./browser": {
+			"development": "./src/index.browser.ts",
+			"types": "./dist/index.browser.d.ts",
+			"import": "./dist/index.browser.js"
 		},
 		"./storage": {
 			"development": "./src/storage/index.ts",
