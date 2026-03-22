@@ -270,7 +270,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	async flushToDisk(): Promise<void> {
 		return await this.withStateLock(async () => {
-			if (this.pendingDiskWrite || !this.skipDiskWrite) {
+			if (this.pendingDiskWrite) {
 				await this.saveClineMessagesAndUpdateHistoryInternal()
 				this.pendingDiskWrite = false
 			}
@@ -309,7 +309,6 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 			// Mark as pending and flush later when streaming ends
 			if (this.skipDiskWrite) {
 				this.pendingDiskWrite = true
-				Logger.debug(`[MessageStateHandler] Buffered update for task ${this.taskId} (skipDiskWrite=true)`)
 				return
 			}
 
