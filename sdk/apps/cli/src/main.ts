@@ -97,17 +97,8 @@ export async function runCli(): Promise<void> {
 	const cliArgs = process.argv.slice(2);
 	setHomeDir(resolveConfigDirArg(cliArgs) ?? homedir());
 
-	// "config" opens the interactive configuration view.
-	// It is stripped so global options that follow are parsed as root-level.
-	const firstCmd = cliArgs[0]?.trim().toLowerCase();
 	let launchConfigView = false;
-	let normalizedArgs: string[];
-	if (firstCmd === "config") {
-		launchConfigView = true;
-		normalizedArgs = cliArgs.slice(1);
-	} else {
-		normalizedArgs = cliArgs;
-	}
+	const normalizedArgs = cliArgs;
 
 	// Subcommand routing via Commander
 	const ctx: { exitCode?: number; resumeSessionId?: string } = {};
@@ -155,12 +146,8 @@ export async function runCli(): Promise<void> {
 	program
 		.command("config")
 		.description("Show current configuration")
-		.allowUnknownOption()
-		.allowExcessArguments()
+		.option("--config <dir>", "configuration directory")
 		.action(() => {
-			// Fall through to default flow with config view.
-			// Handles: clite --json config (options before subcommand name).
-			// The common case (clite config ...) is handled by prefix stripping above.
 			launchConfigView = true;
 		});
 	program
