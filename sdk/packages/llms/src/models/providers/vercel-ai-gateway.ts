@@ -14,7 +14,7 @@ export const VERCEL_AI_GATEWAY_PROVIDER: ModelCollection = {
 		name: "Vercel AI Gateway",
 		description: "Vercel's AI gateway service",
 		protocol: "openai-chat",
-		baseUrl: "https://ai-gateway.vercel.app/v1",
+		baseUrl: "https://ai-gateway.vercel.sh/v1",
 		defaultModelId: Object.keys(VERCEL_AI_GATEWAY_MODELS)[0],
 		capabilities: ["reasoning"],
 		env: ["AI_GATEWAY_API_KEY"],
