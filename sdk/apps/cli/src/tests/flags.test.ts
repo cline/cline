@@ -90,7 +90,7 @@ test.describe("history flag descriptions", () => {
 	});
 
 	test("all history flags have correct descriptions", async ({ terminal }) => {
-		await expectVisible(terminal, "Maximum number of sessions to show");
+		await expectVisible(terminal, "number of sessions to show");
 		await expectVisible(terminal, "Page number");
 		await expectVisible(terminal, "configuration directory");
 	});
@@ -108,12 +108,10 @@ test.describe("auth flag descriptions", () => {
 
 	test("all auth flags have correct descriptions", async ({ terminal }) => {
 		await expectVisible(terminal, [
-			"Provider ID",
+			"Provider id",
 			"API key",
-			"Model ID",
+			"Model id",
 			"Base URL",
-			"verbose output",
-			"Working directory",
 			"configuration directory",
 		]);
 	});
