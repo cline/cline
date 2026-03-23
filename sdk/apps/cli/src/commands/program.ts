@@ -11,21 +11,11 @@ function collect(value: string, previous: string[]): string[] {
 	return previous.concat(value);
 }
 
-export function createProgram(): Command {
-	const program = new Command("clite")
-		.description("Cline CLI - AI coding assistant in your terminal")
-		.version(version, "-V, --version", "Output the version number")
-		.exitOverride() // don't call process.exit
-		.configureOutput({
-			writeOut: () => {}, // suppress by default; main.ts re-enables for routing
-			writeErr: () => {},
-		})
-		.allowUnknownOption()
-		.allowExcessArguments()
-		.enablePositionalOptions()
-		.argument("[prompt]", "Task prompt (starts task immediately)");
-
-	program
+/**
+ * Add the shared root-level options to any command.
+ */
+export function addRootOptions(cmd: Command): Command {
+	return cmd
 		.option(
 			"--acp",
 			"[TODO] Run in ACP (Agent Client Protocol) mode for editor integration",
@@ -100,6 +90,23 @@ export function createProgram(): Command {
 		.option("-u, --usage", "Show token usage and estimated cost")
 		.option("-v, --verbose", "Show verbose output")
 		.option("-y, --yolo", "Enable yolo mode (auto-approve actions)");
+}
+
+export function createProgram(): Command {
+	const program = new Command("clite")
+		.description("Cline CLI - AI coding assistant in your terminal")
+		.version(version, "-V, --version", "Output the version number")
+		.exitOverride() // don't call process.exit
+		.configureOutput({
+			writeOut: () => {}, // suppress by default; main.ts re-enables for routing
+			writeErr: () => {},
+		})
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.enablePositionalOptions()
+		.argument("[prompt]", "Task prompt (starts task immediately)");
+
+	addRootOptions(program);
 
 	return program;
 }

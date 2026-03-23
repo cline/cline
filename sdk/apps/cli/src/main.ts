@@ -21,6 +21,7 @@ import { showVersion } from "./commands/help";
 import { runHookCommand, runHookWorkerCommand } from "./commands/hook";
 import { createListCommand } from "./commands/list";
 import {
+	addRootOptions,
 	CommanderError,
 	commanderToParsedArgs,
 	createProgram,
@@ -324,15 +325,18 @@ export async function runCli(): Promise<void> {
 	// 'task' is syntactic sugar for the default prompt flow.
 	// Re-parse everything after 'task'/'t' through a fresh root program
 	// so that global options (--model, --timeout, etc.) are properly resolved.
-	program
+	const taskCmd = program
 		.command("task")
 		.alias("t")
 		.description("Run a task with the given prompt")
+		.argument("[prompt]", "Task prompt (starts task immediately)")
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.enablePositionalOptions()
-		.passThroughOptions()
-		.action(async (_options: Record<string, unknown>, taskCmd: Command) => {
+		.passThroughOptions();
+	addRootOptions(taskCmd);
+	taskCmd.action(
+		async (_options: Record<string, unknown>, taskCmd: Command) => {
 			const rootParser = createProgram();
 			rootParser.action(() => {});
 			try {
@@ -344,7 +348,8 @@ export async function runCli(): Promise<void> {
 				throw err;
 			}
 			taskParsedProgram = rootParser;
-		});
+		},
+	);
 
 	program
 		.command("update")
