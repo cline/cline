@@ -60,6 +60,8 @@ export {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type ReadFileRequest,
+	ReadFileRequestSchema,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
 	type RunCommandsInput,

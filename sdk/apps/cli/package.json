@@ -17,6 +17,7 @@
 	"scripts": {
 		"build": "rm -rf dist && bun run bun.mts",
 		"build:binary": "bun build ./src/index.ts --compile --outfile ./dist/clite --external @anthropic-ai/vertex-sdk",
+		"build:tgz": "bun run build && bun run pack prepare && npm pack --pack-destination dist && bun run pack restore",
 		"dev": "bun ./src/index.ts",
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "tsc --noEmit",

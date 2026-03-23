@@ -25,11 +25,20 @@ const exec = promisify(execCb);
 function createLoggingReadFileExecutor(): NonNullable<
 	ToolExecutors["readFile"]
 > {
-	return async (filePath: string, _context: ToolContext): Promise<string> => {
-		console.log(`📖 readFile executor called for: ${filePath}`);
-		const content = await readFile(filePath, "utf-8");
+	return async (request, _context: ToolContext): Promise<string> => {
+		const { path, start_line, end_line } = request;
+		console.log(
+			`📖 readFile executor called for: ${path}${start_line !== undefined || end_line !== undefined ? ` (${start_line ?? 1}-${end_line ?? "EOF"})` : ""}`,
+		);
+		const content = await readFile(path, "utf-8");
 		console.log(`✅ read ${content.length} bytes`);
-		return content;
+		if (start_line === undefined && end_line === undefined) {
+			return content;
+		}
+		const lines = content.split("\n");
+		return lines
+			.slice((start_line ?? 1) - 1, end_line ?? lines.length)
+			.join("\n");
 	};
 }
 

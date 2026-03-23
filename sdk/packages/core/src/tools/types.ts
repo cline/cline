@@ -5,7 +5,11 @@
  */
 
 import type { ToolContext } from "@clinebot/agents";
-import type { ApplyPatchInput, EditFileInput } from "./schemas";
+import type {
+	ApplyPatchInput,
+	EditFileInput,
+	ReadFileRequest,
+} from "./schemas";
 
 // =============================================================================
 // Tool Result Types
@@ -34,12 +38,12 @@ export interface ToolOperationResult {
 /**
  * Executor for reading files
  *
- * @param filePath - Absolute path to the file to read
+ * @param request - File path and optional inclusive line range to read
  * @param context - Tool execution context
  * @returns The file content as a string
  */
 export type FileReadExecutor = (
-	filePath: string,
+	request: ReadFileRequest,
 	context: ToolContext,
 ) => Promise<string>;
 

@@ -147,7 +147,7 @@ export function createToolPoliciesWithPreset(
  * ```typescript
  * const tools = createDefaultToolsWithPreset("readonly", {
  *   executors: {
- *     readFile: async (path) => fs.readFile(path, "utf-8"),
+ *     readFile: async ({ path }) => fs.readFile(path, "utf-8"),
  *     search: async (query, cwd) => searchFiles(query, cwd),
  *     webFetch: async (url, prompt) => fetchAndAnalyze(url, prompt),
  *   },

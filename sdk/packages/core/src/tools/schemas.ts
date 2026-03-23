@@ -14,14 +14,57 @@ const AbsolutePath = z
 	.string()
 	.describe("The absolute file path of a text file to read content from");
 
+export const ReadFileLineRangeSchema = z
+	.object({
+		start_line: z
+			.number()
+			.int()
+			.positive()
+			.optional()
+			.describe("Optional one-based starting line number to read from"),
+		end_line: z
+			.number()
+			.int()
+			.positive()
+			.optional()
+			.describe("Optional one-based ending line number to read through"),
+	})
+	.refine(
+		({ start_line, end_line }) =>
+			start_line === undefined ||
+			end_line === undefined ||
+			start_line <= end_line,
+		{
+			message: "start_line must be less than or equal to end_line",
+			path: ["end_line"],
+		},
+	);
+
+export const ReadFileRequestSchema = z
+	.object({
+		path: AbsolutePath,
+		start_line: ReadFileLineRangeSchema.shape.start_line,
+		end_line: ReadFileLineRangeSchema.shape.end_line,
+	})
+	.refine(
+		({ start_line, end_line }) =>
+			start_line === undefined ||
+			end_line === undefined ||
+			start_line <= end_line,
+		{
+			message: "start_line must be less than or equal to end_line",
+			path: ["end_line"],
+		},
+	);
+
 /**
  * Schema for read_files tool input
  */
 export const ReadFilesInputSchema = z.object({
-	file_paths: z
-		.array(AbsolutePath)
+	files: z
+		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of absolute file paths to get full content from. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests. Omit start_line and end_line to return the full file content; provide them to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
 
@@ -30,8 +73,12 @@ export const ReadFilesInputSchema = z.object({
  */
 export const ReadFilesInputUnionSchema = z.union([
 	ReadFilesInputSchema,
+	ReadFileRequestSchema,
+	z.array(ReadFileRequestSchema),
 	z.array(z.string()),
 	z.string(),
+	z.object({ files: ReadFileRequestSchema }),
+	z.object({ file_paths: z.array(AbsolutePath) }),
 	z.object({ file_paths: z.string() }),
 ]);
 
@@ -185,6 +232,11 @@ export const AskQuestionInputSchema = z.object({
 // =============================================================================
 // Type Definitions (derived from Zod schemas)
 // =============================================================================
+
+/**
+ * Input for a single file read request
+ */
+export type ReadFileRequest = z.infer<typeof ReadFileRequestSchema>;
 
 /**
  * Input for the read_files tool

@@ -16,6 +16,7 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
 	ReadFilesInputUnionSchema,
@@ -70,6 +71,46 @@ function withTimeout<T>(
 			setTimeout(() => reject(new Error(message)), ms);
 		}),
 	]);
+}
+
+function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
+	const validate = validateWithZod(ReadFilesInputUnionSchema, input);
+
+	if (typeof validate === "string") {
+		return [{ path: validate }];
+	}
+
+	if (Array.isArray(validate)) {
+		return validate.map((value) =>
+			typeof value === "string" ? { path: value } : value,
+		);
+	}
+
+	if ("files" in validate) {
+		const files = Array.isArray(validate.files)
+			? validate.files
+			: [validate.files];
+		return files;
+	}
+
+	if ("file_paths" in validate) {
+		const filePaths = Array.isArray(validate.file_paths)
+			? validate.file_paths
+			: [validate.file_paths];
+		return filePaths.map((filePath) => ({ path: filePath }));
+	}
+
+	return [validate];
+}
+
+function formatReadFileQuery(request: ReadFileRequest): string {
+	const { path, start_line, end_line } = request;
+	if (start_line === undefined && end_line === undefined) {
+		return path;
+	}
+	const start = start_line ?? 1;
+	const end = end_line ?? "EOF";
+	return `${path}:${start}-${end}`;
 }
 
 const APPLY_PATCH_TOOL_DESC = `This is a custom utility that makes it more convenient to add, remove, move, or edit code in a single file. \`apply_patch\` effectively allows you to execute a diff/patch against a file, but the format of the diff specification is unique to this task, so pay careful attention to these instructions. To use the \`apply_patch\` command, you should pass a message of the following structure as "input":
@@ -147,40 +188,32 @@ export function createReadFilesTool(
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the FULL content of text file at the provided absolute paths. " +
-			"Returns file contents or error messages for each path. ",
+			"Read the full content of text files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
+			"Returns file contents or error messages for each path.",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
 		timeoutMs: timeoutMs * 2, // Account for multiple files
 		retryable: true,
 		maxRetries: 1,
 		execute: async (input, context) => {
-			// Validate input with Zod schema
-			const validate = validateWithZod(ReadFilesInputUnionSchema, input);
-			const filePaths = Array.isArray(validate)
-				? validate
-				: typeof validate === "object"
-					? Array.isArray(validate.file_paths)
-						? validate.file_paths
-						: [validate.file_paths]
-					: [validate];
+			const requests = normalizeReadFileRequests(input);
 
 			return Promise.all(
-				filePaths.map(async (filePath): Promise<ToolOperationResult> => {
+				requests.map(async (request): Promise<ToolOperationResult> => {
 					try {
 						const content = await withTimeout(
-							executor(filePath, context),
+							executor(request, context),
 							timeoutMs,
 							`File read timed out after ${timeoutMs}ms`,
 						);
 						return {
-							query: filePath,
+							query: formatReadFileQuery(request),
 							result: content,
 							success: true,
 						};
 					} catch (error) {
 						const msg = formatError(error);
 						return {
-							query: filePath,
+							query: formatReadFileQuery(request),
 							result: "",
 							error: `Error reading file: ${msg}`,
 							success: false,
@@ -565,7 +598,7 @@ export function createAskQuestionTool(
  *
  * const tools = createDefaultTools({
  *   executors: {
- *     readFile: async (path) => fs.readFile(path, "utf-8"),
+ *     readFile: async ({ path }) => fs.readFile(path, "utf-8"),
  *     bash: async (cmd, cwd) => {
  *       return new Promise((resolve, reject) => {
  *         exec(cmd, { cwd }, (err, stdout, stderr) => {

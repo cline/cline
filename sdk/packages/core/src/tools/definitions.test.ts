@@ -248,23 +248,102 @@ describe("default run_commands tool", () => {
 	});
 });
 
+describe("default read_files tool", () => {
+	it("normalizes ranged file requests and passes them to the executor", async () => {
+		const execute = vi.fn(async () => "selected lines");
+		const tool = createReadFilesTool(execute);
+
+		const result = await tool.execute(
+			{
+				files: [
+					{
+						path: "/tmp/example.ts",
+						start_line: 3,
+						end_line: 5,
+					},
+				],
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "/tmp/example.ts:3-5",
+				result: "selected lines",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			{
+				path: "/tmp/example.ts",
+				start_line: 3,
+				end_line: 5,
+			},
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
+	it("keeps legacy string inputs reading full file content", async () => {
+		const execute = vi.fn(async () => "full file");
+		const tool = createReadFilesTool(execute);
+
+		await tool.execute("/tmp/example.ts" as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+
+		expect(execute).toHaveBeenCalledWith(
+			{ path: "/tmp/example.ts" },
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+});
+
 describe("zod schema conversion", () => {
 	it("preserves read_files required properties in generated JSON schema", () => {
 		const tool = createReadFilesTool(async () => "ok");
 		const inputSchema = tool.inputSchema as Record<string, unknown>;
 		const properties = inputSchema.properties as Record<string, unknown>;
 		expect(inputSchema.type).toBe("object");
-		expect(properties.file_paths).toEqual({
+		expect(properties.files).toMatchObject({
 			type: "array",
 			items: {
-				type: "string",
-				description:
-					"The absolute file path of a text file to read content from",
+				type: "object",
+				properties: {
+					path: {
+						type: "string",
+						description:
+							"The absolute file path of a text file to read content from",
+					},
+					start_line: {
+						type: "integer",
+						description: "Optional one-based starting line number to read from",
+					},
+					end_line: {
+						type: "integer",
+						description:
+							"Optional one-based ending line number to read through",
+					},
+				},
+				required: ["path"],
 			},
 			description:
-				"Array of absolute file paths to get full content from. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Array of file read requests. Omit start_line and end_line to return the full file content; provide them to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		});
-		expect(inputSchema.required).toEqual(["file_paths"]);
+		expect(inputSchema.required).toEqual(["files"]);
 	});
 
 	it("exposes skills args as optional nullable in tool schemas", () => {

@@ -12,12 +12,36 @@ describe("createFileReadExecutor", () => {
 
 		try {
 			const readFile = createFileReadExecutor();
-			const result = await readFile(filePath, {
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				iteration: 1,
-			});
+			const result = await readFile(
+				{ path: filePath },
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			);
 			expect(result).toBe("1 | hello absolute path");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns only the requested inclusive line range", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "example.txt");
+		await fs.writeFile(filePath, "alpha\nbeta\ngamma\ndelta", "utf-8");
+
+		try {
+			const readFile = createFileReadExecutor();
+			const result = await readFile(
+				{ path: filePath, start_line: 2, end_line: 3 },
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			);
+			expect(result).toBe("2 | beta\n3 | gamma");
 		} finally {
 			await fs.rm(dir, { recursive: true, force: true });
 		}

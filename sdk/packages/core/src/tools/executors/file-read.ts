@@ -7,6 +7,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ToolContext } from "@clinebot/agents";
+import type { ReadFileRequest } from "../schemas.js";
 import type { FileReadExecutor } from "../types.js";
 
 /**
@@ -48,7 +49,7 @@ const DEFAULT_FILE_READ_OPTIONS: Required<FileReadExecutorOptions> = {
  *   includeLineNumbers: true,
  * })
  *
- * const content = await readFile("/path/to/file.ts", context)
+ * const content = await readFile({ path: "/path/to/file.ts" }, context)
  * ```
  */
 export function createFileReadExecutor(
@@ -59,7 +60,11 @@ export function createFileReadExecutor(
 		...options,
 	};
 
-	return async (filePath: string, _context: ToolContext): Promise<string> => {
+	return async (
+		request: ReadFileRequest,
+		_context: ToolContext,
+	): Promise<string> => {
+		const { path: filePath, start_line, end_line } = request;
 		const resolvedPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
 			: path.resolve(process.cwd(), filePath);
@@ -81,19 +86,25 @@ export function createFileReadExecutor(
 
 		// Read file content
 		const content = await fs.readFile(resolvedPath, encoding);
+		const allLines = content.split("\n");
+		const rangeStart = Math.max((start_line ?? 1) - 1, 0);
+		const rangeEndExclusive = Math.min(
+			end_line ?? allLines.length,
+			allLines.length,
+		);
+		const lines = allLines.slice(rangeStart, rangeEndExclusive);
 
 		// Optionally add line numbers - one-based indexing for better readability
 		if (includeLineNumbers) {
-			const lines = content.split("\n");
-			const maxLineNumWidth = String(lines.length).length;
+			const maxLineNumWidth = String(allLines.length).length;
 			return lines
 				.map(
 					(line, i) =>
-						`${String(i + 1).padStart(maxLineNumWidth, " ")} | ${line}`,
+						`${String(rangeStart + i + 1).padStart(maxLineNumWidth, " ")} | ${line}`,
 				)
 				.join("\n");
 		}
 
-		return content;
+		return lines.join("\n");
 	};
 }
