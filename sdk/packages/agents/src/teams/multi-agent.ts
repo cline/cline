@@ -498,7 +498,7 @@ export class AgentTeam {
 	 */
 	abortAll(): void {
 		for (const agent of this.agents.values()) {
-			agent.abort();
+			agent.abort(new Error("Agent team abortAll requested"));
 		}
 	}
 

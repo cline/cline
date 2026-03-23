@@ -40,7 +40,7 @@ export interface RuntimeBuilder {
 export interface SessionRuntime {
 	start(config: CoreSessionConfig): Promise<{ sessionId: string }>;
 	send(sessionId: string, prompt: string): Promise<AgentResult | undefined>;
-	abort(sessionId: string): Promise<void>;
+	abort(sessionId: string, reason?: unknown): Promise<void>;
 	stop(sessionId: string): Promise<void>;
 	poll(): Promise<string[]>;
 }

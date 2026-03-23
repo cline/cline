@@ -150,8 +150,9 @@ class AgentStreamImpl implements AgentStream {
 	}
 
 	abort(): void {
-		this.abortController.abort();
-		this.agent.abort();
+		const reason = new Error("Agent stream aborted");
+		this.abortController.abort(reason);
+		this.agent.abort(reason);
 	}
 }
 

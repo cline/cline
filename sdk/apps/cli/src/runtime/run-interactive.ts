@@ -256,7 +256,10 @@ export async function runInteractive(
 			return false;
 		}
 		abortRequested = true;
-		void sessionManager.abort(activeSessionId);
+		void sessionManager.abort(
+			activeSessionId,
+			new Error("Interactive runtime abort requested"),
+		);
 		return true;
 	};
 	setActiveRuntimeAbort(abortAll);
@@ -278,8 +281,8 @@ export async function runInteractive(
 				return;
 			}
 			void cleanupRuntime().finally(() => {
-				process.exitCode = 130;
-				process.exit(130);
+				process.exitCode = 0;
+				process.exit(0);
 			});
 			return;
 		}

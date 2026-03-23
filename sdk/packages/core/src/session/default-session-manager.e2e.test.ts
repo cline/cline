@@ -348,6 +348,7 @@ describe("DefaultSessionManager e2e", () => {
 		await manager.stop(started.sessionId);
 		const stopped = await manager.get(started.sessionId);
 		expect(stopped?.status).toBe("cancelled");
+		expect(stopped?.exitCode).toBe(0);
 		expect(agentShutdown).toHaveBeenCalledTimes(1);
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 		const parsedManifest = JSON.parse(

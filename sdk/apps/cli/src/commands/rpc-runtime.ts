@@ -325,7 +325,10 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 		await Promise.allSettled(
 			sessionIds.map(async (sessionId) => {
 				try {
-					await sessionManager.abort(sessionId);
+					await sessionManager.abort(
+						sessionId,
+						new Error(`RPC runtime abort during ${shutdownReason}`),
+					);
 				} catch {
 					// Best-effort abort before stop.
 				}
@@ -506,7 +509,10 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 				return { applied: false };
 			}
 			const known = activeSessions.has(id);
-			await sessionManager.abort(id);
+			await sessionManager.abort(
+				id,
+				new Error("RPC runtime abortSession requested"),
+			);
 			createCliLoggerAdapter({
 				runtime: RPC_RUNTIME_NAME,
 				component: RPC_SESSION_COMPONENT,

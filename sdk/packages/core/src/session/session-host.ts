@@ -44,6 +44,15 @@ export interface CreateSessionHostOptions {
 
 export type SessionHost = SessionManager;
 
+async function reconcileDeadSessionsIfSupported(
+	backend: SessionBackend,
+): Promise<void> {
+	const service = backend as SessionBackend & {
+		reconcileDeadSessions?: (limit?: number) => Promise<number>;
+	};
+	await service.reconcileDeadSessions?.().catch(() => {});
+}
+
 function startRpcServerInBackground(address: string): void {
 	const lease = tryAcquireRpcSpawnLease(address);
 	if (!lease) {
@@ -156,12 +165,14 @@ export async function resolveSessionBackend(
 	backendInitPromise = (async () => {
 		if (mode === "local") {
 			cachedBackend = createLocalBackend();
+			await reconcileDeadSessionsIfSupported(cachedBackend);
 			return cachedBackend;
 		}
 
 		const existingRpcBackend = await tryConnectRpcBackend(address);
 		if (existingRpcBackend) {
 			cachedBackend = existingRpcBackend;
+			await reconcileDeadSessionsIfSupported(cachedBackend);
 			return cachedBackend;
 		}
 
@@ -180,6 +191,7 @@ export async function resolveSessionBackend(
 				const rpcBackend = await tryConnectRpcBackend(address);
 				if (rpcBackend) {
 					cachedBackend = rpcBackend;
+					await reconcileDeadSessionsIfSupported(cachedBackend);
 					return cachedBackend;
 				}
 				if (delayMs > 0) {
@@ -189,6 +201,7 @@ export async function resolveSessionBackend(
 		}
 
 		cachedBackend = createLocalBackend();
+		await reconcileDeadSessionsIfSupported(cachedBackend);
 		return cachedBackend;
 	})().finally(() => {
 		backendInitPromise = undefined;

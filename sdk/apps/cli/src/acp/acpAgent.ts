@@ -214,7 +214,9 @@ export class AcpAgent implements Agent {
 		try {
 			const onAbort = () => {
 				if (session.activeSessionId && session.sessionManager) {
-					session.sessionManager.abort(session.activeSessionId).catch(() => {});
+					session.sessionManager
+						.abort(session.activeSessionId, abortController.signal.reason)
+						.catch(() => {});
 				}
 			};
 			abortController.signal.addEventListener("abort", onAbort, {

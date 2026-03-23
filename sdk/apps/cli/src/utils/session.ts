@@ -84,7 +84,7 @@ export interface CliSessionManager {
 		sessionId: string,
 	): Promise<SessionAccumulatedUsage | undefined>;
 	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
-	abort(sessionId: string): Promise<void>;
+	abort(sessionId: string, reason?: unknown): Promise<void>;
 	stop(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
 	subscribe(listener: (event: unknown) => void): () => void;

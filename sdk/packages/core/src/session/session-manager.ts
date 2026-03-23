@@ -54,7 +54,7 @@ export interface SessionManager {
 	getAccumulatedUsage(
 		sessionId: string,
 	): Promise<SessionAccumulatedUsage | undefined>;
-	abort(sessionId: string): Promise<void>;
+	abort(sessionId: string, reason?: unknown): Promise<void>;
 	stop(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
 	get(sessionId: string): Promise<SessionRecord | undefined>;
