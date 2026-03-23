@@ -22,37 +22,44 @@ export const DEFAULT_REQUEST_HEADERS: Record<string, string> = {
 	"X-CLIENT-TYPE": "cline-sdk",
 };
 
+const controllerIds = new WeakMap<AbortController, string>();
+let controllerIdCounter = 0;
+
+function getControllerId(controller: AbortController): string {
+	let id = controllerIds.get(controller);
+	if (!id) {
+		id = `abort_${++controllerIdCounter}`;
+		controllerIds.set(controller, id);
+	}
+	return id;
+}
+
+function serializeAbortReason(reason: unknown): unknown {
+	return reason instanceof Error
+		? { name: reason.name, message: reason.message }
+		: reason;
+}
+
 /**
  * Base handler class with common functionality
  */
 export abstract class BaseHandler implements ApiHandler {
 	protected config: ProviderConfig;
 	protected abortController: AbortController | undefined;
+	private abortSignalSequence = 0;
 
 	constructor(config: ProviderConfig) {
 		this.config = config;
 	}
 
-	/**
-	 * Convert Cline messages to provider-specific format
-	 * Must be implemented by subclasses
-	 */
 	abstract getMessages(systemPrompt: string, messages: Message[]): unknown;
 
-	/**
-	 * Create a streaming message completion
-	 * Must be implemented by subclasses
-	 */
 	abstract createMessage(
 		systemPrompt: string,
 		messages: Message[],
 		tools?: ToolDefinition[],
 	): ApiStream;
 
-	/**
-	 * Get the current model configuration
-	 * Can be overridden by subclasses for provider-specific logic
-	 */
 	getModel(): HandlerModelInfo {
 		const modelId = this.config.modelId;
 		return {
@@ -61,43 +68,55 @@ export abstract class BaseHandler implements ApiHandler {
 		};
 	}
 
-	/**
-	 * Get usage information (optional)
-	 * Override in subclasses that support this
-	 */
 	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
 		return undefined;
 	}
 
-	/**
-	 * Get the abort signal for the current request
-	 * Creates a new AbortController if one doesn't exist or was already aborted
-	 * Combines with config.abortSignal if provided
-	 */
 	protected getAbortSignal(): AbortSignal {
-		// Create a new controller if needed
-		if (!this.abortController || this.abortController.signal.aborted) {
-			this.abortController = new AbortController();
-		}
+		const controller = new AbortController();
+		this.abortController = controller;
+		controller.signal.addEventListener(
+			"abort",
+			() => {
+				if (this.abortController === controller) {
+					this.abortController = undefined;
+				}
+			},
+			{ once: true },
+		);
 
-		// If a signal was provided in config, chain it
-		if (this.config.abortSignal) {
-			const configSignal = this.config.abortSignal;
+		const configSignal = this.config.abortSignal;
+		if (configSignal) {
 			if (configSignal.aborted) {
-				this.abortController.abort(configSignal.reason);
+				this.logAbort("debug", "Provider request inherited aborted signal", {
+					controllerId: getControllerId(controller),
+					reason: serializeAbortReason(configSignal.reason),
+				});
+				controller.abort(configSignal.reason);
 			} else {
-				configSignal.addEventListener("abort", () => {
-					this.abortController?.abort(configSignal.reason);
+				const signalId = ++this.abortSignalSequence;
+				configSignal.addEventListener(
+					"abort",
+					() => {
+						this.logAbort("warn", "Provider request abort signal fired", {
+							controllerId: getControllerId(controller),
+							signalId,
+							reason: serializeAbortReason(configSignal.reason),
+						});
+						controller.abort(configSignal.reason);
+					},
+					{ once: true },
+				);
+				this.logAbort("debug", "Provider request attached abort signal", {
+					controllerId: getControllerId(controller),
+					signalId,
 				});
 			}
 		}
 
-		return this.abortController.signal;
+		return controller.signal;
 	}
 
-	/**
-	 * Abort the current request
-	 */
 	abort(): void {
 		this.abortController?.abort();
 	}
@@ -105,37 +124,47 @@ export abstract class BaseHandler implements ApiHandler {
 	setAbortSignal(signal: AbortSignal | undefined): void {
 		this.config.abortSignal = signal;
 		if (signal?.aborted) {
+			this.logAbort("debug", "Provider handler received pre-aborted signal", {
+				controllerId: this.abortController
+					? getControllerId(this.abortController)
+					: undefined,
+				reason: serializeAbortReason(signal.reason),
+			});
 			this.abortController?.abort(signal.reason);
 		}
 	}
 
-	/**
-	 * Helper to calculate cost from usage
-	 */
+	private logAbort(
+		level: "debug" | "warn",
+		message: string,
+		metadata?: Record<string, unknown>,
+	): void {
+		this.config.logger?.[level]?.(message, {
+			providerId: this.config.providerId,
+			modelId: this.config.modelId,
+			...metadata,
+		});
+	}
+
 	protected calculateCost(
 		inputTokens: number,
 		outputTokens: number,
 		cacheReadTokens = 0,
 	): number | undefined {
-		const modelPricingSource =
-			this.config.modelInfo ??
-			(this.config.modelId
-				? this.config.knownModels?.[this.config.modelId]
-				: undefined);
-		const pricing = modelPricingSource?.pricing;
+		const pricing = (
+			this.config.modelInfo ?? this.config.knownModels?.[this.config.modelId]
+		)?.pricing;
 		if (!pricing?.input || !pricing?.output) {
 			return undefined;
 		}
 
-		const uncachedInputTokens = inputTokens - cacheReadTokens;
-		const inputCost = (uncachedInputTokens / 1_000_000) * pricing.input;
-		const outputCost = (outputTokens / 1_000_000) * pricing.output;
-		const cacheReadCost =
-			cacheReadTokens > 0
+		return (
+			((inputTokens - cacheReadTokens) / 1_000_000) * pricing.input +
+			(outputTokens / 1_000_000) * pricing.output +
+			(cacheReadTokens > 0
 				? (cacheReadTokens / 1_000_000) * (pricing.cacheRead ?? 0)
-				: 0;
-
-		return inputCost + outputCost + cacheReadCost;
+				: 0)
+		);
 	}
 
 	protected createResponseId(): string {
@@ -154,7 +183,7 @@ export abstract class BaseHandler implements ApiHandler {
 		responseId: string,
 	): Generator<ApiStreamChunk> {
 		for (const chunk of chunks) {
-			yield this.withResponseId(chunk, responseId);
+			yield { ...chunk, id: responseId };
 		}
 	}
 

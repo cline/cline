@@ -245,6 +245,11 @@ export interface ProviderOptions {
 }
 
 /**
+ * Provider-specific options that don't fit other categories
+ */
+import type { BasicLogger } from "@clinebot/shared";
+
+/**
  * Runtime model catalog refresh options
  */
 export interface ModelCatalogConfig {
@@ -298,6 +303,9 @@ export interface ProviderConfig
 
 	/** AbortSignal for cancelling requests */
 	abortSignal?: AbortSignal;
+
+	/** Optional runtime logger for provider-level diagnostics */
+	logger?: BasicLogger;
 
 	/** Codex CLI-specific options */
 	codex?: CodexConfig;
