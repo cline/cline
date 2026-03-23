@@ -146,7 +146,7 @@ export function write(text: string): void {
 }
 
 export function writeln(text = ""): void {
-	if (currentOutputMode === "json" && text.length === 0) {
+	if (currentOutputMode === "json") {
 		return;
 	}
 	write(`${text}\n`);
