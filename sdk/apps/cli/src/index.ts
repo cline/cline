@@ -2,7 +2,7 @@
 
 import { isMainThread } from "node:worker_threads";
 import { initVcr } from "@clinebot/shared";
-import { flushCliLoggerAdapters } from "./logging/adapter";
+import { shutdownCliLoggerAdapters } from "./logging/adapter";
 import { runCli } from "./main";
 import { abortActiveRuntime } from "./runtime/active-runtime";
 import { writeErr } from "./utils/output";
@@ -15,15 +15,18 @@ initVcr(process.env.CLINE_VCR);
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
 } else {
-	process.once("exit", () => {
-		flushCliLoggerAdapters();
-	});
-
-	runCli().catch((err) => {
-		writeErr(err instanceof Error ? err.message : String(err));
-		abortActiveRuntime();
-		void disposeCliTelemetryService();
-		flushCliLoggerAdapters();
-		process.exit(1);
-	});
+	void (async () => {
+		let exitCode = 0;
+		try {
+			await runCli();
+		} catch (err) {
+			writeErr(err instanceof Error ? err.message : String(err));
+			abortActiveRuntime();
+			exitCode = 1;
+		} finally {
+			await disposeCliTelemetryService().catch(() => {});
+			shutdownCliLoggerAdapters();
+		}
+		process.exit(exitCode || (process.exitCode as number) || 0);
+	})();
 }
