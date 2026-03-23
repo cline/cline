@@ -32,6 +32,7 @@ export const ReadFilesInputUnionSchema = z.union([
 	ReadFilesInputSchema,
 	z.array(z.string()),
 	z.string(),
+	z.object({ file_paths: z.string() }),
 ]);
 
 /**
@@ -50,11 +51,15 @@ export const SearchCodebaseUnionInputSchema = z.union([
 	SearchCodebaseInputSchema,
 	z.array(z.string()),
 	z.string(),
+	z.object({ queries: z.string() }),
 ]);
 
 const CommandInputSchema = z
 	.string()
-	.describe("The non-interactive shell command to execute");
+	.max(2000)
+	.describe(
+		"The non-interactive shell command to execute - MUST keep input short and concise to avoid timeouts",
+	);
 /**
  * Schema for run_commands tool input
  */
@@ -69,6 +74,7 @@ export const RunCommandsInputSchema = z.object({
  */
 export const RunCommandsInputUnionSchema = z.union([
 	RunCommandsInputSchema,
+	z.object({ commands: CommandInputSchema }),
 	z.array(z.string()),
 	z.string(),
 ]);
@@ -101,6 +107,7 @@ export const EditFileInputSchema = z
 			.describe("The absolute file path for the action to be performed on"),
 		old_text: z
 			.string()
+			.max(3000)
 			.nullable()
 			.optional()
 			.describe(
@@ -108,8 +115,9 @@ export const EditFileInputSchema = z
 			),
 		new_text: z
 			.string()
+			.max(3000)
 			.describe(
-				"The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided",
+				"The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided - IMPORTANT: keep this as small as possible to avoid timeouts. For large edits, use multiple calls with small chunks of new_text and precise old_text to iteratively edit the file.",
 			),
 		insert_line: z
 			.number()

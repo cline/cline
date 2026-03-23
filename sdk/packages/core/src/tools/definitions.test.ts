@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { createDefaultTools, createReadFilesTool } from "./definitions.js";
+import {
+	createBashTool,
+	createDefaultTools,
+	createReadFilesTool,
+} from "./definitions.js";
 
 describe("default skills tool", () => {
 	it("is included only when enabled with a skills executor", () => {
@@ -203,6 +207,37 @@ describe("default apply_patch tool", () => {
 		});
 		expect(execute).toHaveBeenCalledWith(
 			{ input: "*** Begin Patch\n*** End Patch" },
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+});
+
+describe("default run_commands tool", () => {
+	it("accepts object input with commands as a single string", async () => {
+		const execute = vi.fn(async (command: string) => `ran:${command}`);
+		const tool = createBashTool(execute);
+
+		const result = await tool.execute({ commands: "ls" } as never, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		});
+
+		expect(result).toEqual([
+			{
+				query: "ls",
+				result: "ran:ls",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledTimes(1);
+		expect(execute).toHaveBeenCalledWith(
+			"ls",
 			process.cwd(),
 			expect.objectContaining({
 				agentId: "agent-1",

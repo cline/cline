@@ -159,7 +159,9 @@ export function createReadFilesTool(
 			const filePaths = Array.isArray(validate)
 				? validate
 				: typeof validate === "object"
-					? validate.file_paths
+					? Array.isArray(validate.file_paths)
+						? validate.file_paths
+						: [validate.file_paths]
 					: [validate];
 
 			return Promise.all(
@@ -214,15 +216,14 @@ export function createSearchTool(
 		maxRetries: 1,
 		execute: async (input, context) => {
 			// Validate input with Zod schema
-			const validatedInput = validateWithZod(
-				SearchCodebaseUnionInputSchema,
-				input,
-			);
-			const queries = Array.isArray(validatedInput)
-				? validatedInput
-				: typeof validatedInput === "object"
-					? validatedInput.queries
-					: [validatedInput];
+			const validate = validateWithZod(SearchCodebaseUnionInputSchema, input);
+			const queries = Array.isArray(validate)
+				? validate
+				: typeof validate === "object"
+					? Array.isArray(validate.queries)
+						? validate.queries
+						: [validate.queries]
+					: [validate];
 
 			return Promise.all(
 				queries.map(async (query): Promise<ToolOperationResult> => {
@@ -282,7 +283,9 @@ export function createBashTool(
 			const commands = Array.isArray(validate)
 				? validate
 				: typeof validate === "object"
-					? validate.commands
+					? Array.isArray(validate.commands)
+						? validate.commands
+						: [validate.commands]
 					: [validate];
 
 			return Promise.all(
