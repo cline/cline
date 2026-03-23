@@ -216,6 +216,32 @@ describe("format conversion", () => {
 		expect(openai[1].tool_calls[0].extra_content).toBeUndefined();
 	});
 
+	it("applies OpenAI cache markers only to the final user message", () => {
+		const messages: Message[] = [
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "intermediate response" },
+			{ role: "user", content: "second prompt" },
+		];
+
+		const openai = convertToOpenAIMessages(messages, true) as any[];
+		expect(openai[0]).toMatchObject({ role: "user", content: "first prompt" });
+		expect(openai[2].role).toBe("user");
+		expect(openai[2].content).toMatchObject([
+			{
+				type: "text",
+				text: "second prompt",
+				cache_control: { type: "ephemeral" },
+			},
+		]);
+
+		const cacheMarkerCount = openai
+			.flatMap((message) =>
+				Array.isArray(message.content) ? message.content : [],
+			)
+			.filter((part) => part?.cache_control?.type === "ephemeral").length;
+		expect(cacheMarkerCount).toBe(1);
+	});
+
 	it("normalizes array-shaped tool_use input for openai replay", () => {
 		const messages: Message[] = [
 			{ role: "user", content: "run these" },

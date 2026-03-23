@@ -90,6 +90,7 @@ function normalizeRuntimeConfig(input: {
 
 function getOrCreatePinoLogger(
 	config: Required<RpcChatRuntimeLoggerConfig>,
+	runtime: "cli" | "rpc-runtime",
 ): PinoLogger {
 	if (!config.enabled) {
 		return pino({
@@ -99,13 +100,13 @@ function getOrCreatePinoLogger(
 			timestamp: pino.stdTimeFunctions.isoTime,
 		});
 	}
-	const key = `${config.enabled}|${config.level}|${config.destination}|${config.name}`;
+	const key = `${runtime}|${config.enabled}|${config.level}|${config.destination}|${config.name}`;
 	const cached = loggerCache.get(key);
 	if (cached) {
 		return cached.logger;
 	}
 
-	const destination = createWritableDestination(config.destination);
+	const destination = createWritableDestination(config.destination, runtime);
 	if (destination) {
 		cleanupStaleLogFile(config.destination);
 		startLogCleanupTimer(config.destination);
@@ -125,6 +126,7 @@ function getOrCreatePinoLogger(
 
 function createWritableDestination(
 	destinationPath: string,
+	runtime: "cli" | "rpc-runtime",
 ): DestinationStream | undefined {
 	try {
 		mkdirSync(dirname(destinationPath), { recursive: true });
@@ -133,7 +135,7 @@ function createWritableDestination(
 		const dest = pino.destination({
 			dest: destinationPath,
 			mkdir: true,
-			sync: false,
+			sync: runtime === "cli",
 		});
 		// SonicBoom registers its own process 'exit' handler that calls
 		// flushSync().  When the process exits before the async stream is
@@ -255,7 +257,7 @@ export function createCliLoggerAdapter(
 		runtime: input.runtime,
 		runtimeConfig: input.runtimeConfig,
 	});
-	const baseLogger = getOrCreatePinoLogger(runtimeConfig);
+	const baseLogger = getOrCreatePinoLogger(runtimeConfig, input.runtime);
 	const logger = baseLogger.child({
 		...runtimeConfig.bindings,
 		...(input.component ? { component: input.component } : {}),

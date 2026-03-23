@@ -76,7 +76,7 @@ function printRunStats(
 	reasoningChunkCount: number,
 	redactedReasoningChunkCount: number,
 ): void {
-	if (config.outputMode !== "text" || !config.verbose) {
+	if (config.outputMode !== "text") {
 		return;
 	}
 	writeln();

@@ -60,7 +60,7 @@ export class TurnProcessor {
 
 		const pendingToolCallsMap = new Map<
 			string,
-			{ name?: string; arguments: string; signature?: string }
+			{ name?: string; arguments: string | null; signature?: string }
 		>();
 		const toolCallIdAliases = new Map<string, string>();
 
@@ -209,7 +209,7 @@ export class TurnProcessor {
 		chunk: LlmsProviders.ApiStreamChunk & { type: "tool_calls" },
 		pendingMap: Map<
 			string,
-			{ name?: string; arguments: string; signature?: string }
+			{ name?: string; arguments: string | null; signature?: string }
 		>,
 		aliasMap: Map<string, string>,
 	): void {
@@ -231,7 +231,7 @@ export class TurnProcessor {
 
 		let pending = pendingMap.get(canonicalId);
 		if (!pending) {
-			pending = { name: undefined, arguments: "" };
+			pending = { name: undefined, arguments: null };
 			pendingMap.set(canonicalId, pending);
 		}
 
@@ -239,13 +239,14 @@ export class TurnProcessor {
 			pending.name = tool_call.function.name;
 		}
 
-		if (tool_call.function.arguments) {
+		if (tool_call.function.arguments != null) {
 			if (typeof tool_call.function.arguments === "string") {
 				// Provider handlers are responsible for normalizing cumulative
 				// snapshots into deltas. Re-interpreting string chunks here can
 				// corrupt valid payloads when a later suffix happens to start with
 				// "[" or "{" inside a JSON string value.
-				pending.arguments += tool_call.function.arguments;
+				pending.arguments =
+					(pending.arguments ?? "") + tool_call.function.arguments;
 			} else {
 				pending.arguments = JSON.stringify(tool_call.function.arguments);
 			}
@@ -258,15 +259,18 @@ export class TurnProcessor {
 	private finalizePendingToolCalls(
 		pendingMap: Map<
 			string,
-			{ name?: string; arguments: string; signature?: string }
+			{ name?: string; arguments: string | null; signature?: string }
 		>,
 	): PendingToolCall[] {
 		const toolCalls: PendingToolCall[] = [];
 		for (const [id, pending] of pendingMap.entries()) {
-			if (!pending.name || !pending.arguments) {
+			if (!pending.name || pending.arguments == null) {
 				continue;
 			}
-			const parsed = this.parseToolArguments(pending.arguments);
+			// Treat empty string as empty object — tools with no parameters
+			// receive "" from OpenAI-compatible streaming deltas.
+			const argsToParse = pending.arguments || "{}";
+			const parsed = this.parseToolArguments(argsToParse);
 			if (!parsed.ok) {
 				continue;
 			}
@@ -283,7 +287,7 @@ export class TurnProcessor {
 	private collectInvalidToolCalls(
 		pendingMap: Map<
 			string,
-			{ name?: string; arguments: string; signature?: string }
+			{ name?: string; arguments: string | null; signature?: string }
 		>,
 	): Array<{
 		id: string;
@@ -301,12 +305,12 @@ export class TurnProcessor {
 			if (!pending.name) {
 				invalid.push({
 					id,
-					input: this.buildInvalidToolInput(pending.arguments),
+					input: this.buildInvalidToolInput(pending.arguments ?? ""),
 					reason: "missing_name",
 				});
 				continue;
 			}
-			if (!pending.arguments) {
+			if (pending.arguments == null) {
 				invalid.push({
 					id,
 					name: pending.name,
@@ -315,7 +319,10 @@ export class TurnProcessor {
 				});
 				continue;
 			}
-			const parsed = this.parseToolArguments(pending.arguments);
+			// Treat empty string as empty object — tools with no parameters
+			// receive "" from OpenAI-compatible streaming deltas.
+			const argsToParse = pending.arguments || "{}";
+			const parsed = this.parseToolArguments(argsToParse);
 			if (!parsed.ok) {
 				invalid.push({
 					id,

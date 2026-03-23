@@ -7,9 +7,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { describe, expect, it } from "vitest";
+import pino from "pino";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { getCliBuildInfo } from "../utils/common";
-import { createCliLoggerAdapter } from "./adapter";
+import { createCliLoggerAdapter, flushCliLoggerAdapters } from "./adapter";
 
 const envKeys = [
 	"CLINE_DATA_DIR",
@@ -48,6 +49,10 @@ function restoreEnv(
 const commandName = getCliBuildInfo().name;
 
 describe("createCliLoggerAdapter", () => {
+	afterEach(() => {
+		vi.restoreAllMocks();
+	});
+
 	it("resolves default runtime config from data dir", () => {
 		const snapshot = withEnvSnapshot();
 		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-log-test-`));
@@ -141,6 +146,80 @@ describe("createCliLoggerAdapter", () => {
 				const adapter = createCliLoggerAdapter({ runtime: "cli" });
 				adapter.core.info?.("fallback path test");
 			}).not.toThrow();
+		} finally {
+			restoreEnv(snapshot);
+		}
+	});
+
+	it("uses sync pino destination for cli runtime", () => {
+		const snapshot = withEnvSnapshot();
+		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-log-test-`));
+		process.env.CLINE_DATA_DIR = dataDir;
+		delete process.env.CLINE_LOG_PATH;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		const destinationSpy = vi.spyOn(pino, "destination");
+		try {
+			createCliLoggerAdapter({ runtime: "cli" });
+			expect(destinationSpy).toHaveBeenCalledWith(
+				expect.objectContaining({
+					sync: true,
+				}),
+			);
+		} finally {
+			restoreEnv(snapshot);
+		}
+	});
+
+	it("flushes immediate-shutdown logs without sonic-boom readiness errors", () => {
+		const snapshot = withEnvSnapshot();
+		const dataDir = mkdtempSync(
+			join(tmpdir(), `${commandName}-shutdown-test-`),
+		);
+		process.env.CLINE_DATA_DIR = dataDir;
+		delete process.env.CLINE_LOG_PATH;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		try {
+			const adapter = createCliLoggerAdapter({
+				runtime: "cli",
+				component: "shutdown-test",
+			});
+			expect(() => {
+				adapter.core.info?.("immediate shutdown");
+				flushCliLoggerAdapters();
+			}).not.toThrowError(/sonic boom is not ready yet/);
+
+			const logPath = join(dataDir, "logs", `${commandName}.log`);
+			expect(readFileSync(logPath, "utf8")).toContain("immediate shutdown");
+		} finally {
+			restoreEnv(snapshot);
+		}
+	});
+
+	it("keeps normal logging behavior with explicit flush", () => {
+		const snapshot = withEnvSnapshot();
+		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-flush-test-`));
+		process.env.CLINE_DATA_DIR = dataDir;
+		delete process.env.CLINE_LOG_PATH;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		try {
+			const adapter = createCliLoggerAdapter({
+				runtime: "cli",
+				component: "flush-test",
+			});
+			adapter.core.info?.("normal logging");
+			expect(() => flushCliLoggerAdapters()).not.toThrow();
+
+			const logPath = join(dataDir, "logs", `${commandName}.log`);
+			expect(readFileSync(logPath, "utf8")).toContain("normal logging");
 		} finally {
 			restoreEnv(snapshot);
 		}

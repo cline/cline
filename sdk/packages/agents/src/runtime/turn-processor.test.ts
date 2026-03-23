@@ -204,6 +204,112 @@ describe("TurnProcessor", () => {
 		]);
 	});
 
+	it("treats tool call with empty arguments as valid (no-parameter tools)", async () => {
+		// OpenAI-compatible providers send arguments: "" for tools with no
+		// parameters. This must be treated as valid input (empty object), not
+		// flagged as missing_arguments.
+		const processor = createProcessor([
+			{
+				type: "tool_calls",
+				id: "r1",
+				tool_call: {
+					call_id: "call_1",
+					function: {
+						name: "get_user",
+						arguments: "",
+					},
+				},
+			},
+			{ type: "done", id: "r1", success: true },
+		]);
+
+		const { turn } = await processor.processTurn(
+			[],
+			"system",
+			[],
+			new AbortController().signal,
+		);
+
+		expect(turn.invalidToolCalls).toEqual([]);
+		expect(turn.toolCalls).toHaveLength(1);
+		expect(turn.toolCalls[0]).toMatchObject({
+			id: "call_1",
+			name: "get_user",
+			input: {},
+		});
+	});
+
+	it("treats tool call with empty object arguments as valid", async () => {
+		const processor = createProcessor([
+			{
+				type: "tool_calls",
+				id: "r1",
+				tool_call: {
+					call_id: "call_1",
+					function: {
+						name: "get_user",
+						arguments: {},
+					},
+				},
+			},
+			{ type: "done", id: "r1", success: true },
+		]);
+
+		const { turn } = await processor.processTurn(
+			[],
+			"system",
+			[],
+			new AbortController().signal,
+		);
+
+		expect(turn.invalidToolCalls).toEqual([]);
+		expect(turn.toolCalls).toHaveLength(1);
+		expect(turn.toolCalls[0]).toMatchObject({
+			id: "call_1",
+			name: "get_user",
+			input: {},
+		});
+	});
+
+	it("classifies tool call with name but no arguments as missing_arguments (truncation)", async () => {
+		const processor = createProcessor([
+			{ type: "text", id: "r1", text: "Here is my long analysis..." },
+			{
+				type: "tool_calls",
+				id: "r1",
+				tool_call: {
+					call_id: "call_1",
+					function: { id: "call_1", name: "editor" },
+				},
+			},
+			{
+				type: "done",
+				id: "r1",
+				success: true,
+				incompleteReason: "max_tokens",
+			},
+		]);
+
+		const { turn } = await processor.processTurn(
+			[],
+			"system",
+			[],
+			new AbortController().signal,
+		);
+
+		expect(turn.toolCalls).toEqual([]);
+		expect(turn.invalidToolCalls).toEqual([
+			{
+				id: "call_1",
+				name: "editor",
+				input: {},
+				reason: "missing_arguments",
+			},
+		]);
+		expect(turn.text).toBe("Here is my long analysis...");
+		expect(turn.truncated).toBe(true);
+	});
+
 	it("appends string argument deltas even when a later chunk starts with [", async () => {
 		const processor = createProcessor([
 			{

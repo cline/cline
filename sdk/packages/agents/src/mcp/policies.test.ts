@@ -48,4 +48,17 @@ describe("mcp policy helpers", () => {
 			},
 		});
 	});
+
+	it("uses the sanitized default MCP tool name policy for invalid server names", () => {
+		expect(
+			createDisabledMcpToolPolicy({
+				serverName: "github.com/cline/linear-mcp",
+				toolName: "list_issues",
+			}),
+		).toEqual({
+			"github_com_cline_linear-mcp__list_issues_6a40079f": {
+				enabled: false,
+			},
+		});
+	});
 });

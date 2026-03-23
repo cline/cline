@@ -1,13 +1,7 @@
 import { createTool } from "../tools/create.js";
 import type { Tool } from "../types.js";
+import { defaultMcpToolNameTransform } from "./name-transform.js";
 import type { CreateMcpToolsOptions, McpToolDescriptor } from "./types.js";
-
-function defaultMcpToolNameTransform(input: {
-	serverName: string;
-	toolName: string;
-}): string {
-	return `${input.serverName}__${input.toolName}`;
-}
 
 function defaultMcpDescription(
 	serverName: string,

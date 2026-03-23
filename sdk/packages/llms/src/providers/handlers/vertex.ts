@@ -241,7 +241,7 @@ export class VertexHandler extends BaseHandler {
 				promptCacheOn,
 			}),
 			tools: toAiSdkTools(tools),
-			maxTokens: model.info.maxTokens ?? this.config.maxOutputTokens ?? 8192,
+			maxTokens: model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000,
 			temperature: reasoningOn ? undefined : 0,
 			providerOptions:
 				Object.keys(providerOptions).length > 0 ? providerOptions : undefined,

@@ -218,4 +218,44 @@ describe("GeminiHandler", () => {
 		expect(secondId).toBeTruthy();
 		expect(firstId).not.toBe(secondId);
 	});
+
+	it("defaults maxOutputTokens to 8192 for gemini-3-flash when no model or config limit is provided", async () => {
+		generateContentStreamSpy.mockResolvedValue(createAsyncIterable([]));
+
+		const handler = new GeminiHandler({
+			providerId: "gemini",
+			modelId: "gemini-3-flash",
+			apiKey: "test-key",
+		});
+
+		await collectChunks(
+			handler.createMessage("System", [{ role: "user", content: "go" }]),
+		);
+
+		expect(generateContentStreamSpy).toHaveBeenCalledTimes(1);
+		const request = generateContentStreamSpy.mock.calls[0]?.[0] as {
+			config?: { maxOutputTokens?: number };
+		};
+		expect(request.config?.maxOutputTokens).toBe(8192);
+	});
+
+	it("defaults maxOutputTokens to 128000 for non gemini-3-flash models when no model or config limit is provided", async () => {
+		generateContentStreamSpy.mockResolvedValue(createAsyncIterable([]));
+
+		const handler = new GeminiHandler({
+			providerId: "gemini",
+			modelId: "gemini-2.5-flash",
+			apiKey: "test-key",
+		});
+
+		await collectChunks(
+			handler.createMessage("System", [{ role: "user", content: "go" }]),
+		);
+
+		expect(generateContentStreamSpy).toHaveBeenCalledTimes(1);
+		const request = generateContentStreamSpy.mock.calls[0]?.[0] as {
+			config?: { maxOutputTokens?: number };
+		};
+		expect(request.config?.maxOutputTokens).toBe(128000);
+	});
 });

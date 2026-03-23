@@ -105,7 +105,6 @@ export class Agent {
 			| "maxParallelToolCalls"
 			| "apiTimeoutMs"
 			| "maxConsecutiveMistakes"
-			| "maxTokensPerTurn"
 			| "reminderAfterIterations"
 			| "reminderText"
 			| "hookErrorMode"
@@ -137,7 +136,7 @@ export class Agent {
 			maxParallelToolCalls: config.maxParallelToolCalls ?? 8,
 			apiTimeoutMs: config.apiTimeoutMs ?? 120000,
 			maxConsecutiveMistakes: config.maxConsecutiveMistakes ?? 3,
-			maxTokensPerTurn: config.maxTokensPerTurn ?? 8192,
+			maxTokensPerTurn: config.maxTokensPerTurn,
 			reminderAfterIterations: config.reminderAfterIterations ?? 0,
 			reminderText: config.reminderText ?? DEFAULT_REMINDER_TEXT,
 			hookErrorMode: config.hookErrorMode ?? "ignore",
@@ -725,13 +724,22 @@ export class Agent {
 					this.conversationStore.appendMessage(
 						this.buildInvalidToolResultMessage(turn.invalidToolCalls),
 					);
-					this.emit({
-						type: "notice",
-						noticeType: "recovery",
-						message: feedback,
+					this.appendRecoveryNotice(feedback, "invalid_tool_call");
+					const shouldContinue = await this.recordMistake({
+						iteration,
 						reason: "invalid_tool_call",
+						details: feedback,
+						consecutiveMistakes: () => consecutiveMistakes,
+						setConsecutiveMistakes: (value) => {
+							consecutiveMistakes = value;
+						},
 					});
-					throw new Error(feedback);
+					if (shouldContinue) {
+						continue;
+					}
+					throw new Error(
+						`maximum consecutive mistakes reached (${this.config.maxConsecutiveMistakes})`,
+					);
 				}
 
 				if (turn.toolCalls.length === 0) {
