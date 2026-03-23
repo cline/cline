@@ -1,7 +1,6 @@
 import { homedir } from "node:os";
-import { resolve } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
-import { setHomeDir } from "@clinebot/core";
+import { setClineDir, setHomeDir } from "@clinebot/core";
 import type { Command } from "commander";
 import {
 	ensureOAuthProviderApiKey,
@@ -96,7 +95,11 @@ export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
 
 	const cliArgs = process.argv.slice(2);
-	setHomeDir(resolveConfigDirArg(cliArgs) ?? homedir());
+	const configDir = resolveConfigDirArg(cliArgs);
+	if (configDir) {
+		setClineDir(configDir);
+	}
+	setHomeDir(homedir());
 
 	let launchConfigView = false;
 	const normalizedArgs = cliArgs;
@@ -139,9 +142,6 @@ export async function runCli(): Promise<void> {
 				cwd?: string;
 				verbose?: boolean;
 			}>();
-			if (opts.config) {
-				process.env.CLINE_DATA_DIR = resolve(opts.config, "data");
-			}
 			const providerSettingsManager = await createProviderSettingsManager();
 			ctx.exitCode = await runAuthCommand({
 				providerSettingsManager,
@@ -217,9 +217,6 @@ export async function runCli(): Promise<void> {
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();
-			if (opts.config) {
-				process.env.CLINE_DATA_DIR = resolve(opts.config, "data");
-			}
 			const limit = Number.parseInt(opts.limit, 10);
 			const outputMode =
 				program.opts().json || opts.json

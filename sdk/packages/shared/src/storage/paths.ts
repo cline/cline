@@ -32,6 +32,40 @@ export function setHomeDirIfUnset(dir: string) {
 	HOME_DIR = trimmed;
 }
 
+let CLINE_DIR: string | undefined;
+let CLINE_DIR_SET_EXPLICITLY = false;
+
+export function setClineDir(dir: string): void {
+	const trimmed = dir.trim();
+	if (!trimmed) {
+		return;
+	}
+	CLINE_DIR = trimmed;
+	CLINE_DIR_SET_EXPLICITLY = true;
+}
+
+export function setClineDirIfUnset(dir: string): void {
+	if (CLINE_DIR_SET_EXPLICITLY) {
+		return;
+	}
+	const trimmed = dir.trim();
+	if (!trimmed) {
+		return;
+	}
+	CLINE_DIR = trimmed;
+}
+
+export function resolveClineDir(): string {
+	if (CLINE_DIR) {
+		return CLINE_DIR;
+	}
+	const envDir = process.env.CLINE_DIR?.trim();
+	if (envDir) {
+		return envDir;
+	}
+	return join(HOME_DIR, ".cline");
+}
+
 export function resolveDocumentsClineDirectoryPath(): string {
 	return join(HOME_DIR, "Documents", "Cline");
 }
@@ -57,7 +91,7 @@ export function resolveClineDataDir(): string {
 	if (explicitDir) {
 		return explicitDir;
 	}
-	return join(HOME_DIR, ".cline", "data");
+	return join(resolveClineDir(), "data");
 }
 
 export function resolveSessionDataDir(): string {
@@ -145,7 +179,7 @@ export function resolveSkillsConfigSearchPaths(
 	return dedupePaths([
 		...getWorkspaceSkillDirectories(workspacePath),
 		join(resolveClineDataDir(), "settings", SKILLS_CONFIG_DIRECTORY_NAME),
-		join(HOME_DIR, ".cline", SKILLS_CONFIG_DIRECTORY_NAME),
+		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
 		join(HOME_DIR, ".agents", SKILLS_CONFIG_DIRECTORY_NAME),
 	]);
 }
@@ -177,7 +211,7 @@ export function resolvePluginConfigSearchPaths(
 		workspacePath
 			? join(workspacePath, ".clinerules", PLUGINS_DIRECTORY_NAME)
 			: "",
-		join(HOME_DIR, ".cline", PLUGINS_DIRECTORY_NAME),
+		join(resolveClineDir(), PLUGINS_DIRECTORY_NAME),
 		join(HOME_DIR, ".agents", PLUGINS_DIRECTORY_NAME),
 	]);
 }

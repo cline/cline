@@ -58,7 +58,10 @@ export {
 	ensureHookLogDir,
 	ensureParentDir,
 	resolveClineDataDir,
+	resolveClineDir,
 	resolveSessionDataDir,
+	setClineDir,
+	setClineDirIfUnset,
 	setHomeDir,
 	setHomeDirIfUnset,
 } from "@clinebot/shared/storage";
