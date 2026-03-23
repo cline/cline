@@ -35,6 +35,7 @@ export function addRootOptions(cmd: Command): Command {
 		.option("-i, --interactive", "Start interactive chat mode")
 		.option("--json", "Output messages as JSON instead of styled text")
 		.option("-k, --key <api-key>", "API key override for this run")
+		.option("--apiKey <api-key>") // hidden alias for --key
 		.option(
 			"--max-consecutive-mistakes <count>",
 			"Maximum consecutive mistakes before halting in yolo mode",
@@ -197,6 +198,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.model !== undefined) result.model = opts.model;
 	if (opts.provider !== undefined) result.provider = opts.provider;
 	if (opts.key !== undefined) result.key = opts.key;
+	else if (opts.apiKey !== undefined) result.key = opts.apiKey;
 	if (opts.taskId !== undefined) result.taskId = opts.taskId;
 
 	if (opts.maxIterations !== undefined) {
