@@ -467,4 +467,101 @@ description: Test
 			expect(content!.instructions).to.equal("Instructions with whitespace")
 		})
 	})
+
+	describe("Extended Metadata (v2)", () => {
+		it("should parse all extended metadata fields from frontmatter", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "metadata-skill")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["metadata-skill"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: metadata-skill
+description: Analyze failures and propose targeted tests
+version: 2
+tags:
+  - testing
+  - diagnostics
+tools:
+  - read_file
+  - search_files
+resources:
+  - memory:test-conventions
+invocation:
+  manual: false
+  auto: true
+---
+Instructions here`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0]).to.deep.include({
+				name: "metadata-skill",
+				description: "Analyze failures and propose targeted tests",
+				version: 2,
+				tags: ["testing", "diagnostics"],
+				tools: ["read_file", "search_files"],
+				resources: ["memory:test-conventions"],
+				invocation: { manual: false, auto: true },
+			})
+		})
+
+		it("should omit optional fields when not present in frontmatter", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "basic-skill")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["basic-skill"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: basic-skill
+description: A skill without extended fields
+---
+Content`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0]).to.not.have.property("version")
+			expect(skills[0]).to.not.have.property("tags")
+			expect(skills[0]).to.not.have.property("tools")
+			expect(skills[0]).to.not.have.property("resources")
+			expect(skills[0]).to.not.have.property("invocation")
+		})
+
+		it("should filter non-string items from array fields", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "mixed-types")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["mixed-types"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: mixed-types
+description: Has mixed types in arrays
+tools:
+  - read_file
+  - 123
+  - search_files
+tags:
+  - valid
+  - 456
+---
+Content`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].tools).to.deep.equal(["read_file", "search_files"])
+			expect(skills[0].tags).to.deep.equal(["valid"])
+		})
+	})
 })

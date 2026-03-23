@@ -15,6 +15,68 @@ function parseFrontmatter(fileContent: string): { data: Record<string, unknown>;
 	return { data: result.data, content: result.body }
 }
 
+function toStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) {
+		if (typeof value === "string") {
+			const trimmed = value.trim()
+			return trimmed ? [trimmed] : undefined
+		}
+		return undefined
+	}
+
+	const values = value
+		.filter((item): item is string => typeof item === "string")
+		.map((item) => item.trim())
+		.filter((item) => item.length > 0)
+
+	return values.length > 0 ? values : undefined
+}
+
+function toPositiveInteger(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isInteger(value) && value > 0 ? value : undefined
+}
+
+function normalizeInvocation(value: unknown): SkillMetadata["invocation"] {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined
+	}
+
+	const obj = value as Record<string, unknown>
+	const manual = typeof obj.manual === "boolean" ? obj.manual : undefined
+	const auto = typeof obj.auto === "boolean" ? obj.auto : undefined
+
+	if (manual === undefined && auto === undefined) {
+		return undefined
+	}
+
+	return { manual: manual ?? true, auto: auto ?? false }
+}
+
+function normalizeSkillMetadata(
+	frontmatter: Record<string, unknown>,
+	skillMdPath: string,
+	skillName: string,
+	source: "global" | "project",
+): SkillMetadata {
+	const version = toPositiveInteger(frontmatter.version)
+	const tags = toStringArray(frontmatter.tags)
+	const tools = toStringArray(frontmatter.tools)
+	const resources = toStringArray(frontmatter.resources)
+	const invocation = normalizeInvocation(frontmatter.invocation)
+
+	return {
+		name: skillName,
+		description: frontmatter.description as string,
+		path: skillMdPath,
+		source,
+		...(version !== undefined ? { version } : {}),
+		...(tags ? { tags } : {}),
+		...(tools ? { tools } : {}),
+		...(resources ? { resources } : {}),
+		...(invocation ? { invocation } : {}),
+	}
+}
+
 /**
  * Scan a directory for skill subdirectories containing SKILL.md files.
  */
@@ -78,12 +140,7 @@ async function loadSkillMetadata(
 			return null
 		}
 
-		return {
-			name: skillName,
-			description: frontmatter.description,
-			path: skillMdPath,
-			source,
-		}
+		return normalizeSkillMetadata(frontmatter, skillMdPath, skillName, source)
 	} catch (error) {
 		Logger.warn(`Failed to load skill at ${skillDir}:`, error)
 		return null
