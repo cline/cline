@@ -31,7 +31,7 @@ export function closeInlineStreamIfNeeded(): void {
 // Agent event handler
 // =============================================================================
 
-export function handleEvent(event: AgentEvent, _config: Config): void {
+export function handleEvent(event: AgentEvent, config: Config): void {
 	if (getCurrentOutputMode() === "json") {
 		emitJsonLine("stdout", { type: "agent_event", event });
 		return;
@@ -115,18 +115,20 @@ export function handleEvent(event: AgentEvent, _config: Config): void {
 
 		case "done": {
 			closeInlineStreamIfNeeded();
-			const iterations = event.iterations;
-			const usage = event.usage;
-			const isAborted = event.reason === "aborted";
-			if (usage) {
-				const costStr = formatUsd(usage.totalCost ?? 0);
-				write(
-					`\n${c.dim}── ${isAborted ? "aborted" : "finished"} in ${iterations} turns | ${costStr} | ${usage.inputTokens}/${usage.outputTokens} tokens used ──${c.reset}`,
-				);
-			} else {
-				write(
-					`\n${c.dim}── ${isAborted ? "aborted" : "finished"}: ${event.reason} (${iterations} iterations) ──${c.reset}`,
-				);
+			if (config.verbose) {
+				const iterations = event.iterations;
+				const usage = event.usage;
+				const isAborted = event.reason === "aborted";
+				if (usage) {
+					const costStr = formatUsd(usage.totalCost ?? 0);
+					write(
+						`\n${c.dim}── ${isAborted ? "aborted" : "finished"} in ${iterations} turns | ${costStr} | ${usage.inputTokens}/${usage.outputTokens} tokens used ──${c.reset}`,
+					);
+				} else {
+					write(
+						`\n${c.dim}── ${isAborted ? "aborted" : "finished"}: ${event.reason} (${iterations} iterations) ──${c.reset}`,
+					);
+				}
 			}
 			activeInlineStream = undefined;
 			inlineStreamHasOutput = false;

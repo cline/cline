@@ -76,7 +76,7 @@ function printRunStats(
 	reasoningChunkCount: number,
 	redactedReasoningChunkCount: number,
 ): void {
-	if (config.outputMode !== "text") {
+	if (config.outputMode !== "text" || !config.verbose) {
 		return;
 	}
 	writeln();
@@ -112,13 +112,15 @@ export async function runAgent(
 		clineProviderSettings?: LlmsProviders.ProviderSettings;
 	},
 ): Promise<void> {
-	const clineWelcomeLine = await resolveClineWelcomeLine({
-		config,
-		clineApiBaseUrl: options?.clineApiBaseUrl,
-		clineProviderSettings: options?.clineProviderSettings,
-	});
-	if (clineWelcomeLine && config.outputMode !== "json") {
-		writeln(clineWelcomeLine);
+	if (config.verbose) {
+		const clineWelcomeLine = await resolveClineWelcomeLine({
+			config,
+			clineApiBaseUrl: options?.clineApiBaseUrl,
+			clineProviderSettings: options?.clineProviderSettings,
+		});
+		if (clineWelcomeLine && config.outputMode !== "json") {
+			writeln(clineWelcomeLine);
+		}
 	}
 
 	const startTime = performance.now();
@@ -204,7 +206,9 @@ export async function runAgent(
 
 	// --- Main execution ---
 	try {
-		printModelProviderInfo(config);
+		if (config.verbose) {
+			printModelProviderInfo(config);
+		}
 		const userInput = await buildUserInputMessage(
 			prompt,
 			userInstructionWatcher,

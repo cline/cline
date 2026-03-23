@@ -20,7 +20,7 @@ import { expectExitCode, expectVisible } from "../helpers/terminal.js";
 
 // ---------------------------------------------------------------------------
 // cline -y "tell me a joke"
-// Golden path: prints "Task started" then LLM output, then exits 0.
+// Golden path: prints only LLM output (no chrome), then exits 0.
 // Unauthenticated: prints "Not authenticated" and exits 1.
 // ---------------------------------------------------------------------------
 test.describe("cline -y (headless yolo mode) — unauthenticated", () => {
@@ -61,7 +61,7 @@ test.describe("piped stdin | cline -y — unauthenticated", () => {
 
 // ---------------------------------------------------------------------------
 // cline -y --verbose "tell me a joke" 2>&1
-// Golden path: prints task started, prompt, api request, reasoning, task_completion lines
+// Golden path: prints model info, prompt, api request, reasoning, task_completion lines
 // ---------------------------------------------------------------------------
 test.describe("cline -y --verbose — unauthenticated", () => {
 	test.use({
@@ -106,8 +106,9 @@ test.describe("cline -y (headless yolo mode) — authenticated @live", () => {
 		}),
 	});
 
-	test("prints Task started then LLM output", async ({ terminal }) => {
-		await expectVisible(terminal, /task started/i);
+	test("prints only LLM output", async ({ terminal }) => {
+		// In headless non-verbose mode, only the LLM response text is printed.
+		await expectVisible(terminal, /why/i);
 		await expectExitCode(terminal, EXIT_CODE_SUCCESS);
 	});
 });
@@ -131,17 +132,16 @@ test.describe("piped stdin | cline -y — authenticated", () => {
 		}),
 	});
 
-	test("prints Task started and output for piped stdin", async ({
-		terminal,
-	}) => {
-		await expectVisible(terminal, /task started/i);
+	test("prints only LLM output for piped stdin", async ({ terminal }) => {
+		// In headless non-verbose mode, only the LLM response text is printed.
+		await expectVisible(terminal, /horse/i);
 		await expectExitCode(terminal, EXIT_CODE_SUCCESS);
 	});
 });
 
 // ---------------------------------------------------------------------------
 // cline -y --verbose "tell me a joke" 2>&1 — authenticated
-// Golden path: prints task started, prompt, api request, reasoning, task_completion
+// Golden path: prints model info, prompt, api request, reasoning, task_completion
 // ---------------------------------------------------------------------------
 test.describe("cline -y --verbose — authenticated @live", () => {
 	test.use({
@@ -155,10 +155,11 @@ test.describe("cline -y --verbose — authenticated @live", () => {
 		}),
 	});
 
-	test("shows verbose output with task started, prompt, and api request lines", async ({
+	test("shows verbose output with model info and LLM response", async ({
 		terminal,
 	}) => {
-		await expectVisible(terminal, /task started/i);
+		// In verbose mode, extra chrome like model info is printed.
+		await expectVisible(terminal, /\[model\]/i);
 		await expectExitCode(terminal, EXIT_CODE_SUCCESS);
 	});
 });
