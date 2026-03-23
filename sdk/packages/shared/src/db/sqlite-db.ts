@@ -1,4 +1,6 @@
+import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
+import { dirname } from "node:path";
 
 export type SqliteStatement = {
 	run: (...params: unknown[]) => { changes?: number };
@@ -56,6 +58,7 @@ export function asBool(value: unknown): boolean {
 }
 
 export function loadSqliteDb(filePath: string): SqliteDb {
+	mkdirSync(dirname(filePath), { recursive: true });
 	const require = createRequire(import.meta.url);
 	const isBunRuntime =
 		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
