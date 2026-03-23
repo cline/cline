@@ -145,7 +145,8 @@ export class AnthropicHandler extends BaseHandler {
 				thinking: reasoningOn
 					? { type: "enabled", budget_tokens: budgetTokens }
 					: undefined,
-				max_tokens: model.info.maxTokens ?? this.config.maxOutputTokens ?? 8192,
+				max_tokens:
+					model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000,
 				temperature: reasoningOn ? undefined : 0,
 				system: supportsPromptCache
 					? [
@@ -173,6 +174,7 @@ export class AnthropicHandler extends BaseHandler {
 			cacheReadTokens: 0,
 			cacheWriteTokens: 0,
 		};
+		let stopReason: string | null = null;
 
 		for await (const chunk of stream) {
 			if (debugThinking) {
@@ -184,6 +186,11 @@ export class AnthropicHandler extends BaseHandler {
 				} else if (chunk.type === "content_block_delta") {
 					countChunk(`content_block_delta:${chunk.delta?.type ?? "unknown"}`);
 				}
+			}
+			if (chunk.type === "message_delta") {
+				stopReason =
+					(chunk as { delta?: { stop_reason?: string } }).delta?.stop_reason ??
+					stopReason;
 			}
 			yield* this.withResponseIdForAll(
 				this.processChunk(chunk, currentToolCall, usageSnapshot, responseId),
@@ -199,8 +206,12 @@ export class AnthropicHandler extends BaseHandler {
 			console.error(`[thinking-debug][anthropic][stream] ${summary}`);
 		}
 
-		// Yield done chunk to indicate streaming completed successfully
-		yield { type: "done", success: true, id: responseId };
+		yield {
+			type: "done",
+			success: true,
+			id: responseId,
+			incompleteReason: stopReason === "max_tokens" ? "max_tokens" : undefined,
+		};
 	}
 
 	protected *processChunk(

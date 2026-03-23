@@ -73,4 +73,29 @@ describe("createMcpTools", () => {
 
 		expect(tools[0].name).toBe("list_files@workspace");
 	});
+
+	it("sanitizes default MCP tool names for provider APIs with stricter validation", async () => {
+		const provider: McpToolProvider = {
+			listTools: async () => [
+				{
+					name: "list_issues",
+					inputSchema: {
+						type: "object",
+						properties: {},
+					},
+				},
+			],
+			callTool: async () => ({ ok: true }),
+		};
+
+		const tools = await createMcpTools({
+			serverName: "github.com/cline/linear-mcp",
+			provider,
+		});
+
+		expect(tools[0].name).toMatch(
+			/^github_com_cline_linear-mcp__list_issues_[a-f0-9]{8}$/,
+		);
+		expect(tools[0].name).toHaveLength(49);
+	});
 });

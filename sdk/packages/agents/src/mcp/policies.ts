@@ -1,12 +1,6 @@
 import type { ToolPolicy } from "../types.js";
+import { defaultMcpToolNameTransform } from "./name-transform.js";
 import type { McpToolNameTransform } from "./types.js";
-
-function defaultMcpToolNameTransform(input: {
-	serverName: string;
-	toolName: string;
-}): string {
-	return `${input.serverName}__${input.toolName}`;
-}
 
 export interface CreateDisabledMcpToolPolicyOptions {
 	serverName: string;

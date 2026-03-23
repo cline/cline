@@ -27,6 +27,16 @@ import { RetriableError, retryStream } from "../utils/retry";
 import { BaseHandler } from "./base";
 
 const DEFAULT_THINKING_BUDGET_TOKENS = 1024;
+const DEFAULT_MAX_OUTPUT_TOKENS = 128_000;
+const GEMINI_3_FLASH_MAX_OUTPUT_TOKENS = 8192;
+
+function isGemini3FlashModel(modelId: string): boolean {
+	const normalized = modelId.toLowerCase();
+	return (
+		normalized.includes("gemini-3-flash") ||
+		normalized.includes("gemini-3.0-flash")
+	);
+}
 
 /**
  * Handler for Google's Gemini API
@@ -131,6 +141,11 @@ export class GeminiHandler extends BaseHandler {
 		}
 
 		// Build request config with abort signal
+		const fallbackMaxOutputTokens = isGemini3FlashModel(modelId)
+			? GEMINI_3_FLASH_MAX_OUTPUT_TOKENS
+			: DEFAULT_MAX_OUTPUT_TOKENS;
+		const maxOutputTokens =
+			info.maxTokens ?? this.config.maxOutputTokens ?? fallbackMaxOutputTokens;
 		const requestConfig: GenerateContentConfig = {
 			httpOptions: this.config.baseUrl
 				? { baseUrl: this.config.baseUrl, headers: this.getRequestHeaders() }
@@ -138,7 +153,7 @@ export class GeminiHandler extends BaseHandler {
 			abortSignal,
 			systemInstruction: systemPrompt,
 			temperature: info.temperature ?? 1,
-			maxOutputTokens: info.maxTokens ?? this.config.maxOutputTokens,
+			maxOutputTokens,
 		};
 
 		// Add thinking config only when explicitly requested and supported.

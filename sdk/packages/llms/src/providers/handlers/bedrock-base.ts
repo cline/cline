@@ -143,7 +143,7 @@ export class BedrockHandler extends BaseHandler {
 			model: factory(modelId),
 			messages: this.getMessages(systemPrompt, messages),
 			tools: toAiSdkTools(tools),
-			maxTokens: model.info.maxTokens ?? this.config.maxOutputTokens ?? 8192,
+			maxTokens: model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000,
 			temperature: reasoningEnabled ? undefined : (model.info.temperature ?? 0),
 			providerOptions:
 				Object.keys(providerOptions).length > 0 ? providerOptions : undefined,

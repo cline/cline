@@ -240,7 +240,7 @@ describe("Agent", () => {
 		expect(handler.createMessage).toHaveBeenCalledTimes(2);
 	});
 
-	it("fails immediately with parse-specific feedback for invalid tool payloads", async () => {
+	it("retries invalid tool payloads until max consecutive mistakes is reached", async () => {
 		const { Agent } = await import("./agent.js");
 		const handler = makeHandler([
 			[
@@ -257,6 +257,20 @@ describe("Agent", () => {
 				},
 				{ type: "done", id: "r1", success: true },
 			],
+			[
+				{
+					type: "tool_calls",
+					id: "r2",
+					tool_call: {
+						call_id: "call_2",
+						function: {
+							name: "editor",
+							arguments: '{"command":"create","path":/tmp/file.txt}',
+						},
+					},
+				},
+				{ type: "done", id: "r2", success: true },
+			],
 		]);
 		createHandlerMock.mockReturnValue(handler);
 
@@ -267,6 +281,7 @@ describe("Agent", () => {
 			modelId: "mock-model",
 			systemPrompt: "Use tools.",
 			tools: [],
+			maxConsecutiveMistakes: 2,
 			onEvent: (event) => {
 				if (event.type === "notice") {
 					notices.push(event.message);
@@ -278,15 +293,130 @@ describe("Agent", () => {
 		});
 
 		await expect(agent.run("try editing a file")).rejects.toThrow(
-			"One or more tool calls were invalid or missing required parameters (editor [call_1]: Tool call arguments could not be parsed as JSON. Ensure the outer tool payload is valid JSON and escape embedded quotes/newlines inside string fields.). Retry with valid tool names and arguments.",
+			"maximum consecutive mistakes reached (2)",
 		);
-		expect(handler.createMessage).toHaveBeenCalledTimes(1);
+		expect(handler.createMessage).toHaveBeenCalledTimes(2);
 		expect(notices).toContain(
 			"One or more tool calls were invalid or missing required parameters (editor [call_1]: Tool call arguments could not be parsed as JSON. Ensure the outer tool payload is valid JSON and escape embedded quotes/newlines inside string fields.). Retry with valid tool names and arguments.",
 		);
 		expect(errors).toContain(
 			"One or more tool calls were invalid or missing required parameters (editor [call_1]: Tool call arguments could not be parsed as JSON. Ensure the outer tool payload is valid JSON and escape embedded quotes/newlines inside string fields.). Retry with valid tool names and arguments.",
 		);
+	});
+
+	it("recovers from missing tool call arguments and retries", async () => {
+		const { Agent } = await import("./agent.js");
+		const handler = makeHandler([
+			[
+				{
+					type: "tool_calls",
+					id: "r1",
+					tool_call: {
+						call_id: "call_1",
+						function: { name: "editor", arguments: "" },
+					},
+				},
+				{ type: "done", id: "r1", success: true },
+			],
+			[
+				{ type: "text", id: "r2", text: "Recovered" },
+				{ type: "done", id: "r2", success: true },
+			],
+		]);
+		createHandlerMock.mockReturnValue(handler);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "Use tools.",
+			tools: [],
+		});
+
+		const result = await agent.run("try editing");
+		expect(result.finishReason).toBe("completed");
+		expect(result.text).toBe("Recovered");
+		expect(handler.createMessage).toHaveBeenCalledTimes(2);
+	});
+
+	it("recovers from long text + truncated tool call (max_tokens scenario)", async () => {
+		const { Agent } = await import("./agent.js");
+		const longText = "A".repeat(5000);
+		const editorTool = createTool({
+			name: "editor",
+			description: "Edit files",
+			inputSchema: {
+				type: "object",
+				properties: { command: { type: "string" } },
+				required: ["command"],
+			},
+			execute: async (input: { command: string }) => ({
+				result: input.command,
+			}),
+		}) as Tool;
+
+		const handler = makeHandler([
+			[
+				{ type: "text", id: "r1", text: longText },
+				{
+					type: "tool_calls",
+					id: "r1",
+					tool_call: {
+						call_id: "call_1",
+						function: { id: "call_1", name: "editor" },
+					},
+				},
+				{
+					type: "done",
+					id: "r1",
+					success: true,
+					incompleteReason: "max_tokens",
+				},
+			],
+			[
+				{
+					type: "tool_calls",
+					id: "r2",
+					tool_call: {
+						call_id: "call_2",
+						function: {
+							name: "editor",
+							arguments: { command: "view" },
+						},
+					},
+				},
+				{ type: "done", id: "r2", success: true },
+			],
+			[
+				{ type: "text", id: "r3", text: "Done" },
+				{ type: "done", id: "r3", success: true },
+			],
+		]);
+		createHandlerMock.mockReturnValue(handler);
+
+		const events: Array<{ type: string; recoverable?: boolean }> = [];
+		const agent = new Agent({
+			providerId: "openrouter",
+			modelId: "mock-model",
+			systemPrompt: "Edit files.",
+			tools: [editorTool],
+			onEvent: (event) => {
+				if (event.type === "error") {
+					events.push({
+						type: "error",
+						recoverable: event.recoverable,
+					});
+				}
+			},
+		});
+
+		const result = await agent.run("edit the file with a long analysis");
+		expect(result.finishReason).toBe("completed");
+		expect(result.text).toBe("Done");
+		expect(handler.createMessage).toHaveBeenCalledTimes(3);
+		const recoverableErrors = events.filter(
+			(e) => e.type === "error" && e.recoverable,
+		);
+		expect(recoverableErrors.length).toBeGreaterThanOrEqual(1);
 	});
 
 	it("uses the default consecutive mistake limit of 3 when config omits it", async () => {

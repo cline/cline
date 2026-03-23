@@ -22,6 +22,7 @@ import type {
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
+import { hasModelCapability } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
@@ -106,9 +107,26 @@ export class OpenAIBaseHandler extends BaseHandler {
 		systemPrompt: string,
 		messages: Message[],
 	): OpenAI.Chat.ChatCompletionMessageParam[] {
+		const model = this.getModel();
+		const supportsPromptCache =
+			hasModelCapability(model.info, "prompt-cache") ||
+			this.config.capabilities?.includes("prompt-cache") === true;
+		const systemMessage = supportsPromptCache
+			? ({
+					role: "system",
+					content: [
+						{
+							type: "text",
+							text: systemPrompt,
+							cache_control: { type: "ephemeral" },
+						},
+					],
+				} as unknown as OpenAI.Chat.ChatCompletionMessageParam)
+			: { role: "system" as const, content: systemPrompt };
+
 		return [
-			{ role: "system", content: systemPrompt },
-			...convertToOpenAIMessages(messages),
+			systemMessage,
+			...convertToOpenAIMessages(messages, supportsPromptCache),
 		];
 	}
 
@@ -171,7 +189,11 @@ export class OpenAIBaseHandler extends BaseHandler {
 			this.config.reasoningEffort ??
 			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);
 		if (supportsReasoningEffort && effectiveReasoningEffort) {
-			(requestOptions as any).reasoning_effort = effectiveReasoningEffort;
+			(
+				requestOptions as OpenAI.ChatCompletionCreateParamsStreaming & {
+					reasoning_effort?: string;
+				}
+			).reasoning_effort = effectiveReasoningEffort;
 		}
 
 		const requestHeaders = this.getRequestHeaders();
@@ -191,16 +213,25 @@ export class OpenAIBaseHandler extends BaseHandler {
 			headers: requestHeaders,
 		});
 		const toolCallProcessor = new ToolCallProcessor();
+		let finishReason: string | null = null;
 
 		for await (const chunk of stream) {
+			const choice = chunk.choices?.[0];
+			if (choice?.finish_reason) {
+				finishReason = choice.finish_reason;
+			}
 			yield* this.withResponseIdForAll(
 				this.processChunk(chunk, toolCallProcessor, modelInfo, responseId),
 				responseId,
 			);
 		}
 
-		// Yield done chunk to indicate streaming completed successfully
-		yield { type: "done", success: true, id: responseId };
+		yield {
+			type: "done",
+			success: true,
+			id: responseId,
+			incompleteReason: finishReason === "length" ? "max_tokens" : undefined,
+		};
 	}
 
 	/**
@@ -213,9 +244,11 @@ export class OpenAIBaseHandler extends BaseHandler {
 		_modelInfo: ModelInfo,
 		responseId: string,
 	): Generator<import("../types").ApiStreamChunk> {
-		const delta = chunk.choices?.[0]?.delta && {
-			...chunk.choices[0].delta,
-			reasoning_content: (chunk.choices[0].delta as any).reasoning_content,
+		const rawDelta = chunk.choices?.[0]?.delta;
+		const delta = rawDelta && {
+			...rawDelta,
+			reasoning_content: (rawDelta as { reasoning_content?: string })
+				.reasoning_content,
 		};
 
 		// Handle text content
@@ -227,7 +260,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 		if (delta?.reasoning_content) {
 			yield {
 				type: "reasoning",
-				reasoning: (delta as any).reasoning_content,
+				reasoning: delta.reasoning_content,
 				id: responseId,
 			};
 		}
@@ -248,10 +281,21 @@ export class OpenAIBaseHandler extends BaseHandler {
 		if (chunk.usage) {
 			const inputTokens = chunk.usage.prompt_tokens ?? 0;
 			const outputTokens = chunk.usage.completion_tokens ?? 0;
+			const usageWithCache = chunk.usage as typeof chunk.usage & {
+				prompt_tokens_details?: {
+					cached_tokens?: number;
+					cache_write_tokens?: number;
+				};
+				prompt_cache_miss_tokens?: number;
+				cache_creation_input_tokens?: number;
+				cache_read_input_tokens?: number;
+			};
 			const cacheReadTokens =
-				(chunk.usage as any).prompt_tokens_details?.cached_tokens ?? 0;
+				usageWithCache.prompt_tokens_details?.cached_tokens ?? 0;
 			const cacheWriteTokens =
-				(chunk.usage as any).prompt_cache_miss_tokens ?? 0;
+				usageWithCache.prompt_tokens_details?.cache_write_tokens ??
+				usageWithCache.prompt_cache_miss_tokens ??
+				0;
 
 			yield {
 				type: "usage",

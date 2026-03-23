@@ -26,23 +26,61 @@ type OpenAIContentPart = OpenAI.Chat.ChatCompletionContentPart;
 /**
  * Convert messages to OpenAI format
  */
-export function convertToOpenAIMessages(messages: Message[]): OpenAIMessage[] {
-	return messages.flatMap(convertMessage);
+export function convertToOpenAIMessages(
+	messages: Message[],
+	enableCaching = false,
+): OpenAIMessage[] {
+	const lastUserIndex = enableCaching
+		? messages.map((m) => m.role).lastIndexOf("user")
+		: -1;
+	return messages.flatMap((message, index) =>
+		convertMessage(
+			message,
+			enableCaching && index === lastUserIndex,
+			enableCaching,
+		),
+	);
 }
 
-function convertMessage(message: Message): OpenAIMessage[] {
+function convertMessage(
+	message: Message,
+	addCacheControl: boolean,
+	preserveStructuredUserContent: boolean,
+): OpenAIMessage[] {
 	const { role, content } = message;
 
 	// Simple string content
 	if (typeof content === "string") {
-		return [{ role, content } as OpenAIMessage];
+		if (
+			role !== "user" ||
+			(!addCacheControl && !preserveStructuredUserContent)
+		) {
+			return [{ role, content } as OpenAIMessage];
+		}
+
+		return [
+			{
+				role,
+				content: [
+					{
+						type: "text",
+						text: content,
+						cache_control: { type: "ephemeral" },
+					},
+				],
+			} as unknown as OpenAIMessage,
+		];
 	}
 
 	// Array content - need to process blocks
 	if (role === "assistant") {
 		return [convertAssistantMessage(content)];
 	} else {
-		return convertUserMessage(content);
+		return convertUserMessage(
+			content,
+			addCacheControl,
+			preserveStructuredUserContent,
+		);
 	}
 }
 
@@ -85,7 +123,11 @@ function convertAssistantMessage(content: ContentBlock[]): OpenAIMessage {
 	return message;
 }
 
-function convertUserMessage(content: ContentBlock[]): OpenAIMessage[] {
+function convertUserMessage(
+	content: ContentBlock[],
+	addCacheControl: boolean,
+	preserveStructuredUserContent: boolean,
+): OpenAIMessage[] {
 	const messages: OpenAIMessage[] = [];
 
 	// Convert all tool results to separate tool messages
@@ -137,10 +179,27 @@ function convertUserMessage(content: ContentBlock[]): OpenAIMessage[] {
 		return messages;
 	}
 
+	if (addCacheControl) {
+		for (let i = parts.length - 1; i >= 0; i--) {
+			if (parts[i].type === "text") {
+				parts[i] = {
+					...(parts[i] as OpenAI.Chat.ChatCompletionContentPartText),
+					cache_control: { type: "ephemeral" },
+				} as unknown as OpenAIContentPart;
+				break;
+			}
+		}
+	}
+
 	messages.push({
 		role: "user",
 		content:
-			parts.length === 1 && parts[0].type === "text" ? parts[0].text : parts,
+			parts.length === 1 &&
+			parts[0].type === "text" &&
+			!addCacheControl &&
+			!preserveStructuredUserContent
+				? parts[0].text
+				: (parts as unknown as OpenAI.Chat.ChatCompletionUserMessageParam["content"]),
 	});
 
 	return messages;
