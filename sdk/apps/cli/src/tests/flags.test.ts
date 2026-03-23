@@ -108,9 +108,9 @@ test.describe("auth flag descriptions", () => {
 
 	test("all auth flags have correct descriptions", async ({ terminal }) => {
 		await expectVisible(terminal, [
-			"Provider id",
+			"Provider ID",
 			"API key",
-			"Model id",
+			"Model ID",
 			"Base URL",
 			"configuration directory",
 		]);
