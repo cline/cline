@@ -1,8 +1,10 @@
 import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
+import { parseYamlFrontmatter } from "@/core/context/instructions/user-instructions/frontmatter"
 import { getSkillsDirectoriesForScan } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
+import { Logger } from "@/shared/services/Logger"
 import { fileExistsAtPath, isDirectory } from "@/utils/fs"
 import { Controller } from ".."
 
@@ -10,29 +12,11 @@ import { Controller } from ".."
  * Parse YAML frontmatter from markdown content.
  */
 function parseFrontmatter(fileContent: string): { data: Record<string, unknown>; content: string } {
-	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/
-	const match = fileContent.match(frontmatterRegex)
-
-	if (!match) {
-		return { data: {}, content: fileContent }
+	const result = parseYamlFrontmatter(fileContent)
+	if (result.parseError) {
+		Logger.warn("Failed to parse YAML frontmatter:", result.parseError)
 	}
-
-	const [, yamlContent, body] = match
-	// Simple YAML parsing for name and description
-	const data: Record<string, unknown> = {}
-	const lines = yamlContent.split("\n")
-	for (const line of lines) {
-		const colonIndex = line.indexOf(":")
-		if (colonIndex > 0) {
-			const key = line.slice(0, colonIndex).trim()
-			const value = line
-				.slice(colonIndex + 1)
-				.trim()
-				.replace(/^["']|["']$/g, "")
-			data[key] = value
-		}
-	}
-	return { data, content: body }
+	return { data: result.data, content: result.body }
 }
 
 /**
