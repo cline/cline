@@ -5,7 +5,7 @@
 //   - Interactive auth screen navigation
 //   - `cline auth -p <provider> -k <apiKey> -m <modelId>` golden path
 //   - Invalid provider / key / model error handling
-//   - Partial-flag fallback to interactive screen
+//   - Partial-flag error handling (exit with failure)
 //   - `cline auth --help`
 // ---------------------------------------------------------------------------
 
@@ -58,7 +58,7 @@ test.describe("cline auth --help", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline auth with only partial flags → falls back to interactive screen
+// cline auth with only partial flags → exits with error
 // ---------------------------------------------------------------------------
 test.describe("cline auth --provider only (partial flags)", () => {
 	test.use({
@@ -83,10 +83,9 @@ test.describe("cline auth --apikey only (partial flags)", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("ignores partial flags and shows interactive auth screen", async ({
-		terminal,
-	}) => {
-		await waitForAuthScreen(terminal);
+	test("exits with error requiring --provider", async ({ terminal }) => {
+		await expectVisible(terminal, "provider");
+		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });
 
@@ -100,10 +99,9 @@ test.describe("cline auth --modelid only (partial flags)", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("ignores partial flags and shows interactive auth screen", async ({
-		terminal,
-	}) => {
-		await waitForAuthScreen(terminal);
+	test("exits with error requiring --provider", async ({ terminal }) => {
+		await expectVisible(terminal, "provider");
+		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });
 
@@ -117,14 +115,13 @@ test.describe("cline auth --baseurl only (partial flags)", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("ignores partial flags and shows interactive auth screen", async ({
-		terminal,
-	}) => {
-		await waitForAuthScreen(terminal);
+	test("exits with error requiring --provider", async ({ terminal }) => {
+		await expectVisible(terminal, "provider");
+		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
 });
 
-test.describe("cline auth --verbose only (partial flags)", () => {
+test.describe("cline auth --verbose only", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
@@ -134,7 +131,7 @@ test.describe("cline auth --verbose only (partial flags)", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("ignores --verbose and shows interactive auth screen", async ({
+	test("accepts --verbose and shows interactive auth screen", async ({
 		terminal,
 	}) => {
 		await waitForAuthScreen(terminal);
@@ -151,7 +148,7 @@ test.describe("cline auth --cwd", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("shows interactive auth screen with --cwd flag", async ({
+	test("accepts --cwd and shows interactive auth screen", async ({
 		terminal,
 	}) => {
 		await waitForAuthScreen(terminal);
@@ -168,7 +165,7 @@ test.describe("cline auth --config", () => {
 		env: clineEnv("unauthenticated"),
 	});
 
-	test("shows interactive auth screen with --config flag", async ({
+	test("accepts --config and shows interactive auth screen", async ({
 		terminal,
 	}) => {
 		await waitForAuthScreen(terminal);
