@@ -2,8 +2,8 @@
  * Execution metadata declared in skill frontmatter.
  */
 export interface SkillInvocationMetadata {
-	manual: boolean
-	auto: boolean
+	manual?: boolean
+	auto?: boolean
 }
 
 /**

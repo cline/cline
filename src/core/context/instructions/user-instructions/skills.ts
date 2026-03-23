@@ -49,7 +49,10 @@ function normalizeInvocation(value: unknown): SkillMetadata["invocation"] {
 		return undefined
 	}
 
-	return { manual: manual ?? true, auto: auto ?? false }
+	const result: SkillMetadata["invocation"] = {}
+	if (manual !== undefined) result.manual = manual
+	if (auto !== undefined) result.auto = auto
+	return result
 }
 
 function normalizeSkillMetadata(

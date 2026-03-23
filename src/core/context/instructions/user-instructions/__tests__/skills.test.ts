@@ -535,6 +535,30 @@ Content`)
 			expect(skills[0]).to.not.have.property("invocation")
 		})
 
+		it("should preserve only explicitly provided invocation fields", async () => {
+			const skillDir = path.join(GLOBAL_SKILLS_DIR, "partial-invoke")
+			const skillMdPath = path.join(skillDir, "SKILL.md")
+
+			fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			fileExistsStub.withArgs(skillMdPath).resolves(true)
+			isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+			readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["partial-invoke"])
+			statStub.withArgs(skillDir).resolves({ isDirectory: () => true })
+			readFileStub.withArgs(skillMdPath, "utf-8").resolves(`---
+name: partial-invoke
+description: Only specifies auto
+invocation:
+  auto: true
+---
+Content`)
+
+			const skills = await discoverSkills(TEST_CWD)
+
+			expect(skills).to.have.lengthOf(1)
+			expect(skills[0].invocation).to.deep.equal({ auto: true })
+			expect(skills[0].invocation).to.not.have.property("manual")
+		})
+
 		it("should filter non-string items from array fields", async () => {
 			const skillDir = path.join(GLOBAL_SKILLS_DIR, "mixed-types")
 			const skillMdPath = path.join(skillDir, "SKILL.md")
