@@ -130,11 +130,25 @@ function createWritableDestination(
 		mkdirSync(dirname(destinationPath), { recursive: true });
 		const fd = openSync(destinationPath, "a");
 		closeSync(fd);
-		return pino.destination({
+		const dest = pino.destination({
 			dest: destinationPath,
 			mkdir: true,
 			sync: false,
 		});
+		// SonicBoom registers its own process 'exit' handler that calls
+		// flushSync().  When the process exits before the async stream is
+		// ready (e.g. --help, --version) that handler throws
+		// "sonic boom is not ready yet".  Wrap flushSync so it silently
+		// no-ops instead of throwing.
+		const origFlushSync = dest.flushSync.bind(dest);
+		dest.flushSync = () => {
+			try {
+				origFlushSync();
+			} catch {
+				// Best-effort: stream not ready or already closed.
+			}
+		};
+		return dest;
 	} catch {
 		return undefined;
 	}
