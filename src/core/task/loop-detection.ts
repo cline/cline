@@ -34,7 +34,7 @@ const IGNORED_PARAMS = new Set(["task_progress"])
  * block.params is Partial<Record<ToolParamName, string>> — always flat,
  * string-valued, no nesting — so the replacer array is sufficient.
  */
-export function toolCallSignature(params: Record<string, string> | undefined): string {
+export function toolCallSignature(params: Partial<Record<string, string>> | undefined): string {
 	if (!params) return "{}"
 	const keys = Object.keys(params)
 		.filter((k) => !IGNORED_PARAMS.has(k))
@@ -63,6 +63,6 @@ export function checkRepeatedToolCall(state: TaskState, toolName: string, curren
 
 	return {
 		softWarning: state.consecutiveIdenticalToolCount === LOOP_DETECTION_SOFT_THRESHOLD,
-		hardEscalation: state.consecutiveIdenticalToolCount >= LOOP_DETECTION_HARD_THRESHOLD,
+		hardEscalation: state.consecutiveIdenticalToolCount === LOOP_DETECTION_HARD_THRESHOLD,
 	}
 }

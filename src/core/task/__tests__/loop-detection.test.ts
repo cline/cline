@@ -34,7 +34,12 @@ describe("Loop Detection", () => {
 			results.push(simulateToolCall(state, "read_file", { path: "src/main.ts" }))
 		}
 
+		results[0].softWarning.should.be.false()
+		results[1].softWarning.should.be.false()
 		results[2].softWarning.should.be.true()
+		results[3].softWarning.should.be.false()
+		results[3].hardEscalation.should.be.false()
+		results[4].softWarning.should.be.false()
 		results[4].hardEscalation.should.be.true()
 		state.userMessageContent.length.should.equal(1)
 		state.consecutiveMistakeCount.should.equal(3)
