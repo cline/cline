@@ -1,4 +1,5 @@
 import { homedir } from "node:os";
+import { resolve } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
 import { setHomeDir } from "@clinebot/core";
 import type { Command } from "commander";
@@ -121,18 +122,27 @@ export async function runCli(): Promise<void> {
 		.command("auth")
 		.description("Authenticate a provider and configure what model is used")
 		.argument("[provider]", "Provider id (positional shorthand for -p)")
-		.option("-p, --provider <id>", "Provider id")
+		.option("-p, --provider <id>", "Provider ID")
 		.option("-k, --apikey <key>", "API key")
-		.option("-m, --modelid <id>", "Model id")
+		.option("-m, --modelid <id>", "Model ID")
 		.option("-b, --baseurl <url>", "Base URL")
+		.option("--config <dir>", "configuration directory")
+		.option("-c, --cwd <path>", "Working directory")
+		.option("-v, --verbose", "Show verbose output")
 		.action(async (positionalProvider: string | undefined) => {
-			const providerSettingsManager = await createProviderSettingsManager();
 			const opts = authCmd.opts<{
 				provider?: string;
 				apikey?: string;
 				modelid?: string;
 				baseurl?: string;
+				config?: string;
+				cwd?: string;
+				verbose?: boolean;
 			}>();
+			if (opts.config) {
+				process.env.CLINE_DATA_DIR = resolve(opts.config, "data");
+			}
+			const providerSettingsManager = await createProviderSettingsManager();
 			ctx.exitCode = await runAuthCommand({
 				providerSettingsManager,
 				explicitProvider: opts.provider ?? positionalProvider,
@@ -204,8 +214,12 @@ export async function runCli(): Promise<void> {
 		.option("--json", "Output as JSON")
 		.option("--limit <count>", "Maximum number of sessions to show", "200")
 		.option("--page <number>", "Page number for paginated results")
+		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const opts = historyCmd.opts();
+			if (opts.config) {
+				process.env.CLINE_DATA_DIR = resolve(opts.config, "data");
+			}
 			const limit = Number.parseInt(opts.limit, 10);
 			const outputMode =
 				program.opts().json || opts.json

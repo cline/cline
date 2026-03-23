@@ -90,7 +90,7 @@ test.describe("history flag descriptions", () => {
 	});
 
 	test("all history flags have correct descriptions", async ({ terminal }) => {
-		await expectVisible(terminal, "Number of tasks to show");
+		await expectVisible(terminal, "Maximum number of sessions to show");
 		await expectVisible(terminal, "Page number");
 		await expectVisible(terminal, "configuration directory");
 	});
