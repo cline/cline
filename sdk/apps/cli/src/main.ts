@@ -354,6 +354,8 @@ export async function runCli(): Promise<void> {
 		.description("[TODO] Check for updates and install if available")
 		.allowUnknownOption()
 		.allowExcessArguments()
+		.option("-v, --verbose", "Show verbose output")
+		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const { requestRpcServerShutdown } = await import("@clinebot/rpc");
 			const address = process.env.CLINE_RPC_ADDRESS || "127.0.0.1:4317";
