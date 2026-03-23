@@ -352,7 +352,7 @@ export async function runCli(): Promise<void> {
 				await rootParser.parseAsync(taskCmd.args, { from: "user" });
 			} catch (err) {
 				if (err instanceof CommanderError) {
-					return;
+					throw err;
 				}
 				throw err;
 			}
