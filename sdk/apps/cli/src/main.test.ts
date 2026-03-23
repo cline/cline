@@ -1,4 +1,10 @@
+import { fstatSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+vi.mock("node:fs", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("node:fs")>();
+	return { ...actual, fstatSync: vi.fn(actual.fstatSync) };
+});
 
 const originalArgv = [...process.argv];
 const originalStdinIsTTY = process.stdin.isTTY;
@@ -102,20 +108,12 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
 
-		const exitSignal = new Error("process.exit");
-		vi.spyOn(process, "exit").mockImplementation(((code?: string | number) => {
-			(exitSignal as Error & { code?: string | number }).code = code;
-			throw exitSignal;
-		}) as never);
-
 		process.argv = ["bun", "src/index.ts", "history", "--json"];
 
 		const { runCli } = await import("./main");
 
-		await expect(runCli()).rejects.toMatchObject({
-			message: "process.exit",
-			code: 0,
-		});
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
@@ -167,5 +165,77 @@ describe("runCli lightweight command dispatch", () => {
 			}),
 			expect.anything(),
 		);
+	});
+});
+
+describe("stdinHasPipedInput", () => {
+	const originalIsTTY = process.stdin.isTTY;
+
+	afterEach(() => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: originalIsTTY,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockRestore();
+	});
+
+	it("returns false when stdin is a TTY", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		const { stdinHasPipedInput } = await import("./main");
+		expect(stdinHasPipedInput()).toBe(false);
+	});
+
+	it("returns true when stdin is a FIFO (pipe)", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: undefined,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => true,
+			isFile: () => false,
+		} as any);
+		const { stdinHasPipedInput } = await import("./main");
+		expect(stdinHasPipedInput()).toBe(true);
+	});
+
+	it("returns true when stdin is a file", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: undefined,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => false,
+			isFile: () => true,
+		} as any);
+		const { stdinHasPipedInput } = await import("./main");
+		expect(stdinHasPipedInput()).toBe(true);
+	});
+
+	it("returns false in headless/CI (not TTY, not pipe, not file)", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: undefined,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => false,
+			isFile: () => false,
+		} as any);
+		const { stdinHasPipedInput } = await import("./main");
+		expect(stdinHasPipedInput()).toBe(false);
+	});
+
+	it("returns false when fstatSync throws", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: undefined,
+			configurable: true,
+		});
+		vi.mocked(fstatSync).mockImplementation(() => {
+			throw new Error("EBADF");
+		});
+		const { stdinHasPipedInput } = await import("./main");
+		expect(stdinHasPipedInput()).toBe(false);
 	});
 });

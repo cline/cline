@@ -70,6 +70,7 @@ function runCli(
 		cwd?: string;
 		env?: NodeJS.ProcessEnv;
 		stdin?: string;
+		timeout?: number;
 	},
 ): CliResult {
 	return spawnSync(bunExec, [cliEntry, ...args], {
@@ -77,7 +78,7 @@ function runCli(
 		encoding: "utf8",
 		input: options?.stdin,
 		env: options?.env,
-		timeout: 90_000,
+		timeout: options?.timeout ?? 90_000,
 		maxBuffer: 10 * 1024 * 1024,
 	});
 }
@@ -140,6 +141,33 @@ describe("cli e2e", () => {
 		const result = runCli(["version"], { env: createIsolatedEnv() });
 		expect(result.status).toBe(0);
 		expect(asText(result.stdout).trim()).toBe(cliPackage.version);
+	});
+
+	it("exits promptly on success path without hanging", () => {
+		const result = runCli(["version"], {
+			env: createIsolatedEnv(),
+			timeout: 10_000,
+		});
+		expect(result.signal).toBeNull();
+		expect(result.status).toBe(0);
+	});
+
+	it("exits promptly on error path without hanging", () => {
+		const result = runCli(["--timeout", "xml", "hello"], {
+			env: createIsolatedEnv(),
+			timeout: 10_000,
+		});
+		expect(result.signal).toBeNull();
+		expect(result.status).toBe(1);
+	});
+
+	it("propagates subcommand exit codes through process.exit", () => {
+		const result = runCli(["history", "--json"], {
+			env: createIsolatedEnv(),
+			timeout: 10_000,
+		});
+		expect(result.signal).toBeNull();
+		expect(result.status).toBe(0);
 	});
 
 	it("rejects invalid timeout values", () => {
