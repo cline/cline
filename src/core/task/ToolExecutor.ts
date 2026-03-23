@@ -578,6 +578,34 @@ export class ToolExecutor {
 			// Track the last executed tool for consecutive call detection (used by act_mode_respond)
 			this.taskState.lastToolName = block.name
 
+			// --- Doom loop detection ---
+			// Detect when the same tool is called with identical arguments repeatedly,
+			// which wastes tokens without making progress. Two-stage escalation:
+			// Stage 1 (soft): inject a warning message nudging the LLM to try something different
+			// Stage 2 (hard): trigger the existing consecutiveMistakeCount escalation path
+			const DOOM_LOOP_SOFT_THRESHOLD = 3
+			const DOOM_LOOP_HARD_THRESHOLD = 5
+
+			const currentParams = JSON.stringify(block.params ?? {})
+			if (block.name === this.taskState.lastToolName && currentParams === this.taskState.lastToolParams) {
+				this.taskState.consecutiveIdenticalToolCount++
+			} else {
+				this.taskState.consecutiveIdenticalToolCount = 1
+			}
+			this.taskState.lastToolParams = currentParams
+
+			if (this.taskState.consecutiveIdenticalToolCount === DOOM_LOOP_SOFT_THRESHOLD) {
+				this.taskState.userMessageContent.push({
+					type: "text",
+					text: `[WARNING] You have called "${block.name}" with identical arguments ${DOOM_LOOP_SOFT_THRESHOLD} times consecutively without making progress. You MUST try a different approach — use a different tool, different arguments, or reconsider your strategy.`,
+				})
+			}
+
+			if (this.taskState.consecutiveIdenticalToolCount >= DOOM_LOOP_HARD_THRESHOLD) {
+				this.taskState.consecutiveMistakeCount =
+					this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+			}
+
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {
 				return
