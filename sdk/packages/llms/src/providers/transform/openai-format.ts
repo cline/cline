@@ -34,27 +34,19 @@ export function convertToOpenAIMessages(
 		? messages.map((m) => m.role).lastIndexOf("user")
 		: -1;
 	return messages.flatMap((message, index) =>
-		convertMessage(
-			message,
-			enableCaching && index === lastUserIndex,
-			enableCaching,
-		),
+		convertMessage(message, enableCaching && index === lastUserIndex),
 	);
 }
 
 function convertMessage(
 	message: Message,
 	addCacheControl: boolean,
-	preserveStructuredUserContent: boolean,
 ): OpenAIMessage[] {
 	const { role, content } = message;
 
 	// Simple string content
 	if (typeof content === "string") {
-		if (
-			role !== "user" ||
-			(!addCacheControl && !preserveStructuredUserContent)
-		) {
+		if (role !== "user" || !addCacheControl) {
 			return [{ role, content } as OpenAIMessage];
 		}
 
@@ -76,11 +68,7 @@ function convertMessage(
 	if (role === "assistant") {
 		return [convertAssistantMessage(content)];
 	} else {
-		return convertUserMessage(
-			content,
-			addCacheControl,
-			preserveStructuredUserContent,
-		);
+		return convertUserMessage(content, addCacheControl);
 	}
 }
 
@@ -126,7 +114,6 @@ function convertAssistantMessage(content: ContentBlock[]): OpenAIMessage {
 function convertUserMessage(
 	content: ContentBlock[],
 	addCacheControl: boolean,
-	preserveStructuredUserContent: boolean,
 ): OpenAIMessage[] {
 	const messages: OpenAIMessage[] = [];
 
@@ -194,10 +181,7 @@ function convertUserMessage(
 	messages.push({
 		role: "user",
 		content:
-			parts.length === 1 &&
-			parts[0].type === "text" &&
-			!addCacheControl &&
-			!preserveStructuredUserContent
+			parts.length === 1 && parts[0].type === "text" && !addCacheControl
 				? parts[0].text
 				: (parts as unknown as OpenAI.Chat.ChatCompletionUserMessageParam["content"]),
 	});
