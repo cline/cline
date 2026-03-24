@@ -68,6 +68,54 @@ describe("Loop Detection", () => {
 		state.consecutiveIdenticalToolCount.should.equal(1)
 	})
 
+	it("should re-arm after loop detection state is reset", () => {
+		const state = new TaskState()
+
+		// First cycle: escalate at call 5
+		for (let i = 0; i < 5; i++) {
+			simulateToolCall(state, "read_file", { path: "src/main.ts" })
+		}
+		state.consecutiveIdenticalToolCount.should.equal(5)
+		state.consecutiveMistakeCount.should.equal(3)
+
+		// Simulate what index.ts does when user clicks "continue"
+		state.consecutiveMistakeCount = 0
+		state.consecutiveIdenticalToolCount = 0
+		state.lastToolName = ""
+		state.lastToolParams = ""
+
+		// Second cycle: same tool + params should trigger again
+		const results = []
+		for (let i = 0; i < 5; i++) {
+			results.push(simulateToolCall(state, "read_file", { path: "src/main.ts" }))
+		}
+
+		results[2].softWarning.should.be.true()
+		results[4].hardEscalation.should.be.true()
+		state.consecutiveMistakeCount.should.equal(3)
+	})
+
+	it("should work correctly when tool changes after reset", () => {
+		const state = new TaskState()
+
+		// Escalate with one tool
+		for (let i = 0; i < 5; i++) {
+			simulateToolCall(state, "read_file", { path: "src/main.ts" })
+		}
+
+		// Reset (user clicks "continue")
+		state.consecutiveMistakeCount = 0
+		state.consecutiveIdenticalToolCount = 0
+		state.lastToolName = ""
+		state.lastToolParams = ""
+
+		// Model switches to a different tool — no false positives
+		const result = simulateToolCall(state, "list_files", { path: "src/" })
+		result.softWarning.should.be.false()
+		result.hardEscalation.should.be.false()
+		state.consecutiveIdenticalToolCount.should.equal(1)
+	})
+
 	it("should strip task_progress from comparison", () => {
 		const state = new TaskState()
 		const results = []
