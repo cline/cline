@@ -320,13 +320,25 @@ describe("DefaultSessionManager", () => {
 			}),
 		};
 		const firstTurnMessages = [
-			{ role: "user", content: [{ type: "text", text: "hello" }] },
-			{ role: "assistant", content: [{ type: "text", text: "world" }] },
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "hello" }],
+			},
+			{
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "world" }],
+			},
 		];
 		const secondTurnMessages = [
 			...firstTurnMessages,
-			{ role: "user", content: [{ type: "text", text: "again" }] },
-			{ role: "assistant", content: [{ type: "text", text: "still here" }] },
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "again" }],
+			},
+			{
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "still here" }],
+			},
 		];
 		const run = vi.fn().mockResolvedValue(
 			createResult({
