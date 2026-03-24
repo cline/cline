@@ -95,7 +95,7 @@ export class MessageBuilder {
 			});
 
 			return {
-				...message,
+				role: message.role,
 				content,
 			};
 		});

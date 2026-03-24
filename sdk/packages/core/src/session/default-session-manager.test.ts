@@ -309,6 +309,125 @@ describe("DefaultSessionManager", () => {
 		});
 	});
 
+	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
+		const sessionId = "sess-meta-multi";
+		const manifest = createManifest(sessionId);
+		const persistSessionMessages = vi.fn();
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const firstTurnMessages = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+			{ role: "assistant", content: [{ type: "text", text: "world" }] },
+		];
+		const secondTurnMessages = [
+			...firstTurnMessages,
+			{ role: "user", content: [{ type: "text", text: "again" }] },
+			{ role: "assistant", content: [{ type: "text", text: "still here" }] },
+		];
+		const run = vi.fn().mockResolvedValue(
+			createResult({
+				usage: {
+					inputTokens: 33,
+					outputTokens: 12,
+					cacheReadTokens: 4,
+					cacheWriteTokens: 1,
+					totalCost: 0.42,
+				},
+				model: {
+					id: "claude-sonnet-4-6",
+					provider: "anthropic",
+				},
+				endedAt: new Date("2026-01-01T00:00:02.000Z"),
+				messages: firstTurnMessages,
+			}),
+		);
+		const continueFn = vi.fn().mockResolvedValue(
+			createResult({
+				usage: {
+					inputTokens: 10,
+					outputTokens: 5,
+					cacheReadTokens: 2,
+					cacheWriteTokens: 0,
+					totalCost: 0.12,
+				},
+				model: {
+					id: "claude-sonnet-4-6",
+					provider: "anthropic",
+				},
+				endedAt: new Date("2026-01-01T00:00:03.000Z"),
+				messages: secondTurnMessages,
+			}),
+		);
+		const agent = {
+			run,
+			continue: continueFn,
+			abort: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			restore: vi.fn(),
+			getMessages: vi.fn().mockReturnValue([]),
+			messages: [],
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-meta-multi.json",
+				transcriptPath: "/tmp/transcript-meta-multi.log",
+				hookPath: "/tmp/hook-meta-multi.log",
+				messagesPath: "/tmp/messages-meta-multi.json",
+				manifest,
+			}),
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start({
+			config: createConfig({
+				sessionId,
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+			}),
+			interactive: true,
+		});
+
+		await manager.send({ sessionId, prompt: "hello" });
+		await manager.send({ sessionId, prompt: "again" });
+
+		const persisted = persistSessionMessages.mock.calls[1]?.[1];
+		expect(persisted?.[1]).toMatchObject({
+			role: "assistant",
+			metrics: {
+				inputTokens: 33,
+				outputTokens: 12,
+				cacheReadTokens: 4,
+				cacheWriteTokens: 1,
+				cost: 0.42,
+			},
+		});
+		expect(persisted?.[3]).toMatchObject({
+			role: "assistant",
+			metrics: {
+				inputTokens: 10,
+				outputTokens: 5,
+				cacheReadTokens: 2,
+				cacheWriteTokens: 0,
+				cost: 0.12,
+			},
+		});
+	});
+
 	it("persists rendered messages when a turn fails", async () => {
 		const sessionId = "sess-failed-turn";
 		const manifest = createManifest(sessionId);

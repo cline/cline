@@ -172,4 +172,24 @@ describe("MessageBuilder", () => {
 
 		expect(firstFile?.content).toBe("[outdated - see the latest file content]");
 	});
+
+	it("strips storage metadata before building API messages", () => {
+		const builder = new MessageBuilder();
+		const built = builder.buildForApi([
+			{
+				role: "assistant" as const,
+				content: [{ type: "text" as const, text: "hello" }],
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				modelInfo: { id: "claude-sonnet-4-6", provider: "anthropic" },
+				metrics: { inputTokens: 1, outputTokens: 2, cost: 0.01 },
+				ts: 123,
+			},
+		]);
+
+		expect(built[0]).toEqual({
+			role: "assistant",
+			content: [{ type: "text", text: "hello" }],
+		});
+	});
 });

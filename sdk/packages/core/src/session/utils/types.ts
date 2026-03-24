@@ -18,6 +18,7 @@ export type ActiveSession = {
 	started: boolean;
 	aborting: boolean;
 	interactive: boolean;
+	persistedMessages?: LlmsProviders.MessageWithMetadata[];
 	activeTeamRunIds: Set<string>;
 	pendingTeamRunUpdates: TeamRunUpdate[];
 	teamRunWaiters: Array<() => void>;

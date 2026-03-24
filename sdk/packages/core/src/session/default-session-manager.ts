@@ -303,6 +303,7 @@ export class DefaultSessionManager implements SessionManager {
 			started: false,
 			aborting: false,
 			interactive: input.interactive === true,
+			persistedMessages: input.initialMessages,
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
@@ -548,7 +549,8 @@ export class DefaultSessionManager implements SessionManager {
 	): Promise<AgentResult> {
 		const shouldContinue =
 			session.started || session.agent.getMessages().length > 0;
-		const baselineMessages = session.agent.getMessages();
+		const baselineMessages =
+			session.persistedMessages ?? session.agent.getMessages();
 		const usageBaseline =
 			this.usageBySession.get(session.sessionId) ??
 			createInitialAccumulatedUsage();
@@ -582,7 +584,9 @@ export class DefaultSessionManager implements SessionManager {
 			const persistedMessages = withLatestAssistantTurnMetadata(
 				result.messages,
 				result,
+				baselineMessages,
 			);
+			session.persistedMessages = persistedMessages;
 			this.usageBySession.set(
 				session.sessionId,
 				accumulateUsageTotals(usageBaseline, result.usage),

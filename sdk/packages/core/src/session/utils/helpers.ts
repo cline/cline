@@ -62,10 +62,20 @@ export function serializeAgentEvent(event: AgentEvent): string {
 export function withLatestAssistantTurnMetadata(
 	messages: LlmsProviders.Message[],
 	result: AgentResult,
+	previousMessages: LlmsProviders.MessageWithMetadata[] = [],
 ): StoredMessageWithMetadata[] {
-	const next = messages.map((message) => ({
-		...message,
-	})) as StoredMessageWithMetadata[];
+	const next = messages.map((message, index) => {
+		const previous = previousMessages[index];
+		const sameMessage =
+			previous?.role === message.role &&
+			JSON.stringify(previous.content) === JSON.stringify(message.content);
+		return sameMessage
+			? ({
+					...previous,
+					...message,
+				} as StoredMessageWithMetadata)
+			: ({ ...message } as StoredMessageWithMetadata);
+	});
 	const assistantIndex = [...next]
 		.reverse()
 		.findIndex((message) => message.role === "assistant");
