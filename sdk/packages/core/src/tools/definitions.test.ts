@@ -3,7 +3,18 @@ import {
 	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
+	createSkillsTool,
 } from "./definitions.js";
+import type { SkillsExecutorWithMetadata } from "./types.js";
+
+function createMockSkillsExecutor(
+	fn: (...args: unknown[]) => Promise<string> = async () => "ok",
+	configuredSkills?: SkillsExecutorWithMetadata["configuredSkills"],
+): SkillsExecutorWithMetadata {
+	const executor = fn as SkillsExecutorWithMetadata;
+	executor.configuredSkills = configuredSkills;
+	return executor;
+}
 
 describe("default skills tool", () => {
 	it("is included only when enabled with a skills executor", () => {
@@ -17,18 +28,43 @@ describe("default skills tool", () => {
 
 		const toolsWithExecutor = createDefaultTools({
 			executors: {
-				skills: async () => "ok",
+				skills: createMockSkillsExecutor(),
 			},
 			enableSkills: true,
 		});
 		expect(toolsWithExecutor.map((tool) => tool.name)).toContain("skills");
 	});
 
+	it("includes configured skill names in description", () => {
+		const executor = createMockSkillsExecutor(
+			async () => "ok",
+			[
+				{ id: "commit", name: "commit", disabled: false },
+				{
+					id: "review-pr",
+					name: "review-pr",
+					description: "Review a PR",
+					disabled: false,
+				},
+				{ id: "disabled-skill", name: "disabled-skill", disabled: true },
+			],
+		);
+		const tool = createSkillsTool(executor);
+		expect(tool.description).toContain("Available skills: commit, review-pr.");
+		expect(tool.description).not.toContain("disabled-skill");
+	});
+
+	it("omits skill list from description when no skills are configured", () => {
+		const executor = createMockSkillsExecutor(async () => "ok");
+		const tool = createSkillsTool(executor);
+		expect(tool.description).not.toContain("Available skills");
+	});
+
 	it("validates and executes skill invocation input", async () => {
 		const execute = vi.fn(async () => "loaded");
 		const tools = createDefaultTools({
 			executors: {
-				skills: execute,
+				skills: createMockSkillsExecutor(execute),
 			},
 			enableReadFiles: false,
 			enableSearch: false,
@@ -392,7 +428,7 @@ describe("zod schema conversion", () => {
 	it("exposes skills args as optional nullable in tool schemas", () => {
 		const tools = createDefaultTools({
 			executors: {
-				skills: async () => "ok",
+				skills: createMockSkillsExecutor(),
 			},
 			enableReadFiles: false,
 			enableSearch: false,

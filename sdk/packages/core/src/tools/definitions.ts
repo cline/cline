@@ -38,7 +38,7 @@ import type {
 	EditorExecutor,
 	FileReadExecutor,
 	SearchExecutor,
-	SkillsExecutor,
+	SkillsExecutorWithMetadata,
 	ToolOperationResult,
 	WebFetchExecutor,
 } from "./types.js";
@@ -510,21 +510,22 @@ export function createEditorTool(
  * Invokes a configured skill by name and optional arguments.
  */
 export function createSkillsTool(
-	executor: SkillsExecutor,
+	executor: SkillsExecutorWithMetadata,
 	config: Pick<DefaultToolsConfig, "skillsTimeoutMs"> = {},
 ): Tool<SkillsInput, string> {
 	const timeoutMs = config.skillsTimeoutMs ?? 15000;
 
-	return createTool<SkillsInput, string>({
+	const baseDescription =
+		"Execute a skill within the main conversation. " +
+		"When users ask you to perform tasks, check if any available skills match. " +
+		"When users reference a slash command, invoke it with this tool. " +
+		'Input: `skill` (required) and optional `args`. Example: `skill: "pdf"`, `skill: "commit", args: "-m \\"Fix bug\\""`, `skill: "review-pr", args: "123"`, `skill: "ms-office-suite:pdf"`. ' +
+		"When a skill matches the user's request, invoking this tool is a blocking requirement before any other response. " +
+		"Never mention a skill without invoking this tool.";
+
+	const tool = createTool<SkillsInput, string>({
 		name: "skills",
-		description:
-			"Execute a skill within the main conversation. " +
-			"When users ask you to perform tasks, check if any available skills match. " +
-			'When users reference a slash command (for example "/commit" or "/review-pr"), invoke this tool. ' +
-			'Input: `skill` (required) and optional `args`. Example: `skill: "pdf"`, `skill: "commit", args: "-m \\"Fix bug\\""`, `skill: "review-pr", args: "123"`, `skill: "ms-office-suite:pdf"`. ' +
-			"Available skills are listed in system-reminder messages in the conversation. " +
-			"When a skill matches the user's request, invoking this tool is a blocking requirement before any other response. " +
-			"Never mention a skill without invoking this tool.",
+		description: baseDescription,
 		inputSchema: zodToJsonSchema(SkillsInputSchema),
 		timeoutMs,
 		retryable: false,
@@ -542,6 +543,22 @@ export function createSkillsTool(
 			);
 		},
 	});
+
+	Object.defineProperty(tool, "description", {
+		get() {
+			const skills = executor.configuredSkills
+				?.filter((s) => !s.disabled)
+				.map((s) => s.name);
+			if (skills && skills.length > 0) {
+				return `${baseDescription} Available skills: ${skills.join(", ")}.`;
+			}
+			return baseDescription;
+		},
+		enumerable: true,
+		configurable: true,
+	});
+
+	return tool;
 }
 
 /**
