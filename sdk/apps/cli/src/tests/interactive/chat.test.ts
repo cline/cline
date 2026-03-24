@@ -65,9 +65,9 @@ test.describe("Auto-approve all — Shift+Tab toggle", () => {
 
 	test("Shift+Tab toggles auto-approve-all setting", async ({ terminal }) => {
 		await waitForChatReady(terminal);
-		await expectVisible(terminal, "Auto-approve all disabled");
-		await toggleAutoApproveAll(terminal);
 		await expectVisible(terminal, "Auto-approve all enabled");
+		await toggleAutoApproveAll(terminal);
+		await expectVisible(terminal, "Auto-approve all disabled");
 		await toggleAutoApproveAll(terminal);
 	});
 });
