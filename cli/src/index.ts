@@ -715,9 +715,16 @@ async function showConfig(options: { config?: string }) {
  */
 async function performQuickAuthSetup(
 	ctx: CliContext,
-	options: { provider: string; apikey: string; modelid: string; baseurl?: string },
+	options: {
+		provider: string
+		apikey: string
+		modelid: string
+		baseurl?: string
+		vertexProjectId?: string
+		vertexRegion?: string
+	},
 ): Promise<{ success: boolean; error?: string }> {
-	const { provider, apikey, modelid, baseurl } = options
+	const { provider, apikey, modelid, baseurl, vertexProjectId, vertexRegion } = options
 
 	const normalizedProvider = provider.toLowerCase().trim()
 
@@ -731,6 +738,24 @@ async function performQuickAuthSetup(
 			success: false,
 			error: "Bedrock provider is not supported for quick setup due to complex authentication requirements. Please use interactive setup.",
 		}
+	}
+
+	if (normalizedProvider === "vertex") {
+		if (!vertexProjectId || !vertexRegion) {
+			return {
+				success: false,
+				error: "Vertex provider requires --vertex-project-id and --vertex-region flags.",
+			}
+		}
+		const { applyVertexConfig } = await import("./utils/provider-config")
+		await applyVertexConfig({
+			vertexConfig: { vertexProjectId, vertexRegion },
+			modelId: modelid,
+			controller: ctx.controller,
+		})
+		StateManager.get().setGlobalState("welcomeViewCompleted", true)
+		await StateManager.get().flushPendingState()
+		return { success: true }
 	}
 
 	if (baseurl && !["openai", "openai-native"].includes(normalizedProvider)) {
@@ -758,13 +783,17 @@ async function runAuth(options: {
 	apikey?: string
 	modelid?: string
 	baseurl?: string
+	vertexProjectId?: string
+	vertexRegion?: string
 	verbose?: boolean
 	cwd?: string
 	config?: string
 }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
-	const hasQuickSetupFlags = options.provider && options.apikey && options.modelid
+	// Vertex uses project-id + region instead of API key
+	const isVertexQuickSetup = options.provider?.toLowerCase() === "vertex" && options.modelid && options.vertexProjectId && options.vertexRegion
+	const hasQuickSetupFlags = isVertexQuickSetup || (options.provider && options.apikey && options.modelid)
 
 	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
 
@@ -772,9 +801,11 @@ async function runAuth(options: {
 	if (hasQuickSetupFlags) {
 		const result = await performQuickAuthSetup(ctx, {
 			provider: options.provider!,
-			apikey: options.apikey!,
+			apikey: options.apikey || "",
 			modelid: options.modelid!,
 			baseurl: options.baseurl,
+			vertexProjectId: options.vertexProjectId,
+			vertexRegion: options.vertexRegion,
 		})
 
 		if (!result.success) {
@@ -871,6 +902,8 @@ program
 	.option("-k, --apikey <key>", "API key for the provider")
 	.option("-m, --modelid <id>", "Model ID to configure (e.g., gpt-4o, claude-sonnet-4-6, kimi-k2.5)")
 	.option("-b, --baseurl <url>", "Base URL (optional, only for openai provider)")
+	.option("--vertex-project-id <id>", "Google Cloud Project ID (for vertex provider)")
+	.option("--vertex-region <region>", "Google Cloud Region (for vertex provider)")
 	.option("-v, --verbose", "Show verbose output")
 	.option("-c, --cwd <path>", "Working directory for the task")
 	.option("--config <path>", "Path to Cline configuration directory")
