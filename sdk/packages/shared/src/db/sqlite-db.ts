@@ -13,26 +13,6 @@ export type SqliteDb = {
 	exec: (sql: string) => void;
 };
 
-type BunSqliteDb = {
-	query: (sql: string) => {
-		run: (...params: unknown[]) => { changes?: number };
-		get: (...params: unknown[]) => Record<string, unknown> | null;
-		all: (...params: unknown[]) => Record<string, unknown>[];
-	};
-	exec: (sql: string) => void;
-};
-
-type NodeSqliteStatement = {
-	run: (...params: unknown[]) => { changes?: number };
-	get: (...params: unknown[]) => Record<string, unknown> | undefined;
-	all: (...params: unknown[]) => Record<string, unknown>[];
-};
-
-type NodeSqliteDb = {
-	prepare: (sql: string) => NodeSqliteStatement;
-	exec: (sql: string) => void;
-};
-
 export function nowIso(): string {
 	return new Date().toISOString();
 }
@@ -46,9 +26,7 @@ export function asString(value: unknown): string {
 }
 
 export function asOptionalString(value: unknown): string | undefined {
-	if (typeof value !== "string") {
-		return undefined;
-	}
+	if (typeof value !== "string") return undefined;
 	const trimmed = value.trim();
 	return trimmed.length > 0 ? trimmed : undefined;
 }
@@ -57,59 +35,83 @@ export function asBool(value: unknown): boolean {
 	return value === 1 || value === true;
 }
 
+function wrapBunDb(db: {
+	query: (sql: string) => SqliteStatement;
+	exec: (sql: string) => void;
+}): SqliteDb {
+	return {
+		prepare: (sql) => db.query(sql),
+		exec: (sql) => db.exec(sql),
+	};
+}
+
+function wrapNodeDb(db: {
+	prepare: (sql: string) => {
+		run: (...params: unknown[]) => { changes?: number };
+		get: (...params: unknown[]) => Record<string, unknown> | undefined;
+		all: (...params: unknown[]) => Record<string, unknown>[];
+	};
+	exec: (sql: string) => void;
+}): SqliteDb {
+	return {
+		prepare: (sql) => {
+			const stmt = db.prepare(sql);
+			return {
+				run: (...params) => stmt.run(...params),
+				get: (...params) => stmt.get(...params) ?? null,
+				all: (...params) => stmt.all(...params),
+			};
+		},
+		exec: (sql) => db.exec(sql),
+	};
+}
+
 export function loadSqliteDb(filePath: string): SqliteDb {
 	mkdirSync(dirname(filePath), { recursive: true });
 	const require = createRequire(import.meta.url);
-	const isBunRuntime =
-		typeof (globalThis as { Bun?: unknown }).Bun !== "undefined";
 
-	if (isBunRuntime) {
+	if (typeof (globalThis as { Bun?: unknown }).Bun !== "undefined") {
 		const { Database } = require("bun:sqlite") as {
 			Database: new (
 				path: string,
-				options?: { create?: boolean; strict?: boolean },
-			) => BunSqliteDb;
+				options?: { create?: boolean },
+			) => {
+				query: (sql: string) => SqliteStatement;
+				exec: (sql: string) => void;
+			};
 		};
-		const db = new Database(filePath, { create: true });
-
-		return {
-			prepare: (sql: string): SqliteStatement => {
-				const query = db.query(sql);
-				return {
-					run: (...params: unknown[]) => query.run(...params),
-					get: (...params: unknown[]) => query.get(...params),
-					all: (...params: unknown[]) => query.all(...params),
-				};
-			},
-			exec: (sql: string) => db.exec(sql),
-		};
+		return wrapBunDb(new Database(filePath, { create: true }));
 	}
 
 	try {
-		const nodeSqliteModuleName = ["node", ":sqlite"].join("");
-		const { DatabaseSync } = require(nodeSqliteModuleName) as {
-			DatabaseSync: new (path: string) => NodeSqliteDb;
-		};
-		const db = new DatabaseSync(filePath);
-		return {
-			prepare: (sql: string): SqliteStatement => {
-				const statement = db.prepare(sql);
-				return {
-					run: (...params: unknown[]) => statement.run(...params),
-					get: (...params: unknown[]) => statement.get(...params) ?? null,
-					all: (...params: unknown[]) => statement.all(...params),
+		// Suppress "ExperimentalWarning: SQLite is an experimental feature"
+		const originalEmit = process.emitWarning;
+		process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+			const msg =
+				typeof warning === "string" ? warning : (warning?.message ?? "");
+			if (msg.includes("SQLite")) return;
+			return (originalEmit as Function).call(process, warning, ...args);
+		}) as typeof process.emitWarning;
+
+		const { DatabaseSync } = require(["node", ":sqlite"].join("")) as {
+			DatabaseSync: new (
+				path: string,
+			) => {
+				prepare: (sql: string) => {
+					run: (...params: unknown[]) => { changes?: number };
+					get: (...params: unknown[]) => Record<string, unknown> | undefined;
+					all: (...params: unknown[]) => Record<string, unknown>[];
 				};
-			},
-			exec: (sql: string) => db.exec(sql),
+				exec: (sql: string) => void;
+			};
 		};
+		process.emitWarning = originalEmit;
+		return wrapNodeDb(new DatabaseSync(filePath));
 	} catch {
-		// Fall through to better-sqlite3 for older Node runtimes without node:sqlite.
+		// Fall through to better-sqlite3 for older Node runtimes.
 	}
 
-	// Keep the module name non-literal so browser/SSR bundlers don't try to resolve
-	// better-sqlite3 when this Node-only path is not executed.
-	const betterSqlite3ModuleName = ["better", "-sqlite3"].join("");
-	const BetterSqlite3 = require(betterSqlite3ModuleName) as new (
+	const BetterSqlite3 = require(["better", "-sqlite3"].join("")) as new (
 		path: string,
 	) => SqliteDb;
 	return new BetterSqlite3(filePath);
@@ -119,156 +121,195 @@ export interface SessionSchemaOptions {
 	includeLegacyMigrations?: boolean;
 }
 
+const SCHEMA_STATEMENTS = [
+	`CREATE TABLE IF NOT EXISTS sessions (
+		session_id TEXT PRIMARY KEY,
+		source TEXT NOT NULL,
+		pid INTEGER NOT NULL,
+		started_at TEXT NOT NULL,
+		ended_at TEXT,
+		exit_code INTEGER,
+		status TEXT NOT NULL,
+		status_lock INTEGER NOT NULL DEFAULT 0,
+		interactive INTEGER NOT NULL,
+		provider TEXT NOT NULL,
+		model TEXT NOT NULL,
+		cwd TEXT NOT NULL,
+		workspace_root TEXT NOT NULL,
+		team_name TEXT,
+		enable_tools INTEGER NOT NULL,
+		enable_spawn INTEGER NOT NULL,
+		enable_teams INTEGER NOT NULL,
+		parent_session_id TEXT,
+		parent_agent_id TEXT,
+		agent_id TEXT,
+		conversation_id TEXT,
+		is_subagent INTEGER NOT NULL DEFAULT 0,
+		prompt TEXT,
+		metadata_json TEXT,
+		transcript_path TEXT NOT NULL,
+		hook_path TEXT NOT NULL,
+		messages_path TEXT,
+		updated_at TEXT NOT NULL
+	);`,
+	`CREATE TABLE IF NOT EXISTS subagent_spawn_queue (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		root_session_id TEXT NOT NULL,
+		parent_agent_id TEXT NOT NULL,
+		task TEXT,
+		system_prompt TEXT,
+		created_at TEXT NOT NULL,
+		consumed_at TEXT
+	);`,
+	`CREATE TABLE IF NOT EXISTS schedules (
+		schedule_id TEXT PRIMARY KEY,
+		name TEXT NOT NULL,
+		cron_pattern TEXT NOT NULL,
+		prompt TEXT NOT NULL,
+		provider TEXT NOT NULL,
+		model TEXT NOT NULL,
+		mode TEXT NOT NULL DEFAULT 'act',
+		workspace_root TEXT,
+		cwd TEXT,
+		system_prompt TEXT,
+		max_iterations INTEGER,
+		timeout_seconds INTEGER,
+		max_parallel INTEGER NOT NULL DEFAULT 1,
+		enabled INTEGER NOT NULL DEFAULT 1,
+		created_at TEXT NOT NULL,
+		updated_at TEXT NOT NULL,
+		last_run_at TEXT,
+		next_run_at TEXT,
+		claim_token TEXT,
+		claim_started_at TEXT,
+		claim_until_at TEXT,
+		created_by TEXT,
+		tags TEXT,
+		metadata_json TEXT
+	);`,
+	`CREATE TABLE IF NOT EXISTS schedule_executions (
+		execution_id TEXT PRIMARY KEY,
+		schedule_id TEXT NOT NULL,
+		session_id TEXT,
+		triggered_at TEXT NOT NULL,
+		started_at TEXT,
+		ended_at TEXT,
+		status TEXT NOT NULL,
+		exit_code INTEGER,
+		error_message TEXT,
+		iterations INTEGER,
+		tokens_used INTEGER,
+		cost_usd REAL,
+		FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id) ON DELETE CASCADE,
+		FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE SET NULL
+	);`,
+	`CREATE INDEX IF NOT EXISTS idx_schedule_executions_schedule
+	ON schedule_executions(schedule_id, triggered_at DESC);`,
+	`CREATE INDEX IF NOT EXISTS idx_schedules_next_run
+	ON schedules(enabled, next_run_at);`,
+];
+
+const LEGACY_MIGRATIONS: Array<{
+	table: string;
+	column: string;
+	sql: string;
+}> = [
+	{
+		table: "sessions",
+		column: "workspace_root",
+		sql: "ALTER TABLE sessions ADD COLUMN workspace_root TEXT;",
+	},
+	{
+		table: "sessions",
+		column: "parent_session_id",
+		sql: "ALTER TABLE sessions ADD COLUMN parent_session_id TEXT;",
+	},
+	{
+		table: "sessions",
+		column: "parent_agent_id",
+		sql: "ALTER TABLE sessions ADD COLUMN parent_agent_id TEXT;",
+	},
+	{
+		table: "sessions",
+		column: "agent_id",
+		sql: "ALTER TABLE sessions ADD COLUMN agent_id TEXT;",
+	},
+	{
+		table: "sessions",
+		column: "conversation_id",
+		sql: "ALTER TABLE sessions ADD COLUMN conversation_id TEXT;",
+	},
+	{
+		table: "sessions",
+		column: "is_subagent",
+		sql: "ALTER TABLE sessions ADD COLUMN is_subagent INTEGER NOT NULL DEFAULT 0;",
+	},
+	{
+		table: "sessions",
+		column: "messages_path",
+		sql: "ALTER TABLE sessions ADD COLUMN messages_path TEXT;",
+	},
+	{
+		table: "sessions",
+		column: "metadata_json",
+		sql: "ALTER TABLE sessions ADD COLUMN metadata_json TEXT;",
+	},
+	{
+		table: "schedules",
+		column: "claim_token",
+		sql: "ALTER TABLE schedules ADD COLUMN claim_token TEXT;",
+	},
+	{
+		table: "schedules",
+		column: "claim_started_at",
+		sql: "ALTER TABLE schedules ADD COLUMN claim_started_at TEXT;",
+	},
+	{
+		table: "schedules",
+		column: "claim_until_at",
+		sql: "ALTER TABLE schedules ADD COLUMN claim_until_at TEXT;",
+	},
+];
+
+function getColumnNames(db: SqliteDb, table: string): Set<string> {
+	return new Set(
+		db
+			.prepare(`PRAGMA table_info(${table});`)
+			.all()
+			.map((c) => c.name as string),
+	);
+}
+
 export function ensureSessionSchema(
 	db: SqliteDb,
 	options: SessionSchemaOptions = {},
 ): void {
 	db.exec("PRAGMA journal_mode = WAL;");
 	db.exec("PRAGMA busy_timeout = 5000;");
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS sessions (
-			session_id TEXT PRIMARY KEY,
-			source TEXT NOT NULL,
-			pid INTEGER NOT NULL,
-			started_at TEXT NOT NULL,
-			ended_at TEXT,
-			exit_code INTEGER,
-			status TEXT NOT NULL,
-			status_lock INTEGER NOT NULL DEFAULT 0,
-			interactive INTEGER NOT NULL,
-			provider TEXT NOT NULL,
-			model TEXT NOT NULL,
-			cwd TEXT NOT NULL,
-			workspace_root TEXT NOT NULL,
-			team_name TEXT,
-			enable_tools INTEGER NOT NULL,
-			enable_spawn INTEGER NOT NULL,
-			enable_teams INTEGER NOT NULL,
-			parent_session_id TEXT,
-			parent_agent_id TEXT,
-			agent_id TEXT,
-			conversation_id TEXT,
-			is_subagent INTEGER NOT NULL DEFAULT 0,
-			prompt TEXT,
-			metadata_json TEXT,
-			transcript_path TEXT NOT NULL,
-			hook_path TEXT NOT NULL,
-			messages_path TEXT,
-			updated_at TEXT NOT NULL
-		);
-	`);
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS subagent_spawn_queue (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			root_session_id TEXT NOT NULL,
-			parent_agent_id TEXT NOT NULL,
-			task TEXT,
-			system_prompt TEXT,
-			created_at TEXT NOT NULL,
-			consumed_at TEXT
-		);
-	`);
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS schedules (
-			schedule_id TEXT PRIMARY KEY,
-			name TEXT NOT NULL,
-			cron_pattern TEXT NOT NULL,
-			prompt TEXT NOT NULL,
-			provider TEXT NOT NULL,
-			model TEXT NOT NULL,
-			mode TEXT NOT NULL DEFAULT 'act',
-			workspace_root TEXT,
-			cwd TEXT,
-			system_prompt TEXT,
-			max_iterations INTEGER,
-			timeout_seconds INTEGER,
-			max_parallel INTEGER NOT NULL DEFAULT 1,
-			enabled INTEGER NOT NULL DEFAULT 1,
-			created_at TEXT NOT NULL,
-			updated_at TEXT NOT NULL,
-			last_run_at TEXT,
-			next_run_at TEXT,
-			claim_token TEXT,
-			claim_started_at TEXT,
-			claim_until_at TEXT,
-			created_by TEXT,
-			tags TEXT,
-			metadata_json TEXT
-		);
-	`);
-	db.exec(`
-		CREATE TABLE IF NOT EXISTS schedule_executions (
-			execution_id TEXT PRIMARY KEY,
-			schedule_id TEXT NOT NULL,
-			session_id TEXT,
-			triggered_at TEXT NOT NULL,
-			started_at TEXT,
-			ended_at TEXT,
-			status TEXT NOT NULL,
-			exit_code INTEGER,
-			error_message TEXT,
-			iterations INTEGER,
-			tokens_used INTEGER,
-			cost_usd REAL,
-			FOREIGN KEY (schedule_id) REFERENCES schedules(schedule_id) ON DELETE CASCADE,
-			FOREIGN KEY (session_id) REFERENCES sessions(session_id) ON DELETE SET NULL
-		);
-	`);
-	db.exec(`
-		CREATE INDEX IF NOT EXISTS idx_schedule_executions_schedule
-		ON schedule_executions(schedule_id, triggered_at DESC);
-	`);
-	db.exec(`
-		CREATE INDEX IF NOT EXISTS idx_schedules_next_run
-		ON schedules(enabled, next_run_at);
-	`);
-
-	if (!options.includeLegacyMigrations) {
-		return;
+	for (const stmt of SCHEMA_STATEMENTS) {
+		db.exec(stmt);
 	}
 
-	const columns = db.prepare("PRAGMA table_info(sessions);").all();
-	const hasColumn = (name: string): boolean =>
-		columns.some((column) => column.name === name);
-	if (!hasColumn("workspace_root")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN workspace_root TEXT;");
-		db.exec(
-			"UPDATE sessions SET workspace_root = cwd WHERE workspace_root IS NULL OR workspace_root = '';",
-		);
-	}
-	if (!hasColumn("parent_session_id")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN parent_session_id TEXT;");
-	}
-	if (!hasColumn("parent_agent_id")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN parent_agent_id TEXT;");
-	}
-	if (!hasColumn("agent_id")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN agent_id TEXT;");
-	}
-	if (!hasColumn("conversation_id")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN conversation_id TEXT;");
-	}
-	if (!hasColumn("is_subagent")) {
-		db.exec(
-			"ALTER TABLE sessions ADD COLUMN is_subagent INTEGER NOT NULL DEFAULT 0;",
-		);
-	}
-	if (!hasColumn("messages_path")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN messages_path TEXT;");
-	}
-	if (!hasColumn("metadata_json")) {
-		db.exec("ALTER TABLE sessions ADD COLUMN metadata_json TEXT;");
-	}
-	const scheduleColumns = db.prepare("PRAGMA table_info(schedules);").all();
-	const scheduleHasColumn = (name: string): boolean =>
-		scheduleColumns.some((column) => column.name === name);
-	if (!scheduleHasColumn("claim_token")) {
-		db.exec("ALTER TABLE schedules ADD COLUMN claim_token TEXT;");
-	}
-	if (!scheduleHasColumn("claim_started_at")) {
-		db.exec("ALTER TABLE schedules ADD COLUMN claim_started_at TEXT;");
-	}
-	if (!scheduleHasColumn("claim_until_at")) {
-		db.exec("ALTER TABLE schedules ADD COLUMN claim_until_at TEXT;");
+	if (!options.includeLegacyMigrations) return;
+
+	const columnCache = new Map<string, Set<string>>();
+	const getColumns = (table: string) => {
+		let cols = columnCache.get(table);
+		if (!cols) {
+			cols = getColumnNames(db, table);
+			columnCache.set(table, cols);
+		}
+		return cols;
+	};
+
+	for (const migration of LEGACY_MIGRATIONS) {
+		if (!getColumns(migration.table).has(migration.column)) {
+			db.exec(migration.sql);
+			if (migration.column === "workspace_root") {
+				db.exec(
+					"UPDATE sessions SET workspace_root = cwd WHERE workspace_root IS NULL OR workspace_root = '';",
+				);
+			}
+		}
 	}
 }
