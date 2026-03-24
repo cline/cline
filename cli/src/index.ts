@@ -741,10 +741,10 @@ async function performQuickAuthSetup(
 	}
 
 	if (normalizedProvider === "vertex") {
-		if (!vertexProjectId || !vertexRegion) {
+		if (!modelid || !vertexProjectId || !vertexRegion) {
 			return {
 				success: false,
-				error: "Vertex provider requires --vertex-project-id and --vertex-region flags.",
+				error: "Vertex provider requires --modelid, --vertex-project-id, and --vertex-region flags.",
 			}
 		}
 		const { applyVertexConfig } = await import("./utils/provider-config")
@@ -791,10 +791,13 @@ async function runAuth(options: {
 }) {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
-	// Vertex uses project-id + region instead of API key
-	const isVertexAttempt = options.provider?.toLowerCase() === "vertex" && !!options.modelid
-	const isVertexQuickSetup = isVertexAttempt && !!options.vertexProjectId && !!options.vertexRegion
-	const hasQuickSetupFlags = isVertexQuickSetup || isVertexAttempt || (options.provider && options.apikey && options.modelid)
+	// Vertex uses project-id + region instead of API key (no apikey required).
+	// Treat any vertex provider invocation with partial flags as a quick-setup attempt
+	// so the error path inside performQuickAuthSetup is reached instead of silently
+	// falling to interactive mode (which hangs in non-TTY/CI environments).
+	const isVertexProvider = options.provider?.toLowerCase() === "vertex"
+	const isVertexAttempt = isVertexProvider && (!!options.modelid || !!options.vertexProjectId || !!options.vertexRegion)
+	const hasQuickSetupFlags = isVertexAttempt || (options.provider && options.apikey && options.modelid)
 
 	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
 

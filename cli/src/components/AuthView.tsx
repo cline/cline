@@ -372,18 +372,23 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 	const handleProviderSelect = useCallback(
 		(value: string) => {
 			setSelectedProvider(value)
-			if (value === "oca") {
-				// Show employee check screen before starting auth
-				setStep("oca_employee_check")
-			} else if (value === "openai-codex") {
-				setStep("openai_codex_auth")
-				startOpenAiCodexAuth()
-			} else if (value === "bedrock") {
-				setStep("bedrock")
-			} else if (value === "vertex") {
-				setStep("vertex")
-			} else {
-				setStep("apikey")
+			switch (value) {
+				case "oca":
+					setStep("oca_employee_check")
+					break
+				case "openai-codex":
+					setStep("openai_codex_auth")
+					startOpenAiCodexAuth()
+					break
+				case "bedrock":
+					setStep("bedrock")
+					break
+				case "vertex":
+					setStep("vertex")
+					break
+				default:
+					setStep("apikey")
+					break
 			}
 		},
 		[startOcaAuth, startOpenAiCodexAuth],
@@ -583,21 +588,17 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				setApiKey("")
 				setStep("provider")
 				break
-			case "modelid":
+			case "modelid": {
 				setModelId("")
-				// Go back to cline_model if we came from there (Cline provider)
-				if (selectedProvider === "cline") {
-					setStep("cline_model")
-				} else if (selectedProvider === "bedrock") {
-					// Bedrock skips the API key step — go back to Bedrock setup
-					setStep("bedrock")
-				} else if (selectedProvider === "vertex") {
-					// Vertex skips the API key step — go back to Vertex setup
-					setStep("vertex")
-				} else {
-					setStep("apikey")
+				// Each provider has a different step before model selection
+				const prevStep: Record<string, AuthStep> = {
+					cline: "cline_model",
+					bedrock: "bedrock",
+					vertex: "vertex",
 				}
+				setStep(prevStep[selectedProvider] ?? "apikey")
 				break
+			}
 			case "baseurl":
 				setBaseUrl("")
 				setStep("modelid")
