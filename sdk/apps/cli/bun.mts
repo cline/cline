@@ -8,7 +8,7 @@ function defineProcessEnv(name: string): string {
 const result = await Bun.build({
 	entrypoints: ["./src/index.ts"],
 	outdir: "./dist",
-	target: "bun",
+	target: "node",
 	format: "esm",
 	packages: "bundle", // Keep private workspace packages bundled so npm consumers do not need @clinebot/* at runtime.
 	define: {

@@ -1,4 +1,4 @@
-#!/usr/bin/env bun
+#!/usr/bin/env node
 
 import { isMainThread } from "node:worker_threads";
 import { initVcr } from "@clinebot/shared";
