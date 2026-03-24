@@ -27,9 +27,12 @@ import {
 	SessionSource,
 } from "@clinebot/core/node";
 import { getRpcServerDefaultAddress, RpcSessionClient } from "@clinebot/rpc";
-import { ensureRpcRuntimeAddress } from "../commands/rpc";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { getCliTelemetryService } from "./telemetry";
+
+// ---------------------------------------------------------------------------
+// Environment helpers
+// ---------------------------------------------------------------------------
 
 function resolveRpcAddress(): string {
 	return process.env.CLINE_RPC_ADDRESS?.trim() || getRpcServerDefaultAddress();
@@ -41,9 +44,7 @@ function hasExplicitRpcAddress(): boolean {
 
 function resolveSessionBackendMode(): "auto" | "rpc" | "local" {
 	const raw = process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase();
-	if (raw === "rpc" || raw === "local") {
-		return raw;
-	}
+	if (raw === "rpc" || raw === "local") return raw;
 	return "auto";
 }
 
@@ -122,31 +123,40 @@ function accumulateUsageTotals(
 	};
 }
 
+// ---------------------------------------------------------------------------
+// Backend resolution
+// ---------------------------------------------------------------------------
+
 async function getCoreSessions(): Promise<SessionBackend> {
 	const backendMode = resolveSessionBackendMode();
+
+	// Force local when VCR mode or explicit local override.
 	if (backendMode === "local" || process.env.CLINE_VCR) {
-		process.stderr.write(`Forcing local in-process sessions\n`);
-		return await resolveSessionBackend({
-			backendMode,
+		process.stderr.write("Forcing local in-process sessions\n");
+		return resolveSessionBackend({
+			backendMode: "local",
 			autoStartRpcServer: false,
 		});
 	}
-	const requestedAddress = resolveRpcAddress();
-	if (backendMode === "auto" && hasExplicitRpcAddress()) {
-		process.env.CLINE_RPC_ADDRESS = requestedAddress;
-		return await resolveSessionBackend({
+
+	// Explicit RPC address or explicit rpc mode → attach to that server directly.
+	if (
+		backendMode === "rpc" ||
+		(backendMode === "auto" && hasExplicitRpcAddress())
+	) {
+		const address = resolveRpcAddress();
+		process.env.CLINE_RPC_ADDRESS = address;
+		return resolveSessionBackend({
 			backendMode: "rpc",
-			rpcAddress: requestedAddress,
+			rpcAddress: address,
 			autoStartRpcServer: false,
 		});
 	}
-	const ensuredAddress = await ensureRpcRuntimeAddress(requestedAddress).catch(
-		() => requestedAddress,
-	);
-	process.env.CLINE_RPC_ADDRESS = ensuredAddress;
-	return await resolveSessionBackend({
-		backendMode,
-		rpcAddress: ensuredAddress,
+
+	// Default auto path: use local in-process backend.
+	return resolveSessionBackend({
+		backendMode: "local",
+		autoStartRpcServer: false,
 	});
 }
 
@@ -225,12 +235,21 @@ function emitAgentEvent(
 	}
 }
 
+// ---------------------------------------------------------------------------
+// RPC request/response mapping
+// ---------------------------------------------------------------------------
+
+type RpcStartRequestWithPolicies = RpcChatStartSessionRequest & {
+	toolPolicies?: Record<string, { enabled?: boolean; autoApprove?: boolean }>;
+};
+
 function toRpcStartRequest(
 	input: StartSessionInput,
 	defaultToolPolicies: StartSessionInput["toolPolicies"] | undefined,
-): RpcChatStartSessionRequest {
-	const config = input.config;
-	const request: RpcChatStartSessionRequest = {
+): RpcStartRequestWithPolicies {
+	const { config } = input;
+	const policies = input.toolPolicies ?? defaultToolPolicies;
+	return {
 		sessionId: config.sessionId,
 		workspaceRoot: config.workspaceRoot ?? config.cwd,
 		cwd: config.cwd,
@@ -243,25 +262,16 @@ function toRpcStartRequest(
 		enableTools: config.enableTools,
 		enableSpawn: config.enableSpawnAgent,
 		enableTeams: config.enableAgentTeams,
-		autoApproveTools:
-			(input.toolPolicies ?? defaultToolPolicies)?.["*"]?.autoApprove !== false,
+		autoApproveTools: policies?.["*"]?.autoApprove !== false,
 		teamName: config.teamName ?? "",
 		missionStepInterval: config.missionLogIntervalSteps ?? 3,
 		missionTimeIntervalMs: config.missionLogIntervalMs ?? 120000,
 		initialMessages: input.initialMessages as RpcChatMessage[] | undefined,
 		logger: config.loggerConfig as RpcChatRuntimeLoggerConfig | undefined,
+		toolPolicies: policies as
+			| Record<string, { enabled?: boolean; autoApprove?: boolean }>
+			| undefined,
 	};
-	(
-		request as RpcChatStartSessionRequest & {
-			toolPolicies?: Record<
-				string,
-				{ enabled?: boolean; autoApprove?: boolean }
-			>;
-		}
-	).toolPolicies = (input.toolPolicies ?? defaultToolPolicies) as
-		| Record<string, { enabled?: boolean; autoApprove?: boolean }>
-		| undefined;
-	return request;
 }
 
 function toAgentResult(
@@ -277,19 +287,14 @@ function toAgentResult(
 		messages: result.messages as AgentResult["messages"],
 		toolCalls: result.toolCalls as AgentResult["toolCalls"],
 		durationMs: 0,
-		model: {
-			id: config.model,
-			provider: config.provider,
-		},
+		model: { id: config.model, provider: config.provider },
 		startedAt: now,
 		endedAt: now,
 	};
 }
 
 function parseToolApprovalInput(inputJson: unknown): unknown {
-	if (typeof inputJson !== "string" || !inputJson.trim()) {
-		return undefined;
-	}
+	if (typeof inputJson !== "string" || !inputJson.trim()) return undefined;
 	try {
 		return JSON.parse(inputJson);
 	} catch {
@@ -297,35 +302,17 @@ function parseToolApprovalInput(inputJson: unknown): unknown {
 	}
 }
 
-function normalizeStartResult(
-	sessionId: string,
-	startResult: RpcChatStartSessionArtifacts | undefined,
-): StartSessionOutput {
-	const manifestPath = startResult?.manifestPath?.trim() || "";
-	const transcriptPath = startResult?.transcriptPath?.trim() || "";
-	const hookPath = startResult?.hookPath?.trim() || "";
-	const messagesPath = startResult?.messagesPath?.trim() || "";
-	let manifest: SessionManifest | undefined;
-	if (manifestPath && existsSync(manifestPath)) {
-		try {
-			manifest = JSON.parse(
-				readFileSync(manifestPath, "utf8"),
-			) as SessionManifest;
-		} catch {
-			manifest = undefined;
-		}
+// ---------------------------------------------------------------------------
+// Session manifest helpers
+// ---------------------------------------------------------------------------
+
+function tryReadManifest(manifestPath: string): SessionManifest | undefined {
+	if (!manifestPath || !existsSync(manifestPath)) return undefined;
+	try {
+		return JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest;
+	} catch {
+		return undefined;
 	}
-	if (!manifest) {
-		throw new Error("manifest unavailable");
-	}
-	return {
-		sessionId,
-		manifest,
-		manifestPath,
-		transcriptPath,
-		hookPath,
-		messagesPath,
-	};
 }
 
 function toManifestFromSessionRow(
@@ -393,7 +380,11 @@ function toFallbackManifest(
 	};
 }
 
-function normalizeStartResultWithFallback(
+/**
+ * Builds the StartSessionOutput from RPC start artifacts, falling back to the
+ * session row and finally a synthetic manifest when the manifest file is absent.
+ */
+function buildStartSessionOutput(
 	sessionId: string,
 	startResult: RpcChatStartSessionArtifacts | undefined,
 	sessionRow: Awaited<ReturnType<RpcSessionClient["getSession"]>> | undefined,
@@ -401,83 +392,68 @@ function normalizeStartResultWithFallback(
 	source: StartSessionInput["source"],
 	interactive: boolean | undefined,
 ): StartSessionOutput {
-	try {
-		return normalizeStartResult(sessionId, startResult);
-	} catch {
-		const transcriptPath =
-			startResult?.transcriptPath?.trim() ||
-			sessionRow?.transcriptPath?.trim() ||
-			"";
-		const hookPath =
-			startResult?.hookPath?.trim() || sessionRow?.hookPath?.trim() || "";
-		const messagesPath =
-			startResult?.messagesPath?.trim() ||
-			sessionRow?.messagesPath?.trim() ||
-			"";
-		const manifestPathFromStart = startResult?.manifestPath?.trim() || "";
-		const inferredManifestPath = transcriptPath
-			? `${dirname(transcriptPath)}/${sessionId}.json`
-			: "";
-		const manifestPath = manifestPathFromStart || inferredManifestPath;
-		let manifest: SessionManifest | undefined;
-		if (manifestPath && existsSync(manifestPath)) {
-			try {
-				manifest = JSON.parse(
-					readFileSync(manifestPath, "utf8"),
-				) as SessionManifest;
-			} catch {
-				manifest = undefined;
-			}
-		}
-		manifest =
-			manifest ??
-			toManifestFromSessionRow(sessionId, sessionRow) ??
-			toFallbackManifest(sessionId, request, source, interactive, messagesPath);
-		return {
-			sessionId,
-			manifest,
-			manifestPath,
-			transcriptPath,
-			hookPath,
-			messagesPath,
-		};
-	}
+	const transcriptPath =
+		startResult?.transcriptPath?.trim() ||
+		sessionRow?.transcriptPath?.trim() ||
+		"";
+	const hookPath =
+		startResult?.hookPath?.trim() || sessionRow?.hookPath?.trim() || "";
+	const messagesPath =
+		startResult?.messagesPath?.trim() || sessionRow?.messagesPath?.trim() || "";
+	const manifestPathFromStart = startResult?.manifestPath?.trim() || "";
+	const inferredManifestPath = transcriptPath
+		? `${dirname(transcriptPath)}/${sessionId}.json`
+		: "";
+	const manifestPath = manifestPathFromStart || inferredManifestPath;
+
+	const manifest =
+		tryReadManifest(manifestPath) ??
+		toManifestFromSessionRow(sessionId, sessionRow) ??
+		toFallbackManifest(sessionId, request, source, interactive, messagesPath);
+
+	if (!manifest) throw new Error("manifest unavailable");
+
+	return {
+		sessionId,
+		manifest,
+		manifestPath,
+		transcriptPath,
+		hookPath,
+		messagesPath,
+	};
 }
 
-function resolveAttachmentPath(filePath: string, cwd: string): string {
-	return isAbsolute(filePath) ? filePath : resolve(cwd, filePath);
-}
+// ---------------------------------------------------------------------------
+// Attachment helpers
+// ---------------------------------------------------------------------------
 
 async function toRpcAttachmentFiles(
 	userFiles: string[] | undefined,
 	cwd: string,
 ): Promise<Array<{ name: string; content: string }> | undefined> {
-	if (!userFiles || userFiles.length === 0) {
-		return undefined;
-	}
-
-	const files = await Promise.all(
-		userFiles.map(async (filePath) => {
-			const absolutePath = resolveAttachmentPath(filePath, cwd);
-			return {
-				name: basename(filePath),
-				content: await readFile(absolutePath, "utf8"),
-			};
-		}),
+	if (!userFiles?.length) return undefined;
+	return Promise.all(
+		userFiles.map(async (filePath) => ({
+			name: basename(filePath),
+			content: await readFile(
+				isAbsolute(filePath) ? filePath : resolve(cwd, filePath),
+				"utf8",
+			),
+		})),
 	);
-	return files.length > 0 ? files : undefined;
 }
+
+// ---------------------------------------------------------------------------
+// Text-delta resolution
+// ---------------------------------------------------------------------------
 
 function resolveTextDelta(
 	payload: Record<string, unknown>,
 	streamedText: string,
-): {
-	delta: string;
-	nextText: string;
-} {
+): { delta: string; nextText: string } {
 	const accumulated =
 		typeof payload.accumulated === "string" ? payload.accumulated : undefined;
-	if (typeof accumulated === "string") {
+	if (accumulated !== undefined) {
 		if (accumulated.startsWith(streamedText)) {
 			return {
 				delta: accumulated.slice(streamedText.length),
@@ -485,18 +461,11 @@ function resolveTextDelta(
 			};
 		}
 		if (streamedText.startsWith(accumulated)) {
-			return {
-				delta: "",
-				nextText: streamedText,
-			};
+			return { delta: "", nextText: streamedText };
 		}
 	}
-
 	const text = typeof payload.text === "string" ? payload.text : "";
-	return {
-		delta: text,
-		nextText: `${streamedText}${text}`,
-	};
+	return { delta: text, nextText: `${streamedText}${text}` };
 }
 
 function createRpcRuntimeCliSessionManager(
@@ -514,26 +483,29 @@ function createRpcRuntimeCliSessionManager(
 	rpcSessions: RpcCoreSessionService,
 ): CliSessionManager {
 	const listeners = new Set<(event: unknown) => void>();
-	const client = new RpcSessionClient({
-		address: resolveRpcAddress(),
-	});
-	const sessionConfigs = new Map<string, RpcChatStartSessionRequest>();
+	const client = new RpcSessionClient({ address: resolveRpcAddress() });
+	const sessionConfigs = new Map<string, RpcStartRequestWithPolicies>();
 	const accumulatedUsageBySession = new Map<string, SessionAccumulatedUsage>();
 	const sessionLogger = createCliLoggerAdapter({
 		runtime: "rpc-runtime",
 		component: "session",
 	}).core;
 
+	function emit(sessionId: string, event: AgentEvent): void {
+		emitAgentEvent(listeners, sessionId, event);
+	}
+
 	return {
 		start: async (input) => {
 			const request = toRpcStartRequest(input, options?.toolPolicies);
 			const response = await client.startRuntimeSession(request);
 			const sessionId = response.sessionId.trim();
-			if (!sessionId) {
+			if (!sessionId)
 				throw new Error("rpc runtime start returned empty session id");
-			}
+
 			sessionConfigs.set(sessionId, request);
 			accumulatedUsageBySession.set(sessionId, createInitialAccumulatedUsage());
+
 			let sessionRow:
 				| Awaited<ReturnType<RpcSessionClient["getSession"]>>
 				| undefined;
@@ -542,7 +514,8 @@ function createRpcRuntimeCliSessionManager(
 			} catch {
 				sessionRow = undefined;
 			}
-			return normalizeStartResultWithFallback(
+
+			return buildStartSessionOutput(
 				sessionId,
 				response.startResult,
 				sessionRow,
@@ -564,16 +537,14 @@ function createRpcRuntimeCliSessionManager(
 				input.userFiles,
 				config.cwd ?? process.cwd(),
 			);
+			const hasImages = !!input.userImages?.length;
 			const request: RpcChatRunTurnRequest = {
 				config,
 				prompt: input.prompt,
 				attachments:
-					(input.userImages && input.userImages.length > 0) || attachmentFiles
+					hasImages || attachmentFiles
 						? {
-								userImages:
-									input.userImages && input.userImages.length > 0
-										? input.userImages
-										: undefined,
+								userImages: hasImages ? input.userImages : undefined,
 								userFiles: attachmentFiles,
 							}
 						: undefined,
@@ -631,20 +602,18 @@ function createRpcRuntimeCliSessionManager(
 						}
 						if (event.eventType === "runtime.chat.text_delta") {
 							const resolved = resolveTextDelta(payload, streamedText);
-							if (!resolved.delta) {
-								streamedText = resolved.nextText;
-								return;
-							}
 							streamedText = resolved.nextText;
-							emitAgentEvent(listeners, input.sessionId, {
-								type: "content_start",
-								contentType: "text",
-								text: resolved.delta,
-							});
+							if (resolved.delta) {
+								emit(input.sessionId, {
+									type: "content_start",
+									contentType: "text",
+									text: resolved.delta,
+								});
+							}
 							return;
 						}
 						if (event.eventType === "runtime.chat.tool_call_start") {
-							emitAgentEvent(listeners, input.sessionId, {
+							emit(input.sessionId, {
 								type: "content_start",
 								contentType: "tool",
 								toolCallId:
@@ -660,7 +629,7 @@ function createRpcRuntimeCliSessionManager(
 							return;
 						}
 						if (event.eventType === "runtime.chat.tool_call_end") {
-							emitAgentEvent(listeners, input.sessionId, {
+							emit(input.sessionId, {
 								type: "content_end",
 								contentType: "tool",
 								toolCallId:
@@ -682,7 +651,7 @@ function createRpcRuntimeCliSessionManager(
 							return;
 						}
 						if (event.eventType === "runtime.chat.error") {
-							emitAgentEvent(listeners, input.sessionId, {
+							emit(input.sessionId, {
 								type: "error",
 								error: new Error(
 									typeof payload.message === "string"
@@ -713,7 +682,7 @@ function createRpcRuntimeCliSessionManager(
 				if (result.text.startsWith(streamedText)) {
 					const remainder = result.text.slice(streamedText.length);
 					if (remainder) {
-						emitAgentEvent(listeners, input.sessionId, {
+						emit(input.sessionId, {
 							type: "content_start",
 							contentType: "text",
 							text: remainder,
@@ -721,7 +690,7 @@ function createRpcRuntimeCliSessionManager(
 						streamedText += remainder;
 					}
 				} else if (result.text !== streamedText) {
-					emitAgentEvent(listeners, input.sessionId, {
+					emit(input.sessionId, {
 						type: "content_start",
 						contentType: "text",
 						text: result.text,
@@ -730,7 +699,7 @@ function createRpcRuntimeCliSessionManager(
 				}
 			}
 			if (streamedText) {
-				emitAgentEvent(listeners, input.sessionId, {
+				emit(input.sessionId, {
 					type: "content_end",
 					contentType: "text",
 				});
@@ -744,7 +713,7 @@ function createRpcRuntimeCliSessionManager(
 				agentResult.usage,
 			);
 			accumulatedUsageBySession.set(input.sessionId, accumulatedUsage);
-			emitAgentEvent(listeners, input.sessionId, {
+			emit(input.sessionId, {
 				type: "done",
 				reason: result.finishReason,
 				iterations: result.iterations,
@@ -759,19 +728,15 @@ function createRpcRuntimeCliSessionManager(
 		readMessages: async (sessionId) => {
 			const row = await client.getSession(sessionId);
 			const path = row?.messagesPath?.trim();
-			if (!path || !existsSync(path)) {
-				return [];
-			}
+			if (!path || !existsSync(path)) return [];
 			try {
-				const raw = readFileSync(path, "utf8");
-				if (!raw.trim()) {
-					return [];
-				}
+				const raw = await readFile(path, "utf8");
+				if (!raw.trim()) return [];
 				const parsed = JSON.parse(raw) as { messages?: unknown[] } | unknown[];
 				const messages = Array.isArray(parsed)
 					? parsed
-					: Array.isArray(parsed.messages)
-						? parsed.messages
+					: Array.isArray((parsed as { messages?: unknown[] }).messages)
+						? (parsed as { messages: unknown[] }).messages
 						: [];
 				return messages as LlmsProviders.Message[];
 			} catch {
@@ -801,9 +766,8 @@ function createRpcRuntimeCliSessionManager(
 				sessionCount: sessionConfigs.size,
 				sessions: [...sessionConfigs.keys()],
 			});
-			const sessionIds = [...sessionConfigs.keys()];
 			await Promise.allSettled(
-				sessionIds.map(async (sessionId) => {
+				[...sessionConfigs.keys()].map(async (sessionId) => {
 					try {
 						await client.stopRuntimeSession(sessionId);
 					} catch {
@@ -823,28 +787,28 @@ function createRpcRuntimeCliSessionManager(
 		},
 		subscribe: (listener) => {
 			listeners.add(listener);
-			return () => {
-				listeners.delete(listener);
-			};
+			return () => listeners.delete(listener);
 		},
 		updateSessionModel: async (sessionId, modelId) => {
 			const config = sessionConfigs.get(sessionId);
-			if (!config) {
-				throw new Error(`session not found: ${sessionId}`);
-			}
+			if (!config) throw new Error(`session not found: ${sessionId}`);
 			config.model = modelId;
 		},
 	};
 }
 
+// ---------------------------------------------------------------------------
+// Session CRUD helpers (thin wrappers over the backend)
+// ---------------------------------------------------------------------------
+
 export async function listSessions(limit = 200): Promise<unknown[]> {
-	return await (await getCoreSessions()).listSessions(limit);
+	return (await getCoreSessions()).listSessions(limit);
 }
 
 export async function deleteSession(
 	sessionId: string,
 ): Promise<{ deleted: boolean }> {
-	return await (await getCoreSessions()).deleteSession(sessionId);
+	return (await getCoreSessions()).deleteSession(sessionId);
 }
 
 export async function updateSession(
@@ -855,8 +819,5 @@ export async function updateSession(
 		title?: string | null;
 	},
 ): Promise<{ updated: boolean }> {
-	return await (await getCoreSessions()).updateSession({
-		sessionId,
-		...updates,
-	});
+	return (await getCoreSessions()).updateSession({ sessionId, ...updates });
 }

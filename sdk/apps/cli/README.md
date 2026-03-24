@@ -352,7 +352,7 @@ RPC and schedule shortcuts:
 
 - `clite rpc <start|status|stop|ensure> [--address <host:port>]` - Manage the RPC server
 - `clite rpc register --client-type <type> --client-id <id>` - Register a client with the RPC server
-- `clite rpc ensure --json` - Ensure a compatible RPC server and print JSON
+- `clite rpc ensure --json` - Ensure the current build's compatible RPC sidecar and print JSON
 - `clite schedule create <name> --cron "<expr>" --prompt "<text>" --workspace <path>` - Create a scheduled run
 - `clite schedule <create|list|get|update|pause|resume|delete|trigger|history|stats|active|upcoming|import|export>` - Manage schedules and execution history
 
@@ -418,7 +418,7 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 - Startup behavior: checks health first; if already running at that address, it prints the running server id and exits without starting a duplicate
 - Status check: `clite rpc status` prints running/not-running and returns exit code `0` when healthy (`1` when not running)
 - Shutdown: `clite rpc stop` requests graceful shutdown for the target address; `clite rpc start` can also be stopped with Ctrl+C / `SIGTERM`
-- Ensure: `clite rpc ensure` reuses a compatible server when possible; if the listener is stale/incompatible it can launch a fresh server on a new available port and report that effective address
+- Ensure: `clite rpc ensure` reuses the current build's compatible sidecar when possible; if an older or foreign listener is present it can launch a fresh sidecar on a new available port and report that effective address
 - Compatibility check: `rpc ensure` requires runtime chat methods including `StartRuntimeSession`, `SendRuntimeSession`, `AbortRuntimeSession`, and `StopRuntimeSession`.
 - Client registration: `clite rpc register --client-type <type> [--client-id <id>] [--meta key=value]...` registers host identity for RPC clients
 - Runtime APIs: `clite rpc start` wires server-side runtime handlers for `StartRuntimeSession`, `SendRuntimeSession`, and `AbortRuntimeSession` (used by `@clinebot/code` and CLI runtime actions)

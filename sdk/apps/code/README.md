@@ -20,7 +20,7 @@ From `apps/code/`:
 Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
-2. The desktop backend ensures an RPC server via `clite rpc ensure --json`, sets `CLINE_RPC_ADDRESS`, and registers the desktop client.
+2. The desktop backend ensures an owner-scoped RPC sidecar via `clite rpc ensure --json`, sets `CLINE_RPC_ADDRESS`, and registers the desktop client.
 3. The backend owns `scripts/chat-runtime-bridge.ts` and exposes one websocket transport (`/transport`) for commands, queries, and pushed events.
 4. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
 5. Tool approval updates are pushed from the backend instead of polled from the UI.
@@ -62,5 +62,5 @@ Desktop transport envelope:
 - Tauri restarts the desktop backend if the host process exits and kills it on app teardown.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
-- If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`) and restart the RPC server.
+- If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`). The next `clite rpc ensure` call should attach to the current build's sidecar automatically.
 - Provider settings updates are patch-style: only fields you edit are changed. Unset fields are preserved instead of being cleared.

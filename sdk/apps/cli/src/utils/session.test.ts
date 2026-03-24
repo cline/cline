@@ -66,16 +66,14 @@ describe("createDefaultCliSessionManager", () => {
 		});
 	});
 
-	it("still ensures rpc runtime when no explicit address is configured", async () => {
-		ensureRpcRuntimeAddress.mockResolvedValue("127.0.0.1:6001");
-
+	it("uses the local backend by default when no explicit rpc address is configured", async () => {
 		const { createDefaultCliSessionManager } = await import("./session");
 		await createDefaultCliSessionManager();
 
-		expect(ensureRpcRuntimeAddress).toHaveBeenCalledWith("127.0.0.1:4317");
+		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
 		expect(resolveSessionBackend).toHaveBeenCalledWith({
-			backendMode: "auto",
-			rpcAddress: "127.0.0.1:6001",
+			backendMode: "local",
+			autoStartRpcServer: false,
 		});
 	});
 });

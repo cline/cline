@@ -1,4 +1,4 @@
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -10,16 +10,8 @@ const {
 	mockClientClose,
 	mockCreateServer,
 	mockRequestRpcServerShutdown,
-	rpcPkgVersion,
+	rpcProtocolVersion,
 } = vi.hoisted(() => {
-	const fs = require("node:fs") as typeof import("node:fs");
-	const p = require("node:path") as typeof import("node:path");
-	const pkg = JSON.parse(
-		fs.readFileSync(
-			p.resolve(__dirname, "../../../../packages/rpc/package.json"),
-			"utf8",
-		),
-	) as { version: string };
 	return {
 		mockSpawn: vi.fn(),
 		mockGetRpcServerHealth: vi.fn(),
@@ -27,7 +19,7 @@ const {
 		mockClientClose: vi.fn(),
 		mockCreateServer: vi.fn(),
 		mockRequestRpcServerShutdown: vi.fn(),
-		rpcPkgVersion: pkg.version,
+		rpcProtocolVersion: "1",
 	};
 });
 
@@ -47,7 +39,7 @@ vi.mock("@clinebot/rpc", () => ({
 	requestRpcServerShutdown: mockRequestRpcServerShutdown,
 	startRpcServer: vi.fn(),
 	stopRpcServer: vi.fn(),
-	RPC_PROTOCOL_VERSION: rpcPkgVersion,
+	RPC_PROTOCOL_VERSION: rpcProtocolVersion,
 	RpcSessionClient: class {
 		async stopRuntimeSession(sessionId: string) {
 			return mockStopRuntimeSession(sessionId);
@@ -67,6 +59,9 @@ describe("runRpcEnsureCommand", () => {
 
 	afterEach(() => {
 		delete process.env.CLINE_DATA_DIR;
+		delete process.env.CLINE_RPC_OWNER_ID;
+		delete process.env.CLINE_RPC_BUILD_ID;
+		delete process.env.CLINE_RPC_DISCOVERY_PATH;
 		process.argv = [...originalArgv];
 		vi.clearAllMocks();
 		for (const dir of tempDirs.splice(0)) {
@@ -98,9 +93,13 @@ describe("runRpcEnsureCommand", () => {
 				},
 			};
 		});
-		mockGetRpcServerHealth
-			.mockResolvedValueOnce(undefined)
-			.mockResolvedValueOnce({ running: true });
+		mockGetRpcServerHealth.mockResolvedValueOnce(undefined).mockResolvedValue({
+			running: true,
+			serverId: "new-server",
+			address,
+			startedAt: new Date().toISOString(),
+			rpcVersion: rpcProtocolVersion,
+		});
 		mockStopRuntimeSession.mockRejectedValue(new Error("probe failed"));
 
 		const output: string[] = [];
@@ -142,7 +141,7 @@ describe("runRpcEnsureCommand", () => {
 			serverId: "test-server",
 			address,
 			startedAt: new Date().toISOString(),
-			rpcVersion: rpcPkgVersion,
+			rpcVersion: rpcProtocolVersion,
 		});
 		// Runtime method probe succeeds (not UNIMPLEMENTED).
 		mockStopRuntimeSession.mockRejectedValue(new Error("session not found"));
@@ -167,14 +166,28 @@ describe("runRpcEnsureCommand", () => {
 		expect(mockSpawn).not.toHaveBeenCalled();
 	});
 
-	it("restarts the server when rpc version mismatches", async () => {
+	it("replaces the current owner's stale sidecar when the protocol mismatches", async () => {
 		const dataDir = mkdtempSync(
 			path.join(os.tmpdir(), "cline-rpc-ver-mismatch-"),
 		);
 		tempDirs.push(dataDir);
 		process.env.CLINE_DATA_DIR = dataDir;
 		process.argv[1] = path.join(dataDir, "clite.js");
+		process.env.CLINE_RPC_OWNER_ID = "owner-test";
+		process.env.CLINE_RPC_BUILD_ID = "build-new";
+		process.env.CLINE_RPC_DISCOVERY_PATH = path.join(dataDir, "rpc-owner.json");
 		const address = "127.0.0.1:65432";
+		writeFileSync(
+			process.env.CLINE_RPC_DISCOVERY_PATH,
+			JSON.stringify({
+				ownerId: "owner-test",
+				buildId: "build-old",
+				address,
+				protocolVersion: rpcProtocolVersion,
+				updatedAt: new Date().toISOString(),
+			}),
+			"utf8",
+		);
 
 		mockCreateServer.mockImplementation(() => {
 			let onListening: (() => void) | undefined;
@@ -193,8 +206,6 @@ describe("runRpcEnsureCommand", () => {
 			};
 		});
 
-		// First call: server healthy with old version.
-		// After shutdown: server gone, then new server comes up healthy.
 		mockGetRpcServerHealth
 			.mockResolvedValueOnce({
 				running: true,
@@ -203,15 +214,14 @@ describe("runRpcEnsureCommand", () => {
 				startedAt: new Date().toISOString(),
 				rpcVersion: "old-version",
 			})
-			// After shutdown request, server reports not running.
 			.mockResolvedValueOnce(undefined)
-			// waitForRuntimeReady polls: new server is healthy with matching version.
+			.mockResolvedValueOnce(undefined)
 			.mockResolvedValue({
 				running: true,
 				serverId: "new-server",
 				address,
 				startedAt: new Date().toISOString(),
-				rpcVersion: rpcPkgVersion,
+				rpcVersion: rpcProtocolVersion,
 			});
 
 		// Runtime method probe succeeds (not UNIMPLEMENTED).
@@ -241,7 +251,7 @@ describe("runRpcEnsureCommand", () => {
 		expect(mockSpawn).toHaveBeenCalledTimes(1);
 	});
 
-	it("restarts the server when rpc version is missing (old server)", async () => {
+	it("starts a new sidecar on a different port for a foreign old server", async () => {
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cline-rpc-ver-empty-"));
 		tempDirs.push(dataDir);
 		process.env.CLINE_DATA_DIR = dataDir;
@@ -274,17 +284,15 @@ describe("runRpcEnsureCommand", () => {
 				startedAt: new Date().toISOString(),
 				// No rpcVersion field.
 			})
-			.mockResolvedValueOnce(undefined)
 			.mockResolvedValue({
 				running: true,
 				serverId: "new-server",
-				address,
+				address: "127.0.0.1:65433",
 				startedAt: new Date().toISOString(),
-				rpcVersion: rpcPkgVersion,
+				rpcVersion: rpcProtocolVersion,
 			});
 
 		mockStopRuntimeSession.mockRejectedValue(new Error("session not found"));
-		mockRequestRpcServerShutdown.mockResolvedValue({ accepted: true });
 		mockSpawn.mockReturnValue({ pid: 9999, unref: vi.fn() });
 
 		const output: string[] = [];
@@ -300,10 +308,10 @@ describe("runRpcEnsureCommand", () => {
 		const result = JSON.parse(output[0] || "");
 		expect(result).toMatchObject({
 			running: true,
-			address,
-			action: "started",
+			address: "127.0.0.1:65433",
+			action: "new-port",
 		});
-		expect(mockRequestRpcServerShutdown).toHaveBeenCalledWith(address);
+		expect(mockRequestRpcServerShutdown).not.toHaveBeenCalled();
 		expect(mockSpawn).toHaveBeenCalledTimes(1);
 	});
 
@@ -339,15 +347,14 @@ describe("runRpcEnsureCommand", () => {
 				serverId: "foreign-auth-server",
 				address,
 				startedAt: new Date().toISOString(),
-				rpcVersion: rpcPkgVersion,
+				rpcVersion: rpcProtocolVersion,
 			})
-			.mockResolvedValueOnce(undefined)
 			.mockResolvedValue({
 				running: true,
 				serverId: "new-server",
-				address,
+				address: "127.0.0.1:65433",
 				startedAt: new Date().toISOString(),
-				rpcVersion: rpcPkgVersion,
+				rpcVersion: rpcProtocolVersion,
 			});
 
 		mockStopRuntimeSession
@@ -357,7 +364,6 @@ describe("runRpcEnsureCommand", () => {
 				),
 			)
 			.mockRejectedValue(new Error("session not found"));
-		mockRequestRpcServerShutdown.mockResolvedValue({ accepted: true });
 		mockSpawn.mockReturnValue({ pid: 12345, unref: vi.fn() });
 
 		const output: string[] = [];
@@ -372,10 +378,10 @@ describe("runRpcEnsureCommand", () => {
 		expect(code).toBe(0);
 		expect(JSON.parse(output[0] || "")).toMatchObject({
 			running: true,
-			address,
-			action: "started",
+			address: "127.0.0.1:65433",
+			action: "new-port",
 		});
-		expect(mockRequestRpcServerShutdown).toHaveBeenCalledWith(address);
+		expect(mockRequestRpcServerShutdown).not.toHaveBeenCalled();
 		expect(mockSpawn).toHaveBeenCalledTimes(1);
 	});
 });

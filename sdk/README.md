@@ -53,7 +53,7 @@ Useful workspace scripts (root `package.json`):
 - `bun run clean` - remove build outputs across packages
 - `bun run version 1.2.3` - update all packages/* version number to v1.2.3
 
-> **RPC server requires restart after changes.** The RPC server (`clite rpc start`) loads compiled code at startup and does not hot-reload. After rebuilding any affected package, stop (`clite rpc stop`) and restart the server.
+> **RPC hosts self-heal across rebuilds.** Direct CLI runs use the local in-process runtime. RPC-backed hosts use `clite rpc ensure`, which now reuses the current build's compatible sidecar or starts a fresh sidecar automatically when the build/protocol changes.
 
 
 # Repository Structure

@@ -12,7 +12,13 @@ const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
 
 interface ReadResultRecord {
 	toolUseId: string;
-	paths: string[];
+	locators: ReadLocator[];
+}
+
+interface ReadLocator {
+	path: string;
+	startLine: number | null;
+	endLine: number | null;
 }
 
 /**
@@ -22,9 +28,16 @@ export class MessageBuilder {
 	private indexedMessageCount = 0;
 	private indexedTailRef: LlmsProviders.Message | undefined;
 	private readonly toolNameByIdCache = new Map<string, string>();
-	private readonly readPathsByToolUseIdCache = new Map<string, string[]>();
-	private readonly latestReadToolUseByPathCache = new Map<string, string>();
-	private readResultPathCache = new WeakMap<object, string[]>();
+	private readonly readLocatorsByToolUseIdCache = new Map<
+		string,
+		ReadLocator[]
+	>();
+	private readonly latestReadToolUseByLocatorCache = new Map<string, string>();
+	private readonly latestFullContentOwnerByPathCache = new Map<
+		string,
+		string
+	>();
+	private readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 
 	constructor(
 		private readonly maxToolResultChars = DEFAULT_MAX_TOOL_RESULT_CHARS,
@@ -34,8 +47,9 @@ export class MessageBuilder {
 	buildForApi(messages: LlmsProviders.Message[]): LlmsProviders.Message[] {
 		this.reindex(messages);
 		const toolNameById = this.toolNameByIdCache;
-		const readPathsByToolUseId = this.readPathsByToolUseIdCache;
-		const latestReadToolUseByPath = this.latestReadToolUseByPathCache;
+		const readLocatorsByToolUseId = this.readLocatorsByToolUseIdCache;
+		const latestReadToolUseByLocator = this.latestReadToolUseByLocatorCache;
+		const latestFullContentOwnerByPath = this.latestFullContentOwnerByPathCache;
 
 		return messages.map((message) => {
 			if (!Array.isArray(message.content)) {
@@ -64,16 +78,21 @@ export class MessageBuilder {
 				if (this.isReadTool(toolName)) {
 					const readRecord = this.getReadResultRecord(
 						block,
-						readPathsByToolUseId.get(block.tool_use_id),
+						readLocatorsByToolUseId.get(block.tool_use_id),
 					);
 					if (readRecord) {
-						const outdatedPaths = readRecord.paths.filter(
-							(path) => latestReadToolUseByPath.get(path) !== block.tool_use_id,
+						const outdatedLocators = readRecord.locators.filter((locator) =>
+							this.isOutdatedReadLocator(
+								locator,
+								block.tool_use_id,
+								latestReadToolUseByLocator,
+								latestFullContentOwnerByPath,
+							),
 						);
-						if (outdatedPaths.length > 0) {
+						if (outdatedLocators.length > 0) {
 							nextContent = this.replaceOutdatedReadContent(
 								nextContent,
-								outdatedPaths,
+								outdatedLocators,
 							);
 						}
 					}
@@ -118,14 +137,22 @@ export class MessageBuilder {
 				continue;
 			}
 
-			for (const block of message.content) {
+			for (let j = 0; j < message.content.length; j++) {
+				const block = message.content[j];
+				if (block.type === "file") {
+					this.latestFullContentOwnerByPathCache.set(
+						block.path,
+						this.toFileBlockOwnerKey(i, j),
+					);
+					continue;
+				}
 				if (block.type === "tool_use") {
 					const normalizedName = block.name.toLowerCase();
 					this.toolNameByIdCache.set(block.id, normalizedName);
 					if (this.isReadTool(normalizedName)) {
-						const paths = this.extractPathsFromReadToolInput(block.input);
-						if (paths.length > 0) {
-							this.readPathsByToolUseIdCache.set(block.id, paths);
+						const locators = this.extractLocatorsFromReadToolInput(block.input);
+						if (locators.length > 0) {
+							this.readLocatorsByToolUseIdCache.set(block.id, locators);
 						}
 					}
 					continue;
@@ -137,13 +164,22 @@ export class MessageBuilder {
 					}
 					const readRecord = this.getReadResultRecord(
 						block,
-						this.readPathsByToolUseIdCache.get(block.tool_use_id),
+						this.readLocatorsByToolUseIdCache.get(block.tool_use_id),
 					);
 					if (!readRecord) {
 						continue;
 					}
-					for (const path of readRecord.paths) {
-						this.latestReadToolUseByPathCache.set(path, readRecord.toolUseId);
+					for (const locator of readRecord.locators) {
+						this.latestReadToolUseByLocatorCache.set(
+							this.toReadLocatorKey(locator),
+							readRecord.toolUseId,
+						);
+						if (this.isFullFileRead(locator)) {
+							this.latestFullContentOwnerByPathCache.set(
+								locator.path,
+								readRecord.toolUseId,
+							);
+						}
 					}
 				}
 			}
@@ -157,100 +193,148 @@ export class MessageBuilder {
 		this.indexedMessageCount = 0;
 		this.indexedTailRef = undefined;
 		this.toolNameByIdCache.clear();
-		this.readPathsByToolUseIdCache.clear();
-		this.latestReadToolUseByPathCache.clear();
-		this.readResultPathCache = new WeakMap<object, string[]>();
+		this.readLocatorsByToolUseIdCache.clear();
+		this.latestReadToolUseByLocatorCache.clear();
+		this.latestFullContentOwnerByPathCache.clear();
+		this.readResultLocatorCache = new WeakMap<object, ReadLocator[]>();
 	}
 
 	private getReadResultRecord(
 		block: LlmsProviders.ToolResultContent,
-		fallbackPaths: string[] | undefined,
+		fallbackLocators: ReadLocator[] | undefined,
 	): ReadResultRecord | undefined {
 		const blockRef = block as unknown as object;
-		const cachedParsedPaths = this.readResultPathCache.get(blockRef);
-		const parsedPaths =
-			cachedParsedPaths ??
-			this.extractReadPathsFromToolResultContent(block.content);
-		if (!cachedParsedPaths) {
-			this.readResultPathCache.set(blockRef, parsedPaths);
+		const cachedParsedLocators = this.readResultLocatorCache.get(blockRef);
+		const parsedLocators =
+			cachedParsedLocators ??
+			this.extractReadLocatorsFromToolResultContent(block.content);
+		if (!cachedParsedLocators) {
+			this.readResultLocatorCache.set(blockRef, parsedLocators);
 		}
-		const paths = parsedPaths.length > 0 ? parsedPaths : (fallbackPaths ?? []);
-		if (paths.length === 0) {
+		const locators =
+			parsedLocators.length > 0 ? parsedLocators : (fallbackLocators ?? []);
+		if (locators.length === 0) {
 			return undefined;
 		}
 
 		return {
 			toolUseId: block.tool_use_id,
-			paths,
+			locators,
 		};
 	}
 
-	private extractPathsFromReadToolInput(
-		input: Record<string, unknown>,
-	): string[] {
-		const paths: string[] = [];
-		const maybePath = input.path;
-		const maybeFilePath = input.file_path;
-		const maybeFilePaths = input.file_paths;
+	private extractLocatorsFromReadToolInput(input: unknown): ReadLocator[] {
+		if (!input || typeof input !== "object") {
+			return [];
+		}
 
-		if (typeof maybePath === "string" && maybePath.length > 0) {
-			paths.push(maybePath);
+		const record = input as Record<string, unknown>;
+		const locators: ReadLocator[] = [];
+		const directLocator = this.extractLocatorFromReadRequest(record);
+		if (directLocator) {
+			locators.push(directLocator);
 		}
-		if (typeof maybeFilePath === "string" && maybeFilePath.length > 0) {
-			paths.push(maybeFilePath);
-		}
-		if (Array.isArray(maybeFilePaths)) {
-			for (const value of maybeFilePaths) {
-				if (typeof value === "string" && value.length > 0) {
-					paths.push(value);
+
+		const maybeFiles = record.files;
+		if (Array.isArray(maybeFiles)) {
+			for (const value of maybeFiles) {
+				const locator = this.extractLocatorFromReadRequest(value);
+				if (locator) {
+					locators.push(locator);
 				}
 			}
 		}
 
-		return Array.from(new Set(paths));
+		const maybeFilePaths = record.file_paths;
+		if (Array.isArray(maybeFilePaths)) {
+			for (const value of maybeFilePaths) {
+				if (typeof value === "string" && value.length > 0) {
+					locators.push({
+						path: value,
+						startLine: null,
+						endLine: null,
+					});
+				}
+			}
+		}
+
+		return this.dedupeReadLocators(locators);
 	}
 
-	private extractReadPathsFromToolResultContent(
+	private extractReadLocatorsFromToolResultContent(
 		content: LlmsProviders.ToolResultContent["content"],
-	): string[] {
+	): ReadLocator[] {
 		if (typeof content !== "string") {
 			return [];
 		}
 
 		try {
 			const parsed = JSON.parse(content);
-			return this.extractPathsFromParsedReadResult(parsed);
+			return this.extractLocatorsFromParsedReadResult(parsed);
 		} catch {
 			return [];
 		}
 	}
 
-	private extractPathsFromParsedReadResult(value: unknown): string[] {
+	private extractLocatorsFromParsedReadResult(value: unknown): ReadLocator[] {
 		if (Array.isArray(value)) {
-			const paths = value
-				.map((item) => this.extractPathFromResultEntry(item))
-				.filter(
-					(path): path is string => typeof path === "string" && path.length > 0,
-				);
-			return Array.from(new Set(paths));
+			return this.dedupeReadLocators(
+				value
+					.map((item) => this.extractLocatorFromResultEntry(item))
+					.filter((locator): locator is ReadLocator => locator !== undefined),
+			);
 		}
 
-		const path = this.extractPathFromResultEntry(value);
-		return path ? [path] : [];
+		const locator = this.extractLocatorFromResultEntry(value);
+		return locator ? [locator] : [];
 	}
 
-	private extractPathFromResultEntry(value: unknown): string | undefined {
+	private extractLocatorFromReadRequest(
+		value: unknown,
+	): ReadLocator | undefined {
 		if (!value || typeof value !== "object") {
 			return undefined;
 		}
 
 		const record = value as Record<string, unknown>;
-		const candidates = [
-			record.path,
-			record.file_path,
-			record.filePath,
-			record.query,
-		];
+		const path = this.extractPath(record);
+		if (!path) {
+			return undefined;
+		}
+
+		return {
+			path,
+			startLine: this.extractLineNumber(record.start_line),
+			endLine: this.extractLineNumber(record.end_line),
+		};
+	}
+
+	private extractLocatorFromResultEntry(
+		value: unknown,
+	): ReadLocator | undefined {
+		if (!value || typeof value !== "object") {
+			return undefined;
+		}
+
+		const record = value as Record<string, unknown>;
+		const directPath = this.extractPath(record);
+		if (directPath) {
+			return {
+				path: directPath,
+				startLine: this.extractLineNumber(record.start_line),
+				endLine: this.extractLineNumber(record.end_line),
+			};
+		}
+
+		if (typeof record.query === "string" && record.query.length > 0) {
+			return this.parseReadQuery(record.query);
+		}
+
+		return undefined;
+	}
+
+	private extractPath(record: Record<string, unknown>): string | undefined {
+		const candidates = [record.path, record.file_path, record.filePath];
 		for (const candidate of candidates) {
 			if (typeof candidate === "string" && candidate.length > 0) {
 				return candidate;
@@ -260,16 +344,83 @@ export class MessageBuilder {
 		return undefined;
 	}
 
+	private extractLineNumber(value: unknown): number | null {
+		return typeof value === "number" && Number.isInteger(value) ? value : null;
+	}
+
+	private parseReadQuery(query: string): ReadLocator {
+		const match = /^(.*):(\d+)-(EOF|\d+)$/.exec(query);
+		if (!match) {
+			return { path: query, startLine: null, endLine: null };
+		}
+
+		return {
+			path: match[1],
+			startLine: Number(match[2]),
+			endLine: match[3] === "EOF" ? null : Number(match[3]),
+		};
+	}
+
+	private dedupeReadLocators(locators: ReadLocator[]): ReadLocator[] {
+		const unique = new Map<string, ReadLocator>();
+		for (const locator of locators) {
+			unique.set(this.toReadLocatorKey(locator), locator);
+		}
+		return Array.from(unique.values());
+	}
+
+	private toReadLocatorKey(locator: ReadLocator): string {
+		if (this.isFullFileRead(locator)) {
+			return locator.path;
+		}
+		return `${locator.path}:${locator.startLine ?? 1}-${locator.endLine ?? "EOF"}`;
+	}
+
+	private isFullFileRead(locator: ReadLocator): boolean {
+		return locator.startLine == null && locator.endLine == null;
+	}
+
+	private isOutdatedReadLocator(
+		locator: ReadLocator,
+		toolUseId: string,
+		latestReadToolUseByLocator: Map<string, string>,
+		latestFullContentOwnerByPath: Map<string, string>,
+	): boolean {
+		const latestFullContentOwner = latestFullContentOwnerByPath.get(
+			locator.path,
+		);
+		if (latestFullContentOwner && latestFullContentOwner !== toolUseId) {
+			return true;
+		}
+
+		return (
+			latestReadToolUseByLocator.get(this.toReadLocatorKey(locator)) !==
+			toolUseId
+		);
+	}
+
+	private toFileBlockOwnerKey(
+		messageIndex: number,
+		blockIndex: number,
+	): string {
+		return `file:${messageIndex}:${blockIndex}`;
+	}
+
 	private replaceOutdatedReadContent(
 		content: LlmsProviders.ToolResultContent["content"],
-		outdatedPaths: string[],
+		outdatedLocators: ReadLocator[],
 	): LlmsProviders.ToolResultContent["content"] {
-		const outdatedPathSet = new Set(outdatedPaths);
+		const outdatedLocatorKeySet = new Set(
+			outdatedLocators.map((locator) => this.toReadLocatorKey(locator)),
+		);
+		const outdatedPathSet = new Set(
+			outdatedLocators.map((locator) => locator.path),
+		);
 
 		if (typeof content === "string") {
 			const replaced = this.replaceOutdatedReadContentInString(
 				content,
-				outdatedPathSet,
+				outdatedLocatorKeySet,
 			);
 			return replaced ?? OUTDATED_FILE_CONTENT;
 		}
@@ -290,7 +441,7 @@ export class MessageBuilder {
 			}
 			const replaced = this.replaceOutdatedReadContentInString(
 				entry.text,
-				outdatedPathSet,
+				outdatedLocatorKeySet,
 			);
 			if (replaced === null) {
 				return {
@@ -310,13 +461,13 @@ export class MessageBuilder {
 
 	private replaceOutdatedReadContentInString(
 		text: string,
-		outdatedPathSet: Set<string>,
+		outdatedLocatorKeySet: Set<string>,
 	): string | null {
 		try {
 			const parsed = JSON.parse(text);
 			const replaced = this.replaceOutdatedReadContentInParsed(
 				parsed,
-				outdatedPathSet,
+				outdatedLocatorKeySet,
 			);
 			return JSON.stringify(replaced);
 		} catch {
@@ -326,28 +477,32 @@ export class MessageBuilder {
 
 	private replaceOutdatedReadContentInParsed(
 		value: unknown,
-		outdatedPathSet: Set<string>,
+		outdatedLocatorKeySet: Set<string>,
 	): unknown {
 		if (Array.isArray(value)) {
 			return value.map((entry) =>
-				this.replaceOutdatedReadEntry(entry, outdatedPathSet),
+				this.replaceOutdatedReadEntry(entry, outdatedLocatorKeySet),
 			);
 		}
 
-		return this.replaceOutdatedReadEntry(value, outdatedPathSet);
+		return this.replaceOutdatedReadEntry(value, outdatedLocatorKeySet);
 	}
 
 	private replaceOutdatedReadEntry(
 		entry: unknown,
-		outdatedPathSet: Set<string>,
+		outdatedLocatorKeySet: Set<string>,
 	): unknown {
 		if (!entry || typeof entry !== "object") {
 			return entry;
 		}
 
 		const record = { ...(entry as Record<string, unknown>) };
-		const path = this.extractPathFromResultEntry(record);
-		if (!path || !outdatedPathSet.has(path)) {
+		const locator = this.extractLocatorFromResultEntry(record);
+		if (!locator) {
+			return entry;
+		}
+		const locatorKey = this.toReadLocatorKey(locator);
+		if (!outdatedLocatorKeySet.has(locatorKey)) {
 			return entry;
 		}
 

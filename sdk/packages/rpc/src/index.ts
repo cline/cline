@@ -46,4 +46,4 @@ export type {
 	RpcSessionUpdateInput,
 	RpcSpawnQueueItem,
 } from "./types.js";
-export { RPC_PROTOCOL_VERSION } from "./version.js";
+export { RPC_BUILD_VERSION, RPC_PROTOCOL_VERSION } from "./version.js";

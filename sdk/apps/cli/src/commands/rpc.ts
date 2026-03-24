@@ -1,4 +1,6 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
+import { createHash } from "node:crypto";
+import { statSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
@@ -30,6 +32,14 @@ const RPC_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const RPC_STARTUP_LOCK_WAIT_MS = 15_000;
 const RPC_STARTUP_LOCK_POLL_MS = 100;
 const RPC_STARTUP_LOCK_BYPASS_ENV = "CLINE_RPC_STARTUP_LOCK_HELD";
+const RPC_OWNER_ID_ENV = "CLINE_RPC_OWNER_ID";
+const RPC_BUILD_ID_ENV = "CLINE_RPC_BUILD_ID";
+const RPC_DISCOVERY_PATH_ENV = "CLINE_RPC_DISCOVERY_PATH";
+const DEFAULT_RPC_ADDRESS = "127.0.0.1:4317";
+
+// ---------------------------------------------------------------------------
+// Shared types
+// ---------------------------------------------------------------------------
 
 type RpcStartupLockRecord = {
 	pid: number;
@@ -37,16 +47,53 @@ type RpcStartupLockRecord = {
 	acquiredAt: string;
 };
 
-type EnsureCompatibleRpcAddressOptions = {
-	forceKillIncompatible?: boolean;
-	lockHeld?: boolean;
+type RpcDiscoveryRecord = {
+	ownerId: string;
+	buildId: string;
+	entryPath?: string;
+	address: string;
+	pid?: number;
+	serverId?: string;
+	startedAt?: string;
+	protocolVersion: string;
+	updatedAt: string;
 };
 
-const DEFAULT_RPC_ADDRESS = "127.0.0.1:4317";
+type RpcOwnerContext = {
+	ownerId: string;
+	buildId: string;
+	entryPath?: string;
+	discoveryPath: string;
+};
+
+type EnsureResult = {
+	address: string;
+	action: "reuse" | "new-port" | "started";
+};
 
 interface RpcCommandIo {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
+}
+
+// ---------------------------------------------------------------------------
+// Tiny helpers
+// ---------------------------------------------------------------------------
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+function sanitizeKey(value: string): string {
+	return value.replace(/[^a-zA-Z0-9_.-]+/g, "_");
+}
+
+function hashValue(value: string): string {
+	return createHash("sha256").update(value).digest("hex").slice(0, 12);
+}
+
+function errorCode(error: unknown): string {
+	return error && typeof error === "object" && "code" in error
+		? String((error as { code?: unknown }).code)
+		: "";
 }
 
 function collectMeta(value: string, previous: string[]): string[] {
@@ -56,20 +103,15 @@ function collectMeta(value: string, previous: string[]): string[] {
 function parseMetaEntries(entries: string[]): Record<string, string> {
 	const metadata: Record<string, string> = {};
 	for (const raw of entries) {
-		const trimmed = raw.trim();
-		const separator = trimmed.indexOf("=");
-		if (separator <= 0 || separator >= trimmed.length - 1) {
-			continue;
-		}
-		const key = trimmed.slice(0, separator).trim();
-		const value = trimmed.slice(separator + 1).trim();
-		if (!key || !value) {
-			continue;
-		}
-		metadata[key] = value;
+		const sep = raw.indexOf("=");
+		if (sep <= 0 || sep >= raw.length - 1) continue;
+		const key = raw.slice(0, sep).trim();
+		const value = raw.slice(sep + 1).trim();
+		if (key && value) metadata[key] = value;
 	}
 	return metadata;
 }
+
 function parseRpcAddress(address: string): { host: string; port: number } {
 	const trimmed = address.trim();
 	const idx = trimmed.lastIndexOf(":");
@@ -84,13 +126,131 @@ function parseRpcAddress(address: string): { host: string; port: number } {
 	return { host, port };
 }
 
-function isUnimplementedError(error: unknown): boolean {
-	if (error && typeof error === "object" && "code" in error) {
-		const code = Number((error as { code?: unknown }).code);
-		if (code === 12) {
-			return true;
-		}
+// ---------------------------------------------------------------------------
+// Owner context & discovery
+// ---------------------------------------------------------------------------
+
+function resolveRpcEntrypoint(): string | undefined {
+	const entryArg = process.argv[1]?.trim();
+	if (!entryArg) return undefined;
+	return isAbsolute(entryArg) ? entryArg : resolvePath(process.cwd(), entryArg);
+}
+
+function getEntrypointMtimeMs(path: string | undefined): number {
+	if (!path) return 0;
+	try {
+		return statSync(path).mtimeMs || 0;
+	} catch {
+		return 0;
 	}
+}
+
+function resolveCurrentRpcOwnerContext(): RpcOwnerContext {
+	const entryPath = resolveRpcEntrypoint();
+	const defaultOwnerBasis = entryPath
+		? `${entryPath}`
+		: `pid:${process.pid}:cwd:${process.cwd()}`;
+	const ownerId =
+		process.env[RPC_OWNER_ID_ENV]?.trim() ||
+		`cli-${hashValue(defaultOwnerBasis)}`;
+	const defaultBuildBasis = `${defaultOwnerBasis}:${getEntrypointMtimeMs(entryPath)}`;
+	const buildId =
+		process.env[RPC_BUILD_ID_ENV]?.trim() ||
+		`build-${hashValue(defaultBuildBasis)}`;
+	const discoveryPath =
+		process.env[RPC_DISCOVERY_PATH_ENV]?.trim() ||
+		join(
+			resolveClineDataDir(),
+			"rpc",
+			"owners",
+			`${sanitizeKey(ownerId)}.json`,
+		);
+	return { ownerId, buildId, entryPath, discoveryPath };
+}
+
+async function readRpcDiscovery(
+	owner: RpcOwnerContext,
+): Promise<RpcDiscoveryRecord | undefined> {
+	try {
+		const parsed = JSON.parse(
+			await readFile(owner.discoveryPath, "utf8"),
+		) as Partial<RpcDiscoveryRecord>;
+		if (
+			typeof parsed.ownerId !== "string" ||
+			typeof parsed.buildId !== "string" ||
+			typeof parsed.address !== "string" ||
+			typeof parsed.protocolVersion !== "string"
+		) {
+			return undefined;
+		}
+		return {
+			ownerId: parsed.ownerId,
+			buildId: parsed.buildId,
+			address: parsed.address,
+			protocolVersion: parsed.protocolVersion,
+			updatedAt:
+				typeof parsed.updatedAt === "string"
+					? parsed.updatedAt
+					: new Date().toISOString(),
+			entryPath:
+				typeof parsed.entryPath === "string" ? parsed.entryPath : undefined,
+			pid: typeof parsed.pid === "number" ? parsed.pid : undefined,
+			serverId:
+				typeof parsed.serverId === "string" ? parsed.serverId : undefined,
+			startedAt:
+				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+async function writeRpcDiscovery(
+	owner: RpcOwnerContext,
+	record: Omit<RpcDiscoveryRecord, "ownerId" | "buildId" | "updatedAt">,
+): Promise<void> {
+	await mkdir(dirname(owner.discoveryPath), { recursive: true });
+	await writeFile(
+		owner.discoveryPath,
+		JSON.stringify(
+			{
+				ownerId: owner.ownerId,
+				buildId: owner.buildId,
+				updatedAt: new Date().toISOString(),
+				...record,
+			} satisfies RpcDiscoveryRecord,
+			null,
+			2,
+		),
+		"utf8",
+	);
+}
+
+async function clearRpcDiscovery(owner: RpcOwnerContext): Promise<void> {
+	await rm(owner.discoveryPath, { force: true }).catch(() => undefined);
+}
+
+async function clearRpcDiscoveryIfAddressMatches(
+	owner: RpcOwnerContext,
+	address: string,
+): Promise<void> {
+	const current = await readRpcDiscovery(owner);
+	if (current?.address === address) await clearRpcDiscovery(owner);
+}
+
+// ---------------------------------------------------------------------------
+// Health / compatibility probes
+// ---------------------------------------------------------------------------
+
+function isHealthCompatible(
+	health: Awaited<ReturnType<typeof getRpcServerHealth>> | undefined,
+): boolean {
+	const serverVersion = health?.rpcVersion?.trim() || "";
+	return !!serverVersion && serverVersion === RPC_PROTOCOL_VERSION;
+}
+
+function isUnimplementedError(error: unknown): boolean {
+	if (Number(errorCode(error)) === 12) return true;
 	const message = error instanceof Error ? error.message : String(error);
 	return message.toUpperCase().includes("UNIMPLEMENTED");
 }
@@ -102,32 +262,44 @@ function isAuthenticationError(error: unknown): boolean {
 	);
 }
 
+function isProbeBlocked(error: unknown): boolean {
+	return isUnimplementedError(error) || isAuthenticationError(error);
+}
+
 async function hasRuntimeMethods(address: string): Promise<boolean> {
 	const client = new RpcSessionClient({ address });
 	try {
-		// Probe a runtime-only method without creating any session side effects.
 		try {
 			await client.stopRuntimeSession("__rpc_probe__");
 		} catch (error) {
-			if (isUnimplementedError(error) || isAuthenticationError(error)) {
-				return false;
-			}
+			if (isProbeBlocked(error)) return false;
 		}
 		return true;
 	} catch (error) {
-		return !isUnimplementedError(error) && !isAuthenticationError(error);
+		return !isProbeBlocked(error);
 	} finally {
 		client.close();
 	}
 }
 
+async function isCompatibleRuntime(address: string): Promise<boolean> {
+	const health = await getRpcServerHealth(address);
+	return (
+		!!health?.running &&
+		isHealthCompatible(health) &&
+		(await hasRuntimeMethods(address))
+	);
+}
+
+// ---------------------------------------------------------------------------
+// Port scanning
+// ---------------------------------------------------------------------------
+
 async function isPortFree(host: string, port: number): Promise<boolean> {
-	return await new Promise<boolean>((resolve) => {
+	return new Promise<boolean>((resolve) => {
 		const server = createServer();
 		server.once("error", () => resolve(false));
-		server.once("listening", () => {
-			server.close(() => resolve(true));
-		});
+		server.once("listening", () => server.close(() => resolve(true)));
 		server.listen({ host, port });
 	});
 }
@@ -135,20 +307,30 @@ async function isPortFree(host: string, port: number): Promise<boolean> {
 async function findAvailableAddress(baseAddress: string): Promise<string> {
 	const { host, port } = parseRpcAddress(baseAddress);
 	for (let offset = 1; offset <= 40; offset += 1) {
-		const candidatePort = port + offset;
-		if (candidatePort > 65535) {
-			break;
-		}
-		if (await isPortFree(host, candidatePort)) {
-			return `${host}:${candidatePort}`;
-		}
+		const candidate = port + offset;
+		if (candidate > 65535) break;
+		if (await isPortFree(host, candidate)) return `${host}:${candidate}`;
 	}
 	throw new Error(`no available rpc port near ${baseAddress}`);
 }
 
+// ---------------------------------------------------------------------------
+// Startup lock
+// ---------------------------------------------------------------------------
+
 function getRpcStartupLockDir(address: string): string {
 	const normalized = address.trim().replace(/[^a-zA-Z0-9_.-]+/g, "_");
 	return join(resolveClineDataDir(), "locks", `rpc-start-${normalized}.lock`);
+}
+
+function isPidAlive(pid: number | undefined): boolean {
+	if (!Number.isInteger(pid) || !pid || pid <= 0) return false;
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return errorCode(error) === "EPERM";
+	}
 }
 
 async function writeRpcStartupLockRecord(
@@ -167,37 +349,13 @@ async function writeRpcStartupLockRecord(
 	);
 }
 
-function isPidAlive(pid: number | undefined): boolean {
-	const normalizedPid = Number.isInteger(pid) ? pid : undefined;
-	if (normalizedPid === undefined || normalizedPid <= 0) {
-		return false;
-	}
-	try {
-		process.kill(normalizedPid, 0);
-		return true;
-	} catch (error) {
-		const code =
-			error && typeof error === "object" && "code" in error
-				? String((error as { code?: unknown }).code)
-				: "";
-		return code === "EPERM";
-	}
-}
-
-async function removeRpcStartupLockDir(lockDir: string): Promise<void> {
-	try {
-		await rm(lockDir, { recursive: true, force: true });
-	} catch {
-		// Best-effort cleanup only.
-	}
-}
-
 async function readRpcStartupLockRecord(
 	lockDir: string,
 ): Promise<RpcStartupLockRecord | undefined> {
 	try {
-		const raw = await readFile(join(lockDir, "owner.json"), "utf8");
-		const parsed = JSON.parse(raw) as Partial<RpcStartupLockRecord>;
+		const parsed = JSON.parse(
+			await readFile(join(lockDir, "owner.json"), "utf8"),
+		) as Partial<RpcStartupLockRecord>;
 		if (
 			typeof parsed.pid !== "number" ||
 			typeof parsed.address !== "string" ||
@@ -213,6 +371,10 @@ async function readRpcStartupLockRecord(
 	} catch {
 		return undefined;
 	}
+}
+
+async function removeRpcStartupLockDir(lockDir: string): Promise<void> {
+	await rm(lockDir, { recursive: true, force: true }).catch(() => {});
 }
 
 async function withRpcStartupLock<T>(
@@ -237,13 +399,7 @@ async function withRpcStartupLock<T>(
 				await removeRpcStartupLockDir(lockDir);
 			}
 		} catch (error) {
-			const code =
-				error && typeof error === "object" && "code" in error
-					? String((error as { code?: unknown }).code)
-					: "";
-			if (code !== "EEXIST") {
-				throw error;
-			}
+			if (errorCode(error) !== "EEXIST") throw error;
 
 			const existing = await readRpcStartupLockRecord(lockDir);
 			const acquiredAtMs = existing
@@ -264,25 +420,20 @@ async function withRpcStartupLock<T>(
 					`timed out waiting for rpc startup lock at ${address} (owner pid=${existing.pid})`,
 				);
 			}
-			await new Promise((resolve) =>
-				setTimeout(resolve, RPC_STARTUP_LOCK_POLL_MS),
-			);
+			await sleep(RPC_STARTUP_LOCK_POLL_MS);
 		}
 	}
 }
 
-function spawnRpcStartDetached(address: string): void {
+// ---------------------------------------------------------------------------
+// Detached spawn & readiness
+// ---------------------------------------------------------------------------
+
+function spawnRpcStartDetached(address: string, owner: RpcOwnerContext): void {
 	const lease = tryAcquireRpcSpawnLease(address);
-	if (!lease) {
-		return;
-	}
-	const launcher = process.execPath;
-	const entryArg = process.argv[1];
-	const entry = entryArg?.trim()
-		? isAbsolute(entryArg)
-			? entryArg
-			: resolvePath(process.cwd(), entryArg)
-		: undefined;
+	if (!lease) return;
+
+	const entry = owner.entryPath ?? resolveRpcEntrypoint();
 	if (!entry) {
 		lease.release();
 		throw new Error("unable to resolve CLI entrypoint for detached rpc start");
@@ -298,18 +449,21 @@ function spawnRpcStartDetached(address: string): void {
 		"--address",
 		address,
 	];
-	const child = spawn(launcher, childArgs, {
+	const child = spawn(process.execPath, childArgs, {
 		detached: true,
 		stdio: "ignore",
 		env: {
 			...process.env,
 			[RPC_STARTUP_LOCK_BYPASS_ENV]: "1",
+			[RPC_OWNER_ID_ENV]: owner.ownerId,
+			[RPC_BUILD_ID_ENV]: owner.buildId,
+			[RPC_DISCOVERY_PATH_ENV]: owner.discoveryPath,
 		},
 		cwd: process.cwd(),
 	});
 	logSpawnedProcess({
 		component: "rpc",
-		command: [launcher, ...childArgs],
+		command: [process.execPath, ...childArgs],
 		childPid: child.pid ?? undefined,
 		detached: true,
 		cwd: process.cwd(),
@@ -319,147 +473,101 @@ function spawnRpcStartDetached(address: string): void {
 	setTimeout(() => lease.release(), 10_000).unref();
 }
 
-function forceKillListener(address: string): number {
-	const { port } = parseRpcAddress(address);
-	if (process.platform === "win32") {
-		const list = spawnSync("cmd", ["/c", "netstat -ano -p tcp"], {
-			encoding: "utf8",
-		});
-		if (list.status !== 0) {
-			return 0;
-		}
-		const pids = new Set<number>();
-		for (const line of (list.stdout || "").split(/\r?\n/)) {
-			if (!line.includes(`:${port}`) || !line.includes("LISTENING")) {
-				continue;
-			}
-			const parts = line.trim().split(/\s+/);
-			const pid = Number.parseInt(parts[parts.length - 1] || "", 10);
-			if (Number.isInteger(pid) && pid > 0) {
-				pids.add(pid);
-			}
-		}
-		for (const pid of pids) {
-			spawnSync("taskkill", ["/PID", String(pid), "/F"], { encoding: "utf8" });
-		}
-		return pids.size;
-	}
-
-	const out = spawnSync("lsof", ["-nP", `-tiTCP:${port}`, "-sTCP:LISTEN"], {
-		encoding: "utf8",
-	});
-	if (out.status !== 0) {
-		return 0;
-	}
-	const pids = (out.stdout || "")
-		.split(/\r?\n/)
-		.map((line) => Number.parseInt(line.trim(), 10))
-		.filter((pid) => Number.isInteger(pid) && pid > 0);
-	for (const pid of pids) {
-		try {
-			process.kill(pid, "SIGKILL");
-		} catch {
-			// best effort
-		}
-	}
-	return pids.length;
-}
-
 async function waitForRuntimeReady(address: string): Promise<boolean> {
 	for (let attempt = 0; attempt < 60; attempt += 1) {
-		const health = await getRpcServerHealth(address);
-		if (health?.running && (await hasRuntimeMethods(address))) {
-			return true;
-		}
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		if (await isCompatibleRuntime(address)) return true;
+		await sleep(100);
 	}
 	return false;
 }
 
+// ---------------------------------------------------------------------------
+// Shutdown helper
+// ---------------------------------------------------------------------------
+
+async function tryShutdownOwnedServer(
+	owner: RpcOwnerContext,
+	discovery: RpcDiscoveryRecord | undefined,
+): Promise<void> {
+	const address = discovery?.address?.trim();
+	if (!address) {
+		await clearRpcDiscovery(owner);
+		return;
+	}
+	const shutdown = await requestRpcServerShutdown(address).catch(
+		() => undefined,
+	);
+	if (shutdown?.accepted) {
+		for (let i = 0; i < 20; i++) {
+			if (!(await getRpcServerHealth(address))?.running) {
+				await clearRpcDiscovery(owner);
+				return;
+			}
+			await sleep(100);
+		}
+	}
+	if (!(await getRpcServerHealth(address))?.running) {
+		await clearRpcDiscovery(owner);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Address resolution
+// ---------------------------------------------------------------------------
+
 async function ensureCompatibleRpcAddress(
 	requestedAddress: string,
-	options?: EnsureCompatibleRpcAddressOptions,
-): Promise<{ address: string; action: "reuse" | "new-port" | "started" }> {
+	options?: { lockHeld?: boolean; owner: RpcOwnerContext },
+): Promise<EnsureResult> {
+	const owner = options?.owner ?? resolveCurrentRpcOwnerContext();
 	if (!options?.lockHeld) {
-		return await withRpcStartupLock(requestedAddress, async () =>
+		return withRpcStartupLock(requestedAddress, () =>
 			ensureCompatibleRpcAddress(requestedAddress, {
-				...options,
 				lockHeld: true,
+				owner,
 			}),
 		);
 	}
 
-	const health = await getRpcServerHealth(requestedAddress);
-	if (!health?.running) {
-		const { host, port } = parseRpcAddress(requestedAddress);
-		const requestedPortFree = await isPortFree(host, port);
-		if (!requestedPortFree && options?.forceKillIncompatible) {
-			forceKillListener(requestedAddress);
-			const listenerStillHealthy =
-				(await getRpcServerHealth(requestedAddress))?.running === true;
-			if (!listenerStillHealthy && (await isPortFree(host, port))) {
-				return { address: requestedAddress, action: "started" };
-			}
-			throw new Error(
-				`rpc address ${requestedAddress} is still occupied after replacing the unhealthy listener`,
-			);
+	// Check existing discovery record first.
+	const discovery = await readRpcDiscovery(owner);
+	if (discovery?.address) {
+		const discoveredHealth = await getRpcServerHealth(discovery.address);
+		if (
+			discoveredHealth?.running &&
+			discovery.buildId === owner.buildId &&
+			discovery.protocolVersion === RPC_PROTOCOL_VERSION &&
+			isHealthCompatible(discoveredHealth) &&
+			(await hasRuntimeMethods(discovery.address))
+		) {
+			return { address: discovery.address, action: "reuse" };
 		}
-		return { address: requestedAddress, action: "started" };
+		await tryShutdownOwnedServer(owner, discovery);
 	}
-	if (await hasRuntimeMethods(requestedAddress)) {
-		const serverVersion = health.rpcVersion?.trim() || "";
-		if (serverVersion && serverVersion === RPC_PROTOCOL_VERSION) {
-			return { address: requestedAddress, action: "reuse" };
-		}
-		// Version mismatch — treat as incompatible so the server gets restarted.
-		if (options?.forceKillIncompatible) {
-			const shutdown = await requestRpcServerShutdown(requestedAddress);
-			if (shutdown?.accepted) {
-				for (let attempt = 0; attempt < 20; attempt += 1) {
-					if (!(await getRpcServerHealth(requestedAddress))?.running) {
-						return { address: requestedAddress, action: "started" };
-					}
-					await new Promise((resolve) => setTimeout(resolve, 100));
-				}
-			}
-			forceKillListener(requestedAddress);
-			const { host, port } = parseRpcAddress(requestedAddress);
-			const listenerStillHealthy =
-				(await getRpcServerHealth(requestedAddress))?.running === true;
-			if (!listenerStillHealthy && (await isPortFree(host, port))) {
-				return { address: requestedAddress, action: "started" };
-			}
-			throw new Error(
-				`rpc address ${requestedAddress} is still occupied after replacing the version-mismatched server`,
-			);
-		}
 
+	// Check the requested address.
+	const requestedHealth = await getRpcServerHealth(requestedAddress);
+	const { host, port } = parseRpcAddress(requestedAddress);
+
+	if (!requestedHealth?.running) {
+		if (await isPortFree(host, port)) {
+			return { address: requestedAddress, action: "started" };
+		}
 		return {
 			address: await findAvailableAddress(requestedAddress),
 			action: "new-port",
 		};
 	}
 
-	if (options?.forceKillIncompatible) {
-		const shutdown = await requestRpcServerShutdown(requestedAddress);
-		if (shutdown?.accepted) {
-			for (let attempt = 0; attempt < 20; attempt += 1) {
-				if (!(await getRpcServerHealth(requestedAddress))?.running) {
-					return { address: requestedAddress, action: "started" };
-				}
-				await new Promise((resolve) => setTimeout(resolve, 100));
-			}
+	// Requested address has a running server — check compatibility.
+	if (
+		isHealthCompatible(requestedHealth) &&
+		(await hasRuntimeMethods(requestedAddress))
+	) {
+		// Adopt a compatible server only if we have no prior discovery.
+		if (!discovery) {
+			return { address: requestedAddress, action: "reuse" };
 		}
-		forceKillListener(requestedAddress);
-		const { host, port } = parseRpcAddress(requestedAddress);
-		const listenerStillHealthy =
-			(await getRpcServerHealth(requestedAddress))?.running === true;
-		if (!listenerStillHealthy && (await isPortFree(host, port))) {
-			return { address: requestedAddress, action: "started" };
-		}
-		throw new Error(
-			`rpc address ${requestedAddress} is still occupied after replacing the unhealthy listener`,
-		);
 	}
 
 	return {
@@ -471,39 +579,48 @@ async function ensureCompatibleRpcAddress(
 export async function ensureRpcRuntimeAddress(
 	requestedAddress: string,
 ): Promise<string> {
-	return await withRpcStartupLock(requestedAddress, async () => {
+	const owner = resolveCurrentRpcOwnerContext();
+	return withRpcStartupLock(requestedAddress, async () => {
 		const ensured = await ensureCompatibleRpcAddress(requestedAddress, {
-			forceKillIncompatible: true,
 			lockHeld: true,
+			owner,
 		});
-		return await ensureRpcRuntimeAddressFromResolved(ensured);
+		return ensureRpcRuntimeAddressFromResolved(ensured, owner);
 	});
 }
 
-async function ensureRpcRuntimeAddressFromResolved(ensured: {
-	address: string;
-	action: "reuse" | "new-port" | "started";
-}): Promise<string> {
+async function ensureRpcRuntimeAddressFromResolved(
+	ensured: EnsureResult,
+	owner: RpcOwnerContext,
+): Promise<string> {
 	if (ensured.action !== "reuse") {
-		spawnRpcStartDetached(ensured.address);
+		spawnRpcStartDetached(ensured.address, owner);
 	}
 
 	if (!(await waitForRuntimeReady(ensured.address))) {
 		throw new Error(`failed to ensure rpc runtime at ${ensured.address}`);
 	}
+	const health = await getRpcServerHealth(ensured.address);
+	await writeRpcDiscovery(owner, {
+		address: ensured.address,
+		pid: undefined,
+		serverId: health?.serverId,
+		startedAt: health?.startedAt,
+		protocolVersion: RPC_PROTOCOL_VERSION,
+		entryPath: owner.entryPath,
+	});
 
 	return ensured.address;
 }
 
+// ---------------------------------------------------------------------------
+// Formatting
+// ---------------------------------------------------------------------------
+
 function formatUptime(startedAt: string): string {
 	const startMs = new Date(startedAt).getTime();
-	if (!Number.isFinite(startMs)) {
-		return "unknown";
-	}
-	let seconds = Math.floor((Date.now() - startMs) / 1000);
-	if (seconds < 0) {
-		return "0s";
-	}
+	if (!Number.isFinite(startMs)) return "unknown";
+	let seconds = Math.max(0, Math.floor((Date.now() - startMs) / 1000));
 	const days = Math.floor(seconds / 86400);
 	seconds %= 86400;
 	const hours = Math.floor(seconds / 3600);
@@ -511,21 +628,15 @@ function formatUptime(startedAt: string): string {
 	const minutes = Math.floor(seconds / 60);
 	seconds %= 60;
 	const parts: string[] = [];
-	if (days > 0) {
-		parts.push(`${days}d`);
-	}
-	if (hours > 0) {
-		parts.push(`${hours}h`);
-	}
-	if (minutes > 0) {
-		parts.push(`${minutes}m`);
-	}
+	if (days > 0) parts.push(`${days}d`);
+	if (hours > 0) parts.push(`${hours}h`);
+	if (minutes > 0) parts.push(`${minutes}m`);
 	parts.push(`${seconds}s`);
 	return parts.join(" ");
 }
 
 // ---------------------------------------------------------------------------
-// Exported command handlers — accept parsed options instead of rawArgs
+// Command handlers
 // ---------------------------------------------------------------------------
 
 export async function runRpcEnsureCommand(
@@ -533,18 +644,16 @@ export async function runRpcEnsureCommand(
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
-	const requestedAddress = options.address;
-	const jsonOutput = !!options.json;
-	let ensured:
-		| { address: string; action: "reuse" | "new-port" | "started" }
-		| undefined;
+	const { address: requestedAddress, json: jsonOutput } = options;
+	const owner = resolveCurrentRpcOwnerContext();
+	let ensured: EnsureResult | undefined;
 	try {
 		await withRpcStartupLock(requestedAddress, async () => {
 			ensured = await ensureCompatibleRpcAddress(requestedAddress, {
-				forceKillIncompatible: true,
 				lockHeld: true,
+				owner,
 			});
-			await ensureRpcRuntimeAddressFromResolved(ensured);
+			await ensureRpcRuntimeAddressFromResolved(ensured, owner);
 		});
 	} catch (error) {
 		writeErr(error instanceof Error ? error.message : String(error));
@@ -592,11 +701,13 @@ async function runRpcStartCommand(
 	let handle: Awaited<ReturnType<typeof startRpcServer>> | undefined;
 	let reusedExisting = false;
 	let existingServerId: string | undefined;
+	const owner = resolveCurrentRpcOwnerContext();
 	let startedAction: "new-port" | "started" = "started";
+
 	await withRpcStartupLock(normalizedAddress, async () => {
 		const ensured = await ensureCompatibleRpcAddress(normalizedAddress, {
-			forceKillIncompatible: true,
 			lockHeld: true,
+			owner,
 		});
 		startAddress = ensured.address;
 		if (ensured.action === "reuse") {
@@ -612,8 +723,26 @@ async function runRpcStartCommand(
 			sessionBackend: createSqliteRpcSessionBackend(),
 			runtimeHandlers: createRpcRuntimeHandlers(),
 		});
+		await writeRpcDiscovery(owner, {
+			address: startAddress,
+			pid: process.pid,
+			serverId: handle.serverId,
+			startedAt: handle.startedAt,
+			protocolVersion: RPC_PROTOCOL_VERSION,
+			entryPath: owner.entryPath,
+		});
 	});
+
 	if (reusedExisting) {
+		const health = await getRpcServerHealth(startAddress);
+		await writeRpcDiscovery(owner, {
+			address: startAddress,
+			pid: undefined,
+			serverId: health?.serverId,
+			startedAt: health?.startedAt,
+			protocolVersion: RPC_PROTOCOL_VERSION,
+			entryPath: owner.entryPath,
+		});
 		startupLogger.info?.("RPC server activation reused existing instance", {
 			address: startAddress,
 			serverId: existingServerId,
@@ -624,6 +753,7 @@ async function runRpcStartCommand(
 		);
 		return 0;
 	}
+
 	if (!handle) {
 		writeErr(`failed to start rpc server at ${startAddress}`);
 		return 1;
@@ -650,6 +780,7 @@ async function runRpcStartCommand(
 	});
 
 	await stopRpcServer();
+	await clearRpcDiscoveryIfAddressMatches(owner, handle.address);
 	startupLogger.info?.("RPC server stopped", {
 		address: handle.address,
 		serverId: handle.serverId,
@@ -668,17 +799,11 @@ async function runRpcStatusCommand(
 		writeErr("rpc status requires a non-empty address");
 		return 1;
 	}
-	const jsonOutput = !!options.json;
 
 	const health = await getRpcServerHealth(normalizedAddress);
 	if (!health?.running) {
-		if (jsonOutput) {
-			writeln(
-				JSON.stringify({
-					running: false,
-					address: normalizedAddress,
-				}),
-			);
+		if (options.json) {
+			writeln(JSON.stringify({ running: false, address: normalizedAddress }));
 		} else {
 			writeln(
 				`${c.dim}[rpc] not running address=${normalizedAddress}${c.reset}`,
@@ -688,8 +813,7 @@ async function runRpcStatusCommand(
 	}
 
 	const uptime = health.startedAt ? formatUptime(health.startedAt) : "unknown";
-
-	if (jsonOutput) {
+	if (options.json) {
 		writeln(
 			JSON.stringify({
 				running: true,
@@ -715,6 +839,7 @@ async function runRpcStopCommand(
 	writeErr: (text: string) => void,
 ): Promise<number> {
 	const normalizedAddress = options.address;
+	const owner = resolveCurrentRpcOwnerContext();
 	if (!normalizedAddress) {
 		writeErr("rpc stop requires a non-empty address");
 		return 1;
@@ -734,16 +859,15 @@ async function runRpcStopCommand(
 		return 1;
 	}
 
-	// Wait briefly for the server to unbind so follow-up calls can trust the result.
-	for (let attempt = 0; attempt < 10; attempt += 1) {
-		const nextHealth = await getRpcServerHealth(normalizedAddress);
-		if (!nextHealth?.running) {
+	for (let i = 0; i < 10; i++) {
+		if (!(await getRpcServerHealth(normalizedAddress))?.running) {
+			await clearRpcDiscoveryIfAddressMatches(owner, normalizedAddress);
 			writeln(
 				`${c.dim}[rpc] stopped server_id=${health.serverId} address=${health.address}${c.reset}`,
 			);
 			return 0;
 		}
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await sleep(100);
 	}
 
 	writeErr(
@@ -773,20 +897,17 @@ async function runRpcRegisterCommand(
 		return 1;
 	}
 
-	const clientType = options.clientType;
-	const requestedClientId = options.clientId;
 	const metadata = parseMetaEntries(options.meta);
-
 	const registration = await registerRpcClient(normalizedAddress, {
-		clientId: requestedClientId,
-		clientType,
+		clientId: options.clientId,
+		clientType: options.clientType,
 		metadata,
 	});
 	if (!registration?.registered) {
 		registerLogger.error?.("RPC client registration failed", {
 			address: normalizedAddress,
-			clientType,
-			requestedClientId: requestedClientId ?? "",
+			clientType: options.clientType,
+			requestedClientId: options.clientId ?? "",
 			metadata,
 		});
 		writeErr(
@@ -796,9 +917,9 @@ async function runRpcRegisterCommand(
 	}
 	registerLogger.info?.("RPC client registered", {
 		address: normalizedAddress,
-		clientType,
+		clientType: options.clientType,
 		clientId: registration.clientId,
-		requestedClientId: requestedClientId ?? "",
+		requestedClientId: options.clientId ?? "",
 		metadata,
 	});
 

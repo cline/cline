@@ -7,7 +7,7 @@
 - Adds `desktop` as a Bun workspace package.
 - Runs a Next.js frontend inside a Tauri webview.
 - Starts agent tasks by spawning the CLI (`packages/cli/src/index.ts`) per card.
-- Boots RPC on startup via `clite rpc ensure` + `clite rpc register`.
+- Boots an owner-scoped RPC sidecar on startup via `clite rpc ensure` + `clite rpc register`.
 - Runs chat through RPC runtime methods (`startRuntimeSession`, `sendRuntimeSession`, `abortRuntimeSession`).
 - Streams chat runtime events over one persistent websocket envelope (`chat_event` / `chat_response`).
 - Reuses runtime chat helpers via `@clinebot/core` re-exports for desktop/code bridge scripts:

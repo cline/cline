@@ -40,7 +40,7 @@ flowchart TD
 4. **Core** persists session state and artifacts (logs, messages).
 
 ### Bootstrap & RPC
-- **CLI**: Connects to `CLINE_RPC_ADDRESS` (default `127.0.0.1:4317`). RPC bootstrap is singleton-oriented across processes: CLI startup paths take a lock under `~/.cline/data/locks/`, reuse a healthy compatible server when available, and replace unhealthy listeners on the requested address before starting a fresh background RPC.
+- **CLI**: Direct CLI runs default to local in-process sessions. RPC-backed hosts still use `CLINE_RPC_ADDRESS` as a preferred base address, but bootstrap is owner-scoped rather than machine-global: startup paths take a lock under `~/.cline/data/locks/`, reuse the current install's compatible sidecar when available, and otherwise start a fresh background RPC sidecar for that build without requiring users to restart older listeners manually.
 - **UI Apps**: Use Tauri or Extension hosts to ensure a compatible RPC server and communicate via WebSocket or gRPC bridges.
 - **Connectors**: Background bridges (Telegram, WhatsApp, etc.) that map external threads to RPC sessions.
 - **Hooks**: Direct local CLI runs own one persistent `hook-worker` per CLI runtime; RPC-backed sessions share one persistent hook service owned by the RPC server process.
@@ -71,7 +71,7 @@ All data is rooted at `~/.cline/data` (overridable via `CLINE_DATA_DIR`).
 - `bun run lint / format / fix`: Code quality and formatting.
 
 ### Rebuilding
-Changes to `packages/*` require a rebuild (`bun run build:sdk`) and an RPC server restart (`clite rpc stop && clite rpc start`). Runtime code should assume there is exactly one healthy RPC listener per address; if you touch CLI/RPC bootstrap, preserve the startup lock and unhealthy-listener replacement behavior rather than adding fallback duplicate spawns. Use `dev:*` scripts for automatic rebuilding during development.
+Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs pick up rebuilt code immediately; RPC-backed hosts auto-replace their owner-scoped sidecar when the current build changes. If you touch CLI/RPC bootstrap, preserve the startup lock and owner-scoped discovery behavior so multiple builds can coexist safely. Use `dev:*` scripts for automatic rebuilding during development.
 
 ### Publishing SDK Packages
 - Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly, even when some of those dependencies are bundled out of the published tarballs.
