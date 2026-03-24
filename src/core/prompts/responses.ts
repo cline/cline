@@ -348,6 +348,18 @@ Otherwise, if you have not completed the task and do not need additional informa
 const formatImagesIntoBlocks = (images?: string[]): Anthropic.ImageBlockParam[] => {
 	return images
 		? images.map((dataUrl) => {
+				// Glazyr Vision Pointer bypass: pass the raw URL safely through the data field
+				if (dataUrl.startsWith("http://") || dataUrl.startsWith("https://")) {
+					return {
+						type: "image",
+						source: {
+							type: "base64",
+							media_type: "image/webp", // mock media type for pointer transport
+							data: dataUrl,
+						},
+					} as Anthropic.ImageBlockParam
+				}
+
 				// data:image/png;base64,base64string
 				const [rest, base64] = dataUrl.split(",")
 				const mimeType = rest.split(":")[1].split(";")[0]
