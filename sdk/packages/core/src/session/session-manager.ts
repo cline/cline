@@ -38,6 +38,7 @@ export interface SendSessionInput {
 	prompt: string;
 	userImages?: string[];
 	userFiles?: string[];
+	delivery?: "queue" | "steer";
 }
 
 export interface SessionAccumulatedUsage {

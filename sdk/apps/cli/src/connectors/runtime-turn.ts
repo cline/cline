@@ -252,6 +252,9 @@ export function createConnectorRuntimeTurnStream(input: {
 			const runTurn = input.client
 				.sendRuntimeSession(input.sessionId, input.request)
 				.then(async (response) => {
+					if (!response.result) {
+						throw new Error("connector runtime turn unexpectedly queued");
+					}
 					const finalText = response.result.text ?? "";
 					await input.onCompleted?.({
 						text: finalText,

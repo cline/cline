@@ -75,6 +75,7 @@ export interface RpcChatRunTurnRequest {
 	messages?: RpcChatMessage[];
 	prompt: string;
 	attachments?: RpcChatAttachments;
+	delivery?: "queue" | "steer";
 }
 
 export interface RpcChatToolCallResult {

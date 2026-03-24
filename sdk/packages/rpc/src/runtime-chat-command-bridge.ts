@@ -130,10 +130,16 @@ export async function runRpcRuntimeCommandBridge(options: {
 			const parsedResult = options.parseSendResult
 				? options.parseSendResult(resultRaw)
 				: resultRaw;
+			const responsePayload =
+				parsedResult &&
+				typeof parsedResult === "object" &&
+				("result" in parsedResult || "queued" in parsedResult)
+					? (parsedResult as Record<string, unknown>)
+					: { result: parsedResult };
 			respond({
 				type: "response",
 				requestId,
-				response: { result: parsedResult },
+				response: responsePayload,
 			});
 			return false;
 		}

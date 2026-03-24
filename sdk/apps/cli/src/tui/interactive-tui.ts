@@ -16,6 +16,10 @@ import {
 	type InteractiveSlashCommand,
 	searchWorkspaceFilesForMention,
 } from "../runtime/interactive-welcome";
+import type {
+	PendingPromptSnapshot,
+	PendingPromptSubmittedEvent,
+} from "../runtime/session-events";
 import { formatToolInput, formatToolOutput, truncate } from "../utils/helpers";
 import { c, formatUsd } from "../utils/output";
 import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
@@ -30,6 +34,13 @@ interface InteractiveTurnResult {
 	};
 	iterations: number;
 	commandOutput?: string;
+	queued?: boolean;
+}
+
+interface QueuedPromptItem {
+	id: string;
+	prompt: string;
+	steer: boolean;
 }
 
 interface InteractiveTuiProps {
@@ -42,10 +53,13 @@ interface InteractiveTuiProps {
 	subscribeToEvents: (handlers: {
 		onAgentEvent: (event: AgentEvent) => void;
 		onTeamEvent: (event: TeamEvent) => void;
+		onPendingPrompts: (event: PendingPromptSnapshot) => void;
+		onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
 	}) => () => void;
 	onSubmit: (
 		input: string,
 		mode: "act" | "plan",
+		delivery?: "queue" | "steer",
 	) => Promise<InteractiveTurnResult>;
 	onAbort: () => void;
 	onExit: () => void;
@@ -262,6 +276,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const [autoApproveAll, setAutoApproveAll] = useState(
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);
+	const [queuedPrompts, setQueuedPrompts] = useState<QueuedPromptItem[]>([]);
 
 	// File mention completion
 	const [fileMentionResults, setFileMentionResults] = useState<string[]>([]);
@@ -307,6 +322,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const mentionSearchCounterRef = useRef(0);
 	const turnErrorReportedRef = useRef(false);
 	const configLoadCounterRef = useRef(0);
+	const knownPendingPromptIdsRef = useRef(new Set<string>());
 
 	const workspaceName = useMemo(
 		() => basename(config.cwd) || config.cwd,
@@ -528,6 +544,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		(event: AgentEvent) => {
 			switch (event.type) {
 				case "iteration_start":
+					setIsRunning(true);
 					closeInlineStream();
 					break;
 				case "iteration_end":
@@ -593,9 +610,11 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					break;
 				}
 				case "done":
+					setIsRunning(false);
 					closeInlineStream();
 					break;
 				case "error":
+					setIsRunning(false);
 					closeInlineStream();
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
@@ -700,13 +719,44 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		[appendLine],
 	);
 
+	const handlePendingPrompts = useCallback((event: PendingPromptSnapshot) => {
+		const nextIds = new Set<string>();
+		for (const entry of event.prompts) {
+			nextIds.add(entry.id);
+		}
+		knownPendingPromptIdsRef.current = nextIds;
+		setQueuedPrompts(
+			event.prompts.map((entry, index) => ({
+				id: entry.id || `${entry.delivery}:${index}:${entry.prompt}`,
+				prompt: entry.prompt,
+				steer: entry.delivery === "steer",
+			})),
+		);
+	}, []);
+
+	const handlePendingPromptSubmitted = useCallback(
+		(event: PendingPromptSubmittedEvent) => {
+			knownPendingPromptIdsRef.current.delete(event.id);
+			appendLine(`${c.green}>${c.reset} ${event.prompt}`);
+		},
+		[appendLine],
+	);
+
 	useEffect(
 		() =>
 			subscribeToEvents({
 				onAgentEvent: handleAgentEvent,
 				onTeamEvent: handleTeamEvent,
+				onPendingPrompts: handlePendingPrompts,
+				onPendingPromptSubmitted: handlePendingPromptSubmitted,
 			}),
-		[handleAgentEvent, handleTeamEvent, subscribeToEvents],
+		[
+			handleAgentEvent,
+			handlePendingPrompts,
+			handlePendingPromptSubmitted,
+			handleTeamEvent,
+			subscribeToEvents,
+		],
 	);
 
 	useEffect(() => {
@@ -714,20 +764,31 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	}, [isRunning, onRunningChange]);
 
 	const submitPrompt = useCallback(
-		async (prompt: string) => {
+		async (prompt: string, delivery?: "queue" | "steer") => {
 			setHasSubmitted(true);
-			setIsRunning(true);
-			setAbortRequested(false);
-			turnErrorReportedRef.current = false;
-			onTurnErrorReported(false);
-			appendLine(`${c.green}>${c.reset} ${prompt}`);
+			if (!delivery) {
+				setIsRunning(true);
+				setAbortRequested(false);
+				turnErrorReportedRef.current = false;
+				onTurnErrorReported(false);
+			}
+			const prefix =
+				delivery === "steer"
+					? `${c.yellow}[steer]${c.reset} `
+					: delivery === "queue"
+						? `${c.dim}[queued]${c.reset} `
+						: "";
+			appendLine(`${c.green}>${c.reset} ${prefix}${prompt}`);
 			setInput("");
 
 			const startedAt = performance.now();
 			try {
-				const result = await onSubmit(prompt, uiMode);
+				const result = await onSubmit(prompt, uiMode, delivery);
 				if (result.commandOutput) {
 					appendLine(result.commandOutput);
+				}
+				if (result.queued) {
+					return;
 				}
 				const tokens = result.usage.inputTokens + result.usage.outputTokens;
 				setLastTotalTokens(tokens);
@@ -758,8 +819,10 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					);
 				}
 			} finally {
-				setIsRunning(false);
-				refreshRepoStatus();
+				if (!delivery) {
+					setIsRunning(false);
+					refreshRepoStatus();
+				}
 			}
 		},
 		[
@@ -896,6 +959,15 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			}
 		}
 
+		if (key.ctrl && value === "s") {
+			const trimmed = input.trim();
+			if (!trimmed || !isRunning) {
+				return;
+			}
+			void submitPrompt(trimmed, "steer");
+			return;
+		}
+
 		if (key.return) {
 			if (hasMentionMenu) {
 				const selectedPath = mentionResults[fileMentionSelectedIndex];
@@ -927,15 +999,15 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				return;
 			}
 			const trimmed = input.trim();
-			if (!trimmed || isRunning) {
+			if (!trimmed) {
 				return;
 			}
-			if (isConfigCommand(trimmed)) {
+			if (!isRunning && isConfigCommand(trimmed)) {
 				setInput("");
 				openConfigView();
 				return;
 			}
-			void submitPrompt(trimmed);
+			void submitPrompt(trimmed, isRunning ? "queue" : undefined);
 			return;
 		}
 
@@ -1054,8 +1126,46 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const renderInputBox = !isConfigViewOpen
 		? React.createElement(
 				Box,
-				{ borderStyle: "round", paddingX: 1 },
-				React.createElement(Text, null, `${c.green}>${c.reset} ${input}`),
+				{ flexDirection: "column" },
+				queuedPrompts.length > 0
+					? React.createElement(
+							Box,
+							{
+								borderStyle: "round",
+								paddingX: 1,
+								paddingY: 0,
+								marginBottom: 1,
+								flexDirection: "column",
+							},
+							React.createElement(
+								Text,
+								{ color: "gray" },
+								"Queued for upcoming turns",
+							),
+							React.createElement(
+								Text,
+								{ color: "gray" },
+								"Enter queues while running. Ctrl+S steers the next turn.",
+							),
+							...queuedPrompts.map((item, index) =>
+								React.createElement(
+									Text,
+									{
+										key: item.id,
+										color: item.steer ? "yellow" : undefined,
+									},
+									item.steer
+										? `Steer: ${truncate(item.prompt, 100)}`
+										: `Queue ${index + 1}: ${truncate(item.prompt, 100)}`,
+								),
+							),
+						)
+					: null,
+				React.createElement(
+					Box,
+					{ borderStyle: "round", paddingX: 1 },
+					React.createElement(Text, null, `${c.green}>${c.reset} ${input}`),
+				),
 			)
 		: null;
 
@@ -1260,6 +1370,16 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				"Auto-approve all disabled (Shift+Tab)",
 			);
 
+	const renderQueueHint = !isConfigViewOpen
+		? React.createElement(
+				Text,
+				{ color: "gray" },
+				isRunning
+					? "Enter queues while running · Ctrl+S steers the next turn"
+					: "Enter submits · / for commands · @ for files",
+			)
+		: null;
+
 	const renderStatusBar = React.createElement(
 		Box,
 		{ flexDirection: "column", marginTop: 1 },
@@ -1271,12 +1391,13 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				{ color: "gray" },
 				isConfigViewOpen
 					? "Config mode: \u2190/\u2192 tabs \u00b7 \u2191/\u2193 navigate \u00b7 Esc close"
-					: "/ for commands · @ for files",
+					: undefined,
 			),
 			isConfigViewOpen
 				? React.createElement(Text, { color: "gray" }, "(Esc)")
 				: renderModeSelector,
 		),
+		renderQueueHint,
 		React.createElement(
 			Box,
 			null,

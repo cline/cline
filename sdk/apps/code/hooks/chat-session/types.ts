@@ -104,4 +104,5 @@ export type PromptInQueue = {
 	id: string;
 	prompt: string;
 	steer: boolean;
+	attachmentCount?: number;
 };

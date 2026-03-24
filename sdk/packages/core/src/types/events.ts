@@ -36,6 +36,24 @@ export interface SessionTeamProgressEvent {
 	summary: import("@clinebot/shared").TeamProgressSummary;
 }
 
+export interface SessionPendingPromptsEvent {
+	sessionId: string;
+	prompts: Array<{
+		id: string;
+		prompt: string;
+		delivery: "queue" | "steer";
+		attachmentCount: number;
+	}>;
+}
+
+export interface SessionPendingPromptSubmittedEvent {
+	sessionId: string;
+	id: string;
+	prompt: string;
+	delivery: "queue" | "steer";
+	attachmentCount: number;
+}
+
 export type CoreSessionEvent =
 	| { type: "chunk"; payload: SessionChunkEvent }
 	| {
@@ -46,6 +64,11 @@ export type CoreSessionEvent =
 			};
 	  }
 	| { type: "team_progress"; payload: SessionTeamProgressEvent }
+	| { type: "pending_prompts"; payload: SessionPendingPromptsEvent }
+	| {
+			type: "pending_prompt_submitted";
+			payload: SessionPendingPromptSubmittedEvent;
+	  }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
 	| { type: "status"; payload: { sessionId: string; status: string } };

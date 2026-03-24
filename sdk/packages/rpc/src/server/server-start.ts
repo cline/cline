@@ -124,7 +124,18 @@ export async function startRpcServer(
 				? new SchedulerService({
 						runtimeHandlers: {
 							startSession: options.runtimeHandlers.startSession,
-							sendSession: options.runtimeHandlers.sendSession,
+							sendSession: async (sessionId, request) => {
+								const result = await options.runtimeHandlers?.sendSession?.(
+									sessionId,
+									request,
+								);
+								if (!result?.result) {
+									throw new Error(
+										"scheduler runtime send unexpectedly queued a turn",
+									);
+								}
+								return { result: result.result };
+							},
 							abortSession: options.runtimeHandlers.abortSession,
 							stopSession: options.runtimeHandlers.stopSession,
 						},

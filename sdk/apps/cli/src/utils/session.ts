@@ -82,6 +82,7 @@ export interface CliSessionManager {
 		prompt: string;
 		userImages?: string[];
 		userFiles?: string[];
+		delivery?: "queue" | "steer";
 	}): Promise<AgentResult | undefined>;
 	getAccumulatedUsage(
 		sessionId: string,

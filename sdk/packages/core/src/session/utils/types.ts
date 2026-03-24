@@ -29,8 +29,11 @@ export type ActiveSession = {
 };
 
 export type PendingPrompt = {
+	id: string;
 	prompt: string;
 	delivery: "queue" | "steer";
+	userImages?: string[];
+	userFiles?: string[];
 };
 
 export type TeamRunUpdate = {

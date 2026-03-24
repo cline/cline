@@ -417,9 +417,10 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					prompt: input,
 					userImages,
 					userFiles: fileMaterialized.paths,
+					delivery: request.delivery,
 				});
 				if (!result) {
-					throw new Error("runtime send returned no result");
+					return { queued: true };
 				}
 				runtimeLogger.info?.("RPC runtime turn send completed", {
 					sessionId,
@@ -468,6 +469,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 							prompt: input,
 							userImages,
 							userFiles: fileMaterialized.paths,
+							delivery: request.delivery,
 						});
 					} catch (restoredError) {
 						runtimeLogger.error?.(

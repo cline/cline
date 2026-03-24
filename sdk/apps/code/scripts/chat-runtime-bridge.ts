@@ -1,9 +1,5 @@
 import { homedir } from "node:os";
-import {
-	type RpcChatTurnResult,
-	setHomeDir,
-	setHomeDirIfUnset,
-} from "@clinebot/core";
+import { setHomeDir, setHomeDirIfUnset } from "@clinebot/core";
 import {
 	type RpcRuntimeBridgeCommandOutputLine,
 	runRpcRuntimeCommandBridge,
@@ -82,7 +78,7 @@ async function main() {
 			setRuntimeHomeDir(config);
 			addRuntimeLoggerContext(config);
 		},
-		parseSendResult: (resultRaw) => resultRaw as RpcChatTurnResult,
+		parseSendResult: (resultRaw) => resultRaw,
 	});
 }
 

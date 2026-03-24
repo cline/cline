@@ -147,6 +147,17 @@ export function subscribeRuntimeEventBridge(input: {
 			});
 			return;
 		}
+		if (coreEvent.type === "pending_prompts") {
+			publishRuntimeEvent({
+				eventClient: input.eventClient,
+				sessionId: coreEvent.payload.sessionId,
+				eventType: "runtime.chat.pending_prompts",
+				payload: {
+					prompts: coreEvent.payload.prompts,
+				},
+			});
+			return;
+		}
 		if (coreEvent.type !== "team_progress") {
 			return;
 		}

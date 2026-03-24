@@ -37,7 +37,7 @@ export interface RpcRuntimeHandlers {
 	sendSession?: (
 		sessionId: string,
 		request: RpcChatRunTurnRequest,
-	) => Promise<{ result: RpcChatTurnResult }>;
+	) => Promise<{ result?: RpcChatTurnResult; queued?: boolean }>;
 	stopSession?: (sessionId: string) => Promise<{ applied: boolean }>;
 	abortSession?: (sessionId: string) => Promise<{ applied: boolean }>;
 	runProviderAction?: (

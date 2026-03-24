@@ -449,7 +449,7 @@ export class RpcSessionClient {
 	public async sendRuntimeSession(
 		sessionId: string,
 		request: RpcChatRunTurnRequest,
-	): Promise<{ result: RpcChatTurnResult }> {
+	): Promise<{ result?: RpcChatTurnResult; queued?: boolean }> {
 		const runtimeRequest = {
 			config: {
 				workspaceRoot: request.config.workspaceRoot,
@@ -506,6 +506,7 @@ export class RpcSessionClient {
 				content: toProtoValue(message.content),
 			})),
 			prompt: request.prompt,
+			delivery: request.delivery,
 			attachments: request.attachments
 				? {
 						userImages: request.attachments.userImages ?? [],
@@ -524,31 +525,34 @@ export class RpcSessionClient {
 				);
 			},
 		);
+		if (!response.result) {
+			return { queued: true };
+		}
 		return {
 			result: {
-				text: response.result?.text ?? "",
+				text: response.result.text ?? "",
 				usage: {
-					inputTokens: Number(response.result?.usage?.inputTokens ?? 0),
-					outputTokens: Number(response.result?.usage?.outputTokens ?? 0),
-					cacheReadTokens: response.result?.usage?.hasCacheReadTokens
-						? Number(response.result?.usage?.cacheReadTokens ?? 0)
+					inputTokens: Number(response.result.usage?.inputTokens ?? 0),
+					outputTokens: Number(response.result.usage?.outputTokens ?? 0),
+					cacheReadTokens: response.result.usage?.hasCacheReadTokens
+						? Number(response.result.usage?.cacheReadTokens ?? 0)
 						: undefined,
-					cacheWriteTokens: response.result?.usage?.hasCacheWriteTokens
-						? Number(response.result?.usage?.cacheWriteTokens ?? 0)
+					cacheWriteTokens: response.result.usage?.hasCacheWriteTokens
+						? Number(response.result.usage?.cacheWriteTokens ?? 0)
 						: undefined,
-					totalCost: response.result?.usage?.hasTotalCost
-						? Number(response.result?.usage?.totalCost ?? 0)
+					totalCost: response.result.usage?.hasTotalCost
+						? Number(response.result.usage?.totalCost ?? 0)
 						: undefined,
 				},
-				inputTokens: Number(response.result?.inputTokens ?? 0),
-				outputTokens: Number(response.result?.outputTokens ?? 0),
-				iterations: Number(response.result?.iterations ?? 0),
-				finishReason: response.result?.finishReason ?? "",
-				messages: (response.result?.messages ?? []).map((message) => ({
+				inputTokens: Number(response.result.inputTokens ?? 0),
+				outputTokens: Number(response.result.outputTokens ?? 0),
+				iterations: Number(response.result.iterations ?? 0),
+				finishReason: response.result.finishReason ?? "",
+				messages: (response.result.messages ?? []).map((message) => ({
 					role: message.role ?? "",
 					content: fromProtoValue(message.content),
 				})),
-				toolCalls: (response.result?.toolCalls ?? []).map((call) => ({
+				toolCalls: (response.result.toolCalls ?? []).map((call) => ({
 					name: call.name ?? "",
 					input: call.hasInput ? fromProtoValue(call.input) : undefined,
 					output: call.hasOutput ? fromProtoValue(call.output) : undefined,
@@ -558,6 +562,7 @@ export class RpcSessionClient {
 						: undefined,
 				})),
 			},
+			queued: false,
 		};
 	}
 

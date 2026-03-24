@@ -288,9 +288,6 @@ export class DefaultSessionManager implements SessionManager {
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionGuard: runtime.completionGuard,
-			toolContextMetadata: {
-				sessionId,
-			},
 			logger: runtime.logger ?? configWithProvider.logger,
 			onEvent: (event: AgentEvent) =>
 				this.onAgentEvent(sessionId, configWithProvider, event),
@@ -355,8 +352,18 @@ export class DefaultSessionManager implements SessionManager {
 				promptLength: input.prompt.length,
 				userImageCount: input.userImages?.length ?? 0,
 				userFileCount: input.userFiles?.length ?? 0,
+				delivery: input.delivery ?? "immediate",
 			},
 		});
+		if (input.delivery === "queue" || input.delivery === "steer") {
+			this.enqueuePendingPrompt(input.sessionId, {
+				prompt: input.prompt,
+				delivery: input.delivery,
+				userImages: input.userImages,
+				userFiles: input.userFiles,
+			});
+			return undefined;
+		}
 		try {
 			const result = await this.runTurn(session, {
 				prompt: input.prompt,
@@ -808,36 +815,64 @@ export class DefaultSessionManager implements SessionManager {
 					: payload?.delivery === "steer"
 						? "steer"
 						: "queue";
-		this.enqueuePendingPrompt(targetSessionId, prompt, delivery);
+		this.enqueuePendingPrompt(targetSessionId, {
+			prompt,
+			delivery,
+		});
 	}
 
 	private enqueuePendingPrompt(
 		sessionId: string,
-		prompt: string,
-		delivery: "queue" | "steer",
+		entry: {
+			prompt: string;
+			delivery: "queue" | "steer";
+			userImages?: string[];
+			userFiles?: string[];
+		},
 	): void {
 		const session = this.sessions.get(sessionId);
 		if (!session) {
 			return;
 		}
+		const { prompt, delivery, userImages, userFiles } = entry;
 		const existingIndex = session.pendingPrompts.findIndex(
-			(entry) => entry.prompt === prompt,
+			(queued) => queued.prompt === prompt,
 		);
 		if (existingIndex >= 0) {
 			const [existing] = session.pendingPrompts.splice(existingIndex, 1);
 			if (delivery === "steer" || existing.delivery === "steer") {
 				session.pendingPrompts.unshift({
+					id: existing.id,
 					prompt,
 					delivery: "steer",
+					userImages: userImages ?? existing.userImages,
+					userFiles: userFiles ?? existing.userFiles,
 				});
 			} else {
-				session.pendingPrompts.push(existing);
+				session.pendingPrompts.push({
+					...existing,
+					userImages: userImages ?? existing.userImages,
+					userFiles: userFiles ?? existing.userFiles,
+				});
 			}
 		} else if (delivery === "steer") {
-			session.pendingPrompts.unshift({ prompt, delivery });
+			session.pendingPrompts.unshift({
+				id: `pending_${Date.now()}_${nanoid(5)}`,
+				prompt,
+				delivery,
+				userImages,
+				userFiles,
+			});
 		} else {
-			session.pendingPrompts.push({ prompt, delivery });
+			session.pendingPrompts.push({
+				id: `pending_${Date.now()}_${nanoid(5)}`,
+				prompt,
+				delivery,
+				userImages,
+				userFiles,
+			});
 		}
+		this.emitPendingPrompts(session);
 		queueMicrotask(() => {
 			void this.drainPendingPrompts(sessionId);
 		});
@@ -864,13 +899,21 @@ export class DefaultSessionManager implements SessionManager {
 		if (!next) {
 			return;
 		}
+		this.emitPendingPrompts(session);
+		this.emitPendingPromptSubmitted(session, next);
 		session.drainingPendingPrompts = true;
 		try {
-			await this.send({ sessionId, prompt: next.prompt });
+			await this.send({
+				sessionId,
+				prompt: next.prompt,
+				userImages: next.userImages,
+				userFiles: next.userFiles,
+			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			if (message.includes("already in progress")) {
 				session.pendingPrompts.unshift(next);
+				this.emitPendingPrompts(session);
 			} else {
 				throw error;
 			}
@@ -907,6 +950,45 @@ export class DefaultSessionManager implements SessionManager {
 			emit: (e) => this.emit(e),
 		};
 		handleAgentEvent(ctx, event);
+	}
+
+	private emitPendingPrompts(session: ActiveSession): void {
+		this.emit({
+			type: "pending_prompts",
+			payload: {
+				sessionId: session.sessionId,
+				prompts: session.pendingPrompts.map((entry) => ({
+					id: entry.id,
+					prompt: entry.prompt,
+					delivery: entry.delivery,
+					attachmentCount:
+						(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
+				})),
+			},
+		});
+	}
+
+	private emitPendingPromptSubmitted(
+		session: ActiveSession,
+		entry: {
+			id: string;
+			prompt: string;
+			delivery: "queue" | "steer";
+			userImages?: string[];
+			userFiles?: string[];
+		},
+	): void {
+		this.emit({
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: session.sessionId,
+				id: entry.id,
+				prompt: entry.prompt,
+				delivery: entry.delivery,
+				attachmentCount:
+					(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
+			},
+		});
 	}
 
 	// ── Spawn / sub-agents ──────────────────────────────────────────────

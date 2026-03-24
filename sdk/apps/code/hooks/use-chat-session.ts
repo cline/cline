@@ -452,6 +452,10 @@ export function useChatSession() {
 						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
 						: prompt;
 				if (userLabel) {
+					activeAssistantMessageIdRef.current = null;
+					setActiveAssistantMessageId(null);
+					clearLiveToolRefs();
+					setStatus("running");
 					addMessage({
 						id: makeId("user"),
 						sessionId: listeningSessionId,
@@ -562,16 +566,10 @@ export function useChatSession() {
 				);
 				return;
 			}
-			addMessage({
-				id: makeId("tool"),
-				sessionId: listeningSessionId,
-				role: "tool",
-				content: toolPayload,
-				createdAt: Date.now(),
-				meta: { toolName, hookEventName: "tool_call_end" },
-			});
+			// Ignore unmatched tool end events so stale completions from the
+			// previous turn do not get rendered under a newer streaming turn.
 		},
-		[addMessage, appendMessageContent],
+		[addMessage, appendMessageContent, clearLiveToolRefs],
 	);
 
 	// ---- Transport / event subscriptions ----
@@ -717,6 +715,7 @@ export function useChatSession() {
 					action: "send",
 					sessionId: activeSessionId,
 					prompt: trimmed,
+					delivery: shouldQueue ? "queue" : undefined,
 					config: parsed,
 					attachments: hasAttachments ? serializedAttachments : undefined,
 				});
@@ -823,6 +822,9 @@ export function useChatSession() {
 					);
 				}
 
+				const hasQueuedFollowUps =
+					Array.isArray(payload.promptsInQueue) &&
+					payload.promptsInQueue.length > 0;
 				if (result?.finishReason === "error") {
 					if (!resolvedAssistantText) {
 						const toolError = Array.isArray(result?.toolCalls)
@@ -839,6 +841,8 @@ export function useChatSession() {
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
 					setStatus("cancelled");
+				} else if (hasQueuedFollowUps) {
+					setStatus("running");
 				} else {
 					setStatus("completed");
 				}

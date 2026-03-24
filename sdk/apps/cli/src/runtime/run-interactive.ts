@@ -30,7 +30,11 @@ import {
 	resolveClineWelcomeLine,
 } from "./interactive-welcome";
 import { buildUserInputMessage } from "./prompt";
-import { getUIEventEmitter, subscribeToAgentEvents } from "./session-events";
+import {
+	getUIEventEmitter,
+	subscribeToAgentEvents,
+	subscribeToPendingPromptEvents,
+} from "./session-events";
 
 export async function runInteractive(
 	config: Config,
@@ -91,7 +95,18 @@ export async function runInteractive(
 	const onAgentEvent = (event: AgentEvent) => {
 		uiEvents.emit("agent", event);
 	};
-	const unsubscribe = subscribeToAgentEvents(sessionManager, onAgentEvent);
+	const unsubscribeAgent = subscribeToAgentEvents(sessionManager, onAgentEvent);
+	const unsubscribePendingPrompts = subscribeToPendingPromptEvents(
+		sessionManager,
+		{
+			onPendingPrompts: (event) => {
+				uiEvents.emit("pending-prompts", event);
+			},
+			onPendingPromptSubmitted: (event) => {
+				uiEvents.emit("pending-prompt-submitted", event);
+			},
+		},
+	);
 
 	const initialMessages = await loadInteractiveResumeMessages(
 		sessionManager,
@@ -303,7 +318,8 @@ export async function runInteractive(
 			requestExit();
 			process.off("SIGINT", handleSigint);
 			process.off("SIGTERM", handleSigterm);
-			unsubscribe();
+			unsubscribeAgent();
+			unsubscribePendingPrompts();
 			try {
 				await sessionManager.stop(activeSessionId);
 			} finally {
@@ -334,17 +350,28 @@ export async function runInteractive(
 					cwd: config.cwd,
 					workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
 				}),
-			subscribeToEvents: ({ onAgentEvent: onAgent, onTeamEvent: onTeam }) => {
+			subscribeToEvents: ({
+				onAgentEvent: onAgent,
+				onTeamEvent: onTeam,
+				onPendingPrompts,
+				onPendingPromptSubmitted,
+			}) => {
 				uiEvents.on("agent", onAgent);
 				uiEvents.on("team", onTeam);
+				uiEvents.on("pending-prompts", onPendingPrompts);
+				uiEvents.on("pending-prompt-submitted", onPendingPromptSubmitted);
 				return () => {
 					uiEvents.off("agent", onAgent);
 					uiEvents.off("team", onTeam);
+					uiEvents.off("pending-prompts", onPendingPrompts);
+					uiEvents.off("pending-prompt-submitted", onPendingPromptSubmitted);
 				};
 			},
-			onSubmit: async (input, _mode) => {
+			onSubmit: async (input, _mode, delivery) => {
 				abortRequested = false;
-				isRunning = true;
+				if (!delivery) {
+					isRunning = true;
+				}
 				try {
 					let commandOutput: string | undefined;
 					if (
@@ -399,9 +426,17 @@ export async function runInteractive(
 					const result = await sessionManager.send({
 						sessionId: activeSessionId,
 						prompt: userInput,
+						delivery,
 					});
 					if (!result) {
-						throw new Error("session manager did not return a result");
+						return {
+							usage: {
+								inputTokens: 0,
+								outputTokens: 0,
+							},
+							iterations: 0,
+							queued: delivery === "queue" || delivery === "steer",
+						};
 					}
 					const usage =
 						(await sessionManager.getAccumulatedUsage(activeSessionId)) ??
@@ -411,7 +446,9 @@ export async function runInteractive(
 						iterations: result.iterations,
 					};
 				} finally {
-					isRunning = false;
+					if (!delivery) {
+						isRunning = false;
+					}
 				}
 			},
 			onAbort: () => {

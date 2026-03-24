@@ -55,6 +55,55 @@ function createManifest(sessionId: string): SessionManifest {
 	};
 }
 
+type PluginEventTestHarness = {
+	handlePluginEvent: (
+		rootSessionId: string,
+		event: { name: string; payload?: unknown },
+	) => Promise<void>;
+	getPendingPrompts: (
+		sessionId: string,
+	) => Array<{ prompt: string; delivery: "queue" | "steer" }>;
+};
+
+function createPluginEventHarness(
+	manager: DefaultSessionManager,
+): PluginEventTestHarness {
+	const target = manager as object;
+	return {
+		handlePluginEvent: async (rootSessionId, event) => {
+			const handler = Reflect.get(target, "handlePluginEvent");
+			if (typeof handler !== "function") {
+				throw new Error("handlePluginEvent test hook unavailable");
+			}
+			await Reflect.apply(
+				handler as (
+					rootSessionId: string,
+					event: { name: string; payload?: unknown },
+				) => Promise<void>,
+				target,
+				[rootSessionId, event],
+			);
+		},
+		getPendingPrompts: (sessionId) => {
+			const getter = Reflect.get(target, "getSessionOrThrow");
+			if (typeof getter !== "function") {
+				throw new Error("getSessionOrThrow test hook unavailable");
+			}
+			const session = Reflect.apply(
+				getter as (sessionId: string) => {
+					pendingPrompts: Array<{
+						prompt: string;
+						delivery: "queue" | "steer";
+					}>;
+				},
+				target,
+				[sessionId],
+			);
+			return session.pendingPrompts;
+		},
+	};
+}
+
 function createConfig(
 	overrides: Partial<CoreSessionConfig> = {},
 ): CoreSessionConfig {
@@ -381,14 +430,8 @@ describe("DefaultSessionManager", () => {
 			interactive: true,
 		});
 
-		await (
-			manager as DefaultSessionManager & {
-				handlePluginEvent: (
-					rootSessionId: string,
-					event: { name: string; payload?: unknown },
-				) => Promise<void>;
-			}
-		).handlePluginEvent(sessionId, {
+		const harness = createPluginEventHarness(manager);
+		await harness.handlePluginEvent(sessionId, {
 			name: "steer_message",
 			payload: { prompt: "async result" },
 		});
@@ -451,30 +494,22 @@ describe("DefaultSessionManager", () => {
 			interactive: true,
 		});
 
-		const internal = manager as DefaultSessionManager & {
-			handlePluginEvent: (
-				rootSessionId: string,
-				event: { name: string; payload?: unknown },
-			) => Promise<void>;
-			getSessionOrThrow: (id: string) => {
-				pendingPrompts: Array<{ prompt: string; delivery: "queue" | "steer" }>;
-			};
-		};
+		const harness = createPluginEventHarness(manager);
 
-		await internal.handlePluginEvent(sessionId, {
+		await harness.handlePluginEvent(sessionId, {
 			name: "queue_message",
 			payload: { prompt: "queued first" },
 		});
-		await internal.handlePluginEvent(sessionId, {
+		await harness.handlePluginEvent(sessionId, {
 			name: "queue_message",
 			payload: { prompt: "queued second" },
 		});
-		await internal.handlePluginEvent(sessionId, {
+		await harness.handlePluginEvent(sessionId, {
 			name: "steer_message",
 			payload: { prompt: "queued first" },
 		});
 
-		expect(internal.getSessionOrThrow(sessionId).pendingPrompts).toEqual([
+		expect(harness.getPendingPrompts(sessionId)).toEqual([
 			{ prompt: "queued first", delivery: "steer" },
 			{ prompt: "queued second", delivery: "queue" },
 		]);
@@ -822,6 +857,112 @@ describe("DefaultSessionManager", () => {
 			cacheWriteTokens: 2,
 			totalCost: 0.2,
 		});
+	});
+
+	it("queues sends with explicit queue or steer delivery and emits snapshots", async () => {
+		const sessionId = "sess-delivery-queue";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-queue.json",
+				transcriptPath: "/tmp/transcript-queue.log",
+				hookPath: "/tmp/hook-queue.log",
+				messagesPath: "/tmp/messages-queue.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let canStartRun = false;
+		const run = vi.fn().mockResolvedValue(createResult({ text: "first" }));
+		const continueFn = vi
+			.fn()
+			.mockResolvedValue(createResult({ text: "next" }));
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: continueFn,
+					canStartRun: vi.fn(() => canStartRun),
+					abort: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+		const events: Array<unknown> = [];
+		manager.subscribe((event) => {
+			events.push(event);
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			interactive: true,
+		});
+
+		await expect(
+			manager.send({ sessionId, prompt: "queued first", delivery: "queue" }),
+		).resolves.toBeUndefined();
+		await expect(
+			manager.send({ sessionId, prompt: "queued second", delivery: "steer" }),
+		).resolves.toBeUndefined();
+
+		expect(run).not.toHaveBeenCalled();
+		expect(continueFn).not.toHaveBeenCalled();
+		const promptSnapshots = events
+			.filter((event) => {
+				return (
+					typeof event === "object" &&
+					event !== null &&
+					"type" in event &&
+					event.type === "pending_prompts"
+				);
+			})
+			.map((event) => (event as { payload: { prompts: unknown[] } }).payload);
+		expect(promptSnapshots.at(-1)).toEqual({
+			prompts: [
+				expect.objectContaining({
+					prompt: "queued second",
+					delivery: "steer",
+					attachmentCount: 0,
+				}),
+				expect.objectContaining({
+					prompt: "queued first",
+					delivery: "queue",
+					attachmentCount: 0,
+				}),
+			],
+			sessionId,
+		});
+
+		canStartRun = true;
+		await manager.send({ sessionId, prompt: "run now" });
+		expect(run).toHaveBeenCalledTimes(1);
+		expect(
+			events.some((event) => {
+				return (
+					typeof event === "object" &&
+					event !== null &&
+					"type" in event &&
+					event.type === "pending_prompt_submitted" &&
+					"payload" in event &&
+					(event.payload as { prompt?: string }).prompt === "queued second"
+				);
+			}),
+		).toBe(true);
 	});
 
 	it("returns undefined accumulated usage for unknown sessions", async () => {

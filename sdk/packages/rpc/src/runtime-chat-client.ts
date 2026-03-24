@@ -36,9 +36,8 @@ export class RpcRuntimeChatClient {
 	async sendSession(
 		sessionId: string,
 		request: RpcChatRunTurnRequest,
-	): Promise<RpcChatTurnResult> {
-		const response = await this.client.sendRuntimeSession(sessionId, request);
-		return response.result;
+	): Promise<{ result?: RpcChatTurnResult; queued?: boolean }> {
+		return await this.client.sendRuntimeSession(sessionId, request);
 	}
 
 	async abortSession(sessionId: string): Promise<boolean> {

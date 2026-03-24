@@ -27,6 +27,11 @@ export type RpcRuntimeBridgeStreamLine =
 			durationMs?: number;
 	  }
 	| {
+			type: "pending_prompts";
+			sessionId: string;
+			prompts: unknown[];
+	  }
+	| {
 			type: "error";
 			message: string;
 	  };
@@ -167,6 +172,14 @@ export function createRpcRuntimeStreamRelay(options: {
 								typeof payload.durationMs === "number"
 									? payload.durationMs
 									: undefined,
+						});
+						return;
+					}
+					if (event.eventType === "runtime.chat.pending_prompts") {
+						options.writeLine({
+							type: "pending_prompts",
+							sessionId: event.sessionId,
+							prompts: Array.isArray(payload.prompts) ? payload.prompts : [],
 						});
 					}
 				},

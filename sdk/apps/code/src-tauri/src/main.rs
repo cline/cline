@@ -112,6 +112,7 @@ struct ChatRunTurnRequest {
     prompt: String,
     #[serde(default)]
     attachments: Option<ChatTurnAttachments>,
+    delivery: Option<String>,
 }
 
 fn default_agent_mode() -> String {
@@ -225,6 +226,7 @@ struct ChatRuntimeBridgeLine {
     error: Option<String>,
     duration_ms: Option<u64>,
     message: Option<String>,
+    prompts: Option<Vec<PendingPromptSnapshot>>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -249,6 +251,8 @@ struct ChatSessionCommandRequest {
     action: String,
     session_id: Option<String>,
     prompt: Option<String>,
+    prompt_id: Option<String>,
+    delivery: Option<String>,
     config: Option<StartSessionRequest>,
     #[serde(default)]
     attachments: Option<ChatTurnAttachments>,
@@ -261,6 +265,26 @@ struct ChatSessionCommandResponse {
     result: Option<ChatTurnResult>,
     ok: Option<bool>,
     queued: Option<bool>,
+    #[serde(default)]
+    prompts_in_queue: Vec<PromptInQueue>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PendingPromptSnapshot {
+    id: String,
+    prompt: String,
+    delivery: String,
+    attachment_count: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct PromptInQueue {
+    id: String,
+    prompt: String,
+    steer: bool,
+    attachment_count: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -350,7 +374,7 @@ impl ChatWsBridgeState {
 struct ChatRuntimeSession {
     config: StartSessionRequest,
     messages: Vec<Value>,
-    pending_turns: Vec<ChatRunTurnRequest>,
+    prompts_in_queue: Vec<PromptInQueue>,
     busy: bool,
     started_at: u64,
     ended_at: Option<u64>,
@@ -2684,6 +2708,7 @@ fn ensure_chat_runtime_bridge_started(
         std::sync::mpsc::Sender<Result<Value, String>>,
     >::new()));
     let stdout_app = app.clone();
+    let stdout_state = state.clone();
     let stdout_pending = pending.clone();
     thread::spawn(move || {
         let mut reader = BufReader::new(stdout);
@@ -2764,6 +2789,40 @@ fn ensure_chat_runtime_bridge_started(
                         "chat_tool_call_end",
                         payload.to_string(),
                     );
+                }
+                "pending_prompts" => {
+                    let Some(session_id) = parsed.session_id.as_deref() else {
+                        continue;
+                    };
+                    let prompts = map_pending_prompts(parsed.prompts.unwrap_or_default());
+                    let previous = {
+                        let mut sessions = match stdout_state.sessions.lock() {
+                            Ok(value) => value,
+                            Err(_) => continue,
+                        };
+                        let Some(session) = sessions.get_mut(session_id) else {
+                            continue;
+                        };
+                        let previous = session.prompts_in_queue.clone();
+                        session.prompts_in_queue = prompts.clone();
+                        previous
+                    };
+                    if previous.len() > prompts.len()
+                        && !previous.is_empty()
+                        && previous[0].id != prompts.first().map(|item| item.id.as_str()).unwrap_or("")
+                    {
+                        let payload = serde_json::json!({
+                            "prompt": previous[0].prompt,
+                            "attachmentCount": previous[0].attachment_count.unwrap_or(0),
+                        });
+                        emit_chunk(
+                            &stdout_app,
+                            session_id,
+                            "chat_queued_prompt_start",
+                            payload.to_string(),
+                        );
+                    }
+                    send_prompts_in_queue_snapshot(&stdout_app, &stdout_state, session_id);
                 }
                 "error" => {
                     if let Some(session_id) = parsed.session_id.as_deref() {
@@ -2990,7 +3049,7 @@ fn run_chat_turn_via_rpc_runtime(
     context: &AppContext,
     session_id: &str,
     request: &ChatRunTurnRequest,
-) -> Result<ChatTurnResult, String> {
+) -> Result<ChatSessionCommandResponse, String> {
     let response = run_chat_runtime_bridge_command(
         app,
         state,
@@ -3001,12 +3060,20 @@ fn run_chat_turn_via_rpc_runtime(
             "request": request,
         }),
     )?;
-    let result_value = response
-        .get("result")
-        .cloned()
-        .ok_or_else(|| "chat runtime bridge send response missing result".to_string())?;
-    serde_json::from_value::<ChatTurnResult>(result_value)
-        .map_err(|e| format!("invalid chat runtime bridge result: {e}"))
+    serde_json::from_value::<ChatSessionCommandResponse>(response)
+        .map_err(|e| format!("invalid chat runtime bridge response: {e}"))
+}
+
+fn map_pending_prompts(prompts: Vec<PendingPromptSnapshot>) -> Vec<PromptInQueue> {
+    prompts
+        .into_iter()
+        .map(|item| PromptInQueue {
+            id: item.id,
+            prompt: item.prompt,
+            steer: item.delivery == "steer",
+            attachment_count: item.attachment_count,
+        })
+        .collect()
 }
 
 fn persist_chat_turn_result(
@@ -3046,119 +3113,32 @@ fn mark_chat_turn_failed(state: &Arc<ChatSessionStore>, session_id: &str) -> Res
         .lock()
         .map_err(|_| "failed to lock chat session store")?;
     if let Some(session) = sessions.get_mut(session_id) {
+        session.busy = false;
         session.status = "failed".to_string();
         session.ended_at = Some(now_ms());
     }
     Ok(())
 }
 
-fn dequeue_next_chat_turn(
-    state: &Arc<ChatSessionStore>,
-    session_id: &str,
-) -> Result<Option<(StartSessionRequest, ChatRunTurnRequest)>, String> {
-    let mut sessions = state
-        .sessions
-        .lock()
-        .map_err(|_| "failed to lock chat session store")?;
-    let Some(session) = sessions.get_mut(session_id) else {
-        return Ok(None);
-    };
-    if session.pending_turns.is_empty() {
-        session.busy = false;
-        return Ok(None);
-    }
-    let mut next = session.pending_turns.remove(0);
-    session.busy = true;
-    session.status = "running".to_string();
-    session.ended_at = None;
-    if !next.prompt.trim().is_empty() {
-        session.prompt = Some(next.prompt.clone());
-    }
-    next.config = session.config.clone();
-    next.messages = session.messages.clone();
-    Ok(Some((session.config.clone(), next)))
-}
-
-fn queue_chat_turn(
-    state: &Arc<ChatSessionStore>,
-    session_id: &str,
-    turn_request: ChatRunTurnRequest,
-) -> Result<(), String> {
-    let mut sessions = state
-        .sessions
-        .lock()
-        .map_err(|_| "failed to lock chat session store")?;
-    let session = sessions
-        .get_mut(session_id)
-        .ok_or_else(|| "session not found. start a new session.".to_string())?;
-    session.pending_turns.push(turn_request);
-    Ok(())
-}
-
-fn spawn_next_queued_chat_turn(
+fn send_prompts_in_queue_snapshot(
     app: &AppHandle,
     state: &Arc<ChatSessionStore>,
-    context: &AppContext,
-    session_id: String,
+    session_id: &str,
 ) {
-    let next = match dequeue_next_chat_turn(state, &session_id) {
-        Ok(value) => value,
-        Err(error) => {
-            eprintln!("[chat-queue] failed to dequeue next turn for {session_id}: {error}");
-            return;
-        }
-    };
-    let Some((config, turn_request)) = next else {
-        return;
-    };
-
-    let app_for_turn = app.clone();
-    let state_for_turn = state.clone();
-    let context_for_turn = context.clone();
-    tauri::async_runtime::spawn(async move {
-        let turn_result = tauri::async_runtime::spawn_blocking({
-            let app_for_run = app_for_turn.clone();
-            let state_for_run = state_for_turn.clone();
-            let context_for_run = context_for_turn.clone();
-            let session_id_for_run = session_id.clone();
-            let request_for_run = turn_request.clone();
-            move || {
-                run_chat_turn_via_rpc_runtime(
-                    &app_for_run,
-                    &state_for_run,
-                    &context_for_run,
-                    &session_id_for_run,
-                    &request_for_run,
-                )
-            }
-        })
-        .await
-        .map_err(|e| format!("chat turn task failed: {e}"));
-
-        match turn_result {
-            Ok(Ok(result)) => {
-                if let Err(error) =
-                    persist_chat_turn_result(&state_for_turn, &session_id, &config, &result)
-                {
-                    eprintln!(
-                        "[chat-queue] failed to persist turn result for {session_id}: {error}"
-                    );
-                }
-            }
-            _ => {
-                if let Err(error) = mark_chat_turn_failed(&state_for_turn, &session_id) {
-                    eprintln!("[chat-queue] failed to mark turn failed for {session_id}: {error}");
-                }
-            }
-        }
-
-        spawn_next_queued_chat_turn(
-            &app_for_turn,
-            &state_for_turn,
-            &context_for_turn,
-            session_id,
-        );
-    });
+    let items = state
+        .sessions
+        .lock()
+        .ok()
+        .and_then(|sessions| sessions.get(session_id).cloned())
+        .map(|session| session.prompts_in_queue)
+        .unwrap_or_default();
+    let payload = serde_json::json!({ "items": items });
+    emit_chunk(
+        app,
+        session_id,
+        "prompts_in_queue_state",
+        payload.to_string(),
+    );
 }
 
 fn abort_chat_session_via_rpc_runtime(
@@ -4265,7 +4245,7 @@ async fn handle_chat_session_command(
                 ChatRuntimeSession {
                     config,
                     messages: Vec::new(),
-                    pending_turns: Vec::new(),
+                    prompts_in_queue: Vec::new(),
                     busy: false,
                     started_at: now_ms(),
                     ended_at: None,
@@ -4279,6 +4259,7 @@ async fn handle_chat_session_command(
                 result: None,
                 ok: None,
                 queued: None,
+                prompts_in_queue: Vec::new(),
             })
         }
         "send" => {
@@ -4322,7 +4303,7 @@ async fn handle_chat_session_command(
                         prompt: derive_prompt_from_messages(&messages),
                         title: read_session_metadata_title(&session_id),
                         messages,
-                        pending_turns: Vec::new(),
+                        prompts_in_queue: Vec::new(),
                         busy: false,
                         started_at: now_ms(),
                         ended_at: None,
@@ -4330,7 +4311,7 @@ async fn handle_chat_session_command(
                     });
             }
 
-            let (config, messages) = {
+            let (config, messages, delivery) = {
                 let mut sessions = state
                     .sessions
                     .lock()
@@ -4343,30 +4324,23 @@ async fn handle_chat_session_command(
                     ensure_start_session_home_dir(&mut next_config);
                     session.config = next_config;
                 }
-                if session.busy {
-                    let queued_request = ChatRunTurnRequest {
-                        config: session.config.clone(),
-                        messages: Vec::new(),
-                        prompt: prompt.clone(),
-                        attachments: attachments.clone(),
-                    };
-                    drop(sessions);
-                    queue_chat_turn(state, &session_id, queued_request)?;
-                    return Ok(ChatSessionCommandResponse {
-                        session_id: Some(session_id),
-                        result: None,
-                        ok: Some(true),
-                        queued: Some(true),
-                    });
-                }
+                let delivery = match request.delivery.as_deref() {
+                    Some("queue") => Some("queue".to_string()),
+                    Some("steer") => Some("steer".to_string()),
+                    _ if session.busy => Some("queue".to_string()),
+                    _ => None,
+                };
                 session.busy = true;
                 session.status = "running".to_string();
                 session.ended_at = None;
                 if !prompt.is_empty() {
-                    // Keep sidebar/session discovery title in sync while turn is in-flight.
                     session.prompt = Some(prompt.clone());
                 }
-                (session.config.clone(), session.messages.clone())
+                (
+                    session.config.clone(),
+                    session.messages.clone(),
+                    delivery,
+                )
             };
 
             let session_id_for_turn = session_id.clone();
@@ -4379,6 +4353,7 @@ async fn handle_chat_session_command(
                 messages,
                 prompt: prompt.clone(),
                 attachments,
+                delivery,
             };
 
             let turn_result = tauri::async_runtime::spawn_blocking(move || {
@@ -4393,20 +4368,62 @@ async fn handle_chat_session_command(
             .await
             .map_err(|e| format!("chat turn task failed: {e}"));
 
-            if let Ok(Ok(result)) = &turn_result {
+            if let Ok(Ok(response)) = &turn_result {
+                if response.queued == Some(true) {
+                    let prompts_in_queue = {
+                        let sessions = state
+                            .sessions
+                            .lock()
+                            .map_err(|_| "failed to lock chat session store")?;
+                        sessions
+                            .get(&session_id)
+                            .cloned()
+                            .map(|session| session.prompts_in_queue)
+                            .unwrap_or_default()
+                    };
+                    return Ok(ChatSessionCommandResponse {
+                        session_id: Some(session_id),
+                        result: None,
+                        ok: Some(true),
+                        queued: Some(true),
+                        prompts_in_queue,
+                    });
+                }
+                let result = response
+                    .result
+                    .as_ref()
+                    .ok_or_else(|| "chat runtime bridge send response missing result".to_string())?;
                 persist_chat_turn_result(state, &session_id, &config, result)?;
+                let prompts_in_queue = {
+                    let mut sessions = state
+                        .sessions
+                        .lock()
+                        .map_err(|_| "failed to lock chat session store")?;
+                    let session = sessions
+                        .get_mut(&session_id)
+                        .ok_or_else(|| "session not found. start a new session.".to_string())?;
+                    session.busy = !session.prompts_in_queue.is_empty();
+                    session.prompts_in_queue.clone()
+                };
+                return Ok(ChatSessionCommandResponse {
+                    session_id: Some(session_id),
+                    result: Some(result.clone()),
+                    ok: None,
+                    queued: Some(false),
+                    prompts_in_queue,
+                });
             } else {
                 mark_chat_turn_failed(state, &session_id)?;
             }
-            spawn_next_queued_chat_turn(app, state, context, session_id.clone());
 
             let turn_result = turn_result?;
-            let result = turn_result?;
+            let response = turn_result?;
             Ok(ChatSessionCommandResponse {
                 session_id: Some(session_id),
-                result: Some(result),
-                ok: None,
-                queued: Some(false),
+                result: response.result,
+                ok: response.ok,
+                queued: response.queued,
+                prompts_in_queue: Vec::new(),
             })
         }
         "abort" => Ok(ChatSessionCommandResponse {
@@ -4419,16 +4436,19 @@ async fn handle_chat_session_command(
                         .map_err(|_| "failed to lock chat session store")?;
                     if let Some(session) = sessions.get_mut(&session_id) {
                         session.busy = false;
-                        session.pending_turns.clear();
+                        session.prompts_in_queue.clear();
                         session.status = "cancelled".to_string();
                         session.ended_at = Some(now_ms());
                     }
+                    drop(sessions);
+                    send_prompts_in_queue_snapshot(app, state, &session_id);
                 }
                 request.session_id
             },
             result: None,
             ok: Some(true),
             queued: None,
+            prompts_in_queue: Vec::new(),
         }),
         "reset" => {
             if let Some(session_id) = request.session_id.clone() {
@@ -4444,12 +4464,94 @@ async fn handle_chat_session_command(
                     Some(session_id.as_str()),
                 );
                 let _ = remove_chat_stream_subscription(app, state, context, &session_id);
+                send_prompts_in_queue_snapshot(app, state, &session_id);
             }
             Ok(ChatSessionCommandResponse {
                 session_id: request.session_id,
                 result: None,
                 ok: Some(true),
                 queued: None,
+                prompts_in_queue: Vec::new(),
+            })
+        }
+        "pending_prompts" => {
+            let Some(session_id) = request.session_id else {
+                return Err("sessionId is required for pending_prompts action".to_string());
+            };
+            let prompts_in_queue = state
+                .sessions
+                .lock()
+                .ok()
+                .and_then(|sessions| sessions.get(&session_id).cloned())
+                .map(|session| session.prompts_in_queue)
+                .unwrap_or_default();
+            Ok(ChatSessionCommandResponse {
+                session_id: Some(session_id),
+                result: None,
+                ok: Some(true),
+                queued: None,
+                prompts_in_queue,
+            })
+        }
+        "steer_prompt" => {
+            let Some(session_id) = request.session_id.clone() else {
+                return Err("sessionId is required for steer_prompt action".to_string());
+            };
+            let Some(prompt_id) = request.prompt_id.clone() else {
+                return Err("promptId is required for steer_prompt action".to_string());
+            };
+            let session = state
+                .sessions
+                .lock()
+                .ok()
+                .and_then(|sessions| sessions.get(&session_id).cloned());
+            if let Some(session) = session {
+                let prompt = session
+                    .prompts_in_queue
+                    .iter()
+                    .find(|item| item.id == prompt_id)
+                    .map(|item| item.prompt.clone());
+                if let Some(prompt) = prompt {
+                    ensure_chat_stream_subscription(app, state, context, &session_id)?;
+                    let _ = tauri::async_runtime::spawn_blocking({
+                        let app_for_turn = app.clone();
+                        let state_for_turn = state.clone();
+                        let context_for_turn = context.clone();
+                        let session_id_for_turn = session_id.clone();
+                        let turn_request = ChatRunTurnRequest {
+                            config: session.config.clone(),
+                            messages: session.messages.clone(),
+                            prompt,
+                            attachments: None,
+                            delivery: Some("steer".to_string()),
+                        };
+                        move || {
+                            run_chat_turn_via_rpc_runtime(
+                                &app_for_turn,
+                                &state_for_turn,
+                                &context_for_turn,
+                                &session_id_for_turn,
+                                &turn_request,
+                            )
+                        }
+                    })
+                    .await
+                    .map_err(|e| format!("chat turn task failed: {e}"))??;
+                }
+            }
+            let prompts_in_queue = state
+                .sessions
+                .lock()
+                .ok()
+                .and_then(|sessions| sessions.get(&session_id).cloned())
+                .map(|session| session.prompts_in_queue)
+                .unwrap_or_default();
+            Ok(ChatSessionCommandResponse {
+                session_id: Some(session_id),
+                result: None,
+                ok: Some(true),
+                queued: Some(true),
+                prompts_in_queue,
             })
         }
         _ => Err("unsupported action".to_string()),

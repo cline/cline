@@ -38,14 +38,7 @@ export type ChatSessionCommandRequest = {
 	sessionId?: string;
 	prompt?: string;
 	promptId?: string;
-	config?: JsonRecord;
-	attachments?: ChatTurnAttachments;
-};
-
-export type QueuedChatTurn = {
-	id: string;
-	prompt: string;
-	steer: boolean;
+	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
 };
@@ -54,12 +47,13 @@ export type PromptInQueue = {
 	id: string;
 	prompt: string;
 	steer: boolean;
+	attachmentCount?: number;
 };
 
 export type LiveSession = {
 	config: JsonRecord;
 	messages: unknown[];
-	pendingTurns: QueuedChatTurn[];
+	promptsInQueue: PromptInQueue[];
 	busy: boolean;
 	startedAt: number;
 	endedAt?: number;

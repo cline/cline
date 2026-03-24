@@ -264,6 +264,7 @@ message RuntimeTurnRequest {
   repeated RuntimeChatMessage messages = 2;
   string prompt = 3;
   RuntimeAttachments attachments = 4;
+  string delivery = 5;
 }
 
 message RuntimeUsage {

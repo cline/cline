@@ -1,6 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { SchedulerService } from "@clinebot/scheduler";
-import type { RpcProviderActionRequest } from "@clinebot/shared";
+import type {
+	RpcChatStartSessionRequest,
+	RpcProviderActionRequest,
+} from "@clinebot/shared";
 import type * as grpc from "@grpc/grpc-js";
 import {
 	fromProtoStruct,
@@ -353,7 +356,7 @@ export class ClineGatewayRuntime {
 		if (!handler) {
 			throw new Error("runtime start handler is not configured");
 		}
-		const payload = request.request
+		const payload: RpcChatStartSessionRequest | undefined = request.request
 			? {
 					sessionId: safeString(request.request.sessionId),
 					workspaceRoot: safeString(request.request.workspaceRoot),
@@ -446,6 +449,11 @@ export class ClineGatewayRuntime {
 		if (!sessionId) {
 			throw new Error("sessionId is required");
 		}
+		const delivery: "queue" | "steer" | undefined =
+			request.request?.delivery === "queue" ||
+			request.request?.delivery === "steer"
+				? request.request.delivery
+				: undefined;
 		const payload = request.request
 			? {
 					config: {
@@ -513,6 +521,7 @@ export class ClineGatewayRuntime {
 						content: fromProtoValue(message.content),
 					})),
 					prompt: safeString(request.request.prompt),
+					delivery,
 					attachments: request.request.attachments
 						? {
 								userImages: request.request.attachments.userImages ?? [],
@@ -530,6 +539,9 @@ export class ClineGatewayRuntime {
 			throw new Error("runtime send request is required");
 		}
 		const result = await handler(sessionId, payload);
+		if (!result.result) {
+			return {};
+		}
 		return {
 			result: {
 				text: safeString(result.result.text),

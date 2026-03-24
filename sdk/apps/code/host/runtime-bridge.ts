@@ -35,7 +35,6 @@ import {
 	type JsonRecord,
 	type LiveSession,
 	type PromptInQueue,
-	type QueuedChatTurn,
 	type ToolApprovalRequestItem,
 } from "./types";
 
@@ -193,6 +192,53 @@ function handleBridgeStdoutLine(ctx: HostContext, parsed: JsonRecord) {
 			);
 			return;
 
+		case "pending_prompts": {
+			const prompts = Array.isArray(parsed.prompts)
+				? (
+						parsed.prompts as Array<{
+							id?: unknown;
+							prompt?: unknown;
+							delivery?: unknown;
+							attachmentCount?: unknown;
+						}>
+					)
+						.map((item) => ({
+							id: typeof item.id === "string" ? item.id : "",
+							prompt: typeof item.prompt === "string" ? item.prompt : "",
+							steer: item.delivery === "steer",
+							attachmentCount:
+								typeof item.attachmentCount === "number"
+									? item.attachmentCount
+									: 0,
+						}))
+						.filter((item) => item.id && item.prompt)
+				: [];
+			if (sessionId) {
+				const session = ctx.liveSessions.get(sessionId);
+				const previous = session?.promptsInQueue ?? [];
+				if (session) {
+					session.promptsInQueue = prompts;
+				}
+				if (
+					previous.length > prompts.length &&
+					previous[0] &&
+					previous[0].id !== prompts[0]?.id
+				) {
+					emitChunk(
+						ctx,
+						sessionId,
+						"chat_queued_prompt_start",
+						JSON.stringify({
+							prompt: previous[0].prompt,
+							attachmentCount: previous[0].attachmentCount ?? 0,
+						}),
+					);
+				}
+				sendPromptsInQueueSnapshot(ctx, sessionId);
+			}
+			return;
+		}
+
 		case "error": {
 			const message =
 				typeof parsed.message === "string"
@@ -338,16 +384,8 @@ export function broadcastApprovalSnapshots(ctx: HostContext) {
 	}
 }
 
-function makeQueuedTurnId(): string {
-	return `queued_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
-	return session.pendingTurns.map((turn) => ({
-		id: turn.id,
-		prompt: turn.prompt,
-		steer: turn.steer,
-	}));
+	return session.promptsInQueue;
 }
 
 function sendPromptsInQueueSnapshot(ctx: HostContext, sessionId: string) {
@@ -408,10 +446,18 @@ async function executeChatTurn(
 	ctx: HostContext,
 	sessionId: string,
 	session: LiveSession,
-	turn: QueuedChatTurn,
-): Promise<ChatTurnResult> {
-	if (turn.config) session.config = turn.config;
-	if (turn.prompt) session.prompt = turn.prompt;
+	input: {
+		prompt: string;
+		config?: JsonRecord;
+		attachments?: {
+			userImages?: string[];
+			userFiles?: Array<{ name: string; content: string }>;
+		};
+		delivery?: "queue" | "steer";
+	},
+): Promise<{ result?: ChatTurnResult; queued?: boolean }> {
+	if (input.config) session.config = input.config;
+	if (input.prompt) session.prompt = input.prompt;
 
 	session.busy = true;
 	session.status = "running";
@@ -432,14 +478,19 @@ async function executeChatTurn(
 			request: {
 				config: session.config,
 				messages: session.messages,
-				prompt: turn.prompt,
-				attachments: turn.attachments,
+				prompt: input.prompt,
+				attachments: input.attachments,
+				delivery: input.delivery,
 			},
-		})) as { result?: ChatTurnResult };
+		})) as { result?: ChatTurnResult; queued?: boolean };
 
+		if (resultEnvelope.queued) {
+			return { queued: true };
+		}
 		const result = resultEnvelope.result;
-		if (!result)
+		if (!result) {
 			throw new Error("chat runtime bridge send response missing result");
+		}
 
 		session.messages = persistUsageInMessages(
 			(Array.isArray(result.messages) ? result.messages : []) as unknown[],
@@ -452,52 +503,9 @@ async function executeChatTurn(
 		persistSessionMessages(sessionId, session.messages);
 		sendApprovalSnapshot(ctx, sessionId);
 
-		return result;
+		return { result, queued: false };
 	} finally {
 		session.busy = false;
-	}
-}
-
-async function drainSessionQueue(
-	ctx: HostContext,
-	sessionId: string,
-): Promise<void> {
-	const session = ctx.liveSessions.get(sessionId);
-	if (!session || session.busy) return;
-
-	const nextTurn = session.pendingTurns.shift();
-	if (!nextTurn) return;
-	sendPromptsInQueueSnapshot(ctx, sessionId);
-	emitChunk(
-		ctx,
-		sessionId,
-		"chat_queued_prompt_start",
-		JSON.stringify({
-			prompt: nextTurn.prompt,
-			attachmentCount:
-				(nextTurn.attachments?.userImages?.length ?? 0) +
-				(nextTurn.attachments?.userFiles?.length ?? 0),
-		}),
-	);
-
-	try {
-		await executeChatTurn(ctx, sessionId, session, nextTurn);
-	} catch (error) {
-		session.status = "error";
-		session.endedAt = nowMs();
-		emitChunk(
-			ctx,
-			sessionId,
-			"chat_core_log",
-			JSON.stringify({
-				level: "error",
-				message: error instanceof Error ? error.message : String(error),
-			}),
-		);
-	}
-
-	if (session.pendingTurns.length > 0) {
-		void drainSessionQueue(ctx, sessionId);
 	}
 }
 
@@ -512,7 +520,7 @@ function createLiveSession(
 	return {
 		config,
 		messages: [],
-		pendingTurns: [],
+		promptsInQueue: [],
 		busy: false,
 		startedAt: nowMs(),
 		status: "idle",
@@ -577,36 +585,23 @@ async function handleSend(
 	}
 
 	if (request.config) session.config = request.config;
-
-	const turn: QueuedChatTurn = {
-		id: makeQueuedTurnId(),
+	const delivery =
+		request.delivery === "queue" || request.delivery === "steer"
+			? request.delivery
+			: session.busy
+				? "queue"
+				: undefined;
+	const { result, queued } = await executeChatTurn(ctx, sessionId, session, {
 		prompt,
-		steer: false,
 		config: request.config,
 		attachments: request.attachments,
-	};
-
-	if (session.busy) {
-		session.pendingTurns.push(turn);
-		sendPromptsInQueueSnapshot(ctx, sessionId);
-		return {
-			sessionId,
-			ok: true,
-			queued: true,
-			promptsInQueue: getPromptsInQueue(session),
-		};
-	}
-
-	const result = await executeChatTurn(ctx, sessionId, session, turn);
-	if (session.pendingTurns.length > 0) {
-		sendPromptsInQueueSnapshot(ctx, sessionId);
-		void drainSessionQueue(ctx, sessionId);
-	}
+		delivery,
+	});
 
 	return {
 		sessionId,
 		result,
-		queued: false,
+		queued: queued === true,
 		promptsInQueue: getPromptsInQueue(session),
 	};
 }
@@ -621,7 +616,7 @@ async function handleAbort(
 		const session = ctx.liveSessions.get(sessionId);
 		if (session) {
 			session.busy = false;
-			session.pendingTurns = [];
+			session.promptsInQueue = [];
 			session.status = "cancelled";
 			session.endedAt = nowMs();
 		}
@@ -669,14 +664,16 @@ async function handleSteerPrompt(
 	if (!session) {
 		return { sessionId, promptsInQueue: [] };
 	}
-	const existingIndex = session.pendingTurns.findIndex(
+	const prompt = session.promptsInQueue.find(
 		(turn) => turn.id === promptId,
-	);
-	if (existingIndex >= 0) {
-		const [turn] = session.pendingTurns.splice(existingIndex, 1);
-		session.pendingTurns.unshift({ ...turn, steer: true });
+	)?.prompt;
+	if (prompt) {
+		await executeChatTurn(ctx, sessionId, session, {
+			prompt,
+			config: session.config,
+			delivery: "steer",
+		});
 	}
-	sendPromptsInQueueSnapshot(ctx, sessionId);
 	return {
 		sessionId,
 		promptsInQueue: getPromptsInQueue(session),
