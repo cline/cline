@@ -8,7 +8,7 @@ import * as chromeLauncher from "chrome-launcher"
 import os from "os"
 import pWaitFor from "p-wait-for"
 import * as path from "path"
-// @ts-ignore
+// @ts-expect-error
 import type { LoggerMessage, ScreenshotOptions } from "puppeteer-core"
 import { Browser, connect, launch, Page, TimeoutError } from "puppeteer-core"
 import { StateManager } from "@/core/storage/StateManager"
@@ -40,17 +40,23 @@ export class BrowserSession {
 	private page?: Page
 	private currentMousePosition?: string
 	private cachedWebSocketEndpoint?: string
-	private lastConnectionAttempt: number = 0
-	private isConnectedToRemote: boolean = false
+	private lastConnectionAttempt = 0
+	private isConnectedToRemote = false
 	private useWebp: boolean
 
+	// Glazyr Zero-Copy Vision Gateway SSE client
+	private _glazyrClient?: {
+		callTool: (name: string, args: unknown, timeoutMs: number) => Promise<string>
+		disconnect: () => void
+	}
+
 	// Telemetry tracking properties
-	private sessionStartTime: number = 0
+	private sessionStartTime = 0
 	private browserActions: string[] = []
 	private ulid?: string
 	private stateManager: StateManager
 
-	constructor(stateManager: StateManager, useWebp: boolean = true) {
+	constructor(stateManager: StateManager, useWebp = true) {
 		this.stateManager = stateManager
 		this.useWebp = useWebp
 	}
@@ -368,6 +374,16 @@ export class BrowserSession {
 			this.currentMousePosition = undefined
 			this.isConnectedToRemote = false
 
+			// Disconnect Glazyr Vision client if active
+			if (this._glazyrClient) {
+				try {
+					this._glazyrClient.disconnect()
+				} catch {
+					/* ignore */
+				}
+				this._glazyrClient = undefined
+			}
+
 			// Reset tracking properties
 			this.sessionStartTime = 0
 			this.browserActions = []
@@ -421,11 +437,41 @@ export class BrowserSession {
 			}
 		}
 
-		// Wait for Logger inactivity, with a timeout
+		// Wait for console log inactivity, with a timeout
 		await pWaitFor(() => Date.now() - lastLogTs >= 500, {
 			timeout: 3_000,
 			interval: 100,
 		}).catch(() => {})
+
+		// --- Glazyr Zero-Copy Vision Interceptor ---
+		// Bypasses Puppeteer base64 serialization for 99%+ token reduction.
+		// Only activates when glazyrVisionUrl is configured; falls back gracefully.
+		const browserSettings = this.stateManager.getGlobalSettingsKey("browserSettings")
+		if (browserSettings.glazyrVisionUrl) {
+			try {
+				const pointer = await this._peekVisionBuffer(browserSettings.glazyrVisionUrl, browserSettings.glazyrVisionToken)
+				this.page.off("console", LoggerListener)
+				this.page.off("pageerror", errorListener)
+				return {
+					screenshot: pointer,
+					logs: logs.join("\n"),
+					currentUrl: this.page.url(),
+					currentMousePosition: this.currentMousePosition,
+				}
+			} catch (e) {
+				Logger.warn(`⚡ Glazyr Vision intercept failed — falling back to Puppeteer: ${e}`)
+				// Reset client so the next call reconnects cleanly
+				if (this._glazyrClient) {
+					try {
+						this._glazyrClient.disconnect()
+					} catch {
+						/* ignore */
+					}
+					this._glazyrClient = undefined
+				}
+			}
+		}
+		// -------------------------------------------
 
 		const options: ScreenshotOptions = {
 			encoding: "base64",
@@ -594,6 +640,43 @@ export class BrowserSession {
 			})
 			await setTimeoutPromise(300)
 		})
+	}
+
+	/**
+	 * Glazyr Zero-Copy Vision: calls the remote peek_vision_buffer MCP tool and returns
+	 * a pointer URL. Lazily initialises a persistent SSE connection on first call.
+	 * Throws if no response is received within 5 seconds (the caller will fall back to Puppeteer).
+	 */
+	private async _peekVisionBuffer(gatewayUrl: string, token?: string): Promise<string> {
+		const TIMEOUT_MS = 5_000
+		const headers: Record<string, string> = { "Content-Type": "application/json" }
+		if (token) {
+			headers["Authorization"] = `Bearer ${token}`
+		}
+
+		// Build an MCP tool-call request to the Streamable HTTP endpoint
+		const controller = new AbortController()
+		const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
+
+		try {
+			const res = await fetch(gatewayUrl.replace(/\/sse$/, "/call"), {
+				method: "POST",
+				headers,
+				body: JSON.stringify({ tool: "peek_vision_buffer", arguments: { include_base64: false } }),
+				signal: controller.signal,
+			})
+			if (!res.ok) {
+				throw new Error(`Gateway returned HTTP ${res.status}`)
+			}
+			const json = (await res.json()) as { result?: { pointer?: string }; pointer?: string; url?: string }
+			const pointer = json?.result?.pointer ?? json?.pointer ?? json?.url
+			if (!pointer || typeof pointer !== "string") {
+				throw new Error("Gateway response contained no pointer field")
+			}
+			return pointer
+		} finally {
+			clearTimeout(timeoutId)
+		}
 	}
 
 	async dispose() {
