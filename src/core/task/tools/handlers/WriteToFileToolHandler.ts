@@ -486,7 +486,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				)
 
 				const errorResponse = formatResponse.toolError(
-					`The path '${resolvedPath}' is a directory, not a file. You must provide a file path, not a directory path. For example, use '${resolvedPath}/index.ts' instead of '${resolvedPath}'.`,
+					`The path '${resolvedPath}' is a directory, not a file. You must provide a file path, not a directory path. For example, use a specific file inside '${resolvedPath}' such as '${resolvedPath}/index.ts' or another file within that directory.`,
 				)
 				ToolResultUtils.pushToolResult(
 					errorResponse,
@@ -502,8 +502,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 				return
 			}
-		} catch {
-			// Path doesn't exist yet (new file) — that's fine, continue
+		} catch (err: unknown) {
+			// Path doesn't exist yet (new file) — that's fine, continue.
+			// Re-throw any unexpected errors so they surface properly.
+			if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+				throw err
+			}
 		}
 
 		// Check if file exists to determine the correct UI message
