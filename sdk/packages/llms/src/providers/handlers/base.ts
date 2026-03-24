@@ -204,6 +204,20 @@ export abstract class BaseHandler implements ApiHandler {
 		);
 	}
 
+	protected calculateCostFromInclusiveInput(
+		inputTokens: number,
+		outputTokens: number,
+		cacheReadTokens = 0,
+		cacheWriteTokens = 0,
+	): number | undefined {
+		return this.calculateCost(
+			Math.max(0, inputTokens - cacheReadTokens - cacheWriteTokens),
+			outputTokens,
+			cacheReadTokens,
+			cacheWriteTokens,
+		);
+	}
+
 	protected createResponseId(): string {
 		return nanoid();
 	}

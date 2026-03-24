@@ -25,6 +25,20 @@ class TestHandler extends BaseHandler {
 		);
 	}
 
+	public computeCostFromInclusiveInput(
+		inputTokens: number,
+		outputTokens: number,
+		cacheReadTokens = 0,
+		cacheWriteTokens = 0,
+	): number | undefined {
+		return this.calculateCostFromInclusiveInput(
+			inputTokens,
+			outputTokens,
+			cacheReadTokens,
+			cacheWriteTokens,
+		);
+	}
+
 	public exposeAbortSignal(): AbortSignal {
 		return this.getAbortSignal();
 	}
@@ -56,6 +70,53 @@ describe("BaseHandler.calculateCost", () => {
 		const cost = handler.computeCost(1_000_000, 1_000_000, 100_000);
 
 		expect(cost).toBeCloseTo(18.03, 6);
+	});
+
+	it("does not charge cache reads twice when input already includes them", () => {
+		const config: ProviderConfig = {
+			providerId: "openai-native",
+			modelId: "gpt-test",
+			apiKey: "test-key",
+			knownModels: {
+				"gpt-test": {
+					id: "gpt-test",
+					pricing: {
+						input: 1,
+						output: 2,
+						cacheRead: 0.5,
+					},
+				},
+			},
+		};
+		const handler = new TestHandler(config);
+
+		const cost = handler.computeCostFromInclusiveInput(100, 40, 25);
+
+		expect(cost).toBeCloseTo(0.0001675, 10);
+	});
+
+	it("does not charge cache writes twice when input already includes them", () => {
+		const config: ProviderConfig = {
+			providerId: "openai-native",
+			modelId: "gpt-test",
+			apiKey: "test-key",
+			knownModels: {
+				"gpt-test": {
+					id: "gpt-test",
+					pricing: {
+						input: 1,
+						output: 2,
+						cacheRead: 0.5,
+						cacheWrite: 1.25,
+					},
+				},
+			},
+		};
+		const handler = new TestHandler(config);
+
+		const cost = handler.computeCostFromInclusiveInput(100, 40, 25, 10);
+
+		expect(cost).toBeCloseTo(0.00017, 10);
 	});
 });
 

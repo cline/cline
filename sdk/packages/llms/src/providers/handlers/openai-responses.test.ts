@@ -246,14 +246,14 @@ describe("OpenAIResponsesHandler", () => {
 
 		expect(chunks[0]).toMatchObject({
 			type: "usage",
-			inputTokens: 100,
+			inputTokens: 75,
 			outputTokens: 40,
 			cacheReadTokens: 25,
 			cacheWriteTokens: 0,
 		});
 		expect(chunks[0]?.type).toBe("usage");
 		if (chunks[0]?.type === "usage") {
-			expect(chunks[0].totalCost).toBeCloseTo(0.0001925, 10);
+			expect(chunks[0].totalCost).toBeCloseTo(0.0001675, 10);
 		}
 	});
 });

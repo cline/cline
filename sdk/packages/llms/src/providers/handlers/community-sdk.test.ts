@@ -142,7 +142,7 @@ describe("Community SDK handlers", () => {
 					chunk.type === "usage",
 			);
 			expect(usageChunk).toMatchObject({
-				inputTokens: 10,
+				inputTokens: 6,
 				outputTokens: 3,
 				cacheReadTokens: 4,
 			});

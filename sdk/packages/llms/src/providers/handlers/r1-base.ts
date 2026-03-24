@@ -257,11 +257,14 @@ export class R1BaseHandler extends BaseHandler {
 
 		yield {
 			type: "usage",
-			inputTokens,
+			inputTokens: Math.max(
+				0,
+				inputTokens - cacheReadTokens - cacheWriteTokens,
+			),
 			outputTokens,
 			cacheReadTokens,
 			cacheWriteTokens,
-			totalCost: this.calculateCost(
+			totalCost: this.calculateCostFromInclusiveInput(
 				inputTokens,
 				outputTokens,
 				cacheReadTokens,

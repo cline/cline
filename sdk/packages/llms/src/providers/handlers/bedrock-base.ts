@@ -216,11 +216,11 @@ export class BedrockHandler extends BaseHandler {
 
 					yield {
 						type: "usage",
-						inputTokens,
+						inputTokens: Math.max(0, inputTokens - cacheReadTokens),
 						outputTokens,
 						thoughtsTokenCount,
 						cacheReadTokens,
-						totalCost: this.calculateCost(
+						totalCost: this.calculateCostFromInclusiveInput(
 							inputTokens,
 							outputTokens,
 							cacheReadTokens,
@@ -245,11 +245,11 @@ export class BedrockHandler extends BaseHandler {
 
 			yield {
 				type: "usage",
-				inputTokens,
+				inputTokens: Math.max(0, inputTokens - cacheReadTokens),
 				outputTokens,
 				thoughtsTokenCount,
 				cacheReadTokens,
-				totalCost: this.calculateCost(
+				totalCost: this.calculateCostFromInclusiveInput(
 					inputTokens,
 					outputTokens,
 					cacheReadTokens,

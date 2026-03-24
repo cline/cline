@@ -207,6 +207,10 @@ export {
 	SqliteRpcSessionBackend,
 	type SqliteRpcSessionBackendOptions,
 } from "./session/sqlite-rpc-session-backend";
+export {
+	accumulateUsageTotals,
+	createInitialAccumulatedUsage,
+} from "./session/utils/usage";
 export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,
