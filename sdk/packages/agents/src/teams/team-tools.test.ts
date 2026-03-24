@@ -446,6 +446,149 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		);
 	});
 
+	it("returns compact summaries from team_await_run without full teammate transcripts", async () => {
+		const runtime = {
+			awaitRun: vi.fn(async () => ({
+				id: "run_0001",
+				agentId: "models-investigator",
+				status: "completed",
+				message:
+					"Investigate the models directory and summarize the boundaries",
+				priority: 0,
+				retryCount: 0,
+				maxRetries: 0,
+				startedAt: new Date("2026-03-24T09:00:00.000Z"),
+				endedAt: new Date("2026-03-24T09:01:00.000Z"),
+				lastProgressAt: new Date("2026-03-24T09:00:59.000Z"),
+				lastProgressMessage: "completed",
+				currentActivity: "completed",
+				result: {
+					text: "Models are the public catalog and provider files are provider-specific defaults.",
+					usage: {
+						inputTokens: 1200,
+						outputTokens: 300,
+						cacheReadTokens: 900,
+						cacheWriteTokens: 120,
+						totalCost: 0.12,
+					},
+					messages: [{ role: "user", content: "huge transcript omitted" }],
+					toolCalls: [{ name: "read_file", input: {}, output: "omitted" }],
+					iterations: 3,
+					finishReason: "completed",
+					model: { id: "claude-sonnet-4-5-20250929", provider: "anthropic" },
+					startedAt: new Date("2026-03-24T09:00:00.000Z"),
+					endedAt: new Date("2026-03-24T09:01:00.000Z"),
+					durationMs: 60_000,
+				},
+			})),
+		} as unknown as AgentTeamsRuntime;
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateRuntime: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+			},
+		});
+		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
+
+		await expect(
+			awaitRun?.execute(
+				{ runId: "run_0001" },
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).resolves.toEqual({
+			id: "run_0001",
+			agentId: "models-investigator",
+			status: "completed",
+			messagePreview:
+				"Investigate the models directory and summarize the boundaries",
+			priority: 0,
+			retryCount: 0,
+			maxRetries: 0,
+			startedAt: new Date("2026-03-24T09:00:00.000Z"),
+			endedAt: new Date("2026-03-24T09:01:00.000Z"),
+			lastProgressAt: new Date("2026-03-24T09:00:59.000Z"),
+			lastProgressMessage: "completed",
+			currentActivity: "completed",
+			resultSummary: {
+				textPreview:
+					"Models are the public catalog and provider files are provider-specific defaults.",
+				iterations: 3,
+				finishReason: "completed",
+				durationMs: 60_000,
+				usage: {
+					inputTokens: 1200,
+					outputTokens: 300,
+					cacheReadTokens: 900,
+					cacheWriteTokens: 120,
+					totalCost: 0.12,
+				},
+			},
+		});
+	});
+
+	it("returns compact summaries from team_list_runs", async () => {
+		const runtime = {
+			listRuns: vi.fn(() => [
+				{
+					id: "run_0001",
+					agentId: "providers-investigator",
+					status: "running",
+					message: "Investigate providers directory in detail",
+					priority: 0,
+					retryCount: 0,
+					maxRetries: 0,
+					startedAt: new Date("2026-03-24T09:00:00.000Z"),
+					lastProgressAt: new Date("2026-03-24T09:00:30.000Z"),
+					lastProgressMessage: "reading files",
+					currentActivity: "reading_files",
+				},
+			]),
+		} as unknown as AgentTeamsRuntime;
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateRuntime: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+			},
+		});
+		const listRuns = tools.find((tool) => tool.name === "team_list_runs");
+
+		await expect(
+			listRuns?.execute(
+				{},
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).resolves.toEqual([
+			{
+				id: "run_0001",
+				agentId: "providers-investigator",
+				status: "running",
+				messagePreview: "Investigate providers directory in detail",
+				priority: 0,
+				retryCount: 0,
+				maxRetries: 0,
+				startedAt: new Date("2026-03-24T09:00:00.000Z"),
+				lastProgressAt: new Date("2026-03-24T09:00:30.000Z"),
+				lastProgressMessage: "reading files",
+				currentActivity: "reading_files",
+				resultSummary: undefined,
+			},
+		]);
+	});
+
 	it("sets long timeout for team await tools", () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({

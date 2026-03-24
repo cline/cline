@@ -79,13 +79,22 @@ export async function terminateProcess(pid: number): Promise<boolean> {
 	return !isProcessRunning(pid);
 }
 
+function buildDetachedConnectorArgs(
+	commandPrefixArgs: string[],
+	rawArgs: string[],
+): string[] {
+	return [...commandPrefixArgs, ...rawArgs, "-i"];
+}
+
 export function spawnDetachedConnector(
+	commandPrefixArgs: string[],
 	rawArgs: string[],
 	childEnvKey: string,
 ): number {
 	const launcher = process.argv[0];
 	const entry = process.argv[1];
-	const childArgs = entry ? [entry, ...rawArgs, "-i"] : [...rawArgs, "-i"];
+	const commandArgs = buildDetachedConnectorArgs(commandPrefixArgs, rawArgs);
+	const childArgs = entry ? [entry, ...commandArgs] : commandArgs;
 	const child = spawn(launcher, childArgs, {
 		cwd: process.cwd(),
 		detached: true,
@@ -106,6 +115,10 @@ export function spawnDetachedConnector(
 	child.unref();
 	return child.pid ?? 0;
 }
+
+export const __test__ = {
+	buildDetachedConnectorArgs,
+};
 
 export function readJsonFile<T>(path: string, fallback: T): T {
 	if (!existsSync(path)) {

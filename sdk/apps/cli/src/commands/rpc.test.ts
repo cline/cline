@@ -306,4 +306,76 @@ describe("runRpcEnsureCommand", () => {
 		expect(mockRequestRpcServerShutdown).toHaveBeenCalledWith(address);
 		expect(mockSpawn).toHaveBeenCalledTimes(1);
 	});
+
+	it("replaces an auth-gated listener instead of reusing it", async () => {
+		const dataDir = mkdtempSync(
+			path.join(os.tmpdir(), "cline-rpc-auth-gated-"),
+		);
+		tempDirs.push(dataDir);
+		process.env.CLINE_DATA_DIR = dataDir;
+		process.argv[1] = path.join(dataDir, "clite.js");
+		const address = "127.0.0.1:65432";
+
+		mockCreateServer.mockImplementation(() => {
+			let onListening: (() => void) | undefined;
+			return {
+				once: (event: string, handler: () => void) => {
+					if (event === "listening") {
+						onListening = handler;
+					}
+				},
+				listen: () => {
+					onListening?.();
+				},
+				close: (handler?: () => void) => {
+					handler?.();
+				},
+			};
+		});
+
+		mockGetRpcServerHealth
+			.mockResolvedValueOnce({
+				running: true,
+				serverId: "foreign-auth-server",
+				address,
+				startedAt: new Date().toISOString(),
+				rpcVersion: rpcPkgVersion,
+			})
+			.mockResolvedValueOnce(undefined)
+			.mockResolvedValue({
+				running: true,
+				serverId: "new-server",
+				address,
+				startedAt: new Date().toISOString(),
+				rpcVersion: rpcPkgVersion,
+			});
+
+		mockStopRuntimeSession
+			.mockRejectedValueOnce(
+				new Error(
+					"3 INVALID_ARGUMENT: Error: 401 Missing Authentication header",
+				),
+			)
+			.mockRejectedValue(new Error("session not found"));
+		mockRequestRpcServerShutdown.mockResolvedValue({ accepted: true });
+		mockSpawn.mockReturnValue({ pid: 12345, unref: vi.fn() });
+
+		const output: string[] = [];
+		const errors: string[] = [];
+		const code = await runRpcEnsureCommand(
+			{ address, json: true },
+			(text) => output.push(text ?? ""),
+			(text) => errors.push(text),
+		);
+
+		expect(errors).toEqual([]);
+		expect(code).toBe(0);
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			running: true,
+			address,
+			action: "started",
+		});
+		expect(mockRequestRpcServerShutdown).toHaveBeenCalledWith(address);
+		expect(mockSpawn).toHaveBeenCalledTimes(1);
+	});
 });

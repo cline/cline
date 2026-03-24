@@ -408,7 +408,11 @@ async function runConnectGoogleChatCommand(
 			);
 			return 0;
 		}
-		const pid = spawnDetachedConnector(rawArgs, "CLINE_GCHAT_CONNECT_CHILD");
+		const pid = spawnDetachedConnector(
+			["connect", "gchat"],
+			rawArgs,
+			"CLINE_GCHAT_CONNECT_CHILD",
+		);
 		if (!pid) {
 			io.writeErr("failed to launch Google Chat connector in background");
 			return 1;

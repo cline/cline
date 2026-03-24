@@ -7,6 +7,7 @@ import { createTool } from "../tools/create.js";
 import type { AgentConfig, AgentHooks, BasicLogger } from "../types.js";
 import type {
 	AgentTeamsRuntime,
+	TeamRunRecord,
 	TeamRuntimeState,
 	TeamTaskListItem,
 } from "./multi-agent.js";
@@ -186,6 +187,97 @@ const DEFAULT_OUTCOME_REQUIRED_SECTIONS = [
 	"interface_proposal",
 ];
 const TEAM_AWAIT_TIMEOUT_MS = 60 * 60 * 1000;
+const TEAM_RUN_MESSAGE_PREVIEW_LIMIT = 240;
+const TEAM_RUN_TEXT_PREVIEW_LIMIT = 400;
+
+export interface TeamRunResultSummary {
+	textPreview: string;
+	iterations: number;
+	finishReason: string;
+	durationMs: number;
+	usage: {
+		inputTokens: number;
+		outputTokens: number;
+		cacheReadTokens?: number;
+		cacheWriteTokens?: number;
+		totalCost?: number;
+	};
+}
+
+export interface TeamRunToolSummary {
+	id: string;
+	agentId: string;
+	taskId?: string;
+	status: TeamRunRecord["status"];
+	messagePreview: string;
+	priority: number;
+	retryCount: number;
+	maxRetries: number;
+	nextAttemptAt?: Date;
+	continueConversation?: boolean;
+	startedAt: Date;
+	endedAt?: Date;
+	leaseOwner?: string;
+	heartbeatAt?: Date;
+	lastProgressAt?: Date;
+	lastProgressMessage?: string;
+	currentActivity?: string;
+	error?: string;
+	resultSummary?: TeamRunResultSummary;
+}
+
+function truncateText(value: string, maxLength: number): string {
+	const normalized = value.replace(/\s+/g, " ").trim();
+	if (normalized.length <= maxLength) {
+		return normalized;
+	}
+	return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function summarizeRunResult(
+	run: TeamRunRecord,
+): TeamRunResultSummary | undefined {
+	if (!run.result) {
+		return undefined;
+	}
+	return {
+		textPreview: truncateText(run.result.text, TEAM_RUN_TEXT_PREVIEW_LIMIT),
+		iterations: run.result.iterations,
+		finishReason: run.result.finishReason,
+		durationMs: run.result.durationMs,
+		usage: {
+			inputTokens: run.result.usage.inputTokens,
+			outputTokens: run.result.usage.outputTokens,
+			cacheReadTokens: run.result.usage.cacheReadTokens,
+			cacheWriteTokens: run.result.usage.cacheWriteTokens,
+			totalCost: run.result.usage.totalCost,
+		},
+	};
+}
+
+function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
+	return {
+		id: run.id,
+		agentId: run.agentId,
+		taskId: run.taskId,
+		status: run.status,
+		messagePreview: truncateText(run.message, TEAM_RUN_MESSAGE_PREVIEW_LIMIT),
+		priority: run.priority,
+		retryCount: run.retryCount,
+		maxRetries: run.maxRetries,
+		nextAttemptAt: run.nextAttemptAt,
+		continueConversation: run.continueConversation,
+		startedAt: run.startedAt,
+		endedAt: run.endedAt,
+		leaseOwner: run.leaseOwner,
+		heartbeatAt: run.heartbeatAt,
+		lastProgressAt: run.lastProgressAt,
+		lastProgressMessage: run.lastProgressMessage,
+		currentActivity: run.currentActivity,
+		error: run.error,
+		resultSummary: summarizeRunResult(run),
+	};
+}
 
 const TeamCreateOutcomeInputSchema = z.object({
 	title: z.string().describe("Outcome title"),
@@ -646,23 +738,20 @@ export function createAgentTeamsTools(
 	);
 
 	tools.push(
-		createTool<TeamListRunsInput, ReturnType<AgentTeamsRuntime["listRuns"]>>({
+		createTool<TeamListRunsInput, TeamRunToolSummary[]>({
 			name: "team_list_runs",
 			description:
 				"List teammate runs started with team_run_task in async mode, including live activity/progress fields when available.",
 			inputSchema: zodToJsonSchema(TeamListRunsInputSchema),
 			execute: async (input) =>
-				options.runtime.listRuns(
-					validateWithZod(TeamListRunsInputSchema, input),
-				),
+				options.runtime
+					.listRuns(validateWithZod(TeamListRunsInputSchema, input))
+					.map(summarizeRun),
 		}) as Tool,
 	);
 
 	tools.push(
-		createTool<
-			TeamAwaitRunInput,
-			Awaited<ReturnType<AgentTeamsRuntime["awaitRun"]>>
-		>({
+		createTool<TeamAwaitRunInput, TeamRunToolSummary>({
 			name: "team_await_run",
 			description:
 				"Wait for one async run by runId. Uses a long timeout for legitimate teammate work.",
@@ -686,16 +775,13 @@ export function createAgentTeamsTools(
 						`Run "${run.id}" was interrupted${run.error ? `: ${run.error}` : ""}`,
 					);
 				}
-				return run;
+				return summarizeRun(run);
 			},
 		}) as Tool,
 	);
 
 	tools.push(
-		createTool<
-			TeamAwaitAllRunsInput,
-			Awaited<ReturnType<AgentTeamsRuntime["awaitAllRuns"]>>
-		>({
+		createTool<TeamAwaitAllRunsInput, TeamRunToolSummary[]>({
 			name: "team_await_all_runs",
 			description:
 				"Wait for all active async runs to complete. Uses a long timeout for legitimate teammate work.",
@@ -718,7 +804,7 @@ export function createAgentTeamsTools(
 						`One or more runs did not complete successfully: ${details}`,
 					);
 				}
-				return runs;
+				return runs.map(summarizeRun);
 			},
 		}) as Tool,
 	);

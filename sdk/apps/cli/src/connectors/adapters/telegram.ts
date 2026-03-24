@@ -451,7 +451,11 @@ async function runConnectTelegramCommand(
 			);
 			return 0;
 		}
-		const pid = spawnDetachedConnector(rawArgs, "CLINE_TELEGRAM_CONNECT_CHILD");
+		const pid = spawnDetachedConnector(
+			["connect", "telegram"],
+			rawArgs,
+			"CLINE_TELEGRAM_CONNECT_CHILD",
+		);
 		if (!pid) {
 			io.writeErr("failed to launch Telegram connector in background");
 			return 1;

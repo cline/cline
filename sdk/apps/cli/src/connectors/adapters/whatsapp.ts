@@ -448,7 +448,11 @@ async function runConnectWhatsAppCommand(
 			);
 			return 0;
 		}
-		const pid = spawnDetachedConnector(rawArgs, "CLINE_WHATSAPP_CONNECT_CHILD");
+		const pid = spawnDetachedConnector(
+			["connect", "whatsapp"],
+			rawArgs,
+			"CLINE_WHATSAPP_CONNECT_CHILD",
+		);
 		if (!pid) {
 			io.writeErr("failed to launch WhatsApp connector in background");
 			return 1;

@@ -7,6 +7,7 @@ import {
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@clinebot/core/node";
+import { LlmsModels } from "@clinebot/llms";
 import { RpcSessionClient } from "@clinebot/rpc";
 import type { Thread } from "chat";
 import {
@@ -30,6 +31,20 @@ import {
 	persistMergedThreadState,
 } from "./thread-bindings";
 import type { ConnectIo } from "./types";
+
+async function resolveProviderApiKeyFromEnv(
+	provider: string,
+): Promise<string | undefined> {
+	const envKeys =
+		(await LlmsModels.getProviderCollection(provider))?.provider?.env ?? [];
+	for (const envKey of envKeys) {
+		const value = process.env[envKey]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	return undefined;
+}
 
 export async function buildConnectorStartRequest(input: {
 	options: {
@@ -62,7 +77,11 @@ export async function buildConnectorStartRequest(input: {
 		provider,
 		selectedProviderSettings,
 	);
-	let apiKey = input.options.apiKey?.trim() || persistedApiKey || "";
+	let apiKey =
+		input.options.apiKey?.trim() ||
+		persistedApiKey ||
+		(await resolveProviderApiKeyFromEnv(provider)) ||
+		"";
 
 	if (!apiKey && isOAuthProvider(provider)) {
 		const oauthResult = await ensureOAuthProviderApiKey({

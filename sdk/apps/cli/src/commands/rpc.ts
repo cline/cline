@@ -95,6 +95,13 @@ function isUnimplementedError(error: unknown): boolean {
 	return message.toUpperCase().includes("UNIMPLEMENTED");
 }
 
+function isAuthenticationError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return /missing authentication header|401\b|unauthenticated|unauthorized/i.test(
+		message,
+	);
+}
+
 async function hasRuntimeMethods(address: string): Promise<boolean> {
 	const client = new RpcSessionClient({ address });
 	try {
@@ -102,13 +109,13 @@ async function hasRuntimeMethods(address: string): Promise<boolean> {
 		try {
 			await client.stopRuntimeSession("__rpc_probe__");
 		} catch (error) {
-			if (isUnimplementedError(error)) {
+			if (isUnimplementedError(error) || isAuthenticationError(error)) {
 				return false;
 			}
 		}
 		return true;
 	} catch (error) {
-		return !isUnimplementedError(error);
+		return !isUnimplementedError(error) && !isAuthenticationError(error);
 	} finally {
 		client.close();
 	}
