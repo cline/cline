@@ -216,7 +216,7 @@ export class BedrockHandler extends BaseHandler {
 
 					yield {
 						type: "usage",
-						inputTokens: inputTokens - cacheReadTokens,
+						inputTokens,
 						outputTokens,
 						thoughtsTokenCount,
 						cacheReadTokens,
@@ -245,7 +245,7 @@ export class BedrockHandler extends BaseHandler {
 
 			yield {
 				type: "usage",
-				inputTokens: inputTokens - cacheReadTokens,
+				inputTokens,
 				outputTokens,
 				thoughtsTokenCount,
 				cacheReadTokens,

@@ -41,6 +41,7 @@ export type EmitAiSdkStreamOptions = {
 		inputTokens: number,
 		outputTokens: number,
 		cacheReadTokens: number,
+		cacheWriteTokens?: number,
 	) => number | undefined;
 	reasoningTypes?: string[];
 	enableToolCalls?: boolean;
@@ -168,10 +169,7 @@ export async function* emitAiSdkStream(
 
 				yield {
 					type: "usage",
-					inputTokens: Math.max(
-						0,
-						usageMetrics.inputTokens - usageMetrics.cacheReadTokens,
-					),
+					inputTokens: usageMetrics.inputTokens,
 					outputTokens: usageMetrics.outputTokens,
 					thoughtsTokenCount: usageMetrics.thoughtsTokenCount,
 					cacheReadTokens: usageMetrics.cacheReadTokens,
@@ -180,6 +178,7 @@ export async function* emitAiSdkStream(
 						usageMetrics.inputTokens,
 						usageMetrics.outputTokens,
 						usageMetrics.cacheReadTokens,
+						usageMetrics.cacheWriteTokens,
 					),
 					id: responseId,
 				};
@@ -205,10 +204,7 @@ export async function* emitAiSdkStream(
 		const usageMetrics = resolveUsageMetrics(usage);
 		yield {
 			type: "usage",
-			inputTokens: Math.max(
-				0,
-				usageMetrics.inputTokens - usageMetrics.cacheReadTokens,
-			),
+			inputTokens: usageMetrics.inputTokens,
 			outputTokens: usageMetrics.outputTokens,
 			thoughtsTokenCount: usageMetrics.thoughtsTokenCount,
 			cacheReadTokens: usageMetrics.cacheReadTokens,
@@ -217,6 +213,7 @@ export async function* emitAiSdkStream(
 				usageMetrics.inputTokens,
 				usageMetrics.outputTokens,
 				usageMetrics.cacheReadTokens,
+				usageMetrics.cacheWriteTokens,
 			),
 			id: responseId,
 		};

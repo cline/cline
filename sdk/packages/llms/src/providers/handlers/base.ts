@@ -10,6 +10,7 @@ import type {
 	ApiStream,
 	ApiStreamUsageChunk,
 	HandlerModelInfo,
+	ModelInfo,
 	ProviderConfig,
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
@@ -146,10 +147,26 @@ export abstract class BaseHandler implements ApiHandler {
 		});
 	}
 
+	protected supportsPromptCache(modelInfo?: ModelInfo): boolean {
+		const resolvedModelInfo =
+			modelInfo ??
+			this.config.modelInfo ??
+			this.config.knownModels?.[this.config.modelId];
+		const pricing = resolvedModelInfo?.pricing;
+
+		return (
+			resolvedModelInfo?.capabilities?.includes("prompt-cache") === true ||
+			this.config.capabilities?.includes("prompt-cache") === true ||
+			typeof pricing?.cacheRead === "number" ||
+			typeof pricing?.cacheWrite === "number"
+		);
+	}
+
 	protected calculateCost(
 		inputTokens: number,
 		outputTokens: number,
 		cacheReadTokens = 0,
+		cacheWriteTokens = 0,
 	): number | undefined {
 		const pricing = (
 			this.config.modelInfo ?? this.config.knownModels?.[this.config.modelId]
@@ -159,10 +176,14 @@ export abstract class BaseHandler implements ApiHandler {
 		}
 
 		return (
-			((inputTokens - cacheReadTokens) / 1_000_000) * pricing.input +
+			(inputTokens / 1_000_000) * pricing.input +
 			(outputTokens / 1_000_000) * pricing.output +
 			(cacheReadTokens > 0
 				? (cacheReadTokens / 1_000_000) * (pricing.cacheRead ?? 0)
+				: 0) +
+			(cacheWriteTokens > 0
+				? (cacheWriteTokens / 1_000_000) *
+					(pricing.cacheWrite ?? pricing.input * 1.25)
 				: 0)
 		);
 	}

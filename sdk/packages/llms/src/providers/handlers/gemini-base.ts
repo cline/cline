@@ -18,7 +18,6 @@ import {
 import {
 	type ApiStream,
 	type HandlerModelInfo,
-	type ModelInfo,
 	type ProviderConfig,
 	supportsModelThinking,
 } from "../types";
@@ -258,7 +257,6 @@ export class GeminiHandler extends BaseHandler {
 
 			// Yield final usage
 			const totalCost = this.calculateGeminiCost(
-				info,
 				promptTokens,
 				outputTokens,
 				thoughtsTokenCount,
@@ -267,7 +265,7 @@ export class GeminiHandler extends BaseHandler {
 
 			yield {
 				type: "usage",
-				inputTokens: promptTokens - cacheReadTokens,
+				inputTokens: promptTokens,
 				outputTokens,
 				thoughtsTokenCount,
 				cacheReadTokens,
@@ -288,27 +286,16 @@ export class GeminiHandler extends BaseHandler {
 	}
 
 	private calculateGeminiCost(
-		info: ModelInfo,
 		inputTokens: number,
 		outputTokens: number,
 		thoughtsTokenCount: number,
 		cacheReadTokens: number,
 	): number | undefined {
-		const pricing = info.pricing;
-		if (!pricing?.input || !pricing?.output) {
-			return undefined;
-		}
-
-		const uncachedInputTokens = inputTokens - cacheReadTokens;
-		const inputCost = pricing.input * (uncachedInputTokens / 1_000_000);
-		const outputCost =
-			pricing.output * ((outputTokens + thoughtsTokenCount) / 1_000_000);
-		const cacheReadCost =
-			cacheReadTokens > 0
-				? (pricing.cacheRead ?? 0) * (cacheReadTokens / 1_000_000)
-				: 0;
-
-		return inputCost + outputCost + cacheReadCost;
+		return this.calculateCost(
+			inputTokens,
+			outputTokens + thoughtsTokenCount,
+			cacheReadTokens,
+		);
 	}
 }
 

@@ -86,7 +86,17 @@ function printRunStats(
 			parts.push(`${((performance.now() - startTime) / 1000).toFixed(2)}s`);
 		}
 		if (config.showUsage) {
-			parts.push(`${usage.inputTokens + usage.outputTokens} tokens`);
+			const tokenParts: string[] = [
+				`${usage.inputTokens} in`,
+				`${usage.outputTokens} out`,
+			];
+			if (usage.cacheReadTokens) {
+				tokenParts.push(`${usage.cacheReadTokens} cache read`);
+			}
+			if (usage.cacheWriteTokens) {
+				tokenParts.push(`${usage.cacheWriteTokens} cache write`);
+			}
+			parts.push(tokenParts.join(", "));
 			if (typeof usage.totalCost === "number") {
 				parts.push(`${formatUsd(usage.totalCost)} est. cost`);
 			}

@@ -210,4 +210,50 @@ describe("OpenAIResponsesHandler", () => {
 			},
 		});
 	});
+
+	it("keeps cached input tokens separate in usage chunks", () => {
+		const handler = new TestOpenAIResponsesHandler({
+			providerId: "openai-native",
+			modelId: "gpt-5.4",
+			apiKey: "test-key",
+			baseUrl: "https://example.com",
+			modelInfo: {
+				id: "gpt-5.4",
+				pricing: {
+					input: 1,
+					output: 2,
+					cacheRead: 0.5,
+				},
+			},
+		});
+
+		const chunks = handler.processChunkForTest({
+			type: "response.completed",
+			response: {
+				id: "resp_usage",
+				usage: {
+					input_tokens: 100,
+					output_tokens: 40,
+					input_tokens_details: {
+						cached_tokens: 25,
+					},
+					output_tokens_details: {
+						reasoning_tokens: 10,
+					},
+				},
+			},
+		});
+
+		expect(chunks[0]).toMatchObject({
+			type: "usage",
+			inputTokens: 100,
+			outputTokens: 40,
+			cacheReadTokens: 25,
+			cacheWriteTokens: 0,
+		});
+		expect(chunks[0]?.type).toBe("usage");
+		if (chunks[0]?.type === "usage") {
+			expect(chunks[0].totalCost).toBeCloseTo(0.0001925, 10);
+		}
+	});
 });

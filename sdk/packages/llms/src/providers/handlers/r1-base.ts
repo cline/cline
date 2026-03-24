@@ -255,19 +255,18 @@ export class R1BaseHandler extends BaseHandler {
 		const cacheReadTokens = r1Usage.prompt_cache_hit_tokens ?? 0;
 		const cacheWriteTokens = r1Usage.prompt_cache_miss_tokens ?? 0;
 
-		// Calculate non-cached input tokens (will always be 0 for DeepSeek since input = read + write)
-		const nonCachedInputTokens = Math.max(
-			0,
-			inputTokens - cacheReadTokens - cacheWriteTokens,
-		);
-
 		yield {
 			type: "usage",
-			inputTokens: nonCachedInputTokens,
+			inputTokens,
 			outputTokens,
 			cacheReadTokens,
 			cacheWriteTokens,
-			totalCost: this.calculateCost(inputTokens, outputTokens, cacheReadTokens),
+			totalCost: this.calculateCost(
+				inputTokens,
+				outputTokens,
+				cacheReadTokens,
+				cacheWriteTokens,
+			),
 			id: responseId,
 		};
 	}

@@ -15,8 +15,14 @@ class TestHandler extends BaseHandler {
 		inputTokens: number,
 		outputTokens: number,
 		cacheReadTokens = 0,
+		cacheWriteTokens = 0,
 	): number | undefined {
-		return this.calculateCost(inputTokens, outputTokens, cacheReadTokens);
+		return this.calculateCost(
+			inputTokens,
+			outputTokens,
+			cacheReadTokens,
+			cacheWriteTokens,
+		);
 	}
 
 	public exposeAbortSignal(): AbortSignal {
@@ -45,7 +51,7 @@ describe("BaseHandler.calculateCost", () => {
 
 		const cost = handler.computeCost(1_000_000, 1_000_000, 100_000);
 
-		expect(cost).toBeCloseTo(17.73, 6);
+		expect(cost).toBeCloseTo(18.03, 6);
 	});
 });
 

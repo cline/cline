@@ -55,7 +55,7 @@ export interface ApiStreamReasoningChunk {
  */
 export interface ApiStreamUsageChunk {
 	type: "usage";
-	/** Number of input tokens (excluding cached) */
+	/** Total number of input tokens reported by the provider */
 	inputTokens: number;
 	/** Number of output tokens */
 	outputTokens: number;

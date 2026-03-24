@@ -115,6 +115,39 @@ describe("Community SDK handlers", () => {
 			expect(usageChunk?.outputTokens).toBe(3);
 		});
 
+		it("keeps cached input tokens separate from total input tokens", async () => {
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([
+					{
+						type: "finish",
+						usage: { inputTokens: 10, outputTokens: 3, cachedInputTokens: 4 },
+					},
+				]),
+			});
+
+			const handler = new ClaudeCodeHandler({
+				providerId: "claude-code",
+				modelId: "sonnet",
+			});
+
+			const chunks: ApiStreamChunk[] = [];
+			for await (const chunk of handler.createMessage("System", [
+				{ role: "user", content: "Hi" },
+			])) {
+				chunks.push(chunk);
+			}
+
+			const usageChunk = chunks.find(
+				(chunk): chunk is Extract<ApiStreamChunk, { type: "usage" }> =>
+					chunk.type === "usage",
+			);
+			expect(usageChunk).toMatchObject({
+				inputTokens: 10,
+				outputTokens: 3,
+				cacheReadTokens: 4,
+			});
+		});
+
 		it("uses a fallback model id when model is missing", () => {
 			const handler = new ClaudeCodeHandler({
 				providerId: "claude-code",

@@ -32,12 +32,24 @@ export function convertToAnthropicMessages(
 	messages: Message[],
 	enableCaching = false,
 ): AnthropicMessage[] {
+	const userMessageIndices = messages.reduce<number[]>(
+		(indices, message, index) => {
+			if (message.role === "user") {
+				indices.push(index);
+			}
+			return indices;
+		},
+		[],
+	);
+	const cacheableMessageIndices = enableCaching
+		? new Set(userMessageIndices.slice(-2))
+		: new Set<number>();
 	const result: AnthropicMessage[] = [];
 
-	for (const message of messages) {
+	for (const [index, message] of messages.entries()) {
 		const converted = convertMessage(
 			message,
-			enableCaching && messages.indexOf(message) === messages.length - 1,
+			cacheableMessageIndices.has(index),
 		);
 		if (converted) {
 			result.push(converted);

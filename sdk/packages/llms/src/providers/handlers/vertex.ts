@@ -189,7 +189,7 @@ export class VertexHandler extends BaseHandler {
 		if (!isClaudeModel(model.id)) {
 			return this.ensureGeminiHandler().getMessages(systemPrompt, messages);
 		}
-		const supportsPromptCache = hasModelCapability(model.info, "prompt-cache");
+		const supportsPromptCache = this.supportsPromptCache(model.info);
 		return convertToAnthropicMessages(messages, supportsPromptCache);
 	}
 
@@ -226,7 +226,7 @@ export class VertexHandler extends BaseHandler {
 		const budgetTokens = this.config.thinkingBudgetTokens ?? 0;
 		const reasoningOn =
 			hasModelCapability(model.info, "reasoning") && budgetTokens > 0;
-		const promptCacheOn = hasModelCapability(model.info, "prompt-cache");
+		const promptCacheOn = this.supportsPromptCache(model.info);
 
 		const providerOptions: Record<string, unknown> = {};
 		if (reasoningOn) {
@@ -251,8 +251,18 @@ export class VertexHandler extends BaseHandler {
 		yield* emitAiSdkStream(stream, {
 			responseId,
 			errorMessage: "Vertex Anthropic stream failed",
-			calculateCost: (inputTokens, outputTokens, cacheReadTokens) =>
-				this.calculateCost(inputTokens, outputTokens, cacheReadTokens),
+			calculateCost: (
+				inputTokens,
+				outputTokens,
+				cacheReadTokens,
+				cacheWriteTokens,
+			) =>
+				this.calculateCost(
+					inputTokens,
+					outputTokens,
+					cacheReadTokens,
+					cacheWriteTokens,
+				),
 			reasoningTypes: ["reasoning-delta"],
 			enableToolCalls: true,
 			toolCallArgsOrder: ["input", "args"],

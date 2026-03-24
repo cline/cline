@@ -285,8 +285,31 @@ describe("format conversion", () => {
 		];
 
 		const anthropic = convertToAnthropicMessages(messages, true) as any[];
+		expect(anthropic[0].content[0].cache_control).toEqual({
+			type: "ephemeral",
+		});
 		expect(anthropic[1].content[0].type).toBe("thinking");
 		expect(anthropic[1].content[0].signature).toBe("anthropic-sig");
+	});
+
+	it("applies anthropic cache markers to the last two user messages", () => {
+		const messages: Message[] = [
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "intermediate response" },
+			{ role: "user", content: "second prompt" },
+			{ role: "assistant", content: "another response" },
+			{ role: "user", content: "third prompt" },
+		];
+
+		const anthropic = convertToAnthropicMessages(messages, true) as any[];
+
+		expect(anthropic[0].content[0].cache_control).toBeUndefined();
+		expect(anthropic[2].content[0].cache_control).toEqual({
+			type: "ephemeral",
+		});
+		expect(anthropic[4].content[0].cache_control).toEqual({
+			type: "ephemeral",
+		});
 	});
 
 	it("normalizes array-shaped tool_use input for anthropic replay", () => {

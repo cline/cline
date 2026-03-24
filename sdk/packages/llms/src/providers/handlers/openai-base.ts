@@ -22,7 +22,6 @@ import type {
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
-import { hasModelCapability } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
@@ -108,9 +107,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 		messages: Message[],
 	): OpenAI.Chat.ChatCompletionMessageParam[] {
 		const model = this.getModel();
-		const supportsPromptCache =
-			hasModelCapability(model.info, "prompt-cache") ||
-			this.config.capabilities?.includes("prompt-cache") === true;
+		const supportsPromptCache = this.supportsPromptCache(model.info);
 		const systemMessage = supportsPromptCache
 			? ({
 					role: "system",
@@ -156,7 +153,8 @@ export class OpenAIBaseHandler extends BaseHandler {
 		const openAiMessages = this.getMessages(systemPrompt, messages);
 
 		// Build request options
-		const requestOptions: OpenAI.ChatCompletionCreateParamsStreaming = {
+		const requestOptions: Record<string, unknown> &
+			OpenAI.ChatCompletionCreateParamsStreaming = {
 			model: modelId,
 			messages: openAiMessages,
 			stream: true,
@@ -166,6 +164,17 @@ export class OpenAIBaseHandler extends BaseHandler {
 				strict: this.config.providerId !== "openrouter",
 			}),
 		};
+
+		// Add top-level cache_control for OpenRouter with Anthropic models.
+		// This enables automatic caching where the cache breakpoint advances
+		// as the conversation grows, rather than relying on explicit per-block
+		// breakpoints which are limited to 4.
+		if (
+			this.config.providerId === "openrouter" &&
+			modelId.startsWith("anthropic/")
+		) {
+			requestOptions.cache_control = { type: "ephemeral" };
+		}
 
 		// Add max tokens if configured
 		const maxTokens = modelInfo.maxTokens ?? this.config.maxOutputTokens;
@@ -286,15 +295,16 @@ export class OpenAIBaseHandler extends BaseHandler {
 					cached_tokens?: number;
 					cache_write_tokens?: number;
 				};
-				prompt_cache_miss_tokens?: number;
 				cache_creation_input_tokens?: number;
 				cache_read_input_tokens?: number;
 			};
 			const cacheReadTokens =
-				usageWithCache.prompt_tokens_details?.cached_tokens ?? 0;
+				usageWithCache.prompt_tokens_details?.cached_tokens ??
+				usageWithCache.cache_read_input_tokens ??
+				0;
 			const cacheWriteTokens =
 				usageWithCache.prompt_tokens_details?.cache_write_tokens ??
-				usageWithCache.prompt_cache_miss_tokens ??
+				usageWithCache.cache_creation_input_tokens ??
 				0;
 
 			yield {
@@ -307,6 +317,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 					inputTokens,
 					outputTokens,
 					cacheReadTokens,
+					cacheWriteTokens,
 				),
 				id: responseId,
 			};

@@ -17,7 +17,6 @@ import {
 import {
 	type ApiStream,
 	type HandlerModelInfo,
-	hasModelCapability,
 	type ProviderConfig,
 	supportsModelThinking,
 } from "../types";
@@ -76,10 +75,7 @@ export class AnthropicHandler extends BaseHandler {
 		_systemPrompt: string,
 		messages: Message[],
 	): Anthropic.MessageParam[] {
-		const supportsPromptCache = hasModelCapability(
-			this.getModel().info,
-			"prompt-cache",
-		);
+		const supportsPromptCache = this.supportsPromptCache(this.getModel().info);
 		return convertToAnthropicMessages(
 			messages,
 			supportsPromptCache,
@@ -113,7 +109,7 @@ export class AnthropicHandler extends BaseHandler {
 		const budgetTokens =
 			thinkingSupported && requestedBudget > 0 ? requestedBudget : 0;
 		const nativeToolsOn = tools && tools.length > 0;
-		const supportsPromptCache = hasModelCapability(model.info, "prompt-cache");
+		const supportsPromptCache = this.supportsPromptCache(model.info);
 		const reasoningOn = thinkingSupported && budgetTokens > 0;
 		const debugThinking = isThinkingDebugEnabled();
 		const debugChunkCounts: Record<string, number> = {};
@@ -139,30 +135,34 @@ export class AnthropicHandler extends BaseHandler {
 		const requestOptions = { signal: abortSignal };
 
 		// Create the request
+		// Use top-level automatic caching so the entire prefix (system +
+		// messages) is cached and the breakpoint advances each turn.
+		const createParams: Record<string, unknown> &
+			Anthropic.MessageCreateParamsStreaming = {
+			model: model.id,
+			thinking: reasoningOn
+				? { type: "enabled", budget_tokens: budgetTokens }
+				: undefined,
+			max_tokens:
+				model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000,
+			temperature: reasoningOn ? undefined : 0,
+			system: [
+				supportsPromptCache
+					? {
+							text: systemPrompt,
+							type: "text",
+							cache_control: { type: "ephemeral" },
+						}
+					: { text: systemPrompt, type: "text" },
+			],
+			messages: anthropicMessages as Anthropic.MessageParam[],
+			stream: true,
+			tools: anthropicTools,
+			tool_choice: nativeToolsOn && !reasoningOn ? { type: "auto" } : undefined,
+		};
+
 		const stream = await client.messages.create(
-			{
-				model: model.id,
-				thinking: reasoningOn
-					? { type: "enabled", budget_tokens: budgetTokens }
-					: undefined,
-				max_tokens:
-					model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000,
-				temperature: reasoningOn ? undefined : 0,
-				system: supportsPromptCache
-					? [
-							{
-								text: systemPrompt,
-								type: "text",
-								cache_control: { type: "ephemeral" },
-							},
-						]
-					: [{ text: systemPrompt, type: "text" }],
-				messages: anthropicMessages as Anthropic.MessageParam[],
-				stream: true,
-				tools: anthropicTools,
-				tool_choice:
-					nativeToolsOn && !reasoningOn ? { type: "auto" } : undefined,
-			},
+			createParams as Anthropic.MessageCreateParamsStreaming,
 			requestOptions,
 		);
 
@@ -244,6 +244,7 @@ export class AnthropicHandler extends BaseHandler {
 						usageSnapshot.inputTokens,
 						usageSnapshot.outputTokens,
 						usageSnapshot.cacheReadTokens,
+						usageSnapshot.cacheWriteTokens,
 					),
 					id: responseId,
 				};
@@ -263,6 +264,7 @@ export class AnthropicHandler extends BaseHandler {
 						usageSnapshot.inputTokens,
 						usageSnapshot.outputTokens,
 						usageSnapshot.cacheReadTokens,
+						usageSnapshot.cacheWriteTokens,
 					),
 					id: responseId,
 				};

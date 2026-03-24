@@ -565,23 +565,19 @@ export class OpenAIResponsesHandler extends BaseHandler {
 					const inputTokens = usage.input_tokens || 0;
 					const outputTokens = usage.output_tokens || 0;
 					const cacheReadTokens =
-						usage.output_tokens_details?.reasoning_tokens || 0;
-					const cacheWriteTokens =
 						usage.input_tokens_details?.cached_tokens || 0;
+					const cacheWriteTokens = 0;
 
 					const totalCost = this.calculateCost(
 						inputTokens,
 						outputTokens,
 						cacheReadTokens,
-					);
-					const nonCachedInputTokens = Math.max(
-						0,
-						inputTokens - cacheReadTokens - cacheWriteTokens,
+						cacheWriteTokens,
 					);
 
 					yield {
 						type: "usage",
-						inputTokens: nonCachedInputTokens,
+						inputTokens,
 						outputTokens,
 						cacheWriteTokens,
 						cacheReadTokens,

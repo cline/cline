@@ -185,8 +185,18 @@ export abstract class AiSdkProviderHandler extends BaseHandler {
 		yield* emitAiSdkStream(stream, {
 			responseId,
 			errorMessage: this.getStreamErrorMessage(),
-			calculateCost: (inputTokens, outputTokens, cacheReadTokens) =>
-				this.calculateCost(inputTokens, outputTokens, cacheReadTokens),
+			calculateCost: (
+				inputTokens,
+				outputTokens,
+				cacheReadTokens,
+				cacheWriteTokens,
+			) =>
+				this.calculateCost(
+					inputTokens,
+					outputTokens,
+					cacheReadTokens,
+					cacheWriteTokens,
+				),
 			...this.getEmitStreamOptions(),
 		});
 	}
