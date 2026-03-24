@@ -181,7 +181,7 @@ test.describe("cline --json (headless yolo mode)", () => {
 		terminal,
 	}) => {
 		// --json implies headless yolo; unauthenticated should produce a JSON error line
-		await expectVisible(terminal, /"Not authenticated"/);
+		await expectVisible(terminal, /Missing API key/i);
 	});
 });
 
