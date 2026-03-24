@@ -18,6 +18,8 @@ interface UserMessageProps {
 const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, sendMessageFromChatRow }) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text || "")
+	const [editedImages, setEditedImages] = useState<string[]>(images || [])
+	const [editedFiles, setEditedFiles] = useState<string[]>(files || [])
 	const textAreaRef = useRef<HTMLTextAreaElement>(null)
 	const { checkpointManagerErrorMessage } = useExtensionState()
 
@@ -44,7 +46,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 		const delay = type === "task" ? 500 : 1000 // Delay for task and workspace restore
 		setIsEditing(false)
 
-		if (text === editedText) {
+		if (text === editedText && images?.length === editedImages.length && files?.length === editedFiles.length) {
 			return
 		}
 
@@ -58,7 +60,7 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			)
 
 			setTimeout(() => {
-				sendMessageFromChatRow?.(editedText, images || [], files || [])
+				sendMessageFromChatRow?.(editedText, editedImages, editedFiles)
 			}, delay)
 		} catch (err) {
 			console.error("Checkpoint restore error:", err)
@@ -72,13 +74,17 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 			return
 		}
 
-		// Otherwise, close edit mode
+		// Otherwise, close edit mode and reset attachments
 		setIsEditing(false)
+		setEditedImages(images || [])
+		setEditedFiles(files || [])
 	}
 
 	const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
 		if (e.key === "Escape") {
 			setIsEditing(false)
+			setEditedImages(images || [])
+			setEditedFiles(files || [])
 		} else if (e.key === "Enter" && e.metaKey && !checkpointManagerErrorMessage) {
 			handleRestoreWorkspace("taskAndWorkspace")
 		} else if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing && e.keyCode !== 229) {
@@ -123,6 +129,17 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						}}
 						value={editedText}
 					/>
+					{(editedImages.length > 0 || editedFiles.length > 0) && (
+						<div onMouseDown={(e) => e.preventDefault()}>
+							<Thumbnails
+								files={editedFiles}
+								images={editedImages}
+								setFiles={setEditedFiles}
+								setImages={setEditedImages}
+								style={{ marginTop: "8px" }}
+							/>
+						</div>
+					)}
 					<div style={{ display: "flex", gap: "8px", marginTop: "8px", justifyContent: "flex-end" }}>
 						{!checkpointManagerErrorMessage && (
 							<RestoreButton
@@ -145,12 +162,14 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 					</div>
 				</>
 			) : (
-				<span className="ph-no-capture text-sm" style={{ display: "block" }}>
-					{highlightedText}
-				</span>
-			)}
-			{((images && images.length > 0) || (files && files.length > 0)) && (
-				<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "8px" }} />
+				<>
+					<span className="ph-no-capture text-sm" style={{ display: "block" }}>
+						{highlightedText}
+					</span>
+					{((images && images.length > 0) || (files && files.length > 0)) && (
+						<Thumbnails files={files ?? []} images={images ?? []} style={{ marginTop: "8px" }} />
+					)}
+				</>
 			)}
 		</div>
 	)
