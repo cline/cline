@@ -22,36 +22,3 @@ test.describe("cline config --help", () => {
 		await expectVisible(terminal, ["Usage:", "--config"]);
 	});
 });
-
-test.describe("cline config (default config)", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["config"] },
-		...TERMINAL_WIDE,
-		env: clineEnv("default"),
-	});
-
-	test.skip("shows interactive config view for default config", async ({
-		terminal,
-	}) => {
-		// Config view should display provider/model settings from the default config
-		await expectVisible(terminal, /config|settings|provider|model/i);
-	});
-});
-
-test.describe("cline config --config (claude-sonnet-4.6)", () => {
-	test.use({
-		program: {
-			file: CLINE_BIN,
-			args: ["config", "--config", "configs/claude-sonnet-4.6"],
-		},
-		...TERMINAL_WIDE,
-		env: clineEnv("claude-sonnet-4.6"),
-	});
-
-	test.skip("shows interactive config view for claude-sonnet-4.6 config", async ({
-		terminal,
-	}) => {
-		// Different config dir should show different configuration
-		await expectVisible(terminal, /config|settings|provider|model/i);
-	});
-});
