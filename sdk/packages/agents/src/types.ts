@@ -793,6 +793,11 @@ export interface AgentConfig {
 	 * When omitted, attached files will be represented as loader errors.
 	 */
 	userFileContentLoader?: (path: string) => Promise<string>;
+	/**
+	 * Optional metadata merged into every tool execution context.
+	 * Hosts can use this to thread runtime-specific identifiers such as session IDs.
+	 */
+	toolContextMetadata?: Record<string, unknown>;
 
 	// -------------------------------------------------------------------------
 	// Reasoning Settings (for capable models)
@@ -918,6 +923,7 @@ export const AgentConfigSchema = z.object({
 		.input([z.string()])
 		.output(z.promise(z.string()))
 		.optional(),
+	toolContextMetadata: z.record(z.string(), z.unknown()).optional(),
 	reminderAfterIterations: z.number().nonnegative().default(6),
 	reminderText: z.string().optional(),
 

@@ -1,6 +1,9 @@
-import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
+import { existsSync } from "node:fs";
+import { builtinModules, createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { AgentConfig } from "@clinebot/agents";
+import createJiti from "jiti";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 type PluginLike = {
@@ -15,6 +18,12 @@ export interface LoadAgentPluginFromPathOptions {
 	exportName?: string;
 	cwd?: string;
 }
+
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const WORKSPACE_ALIASES = collectWorkspaceAliases(MODULE_DIR);
+const BUILTIN_MODULES = new Set(
+	builtinModules.flatMap((id) => [id, id.replace(/^node:/, "")]),
+);
 
 function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
@@ -77,14 +86,70 @@ function validatePluginExport(
 	validatePluginManifest(plugin as PluginLike, absolutePath);
 }
 
+function collectWorkspaceAliases(startDir: string): Record<string, string> {
+	const root = resolve(startDir, "..", "..", "..", "..");
+	const aliases: Record<string, string> = {};
+	const candidates: Record<string, string> = {
+		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
+		"@clinebot/core": resolve(root, "packages/core/src/index.node.ts"),
+		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
+		"@clinebot/rpc": resolve(root, "packages/rpc/src/index.ts"),
+		"@clinebot/scheduler": resolve(root, "packages/scheduler/src/index.ts"),
+		"@clinebot/shared": resolve(root, "packages/shared/src/index.ts"),
+		"@clinebot/shared/storage": resolve(
+			root,
+			"packages/shared/src/storage/index.ts",
+		),
+		"@clinebot/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
+	};
+	for (const [key, value] of Object.entries(candidates)) {
+		if (existsSync(value)) {
+			aliases[key] = value;
+		}
+	}
+	return aliases;
+}
+
+function collectPluginImportAliases(
+	pluginPath: string,
+): Record<string, string> {
+	const pluginRequire = createRequire(pluginPath);
+	const aliases: Record<string, string> = {};
+	for (const [specifier, sourcePath] of Object.entries(WORKSPACE_ALIASES)) {
+		try {
+			pluginRequire.resolve(specifier);
+			continue;
+		} catch {
+			// Use the workspace source only when the plugin package does not provide
+			// its own installed SDK dependency.
+		}
+		aliases[specifier] = sourcePath;
+	}
+	return aliases;
+}
+
+async function importPluginModule(
+	absolutePath: string,
+): Promise<Record<string, unknown>> {
+	const aliases = collectPluginImportAliases(absolutePath);
+	const jiti = createJiti(absolutePath, {
+		alias: aliases,
+		cache: false,
+		requireCache: false,
+		esmResolve: true,
+		interopDefault: false,
+		nativeModules: [...BUILTIN_MODULES],
+		transformModules: Object.keys(aliases),
+	});
+	return (await jiti.import(absolutePath, {})) as Record<string, unknown>;
+}
+
 export async function loadAgentPluginFromPath(
 	pluginPath: string,
 	options: LoadAgentPluginFromPathOptions = {},
 ): Promise<AgentPlugin> {
 	const absolutePath = resolve(options.cwd ?? process.cwd(), pluginPath);
-	const moduleExports = (await import(
-		pathToFileURL(absolutePath).href
-	)) as Record<string, unknown>;
+	const moduleExports = await importPluginModule(absolutePath);
 	const exportName = options.exportName ?? "plugin";
 	const plugin = (moduleExports.default ??
 		moduleExports[exportName]) as unknown;

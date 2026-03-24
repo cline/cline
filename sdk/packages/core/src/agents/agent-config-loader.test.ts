@@ -139,6 +139,7 @@ name: Reader
 description: Reads files
 modelId: claude-sonnet-4-6
 tools: read_files
+skills: commit, review
 ---
 Be precise.`);
 
@@ -149,6 +150,7 @@ Be precise.`);
 		expect(partial.modelId).toBe("claude-sonnet-4-6");
 		expect(partial.systemPrompt).toBe("Be precise.");
 		expect(partial.tools).toEqual([readFiles]);
+		expect(partial.skills).toEqual(["commit", "review"]);
 	});
 
 	it("throws when tool overrides are configured without available tools", () => {

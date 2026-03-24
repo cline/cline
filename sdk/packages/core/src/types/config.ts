@@ -76,4 +76,9 @@ export interface CoreSessionConfig
 		| Promise<ConsecutiveMistakeLimitDecision>
 		| ConsecutiveMistakeLimitDecision;
 	toolRoutingRules?: ToolRoutingRule[];
+	/**
+	 * Optional skill allowlist for the `skills` tool. When provided, only these
+	 * skills are surfaced in tool metadata and invocable by name.
+	 */
+	skills?: string[];
 }

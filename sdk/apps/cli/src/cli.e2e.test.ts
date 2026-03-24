@@ -214,7 +214,7 @@ describe("cli e2e", () => {
 		});
 		expect(result.status).toBe(1);
 		expect(asText(result.stderr)).toContain(
-			'list requires one of: workflows, rules, skills, agents, hooks, mcp (got "unknown-target")',
+			'list requires one of: workflows, rules, skills, agents, plugins, hooks, mcp (got "unknown-target")',
 		);
 	});
 
@@ -577,6 +577,95 @@ Break work into clear steps.`,
 		expect(
 			parsed.some(
 				(agent) => agent.path === path.join(docsAgentsDir, "reviewer.yaml"),
+			),
+		).toBe(true);
+	});
+
+	it("lists discovered plugins", () => {
+		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
+		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));
+		const workspace = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-workspace-"));
+		tempDirs.push(homeDir, dataDir, workspace);
+		const workspacePluginsDir = path.join(workspace, ".clinerules", "plugins");
+		const userPluginsDir = path.join(homeDir, ".cline", "plugins");
+		const documentsPluginsDir = path.join(homeDir, "Documents", "Plugins");
+		mkdirSync(workspacePluginsDir, { recursive: true });
+		mkdirSync(userPluginsDir, { recursive: true });
+		mkdirSync(documentsPluginsDir, { recursive: true });
+		writeFileSync(
+			path.join(workspacePluginsDir, "workspace-plugin.ts"),
+			"export default { name: 'workspace-plugin', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		writeFileSync(
+			path.join(userPluginsDir, "user-plugin.mjs"),
+			"export default { name: 'user-plugin', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		writeFileSync(
+			path.join(documentsPluginsDir, "docs-plugin.cts"),
+			"export default { name: 'docs-plugin', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+
+		const textResult = runCli(["list", "plugins"], {
+			cwd: workspace,
+			env: {
+				...createIsolatedEnv(),
+				HOME: homeDir,
+				CLINE_DATA_DIR: dataDir,
+			},
+		});
+		expect(textResult.status).toBe(0);
+		expect(asText(textResult.stdout)).toContain("Discovered plugins:");
+		expect(asText(textResult.stdout)).toContain("workspace-plugin");
+		expect(asText(textResult.stdout)).toContain("user-plugin");
+		expect(asText(textResult.stdout)).toContain("docs-plugin");
+		expect(asText(textResult.stdout)).toContain(
+			path.join(workspacePluginsDir, "workspace-plugin.ts"),
+		);
+		expect(asText(textResult.stdout)).toContain(
+			path.join(userPluginsDir, "user-plugin.mjs"),
+		);
+		expect(asText(textResult.stdout)).toContain(
+			path.join(documentsPluginsDir, "docs-plugin.cts"),
+		);
+
+		const jsonResult = runCli(["list", "plugins", "--json"], {
+			cwd: workspace,
+			env: {
+				...createIsolatedEnv(),
+				HOME: homeDir,
+				CLINE_DATA_DIR: dataDir,
+			},
+		});
+		expect(jsonResult.status).toBe(0);
+		const parsed = JSON.parse(asText(jsonResult.stdout)) as Array<{
+			name: string;
+			path: string;
+		}>;
+		expect(parsed.some((plugin) => plugin.name === "workspace-plugin")).toBe(
+			true,
+		);
+		expect(parsed.some((plugin) => plugin.name === "user-plugin")).toBe(true);
+		expect(parsed.some((plugin) => plugin.name === "docs-plugin")).toBe(true);
+		expect(
+			parsed.some((plugin) =>
+				plugin.path.endsWith(
+					path.join(".clinerules", "plugins", "workspace-plugin.ts"),
+				),
+			),
+		).toBe(true);
+		expect(
+			parsed.some((plugin) =>
+				plugin.path.endsWith(path.join(".cline", "plugins", "user-plugin.mjs")),
+			),
+		).toBe(true);
+		expect(
+			parsed.some((plugin) =>
+				plugin.path.endsWith(
+					path.join("Documents", "Plugins", "docs-plugin.cts"),
+				),
 			),
 		).toBe(true);
 	});

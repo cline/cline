@@ -1,16 +1,29 @@
 # Cline Custom Plugin Example
 
-Shows how to extend `@clinebot/agents` with your own plugins. A plugin can:
+Shows how to author a reusable plugin module that works in both the SDK and the CLI. A plugin can:
 
 - **Register tools** — give the agent new capabilities it can invoke
 - **Hook into the lifecycle** — observe or influence execution at key points
 
-Code entrypoint: [apps/examples/custom-plugin/index.ts](apps/examples/custom-plugin/index.ts)
+Code entrypoint: [apps/examples/cline-plugin/index.ts](/Users/beatrix/dev/cline-packages/apps/examples/cline-plugin/index.ts)
 
-## Run it
+## Use It With The CLI
+
+The CLI does not have a `--plugin` flag yet. It discovers plugin modules from `.cline/plugins` in the workspace.
 
 ```bash
-ANTHROPIC_API_KEY=sk-... bun run apps/examples/custom-plugin/index.ts
+mkdir -p .cline/plugins
+cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
+
+clite -i "What's the weather like in Tokyo and Paris?"
+```
+
+The module exports `default` and `plugin`, so the CLI loader can import it directly.
+
+## Run The Demo Directly
+
+```bash
+ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
 ```
 
 ## How it works
@@ -42,9 +55,23 @@ const myPlugin: Plugin = {
 Then pass it to the agent:
 
 ```ts
-const agent = new Agent({
-  ...
-  extensions: [myPlugin],
+import plugin from "./index";
+
+const host = await createSessionHost({});
+await host.start({
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+    cwd: process.cwd(),
+    enableTools: true,
+    enableSpawnAgent: false,
+    enableAgentTeams: false,
+    systemPrompt: "You are a helpful assistant. Use tools when needed.",
+    extensions: [plugin],
+  },
+  prompt: "What's the weather like in Tokyo and Paris?",
+  interactive: false,
 });
 ```
 

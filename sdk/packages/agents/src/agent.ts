@@ -856,6 +856,9 @@ export class Agent {
 					conversationId: this.conversationStore.getConversationId(),
 					iteration,
 					abortSignal,
+					metadata: this.config.toolContextMetadata
+						? { ...this.config.toolContextMetadata }
+						: undefined,
 				};
 				const { results: toolResults, cancelRequested } =
 					await this.toolOrchestrator.execute(

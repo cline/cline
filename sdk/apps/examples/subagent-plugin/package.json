@@ -1,0 +1,17 @@
+{
+	"name": "cline-sdk-portable-agents",
+	"version": "0.1.0",
+	"private": true,
+	"description": "SDK-native background subagents plugin for the Cline SDK",
+	"type": "module",
+	"exports": {
+		".": "./index.ts"
+	},
+	"dependencies": {
+		"@clinebot/agents": "workspace:*",
+		"@clinebot/core": "workspace:*",
+		"@clinebot/shared": "workspace:*",
+		"yaml": "^2.8.1",
+		"zod": "^4.1.5"
+	}
+}

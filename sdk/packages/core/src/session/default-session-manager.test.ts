@@ -2,7 +2,8 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentResult } from "@clinebot/agents";
-import { describe, expect, it, vi } from "vitest";
+import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelemetryService } from "../telemetry/TelemetryService";
 import { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
@@ -92,14 +93,20 @@ function createPluginEventHarness(
 			const session = Reflect.apply(
 				getter as (sessionId: string) => {
 					pendingPrompts: Array<{
+						id: string;
 						prompt: string;
 						delivery: "queue" | "steer";
+						userFiles?: unknown;
+						userImages?: unknown;
 					}>;
 				},
 				target,
 				[sessionId],
 			);
-			return session.pendingPrompts;
+			return session.pendingPrompts.map(({ prompt, delivery }) => ({
+				prompt,
+				delivery,
+			}));
 		},
 	};
 }
@@ -120,6 +127,28 @@ function createConfig(
 }
 
 describe("DefaultSessionManager", () => {
+	const envSnapshot = {
+		HOME: process.env.HOME,
+		CLINE_DIR: process.env.CLINE_DIR,
+	};
+	let isolatedHomeDir = "";
+
+	beforeEach(() => {
+		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
+		process.env.HOME = isolatedHomeDir;
+		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		setHomeDir(isolatedHomeDir);
+		setClineDir(process.env.CLINE_DIR);
+	});
+
+	afterEach(() => {
+		process.env.HOME = envSnapshot.HOME;
+		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		setHomeDir(envSnapshot.HOME ?? "~");
+		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
+		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
 	it("emits session lifecycle telemetry when configured", async () => {
 		const sessionId = "sess-telemetry";
 		const manifest = createManifest(sessionId);

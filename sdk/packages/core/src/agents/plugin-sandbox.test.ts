@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentConfig, Tool, ToolContext } from "@clinebot/agents";
@@ -167,6 +167,146 @@ describe("plugin-sandbox", () => {
 						payload: { value: "hello" },
 					},
 				]);
+			} finally {
+				await sandboxed.shutdown();
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("loads TypeScript plugins in the sandbox process", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-ts-"));
+		try {
+			const pluginPath = join(dir, "plugin-ts.ts");
+			await writeFile(
+				pluginPath,
+				[
+					"const TOOL_NAME: string = 'sandbox_ts_echo';",
+					"export default {",
+					"  name: 'sandbox-ts',",
+					"  manifest: { capabilities: ['tools'] },",
+					"  setup(api) {",
+					"    api.registerTool({",
+					"      name: TOOL_NAME,",
+					"      description: 'echo',",
+					"      inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },",
+					"      execute: async (input) => ({ echoed: input.value }),",
+					"    });",
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			const sandboxed = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
+			});
+			try {
+				const extension = sandboxed.extensions?.[0];
+				expect(extension?.name).toBe("sandbox-ts");
+				const { tools, api } = createApiCapture();
+				await extension?.setup?.(api);
+				const tool = tools.find((entry) => entry.name === "sandbox_ts_echo");
+				expect(tool).toBeDefined();
+				const result = await tool?.execute({ value: "ok" }, {
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				} as ToolContext);
+				expect(result).toEqual({ echoed: "ok" });
+			} finally {
+				await sandboxed.shutdown();
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("resolves plugin-local dependencies in the sandbox process", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-deps-"));
+		try {
+			const depDir = join(dir, "node_modules", "sandbox-local-dep");
+			await mkdir(depDir, { recursive: true });
+			await writeFile(
+				join(depDir, "package.json"),
+				JSON.stringify({
+					name: "sandbox-local-dep",
+					type: "module",
+					exports: "./index.js",
+				}),
+				"utf8",
+			);
+			await writeFile(
+				join(depDir, "index.js"),
+				"export const depName = 'sandbox-local-dep';\n",
+				"utf8",
+			);
+			const pluginPath = join(dir, "plugin-dep.ts");
+			await writeFile(
+				pluginPath,
+				[
+					"import { depName } from 'sandbox-local-dep';",
+					"export default {",
+					"  name: depName,",
+					"  manifest: { capabilities: ['tools'] },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			const sandboxed = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
+			});
+			try {
+				expect(sandboxed.extensions?.[0]?.name).toBe("sandbox-local-dep");
+			} finally {
+				await sandboxed.shutdown();
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("prefers plugin-installed SDK packages in the sandbox process", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-sdk-"));
+		try {
+			const depDir = join(dir, "node_modules", "@clinebot", "shared");
+			await mkdir(depDir, { recursive: true });
+			await writeFile(
+				join(depDir, "package.json"),
+				JSON.stringify({
+					name: "@clinebot/shared",
+					type: "module",
+					exports: "./index.js",
+				}),
+				"utf8",
+			);
+			await writeFile(
+				join(depDir, "index.js"),
+				"export const sdkMarker = 'sandbox-plugin-installed-sdk';\n",
+				"utf8",
+			);
+			const pluginPath = join(dir, "plugin-sdk.ts");
+			await writeFile(
+				pluginPath,
+				[
+					"import { sdkMarker } from '@clinebot/shared';",
+					"export default {",
+					"  name: sdkMarker,",
+					"  manifest: { capabilities: ['tools'] },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			const sandboxed = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
+			});
+			try {
+				expect(sandboxed.extensions?.[0]?.name).toBe(
+					"sandbox-plugin-installed-sdk",
+				);
 			} finally {
 				await sandboxed.shutdown();
 			}

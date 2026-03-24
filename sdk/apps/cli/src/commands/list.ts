@@ -3,11 +3,13 @@ import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import {
 	createUserInstructionConfigWatcher,
+	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	type RuleConfig,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
+	resolvePluginConfigSearchPaths,
 	resolveRulesConfigSearchPaths,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
@@ -269,6 +271,55 @@ async function runAgentsListCommand(
 	return 0;
 }
 
+async function runPluginsListCommand(
+	cwd: string,
+	outputMode: CliOutputMode,
+	io: ListIo,
+): Promise<number> {
+	const pluginsByPath = new Map<
+		string,
+		{
+			name: string;
+			path: string;
+		}
+	>();
+	const directories = resolvePluginConfigSearchPaths(cwd).filter((directory) =>
+		existsSync(directory),
+	);
+	for (const directory of directories) {
+		try {
+			for (const filePath of discoverPluginModulePaths(directory)) {
+				if (pluginsByPath.has(filePath)) {
+					continue;
+				}
+				pluginsByPath.set(filePath, {
+					name: basename(filePath, extname(filePath)),
+					path: filePath,
+				});
+			}
+		} catch {
+			// Best-effort listing across config roots.
+		}
+	}
+
+	const plugins = [...pluginsByPath.values()].sort((a, b) =>
+		a.name.localeCompare(b.name),
+	);
+	if (outputMode === "json") {
+		process.stdout.write(JSON.stringify(plugins));
+		return 0;
+	}
+	if (plugins.length === 0) {
+		io.writeln("No plugins found.");
+		return 0;
+	}
+	io.writeln("Discovered plugins:");
+	for (const plugin of plugins) {
+		io.writeln(`  ${plugin.name} (${plugin.path})`);
+	}
+	return 0;
+}
+
 async function runHooksListCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
@@ -351,7 +402,7 @@ export function createListCommand(
 		.action((target?: string) => {
 			if (target) {
 				io.writeErr(
-					`list requires one of: workflows, rules, skills, agents, hooks, mcp (got "${target}")`,
+					`list requires one of: workflows, rules, skills, agents, plugins, hooks, mcp (got "${target}")`,
 				);
 				actionExitCode = 1;
 			}
@@ -394,6 +445,17 @@ export function createListCommand(
 		.description("List configured agents")
 		.action(async () => {
 			actionExitCode = await runAgentsListCommand(getOutputMode(), io);
+		});
+
+	list
+		.command("plugins")
+		.description("List discovered plugins")
+		.action(async () => {
+			actionExitCode = await runPluginsListCommand(
+				getCwd(),
+				getOutputMode(),
+				io,
+			);
 		});
 
 	list

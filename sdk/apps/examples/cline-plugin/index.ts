@@ -1,29 +1,27 @@
 /**
  * Custom Plugin Example
  *
- * Shows how to extend @clinebot/core with your own plugins.
- * A plugin can register custom tools and hook into the session lifecycle.
+ * Shows how to author a reusable plugin module for the CLI and SDK hosts.
  *
- * Usage:
+ * CLI usage:
+ *   mkdir -p .clinerules/plugins
+ *   cp apps/examples/cline-plugin/index.ts .clinerules/plugins/weather-metrics.ts
+ *   clite -i "What's the weather like in Tokyo and Paris?"
+ *
+ * Direct demo usage:
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
  */
 
-import { createSessionHost, createTool } from "@clinebot/core";
+import { type AgentConfig, createTool } from "@clinebot/agents";
+import { createSessionHost } from "@clinebot/core";
 
-type SessionHost = Awaited<ReturnType<typeof createSessionHost>>;
-type SessionStartConfig = Parameters<SessionHost["start"]>[0]["config"];
-type Plugin = NonNullable<SessionStartConfig["extensions"]>[number];
+type Plugin = NonNullable<AgentConfig["extensions"]>[number];
 
-// =============================================================================
-// Plugin 1: Custom Tool
-// =============================================================================
-// Register tools the agent can call. Tools are discovered and invoked
-// automatically — just describe what they do and implement execute().
-
-const weatherPlugin: Plugin = {
-	name: "weather-plugin",
+const plugin: Plugin = {
+	name: "weather-and-metrics",
 	manifest: {
-		capabilities: ["tools"],
+		capabilities: ["tools", "hooks"],
+		hookStages: ["run_start", "tool_call_before", "tool_call_after", "run_end"],
 	},
 	setup(api) {
 		api.registerTool(
@@ -38,7 +36,6 @@ const weatherPlugin: Plugin = {
 					required: ["city"],
 				},
 				execute: async (input: unknown) => {
-					// Replace with a real weather API call in production.
 					const { city } = input as { city: string };
 					return {
 						city,
@@ -49,20 +46,6 @@ const weatherPlugin: Plugin = {
 				},
 			}),
 		);
-	},
-};
-
-// =============================================================================
-// Plugin 2: Lifecycle Hooks
-// =============================================================================
-// Hooks let you observe (and optionally influence) the agent at key points.
-// Every stage you use must be listed in manifest.hookStages.
-
-const metricsPlugin: Plugin = {
-	name: "metrics-plugin",
-	manifest: {
-		capabilities: ["hooks"],
-		hookStages: ["run_start", "tool_call_before", "tool_call_after", "run_end"],
 	},
 	onRunStart({ userMessage }) {
 		console.log(`\n[metrics] started: "${userMessage}"`);
@@ -82,35 +65,40 @@ const metricsPlugin: Plugin = {
 			`[metrics] done in ${iterations} iteration(s), reason: ${finishReason}`,
 		);
 		console.log(
-			`[metrics] tokens — in: ${usage.inputTokens}, out: ${usage.outputTokens}`,
+			`[metrics] tokens - in: ${usage.inputTokens}, out: ${usage.outputTokens}`,
 		);
 	},
 };
 
-// =============================================================================
-// Wire it up
-// =============================================================================
+async function runDemo(): Promise<void> {
+	const sessionManager = await createSessionHost({});
 
-const sessionManager = await createSessionHost({});
+	try {
+		const result = await sessionManager.start({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: process.env.ANTHROPIC_API_KEY ?? "",
+				cwd: process.cwd(),
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				systemPrompt: "You are a helpful assistant. Use tools when needed.",
+				extensions: [plugin],
+			},
+			prompt: "What's the weather like in Tokyo and Paris?",
+			interactive: false,
+		});
 
-try {
-	const result = await sessionManager.start({
-		config: {
-			providerId: "anthropic",
-			modelId: "claude-sonnet-4-6",
-			apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-			cwd: process.cwd(),
-			enableTools: true,
-			enableSpawnAgent: false,
-			enableAgentTeams: false,
-			systemPrompt: "You are a helpful assistant. Use tools when needed.",
-			extensions: [weatherPlugin, metricsPlugin],
-		},
-		prompt: "What's the weather like in Tokyo and Paris?",
-		interactive: false,
-	});
-
-	console.log(`\n${result.result?.text ?? ""}`);
-} finally {
-	await sessionManager.dispose();
+		console.log(`\n${result.result?.text ?? ""}`);
+	} finally {
+		await sessionManager.dispose();
+	}
 }
+
+if (import.meta.main) {
+	await runDemo();
+}
+
+export { plugin, runDemo };
+export default plugin;

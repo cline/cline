@@ -1,18 +1,12 @@
-import { existsSync, readdirSync, statSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync } from "node:fs";
 import type { AgentConfig } from "@clinebot/agents";
-import { resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared } from "@clinebot/shared/storage";
+import {
+	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
+	resolveConfiguredPluginModulePaths,
+	resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared,
+} from "@clinebot/shared/storage";
 import { loadAgentPluginsFromPaths } from "./plugin-loader";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
-
-const PLUGIN_MODULE_EXTENSIONS = new Set([
-	".js",
-	".mjs",
-	".cjs",
-	".ts",
-	".mts",
-	".cts",
-]);
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 
@@ -22,67 +16,8 @@ export function resolvePluginConfigSearchPaths(
 	return resolvePluginConfigSearchPathsFromShared(workspacePath);
 }
 
-function hasPluginModuleExtension(path: string): boolean {
-	const dot = path.lastIndexOf(".");
-	if (dot === -1) {
-		return false;
-	}
-	return PLUGIN_MODULE_EXTENSIONS.has(path.slice(dot));
-}
-
 export function discoverPluginModulePaths(directoryPath: string): string[] {
-	const root = resolve(directoryPath);
-	if (!existsSync(root)) {
-		return [];
-	}
-	const discovered: string[] = [];
-	const stack = [root];
-	while (stack.length > 0) {
-		const current = stack.pop();
-		if (!current) {
-			continue;
-		}
-		for (const entry of readdirSync(current, { withFileTypes: true })) {
-			const candidate = join(current, entry.name);
-			if (entry.isDirectory()) {
-				stack.push(candidate);
-				continue;
-			}
-			if (entry.isFile() && hasPluginModuleExtension(candidate)) {
-				discovered.push(candidate);
-			}
-		}
-	}
-	return discovered.sort((a, b) => a.localeCompare(b));
-}
-
-function resolveConfiguredPluginPaths(
-	pluginPaths: ReadonlyArray<string>,
-	cwd: string,
-): string[] {
-	const resolvedPaths: string[] = [];
-	for (const pluginPath of pluginPaths) {
-		const trimmed = pluginPath.trim();
-		if (!trimmed) {
-			continue;
-		}
-		const absolutePath = resolve(cwd, trimmed);
-		if (!existsSync(absolutePath)) {
-			throw new Error(`Plugin path does not exist: ${absolutePath}`);
-		}
-		const stats = statSync(absolutePath);
-		if (stats.isDirectory()) {
-			resolvedPaths.push(...discoverPluginModulePaths(absolutePath));
-			continue;
-		}
-		if (!hasPluginModuleExtension(absolutePath)) {
-			throw new Error(
-				`Plugin file must use a supported extension (${[...PLUGIN_MODULE_EXTENSIONS].join(", ")}): ${absolutePath}`,
-			);
-		}
-		resolvedPaths.push(absolutePath);
-	}
-	return resolvedPaths;
+	return discoverPluginModulePathsFromShared(directoryPath);
 }
 
 export interface ResolveAgentPluginPathsOptions {
@@ -100,7 +35,7 @@ export function resolveAgentPluginPaths(
 	)
 		.flatMap((directoryPath) => discoverPluginModulePaths(directoryPath))
 		.filter((path) => existsSync(path));
-	const configuredPaths = resolveConfiguredPluginPaths(
+	const configuredPaths = resolveConfiguredPluginModulePaths(
 		options.pluginPaths ?? [],
 		cwd,
 	);

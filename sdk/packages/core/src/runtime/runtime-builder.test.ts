@@ -301,4 +301,71 @@ Disabled skill.`,
 
 		runtime.shutdown("test");
 	});
+
+	it("scopes skills tool to session-configured skills", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-skills-scoped-"));
+		const commitDir = join(cwd, ".cline", "skills", "commit");
+		const reviewDir = join(cwd, ".cline", "skills", "review");
+		mkdirSync(commitDir, { recursive: true });
+		mkdirSync(reviewDir, { recursive: true });
+		writeFileSync(
+			join(commitDir, "SKILL.md"),
+			`---
+name: commit
+---
+Commit skill.`,
+			"utf8",
+		);
+		writeFileSync(
+			join(reviewDir, "SKILL.md"),
+			`---
+name: review
+---
+Review skill.`,
+			"utf8",
+		);
+
+		const runtime = new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd,
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				skills: ["commit"],
+			},
+		});
+
+		const skillsTool = runtime.tools.find((tool) => tool.name === "skills");
+		expect(skillsTool).toBeDefined();
+		if (!skillsTool) {
+			throw new Error("Expected skills tool.");
+		}
+
+		const known = await skillsTool.execute(
+			{ skill: "commit" },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		expect(known).toContain("<command-name>commit</command-name>");
+
+		const blocked = await skillsTool.execute(
+			{ skill: "review" },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		expect(blocked).toContain('Skill "review" not found.');
+		expect(blocked).toContain("Available skills: commit");
+
+		runtime.shutdown("test");
+	});
 });

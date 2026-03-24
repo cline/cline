@@ -33,6 +33,11 @@ export interface BuildAgentConfigOverridesOptions {
 	availableTools?: ReadonlyArray<Tool>;
 }
 
+export interface PartialAgentConfigOverrides
+	extends Partial<Pick<AgentConfig, "modelId" | "systemPrompt" | "tools">> {
+	skills?: string[];
+}
+
 export function isAgentConfigYamlFile(fileName: string): boolean {
 	return /\.(yaml|yml)$/i.test(fileName);
 }
@@ -159,10 +164,8 @@ export function resolveAgentTools(
 export function toPartialAgentConfig(
 	config: AgentYamlConfig,
 	options?: BuildAgentConfigOverridesOptions,
-): Partial<Pick<AgentConfig, "modelId" | "systemPrompt" | "tools">> {
-	const partial: Partial<
-		Pick<AgentConfig, "modelId" | "systemPrompt" | "tools">
-	> = {
+): PartialAgentConfigOverrides {
+	const partial: PartialAgentConfigOverrides = {
 		systemPrompt: config.systemPrompt,
 	};
 
@@ -179,13 +182,17 @@ export function toPartialAgentConfig(
 		partial.tools = resolveAgentTools(config.tools, options.availableTools);
 	}
 
+	if (config.skills !== undefined) {
+		partial.skills = [...config.skills];
+	}
+
 	return partial;
 }
 
 export function parsePartialAgentConfigFromYaml(
 	content: string,
 	options?: BuildAgentConfigOverridesOptions,
-): Partial<Pick<AgentConfig, "modelId" | "systemPrompt" | "tools">> {
+): PartialAgentConfigOverrides {
 	const parsed = parseAgentConfigFromYaml(content);
 	return toPartialAgentConfig(parsed, options);
 }

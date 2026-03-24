@@ -21,15 +21,33 @@ bun run 01-minimal.ts  # Get started in 30 seconds
 
 ### [`cline-plugin/`](./cline-plugin)
 
-**Plugin development example** showing how to extend `@clinebot/agents` with custom capabilities:
+**Plugin module example** showing how to extend the CLI and SDK with custom capabilities:
 
 - Register custom tools
 - Hook into agent lifecycle events
-- Package reusable functionality
+- Export a reusable plugin module for `.clinerules/plugins`
 
 ```bash
-ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
+mkdir -p .clinerules/plugins
+cp apps/examples/cline-plugin/index.ts .clinerules/plugins/weather-metrics.ts
+clite -i "What's the weather like in Tokyo and Paris?"
 ```
+
+### [`subagent-plugin/`](./subagent-plugin)
+
+**Portable subagent plugin** that adds background agent orchestration tools to the CLI and SDK:
+
+- Export a reusable plugin module for `.clinerules/plugins`
+- Start background subagents from the main session
+- Load bundled or custom agent presets and skills
+
+```bash
+mkdir -p ~/.cline/plugins
+cp apps/examples/subagent-plugin/index.ts ~/.cline/plugins/portable-subagents.ts
+clite -i "Use subagents to inspect this repository and report back."
+```
+
+Once loaded, the agent can call tools like `start_subagent`, `message_subagent`, `get_subagent`, `list_agent_presets`, `list_skills`, and the handoff tools.
 
 ### [`slack-bot/`](./slack-bot)
 
@@ -79,7 +97,7 @@ For RPC client helpers, import from `@clinebot/core` (re-exported there), not `@
 
 **Building integrations?**
 - Check out the [`slack-bot/`](./slack-bot) for production patterns
-- See [`cline-plugin/`](./cline-plugin) for reusable extensions
+- See [`cline-plugin/`](./cline-plugin) and [`subagent-plugin/`](./subagent-plugin) for reusable extensions
 
 **Going to production?**
 - Session management: [`cline-sdk/09-sessions.ts`](./cline-sdk/09-sessions.ts)

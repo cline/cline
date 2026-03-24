@@ -86,27 +86,72 @@ const SKILL_FILE_NAME = "SKILL.md";
 
 function listAvailableSkillNames(
 	watcher: UserInstructionConfigWatcher,
+	allowedSkillNames?: ReadonlyArray<string>,
 ): string[] {
-	return listConfiguredSkills(watcher)
+	return listConfiguredSkills(watcher, allowedSkillNames)
 		.filter((skill) => !skill.disabled)
 		.map((skill) => skill.name.trim())
 		.filter((name) => name.length > 0)
 		.sort((a, b) => a.localeCompare(b));
 }
 
+function normalizeSkillToken(token: string): string {
+	return token.trim().replace(/^\/+/, "").toLowerCase();
+}
+
+function toAllowedSkillSet(
+	allowedSkillNames?: ReadonlyArray<string>,
+): Set<string> | undefined {
+	if (!allowedSkillNames || allowedSkillNames.length === 0) {
+		return undefined;
+	}
+	const normalized = allowedSkillNames
+		.map(normalizeSkillToken)
+		.filter((token) => token.length > 0);
+	return normalized.length > 0 ? new Set(normalized) : undefined;
+}
+
+function isSkillAllowed(
+	skillId: string,
+	skillName: string,
+	allowedSkills?: Set<string>,
+): boolean {
+	if (!allowedSkills) {
+		return true;
+	}
+	const normalizedId = normalizeSkillToken(skillId);
+	const normalizedName = normalizeSkillToken(skillName);
+	const bareId = normalizedId.includes(":")
+		? (normalizedId.split(":").at(-1) ?? normalizedId)
+		: normalizedId;
+	const bareName = normalizedName.includes(":")
+		? (normalizedName.split(":").at(-1) ?? normalizedName)
+		: normalizedName;
+	return (
+		allowedSkills.has(normalizedId) ||
+		allowedSkills.has(normalizedName) ||
+		allowedSkills.has(bareId) ||
+		allowedSkills.has(bareName)
+	);
+}
+
 function listConfiguredSkills(
 	watcher: UserInstructionConfigWatcher,
+	allowedSkillNames?: ReadonlyArray<string>,
 ): SkillsExecutorMetadataItem[] {
+	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const snapshot = watcher.getSnapshot("skill");
-	return [...snapshot.entries()].map(([id, record]) => {
-		const skill = record.item as SkillConfig;
-		return {
-			id,
-			name: skill.name.trim(),
-			description: skill.description?.trim(),
-			disabled: skill.disabled === true,
-		};
-	});
+	return [...snapshot.entries()]
+		.map(([id, record]) => {
+			const skill = record.item as SkillConfig;
+			return {
+				id,
+				name: skill.name.trim(),
+				description: skill.description?.trim(),
+				disabled: skill.disabled === true,
+			};
+		})
+		.filter((skill) => isSkillAllowed(skill.id, skill.name, allowedSkills));
 }
 
 function hasSkillsFiles(workspacePath: string): boolean {
@@ -141,14 +186,21 @@ function hasSkillsFiles(workspacePath: string): boolean {
 function resolveSkillRecord(
 	watcher: UserInstructionConfigWatcher,
 	requestedSkill: string,
+	allowedSkillNames?: ReadonlyArray<string>,
 ): { id: string; skill: SkillConfig } | { error: string } {
+	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const normalized = requestedSkill.trim().replace(/^\/+/, "").toLowerCase();
 	if (!normalized) {
 		return { error: "Missing skill name." };
 	}
 
 	const snapshot = watcher.getSnapshot("skill");
-	const exact = snapshot.get(normalized);
+	const scopedEntries = [...snapshot.entries()].filter(([id, record]) => {
+		const skill = record.item as SkillConfig;
+		return isSkillAllowed(id, skill.name, allowedSkills);
+	});
+	const scopedSnapshot = new Map(scopedEntries);
+	const exact = scopedSnapshot.get(normalized);
 	if (exact) {
 		const skill = exact.item as SkillConfig;
 		if (skill.disabled === true) {
@@ -166,7 +218,7 @@ function resolveSkillRecord(
 		? (normalized.split(":").at(-1) ?? normalized)
 		: normalized;
 
-	const suffixMatches = [...snapshot.entries()].filter(([id]) => {
+	const suffixMatches = [...scopedSnapshot.entries()].filter(([id]) => {
 		if (id === bareName) {
 			return true;
 		}
@@ -193,7 +245,7 @@ function resolveSkillRecord(
 		};
 	}
 
-	const available = listAvailableSkillNames(watcher);
+	const available = listAvailableSkillNames(watcher, allowedSkillNames);
 	return {
 		error:
 			available.length > 0
@@ -205,11 +257,12 @@ function resolveSkillRecord(
 function createSkillsExecutor(
 	watcher: UserInstructionConfigWatcher,
 	watcherReady: Promise<void>,
+	allowedSkillNames?: ReadonlyArray<string>,
 ): SkillsExecutorWithMetadata {
 	const runningSkills = new Set<string>();
 	const executor: SkillsExecutorWithMetadata = async (skillName, args) => {
 		await watcherReady;
-		const resolved = resolveSkillRecord(watcher, skillName);
+		const resolved = resolveSkillRecord(watcher, skillName, allowedSkillNames);
 		if ("error" in resolved) {
 			return resolved.error;
 		}
@@ -235,7 +288,7 @@ function createSkillsExecutor(
 		}
 	};
 	Object.defineProperty(executor, "configuredSkills", {
-		get: () => listConfiguredSkills(watcher),
+		get: () => listConfiguredSkills(watcher, allowedSkillNames),
 		enumerable: true,
 		configurable: false,
 	});
@@ -340,11 +393,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			userInstructionWatcher &&
 			(watcherProvided ||
 				hasSkillsFiles(config.cwd) ||
-				listConfiguredSkills(userInstructionWatcher).length > 0)
+				listConfiguredSkills(userInstructionWatcher, config.skills).length > 0)
 		) {
 			skillsExecutor = createSkillsExecutor(
 				userInstructionWatcher,
 				watcherReady,
+				config.skills,
 			);
 		}
 

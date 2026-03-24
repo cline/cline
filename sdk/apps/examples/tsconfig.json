@@ -14,6 +14,18 @@
 		"allowImportingTsExtensions": true,
 		"verbatimModuleSyntax": true,
 		"noEmit": true,
+		"paths": {
+			"@clinebot/agents": ["../../packages/agents/src/index.ts"],
+			"@clinebot/core": ["../../packages/core/src/index.node.ts"],
+			"@clinebot/core/node": ["../../packages/core/src/index.node.ts"],
+			"@clinebot/llms": ["../../packages/llms/src/index.ts"],
+			"@clinebot/rpc": ["../../packages/rpc/src/index.ts"],
+			"@clinebot/shared": ["../../packages/shared/src/index.ts"],
+			"@clinebot/shared/storage": [
+				"../../packages/shared/src/storage/index.ts"
+			],
+			"@clinebot/shared/db": ["../../packages/shared/src/db/index.ts"]
+		},
 
 		// Best practices
 		"strict": true,

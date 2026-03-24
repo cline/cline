@@ -11,8 +11,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentResult } from "@clinebot/agents";
 import type { LlmsProviders } from "@clinebot/llms";
+import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionSource, SessionStatus } from "../types/common";
 import { DefaultSessionManager } from "./default-session-manager";
 import type { SessionManifest } from "./session-manifest";
@@ -222,12 +223,30 @@ class LocalFileSessionService {
 }
 
 describe("DefaultSessionManager e2e", () => {
+	const envSnapshot = {
+		HOME: process.env.HOME,
+		CLINE_DIR: process.env.CLINE_DIR,
+	};
 	const tempDirs: string[] = [];
+	let isolatedHomeDir = "";
+
+	beforeEach(() => {
+		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
+		process.env.HOME = isolatedHomeDir;
+		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		setHomeDir(isolatedHomeDir);
+		setClineDir(process.env.CLINE_DIR);
+	});
 
 	afterEach(() => {
+		process.env.HOME = envSnapshot.HOME;
+		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		setHomeDir(envSnapshot.HOME ?? "~");
+		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
+		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
 	it("runs an interactive lifecycle with real artifact files", async () => {

@@ -5,6 +5,7 @@ export type {
 	BuildAgentConfigOverridesOptions,
 	CreateAgentConfigWatcherOptions,
 	ParseYamlFrontmatterResult,
+	PartialAgentConfigOverrides,
 } from "./agent-config-loader";
 export {
 	AGENT_CONFIG_DIRECTORY_NAME,

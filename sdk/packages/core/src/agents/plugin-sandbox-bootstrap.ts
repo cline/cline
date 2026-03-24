@@ -1,3 +1,6 @@
+import { existsSync } from "node:fs";
+import { builtinModules, createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
 /**
  * Bootstrap script for the plugin sandbox subprocess.
  *
@@ -10,7 +13,8 @@
  * imports from the rest of the codebase are allowed.
  */
 
-import { pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
+import createJiti from "jiti";
 
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
@@ -105,12 +109,36 @@ interface PluginState {
 	};
 }
 
+function isObject(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null;
+}
+
+function assertValidPluginModule(
+	plugin: unknown,
+	pluginPath: string,
+): asserts plugin is PluginModule {
+	if (!isObject(plugin)) {
+		throw new Error(`Invalid plugin module: ${pluginPath}`);
+	}
+	if (typeof plugin.name !== "string" || !plugin.name) {
+		throw new Error(`Invalid plugin name: ${pluginPath}`);
+	}
+	if (!isObject(plugin.manifest)) {
+		throw new Error(`Invalid plugin manifest: ${pluginPath}`);
+	}
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
 
 let pluginCounter = 0;
 const pluginState = new Map<string, PluginState>();
+const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const WORKSPACE_ALIASES = collectWorkspaceAliases(MODULE_DIR);
+const BUILTIN_MODULES = new Set(
+	builtinModules.flatMap((id) => [id, id.replace(/^node:/, "")]),
+);
 
 // ---------------------------------------------------------------------------
 // IPC helpers
@@ -161,6 +189,64 @@ function getPlugin(pluginId: string): PluginState {
 	return state;
 }
 
+function collectWorkspaceAliases(startDir: string): Record<string, string> {
+	const root = resolve(startDir, "..", "..", "..", "..");
+	const aliases: Record<string, string> = {};
+	const candidates: Record<string, string> = {
+		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
+		"@clinebot/core": resolve(root, "packages/core/src/index.node.ts"),
+		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
+		"@clinebot/rpc": resolve(root, "packages/rpc/src/index.ts"),
+		"@clinebot/scheduler": resolve(root, "packages/scheduler/src/index.ts"),
+		"@clinebot/shared": resolve(root, "packages/shared/src/index.ts"),
+		"@clinebot/shared/storage": resolve(
+			root,
+			"packages/shared/src/storage/index.ts",
+		),
+		"@clinebot/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
+	};
+	for (const [key, value] of Object.entries(candidates)) {
+		if (existsSync(value)) {
+			aliases[key] = value;
+		}
+	}
+	return aliases;
+}
+
+function collectPluginImportAliases(
+	pluginPath: string,
+): Record<string, string> {
+	const pluginRequire = createRequire(pluginPath);
+	const aliases: Record<string, string> = {};
+	for (const [specifier, sourcePath] of Object.entries(WORKSPACE_ALIASES)) {
+		try {
+			pluginRequire.resolve(specifier);
+			continue;
+		} catch {
+			// Use the workspace source only when the plugin package does not provide
+			// its own installed SDK dependency.
+		}
+		aliases[specifier] = sourcePath;
+	}
+	return aliases;
+}
+
+async function importPluginModule(
+	pluginPath: string,
+): Promise<Record<string, unknown>> {
+	const aliases = collectPluginImportAliases(pluginPath);
+	const jiti = createJiti(pluginPath, {
+		alias: aliases,
+		cache: false,
+		requireCache: false,
+		esmResolve: true,
+		interopDefault: false,
+		nativeModules: [...BUILTIN_MODULES],
+		transformModules: Object.keys(aliases),
+	});
+	return (await jiti.import(pluginPath, {})) as Record<string, unknown>;
+}
+
 // ---------------------------------------------------------------------------
 // RPC methods
 // ---------------------------------------------------------------------------
@@ -173,19 +259,10 @@ async function initialize(args: {
 	const exportName = args.exportName || "plugin";
 
 	for (const pluginPath of args.pluginPaths || []) {
-		const moduleExports = await import(pathToFileURL(pluginPath).href);
-		const plugin: PluginModule =
-			moduleExports.default || moduleExports[exportName];
-
-		if (!plugin || typeof plugin !== "object") {
-			throw new Error(`Invalid plugin module: ${pluginPath}`);
-		}
-		if (typeof plugin.name !== "string" || !plugin.name) {
-			throw new Error(`Invalid plugin name: ${pluginPath}`);
-		}
-		if (!plugin.manifest || typeof plugin.manifest !== "object") {
-			throw new Error(`Invalid plugin manifest: ${pluginPath}`);
-		}
+		const moduleExports = await importPluginModule(pluginPath);
+		const plugin = (moduleExports.default ??
+			moduleExports[exportName]) as unknown;
+		assertValidPluginModule(plugin, pluginPath);
 
 		const pluginId = `plugin_${++pluginCounter}`;
 		const contributions: PluginDescriptor["contributions"] = {

@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentConfig, Tool } from "@clinebot/agents";
@@ -57,8 +57,8 @@ type SandboxedPluginDescriptor = {
  *
  * In production (bundled), the compiled `.js` file lives next to this module
  * and can be passed directly as a file to spawn. In development/test
- * (unbundled, where only the `.ts` source exists), we transpile the source
- * with esbuild and pass it as an inline script.
+ * (unbundled, where only the `.ts` source exists), we load the TypeScript
+ * bootstrap through jiti from an inline script.
  */
 function resolveBootstrap(): { file: string } | { script: string } {
 	const dir = dirname(fileURLToPath(import.meta.url));
@@ -71,17 +71,17 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	for (const candidate of candidates) {
 		if (existsSync(candidate)) return { file: candidate };
 	}
-	// Development/test fallback: transpile the .ts source with esbuild.
 	const tsPath = join(dir, "plugin-sandbox-bootstrap.ts");
-	const source = readFileSync(tsPath, "utf8");
-	// eslint-disable-next-line @typescript-eslint/no-require-imports -- lazy require for dev-only dependency
-	const { transformSync } = require("esbuild") as typeof import("esbuild");
-	const result = transformSync(source, {
-		loader: "ts",
-		format: "esm",
-		target: "node20",
-	});
-	return { script: result.code };
+	return {
+		script: [
+			"const createJiti = require('jiti');",
+			`const jiti = createJiti(${JSON.stringify(tsPath)}, { cache: false, requireCache: false, esmResolve: true, interopDefault: false });`,
+			`Promise.resolve(jiti.import(${JSON.stringify(tsPath)}, {})).catch((error) => {`,
+			"  console.error(error);",
+			"  process.exitCode = 1;",
+			"});",
+		].join("\n"),
+	};
 }
 
 const BOOTSTRAP = resolveBootstrap();

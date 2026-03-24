@@ -20,6 +20,7 @@ export type {
 	AgentYamlConfig,
 	BuildAgentConfigOverridesOptions,
 	ParseYamlFrontmatterResult,
+	PartialAgentConfigOverrides,
 } from "./agent-config-parser";
 export {
 	parseAgentConfigFromYaml,

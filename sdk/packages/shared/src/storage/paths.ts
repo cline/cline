@@ -1,5 +1,11 @@
-import { existsSync, mkdirSync } from "node:fs";
-import { dirname, join } from "node:path";
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	statSync,
+} from "node:fs";
+import { dirname, join, resolve } from "node:path";
 
 export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
@@ -84,6 +90,10 @@ export function resolveDocumentsRulesDirectoryPath(): string {
 
 export function resolveDocumentsWorkflowsDirectoryPath(): string {
 	return join(resolveDocumentsClineDirectoryPath(), "Workflows");
+}
+
+export function resolveDocumentsPluginsDirectoryPath(): string {
+	return join(HOME_DIR, "Documents", "Plugins");
 }
 
 export function resolveClineDataDir(): string {
@@ -212,8 +222,162 @@ export function resolvePluginConfigSearchPaths(
 			? join(workspacePath, ".clinerules", PLUGINS_DIRECTORY_NAME)
 			: "",
 		join(resolveClineDir(), PLUGINS_DIRECTORY_NAME),
-		join(HOME_DIR, ".agents", PLUGINS_DIRECTORY_NAME),
+		resolveDocumentsPluginsDirectoryPath(),
 	]);
+}
+
+const PLUGIN_MODULE_EXTENSIONS = new Set([
+	".js",
+	".mjs",
+	".cjs",
+	".ts",
+	".mts",
+	".cts",
+]);
+const PLUGIN_PACKAGE_JSON_FILE_NAME = "package.json";
+const PLUGIN_DIRECTORY_INDEX_CANDIDATES = [
+	"index.ts",
+	"index.mts",
+	"index.cts",
+	"index.js",
+	"index.mjs",
+	"index.cjs",
+];
+
+interface PluginPackageManifest {
+	plugins?: unknown;
+	extensions?: unknown;
+}
+
+export function isPluginModulePath(path: string): boolean {
+	const dot = path.lastIndexOf(".");
+	if (dot === -1) {
+		return false;
+	}
+	return PLUGIN_MODULE_EXTENSIONS.has(path.slice(dot));
+}
+
+function readPluginPackageManifest(
+	packageJsonPath: string,
+): PluginPackageManifest | null {
+	try {
+		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
+			cline?: PluginPackageManifest;
+		};
+		if (!packageJson.cline || typeof packageJson.cline !== "object") {
+			return null;
+		}
+		return packageJson.cline;
+	} catch {
+		return null;
+	}
+}
+
+function getManifestPluginEntries(
+	manifest: PluginPackageManifest | null,
+): string[] {
+	const entries = manifest?.plugins ?? manifest?.extensions;
+	if (!Array.isArray(entries)) {
+		return [];
+	}
+	return entries.filter((entry): entry is string => typeof entry === "string");
+}
+
+export function resolvePluginModuleEntries(
+	directoryPath: string,
+): string[] | null {
+	const root = resolve(directoryPath);
+	if (!existsSync(root) || !statSync(root).isDirectory()) {
+		return null;
+	}
+
+	const packageJsonPath = join(root, PLUGIN_PACKAGE_JSON_FILE_NAME);
+	if (existsSync(packageJsonPath)) {
+		const manifest = readPluginPackageManifest(packageJsonPath);
+		const entries = getManifestPluginEntries(manifest)
+			.map((entry) => resolve(root, entry))
+			.filter(
+				(entryPath) =>
+					existsSync(entryPath) &&
+					statSync(entryPath).isFile() &&
+					isPluginModulePath(entryPath),
+			);
+		if (entries.length > 0) {
+			return entries;
+		}
+	}
+
+	for (const candidate of PLUGIN_DIRECTORY_INDEX_CANDIDATES) {
+		const entryPath = join(root, candidate);
+		if (existsSync(entryPath) && statSync(entryPath).isFile()) {
+			return [entryPath];
+		}
+	}
+
+	return null;
+}
+
+export function discoverPluginModulePaths(directoryPath: string): string[] {
+	const root = resolve(directoryPath);
+	if (!existsSync(root)) {
+		return [];
+	}
+	const discovered: string[] = [];
+	const stack = [root];
+	while (stack.length > 0) {
+		const current = stack.pop();
+		if (!current) {
+			continue;
+		}
+		for (const entry of readdirSync(current, { withFileTypes: true })) {
+			const candidate = join(current, entry.name);
+			if (entry.isDirectory()) {
+				stack.push(candidate);
+				continue;
+			}
+			if (entry.name.startsWith(".")) {
+				continue;
+			}
+			if (entry.isFile() && isPluginModulePath(candidate)) {
+				discovered.push(candidate);
+			}
+		}
+	}
+	return discovered.sort((a, b) => a.localeCompare(b));
+}
+
+export function resolveConfiguredPluginModulePaths(
+	pluginPaths: ReadonlyArray<string>,
+	cwd: string,
+): string[] {
+	const resolvedPaths: string[] = [];
+	for (const pluginPath of pluginPaths) {
+		const trimmed = pluginPath.trim();
+		if (!trimmed) {
+			continue;
+		}
+		const absolutePath = resolve(cwd, trimmed);
+		if (!existsSync(absolutePath)) {
+			throw new Error(`Plugin path does not exist: ${absolutePath}`);
+		}
+		const stats = statSync(absolutePath);
+		if (stats.isDirectory()) {
+			const entries = resolvePluginModuleEntries(absolutePath);
+			if (entries) {
+				resolvedPaths.push(...entries);
+				continue;
+			}
+			resolvedPaths.push(...discoverPluginModulePaths(absolutePath));
+			continue;
+		}
+		if (!isPluginModulePath(absolutePath)) {
+			throw new Error(
+				`Plugin file must use a supported extension (${[...PLUGIN_MODULE_EXTENSIONS].join(", ")}): ${absolutePath}`,
+			);
+		}
+		resolvedPaths.push(absolutePath);
+	}
+	return resolvedPaths;
 }
 
 export function ensureParentDir(filePath: string): void {

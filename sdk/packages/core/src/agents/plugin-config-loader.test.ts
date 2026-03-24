@@ -26,6 +26,11 @@ describe("plugin-config-loader", () => {
 			await mkdir(nested, { recursive: true });
 			await writeFile(join(root, "a.mjs"), "export default {}", "utf8");
 			await writeFile(join(nested, "b.ts"), "export default {}", "utf8");
+			await writeFile(
+				join(root, ".a.mjs.cline-plugin.mjs"),
+				"export default {}",
+				"utf8",
+			);
 			await writeFile(join(root, "ignore.txt"), "noop", "utf8");
 
 			const discovered = discoverPluginModulePaths(root);
@@ -38,6 +43,8 @@ describe("plugin-config-loader", () => {
 	it("resolves plugin paths from explicit files/directories", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
 		try {
+			process.env.HOME = root;
+			setHomeDir(root);
 			const pluginsDir = join(root, "plugins");
 			await mkdir(pluginsDir, { recursive: true });
 			const filePath = join(root, "direct.mjs");
@@ -57,6 +64,41 @@ describe("plugin-config-loader", () => {
 		}
 	});
 
+	it("prefers package manifest plugin entries for configured directories", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			const pluginDir = join(root, "plugin-package");
+			const srcDir = join(pluginDir, "src");
+			await mkdir(srcDir, { recursive: true });
+			const declaredEntry = join(srcDir, "index.ts");
+			const ignoredEntry = join(pluginDir, "ignored.mjs");
+			await writeFile(
+				join(pluginDir, "package.json"),
+				JSON.stringify({
+					name: "plugin-package",
+					private: true,
+					cline: {
+						plugins: ["./src/index.ts"],
+					},
+				}),
+				"utf8",
+			);
+			await writeFile(declaredEntry, "export default {}", "utf8");
+			await writeFile(ignoredEntry, "export default {}", "utf8");
+
+			const resolved = resolveAgentPluginPaths({
+				pluginPaths: ["./plugin-package"],
+				cwd: root,
+				workspacePath: join(root, "workspace"),
+			});
+
+			expect(resolved).toContain(declaredEntry);
+			expect(resolved).not.toContain(ignoredEntry);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
 	it("includes shared search-path plugins", async () => {
 		const home = await mkdtemp(
 			join(tmpdir(), "core-plugin-config-loader-home-"),
@@ -69,20 +111,27 @@ describe("plugin-config-loader", () => {
 			setHomeDir(home);
 			const workspacePlugins = join(workspace, ".clinerules", "plugins");
 			const userPlugins = join(home, ".cline", "plugins");
+			const documentsPlugins = join(home, "Documents", "Plugins");
 			await mkdir(workspacePlugins, { recursive: true });
 			await mkdir(userPlugins, { recursive: true });
+			await mkdir(documentsPlugins, { recursive: true });
 			const workspacePlugin = join(workspacePlugins, "workspace.mjs");
 			const userPlugin = join(userPlugins, "user.mjs");
+			const documentsPlugin = join(documentsPlugins, "documents.mjs");
 			await writeFile(workspacePlugin, "export default {}", "utf8");
 			await writeFile(userPlugin, "export default {}", "utf8");
+			await writeFile(documentsPlugin, "export default {}", "utf8");
 
 			const searchPaths = resolvePluginConfigSearchPaths(workspace);
+			expect(searchPaths).toHaveLength(3);
 			expect(searchPaths).toContain(workspacePlugins);
 			expect(searchPaths).toContain(userPlugins);
+			expect(searchPaths).toContain(documentsPlugins);
 
 			const resolved = resolveAgentPluginPaths({ workspacePath: workspace });
 			expect(resolved).toContain(workspacePlugin);
 			expect(resolved).toContain(userPlugin);
+			expect(resolved).toContain(documentsPlugin);
 		} finally {
 			await rm(home, { recursive: true, force: true });
 			await rm(workspace, { recursive: true, force: true });
