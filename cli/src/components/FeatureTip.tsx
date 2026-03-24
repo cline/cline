@@ -49,7 +49,7 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
 	},
 	{
-		text: "Try 'npx kanban' to manage tasks on a Kanban board — orchestrate coding agents across worktrees.",
+		text: "Try 'npx kanban' to manage tasks on a Kankan board — orchestrate coding agents across worktrees.",
 	},
 	{
 		text: "Use Shift+Tab to toggle auto-approve all — let Cline work uninterrupted on trusted tasks.",
@@ -72,9 +72,9 @@ const CYCLE_INTERVAL_MS = 8000
  * Shows rotating feature tips below the thinking indicator.
  * Appears after a brief delay and cycles through tips while Cline is thinking/acting.
  */
-export const FeatureTip: React.FC = () => {
-	const [isVisible, setIsVisible] = useState(false)
 export const FeatureTip: React.FC = React.memo(() => {
+	const [isVisible, setIsVisible] = useState(false)
+	const [tipIndex, setTipIndex] = useState(Math.floor(Math.random() * FEATURE_TIPS.length))
 	const cycleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 	const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
@@ -111,4 +111,4 @@ export const FeatureTip: React.FC = React.memo(() => {
 			</Text>
 		</Box>
 	)
-}
+})
