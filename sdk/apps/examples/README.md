@@ -6,11 +6,11 @@ Learn how to build with the Cline SDK through practical, runnable examples.
 
 ### [`cline-sdk/`](./cline-sdk)
 
-**14 step-by-step examples** covering everything from basic agent sessions to advanced multi-agent systems:
+**13 step-by-step examples** covering everything from basic agent sessions to advanced multi-agent systems:
 
 - **Beginner** (01-04): Minimal sessions, model selection, system prompts, tool policies
 - **Intermediate** (05-09): Custom tools, hooks, extensions, context files, session management
-- **Advanced** (10-14): Spawn agents, teams, RPC clients, custom executors, full control
+- **Advanced** (10-13): Spawn agents, teams, custom executors, full control
 
 👉 [View all cline-sdk examples →](./cline-sdk/README.md)
 
@@ -83,8 +83,7 @@ For RPC client helpers, import from `@clinebot/core` (re-exported there), not `@
 
 **Going to production?**
 - Session management: [`cline-sdk/09-sessions.ts`](./cline-sdk/09-sessions.ts)
-- Remote architecture: [`cline-sdk/12-rpc-client.ts`](./cline-sdk/12-rpc-client.ts)
-- Full control: [`cline-sdk/14-full-control.ts`](./cline-sdk/14-full-control.ts)
+- Full control: [`cline-sdk/13-full-control.ts`](./cline-sdk/13-full-control.ts)
 
 ## 📖 Documentation
 

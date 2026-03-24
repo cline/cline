@@ -1,18 +1,16 @@
 /**
- * 13-custom-executors.ts
+ * 12-custom-executors.ts
  *
  * Learn how to provide custom default tool executors.
  *
  * This example shows how to:
- * - Override default `read_files` behavior via `readFile`
  * - Override default `run_commands` behavior via `bash`
  * - Add logging and safety checks around tool execution
  *
- * Run: bun run 13-custom-executors.ts
+ * Run: bun run 12-custom-executors.ts
  */
 
 import { exec as execCb } from "node:child_process";
-import { readFile } from "node:fs/promises";
 import { promisify } from "node:util";
 import {
 	createSessionHost,
@@ -21,26 +19,6 @@ import {
 } from "@clinebot/core";
 
 const exec = promisify(execCb);
-
-function createLoggingReadFileExecutor(): NonNullable<
-	ToolExecutors["readFile"]
-> {
-	return async (request, _context: ToolContext): Promise<string> => {
-		const { path, start_line, end_line } = request;
-		console.log(
-			`📖 readFile executor called for: ${path}${start_line !== undefined || end_line !== undefined ? ` (${start_line ?? 1}-${end_line ?? "EOF"})` : ""}`,
-		);
-		const content = await readFile(path, "utf-8");
-		console.log(`✅ read ${content.length} bytes`);
-		if (start_line === undefined && end_line === undefined) {
-			return content;
-		}
-		const lines = content.split("\n");
-		return lines
-			.slice((start_line ?? 1) - 1, end_line ?? lines.length)
-			.join("\n");
-	};
-}
 
 function createSafeBashExecutor(): NonNullable<ToolExecutors["bash"]> {
 	return async (
@@ -64,7 +42,6 @@ function createSafeBashExecutor(): NonNullable<ToolExecutors["bash"]> {
 async function runDemo() {
 	const sessionManager = await createSessionHost({
 		defaultToolExecutors: {
-			readFile: createLoggingReadFileExecutor(),
 			bash: createSafeBashExecutor(),
 		},
 	});
@@ -79,9 +56,9 @@ async function runDemo() {
 			enableSpawnAgent: false,
 			enableAgentTeams: false,
 			systemPrompt:
-				"You are a helpful assistant. Use tools to inspect project files and run safe shell commands.",
+				"You are a helpful assistant. Use tools to run safe shell commands.",
 		},
-		prompt: "Read package.json and then run `ls -la`.",
+		prompt: "Run `ls -la` and summarize the output.",
 		interactive: false,
 	});
 

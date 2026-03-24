@@ -16,14 +16,13 @@
 		"09": "bun run 09-sessions.ts",
 		"10": "bun run 10-spawn-agents.ts",
 		"11": "bun run 11-teams.ts",
-		"12": "bun run 12-rpc-client.ts",
-		"13": "bun run 13-custom-executors.ts",
-		"14": "bun run 14-full-control.ts",
-		"14:local": "CLINE_BACKEND_MODE=local bun run 14-full-control.ts",
+		"12": "bun run 12-custom-executors.ts",
+		"13": "bun run 13-full-control.ts",
+		"13:local": "CLINE_BACKEND_MODE=local bun run 13-full-control.ts",
 		"about:session-host": "echo 'createSessionHost works without the CLI app: it can run local in-process sessions and falls back to local backend when RPC is unavailable.'",
 		"all:beginner": "bun run 01 && bun run 02 && bun run 03 && bun run 04",
 		"all:intermediate": "bun run 05 && bun run 06 && bun run 07 && bun run 08 && bun run 09",
-		"all:advanced": "bun run 10 && bun run 11 && bun run 12 && bun run 13 && bun run 14"
+		"all:advanced": "bun run 10 && bun run 11 && bun run 12 && bun run 13"
 	},
 	"dependencies": {
 		"@clinebot/agents": "nightly",

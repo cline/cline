@@ -17,7 +17,7 @@ All examples are fully type-safe, tested, and ready to run with `bun run <filena
 - [05-custom-tools.ts](./05-custom-tools.ts) - Add your own tools
 - [06-hooks.ts](./06-hooks.ts) - Monitor agent behavior
 - [07-extensions.ts](./07-extensions.ts) - Extend agent capabilities
-- [13-custom-executors.ts](./13-custom-executors.ts) - Override tool behavior
+- [12-custom-executors.ts](./12-custom-executors.ts) - Override tool behavior
 
 **Working with multiple agents?** Explore:
 - [10-spawn-agents.ts](./10-spawn-agents.ts) - Parallel sub-tasks
@@ -25,8 +25,7 @@ All examples are fully type-safe, tested, and ready to run with `bun run <filena
 
 **Production deployment?** See:
 - [09-sessions.ts](./09-sessions.ts) - Session management
-- [12-rpc-client.ts](./12-rpc-client.ts) - Remote architecture
-- [14-full-control.ts](./14-full-control.ts) - Complete control
+- [13-full-control.ts](./13-full-control.ts) - Complete control
 
 ### All Examples
 
@@ -43,9 +42,8 @@ All examples are fully type-safe, tested, and ready to run with `bun run <filena
 | [09-sessions.ts](./09-sessions.ts) | Intermediate | List, resume, and manage persistent sessions across runs |
 | [10-spawn-agents.ts](./10-spawn-agents.ts) | Advanced | Spawn child agents for parallel sub-tasks within a session |
 | [11-teams.ts](./11-teams.ts) | Advanced | Multi-agent teams with planning and execution modes |
-| [12-rpc-client.ts](./12-rpc-client.ts) | Advanced | Remote session control via RPC (client/server architecture) |
-| [13-custom-executors.ts](./13-custom-executors.ts) | Advanced | Override built-in tool executors (readFile, bash) with custom logic |
-| [14-full-control.ts](./14-full-control.ts) | Advanced | Full example combining tools, hooks, extensions, and custom executors |
+| [12-custom-executors.ts](./12-custom-executors.ts) | Advanced | Override built-in tool executors (bash) with custom logic |
+| [13-full-control.ts](./13-full-control.ts) | Advanced | Full example combining tools, hooks, extensions, and custom executors |
 
 ## 🚀 Quick Start
 
@@ -70,7 +68,7 @@ If you need RPC client/server helpers, import them from `@clinebot/rpc` directly
 
 ```bash
 # Run with explicit local backend (no RPC)
-CLINE_BACKEND_MODE=local bun run 14-full-control.ts
+CLINE_BACKEND_MODE=local bun run 13-full-control.ts
 ```
 
 ## 📖 Core Concepts
@@ -378,8 +376,6 @@ The Cline SDK can be deployed anywhere Node.js runs:
 - **Serverless** - AWS Lambda, Vercel Functions
 - **Docker** - Containerized agents
 - **RPC Mode** - Client/server architecture for scaling
-
-See [12-rpc-client.ts](./12-rpc-client.ts) for remote deployment patterns.
 
 ## 🛠️ Development Tips
 

@@ -87,9 +87,8 @@ bun run all:advanced
 ### Week 2: Advanced (2-3 hours)
 10. `10-spawn-agents.ts` - Parallel sub-agents
 11. `11-teams.ts` - Multi-agent coordination
-12. `12-rpc-client.ts` - Remote sessions (requires RPC server)
-13. `13-custom-executors.ts` - Custom tool executors
-14. `14-full-control.ts` - Production-ready setup
+12. `12-custom-executors.ts` - Custom tool executors
+13. `13-full-control.ts` - Production-ready setup
 
 ## Common Issues
 
@@ -104,15 +103,6 @@ export ANTHROPIC_API_KEY=your-key-here
 cd ../../..
 bun install
 bun run build:sdk
-```
-
-### "Cannot connect to RPC server" (example 12)
-```bash
-# Start the RPC server first
-clite rpc start
-
-# In another terminal, run the example
-bun run 12-rpc-client.ts
 ```
 
 ### TypeScript errors

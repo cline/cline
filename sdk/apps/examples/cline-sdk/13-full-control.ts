@@ -1,5 +1,5 @@
 /**
- * 14-full-control.ts
+ * 13-full-control.ts
  *
  * A complete "full-control" example that combines:
  * - custom tools
@@ -7,7 +7,7 @@
  * - custom extensions
  * - custom default tool executors
  *
- * Run: bun run 14-full-control.ts
+ * Run: bun run 13-full-control.ts
  */
 
 import { exec as execCb } from "node:child_process";
