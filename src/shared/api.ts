@@ -4726,6 +4726,28 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 export type MinimaxModelId = keyof typeof minimaxModels
 export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.5"
 export const minimaxModels = {
+	"MiniMax-M2.7": {
+		maxTokens: 128_000,
+		contextWindow: 204_800,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.0375,
+		cacheReadsPrice: 0.06,
+	},
+	"MiniMax-M2.7-highspeed": {
+		maxTokens: 128_000,
+		contextWindow: 204_800,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.0375,
+		cacheReadsPrice: 0.06,
+	},
 	"MiniMax-M2.5": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,
