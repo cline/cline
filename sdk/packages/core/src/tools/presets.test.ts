@@ -11,10 +11,10 @@ describe("default tool presets", () => {
 		expect(ToolPresets.development.enableAskQuestion).toBe(true);
 		expect(ToolPresets.readonly.enableAskQuestion).toBe(true);
 		expect(ToolPresets.minimal.enableAskQuestion).toBe(true);
-		expect(ToolPresets.yolo.enableAskQuestion).toBe(true);
+		expect(ToolPresets.yolo.enableAskQuestion).toBe(false);
 	});
 
-	it("yolo preset enables all default tools when executors exist", () => {
+	it("yolo preset excludes ask_question even when its executor exists", () => {
 		const tools = createDefaultToolsWithPreset("yolo", {
 			executors: {
 				readFile: async () => "ok",
@@ -35,7 +35,6 @@ describe("default tool presets", () => {
 			"fetch_web_content",
 			"editor",
 			"skills",
-			"ask_question",
 		]);
 	});
 });

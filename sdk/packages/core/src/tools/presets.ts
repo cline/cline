@@ -88,7 +88,7 @@ export const ToolPresets = {
 	},
 
 	/**
-	 * YOLO mode (everything enabled + no approval required)
+	 * YOLO mode (automation-focused tools + no approval required)
 	 * Good for trusted local automation workflows.
 	 */
 	yolo: {
@@ -99,7 +99,7 @@ export const ToolPresets = {
 		enableApplyPatch: false,
 		enableEditor: true,
 		enableSkills: true,
-		enableAskQuestion: true,
+		enableAskQuestion: false,
 	},
 } as const satisfies Record<string, DefaultToolsConfig>;
 
@@ -115,7 +115,7 @@ export type ToolPolicyPresetName = "default" | "yolo";
 
 /**
  * Build tool policies for a preset.
- * `yolo` guarantees all tools are enabled and auto-approved.
+ * `yolo` guarantees tool policies are enabled and auto-approved.
  */
 export function createToolPoliciesWithPreset(
 	presetName: ToolPolicyPresetName,
