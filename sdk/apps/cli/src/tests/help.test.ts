@@ -73,7 +73,7 @@ test.describe("cline task --help", () => {
 		...HELP_TERMINAL,
 	});
 
-	test.skip("shows task usage, prompt argument, and all flags", async ({
+	test("shows task usage, prompt argument, and all flags", async ({
 		terminal,
 	}) => {
 		await expectVisible(terminal, [
@@ -91,7 +91,6 @@ test.describe("cline task --help", () => {
 			"--reasoning-effort",
 			"--max-consecutive-mistakes",
 			"--json",
-			// "--double-check-completion",
 			"--taskId",
 		]);
 	});
@@ -107,7 +106,7 @@ test.describe("cline t --help (task alias)", () => {
 		...HELP_TERMINAL,
 	});
 
-	test.skip("shows task usage and flags via alias", async ({ terminal }) => {
+	test("shows task usage and flags via alias", async ({ terminal }) => {
 		await expectVisible(terminal, ["Usage:", "--yolo"]);
 	});
 });

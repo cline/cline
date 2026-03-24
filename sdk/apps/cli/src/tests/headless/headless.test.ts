@@ -92,7 +92,7 @@ test.describe("cline --json — unauthenticated", () => {
 
 	test("outputs JSON error for unauthenticated", async ({ terminal }) => {
 		// cline --json when unauthenticated outputs a plain "unauthorized" message
-		await expectVisible(terminal, /{"type":"error"/i);
+		await expectVisible(terminal, /"type":"error"/i);
 		await expectVisible(terminal, /Missing API key/i);
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});

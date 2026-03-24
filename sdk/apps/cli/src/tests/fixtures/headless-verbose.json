@@ -4,9 +4,50 @@
 		"method": "GET",
 		"path": "/api/v1/users/me",
 		"body": "",
-		"status": 401,
+		"status": 200,
 		"response": {
-			"error": "Unauthorized: Please make sure you're using the latest version of Cline and re-authenticate your Cline account."
+			"data": {
+				"id": "REDACTED",
+				"email": "REDACTED",
+				"displayName": "REDACTED",
+				"termsAcceptedAt": "2025-12-01T22:41:32.619173Z",
+				"clineBenchConsent": true,
+				"organizations": [
+					{
+						"memberId": "REDACTED",
+						"organizationId": "REDACTED",
+						"name": "Cline Bot Inc",
+						"roles": ["admin"],
+						"active": true
+					},
+					{
+						"memberId": "REDACTED",
+						"organizationId": "REDACTED",
+						"name": "Cline Internal Testing Org",
+						"roles": ["member"],
+						"active": false
+					}
+				],
+				"createdAt": "2025-12-01T22:34:35.355099Z",
+				"updatedAt": "2026-03-24T21:27:10.453282Z"
+			},
+			"success": true
+		},
+		"responseIsBinary": false,
+		"contentType": "application/json"
+	},
+	{
+		"scope": "https://api.cline.bot",
+		"method": "GET",
+		"path": "/api/v1/organizations/org-REDACTED/balance",
+		"body": "",
+		"status": 200,
+		"response": {
+			"data": {
+				"organizationId": "REDACTED",
+				"balance": "REDACTED"
+			},
+			"success": true
 		},
 		"responseIsBinary": false,
 		"contentType": "application/json"
@@ -14,14 +55,10 @@
 	{
 		"scope": "https://api.cline.bot",
 		"method": "POST",
-		"path": "/api/v1/auth/refresh",
-		"status": 400,
-		"response": {
-			"data": "",
-			"error": "failed to refresh token",
-			"success": false
-		},
+		"path": "/api/v1/chat/completions",
+		"status": 200,
+		"response": "data: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Why\",\"phase\":\"final_answer\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" did\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" the\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" programmer\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" quit\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" his\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" job\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"?\\n\\n\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Because\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" he\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" didn\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\"’t\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" get\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\" arrays\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"content\":\".\"},\"logprobs\":null,\"finish_reason\":null}],\"system_fingerprint\":\"fp_e881w04olc\"}\n\ndata: {\"id\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"object\":\"chat.completion.chunk\",\"created\":1774387732,\"model\":\"openai/gpt-5.3-codex\",\"choices\":[{\"index\":0,\"delta\":{\"provider_metadata\":{\"openai\":{\"responseId\":\"resp_09fb8e1b1228cf570169c3021483f481939205f50ba3a85482\",\"serviceTier\":\"default\"},\"gateway\":{\"routing\":{\"originalModelId\":\"openai/gpt-5.3-codex\",\"resolvedProvider\":\"openai\",\"resolvedProviderApiModelId\":\"gpt-5.3-codex\",\"internalResolvedModelId\":\"openai:gpt-5.3-codex\",\"fallbacksAvailable\":[\"azure\"],\"internalReasoning\":\"Selected openai as preferred provider for gpt-5.3-codex. 1 fallback(s) available: azure\",\"planningReasoning\":\"BYOK credentials available for: openai. System credentials planned for: openai, azure. Total execution order: openai(BYOK) → openai(system) → azure(system)\",\"canonicalSlug\":\"openai/gpt-5.3-codex\",\"finalProvider\":\"openai\",\"attempts\":[{\"provider\":\"openai\",\"internalModelId\":\"openai:gpt-5.3-codex\",\"providerApiModelId\":\"gpt-5.3-codex\",\"credentialType\":\"byok\",\"success\":false,\"error\":\"You do not have access to the organization tied to the API key.\",\"startTime\":96918.173395,\"endTime\":96965.753356,\"statusCode\":401},{\"provider\":\"openai\",\"internalModelId\":\"openai:gpt-5.3-codex\",\"providerApiModelId\":\"gpt-5.3-codex\",\"credentialType\":\"system\",\"success\":true,\"startTime\":96982.122639,\"endTime\":98127.411976,\"providerRequestId\":\"req_b296bc1267a244699070f310b473080e\",\"statusCode\":200,\"providerResponseId\":\"resp_09fb8e1b1228cf570169c3021483f481939205f50ba3a85482\"}],\"modelAttemptCount\":1,\"modelAttempts\":[{\"modelId\":\"openai:gpt-5.3-codex\",\"canonicalSlug\":\"openai/gpt-5.3-codex\",\"success\":true,\"providerAttemptCount\":2,\"providerAttempts\":[{\"provider\":\"openai\",\"internalModelId\":\"openai:gpt-5.3-codex\",\"providerApiModelId\":\"gpt-5.3-codex\",\"credentialType\":\"byok\",\"success\":false,\"error\":\"You do not have access to the organization tied to the API key.\",\"startTime\":96918.173395,\"endTime\":96965.753356,\"statusCode\":401},{\"provider\":\"openai\",\"internalModelId\":\"openai:gpt-5.3-codex\",\"providerApiModelId\":\"gpt-5.3-codex\",\"credentialType\":\"system\",\"success\":true,\"startTime\":96982.122639,\"endTime\":98127.411976,\"providerRequestId\":\"req_b296bc1267a244699070f310b473080e\",\"statusCode\":200,\"providerResponseId\":\"resp_09fb8e1b1228cf570169c3021483f481939205f50ba3a85482\"}]}],\"totalProviderAttemptCount\":2},\"cost\":\"0.00105385\",\"marketCost\":\"0.00105385\",\"generationId\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\",\"billableWebSearchCalls\":0}}},\"logprobs\":null,\"finish_reason\":\"stop\"}],\"usage\":{\"prompt_tokens\":3791,\"completion_tokens\":19,\"total_tokens\":3810,\"cost\":0.00105385,\"is_byok\":false,\"prompt_tokens_details\":{\"cached_tokens\":3712,\"audio_tokens\":0,\"video_tokens\":0},\"cost_details\":{\"upstream_inference_cost\":null,\"upstream_inference_prompt_cost\":0,\"upstream_inference_completions_cost\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0,\"image_tokens\":0},\"cache_creation_input_tokens\":0,\"market_cost\":0.00105385},\"system_fingerprint\":\"fp_e881w04olc\",\"service_tier\":\"default\",\"generationId\":\"gen_01KMGW07V05ZFX69T7ZWJ8BH20\"}\n\ndata: [DONE]\n\n",
 		"responseIsBinary": false,
-		"contentType": "application/json"
+		"contentType": "text/event-stream"
 	}
 ]
