@@ -215,13 +215,17 @@ async function writeToChildStdin(
 
 	await new Promise<void>((resolve, reject) => {
 		let settled = false;
+		const cleanup = () => {
+			stdin.off("error", onError);
+			stdin.off("finish", onFinish);
+			child.off("close", onChildClose);
+		};
 		const finish = (error?: Error | null) => {
 			if (settled) {
 				return;
 			}
 			settled = true;
-			stdin.off("error", onError);
-			stdin.off("close", onClose);
+			cleanup();
 			if (error) {
 				const code = (error as Error & { code?: string }).code;
 				if (code === "EPIPE" || code === "ERR_STREAM_DESTROYED") {
@@ -234,10 +238,16 @@ async function writeToChildStdin(
 			resolve();
 		};
 		const onError = (error: Error) => finish(error);
-		const onClose = () => finish();
+		const onFinish = () => finish();
+		const onChildClose = () => finish();
 		stdin.on("error", onError);
-		stdin.once("close", onClose);
-		stdin.end(body, (error?: Error | null) => finish(error));
+		stdin.once("finish", onFinish);
+		child.once("close", onChildClose);
+		try {
+			stdin.end(body);
+		} catch (error) {
+			finish(error as Error);
+		}
 	});
 }
 
@@ -270,10 +280,10 @@ async function runHookCommand(
 	});
 
 	const body = JSON.stringify(payload);
+	await Promise.race([spawned, childError]);
 	await writeToChildStdin(child, body);
 
 	if (options.detached) {
-		await Promise.race([spawned, childError]);
 		child.unref();
 		return;
 	}

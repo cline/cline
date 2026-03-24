@@ -57,7 +57,7 @@ describe("createHookConfigFileHooks", () => {
 	it("executes extensionless legacy hook files via bash fallback", async () => {
 		const { workspace } = await createWorkspaceWithHook(
 			"PreToolUse",
-			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"legacy-ok"}\'\n',
+			'echo \'HOOK_CONTROL\t{"cancel":true,"context":"legacy-ok"}\'\nexit 0\n',
 		);
 		try {
 			const hooks = createHookConfigFileHooks({
