@@ -8,6 +8,7 @@ import {
 	toProtoValue,
 } from "../proto/serde.js";
 import type { RpcRuntimeHandlers, RpcSessionBackend } from "../types.js";
+import { RPC_PROTOCOL_VERSION } from "../version.js";
 import {
 	messageToRow,
 	normalizeMetadataMap,
@@ -151,6 +152,7 @@ export class ClineGatewayRuntime {
 			address: this.address,
 			running: true,
 			startedAt: this.startedAt,
+			rpcVersion: RPC_PROTOCOL_VERSION,
 		};
 	}
 
