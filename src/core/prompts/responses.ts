@@ -306,6 +306,9 @@ Otherwise, if you have not completed the task and do not need additional informa
 	toolAlreadyUsed: (toolName: string) =>
 		`Tool [${toolName}] was not executed because a tool has already been used in this message. Only one tool may be used per message. You must assess the first tool's result before proceeding to use the next tool.`,
 
+	repeatedToolCall: (toolName: string, count: number) =>
+		`Tool [${toolName}] has been called ${count} times consecutively with identical arguments. This is not making progress. Please use a different tool or different arguments instead of repeating the same call.`,
+
 	clineIgnoreInstructions: (content: string) =>
 		`# .clineignore\n\n(The following is provided by a root-level .clineignore file where the user has specified files and directories that should not be accessed. When using list_files, you'll notice a ${LOCK_TEXT_SYMBOL} next to files that are blocked. Attempting to access the file's contents e.g. through read_file will result in an error.)\n\n${content}\n.clineignore`,
 
