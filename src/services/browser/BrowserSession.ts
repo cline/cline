@@ -44,12 +44,6 @@ export class BrowserSession {
 	private isConnectedToRemote = false
 	private useWebp: boolean
 
-	// Glazyr Zero-Copy Vision Gateway SSE client
-	private _glazyrClient?: {
-		callTool: (name: string, args: unknown, timeoutMs: number) => Promise<string>
-		disconnect: () => void
-	}
-
 	// Telemetry tracking properties
 	private sessionStartTime = 0
 	private browserActions: string[] = []
@@ -374,16 +368,6 @@ export class BrowserSession {
 			this.currentMousePosition = undefined
 			this.isConnectedToRemote = false
 
-			// Disconnect Glazyr Vision client if active
-			if (this._glazyrClient) {
-				try {
-					this._glazyrClient.disconnect()
-				} catch {
-					/* ignore */
-				}
-				this._glazyrClient = undefined
-			}
-
 			// Reset tracking properties
 			this.sessionStartTime = 0
 			this.browserActions = []
@@ -450,7 +434,7 @@ export class BrowserSession {
 		if (browserSettings.glazyrVisionUrl) {
 			try {
 				const pointer = await this._peekVisionBuffer(browserSettings.glazyrVisionUrl, browserSettings.glazyrVisionToken)
-				this.page.off("console", LoggerListener)
+				this.page.off("Logger", LoggerListener)
 				this.page.off("pageerror", errorListener)
 				return {
 					screenshot: pointer,
@@ -460,15 +444,6 @@ export class BrowserSession {
 				}
 			} catch (e) {
 				Logger.warn(`⚡ Glazyr Vision intercept failed — falling back to Puppeteer: ${e}`)
-				// Reset client so the next call reconnects cleanly
-				if (this._glazyrClient) {
-					try {
-						this._glazyrClient.disconnect()
-					} catch {
-						/* ignore */
-					}
-					this._glazyrClient = undefined
-				}
 			}
 		}
 		// -------------------------------------------
@@ -648,6 +623,11 @@ export class BrowserSession {
 	 * Throws if no response is received within 5 seconds (the caller will fall back to Puppeteer).
 	 */
 	private async _peekVisionBuffer(gatewayUrl: string, token?: string): Promise<string> {
+		const parsedUrl = new URL(gatewayUrl.replace(/\/sse$/, "/call"))
+		if (parsedUrl.protocol !== "https:" && parsedUrl.protocol !== "http:") {
+			throw new Error(`Glazyr gateway URL must use http:// or https:// — got ${parsedUrl.protocol}`)
+		}
+
 		const TIMEOUT_MS = 5_000
 		const headers: Record<string, string> = { "Content-Type": "application/json" }
 		if (token) {
@@ -659,7 +639,7 @@ export class BrowserSession {
 		const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS)
 
 		try {
-			const res = await fetch(gatewayUrl.replace(/\/sse$/, "/call"), {
+			const res = await fetch(parsedUrl.toString(), {
 				method: "POST",
 				headers,
 				body: JSON.stringify({ tool: "peek_vision_buffer", arguments: { include_base64: false } }),
@@ -670,8 +650,12 @@ export class BrowserSession {
 			}
 			const json = (await res.json()) as { result?: { pointer?: string }; pointer?: string; url?: string }
 			const pointer = json?.result?.pointer ?? json?.pointer ?? json?.url
+
 			if (!pointer || typeof pointer !== "string") {
 				throw new Error("Gateway response contained no pointer field")
+			}
+			if (!pointer.startsWith("https://") && !pointer.startsWith("http://")) {
+				throw new Error(`Gateway returned an unsafe pointer scheme: ${pointer.substring(0, 30)}`)
 			}
 			return pointer
 		} finally {
