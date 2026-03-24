@@ -94,6 +94,17 @@ function resolveKnownModelsFromConfig(
 	}
 }
 
+function serializeAbortReason(reason: unknown): unknown {
+	if (reason instanceof Error) {
+		return {
+			name: reason.name,
+			message: reason.message,
+			stack: reason.stack,
+		};
+	}
+	return reason;
+}
+
 export class Agent {
 	private config: Required<
 		Pick<
@@ -210,7 +221,7 @@ export class Agent {
 			authorizeToolCall: (call, context) =>
 				this.authorizeToolCall(call, context),
 			onCancelRequested: () => {
-				this.abortController?.abort();
+				this.abort(new Error("Tool call requested cancellation"));
 			},
 			onLog: (level, message, metadata) => {
 				this.log(level, message, metadata);
@@ -304,8 +315,17 @@ export class Agent {
 		this.conversationStore.restore(messages);
 	}
 
-	abort(): void {
-		this.abortController?.abort();
+	abort(reason?: unknown): void {
+		if (!this.abortController) {
+			return;
+		}
+		this.log("warn", "Agent abort requested", {
+			agentId: this.agentId,
+			conversationId: this.conversationStore.getConversationId(),
+			runId: this.activeRunId || undefined,
+			reason: serializeAbortReason(reason),
+		});
+		this.abortController.abort(reason);
 	}
 
 	subscribeEvents(listener: (event: AgentEvent) => void): () => void {
@@ -408,6 +428,14 @@ export class Agent {
 			thinkingBudgetTokens: config.thinkingBudgetTokens,
 			thinking: config.thinking,
 			abortSignal: config.abortSignal,
+			logger: {
+				debug: (message, metadata) => {
+					this.log("debug", message, metadata);
+				},
+				warn: (message, metadata) => {
+					this.log("warn", message, metadata);
+				},
+			},
 		};
 		return LlmsProviders.createHandler(normalizedProviderConfig);
 	}
@@ -432,6 +460,39 @@ export class Agent {
 		return controller.signal;
 	}
 
+	private observeAbortSignal(
+		signal: AbortSignal | undefined,
+		source: string,
+		runId: string,
+	): void {
+		if (!signal) {
+			return;
+		}
+		if (signal.aborted) {
+			this.log("warn", "Agent abort signal already aborted", {
+				agentId: this.agentId,
+				conversationId: this.conversationStore.getConversationId(),
+				runId,
+				source,
+				reason: serializeAbortReason(signal.reason),
+			});
+			return;
+		}
+		signal.addEventListener(
+			"abort",
+			() => {
+				this.log("warn", "Agent abort signal fired", {
+					agentId: this.agentId,
+					conversationId: this.conversationStore.getConversationId(),
+					runId,
+					source,
+					reason: serializeAbortReason(signal.reason),
+				});
+			},
+			{ once: true },
+		);
+	}
+
 	private async executeLoop(triggerMessage: string): Promise<AgentResult> {
 		if (this.runState !== "idle") {
 			throw new Error(
@@ -454,6 +515,8 @@ export class Agent {
 			this.config.abortSignal,
 			this.abortController.signal,
 		);
+		this.observeAbortSignal(this.config.abortSignal, "agent_config", runId);
+		this.observeAbortSignal(this.abortController.signal, "agent_run", runId);
 
 		let iteration = 0;
 		let finishReason: AgentFinishReason = "completed";
@@ -600,6 +663,7 @@ export class Agent {
 					  >["assistantMessage"]
 					| undefined;
 				const apiTimeoutSignal = this.createApiTimeoutSignal();
+				this.observeAbortSignal(apiTimeoutSignal, "api_timeout", runId);
 				const turnAbortSignal = this.mergeAbortSignals(
 					abortSignal,
 					apiTimeoutSignal,
@@ -1408,10 +1472,10 @@ export class Agent {
 		const controller = new AbortController();
 		for (const signal of activeSignals) {
 			if (signal.aborted) {
-				controller.abort();
+				controller.abort(signal.reason);
 				break;
 			}
-			signal.addEventListener("abort", () => controller.abort(), {
+			signal.addEventListener("abort", () => controller.abort(signal.reason), {
 				once: true,
 			});
 		}

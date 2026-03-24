@@ -373,7 +373,7 @@ export class DefaultSessionManager implements SessionManager {
 		return usage ? { ...usage } : undefined;
 	}
 
-	async abort(sessionId: string): Promise<void> {
+	async abort(sessionId: string, reason?: unknown): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;
 		session.config.telemetry?.capture({
@@ -381,7 +381,11 @@ export class DefaultSessionManager implements SessionManager {
 			properties: { sessionId },
 		});
 		session.aborting = true;
-		session.agent.abort();
+		(
+			session.agent as Agent & {
+				abort: (abortReason?: unknown) => void;
+			}
+		).abort(reason);
 	}
 
 	async stop(sessionId: string): Promise<void> {
@@ -393,7 +397,7 @@ export class DefaultSessionManager implements SessionManager {
 		});
 		await this.shutdownSession(session, {
 			status: "cancelled",
-			exitCode: null,
+			exitCode: 0,
 			shutdownReason: "session_stop",
 			endReason: "stopped",
 		});
@@ -406,7 +410,7 @@ export class DefaultSessionManager implements SessionManager {
 			sessions.map((session) =>
 				this.shutdownSession(session, {
 					status: "cancelled",
-					exitCode: null,
+					exitCode: 0,
 					shutdownReason: reason,
 					endReason: "disposed",
 				}),
@@ -681,7 +685,7 @@ export class DefaultSessionManager implements SessionManager {
 		const isAborted = finishReason === "aborted" || session.aborting;
 		await this.shutdownSession(session, {
 			status: isAborted ? "cancelled" : "completed",
-			exitCode: isAborted ? null : 0,
+			exitCode: 0,
 			shutdownReason: "session_complete",
 			endReason: finishReason,
 		});

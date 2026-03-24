@@ -214,18 +214,14 @@ async function writeToChildStdin(
 	}
 
 	await new Promise<void>((resolve, reject) => {
-		const onError = (error: Error) => {
-			stdin.off("error", onError);
-			const code = (error as Error & { code?: string }).code;
-			if (code === "EPIPE" || code === "ERR_STREAM_DESTROYED") {
-				resolve();
+		let settled = false;
+		const finish = (error?: Error | null) => {
+			if (settled) {
 				return;
 			}
-			reject(error);
-		};
-		stdin.once("error", onError);
-		stdin.end(body, (error?: Error | null) => {
+			settled = true;
 			stdin.off("error", onError);
+			stdin.off("close", onClose);
 			if (error) {
 				const code = (error as Error & { code?: string }).code;
 				if (code === "EPIPE" || code === "ERR_STREAM_DESTROYED") {
@@ -236,7 +232,12 @@ async function writeToChildStdin(
 				return;
 			}
 			resolve();
-		});
+		};
+		const onError = (error: Error) => finish(error);
+		const onClose = () => finish();
+		stdin.on("error", onError);
+		stdin.once("close", onClose);
+		stdin.end(body, (error?: Error | null) => finish(error));
 	});
 }
 

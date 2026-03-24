@@ -32,6 +32,9 @@ import type {
 } from "./session-service";
 
 const SUBSESSION_SOURCE = "cli_subagent";
+const MAX_TITLE_LENGTH = 120;
+const OCC_MAX_RETRIES = 4;
+
 const SpawnAgentInputSchema = z
 	.object({
 		task: z.string().optional(),
@@ -39,66 +42,85 @@ const SpawnAgentInputSchema = z
 	})
 	.passthrough();
 
-function stringifyMetadataJson(
+// ── Metadata helpers ──────────────────────────────────────────────────
+
+function stringifyMetadata(
 	metadata: Record<string, unknown> | null | undefined,
 ): string | null {
-	if (!metadata || Object.keys(metadata).length === 0) {
-		return null;
-	}
+	if (!metadata || Object.keys(metadata).length === 0) return null;
 	return JSON.stringify(metadata);
 }
 
-function normalizeSessionTitle(title?: string | null): string | undefined {
-	const trimmed = title?.trim();
-	return trimmed ? trimmed.slice(0, 120) : undefined;
-}
-
-function deriveSessionTitleFromPrompt(
-	prompt?: string | null,
-): string | undefined {
-	const normalizedPrompt = normalizeUserInput(prompt ?? "").trim();
-	if (!normalizedPrompt) {
-		return undefined;
+function parseMetadataJson(
+	raw: string | null | undefined,
+): Record<string, unknown> | undefined {
+	const trimmed = raw?.trim();
+	if (!trimmed) return undefined;
+	try {
+		const parsed = JSON.parse(trimmed) as unknown;
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			return parsed as Record<string, unknown>;
+		}
+	} catch {
+		// Ignore malformed metadata payloads.
 	}
-	const firstLine = normalizedPrompt.split("\n")[0]?.trim();
-	return normalizeSessionTitle(firstLine);
+	return undefined;
 }
 
-function normalizeMetadataForStorage(
+function normalizeTitle(title?: string | null): string | undefined {
+	const trimmed = title?.trim();
+	return trimmed ? trimmed.slice(0, MAX_TITLE_LENGTH) : undefined;
+}
+
+function deriveTitleFromPrompt(prompt?: string | null): string | undefined {
+	const normalized = normalizeUserInput(prompt ?? "").trim();
+	if (!normalized) return undefined;
+	return normalizeTitle(normalized.split("\n")[0]?.trim());
+}
+
+/** Strip invalid title from metadata, drop empty objects. */
+function sanitizeMetadata(
 	metadata: Record<string, unknown> | null | undefined,
 ): Record<string, unknown> | undefined {
-	if (!metadata) {
-		return undefined;
-	}
+	if (!metadata) return undefined;
 	const next = { ...metadata };
-	if (typeof next.title === "string") {
-		const normalizedTitle = normalizeSessionTitle(next.title);
-		if (normalizedTitle) {
-			next.title = normalizedTitle;
-		} else {
-			delete next.title;
-		}
+	const title = normalizeTitle(
+		typeof next.title === "string" ? next.title : undefined,
+	);
+	if (title) {
+		next.title = title;
 	} else {
 		delete next.title;
 	}
 	return Object.keys(next).length > 0 ? next : undefined;
 }
 
-function metadataWithResolvedTitle(input: {
+/** Resolve title from explicit title, prompt, or existing metadata. */
+function resolveMetadataWithTitle(input: {
 	metadata?: Record<string, unknown> | null;
 	title?: string | null;
 	prompt?: string | null;
 }): Record<string, unknown> | undefined {
-	const next = { ...(normalizeMetadataForStorage(input.metadata) ?? {}) };
-	const resolvedTitle =
+	const base = sanitizeMetadata(input.metadata) ?? {};
+	const title =
 		input.title !== undefined
-			? normalizeSessionTitle(input.title)
-			: deriveSessionTitleFromPrompt(input.prompt);
-	if (resolvedTitle) {
-		next.title = resolvedTitle;
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
+			? normalizeTitle(input.title)
+			: deriveTitleFromPrompt(input.prompt);
+	if (title) base.title = title;
+	return Object.keys(base).length > 0 ? base : undefined;
 }
+
+// ── File helpers ──────────────────────────────────────────────────────
+
+function writeEmptyMessagesFile(path: string, startedAt: string): void {
+	writeFileSync(
+		path,
+		`${JSON.stringify({ version: 1, updated_at: startedAt, messages: [] }, null, 2)}\n`,
+		"utf8",
+	);
+}
+
+// ── Interfaces ────────────────────────────────────────────────────────
 
 export interface PersistedSessionUpdateInput {
 	sessionId: string;
@@ -141,47 +163,108 @@ export interface SessionPersistenceAdapter {
 	): Promise<string | undefined>;
 }
 
+// ── Service ───────────────────────────────────────────────────────────
+
 export class UnifiedSessionPersistenceService {
 	private readonly teamTaskSessionsByAgent = new Map<string, string[]>();
 	protected readonly artifacts: SessionArtifacts;
+	private static readonly STALE_REASON = "failed_external_process_exit";
+	private static readonly STALE_SOURCE = "stale_session_reconciler";
 
 	constructor(private readonly adapter: SessionPersistenceAdapter) {
 		this.artifacts = new SessionArtifacts(() => this.ensureSessionsDir());
-	}
-
-	private teamTaskQueueKey(rootSessionId: string, agentId: string): string {
-		return `${rootSessionId}::${agentId}`;
 	}
 
 	ensureSessionsDir(): string {
 		return this.adapter.ensureSessionsDir();
 	}
 
-	private sessionTranscriptPath(sessionId: string): string {
-		return this.artifacts.sessionTranscriptPath(sessionId);
+	// ── Manifest I/O ──────────────────────────────────────────────────
+
+	private writeManifestFile(
+		manifestPath: string,
+		manifest: SessionManifest,
+	): void {
+		writeFileSync(
+			manifestPath,
+			`${JSON.stringify(SessionManifestSchema.parse(manifest), null, 2)}\n`,
+			"utf8",
+		);
 	}
 
-	private sessionHookPath(sessionId: string): string {
-		return this.artifacts.sessionHookPath(sessionId);
+	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {
+		this.writeManifestFile(manifestPath, manifest);
 	}
 
-	private sessionMessagesPath(sessionId: string): string {
-		return this.artifacts.sessionMessagesPath(sessionId);
+	private readManifestFile(sessionId: string): {
+		path: string;
+		manifest?: SessionManifest;
+	} {
+		const manifestPath = this.artifacts.sessionManifestPath(sessionId, false);
+		if (!existsSync(manifestPath)) return { path: manifestPath };
+		try {
+			return {
+				path: manifestPath,
+				manifest: SessionManifestSchema.parse(
+					JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest,
+				),
+			};
+		} catch {
+			return { path: manifestPath };
+		}
 	}
 
-	private sessionManifestPath(sessionId: string, ensureDir = true): string {
-		return this.artifacts.sessionManifestPath(sessionId, ensureDir);
+	private buildManifestFromRow(
+		row: SessionRowShape,
+		overrides?: {
+			status?: SessionStatus;
+			endedAt?: string | null;
+			exitCode?: number | null;
+			metadata?: Record<string, unknown>;
+		},
+	): SessionManifest {
+		return SessionManifestSchema.parse({
+			version: 1,
+			session_id: row.session_id,
+			source: row.source,
+			pid: row.pid,
+			started_at: row.started_at,
+			ended_at: overrides?.endedAt ?? row.ended_at ?? undefined,
+			exit_code: overrides?.exitCode ?? row.exit_code ?? undefined,
+			status: overrides?.status ?? row.status,
+			interactive: row.interactive === 1,
+			provider: row.provider,
+			model: row.model,
+			cwd: row.cwd,
+			workspace_root: row.workspace_root,
+			team_name: row.team_name ?? undefined,
+			enable_tools: row.enable_tools === 1,
+			enable_spawn: row.enable_spawn === 1,
+			enable_teams: row.enable_teams === 1,
+			prompt: row.prompt ?? undefined,
+			metadata: overrides?.metadata ?? parseMetadataJson(row.metadata_json),
+			messages_path: row.messages_path ?? undefined,
+		});
 	}
 
-	private async sessionPathFromStore(
+	// ── Path resolution ───────────────────────────────────────────────
+
+	private async resolveArtifactPath(
 		sessionId: string,
 		kind: "transcript_path" | "hook_path" | "messages_path",
-	): Promise<string | undefined> {
+		fallback: (id: string) => string,
+	): Promise<string> {
 		const row = await this.adapter.getSession(sessionId);
 		const value = row?.[kind];
 		return typeof value === "string" && value.trim().length > 0
 			? value
-			: undefined;
+			: fallback(sessionId);
+	}
+
+	// ── Team task queue ───────────────────────────────────────────────
+
+	private teamTaskQueueKey(rootSessionId: string, agentId: string): string {
+		return `${rootSessionId}::${agentId}`;
 	}
 
 	private activeTeamTaskSessionId(
@@ -191,115 +274,27 @@ export class UnifiedSessionPersistenceService {
 		const queue = this.teamTaskSessionsByAgent.get(
 			this.teamTaskQueueKey(rootSessionId, parentAgentId),
 		);
-		if (!queue || queue.length === 0) {
-			return undefined;
-		}
-		return queue[queue.length - 1];
+		return queue?.at(-1);
 	}
 
-	private subagentArtifactPaths(
-		rootSessionId: string,
-		sessionId: string,
-		parentAgentId: string,
-		subAgentId: string,
-	): {
-		transcriptPath: string;
-		hookPath: string;
-		messagesPath: string;
-	} {
-		return this.artifacts.subagentArtifactPaths(
-			sessionId,
-			subAgentId,
-			this.activeTeamTaskSessionId(rootSessionId, parentAgentId),
-		);
-	}
-
-	private writeSessionManifestFile(
-		manifestPath: string,
-		manifest: SessionManifest,
-	): void {
-		const parsedManifest = SessionManifestSchema.parse(manifest);
-		writeFileSync(
-			manifestPath,
-			`${JSON.stringify(parsedManifest, null, 2)}\n`,
-			"utf8",
-		);
-	}
-
-	private readSessionManifestFile(sessionId: string): {
-		path: string;
-		manifest?: SessionManifest;
-	} {
-		const manifestPath = this.sessionManifestPath(sessionId, false);
-		if (!existsSync(manifestPath)) {
-			return { path: manifestPath };
-		}
-		try {
-			const manifest = SessionManifestSchema.parse(
-				JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest,
-			);
-			return { path: manifestPath, manifest };
-		} catch {
-			return { path: manifestPath };
-		}
-	}
-
-	private applyResolvedTitleToRow(row: SessionRowShape): SessionRowShape {
-		const existingMetadata =
-			typeof row.metadata_json === "string" &&
-			row.metadata_json.trim().length > 0
-				? (() => {
-						try {
-							const parsed = JSON.parse(row.metadata_json) as unknown;
-							if (
-								parsed &&
-								typeof parsed === "object" &&
-								!Array.isArray(parsed)
-							) {
-								return parsed as Record<string, unknown>;
-							}
-						} catch {
-							// Ignore malformed metadata payloads.
-						}
-						return undefined;
-					})()
-				: undefined;
-		const sanitizedMetadata = normalizeMetadataForStorage(existingMetadata);
-		const { manifest } = this.readSessionManifestFile(row.session_id);
-		const manifestTitle = normalizeSessionTitle(
-			typeof manifest?.metadata?.title === "string"
-				? (manifest.metadata.title as string)
-				: undefined,
-		);
-		const resolvedMetadata = manifestTitle
-			? {
-					...(sanitizedMetadata ?? {}),
-					title: manifestTitle,
-				}
-			: sanitizedMetadata;
-		return {
-			...row,
-			metadata_json: stringifyMetadataJson(resolvedMetadata),
-		};
-	}
-
-	private createRootSessionId(): string {
-		return `${Date.now()}_${nanoid(5)}`;
-	}
+	// ── Root session ──────────────────────────────────────────────────
 
 	async createRootSessionWithArtifacts(
 		input: CreateRootSessionWithArtifactsInput,
 	): Promise<RootSessionArtifacts> {
 		const startedAt = input.startedAt ?? nowIso();
-		const providedSessionId = input.sessionId.trim();
+		const providedId = input.sessionId.trim();
 		const sessionId =
-			providedSessionId.length > 0
-				? providedSessionId
-				: this.createRootSessionId();
-		const transcriptPath = this.sessionTranscriptPath(sessionId);
-		const hookPath = this.sessionHookPath(sessionId);
-		const messagesPath = this.sessionMessagesPath(sessionId);
-		const manifestPath = this.sessionManifestPath(sessionId);
+			providedId.length > 0 ? providedId : `${Date.now()}_${nanoid(5)}`;
+		const transcriptPath = this.artifacts.sessionTranscriptPath(sessionId);
+		const hookPath = this.artifacts.sessionHookPath(sessionId);
+		const messagesPath = this.artifacts.sessionMessagesPath(sessionId);
+		const manifestPath = this.artifacts.sessionManifestPath(sessionId);
+
+		const metadata = resolveMetadataWithTitle({
+			metadata: input.metadata,
+			prompt: input.prompt,
+		});
 		const manifest = SessionManifestSchema.parse({
 			version: 1,
 			session_id: sessionId,
@@ -317,13 +312,9 @@ export class UnifiedSessionPersistenceService {
 			enable_spawn: input.enableSpawn,
 			enable_teams: input.enableTeams,
 			prompt: input.prompt?.trim() || undefined,
-			metadata: metadataWithResolvedTitle({
-				metadata: input.metadata,
-				prompt: input.prompt,
-			}),
+			metadata,
 			messages_path: messagesPath,
 		});
-		const storedMetadata = normalizeMetadataForStorage(manifest.metadata);
 
 		await this.adapter.upsertSession({
 			session_id: sessionId,
@@ -349,42 +340,30 @@ export class UnifiedSessionPersistenceService {
 			conversation_id: null,
 			is_subagent: 0,
 			prompt: manifest.prompt ?? null,
-			metadata_json: stringifyMetadataJson(storedMetadata),
+			metadata_json: stringifyMetadata(sanitizeMetadata(manifest.metadata)),
 			transcript_path: transcriptPath,
 			hook_path: hookPath,
 			messages_path: messagesPath,
 			updated_at: nowIso(),
 		});
 
-		writeFileSync(
-			messagesPath,
-			`${JSON.stringify({ version: 1, updated_at: startedAt, messages: [] }, null, 2)}\n`,
-			"utf8",
-		);
-		this.writeSessionManifestFile(manifestPath, manifest);
-		return {
-			manifestPath,
-			transcriptPath,
-			hookPath,
-			messagesPath,
-			manifest,
-		};
+		writeEmptyMessagesFile(messagesPath, startedAt);
+		this.writeManifestFile(manifestPath, manifest);
+		return { manifestPath, transcriptPath, hookPath, messagesPath, manifest };
 	}
 
-	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {
-		this.writeSessionManifestFile(manifestPath, manifest);
-	}
+	// ── Session status updates ────────────────────────────────────────
 
 	async updateSessionStatus(
 		sessionId: string,
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<{ updated: boolean; endedAt?: string }> {
-		for (let attempt = 0; attempt < 4; attempt++) {
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const row = await this.adapter.getSession(sessionId);
-			if (!row || typeof row.status_lock !== "number") {
+			if (!row || typeof row.status_lock !== "number")
 				return { updated: false };
-			}
+
 			const endedAt = nowIso();
 			const changed = await this.adapter.updateSession({
 				sessionId,
@@ -409,192 +388,183 @@ export class UnifiedSessionPersistenceService {
 		metadata?: Record<string, unknown> | null;
 		title?: string | null;
 	}): Promise<{ updated: boolean }> {
-		for (let attempt = 0; attempt < 4; attempt++) {
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
 			const row = await this.adapter.getSession(input.sessionId);
-			if (!row || typeof row.status_lock !== "number") {
+			if (!row || typeof row.status_lock !== "number")
 				return { updated: false };
-			}
-			const sanitizedMetadata =
-				input.metadata === undefined
-					? undefined
-					: normalizeMetadataForStorage(input.metadata);
-			const existingMetadata = (() => {
-				const raw = row.metadata_json?.trim();
-				if (!raw) {
-					return undefined;
-				}
-				try {
-					const parsed = JSON.parse(raw) as unknown;
-					if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-						return normalizeMetadataForStorage(
-							parsed as Record<string, unknown>,
-						);
-					}
-				} catch {
-					// Ignore malformed metadata payloads.
-				}
-				return undefined;
-			})();
-			const existingTitle = normalizeSessionTitle(
-				typeof existingMetadata?.title === "string"
-					? (existingMetadata.title as string)
+
+			const existingMeta = parseMetadataJson(row.metadata_json);
+			const baseMeta =
+				input.metadata !== undefined
+					? (sanitizeMetadata(input.metadata) ?? {})
+					: (sanitizeMetadata(existingMeta) ?? {});
+
+			const existingTitle = normalizeTitle(
+				typeof existingMeta?.title === "string"
+					? (existingMeta.title as string)
 					: undefined,
 			);
 			const nextTitle =
 				input.title !== undefined
-					? normalizeSessionTitle(input.title)
+					? normalizeTitle(input.title)
 					: input.prompt !== undefined
-						? deriveSessionTitleFromPrompt(input.prompt)
+						? deriveTitleFromPrompt(input.prompt)
 						: existingTitle;
-			const nextMetadata =
-				input.metadata !== undefined
-					? { ...(sanitizedMetadata ?? {}) }
-					: { ...(existingMetadata ?? {}) };
+
 			if (nextTitle) {
-				nextMetadata.title = nextTitle;
+				baseMeta.title = nextTitle;
 			} else {
-				delete nextMetadata.title;
+				delete baseMeta.title;
 			}
+
+			const hasMetadataChange =
+				input.metadata !== undefined ||
+				input.prompt !== undefined ||
+				input.title !== undefined;
+
 			const changed = await this.adapter.updateSession({
 				sessionId: input.sessionId,
 				prompt: input.prompt,
-				metadataJson:
-					input.metadata === undefined &&
-					input.prompt === undefined &&
-					input.title === undefined
-						? undefined
-						: stringifyMetadataJson(nextMetadata),
+				metadataJson: hasMetadataChange
+					? stringifyMetadata(baseMeta)
+					: undefined,
 				title: nextTitle,
 				expectedStatusLock: row.status_lock,
 			});
-			if (!changed.updated) {
-				continue;
-			}
-			const { path: manifestPath, manifest } = this.readSessionManifestFile(
+			if (!changed.updated) continue;
+
+			const { path: manifestPath, manifest } = this.readManifestFile(
 				input.sessionId,
 			);
 			if (manifest) {
 				if (input.prompt !== undefined) {
 					manifest.prompt = input.prompt ?? undefined;
 				}
-				const nextMetadata =
+				const manifestMeta =
 					input.metadata !== undefined
-						? { ...(normalizeMetadataForStorage(input.metadata) ?? {}) }
-						: { ...(normalizeMetadataForStorage(manifest.metadata) ?? {}) };
-				if (nextTitle) {
-					nextMetadata.title = nextTitle;
-				}
+						? (sanitizeMetadata(input.metadata) ?? {})
+						: (sanitizeMetadata(manifest.metadata) ?? {});
+				if (nextTitle) manifestMeta.title = nextTitle;
 				manifest.metadata =
-					Object.keys(nextMetadata).length > 0 ? nextMetadata : undefined;
-				this.writeSessionManifestFile(manifestPath, manifest);
+					Object.keys(manifestMeta).length > 0 ? manifestMeta : undefined;
+				this.writeManifestFile(manifestPath, manifest);
 			}
 			return { updated: true };
 		}
 		return { updated: false };
 	}
 
+	// ── Spawn queue ───────────────────────────────────────────────────
+
 	async queueSpawnRequest(event: HookEventPayload): Promise<void> {
-		if (event.hookName !== "tool_call" || event.parent_agent_id !== null) {
+		if (event.hookName !== "tool_call" || event.parent_agent_id !== null)
 			return;
-		}
-		if (event.tool_call?.name !== "spawn_agent") {
-			return;
-		}
+		if (event.tool_call?.name !== "spawn_agent") return;
+
 		const rootSessionId = resolveRootSessionId(event.sessionContext);
-		if (!rootSessionId) {
-			return;
-		}
-		const parsedInput = SpawnAgentInputSchema.safeParse(event.tool_call.input);
-		const task = parsedInput.success ? parsedInput.data.task : undefined;
-		const systemPrompt = parsedInput.success
-			? parsedInput.data.systemPrompt
-			: undefined;
+		if (!rootSessionId) return;
+
+		const parsed = SpawnAgentInputSchema.safeParse(event.tool_call.input);
 		await this.adapter.enqueueSpawnRequest({
 			rootSessionId,
 			parentAgentId: event.agent_id,
-			task,
-			systemPrompt,
+			task: parsed.success ? parsed.data.task : undefined,
+			systemPrompt: parsed.success ? parsed.data.systemPrompt : undefined,
 		});
 	}
 
-	private async readRootSession(
-		rootSessionId: string,
-	): Promise<SessionRowShape | null> {
-		const row = await this.adapter.getSession(rootSessionId);
-		return row ?? null;
-	}
+	// ── Subagent sessions ─────────────────────────────────────────────
 
-	private async claimQueuedSpawnTask(
-		rootSessionId: string,
-		parentAgentId: string,
-	): Promise<string | undefined> {
-		return await this.adapter.claimSpawnRequest(rootSessionId, parentAgentId);
+	private buildSubsessionRow(
+		root: SessionRowShape,
+		opts: {
+			sessionId: string;
+			parentSessionId: string;
+			parentAgentId: string;
+			agentId: string;
+			conversationId?: string | null;
+			prompt: string;
+			startedAt: string;
+			transcriptPath: string;
+			hookPath: string;
+			messagesPath: string;
+		},
+	): SessionRowShape {
+		return {
+			session_id: opts.sessionId,
+			source: SUBSESSION_SOURCE,
+			pid: process.ppid,
+			started_at: opts.startedAt,
+			ended_at: null,
+			exit_code: null,
+			status: "running",
+			status_lock: 0,
+			interactive: 0,
+			provider: root.provider,
+			model: root.model,
+			cwd: root.cwd,
+			workspace_root: root.workspace_root,
+			team_name: root.team_name ?? null,
+			enable_tools: root.enable_tools,
+			enable_spawn: root.enable_spawn,
+			enable_teams: root.enable_teams,
+			parent_session_id: opts.parentSessionId,
+			parent_agent_id: opts.parentAgentId,
+			agent_id: opts.agentId,
+			conversation_id: opts.conversationId ?? null,
+			is_subagent: 1,
+			prompt: opts.prompt,
+			metadata_json: stringifyMetadata(
+				resolveMetadataWithTitle({ prompt: opts.prompt }),
+			),
+			transcript_path: opts.transcriptPath,
+			hook_path: opts.hookPath,
+			messages_path: opts.messagesPath,
+			updated_at: opts.startedAt,
+		};
 	}
 
 	async upsertSubagentSession(
 		input: UpsertSubagentInput,
 	): Promise<string | undefined> {
 		const rootSessionId = input.rootSessionId;
-		if (!rootSessionId) {
-			return undefined;
-		}
-		const root = await this.readRootSession(rootSessionId);
-		if (!root) {
-			return undefined;
-		}
+		if (!rootSessionId) return undefined;
+
+		const root = await this.adapter.getSession(rootSessionId);
+		if (!root) return undefined;
+
 		const sessionId = makeSubSessionId(rootSessionId, input.agentId);
 		const existing = await this.adapter.getSession(sessionId);
 		const startedAt = nowIso();
-		const artifactPaths = this.subagentArtifactPaths(
-			rootSessionId,
+		const artifactPaths = this.artifacts.subagentArtifactPaths(
 			sessionId,
-			input.parentAgentId,
 			input.agentId,
+			this.activeTeamTaskSessionId(rootSessionId, input.parentAgentId),
 		);
+
 		let prompt = input.prompt ?? existing?.prompt ?? undefined;
 		if (!prompt) {
 			prompt =
-				(await this.claimQueuedSpawnTask(rootSessionId, input.parentAgentId)) ??
-				`Subagent run by ${input.parentAgentId}`;
+				(await this.adapter.claimSpawnRequest(
+					rootSessionId,
+					input.parentAgentId,
+				)) ?? `Subagent run by ${input.parentAgentId}`;
 		}
+
 		if (!existing) {
-			await this.adapter.upsertSession({
-				session_id: sessionId,
-				source: SUBSESSION_SOURCE,
-				pid: process.ppid,
-				started_at: startedAt,
-				ended_at: null,
-				exit_code: null,
-				status: "running",
-				status_lock: 0,
-				interactive: 0,
-				provider: root.provider,
-				model: root.model,
-				cwd: root.cwd,
-				workspace_root: root.workspace_root,
-				team_name: root.team_name ?? null,
-				enable_tools: root.enable_tools,
-				enable_spawn: root.enable_spawn,
-				enable_teams: root.enable_teams,
-				parent_session_id: rootSessionId,
-				parent_agent_id: input.parentAgentId,
-				agent_id: input.agentId,
-				conversation_id: input.conversationId,
-				is_subagent: 1,
-				prompt,
-				metadata_json: stringifyMetadataJson(
-					metadataWithResolvedTitle({ prompt }),
-				),
-				transcript_path: artifactPaths.transcriptPath,
-				hook_path: artifactPaths.hookPath,
-				messages_path: artifactPaths.messagesPath,
-				updated_at: startedAt,
-			});
-			writeFileSync(
-				artifactPaths.messagesPath,
-				`${JSON.stringify({ version: 1, updated_at: startedAt, messages: [] }, null, 2)}\n`,
-				"utf8",
+			await this.adapter.upsertSession(
+				this.buildSubsessionRow(root, {
+					sessionId,
+					parentSessionId: rootSessionId,
+					parentAgentId: input.parentAgentId,
+					agentId: input.agentId,
+					conversationId: input.conversationId,
+					prompt,
+					startedAt,
+					...artifactPaths,
+				}),
 			);
+			writeEmptyMessagesFile(artifactPaths.messagesPath, startedAt);
 			return sessionId;
 		}
 
@@ -606,27 +576,9 @@ export class UnifiedSessionPersistenceService {
 			agentId: input.agentId,
 			conversationId: input.conversationId,
 			prompt: existing.prompt ?? prompt ?? null,
-			metadataJson: stringifyMetadataJson(
-				metadataWithResolvedTitle({
-					metadata: (() => {
-						const raw = existing.metadata_json?.trim();
-						if (!raw) {
-							return undefined;
-						}
-						try {
-							const parsed = JSON.parse(raw) as unknown;
-							if (
-								parsed &&
-								typeof parsed === "object" &&
-								!Array.isArray(parsed)
-							) {
-								return parsed as Record<string, unknown>;
-							}
-						} catch {
-							// Ignore malformed metadata payloads.
-						}
-						return undefined;
-					})(),
+			metadataJson: stringifyMetadata(
+				resolveMetadataWithTitle({
+					metadata: parseMetadataJson(existing.metadata_json),
 					prompt: existing.prompt ?? prompt ?? null,
 				}),
 			),
@@ -638,13 +590,11 @@ export class UnifiedSessionPersistenceService {
 	async upsertSubagentSessionFromHook(
 		event: HookEventPayload,
 	): Promise<string | undefined> {
-		if (!event.parent_agent_id) {
-			return undefined;
-		}
+		if (!event.parent_agent_id) return undefined;
+
 		const rootSessionId = resolveRootSessionId(event.sessionContext);
-		if (!rootSessionId) {
-			return undefined;
-		}
+		if (!rootSessionId) return undefined;
+
 		if (event.hookName === "session_shutdown") {
 			const sessionId = makeSubSessionId(rootSessionId, event.agent_id);
 			const existing = await this.adapter.getSession(sessionId);
@@ -658,27 +608,34 @@ export class UnifiedSessionPersistenceService {
 		});
 	}
 
+	// ── Subagent audit / transcript ───────────────────────────────────
+
 	async appendSubagentHookAudit(
 		subSessionId: string,
 		event: HookEventPayload,
 	): Promise<void> {
-		const line = `${JSON.stringify({ ts: nowIso(), ...event })}\n`;
-		const path =
-			(await this.sessionPathFromStore(subSessionId, "hook_path")) ??
-			this.sessionHookPath(subSessionId);
-		appendFileSync(path, line, "utf8");
+		const path = await this.resolveArtifactPath(
+			subSessionId,
+			"hook_path",
+			(id) => this.artifacts.sessionHookPath(id),
+		);
+		appendFileSync(
+			path,
+			`${JSON.stringify({ ts: nowIso(), ...event })}\n`,
+			"utf8",
+		);
 	}
 
 	async appendSubagentTranscriptLine(
 		subSessionId: string,
 		line: string,
 	): Promise<void> {
-		if (!line.trim()) {
-			return;
-		}
-		const path =
-			(await this.sessionPathFromStore(subSessionId, "transcript_path")) ??
-			this.sessionTranscriptPath(subSessionId);
+		if (!line.trim()) return;
+		const path = await this.resolveArtifactPath(
+			subSessionId,
+			"transcript_path",
+			(id) => this.artifacts.sessionTranscriptPath(id),
+		);
 		appendFileSync(path, `${line}\n`, "utf8");
 	}
 
@@ -687,20 +644,22 @@ export class UnifiedSessionPersistenceService {
 		messages: LlmsProviders.Message[],
 		systemPrompt?: string,
 	): Promise<void> {
-		const path =
-			(await this.sessionPathFromStore(sessionId, "messages_path")) ??
-			this.sessionMessagesPath(sessionId);
+		const path = await this.resolveArtifactPath(
+			sessionId,
+			"messages_path",
+			(id) => this.artifacts.sessionMessagesPath(id),
+		);
 		const payload: {
 			version: number;
 			updated_at: string;
 			systemPrompt?: string;
 			messages: LlmsProviders.Message[];
 		} = { version: 1, updated_at: nowIso(), messages };
-		if (systemPrompt !== undefined && systemPrompt !== "") {
-			payload.systemPrompt = systemPrompt;
-		}
+		if (systemPrompt) payload.systemPrompt = systemPrompt;
 		writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 	}
+
+	// ── Subagent status ───────────────────────────────────────────────
 
 	async applySubagentStatus(
 		subSessionId: string,
@@ -717,17 +676,15 @@ export class UnifiedSessionPersistenceService {
 		status: SessionStatus,
 	): Promise<void> {
 		const row = await this.adapter.getSession(subSessionId);
-		if (!row || typeof row.status_lock !== "number") {
-			return;
-		}
-		const ts = nowIso();
-		const endedAt = status === "running" ? null : ts;
-		const exitCode = status === "failed" ? 1 : 0;
+		if (!row || typeof row.status_lock !== "number") return;
+
+		const endedAt = status === "running" ? null : nowIso();
+		const exitCode = status === "running" ? null : status === "failed" ? 1 : 0;
 		await this.adapter.updateSession({
 			sessionId: subSessionId,
 			status,
 			endedAt,
-			exitCode: status === "running" ? null : exitCode,
+			exitCode,
 			expectedStatusLock: row.status_lock,
 		});
 	}
@@ -736,9 +693,7 @@ export class UnifiedSessionPersistenceService {
 		parentSessionId: string,
 		status: Exclude<SessionStatus, "running">,
 	): Promise<void> {
-		if (!parentSessionId) {
-			return;
-		}
+		if (!parentSessionId) return;
 		const rows = await this.adapter.listSessions({
 			limit: 2000,
 			parentSessionId,
@@ -749,74 +704,38 @@ export class UnifiedSessionPersistenceService {
 		}
 	}
 
-	private async createTeamTaskSubSession(
-		rootSessionId: string,
-		agentId: string,
-		message: string,
-	): Promise<string | undefined> {
-		const root = await this.readRootSession(rootSessionId);
-		if (!root) {
-			return undefined;
-		}
-		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
-		const startedAt = nowIso();
-		const transcriptPath = this.sessionTranscriptPath(sessionId);
-		const hookPath = this.sessionHookPath(sessionId);
-		const messagesPath = this.sessionMessagesPath(sessionId);
-		await this.adapter.upsertSession({
-			session_id: sessionId,
-			source: SUBSESSION_SOURCE,
-			pid: process.ppid,
-			started_at: startedAt,
-			ended_at: null,
-			exit_code: null,
-			status: "running",
-			status_lock: 0,
-			interactive: 0,
-			provider: root.provider,
-			model: root.model,
-			cwd: root.cwd,
-			workspace_root: root.workspace_root,
-			team_name: root.team_name ?? null,
-			enable_tools: root.enable_tools,
-			enable_spawn: root.enable_spawn,
-			enable_teams: root.enable_teams,
-			parent_session_id: rootSessionId,
-			parent_agent_id: "lead",
-			agent_id: agentId,
-			conversation_id: null,
-			is_subagent: 1,
-			prompt: message || `Team task for ${agentId}`,
-			metadata_json: stringifyMetadataJson(
-				metadataWithResolvedTitle({ prompt: message }),
-			),
-			transcript_path: transcriptPath,
-			hook_path: hookPath,
-			messages_path: messagesPath,
-			updated_at: startedAt,
-		});
-		writeFileSync(
-			messagesPath,
-			`${JSON.stringify({ version: 1, updated_at: startedAt, messages: [] }, null, 2)}\n`,
-			"utf8",
-		);
-		await this.appendSubagentTranscriptLine(sessionId, `[start] ${message}`);
-		return sessionId;
-	}
+	// ── Team tasks ────────────────────────────────────────────────────
 
 	async onTeamTaskStart(
 		rootSessionId: string,
 		agentId: string,
 		message: string,
 	): Promise<void> {
-		const sessionId = await this.createTeamTaskSubSession(
-			rootSessionId,
-			agentId,
-			message,
+		const root = await this.adapter.getSession(rootSessionId);
+		if (!root) return;
+
+		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
+		const startedAt = nowIso();
+		const transcriptPath = this.artifacts.sessionTranscriptPath(sessionId);
+		const hookPath = this.artifacts.sessionHookPath(sessionId);
+		const messagesPath = this.artifacts.sessionMessagesPath(sessionId);
+
+		await this.adapter.upsertSession(
+			this.buildSubsessionRow(root, {
+				sessionId,
+				parentSessionId: rootSessionId,
+				parentAgentId: "lead",
+				agentId,
+				prompt: message || `Team task for ${agentId}`,
+				startedAt,
+				transcriptPath,
+				hookPath,
+				messagesPath,
+			}),
 		);
-		if (!sessionId) {
-			return;
-		}
+		writeEmptyMessagesFile(messagesPath, startedAt);
+		await this.appendSubagentTranscriptLine(sessionId, `[start] ${message}`);
+
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key) ?? [];
 		queue.push(sessionId);
@@ -832,27 +751,21 @@ export class UnifiedSessionPersistenceService {
 	): Promise<void> {
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key);
-		if (!queue || queue.length === 0) {
-			return;
-		}
+		if (!queue || queue.length === 0) return;
+
 		const sessionId = queue.shift();
-		if (queue.length === 0) {
-			this.teamTaskSessionsByAgent.delete(key);
-		} else {
-			this.teamTaskSessionsByAgent.set(key, queue);
-		}
-		if (!sessionId) {
-			return;
-		}
-		if (messages) {
-			await this.persistSessionMessages(sessionId, messages);
-		}
+		if (queue.length === 0) this.teamTaskSessionsByAgent.delete(key);
+		if (!sessionId) return;
+
+		if (messages) await this.persistSessionMessages(sessionId, messages);
 		await this.appendSubagentTranscriptLine(
 			sessionId,
 			summary ?? `[done] ${status}`,
 		);
 		await this.applySubagentStatusBySessionId(sessionId, status);
 	}
+
+	// ── SubAgent lifecycle ────────────────────────────────────────────
 
 	async handleSubAgentStart(
 		rootSessionId: string,
@@ -865,9 +778,7 @@ export class UnifiedSessionPersistenceService {
 			prompt: context.input.task,
 			rootSessionId,
 		});
-		if (!subSessionId) {
-			return;
-		}
+		if (!subSessionId) return;
 		await this.appendSubagentTranscriptLine(
 			subSessionId,
 			`[start] ${context.input.task}`,
@@ -886,9 +797,8 @@ export class UnifiedSessionPersistenceService {
 			prompt: context.input.task,
 			rootSessionId,
 		});
-		if (!subSessionId) {
-			return;
-		}
+		if (!subSessionId) return;
+
 		if (context.error) {
 			await this.appendSubagentTranscriptLine(
 				subSessionId,
@@ -897,21 +807,18 @@ export class UnifiedSessionPersistenceService {
 			await this.applySubagentStatusBySessionId(subSessionId, "failed");
 			return;
 		}
-		await this.appendSubagentTranscriptLine(
+		const reason = context.result?.finishReason ?? "completed";
+		await this.appendSubagentTranscriptLine(subSessionId, `[done] ${reason}`);
+		await this.applySubagentStatusBySessionId(
 			subSessionId,
-			`[done] ${context.result?.finishReason ?? "completed"}`,
+			reason === "aborted" ? "cancelled" : "completed",
 		);
-		if (context.result?.finishReason === "aborted") {
-			await this.applySubagentStatusBySessionId(subSessionId, "cancelled");
-			return;
-		}
-		await this.applySubagentStatusBySessionId(subSessionId, "completed");
 	}
 
+	// ── Stale session reconciliation ──────────────────────────────────
+
 	private isPidAlive(pid: number): boolean {
-		if (!Number.isFinite(pid) || pid <= 0) {
-			return false;
-		}
+		if (!Number.isFinite(pid) || pid <= 0) return false;
 		try {
 			process.kill(Math.floor(pid), 0);
 			return true;
@@ -925,34 +832,125 @@ export class UnifiedSessionPersistenceService {
 		}
 	}
 
+	private async reconcileDeadRunningSession(
+		row: SessionRowShape,
+	): Promise<SessionRowShape | undefined> {
+		if (row.status !== "running" || this.isPidAlive(row.pid)) return row;
+
+		const detectedAt = nowIso();
+		const reason = UnifiedSessionPersistenceService.STALE_REASON;
+
+		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
+			const latest = await this.adapter.getSession(row.session_id);
+			if (!latest) return undefined;
+			if (latest.status !== "running") return latest;
+
+			const nextMetadata = {
+				...(parseMetadataJson(latest.metadata_json) ?? {}),
+				terminal_marker: reason,
+				terminal_marker_at: detectedAt,
+				terminal_marker_pid: latest.pid,
+				terminal_marker_source: UnifiedSessionPersistenceService.STALE_SOURCE,
+			};
+
+			const changed = await this.adapter.updateSession({
+				sessionId: latest.session_id,
+				status: "failed",
+				endedAt: detectedAt,
+				exitCode: 1,
+				metadataJson: stringifyMetadata(nextMetadata),
+				expectedStatusLock: latest.status_lock,
+			});
+			if (!changed.updated) continue;
+
+			await this.applyStatusToRunningChildSessions(latest.session_id, "failed");
+
+			const manifest = this.buildManifestFromRow(latest, {
+				status: "failed",
+				endedAt: detectedAt,
+				exitCode: 1,
+				metadata: nextMetadata,
+			});
+			const { path: manifestPath } = this.readManifestFile(latest.session_id);
+			this.writeManifestFile(manifestPath, manifest);
+
+			// Write termination markers to hook + transcript files
+			appendFileSync(
+				latest.hook_path,
+				`${JSON.stringify({
+					ts: detectedAt,
+					hookName: "session_shutdown",
+					reason,
+					sessionId: latest.session_id,
+					pid: latest.pid,
+					source: UnifiedSessionPersistenceService.STALE_SOURCE,
+				})}\n`,
+				"utf8",
+			);
+			appendFileSync(
+				latest.transcript_path,
+				`[shutdown] ${reason} (pid=${latest.pid})\n`,
+				"utf8",
+			);
+
+			return {
+				...latest,
+				status: "failed",
+				ended_at: detectedAt,
+				exit_code: 1,
+				metadata_json: stringifyMetadata(nextMetadata),
+				status_lock: changed.statusLock,
+				updated_at: detectedAt,
+			};
+		}
+		return await this.adapter.getSession(row.session_id);
+	}
+
+	// ── List / reconcile / delete ─────────────────────────────────────
+
 	async listSessions(limit = 200): Promise<SessionRowShape[]> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
-		let rows = await this.adapter.listSessions({ limit: scanLimit });
-		const staleRunning = rows.filter(
-			(row) => row.status === "running" && !this.isPidAlive(row.pid),
-		);
-		if (staleRunning.length > 0) {
-			for (const row of staleRunning) {
-				await this.updateSessionStatus(row.session_id, "failed", 1);
-			}
-			rows = await this.adapter.listSessions({ limit: scanLimit });
+		await this.reconcileDeadSessions(scanLimit);
+
+		const rows = await this.adapter.listSessions({ limit: scanLimit });
+		return rows.slice(0, requestedLimit).map((row) => {
+			const meta = sanitizeMetadata(parseMetadataJson(row.metadata_json));
+			const { manifest } = this.readManifestFile(row.session_id);
+			const manifestTitle = normalizeTitle(
+				typeof manifest?.metadata?.title === "string"
+					? (manifest.metadata.title as string)
+					: undefined,
+			);
+			const resolved = manifestTitle
+				? { ...(meta ?? {}), title: manifestTitle }
+				: meta;
+			return { ...row, metadata_json: stringifyMetadata(resolved) };
+		});
+	}
+
+	async reconcileDeadSessions(limit = 2000): Promise<number> {
+		const rows = await this.adapter.listSessions({
+			limit: Math.max(1, Math.floor(limit)),
+			status: "running",
+		});
+		let reconciled = 0;
+		for (const row of rows) {
+			const updated = await this.reconcileDeadRunningSession(row);
+			if (updated && updated.status !== row.status) reconciled++;
 		}
-		return rows
-			.slice(0, requestedLimit)
-			.map((row) => this.applyResolvedTitleToRow(row));
+		return reconciled;
 	}
 
 	async deleteSession(sessionId: string): Promise<{ deleted: boolean }> {
 		const id = sessionId.trim();
-		if (!id) {
-			throw new Error("session id is required");
-		}
+		if (!id) throw new Error("session id is required");
+
 		const row = await this.adapter.getSession(id);
-		if (!row) {
-			return { deleted: false };
-		}
+		if (!row) return { deleted: false };
+
 		await this.adapter.deleteSession(id, false);
+
 		if (!row.is_subagent) {
 			const children = await this.adapter.listSessions({
 				limit: 2000,
@@ -963,14 +961,17 @@ export class UnifiedSessionPersistenceService {
 				unlinkIfExists(child.transcript_path);
 				unlinkIfExists(child.hook_path);
 				unlinkIfExists(child.messages_path);
-				unlinkIfExists(this.sessionManifestPath(child.session_id, false));
+				unlinkIfExists(
+					this.artifacts.sessionManifestPath(child.session_id, false),
+				);
 				this.artifacts.removeSessionDirIfEmpty(child.session_id);
 			}
 		}
+
 		unlinkIfExists(row.transcript_path);
 		unlinkIfExists(row.hook_path);
 		unlinkIfExists(row.messages_path);
-		unlinkIfExists(this.sessionManifestPath(id, false));
+		unlinkIfExists(this.artifacts.sessionManifestPath(id, false));
 		this.artifacts.removeSessionDirIfEmpty(id);
 		return { deleted: true };
 	}

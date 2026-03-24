@@ -49,6 +49,7 @@ message HealthResponse {
   string address = 2;
   bool running = 3;
   string started_at = 4;
+  string rpc_version = 5;
 }
 
 message ShutdownRequest {}

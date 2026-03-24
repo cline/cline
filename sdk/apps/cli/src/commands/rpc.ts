@@ -9,6 +9,7 @@ import {
 } from "@clinebot/core/node";
 import {
 	getRpcServerHealth,
+	RPC_PROTOCOL_VERSION,
 	RpcSessionClient,
 	registerRpcClient,
 	requestRpcServerShutdown,
@@ -399,7 +400,37 @@ async function ensureCompatibleRpcAddress(
 		return { address: requestedAddress, action: "started" };
 	}
 	if (await hasRuntimeMethods(requestedAddress)) {
-		return { address: requestedAddress, action: "reuse" };
+		const serverVersion = health.rpcVersion?.trim() || "";
+		if (serverVersion && serverVersion === RPC_PROTOCOL_VERSION) {
+			return { address: requestedAddress, action: "reuse" };
+		}
+		// Version mismatch — treat as incompatible so the server gets restarted.
+		if (options?.forceKillIncompatible) {
+			const shutdown = await requestRpcServerShutdown(requestedAddress);
+			if (shutdown?.accepted) {
+				for (let attempt = 0; attempt < 20; attempt += 1) {
+					if (!(await getRpcServerHealth(requestedAddress))?.running) {
+						return { address: requestedAddress, action: "started" };
+					}
+					await new Promise((resolve) => setTimeout(resolve, 100));
+				}
+			}
+			forceKillListener(requestedAddress);
+			const { host, port } = parseRpcAddress(requestedAddress);
+			const listenerStillHealthy =
+				(await getRpcServerHealth(requestedAddress))?.running === true;
+			if (!listenerStillHealthy && (await isPortFree(host, port))) {
+				return { address: requestedAddress, action: "started" };
+			}
+			throw new Error(
+				`rpc address ${requestedAddress} is still occupied after replacing the version-mismatched server`,
+			);
+		}
+
+		return {
+			address: await findAvailableAddress(requestedAddress),
+			action: "new-port",
+		};
 	}
 
 	if (options?.forceKillIncompatible) {
@@ -659,11 +690,13 @@ async function runRpcStatusCommand(
 				address: health.address,
 				startedAt: health.startedAt || null,
 				uptime,
+				rpcVersion: health.rpcVersion || null,
 			}),
 		);
 	} else {
+		const version = health.rpcVersion ? ` version=${health.rpcVersion}` : "";
 		writeln(
-			`${c.dim}[rpc] running server_id=${health.serverId} address=${health.address} uptime=${uptime}${c.reset}`,
+			`${c.dim}[rpc] running server_id=${health.serverId} address=${health.address}${version} uptime=${uptime}${c.reset}`,
 		);
 	}
 	return 0;

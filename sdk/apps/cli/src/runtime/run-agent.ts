@@ -164,7 +164,10 @@ export async function runAgent(
 		if (abortRequested) return false;
 		abortRequested = true;
 		if (activeSessionId) {
-			void sessionManager.abort(activeSessionId);
+			void sessionManager.abort(
+				activeSessionId,
+				new Error("Run-agent runtime abort requested"),
+			);
 		}
 		return true;
 	};
@@ -192,8 +195,8 @@ export async function runAgent(
 			return;
 		}
 		void cleanupRuntime().finally(() => {
-			process.exitCode = 130;
-			process.exit(130);
+			process.exitCode = 0;
+			process.exit(0);
 		});
 	};
 	const handleSigterm = () => {
