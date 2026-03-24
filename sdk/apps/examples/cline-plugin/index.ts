@@ -8,7 +8,7 @@
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { createSessionHost, createTool } from "@clinebot/core";
 
 type SessionHost = Awaited<ReturnType<typeof createSessionHost>>;
 type SessionStartConfig = Parameters<SessionHost["start"]>[0]["config"];

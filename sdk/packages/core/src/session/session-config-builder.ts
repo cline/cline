@@ -24,6 +24,7 @@ export async function buildEffectiveConfig(
 	hookPath: string,
 	sessionId: string,
 	defaultTelemetry: ITelemetryService | undefined,
+	onPluginEvent?: (event: { name: string; payload?: unknown }) => void,
 ): Promise<{
 	config: CoreSessionConfig;
 	pluginSandboxShutdown?: () => Promise<void>;
@@ -54,6 +55,7 @@ export async function buildEffectiveConfig(
 		pluginPaths: input.config.pluginPaths,
 		workspacePath,
 		cwd: input.config.cwd,
+		onEvent: onPluginEvent,
 	});
 	const effectiveExtensions = mergeAgentExtensions(
 		input.config.extensions,

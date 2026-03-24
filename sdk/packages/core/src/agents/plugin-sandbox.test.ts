@@ -117,4 +117,61 @@ describe("plugin-sandbox", () => {
 			await rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("forwards sandbox plugin events to the host", async () => {
+		const dir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-events-"));
+		try {
+			const pluginPath = join(dir, "plugin-events.mjs");
+			await writeFile(
+				pluginPath,
+				[
+					"export default {",
+					"  name: 'sandbox-events',",
+					"  manifest: { capabilities: ['tools'] },",
+					"  setup(api) {",
+					"    api.registerTool({",
+					"      name: 'emit_event',",
+					"      description: 'emit host event',",
+					"      inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },",
+					"      execute: async (input) => {",
+					"        globalThis.__clinePluginHost?.emitEvent?.('test_event', { value: input.value });",
+					"        return { ok: true };",
+					"      },",
+					"    });",
+					"  },",
+					"};",
+				].join("\n"),
+				"utf8",
+			);
+
+			const events: Array<{ name: string; payload?: unknown }> = [];
+			const sandboxed = await loadSandboxedPlugins({
+				pluginPaths: [pluginPath],
+				onEvent: (event) => {
+					events.push(event);
+				},
+			});
+			try {
+				const extension = sandboxed.extensions?.[0];
+				const { tools, api } = createApiCapture();
+				await extension?.setup?.(api);
+				const tool = tools.find((entry) => entry.name === "emit_event");
+				await tool?.execute({ value: "hello" }, {
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				} as ToolContext);
+				expect(events).toEqual([
+					{
+						name: "test_event",
+						payload: { value: "hello" },
+					},
+				]);
+			} finally {
+				await sandboxed.shutdown();
+			}
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
+	});
 });

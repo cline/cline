@@ -15,9 +15,19 @@ interface SandboxResponseMessage {
 	error?: { message: string; stack?: string };
 }
 
+interface SandboxEventMessage {
+	type: "event";
+	name: string;
+	payload?: unknown;
+}
+
 export interface SubprocessSandboxOptions {
-	bootstrapScript: string;
+	/** Inline script to execute via `node -e`. Mutually exclusive with {@link bootstrapFile}. */
+	bootstrapScript?: string;
+	/** Path to a JavaScript file to execute via `node <file>`. Mutually exclusive with {@link bootstrapScript}. */
+	bootstrapFile?: string;
 	name?: string;
+	onEvent?: (event: { name: string; payload?: unknown }) => void;
 }
 
 export interface SandboxCallOptions {
@@ -52,16 +62,16 @@ export class SubprocessSandbox {
 			return;
 		}
 
-		const child = spawn(
-			process.execPath,
-			["-e", this.options.bootstrapScript],
-			{
-				stdio: ["ignore", "ignore", "ignore", "ipc"],
-			},
-		);
+		const args = this.options.bootstrapFile
+			? [this.options.bootstrapFile]
+			: ["-e", this.options.bootstrapScript ?? ""];
+
+		const child = spawn(process.execPath, args, {
+			stdio: ["ignore", "ignore", "ignore", "ipc"],
+		});
 		this.process = child;
 		child.on("message", (message) => {
-			this.onMessage(message as SandboxResponseMessage);
+			this.onMessage(message as SandboxResponseMessage | SandboxEventMessage);
 		});
 		child.on("error", (error) => {
 			this.failPending(
@@ -171,8 +181,22 @@ export class SubprocessSandbox {
 		this.failPending(new Error(`${this.options.name ?? "sandbox"} shutdown`));
 	}
 
-	private onMessage(message: SandboxResponseMessage): void {
-		if (!message || message.type !== "response" || !message.id) {
+	private onMessage(
+		message: SandboxResponseMessage | SandboxEventMessage,
+	): void {
+		if (!message) {
+			return;
+		}
+		if (message.type === "event") {
+			if (typeof message.name === "string" && message.name.length > 0) {
+				this.options.onEvent?.({
+					name: message.name,
+					payload: message.payload,
+				});
+			}
+			return;
+		}
+		if (message.type !== "response" || !message.id) {
 			return;
 		}
 		const pending = this.pending.get(message.id);

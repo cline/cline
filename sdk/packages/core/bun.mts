@@ -22,6 +22,18 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		sourcemap: "none",
 		external,
 	},
+	// The plugin sandbox bootstrap runs in an isolated child process via
+	// SubprocessSandbox and must be emitted as a standalone file with no
+	// external dependencies.
+	{
+		entrypoints: ["./src/agents/plugin-sandbox-bootstrap.ts"],
+		outdir: "./dist/agents",
+		target: "node",
+		format: "esm",
+		minify: true,
+		packages: "bundle",
+		sourcemap: "none",
+	},
 ];
 
 for (const config of builds) {

@@ -67,6 +67,7 @@ export type ChatWsResponseEvent = {
 		sessionId?: string;
 		result?: ChatApiResult;
 		ok?: boolean;
+		queued?: boolean;
 	};
 	error?: string;
 };
@@ -97,4 +98,10 @@ export type SerializedAttachmentFile = {
 export type SerializedAttachments = {
 	userImages: string[];
 	userFiles: SerializedAttachmentFile[];
+};
+
+export type PromptInQueue = {
+	id: string;
+	prompt: string;
+	steer: boolean;
 };

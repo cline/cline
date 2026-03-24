@@ -223,6 +223,7 @@ export class DefaultSessionManager implements SessionManager {
 				hookPath,
 				sessionId,
 				this.defaultTelemetry,
+				(e) => void this.handlePluginEvent(sessionId, e),
 			);
 		const providerConfig = buildResolvedProviderConfig(
 			effectiveConfig,
@@ -287,6 +288,9 @@ export class DefaultSessionManager implements SessionManager {
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionGuard: runtime.completionGuard,
+			toolContextMetadata: {
+				sessionId,
+			},
 			logger: runtime.logger ?? configWithProvider.logger,
 			onEvent: (event: AgentEvent) =>
 				this.onAgentEvent(sessionId, configWithProvider, event),
@@ -307,6 +311,8 @@ export class DefaultSessionManager implements SessionManager {
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
+			pendingPrompts: [],
+			drainingPendingPrompts: false,
 			pluginSandboxShutdown,
 		};
 		this.sessions.set(sessionId, active);
@@ -360,6 +366,9 @@ export class DefaultSessionManager implements SessionManager {
 			if (!session.interactive) {
 				await this.finalizeSingleRun(session, result.finishReason);
 			}
+			queueMicrotask(() => {
+				void this.drainPendingPrompts(input.sessionId);
+			});
 			return result;
 		} catch (error) {
 			await this.failSession(session);
@@ -764,6 +773,115 @@ export class DefaultSessionManager implements SessionManager {
 			session.artifacts.manifest,
 		);
 		this.emitStatus(session.sessionId, status);
+	}
+
+	private async handlePluginEvent(
+		rootSessionId: string,
+		event: { name: string; payload?: unknown },
+	): Promise<void> {
+		if (
+			event.name !== "steer_message" &&
+			event.name !== "queue_message" &&
+			event.name !== "pending_prompt"
+		) {
+			return;
+		}
+		const payload =
+			event.payload && typeof event.payload === "object"
+				? (event.payload as Record<string, unknown>)
+				: undefined;
+		const targetSessionId =
+			typeof payload?.sessionId === "string" &&
+			payload.sessionId.trim().length > 0
+				? payload.sessionId.trim()
+				: rootSessionId;
+		const prompt =
+			typeof payload?.prompt === "string" ? payload.prompt.trim() : "";
+		if (!prompt) {
+			return;
+		}
+		const delivery =
+			event.name === "steer_message"
+				? "steer"
+				: event.name === "queue_message"
+					? "queue"
+					: payload?.delivery === "steer"
+						? "steer"
+						: "queue";
+		this.enqueuePendingPrompt(targetSessionId, prompt, delivery);
+	}
+
+	private enqueuePendingPrompt(
+		sessionId: string,
+		prompt: string,
+		delivery: "queue" | "steer",
+	): void {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			return;
+		}
+		const existingIndex = session.pendingPrompts.findIndex(
+			(entry) => entry.prompt === prompt,
+		);
+		if (existingIndex >= 0) {
+			const [existing] = session.pendingPrompts.splice(existingIndex, 1);
+			if (delivery === "steer" || existing.delivery === "steer") {
+				session.pendingPrompts.unshift({
+					prompt,
+					delivery: "steer",
+				});
+			} else {
+				session.pendingPrompts.push(existing);
+			}
+		} else if (delivery === "steer") {
+			session.pendingPrompts.unshift({ prompt, delivery });
+		} else {
+			session.pendingPrompts.push({ prompt, delivery });
+		}
+		queueMicrotask(() => {
+			void this.drainPendingPrompts(sessionId);
+		});
+	}
+
+	private async drainPendingPrompts(sessionId: string): Promise<void> {
+		const session = this.sessions.get(sessionId);
+		if (!session || session.drainingPendingPrompts) {
+			return;
+		}
+		const canStartRun =
+			typeof (session.agent as Agent & { canStartRun?: () => boolean })
+				.canStartRun === "function"
+				? (
+						session.agent as Agent & {
+							canStartRun: () => boolean;
+						}
+					).canStartRun()
+				: true;
+		if (!canStartRun) {
+			return;
+		}
+		const next = session.pendingPrompts.shift();
+		if (!next) {
+			return;
+		}
+		session.drainingPendingPrompts = true;
+		try {
+			await this.send({ sessionId, prompt: next.prompt });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			if (message.includes("already in progress")) {
+				session.pendingPrompts.unshift(next);
+			} else {
+				throw error;
+			}
+		} finally {
+			session.drainingPendingPrompts = false;
+			if (session.pendingPrompts.length > 0) {
+				queueMicrotask(() => {
+					void this.drainPendingPrompts(sessionId);
+				});
+			}
+		}
 	}
 
 	// ── Agent event handling ────────────────────────────────────────────

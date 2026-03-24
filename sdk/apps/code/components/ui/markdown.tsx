@@ -29,13 +29,13 @@ export const MemoizedMarkdown = memo(
 		const blocks = useMemo(() => parseMarkdownIntoBlocks(content), [content]);
 		const occurrences = new Map<string, number>();
 
-		return blocks.map((block) => {
+		return blocks.map((block, index) => {
 			const occurrence = (occurrences.get(block) ?? 0) + 1;
 			occurrences.set(block, occurrence);
 			return (
 				<MemoizedMarkdownBlock
 					content={block}
-					key={`${id}-block_${occurrence}-${block.slice(0, 24)}`}
+					key={`${id}-block_${index}-${occurrence}`}
 				/>
 			);
 		});

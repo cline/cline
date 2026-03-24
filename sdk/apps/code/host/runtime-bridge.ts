@@ -33,31 +33,37 @@ import {
 	DEFAULT_RPC_CLIENT_TYPE,
 	type HostContext,
 	type JsonRecord,
+	type LiveSession,
+	type PromptInQueue,
+	type QueuedChatTurn,
 	type ToolApprovalRequestItem,
 } from "./types";
 
+// ---------------------------------------------------------------------------
+// Config helpers
+// ---------------------------------------------------------------------------
+
+function getNestedString(obj: unknown, ...keys: string[]): string | undefined {
+	let current: unknown = obj;
+	for (const key of keys) {
+		if (!current || typeof current !== "object") return undefined;
+		current = (current as JsonRecord)[key];
+	}
+	return typeof current === "string" ? current : undefined;
+}
+
 function setRuntimeHomeDir(config: unknown) {
-	if (!config || typeof config !== "object") {
+	const homeDir = getNestedString(config, "sessions", "homeDir")?.trim();
+	if (homeDir) {
+		setHomeDir(homeDir);
+	} else {
 		setHomeDirIfUnset(homedir());
-		return;
 	}
-	const sessions = (config as JsonRecord).sessions;
-	const homeDir =
-		sessions && typeof sessions === "object"
-			? ((sessions as JsonRecord).homeDir as string | undefined)
-			: undefined;
-	const normalized = homeDir?.trim();
-	if (normalized) {
-		setHomeDir(normalized);
-		return;
-	}
-	setHomeDirIfUnset(homedir());
 }
 
 function addRuntimeLoggerContext(config: unknown) {
-	if (!config || typeof config !== "object") {
-		return;
-	}
+	if (!config || typeof config !== "object") return;
+
 	const record = config as JsonRecord;
 	const existing =
 		record.logger && typeof record.logger === "object"
@@ -67,6 +73,7 @@ function addRuntimeLoggerContext(config: unknown) {
 		existing.bindings && typeof existing.bindings === "object"
 			? { ...(existing.bindings as JsonRecord) }
 			: {};
+
 	record.logger = {
 		...existing,
 		name:
@@ -81,29 +88,34 @@ function addRuntimeLoggerContext(config: unknown) {
 	};
 }
 
+// ---------------------------------------------------------------------------
+// Bridge script resolution
+// ---------------------------------------------------------------------------
+
+const BRIDGE_SCRIPT = "chat-runtime-bridge.ts";
+const BRIDGE_SEARCH_DIRS = [
+	["apps", "code", "scripts"],
+	["packages", "app", "scripts"],
+	["app", "scripts"],
+];
+
 function resolveChatRuntimeBridgeScriptPath(ctx: HostContext): string | null {
-	const candidates = [
-		join(
-			ctx.workspaceRoot,
-			"apps",
-			"code",
-			"scripts",
-			"chat-runtime-bridge.ts",
-		),
-		join(
-			ctx.workspaceRoot,
-			"packages",
-			"app",
-			"scripts",
-			"chat-runtime-bridge.ts",
-		),
-		join(ctx.workspaceRoot, "app", "scripts", "chat-runtime-bridge.ts"),
-		join(process.cwd(), "app", "scripts", "chat-runtime-bridge.ts"),
-		join(process.cwd(), "..", "scripts", "chat-runtime-bridge.ts"),
-		join(process.cwd(), "scripts", "chat-runtime-bridge.ts"),
-	];
-	return candidates.find((candidate) => existsSync(candidate)) ?? null;
+	for (const segments of BRIDGE_SEARCH_DIRS) {
+		const candidate = join(ctx.workspaceRoot, ...segments, BRIDGE_SCRIPT);
+		if (existsSync(candidate)) return candidate;
+	}
+	for (const base of [process.cwd()]) {
+		for (const rel of [["app", "scripts"], ["..", "scripts"], ["scripts"]]) {
+			const candidate = join(base, ...rel, BRIDGE_SCRIPT);
+			if (existsSync(candidate)) return candidate;
+		}
+	}
+	return null;
 }
+
+// ---------------------------------------------------------------------------
+// Child process line reader
+// ---------------------------------------------------------------------------
 
 function readChildLines(
 	stream: NodeJS.ReadableStream,
@@ -112,28 +124,104 @@ function readChildLines(
 	let buffer = "";
 	stream.on("data", (chunk) => {
 		buffer += String(chunk);
-		let newlineIndex = buffer.indexOf("\n");
-		while (newlineIndex >= 0) {
-			const line = buffer.slice(0, newlineIndex).trim();
-			buffer = buffer.slice(newlineIndex + 1);
-			if (line) {
-				onLine(line);
-			}
-			newlineIndex = buffer.indexOf("\n");
+		let idx = buffer.indexOf("\n");
+		while (idx >= 0) {
+			const line = buffer.slice(0, idx).trim();
+			buffer = buffer.slice(idx + 1);
+			if (line) onLine(line);
+			idx = buffer.indexOf("\n");
 		}
 	});
 }
 
+// ---------------------------------------------------------------------------
+// Bridge lifecycle
+// ---------------------------------------------------------------------------
+
+function handleBridgeStdoutLine(ctx: HostContext, parsed: JsonRecord) {
+	const type = String(parsed.type ?? "");
+	const sessionId =
+		typeof parsed.sessionId === "string" ? parsed.sessionId : "";
+
+	switch (type) {
+		case "ready":
+			ctx.bridgeReady = true;
+			return;
+
+		case "response": {
+			const requestId = String(parsed.requestId ?? "");
+			const pending = ctx.pendingBridge.get(requestId);
+			if (!pending) return;
+			ctx.pendingBridge.delete(requestId);
+			if (typeof parsed.error === "string" && parsed.error.trim()) {
+				pending.reject(new Error(parsed.error));
+			} else {
+				pending.resolve(parsed.response ?? null);
+			}
+			return;
+		}
+
+		case "chat_text":
+			emitChunk(ctx, sessionId, "chat_text", String(parsed.chunk ?? ""));
+			return;
+
+		case "tool_call_start":
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_start",
+				JSON.stringify({
+					toolCallId: parsed.toolCallId,
+					toolName: parsed.toolName,
+					input: parsed.input,
+				}),
+			);
+			return;
+
+		case "tool_call_end":
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_end",
+				JSON.stringify({
+					toolCallId: parsed.toolCallId,
+					toolName: parsed.toolName,
+					output: parsed.output,
+					error: parsed.error,
+					durationMs: parsed.durationMs,
+				}),
+			);
+			return;
+
+		case "error": {
+			const message =
+				typeof parsed.message === "string"
+					? parsed.message
+					: "chat runtime bridge error";
+			if (sessionId) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_core_log",
+					JSON.stringify({ level: "error", message }),
+				);
+			} else {
+				console.error("[chat-runtime-bridge]", message);
+			}
+			return;
+		}
+	}
+}
+
 export function ensureBridgeStarted(ctx: HostContext) {
-	if (ctx.bridgeChild && ctx.bridgeChild.exitCode === null && ctx.bridgeReady) {
-		return;
-	}
+	if (ctx.bridgeChild?.exitCode === null && ctx.bridgeReady) return;
+
 	const scriptPath = resolveChatRuntimeBridgeScriptPath(ctx);
-	if (!scriptPath) {
-		throw new Error("chat runtime bridge script not found");
-	}
+	if (!scriptPath) throw new Error("chat runtime bridge script not found");
+
 	ctx.bridgeReady = false;
 	mkdirSync(toolApprovalDir(), { recursive: true });
+
 	ctx.bridgeChild = spawn("bun", [scriptPath], {
 		cwd: ctx.workspaceRoot,
 		env: {
@@ -146,98 +234,28 @@ export function ensureBridgeStarted(ctx: HostContext) {
 		},
 		stdio: ["pipe", "pipe", "pipe"],
 	});
+
 	readChildLines(ctx.bridgeChild.stdout, (line) => {
-		const parsed = JSON.parse(line) as JsonRecord;
-		const type = String(parsed.type ?? "");
-		if (type === "ready") {
-			ctx.bridgeReady = true;
-			return;
-		}
-		if (type === "response") {
-			const requestId = String(parsed.requestId ?? "");
-			const pending = ctx.pendingBridge.get(requestId);
-			if (!pending) {
-				return;
-			}
-			ctx.pendingBridge.delete(requestId);
-			if (typeof parsed.error === "string" && parsed.error.trim()) {
-				pending.reject(new Error(parsed.error));
-				return;
-			}
-			pending.resolve(parsed.response ?? null);
-			return;
-		}
-		if (type === "chat_text") {
-			emitChunk(
-				ctx,
-				String(parsed.sessionId ?? ""),
-				"chat_text",
-				String(parsed.chunk ?? ""),
-			);
-			return;
-		}
-		if (type === "tool_call_start") {
-			emitChunk(
-				ctx,
-				String(parsed.sessionId ?? ""),
-				"chat_tool_call_start",
-				JSON.stringify({
-					toolCallId: parsed.toolCallId,
-					toolName: parsed.toolName,
-					input: parsed.input,
-				}),
-			);
-			return;
-		}
-		if (type === "tool_call_end") {
-			emitChunk(
-				ctx,
-				String(parsed.sessionId ?? ""),
-				"chat_tool_call_end",
-				JSON.stringify({
-					toolCallId: parsed.toolCallId,
-					toolName: parsed.toolName,
-					output: parsed.output,
-					error: parsed.error,
-					durationMs: parsed.durationMs,
-				}),
-			);
-			return;
-		}
-		if (type === "error") {
-			const sessionId =
-				typeof parsed.sessionId === "string" ? parsed.sessionId : "";
-			const message =
-				typeof parsed.message === "string"
-					? parsed.message
-					: "chat runtime bridge error";
-			if (sessionId) {
-				emitChunk(
-					ctx,
-					sessionId,
-					"chat_core_log",
-					JSON.stringify({
-						level: "error",
-						message,
-					}),
-				);
-				return;
-			}
-			console.error("[chat-runtime-bridge]", message);
-		}
+		handleBridgeStdoutLine(ctx, JSON.parse(line) as JsonRecord);
 	});
+
 	readChildLines(ctx.bridgeChild.stderr, (line) => {
 		console.error("[chat-runtime-bridge]", line);
 	});
+
 	ctx.bridgeChild.on("exit", () => {
 		ctx.bridgeReady = false;
 		ctx.bridgeChild = null;
-		for (const [requestId, pending] of ctx.pendingBridge.entries()) {
-			ctx.pendingBridge.delete(requestId);
+		for (const [, pending] of ctx.pendingBridge) {
 			pending.reject(new Error("chat runtime bridge exited"));
 		}
+		ctx.pendingBridge.clear();
 	});
 }
+
+// ---------------------------------------------------------------------------
+// Bridge RPC
+// ---------------------------------------------------------------------------
 
 export async function runBridgeCommand(
 	ctx: HostContext,
@@ -245,24 +263,30 @@ export async function runBridgeCommand(
 ): Promise<unknown> {
 	ensureBridgeStarted(ctx);
 	const child = ctx.bridgeChild;
-	if (!child || !child.stdin) {
-		throw new Error("chat runtime bridge unavailable");
-	}
+	if (!child?.stdin) throw new Error("chat runtime bridge unavailable");
+
 	const requestId = `bridge_${ctx.bridgeRequestId++}`;
-	const envelope = JSON.stringify({
-		type: "request",
-		requestId,
-		command,
-	});
-	return await new Promise((resolve, reject) => {
+	const envelope = JSON.stringify({ type: "request", requestId, command });
+
+	return new Promise((resolve, reject) => {
 		ctx.pendingBridge.set(requestId, { resolve, reject });
 		child.stdin.write(`${envelope}\n`, (error) => {
-			if (!error) {
-				return;
+			if (error) {
+				ctx.pendingBridge.delete(requestId);
+				reject(error);
 			}
-			ctx.pendingBridge.delete(requestId);
-			reject(error);
 		});
+	});
+}
+
+// ---------------------------------------------------------------------------
+// Tool approval helpers
+// ---------------------------------------------------------------------------
+
+function sendApprovalSnapshot(ctx: HostContext, sessionId: string) {
+	sendEvent(ctx, "tool_approval_state", {
+		sessionId,
+		items: listPendingToolApprovalsForSession(sessionId, 50),
 	});
 }
 
@@ -271,66 +295,78 @@ export function listPendingToolApprovalsForSession(
 	limit = 20,
 ): ToolApprovalRequestItem[] {
 	const dir = toolApprovalDir();
-	if (!existsSync(dir)) {
-		return [];
-	}
-	const items: ToolApprovalRequestItem[] = [];
+	if (!existsSync(dir)) return [];
+
 	const prefix = toolApprovalRequestPrefix(sessionId);
+	const items: ToolApprovalRequestItem[] = [];
+
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		if (!entry.isFile()) {
+		if (
+			!entry.isFile() ||
+			!entry.name.startsWith(prefix) ||
+			!entry.name.endsWith(".json")
+		)
 			continue;
-		}
-		if (!entry.name.startsWith(prefix) || !entry.name.endsWith(".json")) {
-			continue;
-		}
 		try {
-			const parsed = JSON.parse(
-				readFileSync(join(dir, entry.name), "utf8"),
-			) as ToolApprovalRequestItem;
-			items.push(parsed);
+			items.push(
+				JSON.parse(
+					readFileSync(join(dir, entry.name), "utf8"),
+				) as ToolApprovalRequestItem,
+			);
 		} catch {
 			// Ignore malformed approval files.
 		}
 	}
-	items.sort((left, right) => left.createdAt.localeCompare(right.createdAt));
+
+	items.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 	return items.slice(0, Math.max(1, limit));
 }
 
 export function broadcastApprovalSnapshots(ctx: HostContext) {
 	const dir = toolApprovalDir();
-	if (!existsSync(dir)) {
-		return;
-	}
+	if (!existsSync(dir)) return;
+
 	const sessionIds = new Set<string>();
 	for (const entry of readdirSync(dir, { withFileTypes: true })) {
-		if (!entry.isFile() || !entry.name.includes(".request.")) {
-			continue;
-		}
-		const [sessionId] = entry.name.split(".request.");
-		if (sessionId?.trim()) {
-			sessionIds.add(sessionId.trim());
-		}
+		if (!entry.isFile() || !entry.name.includes(".request.")) continue;
+		const id = entry.name.split(".request.")[0]?.trim();
+		if (id) sessionIds.add(id);
 	}
+
 	for (const sessionId of sessionIds) {
-		sendEvent(ctx, "tool_approval_state", {
-			sessionId,
-			items: listPendingToolApprovalsForSession(sessionId, 50),
-		});
+		sendApprovalSnapshot(ctx, sessionId);
 	}
 }
 
+function makeQueuedTurnId(): string {
+	return `queued_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
+	return session.pendingTurns.map((turn) => ({
+		id: turn.id,
+		prompt: turn.prompt,
+		steer: turn.steer,
+	}));
+}
+
+function sendPromptsInQueueSnapshot(ctx: HostContext, sessionId: string) {
+	const session = ctx.liveSessions.get(sessionId);
+	sendEvent(ctx, "prompts_in_queue_state", {
+		sessionId,
+		items: session ? getPromptsInQueue(session) : [],
+	});
+}
+
 export function ensureApprovalWatcher(ctx: HostContext) {
-	if (ctx.approvalWatcher) {
-		return;
-	}
+	if (ctx.approvalWatcher) return;
 	mkdirSync(toolApprovalDir(), { recursive: true });
 	ctx.approvalWatcher = watch(toolApprovalDir(), () => {
-		if (ctx.approvalBroadcastTimer) {
-			clearTimeout(ctx.approvalBroadcastTimer);
-		}
-		ctx.approvalBroadcastTimer = setTimeout(() => {
-			broadcastApprovalSnapshots(ctx);
-		}, 50);
+		if (ctx.approvalBroadcastTimer) clearTimeout(ctx.approvalBroadcastTimer);
+		ctx.approvalBroadcastTimer = setTimeout(
+			() => broadcastApprovalSnapshots(ctx),
+			50,
+		);
 	});
 }
 
@@ -340,9 +376,9 @@ export async function respondToolApproval(
 ) {
 	const sessionId = String(args?.sessionId ?? "").trim();
 	const requestId = String(args?.requestId ?? "").trim();
-	if (!sessionId || !requestId) {
+	if (!sessionId || !requestId)
 		throw new Error("sessionId and requestId are required");
-	}
+
 	const path = toolApprovalDecisionPath(sessionId, requestId);
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(
@@ -353,166 +389,317 @@ export async function respondToolApproval(
 			ts: nowMs(),
 		}),
 	);
+
 	const requestPath = join(
 		toolApprovalDir(),
 		`${sessionId}.request.${requestId}.json`,
 	);
-	if (existsSync(requestPath)) {
-		unlinkSync(requestPath);
-	}
-	sendEvent(ctx, "tool_approval_state", {
-		sessionId,
-		items: listPendingToolApprovalsForSession(sessionId, 50),
-	});
+	if (existsSync(requestPath)) unlinkSync(requestPath);
+
+	sendApprovalSnapshot(ctx, sessionId);
 	return true;
 }
 
-export async function handleChatSessionCommand(
+// ---------------------------------------------------------------------------
+// Chat turn execution
+// ---------------------------------------------------------------------------
+
+async function executeChatTurn(
 	ctx: HostContext,
-	request: ChatSessionCommandRequest,
-): Promise<unknown> {
-	if (request.action === "start") {
-		if (!request.config) {
-			throw new Error("missing config for start action");
-		}
-		setRuntimeHomeDir(request.config);
-		addRuntimeLoggerContext(request.config);
-		const response = (await runBridgeCommand(ctx, {
-			action: "start",
-			config: request.config,
-		})) as { sessionId?: string };
-		const sessionId = response.sessionId?.trim();
-		if (!sessionId) {
-			throw new Error("chat runtime bridge start response missing session id");
-		}
-		await runBridgeCommand(ctx, {
-			action: "set_sessions",
-			sessionIds: [sessionId],
-		});
-		ctx.liveSessions.set(sessionId, {
-			config: request.config,
-			messages: [],
-			busy: false,
-			startedAt: nowMs(),
-			status: "idle",
-		});
-		return { sessionId };
-	}
+	sessionId: string,
+	session: LiveSession,
+	turn: QueuedChatTurn,
+): Promise<ChatTurnResult> {
+	if (turn.config) session.config = turn.config;
+	if (turn.prompt) session.prompt = turn.prompt;
 
-	if (request.action === "send") {
-		const prompt = request.prompt?.trim() || "";
-		const hasAttachments =
-			(request.attachments?.userImages?.length ?? 0) > 0 ||
-			(request.attachments?.userFiles?.length ?? 0) > 0;
-		if (!prompt && !hasAttachments) {
-			throw new Error("prompt is required for send action");
-		}
-		const sessionId = request.sessionId?.trim();
-		if (!sessionId) {
-			throw new Error("sessionId is required for send action");
-		}
+	session.busy = true;
+	session.status = "running";
+	session.endedAt = undefined;
 
-		let session = ctx.liveSessions.get(sessionId);
-		if (!session) {
-			if (!request.config) {
-				throw new Error("session not found. start a new session.");
-			}
-			const messages = readPersistedChatMessages(sessionId);
-			if (!messages) {
-				throw new Error("session not found. start a new session.");
-			}
-			session = {
-				config: request.config,
-				messages,
-				busy: false,
-				startedAt: nowMs(),
-				status: "idle",
-				prompt: derivePromptFromMessages(messages),
-				title: readSessionMetadataTitle(sessionId),
-			};
-			ctx.liveSessions.set(sessionId, session);
-		}
-		if (request.config) {
-			session.config = request.config;
-		}
-		if (session.busy) {
-			throw new Error("session is busy. wait for current response to finish.");
-		}
-		session.busy = true;
-		session.status = "running";
-		session.endedAt = undefined;
-		if (prompt) {
-			session.prompt = prompt;
-		}
-		setRuntimeHomeDir(session.config);
-		addRuntimeLoggerContext(session.config);
-		await runBridgeCommand(ctx, {
-			action: "set_sessions",
-			sessionIds: [sessionId],
-		});
+	setRuntimeHomeDir(session.config);
+	addRuntimeLoggerContext(session.config);
+
+	await runBridgeCommand(ctx, {
+		action: "set_sessions",
+		sessionIds: [sessionId],
+	});
+
+	try {
 		const resultEnvelope = (await runBridgeCommand(ctx, {
 			action: "send",
 			sessionId,
 			request: {
 				config: session.config,
 				messages: session.messages,
-				prompt,
-				attachments: request.attachments,
+				prompt: turn.prompt,
+				attachments: turn.attachments,
 			},
 		})) as { result?: ChatTurnResult };
-		const result = resultEnvelope.result;
-		if (!result) {
-			throw new Error("chat runtime bridge send response missing result");
-		}
 
-		const persistedMessages = persistUsageInMessages(
+		const result = resultEnvelope.result;
+		if (!result)
+			throw new Error("chat runtime bridge send response missing result");
+
+		session.messages = persistUsageInMessages(
 			(Array.isArray(result.messages) ? result.messages : []) as unknown[],
 			session.config,
 			result,
 		);
-		session.messages = persistedMessages;
-		session.busy = false;
 		session.status = normalizeChatFinishStatus(result.finishReason);
 		session.endedAt = nowMs();
-		persistSessionMessages(sessionId, persistedMessages);
-		sendEvent(ctx, "tool_approval_state", {
+
+		persistSessionMessages(sessionId, session.messages);
+		sendApprovalSnapshot(ctx, sessionId);
+
+		return result;
+	} finally {
+		session.busy = false;
+	}
+}
+
+async function drainSessionQueue(
+	ctx: HostContext,
+	sessionId: string,
+): Promise<void> {
+	const session = ctx.liveSessions.get(sessionId);
+	if (!session || session.busy) return;
+
+	const nextTurn = session.pendingTurns.shift();
+	if (!nextTurn) return;
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_queued_prompt_start",
+		JSON.stringify({
+			prompt: nextTurn.prompt,
+			attachmentCount:
+				(nextTurn.attachments?.userImages?.length ?? 0) +
+				(nextTurn.attachments?.userFiles?.length ?? 0),
+		}),
+	);
+
+	try {
+		await executeChatTurn(ctx, sessionId, session, nextTurn);
+	} catch (error) {
+		session.status = "error";
+		session.endedAt = nowMs();
+		emitChunk(
+			ctx,
 			sessionId,
-			items: listPendingToolApprovalsForSession(sessionId, 50),
+			"chat_core_log",
+			JSON.stringify({
+				level: "error",
+				message: error instanceof Error ? error.message : String(error),
+			}),
+		);
+	}
+
+	if (session.pendingTurns.length > 0) {
+		void drainSessionQueue(ctx, sessionId);
+	}
+}
+
+// ---------------------------------------------------------------------------
+// Command handler
+// ---------------------------------------------------------------------------
+
+function createLiveSession(
+	config: JsonRecord,
+	extra?: Partial<LiveSession>,
+): LiveSession {
+	return {
+		config,
+		messages: [],
+		pendingTurns: [],
+		busy: false,
+		startedAt: nowMs(),
+		status: "idle",
+		...extra,
+	};
+}
+
+async function handleStart(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	if (!request.config) throw new Error("missing config for start action");
+
+	setRuntimeHomeDir(request.config);
+	addRuntimeLoggerContext(request.config);
+
+	const response = (await runBridgeCommand(ctx, {
+		action: "start",
+		config: request.config,
+	})) as { sessionId?: string };
+
+	const sessionId = response.sessionId?.trim();
+	if (!sessionId)
+		throw new Error("chat runtime bridge start response missing session id");
+
+	await runBridgeCommand(ctx, {
+		action: "set_sessions",
+		sessionIds: [sessionId],
+	});
+	ctx.liveSessions.set(sessionId, createLiveSession(request.config));
+
+	return { sessionId };
+}
+
+async function handleSend(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const prompt = request.prompt?.trim() || "";
+	const hasAttachments =
+		(request.attachments?.userImages?.length ?? 0) > 0 ||
+		(request.attachments?.userFiles?.length ?? 0) > 0;
+	if (!prompt && !hasAttachments)
+		throw new Error("prompt is required for send action");
+
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required for send action");
+
+	let session = ctx.liveSessions.get(sessionId);
+	if (!session) {
+		if (!request.config)
+			throw new Error("session not found. start a new session.");
+		const messages = readPersistedChatMessages(sessionId);
+		if (!messages) throw new Error("session not found. start a new session.");
+
+		session = createLiveSession(request.config, {
+			messages,
+			prompt: derivePromptFromMessages(messages),
+			title: readSessionMetadataTitle(sessionId),
 		});
+		ctx.liveSessions.set(sessionId, session);
+	}
+
+	if (request.config) session.config = request.config;
+
+	const turn: QueuedChatTurn = {
+		id: makeQueuedTurnId(),
+		prompt,
+		steer: false,
+		config: request.config,
+		attachments: request.attachments,
+	};
+
+	if (session.busy) {
+		session.pendingTurns.push(turn);
+		sendPromptsInQueueSnapshot(ctx, sessionId);
 		return {
 			sessionId,
-			result,
-		};
-	}
-
-	if (request.action === "abort") {
-		const sessionId = request.sessionId?.trim();
-		if (sessionId) {
-			await runBridgeCommand(ctx, { action: "abort", sessionId });
-			const session = ctx.liveSessions.get(sessionId);
-			if (session) {
-				session.busy = false;
-				session.status = "cancelled";
-				session.endedAt = nowMs();
-			}
-		}
-		return {
-			sessionId: request.sessionId,
 			ok: true,
+			queued: true,
+			promptsInQueue: getPromptsInQueue(session),
 		};
 	}
 
-	if (request.action === "reset") {
-		const sessionId = request.sessionId?.trim();
-		if (sessionId) {
-			ctx.liveSessions.delete(sessionId);
-			await runBridgeCommand(ctx, { action: "reset", sessionId });
+	const result = await executeChatTurn(ctx, sessionId, session, turn);
+	if (session.pendingTurns.length > 0) {
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+		void drainSessionQueue(ctx, sessionId);
+	}
+
+	return {
+		sessionId,
+		result,
+		queued: false,
+		promptsInQueue: getPromptsInQueue(session),
+	};
+}
+
+async function handleAbort(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const sessionId = request.sessionId?.trim();
+	if (sessionId) {
+		await runBridgeCommand(ctx, { action: "abort", sessionId });
+		const session = ctx.liveSessions.get(sessionId);
+		if (session) {
+			session.busy = false;
+			session.pendingTurns = [];
+			session.status = "cancelled";
+			session.endedAt = nowMs();
 		}
-		return {
-			sessionId: request.sessionId,
-			ok: true,
-		};
+		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
+	return { sessionId: request.sessionId, ok: true };
+}
 
-	throw new Error("unsupported action");
+async function handleReset(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const sessionId = request.sessionId?.trim();
+	if (sessionId) {
+		ctx.liveSessions.delete(sessionId);
+		await runBridgeCommand(ctx, { action: "reset", sessionId });
+		sendPromptsInQueueSnapshot(ctx, sessionId);
+	}
+	return { sessionId: request.sessionId, ok: true };
+}
+
+async function handlePendingPrompts(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const session = ctx.liveSessions.get(sessionId);
+	return {
+		sessionId,
+		promptsInQueue: session ? getPromptsInQueue(session) : [],
+	};
+}
+
+async function handleSteerPrompt(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const sessionId = request.sessionId?.trim();
+	const promptId = request.promptId?.trim();
+	if (!sessionId || !promptId) {
+		throw new Error("sessionId and promptId are required");
+	}
+	const session = ctx.liveSessions.get(sessionId);
+	if (!session) {
+		return { sessionId, promptsInQueue: [] };
+	}
+	const existingIndex = session.pendingTurns.findIndex(
+		(turn) => turn.id === promptId,
+	);
+	if (existingIndex >= 0) {
+		const [turn] = session.pendingTurns.splice(existingIndex, 1);
+		session.pendingTurns.unshift({ ...turn, steer: true });
+	}
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+	return {
+		sessionId,
+		promptsInQueue: getPromptsInQueue(session),
+	};
+}
+
+const ACTION_HANDLERS: Record<
+	string,
+	(ctx: HostContext, req: ChatSessionCommandRequest) => Promise<unknown>
+> = {
+	start: handleStart,
+	send: handleSend,
+	abort: handleAbort,
+	reset: handleReset,
+	pending_prompts: handlePendingPrompts,
+	steer_prompt: handleSteerPrompt,
+};
+
+export async function handleChatSessionCommand(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const handler = ACTION_HANDLERS[request.action];
+	if (!handler) throw new Error("unsupported action");
+	return handler(ctx, request);
 }

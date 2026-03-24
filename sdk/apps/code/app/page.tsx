@@ -204,9 +204,11 @@ function ChatThreadPane({
 		error,
 		summary,
 		fileDiffs,
+		promptsInQueue,
 		pendingToolApprovals,
 		setConfig,
 		sendPrompt,
+		steerPromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
 		reset,
@@ -773,6 +775,9 @@ function ChatThreadPane({
 							}))
 						}
 						onPromptInputChange={setPromptInput}
+						onSteerPromptInQueue={(promptId) => {
+							void steerPromptInQueue(promptId);
+						}}
 						onProviderChange={(nextProvider) =>
 							setConfig((prev) => {
 								const selected = providerCredentials[nextProvider];
@@ -798,6 +803,7 @@ function ChatThreadPane({
 						gitBranch={gitBranch}
 						model={config.model}
 						mode={config.mode}
+						promptsInQueue={promptsInQueue}
 						promptInput={promptInput}
 						provider={config.provider}
 						status={status}

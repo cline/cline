@@ -124,6 +124,7 @@ export interface ResolveAndLoadAgentPluginsOptions
 	importTimeoutMs?: number;
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
+	onEvent?: (event: { name: string; payload?: unknown }) => void;
 }
 
 export async function resolveAndLoadAgentPlugins(
@@ -152,6 +153,7 @@ export async function resolveAndLoadAgentPlugins(
 		importTimeoutMs: options.importTimeoutMs,
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
+		onEvent: options.onEvent,
 	});
 	return {
 		extensions: sandboxed.extensions ?? [],

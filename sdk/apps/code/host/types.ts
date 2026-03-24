@@ -28,16 +28,38 @@ export type ChatTurnResult = RpcChatTurnResult & {
 };
 
 export type ChatSessionCommandRequest = {
-	action: "start" | "send" | "abort" | "reset";
+	action:
+		| "start"
+		| "send"
+		| "abort"
+		| "reset"
+		| "pending_prompts"
+		| "steer_prompt";
 	sessionId?: string;
 	prompt?: string;
+	promptId?: string;
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
+};
+
+export type QueuedChatTurn = {
+	id: string;
+	prompt: string;
+	steer: boolean;
+	config?: JsonRecord;
+	attachments?: ChatTurnAttachments;
+};
+
+export type PromptInQueue = {
+	id: string;
+	prompt: string;
+	steer: boolean;
 };
 
 export type LiveSession = {
 	config: JsonRecord;
 	messages: unknown[];
+	pendingTurns: QueuedChatTurn[];
 	busy: boolean;
 	startedAt: number;
 	endedAt?: number;

@@ -22,8 +22,15 @@ export type ActiveSession = {
 	activeTeamRunIds: Set<string>;
 	pendingTeamRunUpdates: TeamRunUpdate[];
 	teamRunWaiters: Array<() => void>;
+	pendingPrompts: PendingPrompt[];
+	drainingPendingPrompts: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
 	turnUsageBaseline?: SessionAccumulatedUsage;
+};
+
+export type PendingPrompt = {
+	prompt: string;
+	delivery: "queue" | "steer";
 };
 
 export type TeamRunUpdate = {

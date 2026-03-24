@@ -13,7 +13,14 @@ import {
 	ShieldAlert,
 	Terminal,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useRef, useState } from "react";
+import {
+	memo,
+	useCallback,
+	useEffect,
+	useLayoutEffect,
+	useRef,
+	useState,
+} from "react";
 import { Button } from "@/components/ui/button";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
@@ -50,6 +57,8 @@ type ToolApprovalRequestItem = {
 };
 
 const IS_DEBUG = process.env.NODE_ENV === "test";
+const STICKY_BOTTOM_THRESHOLD_PX = 24;
+const SCROLL_TO_BOTTOM_BUTTON_THRESHOLD_PX = 120;
 
 function ChatMessagesImpl({
 	sessionId: _sessionId,
@@ -67,7 +76,7 @@ function ChatMessagesImpl({
 	onStartChat,
 }: ChatMessagesProps) {
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
-	const hasAppliedInitialScrollRef = useRef(false);
+	const shouldStickToBottomRef = useRef(true);
 	const hasMessages = messages.length > 0;
 	const lastErrorMessage = [...messages]
 		.reverse()
@@ -95,6 +104,7 @@ function ChatMessagesImpl({
 			if (!viewport) {
 				return;
 			}
+			shouldStickToBottomRef.current = true;
 			viewport.scrollTo({ top: viewport.scrollHeight, behavior });
 			setShowScrollToBottom((prev) => (prev ? false : prev));
 		},
@@ -123,7 +133,10 @@ function ChatMessagesImpl({
 		const updateScrollToBottomVisibility = () => {
 			const distanceFromBottom =
 				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-			const shouldShow = distanceFromBottom > 120;
+			shouldStickToBottomRef.current =
+				distanceFromBottom <= STICKY_BOTTOM_THRESHOLD_PX;
+			const shouldShow =
+				distanceFromBottom > SCROLL_TO_BOTTOM_BUTTON_THRESHOLD_PX;
 			setShowScrollToBottom((prev) =>
 				prev === shouldShow ? prev : shouldShow,
 			);
@@ -137,26 +150,12 @@ function ChatMessagesImpl({
 		};
 	}, [getViewport]);
 
-	useEffect(() => {
-		if (hasAppliedInitialScrollRef.current) {
+	useLayoutEffect(() => {
+		if (!shouldStickToBottomRef.current) {
 			return;
 		}
-
-		const hasScrollableContent =
-			messages.length > 0 || pendingToolApprovals.length > 0;
-		if (!hasScrollableContent) {
-			return;
-		}
-
-		const frame = window.requestAnimationFrame(() => {
-			scrollToBottom("auto");
-			hasAppliedInitialScrollRef.current = true;
-		});
-
-		return () => {
-			window.cancelAnimationFrame(frame);
-		};
-	}, [messages.length, pendingToolApprovals.length, scrollToBottom]);
+		scrollToBottom("auto");
+	}, [scrollToBottom]);
 
 	useEffect(() => {
 		const activeRequestIds = new Set(

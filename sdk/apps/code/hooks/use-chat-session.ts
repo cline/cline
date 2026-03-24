@@ -18,6 +18,7 @@ import type {
 	ChatTransportState,
 	CoreLogChunk,
 	ProcessContext,
+	PromptInQueue,
 	ToolApprovalRequestItem,
 	ToolCallEndEvent,
 	ToolCallStartEvent,
@@ -38,6 +39,117 @@ import {
 import type { SessionHistoryItem } from "@/lib/session-history";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
+
+const MAX_MESSAGES = 800;
+
+const RELEVANT_STREAMS = new Set([
+	"chat_text",
+	"chat_queued_prompt_start",
+	"chat_tool_call_start",
+	"chat_tool_call_end",
+	"chat_core_log",
+]);
+
+const BUSY_STATUSES = new Set<ChatSessionStatus>([
+	"starting",
+	"running",
+	"stopping",
+]);
+
+// ---------------------------------------------------------------------------
+// Helpers (pure, no hooks)
+// ---------------------------------------------------------------------------
+
+function errorMessage(err: unknown): string {
+	return err instanceof Error ? err.message : String(err);
+}
+
+function makeErrorChatMessage(
+	sid: string | null,
+	content: string,
+): ChatMessage {
+	return {
+		id: makeId("error"),
+		sessionId: sid,
+		role: "error",
+		content,
+		createdAt: Date.now(),
+	};
+}
+
+function validateConfig(
+	config: ChatSessionConfig,
+):
+	| { parsed: ChatSessionConfig; error: null }
+	| { parsed: null; error: string } {
+	const runtimeConfig = normalizeRuntimeConfig(config);
+	const result = ChatSessionConfigSchema.safeParse(runtimeConfig);
+	if (!result.success) {
+		return {
+			parsed: null,
+			error: result.error.issues.map((i) => i.message).join(", "),
+		};
+	}
+	const credentialError = resolveCredentialError(result.data);
+	if (credentialError) {
+		return { parsed: null, error: credentialError };
+	}
+	return { parsed: result.data, error: null };
+}
+
+function sliceMessages(msgs: ChatMessage[]): ChatMessage[] {
+	return msgs.length > MAX_MESSAGES ? msgs.slice(-MAX_MESSAGES) : msgs;
+}
+
+function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
+	return [...messages].sort((left, right) => {
+		if (left.createdAt !== right.createdAt) {
+			return left.createdAt - right.createdAt;
+		}
+		return left.id.localeCompare(right.id);
+	});
+}
+
+function updateMessageById(
+	messages: ChatMessage[],
+	id: string,
+	updater: (msg: ChatMessage) => ChatMessage,
+): ChatMessage[] {
+	let changed = false;
+	const next = messages.map((msg) => {
+		if (msg.id !== id) return msg;
+		changed = true;
+		return updater(msg);
+	});
+	return changed ? next : messages;
+}
+
+// ---------------------------------------------------------------------------
+// Core log dispatcher — avoids repeated if/else chains
+// ---------------------------------------------------------------------------
+
+const LOG_DISPATCH: Record<string, typeof console.info> = {
+	error: console.error,
+	warn: console.warn,
+	debug: console.debug,
+};
+
+function dispatchCoreLog(chunk: string): void {
+	let parsed: CoreLogChunk | undefined;
+	try {
+		parsed = JSON.parse(chunk) as CoreLogChunk;
+	} catch {
+		console.info("[core]", chunk);
+		return;
+	}
+	const level = parsed.level?.trim().toLowerCase() || "info";
+	const message = parsed.message?.trim() || chunk;
+	(LOG_DISPATCH[level] ?? console.info)("[core]", message, parsed.metadata);
+}
+
+// ---------------------------------------------------------------------------
+// Hook
+// ---------------------------------------------------------------------------
 
 export function useChatSession() {
 	const [sessionId, setSessionId] = useState<string | null>(null);
@@ -62,6 +174,7 @@ export function useChatSession() {
 	const [pendingToolApprovals, setPendingToolApprovals] = useState<
 		ToolApprovalRequestItem[]
 	>([]);
+	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
@@ -71,44 +184,102 @@ export function useChatSession() {
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const messagesRef = useRef<ChatMessage[]>([]);
 
+	// ---- Ref syncs ----
+
 	useEffect(() => {
 		activeSessionIdRef.current = sessionId;
 	}, [sessionId]);
-
 	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
-
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+
+	// ---- Shared state reset helpers ----
+
+	const clearLiveToolRefs = useCallback(() => {
+		liveToolMessageIdsRef.current = {};
+		liveToolInputsRef.current = {};
+	}, []);
+
+	const resetCounters = useCallback(() => {
+		setToolCalls(0);
+		setTokensIn(0);
+		setTokensOut(0);
+		setFileDiffs([]);
+		setDiffSummary(EMPTY_DIFF_SUMMARY);
+	}, []);
+
+	const setErrorState = useCallback(
+		(msg: string, sid: string | null = null) => {
+			setError(msg);
+			setStatus("error");
+			setMessages((prev) =>
+				sliceMessages([...prev, makeErrorChatMessage(sid, msg)]),
+			);
+		},
+		[],
+	);
+
+	// ---- Data fetching ----
+
+	const postSession = useCallback(async (body: Record<string, unknown>) => {
+		return await desktopClient.invoke<{
+			sessionId?: string;
+			result?: ChatApiResult;
+			ok?: boolean;
+			queued?: boolean;
+			promptsInQueue?: PromptInQueue[];
+		}>("chat_session_command", { request: body });
+	}, []);
+
+	const refreshPromptsInQueue = useCallback(
+		async (targetSessionId: string | null) => {
+			if (!targetSessionId) {
+				setPromptsInQueue([]);
+				return;
+			}
+			try {
+				const payload = await postSession({
+					action: "pending_prompts",
+					sessionId: targetSessionId,
+				});
+				setPromptsInQueue(
+					Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+				);
+			} catch {
+				// Ignore queue refresh failures and keep the last known state.
+			}
+		},
+		[postSession],
+	);
+
+	const applyPromptsInQueue = useCallback((value: unknown) => {
+		if (!Array.isArray(value)) {
+			return;
+		}
+		setPromptsInQueue(value as PromptInQueue[]);
+	}, []);
 
 	const refreshSessionDiffSummary = useCallback(
 		async (targetSessionId: string) => {
 			try {
 				const events = await desktopClient.invoke<ChatSessionHookEvent[]>(
 					"read_session_hooks",
-					{
-						sessionId: targetSessionId,
-						limit: 800,
-					},
+					{ sessionId: targetSessionId, limit: MAX_MESSAGES },
 				);
 				const diffState = buildSessionDiffState(events);
 				setFileDiffs(diffState.fileDiffs);
 				setDiffSummary(diffState.summary);
 				setToolCalls(
 					events.filter(
-						(event) =>
-							event.hookEventName === "tool_call" ||
-							event.hookName === "tool_call",
+						(e) =>
+							e.hookEventName === "tool_call" || e.hookName === "tool_call",
 					).length,
 				);
-				setTokensIn(
-					events.reduce((sum, event) => sum + (event.inputTokens ?? 0), 0),
-				);
-				setTokensOut(
-					events.reduce((sum, event) => sum + (event.outputTokens ?? 0), 0),
-				);
+				setTokensIn(events.reduce((sum, e) => sum + (e.inputTokens ?? 0), 0));
+				setTokensOut(events.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0));
 			} catch {
 				// Ignore in non-Tauri mode.
 			}
@@ -116,8 +287,12 @@ export function useChatSession() {
 		[],
 	);
 
+	// ---- Message helpers ----
+
 	const addMessage = useCallback((message: ChatMessage) => {
-		setMessages((prev) => [...prev, message].slice(-800));
+		setMessages((prev) =>
+			sliceMessages(sortMessagesChronologically([...prev, message])),
+		);
 	}, []);
 
 	const materializeToolMessagesFromResult = useCallback(
@@ -127,19 +302,15 @@ export function useChatSession() {
 			toolCalls: NonNullable<ChatApiResult["toolCalls"]>;
 		}) => {
 			const { sessionId: targetSessionId, turnStartedAt, toolCalls } = options;
-			if (toolCalls.length === 0) {
-				return;
-			}
+			if (toolCalls.length === 0) return;
 			setMessages((prev) => {
-				const hasLiveToolMessagesForTurn = prev.some(
-					(message) =>
-						message.sessionId === targetSessionId &&
-						message.role === "tool" &&
-						message.createdAt >= turnStartedAt,
+				const hasLive = prev.some(
+					(m) =>
+						m.sessionId === targetSessionId &&
+						m.role === "tool" &&
+						m.createdAt >= turnStartedAt,
 				);
-				if (hasLiveToolMessagesForTurn) {
-					return prev;
-				}
+				if (hasLive) return prev;
 
 				const next = [...prev];
 				for (const call of toolCalls) {
@@ -154,58 +325,30 @@ export function useChatSession() {
 							isError: Boolean(call.error),
 						}),
 						createdAt: turnStartedAt + next.length,
-						meta: {
-							toolName: call.name,
-							hookEventName: "tool_call_end",
-						},
+						meta: { toolName: call.name, hookEventName: "tool_call_end" },
 					});
 				}
-				return next.slice(-800);
+				return sliceMessages(sortMessagesChronologically(next));
 			});
 		},
 		[],
 	);
 
-	const replaceMessageContent = useCallback((id: string, content: string) => {
+	const appendMessageContent = useCallback((id: string, chunk: string) => {
+		if (!chunk) return;
 		setMessages((prev) =>
-			prev.map((message) => {
-				if (message.id !== id) {
-					return message;
-				}
-				return {
-					...message,
-					content,
-				};
+			updateMessageById(prev, id, (msg) => {
+				const existing = msg.content;
+				if (existing.endsWith(chunk)) return msg;
+				const content = chunk.startsWith(existing)
+					? chunk
+					: `${existing}${chunk}`;
+				return { ...msg, content };
 			}),
 		);
 	}, []);
 
-	const appendMessageContent = useCallback((id: string, chunk: string) => {
-		if (!chunk) {
-			return;
-		}
-		setMessages((prev) =>
-			prev.map((message) => {
-				if (message.id !== id) {
-					return message;
-				}
-				const existing = message.content;
-				if (existing.endsWith(chunk)) {
-					return message;
-				}
-				if (chunk.startsWith(existing)) {
-					return {
-						...message,
-						content: chunk,
-					};
-				}
-				return {
-					...message,
-					content: `${existing}${chunk}`,
-				};
-			}),
-		);
-	}, []);
+	// ---- Process context ----
 
 	const applyProcessContext = useCallback(async () => {
 		try {
@@ -226,15 +369,19 @@ export function useChatSession() {
 		void applyProcessContext();
 	}, [applyProcessContext]);
 
+	// ---- Diff / approval effects ----
+
 	useEffect(() => {
 		if (!sessionId) {
 			setFileDiffs([]);
 			setDiffSummary(EMPTY_DIFF_SUMMARY);
 			setPendingToolApprovals([]);
+			setPromptsInQueue([]);
 			return;
 		}
 		void refreshSessionDiffSummary(sessionId);
-	}, [refreshSessionDiffSummary, sessionId]);
+		void refreshPromptsInQueue(sessionId);
+	}, [refreshPromptsInQueue, refreshSessionDiffSummary, sessionId]);
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
@@ -248,58 +395,86 @@ export function useChatSession() {
 				sessionId: activeSessionId,
 				limit: 20,
 			})
-			.then((pending) => {
-				setPendingToolApprovals(pending);
-			})
-			.catch(() => {
-				// Ignore initial hydration failures.
-			});
+			.then((pending) => setPendingToolApprovals(pending))
+			.catch(() => {});
 
 		return desktopClient.subscribe("tool_approval_state", (payload) => {
-			if (!payload || typeof payload !== "object") {
-				return;
-			}
+			if (!payload || typeof payload !== "object") return;
 			const record = payload as {
 				sessionId?: string;
 				items?: ToolApprovalRequestItem[];
 			};
-			if (record.sessionId !== activeSessionId) {
-				return;
-			}
+			if (record.sessionId !== activeSessionId) return;
 			setPendingToolApprovals(Array.isArray(record.items) ? record.items : []);
 		});
 	}, [sessionId]);
 
+	useEffect(() => {
+		return desktopClient.subscribe("prompts_in_queue_state", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const record = payload as {
+				sessionId?: string;
+				items?: PromptInQueue[];
+			};
+			if (record.sessionId !== activeSessionIdRef.current) return;
+			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
+		});
+	}, []);
+
+	// ---- Incoming chunk handler ----
+
 	const handleIncomingChunk = useCallback(
 		(payload: AgentChunkEvent) => {
-			if (
-				payload.stream !== "chat_text" &&
-				payload.stream !== "chat_tool_call_start" &&
-				payload.stream !== "chat_tool_call_end" &&
-				payload.stream !== "chat_core_log"
-			) {
-				return;
-			}
+			if (!RELEVANT_STREAMS.has(payload.stream)) return;
+
 			const listeningSessionId = activeSessionIdRef.current;
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
 				return;
 			}
-			let listeningAssistantId = activeAssistantMessageIdRef.current;
+
+			if (payload.stream === "chat_queued_prompt_start") {
+				let parsed: { prompt?: string; attachmentCount?: number } = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as {
+						prompt?: string;
+						attachmentCount?: number;
+					};
+				} catch {
+					parsed = { prompt: payload.chunk };
+				}
+				const prompt = parsed.prompt?.trim() ?? "";
+				const attachmentCount =
+					typeof parsed.attachmentCount === "number"
+						? parsed.attachmentCount
+						: 0;
+				const userLabel =
+					attachmentCount > 0
+						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
+						: prompt;
+				if (userLabel) {
+					addMessage({
+						id: makeId("user"),
+						sessionId: listeningSessionId,
+						role: "user",
+						content: userLabel,
+						createdAt: payload.ts || Date.now(),
+					});
+				}
+				return;
+			}
+
+			// --- Text stream ---
 			if (payload.stream === "chat_text") {
-				if (!listeningAssistantId) {
+				let assistantId = activeAssistantMessageIdRef.current;
+				if (!assistantId) {
 					const sessionMessages = messagesRef.current.filter(
-						(message) => message.sessionId === listeningSessionId,
+						(m) => m.sessionId === listeningSessionId,
 					);
-					const latestSessionMessage = sessionMessages.at(-1);
-					if (latestSessionMessage?.role === "assistant") {
-						listeningAssistantId = latestSessionMessage.id;
-						activeAssistantMessageIdRef.current = listeningAssistantId;
-						setActiveAssistantMessageId(listeningAssistantId);
+					const latest = sessionMessages.at(-1);
+					if (latest?.role === "assistant") {
+						assistantId = latest.id;
 					} else {
-						const assistantId = makeId("assistant");
-						listeningAssistantId = assistantId;
-						activeAssistantMessageIdRef.current = assistantId;
-						setActiveAssistantMessageId(assistantId);
+						assistantId = makeId("assistant");
 						addMessage({
 							id: assistantId,
 							sessionId: listeningSessionId,
@@ -308,37 +483,21 @@ export function useChatSession() {
 							createdAt: payload.ts || Date.now(),
 						});
 					}
+					activeAssistantMessageIdRef.current = assistantId;
+					setActiveAssistantMessageId(assistantId);
 				}
-				appendMessageContent(listeningAssistantId, payload.chunk);
+				appendMessageContent(assistantId, payload.chunk);
 				setRawTranscript((prev) => `${prev}${payload.chunk}`);
 				return;
 			}
+
+			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
-				let parsed: CoreLogChunk | undefined;
-				try {
-					parsed = JSON.parse(payload.chunk) as CoreLogChunk;
-				} catch {
-					console.info("[core]", payload.chunk);
-					return;
-				}
-				const level = parsed.level?.trim().toLowerCase() || "info";
-				const message = parsed.message?.trim() || payload.chunk;
-				const metadata = parsed.metadata;
-				if (level === "error") {
-					console.error("[core]", message, metadata);
-					return;
-				}
-				if (level === "warn") {
-					console.warn("[core]", message, metadata);
-					return;
-				}
-				if (level === "debug") {
-					console.debug("[core]", message, metadata);
-					return;
-				}
-				console.info("[core]", message, metadata);
+				dispatchCoreLog(payload.chunk);
 				return;
 			}
+
+			// --- Tool call start ---
 			if (payload.stream === "chat_tool_call_start") {
 				let parsed: ToolCallStartEvent = {};
 				try {
@@ -361,14 +520,13 @@ export function useChatSession() {
 						output: null,
 					}),
 					createdAt: Date.now(),
-					meta: {
-						toolName,
-						hookEventName: "tool_call_start",
-					},
+					meta: { toolName, hookEventName: "tool_call_start" },
 				});
 				setToolCalls((prev) => prev + 1);
 				return;
 			}
+
+			// --- Tool call end ---
 			let parsed: ToolCallEndEvent = {};
 			try {
 				parsed = JSON.parse(payload.chunk) as ToolCallEndEvent;
@@ -394,21 +552,13 @@ export function useChatSession() {
 				delete liveToolInputsRef.current[toolCallId];
 			}
 			if (messageId) {
-				replaceMessageContent(messageId, toolPayload);
+				// Single setMessages call replaces content + updates meta together.
 				setMessages((prev) =>
-					prev.map((message) => {
-						if (message.id !== messageId) {
-							return message;
-						}
-						return {
-							...message,
-							meta: {
-								...message.meta,
-								toolName,
-								hookEventName: "tool_call_end",
-							},
-						};
-					}),
+					updateMessageById(prev, messageId, (msg) => ({
+						...msg,
+						content: toolPayload,
+						meta: { ...msg.meta, toolName, hookEventName: "tool_call_end" },
+					})),
 				);
 				return;
 			}
@@ -418,38 +568,24 @@ export function useChatSession() {
 				role: "tool",
 				content: toolPayload,
 				createdAt: Date.now(),
-				meta: {
-					toolName,
-					hookEventName: "tool_call_end",
-				},
+				meta: { toolName, hookEventName: "tool_call_end" },
 			});
 		},
-		[addMessage, appendMessageContent, replaceMessageContent],
+		[addMessage, appendMessageContent],
 	);
 
-	const postSession = useCallback(async (body: Record<string, unknown>) => {
-		return await desktopClient.invoke<{
-			sessionId?: string;
-			result?: ChatApiResult;
-			ok?: boolean;
-		}>("chat_session_command", {
-			request: body,
-		});
-	}, []);
+	// ---- Transport / event subscriptions ----
 
 	useEffect(() => {
 		const unsubscribeTransport = desktopClient.subscribeTransportState(
-			(next) => {
-				setChatTransportState(next);
-			},
+			setChatTransportState,
 		);
 		const unsubscribeEvents = desktopClient.subscribe(
 			"chat_event",
 			(payload) => {
-				if (!payload || typeof payload !== "object") {
-					return;
+				if (payload && typeof payload === "object") {
+					handleIncomingChunk(payload as AgentChunkEvent);
 				}
-				handleIncomingChunk(payload as AgentChunkEvent);
 			},
 		);
 		return () => {
@@ -458,56 +594,48 @@ export function useChatSession() {
 		};
 	}, [handleIncomingChunk]);
 
+	// ---- Shared: start a new session via RPC ----
+
+	const startSession = useCallback(
+		async (validatedConfig: ChatSessionConfig): Promise<string> => {
+			const payload = await postSession({
+				action: "start",
+				config: validatedConfig,
+			});
+			const id = payload.sessionId;
+			if (!id) throw new Error("Missing session id from server");
+			setSessionId(id);
+			setStatus("running");
+			setConfig(validatedConfig);
+			setHydratedHistorySessionId(null);
+			return id;
+		},
+		[postSession],
+	);
+
+	// ---- Actions ----
+
 	const start = useCallback(
 		async (nextConfig: ChatSessionConfig) => {
-			const runtimeConfig = normalizeRuntimeConfig(nextConfig);
-			const parsed = ChatSessionConfigSchema.safeParse(runtimeConfig);
-			if (!parsed.success) {
-				const message = parsed.error.issues
-					.map((issue) => issue.message)
-					.join(", ");
-				setError(message);
-				setStatus("error");
+			const validation = validateConfig(nextConfig);
+			if (!validation.parsed) {
+				setErrorState(validation.error);
 				return;
 			}
-			const credentialError = resolveCredentialError(parsed.data);
-			if (credentialError) {
-				setError(credentialError);
-				setStatus("error");
-				addMessage({
-					id: makeId("error"),
-					sessionId: null,
-					role: "error",
-					content: credentialError,
-					createdAt: Date.now(),
-				});
-				return;
-			}
+			const parsed = validation.parsed;
 
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(false);
 			setMessages([]);
 			setRawTranscript("");
-			setToolCalls(0);
-			setTokensIn(0);
-			setTokensOut(0);
-			setFileDiffs([]);
-			setDiffSummary(EMPTY_DIFF_SUMMARY);
-			setConfig(parsed.data);
+			resetCounters();
+			setConfig(parsed);
 			setHydratedHistorySessionId(null);
+			setPromptsInQueue([]);
 
 			try {
-				const payload = await postSession({
-					action: "start",
-					config: parsed.data,
-				});
-				const id = payload.sessionId;
-				if (!id) {
-					throw new Error("Missing session id from server");
-				}
-				setSessionId(id);
-				setStatus("running");
+				const id = await startSession(parsed);
 				addMessage({
 					id: makeId("status"),
 					sessionId: id,
@@ -516,86 +644,39 @@ export function useChatSession() {
 					createdAt: Date.now(),
 				});
 			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
-				setStatus("error");
-				addMessage({
-					id: makeId("error"),
-					sessionId: null,
-					role: "error",
-					content: message,
-					createdAt: Date.now(),
-				});
+				setErrorState(errorMessage(err));
 			}
 		},
-		[addMessage, postSession],
+		[addMessage, resetCounters, setErrorState, startSession],
 	);
 
 	const sendPrompt = useCallback(
 		async (prompt: string, attachedFiles: File[] = []) => {
 			const trimmed = prompt.trim();
-			if (!trimmed && attachedFiles.length === 0) {
-				return;
-			}
+			if (!trimmed && attachedFiles.length === 0) return;
 
 			setError(null);
 			setIsHydratingSession(false);
 			let activeSessionId = sessionId;
-			const runtimeConfig = normalizeRuntimeConfig(config);
-			const parsed = ChatSessionConfigSchema.safeParse(runtimeConfig);
-			if (!parsed.success) {
-				const message = parsed.error.issues
-					.map((issue) => issue.message)
-					.join(", ");
-				setError(message);
-				setStatus("error");
+
+			const validation = validateConfig(config);
+			if (!validation.parsed) {
+				setErrorState(validation.error, activeSessionId);
 				return;
 			}
-			const credentialError = resolveCredentialError(parsed.data);
-			if (credentialError) {
-				setError(credentialError);
-				setStatus("error");
-				addMessage({
-					id: makeId("error"),
-					sessionId: activeSessionId,
-					role: "error",
-					content: credentialError,
-					createdAt: Date.now(),
-				});
-				return;
-			}
+			const parsed = validation.parsed;
 
 			if (!activeSessionId) {
 				try {
-					const payload = await postSession({
-						action: "start",
-						config: parsed.data,
-					});
-					const id = payload.sessionId;
-					if (!id) {
-						throw new Error("Missing session id from server");
-					}
-					activeSessionId = id;
-					setSessionId(id);
-					setStatus("running");
-					setConfig(parsed.data);
-					setHydratedHistorySessionId(null);
+					activeSessionId = await startSession(parsed);
 				} catch (err) {
-					const message = err instanceof Error ? err.message : String(err);
-					setError(message);
-					setStatus("error");
-					addMessage({
-						id: makeId("error"),
-						sessionId: null,
-						role: "error",
-						content: message,
-						createdAt: Date.now(),
-					});
+					setErrorState(errorMessage(err));
 					return;
 				}
 			}
 
 			const now = Date.now();
+			const shouldQueue = Boolean(activeSessionId) && BUSY_STATUSES.has(status);
 			const serializedAttachments = await serializeAttachments(attachedFiles);
 			const hasAttachments =
 				serializedAttachments.userImages.length > 0 ||
@@ -604,32 +685,49 @@ export function useChatSession() {
 			const userLabel = hasAttachments
 				? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFiles.length} file${attachedFiles.length === 1 ? "" : "s"}]`
 				: trimmed;
+			const optimisticQueuedPromptId = shouldQueue
+				? makeId("queued_prompt")
+				: null;
 
-			addMessage({
-				id: makeId("user"),
-				sessionId: activeSessionId,
-				role: "user",
-				content: userLabel,
-				createdAt: now,
-			});
-
-			activeSessionIdRef.current = activeSessionId;
-			activeAssistantMessageIdRef.current = null;
-			setActiveAssistantMessageId(null);
-			liveToolMessageIdsRef.current = {};
-			liveToolInputsRef.current = {};
-
-			setStatus("starting");
+			if (!shouldQueue) {
+				addMessage({
+					id: makeId("user"),
+					sessionId: activeSessionId,
+					role: "user",
+					content: userLabel,
+					createdAt: now,
+				});
+				activeSessionIdRef.current = activeSessionId;
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
+				clearLiveToolRefs();
+				setStatus("starting");
+			} else if (optimisticQueuedPromptId) {
+				setPromptsInQueue((prev) => [
+					...prev,
+					{
+						id: optimisticQueuedPromptId,
+						prompt: userLabel,
+						steer: false,
+					},
+				]);
+			}
 			try {
 				const payload = await postSession({
 					action: "send",
 					sessionId: activeSessionId,
 					prompt: trimmed,
-					config: parsed.data,
+					config: parsed,
 					attachments: hasAttachments ? serializedAttachments : undefined,
 				});
+				if (payload.ok && payload.queued) {
+					applyPromptsInQueue(payload.promptsInQueue);
+					setStatus("running");
+					return;
+				}
 
 				const result = payload.result as ChatApiResult | undefined;
+				applyPromptsInQueue(payload.promptsInQueue);
 				const assistantText = (result?.text ?? "").trim();
 				const fallbackAssistantText = extractAssistantTextFromRpcMessages(
 					result?.messages,
@@ -641,22 +739,14 @@ export function useChatSession() {
 					activeAssistantMessageIdRef.current = assistantMessageId;
 					setActiveAssistantMessageId(assistantMessageId);
 					setMessages((prev) => {
-						let found = false;
-						const next = prev.map((message) => {
-							if (message.id !== assistantMessageId) {
-								return message;
-							}
-							found = true;
-							return {
-								...message,
-								content: resolvedAssistantText,
-							};
-						});
-						if (found) {
-							return next;
-						}
-						return [
-							...next,
+						const updated = updateMessageById(
+							prev,
+							assistantMessageId,
+							(msg) => ({ ...msg, content: resolvedAssistantText }),
+						);
+						if (updated !== prev) return updated;
+						return sliceMessages([
+							...prev,
 							{
 								id: assistantMessageId,
 								sessionId: activeSessionId,
@@ -664,17 +754,14 @@ export function useChatSession() {
 								content: resolvedAssistantText,
 								createdAt: now + 1,
 							},
-						].slice(-800);
+						]);
 					});
 				} else {
-					// Recovery path: if transport missed result text, load canonical messages.
+					// Recovery: load canonical messages if transport missed result text.
 					try {
 						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 							"read_session_messages",
-							{
-								sessionId: activeSessionId,
-								maxMessages: 800,
-							},
+							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
 						if (historyMessages.length > 0) {
 							setMessages(historyMessages);
@@ -691,6 +778,7 @@ export function useChatSession() {
 					});
 				}
 
+				// Token / cost bookkeeping
 				const inputTokens = result?.usage?.inputTokens ?? result?.inputTokens;
 				if (typeof inputTokens === "number") {
 					setTokensIn((prev) => prev + inputTokens);
@@ -712,48 +800,41 @@ export function useChatSession() {
 						typeof totalCost === "number")
 				) {
 					setMessages((prev) =>
-						prev.map((message) => {
-							if (message.id !== assistantMessageId) {
-								return message;
-							}
-							return {
-								...message,
-								meta: {
-									...(message.meta ?? {}),
-									inputTokens:
-										typeof inputTokens === "number"
-											? inputTokens
-											: message.meta?.inputTokens,
-									outputTokens:
-										typeof outputTokens === "number"
-											? outputTokens
-											: message.meta?.outputTokens,
-									totalCost:
-										typeof totalCost === "number"
-											? totalCost
-											: message.meta?.totalCost,
-									providerId: config.provider,
-									modelId: config.model,
-								},
-							};
-						}),
+						updateMessageById(prev, assistantMessageId, (msg) => ({
+							...msg,
+							meta: {
+								...(msg.meta ?? {}),
+								inputTokens:
+									typeof inputTokens === "number"
+										? inputTokens
+										: msg.meta?.inputTokens,
+								outputTokens:
+									typeof outputTokens === "number"
+										? outputTokens
+										: msg.meta?.outputTokens,
+								totalCost:
+									typeof totalCost === "number"
+										? totalCost
+										: msg.meta?.totalCost,
+								providerId: config.provider,
+								modelId: config.model,
+							},
+						})),
 					);
 				}
 
 				if (result?.finishReason === "error") {
 					if (!resolvedAssistantText) {
 						const toolError = Array.isArray(result?.toolCalls)
-							? result.toolCalls.find((call) => call.error)?.error
+							? result.toolCalls.find((c) => c.error)?.error
 							: undefined;
-						addMessage({
-							id: makeId("error"),
-							sessionId: activeSessionId,
-							role: "error",
-							content:
+						addMessage(
+							makeErrorChatMessage(
+								activeSessionId,
 								toolError?.trim() ||
-								"Runtime turn failed before an assistant response was produced.",
-							createdAt: Date.now(),
-						});
+									"Runtime turn failed before an assistant response was produced.",
+							),
+						);
 					}
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
@@ -763,29 +844,31 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
-				setStatus("error");
-				addMessage({
-					id: makeId("error"),
-					sessionId: activeSessionId,
-					role: "error",
-					content: message,
-					createdAt: Date.now(),
-				});
+				if (optimisticQueuedPromptId) {
+					setPromptsInQueue((prev) =>
+						prev.filter((item) => item.id !== optimisticQueuedPromptId),
+					);
+				}
+				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
-				activeAssistantMessageIdRef.current = null;
-				setActiveAssistantMessageId(null);
-				liveToolMessageIdsRef.current = {};
-				liveToolInputsRef.current = {};
+				if (!shouldQueue) {
+					activeAssistantMessageIdRef.current = null;
+					setActiveAssistantMessageId(null);
+					clearLiveToolRefs();
+				}
 			}
 		},
 		[
 			addMessage,
+			applyPromptsInQueue,
+			clearLiveToolRefs,
 			config,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
 			sessionId,
+			setErrorState,
+			startSession,
+			status,
 			postSession,
 		],
 	);
@@ -793,9 +876,7 @@ export function useChatSession() {
 	const respondToolApproval = useCallback(
 		async (requestId: string, approved: boolean) => {
 			const activeSessionId = activeSessionIdRef.current;
-			if (!activeSessionId) {
-				return;
-			}
+			if (!activeSessionId) return;
 			await desktopClient.invoke("respond_tool_approval", {
 				sessionId: activeSessionId,
 				requestId,
@@ -812,23 +893,17 @@ export function useChatSession() {
 	);
 
 	const approveToolApproval = useCallback(
-		async (requestId: string) => {
-			await respondToolApproval(requestId, true);
-		},
+		(requestId: string) => respondToolApproval(requestId, true),
 		[respondToolApproval],
 	);
 
 	const rejectToolApproval = useCallback(
-		async (requestId: string) => {
-			await respondToolApproval(requestId, false);
-		},
+		(requestId: string) => respondToolApproval(requestId, false),
 		[respondToolApproval],
 	);
 
 	const abort = useCallback(async () => {
-		if (!sessionId) {
-			return;
-		}
+		if (!sessionId) return;
 		try {
 			await postSession({ action: "abort", sessionId });
 		} catch {
@@ -836,10 +911,6 @@ export function useChatSession() {
 		}
 		setStatus("cancelled");
 	}, [sessionId, postSession]);
-
-	const stop = useCallback(async () => {
-		await abort();
-	}, [abort]);
 
 	const reset = useCallback(async () => {
 		const activeSessionId = sessionId;
@@ -856,19 +927,15 @@ export function useChatSession() {
 		setMessages([]);
 		setRawTranscript("");
 		setError(null);
-		setToolCalls(0);
-		setTokensIn(0);
-		setTokensOut(0);
-		setFileDiffs([]);
-		setDiffSummary(EMPTY_DIFF_SUMMARY);
+		resetCounters();
 		activeSessionIdRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);
 		setPendingToolApprovals([]);
-		liveToolMessageIdsRef.current = {};
-		liveToolInputsRef.current = {};
-	}, [sessionId, postSession]);
+		setPromptsInQueue([]);
+		clearLiveToolRefs();
+	}, [sessionId, postSession, resetCounters, clearLiveToolRefs]);
 
 	const hydrateSession = useCallback(
 		async (session: SessionHistoryItem) => {
@@ -890,37 +957,36 @@ export function useChatSession() {
 			setActiveAssistantMessageId(null);
 			setHydratedHistorySessionId(session.sessionId);
 			setPendingToolApprovals([]);
-			liveToolMessageIdsRef.current = {};
-			liveToolInputsRef.current = {};
+			setPromptsInQueue([]);
+			clearLiveToolRefs();
+
+			const applyHydratedMessages = (
+				msgs: ChatMessage[],
+				sessionStatus: typeof session.status,
+			) => {
+				setMessages(msgs);
+				setRawTranscript(msgs.map((m) => m.content).join("\n\n"));
+				resetCounters();
+				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
+				void refreshSessionDiffSummary(session.sessionId);
+			};
 
 			try {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
-					{
-						sessionId: session.sessionId,
-						maxMessages: 800,
-					},
+					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
 				);
-				if (hydrationRequestIdRef.current !== requestId) {
+				if (hydrationRequestIdRef.current !== requestId) return;
+
+				if (historyMessages.length > 0) {
+					void refreshPromptsInQueue(session.sessionId);
+					applyHydratedMessages(historyMessages, session.status);
 					return;
 				}
 
-				if (historyMessages.length > 0) {
-					setMessages(historyMessages);
-					setRawTranscript(
-						historyMessages.map((message) => message.content).join("\n\n"),
-					);
-					setToolCalls(0);
-					setTokensIn(0);
-					setTokensOut(0);
-					setFileDiffs([]);
-					setStatus(inferHydratedChatStatus(session.status, historyMessages));
-					void refreshSessionDiffSummary(session.sessionId);
-					return;
-				}
-				let synthesizedMessages: ChatMessage[] = [];
+				const synthesized: ChatMessage[] = [];
 				if (session.prompt?.trim()) {
-					synthesizedMessages.push({
+					synthesized.push({
 						id: makeId("history_user"),
 						sessionId: session.sessionId,
 						role: "user",
@@ -931,60 +997,59 @@ export function useChatSession() {
 				try {
 					const transcript = await desktopClient.invoke<string>(
 						"read_session_transcript",
-						{
-							sessionId: session.sessionId,
-							maxChars: 20000,
-						},
+						{ sessionId: session.sessionId, maxChars: 20000 },
 					);
 					const text = transcript.trim();
 					if (text) {
-						synthesizedMessages = [
-							...synthesizedMessages,
-							{
-								id: makeId("history_assistant"),
-								sessionId: session.sessionId,
-								role: "assistant",
-								content: text,
-								createdAt: Date.now(),
-							},
-						];
+						synthesized.push({
+							id: makeId("history_assistant"),
+							sessionId: session.sessionId,
+							role: "assistant",
+							content: text,
+							createdAt: Date.now(),
+						});
 					}
 				} catch {
 					// Ignore transcript fallback failures.
 				}
-				setMessages(synthesizedMessages);
-				setRawTranscript(
-					synthesizedMessages.map((message) => message.content).join("\n\n"),
-				);
-				setToolCalls(0);
-				setTokensIn(0);
-				setTokensOut(0);
-				setFileDiffs([]);
-				setStatus(inferHydratedChatStatus(session.status, synthesizedMessages));
-				void refreshSessionDiffSummary(session.sessionId);
+				void refreshPromptsInQueue(session.sessionId);
+				applyHydratedMessages(synthesized, session.status);
 			} catch (err) {
-				if (hydrationRequestIdRef.current !== requestId) {
-					return;
-				}
-				const message = err instanceof Error ? err.message : String(err);
-				setError(message);
+				if (hydrationRequestIdRef.current !== requestId) return;
+				const msg = errorMessage(err);
+				setError(msg);
 				setStatus("error");
-				setMessages([
-					{
-						id: makeId("error"),
-						sessionId: session.sessionId,
-						role: "error",
-						content: message,
-						createdAt: Date.now(),
-					},
-				]);
+				setMessages([makeErrorChatMessage(session.sessionId, msg)]);
 			} finally {
 				if (hydrationRequestIdRef.current === requestId) {
 					setIsHydratingSession(false);
 				}
 			}
 		},
-		[refreshSessionDiffSummary],
+		[
+			clearLiveToolRefs,
+			refreshPromptsInQueue,
+			refreshSessionDiffSummary,
+			resetCounters,
+		],
+	);
+
+	const steerPromptInQueue = useCallback(
+		async (promptId: string) => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId || !promptId.trim()) {
+				return;
+			}
+			const payload = await postSession({
+				action: "steer_prompt",
+				sessionId: activeSessionId,
+				promptId,
+			});
+			setPromptsInQueue(
+				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+			);
+		},
+		[postSession],
 	);
 
 	const summary = useMemo(
@@ -1016,15 +1081,17 @@ export function useChatSession() {
 		error,
 		summary,
 		fileDiffs,
+		promptsInQueue,
 		pendingToolApprovals,
 		setConfig,
 		start,
 		hydrateSession,
 		sendPrompt,
+		steerPromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
 		abort,
-		stop,
+		stop: abort,
 		reset,
 	};
 }

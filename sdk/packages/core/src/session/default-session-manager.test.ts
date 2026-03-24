@@ -309,6 +309,177 @@ describe("DefaultSessionManager", () => {
 		});
 	});
 
+	it("queues sandbox steer messages back into the active session", async () => {
+		const sessionId = "sess-steer";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				transcriptPath: "/tmp/transcript.log",
+				hookPath: "/tmp/hook.log",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const run = vi.fn().mockResolvedValue(
+			createResult({
+				messages: [
+					{ role: "user", content: [{ type: "text", text: "hello" }] },
+				],
+			}),
+		);
+		const continueFn = vi.fn().mockResolvedValue(
+			createResult({
+				text: "steered",
+				messages: [
+					{ role: "user", content: [{ type: "text", text: "hello" }] },
+					{
+						role: "assistant",
+						content: [{ type: "text", text: "steered" }],
+					},
+				],
+			}),
+		);
+		const agent = {
+			run,
+			continue: continueFn,
+			abort: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi
+				.fn()
+				.mockReturnValue([
+					{ role: "user", content: [{ type: "text", text: "hello" }] },
+				]),
+			canStartRun: vi.fn().mockReturnValue(true),
+		};
+
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			prompt: "hello",
+			interactive: true,
+		});
+
+		await (
+			manager as DefaultSessionManager & {
+				handlePluginEvent: (
+					rootSessionId: string,
+					event: { name: string; payload?: unknown },
+				) => Promise<void>;
+			}
+		).handlePluginEvent(sessionId, {
+			name: "steer_message",
+			payload: { prompt: "async result" },
+		});
+		await vi.waitFor(() => {
+			expect(continueFn).toHaveBeenCalledTimes(2);
+		});
+		expect(continueFn).toHaveBeenLastCalledWith(
+			'<user_input mode="act">async result</user_input>',
+			undefined,
+			undefined,
+		);
+	});
+
+	it("promotes queued prompts to the front when they become steer", async () => {
+		const sessionId = "sess-steer-priority";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				transcriptPath: "/tmp/transcript.log",
+				hookPath: "/tmp/hook.log",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			abort: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn().mockReturnValue(false),
+		};
+
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			prompt: "hello",
+			interactive: true,
+		});
+
+		const internal = manager as DefaultSessionManager & {
+			handlePluginEvent: (
+				rootSessionId: string,
+				event: { name: string; payload?: unknown },
+			) => Promise<void>;
+			getSessionOrThrow: (id: string) => {
+				pendingPrompts: Array<{ prompt: string; delivery: "queue" | "steer" }>;
+			};
+		};
+
+		await internal.handlePluginEvent(sessionId, {
+			name: "queue_message",
+			payload: { prompt: "queued first" },
+		});
+		await internal.handlePluginEvent(sessionId, {
+			name: "queue_message",
+			payload: { prompt: "queued second" },
+		});
+		await internal.handlePluginEvent(sessionId, {
+			name: "steer_message",
+			payload: { prompt: "queued first" },
+		});
+
+		expect(internal.getSessionOrThrow(sessionId).pendingPrompts).toEqual([
+			{ prompt: "queued first", delivery: "steer" },
+			{ prompt: "queued second", delivery: "queue" },
+		]);
+	});
+
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
 		const sessionId = "sess-meta-multi";
 		const manifest = createManifest(sessionId);

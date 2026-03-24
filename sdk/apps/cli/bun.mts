@@ -1,5 +1,6 @@
-/// <reference types="@types/bun" />
-export {};
+import { copyFileSync, mkdirSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 function defineProcessEnv(name: string): string {
 	return JSON.stringify(process.env[name] ?? "");
@@ -43,3 +44,15 @@ if (result.logs.length > 0) {
 		console.warn(log);
 	}
 }
+
+const rootDir = dirname(fileURLToPath(import.meta.url));
+const coreBootstrapPath = join(
+	rootDir,
+	"../../packages/core/dist/agents/plugin-sandbox-bootstrap.js",
+);
+const cliBootstrapPath = join(
+	rootDir,
+	"./dist/agents/plugin-sandbox-bootstrap.js",
+);
+mkdirSync(dirname(cliBootstrapPath), { recursive: true });
+copyFileSync(coreBootstrapPath, cliBootstrapPath);

@@ -21,6 +21,7 @@ import {
 	ComboboxList,
 } from "@/components/ui/combobox";
 import { useWorkspace } from "@/contexts/workspace-context";
+import type { PromptInQueue } from "@/hooks/chat-session/types";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -102,9 +103,11 @@ type ChatInputBarProps = {
 	onSend: () => void;
 	onAbort: () => void;
 	onReset: () => void;
+	promptsInQueue: PromptInQueue[];
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
+	onSteerPromptInQueue: (promptId: string) => void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -129,9 +132,11 @@ export function ChatInputBar({
 	onSend,
 	onAbort,
 	onReset,
+	promptsInQueue,
 	attachments,
 	onAttachFiles,
 	onRemoveAttachment,
+	onSteerPromptInQueue,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -143,16 +148,16 @@ export function ChatInputBar({
 	} = useWorkspace();
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
-	const canAbort = isBusy;
+	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
+	const canAbort = isBusy && !hasDraft;
 	const [modelSupportsReasoning, setModelSupportsReasoning] = useState(() =>
 		hasReasoningCapability(FALLBACK_PROVIDER_REASONING_MODELS, provider, model),
 	);
-	const canSend =
-		(promptInput.trim().length > 0 || attachments.length > 0) && !isBusy;
+	const canSend = hasDraft;
 	const effortLevels = ["Low", "Medium", "High"] as const;
 	const [effortIndex, setEffortIndex] = useState(1);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
-	const promptInputRef = useRef<HTMLInputElement | null>(null);
+	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	const [mentionOpen, setMentionOpen] = useState(false);
 	const [activeMention, setActiveMention] = useState<ActiveMention | null>(
@@ -181,6 +186,20 @@ export function ChatInputBar({
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
 	}, [promptInput.length]);
+
+	useEffect(() => {
+		const input = promptInputRef.current;
+		if (!input) {
+			return;
+		}
+		input.style.height = "0px";
+		const styles = window.getComputedStyle(input);
+		const lineHeight = Number.parseFloat(styles.lineHeight) || 20;
+		const maxHeight = lineHeight * 10;
+		const nextHeight = Math.min(input.scrollHeight, maxHeight);
+		input.style.height = `${nextHeight}px`;
+		input.style.overflowY = input.scrollHeight > maxHeight ? "auto" : "hidden";
+	}, []);
 
 	useEffect(() => {
 		const nextMention = getActiveMention(promptInput, cursorIndex);
@@ -278,6 +297,58 @@ export function ChatInputBar({
 		<div className="border-t border-border bg-card">
 			{/* Input area */}
 			<div className="px-4 py-3">
+				{promptsInQueue.length > 0 && (
+					<div className="mb-3 rounded-lg border border-border bg-background/70 p-2">
+						<div className="mb-2 flex items-center justify-between gap-2">
+							<div className="text-[11px] font-medium text-foreground">
+								Queued for upcoming turns
+							</div>
+							<div className="text-[10px] text-muted-foreground">
+								Steer runs first on the next turn
+							</div>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							{promptsInQueue.map((item, index) => (
+								<div
+									className={cn(
+										"flex items-start justify-between gap-3 rounded-md border px-2.5 py-2",
+										item.steer
+											? "border-amber-300/60 bg-amber-500/8"
+											: "border-border/70 bg-muted/30",
+									)}
+									key={item.id}
+								>
+									<div className="min-w-0 flex-1">
+										<div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+											<span>{item.steer ? "Steer" : `Queue ${index + 1}`}</span>
+											{item.steer ? (
+												<span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+													Next turn
+												</span>
+											) : null}
+										</div>
+										<div className="line-clamp-2 text-xs text-foreground whitespace-pre-wrap wrap-break-word">
+											{item.prompt}
+										</div>
+									</div>
+									{!item.steer ? (
+										<button
+											className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+											onClick={() => onSteerPromptInQueue(item.id)}
+											type="button"
+										>
+											Steer
+										</button>
+									) : (
+										<div className="shrink-0 text-[10px] text-amber-700">
+											Steering
+										</div>
+									)}
+								</div>
+							))}
+						</div>
+					</div>
+				)}
 				<div className="relative">
 					{mentionOpen && (
 						<div className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
@@ -311,9 +382,9 @@ export function ChatInputBar({
 							)}
 						</div>
 					)}
-					<div className="flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
-						<input
-							className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
+					<div className="flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20">
+						<textarea
+							className="max-h-60 min-h-5 flex-1 resize-none bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none"
 							onChange={(e) => {
 								onPromptInputChange(e.target.value);
 								setCursorIndex(
@@ -355,10 +426,10 @@ export function ChatInputBar({
 								}
 								if (e.key === "Enter" && !e.shiftKey) {
 									e.preventDefault();
-									if (canAbort) {
-										onAbort();
-									} else if (canSend) {
+									if (canSend) {
 										onSend();
+									} else if (canAbort) {
+										onAbort();
 									}
 								}
 							}}
@@ -369,10 +440,11 @@ export function ChatInputBar({
 							}
 							placeholder={
 								isBusy
-									? "Agent is working..."
+									? "Agent is working... submit to queue another message"
 									: "Enter your question or type / for workflow or @ to attach files"
 							}
 							ref={promptInputRef}
+							rows={1}
 							value={promptInput}
 						/>
 					</div>
@@ -443,13 +515,13 @@ export function ChatInputBar({
 					<button
 						className="rounded-full bg-foreground p-1.5 text-background hover:bg-foreground/80 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
 						disabled={!canSend && !canAbort}
-						onClick={canAbort ? onAbort : onSend}
+						onClick={canSend ? onSend : onAbort}
 						type="button"
 					>
-						{canAbort ? (
-							<CircleStop className="h-4 w-4" />
-						) : (
+						{canSend ? (
 							<ArrowUp className="h-4 w-4" />
+						) : (
+							<CircleStop className="h-4 w-4" />
 						)}
 					</button>
 				</div>
