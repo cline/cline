@@ -17,6 +17,7 @@ type PluginLike = {
 export interface LoadAgentPluginFromPathOptions {
 	exportName?: string;
 	cwd?: string;
+	useCache?: boolean;
 }
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -130,12 +131,13 @@ function collectPluginImportAliases(
 
 async function importPluginModule(
 	absolutePath: string,
+	options: LoadAgentPluginFromPathOptions = {},
 ): Promise<Record<string, unknown>> {
 	const aliases = collectPluginImportAliases(absolutePath);
 	const jiti = createJiti(absolutePath, {
 		alias: aliases,
-		cache: false,
-		requireCache: false,
+		cache: options.useCache,
+		requireCache: options.useCache,
 		esmResolve: true,
 		interopDefault: false,
 		nativeModules: [...BUILTIN_MODULES],
@@ -149,7 +151,7 @@ export async function loadAgentPluginFromPath(
 	options: LoadAgentPluginFromPathOptions = {},
 ): Promise<AgentPlugin> {
 	const absolutePath = resolve(options.cwd ?? process.cwd(), pluginPath);
-	const moduleExports = await importPluginModule(absolutePath);
+	const moduleExports = await importPluginModule(absolutePath, options);
 	const exportName = options.exportName ?? "plugin";
 	const plugin = (moduleExports.default ??
 		moduleExports[exportName]) as unknown;

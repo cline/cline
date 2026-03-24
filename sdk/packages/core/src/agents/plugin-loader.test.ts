@@ -201,7 +201,7 @@ describe("plugin-loader", () => {
 			);
 
 			await expect(
-				loadAgentPluginFromPath(pluginPath, { cwd: dir }),
+				loadAgentPluginFromPath(pluginPath, { cwd: dir, useCache: true }),
 			).rejects.toThrow(/Cannot find (package|module) 'yaml'/i);
 		} finally {
 			await rm(dir, { recursive: true, force: true });
