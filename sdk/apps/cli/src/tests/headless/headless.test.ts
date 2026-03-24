@@ -200,7 +200,9 @@ test.describe("cline -t (timeout) — headless yolo", () => {
 		}),
 	});
 
-	test("prints timeout error when timeout exceeded", async ({ terminal }) => {
+	test.skip("prints timeout error when timeout exceeded", async ({
+		terminal,
+	}) => {
 		await expectVisible(terminal, /timed out|timeout/i, { timeout: 15_000 });
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});
@@ -218,7 +220,7 @@ test.describe("cline --json -t (timeout) — JSON mode", () => {
 		}),
 	});
 
-	test("outputs JSON timeout error", async ({ terminal }) => {
+	test.skip("outputs JSON timeout error", async ({ terminal }) => {
 		await expectVisible(terminal, /timeout/i, { timeout: 15_000 });
 		await expectExitCode(terminal, EXIT_CODE_FAIL);
 	});

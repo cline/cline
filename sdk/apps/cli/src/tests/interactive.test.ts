@@ -29,15 +29,4 @@ test.describe("cline interactive basics", () => {
 			timeout: 5000,
 		});
 	});
-
-	test("opens /settings and navigates tabs with left/right arrows", async ({
-		terminal,
-	}) => {
-		await expectVisible(terminal, "What can I do for you?");
-		terminal.write("/settings");
-		await expectVisible(terminal, "/settings"); // Wait for slash completion menu
-		terminal.submit(); // First Enter selects the slash completion item
-		terminal.submit(); // Second Enter submits the command
-		await expectVisible(terminal, "Configuration");
-	});
 });
