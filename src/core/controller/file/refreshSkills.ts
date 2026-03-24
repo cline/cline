@@ -9,17 +9,6 @@ import { fileExistsAtPath, isDirectory } from "@/utils/fs"
 import { Controller } from ".."
 
 /**
- * Parse YAML frontmatter from markdown content.
- */
-function parseFrontmatter(fileContent: string): { data: Record<string, unknown>; content: string } {
-	const result = parseYamlFrontmatter(fileContent)
-	if (result.parseError) {
-		Logger.warn("Failed to parse YAML frontmatter:", result.parseError)
-	}
-	return { data: result.data, content: result.body }
-}
-
-/**
  * Scan a directory for skill subdirectories containing SKILL.md files.
  */
 async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
@@ -42,7 +31,11 @@ async function scanSkillsDirectory(dirPath: string): Promise<SkillInfo[]> {
 
 			try {
 				const fileContent = await fs.readFile(skillMdPath, "utf-8")
-				const { data: frontmatter } = parseFrontmatter(fileContent)
+				const result = parseYamlFrontmatter(fileContent)
+				if (result.parseError) {
+					Logger.warn("Failed to parse YAML frontmatter:", result.parseError)
+				}
+				const frontmatter = result.data
 
 				// Validate required fields
 				if (!frontmatter.name || typeof frontmatter.name !== "string") continue
