@@ -71,6 +71,10 @@ jobs:
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: bun run test
 
+            - name: Run TUI e2e tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              run: bun -F @clinebot/cli test:e2e:cli:tui
+
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: bun scripts/version.ts 0.0.0-verify --publish --check
