@@ -173,6 +173,80 @@ function convertContentBlock(
 }
 
 /**
+ * Allowed JSON Schema properties per Gemini's supported subset.
+ * See: https://ai.google.dev/gemini-api/docs/structured-output
+ */
+const GEMINI_ALLOWED_PROPERTIES = new Set([
+	// Common
+	"type",
+	"title",
+	"description",
+	"enum",
+	// Object
+	"properties",
+	"required",
+	"additionalProperties",
+	// String
+	"format",
+	// Number / Integer
+	"minimum",
+	"maximum",
+	// Array
+	"items",
+	"prefixItems",
+	"minItems",
+	"maxItems",
+]);
+
+/**
+ * Recursively sanitize a JSON Schema to only include properties supported by Gemini.
+ * Converts exclusiveMinimum/exclusiveMaximum to minimum/maximum as a best-effort fallback.
+ */
+function sanitizeSchemaForGemini(schema: unknown): unknown {
+	if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
+		return schema;
+	}
+
+	const input = schema as Record<string, unknown>;
+	const output: Record<string, unknown> = {};
+
+	for (const [key, value] of Object.entries(input)) {
+		if (!GEMINI_ALLOWED_PROPERTIES.has(key)) {
+			continue;
+		}
+
+		if (key === "properties" && value && typeof value === "object") {
+			const sanitized: Record<string, unknown> = {};
+			for (const [propName, propSchema] of Object.entries(
+				value as Record<string, unknown>,
+			)) {
+				sanitized[propName] = sanitizeSchemaForGemini(propSchema);
+			}
+			output[key] = sanitized;
+		} else if (key === "items" || key === "additionalProperties") {
+			output[key] =
+				typeof value === "object" && value !== null
+					? sanitizeSchemaForGemini(value)
+					: value;
+		} else if (key === "prefixItems" && Array.isArray(value)) {
+			output[key] = value.map((item) => sanitizeSchemaForGemini(item));
+		} else {
+			output[key] = value;
+		}
+	}
+
+	// Convert exclusiveMinimum/exclusiveMaximum to minimum/maximum
+	if (input.exclusiveMinimum !== undefined && output.minimum === undefined) {
+		output.minimum = input.exclusiveMinimum;
+	}
+	if (input.exclusiveMaximum !== undefined && output.maximum === undefined) {
+		output.maximum = input.exclusiveMaximum;
+	}
+
+	return output;
+}
+
+/**
  * Convert tool definitions to Gemini format
  */
 export function convertToolsToGemini(
@@ -181,6 +255,8 @@ export function convertToolsToGemini(
 	return tools.map((tool) => ({
 		name: tool.name,
 		description: tool.description,
-		parameters: tool.inputSchema as FunctionDeclaration["parameters"],
+		parameters: sanitizeSchemaForGemini(
+			tool.inputSchema,
+		) as FunctionDeclaration["parameters"],
 	}));
 }
