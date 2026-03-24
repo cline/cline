@@ -23,24 +23,16 @@ const { values, positionals } = parseArgs({
 	strict: true,
 });
 
-const version = positionals[0];
-if (!version) {
-	console.error(
-		"Usage: bun scripts/version.ts <version> [--dry] [--publish] [--check]",
-	);
-	console.error("Example: bun scripts/version.ts 1.2.3");
-	console.error(
-		"  --publish  Prepare for npm: remove 'private', resolve published workspace deps, strip bundled-only deps",
-	);
-	console.error(
-		"  --check    Verify publishable packages after applying --publish and then restore workspace manifests",
-	);
-	process.exit(1);
-}
+let version = positionals[0];
 
-if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
-	console.error(`Invalid semver version: ${version}`);
-	process.exit(1);
+function incrementPatchVersion(input: string): string {
+	const match = input.match(/^(\d+)\.(\d+)\.(\d+)(-[\w.]+)?$/);
+	if (!match) {
+		throw new Error(`Invalid semver version: ${input}`);
+	}
+
+	const [, major, minor, patch] = match;
+	return `${major}.${minor}.${Number(patch) + 1}`;
 }
 
 if (values.check && !values.publish) {
@@ -62,6 +54,38 @@ const publishVerifyBackupPath = join(
 
 const dirs = await readdir(packagesDir, { withFileTypes: true });
 const workspaces = dirs.filter((d) => d.isDirectory()).map((d) => d.name);
+
+if (!version) {
+	for (const workspace of workspaces) {
+		const pkgPath = join(packagesDir, workspace, "package.json");
+		try {
+			const raw = await readFile(pkgPath, "utf-8");
+			const pkg = JSON.parse(raw);
+			if (typeof pkg.version === "string") {
+				version = incrementPatchVersion(pkg.version);
+				break;
+			}
+		} catch {
+			// skip directories without a package.json
+		}
+	}
+
+	if (!version) {
+		console.error(
+			"Could not determine a current version from workspace package.json files.",
+		);
+		process.exit(1);
+	}
+}
+
+if (!/^\d+\.\d+\.\d+(-[\w.]+)?$/.test(version)) {
+	console.error(`Invalid semver version: ${version}`);
+	process.exit(1);
+}
+
+if (positionals[0] === undefined) {
+	console.log(`No version provided, defaulting to next patch: ${version}`);
+}
 
 async function restorePublishVerifyBackup(): Promise<void> {
 	try {
