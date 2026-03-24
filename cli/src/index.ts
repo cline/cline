@@ -792,8 +792,9 @@ async function runAuth(options: {
 	const ctx = await initializeCli({ ...options, enableAuth: true })
 
 	// Vertex uses project-id + region instead of API key
-	const isVertexQuickSetup = options.provider?.toLowerCase() === "vertex" && options.modelid && options.vertexProjectId && options.vertexRegion
-	const hasQuickSetupFlags = isVertexQuickSetup || (options.provider && options.apikey && options.modelid)
+	const isVertexAttempt = options.provider?.toLowerCase() === "vertex" && !!options.modelid
+	const isVertexQuickSetup = isVertexAttempt && !!options.vertexProjectId && !!options.vertexRegion
+	const hasQuickSetupFlags = isVertexQuickSetup || isVertexAttempt || (options.provider && options.apikey && options.modelid)
 
 	telemetryService.captureHostEvent("auth_command", hasQuickSetupFlags ? "quick_setup" : "interactive")
 
