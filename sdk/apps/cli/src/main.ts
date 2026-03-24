@@ -553,17 +553,14 @@ export async function runCli(): Promise<void> {
 		let apiKey = providedApiKey || persistedApiKey || undefined;
 
 		// In headless mode (yolo / json / piped stdin without --interactive),
-		// don't attempt browser-based OAuth — just fail fast.
+		// don't attempt browser-based OAuth. Authentication may still resolve at
+		// runtime from environment-based provider auth or persisted OAuth tokens.
 		const isHeadless =
 			args.yolo ||
 			args.outputMode === "json" ||
 			(!process.stdin.isTTY && !args.interactive);
-		if (!apiKey && isHeadless) {
-			writeErr("Not authenticated");
-			process.exit(1);
-		}
 
-		if (!apiKey && isOAuthProvider(provider)) {
+		if (!apiKey && isOAuthProvider(provider) && !isHeadless) {
 			const oauthResult = await ensureOAuthProviderApiKey({
 				providerId: provider,
 				currentApiKey: apiKey,

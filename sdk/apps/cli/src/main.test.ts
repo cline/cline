@@ -166,6 +166,66 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 		);
 	});
+
+	it("does not fail fast for headless json mode with an OAuth provider", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		authMocks.isOAuthProvider.mockReturnValue(true);
+		authMocks.normalizeProviderId.mockReturnValue("cline");
+		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
+		authMocks.ensureOAuthProviderApiKey.mockClear();
+
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "--json", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(authMocks.ensureOAuthProviderApiKey).not.toHaveBeenCalled();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				outputMode: "json",
+				apiKey: "",
+				providerId: "cline",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("does not fail fast for headless json mode with a non-OAuth provider", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		authMocks.isOAuthProvider.mockReturnValue(false);
+		authMocks.normalizeProviderId.mockReturnValue("anthropic");
+		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
+		authMocks.ensureOAuthProviderApiKey.mockClear();
+
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "--json", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(authMocks.ensureOAuthProviderApiKey).not.toHaveBeenCalled();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				outputMode: "json",
+				apiKey: "",
+				providerId: "anthropic",
+			}),
+			expect.anything(),
+		);
+	});
 });
 
 describe("stdinHasPipedInput", () => {
