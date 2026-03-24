@@ -30,14 +30,14 @@ export function clineEnv(
 	const effectiveVcrMode =
 		extra.CLINE_VCR ?? process.env.CLINE_VCR ?? "playback";
 
-	// During recording, authenticated configs read real API keys from
-	// ~/.cline/data/secrets.json while keeping all other settings (model,
-	// provider, global state) from the mock config directory.
+	// During recording, authenticated configs read real OAuth credentials from
+	// ~/.cline/data/settings/providers.json while keeping all other settings
+	// (model, provider, global state) from the mock config directory.
 	const isRecording = effectiveVcrMode === "record";
 	const isAuthenticated = configDir !== "unauthenticated";
-	const realSecretsFile =
+	const realProvidersFile =
 		isRecording && isAuthenticated
-			? path.join(os.homedir(), ".cline", "data", "secrets.json")
+			? path.join(os.homedir(), ".cline", "data", "settings", "providers.json")
 			: undefined;
 
 	// Remove CI env var so Ink's `is-in-ci` check doesn't disable interactive
@@ -65,7 +65,9 @@ export function clineEnv(
 	return {
 		...vcrDefaults,
 		...cleanEnv,
-		...(realSecretsFile ? { CLINE_SECRETS_FILE: realSecretsFile } : {}),
+		...(realProvidersFile
+			? { CLINE_PROVIDER_SETTINGS_PATH: realProvidersFile }
+			: {}),
 		CLINE_TELEMETRY_DISABLED: "1",
 		CLINE_DIR: clinePath,
 		NO_UPDATE_NOTIFIER: "1",
