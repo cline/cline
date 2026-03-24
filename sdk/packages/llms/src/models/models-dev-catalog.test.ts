@@ -82,7 +82,7 @@ describe("models-dev-catalog", () => {
 					id: "claude-defaults",
 					name: "claude-defaults",
 					contextWindow: 4096,
-					maxTokens: 4096,
+					maxTokens: 204,
 					capabilities: ["tools"],
 					pricing: {
 						input: 0,
@@ -97,7 +97,7 @@ describe("models-dev-catalog", () => {
 					id: "claude-older",
 					name: "claude-older",
 					contextWindow: 4096,
-					maxTokens: 4096,
+					maxTokens: 204,
 					capabilities: ["tools"],
 					pricing: {
 						input: 0,

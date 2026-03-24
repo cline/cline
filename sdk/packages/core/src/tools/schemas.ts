@@ -178,18 +178,22 @@ export const EditFileInputSchema = z
 			),
 	})
 	.describe(
-		"Edit a text file by replacing old_text with new_text, create the file with new_text if it does not exist, or insert new_text at insert_line when insert_line is provided. IMPORTANT: large edits can time out, so use small chunks and multiple calls when possible.",
+		"Edit a text file by replacing old_text with new_text, create the file with new_text if it does not exist, or insert new_text at insert_line when insert_line is provided. Prefer using this tool for file edits over shell commands. IMPORTANT: large edits can time out, so use small chunks and multiple calls when possible.",
 	);
 
 /**
  * Schema for apply_patch tool input
  */
-export const ApplyPatchInputSchema = z.object({
-	input: z
-		.string()
-		.min(1)
-		.describe("The apply_patch text payload, including patch instructions"),
-});
+export const ApplyPatchInputSchema = z
+	.object({
+		input: z
+			.string()
+			.min(1)
+			.describe("The apply_patch text payload, including patch instructions"),
+	})
+	.describe(
+		"Modify or create a text file by applying patches. Prefer using this tool for file edits over shell commands. IMPORTANT: large patches can time out, so use small chunks and multiple calls when possible.",
+	);
 export const ApplyPatchInputUnionSchema = z.union([
 	ApplyPatchInputSchema,
 	z.string(),
@@ -199,12 +203,7 @@ export const ApplyPatchInputUnionSchema = z.union([
  * Schema for skills tool input
  */
 export const SkillsInputSchema = z.object({
-	skill: z
-		.string()
-		.min(1)
-		.describe(
-			'The skill name. E.g., "commit", "review-pr", "pdf", or "ms-office-suite:pdf"',
-		),
+	skill: z.string().min(1).describe("Name of the skill to execute."),
 	args: z
 		.string()
 		.nullable()

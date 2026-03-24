@@ -93,11 +93,18 @@ function toStatus(status: string | undefined): ModelInfo["status"] {
 }
 
 function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
+	// If context or output limits are missing, default to DEFAULT_CONTEXT_WINDOW and DEFAULT_MAX_TOKENS respectively.
+	// If context and max are the same value, assume max tokens should be 5% of that value to avoid overallocation.
+	const contextWindow = model.limit?.context ?? DEFAULT_CONTEXT_WINDOW;
+	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
+	const discounted =
+		contextWindow === outputToken ? outputToken * 0.05 : outputToken;
+
 	return {
 		id: modelId,
 		name: model.name || modelId,
-		contextWindow: model.limit?.context ?? DEFAULT_CONTEXT_WINDOW,
-		maxTokens: model.limit?.output ?? DEFAULT_MAX_TOKENS,
+		contextWindow,
+		maxTokens: Math.floor(discounted),
 		capabilities: toCapabilities(model),
 		pricing: {
 			input: model.cost?.input ?? 0,

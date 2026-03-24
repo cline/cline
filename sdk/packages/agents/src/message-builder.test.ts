@@ -98,6 +98,43 @@ describe("MessageBuilder", () => {
 		expect(fileBlock?.content?.length).toBeLessThanOrEqual(50_000);
 	});
 
+	it("truncates long search tool results before sending them to the model", () => {
+		const builder = new MessageBuilder();
+		const longSearchResult = "match\n".repeat(20_100);
+		const messages = [
+			{
+				role: "assistant" as const,
+				content: [
+					{
+						type: "tool_use" as const,
+						id: "call_search_1",
+						name: "search_codebase",
+						input: { queries: ["match"] },
+					},
+				],
+			},
+			{
+				role: "user" as const,
+				content: [
+					{
+						type: "tool_result" as const,
+						tool_use_id: "call_search_1",
+						content: longSearchResult,
+						is_error: false,
+					},
+				],
+			},
+		];
+
+		const built = builder.buildForApi(messages);
+		const searchContent = (built[1] as { content: Array<{ content: string }> })
+			.content[0]?.content;
+
+		expect(searchContent).toContain("...[truncated ");
+		expect(searchContent).not.toBe(longSearchResult);
+		expect(searchContent?.length).toBeLessThanOrEqual(50_000);
+	});
+
 	it("replaces outdated file blocks in read tool results", () => {
 		const builder = new MessageBuilder();
 		const firstReadUse = {

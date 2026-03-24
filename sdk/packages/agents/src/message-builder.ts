@@ -4,6 +4,8 @@ const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const TARGET_TOOL_NAMES = new Set([
 	"read",
 	"read_files",
+	"search",
+	"search_codebase",
 	"bash",
 	"run_commands",
 ]);
