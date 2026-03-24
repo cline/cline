@@ -242,6 +242,23 @@ Notes:
 - The session manager emits basic lifecycle events including `session.started`, `session.input_sent`, `session.aborted`, and `session.stopped`.
 - The OpenTelemetry provider subpath stays separate from the main core barrel so OpenTelemetry code is only loaded when you import it.
 
+## `@clinebot/core` Interactive Queueing
+
+Interactive session sends support queued follow-up turns through the session manager and runtime RPC layer.
+
+- Runtime turn requests accept `delivery?: "queue" | "steer"`.
+- `delivery: "queue"` stores the prompt as a pending turn and returns without running it immediately.
+- `delivery: "steer"` stores the prompt as a pending turn at the front of the queue.
+- Queued entries preserve `userImages` / `userFiles` attachments.
+- Core emits `pending_prompts` snapshots whenever the queue changes.
+- Core emits `pending_prompt_submitted` when a queued prompt is promoted into the active turn.
+
+Practical host guidance:
+
+- Treat the core queue as the source of truth for pending prompts.
+- Subscribe to queue events instead of maintaining a separate host-side turn queue.
+- If you render transcripts, keep the original queued user line if desired, and append a normal user line when `pending_prompt_submitted` arrives.
+
 
 ## `@clinebot/cli`
 

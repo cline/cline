@@ -50,6 +50,7 @@ flowchart TD
 - **Tool Approvals**: Hooks can return `review: true` to force host-side approval for specific calls (e.g., `git` commands).
 - **Model Routing**: Automatic tool selection (e.g., `apply_patch` vs `editor`) based on the active model and provider.
 - **OAuth**: Token refresh is managed centrally by `@clinebot/core`.
+- **Interactive Queueing**: Prompt queue and steer behavior are owned by `@clinebot/core`; app hosts should consume core queue events instead of duplicating pending-turn execution logic.
 - **Sub-agents**: `spawn_agent` automatically inherits workspace metadata and prompt context.
 - **Error Handling**: Immediate failure for non-recoverable errors; retries for transient failures.
 

@@ -77,6 +77,16 @@ flowchart LR
    - RPC adapter (`RpcSessionClient`-backed CRUD/queue operations)
 3. Session artifact/manifest writes, subagent session upserts, team task sub-session lifecycle, and child-session status propagation are now executed by the shared service logic to keep behavior identical across local and RPC backends.
 
+### Interactive prompt queue and steer flow (latest)
+
+1. `DefaultSessionManager` owns interactive pending-prompt state for both local and RPC-backed runtimes.
+2. `SendSessionInput` / runtime turn requests can carry `delivery: "queue" | "steer"`:
+   - `"queue"` appends a pending user turn.
+   - `"steer"` promotes that prompt to the front of the pending list.
+3. Core emits `pending_prompts` snapshots whenever the queue changes and `pending_prompt_submitted` when a queued prompt becomes the active turn.
+4. Queue entries preserve turn attachments, so queued and steered prompts run with the same user images/files they were submitted with.
+5. Host UIs should treat core as the source of truth for pending prompts rather than maintaining their own duplicate turn queue.
+
 ### Core input indexing flow (latest)
 
 1. `@clinebot/core` owns a fast file index under `packages/core/src/input/file-indexer.ts` that provides a cached file list for workspace-scoped input features.
@@ -107,6 +117,13 @@ flowchart LR
 4. Provider/model selector data is loaded using runtime provider actions (`listProviders`, `getProviderModels`).
 5. Chat turns run through runtime RPC methods (`StartRuntimeSession`, `SendRuntimeSession`, `AbortRuntimeSession`, `StopRuntimeSession`).
 6. Stream updates are consumed from `StreamEvents` (`runtime.chat.text_delta`, tool lifecycle events) and forwarded to the webview.
+
+### App chat host queue flow (latest)
+
+1. `apps/cli` and `apps/code` both submit interactive runtime turns through the shared queue contract instead of host-local pending-turn execution.
+2. The CLI TUI uses `pending_prompts` plus `pending_prompt_submitted` to render queued prompts and append the active user line when a queued turn starts running.
+3. The Code app host bridge forwards `delivery` to runtime sends and updates UI queue state from core `pending_prompts` snapshots.
+4. The Tauri bridge path in `apps/code/src-tauri` mirrors the same behavior so Bun-hosted and Rust-hosted Code sessions stay aligned.
 
 ### Team runtime durability and convergence (latest)
 
