@@ -217,10 +217,15 @@ export class OpenAIBaseHandler extends BaseHandler {
 			requestHeaders.Authorization = `Bearer ${apiKey}`;
 		}
 		const abortSignal = this.getAbortSignal();
-		const stream = await client.chat.completions.create(requestOptions, {
-			signal: abortSignal,
-			headers: requestHeaders,
-		});
+		let stream: AsyncIterable<ChatCompletionChunk>;
+		try {
+			stream = await client.chat.completions.create(requestOptions, {
+				signal: abortSignal,
+				headers: requestHeaders,
+			});
+		} catch (error) {
+			throw this.normalizeOpenAICompatibleBadRequest(error) ?? error;
+		}
 		const toolCallProcessor = new ToolCallProcessor();
 		let finishReason: string | null = null;
 

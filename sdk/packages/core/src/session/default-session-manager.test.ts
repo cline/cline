@@ -1286,4 +1286,115 @@ describe("DefaultSessionManager", () => {
 			failedMessages,
 		);
 	});
+
+	it("persists teammate progress updates for team-task sub-sessions", async () => {
+		const sessionId = "sess-team-task-progress";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-team-task-progress.json",
+				transcriptPath: "/tmp/transcript-team-task-progress.log",
+				hookPath: "/tmp/hook-team-task-progress.log",
+				messagesPath: "/tmp/messages-team-task-progress.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			onTeamTaskStart: vi.fn().mockResolvedValue(undefined),
+			onTeamTaskEnd: vi.fn().mockResolvedValue(undefined),
+			onTeamTaskProgress: vi.fn().mockResolvedValue(undefined),
+		};
+
+		let onTeamEvent: ((event: unknown) => void) | undefined;
+		const runtimeBuilder = {
+			build: vi
+				.fn()
+				.mockImplementation(
+					(input: { onTeamEvent?: (event: unknown) => void }) => {
+						onTeamEvent = input.onTeamEvent;
+						return {
+							tools: [],
+							shutdown: vi.fn(),
+						};
+					},
+				),
+		};
+
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run: vi.fn().mockImplementation(async () => {
+						onTeamEvent?.({
+							type: "task_start",
+							agentId: "providers-investigator",
+							message: "Investigate provider boundaries",
+						});
+						onTeamEvent?.({
+							type: "run_progress",
+							run: {
+								id: "run_00002",
+								agentId: "providers-investigator",
+								status: "running",
+								message: "Investigate provider boundaries",
+								priority: 0,
+								retryCount: 0,
+								maxRetries: 0,
+								continueConversation: false,
+								startedAt: new Date("2026-01-01T00:00:00.000Z"),
+								lastProgressAt: new Date("2026-01-01T00:00:01.000Z"),
+								lastProgressMessage: "heartbeat",
+								currentActivity: "heartbeat",
+							},
+							message: "heartbeat",
+						});
+						onTeamEvent?.({
+							type: "agent_event",
+							agentId: "providers-investigator",
+							event: {
+								type: "content_start",
+								contentType: "text",
+								text: "Drafting the provider boundary analysis now.",
+							},
+						});
+						onTeamEvent?.({
+							type: "task_end",
+							agentId: "providers-investigator",
+							result: createResult(),
+						});
+						return createResult({ text: "lead handled progress" });
+					}),
+					continue: vi.fn(),
+					abort: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			prompt: "run teammate work",
+			interactive: false,
+		});
+
+		expect(sessionService.onTeamTaskProgress).toHaveBeenCalledWith(
+			sessionId,
+			"providers-investigator",
+			"heartbeat",
+			{ kind: "heartbeat" },
+		);
+		expect(sessionService.onTeamTaskProgress).toHaveBeenCalledWith(
+			sessionId,
+			"providers-investigator",
+			"Drafting the provider boundary analysis now.",
+			{ kind: "text" },
+		);
+	});
 });

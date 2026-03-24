@@ -52,6 +52,36 @@ export async function dispatchTeamEventToBackend(
 	invokeOptional: (method: string, ...args: unknown[]) => Promise<void>,
 ): Promise<void> {
 	switch (event.type) {
+		case "run_progress":
+			await invokeOptional(
+				"onTeamTaskProgress",
+				rootSessionId,
+				event.run.agentId,
+				event.message,
+				{ kind: event.message === "heartbeat" ? "heartbeat" : "progress" },
+			);
+			break;
+		case "agent_event":
+			if (
+				event.event.type === "content_start" &&
+				event.event.contentType === "text" &&
+				typeof event.event.text === "string"
+			) {
+				const snippet = event.event.text
+					.replace(/\s+/g, " ")
+					.trim()
+					.slice(0, 120);
+				if (snippet) {
+					await invokeOptional(
+						"onTeamTaskProgress",
+						rootSessionId,
+						event.agentId,
+						snippet,
+						{ kind: "text" },
+					);
+				}
+			}
+			break;
 		case "task_start":
 			await invokeOptional(
 				"onTeamTaskStart",

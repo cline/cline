@@ -28,6 +28,10 @@ class TestHandler extends BaseHandler {
 	public exposeAbortSignal(): AbortSignal {
 		return this.getAbortSignal();
 	}
+
+	public normalizeBadRequest(error: unknown): Error | undefined {
+		return this.normalizeOpenAICompatibleBadRequest(error);
+	}
 }
 
 describe("BaseHandler.calculateCost", () => {
@@ -107,5 +111,59 @@ describe("BaseHandler abort signal wiring", () => {
 		expect(signal2).not.toBe(signal1);
 		expect(signal1.aborted).toBe(false);
 		expect(signal2.aborted).toBe(false);
+	});
+});
+
+describe("BaseHandler.normalizeOpenAICompatibleBadRequest", () => {
+	it("rewrites provider metadata prompt-limit errors into a helpful message", () => {
+		const handler = new TestHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://openrouter.ai/api/v1",
+		});
+
+		const error = Object.assign(new Error("400 Provider returned error"), {
+			status: 400,
+			error: {
+				message: "Provider returned error",
+				code: 400,
+				metadata: {
+					provider_name: "Anthropic",
+					raw: JSON.stringify({
+						type: "error",
+						error: {
+							type: "invalid_request_error",
+							message: "prompt is too long: 1102640 tokens > 1000000 maximum",
+						},
+						request_id: "req_123",
+					}),
+				},
+			},
+		});
+
+		const normalized = handler.normalizeBadRequest(error);
+
+		expect(normalized?.message).toBe(
+			"Anthropic request was rejected (HTTP 400). Prompt is too long: 1102640 tokens exceeds the 1000000 token limit. Request ID: req_123.",
+		);
+		expect(normalized?.cause).toBe(error);
+	});
+
+	it("returns undefined for non-400 errors", () => {
+		const handler = new TestHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://openrouter.ai/api/v1",
+		});
+
+		const normalized = handler.normalizeBadRequest(
+			Object.assign(new Error("500 Provider returned error"), {
+				status: 500,
+			}),
+		);
+
+		expect(normalized).toBeUndefined();
 	});
 });

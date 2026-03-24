@@ -20,20 +20,24 @@ export const ReadFileLineRangeSchema = z
 			.number()
 			.int()
 			.positive()
+			.nullable()
 			.optional()
-			.describe("Optional one-based starting line number to read from"),
+			.describe(
+				"Optional one-based starting line number to read from; use null or omit for the start of the file",
+			),
 		end_line: z
 			.number()
 			.int()
 			.positive()
+			.nullable()
 			.optional()
-			.describe("Optional one-based ending line number to read through"),
+			.describe(
+				"Optional one-based ending line number to read through; use null or omit for the end of the file",
+			),
 	})
 	.refine(
 		({ start_line, end_line }) =>
-			start_line === undefined ||
-			end_line === undefined ||
-			start_line <= end_line,
+			start_line == null || end_line == null || start_line <= end_line,
 		{
 			message: "start_line must be less than or equal to end_line",
 			path: ["end_line"],
@@ -48,9 +52,7 @@ export const ReadFileRequestSchema = z
 	})
 	.refine(
 		({ start_line, end_line }) =>
-			start_line === undefined ||
-			end_line === undefined ||
-			start_line <= end_line,
+			start_line == null || end_line == null || start_line <= end_line,
 		{
 			message: "start_line must be less than or equal to end_line",
 			path: ["end_line"],
@@ -64,7 +66,7 @@ export const ReadFilesInputSchema = z.object({
 	files: z
 		.array(ReadFileRequestSchema)
 		.describe(
-			"Array of file read requests. Omit start_line and end_line to return the full file content; provide them to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+			"Array of file read requests. Omit start_line/end_line or set them to null to return the full file content boundaries; provide integers to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		),
 });
 

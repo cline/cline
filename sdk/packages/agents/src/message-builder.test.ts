@@ -92,8 +92,9 @@ describe("MessageBuilder", () => {
 			built[0] as { content: Array<{ type: string; content?: string }> }
 		).content.find((block) => block.type === "file");
 
-		expect(fileBlock?.content).toContain("...[truncated 20500 chars]...");
+		expect(fileBlock?.content).toContain("...[truncated ");
 		expect(fileBlock?.content).not.toBe(longFileContent);
+		expect(fileBlock?.content?.length).toBeLessThanOrEqual(50_000);
 	});
 
 	it("replaces outdated file blocks in read tool results", () => {

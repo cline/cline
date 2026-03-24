@@ -8,7 +8,6 @@ const TARGET_TOOL_NAMES = new Set([
 	"run_commands",
 ]);
 const READ_TOOL_NAMES = new Set(["read", "read_files"]);
-const KEEP_CHARS_PER_SIDE = 50_000;
 const OUTDATED_FILE_CONTENT = "[outdated - see the latest file content]";
 
 interface ReadResultRecord {
@@ -417,13 +416,21 @@ export class MessageBuilder {
 			return text;
 		}
 
-		const retainedChars = KEEP_CHARS_PER_SIDE * 2;
+		const marker = `\n\n...[truncated ${Math.max(0, text.length - this.maxToolResultChars)} chars]...\n\n`;
+		const availableChars = Math.max(0, this.maxToolResultChars - marker.length);
+		const keepCharsPerSide = Math.floor(availableChars / 2);
+		const retainedChars = keepCharsPerSide * 2;
 		const removedChars = Math.max(0, text.length - retainedChars);
-		const marker = `\n\n...[truncated ${removedChars} chars]...\n\n`;
+		const effectiveMarker = `\n\n...[truncated ${removedChars} chars]...\n\n`;
+		const effectiveAvailableChars = Math.max(
+			0,
+			this.maxToolResultChars - effectiveMarker.length,
+		);
+		const effectiveKeepCharsPerSide = Math.floor(effectiveAvailableChars / 2);
 
-		const start = text.slice(0, KEEP_CHARS_PER_SIDE);
-		const end = text.slice(-KEEP_CHARS_PER_SIDE);
+		const start = text.slice(0, effectiveKeepCharsPerSide);
+		const end = text.slice(-effectiveKeepCharsPerSide);
 
-		return `${start}${marker}${end}`;
+		return `${start}${effectiveMarker}${end}`;
 	}
 }

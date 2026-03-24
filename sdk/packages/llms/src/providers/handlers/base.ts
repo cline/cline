@@ -23,6 +23,22 @@ export const DEFAULT_REQUEST_HEADERS: Record<string, string> = {
 	"X-CLIENT-TYPE": "cline-sdk",
 };
 
+interface OpenAICompatibleProviderErrorShape {
+	status?: number;
+	message?: string;
+	error?: {
+		message?: string;
+		code?: number;
+		metadata?: {
+			raw?: string;
+			provider_name?: string;
+		};
+	};
+	response?: {
+		status?: number;
+	};
+}
+
 const controllerIds = new WeakMap<AbortController, string>();
 let controllerIdCounter = 0;
 
@@ -213,5 +229,68 @@ export abstract class BaseHandler implements ApiHandler {
 			...DEFAULT_REQUEST_HEADERS,
 			...(this.config.headers ?? {}),
 		};
+	}
+
+	protected normalizeOpenAICompatibleBadRequest(
+		error: unknown,
+	): Error | undefined {
+		const rawError = error as OpenAICompatibleProviderErrorShape | undefined;
+		const status =
+			rawError?.status ??
+			rawError?.response?.status ??
+			rawError?.error?.code ??
+			(typeof rawError?.message === "string" && rawError.message.includes("400")
+				? 400
+				: undefined);
+		if (status !== 400) {
+			return undefined;
+		}
+
+		const rawMetadata = rawError?.error?.metadata?.raw;
+		const parsedRaw = this.parseRawProviderError(rawMetadata);
+		const detail =
+			parsedRaw?.error?.message?.trim() ||
+			rawError?.error?.message?.trim() ||
+			rawError?.message?.trim() ||
+			"Provider returned error";
+		const providerName =
+			rawError?.error?.metadata?.provider_name?.trim() || "Provider";
+		const requestId = parsedRaw?.request_id?.trim();
+		const normalizedMessage = this.rewriteProviderBadRequestDetail(detail);
+		const suffix = requestId ? ` Request ID: ${requestId}.` : "";
+		return new Error(
+			`${providerName} request was rejected (HTTP 400). ${normalizedMessage}${suffix}`,
+			{
+				cause: error instanceof Error ? error : undefined,
+			},
+		);
+	}
+
+	private parseRawProviderError(
+		raw: string | undefined,
+	): { error?: { message?: string }; request_id?: string } | undefined {
+		if (!raw) {
+			return undefined;
+		}
+		try {
+			return JSON.parse(raw) as {
+				error?: { message?: string };
+				request_id?: string;
+			};
+		} catch {
+			return undefined;
+		}
+	}
+
+	private rewriteProviderBadRequestDetail(detail: string): string {
+		const promptTooLongMatch = detail.match(
+			/prompt is too long:\s*([\d,]+)\s*tokens?\s*>\s*([\d,]+)\s*maximum/i,
+		);
+		if (promptTooLongMatch) {
+			const actual = promptTooLongMatch[1];
+			const maximum = promptTooLongMatch[2];
+			return `Prompt is too long: ${actual} tokens exceeds the ${maximum} token limit.`;
+		}
+		return detail.endsWith(".") ? detail : `${detail}.`;
 	}
 }

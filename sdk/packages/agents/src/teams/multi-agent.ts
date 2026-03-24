@@ -74,6 +74,8 @@ export interface TeammateLifecycleSpec {
 	maxIterations?: number;
 }
 
+const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000;
+
 /**
  * Event emitted during team execution
  */
@@ -1165,6 +1167,7 @@ export class AgentTeamsRuntime {
 
 		const wrappedConfig: TeamMemberConfig = {
 			...config,
+			apiTimeoutMs: TEAMMATE_API_TIMEOUT_MS,
 			onEvent: (event: AgentEvent) => {
 				config.onEvent?.(event);
 				this.emitEvent({ type: TeamMessageType.AgentEvent, agentId, event });
@@ -1315,6 +1318,11 @@ export class AgentTeamsRuntime {
 		const member = this.members.get(agentId);
 		if (!member || member.role !== "teammate" || !member.agent) {
 			throw new Error(`Teammate "${agentId}" was not found`);
+		}
+		if (!member.agent.canStartRun()) {
+			throw new Error(
+				`Cannot start a new run while another run is already in progress`,
+			);
 		}
 
 		member.runningCount++;
@@ -1485,9 +1493,9 @@ export class AgentTeamsRuntime {
 	}
 
 	listRuns(options?: {
-		status?: TeamRunStatus;
-		agentId?: string;
-		includeCompleted?: boolean;
+		status?: TeamRunStatus | null;
+		agentId?: string | null;
+		includeCompleted?: boolean | null;
 	}): TeamRunRecord[] {
 		const includeCompleted = options?.includeCompleted ?? true;
 		return Array.from(this.runs.values())
@@ -1891,7 +1899,10 @@ export class AgentTeamsRuntime {
 			case "content_end":
 				if (event.contentType === "tool") {
 					activity = event.error
-						? `tool_${event.toolName ?? "unknown"}_error`
+						? this.formatProgressErrorActivity(
+								`tool_${event.toolName ?? "unknown"}_error`,
+								event.error,
+							)
 						: `finished_tool_${event.toolName ?? "unknown"}`;
 				}
 				break;
@@ -1899,7 +1910,10 @@ export class AgentTeamsRuntime {
 				activity = "finalizing_response";
 				break;
 			case "error":
-				activity = "run_error";
+				activity = this.formatProgressErrorActivity(
+					"run_error",
+					event.error.message,
+				);
 				break;
 			default:
 				break;
@@ -1926,6 +1940,16 @@ export class AgentTeamsRuntime {
 			run: { ...run },
 			message,
 		});
+	}
+
+	private formatProgressErrorActivity(prefix: string, detail: string): string {
+		const summary = detail.replace(/\s+/g, " ").trim();
+		if (summary.length === 0) {
+			return prefix;
+		}
+		const suffix =
+			summary.length > 240 ? `${summary.slice(0, 237).trimEnd()}...` : summary;
+		return `${prefix}: ${suffix}`;
 	}
 
 	private recordProgressStep(

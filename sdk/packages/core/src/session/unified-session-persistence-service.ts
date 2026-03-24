@@ -167,9 +167,15 @@ export interface SessionPersistenceAdapter {
 
 export class UnifiedSessionPersistenceService {
 	private readonly teamTaskSessionsByAgent = new Map<string, string[]>();
+	private readonly teamTaskLastHeartbeatBySession = new Map<string, number>();
+	private readonly teamTaskLastProgressLineBySession = new Map<
+		string,
+		string
+	>();
 	protected readonly artifacts: SessionArtifacts;
 	private static readonly STALE_REASON = "failed_external_process_exit";
 	private static readonly STALE_SOURCE = "stale_session_reconciler";
+	private static readonly TEAM_HEARTBEAT_LOG_INTERVAL_MS = 30_000;
 
 	constructor(private readonly adapter: SessionPersistenceAdapter) {
 		this.artifacts = new SessionArtifacts(() => this.ensureSessionsDir());
@@ -763,6 +769,45 @@ export class UnifiedSessionPersistenceService {
 			summary ?? `[done] ${status}`,
 		);
 		await this.applySubagentStatusBySessionId(sessionId, status);
+		this.teamTaskLastHeartbeatBySession.delete(sessionId);
+		this.teamTaskLastProgressLineBySession.delete(sessionId);
+	}
+
+	async onTeamTaskProgress(
+		rootSessionId: string,
+		agentId: string,
+		progress: string,
+		options?: { kind?: "heartbeat" | "progress" | "text" },
+	): Promise<void> {
+		const key = this.teamTaskQueueKey(rootSessionId, agentId);
+		const sessionId = this.teamTaskSessionsByAgent.get(key)?.[0];
+		if (!sessionId) return;
+
+		const trimmed = progress.trim();
+		if (!trimmed) return;
+
+		const kind = options?.kind ?? "progress";
+		if (kind === "heartbeat") {
+			const now = Date.now();
+			const last = this.teamTaskLastHeartbeatBySession.get(sessionId) ?? 0;
+			if (
+				now - last <
+				UnifiedSessionPersistenceService.TEAM_HEARTBEAT_LOG_INTERVAL_MS
+			) {
+				return;
+			}
+			this.teamTaskLastHeartbeatBySession.set(sessionId, now);
+		}
+
+		const line =
+			kind === "heartbeat"
+				? "[progress] heartbeat"
+				: kind === "text"
+					? `[progress] text: ${trimmed}`
+					: `[progress] ${trimmed}`;
+		if (this.teamTaskLastProgressLineBySession.get(sessionId) === line) return;
+		this.teamTaskLastProgressLineBySession.set(sessionId, line);
+		await this.appendSubagentTranscriptLine(sessionId, line);
 	}
 
 	// ── SubAgent lifecycle ────────────────────────────────────────────

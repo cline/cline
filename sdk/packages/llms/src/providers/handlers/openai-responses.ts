@@ -330,6 +330,11 @@ export class OpenAIResponsesHandler extends BaseHandler {
 				{ signal: abortSignal, headers: requestHeaders },
 			);
 		} catch (error) {
+			const normalizedBadRequest =
+				this.normalizeOpenAICompatibleBadRequest(error);
+			if (normalizedBadRequest) {
+				throw normalizedBadRequest;
+			}
 			if (this.config.providerId === "openai-codex") {
 				const rawError = error as
 					| (Error & {

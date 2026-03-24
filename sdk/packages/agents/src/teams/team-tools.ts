@@ -109,11 +109,19 @@ const TeamListRunsInputSchema = z.object({
 			"cancelled",
 			"interrupted",
 		])
-		.optional(),
-	agentId: z.string().min(1).optional().describe("Filter by teammate ID"),
+		.nullable()
+		.optional()
+		.describe("Optional run status filter. Omit to include all statuses."),
+	agentId: z
+		.string()
+		.min(1)
+		.nullable()
+		.optional()
+		.describe("Optional teammate ID filter. Omit to include all teammates."),
 	includeCompleted: z
 		.boolean()
 		.optional()
+		.nullable()
 		.describe("Include completed/failed runs (default true)"),
 });
 

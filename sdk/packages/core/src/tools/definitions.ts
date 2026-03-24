@@ -105,7 +105,7 @@ function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
 
 function formatReadFileQuery(request: ReadFileRequest): string {
 	const { path, start_line, end_line } = request;
-	if (start_line === undefined && end_line === undefined) {
+	if (start_line == null && end_line == null) {
 		return path;
 	}
 	const start = start_line ?? 1;

@@ -310,6 +310,48 @@ describe("default read_files tool", () => {
 			}),
 		);
 	});
+
+	it("treats null line bounds as full-file boundaries", async () => {
+		const execute = vi.fn(async () => "full file");
+		const tool = createReadFilesTool(execute);
+
+		const result = await tool.execute(
+			{
+				files: [
+					{
+						path: "/tmp/example.ts",
+						start_line: null,
+						end_line: null,
+					},
+				],
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "/tmp/example.ts",
+				result: "full file",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			{
+				path: "/tmp/example.ts",
+				start_line: null,
+				end_line: null,
+			},
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
 });
 
 describe("zod schema conversion", () => {
@@ -329,19 +371,20 @@ describe("zod schema conversion", () => {
 							"The absolute file path of a text file to read content from",
 					},
 					start_line: {
-						type: "integer",
-						description: "Optional one-based starting line number to read from",
+						anyOf: [{ type: "integer" }, { type: "null" }],
+						description:
+							"Optional one-based starting line number to read from; use null or omit for the start of the file",
 					},
 					end_line: {
-						type: "integer",
+						anyOf: [{ type: "integer" }, { type: "null" }],
 						description:
-							"Optional one-based ending line number to read through",
+							"Optional one-based ending line number to read through; use null or omit for the end of the file",
 					},
 				},
 				required: ["path"],
 			},
 			description:
-				"Array of file read requests. Omit start_line and end_line to return the full file content; provide them to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
+				"Array of file read requests. Omit start_line/end_line or set them to null to return the full file content boundaries; provide integers to return only that inclusive one-based line range. Prefer this tool over running terminal command to get file content for better performance and reliability.",
 		});
 		expect(inputSchema.required).toEqual(["files"]);
 	});

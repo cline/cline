@@ -120,6 +120,8 @@ export class SqliteTeamStore implements TeamStore {
 	}
 
 	private ensureSchema(db: SqliteDb): void {
+		db.exec("PRAGMA journal_mode = WAL;");
+		db.exec("PRAGMA busy_timeout = 5000;");
 		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_events (
 				id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -130,16 +132,20 @@ export class SqliteTeamStore implements TeamStore {
 				causation_id TEXT,
 				correlation_id TEXT
 			);
+		`);
+		db.exec(`
 			CREATE INDEX IF NOT EXISTS idx_team_events_name_ts
 				ON team_events(team_name, ts DESC);
-
+		`);
+		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_runtime_snapshot (
 				team_name TEXT PRIMARY KEY,
 				state_json TEXT NOT NULL,
 				teammates_json TEXT NOT NULL,
 				updated_at TEXT NOT NULL
 			);
-
+		`);
+		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_tasks (
 				team_name TEXT NOT NULL,
 				task_id TEXT NOT NULL,
@@ -153,7 +159,8 @@ export class SqliteTeamStore implements TeamStore {
 				updated_at TEXT NOT NULL,
 				PRIMARY KEY(team_name, task_id)
 			);
-
+		`);
+		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_runs (
 				team_name TEXT NOT NULL,
 				run_id TEXT NOT NULL,
@@ -169,9 +176,12 @@ export class SqliteTeamStore implements TeamStore {
 				version INTEGER NOT NULL DEFAULT 1,
 				PRIMARY KEY(team_name, run_id)
 			);
+		`);
+		db.exec(`
 			CREATE INDEX IF NOT EXISTS idx_team_runs_status
 				ON team_runs(team_name, status);
-
+		`);
+		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_outcomes (
 				team_name TEXT NOT NULL,
 				outcome_id TEXT NOT NULL,
@@ -182,7 +192,8 @@ export class SqliteTeamStore implements TeamStore {
 				version INTEGER NOT NULL DEFAULT 1,
 				PRIMARY KEY(team_name, outcome_id)
 			);
-
+		`);
+		db.exec(`
 			CREATE TABLE IF NOT EXISTS team_outcome_fragments (
 				team_name TEXT NOT NULL,
 				outcome_id TEXT NOT NULL,

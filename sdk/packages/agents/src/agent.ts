@@ -368,6 +368,10 @@ export class Agent {
 		return this.conversationStore.getConversationId();
 	}
 
+	canStartRun(): boolean {
+		return this.runState === "idle";
+	}
+
 	updateConnection(
 		overrides: Partial<
 			Pick<
