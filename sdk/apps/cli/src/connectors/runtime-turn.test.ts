@@ -11,7 +11,7 @@ type StreamHandlers = {
 };
 
 describe("createConnectorRuntimeTurnStream", () => {
-	it("keeps tool status blocks in the same streamed message before later text", async () => {
+	it("delivers tool status via callbacks instead of appending it to streamed text", async () => {
 		let handlers: StreamHandlers | undefined;
 
 		const client = {
@@ -42,6 +42,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 		};
 
 		const chunks: string[] = [];
+		const toolStatuses: string[] = [];
 		for await (const chunk of createConnectorRuntimeTurnStream({
 			client: client as never,
 			sessionId: "session-1",
@@ -50,14 +51,16 @@ describe("createConnectorRuntimeTurnStream", () => {
 			logger: { core: {} } as unknown as CliLoggerAdapter,
 			transport: "telegram",
 			conversationId: "thread-1",
+			onToolStatus: async (message) => {
+				toolStatuses.push(message);
+			},
 		})) {
 			chunks.push(chunk);
 		}
 
-		expect(chunks.join("")).toContain("Executing read_file...");
-		expect(chunks.join("")).toContain("Here is the result.");
-		expect(chunks.join("")).toMatch(
-			/Executing read_file\.\.\.[\s\S]*Here is the result\./,
-		);
+		expect(toolStatuses).toEqual([
+			["Executing read_file...", '{"path":"/tmp/demo.txt"}'].join("\n"),
+		]);
+		expect(chunks.join("")).toBe("Here is the result.");
 	});
 });

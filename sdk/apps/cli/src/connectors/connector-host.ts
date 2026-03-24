@@ -302,6 +302,9 @@ export async function handleConnectorUserTurn<
 				logger: input.logger,
 				transport: input.transport,
 				conversationId: input.thread.id,
+				onToolStatus: async (message) => {
+					await input.thread.post(message);
+				},
 				onApprovalRequested: async (approval) => {
 					input.pendingApprovals.set(input.thread.id, approval);
 					await input.thread.post(formatConnectorApprovalPrompt(approval));
