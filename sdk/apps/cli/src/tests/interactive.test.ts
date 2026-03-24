@@ -34,7 +34,10 @@ test.describe("cline interactive basics", () => {
 		terminal,
 	}) => {
 		await expectVisible(terminal, "What can I do for you?");
-		await typeAndSubmit(terminal, "/settings");
+		terminal.write("/settings");
+		await expectVisible(terminal, "/settings"); // Wait for slash completion menu
+		terminal.submit(); // First Enter selects the slash completion item
+		terminal.submit(); // Second Enter submits the command
 		await expectVisible(terminal, "Configuration");
 	});
 });
