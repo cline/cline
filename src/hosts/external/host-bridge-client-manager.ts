@@ -1,12 +1,14 @@
 import {
 	DiffServiceClientInterface,
 	EnvServiceClientInterface,
+	PsiServiceClientInterface,
 	WindowServiceClientInterface,
 	WorkspaceServiceClientInterface,
 } from "@generated/hosts/host-bridge-client-types"
 import {
 	DiffServiceClientImpl,
 	EnvServiceClientImpl,
+	PsiServiceClientImpl,
 	WindowServiceClientImpl,
 	WorkspaceServiceClientImpl,
 } from "@generated/hosts/standalone/host-bridge-clients"
@@ -22,6 +24,7 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 	envClient: EnvServiceClientInterface
 	windowClient: WindowServiceClientInterface
 	diffClient: DiffServiceClientInterface
+	psiClient: PsiServiceClientInterface
 
 	constructor() {
 		const address = process.env.HOST_BRIDGE_ADDRESS || `localhost:${HOSTBRIDGE_PORT}`
@@ -30,5 +33,6 @@ export class ExternalHostBridgeClientManager implements HostBridgeClientProvider
 		this.envClient = new EnvServiceClientImpl(address)
 		this.windowClient = new WindowServiceClientImpl(address)
 		this.diffClient = new DiffServiceClientImpl(address)
+		this.psiClient = new PsiServiceClientImpl(address)
 	}
 }

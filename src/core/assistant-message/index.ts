@@ -42,6 +42,7 @@ export const toolParamNames = [
 	"steps_to_reproduce",
 	"api_request_output",
 	"additional_context",
+	"queries",
 	"needs_more_exploration",
 	"task_progress",
 	"timeout",

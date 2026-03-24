@@ -3733,6 +3733,20 @@ export class Task {
 			details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
 		}
 
+		// IDE Code Intelligence status (for code_intelligence tool)
+		try {
+			const psiClient = HostProvider.psi
+			if (psiClient) {
+				const status = await psiClient.getIndexingStatus({})
+				details += `\n\n# IDE Code Intelligence`
+				details += status.isSmartMode
+					? "\nAvailable — use the code_intelligence tool for semantic code navigation (go-to-definition, find references, callers, type hierarchy)."
+					: "\nUnavailable (indexing in progress) — use search_files or list_code_definition_names instead."
+			}
+		} catch {
+			// PSI service not available (e.g., running in CLI/VSCode) — omit section
+		}
+
 		details += "\n\n# Current Mode"
 		const mode = this.stateManager.getGlobalSettingsKey("mode")
 		if (mode === "plan") {
