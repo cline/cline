@@ -103,6 +103,22 @@ export {
 export async function loadOpenTelemetryAdapter() {
 	return import("./telemetry/opentelemetry.js");
 }
+export {
+	type ClineAccountBalance,
+	type ClineAccountOperations,
+	type ClineAccountOrganization,
+	type ClineAccountOrganizationBalance,
+	type ClineAccountOrganizationUsageTransaction,
+	type ClineAccountPaymentTransaction,
+	ClineAccountService,
+	type ClineAccountServiceOptions,
+	type ClineAccountUsageTransaction,
+	type ClineAccountUser,
+	executeRpcClineAccountAction,
+	isRpcClineAccountActionRequest,
+	RpcClineAccountService,
+	type RpcProviderActionExecutor,
+} from "./account";
 export { startLocalOAuthServer } from "./auth/server";
 export type {
 	OAuthCredentials,
@@ -127,6 +143,28 @@ export {
 	getFileIndex,
 	prewarmFileIndex,
 } from "./input";
+export {
+	hasMcpSettingsFile,
+	InMemoryMcpManager,
+	type LoadMcpSettingsOptions,
+	loadMcpSettingsFile,
+	type McpConnectionStatus,
+	type McpManager,
+	type McpManagerOptions,
+	type McpServerClient,
+	type McpServerClientFactory,
+	type McpServerRegistration,
+	type McpServerSnapshot,
+	type McpServerTransportConfig,
+	type McpSettingsFile,
+	type McpSseTransportConfig,
+	type McpStdioTransportConfig,
+	type McpStreamableHttpTransportConfig,
+	type RegisterMcpServersFromSettingsOptions,
+	registerMcpServersFromSettingsFile,
+	resolveDefaultMcpSettingsPath,
+	resolveMcpServerRegistrations,
+} from "./mcp";
 export {
 	addLocalProvider,
 	ensureCustomProvidersLoaded,
