@@ -102,6 +102,16 @@ describe("kanban process launch", () => {
 			detached: false,
 		})
 	})
+
+	it("enables shell mode on windows for npx.cmd launches", () => {
+		expect(buildKanbanSpawnOptions({}, "win32")).toMatchObject({
+			shell: true,
+		})
+	})
+
+	it("does not set shell mode on unix-like platforms", () => {
+		expect(buildKanbanSpawnOptions({}, "darwin")).not.toHaveProperty("shell")
+	})
 })
 
 describe("forwardSignalToKanbanProcess", () => {

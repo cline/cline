@@ -25,6 +25,7 @@ export function buildKanbanSpawnOptions(options: SpawnOptions = {}, platform: No
 	return {
 		stdio: "inherit",
 		detached: shouldDetachKanbanProcess(platform),
+		...(platform === "win32" ? { shell: true } : {}),
 		...options,
 	}
 }
