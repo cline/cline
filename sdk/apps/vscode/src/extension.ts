@@ -497,7 +497,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		const providerId = llmProviders.normalizeProviderId(
 			config?.provider?.trim() || "cline",
 		);
-		const modelId = config?.model?.trim() || "openai/gpt-5.3-codex";
+		const modelId = config?.model?.trim() || "openai/gpt-5.4";
 		const normalizedMaxIterations =
 			typeof config?.maxIterations === "number" && config.maxIterations > 0
 				? Math.floor(config.maxIterations)

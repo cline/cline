@@ -24,35 +24,35 @@ import type {
 } from "./unified-session-persistence-service";
 import { UnifiedSessionPersistenceService } from "./unified-session-persistence-service";
 
-export interface SessionRowShape {
-	session_id: string;
+export interface SessionRow {
+	sessionId: string;
 	source: string;
 	pid: number;
-	started_at: string;
-	ended_at?: string | null;
-	exit_code?: number | null;
+	startedAt: string;
+	endedAt?: string | null;
+	exitCode?: number | null;
 	status: SessionStatus;
-	status_lock?: number;
-	interactive: number;
+	statusLock: number;
+	interactive: boolean;
 	provider: string;
 	model: string;
 	cwd: string;
-	workspace_root: string;
-	team_name?: string | null;
-	enable_tools: number;
-	enable_spawn: number;
-	enable_teams: number;
-	parent_session_id?: string | null;
-	parent_agent_id?: string | null;
-	agent_id?: string | null;
-	conversation_id?: string | null;
-	is_subagent: number;
+	workspaceRoot: string;
+	teamName?: string | null;
+	enableTools: boolean;
+	enableSpawn: boolean;
+	enableTeams: boolean;
+	parentSessionId?: string | null;
+	parentAgentId?: string | null;
+	agentId?: string | null;
+	conversationId?: string | null;
+	isSubagent: boolean;
 	prompt?: string | null;
-	metadata_json?: string | null;
-	transcript_path: string;
-	hook_path: string;
-	messages_path?: string | null;
-	updated_at?: string;
+	metadata?: Record<string, unknown> | null;
+	transcriptPath: string;
+	hookPath: string;
+	messagesPath?: string | null;
+	updatedAt: string;
 }
 
 export interface CreateRootSessionInput {
@@ -108,6 +108,74 @@ export interface UpsertSubagentInput {
 	conversationId: string;
 	prompt?: string;
 	rootSessionId?: string;
+}
+
+// ── SQLite helpers ───────────────────────────────────────────────────
+
+/** SELECT clause that aliases snake_case columns to camelCase SessionRow keys. */
+const SESSION_SELECT_COLUMNS = `
+	session_id    AS sessionId,
+	source,
+	pid,
+	started_at    AS startedAt,
+	ended_at      AS endedAt,
+	exit_code     AS exitCode,
+	status,
+	status_lock   AS statusLock,
+	interactive,
+	provider,
+	model,
+	cwd,
+	workspace_root AS workspaceRoot,
+	team_name      AS teamName,
+	enable_tools   AS enableTools,
+	enable_spawn   AS enableSpawn,
+	enable_teams   AS enableTeams,
+	parent_session_id AS parentSessionId,
+	parent_agent_id   AS parentAgentId,
+	agent_id       AS agentId,
+	conversation_id AS conversationId,
+	is_subagent    AS isSubagent,
+	prompt,
+	metadata_json  AS metadata,
+	transcript_path AS transcriptPath,
+	hook_path       AS hookPath,
+	messages_path   AS messagesPath,
+	updated_at      AS updatedAt`;
+
+/**
+ * Patch a raw SQLite result into a proper SessionRow.
+ * SQLite returns 0/1 for booleans and a JSON string for metadata —
+ * this converts them in-place to avoid allocating a second object.
+ */
+function patchSqliteRow(raw: Record<string, unknown>): SessionRow {
+	raw.interactive = raw.interactive === 1;
+	raw.enableTools = raw.enableTools === 1;
+	raw.enableSpawn = raw.enableSpawn === 1;
+	raw.enableTeams = raw.enableTeams === 1;
+	raw.isSubagent = raw.isSubagent === 1;
+	const meta = raw.metadata;
+	if (typeof meta === "string" && meta.trim()) {
+		try {
+			const parsed = JSON.parse(meta) as unknown;
+			raw.metadata =
+				parsed && typeof parsed === "object" && !Array.isArray(parsed)
+					? parsed
+					: null;
+		} catch {
+			raw.metadata = null;
+		}
+	} else {
+		raw.metadata = null;
+	}
+	return raw as unknown as SessionRow;
+}
+
+function stringifyMetadata(
+	metadata: Record<string, unknown> | null | undefined,
+): string | null {
+	if (!metadata || Object.keys(metadata).length === 0) return null;
+	return JSON.stringify(metadata);
 }
 
 function reviveTeamStateDates(state: TeamRuntimeState): TeamRuntimeState {
@@ -327,7 +395,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		return this.store.ensureSessionsDir();
 	}
 
-	async upsertSession(row: SessionRowShape): Promise<void> {
+	async upsertSession(row: SessionRow): Promise<void> {
 		this.store.run(
 			`INSERT OR REPLACE INTO sessions (
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
@@ -336,55 +404,51 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				metadata_json, transcript_path, hook_path, messages_path, updated_at
 			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			[
-				row.session_id,
+				row.sessionId,
 				row.source,
 				row.pid,
-				row.started_at,
-				row.ended_at ?? null,
-				row.exit_code ?? null,
+				row.startedAt,
+				row.endedAt ?? null,
+				row.exitCode ?? null,
 				row.status,
-				typeof row.status_lock === "number" ? row.status_lock : 0,
-				row.interactive,
+				row.statusLock,
+				row.interactive ? 1 : 0,
 				row.provider,
 				row.model,
 				row.cwd,
-				row.workspace_root,
-				row.team_name ?? null,
-				row.enable_tools,
-				row.enable_spawn,
-				row.enable_teams,
-				row.parent_session_id ?? null,
-				row.parent_agent_id ?? null,
-				row.agent_id ?? null,
-				row.conversation_id ?? null,
-				row.is_subagent,
+				row.workspaceRoot,
+				row.teamName ?? null,
+				row.enableTools ? 1 : 0,
+				row.enableSpawn ? 1 : 0,
+				row.enableTeams ? 1 : 0,
+				row.parentSessionId ?? null,
+				row.parentAgentId ?? null,
+				row.agentId ?? null,
+				row.conversationId ?? null,
+				row.isSubagent ? 1 : 0,
 				row.prompt ?? null,
-				row.metadata_json ?? null,
-				row.transcript_path,
-				row.hook_path,
-				row.messages_path ?? null,
-				row.updated_at ?? nowIso(),
+				stringifyMetadata(row.metadata),
+				row.transcriptPath,
+				row.hookPath,
+				row.messagesPath ?? null,
+				row.updatedAt,
 			],
 		);
 	}
 
-	async getSession(sessionId: string): Promise<SessionRowShape | undefined> {
-		const row = this.store.queryOne<SessionRowShape>(
-			`SELECT session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
-					provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
-					parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-					metadata_json, transcript_path, hook_path, messages_path, updated_at
-				 FROM sessions WHERE session_id = ?`,
+	async getSession(sessionId: string): Promise<SessionRow | undefined> {
+		const row = this.store.queryOne<Record<string, unknown>>(
+			`SELECT ${SESSION_SELECT_COLUMNS} FROM sessions WHERE session_id = ?`,
 			[sessionId],
 		);
-		return row ?? undefined;
+		return row ? patchSqliteRow(row) : undefined;
 	}
 
 	async listSessions(options: {
 		limit: number;
 		parentSessionId?: string;
 		status?: string;
-	}): Promise<SessionRowShape[]> {
+	}): Promise<SessionRow[]> {
 		const whereClauses: string[] = [];
 		const params: unknown[] = [];
 		if (options.parentSessionId) {
@@ -397,17 +461,16 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		}
 		const where =
 			whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
-		return this.store.queryAll<SessionRowShape>(
-			`SELECT session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
-					provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
-					parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-					metadata_json, transcript_path, hook_path, messages_path, updated_at
+		return this.store
+			.queryAll<Record<string, unknown>>(
+				`SELECT ${SESSION_SELECT_COLUMNS}
 				 FROM sessions
 				 ${where}
 				 ORDER BY started_at DESC
 				 LIMIT ?`,
-			[...params, options.limit],
-		);
+				[...params, options.limit],
+			)
+			.map(patchSqliteRow);
 	}
 
 	async updateSession(
@@ -459,9 +522,9 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			fields.push("prompt = ?");
 			params.push(input.prompt ?? null);
 		}
-		if (input.metadataJson !== undefined) {
+		if (input.metadata !== undefined) {
 			fields.push("metadata_json = ?");
-			params.push(input.metadataJson ?? null);
+			params.push(stringifyMetadata(input.metadata));
 		}
 		if (input.parentSessionId !== undefined) {
 			fields.push("parent_session_id = ?");
@@ -481,7 +544,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		}
 		if (fields.length === 0) {
 			const row = await this.getSession(input.sessionId);
-			return { updated: !!row, statusLock: row?.status_lock ?? 0 };
+			return { updated: !!row, statusLock: row?.statusLock ?? 0 };
 		}
 
 		let statusLock = 0;
@@ -505,7 +568,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		}
 		if (input.expectedStatusLock === undefined) {
 			const row = await this.getSession(input.sessionId);
-			statusLock = row?.status_lock ?? 0;
+			statusLock = row?.statusLock ?? 0;
 		}
 		return { updated: true, statusLock };
 	}

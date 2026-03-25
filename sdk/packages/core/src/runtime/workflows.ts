@@ -41,14 +41,14 @@ export function resolveWorkflowSlashCommandFromWatcher(
 	if (!match) {
 		return input;
 	}
-	const workflowName = match[1];
-	if (!workflowName) {
+	const name = match[1];
+	if (!name) {
 		return input;
 	}
-	const commandLength = workflowName.length + 1;
+	const commandLength = name.length + 1;
 	const remainder = input.slice(commandLength);
 	const matched = listAvailableWorkflowsFromWatcher(watcher).find(
-		(workflow) => workflow.name === workflowName,
+		(workflow) => workflow.name === name,
 	);
 	return matched ? `${matched.instructions}${remainder}` : input;
 }

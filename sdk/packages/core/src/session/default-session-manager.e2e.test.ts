@@ -17,7 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SessionSource, SessionStatus } from "../types/common";
 import { DefaultSessionManager } from "./default-session-manager";
 import type { SessionManifest } from "./session-manifest";
-import type { RootSessionArtifacts, SessionRowShape } from "./session-service";
+import type { RootSessionArtifacts, SessionRow } from "./session-service";
 
 function nowIso(): string {
 	return new Date().toISOString();
@@ -47,7 +47,7 @@ function createResult(overrides: Partial<AgentResult> = {}): AgentResult {
 }
 
 class LocalFileSessionService {
-	private readonly rows = new Map<string, SessionRowShape>();
+	private readonly rows = new Map<string, SessionRow>();
 
 	constructor(private readonly sessionsDir: string) {}
 
@@ -115,33 +115,33 @@ class LocalFileSessionService {
 		);
 
 		this.rows.set(sessionId, {
-			session_id: sessionId,
+			sessionId,
 			source: input.source,
 			pid: input.pid,
-			started_at: startedAt,
-			ended_at: null,
-			exit_code: null,
+			startedAt,
+			endedAt: null,
+			exitCode: null,
 			status: "running",
-			status_lock: 0,
-			interactive: input.interactive ? 1 : 0,
+			statusLock: 0,
+			interactive: input.interactive,
 			provider: input.provider,
 			model: input.model,
 			cwd: input.cwd,
-			workspace_root: input.workspaceRoot,
-			team_name: input.teamName ?? null,
-			enable_tools: input.enableTools ? 1 : 0,
-			enable_spawn: input.enableSpawn ? 1 : 0,
-			enable_teams: input.enableTeams ? 1 : 0,
-			parent_session_id: null,
-			parent_agent_id: null,
-			agent_id: null,
-			conversation_id: null,
-			is_subagent: 0,
+			workspaceRoot: input.workspaceRoot,
+			teamName: input.teamName ?? null,
+			enableTools: input.enableTools,
+			enableSpawn: input.enableSpawn,
+			enableTeams: input.enableTeams,
+			parentSessionId: null,
+			parentAgentId: null,
+			agentId: null,
+			conversationId: null,
+			isSubagent: false,
 			prompt: prompt ?? null,
-			transcript_path: transcriptPath,
-			hook_path: hookPath,
-			messages_path: messagesPath,
-			updated_at: startedAt,
+			transcriptPath,
+			hookPath,
+			messagesPath,
+			updatedAt: startedAt,
 		});
 
 		return {
@@ -159,7 +159,7 @@ class LocalFileSessionService {
 		systemPrompt?: string,
 	): void {
 		const row = this.rows.get(sessionId);
-		if (!row?.messages_path) {
+		if (!row?.messagesPath) {
 			throw new Error(`session not found: ${sessionId}`);
 		}
 		const payload: {
@@ -172,7 +172,7 @@ class LocalFileSessionService {
 			payload.systemPrompt = systemPrompt;
 		}
 		writeFileSync(
-			row.messages_path,
+			row.messagesPath,
 			`${JSON.stringify(payload, null, 2)}\n`,
 			"utf8",
 		);
@@ -189,10 +189,10 @@ class LocalFileSessionService {
 		}
 		const endedAt = nowIso();
 		row.status = status;
-		row.ended_at = endedAt;
-		row.exit_code = typeof exitCode === "number" ? exitCode : null;
-		row.updated_at = endedAt;
-		row.status_lock = (row.status_lock ?? 0) + 1;
+		row.endedAt = endedAt;
+		row.exitCode = typeof exitCode === "number" ? exitCode : null;
+		row.updatedAt = endedAt;
+		row.statusLock = row.statusLock + 1;
 		return { updated: true, endedAt };
 	}
 
@@ -204,7 +204,7 @@ class LocalFileSessionService {
 		);
 	}
 
-	listSessions(limit = 200): SessionRowShape[] {
+	listSessions(limit = 200): SessionRow[] {
 		return Array.from(this.rows.values()).slice(0, limit);
 	}
 
@@ -214,9 +214,9 @@ class LocalFileSessionService {
 			return { deleted: false };
 		}
 		this.rows.delete(sessionId);
-		unlinkSync(row.transcript_path);
-		unlinkSync(row.hook_path);
-		unlinkSync(row.messages_path ?? "");
+		unlinkSync(row.transcriptPath);
+		unlinkSync(row.hookPath);
+		unlinkSync(row.messagesPath ?? "");
 		unlinkSync(join(this.sessionsDir, sessionId, `${sessionId}.json`));
 		return { deleted: true };
 	}

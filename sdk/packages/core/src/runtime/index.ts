@@ -17,6 +17,11 @@ export type {
 	SessionRuntime,
 } from "./session-runtime";
 export {
+	type AvailableSkill,
+	listAvailableSkillsFromWatcher,
+	resolveSkillsSlashCommandFromWatcher,
+} from "./skills";
+export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./tool-approval";

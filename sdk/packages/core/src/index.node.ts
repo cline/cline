@@ -159,6 +159,11 @@ export type {
 	RuntimeBuilderInput,
 	SessionRuntime,
 } from "./runtime/session-runtime";
+export type { AvailableSkill } from "./runtime/skills";
+export {
+	listAvailableSkillsFromWatcher,
+	resolveSkillsSlashCommandFromWatcher,
+} from "./runtime/skills";
 export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,

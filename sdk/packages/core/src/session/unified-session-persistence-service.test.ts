@@ -45,11 +45,11 @@ describe("UnifiedSessionPersistenceService", () => {
 		const rows = await service.listSessions(10);
 		expect(rows).toHaveLength(1);
 		expect(rows[0]).toMatchObject({
-			session_id: sessionId,
+			sessionId,
 			status: "failed",
-			exit_code: 1,
+			exitCode: 1,
 		});
-		expect(rows[0]?.ended_at).toBeTruthy();
+		expect(rows[0]?.endedAt).toBeTruthy();
 
 		const manifest = JSON.parse(
 			readFileSync(artifacts.manifestPath, "utf8"),

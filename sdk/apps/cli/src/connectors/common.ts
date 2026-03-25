@@ -162,18 +162,11 @@ export function parseRowMetadata(
 }
 
 export function parseLocalRowMetadata(row: {
-	metadata_json?: string | null;
+	metadata?: Record<string, unknown> | null;
 }): Record<string, unknown> | undefined {
-	if (typeof row.metadata_json !== "string" || !row.metadata_json.trim()) {
-		return undefined;
-	}
-	try {
-		const parsed = JSON.parse(row.metadata_json) as unknown;
-		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-			return parsed as Record<string, unknown>;
-		}
-	} catch {}
-	return undefined;
+	return row.metadata && typeof row.metadata === "object"
+		? row.metadata
+		: undefined;
 }
 
 export async function readSessionReplyText(

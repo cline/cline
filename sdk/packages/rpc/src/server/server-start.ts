@@ -1,12 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { SchedulerService } from "@clinebot/scheduler";
+import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
 import * as grpc from "@grpc/grpc-js";
 import type { RpcServerHandle, RpcServerOptions } from "../types.js";
-import {
-	DEFAULT_RPC_ADDRESS,
-	loadGatewayService,
-	parseAddress,
-} from "./grpc-service.js";
+
+import { loadGatewayService, parseAddress } from "./grpc-service.js";
 import { nowIso } from "./helpers.js";
 import type {
 	AbortRuntimeSessionRequest,
@@ -86,6 +84,9 @@ import { ClineGatewayRuntime } from "./runtime.js";
 let singletonHandle: RpcServerHandle | undefined;
 let singletonStartPromise: Promise<RpcServerHandle> | undefined;
 
+const DEFAULT_RPC_ADDRESS =
+	process.env.CLINE_RPC_ADDRESS?.trim() || CLINE_DEFAULT_RPC_ADDRESS;
+
 export async function startRpcServer(
 	options: RpcServerOptions,
 ): Promise<RpcServerHandle> {
@@ -97,10 +98,7 @@ export async function startRpcServer(
 	}
 
 	singletonStartPromise = new Promise<RpcServerHandle>((resolve, reject) => {
-		const address =
-			options.address?.trim() ||
-			process.env.CLINE_RPC_ADDRESS?.trim() ||
-			DEFAULT_RPC_ADDRESS;
+		const address = options.address?.trim() || DEFAULT_RPC_ADDRESS;
 		try {
 			parseAddress(address);
 		} catch (error) {

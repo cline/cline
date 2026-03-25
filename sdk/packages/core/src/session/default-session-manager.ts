@@ -64,7 +64,7 @@ import { SessionManifestSchema } from "./session-manifest";
 import type {
 	CoreSessionService,
 	RootSessionArtifacts,
-	SessionRowShape,
+	SessionRow,
 } from "./session-service";
 import {
 	buildTeamRunContinuationPrompt,
@@ -462,8 +462,8 @@ export class DefaultSessionManager implements SessionManager {
 
 	async readTranscript(sessionId: string, maxChars?: number): Promise<string> {
 		const row = await this.getRow(sessionId);
-		if (!row?.transcript_path || !existsSync(row.transcript_path)) return "";
-		const raw = readFileSync(row.transcript_path, "utf8");
+		if (!row?.transcriptPath || !existsSync(row.transcriptPath)) return "";
+		const raw = readFileSync(row.transcriptPath, "utf8");
 		if (typeof maxChars === "number" && Number.isFinite(maxChars)) {
 			return raw.slice(-Math.max(0, Math.floor(maxChars)));
 		}
@@ -472,7 +472,7 @@ export class DefaultSessionManager implements SessionManager {
 
 	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
 		const row = await this.getRow(sessionId);
-		const messagesPath = row?.messages_path?.trim();
+		const messagesPath = row?.messagesPath?.trim();
 		if (!messagesPath || !existsSync(messagesPath)) return [];
 		try {
 			const raw = readFileSync(messagesPath, "utf8").trim();
@@ -491,8 +491,8 @@ export class DefaultSessionManager implements SessionManager {
 
 	async readHooks(sessionId: string, limit = 200): Promise<unknown[]> {
 		const row = await this.getRow(sessionId);
-		if (!row?.hook_path || !existsSync(row.hook_path)) return [];
-		const lines = readFileSync(row.hook_path, "utf8")
+		if (!row?.hookPath || !existsSync(row.hookPath)) return [];
+		const lines = readFileSync(row.hookPath, "utf8")
 			.split("\n")
 			.filter((line) => line.trim().length > 0);
 		return lines.slice(-Math.max(1, Math.floor(limit))).map((line) => {
@@ -1164,20 +1164,18 @@ export class DefaultSessionManager implements SessionManager {
 		for (const listener of this.listeners) listener(event);
 	}
 
-	private async listRows(limit: number): Promise<SessionRowShape[]> {
-		return this.invoke<SessionRowShape[]>(
+	private async listRows(limit: number): Promise<SessionRow[]> {
+		return this.invoke<SessionRow[]>(
 			"listSessions",
 			Math.min(Math.max(1, Math.floor(limit)), MAX_SCAN_LIMIT),
 		);
 	}
 
-	private async getRow(
-		sessionId: string,
-	): Promise<SessionRowShape | undefined> {
+	private async getRow(sessionId: string): Promise<SessionRow | undefined> {
 		const target = sessionId.trim();
 		if (!target) return undefined;
 		const rows = await this.listRows(MAX_SCAN_LIMIT);
-		return rows.find((row) => row.session_id === target);
+		return rows.find((row) => row.sessionId === target);
 	}
 
 	// ── Session service invocation ──────────────────────────────────────

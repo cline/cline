@@ -37,6 +37,7 @@ export {
 	normalizeUserInput,
 	xmlTagsRemoval,
 } from "./prompt/format";
+export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
 export type {
 	RpcAddProviderActionRequest,
 	RpcAgentMode,
