@@ -4,18 +4,57 @@ import { checkAnyProviderConfigured } from "./auth"
 
 export const KANBAN_LAUNCH_ARGS = ["-y", "kanban@latest"] as const
 export const KANBAN_LAUNCH_COMMAND = `npx ${KANBAN_LAUNCH_ARGS.join(" ")}`
+export const KANBAN_SHUTDOWN_TIMEOUT_MS = 10_000
 export const LEGACY_TUI_FLAG = "--tui"
 export type KanbanMigrationAction = "kanban" | "exit"
+
+interface SignalableKanbanProcess {
+	pid?: number
+	kill: (signal?: NodeJS.Signals | number) => boolean
+}
 
 function getNpxCommand(): string {
 	return process.platform === "win32" ? "npx.cmd" : "npx"
 }
 
-export function spawnKanbanProcess(options: SpawnOptions = {}): ChildProcess {
-	return spawn(getNpxCommand(), [...KANBAN_LAUNCH_ARGS], {
+export function shouldDetachKanbanProcess(platform: NodeJS.Platform = process.platform): boolean {
+	return platform !== "win32"
+}
+
+export function buildKanbanSpawnOptions(options: SpawnOptions = {}, platform: NodeJS.Platform = process.platform): SpawnOptions {
+	return {
 		stdio: "inherit",
+		detached: shouldDetachKanbanProcess(platform),
 		...options,
-	})
+	}
+}
+
+export function spawnKanbanProcess(options: SpawnOptions = {}): ChildProcess {
+	return spawn(getNpxCommand(), [...KANBAN_LAUNCH_ARGS], buildKanbanSpawnOptions(options))
+}
+
+export function forwardSignalToKanbanProcess(options: {
+	child: SignalableKanbanProcess
+	signal: NodeJS.Signals
+	platform?: NodeJS.Platform
+	killProcess?: (pid: number, signal: NodeJS.Signals | number) => boolean
+}): void {
+	if (options.child.pid == null) {
+		return
+	}
+
+	if (shouldDetachKanbanProcess(options.platform)) {
+		try {
+			;(options.killProcess ?? process.kill)(-options.child.pid, options.signal)
+			return
+		} catch (error) {
+			if (error && typeof error === "object" && "code" in error && error.code === "ESRCH") {
+				return
+			}
+		}
+	}
+
+	options.child.kill(options.signal)
 }
 
 export function shouldLaunchKanbanByDefault(options: {

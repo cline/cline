@@ -1,5 +1,12 @@
-import { describe, expect, it } from "vitest"
-import { hasUsedLegacyCli, shouldLaunchKanbanByDefault, shouldShowKanbanMigrationAnnouncement } from "./kanban"
+import { describe, expect, it, vi } from "vitest"
+import {
+	buildKanbanSpawnOptions,
+	forwardSignalToKanbanProcess,
+	hasUsedLegacyCli,
+	shouldDetachKanbanProcess,
+	shouldLaunchKanbanByDefault,
+	shouldShowKanbanMigrationAnnouncement,
+} from "./kanban"
 
 describe("shouldLaunchKanbanByDefault", () => {
 	it("launches kanban for a bare interactive run", () => {
@@ -69,6 +76,69 @@ describe("hasUsedLegacyCli", () => {
 				hasConfiguredAuth: false,
 			}),
 		).toBe(false)
+	})
+})
+
+describe("kanban process launch", () => {
+	it("detaches the kanban process on unix-like platforms", () => {
+		expect(shouldDetachKanbanProcess("darwin")).toBe(true)
+		expect(shouldDetachKanbanProcess("linux")).toBe(true)
+	})
+
+	it("keeps the kanban process attached on windows", () => {
+		expect(shouldDetachKanbanProcess("win32")).toBe(false)
+	})
+
+	it("uses a detached process group by default on unix-like platforms", () => {
+		expect(buildKanbanSpawnOptions({}, "darwin")).toMatchObject({
+			stdio: "inherit",
+			detached: true,
+		})
+	})
+
+	it("does not detach the process on windows", () => {
+		expect(buildKanbanSpawnOptions({}, "win32")).toMatchObject({
+			stdio: "inherit",
+			detached: false,
+		})
+	})
+})
+
+describe("forwardSignalToKanbanProcess", () => {
+	it("signals the detached kanban process group on unix-like platforms", () => {
+		const killProcess = vi.fn()
+		const child = {
+			pid: 4321,
+			kill: vi.fn(),
+		}
+
+		forwardSignalToKanbanProcess({
+			child,
+			signal: "SIGINT",
+			platform: "darwin",
+			killProcess,
+		})
+
+		expect(killProcess).toHaveBeenCalledWith(-4321, "SIGINT")
+		expect(child.kill).not.toHaveBeenCalled()
+	})
+
+	it("signals the child process directly on windows", () => {
+		const killProcess = vi.fn()
+		const child = {
+			pid: 4321,
+			kill: vi.fn(),
+		}
+
+		forwardSignalToKanbanProcess({
+			child,
+			signal: "SIGTERM",
+			platform: "win32",
+			killProcess,
+		})
+
+		expect(killProcess).not.toHaveBeenCalled()
+		expect(child.kill).toHaveBeenCalledWith("SIGTERM")
 	})
 })
 

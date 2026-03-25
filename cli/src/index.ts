@@ -2,6 +2,7 @@
  * Cline CLI - TypeScript implementation with React Ink
  */
 
+import type { ChildProcess } from "node:child_process"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
 import { Command } from "commander"
@@ -36,7 +37,9 @@ import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
 import {
+	forwardSignalToKanbanProcess,
 	KANBAN_LAUNCH_COMMAND,
+	KANBAN_SHUTDOWN_TIMEOUT_MS,
 	type KanbanMigrationAction,
 	LEGACY_TUI_FLAG,
 	markKanbanMigrationAnnouncementShown,
@@ -263,14 +266,17 @@ function getPlainTextModeReason(options: TaskOptions): string {
 
 function runKanbanAlias(spawnOptions?: Parameters<typeof spawnKanbanProcess>[0]): void {
 	const child = spawnKanbanProcess(spawnOptions)
+	activeKanbanProcess = child
 
 	child.on("error", () => {
+		clearActiveKanbanProcess()
 		printWarning(`Failed to run '${KANBAN_LAUNCH_COMMAND}'. Make sure npx is installed and available in PATH.`)
 		exit(1)
 	})
 
-	child.on("close", (code) => {
-		exit(code ?? 1)
+	child.on("close", (code, signal) => {
+		clearActiveKanbanProcess()
+		exit(resolveProcessExitCode(code, signal))
 	})
 }
 
@@ -367,6 +373,62 @@ let activeContext: CliContext | null = null
 let isShuttingDown = false
 // Track if we're in plain text mode (no Ink UI) - set by runTask when piped stdin detected
 let isPlainTextMode = false
+let activeKanbanProcess: ChildProcess | null = null
+let activeKanbanShutdownTimer: NodeJS.Timeout | null = null
+
+function clearActiveKanbanProcess(): void {
+	activeKanbanProcess = null
+	if (activeKanbanShutdownTimer) {
+		clearTimeout(activeKanbanShutdownTimer)
+		activeKanbanShutdownTimer = null
+	}
+}
+
+function requestKanbanProcessShutdown(signal: NodeJS.Signals): void {
+	if (!activeKanbanProcess) {
+		return
+	}
+
+	forwardSignalToKanbanProcess({
+		child: activeKanbanProcess,
+		signal,
+	})
+
+	if (activeKanbanShutdownTimer) {
+		clearTimeout(activeKanbanShutdownTimer)
+	}
+
+	if (signal === "SIGKILL") {
+		activeKanbanShutdownTimer = null
+		return
+	}
+
+	activeKanbanShutdownTimer = setTimeout(() => {
+		if (!activeKanbanProcess) {
+			return
+		}
+		forwardSignalToKanbanProcess({
+			child: activeKanbanProcess,
+			signal: "SIGKILL",
+		})
+	}, KANBAN_SHUTDOWN_TIMEOUT_MS)
+	activeKanbanShutdownTimer.unref?.()
+}
+
+function resolveProcessExitCode(code: number | null, signal: NodeJS.Signals | null): number {
+	if (code !== null) {
+		return code
+	}
+
+	switch (signal) {
+		case "SIGINT":
+			return 130
+		case "SIGTERM":
+			return 143
+		default:
+			return 1
+	}
+}
 
 /**
  * Wait for stdout to fully drain before exiting.
@@ -422,6 +484,17 @@ function onUnhandledException(reason: unknown, context: string) {
 
 function setupSignalHandlers() {
 	const shutdown = async (signal: string) => {
+		if (activeKanbanProcess) {
+			if (isShuttingDown) {
+				requestKanbanProcessShutdown("SIGKILL")
+				return
+			}
+
+			isShuttingDown = true
+			requestKanbanProcessShutdown(signal === "SIGTERM" ? "SIGTERM" : "SIGINT")
+			return
+		}
+
 		if (isShuttingDown) {
 			// Force exit on second signal
 			process.exit(1)
