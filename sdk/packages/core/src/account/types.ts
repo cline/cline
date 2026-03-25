@@ -17,9 +17,9 @@ export interface ClineAccountUser {
 }
 
 export interface UserRemoteConfigResponse {
-	organizationId: string
-	value: string
-	enabled: boolean
+	organizationId: string;
+	value: string;
+	enabled: boolean;
 }
 
 export interface ClineAccountBalance {
