@@ -14,7 +14,7 @@
 		"lint": "eslint .",
 		"test:host": "bun test ./host/index.test.ts",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
-		"clean": "rm -rf .next out"
+		"clean": "rm -rf .next out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.2.0",

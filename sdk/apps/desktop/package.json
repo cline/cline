@@ -8,7 +8,7 @@
 		"dev:web": "next dev -p 3124 --turbo",
 		"build": "next build",
 		"typecheck": "next typegen && tsc --noEmit",
-		"clean": "rm -rf .next out node_modules dist && (cd src-tauri && cargo clean)",
+		"clean": "rm -rf .next out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)",
 		"dev": "tauri dev",
 		"build:binary": "tauri build"
 	},
