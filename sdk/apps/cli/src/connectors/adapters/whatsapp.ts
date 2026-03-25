@@ -2,6 +2,10 @@ import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import type {
+	ConnectWhatsAppOptions,
+	WhatsAppConnectorState,
+} from "@clinebot/shared";
 import { Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
@@ -47,54 +51,20 @@ import type {
 	ConnectIo,
 	ConnectStopResult,
 } from "../types";
+import {
+	getConnectorFirstContactMessage,
+	getConnectorSystemPrompt,
+	getConnectorSystemRules,
+} from "./prompts";
 
-const WHATSAPP_SYSTEM_RULES = [
-	"Keep answers compact and optimized for a chat app unless the user asks for detail.",
-	"Prefer short paragraphs and concise lists suitable for WhatsApp.",
-	"When tools are disabled, explain limits briefly and ask for /tools if tool usage is required.",
-].join("\n");
+const WHATSAPP_SYSTEM_RULES = getConnectorSystemRules(
+	"WhatsApp",
+	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
+);
 
-const WHATSAPP_FIRST_CONTACT_MESSAGE = [
-	"Connected.",
-	"Your chat history is isolated to your WhatsApp account.",
-	"Send /new to start a fresh session or /whereami for thread details.",
-].join("\n");
+const WHATSAPP_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 
 type WhatsAppThreadState = ConnectorThreadState;
-
-type ConnectWhatsAppOptions = {
-	userName: string;
-	phoneNumberId?: string;
-	accessToken?: string;
-	appSecret?: string;
-	verifyToken?: string;
-	apiVersion?: string;
-	cwd: string;
-	model?: string;
-	provider?: string;
-	apiKey?: string;
-	systemPrompt?: string;
-	mode: "act" | "plan";
-	interactive: boolean;
-	maxIterations?: number;
-	enableTools: boolean;
-	rpcAddress: string;
-	hookCommand?: string;
-	port: number;
-	host: string;
-	baseUrl: string;
-};
-
-type WhatsAppConnectorState = {
-	instanceKey: string;
-	userName: string;
-	phoneNumberId?: string;
-	pid: number;
-	rpcAddress: string;
-	port: number;
-	baseUrl: string;
-	startedAt: string;
-};
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
@@ -633,7 +603,9 @@ class WhatsAppConnector extends ConnectorBase<
 						client,
 						pendingApprovals,
 						baseStartRequest: startRequest,
-						explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
+						explicitSystemPrompt:
+							options.systemPrompt?.trim() ||
+							getConnectorSystemPrompt("WhatsApp"),
 						clientId,
 						logger: loggerAdapter,
 						transport: "whatsapp",

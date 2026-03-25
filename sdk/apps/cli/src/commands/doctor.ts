@@ -25,7 +25,7 @@ type DoctorStatus = {
 };
 
 type ActiveConnectorRecord = {
-	type: "telegram" | "gchat" | "whatsapp";
+	type: "telegram" | "gchat" | "whatsapp" | "linear";
 	pid: number;
 	rpcAddress: string;
 	startedAt?: string;
@@ -276,6 +276,22 @@ function readActiveConnectorRecord(
 		};
 	}
 	if (
+		type === "linear" &&
+		typeof parsed.userName === "string" &&
+		parsed.userName.trim()
+	) {
+		return {
+			type,
+			pid,
+			rpcAddress,
+			startedAt:
+				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
+			userName: parsed.userName,
+			port: typeof parsed.port === "number" ? parsed.port : undefined,
+			baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl : undefined,
+		};
+	}
+	if (
 		type === "whatsapp" &&
 		typeof parsed.userName === "string" &&
 		parsed.userName.trim()
@@ -302,6 +318,7 @@ function listActiveConnectors(): ActiveConnectorRecord[] {
 	const connectorTypes: ActiveConnectorRecord["type"][] = [
 		"telegram",
 		"gchat",
+		"linear",
 		"whatsapp",
 	];
 	const records: ActiveConnectorRecord[] = [];

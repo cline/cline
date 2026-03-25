@@ -5,6 +5,7 @@ export {
 	isOAuthProviderId,
 	OAUTH_PROVIDER_IDS,
 } from "./auth/constants";
+export type * from "./connectors/adapters";
 export type {
 	ConnectorHookEvent,
 	ConnectorHookEventName,

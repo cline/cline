@@ -5,7 +5,11 @@ export async function runStopAllConnectors(io: ConnectIo): Promise<number> {
 	let stoppedProcesses = 0;
 	let stoppedSessions = 0;
 	let executed = 0;
-	for (const connector of listConnectors()) {
+	for (const entry of listConnectors()) {
+		const connector = await getConnector(entry.name);
+		if (!connector) {
+			continue;
+		}
 		if (!connector.stopAll) {
 			continue;
 		}
@@ -28,7 +32,7 @@ export async function runStopConnector(
 	adapterName: string,
 	io: ConnectIo,
 ): Promise<number> {
-	const connector = getConnector(adapterName);
+	const connector = await getConnector(adapterName);
 	if (!connector) {
 		io.writeErr(`unknown connect adapter "${adapterName}"`);
 		return 1;
@@ -49,7 +53,7 @@ export async function runConnectAdapter(
 	passthroughArgs: string[],
 	io: ConnectIo,
 ): Promise<number> {
-	const connector = getConnector(adapterName);
+	const connector = await getConnector(adapterName);
 	if (!connector) {
 		io.writeErr(`unknown connect adapter "${adapterName}"`);
 		return 1;

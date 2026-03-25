@@ -2,6 +2,10 @@ import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import type {
+	ConnectTelegramOptions,
+	TelegramConnectorState,
+} from "@clinebot/shared";
 import { Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
@@ -43,43 +47,17 @@ import type {
 	ConnectIo,
 	ConnectStopResult,
 } from "../types";
+import {
+	getConnectorFirstContactMessage,
+	getConnectorSystemPrompt,
+	getConnectorSystemRules,
+} from "./prompts";
 
-const TELEGRAM_SYSTEM_RULES = [
-	"Keep answers compact and optimized for a chat app unless the user asks for detail.",
-	"Prefer short paragraphs and concise lists suitable for Telegram.",
-	"When tools are disabled, explain limits briefly and ask for /tools if tool usage is required.",
-].join("\n");
+const TELEGRAM_SYSTEM_RULES = getConnectorSystemRules("Telegram");
 
-const TELEGRAM_FIRST_CONTACT_MESSAGE = [
-	"Connected.",
-	"Your chat history is kept separately for your account.",
-	"Send /new to start a fresh session or /whereami for thread details.",
-].join("\n");
+const TELEGRAM_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 
 type TelegramThreadState = ConnectorThreadState;
-
-type ConnectTelegramOptions = {
-	botToken: string;
-	botUsername: string;
-	cwd: string;
-	model?: string;
-	provider?: string;
-	apiKey?: string;
-	systemPrompt?: string;
-	mode: "act" | "plan";
-	interactive: boolean;
-	maxIterations?: number;
-	enableTools: boolean;
-	rpcAddress: string;
-	hookCommand?: string;
-};
-
-type TelegramConnectorState = {
-	botUsername: string;
-	pid: number;
-	rpcAddress: string;
-	startedAt: string;
-};
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
@@ -649,7 +627,9 @@ class TelegramConnector extends ConnectorBase<
 						client,
 						pendingApprovals,
 						baseStartRequest: startRequest,
-						explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
+						explicitSystemPrompt:
+							options.systemPrompt?.trim() ||
+							getConnectorSystemPrompt("WhatsApp"),
 						clientId,
 						logger: loggerAdapter,
 						transport: "telegram",

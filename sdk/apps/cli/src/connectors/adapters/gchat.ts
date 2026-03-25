@@ -2,6 +2,10 @@ import { createGoogleChatAdapter } from "@chat-adapter/gchat";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import type {
+	ConnectGoogleChatOptions,
+	GoogleChatConnectorState,
+} from "@clinebot/shared";
 import { Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
@@ -47,51 +51,16 @@ import type {
 	ConnectIo,
 	ConnectStopResult,
 } from "../types";
+import {
+	getConnectorFirstContactMessage,
+	getConnectorSystemRules,
+} from "./prompts";
 
-const GCHAT_SYSTEM_RULES = [
-	"Keep answers compact and optimized for a chat app unless the user asks for detail.",
-	"Prefer short paragraphs and concise lists suitable for Google Chat.",
-	"When tools are disabled, explain limits briefly and ask for /tools if tool usage is required.",
-].join("\n");
+const GCHAT_SYSTEM_RULES = getConnectorSystemRules("Google Chat");
 
-const GCHAT_FIRST_CONTACT_MESSAGE = [
-	"Connected.",
-	"Your chat history is isolated to your Google Chat account.",
-	"Send /new to start a fresh session or /whereami for thread details.",
-].join("\n");
+const GCHAT_FIRST_CONTACT_MESSAGE = getConnectorFirstContactMessage();
 
 type GoogleChatThreadState = ConnectorThreadState;
-
-type ConnectGoogleChatOptions = {
-	userName: string;
-	cwd: string;
-	model?: string;
-	provider?: string;
-	apiKey?: string;
-	systemPrompt?: string;
-	mode: "act" | "plan";
-	interactive: boolean;
-	maxIterations?: number;
-	enableTools: boolean;
-	rpcAddress: string;
-	hookCommand?: string;
-	port: number;
-	host: string;
-	baseUrl: string;
-	pubsubTopic?: string;
-	impersonateUser?: string;
-	useApplicationDefaultCredentials: boolean;
-	credentialsJson?: string;
-};
-
-type GoogleChatConnectorState = {
-	userName: string;
-	pid: number;
-	rpcAddress: string;
-	port: number;
-	baseUrl: string;
-	startedAt: string;
-};
 
 function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
