@@ -6,6 +6,7 @@ import type {
 	ClineAccountPaymentTransaction,
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
+	UserRemoteConfigResponse,
 } from "./types";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -61,6 +62,10 @@ export class ClineAccountService {
 
 	public async fetchMe(): Promise<ClineAccountUser> {
 		return this.request<ClineAccountUser>("/api/v1/users/me");
+	}
+
+	public async fetchRemoteConfig(): Promise<UserRemoteConfigResponse> {
+		return this.request<UserRemoteConfigResponse>("/api/v1/users/me/remote-config")
 	}
 
 	public async fetchBalance(userId?: string): Promise<ClineAccountBalance> {
