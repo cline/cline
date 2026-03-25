@@ -4724,8 +4724,32 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 // https://www.minimax.io/platform/document/text_api_intro
 // https://www.minimax.io/platform/document/pricing
 export type MinimaxModelId = keyof typeof minimaxModels
-export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.5"
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
 export const minimaxModels = {
+	"MiniMax-M2.7": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.375,
+		cacheReadsPrice: 0.06,
+		description: "Latest flagship model with enhanced reasoning and coding",
+	},
+	"MiniMax-M2.7-highspeed": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.375,
+		cacheReadsPrice: 0.06,
+		description: "High-speed version of M2.7 for low-latency scenarios",
+	},
 	"MiniMax-M2.5": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,
@@ -4734,7 +4758,7 @@ export const minimaxModels = {
 		supportsReasoning: true,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
-		cacheWritesPrice: 0.0375,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2.5-highspeed": {
@@ -4743,9 +4767,9 @@ export const minimaxModels = {
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-		cacheWritesPrice: 0.0375,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2.1": {
@@ -4755,7 +4779,7 @@ export const minimaxModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
-		cacheWritesPrice: 0.0375,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2.1-lightning": {
@@ -4763,9 +4787,9 @@ export const minimaxModels = {
 		contextWindow: 192_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0.3,
+		inputPrice: 0.6,
 		outputPrice: 2.4,
-		cacheWritesPrice: 0.0375,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2": {
