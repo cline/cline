@@ -50,6 +50,9 @@
 		"test": "vitest run",
 		"test:watch": "vitest"
 	},
+	"engines": {
+		"node": ">=20"
+	},
 	"type": "module",
 	"types": "dist/index.d.ts"
 }

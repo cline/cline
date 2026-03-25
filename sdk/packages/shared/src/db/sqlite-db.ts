@@ -111,10 +111,17 @@ export function loadSqliteDb(filePath: string): SqliteDb {
 		// Fall through to better-sqlite3 for older Node runtimes.
 	}
 
-	const BetterSqlite3 = require(["better", "-sqlite3"].join("")) as new (
-		path: string,
-	) => SqliteDb;
-	return new BetterSqlite3(filePath);
+	try {
+		const BetterSqlite3 = require(["better", "-sqlite3"].join("")) as new (
+			path: string,
+		) => SqliteDb;
+		return new BetterSqlite3(filePath);
+	} catch (error) {
+		throw new Error(
+			"SQLite requires Node's built-in sqlite support or the optional dependency better-sqlite3. Install better-sqlite3 when running on older Node versions without node:sqlite.",
+			{ cause: error },
+		);
+	}
 }
 
 export interface SessionSchemaOptions {

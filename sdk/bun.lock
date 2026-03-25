@@ -35,7 +35,6 @@
         "@clinebot/llms": "workspace:*",
         "@clinebot/rpc": "workspace:*",
         "@clinebot/shared": "workspace:*",
-        "better-sqlite3": "^11.10.0",
         "chat": "^4.20.2",
         "commander": "^14.0.3",
         "ink": "^6.8.0",
@@ -287,7 +286,7 @@
     },
     "packages/agents": {
       "name": "@clinebot/agents",
-      "version": "0.0.12",
+      "version": "0.0.14",
       "dependencies": {
         "@clinebot/llms": "workspace:*",
         "@clinebot/shared": "workspace:*",
@@ -296,7 +295,7 @@
     },
     "packages/core": {
       "name": "@clinebot/core",
-      "version": "0.0.12",
+      "version": "0.0.14",
       "dependencies": {
         "@clinebot/agents": "workspace:*",
         "@clinebot/llms": "workspace:*",
@@ -310,7 +309,6 @@
         "@opentelemetry/sdk-logs": "^0.56.0",
         "@opentelemetry/sdk-metrics": "^1.30.1",
         "@opentelemetry/semantic-conventions": "^1.37.0",
-        "better-sqlite3": "^11.10.0",
         "jiti": "^1.21.7",
         "nanoid": "^5.1.7",
         "simple-git": "^3.32.3",
@@ -320,7 +318,7 @@
     },
     "packages/llms": {
       "name": "@clinebot/llms",
-      "version": "0.0.12",
+      "version": "0.0.14",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^4.0.67",
         "@ai-sdk/google-vertex": "^4.0.74",
@@ -348,7 +346,7 @@
     },
     "packages/rpc": {
       "name": "@clinebot/rpc",
-      "version": "0.0.12",
+      "version": "0.0.14",
       "dependencies": {
         "@clinebot/scheduler": "workspace:*",
         "@clinebot/shared": "workspace:*",
@@ -358,19 +356,21 @@
     },
     "packages/scheduler": {
       "name": "@clinebot/scheduler",
-      "version": "0.0.12",
+      "version": "0.0.14",
       "dependencies": {
         "@clinebot/shared": "workspace:*",
       },
     },
     "packages/shared": {
       "name": "@clinebot/shared",
-      "version": "0.0.12",
+      "version": "0.0.14",
       "dependencies": {
-        "better-sqlite3": "^11.10.0",
         "jsonrepair": "^3.13.2",
         "zod": "^4.3.6",
         "zod-to-json-schema": "^3.25.1",
+      },
+      "optionalDependencies": {
+        "better-sqlite3": "^12.8.0",
       },
     },
   },
@@ -1519,7 +1519,7 @@
 
     "baseline-browser-mapping": ["baseline-browser-mapping@2.10.9", "", { "bin": { "baseline-browser-mapping": "dist/cli.cjs" } }, "sha512-OZd0e2mU11ClX8+IdXe3r0dbqMEznRiT4TfbhYIbcRPZkqJ7Qwer8ij3GZAmLsRKa+II9V1v5czCkvmHH3XZBg=="],
 
-    "better-sqlite3": ["better-sqlite3@11.10.0", "", { "dependencies": { "bindings": "^1.5.0", "prebuild-install": "^7.1.1" } }, "sha512-EwhOpyXiOEL/lKzHz9AW1msWFNzGc/z+LzeB3/jnFJpxu+th2yqvzsSWas1v9jgs9+xiXJcD5A8CJxAG2TaghQ=="],
+    "better-sqlite3": ["better-sqlite3@12.8.0", "", { "dependencies": { "bindings": "^1.5.0", "prebuild-install": "^7.1.1" } }, "sha512-RxD2Vd96sQDjQr20kdP+F+dK/1OUNiVOl200vKBZY8u0vTwysfolF6Hq+3ZK2+h8My9YvZhHsF+RSGZW2VYrPQ=="],
 
     "bignumber.js": ["bignumber.js@9.3.1", "", {}, "sha512-Ko0uX15oIUS7wJ3Rb30Fs6SkVbLmPBAKdlm7q9+ak9bbIeFf0MwuBsQV6z7+X768/cHsfg+WlysDWJcmthjsjQ=="],
 
@@ -1575,7 +1575,7 @@
 
     "character-reference-invalid": ["character-reference-invalid@2.0.1", "", {}, "sha512-iBZ4F4wRbyORVsu0jPV7gXkOsGYjGHPmAyv+HiHG8gi5PtC9KI2j1+v8/tlibRvjoWX027ypmG/n0HtO5t7unw=="],
 
-    "chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
+    "chat": ["chat@4.22.0", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-fIcHcXIQsdBwEsdzOgpSQn/prLbfma4K4t8RtHss5ul62mb6NUxpc8gp8OU0/n3+jt8myq9kJenPuH5UPuu5jg=="],
 
     "chevrotain": ["chevrotain@11.1.2", "", { "dependencies": { "@chevrotain/cst-dts-gen": "11.1.2", "@chevrotain/gast": "11.1.2", "@chevrotain/regexp-to-ast": "11.1.2", "@chevrotain/types": "11.1.2", "@chevrotain/utils": "11.1.2", "lodash-es": "4.17.23" } }, "sha512-opLQzEVriiH1uUQ4Kctsd49bRoFDXGGSC4GUqj7pGyxM3RehRhvTlZJc1FL/Flew2p5uwxa1tUDWKzI4wNM8pg=="],
 
@@ -3045,9 +3045,17 @@
 
     "@babel/helper-create-class-features-plugin/semver": ["semver@6.3.1", "", { "bin": { "semver": "bin/semver.js" } }, "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA=="],
 
+    "@chat-adapter/gchat/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
+
     "@chat-adapter/linear/@chat-adapter/shared": ["@chat-adapter/shared@4.22.0", "", { "dependencies": { "chat": "4.22.0" } }, "sha512-nLdrq9IqQRkIvPyVtjZFcYGrFf+dNz+DhCYWyF3FpSnrPKhUjEMnOGfT3Ll3ET7Gg+uq5d1SpHs2d2NJe7YOjA=="],
 
-    "@chat-adapter/linear/chat": ["chat@4.22.0", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-fIcHcXIQsdBwEsdzOgpSQn/prLbfma4K4t8RtHss5ul62mb6NUxpc8gp8OU0/n3+jt8myq9kJenPuH5UPuu5jg=="],
+    "@chat-adapter/shared/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
+
+    "@chat-adapter/slack/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
+
+    "@chat-adapter/telegram/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
+
+    "@chat-adapter/whatsapp/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
 
     "@clinebot/code/typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
 
@@ -3272,6 +3280,8 @@
     "examples/@clinebot/core": ["@clinebot/core@0.0.6", "", { "dependencies": { "@clinebot/agents": "0.0.6", "@clinebot/llms": "0.0.6", "@opentelemetry/api": "^1.9.0", "@opentelemetry/api-logs": "^0.56.0", "@opentelemetry/exporter-logs-otlp-http": "^0.56.0", "@opentelemetry/exporter-metrics-otlp-http": "^0.56.0", "@opentelemetry/resources": "^1.30.1", "@opentelemetry/sdk-logs": "^0.56.0", "@opentelemetry/sdk-metrics": "^1.30.1", "@opentelemetry/semantic-conventions": "^1.37.0", "better-sqlite3": "^11.10.0", "nanoid": "^5.1.7", "simple-git": "^3.32.3", "yaml": "^2.8.2", "zod": "^4.3.6" } }, "sha512-PG2XdrpD4BEwyNFj0KyCPYasO9FAdgF+63ezGhdkZijHCCxaPWS5lnGEDbUqK5nDk7rlyCd9vxEw9scuTThA1Q=="],
 
     "examples/@clinebot/llms": ["@clinebot/llms@0.0.6", "", { "dependencies": { "@ai-sdk/amazon-bedrock": "^4.0.67", "@ai-sdk/google-vertex": "^4.0.74", "@ai-sdk/mistral": "^3.0.24", "@anthropic-ai/sdk": "^0.78.0", "@aws-sdk/credential-providers": "^3.922.0", "@google/genai": "^1.43.0", "@streamparser/json": "^0.0.21", "ai": "^6.0.112", "ai-sdk-provider-claude-code": "^3.4.3", "ai-sdk-provider-codex-cli": "^1.1.0", "ai-sdk-provider-opencode-sdk": "^2.1.2", "dify-ai-provider": "^1.1.0", "nanoid": "^5.1.7", "openai": "^6.25.0", "zod": "^4.3.6" }, "peerDependencies": { "@aws-sdk/client-bedrock-runtime": "^3.0.0" }, "optionalPeers": ["@aws-sdk/client-bedrock-runtime"] }, "sha512-ZY/xvrUpGVdQYj3bX7apisUj0kp3BxJ3llyrRpYXuPRU4mz04DPiZj8WRni5wFOWgoV8Zx5x9nTAk7wjsReuIw=="],
+
+    "examples/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
 
     "execa/is-stream": ["is-stream@4.0.1", "", {}, "sha512-Dnz92NInDqYckGEUJv689RbRiTSEHCQ7wOVeALbkOz999YpqT46yMRIGtSNl2iCL1waAZSx40+h59NV/EwzV/A=="],
 
@@ -3884,6 +3894,8 @@
     "d3-sankey/d3-shape/d3-path": ["d3-path@1.0.9", "", {}, "sha512-VLaYcn81dtHVTjEHd8B+pbe9yHWpXKZUC87PzoFmsFrJqgFwDe/qxfp5MlfsfM1V5E/iVt0MmEbWQ7FVIXh/bg=="],
 
     "eslint/chalk/ansi-styles": ["ansi-styles@4.3.0", "", { "dependencies": { "color-convert": "^2.0.1" } }, "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="],
+
+    "examples/@clinebot/core/better-sqlite3": ["better-sqlite3@11.10.0", "", { "dependencies": { "bindings": "^1.5.0", "prebuild-install": "^7.1.1" } }, "sha512-EwhOpyXiOEL/lKzHz9AW1msWFNzGc/z+LzeB3/jnFJpxu+th2yqvzsSWas1v9jgs9+xiXJcD5A8CJxAG2TaghQ=="],
 
     "execa/pretty-ms/parse-ms": ["parse-ms@4.0.0", "", {}, "sha512-TXfryirbmq34y8QBwgqCVLi+8oA3oWx2eAnSn62ITyEhEYaWRlVZ2DvMM9eZbMs/RfxPu/PK/aBLyGj4IrqMHw=="],
 

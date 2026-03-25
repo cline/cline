@@ -917,7 +917,7 @@ export const AgentConfigSchema = z.object({
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),
 	apiTimeoutMs: z.number().positive().default(120000),
-	maxConsecutiveMistakes: z.number().int().positive().default(3),
+	maxConsecutiveMistakes: z.number().int().positive().default(6),
 	userFileContentLoader: z
 		.function()
 		.input([z.string()])

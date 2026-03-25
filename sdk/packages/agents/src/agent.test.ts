@@ -419,7 +419,7 @@ describe("Agent", () => {
 		expect(recoverableErrors.length).toBeGreaterThanOrEqual(1);
 	});
 
-	it("uses the default consecutive mistake limit of 3 when config omits it", async () => {
+	it("uses the default consecutive mistake limit of 6 when config omits it", async () => {
 		const { Agent } = await import("./agent.js");
 		const handler = makeHandler([
 			[
@@ -448,7 +448,32 @@ describe("Agent", () => {
 			],
 			[
 				{ type: "text", id: "r4", text: "should not run" },
-				{ type: "done", id: "r4", success: true },
+				{
+					type: "done",
+					id: "r4",
+					success: false,
+					error: "upstream api timeout",
+				},
+			],
+			[
+				{
+					type: "done",
+					id: "r5",
+					success: false,
+					error: "upstream api timeout",
+				},
+			],
+			[
+				{
+					type: "done",
+					id: "r6",
+					success: false,
+					error: "upstream api timeout",
+				},
+			],
+			[
+				{ type: "text", id: "r7", text: "should not run" },
+				{ type: "done", id: "r7", success: true },
 			],
 		]);
 		createHandlerMock.mockReturnValue(handler);
@@ -461,7 +486,7 @@ describe("Agent", () => {
 		});
 
 		await expect(agent.run("retry")).rejects.toThrow("upstream api timeout");
-		expect(handler.createMessage).toHaveBeenCalledTimes(3);
+		expect(handler.createMessage).toHaveBeenCalledTimes(6);
 	});
 
 	it("fails immediately on non-recoverable API errors", async () => {
