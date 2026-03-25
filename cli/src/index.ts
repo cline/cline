@@ -27,6 +27,7 @@ import { isOpenaiReasoningEffort, OPENAI_REASONING_EFFORT_OPTIONS, type OpenaiRe
 import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
+import { KanbanMigrationView } from "./components/KanbanMigrationView"
 import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
@@ -34,7 +35,15 @@ import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
-import { KANBAN_LAUNCH_COMMAND, spawnKanbanProcess } from "./utils/kanban"
+import {
+	KANBAN_LAUNCH_COMMAND,
+	type KanbanMigrationAction,
+	LEGACY_TUI_FLAG,
+	markKanbanMigrationAnnouncementShown,
+	shouldLaunchKanbanByDefault,
+	shouldShowKanbanMigrationAnnouncementForCurrentUser,
+	spawnKanbanProcess,
+} from "./utils/kanban"
 import { addMcpServerShortcut, type McpAddOptions } from "./utils/mcp"
 import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
@@ -59,6 +68,7 @@ interface TaskOptions {
 	act?: boolean
 	plan?: boolean
 	kanban?: boolean
+	tui?: boolean
 	model?: string
 	verbose?: boolean
 	cwd?: string
@@ -251,8 +261,8 @@ function getPlainTextModeReason(options: TaskOptions): string {
 	return getModeSelection(options).reason
 }
 
-function runKanbanAlias(): void {
-	const child = spawnKanbanProcess()
+function runKanbanAlias(spawnOptions?: Parameters<typeof spawnKanbanProcess>[0]): void {
+	const child = spawnKanbanProcess(spawnOptions)
 
 	child.on("error", () => {
 		printWarning(`Failed to run '${KANBAN_LAUNCH_COMMAND}'. Make sure npx is installed and available in PATH.`)
@@ -262,6 +272,22 @@ function runKanbanAlias(): void {
 	child.on("close", (code) => {
 		exit(code ?? 1)
 	})
+}
+
+async function showKanbanMigrationView(): Promise<KanbanMigrationAction> {
+	let selectedAction: KanbanMigrationAction = "exit"
+
+	await runInkApp(
+		React.createElement(KanbanMigrationView, {
+			isRawModeSupported: checkRawModeSupport(),
+			onSelect: (action: KanbanMigrationAction) => {
+				selectedAction = action
+			},
+		}),
+		async () => {},
+	)
+
+	return selectedAction
 }
 
 async function addMcpServer(name: string, targetOrCommand: string[] = [], options: McpAddOptions): Promise<void> {
@@ -893,7 +919,10 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.action(() => checkForUpdates(CLI_VERSION))
 
-program.command("kanban").description(`Run ${KANBAN_LAUNCH_COMMAND}`).action(runKanbanAlias)
+program
+	.command("kanban")
+	.description(`Run ${KANBAN_LAUNCH_COMMAND}`)
+	.action(() => runKanbanAlias())
 
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")
@@ -1045,16 +1074,22 @@ program
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
 	.option("--kanban", `Run ${KANBAN_LAUNCH_COMMAND}`)
+	.option("--tui", "Open the legacy terminal UI instead of the kanban experience")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
 	.option("--continue", "Resume the most recent task from the current working directory")
 	.action(async (prompt, options) => {
+		if (options.kanban && options.tui) {
+			printWarning(`Use either --kanban or ${LEGACY_TUI_FLAG}, not both.`)
+			exit(1)
+		}
+
 		if (options.kanban) {
 			if (prompt) {
 				printWarning("Use --kanban without a prompt.")
 				exit(1)
 			}
 
-			runKanbanAlias()
+			runKanbanAlias({ cwd: options.cwd })
 			return
 		}
 
@@ -1077,6 +1112,34 @@ program
 		// stdinInput === "" means stdin was piped but empty
 		// stdinInput has content means stdin was piped with data
 		const stdinWasPiped = stdinInput !== null
+
+		if (
+			shouldLaunchKanbanByDefault({
+				prompt,
+				stdinWasPiped,
+				taskId: options.taskId,
+				continue: options.continue,
+				tui: options.tui,
+			})
+		) {
+			let migrationAction: "kanban" | "exit" = "kanban"
+			const ctx = await initializeCli({ ...options, enableAuth: true })
+			try {
+				if (await shouldShowKanbanMigrationAnnouncementForCurrentUser()) {
+					migrationAction = await showKanbanMigrationView()
+					await markKanbanMigrationAnnouncementShown()
+				}
+			} finally {
+				await disposeCliContext(ctx)
+			}
+
+			if (migrationAction === "exit") {
+				exit(0)
+			}
+
+			runKanbanAlias({ cwd: options.cwd })
+			return
+		}
 
 		if (options.taskId && options.continue) {
 			printWarning("Use either --taskId or --continue, not both.")

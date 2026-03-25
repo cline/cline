@@ -154,7 +154,6 @@ import { FileMentionMenu } from "./FileMentionMenu"
 import { HelpPanelContent } from "./HelpPanelContent"
 import { HighlightedInput } from "./HighlightedInput"
 import { HistoryPanelContent } from "./HistoryPanelContent"
-import { KanbanBanner } from "./KanbanBanner"
 import { providerModels } from "./ModelPicker"
 import { SettingsPanelContent } from "./SettingsPanelContent"
 import { SkillsPanelContent } from "./SkillsPanelContent"
@@ -1499,7 +1498,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 								<Text bold color="white">
 									{centerText("What can I do for you?")}
 								</Text>
-								<KanbanBanner />
 							</Box>
 						)
 					}
@@ -1523,7 +1521,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 						<Text bold color="white">
 							{centerText("What can I do for you?")}
 						</Text>
-						<KanbanBanner />
 					</Box>
 				)}
 
