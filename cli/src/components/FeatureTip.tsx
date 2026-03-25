@@ -63,6 +63,9 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 	{
 		text: "Use /skills to browse and attach reusable skill files that guide Cline's behavior.",
 	},
+	{
+		text: 'You can disable these tips in /settings → Features → "Feature tips".',
+	},
 ]
 
 const SHOW_DELAY_MS = 2000
