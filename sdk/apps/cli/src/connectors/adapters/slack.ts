@@ -1,10 +1,10 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
+import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
 import { resolveClineDataDir } from "@clinebot/core";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
-import { Chat, ConsoleLogger, type Thread } from "chat";
+import { type Adapter, Chat, ConsoleLogger, type Thread } from "chat";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
@@ -38,13 +38,16 @@ import {
 	readSessionReplyText,
 	stopConnectorSessions,
 } from "../session-runtime";
-import { InMemoryStateAdapter } from "../stores/memory-state";
+import { FileStateAdapter } from "../stores/file-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
 	type ConnectorBindingStore,
+	type ConnectorThreadBinding,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
 	findBindingForThread,
+	loadThreadState,
+	persistMergedThreadState,
 	readBindings,
 } from "../thread-bindings";
 import type {
@@ -53,21 +56,25 @@ import type {
 	ConnectStopResult,
 } from "../types";
 
-const WHATSAPP_SYSTEM_RULES = [
-	"Keep answers compact and optimized for a chat app unless the user asks for detail.",
-	"Prefer short paragraphs and concise lists suitable for WhatsApp.",
-	"When tools are disabled, explain limits briefly and ask for /tools if tool usage is required.",
+const SLACK_SYSTEM_RULES = [
+	"You are a helpful coding assistant that works in a VM while intergrated with Slack.",
+	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
+	"Keep answers compact and optimized for Slack unless the user asks for detail.",
+	"Use short paragraphs and concise lists that read cleanly in channel threads and DMs.",
 ].join("\n");
 
-type WhatsAppThreadState = ConnectorThreadState;
+type SlackThreadState = ConnectorThreadState & {
+	teamId?: string;
+};
 
-type ConnectWhatsAppOptions = {
+type ConnectSlackOptions = {
 	userName: string;
-	phoneNumberId?: string;
-	accessToken?: string;
-	appSecret?: string;
-	verifyToken?: string;
-	apiVersion?: string;
+	botToken?: string;
+	signingSecret?: string;
+	clientId?: string;
+	clientSecret?: string;
+	encryptionKey?: string;
+	installationKeyPrefix?: string;
 	cwd: string;
 	model?: string;
 	provider?: string;
@@ -84,10 +91,8 @@ type ConnectWhatsAppOptions = {
 	baseUrl: string;
 };
 
-type WhatsAppConnectorState = {
-	instanceKey: string;
+type SlackConnectorState = {
 	userName: string;
-	phoneNumberId?: string;
 	pid: number;
 	rpcAddress: string;
 	port: number;
@@ -99,48 +104,56 @@ function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
 }
 
-function resolveInstanceKey(input: {
-	phoneNumberId?: string;
-	userName: string;
-}): string {
-	return (input.phoneNumberId?.trim() || input.userName).replace(
-		/[^a-zA-Z0-9._-]+/g,
-		"_",
-	);
+function sanitizeKey(value: string): string {
+	return value.replace(/[^a-zA-Z0-9._-]+/g, "_");
 }
 
-function resolveConnectorStatePath(instanceKey: string): string {
+function resolveConnectorStatePath(userName: string): string {
 	return join(
 		resolveClineDataDir(),
 		"connectors",
-		"whatsapp",
-		`${instanceKey}.json`,
+		"slack",
+		`${sanitizeKey(userName)}.json`,
 	);
 }
 
-function resolveBindingsPath(instanceKey: string): string {
+function resolveBindingsPath(userName: string): string {
 	return join(
 		resolveClineDataDir(),
 		"connectors",
-		"whatsapp",
-		`${instanceKey}.threads.json`,
+		"slack",
+		`${sanitizeKey(userName)}.threads.json`,
+	);
+}
+
+function resolveStateStorePath(userName: string): string {
+	return join(
+		resolveClineDataDir(),
+		"connectors",
+		"slack",
+		`${sanitizeKey(userName)}.state.json`,
 	);
 }
 
 function listConnectorStatePaths(): string[] {
-	const dir = join(resolveClineDataDir(), "connectors", "whatsapp");
+	const dir = join(resolveClineDataDir(), "connectors", "slack");
 	if (!existsSync(dir)) {
 		return [];
 	}
 	return readdirSync(dir)
-		.filter((name) => name.endsWith(".json") && !name.endsWith(".threads.json"))
+		.filter(
+			(name) =>
+				name.endsWith(".json") &&
+				!name.endsWith(".threads.json") &&
+				!name.endsWith(".state.json"),
+		)
 		.map((name) => join(dir, name));
 }
 
 function readConnectorState(
 	statePath: string,
-): WhatsAppConnectorState | undefined {
-	const parsed = readJsonFile<WhatsAppConnectorState | undefined>(
+): SlackConnectorState | undefined {
+	const parsed = readJsonFile<SlackConnectorState | undefined>(
 		statePath,
 		undefined,
 	);
@@ -148,7 +161,6 @@ function readConnectorState(
 		!parsed ||
 		typeof parsed !== "object" ||
 		typeof parsed.pid !== "number" ||
-		typeof parsed.instanceKey !== "string" ||
 		typeof parsed.userName !== "string"
 	) {
 		return undefined;
@@ -158,7 +170,7 @@ function readConnectorState(
 
 function writeConnectorState(
 	statePath: string,
-	state: WhatsAppConnectorState,
+	state: SlackConnectorState,
 ): void {
 	writeJsonFile(statePath, state);
 }
@@ -167,25 +179,19 @@ function removeConnectorState(statePath: string): void {
 	removeFile(statePath);
 }
 
-async function stopSessionsForConnector(
-	state: WhatsAppConnectorState,
+async function stopSessionsForUser(
+	state: SlackConnectorState,
 ): Promise<number> {
 	return stopConnectorSessions({
 		rpcAddress: state.rpcAddress,
 		rpcMatcher: (metadata) =>
-			metadata?.transport === "whatsapp" &&
-			(state.phoneNumberId?.trim()
-				? metadata?.phoneNumberId === state.phoneNumberId.trim()
-				: metadata?.userName === state.userName),
+			metadata?.transport === "slack" && metadata?.userName === state.userName,
 		localMatcher: (metadata) =>
-			metadata?.transport === "whatsapp" &&
-			(state.phoneNumberId?.trim()
-				? metadata?.phoneNumberId === state.phoneNumberId.trim()
-				: metadata?.userName === state.userName),
+			metadata?.transport === "slack" && metadata?.userName === state.userName,
 	});
 }
 
-async function stopWhatsAppConnectorInstance(
+async function stopSlackConnectorInstance(
 	statePath: string,
 	io: ConnectIo,
 ): Promise<ConnectStopResult> {
@@ -197,30 +203,31 @@ async function stopWhatsAppConnectorInstance(
 	let stoppedProcesses = 0;
 	if (await terminateProcess(state.pid)) {
 		stoppedProcesses = 1;
-		io.writeln(
-			`[whatsapp] stopped pid=${state.pid} user=${state.userName}${state.phoneNumberId ? ` phone=${state.phoneNumberId}` : ""}`,
-		);
+		io.writeln(`[slack] stopped pid=${state.pid} user=${state.userName}`);
 	}
-	const stoppedSessions = await stopSessionsForConnector(state);
-	clearBindingSessionIds<WhatsAppThreadState>(
-		resolveBindingsPath(state.instanceKey),
-	);
+	const stoppedSessions = await stopSessionsForUser(state);
+	clearBindingSessionIds<SlackThreadState>(resolveBindingsPath(state.userName));
 	removeConnectorState(statePath);
 	return { stoppedProcesses, stoppedSessions };
 }
 
-function showConnectWhatsAppHelp(io: ConnectIo): void {
+function showConnectSlackHelp(io: ConnectIo): void {
 	io.writeln("Usage:");
-	io.writeln("  clite connect whatsapp --base-url <PUBLIC_BASE_URL> [options]");
+	io.writeln("  clite connect slack --base-url <PUBLIC_BASE_URL> [options]");
 	io.writeln("");
 	io.writeln("Options:");
-	io.writeln("  --user-name <name>          WhatsApp bot username label");
-	io.writeln("  --phone-number-id <id>      WhatsApp Business phone number id");
-	io.writeln("  --access-token <token>      Meta access token");
-	io.writeln("  --app-secret <secret>       Meta app secret");
-	io.writeln("  --verify-token <token>      Webhook verify token");
+	io.writeln("  --user-name <name>          Slack bot username label");
 	io.writeln(
-		"  --api-version <version>     Graph API version (default: v21.0)",
+		"  --bot-token <token>         Slack bot token for single-workspace mode",
+	);
+	io.writeln("  --signing-secret <secret>   Slack signing secret");
+	io.writeln("  --client-id <id>            Slack OAuth client id");
+	io.writeln("  --client-secret <secret>    Slack OAuth client secret");
+	io.writeln(
+		"  --encryption-key <key>      Base64 32-byte key for encrypted installations",
+	);
+	io.writeln(
+		"  --installation-key-prefix <prefix> Override stored installation key prefix",
 	);
 	io.writeln("  --provider <id>             Provider override");
 	io.writeln("  --model <id>                Model override");
@@ -230,9 +237,7 @@ function showConnectWhatsAppHelp(io: ConnectIo): void {
 	io.writeln("  --mode <act|plan>           Agent mode (default: act)");
 	io.writeln("  -i, --interactive           Keep connector in foreground");
 	io.writeln("  --max-iterations <n>        Optional max iterations");
-	io.writeln(
-		"  --enable-tools              Enable tools for WhatsApp sessions",
-	);
+	io.writeln("  --enable-tools              Enable tools for Slack sessions");
 	io.writeln(
 		"  --hook-command <command>    Run a shell command for connector events",
 	);
@@ -246,20 +251,20 @@ function showConnectWhatsAppHelp(io: ConnectIo): void {
 		"  --port <port>               Webhook listen port (default: 8787)",
 	);
 	io.writeln(
-		"  --base-url <url>            Public base URL for webhook configuration",
+		"  --base-url <url>            Public base URL for webhooks and OAuth callback",
 	);
 	io.writeln("");
 	io.writeln("Environment:");
-	io.writeln("  WHATSAPP_ACCESS_TOKEN       Meta access token");
-	io.writeln("  WHATSAPP_APP_SECRET         Meta app secret");
-	io.writeln("  WHATSAPP_PHONE_NUMBER_ID    WhatsApp Business phone number id");
-	io.writeln("  WHATSAPP_VERIFY_TOKEN       Webhook verification token");
-	io.writeln("  WHATSAPP_BOT_USERNAME       Bot username label");
+	io.writeln("  SLACK_BOT_TOKEN             Single-workspace bot token");
+	io.writeln("  SLACK_SIGNING_SECRET        Slack signing secret");
+	io.writeln("  SLACK_CLIENT_ID             OAuth client id");
+	io.writeln("  SLACK_CLIENT_SECRET         OAuth client secret");
+	io.writeln(
+		"  SLACK_ENCRYPTION_KEY        Optional installation encryption key",
+	);
 }
 
-function parseConnectWhatsAppArgs(
-	connectArgs: string[],
-): ConnectWhatsAppOptions {
+function parseConnectSlackArgs(connectArgs: string[]): ConnectSlackOptions {
 	if (
 		parseBooleanFlag(connectArgs, "-h") ||
 		parseBooleanFlag(connectArgs, "--help")
@@ -285,21 +290,26 @@ function parseConnectWhatsAppArgs(
 	return {
 		userName:
 			parseStringFlag(connectArgs, "", "--user-name") ||
-			process.env.WHATSAPP_BOT_USERNAME?.trim() ||
-			"whatsapp-bot",
-		phoneNumberId:
-			parseStringFlag(connectArgs, "", "--phone-number-id") ||
-			process.env.WHATSAPP_PHONE_NUMBER_ID?.trim(),
-		accessToken:
-			parseStringFlag(connectArgs, "", "--access-token") ||
-			process.env.WHATSAPP_ACCESS_TOKEN?.trim(),
-		appSecret:
-			parseStringFlag(connectArgs, "", "--app-secret") ||
-			process.env.WHATSAPP_APP_SECRET?.trim(),
-		verifyToken:
-			parseStringFlag(connectArgs, "", "--verify-token") ||
-			process.env.WHATSAPP_VERIFY_TOKEN?.trim(),
-		apiVersion: parseStringFlag(connectArgs, "", "--api-version") || "v21.0",
+			process.env.SLACK_BOT_USERNAME?.trim() ||
+			"cline-slack",
+		botToken:
+			parseStringFlag(connectArgs, "", "--bot-token") ||
+			process.env.SLACK_BOT_TOKEN?.trim(),
+		signingSecret:
+			parseStringFlag(connectArgs, "", "--signing-secret") ||
+			process.env.SLACK_SIGNING_SECRET?.trim(),
+		clientId:
+			parseStringFlag(connectArgs, "", "--client-id") ||
+			process.env.SLACK_CLIENT_ID?.trim(),
+		clientSecret:
+			parseStringFlag(connectArgs, "", "--client-secret") ||
+			process.env.SLACK_CLIENT_SECRET?.trim(),
+		encryptionKey:
+			parseStringFlag(connectArgs, "", "--encryption-key") ||
+			process.env.SLACK_ENCRYPTION_KEY?.trim(),
+		installationKeyPrefix:
+			parseStringFlag(connectArgs, "", "--installation-key-prefix") ||
+			process.env.SLACK_INSTALLATION_KEY_PREFIX?.trim(),
 		cwd: parseStringFlag(connectArgs, "", "--cwd") || process.cwd(),
 		model: parseStringFlag(connectArgs, "", "--model"),
 		provider: parseStringFlag(connectArgs, "", "--provider"),
@@ -327,32 +337,89 @@ function parseConnectWhatsAppArgs(
 	};
 }
 
-async function buildWhatsAppStartRequest(
-	options: ConnectWhatsAppOptions,
+async function buildSlackStartRequest(
+	options: ConnectSlackOptions,
 	io: ConnectIo,
 	loggerConfig: Parameters<
 		typeof buildConnectorStartRequest
 	>[0]["loggerConfig"],
 ): Promise<RpcChatStartSessionRequest> {
-	const instanceKey = resolveInstanceKey({
-		phoneNumberId: options.phoneNumberId,
-		userName: options.userName,
-	});
 	return buildConnectorStartRequest({
 		options,
 		io,
 		loggerConfig,
-		systemRules: WHATSAPP_SYSTEM_RULES,
-		teamName: `whatsapp-${instanceKey.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
+		systemRules: SLACK_SYSTEM_RULES,
+		teamName: `slack-${options.userName.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
+}
+
+function extractSlackTeamId(raw: unknown): string | undefined {
+	if (!raw || typeof raw !== "object") {
+		return undefined;
+	}
+	const record = raw as Record<string, unknown>;
+	const value =
+		typeof record.team_id === "string"
+			? record.team_id
+			: typeof record.team === "string"
+				? record.team
+				: undefined;
+	return value?.trim() || undefined;
+}
+
+async function withSlackBindingBotToken<T>(input: {
+	slack: SlackAdapter;
+	binding: ConnectorThreadBinding<SlackThreadState>;
+	work: () => Promise<T>;
+}): Promise<T> {
+	const teamId = input.binding.state?.teamId?.trim();
+	if (!teamId) {
+		return input.work();
+	}
+	const installation = await input.slack.getInstallation(teamId);
+	if (!installation?.botToken) {
+		return input.work();
+	}
+	return input.slack.withBotToken(installation.botToken, input.work);
+}
+
+async function persistSlackThreadContext(input: {
+	thread: Thread<SlackThreadState>;
+	bindingsPath: string;
+	baseStartRequest: RpcChatStartSessionRequest;
+	rawMessage: unknown;
+	errorLabel: string;
+}): Promise<void> {
+	const teamId = extractSlackTeamId(input.rawMessage);
+	if (!teamId) {
+		return;
+	}
+	const currentState = await loadThreadState(
+		input.thread,
+		input.bindingsPath,
+		input.baseStartRequest,
+	);
+	if (currentState.teamId === teamId) {
+		return;
+	}
+	await persistMergedThreadState(
+		input.thread,
+		input.bindingsPath,
+		{
+			...currentState,
+			teamId,
+		},
+		input.errorLabel,
+	);
 }
 
 async function deliverScheduledResult(input: {
 	bot: Chat;
+	slack: SlackAdapter;
 	client: RpcSessionClient;
 	logger: CliLoggerAdapter;
 	bindingsPath: string;
-	options: ConnectWhatsAppOptions;
+	userName: string;
 	scheduleId: string;
 	executionId: string;
 	sessionId?: string;
@@ -364,23 +431,12 @@ async function deliverScheduledResult(input: {
 	const delivery = schedule?.metadata?.delivery as
 		| Record<string, unknown>
 		| undefined;
-	if (!delivery || delivery.adapter !== "whatsapp") {
+	if (!delivery || delivery.adapter !== "slack") {
 		return;
 	}
-	const targetPhoneNumberId =
-		typeof delivery.phoneNumberId === "string"
-			? delivery.phoneNumberId.trim()
-			: "";
-	if (
-		targetPhoneNumberId &&
-		input.options.phoneNumberId?.trim() &&
-		targetPhoneNumberId !== input.options.phoneNumberId.trim()
-	) {
-		return;
-	}
-	const targetUserName =
+	const targetUser =
 		typeof delivery.userName === "string" ? delivery.userName.trim() : "";
-	if (targetUserName && targetUserName !== input.options.userName) {
+	if (targetUser && targetUser !== input.userName) {
 		return;
 	}
 	const threadId =
@@ -388,16 +444,14 @@ async function deliverScheduledResult(input: {
 	if (!threadId) {
 		return;
 	}
-	const binding = readBindings<WhatsAppThreadState>(input.bindingsPath)[
-		threadId
-	];
+	const binding = readBindings<SlackThreadState>(input.bindingsPath)[threadId];
 	if (!binding?.serializedThread) {
 		return;
 	}
 	const thread = JSON.parse(
 		binding.serializedThread,
 		input.bot.reviver(),
-	) as Thread<WhatsAppThreadState>;
+	) as Thread<SlackThreadState>;
 	let body = "";
 	if (input.status === "success" && input.sessionId) {
 		const text = await readSessionReplyText(input.client, input.sessionId);
@@ -407,134 +461,127 @@ async function deliverScheduledResult(input: {
 	} else {
 		body = `Schedule "${schedule?.name ?? input.scheduleId}" ${input.status}.${input.errorMessage ? `\n\n${input.errorMessage}` : ""}`;
 	}
-	await thread.post(body);
+	await withSlackBindingBotToken({
+		slack: input.slack,
+		binding,
+		work: () => thread.post(body).then(() => undefined),
+	});
 }
 
-async function runConnectWhatsAppCommand(
+async function runConnectSlackCommand(
 	rawArgs: string[],
 	io: ConnectIo,
 ): Promise<number> {
-	let options: ConnectWhatsAppOptions;
+	let options: ConnectSlackOptions;
 	try {
-		options = parseConnectWhatsAppArgs(rawArgs);
+		options = parseConnectSlackArgs(rawArgs);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		if (message === "__SHOW_HELP__") {
-			showConnectWhatsAppHelp(io);
+			showConnectSlackHelp(io);
 			return 0;
 		}
 		io.writeErr(message);
 		return 1;
 	}
 
-	const instanceKey = resolveInstanceKey({
-		phoneNumberId: options.phoneNumberId,
-		userName: options.userName,
-	});
-	const statePath = resolveConnectorStatePath(instanceKey);
-	const bindingsPath = resolveBindingsPath(instanceKey);
+	const statePath = resolveConnectorStatePath(options.userName);
+	const bindingsPath = resolveBindingsPath(options.userName);
+	const stateStorePath = resolveStateStorePath(options.userName);
 	const existingState = readConnectorState(statePath);
 	if (existingState && !isProcessRunning(existingState.pid)) {
 		removeConnectorState(statePath);
 	}
-	if (
-		!options.interactive &&
-		process.env.CLINE_WHATSAPP_CONNECT_CHILD !== "1"
-	) {
+	if (!options.interactive && process.env.CLINE_SLACK_CONNECT_CHILD !== "1") {
 		const runningState = readConnectorState(statePath);
 		if (runningState && isProcessRunning(runningState.pid)) {
 			io.writeln(
-				`[whatsapp] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress} url=${runningState.baseUrl}`,
+				`[slack] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress} url=${runningState.baseUrl}`,
 			);
 			return 0;
 		}
 		const pid = spawnDetachedConnector(
-			["connect", "whatsapp"],
+			["connect", "slack"],
 			rawArgs,
-			"CLINE_WHATSAPP_CONNECT_CHILD",
+			"CLINE_SLACK_CONNECT_CHILD",
 		);
 		if (!pid) {
-			io.writeErr("failed to launch WhatsApp connector in background");
+			io.writeErr("failed to launch Slack connector in background");
 			return 1;
 		}
 		io.writeln(
-			`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
+			`[slack] starting background connector pid=${pid} user=${options.userName}`,
 		);
 		io.writeln(
-			"[whatsapp] use `clite connect whatsapp -i ...` to run in the foreground",
+			"[slack] use `clite connect slack -i ...` to run in the foreground",
 		);
 		return 0;
 	}
 
 	const loggerAdapter = createCliLoggerAdapter({
 		runtime: "cli",
-		component: "whatsapp-connect",
+		component: "slack-connect",
 	});
 	const logger = createChatSdkLogger(loggerAdapter);
-	const consoleLogger = new ConsoleLogger("info", "whatsapp-connect");
-	const whatsappConfig: Record<string, unknown> = {
+	const consoleLogger = new ConsoleLogger("info", "slack-connect");
+	const slackConfig: Record<string, unknown> = {
 		logger: consoleLogger,
 		userName: options.userName,
 	};
-	if (options.accessToken?.trim()) {
-		whatsappConfig.accessToken = options.accessToken.trim();
+	if (options.botToken?.trim()) {
+		slackConfig.botToken = options.botToken.trim();
 	}
-	if (options.appSecret?.trim()) {
-		whatsappConfig.appSecret = options.appSecret.trim();
+	if (options.signingSecret?.trim()) {
+		slackConfig.signingSecret = options.signingSecret.trim();
 	}
-	if (options.phoneNumberId?.trim()) {
-		whatsappConfig.phoneNumberId = options.phoneNumberId.trim();
+	if (options.clientId?.trim()) {
+		slackConfig.clientId = options.clientId.trim();
 	}
-	if (options.verifyToken?.trim()) {
-		whatsappConfig.verifyToken = options.verifyToken.trim();
+	if (options.clientSecret?.trim()) {
+		slackConfig.clientSecret = options.clientSecret.trim();
 	}
-	if (options.apiVersion?.trim()) {
-		whatsappConfig.apiVersion = options.apiVersion.trim();
+	if (options.encryptionKey?.trim()) {
+		slackConfig.encryptionKey = options.encryptionKey.trim();
 	}
-	const whatsapp = createWhatsAppAdapter(whatsappConfig);
+	if (options.installationKeyPrefix?.trim()) {
+		slackConfig.installationKeyPrefix = options.installationKeyPrefix.trim();
+	}
+	const slack = createSlackAdapter(slackConfig) as SlackAdapter;
 	const bot = new Chat({
 		userName: options.userName,
-		adapters: { whatsapp },
-		state: new InMemoryStateAdapter(),
+		adapters: { slack: slack as unknown as Adapter },
+		state: new FileStateAdapter(stateStorePath),
 		logger,
 		fallbackStreamingPlaceholderText: null,
 		streamingUpdateIntervalMs: 500,
 	}).registerSingleton();
 	const threadQueues = new Map<string, Promise<void>>();
 	const pendingApprovals = new Map<string, PendingConnectorApproval>();
-	const startRequest = await buildWhatsAppStartRequest(options, io, {
+	const startRequest = await buildSlackStartRequest(options, io, {
 		enabled: loggerAdapter.runtimeConfig.enabled,
 		level: loggerAdapter.runtimeConfig.level,
 		destination: loggerAdapter.runtimeConfig.destination,
 		bindings: {
-			transport: "whatsapp",
+			transport: "slack",
 			userName: options.userName,
-			...(options.phoneNumberId
-				? { phoneNumberId: options.phoneNumberId }
-				: {}),
 		},
 	});
 	const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
 	process.env.CLINE_RPC_ADDRESS = rpcAddress;
 
-	const clientId = `whatsapp-${process.pid}-${Date.now()}`;
+	const clientId = `slack-${process.pid}-${Date.now()}`;
 	await registerRpcClient(rpcAddress, {
 		clientId,
 		clientType: "cli",
 		metadata: {
-			transport: "whatsapp",
+			transport: "slack",
 			userName: options.userName,
-			...(options.phoneNumberId
-				? { phoneNumberId: options.phoneNumberId }
-				: {}),
 		},
 	}).catch(() => undefined);
 
 	const client = new RpcSessionClient({ address: rpcAddress });
 	writeConnectorState(statePath, {
-		instanceKey,
 		userName: options.userName,
-		phoneNumberId: options.phoneNumberId,
 		pid: process.pid,
 		rpcAddress,
 		port: options.port,
@@ -555,10 +602,7 @@ async function runConnectWhatsAppCommand(
 		resolveStop?.();
 	};
 
-	const handleTurn = async (
-		thread: Thread<WhatsAppThreadState>,
-		text: string,
-	) => {
+	const handleTurn = async (thread: Thread<SlackThreadState>, text: string) => {
 		await enqueueThreadTurn(threadQueues, thread.id, async () => {
 			try {
 				await handleConnectorUserTurn({
@@ -570,26 +614,25 @@ async function runConnectWhatsAppCommand(
 					explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
 					clientId,
 					logger: loggerAdapter,
-					transport: "whatsapp",
+					transport: "slack",
 					botUserName: options.userName,
 					requestStop,
 					bindingsPath,
 					hookCommand: options.hookCommand,
-					systemRules: WHATSAPP_SYSTEM_RULES,
-					errorLabel: "WhatsApp",
+					systemRules: SLACK_SYSTEM_RULES,
+					errorLabel: "Slack",
 					getSessionMetadata: (currentThread) => ({
 						userName: options.userName,
-						phoneNumberId: options.phoneNumberId,
-						whatsappThreadId: currentThread.id,
-						whatsappChannelId: currentThread.channelId,
+						slackThreadId: currentThread.id,
+						slackChannelId: currentThread.channelId,
 					}),
-					reusedLogMessage: "WhatsApp thread reusing RPC session",
-					startedLogMessage: "WhatsApp thread started RPC session",
+					reusedLogMessage: "Slack thread reusing RPC session",
+					startedLogMessage: "Slack thread started RPC session",
 					onMessageReceived: async (details) => {
 						await dispatchConnectorHook(
 							options.hookCommand,
 							{
-								adapter: "whatsapp",
+								adapter: "slack",
 								botUserName: options.userName,
 								event: "message.received",
 								payload: details,
@@ -602,7 +645,7 @@ async function runConnectWhatsAppCommand(
 						await dispatchConnectorHook(
 							options.hookCommand,
 							{
-								adapter: "whatsapp",
+								adapter: "slack",
 								botUserName: options.userName,
 								event: "message.completed",
 								payload: {
@@ -622,7 +665,7 @@ async function runConnectWhatsAppCommand(
 						await dispatchConnectorHook(
 							options.hookCommand,
 							{
-								adapter: "whatsapp",
+								adapter: "slack",
 								botUserName: options.userName,
 								event: "message.failed",
 								payload: {
@@ -638,13 +681,20 @@ async function runConnectWhatsAppCommand(
 				});
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				await thread.post(`WhatsApp bridge error: ${message}`);
+				await thread.post(`Slack bridge error: ${message}`);
 			}
 		});
 	};
 
 	bot.onNewMention(async (thread, message) => {
 		await thread.subscribe();
+		await persistSlackThreadContext({
+			thread,
+			bindingsPath,
+			baseStartRequest: startRequest,
+			rawMessage: message.raw,
+			errorLabel: "Slack",
+		});
 		if (
 			await maybeHandleConnectorApprovalReply({
 				thread,
@@ -652,7 +702,7 @@ async function runConnectWhatsAppCommand(
 				client,
 				clientId,
 				pendingApprovals,
-				deniedReason: "Denied by WhatsApp user",
+				deniedReason: "Denied by Slack user",
 			})
 		) {
 			return;
@@ -661,6 +711,13 @@ async function runConnectWhatsAppCommand(
 	});
 
 	bot.onSubscribedMessage(async (thread, message) => {
+		await persistSlackThreadContext({
+			thread,
+			bindingsPath,
+			baseStartRequest: startRequest,
+			rawMessage: message.raw,
+			errorLabel: "Slack",
+		});
 		if (
 			await maybeHandleConnectorApprovalReply({
 				thread,
@@ -668,7 +725,7 @@ async function runConnectWhatsAppCommand(
 				client,
 				clientId,
 				pendingApprovals,
-				deniedReason: "Denied by WhatsApp user",
+				deniedReason: "Denied by Slack user",
 			})
 		) {
 			return;
@@ -677,29 +734,59 @@ async function runConnectWhatsAppCommand(
 	});
 
 	await bot.initialize();
-	const stopTaskUpdateStream =
-		startConnectorTaskUpdateRelay<WhatsAppThreadState>({
-			client,
-			clientId,
-			bot,
-			logger: loggerAdapter,
-			bindingsPath,
-			transport: "whatsapp",
-		});
+	const stopTaskUpdateStream = startConnectorTaskUpdateRelay<SlackThreadState>({
+		client,
+		clientId,
+		bot,
+		logger: loggerAdapter,
+		bindingsPath,
+		transport: "slack",
+		postToThread: async ({ thread, binding, body }) => {
+			await withSlackBindingBotToken({
+				slack,
+				binding,
+				work: () => thread.post(body).then(() => undefined),
+			});
+		},
+	});
 
-	const endpointUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/whatsapp`;
+	const webhookUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/slack`;
+	const oauthCallbackUrl = `${options.baseUrl.replace(/\/$/, "")}/api/oauth/slack/callback`;
 	const server = await startConnectorWebhookServer({
 		host: options.host,
 		port: options.port,
 		routes: {
-			"/api/webhooks/whatsapp": async (request) =>
-				whatsapp.handleWebhook(request),
+			"/api/webhooks/slack": async (request) => bot.webhooks.slack(request),
+			"/api/oauth/slack/callback": async (request) => {
+				try {
+					const result = await slack.handleOAuthCallback(request);
+					return new Response(
+						`Slack installation stored for team ${result.teamId}. You can return to Slack.`,
+					);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					loggerAdapter.core.warn?.("Slack OAuth callback failed", {
+						transport: "slack",
+						error: message,
+					});
+					return new Response(`Slack OAuth error: ${message}`, {
+						status: 500,
+					});
+				}
+			},
 			"/health": () => new Response("ok"),
 			"/": () =>
 				new Response(
 					[
-						"WhatsApp connector is running.",
-						`Webhook URL: ${endpointUrl}`,
+						"Slack connector is running.",
+						`Webhook URL: ${webhookUrl}`,
+						`OAuth callback URL: ${oauthCallbackUrl}`,
+						options.botToken?.trim()
+							? "Auth mode: single workspace"
+							: options.clientId?.trim() && options.clientSecret?.trim()
+								? "Auth mode: multi-workspace OAuth"
+								: "Auth mode: incomplete (set bot token or OAuth credentials)",
 					].join("\n"),
 				),
 		},
@@ -741,10 +828,11 @@ async function runConnectWhatsAppCommand(
 				}
 				void deliverScheduledResult({
 					bot,
+					slack,
 					client,
 					logger: loggerAdapter,
 					bindingsPath,
-					options,
+					userName: options.userName,
 					scheduleId,
 					executionId,
 					sessionId,
@@ -762,8 +850,9 @@ async function runConnectWhatsAppCommand(
 	process.once("SIGINT", () => requestStop("sigint"));
 	process.once("SIGTERM", () => requestStop("sigterm"));
 
-	io.writeln(`[whatsapp] listening on ${options.host}:${options.port}`);
-	io.writeln(`[whatsapp] configure WhatsApp webhook URL: ${endpointUrl}`);
+	io.writeln(`[slack] listening on ${options.host}:${options.port}`);
+	io.writeln(`[slack] configure Slack webhook URL: ${webhookUrl}`);
+	io.writeln(`[slack] configure Slack OAuth callback URL: ${oauthCallbackUrl}`);
 
 	await stopPromise;
 	stopTaskUpdateStream();
@@ -774,31 +863,30 @@ async function runConnectWhatsAppCommand(
 	return 0;
 }
 
-async function stopAllWhatsAppConnectors(
+async function stopAllSlackConnectors(
 	io: ConnectIo,
 ): Promise<ConnectStopResult> {
 	let stoppedProcesses = 0;
 	let stoppedSessions = 0;
 	for (const statePath of listConnectorStatePaths()) {
-		const result = await stopWhatsAppConnectorInstance(statePath, io);
+		const result = await stopSlackConnectorInstance(statePath, io);
 		stoppedProcesses += result.stoppedProcesses;
 		stoppedSessions += result.stoppedSessions;
 	}
 	return { stoppedProcesses, stoppedSessions };
 }
 
-export const whatsappConnector: ConnectCommandDefinition = {
-	name: "whatsapp",
-	description:
-		"WhatsApp Business webhook bridge backed by RPC runtime sessions",
-	run: runConnectWhatsAppCommand,
-	showHelp: showConnectWhatsAppHelp,
-	stopAll: stopAllWhatsAppConnectors,
+export const slackConnector: ConnectCommandDefinition = {
+	name: "slack",
+	description: "Slack webhook bridge backed by RPC runtime sessions",
+	run: runConnectSlackCommand,
+	showHelp: showConnectSlackHelp,
+	stopAll: stopAllSlackConnectors,
 };
 
 export const __test__ = {
 	findBindingForThread: (
-		bindings: ConnectorBindingStore<WhatsAppThreadState>,
-		thread: Pick<Thread<WhatsAppThreadState>, "id" | "channelId" | "isDM">,
+		bindings: ConnectorBindingStore<SlackThreadState>,
+		thread: Pick<Thread<SlackThreadState>, "id" | "channelId" | "isDM">,
 	) => findBindingForThread(bindings, thread),
 };

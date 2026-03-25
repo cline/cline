@@ -11,7 +11,6 @@ import { createCliLoggerAdapter } from "../../logging/adapter";
 import {
 	createChatSdkLogger,
 	enqueueThreadTurn,
-	InMemoryStateAdapter,
 	startConnectorWebhookServer,
 } from "../chat-runtime";
 import {
@@ -39,6 +38,7 @@ import {
 	readSessionReplyText,
 	stopConnectorSessions,
 } from "../session-runtime";
+import { InMemoryStateAdapter } from "../stores/memory-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
 	type ConnectorBindingStore,

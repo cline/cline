@@ -142,6 +142,12 @@ export function startConnectorTaskUpdateRelay<
 	logger: CliLoggerAdapter;
 	bindingsPath: string;
 	transport: string;
+	postToThread?: (input: {
+		thread: Thread<TState>;
+		binding: ConnectorThreadBinding<TState>;
+		threadId: string;
+		body: string;
+	}) => Promise<void>;
 }): () => void {
 	const lastSentBySession = new Map<string, string>();
 
@@ -169,7 +175,16 @@ export function startConnectorTaskUpdateRelay<
 				match.binding.serializedThread,
 				input.bot.reviver(),
 			) as Thread<TState>;
-			await thread.post(body);
+			if (input.postToThread) {
+				await input.postToThread({
+					thread,
+					binding: match.binding,
+					threadId: match.threadId,
+					body,
+				});
+			} else {
+				await thread.post(body);
+			}
 			input.logger.core.info?.("Connector task update sent", {
 				transport: input.transport,
 				threadId: match.threadId,

@@ -8,11 +8,7 @@ import { Chat, ConsoleLogger, type Thread } from "chat";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
-import {
-	createChatSdkLogger,
-	enqueueThreadTurn,
-	InMemoryStateAdapter,
-} from "../chat-runtime";
+import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
 import {
 	isProcessRunning,
 	parseBooleanFlag,
@@ -38,6 +34,7 @@ import {
 	readSessionReplyText,
 	stopConnectorSessions,
 } from "../session-runtime";
+import { InMemoryStateAdapter } from "../stores/memory-state";
 import { startConnectorTaskUpdateRelay } from "../task-updates";
 import {
 	type ConnectorBindingStore,
