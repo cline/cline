@@ -1,0 +1,183 @@
+/**
+ * Config & Signal Helpers
+ *
+ * Provider configuration resolution, abort signal management,
+ * and API timeout utilities for the Agent class.
+ */
+
+import { LlmsProviders } from "@clinebot/llms";
+import type { AgentConfig, BasicLogger } from "./types.js";
+
+// =============================================================================
+// Provider Config Resolution
+// =============================================================================
+
+export function resolveKnownModelsFromConfig(
+	config: AgentConfig,
+): Record<string, LlmsProviders.ModelInfo> | undefined {
+	if (config.providerConfig?.knownModels) {
+		return config.providerConfig.knownModels;
+	}
+	if (config.knownModels) {
+		return config.knownModels;
+	}
+
+	try {
+		const providerConfig = LlmsProviders.toProviderConfig({
+			provider: config.providerId,
+			model: config.modelId,
+			apiKey: config.apiKey,
+			baseUrl: config.baseUrl,
+			headers: config.headers,
+		});
+		return providerConfig.knownModels;
+	} catch {
+		return undefined;
+	}
+}
+
+export function createHandlerFromConfig(
+	config: AgentConfig,
+	logger: BasicLogger | undefined,
+): LlmsProviders.ApiHandler {
+	const baseProviderConfig =
+		config.providerConfig?.providerId === config.providerId
+			? config.providerConfig
+			: undefined;
+	const normalizedProviderConfig: LlmsProviders.ProviderConfig = {
+		...(baseProviderConfig ?? {}),
+		providerId: config.providerId,
+		modelId: config.modelId,
+		apiKey: config.apiKey ?? baseProviderConfig?.apiKey,
+		baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
+		headers: config.headers ?? baseProviderConfig?.headers,
+		knownModels: resolveKnownModelsFromConfig(config),
+		maxOutputTokens: config.maxTokensPerTurn,
+		reasoningEffort: config.reasoningEffort,
+		thinkingBudgetTokens: config.thinkingBudgetTokens,
+		thinking: config.thinking,
+		abortSignal: config.abortSignal,
+		logger: logger
+			? {
+					debug: (message, metadata) => {
+						logger.debug?.(message, metadata);
+					},
+					warn: (message, metadata) => {
+						logger.warn?.(message, metadata);
+					},
+				}
+			: undefined,
+	};
+	return LlmsProviders.createHandler(normalizedProviderConfig);
+}
+
+// =============================================================================
+// Abort Signal Utilities
+// =============================================================================
+
+export function serializeAbortReason(reason: unknown): unknown {
+	if (reason instanceof Error) {
+		return {
+			name: reason.name,
+			message: reason.message,
+			stack: reason.stack,
+		};
+	}
+	return reason;
+}
+
+export function createApiTimeoutSignal(
+	timeoutMs: number,
+): AbortSignal | undefined {
+	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+		return undefined;
+	}
+
+	const abortSignalCtor = AbortSignal as unknown as {
+		timeout?: (milliseconds: number) => AbortSignal;
+	};
+	if (abortSignalCtor.timeout) {
+		return abortSignalCtor.timeout(timeoutMs);
+	}
+
+	const controller = new AbortController();
+	setTimeout(() => {
+		controller.abort(new Error(`API request timed out after ${timeoutMs}ms`));
+	}, timeoutMs);
+	return controller.signal;
+}
+
+export function mergeAbortSignals(
+	...signals: (AbortSignal | undefined)[]
+): AbortSignal {
+	const activeSignals = signals.filter(
+		(signal): signal is AbortSignal => !!signal,
+	);
+	if (activeSignals.length === 0) {
+		return new AbortController().signal;
+	}
+	if (activeSignals.length === 1) {
+		return activeSignals[0];
+	}
+
+	const abortSignalCtor = AbortSignal as unknown as {
+		any?: (signals: AbortSignal[]) => AbortSignal;
+	};
+	if (abortSignalCtor.any) {
+		return abortSignalCtor.any(activeSignals);
+	}
+
+	const controller = new AbortController();
+	for (const signal of activeSignals) {
+		if (signal.aborted) {
+			controller.abort(signal.reason);
+			break;
+		}
+		signal.addEventListener("abort", () => controller.abort(signal.reason), {
+			once: true,
+		});
+	}
+	return controller.signal;
+}
+
+export function observeAbortSignal(
+	signal: AbortSignal | undefined,
+	source: string,
+	runId: string,
+	context: {
+		agentId: string;
+		getConversationId: () => string;
+		log: (
+			level: "debug" | "info" | "warn" | "error",
+			message: string,
+			metadata?: Record<string, unknown>,
+		) => void;
+	},
+): void {
+	if (!signal) {
+		return;
+	}
+	if (signal.aborted) {
+		context.log("warn", "Agent abort signal already aborted", {
+			agentId: context.agentId,
+			conversationId: context.getConversationId(),
+			runId,
+			source,
+			reason: serializeAbortReason(signal.reason),
+		});
+		return;
+	}
+	signal.addEventListener(
+		"abort",
+		() => {
+			context.log("warn", "Agent abort signal fired", {
+				agentId: context.agentId,
+				conversationId: context.getConversationId(),
+				runId,
+				source,
+				reason: serializeAbortReason(signal.reason),
+			});
+		},
+		{ once: true },
+	);
+}

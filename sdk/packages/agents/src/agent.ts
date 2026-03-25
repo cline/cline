@@ -4,9 +4,24 @@
  * The main class for building and running agentic loops with LLMs.
  */
 
-import { LlmsProviders } from "@clinebot/llms";
+import type { LlmsProviders } from "@clinebot/llms";
 import { nanoid } from "nanoid";
 import { buildInitialUserContent } from "./agent-input.js";
+import {
+	createApiTimeoutSignal,
+	createHandlerFromConfig,
+	mergeAbortSignals,
+	observeAbortSignal,
+	serializeAbortReason,
+} from "./config-helpers.js";
+import {
+	buildFailedToolCallFeedback,
+	buildInvalidToolCallFeedback,
+	buildInvalidToolResultMessage,
+	isNonRecoverableApiError,
+	type MistakeTrackingDeps,
+	recordMistake,
+} from "./error-handling.js";
 import {
 	type ContributionRegistry,
 	createContributionRegistry,
@@ -27,7 +42,6 @@ import type {
 	AgentResult,
 	AgentUsage,
 	BasicLogger,
-	ConsecutiveMistakeLimitDecision,
 	PendingToolCall,
 	Tool,
 	ToolApprovalResult,
@@ -38,72 +52,6 @@ import type {
 
 const DEFAULT_REMINDER_TEXT =
 	"REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools.";
-
-function isNonRecoverableApiError(error: Error): boolean {
-	const message = error.message.toLowerCase();
-
-	const nonRecoverableStatusCodes = [
-		400, 401, 403, 404, 405, 406, 409, 410, 429,
-	];
-	if (
-		nonRecoverableStatusCodes.some((code) =>
-			new RegExp(`(?:\\b|\\"code\\"\\s*:\\s*)${code}(?:\\b|\\s)`).test(message),
-		)
-	) {
-		return true;
-	}
-
-	if (
-		[
-			"not found",
-			"unsupported for",
-			"missing api key",
-			"invalid api key",
-			"authentication",
-			"unauthorized",
-			"forbidden",
-		].some((s) => message.includes(s))
-	) {
-		return true;
-	}
-
-	return false;
-}
-
-function resolveKnownModelsFromConfig(
-	config: AgentConfig,
-): Record<string, LlmsProviders.ModelInfo> | undefined {
-	if (config.providerConfig?.knownModels) {
-		return config.providerConfig.knownModels;
-	}
-	if (config.knownModels) {
-		return config.knownModels;
-	}
-
-	try {
-		const providerConfig = LlmsProviders.toProviderConfig({
-			provider: config.providerId,
-			model: config.modelId,
-			apiKey: config.apiKey,
-			baseUrl: config.baseUrl,
-			headers: config.headers,
-		});
-		return providerConfig.knownModels;
-	} catch {
-		return undefined;
-	}
-}
-
-function serializeAbortReason(reason: unknown): unknown {
-	if (reason instanceof Error) {
-		return {
-			name: reason.name,
-			message: reason.message,
-			stack: reason.stack,
-		};
-	}
-	return reason;
-}
 
 export class Agent {
 	private config: Required<
@@ -189,7 +137,7 @@ export class Agent {
 
 		this.messageBuilder = new MessageBuilder();
 		this.toolRegistry = createToolRegistry([]);
-		this.handler = this.createHandlerFromConfig(this.config);
+		this.handler = createHandlerFromConfig(this.config, this.logger);
 		this.turnProcessor = new TurnProcessor({
 			handler: this.handler,
 			messageBuilder: this.messageBuilder,
@@ -393,7 +341,7 @@ export class Agent {
 			...this.config,
 			...overrides,
 		};
-		this.handler = this.createHandlerFromConfig(this.config);
+		this.handler = createHandlerFromConfig(this.config, this.logger);
 		this.turnProcessor = new TurnProcessor({
 			handler: this.handler,
 			messageBuilder: this.messageBuilder,
@@ -410,91 +358,6 @@ export class Agent {
 		if (this.runState === "shutting_down") {
 			throw new Error("Cannot start a run while agent is shutting down");
 		}
-	}
-
-	private createHandlerFromConfig(
-		config: AgentConfig,
-	): LlmsProviders.ApiHandler {
-		const baseProviderConfig =
-			config.providerConfig?.providerId === config.providerId
-				? config.providerConfig
-				: undefined;
-		const normalizedProviderConfig: LlmsProviders.ProviderConfig = {
-			...(baseProviderConfig ?? {}),
-			providerId: config.providerId,
-			modelId: config.modelId,
-			apiKey: config.apiKey ?? baseProviderConfig?.apiKey,
-			baseUrl: config.baseUrl ?? baseProviderConfig?.baseUrl,
-			headers: config.headers ?? baseProviderConfig?.headers,
-			knownModels: resolveKnownModelsFromConfig(config),
-			maxOutputTokens: config.maxTokensPerTurn,
-			reasoningEffort: config.reasoningEffort,
-			thinkingBudgetTokens: config.thinkingBudgetTokens,
-			thinking: config.thinking,
-			abortSignal: config.abortSignal,
-			logger: {
-				debug: (message, metadata) => {
-					this.log("debug", message, metadata);
-				},
-				warn: (message, metadata) => {
-					this.log("warn", message, metadata);
-				},
-			},
-		};
-		return LlmsProviders.createHandler(normalizedProviderConfig);
-	}
-
-	private createApiTimeoutSignal(): AbortSignal | undefined {
-		const timeoutMs = this.config.apiTimeoutMs;
-		if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
-			return undefined;
-		}
-
-		const abortSignalCtor = AbortSignal as unknown as {
-			timeout?: (milliseconds: number) => AbortSignal;
-		};
-		if (abortSignalCtor.timeout) {
-			return abortSignalCtor.timeout(timeoutMs);
-		}
-
-		const controller = new AbortController();
-		setTimeout(() => {
-			controller.abort(new Error(`API request timed out after ${timeoutMs}ms`));
-		}, timeoutMs);
-		return controller.signal;
-	}
-
-	private observeAbortSignal(
-		signal: AbortSignal | undefined,
-		source: string,
-		runId: string,
-	): void {
-		if (!signal) {
-			return;
-		}
-		if (signal.aborted) {
-			this.log("warn", "Agent abort signal already aborted", {
-				agentId: this.agentId,
-				conversationId: this.conversationStore.getConversationId(),
-				runId,
-				source,
-				reason: serializeAbortReason(signal.reason),
-			});
-			return;
-		}
-		signal.addEventListener(
-			"abort",
-			() => {
-				this.log("warn", "Agent abort signal fired", {
-					agentId: this.agentId,
-					conversationId: this.conversationStore.getConversationId(),
-					runId,
-					source,
-					reason: serializeAbortReason(signal.reason),
-				});
-			},
-			{ once: true },
-		);
 	}
 
 	private async executeLoop(triggerMessage: string): Promise<AgentResult> {
@@ -515,12 +378,31 @@ export class Agent {
 			triggerLength: triggerMessage.length,
 		});
 
-		const abortSignal = this.mergeAbortSignals(
+		const abortSignal = mergeAbortSignals(
 			this.config.abortSignal,
 			this.abortController.signal,
 		);
-		this.observeAbortSignal(this.config.abortSignal, "agent_config", runId);
-		this.observeAbortSignal(this.abortController.signal, "agent_run", runId);
+		const signalCtx = {
+			agentId: this.agentId,
+			getConversationId: () => this.conversationStore.getConversationId(),
+			log: (
+				level: "debug" | "info" | "warn" | "error",
+				message: string,
+				metadata?: Record<string, unknown>,
+			) => this.log(level, message, metadata),
+		};
+		observeAbortSignal(
+			this.config.abortSignal,
+			"agent_config",
+			runId,
+			signalCtx,
+		);
+		observeAbortSignal(
+			this.abortController.signal,
+			"agent_run",
+			runId,
+			signalCtx,
+		);
 
 		let iteration = 0;
 		let finishReason: AgentFinishReason = "completed";
@@ -534,6 +416,19 @@ export class Agent {
 			totalCost: undefined,
 		};
 		let consecutiveMistakes = 0;
+		const mistakeDeps: MistakeTrackingDeps = {
+			agentId: this.agentId,
+			getConversationId: () => this.conversationStore.getConversationId(),
+			getActiveRunId: () =>
+				this.activeRunId || this.conversationStore.getConversationId(),
+			maxConsecutiveMistakes: this.config.maxConsecutiveMistakes,
+			onConsecutiveMistakeLimitReached:
+				this.config.onConsecutiveMistakeLimitReached,
+			emit: (event) => this.emit(event),
+			log: (level, message, metadata) => this.log(level, message, metadata),
+			appendRecoveryNotice: (message, reason) =>
+				this.appendRecoveryNotice(message, reason),
+		};
 
 		try {
 			if (!this.conversationStore.isSessionStarted()) {
@@ -666,9 +561,11 @@ export class Agent {
 							ReturnType<TurnProcessor["processTurn"]>
 					  >["assistantMessage"]
 					| undefined;
-				const apiTimeoutSignal = this.createApiTimeoutSignal();
-				this.observeAbortSignal(apiTimeoutSignal, "api_timeout", runId);
-				const turnAbortSignal = this.mergeAbortSignals(
+				const apiTimeoutSignal = createApiTimeoutSignal(
+					this.config.apiTimeoutMs,
+				);
+				observeAbortSignal(apiTimeoutSignal, "api_timeout", runId, signalCtx);
+				const turnAbortSignal = mergeAbortSignals(
 					abortSignal,
 					apiTimeoutSignal,
 				);
@@ -716,15 +613,18 @@ export class Agent {
 						`The previous turn failed with an API/runtime error: ${message}. Retry and continue from the latest state.`,
 						"api_error",
 					);
-					const mistakeOutcome = await this.recordMistake({
-						iteration,
-						reason: "api_error",
-						details: message,
-						consecutiveMistakes: () => consecutiveMistakes,
-						setConsecutiveMistakes: (value) => {
-							consecutiveMistakes = value;
+					const mistakeOutcome = await recordMistake(
+						{
+							iteration,
+							reason: "api_error",
+							details: message,
+							consecutiveMistakes: () => consecutiveMistakes,
+							setConsecutiveMistakes: (value: number) => {
+								consecutiveMistakes = value;
+							},
 						},
-					});
+						mistakeDeps,
+					);
 					if (mistakeOutcome.action === "continue") {
 						continue;
 					}
@@ -788,22 +688,23 @@ export class Agent {
 				});
 
 				if (turn.invalidToolCalls.length > 0) {
-					const feedback = this.buildInvalidToolCallFeedback(
-						turn.invalidToolCalls,
-					);
+					const feedback = buildInvalidToolCallFeedback(turn.invalidToolCalls);
 					this.conversationStore.appendMessage(
-						this.buildInvalidToolResultMessage(turn.invalidToolCalls),
+						buildInvalidToolResultMessage(turn.invalidToolCalls),
 					);
 					this.appendRecoveryNotice(feedback, "invalid_tool_call");
-					const mistakeOutcome = await this.recordMistake({
-						iteration,
-						reason: "invalid_tool_call",
-						details: feedback,
-						consecutiveMistakes: () => consecutiveMistakes,
-						setConsecutiveMistakes: (value) => {
-							consecutiveMistakes = value;
+					const mistakeOutcome = await recordMistake(
+						{
+							iteration,
+							reason: "invalid_tool_call",
+							details: feedback,
+							consecutiveMistakes: () => consecutiveMistakes,
+							setConsecutiveMistakes: (value: number) => {
+								consecutiveMistakes = value;
+							},
 						},
-					});
+						mistakeDeps,
+					);
 					if (mistakeOutcome.action === "continue") {
 						continue;
 					}
@@ -886,18 +787,21 @@ export class Agent {
 					consecutiveMistakes = 0;
 				} else if (failedToolCalls > 0) {
 					const failedToolCallDetails =
-						this.buildFailedToolCallFeedback(toolResults);
-					const mistakeOutcome = await this.recordMistake({
-						iteration,
-						reason: "tool_execution_failed",
-						details: `${failedToolCalls} tool call(s) failed${
-							failedToolCallDetails ? `: ${failedToolCallDetails}` : ""
-						}`,
-						consecutiveMistakes: () => consecutiveMistakes,
-						setConsecutiveMistakes: (value) => {
-							consecutiveMistakes = value;
+						buildFailedToolCallFeedback(toolResults);
+					const mistakeOutcome = await recordMistake(
+						{
+							iteration,
+							reason: "tool_execution_failed",
+							details: `${failedToolCalls} tool call(s) failed${
+								failedToolCallDetails ? `: ${failedToolCallDetails}` : ""
+							}`,
+							consecutiveMistakes: () => consecutiveMistakes,
+							setConsecutiveMistakes: (value: number) => {
+								consecutiveMistakes = value;
+							},
 						},
-					});
+						mistakeDeps,
+					);
 					if (mistakeOutcome.action === "stop") {
 						this.appendStopNotice(mistakeOutcome.message);
 						finishReason = "mistake_limit";
@@ -1024,208 +928,6 @@ export class Agent {
 		});
 		await this.lifecycle.shutdown();
 		return result;
-	}
-
-	private buildInvalidToolCallFeedback(
-		invalidToolCalls: Array<{
-			id: string;
-			name?: string;
-			input?: unknown;
-			reason: "missing_name" | "missing_arguments" | "invalid_arguments";
-		}>,
-	): string {
-		const details = invalidToolCalls
-			.map((call) => {
-				const name = call.name?.trim() || "(unknown tool)";
-				const parseError =
-					call.input &&
-					typeof call.input === "object" &&
-					!Array.isArray(call.input) &&
-					typeof (call.input as { parse_error?: unknown }).parse_error ===
-						"string"
-						? (call.input as { parse_error: string }).parse_error
-						: undefined;
-				const reason =
-					call.reason === "missing_name"
-						? "missing tool name"
-						: call.reason === "missing_arguments"
-							? "missing arguments"
-							: (parseError ?? "arguments could not be parsed as JSON");
-				return `${name} [${call.id}]: ${reason}`;
-			})
-			.join("; ");
-		return `One or more tool calls were invalid or missing required parameters (${details}). Retry with valid tool names and arguments.`;
-	}
-
-	private buildInvalidToolResultMessage(
-		invalidToolCalls: Array<{
-			id: string;
-			name?: string;
-			input?: unknown;
-			reason: "missing_name" | "missing_arguments" | "invalid_arguments";
-		}>,
-	): LlmsProviders.Message {
-		return {
-			role: "user",
-			content: invalidToolCalls.map((call) => ({
-				type: "tool_result" as const,
-				tool_use_id: call.id,
-				content: JSON.stringify({
-					toolName: call.name?.trim() || "(unknown tool)",
-					query: call.input ?? {},
-					result: "",
-					error:
-						call.reason === "missing_name"
-							? "Tool call was missing a tool name"
-							: call.reason === "missing_arguments"
-								? "Tool call was missing required arguments"
-								: call.input &&
-										typeof call.input === "object" &&
-										!Array.isArray(call.input) &&
-										typeof (call.input as { parse_error?: unknown })
-											.parse_error === "string"
-									? (call.input as { parse_error: string }).parse_error
-									: "Tool call arguments could not be parsed as JSON",
-					success: false,
-				}),
-				is_error: true,
-			})),
-		};
-	}
-
-	private buildFailedToolCallFeedback(toolResults: ToolCallRecord[]): string {
-		const failed = toolResults.filter((record) => !!record.error);
-		if (failed.length === 0) {
-			return "";
-		}
-		const details = failed
-			.slice(0, 3)
-			.map((record) => {
-				const message = String(record.error ?? "unknown tool error")
-					.replace(/\s+/g, " ")
-					.trim();
-				return `${record.name}: ${message}`;
-			})
-			.join("; ");
-		return failed.length > 3
-			? `${details}; +${failed.length - 3} more failed tool call(s)`
-			: details;
-	}
-
-	private async recordMistake(input: {
-		iteration: number;
-		reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
-		details?: string;
-		consecutiveMistakes: () => number;
-		setConsecutiveMistakes: (value: number) => void;
-	}): Promise<
-		| { action: "continue" }
-		| { action: "stop"; message: string; reason?: string }
-	> {
-		const next = input.consecutiveMistakes() + 1;
-		input.setConsecutiveMistakes(next);
-		const errorMessage =
-			input.details?.trim() || `consecutive mistake (${input.reason})`;
-		this.emit({
-			type: "error",
-			error: new Error(errorMessage),
-			recoverable: true,
-			iteration: input.iteration,
-		});
-		this.log("warn", "Recorded consecutive mistake", {
-			agentId: this.agentId,
-			conversationId: this.conversationStore.getConversationId(),
-			runId: this.activeRunId || this.conversationStore.getConversationId(),
-			iteration: input.iteration,
-			reason: input.reason,
-			details: input.details,
-			consecutiveMistakes: next,
-			maxConsecutiveMistakes: this.config.maxConsecutiveMistakes,
-		});
-		const maxConsecutiveMistakes = this.config.maxConsecutiveMistakes;
-		if (!maxConsecutiveMistakes || next < maxConsecutiveMistakes) {
-			return { action: "continue" };
-		}
-
-		const decision = await this.resolveConsecutiveMistakeDecision({
-			iteration: input.iteration,
-			consecutiveMistakes: next,
-			maxConsecutiveMistakes,
-			reason: input.reason,
-			details: input.details,
-		});
-		if (decision.action === "continue") {
-			const guidance = decision.guidance?.trim();
-			if (guidance) {
-				this.appendRecoveryNotice(guidance, input.reason);
-			}
-			input.setConsecutiveMistakes(0);
-			return { action: "continue" };
-		}
-		return {
-			action: "stop",
-			reason: decision.reason?.trim() || undefined,
-			message: this.buildMistakeLimitStopMessage({
-				iteration: input.iteration,
-				consecutiveMistakes: next,
-				maxConsecutiveMistakes,
-				reason: input.reason,
-				details: input.details,
-				stopReason: decision.reason,
-			}),
-		};
-	}
-
-	private buildMistakeLimitStopMessage(input: {
-		iteration: number;
-		consecutiveMistakes: number;
-		maxConsecutiveMistakes: number;
-		reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
-		details?: string;
-		stopReason?: string;
-	}): string {
-		const parts = [
-			`Stopped after ${input.consecutiveMistakes}/${input.maxConsecutiveMistakes} consecutive mistakes (${input.reason}) at iteration ${input.iteration}.`,
-		];
-		const details = input.details?.trim();
-		if (details) {
-			parts.push(`Latest failure: ${details}`);
-		}
-		const stopReason = input.stopReason?.trim();
-		if (stopReason) {
-			parts.push(`Decision: ${stopReason}`);
-		}
-		parts.push(
-			"Session state was preserved. Send a new prompt to resume from the latest state.",
-		);
-		return parts.join(" ");
-	}
-
-	private async resolveConsecutiveMistakeDecision(input: {
-		iteration: number;
-		consecutiveMistakes: number;
-		maxConsecutiveMistakes: number;
-		reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
-		details?: string;
-	}): Promise<ConsecutiveMistakeLimitDecision> {
-		const callback = this.config.onConsecutiveMistakeLimitReached;
-		if (!callback) {
-			return {
-				action: "stop",
-				reason: `maximum consecutive mistakes reached (${input.maxConsecutiveMistakes})`,
-			};
-		}
-		try {
-			return await callback(input);
-		} catch (error) {
-			return {
-				action: "stop",
-				reason:
-					error instanceof Error
-						? error.message
-						: `maximum consecutive mistakes reached (${input.maxConsecutiveMistakes})`,
-			};
-		}
 	}
 
 	private async ensureExtensionsInitialized(): Promise<void> {
@@ -1520,39 +1222,6 @@ export class Agent {
 		} catch {
 			// Logging failures must never break agent execution.
 		}
-	}
-
-	private mergeAbortSignals(
-		...signals: (AbortSignal | undefined)[]
-	): AbortSignal {
-		const activeSignals = signals.filter(
-			(signal): signal is AbortSignal => !!signal,
-		);
-		if (activeSignals.length === 0) {
-			return new AbortController().signal;
-		}
-		if (activeSignals.length === 1) {
-			return activeSignals[0];
-		}
-
-		const abortSignalCtor = AbortSignal as unknown as {
-			any?: (signals: AbortSignal[]) => AbortSignal;
-		};
-		if (abortSignalCtor.any) {
-			return abortSignalCtor.any(activeSignals);
-		}
-
-		const controller = new AbortController();
-		for (const signal of activeSignals) {
-			if (signal.aborted) {
-				controller.abort(signal.reason);
-				break;
-			}
-			signal.addEventListener("abort", () => controller.abort(signal.reason), {
-				once: true,
-			});
-		}
-		return controller.signal;
 	}
 }
 
