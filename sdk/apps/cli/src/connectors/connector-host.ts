@@ -123,16 +123,27 @@ export async function handleConnectorUserTurn<
 		typeof input.firstContactMessage === "function"
 			? input.firstContactMessage(initialState)
 			: input.firstContactMessage;
+	let initialStateChanged = false;
 	if (!initialState.welcomeSentAt && firstContactMessage?.trim()) {
 		await input.thread.post(firstContactMessage.trim());
 		initialState.welcomeSentAt = new Date().toISOString();
+		initialStateChanged = true;
 	}
-	persistThreadBinding(
-		input.bindingsPath,
-		input.thread,
-		initialState,
-		input.errorLabel,
-	);
+	if (initialStateChanged) {
+		await persistMergedThreadState(
+			input.thread,
+			input.bindingsPath,
+			initialState,
+			input.errorLabel,
+		);
+	} else {
+		persistThreadBinding(
+			input.bindingsPath,
+			input.thread,
+			initialState,
+			input.errorLabel,
+		);
+	}
 
 	const textPreview = truncateConnectorText(resolvedInput);
 	const receivedDetails = {
