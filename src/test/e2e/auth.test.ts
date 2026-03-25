@@ -42,11 +42,24 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(apiKeyInput).not.toBeVisible()
 	await expect(providerSelectorInput).not.toBeVisible()
 
+	// New installs may first show the Kanban launch modal, which blocks the
+	// update announcement modal until it has been dismissed.
+	const kanbanDialog = sidebar.getByRole("heading", {
+		name: "Introducing Cline Kanban",
+	})
+	try {
+		await kanbanDialog.waitFor({ state: "visible", timeout: 5_000 })
+		await sidebar.getByRole("button", { name: "Close" }).click()
+		await expect(kanbanDialog).not.toBeVisible()
+	} catch {
+		// Kanban modal did not appear during this run.
+	}
+
 	// Verify the "What's New" modal is visible for new installs and can be closed.
 	const dialog = sidebar.getByRole("heading", {
 		name: /^🎉 New in v\d/,
 	})
-	await expect(dialog).toBeVisible()
+	await expect(dialog).toBeVisible({ timeout: 10_000 })
 	await sidebar.getByRole("button", { name: "Close" }).click()
 	await expect(dialog).not.toBeVisible()
 
