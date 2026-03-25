@@ -180,35 +180,7 @@ async function requestAuthorizationUrl(
 	authUrl.searchParams.set("redirect_uri", params.callbackUrl);
 	authUrl.searchParams.set("state", params.state);
 
-	const response = await fetch(authUrl.toString(), {
-		method: "GET",
-		redirect: "manual",
-		headers: await resolveHeaders(options.headers),
-		signal: AbortSignal.timeout(
-			options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
-		),
-	});
-
-	if (response.status >= 300 && response.status < 400) {
-		const redirectUrl = response.headers.get("location");
-		if (redirectUrl) {
-			return redirectUrl;
-		}
-	}
-
-	if (!response.ok) {
-		const text = await response.text().catch(() => "");
-		throw new Error(
-			`Authentication request failed: ${response.status} ${text}`,
-		);
-	}
-
-	const body = (await response.json()) as { redirect_url?: string };
-	if (typeof body.redirect_url === "string" && body.redirect_url.length > 0) {
-		return body.redirect_url;
-	}
-
-	throw new Error("Authentication request did not return a redirect URL");
+	return authUrl.toString();
 }
 
 async function exchangeAuthorizationCode(
