@@ -1,5 +1,6 @@
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
 import { Controller } from "@/core/controller"
+import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -88,12 +89,45 @@ async function makeAuthenticatedRequest<T>(endpoint: string, organizationId: str
 	return data
 }
 
+export async function fetchUserRemoteConfig(): Promise<RemoteConfig | undefined> {
+	try {
+		const accountService = ClineAccountService.getInstance()
+		const configData = await accountService.fetchRemoteConfig()
+
+		if (!configData) {
+			return undefined
+		}
+
+		const parsedConfig = JSON.parse(configData.value)
+		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
+
+		return validatedConfig
+	} catch (error) {
+		Logger.error(`Failed to fetch remote config`, error)
+
+		const cachedConfig = await readRemoteConfigFromCache()
+		if (cachedConfig) {
+			try {
+				// Validate cached config against schema
+				const validatedCachedConfig = RemoteConfigSchema.parse(cachedConfig)
+				return validatedCachedConfig
+			} catch (validationError) {
+				Logger.error(`Cached config validation failed`, validationError)
+			}
+		}
+
+		return undefined
+	}
+}
+
 /**
  * Fetches remote configuration for a specific organization from the API.
  * Falls back to cached config if the request fails.
  *
  * @param organizationId The organization ID to fetch config for
  * @returns RemoteConfig if enabled, undefined if disabled or not found
+ *
+ * @deprecated see {@link fetchUserRemoteConfig}
  */
 async function fetchRemoteConfigForOrganization(organizationId: string): Promise<RemoteConfig | undefined> {
 	try {

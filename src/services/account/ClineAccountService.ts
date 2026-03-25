@@ -4,6 +4,7 @@ import type {
 	OrganizationUsageTransaction,
 	PaymentTransaction,
 	UsageTransaction,
+	UserRemoteConfigResponse,
 	UserResponse,
 } from "@shared/ClineAccount"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
@@ -82,9 +83,8 @@ export class ClineAccountService {
 		}
 		if (response.statusText === "No Content") {
 			return {} as T // Return empty object if no content
-		} else {
-			return response.data.data as T
 		}
+		return response.data.data as T
 	}
 
 	/**
@@ -248,6 +248,16 @@ export class ClineAccountService {
 			Logger.error("Error switching account:", error)
 			await this._authService.restoreRefreshTokenAndRetrieveAuthInfo()
 			throw error
+		}
+	}
+
+	async fetchRemoteConfig(): Promise<UserRemoteConfigResponse | undefined> {
+		try {
+			const data = await this.authenticatedRequest<UserRemoteConfigResponse>(CLINE_API_ENDPOINT.USER_REMOTE_CONFIG)
+			return data
+		} catch (err) {
+			Logger.error("Failed to fetch remote config: ", err)
+			return undefined
 		}
 	}
 

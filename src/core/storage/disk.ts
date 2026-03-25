@@ -66,7 +66,7 @@ export const GlobalFileNames = {
 	agentsRulesFile: "AGENTS.md",
 	taskMetadata: "task_metadata.json",
 	mcpMarketplaceCatalog: "mcp_marketplace_catalog.json",
-	remoteConfig: (orgId: string) => `remote_config_${orgId}.json`,
+	remoteConfig: (orgId?: string) => (orgId ? `remote_config_${orgId}.json` : "remote_config.json"),
 }
 
 export async function getDocumentsPath(): Promise<string> {
@@ -463,7 +463,7 @@ export async function writeTaskSettingsToStorage(taskId: string, settings: Parti
 	}
 }
 
-export async function readRemoteConfigFromCache(organizationId: string): Promise<RemoteConfig | undefined> {
+export async function readRemoteConfigFromCache(organizationId?: string): Promise<RemoteConfig | undefined> {
 	try {
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
@@ -487,7 +487,7 @@ export async function writeRemoteConfigToCache(organizationId: string, config: R
 	}
 }
 
-export async function deleteRemoteConfigFromCache(organizationId: string): Promise<void> {
+export async function deleteRemoteConfigFromCache(organizationId?: string): Promise<void> {
 	try {
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		const fileExists = await fileExistsAtPath(remoteConfigFilePath)
