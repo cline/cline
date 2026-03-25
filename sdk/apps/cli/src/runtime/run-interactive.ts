@@ -15,6 +15,7 @@ import {
 } from "../utils/chat-commands";
 import { createRuntimeHooks } from "../utils/hooks";
 import { c, setActiveCliSession, writeErr, writeln } from "../utils/output";
+import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import { loadInteractiveResumeMessages } from "../utils/resume";
 import { createDefaultCliSessionManager } from "../utils/session";
@@ -67,6 +68,10 @@ export async function runInteractive(
 	const workflowSlashCommands = listInteractiveSlashCommands(
 		userInstructionWatcher,
 	);
+	const chatCommandHost = await createWorkspaceChatCommandHost({
+		cwd: config.cwd,
+		workspaceRoot: config.workspaceRoot,
+	});
 
 	const runtimeHooks = createRuntimeHooks({
 		verbose: config.verbose,
@@ -377,6 +382,7 @@ export async function runInteractive(
 					if (
 						await maybeHandleChatCommand(input, {
 							enabled: enableChatCommands,
+							host: chatCommandHost,
 							getState: () => ({
 								...chatCommandState,
 								autoApproveTools: autoApproveAllRef.current,

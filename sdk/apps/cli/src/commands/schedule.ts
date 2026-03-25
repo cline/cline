@@ -44,8 +44,8 @@ function mergeScheduleDeliveryMetadata(
 	const adapter = delivery.deliveryAdapter?.trim();
 	const threadId = delivery.deliveryThread?.trim();
 	const channelId = delivery.deliveryChannel?.trim();
-	const botUserName = delivery.deliveryBot?.trim();
-	if (!adapter && !threadId && !channelId && !botUserName) {
+	const userName = delivery.deliveryBot?.trim();
+	if (!adapter && !threadId && !channelId && !userName) {
 		return base;
 	}
 	const next = { ...(base ?? {}) };
@@ -60,7 +60,7 @@ function mergeScheduleDeliveryMetadata(
 		...(adapter ? { adapter } : {}),
 		...(threadId ? { threadId } : {}),
 		...(channelId ? { channelId } : {}),
-		...(botUserName ? { botUserName } : {}),
+		...(userName ? { userName } : {}),
 	};
 	return next;
 }

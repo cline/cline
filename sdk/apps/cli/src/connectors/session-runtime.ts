@@ -212,6 +212,12 @@ export async function getOrCreateSessionId<
 			metadata: {
 				transport: input.transport,
 				...input.sessionMetadata,
+				...(threadState.participantKey
+					? { participantKey: threadState.participantKey }
+					: {}),
+				...(threadState.participantLabel
+					? { participantLabel: threadState.participantLabel }
+					: {}),
 				isDM: input.thread.isDM,
 				rpcClientId: input.clientId,
 				connectorPid: process.pid,

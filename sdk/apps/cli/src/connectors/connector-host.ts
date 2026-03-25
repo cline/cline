@@ -1,12 +1,14 @@
 import type {
 	RpcChatRunTurnRequest,
 	RpcChatStartSessionRequest,
+	UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import type { RpcSessionClient } from "@clinebot/rpc";
-import type { Thread } from "chat";
+import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
-import { resolveSystemPrompt } from "../runtime/prompt";
+import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
 import {
+	type ChatCommandHost,
 	type ChatCommandState,
 	maybeHandleChatCommand,
 } from "../utils/chat-commands";
@@ -28,7 +30,12 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	persistThreadBinding,
+	resolveThreadBindingKey,
 } from "./thread-bindings";
+
+export type ActiveConnectorTurn = {
+	sessionId: string;
+};
 
 export async function handleConnectorUserTurn<
 	TState extends ConnectorThreadState,
@@ -51,7 +58,16 @@ export async function handleConnectorUserTurn<
 	getSessionMetadata: (
 		thread: Thread<TState>,
 		clientId: string,
+		currentState: TState,
 	) => Record<string, unknown>;
+	getScheduleDeliveryMetadata?: (
+		thread: Thread<TState>,
+	) => Record<string, unknown>;
+	firstContactMessage?: string | ((currentState: TState) => string | undefined);
+	chatCommandHost?: ChatCommandHost;
+	userInstructionWatcher?: UserInstructionConfigWatcher;
+	activeTurns?: Map<string, ActiveConnectorTurn>;
+	turnKey?: string;
 	reusedLogMessage: string;
 	startedLogMessage?: string;
 	messageReceivedLogMessage?: string;
@@ -92,6 +108,25 @@ export async function handleConnectorUserTurn<
 		input.bindingsPath,
 		input.baseStartRequest,
 	);
+	const turnKey =
+		input.turnKey ||
+		resolveThreadBindingKey(
+			{
+				id: input.thread.id,
+				channelId: input.thread.channelId,
+				isDM: input.thread.isDM,
+				participantKey: initialState.participantKey,
+			},
+			initialState,
+		);
+	const firstContactMessage =
+		typeof input.firstContactMessage === "function"
+			? input.firstContactMessage(initialState)
+			: input.firstContactMessage;
+	if (!initialState.welcomeSentAt && firstContactMessage?.trim()) {
+		await input.thread.post(firstContactMessage.trim());
+		initialState.welcomeSentAt = new Date().toISOString();
+	}
 	persistThreadBinding(
 		input.bindingsPath,
 		input.thread,
@@ -118,6 +153,7 @@ export async function handleConnectorUserTurn<
 	if (
 		await maybeHandleChatCommand(resolvedInput, {
 			enabled: true,
+			host: input.chatCommandHost,
 			getState: async () => {
 				const current = await loadThreadState(
 					input.thread,
@@ -218,6 +254,15 @@ export async function handleConnectorUserTurn<
 					input.logger,
 				);
 			},
+			abort: async () => {
+				const activeTurn = input.activeTurns?.get(turnKey);
+				if (!activeTurn?.sessionId?.trim()) {
+					await input.thread.post("No active task to abort.");
+					return;
+				}
+				await input.client.abortRuntimeSession(activeTurn.sessionId);
+				await input.thread.post("Aborting current task.");
+			},
 			stop: async () => {
 				await clearSession({
 					thread: input.thread,
@@ -250,12 +295,139 @@ export async function handleConnectorUserTurn<
 				return [
 					`threadId=${input.thread.id}`,
 					`channelId=${input.thread.channelId}`,
+					`deliveryAdapter=${input.transport}`,
+					`deliveryThread=${input.thread.id}`,
+					...(current.participantKey
+						? [`deliveryBindingKey=${current.participantKey}`]
+						: []),
+					`deliveryChannel=${input.thread.channelId}`,
+					...(input.botUserName
+						? [`deliveryUserName=${input.botUserName}`]
+						: []),
+					...(current.participantLabel
+						? [`participant=${current.participantLabel}`]
+						: []),
+					...(current.participantKey
+						? [`participantKey=${current.participantKey}`]
+						: []),
 					`isDM=${input.thread.isDM ? "true" : "false"}`,
 					`tools=${current.enableTools ? "on" : "off"}`,
 					`yolo=${current.autoApproveTools ? "on" : "off"}`,
 					`cwd=${current.cwd || input.baseStartRequest.cwd}`,
 					`workspaceRoot=${current.workspaceRoot || input.baseStartRequest.workspaceRoot}`,
 				].join("\n");
+			},
+			schedule: {
+				create: async ({ name, cronPattern, prompt }) => {
+					const current = await loadThreadState(
+						input.thread,
+						input.bindingsPath,
+						input.baseStartRequest,
+					);
+					const config = buildThreadStartRequest(
+						input.baseStartRequest,
+						current,
+					);
+					const metadata = {
+						delivery: {
+							adapter: input.transport,
+							threadId: input.thread.id,
+							...(current.participantKey
+								? {
+										bindingKey: current.participantKey,
+										participantKey: current.participantKey,
+									}
+								: {}),
+							...(current.participantLabel
+								? { participantLabel: current.participantLabel }
+								: {}),
+							channelId: input.thread.channelId,
+							...(input.botUserName ? { userName: input.botUserName } : {}),
+							...(input.getScheduleDeliveryMetadata?.(input.thread) ?? {}),
+						},
+					};
+					const created = await input.client.createSchedule({
+						name,
+						cronPattern,
+						prompt,
+						provider: config.provider,
+						model: config.model,
+						mode: config.mode,
+						workspaceRoot: config.workspaceRoot,
+						cwd: config.cwd,
+						systemPrompt: config.systemPrompt,
+						maxIterations: config.maxIterations,
+						metadata,
+					});
+					if (!created) {
+						return "Failed to create schedule.";
+					}
+					return [
+						`Scheduled "${created.name}".`,
+						`id=${created.scheduleId}`,
+						`cron=${created.cronPattern}`,
+						`nextRunAt=${created.nextRunAt || "pending"}`,
+					].join("\n");
+				},
+				list: async () => {
+					const current = await loadThreadState(
+						input.thread,
+						input.bindingsPath,
+						input.baseStartRequest,
+					);
+					const schedules = await input.client.listSchedules({ limit: 200 });
+					const matching = schedules.filter((schedule) => {
+						const delivery = schedule.metadata?.delivery;
+						const deliveryRecord =
+							delivery &&
+							typeof delivery === "object" &&
+							!Array.isArray(delivery)
+								? (delivery as Record<string, unknown>)
+								: undefined;
+						const deliveryBindingKey =
+							typeof deliveryRecord?.bindingKey === "string"
+								? deliveryRecord.bindingKey
+								: typeof deliveryRecord?.participantKey === "string"
+									? deliveryRecord.participantKey
+									: undefined;
+						return (
+							deliveryRecord?.adapter === input.transport &&
+							(current.participantKey
+								? deliveryBindingKey === current.participantKey
+								: deliveryRecord.threadId === input.thread.id)
+						);
+					});
+					if (matching.length === 0) {
+						return "No schedules are targeting this thread.";
+					}
+					return matching
+						.map((schedule) =>
+							[
+								`${schedule.scheduleId} ${schedule.enabled ? "[enabled]" : "[disabled]"}`,
+								`name=${schedule.name}`,
+								`cron=${schedule.cronPattern}`,
+								`nextRunAt=${schedule.nextRunAt || "pending"}`,
+							].join("\n"),
+						)
+						.join("\n\n");
+				},
+				trigger: async (scheduleId) => {
+					const execution = await input.client.triggerScheduleNow(scheduleId);
+					if (!execution) {
+						return `Schedule not found: ${scheduleId}`;
+					}
+					return [
+						`Triggered schedule ${scheduleId}.`,
+						`executionId=${execution.executionId}`,
+						`status=${execution.status}`,
+					].join("\n");
+				},
+				delete: async (scheduleId) => {
+					const deleted = await input.client.deleteSchedule(scheduleId);
+					return deleted
+						? `Deleted schedule ${scheduleId}.`
+						: `Schedule not found: ${scheduleId}`;
+				},
 			},
 		})
 	) {
@@ -271,6 +443,19 @@ export async function handleConnectorUserTurn<
 		input.baseStartRequest,
 		currentState,
 	);
+	const activeTurn = input.activeTurns?.get(turnKey);
+	if (activeTurn?.sessionId?.trim()) {
+		await input.client.sendRuntimeSession(activeTurn.sessionId, {
+			config: startRequest,
+			prompt: await buildUserInputMessage(
+				resolvedInput,
+				input.userInstructionWatcher,
+			),
+			delivery: "steer",
+		});
+		await input.thread.post("Steering current task.");
+		return;
+	}
 	const sessionId = await getOrCreateSessionId({
 		thread: input.thread,
 		client: input.client,
@@ -282,16 +467,25 @@ export async function handleConnectorUserTurn<
 		errorLabel: input.errorLabel,
 		hookCommand: input.hookCommand,
 		hookBotUserName: input.botUserName,
-		sessionMetadata: input.getSessionMetadata(input.thread, input.clientId),
+		sessionMetadata: input.getSessionMetadata(
+			input.thread,
+			input.clientId,
+			currentState,
+		),
 		reusedLogMessage: input.reusedLogMessage,
 		startedLogMessage: input.startedLogMessage,
 	});
 	const request: RpcChatRunTurnRequest = {
 		config: startRequest,
-		prompt: resolvedInput,
+		prompt: await buildUserInputMessage(
+			resolvedInput,
+			input.userInstructionWatcher,
+		),
 	};
 
+	input.activeTurns?.set(turnKey, { sessionId });
 	await input.thread.startTyping();
+	let toolStatusMessage: SentMessage | undefined;
 	try {
 		await input.thread.post(
 			createConnectorRuntimeTurnStream({
@@ -303,7 +497,11 @@ export async function handleConnectorUserTurn<
 				transport: input.transport,
 				conversationId: input.thread.id,
 				onToolStatus: async (message) => {
-					await input.thread.post(message);
+					if (toolStatusMessage) {
+						toolStatusMessage = await toolStatusMessage.edit(message);
+						return;
+					}
+					toolStatusMessage = await input.thread.post(message);
 				},
 				onApprovalRequested: async (approval) => {
 					input.pendingApprovals.set(input.thread.id, approval);
@@ -329,6 +527,10 @@ export async function handleConnectorUserTurn<
 		);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
+		input.activeTurns?.delete(turnKey);
+		if (toolStatusMessage) {
+			await toolStatusMessage.delete().catch(() => undefined);
+		}
 	}
 
 	await persistMergedThreadState(

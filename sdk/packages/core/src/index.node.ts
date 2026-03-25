@@ -138,6 +138,11 @@ export {
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 } from "./providers/local-provider-service";
+export type { AvailableRuntimeCommand } from "./runtime/commands";
+export {
+	listAvailableRuntimeCommandsFromWatcher,
+	resolveRuntimeSlashCommandFromWatcher,
+} from "./runtime/commands";
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,

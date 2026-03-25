@@ -1,4 +1,8 @@
-import type { UserInstructionConfigWatcher, WorkflowConfig } from "../agents";
+import type { UserInstructionConfigWatcher } from "../agents";
+import {
+	listAvailableRuntimeCommandsForKindFromWatcher,
+	resolveRuntimeSlashCommandFromWatcher,
+} from "./commands";
 
 export type AvailableWorkflow = {
 	id: string;
@@ -6,23 +10,22 @@ export type AvailableWorkflow = {
 	instructions: string;
 };
 
-function isWorkflowEnabled(workflow: WorkflowConfig): boolean {
-	return workflow.disabled !== true;
+function matchesLeadingSlashCommand(input: string, name: string): boolean {
+	const match = input.match(/^\/(\S+)/);
+	return match?.[1] === name;
 }
 
 export function listAvailableWorkflowsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 ): AvailableWorkflow[] {
-	const snapshot = watcher.getSnapshot("workflow");
-	return [...snapshot.entries()]
-		.map(([id, record]) => ({ id, workflow: record.item as WorkflowConfig }))
-		.filter(({ workflow }) => isWorkflowEnabled(workflow))
-		.map(({ id, workflow }) => ({
-			id,
-			name: workflow.name,
-			instructions: workflow.instructions,
-		}))
-		.sort((a, b) => a.name.localeCompare(b.name));
+	return listAvailableRuntimeCommandsForKindFromWatcher(
+		watcher,
+		"workflow",
+	).map((workflow) => ({
+		id: workflow.id,
+		name: workflow.name,
+		instructions: workflow.instructions,
+	}));
 }
 
 /**
@@ -34,21 +37,9 @@ export function resolveWorkflowSlashCommandFromWatcher(
 	input: string,
 	watcher: UserInstructionConfigWatcher,
 ): string {
-	if (!input.startsWith("/") || input.length < 2) {
-		return input;
-	}
-	const match = input.match(/^\/(\S+)/);
-	if (!match) {
-		return input;
-	}
-	const name = match[1];
-	if (!name) {
-		return input;
-	}
-	const commandLength = name.length + 1;
-	const remainder = input.slice(commandLength);
-	const matched = listAvailableWorkflowsFromWatcher(watcher).find(
-		(workflow) => workflow.name === name,
+	const resolved = resolveRuntimeSlashCommandFromWatcher(input, watcher);
+	const matched = listAvailableWorkflowsFromWatcher(watcher).some((workflow) =>
+		matchesLeadingSlashCommand(input, workflow.name),
 	);
-	return matched ? `${matched.instructions}${remainder}` : input;
+	return matched ? resolved : input;
 }

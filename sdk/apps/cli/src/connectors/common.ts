@@ -1,8 +1,17 @@
 import { spawn } from "node:child_process";
-import { existsSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+	closeSync,
+	existsSync,
+	openSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { readFile } from "node:fs/promises";
-import { ensureParentDir } from "@clinebot/core";
+import { join, resolve as resolvePath } from "node:path";
+import { ensureParentDir, resolveClineDataDir } from "@clinebot/core";
 import type { RpcSessionClient, RpcSessionRow } from "@clinebot/rpc";
+import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
 
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
@@ -86,38 +95,153 @@ function buildDetachedConnectorArgs(
 	return [...commandPrefixArgs, ...rawArgs, "-i"];
 }
 
+function buildDetachedConnectorCommand(
+	commandPrefixArgs: string[],
+	rawArgs: string[],
+	execPath = process.execPath,
+	entryArg = process.argv[1],
+	execArgv = process.execArgv,
+	cwd = process.cwd(),
+): { launcher: string; childArgs: string[] } | undefined {
+	const entry = entryArg?.trim();
+	if (!entry) {
+		return undefined;
+	}
+	const resolvedEntry = resolvePath(cwd, entry);
+	if (!existsSync(resolvedEntry)) {
+		return undefined;
+	}
+	const conditionsArg = execArgv.find((arg) => arg.startsWith("--conditions="));
+	const commandArgs = buildDetachedConnectorArgs(commandPrefixArgs, rawArgs);
+	return {
+		launcher: execPath,
+		childArgs: [
+			...(conditionsArg ? [conditionsArg] : []),
+			resolvedEntry,
+			...commandArgs,
+		],
+	};
+}
+
+export function resolveConnectorDebugLogPath(
+	adapterName: string,
+	instanceKey: string,
+): string {
+	const safeAdapter = adapterName.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	const safeKey = instanceKey.replace(/[^a-zA-Z0-9._-]+/g, "_");
+	return join(
+		resolveClineDataDir(),
+		"logs",
+		"connectors",
+		safeAdapter,
+		`${safeKey}.log`,
+	);
+}
+
+function tryOpenDetachedLogFd(path: string | undefined): number | undefined {
+	if (!path?.trim()) {
+		return undefined;
+	}
+	try {
+		ensureParentDir(path);
+		return openSync(path, "a");
+	} catch {
+		return undefined;
+	}
+}
+
 export function spawnDetachedConnector(
 	commandPrefixArgs: string[],
 	rawArgs: string[],
 	childEnvKey: string,
+	options?: {
+		logPath?: string;
+		component?: string;
+		metadata?: Record<string, unknown>;
+	},
 ): number {
-	const launcher = process.argv[0];
-	const entry = process.argv[1];
-	const commandArgs = buildDetachedConnectorArgs(commandPrefixArgs, rawArgs);
-	const childArgs = entry ? [entry, ...commandArgs] : commandArgs;
-	const child = spawn(launcher, childArgs, {
-		cwd: process.cwd(),
-		detached: true,
-		stdio: "ignore",
-		env: {
-			...process.env,
-			[childEnvKey]: "1",
-		},
-	});
-	logSpawnedProcess({
-		component: "connectors",
-		command: [launcher, ...childArgs],
-		childPid: child.pid ?? undefined,
-		detached: true,
-		cwd: process.cwd(),
-		metadata: { childEnvKey, purpose: "connector.detached" },
-	});
-	child.unref();
-	return child.pid ?? 0;
+	const command = buildDetachedConnectorCommand(commandPrefixArgs, rawArgs);
+	if (!command) {
+		try {
+			const logger = createCliLoggerAdapter({
+				runtime: "cli",
+				component: options?.component ?? "connectors",
+			});
+			logger.core.error?.("Unable to resolve detached connector command", {
+				commandPrefixArgs,
+				rawArgs,
+				childEnvKey,
+				entryArg: process.argv[1],
+				cwd: process.cwd(),
+				logPath: options?.logPath,
+				...options?.metadata,
+			});
+		} catch {
+			// Best-effort logging only.
+		}
+		return 0;
+	}
+	const detachedLogFd = tryOpenDetachedLogFd(options?.logPath);
+	try {
+		const child = spawn(command.launcher, command.childArgs, {
+			cwd: process.cwd(),
+			detached: true,
+			stdio:
+				detachedLogFd === undefined
+					? "ignore"
+					: ["ignore", detachedLogFd, detachedLogFd],
+			env: {
+				...process.env,
+				[childEnvKey]: "1",
+			},
+		});
+		logSpawnedProcess({
+			component: options?.component ?? "connectors",
+			command: [command.launcher, ...command.childArgs],
+			childPid: child.pid ?? undefined,
+			cwd: process.cwd(),
+			detached: true,
+			metadata: {
+				childEnvKey,
+				purpose: "connector.detached",
+				logPath: options?.logPath,
+				...options?.metadata,
+			},
+		});
+		child.unref();
+		return child.pid ?? 0;
+	} catch (error) {
+		try {
+			const logger = createCliLoggerAdapter({
+				runtime: "cli",
+				component: options?.component ?? "connectors",
+			});
+			logger.core.error?.("Failed to spawn detached connector", {
+				error,
+				command: [command.launcher, ...command.childArgs].join(" "),
+				commandArgs: command.childArgs,
+				childEnvKey,
+				logPath: options?.logPath,
+				...options?.metadata,
+			});
+		} catch {
+			// Best-effort logging only.
+		}
+		return 0;
+	} finally {
+		if (detachedLogFd !== undefined) {
+			try {
+				closeSync(detachedLogFd);
+			} catch {
+				// Best-effort cleanup only.
+			}
+		}
+	}
 }
 
 export const __test__ = {
 	buildDetachedConnectorArgs,
+	buildDetachedConnectorCommand,
 };
 
 export function readJsonFile<T>(path: string, fallback: T): T {

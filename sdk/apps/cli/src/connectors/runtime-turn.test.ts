@@ -58,9 +58,7 @@ describe("createConnectorRuntimeTurnStream", () => {
 			chunks.push(chunk);
 		}
 
-		expect(toolStatuses).toEqual([
-			["Executing read_file...", '{"path":"/tmp/demo.txt"}'].join("\n"),
-		]);
+		expect(toolStatuses).toEqual(["Executing read_file..."]);
 		expect(chunks.join("")).toBe("Here is the result.");
 	});
 });

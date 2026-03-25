@@ -9,6 +9,10 @@
 // =============================================================================
 
 export { Agent, createAgent } from "./agent.js";
+export {
+	ContributionRegistry,
+	createContributionRegistry,
+} from "./extensions.js";
 
 // =============================================================================
 // Tooling (consumer-facing)
@@ -117,6 +121,7 @@ export {
 	type AgentConfig,
 	AgentConfigSchema,
 	type AgentEvent,
+	type AgentExtensionCommand,
 	type AgentHooks,
 	type AgentResult,
 	AgentResultSchema,

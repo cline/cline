@@ -1,26 +1,18 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
-import { resolveClineDataDir } from "@clinebot/core";
+import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
 import { Chat, ConsoleLogger, type Thread } from "chat";
+import type { Command } from "commander";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
+import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
+import { ConnectorBase } from "../base";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
+import { isProcessRunning } from "../common";
 import {
-	isProcessRunning,
-	parseBooleanFlag,
-	parseIntegerFlag,
-	parseStringFlag,
-	readJsonFile,
-	removeFile,
-	spawnDetachedConnector,
-	terminateProcess,
-	writeJsonFile,
-} from "../common";
-import {
+	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
 	maybeHandleConnectorApprovalReply,
 } from "../connector-host";
@@ -40,7 +32,10 @@ import {
 	type ConnectorBindingStore,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
+	findBindingForParticipantKey,
 	findBindingForThread,
+	loadThreadState,
+	persistMergedThreadState,
 	readBindings,
 } from "../thread-bindings";
 import type {
@@ -53,6 +48,12 @@ const TELEGRAM_SYSTEM_RULES = [
 	"Keep answers compact and optimized for a chat app unless the user asks for detail.",
 	"Prefer short paragraphs and concise lists suitable for Telegram.",
 	"When tools are disabled, explain limits briefly and ask for /tools if tool usage is required.",
+].join("\n");
+
+const TELEGRAM_FIRST_CONTACT_MESSAGE = [
+	"Connected.",
+	"Your chat history is kept separately for your account.",
+	"Send /new to start a fresh session or /whereami for thread details.",
 ].join("\n");
 
 type TelegramThreadState = ConnectorThreadState;
@@ -84,67 +85,6 @@ function truncateText(value: string, maxLength = 160): string {
 	return truncateConnectorText(value, maxLength);
 }
 
-function sanitizeKey(value: string): string {
-	return value.replace(/[^a-zA-Z0-9._-]+/g, "_");
-}
-
-function resolveConnectorStatePath(botUsername: string): string {
-	return join(
-		resolveClineDataDir(),
-		"connectors",
-		"telegram",
-		`${sanitizeKey(botUsername)}.json`,
-	);
-}
-
-function resolveBindingsPath(botUsername: string): string {
-	return join(
-		resolveClineDataDir(),
-		"connectors",
-		"telegram",
-		`${sanitizeKey(botUsername)}.threads.json`,
-	);
-}
-
-function listConnectorStatePaths(): string[] {
-	const dir = join(resolveClineDataDir(), "connectors", "telegram");
-	if (!existsSync(dir)) {
-		return [];
-	}
-	return readdirSync(dir)
-		.filter((name) => name.endsWith(".json") && !name.endsWith(".threads.json"))
-		.map((name) => join(dir, name));
-}
-
-function readConnectorState(
-	statePath: string,
-): TelegramConnectorState | undefined {
-	const parsed = readJsonFile<TelegramConnectorState | undefined>(
-		statePath,
-		undefined,
-	);
-	if (
-		!parsed ||
-		typeof parsed !== "object" ||
-		typeof parsed.pid !== "number" ||
-		typeof parsed.botUsername !== "string"
-	) {
-		return undefined;
-	}
-	return parsed;
-}
-
-function writeConnectorState(
-	statePath: string,
-	state: TelegramConnectorState,
-): void {
-	writeJsonFile(statePath, state);
-}
-
-function removeConnectorState(statePath: string): void {
-	removeFile(statePath);
-}
-
 async function stopSessionsForBot(
 	state: TelegramConnectorState,
 ): Promise<number> {
@@ -157,116 +97,6 @@ async function stopSessionsForBot(
 			metadata?.transport === "telegram" &&
 			metadata?.botUserName === state.botUsername,
 	});
-}
-
-async function stopTelegramConnectorInstance(
-	statePath: string,
-	io: ConnectIo,
-): Promise<ConnectStopResult> {
-	const state = readConnectorState(statePath);
-	if (!state) {
-		removeConnectorState(statePath);
-		return { stoppedProcesses: 0, stoppedSessions: 0 };
-	}
-	let stoppedProcesses = 0;
-	if (await terminateProcess(state.pid)) {
-		stoppedProcesses = 1;
-		io.writeln(`[telegram] stopped pid=${state.pid} bot=@${state.botUsername}`);
-	}
-	const stoppedSessions = await stopSessionsForBot(state);
-	clearBindingSessionIds<TelegramThreadState>(
-		resolveBindingsPath(state.botUsername),
-	);
-	removeConnectorState(statePath);
-	return { stoppedProcesses, stoppedSessions };
-}
-
-function showConnectTelegramHelp(io: ConnectIo): void {
-	io.writeln("Usage:");
-	io.writeln(
-		"  clite connect telegram -m <TELEGRAM_BOT_USERNAME> -k <TELEGRAM_BOT_TOKEN>",
-	);
-	io.writeln("");
-	io.writeln("Options:");
-	io.writeln("  -m, --bot-username <name>   Telegram bot username");
-	io.writeln("  -k, --bot-token <token>     Telegram bot token");
-	io.writeln("  --provider <id>             Provider override");
-	io.writeln("  --model <id>                Model override");
-	io.writeln("  --api-key <key>             Provider API key override");
-	io.writeln("  --system <prompt>           System prompt override");
-	io.writeln("  --cwd <path>                Workspace / cwd for runtime");
-	io.writeln("  --mode <act|plan>           Agent mode (default: act)");
-	io.writeln("  -i, --interactive           Keep connector in foreground");
-	io.writeln("  --max-iterations <n>        Optional max iterations");
-	io.writeln(
-		"  --enable-tools              Enable tools for Telegram sessions",
-	);
-	io.writeln(
-		"  --hook-command <command>    Run a shell command for connector events",
-	);
-	io.writeln(
-		"  --rpc-address <host:port>   RPC address (default: 127.0.0.1:4317)",
-	);
-	io.writeln("");
-	io.writeln("Notes:");
-	io.writeln("  - Without -i, the connector is launched in the background.");
-	io.writeln("  - Tools are disabled by default for Telegram sessions.");
-	io.writeln(
-		"  - Provider/model default to the CLI's last-used provider settings.",
-	);
-}
-
-function parseConnectTelegramArgs(
-	connectArgs: string[],
-): ConnectTelegramOptions {
-	if (
-		parseBooleanFlag(connectArgs, "-h") ||
-		parseBooleanFlag(connectArgs, "--help")
-	) {
-		throw new Error("__SHOW_HELP__");
-	}
-
-	const botUsername =
-		parseStringFlag(connectArgs, "-m", "--bot-username") ||
-		process.env.TELEGRAM_BOT_USERNAME?.trim();
-	const botToken =
-		parseStringFlag(connectArgs, "-k", "--bot-token") ||
-		process.env.TELEGRAM_BOT_TOKEN?.trim();
-	if (!botUsername) {
-		throw new Error("connect telegram requires -m/--bot-username <name>");
-	}
-	if (!botToken) {
-		throw new Error("connect telegram requires -k/--bot-token <token>");
-	}
-
-	const modeRaw =
-		parseStringFlag(connectArgs, "", "--mode")?.toLowerCase() || "act";
-	if (modeRaw !== "act" && modeRaw !== "plan") {
-		throw new Error(`invalid mode "${modeRaw}" (expected "act" or "plan")`);
-	}
-
-	return {
-		botToken,
-		botUsername,
-		cwd: parseStringFlag(connectArgs, "", "--cwd") || process.cwd(),
-		model: parseStringFlag(connectArgs, "", "--model"),
-		provider: parseStringFlag(connectArgs, "", "--provider"),
-		apiKey: parseStringFlag(connectArgs, "", "--api-key"),
-		systemPrompt: parseStringFlag(connectArgs, "-s", "--system"),
-		mode: modeRaw,
-		interactive:
-			parseBooleanFlag(connectArgs, "-i") ||
-			parseBooleanFlag(connectArgs, "--interactive"),
-		maxIterations: parseIntegerFlag(connectArgs, "-n", "--max-iterations"),
-		enableTools: parseBooleanFlag(connectArgs, "--enable-tools"),
-		rpcAddress:
-			parseStringFlag(connectArgs, "", "--rpc-address") ||
-			process.env.CLINE_RPC_ADDRESS?.trim() ||
-			"127.0.0.1:4317",
-		hookCommand:
-			parseStringFlag(connectArgs, "", "--hook-command") ||
-			process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
-	};
 }
 
 async function buildTelegramStartRequest(
@@ -283,6 +113,85 @@ async function buildTelegramStartRequest(
 		systemRules: TELEGRAM_SYSTEM_RULES,
 		teamName: `telegram-${options.botUsername.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function readString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readIdentifier(value: unknown): string | undefined {
+	if (typeof value === "string" && value.trim()) {
+		return value.trim();
+	}
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return String(value);
+	}
+	return undefined;
+}
+
+function resolveTelegramParticipant(
+	rawMessage: unknown,
+): { key: string; label?: string } | undefined {
+	const raw = asRecord(rawMessage);
+	const message =
+		asRecord(raw?.message) ??
+		asRecord(raw?.edited_message) ??
+		asRecord(raw?.channel_post) ??
+		raw;
+	const from = asRecord(message?.from);
+	const username = readString(from?.username)?.toLowerCase();
+	const userId = readIdentifier(from?.id);
+	const firstName = readString(from?.first_name);
+	const lastName = readString(from?.last_name);
+	const label =
+		username || [firstName, lastName].filter(Boolean).join(" ") || userId;
+	if (username) {
+		return { key: `telegram:user:${username}`, label };
+	}
+	if (userId) {
+		return { key: `telegram:id:${userId}`, label };
+	}
+	return undefined;
+}
+
+async function persistTelegramThreadContext(input: {
+	thread: Thread<TelegramThreadState>;
+	bindingsPath: string;
+	baseStartRequest: RpcChatStartSessionRequest;
+	rawMessage: unknown;
+	errorLabel: string;
+}): Promise<void> {
+	const participant = resolveTelegramParticipant(input.rawMessage);
+	if (!participant) {
+		return;
+	}
+	const currentState = await loadThreadState(
+		input.thread,
+		input.bindingsPath,
+		input.baseStartRequest,
+	);
+	if (
+		currentState.participantKey === participant.key &&
+		currentState.participantLabel === participant.label
+	) {
+		return;
+	}
+	await persistMergedThreadState(
+		input.thread,
+		input.bindingsPath,
+		{
+			...currentState,
+			participantKey: participant.key,
+			participantLabel: participant.label,
+		},
+		input.errorLabel,
+	);
 }
 
 async function deliverScheduledResult(input: {
@@ -306,18 +215,29 @@ async function deliverScheduledResult(input: {
 		return;
 	}
 	const targetBot =
-		typeof delivery.botUserName === "string" ? delivery.botUserName.trim() : "";
+		typeof delivery.userName === "string" ? delivery.userName.trim() : "";
 	if (targetBot && targetBot !== input.botUsername) {
 		return;
 	}
 	const threadId =
 		typeof delivery.threadId === "string" ? delivery.threadId.trim() : "";
-	if (!threadId) {
+	const bindingKey =
+		typeof delivery.bindingKey === "string"
+			? delivery.bindingKey.trim()
+			: typeof delivery.participantKey === "string"
+				? delivery.participantKey.trim()
+				: "";
+	if (!threadId && !bindingKey) {
 		return;
 	}
-	const binding = readBindings<TelegramThreadState>(input.bindingsPath)[
-		threadId
-	];
+	const bindings = readBindings<TelegramThreadState>(input.bindingsPath);
+	const match = bindingKey
+		? findBindingForParticipantKey(bindings, bindingKey)
+		: threadId
+			? { key: threadId, binding: bindings[threadId] }
+			: undefined;
+	const binding = match?.binding;
+	const deliveryThreadId = match?.key || threadId;
 	if (!binding?.serializedThread) {
 		input.logger.core.warn?.(
 			"Scheduled Telegram delivery skipped: missing thread binding",
@@ -325,7 +245,8 @@ async function deliverScheduledResult(input: {
 				transport: "telegram",
 				scheduleId: input.scheduleId,
 				executionId: input.executionId,
-				threadId,
+				threadId: deliveryThreadId,
+				bindingKey: bindingKey || undefined,
 			},
 		);
 		return;
@@ -337,7 +258,7 @@ async function deliverScheduledResult(input: {
 			botUserName: input.botUsername,
 			event: "schedule.delivery.started",
 			payload: {
-				threadId,
+				threadId: deliveryThreadId,
 				scheduleId: input.scheduleId,
 				executionId: input.executionId,
 				sessionId: input.sessionId,
@@ -364,7 +285,7 @@ async function deliverScheduledResult(input: {
 		await thread.post(body);
 		input.logger.core.info?.("Scheduled Telegram delivery sent", {
 			transport: "telegram",
-			threadId,
+			threadId: deliveryThreadId,
 			scheduleId: input.scheduleId,
 			executionId: input.executionId,
 			status: input.status,
@@ -377,7 +298,7 @@ async function deliverScheduledResult(input: {
 				botUserName: input.botUsername,
 				event: "schedule.delivery.sent",
 				payload: {
-					threadId,
+					threadId: deliveryThreadId,
 					scheduleId: input.scheduleId,
 					executionId: input.executionId,
 					status: input.status,
@@ -390,7 +311,7 @@ async function deliverScheduledResult(input: {
 	} catch (error) {
 		input.logger.core.error?.("Scheduled Telegram delivery failed", {
 			transport: "telegram",
-			threadId,
+			threadId: deliveryThreadId,
 			scheduleId: input.scheduleId,
 			executionId: input.executionId,
 			error,
@@ -402,7 +323,7 @@ async function deliverScheduledResult(input: {
 				botUserName: input.botUsername,
 				event: "schedule.delivery.failed",
 				payload: {
-					threadId,
+					threadId: deliveryThreadId,
 					scheduleId: input.scheduleId,
 					executionId: input.executionId,
 					error: error instanceof Error ? error.message : String(error),
@@ -414,445 +335,624 @@ async function deliverScheduledResult(input: {
 	}
 }
 
-async function runConnectTelegramCommand(
-	rawArgs: string[],
-	io: ConnectIo,
-): Promise<number> {
-	let options: ConnectTelegramOptions;
-	try {
-		options = parseConnectTelegramArgs(rawArgs);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		if (message === "__SHOW_HELP__") {
-			showConnectTelegramHelp(io);
-			return 0;
-		}
-		io.writeErr(message);
-		return 1;
+class TelegramConnector extends ConnectorBase<
+	ConnectTelegramOptions,
+	TelegramConnectorState
+> {
+	constructor() {
+		super("telegram", "Bridge Telegram bot messages into RPC chat sessions");
 	}
 
-	const statePath = resolveConnectorStatePath(options.botUsername);
-	const bindingsPath = resolveBindingsPath(options.botUsername);
-	const existingState = readConnectorState(statePath);
-	if (existingState && !isProcessRunning(existingState.pid)) {
-		removeConnectorState(statePath);
-	}
-	if (
-		!options.interactive &&
-		process.env.CLINE_TELEGRAM_CONNECT_CHILD !== "1"
-	) {
-		const runningState = readConnectorState(statePath);
-		if (runningState && isProcessRunning(runningState.pid)) {
-			io.writeln(
-				`[telegram] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress}`,
+	protected override createCommand(): Command {
+		return super
+			.createCommand()
+			.usage("-m <TELEGRAM_BOT_USERNAME> -k <TELEGRAM_BOT_TOKEN> [options]")
+			.option("-m, --bot-username <name>", "Telegram bot username")
+			.option("-k, --bot-token <token>", "Telegram bot token")
+			.option("--provider <id>", "Provider override")
+			.option("--model <id>", "Model override")
+			.option("--api-key <key>", "Provider API key override")
+			.option("--system <prompt>", "System prompt override")
+			.option("--cwd <path>", "Workspace / cwd for runtime")
+			.option("--mode <act|plan>", "Agent mode", "act")
+			.option("-i, --interactive", "Keep connector in foreground")
+			.option("--max-iterations <n>", "Optional max iterations")
+			.option("--enable-tools", "Enable tools for Telegram sessions")
+			.option(
+				"--hook-command <command>",
+				"Run a shell command for connector events",
+			)
+			.option(
+				"--rpc-address <host:port>",
+				"RPC address",
+				process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:4317",
+			)
+			.addHelpText(
+				"after",
+				[
+					"",
+					"Notes:",
+					"  - Without -i, the connector is launched in the background.",
+					"  - Tools are disabled by default for Telegram sessions.",
+					"  - Provider/model default to the CLI's last-used provider settings.",
+				].join("\n"),
 			);
-			return 0;
-		}
-		const pid = spawnDetachedConnector(
-			["connect", "telegram"],
-			rawArgs,
-			"CLINE_TELEGRAM_CONNECT_CHILD",
-		);
-		if (!pid) {
-			io.writeErr("failed to launch Telegram connector in background");
-			return 1;
-		}
-		io.writeln(
-			`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
-		);
-		io.writeln(
-			"[telegram] use `clite connect telegram -i ...` to run in the foreground",
-		);
-		return 0;
 	}
 
-	const loggerAdapter = createCliLoggerAdapter({
-		runtime: "cli",
-		component: "telegram-connect",
-	});
-	const logger = createChatSdkLogger(loggerAdapter);
-	const consoleLogger = new ConsoleLogger("info", "telegram-connect");
-	const telegram = createTelegramAdapter({
-		mode: "polling",
-		botToken: options.botToken,
-		userName: options.botUsername,
-		logger,
-	});
-	const bot = new Chat({
-		userName: options.botUsername,
-		adapters: { telegram },
-		state: new InMemoryStateAdapter(),
-		logger,
-		fallbackStreamingPlaceholderText: null,
-		streamingUpdateIntervalMs: 500,
-	}).registerSingleton();
-	const threadQueues = new Map<string, Promise<void>>();
-	const pendingApprovals = new Map<string, PendingConnectorApproval>();
-	const startRequest = await buildTelegramStartRequest(options, io, {
-		enabled: loggerAdapter.runtimeConfig.enabled,
-		level: loggerAdapter.runtimeConfig.level,
-		destination: loggerAdapter.runtimeConfig.destination,
-		bindings: {
-			transport: "telegram",
-			botUserName: options.botUsername,
-		},
-	});
-	const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
-	process.env.CLINE_RPC_ADDRESS = rpcAddress;
+	protected override readOptions(command: Command): ConnectTelegramOptions {
+		const opts = command.opts<{
+			botUsername?: string;
+			botToken?: string;
+			cwd?: string;
+			model?: string;
+			provider?: string;
+			apiKey?: string;
+			system?: string;
+			mode?: string;
+			interactive?: boolean;
+			maxIterations?: string;
+			enableTools?: boolean;
+			rpcAddress?: string;
+			hookCommand?: string;
+		}>();
+		const botUsername =
+			opts.botUsername?.trim() || process.env.TELEGRAM_BOT_USERNAME?.trim();
+		const botToken =
+			opts.botToken?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim();
+		if (!botUsername) {
+			throw new Error("connect telegram requires -m/--bot-username <name>");
+		}
+		if (!botToken) {
+			throw new Error("connect telegram requires -k/--bot-token <token>");
+		}
+		return {
+			botToken,
+			botUsername,
+			cwd: opts.cwd || process.cwd(),
+			model: opts.model,
+			provider: opts.provider,
+			apiKey: opts.apiKey,
+			systemPrompt: opts.system,
+			mode: this.parseMode(opts.mode),
+			interactive: Boolean(opts.interactive),
+			maxIterations: this.parseOptionalInteger(
+				opts.maxIterations,
+				"max iterations",
+			),
+			enableTools: Boolean(opts.enableTools),
+			rpcAddress:
+				opts.rpcAddress?.trim() ||
+				process.env.CLINE_RPC_ADDRESS?.trim() ||
+				"127.0.0.1:4317",
+			hookCommand:
+				opts.hookCommand?.trim() ||
+				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
+		};
+	}
 
-	const clientId = `telegram-${process.pid}-${Date.now()}`;
-	await registerRpcClient(rpcAddress, {
-		clientId,
-		clientType: "cli",
-		metadata: {
-			transport: "telegram",
-			botUserName: options.botUsername,
-		},
-	}).catch(() => undefined);
+	private resolveConnectorStatePath(botUsername: string): string {
+		return this.resolveConnectorPath(`${this.sanitizeKey(botUsername)}.json`);
+	}
 
-	const client = new RpcSessionClient({ address: rpcAddress });
-	writeConnectorState(statePath, {
-		botUsername: options.botUsername,
-		pid: process.pid,
-		rpcAddress,
-		startedAt: new Date().toISOString(),
-	});
-	loggerAdapter.core.info?.("Telegram connector started", {
-		transport: "telegram",
-		botUserName: options.botUsername,
-		pid: process.pid,
-		rpcAddress,
-		mode: telegram.runtimeMode,
-		interactive: options.interactive,
-	});
-	await dispatchConnectorHook(
-		options.hookCommand,
-		{
-			adapter: "telegram",
-			botUserName: options.botUsername,
-			event: "connector.started",
-			payload: {
-				pid: process.pid,
-				rpcAddress,
-				mode: telegram.runtimeMode,
+	private resolveBindingsPath(botUsername: string): string {
+		return this.resolveConnectorPath(
+			`${this.sanitizeKey(botUsername)}.threads.json`,
+		);
+	}
+
+	private listConnectorStatePaths(): string[] {
+		return this.listJsonStatePaths([".threads.json"]);
+	}
+
+	private readConnectorState(
+		statePath: string,
+	): TelegramConnectorState | undefined {
+		return this.readStateFile(
+			statePath,
+			(value): value is TelegramConnectorState =>
+				Boolean(
+					value &&
+						typeof value === "object" &&
+						typeof (value as TelegramConnectorState).pid === "number" &&
+						typeof (value as TelegramConnectorState).botUsername === "string",
+				),
+		);
+	}
+
+	private writeConnectorState(
+		statePath: string,
+		state: TelegramConnectorState,
+	): void {
+		this.writeStateFile(statePath, state);
+	}
+
+	private async stopTelegramConnectorInstance(
+		statePath: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return this.stopManagedProcess({
+			io,
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			describeStoppedProcess: (state) =>
+				`[telegram] stopped pid=${state.pid} bot=@${state.botUsername}`,
+			getPid: (state) => state.pid,
+			stopSessions: stopSessionsForBot,
+			clearBindings: (state) => {
+				clearBindingSessionIds<TelegramThreadState>(
+					this.resolveBindingsPath(state.botUsername),
+				);
 			},
-			ts: new Date().toISOString(),
-		},
-		loggerAdapter,
-	);
-
-	let stopping = false;
-	let resolveStop: (() => void) | undefined;
-	const stopPromise = new Promise<void>((resolve) => {
-		resolveStop = resolve;
-	});
-	const requestStop = (reason: string) => {
-		if (stopping) {
-			return;
-		}
-		stopping = true;
-		loggerAdapter.core.warn?.("Telegram connector stopping", {
-			transport: "telegram",
-			reason,
-			pid: process.pid,
 		});
-		resolveStop?.();
-	};
+	}
 
-	const handleTurn = async (
-		thread: Thread<TelegramThreadState>,
-		text: string,
-	) => {
-		await enqueueThreadTurn(threadQueues, thread.id, async () => {
-			try {
-				await handleConnectorUserTurn({
-					thread,
-					text,
-					client,
-					pendingApprovals,
-					baseStartRequest: startRequest,
-					explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
-					clientId,
-					logger: loggerAdapter,
-					transport: "telegram",
-					botUserName: options.botUsername,
-					requestStop,
-					bindingsPath,
-					hookCommand: options.hookCommand,
-					systemRules: TELEGRAM_SYSTEM_RULES,
-					errorLabel: "Telegram",
-					getSessionMetadata: (currentThread) => ({
-						botUserName: options.botUsername,
-						telegramThreadId: currentThread.id,
-						telegramChannelId: currentThread.channelId,
-					}),
-					reusedLogMessage: "Telegram thread reusing RPC session",
-					startedLogMessage: "Telegram thread started RPC session",
-					messageReceivedLogMessage: "Telegram message received",
-					threadResetLogMessage: "Telegram thread reset",
-					connectorStopLogMessage:
-						"Telegram connector stop requested from chat",
-					onMessageReceived: async (details) => {
-						await dispatchConnectorHook(
-							options.hookCommand,
-							{
-								adapter: "telegram",
-								botUserName: options.botUsername,
-								event: "message.received",
-								payload: details,
-								ts: new Date().toISOString(),
-							},
-							loggerAdapter,
-						);
-					},
-					onReplyCompleted: async (result) => {
-						loggerAdapter.core.info?.("Telegram reply completed", {
-							transport: "telegram",
-							threadId: result.threadId,
-							sessionId: result.sessionId,
-							outputLength: result.text.length,
-							outputPreview: truncateText(result.text),
-							finishReason: result.finishReason,
-							iterations: result.iterations,
-						});
-						await dispatchConnectorHook(
-							options.hookCommand,
-							{
-								adapter: "telegram",
-								botUserName: options.botUsername,
-								event: "message.completed",
-								payload: {
-									threadId: result.threadId,
-									sessionId: result.sessionId,
-									finishReason: result.finishReason,
-									iterations: result.iterations,
-									outputPreview: truncateText(result.text),
-									outputLength: result.text.length,
-								},
-								ts: new Date().toISOString(),
-							},
-							loggerAdapter,
-						);
-					},
-					onReplyFailed: async (details) => {
-						loggerAdapter.core.error?.("Telegram reply failed", {
-							transport: "telegram",
-							threadId: details.threadId,
-							sessionId: details.sessionId,
-							error: details.error,
-						});
-						await dispatchConnectorHook(
-							options.hookCommand,
-							{
-								adapter: "telegram",
-								botUserName: options.botUsername,
-								event: "message.failed",
-								payload: {
-									threadId: details.threadId,
-									sessionId: details.sessionId,
-									error: details.error.message,
-								},
-								ts: new Date().toISOString(),
-							},
-							loggerAdapter,
-						);
-					},
-				});
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				loggerAdapter.core.error?.("Telegram turn handling failed", {
-					transport: "telegram",
-					threadId: thread.id,
-					error,
-				});
-				await thread.post(`Telegram bridge error: ${message}`);
-			}
-		});
-	};
+	override async stopAll(io: ConnectIo): Promise<ConnectStopResult> {
+		return this.stopAllFromStatePaths(
+			io,
+			this.listConnectorStatePaths(),
+			(statePath, stopIo) =>
+				this.stopTelegramConnectorInstance(statePath, stopIo),
+		);
+	}
 
-	bot.onNewMention(async (thread, message) => {
-		await thread.subscribe();
+	protected override async runWithOptions(
+		options: ConnectTelegramOptions,
+		rawArgs: string[],
+		io: ConnectIo,
+	): Promise<number> {
+		const statePath = this.resolveConnectorStatePath(options.botUsername);
+		const bindingsPath = this.resolveBindingsPath(options.botUsername);
+		this.removeStaleState(
+			statePath,
+			(path) => this.readConnectorState(path),
+			(state) => state.pid,
+		);
 		if (
-			await maybeHandleConnectorApprovalReply({
-				thread,
-				text: message.text,
-				client,
-				clientId,
-				pendingApprovals,
-				deniedReason: "Denied by Telegram user",
+			await this.maybeRunInBackground({
+				rawArgs,
+				io,
+				interactive: options.interactive,
+				childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
+				statePath,
+				readState: (path) => this.readConnectorState(path),
+				isRunning: (state) => isProcessRunning(state.pid),
+				formatAlreadyRunningMessage: (state) =>
+					`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
+				formatBackgroundStartMessage: (pid) =>
+					`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
+				foregroundHint:
+					"[telegram] use `clite connect telegram -i ...` to run in the foreground",
+				launchFailureMessage:
+					"failed to launch Telegram connector in background",
 			})
 		) {
-			return;
+			return 0;
 		}
-		await handleTurn(thread, message.text);
-	});
 
-	bot.onSubscribedMessage(async (thread, message) => {
-		if (
-			await maybeHandleConnectorApprovalReply({
-				thread,
-				text: message.text,
-				client,
-				clientId,
-				pendingApprovals,
-				deniedReason: "Denied by Telegram user",
-			})
-		) {
-			return;
-		}
-		await handleTurn(thread, message.text);
-	});
+		const loggerAdapter = createCliLoggerAdapter({
+			runtime: "cli",
+			component: "telegram-connect",
+		});
+		const logger = createChatSdkLogger(loggerAdapter);
+		const consoleLogger = new ConsoleLogger("info", "telegram-connect");
+		const telegram = createTelegramAdapter({
+			mode: "polling",
+			botToken: options.botToken,
+			userName: options.botUsername,
+			logger,
+		});
+		const bot = new Chat({
+			userName: options.botUsername,
+			adapters: { telegram },
+			state: new InMemoryStateAdapter(),
+			logger,
+			fallbackStreamingPlaceholderText: null,
+			streamingUpdateIntervalMs: 500,
+		}).registerSingleton();
+		const threadQueues = new Map<string, Promise<void>>();
+		const activeTurns = new Map<string, ActiveConnectorTurn>();
+		const pendingApprovals = new Map<string, PendingConnectorApproval>();
+		const startRequest = await buildTelegramStartRequest(options, io, {
+			enabled: loggerAdapter.runtimeConfig.enabled,
+			level: loggerAdapter.runtimeConfig.level,
+			destination: loggerAdapter.runtimeConfig.destination,
+			bindings: {
+				transport: "telegram",
+				botUserName: options.botUsername,
+			},
+		});
+		const userInstructionWatcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: startRequest.cwd },
+			rules: { workspacePath: startRequest.cwd },
+			workflows: { workspacePath: startRequest.cwd },
+		});
+		await userInstructionWatcher.start().catch(() => undefined);
+		const commandCwd = startRequest.cwd || process.cwd();
+		const chatCommandHost = await createWorkspaceChatCommandHost({
+			cwd: commandCwd,
+			workspaceRoot: startRequest.workspaceRoot || commandCwd,
+		});
+		const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
+		process.env.CLINE_RPC_ADDRESS = rpcAddress;
 
-	await bot.initialize();
-	const stopTaskUpdateStream =
-		startConnectorTaskUpdateRelay<TelegramThreadState>({
-			client,
+		const clientId = `telegram-${process.pid}-${Date.now()}`;
+		await registerRpcClient(rpcAddress, {
 			clientId,
-			bot,
-			logger: loggerAdapter,
-			bindingsPath,
+			clientType: "cli",
+			metadata: {
+				transport: "telegram",
+				botUserName: options.botUsername,
+			},
+		}).catch(() => undefined);
+
+		const client = new RpcSessionClient({ address: rpcAddress });
+		this.writeConnectorState(statePath, {
+			botUsername: options.botUsername,
+			pid: process.pid,
+			rpcAddress,
+			startedAt: new Date().toISOString(),
+		});
+		loggerAdapter.core.info?.("Telegram connector started", {
 			transport: "telegram",
+			botUserName: options.botUsername,
+			pid: process.pid,
+			rpcAddress,
+			mode: telegram.runtimeMode,
+			interactive: options.interactive,
+		});
+		await dispatchConnectorHook(
+			options.hookCommand,
+			{
+				adapter: "telegram",
+				botUserName: options.botUsername,
+				event: "connector.started",
+				payload: {
+					pid: process.pid,
+					rpcAddress,
+					mode: telegram.runtimeMode,
+				},
+				ts: new Date().toISOString(),
+			},
+			loggerAdapter,
+		);
+
+		let stopping = false;
+		let resolveStop: (() => void) | undefined;
+		const stopPromise = new Promise<void>((resolve) => {
+			resolveStop = resolve;
+		});
+		const requestStop = (reason: string) => {
+			if (stopping) {
+				return;
+			}
+			stopping = true;
+			loggerAdapter.core.warn?.("Telegram connector stopping", {
+				transport: "telegram",
+				reason,
+				pid: process.pid,
+			});
+			resolveStop?.();
+		};
+
+		const handleTurn = async (
+			thread: Thread<TelegramThreadState>,
+			text: string,
+		) => {
+			const queueKey =
+				(await loadThreadState(thread, bindingsPath, startRequest))
+					.participantKey || thread.id;
+			const runTurn = async () => {
+				try {
+					await handleConnectorUserTurn({
+						thread,
+						text,
+						client,
+						pendingApprovals,
+						baseStartRequest: startRequest,
+						explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
+						clientId,
+						logger: loggerAdapter,
+						transport: "telegram",
+						botUserName: options.botUsername,
+						requestStop,
+						bindingsPath,
+						hookCommand: options.hookCommand,
+						systemRules: TELEGRAM_SYSTEM_RULES,
+						errorLabel: "Telegram",
+						firstContactMessage: TELEGRAM_FIRST_CONTACT_MESSAGE,
+						userInstructionWatcher,
+						chatCommandHost,
+						activeTurns,
+						turnKey: queueKey,
+						getSessionMetadata: (currentThread, _clientId, currentState) => ({
+							botUserName: options.botUsername,
+							telegramThreadId: currentThread.id,
+							telegramChannelId: currentThread.channelId,
+							...(currentState.participantKey
+								? { telegramParticipantKey: currentState.participantKey }
+								: {}),
+							...(currentState.participantLabel
+								? { telegramParticipantLabel: currentState.participantLabel }
+								: {}),
+						}),
+						reusedLogMessage: "Telegram thread reusing RPC session",
+						startedLogMessage: "Telegram thread started RPC session",
+						messageReceivedLogMessage: "Telegram message received",
+						threadResetLogMessage: "Telegram thread reset",
+						connectorStopLogMessage:
+							"Telegram connector stop requested from chat",
+						onMessageReceived: async (details) => {
+							await dispatchConnectorHook(
+								options.hookCommand,
+								{
+									adapter: "telegram",
+									botUserName: options.botUsername,
+									event: "message.received",
+									payload: details,
+									ts: new Date().toISOString(),
+								},
+								loggerAdapter,
+							);
+						},
+						onReplyCompleted: async (result) => {
+							loggerAdapter.core.info?.("Telegram reply completed", {
+								transport: "telegram",
+								threadId: result.threadId,
+								sessionId: result.sessionId,
+								outputLength: result.text.length,
+								outputPreview: truncateText(result.text),
+								finishReason: result.finishReason,
+								iterations: result.iterations,
+							});
+							await dispatchConnectorHook(
+								options.hookCommand,
+								{
+									adapter: "telegram",
+									botUserName: options.botUsername,
+									event: "message.completed",
+									payload: {
+										threadId: result.threadId,
+										sessionId: result.sessionId,
+										finishReason: result.finishReason,
+										iterations: result.iterations,
+										outputPreview: truncateText(result.text),
+										outputLength: result.text.length,
+									},
+									ts: new Date().toISOString(),
+								},
+								loggerAdapter,
+							);
+						},
+						onReplyFailed: async (details) => {
+							loggerAdapter.core.error?.("Telegram reply failed", {
+								transport: "telegram",
+								threadId: details.threadId,
+								sessionId: details.sessionId,
+								error: details.error,
+							});
+							await dispatchConnectorHook(
+								options.hookCommand,
+								{
+									adapter: "telegram",
+									botUserName: options.botUsername,
+									event: "message.failed",
+									payload: {
+										threadId: details.threadId,
+										sessionId: details.sessionId,
+										error: details.error.message,
+									},
+									ts: new Date().toISOString(),
+								},
+								loggerAdapter,
+							);
+						},
+					});
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					loggerAdapter.core.error?.("Telegram turn handling failed", {
+						transport: "telegram",
+						threadId: thread.id,
+						error,
+					});
+					await thread.post(`Telegram bridge error: ${message}`);
+				}
+			};
+			if (activeTurns.has(queueKey)) {
+				await runTurn();
+				return;
+			}
+			await enqueueThreadTurn(threadQueues, queueKey, async () => {
+				await runTurn();
+			});
+		};
+
+		bot.onNewMention(async (thread, message) => {
+			await thread.subscribe();
+			await persistTelegramThreadContext({
+				thread,
+				bindingsPath,
+				baseStartRequest: startRequest,
+				rawMessage: message.raw,
+				errorLabel: "Telegram",
+			});
+			if (
+				await maybeHandleConnectorApprovalReply({
+					thread,
+					text: message.text,
+					client,
+					clientId,
+					pendingApprovals,
+					deniedReason: "Denied by Telegram user",
+				})
+			) {
+				return;
+			}
+			await handleTurn(thread, message.text);
 		});
 
-	const stopEventStream = client.streamEvents(
-		{ clientId: `${clientId}-server-events` },
-		{
-			onEvent: (event) => {
-				if (event.eventType === "rpc.server.shutting_down") {
+		bot.onSubscribedMessage(async (thread, message) => {
+			await persistTelegramThreadContext({
+				thread,
+				bindingsPath,
+				baseStartRequest: startRequest,
+				rawMessage: message.raw,
+				errorLabel: "Telegram",
+			});
+			if (
+				await maybeHandleConnectorApprovalReply({
+					thread,
+					text: message.text,
+					client,
+					clientId,
+					pendingApprovals,
+					deniedReason: "Denied by Telegram user",
+				})
+			) {
+				return;
+			}
+			await handleTurn(thread, message.text);
+		});
+
+		await bot.initialize();
+		const stopTaskUpdateStream =
+			startConnectorTaskUpdateRelay<TelegramThreadState>({
+				client,
+				clientId,
+				bot,
+				logger: loggerAdapter,
+				bindingsPath,
+				transport: "telegram",
+			});
+
+		const stopEventStream = client.streamEvents(
+			{ clientId: `${clientId}-server-events` },
+			{
+				onEvent: (event) => {
+					if (event.eventType === "rpc.server.shutting_down") {
+						loggerAdapter.core.warn?.(
+							"Telegram connector stopping because the RPC server is shutting down",
+							{
+								transport: "telegram",
+								eventType: event.eventType,
+							},
+						);
+						requestStop("rpc_server_shutting_down");
+						return;
+					}
+					if (event.eventType !== "schedule.execution.completed") {
+						return;
+					}
+					const scheduleId =
+						typeof event.payload.scheduleId === "string"
+							? event.payload.scheduleId.trim()
+							: "";
+					const executionId =
+						typeof event.payload.executionId === "string"
+							? event.payload.executionId.trim()
+							: "";
+					const sessionId =
+						typeof event.payload.sessionId === "string"
+							? event.payload.sessionId.trim()
+							: undefined;
+					const status =
+						typeof event.payload.status === "string"
+							? event.payload.status.trim()
+							: "";
+					const errorMessage =
+						typeof event.payload.errorMessage === "string"
+							? event.payload.errorMessage
+							: undefined;
+					if (!scheduleId || !executionId || !status) {
+						return;
+					}
+					void deliverScheduledResult({
+						bot,
+						client,
+						logger: loggerAdapter,
+						bindingsPath,
+						botUsername: options.botUsername,
+						scheduleId,
+						executionId,
+						sessionId,
+						status,
+						errorMessage,
+						hookCommand: options.hookCommand,
+					});
+				},
+				onError: (error) => {
 					loggerAdapter.core.warn?.(
-						"Telegram connector stopping because the RPC server is shutting down",
+						"Telegram connector server event stream failed",
 						{
 							transport: "telegram",
-							eventType: event.eventType,
+							error,
 						},
 					);
-					requestStop("rpc_server_shutting_down");
-					return;
-				}
-				if (event.eventType !== "schedule.execution.completed") {
-					return;
-				}
-				const scheduleId =
-					typeof event.payload.scheduleId === "string"
-						? event.payload.scheduleId.trim()
-						: "";
-				const executionId =
-					typeof event.payload.executionId === "string"
-						? event.payload.executionId.trim()
-						: "";
-				const sessionId =
-					typeof event.payload.sessionId === "string"
-						? event.payload.sessionId.trim()
-						: undefined;
-				const status =
-					typeof event.payload.status === "string"
-						? event.payload.status.trim()
-						: "";
-				const errorMessage =
-					typeof event.payload.errorMessage === "string"
-						? event.payload.errorMessage
-						: undefined;
-				if (!scheduleId || !executionId || !status) {
-					return;
-				}
-				void deliverScheduledResult({
-					bot,
-					client,
-					logger: loggerAdapter,
-					bindingsPath,
-					botUsername: options.botUsername,
-					scheduleId,
-					executionId,
-					sessionId,
-					status,
-					errorMessage,
-					hookCommand: options.hookCommand,
-				});
+					requestStop("rpc_server_event_stream_failed");
+				},
 			},
-			onError: (error) => {
-				loggerAdapter.core.warn?.(
-					"Telegram connector server event stream failed",
-					{
-						transport: "telegram",
-						error,
-					},
-				);
-				requestStop("rpc_server_event_stream_failed");
+		);
+
+		consoleLogger.info("Telegram connector ready", {
+			rpcAddress,
+			mode: telegram.runtimeMode,
+		});
+		io.writeln(
+			`[telegram] connected as @${options.botUsername} mode=${telegram.runtimeMode} rpc=${rpcAddress} provider=${startRequest.provider} model=${startRequest.model} tools=${startRequest.enableTools ? "on" : "off"}`,
+		);
+		io.writeln("[telegram] send /reset in a chat to start a fresh RPC session");
+		io.writeln(
+			"[telegram] send /whereami in a chat to get its delivery thread id",
+		);
+		io.writeln(
+			"[telegram] use /tools, /yolo, or /cwd <path> to update runtime settings",
+		);
+		io.writeln("[telegram] send /stop in a chat or press Ctrl+C to stop");
+
+		const shutdown = () => {
+			process.off("SIGINT", shutdown);
+			process.off("SIGTERM", shutdown);
+			requestStop("signal");
+		};
+		process.on("SIGINT", shutdown);
+		process.on("SIGTERM", shutdown);
+
+		await stopPromise;
+
+		stopTaskUpdateStream();
+		stopEventStream();
+		userInstructionWatcher.stop();
+		await dispatchConnectorHook(
+			options.hookCommand,
+			{
+				adapter: "telegram",
+				botUserName: options.botUsername,
+				event: "connector.stopping",
+				payload: { pid: process.pid },
+				ts: new Date().toISOString(),
 			},
-		},
-	);
-
-	consoleLogger.info("Telegram connector ready", {
-		rpcAddress,
-		mode: telegram.runtimeMode,
-	});
-	io.writeln(
-		`[telegram] connected as @${options.botUsername} mode=${telegram.runtimeMode} rpc=${rpcAddress} provider=${startRequest.provider} model=${startRequest.model} tools=${startRequest.enableTools ? "on" : "off"}`,
-	);
-	io.writeln("[telegram] send /reset in a chat to start a fresh RPC session");
-	io.writeln(
-		"[telegram] send /whereami in a chat to get its delivery thread id",
-	);
-	io.writeln(
-		"[telegram] use /tools, /yolo, or /cwd <path> to update runtime settings",
-	);
-	io.writeln("[telegram] send /stop in a chat or press Ctrl+C to stop");
-
-	const shutdown = () => {
-		process.off("SIGINT", shutdown);
-		process.off("SIGTERM", shutdown);
-		requestStop("signal");
-	};
-	process.on("SIGINT", shutdown);
-	process.on("SIGTERM", shutdown);
-
-	await stopPromise;
-
-	stopTaskUpdateStream();
-	stopEventStream();
-	await dispatchConnectorHook(
-		options.hookCommand,
-		{
-			adapter: "telegram",
-			botUserName: options.botUsername,
-			event: "connector.stopping",
-			payload: { pid: process.pid },
-			ts: new Date().toISOString(),
-		},
-		loggerAdapter,
-	);
-	await telegram.stopPolling().catch(() => undefined);
-	await bot.shutdown().catch(() => undefined);
-	client.close();
-	removeConnectorState(statePath);
-	loggerAdapter.core.info?.("Telegram connector stopped", {
-		transport: "telegram",
-		pid: process.pid,
-	});
-	return 0;
+			loggerAdapter,
+		);
+		await telegram.stopPolling().catch(() => undefined);
+		await bot.shutdown().catch(() => undefined);
+		client.close();
+		this.removeStateFile(statePath);
+		loggerAdapter.core.info?.("Telegram connector stopped", {
+			transport: "telegram",
+			pid: process.pid,
+		});
+		return 0;
+	}
 }
 
-export const telegramConnector: ConnectCommandDefinition = {
-	name: "telegram",
-	description: "Bridge Telegram bot messages into RPC chat sessions",
-	run: runConnectTelegramCommand,
-	showHelp: showConnectTelegramHelp,
-	stopAll: async (io) => {
-		const statePaths = listConnectorStatePaths();
-		let stoppedProcesses = 0;
-		let stoppedSessions = 0;
-		for (const statePath of statePaths) {
-			const result = await stopTelegramConnectorInstance(statePath, io);
-			stoppedProcesses += result.stoppedProcesses;
-			stoppedSessions += result.stoppedSessions;
-		}
-		return { stoppedProcesses, stoppedSessions };
-	},
-};
+export const telegramConnector: ConnectCommandDefinition =
+	new TelegramConnector();
 
 export const __test__ = {
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<TelegramThreadState>,
-		thread: Pick<Thread<TelegramThreadState>, "id" | "channelId" | "isDM">,
+		thread: Pick<Thread<TelegramThreadState>, "id" | "channelId" | "isDM"> & {
+			participantKey?: string;
+		},
 	) => findBindingForThread(bindings, thread),
 };

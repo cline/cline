@@ -1,7 +1,7 @@
 import { getClineDefaultSystemPrompt } from "@clinebot/agents";
 import {
 	buildWorkspaceMetadata,
-	resolveWorkflowSlashCommandFromWatcher,
+	resolveRuntimeSlashCommandFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core/node";
 
@@ -40,6 +40,6 @@ export async function buildUserInputMessage(
 	userInstructionWatcher?: UserInstructionConfigWatcher,
 ): Promise<string> {
 	return userInstructionWatcher
-		? resolveWorkflowSlashCommandFromWatcher(rawPrompt, userInstructionWatcher)
+		? resolveRuntimeSlashCommandFromWatcher(rawPrompt, userInstructionWatcher)
 		: rawPrompt;
 }

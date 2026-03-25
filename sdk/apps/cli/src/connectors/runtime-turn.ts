@@ -1,7 +1,6 @@
 import type { RpcChatRunTurnRequest } from "@clinebot/core";
 import type { RpcSessionClient } from "@clinebot/rpc";
 import type { CliLoggerAdapter } from "../logging/adapter";
-import { formatToolInput } from "../utils/helpers";
 
 export type PendingConnectorApproval = {
 	approvalId: string;
@@ -35,6 +34,21 @@ export function parseToolApprovalInput(inputJson: unknown): unknown {
 	}
 }
 
+function formatToolInput(toolName: string | undefined, input: unknown): string {
+	if (input === undefined) {
+		return toolName?.trim() || "";
+	}
+	try {
+		const serialized = JSON.stringify(input);
+		if (!serialized) {
+			return toolName?.trim() || "";
+		}
+		return toolName?.trim() ? `${toolName.trim()} ${serialized}` : serialized;
+	} catch {
+		return toolName?.trim() || "";
+	}
+}
+
 export function formatConnectorToolStatus(input: {
 	toolName: string | undefined;
 	status: "start" | "error";
@@ -43,10 +57,6 @@ export function formatConnectorToolStatus(input: {
 }): string {
 	const resolvedName = input.toolName?.trim() || "unknown_tool";
 	if (input.status === "start") {
-		const summary = formatToolInput(resolvedName, input.toolInput);
-		if (summary) {
-			return [`Executing ${resolvedName}...`, summary].join("\n");
-		}
 		return `Executing ${resolvedName}...`;
 	}
 	const detail = input.errorMessage?.trim();

@@ -8,11 +8,16 @@ export type ConnectorThreadState = {
 	cwd?: string;
 	workspaceRoot?: string;
 	systemPrompt?: string;
+	participantKey?: string;
+	participantLabel?: string;
+	welcomeSentAt?: string;
 };
 
 export type ConnectorThreadBinding<TState extends ConnectorThreadState> = {
 	channelId: string;
 	isDM: boolean;
+	participantKey?: string;
+	participantLabel?: string;
 	serializedThread: string;
 	sessionId?: string;
 	state?: TState;
@@ -32,7 +37,26 @@ export type SerializableConnectorThread<TState extends ConnectorThreadState> =
 export type ConnectorBindingThreadIdentity = Pick<
 	Thread<ConnectorThreadState>,
 	"id" | "channelId" | "isDM"
->;
+> & {
+	participantKey?: string;
+};
+
+function normalizeParticipantKey(
+	value: string | undefined,
+): string | undefined {
+	const trimmed = value?.trim();
+	return trimmed ? trimmed : undefined;
+}
+
+export function resolveThreadBindingKey(
+	thread: ConnectorBindingThreadIdentity,
+	state?: ConnectorThreadState | null,
+): string {
+	return (
+		normalizeParticipantKey(state?.participantKey ?? thread.participantKey) ??
+		thread.id
+	);
+}
 
 export function readBindings<TState extends ConnectorThreadState>(
 	path: string,
@@ -52,6 +76,29 @@ export function findBindingForThread<TState extends ConnectorThreadState>(
 	bindings: ConnectorBindingStore<TState>,
 	thread: ConnectorBindingThreadIdentity,
 ): { binding: ConnectorThreadBinding<TState>; key: string } | undefined {
+	const participantKey = normalizeParticipantKey(thread.participantKey);
+	if (participantKey) {
+		const exactThread = bindings[thread.id];
+		const exactThreadParticipantKey = normalizeParticipantKey(
+			exactThread?.participantKey ?? exactThread?.state?.participantKey,
+		);
+		if (exactThread && exactThreadParticipantKey === participantKey) {
+			return { key: thread.id, binding: exactThread };
+		}
+		const exactParticipant = bindings[participantKey];
+		if (exactParticipant) {
+			return { key: participantKey, binding: exactParticipant };
+		}
+		for (const [key, binding] of Object.entries(bindings)) {
+			const bindingParticipantKey = normalizeParticipantKey(
+				binding.participantKey ?? binding.state?.participantKey,
+			);
+			if (bindingParticipantKey === participantKey) {
+				return { key, binding };
+			}
+		}
+		return undefined;
+	}
 	const exact = bindings[thread.id];
 	if (exact) {
 		return { key: thread.id, binding: exact };
@@ -76,12 +123,18 @@ export function readBindingForThread<TState extends ConnectorThreadState>(
 	if (!match) {
 		return undefined;
 	}
-	if (match.key !== thread.id) {
-		bindings[thread.id] = match.binding;
+	const targetKey = resolveThreadBindingKey(thread, match.binding.state);
+	if (match.key !== targetKey) {
+		bindings[targetKey] = {
+			...match.binding,
+			participantKey:
+				normalizeParticipantKey(thread.participantKey) ??
+				match.binding.participantKey,
+		};
 		delete bindings[match.key];
 		writeBindings(path, bindings);
 	}
-	return bindings[thread.id];
+	return bindings[targetKey];
 }
 
 export function serializeThread<TState extends ConnectorThreadState>(
@@ -102,18 +155,34 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 	errorLabel: string,
 ): void {
 	const bindings = readBindings<TState>(path);
+	const participantKey = normalizeParticipantKey(state.participantKey);
+	const bindingKey = resolveThreadBindingKey(
+		thread as ConnectorBindingThreadIdentity,
+		state,
+	);
 	for (const [key, binding] of Object.entries(bindings)) {
-		if (
-			key !== thread.id &&
+		const bindingParticipantKey = normalizeParticipantKey(
+			binding.participantKey ?? binding.state?.participantKey,
+		);
+		const matchesParticipant =
+			participantKey && bindingParticipantKey === participantKey;
+		const matchesLegacyKey = participantKey && key === thread.id;
+		const matchesLegacyThread =
+			!participantKey &&
 			binding.channelId === thread.channelId &&
-			binding.isDM === thread.isDM
+			binding.isDM === thread.isDM;
+		if (
+			key !== bindingKey &&
+			(matchesParticipant || matchesLegacyKey || matchesLegacyThread)
 		) {
 			delete bindings[key];
 		}
 	}
-	bindings[thread.id] = {
+	bindings[bindingKey] = {
 		channelId: thread.channelId,
 		isDM: thread.isDM,
+		participantKey,
+		participantLabel: state.participantLabel?.trim() || undefined,
 		serializedThread: serializeThread(thread, errorLabel),
 		sessionId: state.sessionId,
 		state,
@@ -148,6 +217,18 @@ export function mergeThreadState<TState extends ConnectorThreadState>(
 			threadState?.systemPrompt ||
 			bindingState?.systemPrompt ||
 			base.systemPrompt,
+		participantKey:
+			threadState?.participantKey ||
+			bindingState?.participantKey ||
+			base.participantKey,
+		participantLabel:
+			threadState?.participantLabel ||
+			bindingState?.participantLabel ||
+			base.participantLabel,
+		welcomeSentAt:
+			threadState?.welcomeSentAt ||
+			bindingState?.welcomeSentAt ||
+			base.welcomeSentAt,
 	} as TState;
 }
 
@@ -156,11 +237,37 @@ export async function loadThreadState<TState extends ConnectorThreadState>(
 	bindingsPath: string,
 	base: ConnectorThreadState,
 ): Promise<TState> {
-	const binding = readBindingForThread<TState>(
-		bindingsPath,
-		thread as ConnectorBindingThreadIdentity,
-	);
-	return mergeThreadState(await thread.state, binding?.state, base);
+	const threadState = await thread.state;
+	const binding = readBindingForThread<TState>(bindingsPath, {
+		...(thread as ConnectorBindingThreadIdentity),
+		participantKey: threadState?.participantKey,
+	});
+	return mergeThreadState(threadState, binding?.state, base);
+}
+
+export function findBindingForParticipantKey<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	participantKey: string | undefined,
+): { binding: ConnectorThreadBinding<TState>; key: string } | undefined {
+	const normalized = normalizeParticipantKey(participantKey);
+	if (!normalized) {
+		return undefined;
+	}
+	const exact = bindings[normalized];
+	if (exact) {
+		return { key: normalized, binding: exact };
+	}
+	for (const [key, binding] of Object.entries(bindings)) {
+		const bindingParticipantKey = normalizeParticipantKey(
+			binding.participantKey ?? binding.state?.participantKey,
+		);
+		if (bindingParticipantKey === normalized) {
+			return { key, binding };
+		}
+	}
+	return undefined;
 }
 
 export async function persistMergedThreadState<

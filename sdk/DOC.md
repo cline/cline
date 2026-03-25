@@ -132,6 +132,12 @@ Workspace boundary note:
 - `hooks` in `AgentConfig` handle lifecycle callbacks
 - subprocess hook integrations are provided by `@clinebot/agents/node` or upstream runtime layers (for example `@clinebot/core`)
 
+Extension command note:
+
+- Extension/plugin commands are registered through `api.registerCommand(...)`.
+- The agent/runtime contribution registry owns collecting those commands.
+- Host layers such as the CLI can adapt the collected extension commands into host-specific command surfaces, such as the chat command host used by interactive mode and connectors.
+
 Control fields returned by extension/hook handlers:
 
 - `cancel: boolean` to abort execution
@@ -520,7 +526,8 @@ Interactive mode is activated by `-i` / `--interactive`, by passing no prompt, o
 **TUI features:**
 - Multi-turn conversation with full history display
 - `/config` and `/settings` slash commands to open the config browser
-- Workflow slash commands loaded from the workspace watcher
+- A shared chat command host for built-in and plugin-defined slash commands
+- Workflow and skill slash commands loaded from the workspace watcher/runtime command registry
 - Auto-approve toggle
 - File mention support (`@file`)
 
@@ -1206,19 +1213,45 @@ This architecture allows desktop clients to share the same session service as th
 
 ---
 
-### Workflow Slash Commands
+### Chat Command Registry
 
-**Source:** `src/runtime/interactive-welcome.ts` → `listInteractiveSlashCommands()`
+**Sources:** `src/utils/chat-commands.ts`, `src/utils/plugin-chat-commands.ts`, `src/runtime/interactive-welcome.ts`
 
-In interactive mode, the TUI supports `/command` slash commands:
+The CLI chat surfaces use a class-based command host with a default singleton-style registry of built-in commands. Hosts can clone that registry and register additional workspace/runtime-specific commands before handling input.
+
+Built-in chat commands include:
 
 | Command | Description |
 |---|---|
+| `/reset` / `/new` | Start a fresh session or connector thread binding |
+| `/whereami` | Describe the current session/thread routing context |
+| `/tools` | Show or toggle tool availability |
+| `/yolo` | Show or toggle auto-approval |
+| `/cwd` | Show or change cwd/workspace root |
+| `/schedule` | Create/list/trigger/delete schedules where supported |
+| `/stop` | Stop the active connector bridge when supported |
 | `/config` | Open the config browser view |
 | `/settings` | Alias for `/config` |
-| `/<workflow-name>` | Execute a configured workflow (loaded from workspace) |
 
-Workflows are loaded from the `UserInstructionConfigWatcher` which watches `.clinerules`, `.clineskills`, and `.clineworkflows` files in the workspace.
+Plugin bridge behavior:
+
+- Workspace plugins are loaded through the existing extension/plugin loader path.
+- The CLI runs extension `setup(api)` through `ContributionRegistry`.
+- Registered extension commands are adapted into chat command host entries.
+- Plugin command names are normalized to slash form, so `echo` becomes `/echo`.
+
+### Runtime Slash Commands
+
+**Sources:** `packages/core/src/runtime/commands.ts`, `src/runtime/prompt.ts`, `src/runtime/interactive-welcome.ts`
+
+After chat-command handling, prompt preparation resolves runtime slash commands from the shared runtime command registry:
+
+| Command | Description |
+|---|---|
+| `/<workflow-name>` | Execute a configured workflow |
+| `/<skill-name>` | Expand a configured skill |
+
+Runtime slash commands are loaded from the `UserInstructionConfigWatcher`, merged through one registry, and expanded before a turn is sent to the agent. If a workflow and skill share the same name, workflow resolution wins.
 
 ---
 
@@ -1467,6 +1500,286 @@ clite sessions delete --session-id 1700000000000_abcde_cli
 # Pipe a file for analysis
 cat package.json | clite "What dependencies does this project use and what do they do?"
 ```
+
+## Connectors on a VM
+
+Cline connectors are a general feature for exposing a Cline runtime through external chat platforms while keeping tool execution inside a VM or server-side workspace. A connector maps each external conversation thread to a runtime session, so users can talk to the agent from chat while the agent reads files, runs commands, edits code, and posts results back into that same conversation.
+
+Slack is a good example of this feature because it supports both direct messages and `@mentions` in channels, but the deployment model is broader than Slack itself.
+
+### What Connectors Support
+
+- external chat conversations bound to Cline runtime sessions
+- per-thread or per-DM session reuse
+- tool-enabled work inside the VM filesystem and process environment
+- scheduled runs that can post replies back into the originating chat thread
+- in-chat utility commands such as `/whereami` and `/schedule`
+- plugin-defined chat commands bridged from extension `registerCommand(...)`
+- workflow and skill slash commands resolved before connector turns are sent to the runtime
+
+Connector command flow:
+
+1. Incoming connector text is offered to the shared chat command host first.
+2. Built-in chat commands and plugin-registered commands can reply immediately at the host layer.
+3. If no host-level command matches, the connector resolves runtime slash commands (workflow/skill) and sends the expanded prompt to the runtime session.
+4. Slack also supports native Slack slash-command webhooks, which are converted into connector threads and routed through the same pipeline.
+
+### Deployment Model
+
+A typical connector deployment on a VM has three parts:
+
+1. a long-lived Cline RPC service
+2. a long-lived connector process for the chat platform
+3. a public HTTPS endpoint that forwards incoming webhooks to the connector
+
+Example local services:
+
+1. RPC server on `127.0.0.1:4317`
+2. connector webhook server on `127.0.0.1:8787`
+3. reverse proxy or tunnel forwarding `https://chat-agent.example.com` to `127.0.0.1:8787`
+
+This keeps the runtime private to the VM while still allowing the chat platform to reach the webhook endpoint.
+
+### Slack as an Example Connector
+
+For a single-workspace Slack bot, configure the connector with:
+
+```bash
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_SIGNING_SECRET=...
+BASE_URL=https://chat-agent.example.com
+```
+
+Recommended Slack bot scopes:
+
+- `app_mentions:read`
+- `channels:history`
+- `channels:read`
+- `chat:write`
+- `groups:history`
+- `groups:read`
+- `im:history`
+- `im:read`
+- `mpim:history`
+- `mpim:read`
+- `users:read`
+
+Recommended event subscriptions:
+
+- `app_mention`
+- `message.channels`
+- `message.groups`
+- `message.im`
+- `message.mpim`
+
+Set both Slack request URLs to:
+
+```text
+https://chat-agent.example.com/api/webhooks/slack
+```
+
+In channels, users should `@mention` the bot. In DMs, users should send plain text directly.
+
+### Step-by-Step VM Setup
+
+#### 1. Start the RPC service
+
+Run the Cline RPC service as a long-lived process so connector sessions can create and reuse runtime sessions.
+
+Example:
+
+```bash
+bun apps/cli/src/index.ts rpc start --address 127.0.0.1:4317
+```
+
+#### 2. Choose a stable public HTTPS URL
+
+The connector usually listens only on a local interface such as `127.0.0.1:8787`. The chat platform must reach it through a stable public HTTPS hostname.
+
+Practical options:
+
+- a reverse proxy on the VM
+- a load balancer
+- a named Cloudflare Tunnel
+
+Use a stable hostname such as:
+
+```text
+https://chat-agent.example.com
+```
+
+Avoid temporary tunnel URLs for any setup where you do not want to keep reconfiguring webhook settings.
+
+#### 3. Create a connector environment file
+
+Store connector configuration in an env file loaded by `systemd`.
+
+Example:
+
+```bash
+BASE_URL=https://chat-agent.example.com
+CLINE_REPO_DIR=/srv/cline
+CLINE_WORKSPACE_ROOT=/srv/workspaces/project-a
+CLINE_CONNECTOR_HOST=127.0.0.1
+CLINE_CONNECTOR_PORT=8787
+SLACK_BOT_TOKEN=xoxb-...
+SLACK_SIGNING_SECRET=...
+```
+
+Suggested location:
+
+```text
+/etc/cline/connector.env
+```
+
+#### 4. Run the connector as a service
+
+Use `systemd` so the connector stays up after you disconnect from the VM.
+
+Example service:
+
+```ini
+[Unit]
+Description=Cline chat connector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=cline
+EnvironmentFile=/etc/cline/connector.env
+ExecStart=/bin/bash -lc 'cd "$CLINE_REPO_DIR" && /path/to/bun --conditions=development --cwd apps/cli ./src/index.ts connect slack -i --base-url "$BASE_URL" --enable-tools --cwd "$CLINE_WORKSPACE_ROOT" --host "${CLINE_CONNECTOR_HOST:-127.0.0.1}" --port "${CLINE_CONNECTOR_PORT:-8787}"'
+Restart=always
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Notes:
+
+- use the absolute path to `bun`, because `systemd` often does not inherit the interactive shell `PATH`
+- keep `CLINE_REPO_DIR` and `CLINE_WORKSPACE_ROOT` separate if the repo root and working directory differ
+- replace `connect slack` with the relevant adapter command for the connector you are running
+
+Install and start it:
+
+```bash
+sudo cp cline-connector.service /etc/systemd/system/cline-connector.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now cline-connector.service
+```
+
+#### 5. Expose the connector publicly
+
+Point the public hostname at the local connector port.
+
+For a Cloudflare Tunnel, the high-level flow is:
+
+1. create a named tunnel
+2. route a stable DNS hostname such as `chat-agent.example.com`
+3. configure ingress to `http://127.0.0.1:8787`
+4. run the tunnel as a long-lived service
+
+#### 6. Configure the platform webhook
+
+For Slack, set:
+
+- Events request URL: `https://chat-agent.example.com/api/webhooks/slack`
+- Interactivity request URL: `https://chat-agent.example.com/api/webhooks/slack`
+
+#### 7. Verify health before testing chat
+
+Check the connector locally:
+
+```bash
+curl http://127.0.0.1:8787/health
+```
+
+Check the public URL:
+
+```bash
+curl https://chat-agent.example.com/health
+```
+
+Both should return:
+
+```text
+ok
+```
+
+When the connector is healthy, logs should show successful adapter initialization, the configured listen address, and the webhook URL.
+
+### Scheduling Replies Back Into the Chat Thread
+
+Connectors can attach delivery metadata to schedules so scheduled output is posted back into the same conversation.
+
+Slack examples:
+
+```text
+/whereami
+/schedule create "daily repo check" --cron "0 9 * * 1-5" --prompt "Summarize repo status and open risks"
+/schedule list
+```
+
+`/whereami` is useful for debugging because it shows the current connector thread context and delivery target.
+
+### Secrets for Commands Running Inside the VM
+
+If the agent needs API keys or other secrets for scripts it runs inside the VM:
+
+- put them in the service environment file
+- do not place them in prompts or checked-in files
+- let scripts read them from the process environment
+
+Example:
+
+```bash
+GITHUB_TOKEN=...
+MY_API_KEY=...
+```
+
+This makes secrets available to child processes started by the connector service without requiring them to be pasted into chat. It does not prevent the agent from printing them if it is explicitly told to dump environment variables, so pair this with approval or hook policies if your deployment needs stronger safeguards.
+
+### Common Setup Failures
+
+`/usr/bin/env: bun: No such file or directory`
+
+- `systemd` could not find Bun
+- fix by using the full Bun path in `ExecStart`
+
+`signingSecret is required`
+
+- the Slack signing secret is missing from the environment file
+
+`Failed to start server. Is port 8787 in use?`
+
+- another process is already bound to the connector port
+- identify it with `ss -ltnp | grep 8787`
+- either stop the old process or move the connector to another port and update the proxy or tunnel origin
+
+Cloudflare `1033`
+
+- the DNS record exists, but no healthy tunnel is serving the hostname
+- verify the named tunnel is running and routing to the correct local port
+
+Slack says the Events URL did not respond to the challenge
+
+- the public webhook URL is wrong, or the connector or tunnel is not healthy
+- verify both `/health` and `/api/webhooks/slack` on the public hostname
+
+Bot does not respond in DMs
+
+- make sure the app has `message.im`, `im:read`, and `im:history`
+- in Slack DMs, users should send plain text rather than `@mention` syntax
+
+### Operational Notes
+
+- Multiple users can talk to the same connector concurrently across separate DMs and external threads.
+- Messages within a single thread are serialized to preserve ordering.
+- Different threads can run concurrently.
+- Workspace isolation is not automatic. If multiple users operate on the same checkout at the same time, they can interfere unless you route them to separate workspaces or sandboxes.
 
 ---
 

@@ -1,4 +1,9 @@
 export {
+	type AvailableRuntimeCommand,
+	listAvailableRuntimeCommandsFromWatcher,
+	resolveRuntimeSlashCommandFromWatcher,
+} from "./commands";
+export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
 	listEnabledRulesFromWatcher,

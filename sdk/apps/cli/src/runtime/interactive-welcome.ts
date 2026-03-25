@@ -2,8 +2,7 @@ import {
 	ClineAccountService,
 	getFileIndex,
 	type LlmsProviders,
-	listAvailableSkillsFromWatcher,
-	listAvailableWorkflowsFromWatcher,
+	listAvailableRuntimeCommandsFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core/node";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
@@ -59,13 +58,11 @@ export function listInteractiveSlashCommands(
 	}
 	return [
 		...builtins,
-		...listAvailableSkillsFromWatcher(watcher).map((skill) => ({
-			name: skill.name,
-			instructions: skill.instructions,
-		})),
-		...listAvailableWorkflowsFromWatcher(watcher).map((workflow) => ({
-			name: workflow.name,
-			instructions: workflow.instructions,
+		...listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => ({
+			name: command.name,
+			instructions: command.instructions,
+			description:
+				command.kind === "workflow" ? "Workflow command" : "Skill command",
 		})),
 	];
 }

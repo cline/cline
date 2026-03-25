@@ -1,4 +1,8 @@
-import type { SkillConfig, UserInstructionConfigWatcher } from "../agents";
+import type { UserInstructionConfigWatcher } from "../agents";
+import {
+	listAvailableRuntimeCommandsForKindFromWatcher,
+	resolveRuntimeSlashCommandFromWatcher,
+} from "./commands";
 
 export type AvailableSkill = {
 	id: string;
@@ -6,23 +10,21 @@ export type AvailableSkill = {
 	instructions: string;
 };
 
-function isSkillEnabled(skill: SkillConfig): boolean {
-	return skill.disabled !== true;
+function matchesLeadingSlashCommand(input: string, name: string): boolean {
+	const match = input.match(/^\/(\S+)/);
+	return match?.[1] === name;
 }
 
 export function listAvailableSkillsFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 ): AvailableSkill[] {
-	const skills = [...watcher.getSnapshot("skill").entries()]
-		.map(([id, record]) => ({ id, skill: record.item as SkillConfig }))
-		.filter(({ skill }) => isSkillEnabled(skill))
-		.map(({ id, skill }) => ({
-			id,
+	return listAvailableRuntimeCommandsForKindFromWatcher(watcher, "skill").map(
+		(skill) => ({
+			id: skill.id,
 			name: skill.name,
 			instructions: skill.instructions,
-		}));
-
-	return [...skills].sort((a, b) => a.name.localeCompare(b.name));
+		}),
+	);
 }
 
 /**
@@ -34,21 +36,9 @@ export function resolveSkillsSlashCommandFromWatcher(
 	input: string,
 	watcher: UserInstructionConfigWatcher,
 ): string {
-	if (!input.startsWith("/") || input.length < 2) {
-		return input;
-	}
-	const match = input.match(/^\/(\S+)/);
-	if (!match) {
-		return input;
-	}
-	const name = match[1];
-	if (!name) {
-		return input;
-	}
-	const commandLength = name.length + 1;
-	const remainder = input.slice(commandLength);
-	const matched = listAvailableSkillsFromWatcher(watcher).find(
-		(skill) => skill.name === name,
+	const resolved = resolveRuntimeSlashCommandFromWatcher(input, watcher);
+	const matched = listAvailableSkillsFromWatcher(watcher).some((skill) =>
+		matchesLeadingSlashCommand(input, skill.name),
 	);
-	return matched ? `${matched.instructions}${remainder}` : input;
+	return matched ? resolved : input;
 }

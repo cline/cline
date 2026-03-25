@@ -1,30 +1,22 @@
-import { existsSync, readdirSync } from "node:fs";
-import { join } from "node:path";
 import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
-import { resolveClineDataDir } from "@clinebot/core";
+import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
 import { Chat, ConsoleLogger, type Thread } from "chat";
+import type { Command } from "commander";
 import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
+import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
+import { ConnectorBase } from "../base";
 import {
 	createChatSdkLogger,
 	enqueueThreadTurn,
 	startConnectorWebhookServer,
 } from "../chat-runtime";
+import { isProcessRunning } from "../common";
 import {
-	isProcessRunning,
-	parseBooleanFlag,
-	parseIntegerFlag,
-	parseStringFlag,
-	readJsonFile,
-	removeFile,
-	spawnDetachedConnector,
-	terminateProcess,
-	writeJsonFile,
-} from "../common";
-import {
+	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
 	maybeHandleConnectorApprovalReply,
 } from "../connector-host";
@@ -44,7 +36,10 @@ import {
 	type ConnectorBindingStore,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
+	findBindingForParticipantKey,
 	findBindingForThread,
+	loadThreadState,
+	persistMergedThreadState,
 	readBindings,
 } from "../thread-bindings";
 import type {
@@ -57,6 +52,12 @@ const WHATSAPP_SYSTEM_RULES = [
 	"Keep answers compact and optimized for a chat app unless the user asks for detail.",
 	"Prefer short paragraphs and concise lists suitable for WhatsApp.",
 	"When tools are disabled, explain limits briefly and ask for /tools if tool usage is required.",
+].join("\n");
+
+const WHATSAPP_FIRST_CONTACT_MESSAGE = [
+	"Connected.",
+	"Your chat history is isolated to your WhatsApp account.",
+	"Send /new to start a fresh session or /whereami for thread details.",
 ].join("\n");
 
 type WhatsAppThreadState = ConnectorThreadState;
@@ -109,64 +110,6 @@ function resolveInstanceKey(input: {
 	);
 }
 
-function resolveConnectorStatePath(instanceKey: string): string {
-	return join(
-		resolveClineDataDir(),
-		"connectors",
-		"whatsapp",
-		`${instanceKey}.json`,
-	);
-}
-
-function resolveBindingsPath(instanceKey: string): string {
-	return join(
-		resolveClineDataDir(),
-		"connectors",
-		"whatsapp",
-		`${instanceKey}.threads.json`,
-	);
-}
-
-function listConnectorStatePaths(): string[] {
-	const dir = join(resolveClineDataDir(), "connectors", "whatsapp");
-	if (!existsSync(dir)) {
-		return [];
-	}
-	return readdirSync(dir)
-		.filter((name) => name.endsWith(".json") && !name.endsWith(".threads.json"))
-		.map((name) => join(dir, name));
-}
-
-function readConnectorState(
-	statePath: string,
-): WhatsAppConnectorState | undefined {
-	const parsed = readJsonFile<WhatsAppConnectorState | undefined>(
-		statePath,
-		undefined,
-	);
-	if (
-		!parsed ||
-		typeof parsed !== "object" ||
-		typeof parsed.pid !== "number" ||
-		typeof parsed.instanceKey !== "string" ||
-		typeof parsed.userName !== "string"
-	) {
-		return undefined;
-	}
-	return parsed;
-}
-
-function writeConnectorState(
-	statePath: string,
-	state: WhatsAppConnectorState,
-): void {
-	writeJsonFile(statePath, state);
-}
-
-function removeConnectorState(statePath: string): void {
-	removeFile(statePath);
-}
-
 async function stopSessionsForConnector(
 	state: WhatsAppConnectorState,
 ): Promise<number> {
@@ -183,148 +126,6 @@ async function stopSessionsForConnector(
 				? metadata?.phoneNumberId === state.phoneNumberId.trim()
 				: metadata?.userName === state.userName),
 	});
-}
-
-async function stopWhatsAppConnectorInstance(
-	statePath: string,
-	io: ConnectIo,
-): Promise<ConnectStopResult> {
-	const state = readConnectorState(statePath);
-	if (!state) {
-		removeConnectorState(statePath);
-		return { stoppedProcesses: 0, stoppedSessions: 0 };
-	}
-	let stoppedProcesses = 0;
-	if (await terminateProcess(state.pid)) {
-		stoppedProcesses = 1;
-		io.writeln(
-			`[whatsapp] stopped pid=${state.pid} user=${state.userName}${state.phoneNumberId ? ` phone=${state.phoneNumberId}` : ""}`,
-		);
-	}
-	const stoppedSessions = await stopSessionsForConnector(state);
-	clearBindingSessionIds<WhatsAppThreadState>(
-		resolveBindingsPath(state.instanceKey),
-	);
-	removeConnectorState(statePath);
-	return { stoppedProcesses, stoppedSessions };
-}
-
-function showConnectWhatsAppHelp(io: ConnectIo): void {
-	io.writeln("Usage:");
-	io.writeln("  clite connect whatsapp --base-url <PUBLIC_BASE_URL> [options]");
-	io.writeln("");
-	io.writeln("Options:");
-	io.writeln("  --user-name <name>          WhatsApp bot username label");
-	io.writeln("  --phone-number-id <id>      WhatsApp Business phone number id");
-	io.writeln("  --access-token <token>      Meta access token");
-	io.writeln("  --app-secret <secret>       Meta app secret");
-	io.writeln("  --verify-token <token>      Webhook verify token");
-	io.writeln(
-		"  --api-version <version>     Graph API version (default: v21.0)",
-	);
-	io.writeln("  --provider <id>             Provider override");
-	io.writeln("  --model <id>                Model override");
-	io.writeln("  --api-key <key>             Provider API key override");
-	io.writeln("  --system <prompt>           System prompt override");
-	io.writeln("  --cwd <path>                Workspace / cwd for runtime");
-	io.writeln("  --mode <act|plan>           Agent mode (default: act)");
-	io.writeln("  -i, --interactive           Keep connector in foreground");
-	io.writeln("  --max-iterations <n>        Optional max iterations");
-	io.writeln(
-		"  --enable-tools              Enable tools for WhatsApp sessions",
-	);
-	io.writeln(
-		"  --hook-command <command>    Run a shell command for connector events",
-	);
-	io.writeln(
-		"  --rpc-address <host:port>   RPC address (default: 127.0.0.1:4317)",
-	);
-	io.writeln(
-		"  --host <host>               Webhook listen host (default: 0.0.0.0)",
-	);
-	io.writeln(
-		"  --port <port>               Webhook listen port (default: 8787)",
-	);
-	io.writeln(
-		"  --base-url <url>            Public base URL for webhook configuration",
-	);
-	io.writeln("");
-	io.writeln("Environment:");
-	io.writeln("  WHATSAPP_ACCESS_TOKEN       Meta access token");
-	io.writeln("  WHATSAPP_APP_SECRET         Meta app secret");
-	io.writeln("  WHATSAPP_PHONE_NUMBER_ID    WhatsApp Business phone number id");
-	io.writeln("  WHATSAPP_VERIFY_TOKEN       Webhook verification token");
-	io.writeln("  WHATSAPP_BOT_USERNAME       Bot username label");
-}
-
-function parseConnectWhatsAppArgs(
-	connectArgs: string[],
-): ConnectWhatsAppOptions {
-	if (
-		parseBooleanFlag(connectArgs, "-h") ||
-		parseBooleanFlag(connectArgs, "--help")
-	) {
-		throw new Error("__SHOW_HELP__");
-	}
-
-	const modeRaw =
-		parseStringFlag(connectArgs, "", "--mode")?.toLowerCase() || "act";
-	if (modeRaw !== "act" && modeRaw !== "plan") {
-		throw new Error(`invalid mode "${modeRaw}" (expected "act" or "plan")`);
-	}
-
-	const port =
-		parseIntegerFlag(connectArgs, "", "--port") ||
-		Number.parseInt(process.env.PORT ?? "8787", 10);
-	const resolvedPort = Number.isFinite(port) ? port : 8787;
-	const baseUrl =
-		parseStringFlag(connectArgs, "", "--base-url") ||
-		process.env.BASE_URL?.trim() ||
-		`http://127.0.0.1:${resolvedPort}`;
-
-	return {
-		userName:
-			parseStringFlag(connectArgs, "", "--user-name") ||
-			process.env.WHATSAPP_BOT_USERNAME?.trim() ||
-			"whatsapp-bot",
-		phoneNumberId:
-			parseStringFlag(connectArgs, "", "--phone-number-id") ||
-			process.env.WHATSAPP_PHONE_NUMBER_ID?.trim(),
-		accessToken:
-			parseStringFlag(connectArgs, "", "--access-token") ||
-			process.env.WHATSAPP_ACCESS_TOKEN?.trim(),
-		appSecret:
-			parseStringFlag(connectArgs, "", "--app-secret") ||
-			process.env.WHATSAPP_APP_SECRET?.trim(),
-		verifyToken:
-			parseStringFlag(connectArgs, "", "--verify-token") ||
-			process.env.WHATSAPP_VERIFY_TOKEN?.trim(),
-		apiVersion: parseStringFlag(connectArgs, "", "--api-version") || "v21.0",
-		cwd: parseStringFlag(connectArgs, "", "--cwd") || process.cwd(),
-		model: parseStringFlag(connectArgs, "", "--model"),
-		provider: parseStringFlag(connectArgs, "", "--provider"),
-		apiKey: parseStringFlag(connectArgs, "", "--api-key"),
-		systemPrompt: parseStringFlag(connectArgs, "-s", "--system"),
-		mode: modeRaw,
-		interactive:
-			parseBooleanFlag(connectArgs, "-i") ||
-			parseBooleanFlag(connectArgs, "--interactive"),
-		maxIterations: parseIntegerFlag(connectArgs, "-n", "--max-iterations"),
-		enableTools: parseBooleanFlag(connectArgs, "--enable-tools"),
-		rpcAddress:
-			parseStringFlag(connectArgs, "", "--rpc-address") ||
-			process.env.CLINE_RPC_ADDRESS?.trim() ||
-			"127.0.0.1:4317",
-		hookCommand:
-			parseStringFlag(connectArgs, "", "--hook-command") ||
-			process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
-		port: resolvedPort,
-		host:
-			parseStringFlag(connectArgs, "", "--host") ||
-			process.env.HOST?.trim() ||
-			"0.0.0.0",
-		baseUrl,
-	};
 }
 
 async function buildWhatsAppStartRequest(
@@ -345,6 +146,74 @@ async function buildWhatsAppStartRequest(
 		systemRules: WHATSAPP_SYSTEM_RULES,
 		teamName: `whatsapp-${instanceKey.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
+}
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | undefined {
+	return Array.isArray(value) ? asRecord(value[0]) : undefined;
+}
+
+function readString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function resolveWhatsAppParticipant(
+	rawMessage: unknown,
+): { key: string; label?: string } | undefined {
+	const raw = asRecord(rawMessage);
+	const contact = asRecord(raw?.contact) ?? firstRecord(raw?.contacts);
+	const profile = asRecord(contact?.profile);
+	const phone =
+		readString(raw?.from) ||
+		readString(raw?.wa_id) ||
+		readString(contact?.wa_id);
+	const label = readString(profile?.name) || phone;
+	if (!phone) {
+		return undefined;
+	}
+	return {
+		key: `whatsapp:user:${phone}`,
+		label,
+	};
+}
+
+async function persistWhatsAppThreadContext(input: {
+	thread: Thread<WhatsAppThreadState>;
+	bindingsPath: string;
+	baseStartRequest: RpcChatStartSessionRequest;
+	rawMessage: unknown;
+	errorLabel: string;
+}): Promise<void> {
+	const participant = resolveWhatsAppParticipant(input.rawMessage);
+	if (!participant) {
+		return;
+	}
+	const currentState = await loadThreadState(
+		input.thread,
+		input.bindingsPath,
+		input.baseStartRequest,
+	);
+	if (
+		currentState.participantKey === participant.key &&
+		currentState.participantLabel === participant.label
+	) {
+		return;
+	}
+	await persistMergedThreadState(
+		input.thread,
+		input.bindingsPath,
+		{
+			...currentState,
+			participantKey: participant.key,
+			participantLabel: participant.label,
+		},
+		input.errorLabel,
+	);
 }
 
 async function deliverScheduledResult(input: {
@@ -385,12 +254,22 @@ async function deliverScheduledResult(input: {
 	}
 	const threadId =
 		typeof delivery.threadId === "string" ? delivery.threadId.trim() : "";
-	if (!threadId) {
+	const bindingKey =
+		typeof delivery.bindingKey === "string"
+			? delivery.bindingKey.trim()
+			: typeof delivery.participantKey === "string"
+				? delivery.participantKey.trim()
+				: "";
+	if (!threadId && !bindingKey) {
 		return;
 	}
-	const binding = readBindings<WhatsAppThreadState>(input.bindingsPath)[
-		threadId
-	];
+	const bindings = readBindings<WhatsAppThreadState>(input.bindingsPath);
+	const match = bindingKey
+		? findBindingForParticipantKey(bindings, bindingKey)
+		: threadId
+			? { key: threadId, binding: bindings[threadId] }
+			: undefined;
+	const binding = match?.binding;
 	if (!binding?.serializedThread) {
 		return;
 	}
@@ -410,395 +289,600 @@ async function deliverScheduledResult(input: {
 	await thread.post(body);
 }
 
-async function runConnectWhatsAppCommand(
-	rawArgs: string[],
-	io: ConnectIo,
-): Promise<number> {
-	let options: ConnectWhatsAppOptions;
-	try {
-		options = parseConnectWhatsAppArgs(rawArgs);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		if (message === "__SHOW_HELP__") {
-			showConnectWhatsAppHelp(io);
-			return 0;
-		}
-		io.writeErr(message);
-		return 1;
+class WhatsAppConnector extends ConnectorBase<
+	ConnectWhatsAppOptions,
+	WhatsAppConnectorState
+> {
+	constructor() {
+		super(
+			"whatsapp",
+			"WhatsApp Business webhook bridge backed by RPC runtime sessions",
+		);
 	}
 
-	const instanceKey = resolveInstanceKey({
-		phoneNumberId: options.phoneNumberId,
-		userName: options.userName,
-	});
-	const statePath = resolveConnectorStatePath(instanceKey);
-	const bindingsPath = resolveBindingsPath(instanceKey);
-	const existingState = readConnectorState(statePath);
-	if (existingState && !isProcessRunning(existingState.pid)) {
-		removeConnectorState(statePath);
-	}
-	if (
-		!options.interactive &&
-		process.env.CLINE_WHATSAPP_CONNECT_CHILD !== "1"
-	) {
-		const runningState = readConnectorState(statePath);
-		if (runningState && isProcessRunning(runningState.pid)) {
-			io.writeln(
-				`[whatsapp] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress} url=${runningState.baseUrl}`,
+	protected override createCommand(): Command {
+		return super
+			.createCommand()
+			.usage("--base-url <PUBLIC_BASE_URL> [options]")
+			.option("--user-name <name>", "WhatsApp bot username label")
+			.option("--phone-number-id <id>", "WhatsApp Business phone number id")
+			.option("--access-token <token>", "Meta access token")
+			.option("--app-secret <secret>", "Meta app secret")
+			.option("--verify-token <token>", "Webhook verify token")
+			.option("--api-version <version>", "Graph API version", "v21.0")
+			.option("--provider <id>", "Provider override")
+			.option("--model <id>", "Model override")
+			.option("--api-key <key>", "Provider API key override")
+			.option("--system <prompt>", "System prompt override")
+			.option("--cwd <path>", "Workspace / cwd for runtime")
+			.option("--mode <act|plan>", "Agent mode", "act")
+			.option("-i, --interactive", "Keep connector in foreground")
+			.option("--max-iterations <n>", "Optional max iterations")
+			.option("--enable-tools", "Enable tools for WhatsApp sessions")
+			.option(
+				"--hook-command <command>",
+				"Run a shell command for connector events",
+			)
+			.option(
+				"--rpc-address <host:port>",
+				"RPC address",
+				process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:4317",
+			)
+			.option("--host <host>", "Webhook listen host")
+			.option("--port <port>", "Webhook listen port")
+			.option("--base-url <url>", "Public base URL for webhook configuration")
+			.addHelpText(
+				"after",
+				[
+					"",
+					"Environment:",
+					"  WHATSAPP_ACCESS_TOKEN       Meta access token",
+					"  WHATSAPP_APP_SECRET         Meta app secret",
+					"  WHATSAPP_PHONE_NUMBER_ID    WhatsApp Business phone number id",
+					"  WHATSAPP_VERIFY_TOKEN       Webhook verification token",
+					"  WHATSAPP_BOT_USERNAME       Bot username label",
+				].join("\n"),
 			);
+	}
+
+	protected override readOptions(command: Command): ConnectWhatsAppOptions {
+		const opts = command.opts<{
+			userName?: string;
+			phoneNumberId?: string;
+			accessToken?: string;
+			appSecret?: string;
+			verifyToken?: string;
+			apiVersion?: string;
+			cwd?: string;
+			model?: string;
+			provider?: string;
+			apiKey?: string;
+			system?: string;
+			mode?: string;
+			interactive?: boolean;
+			maxIterations?: string;
+			enableTools?: boolean;
+			rpcAddress?: string;
+			hookCommand?: string;
+			port?: string;
+			host?: string;
+			baseUrl?: string;
+		}>();
+		const parsedPort =
+			this.parseOptionalInteger(opts.port, "port") ??
+			Number.parseInt(process.env.PORT ?? "8787", 10);
+		const port = Number.isFinite(parsedPort) ? parsedPort : 8787;
+		return {
+			userName:
+				opts.userName?.trim() ||
+				process.env.WHATSAPP_BOT_USERNAME?.trim() ||
+				"whatsapp-bot",
+			phoneNumberId:
+				opts.phoneNumberId?.trim() ||
+				process.env.WHATSAPP_PHONE_NUMBER_ID?.trim(),
+			accessToken:
+				opts.accessToken?.trim() || process.env.WHATSAPP_ACCESS_TOKEN?.trim(),
+			appSecret:
+				opts.appSecret?.trim() || process.env.WHATSAPP_APP_SECRET?.trim(),
+			verifyToken:
+				opts.verifyToken?.trim() || process.env.WHATSAPP_VERIFY_TOKEN?.trim(),
+			apiVersion: opts.apiVersion?.trim() || "v21.0",
+			cwd: opts.cwd || process.cwd(),
+			model: opts.model,
+			provider: opts.provider,
+			apiKey: opts.apiKey,
+			systemPrompt: opts.system,
+			mode: this.parseMode(opts.mode),
+			interactive: Boolean(opts.interactive),
+			maxIterations: this.parseOptionalInteger(
+				opts.maxIterations,
+				"max iterations",
+			),
+			enableTools: Boolean(opts.enableTools),
+			rpcAddress:
+				opts.rpcAddress?.trim() ||
+				process.env.CLINE_RPC_ADDRESS?.trim() ||
+				"127.0.0.1:4317",
+			hookCommand:
+				opts.hookCommand?.trim() ||
+				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
+			port,
+			host: opts.host?.trim() || process.env.HOST?.trim() || "0.0.0.0",
+			baseUrl:
+				opts.baseUrl?.trim() ||
+				process.env.BASE_URL?.trim() ||
+				`http://127.0.0.1:${port}`,
+		};
+	}
+
+	private resolveConnectorStatePath(instanceKey: string): string {
+		return this.resolveConnectorPath(`${instanceKey}.json`);
+	}
+
+	private resolveBindingsPath(instanceKey: string): string {
+		return this.resolveConnectorPath(`${instanceKey}.threads.json`);
+	}
+
+	private listConnectorStatePaths(): string[] {
+		return this.listJsonStatePaths([".threads.json"]);
+	}
+
+	private readConnectorState(
+		statePath: string,
+	): WhatsAppConnectorState | undefined {
+		return this.readStateFile(
+			statePath,
+			(value): value is WhatsAppConnectorState =>
+				Boolean(
+					value &&
+						typeof value === "object" &&
+						typeof (value as WhatsAppConnectorState).pid === "number" &&
+						typeof (value as WhatsAppConnectorState).instanceKey === "string" &&
+						typeof (value as WhatsAppConnectorState).userName === "string",
+				),
+		);
+	}
+
+	private writeConnectorState(
+		statePath: string,
+		state: WhatsAppConnectorState,
+	): void {
+		this.writeStateFile(statePath, state);
+	}
+
+	private async stopWhatsAppConnectorInstance(
+		statePath: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return this.stopManagedProcess({
+			io,
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			describeStoppedProcess: (state) =>
+				`[whatsapp] stopped pid=${state.pid} user=${state.userName}${state.phoneNumberId ? ` phone=${state.phoneNumberId}` : ""}`,
+			getPid: (state) => state.pid,
+			stopSessions: stopSessionsForConnector,
+			clearBindings: (state) => {
+				clearBindingSessionIds<WhatsAppThreadState>(
+					this.resolveBindingsPath(state.instanceKey),
+				);
+			},
+		});
+	}
+
+	override async stopAll(io: ConnectIo): Promise<ConnectStopResult> {
+		return this.stopAllFromStatePaths(
+			io,
+			this.listConnectorStatePaths(),
+			(statePath, stopIo) =>
+				this.stopWhatsAppConnectorInstance(statePath, stopIo),
+		);
+	}
+
+	protected override async runWithOptions(
+		options: ConnectWhatsAppOptions,
+		rawArgs: string[],
+		io: ConnectIo,
+	): Promise<number> {
+		const instanceKey = resolveInstanceKey({
+			phoneNumberId: options.phoneNumberId,
+			userName: options.userName,
+		});
+		const statePath = this.resolveConnectorStatePath(instanceKey);
+		const bindingsPath = this.resolveBindingsPath(instanceKey);
+		this.removeStaleState(
+			statePath,
+			(path) => this.readConnectorState(path),
+			(state) => state.pid,
+		);
+		if (
+			await this.maybeRunInBackground({
+				rawArgs,
+				io,
+				interactive: options.interactive,
+				childEnvVar: "CLINE_WHATSAPP_CONNECT_CHILD",
+				statePath,
+				readState: (path) => this.readConnectorState(path),
+				isRunning: (state) => isProcessRunning(state.pid),
+				formatAlreadyRunningMessage: (state) =>
+					`[whatsapp] connector already running pid=${state.pid} rpc=${state.rpcAddress} url=${state.baseUrl}`,
+				formatBackgroundStartMessage: (pid) =>
+					`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
+				foregroundHint:
+					"[whatsapp] use `clite connect whatsapp -i ...` to run in the foreground",
+				launchFailureMessage:
+					"failed to launch WhatsApp connector in background",
+			})
+		) {
 			return 0;
 		}
-		const pid = spawnDetachedConnector(
-			["connect", "whatsapp"],
-			rawArgs,
-			"CLINE_WHATSAPP_CONNECT_CHILD",
-		);
-		if (!pid) {
-			io.writeErr("failed to launch WhatsApp connector in background");
-			return 1;
+
+		const loggerAdapter = createCliLoggerAdapter({
+			runtime: "cli",
+			component: "whatsapp-connect",
+		});
+		const logger = createChatSdkLogger(loggerAdapter);
+		const consoleLogger = new ConsoleLogger("info", "whatsapp-connect");
+		const whatsappConfig: Record<string, unknown> = {
+			logger: consoleLogger,
+			userName: options.userName,
+		};
+		if (options.accessToken?.trim()) {
+			whatsappConfig.accessToken = options.accessToken.trim();
 		}
-		io.writeln(
-			`[whatsapp] starting background connector pid=${pid} user=${options.userName}`,
+		if (options.appSecret?.trim()) {
+			whatsappConfig.appSecret = options.appSecret.trim();
+		}
+		if (options.phoneNumberId?.trim()) {
+			whatsappConfig.phoneNumberId = options.phoneNumberId.trim();
+		}
+		if (options.verifyToken?.trim()) {
+			whatsappConfig.verifyToken = options.verifyToken.trim();
+		}
+		if (options.apiVersion?.trim()) {
+			whatsappConfig.apiVersion = options.apiVersion.trim();
+		}
+		const whatsapp = createWhatsAppAdapter(whatsappConfig);
+		const bot = new Chat({
+			userName: options.userName,
+			adapters: { whatsapp },
+			state: new InMemoryStateAdapter(),
+			logger,
+			fallbackStreamingPlaceholderText: null,
+			streamingUpdateIntervalMs: 500,
+		}).registerSingleton();
+		const threadQueues = new Map<string, Promise<void>>();
+		const activeTurns = new Map<string, ActiveConnectorTurn>();
+		const pendingApprovals = new Map<string, PendingConnectorApproval>();
+		const startRequest = await buildWhatsAppStartRequest(options, io, {
+			enabled: loggerAdapter.runtimeConfig.enabled,
+			level: loggerAdapter.runtimeConfig.level,
+			destination: loggerAdapter.runtimeConfig.destination,
+			bindings: {
+				transport: "whatsapp",
+				userName: options.userName,
+				...(options.phoneNumberId
+					? { phoneNumberId: options.phoneNumberId }
+					: {}),
+			},
+		});
+		const userInstructionWatcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: startRequest.cwd },
+			rules: { workspacePath: startRequest.cwd },
+			workflows: { workspacePath: startRequest.cwd },
+		});
+		await userInstructionWatcher.start().catch(() => undefined);
+		const commandCwd = startRequest.cwd || process.cwd();
+		const chatCommandHost = await createWorkspaceChatCommandHost({
+			cwd: commandCwd,
+			workspaceRoot: startRequest.workspaceRoot || commandCwd,
+		});
+		const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
+		process.env.CLINE_RPC_ADDRESS = rpcAddress;
+
+		const clientId = `whatsapp-${process.pid}-${Date.now()}`;
+		await registerRpcClient(rpcAddress, {
+			clientId,
+			clientType: "cli",
+			metadata: {
+				transport: "whatsapp",
+				userName: options.userName,
+				...(options.phoneNumberId
+					? { phoneNumberId: options.phoneNumberId }
+					: {}),
+			},
+		}).catch(() => undefined);
+
+		const client = new RpcSessionClient({ address: rpcAddress });
+		this.writeConnectorState(statePath, {
+			instanceKey,
+			userName: options.userName,
+			phoneNumberId: options.phoneNumberId,
+			pid: process.pid,
+			rpcAddress,
+			port: options.port,
+			baseUrl: options.baseUrl,
+			startedAt: new Date().toISOString(),
+		});
+
+		let stopping = false;
+		let resolveStop: (() => void) | undefined;
+		const stopPromise = new Promise<void>((resolve) => {
+			resolveStop = resolve;
+		});
+		const requestStop = (_reason: string) => {
+			if (stopping) {
+				return;
+			}
+			stopping = true;
+			resolveStop?.();
+		};
+
+		const handleTurn = async (
+			thread: Thread<WhatsAppThreadState>,
+			text: string,
+		) => {
+			const queueKey =
+				(await loadThreadState(thread, bindingsPath, startRequest))
+					.participantKey || thread.id;
+			const runTurn = async () => {
+				try {
+					await handleConnectorUserTurn({
+						thread,
+						text,
+						client,
+						pendingApprovals,
+						baseStartRequest: startRequest,
+						explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
+						clientId,
+						logger: loggerAdapter,
+						transport: "whatsapp",
+						botUserName: options.userName,
+						requestStop,
+						bindingsPath,
+						hookCommand: options.hookCommand,
+						systemRules: WHATSAPP_SYSTEM_RULES,
+						errorLabel: "WhatsApp",
+						firstContactMessage: WHATSAPP_FIRST_CONTACT_MESSAGE,
+						userInstructionWatcher,
+						chatCommandHost,
+						activeTurns,
+						turnKey: queueKey,
+						getSessionMetadata: (currentThread, _clientId, currentState) => ({
+							userName: options.userName,
+							phoneNumberId: options.phoneNumberId,
+							whatsappThreadId: currentThread.id,
+							whatsappChannelId: currentThread.channelId,
+							...(currentState.participantKey
+								? { whatsappParticipantKey: currentState.participantKey }
+								: {}),
+							...(currentState.participantLabel
+								? { whatsappParticipantLabel: currentState.participantLabel }
+								: {}),
+						}),
+						reusedLogMessage: "WhatsApp thread reusing RPC session",
+						startedLogMessage: "WhatsApp thread started RPC session",
+						onMessageReceived: async (details) => {
+							await dispatchConnectorHook(
+								options.hookCommand,
+								{
+									adapter: "whatsapp",
+									botUserName: options.userName,
+									event: "message.received",
+									payload: details,
+									ts: new Date().toISOString(),
+								},
+								loggerAdapter,
+							);
+						},
+						onReplyCompleted: async (result) => {
+							await dispatchConnectorHook(
+								options.hookCommand,
+								{
+									adapter: "whatsapp",
+									botUserName: options.userName,
+									event: "message.completed",
+									payload: {
+										threadId: result.threadId,
+										sessionId: result.sessionId,
+										finishReason: result.finishReason,
+										iterations: result.iterations,
+										outputPreview: truncateText(result.text),
+										outputLength: result.text.length,
+									},
+									ts: new Date().toISOString(),
+								},
+								loggerAdapter,
+							);
+						},
+						onReplyFailed: async (details) => {
+							await dispatchConnectorHook(
+								options.hookCommand,
+								{
+									adapter: "whatsapp",
+									botUserName: options.userName,
+									event: "message.failed",
+									payload: {
+										threadId: details.threadId,
+										sessionId: details.sessionId,
+										error: details.error.message,
+									},
+									ts: new Date().toISOString(),
+								},
+								loggerAdapter,
+							);
+						},
+					});
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					await thread.post(`WhatsApp bridge error: ${message}`);
+				}
+			};
+			if (activeTurns.has(queueKey)) {
+				await runTurn();
+				return;
+			}
+			await enqueueThreadTurn(threadQueues, queueKey, async () => {
+				await runTurn();
+			});
+		};
+
+		bot.onNewMention(async (thread, message) => {
+			await thread.subscribe();
+			await persistWhatsAppThreadContext({
+				thread,
+				bindingsPath,
+				baseStartRequest: startRequest,
+				rawMessage: message.raw,
+				errorLabel: "WhatsApp",
+			});
+			if (
+				await maybeHandleConnectorApprovalReply({
+					thread,
+					text: message.text,
+					client,
+					clientId,
+					pendingApprovals,
+					deniedReason: "Denied by WhatsApp user",
+				})
+			) {
+				return;
+			}
+			await handleTurn(thread, message.text);
+		});
+
+		bot.onSubscribedMessage(async (thread, message) => {
+			await persistWhatsAppThreadContext({
+				thread,
+				bindingsPath,
+				baseStartRequest: startRequest,
+				rawMessage: message.raw,
+				errorLabel: "WhatsApp",
+			});
+			if (
+				await maybeHandleConnectorApprovalReply({
+					thread,
+					text: message.text,
+					client,
+					clientId,
+					pendingApprovals,
+					deniedReason: "Denied by WhatsApp user",
+				})
+			) {
+				return;
+			}
+			await handleTurn(thread, message.text);
+		});
+
+		await bot.initialize();
+		const stopTaskUpdateStream =
+			startConnectorTaskUpdateRelay<WhatsAppThreadState>({
+				client,
+				clientId,
+				bot,
+				logger: loggerAdapter,
+				bindingsPath,
+				transport: "whatsapp",
+			});
+
+		const endpointUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/whatsapp`;
+		const server = await startConnectorWebhookServer({
+			host: options.host,
+			port: options.port,
+			routes: {
+				"/api/webhooks/whatsapp": async (request) =>
+					whatsapp.handleWebhook(request),
+				"/health": () => new Response("ok"),
+				"/": () =>
+					new Response(
+						[
+							"WhatsApp connector is running.",
+							`Webhook URL: ${endpointUrl}`,
+						].join("\n"),
+					),
+			},
+		});
+
+		const stopEventStream = client.streamEvents(
+			{ clientId: `${clientId}-server-events` },
+			{
+				onEvent: (event) => {
+					if (event.eventType === "rpc.server.shutting_down") {
+						requestStop("rpc_server_shutting_down");
+						return;
+					}
+					if (event.eventType !== "schedule.execution.completed") {
+						return;
+					}
+					const scheduleId =
+						typeof event.payload.scheduleId === "string"
+							? event.payload.scheduleId.trim()
+							: "";
+					const executionId =
+						typeof event.payload.executionId === "string"
+							? event.payload.executionId.trim()
+							: "";
+					const sessionId =
+						typeof event.payload.sessionId === "string"
+							? event.payload.sessionId.trim()
+							: undefined;
+					const status =
+						typeof event.payload.status === "string"
+							? event.payload.status.trim()
+							: "";
+					const errorMessage =
+						typeof event.payload.errorMessage === "string"
+							? event.payload.errorMessage
+							: undefined;
+					if (!scheduleId || !executionId || !status) {
+						return;
+					}
+					void deliverScheduledResult({
+						bot,
+						client,
+						logger: loggerAdapter,
+						bindingsPath,
+						options,
+						scheduleId,
+						executionId,
+						sessionId,
+						status,
+						errorMessage,
+						hookCommand: options.hookCommand,
+					});
+				},
+				onError: () => {
+					requestStop("rpc_server_event_stream_failed");
+				},
+			},
 		);
-		io.writeln(
-			"[whatsapp] use `clite connect whatsapp -i ...` to run in the foreground",
-		);
+
+		process.once("SIGINT", () => requestStop("sigint"));
+		process.once("SIGTERM", () => requestStop("sigterm"));
+
+		io.writeln(`[whatsapp] listening on ${options.host}:${options.port}`);
+		io.writeln(`[whatsapp] configure WhatsApp webhook URL: ${endpointUrl}`);
+
+		await stopPromise;
+		stopTaskUpdateStream();
+		stopEventStream();
+		await server.close();
+		userInstructionWatcher.stop();
+		client.close();
+		this.removeStateFile(statePath);
 		return 0;
 	}
-
-	const loggerAdapter = createCliLoggerAdapter({
-		runtime: "cli",
-		component: "whatsapp-connect",
-	});
-	const logger = createChatSdkLogger(loggerAdapter);
-	const consoleLogger = new ConsoleLogger("info", "whatsapp-connect");
-	const whatsappConfig: Record<string, unknown> = {
-		logger: consoleLogger,
-		userName: options.userName,
-	};
-	if (options.accessToken?.trim()) {
-		whatsappConfig.accessToken = options.accessToken.trim();
-	}
-	if (options.appSecret?.trim()) {
-		whatsappConfig.appSecret = options.appSecret.trim();
-	}
-	if (options.phoneNumberId?.trim()) {
-		whatsappConfig.phoneNumberId = options.phoneNumberId.trim();
-	}
-	if (options.verifyToken?.trim()) {
-		whatsappConfig.verifyToken = options.verifyToken.trim();
-	}
-	if (options.apiVersion?.trim()) {
-		whatsappConfig.apiVersion = options.apiVersion.trim();
-	}
-	const whatsapp = createWhatsAppAdapter(whatsappConfig);
-	const bot = new Chat({
-		userName: options.userName,
-		adapters: { whatsapp },
-		state: new InMemoryStateAdapter(),
-		logger,
-		fallbackStreamingPlaceholderText: null,
-		streamingUpdateIntervalMs: 500,
-	}).registerSingleton();
-	const threadQueues = new Map<string, Promise<void>>();
-	const pendingApprovals = new Map<string, PendingConnectorApproval>();
-	const startRequest = await buildWhatsAppStartRequest(options, io, {
-		enabled: loggerAdapter.runtimeConfig.enabled,
-		level: loggerAdapter.runtimeConfig.level,
-		destination: loggerAdapter.runtimeConfig.destination,
-		bindings: {
-			transport: "whatsapp",
-			userName: options.userName,
-			...(options.phoneNumberId
-				? { phoneNumberId: options.phoneNumberId }
-				: {}),
-		},
-	});
-	const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
-	process.env.CLINE_RPC_ADDRESS = rpcAddress;
-
-	const clientId = `whatsapp-${process.pid}-${Date.now()}`;
-	await registerRpcClient(rpcAddress, {
-		clientId,
-		clientType: "cli",
-		metadata: {
-			transport: "whatsapp",
-			userName: options.userName,
-			...(options.phoneNumberId
-				? { phoneNumberId: options.phoneNumberId }
-				: {}),
-		},
-	}).catch(() => undefined);
-
-	const client = new RpcSessionClient({ address: rpcAddress });
-	writeConnectorState(statePath, {
-		instanceKey,
-		userName: options.userName,
-		phoneNumberId: options.phoneNumberId,
-		pid: process.pid,
-		rpcAddress,
-		port: options.port,
-		baseUrl: options.baseUrl,
-		startedAt: new Date().toISOString(),
-	});
-
-	let stopping = false;
-	let resolveStop: (() => void) | undefined;
-	const stopPromise = new Promise<void>((resolve) => {
-		resolveStop = resolve;
-	});
-	const requestStop = (_reason: string) => {
-		if (stopping) {
-			return;
-		}
-		stopping = true;
-		resolveStop?.();
-	};
-
-	const handleTurn = async (
-		thread: Thread<WhatsAppThreadState>,
-		text: string,
-	) => {
-		await enqueueThreadTurn(threadQueues, thread.id, async () => {
-			try {
-				await handleConnectorUserTurn({
-					thread,
-					text,
-					client,
-					pendingApprovals,
-					baseStartRequest: startRequest,
-					explicitSystemPrompt: options.systemPrompt?.trim() || undefined,
-					clientId,
-					logger: loggerAdapter,
-					transport: "whatsapp",
-					botUserName: options.userName,
-					requestStop,
-					bindingsPath,
-					hookCommand: options.hookCommand,
-					systemRules: WHATSAPP_SYSTEM_RULES,
-					errorLabel: "WhatsApp",
-					getSessionMetadata: (currentThread) => ({
-						userName: options.userName,
-						phoneNumberId: options.phoneNumberId,
-						whatsappThreadId: currentThread.id,
-						whatsappChannelId: currentThread.channelId,
-					}),
-					reusedLogMessage: "WhatsApp thread reusing RPC session",
-					startedLogMessage: "WhatsApp thread started RPC session",
-					onMessageReceived: async (details) => {
-						await dispatchConnectorHook(
-							options.hookCommand,
-							{
-								adapter: "whatsapp",
-								botUserName: options.userName,
-								event: "message.received",
-								payload: details,
-								ts: new Date().toISOString(),
-							},
-							loggerAdapter,
-						);
-					},
-					onReplyCompleted: async (result) => {
-						await dispatchConnectorHook(
-							options.hookCommand,
-							{
-								adapter: "whatsapp",
-								botUserName: options.userName,
-								event: "message.completed",
-								payload: {
-									threadId: result.threadId,
-									sessionId: result.sessionId,
-									finishReason: result.finishReason,
-									iterations: result.iterations,
-									outputPreview: truncateText(result.text),
-									outputLength: result.text.length,
-								},
-								ts: new Date().toISOString(),
-							},
-							loggerAdapter,
-						);
-					},
-					onReplyFailed: async (details) => {
-						await dispatchConnectorHook(
-							options.hookCommand,
-							{
-								adapter: "whatsapp",
-								botUserName: options.userName,
-								event: "message.failed",
-								payload: {
-									threadId: details.threadId,
-									sessionId: details.sessionId,
-									error: details.error.message,
-								},
-								ts: new Date().toISOString(),
-							},
-							loggerAdapter,
-						);
-					},
-				});
-			} catch (error) {
-				const message = error instanceof Error ? error.message : String(error);
-				await thread.post(`WhatsApp bridge error: ${message}`);
-			}
-		});
-	};
-
-	bot.onNewMention(async (thread, message) => {
-		await thread.subscribe();
-		if (
-			await maybeHandleConnectorApprovalReply({
-				thread,
-				text: message.text,
-				client,
-				clientId,
-				pendingApprovals,
-				deniedReason: "Denied by WhatsApp user",
-			})
-		) {
-			return;
-		}
-		await handleTurn(thread, message.text);
-	});
-
-	bot.onSubscribedMessage(async (thread, message) => {
-		if (
-			await maybeHandleConnectorApprovalReply({
-				thread,
-				text: message.text,
-				client,
-				clientId,
-				pendingApprovals,
-				deniedReason: "Denied by WhatsApp user",
-			})
-		) {
-			return;
-		}
-		await handleTurn(thread, message.text);
-	});
-
-	await bot.initialize();
-	const stopTaskUpdateStream =
-		startConnectorTaskUpdateRelay<WhatsAppThreadState>({
-			client,
-			clientId,
-			bot,
-			logger: loggerAdapter,
-			bindingsPath,
-			transport: "whatsapp",
-		});
-
-	const endpointUrl = `${options.baseUrl.replace(/\/$/, "")}/api/webhooks/whatsapp`;
-	const server = await startConnectorWebhookServer({
-		host: options.host,
-		port: options.port,
-		routes: {
-			"/api/webhooks/whatsapp": async (request) =>
-				whatsapp.handleWebhook(request),
-			"/health": () => new Response("ok"),
-			"/": () =>
-				new Response(
-					[
-						"WhatsApp connector is running.",
-						`Webhook URL: ${endpointUrl}`,
-					].join("\n"),
-				),
-		},
-	});
-
-	const stopEventStream = client.streamEvents(
-		{ clientId: `${clientId}-server-events` },
-		{
-			onEvent: (event) => {
-				if (event.eventType === "rpc.server.shutting_down") {
-					requestStop("rpc_server_shutting_down");
-					return;
-				}
-				if (event.eventType !== "schedule.execution.completed") {
-					return;
-				}
-				const scheduleId =
-					typeof event.payload.scheduleId === "string"
-						? event.payload.scheduleId.trim()
-						: "";
-				const executionId =
-					typeof event.payload.executionId === "string"
-						? event.payload.executionId.trim()
-						: "";
-				const sessionId =
-					typeof event.payload.sessionId === "string"
-						? event.payload.sessionId.trim()
-						: undefined;
-				const status =
-					typeof event.payload.status === "string"
-						? event.payload.status.trim()
-						: "";
-				const errorMessage =
-					typeof event.payload.errorMessage === "string"
-						? event.payload.errorMessage
-						: undefined;
-				if (!scheduleId || !executionId || !status) {
-					return;
-				}
-				void deliverScheduledResult({
-					bot,
-					client,
-					logger: loggerAdapter,
-					bindingsPath,
-					options,
-					scheduleId,
-					executionId,
-					sessionId,
-					status,
-					errorMessage,
-					hookCommand: options.hookCommand,
-				});
-			},
-			onError: () => {
-				requestStop("rpc_server_event_stream_failed");
-			},
-		},
-	);
-
-	process.once("SIGINT", () => requestStop("sigint"));
-	process.once("SIGTERM", () => requestStop("sigterm"));
-
-	io.writeln(`[whatsapp] listening on ${options.host}:${options.port}`);
-	io.writeln(`[whatsapp] configure WhatsApp webhook URL: ${endpointUrl}`);
-
-	await stopPromise;
-	stopTaskUpdateStream();
-	stopEventStream();
-	await server.close();
-	client.close();
-	removeConnectorState(statePath);
-	return 0;
 }
 
-async function stopAllWhatsAppConnectors(
-	io: ConnectIo,
-): Promise<ConnectStopResult> {
-	let stoppedProcesses = 0;
-	let stoppedSessions = 0;
-	for (const statePath of listConnectorStatePaths()) {
-		const result = await stopWhatsAppConnectorInstance(statePath, io);
-		stoppedProcesses += result.stoppedProcesses;
-		stoppedSessions += result.stoppedSessions;
-	}
-	return { stoppedProcesses, stoppedSessions };
-}
-
-export const whatsappConnector: ConnectCommandDefinition = {
-	name: "whatsapp",
-	description:
-		"WhatsApp Business webhook bridge backed by RPC runtime sessions",
-	run: runConnectWhatsAppCommand,
-	showHelp: showConnectWhatsAppHelp,
-	stopAll: stopAllWhatsAppConnectors,
-};
+export const whatsappConnector: ConnectCommandDefinition =
+	new WhatsAppConnector();
 
 export const __test__ = {
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<WhatsAppThreadState>,
-		thread: Pick<Thread<WhatsAppThreadState>, "id" | "channelId" | "isDM">,
+		thread: Pick<Thread<WhatsAppThreadState>, "id" | "channelId" | "isDM"> & {
+			participantKey?: string;
+		},
 	) => findBindingForThread(bindings, thread),
 };
