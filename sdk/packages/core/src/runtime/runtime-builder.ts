@@ -14,7 +14,7 @@ import {
 	type SkillConfig,
 	type UserInstructionConfigWatcher,
 } from "../agents";
-import { SqliteTeamStore } from "../storage/sqlite-team-store";
+import { createLocalTeamStore } from "../storage/team-store";
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
@@ -418,9 +418,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		let teamRuntime: AgentTeamsRuntime | undefined;
 		const teamStore = normalized.enableAgentTeams
-			? new SqliteTeamStore()
+			? createLocalTeamStore()
 			: undefined;
-		teamStore?.init();
 		const restoredTeam = teamStore?.loadRuntime(effectiveTeamName);
 		const restoredTeamState = restoredTeam?.state;
 		const restoredTeammateSpecs = restoredTeam?.teammates ?? [];

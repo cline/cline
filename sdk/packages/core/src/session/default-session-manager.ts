@@ -36,6 +36,7 @@ import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
+import type { FileSessionService } from "./file-session-service";
 import type { RpcCoreSessionService } from "./rpc-session-service";
 import {
 	OAuthReauthRequiredError,
@@ -92,7 +93,10 @@ import {
 	createInitialAccumulatedUsage,
 } from "./utils/usage";
 
-type SessionBackend = CoreSessionService | RpcCoreSessionService;
+type SessionBackend =
+	| CoreSessionService
+	| RpcCoreSessionService
+	| FileSessionService;
 
 const MAX_SCAN_LIMIT = 5000;
 const MAX_USER_FILE_BYTES = 20 * 1_000 * 1_024;

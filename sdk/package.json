@@ -26,11 +26,11 @@
 		"format": "bun biome format",
 		"lint": "bun biome lint",
 		"fix": "bun biome check --write --unsafe --diagnostic-level=error",
-		"version": "bun scripts/version.ts"
+		"version": "bun run types && bun scripts/version.ts"
 	},
 	"lint-staged": {
 		"*": [
-			"bun biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+			"bun run types && bun biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true"
 		]
 	},
 	"module": "index.ts",

@@ -13,6 +13,7 @@ import { nanoid } from "nanoid";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import type { ToolExecutors } from "../tools";
 import { DefaultSessionManager } from "./default-session-manager";
+import { FileSessionService } from "./file-session-service";
 import { RpcCoreSessionService } from "./rpc-session-service";
 import { tryAcquireRpcSpawnLease } from "./rpc-spawn-lease";
 import type { SessionManager } from "./session-manager";
@@ -21,7 +22,10 @@ import { CoreSessionService } from "./session-service";
 const DEFAULT_RPC_ADDRESS =
 	process.env.CLINE_RPC_ADDRESS?.trim() || getRpcServerDefaultAddress();
 
-export type SessionBackend = RpcCoreSessionService | CoreSessionService;
+export type SessionBackend =
+	| RpcCoreSessionService
+	| CoreSessionService
+	| FileSessionService;
 
 let cachedBackend: SessionBackend | undefined;
 let backendInitPromise: Promise<SessionBackend> | undefined;
@@ -111,8 +115,18 @@ async function tryConnectRpcBackend(
 	}
 }
 
-function createLocalBackend(): CoreSessionService {
-	return new CoreSessionService(new SqliteSessionStore());
+function createLocalBackend(): SessionBackend {
+	try {
+		const store = new SqliteSessionStore();
+		store.init();
+		return new CoreSessionService(store);
+	} catch (error) {
+		console.warn(
+			"SQLite session persistence unavailable, falling back to file-based session storage.",
+			error,
+		);
+		return new FileSessionService();
+	}
 }
 
 function resolveHostDistinctId(explicitDistinctId: string | undefined): string {

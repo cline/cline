@@ -8,6 +8,7 @@ import {
 	ConsoleLogger,
 	type Lock,
 	type LogLevel,
+	type QueueEntry,
 	type StateAdapter,
 	type Thread,
 } from "chat";
@@ -17,8 +18,21 @@ class InMemoryStateAdapter implements StateAdapter {
 		string,
 		{ expiresAt?: number; value: unknown }
 	>();
+	private readonly queues = new Map<string, QueueEntry[]>();
 	private readonly subscriptions = new Set<string>();
 	private readonly locks = new Map<string, Lock>();
+
+	private getActiveQueue(threadId: string): QueueEntry[] {
+		const queue = this.queues.get(threadId) ?? [];
+		const now = Date.now();
+		const activeQueue = queue.filter((entry) => entry.expiresAt > now);
+		if (activeQueue.length > 0) {
+			this.queues.set(threadId, activeQueue);
+		} else {
+			this.queues.delete(threadId);
+		}
+		return activeQueue;
+	}
 
 	async connect(): Promise<void> {}
 
@@ -47,6 +61,31 @@ class InMemoryStateAdapter implements StateAdapter {
 		this.values.delete(key);
 	}
 
+	async dequeue(threadId: string): Promise<QueueEntry | null> {
+		const queue = this.getActiveQueue(threadId);
+		const next = queue.shift() ?? null;
+		if (queue.length > 0) {
+			this.queues.set(threadId, queue);
+		} else {
+			this.queues.delete(threadId);
+		}
+		return next;
+	}
+
+	async enqueue(
+		threadId: string,
+		entry: QueueEntry,
+		maxSize: number,
+	): Promise<number> {
+		const queue = [...this.getActiveQueue(threadId), entry];
+		const trimmed =
+			maxSize > 0 && queue.length > maxSize
+				? queue.slice(queue.length - maxSize)
+				: queue;
+		this.queues.set(threadId, trimmed);
+		return trimmed.length;
+	}
+
 	async subscribe(threadId: string): Promise<void> {
 		this.subscriptions.add(threadId);
 	}
@@ -57,6 +96,10 @@ class InMemoryStateAdapter implements StateAdapter {
 
 	async isSubscribed(threadId: string): Promise<boolean> {
 		return this.subscriptions.has(threadId);
+	}
+
+	async queueDepth(threadId: string): Promise<number> {
+		return this.getActiveQueue(threadId).length;
 	}
 
 	async acquireLock(threadId: string, ttlMs: number): Promise<Lock | null> {

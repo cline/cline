@@ -1,10 +1,11 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { ensureParentDir } from "@clinebot/core";
-import type { Lock, StateAdapter } from "chat";
+import type { Lock, QueueEntry, StateAdapter } from "chat";
 
 type PersistedStateSnapshot = {
 	values?: Record<string, { expiresAt?: number; value: unknown }>;
 	lists?: Record<string, { expiresAt?: number; value: unknown[] }>;
+	queues?: Record<string, QueueEntry[]>;
 	subscriptions?: string[];
 };
 
@@ -17,6 +18,7 @@ export class FileStateAdapter implements StateAdapter {
 		string,
 		{ expiresAt?: number; value: unknown[] }
 	>();
+	private readonly queues = new Map<string, QueueEntry[]>();
 	private readonly subscriptions = new Set<string>();
 	private readonly locks = new Map<string, Lock>();
 	private loaded = false;
@@ -33,6 +35,14 @@ export class FileStateAdapter implements StateAdapter {
 		for (const [key, entry] of this.lists.entries()) {
 			if (entry.expiresAt && entry.expiresAt <= now) {
 				this.lists.delete(key);
+			}
+		}
+		for (const [threadId, queue] of this.queues.entries()) {
+			const activeQueue = queue.filter((entry) => entry.expiresAt > now);
+			if (activeQueue.length > 0) {
+				this.queues.set(threadId, activeQueue);
+			} else {
+				this.queues.delete(threadId);
 			}
 		}
 	}
@@ -69,6 +79,22 @@ export class FileStateAdapter implements StateAdapter {
 						typeof entry.expiresAt === "number" ? entry.expiresAt : undefined,
 				});
 			}
+			for (const [threadId, entries] of Object.entries(snapshot.queues ?? {})) {
+				if (!Array.isArray(entries)) {
+					continue;
+				}
+				this.queues.set(
+					threadId,
+					entries.filter(
+						(entry): entry is QueueEntry =>
+							Boolean(entry) &&
+							typeof entry === "object" &&
+							typeof entry.enqueuedAt === "number" &&
+							typeof entry.expiresAt === "number" &&
+							"message" in entry,
+					),
+				);
+			}
 			for (const threadId of snapshot.subscriptions ?? []) {
 				if (typeof threadId === "string" && threadId.trim()) {
 					this.subscriptions.add(threadId);
@@ -84,6 +110,7 @@ export class FileStateAdapter implements StateAdapter {
 		const snapshot: PersistedStateSnapshot = {
 			values: Object.fromEntries(this.values.entries()),
 			lists: Object.fromEntries(this.lists.entries()),
+			queues: Object.fromEntries(this.queues.entries()),
 			subscriptions: [...this.subscriptions],
 		};
 		writeFileSync(this.path, JSON.stringify(snapshot, null, 2), "utf8");
@@ -125,6 +152,37 @@ export class FileStateAdapter implements StateAdapter {
 		this.persist();
 	}
 
+	async dequeue(threadId: string): Promise<QueueEntry | null> {
+		this.loadFromDisk();
+		this.pruneExpiredValues();
+		const queue = this.queues.get(threadId) ?? [];
+		const next = queue.shift() ?? null;
+		if (queue.length > 0) {
+			this.queues.set(threadId, queue);
+		} else {
+			this.queues.delete(threadId);
+		}
+		this.persist();
+		return next;
+	}
+
+	async enqueue(
+		threadId: string,
+		entry: QueueEntry,
+		maxSize: number,
+	): Promise<number> {
+		this.loadFromDisk();
+		this.pruneExpiredValues();
+		const queue = [...(this.queues.get(threadId) ?? []), entry];
+		const trimmed =
+			maxSize > 0 && queue.length > maxSize
+				? queue.slice(queue.length - maxSize)
+				: queue;
+		this.queues.set(threadId, trimmed);
+		this.persist();
+		return trimmed.length;
+	}
+
 	async subscribe(threadId: string): Promise<void> {
 		this.loadFromDisk();
 		this.subscriptions.add(threadId);
@@ -140,6 +198,14 @@ export class FileStateAdapter implements StateAdapter {
 	async isSubscribed(threadId: string): Promise<boolean> {
 		this.loadFromDisk();
 		return this.subscriptions.has(threadId);
+	}
+
+	async queueDepth(threadId: string): Promise<number> {
+		this.loadFromDisk();
+		this.pruneExpiredValues();
+		const depth = this.queues.get(threadId)?.length ?? 0;
+		this.persist();
+		return depth;
 	}
 
 	async acquireLock(threadId: string, ttlMs: number): Promise<Lock | null> {

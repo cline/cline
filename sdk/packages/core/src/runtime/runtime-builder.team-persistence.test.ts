@@ -49,13 +49,12 @@ vi.mock("../default-tools", () => ({
 	},
 }));
 
-let teamStoreInstance: MockSqliteTeamStore | undefined;
-class MockSqliteTeamStore {
+let teamStoreInstance: MockTeamStore | undefined;
+class MockTeamStore {
 	constructor() {
 		teamStoreInstance = this;
 	}
 
-	init = vi.fn();
 	loadRuntime = vi.fn(() => ({
 		state: {
 			teamId: "team_1",
@@ -82,8 +81,8 @@ class MockSqliteTeamStore {
 	persistRuntime = vi.fn();
 }
 
-vi.mock("../storage/sqlite-team-store", () => ({
-	SqliteTeamStore: MockSqliteTeamStore,
+vi.mock("../storage/team-store", () => ({
+	createLocalTeamStore: () => new MockTeamStore(),
 }));
 
 describe("DefaultRuntimeBuilder team persistence boundary", () => {

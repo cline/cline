@@ -42,8 +42,18 @@ jobs:
 
     test:
         needs: quality-checks
-        runs-on: ubuntu-latest
-        name: Test
+        strategy:
+            fail-fast: false
+            matrix:
+                include:
+                    - os: ubuntu-latest
+                      node-version: "20.x"
+                    - os: ubuntu-latest
+                      node-version: "24.x"
+                    - os: windows-latest
+                      node-version: "24.x"
+        runs-on: ${{ matrix.os }}
+        name: Test (${{ matrix.os }}, Node ${{ matrix.node-version }})
         steps:
             - name: Checkout code
               uses: actions/checkout@v4
@@ -54,7 +64,7 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: "24.x"
+                  node-version: ${{ matrix.node-version }}
 
             - name: Install dependencies
               run: bun install
@@ -71,10 +81,30 @@ jobs:
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               run: bun run test
 
-            - name: Run TUI e2e tests
+            - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              shell: bash
+              run: |
+                  node --input-type=module - <<'EOF'
+                  import { mkdtempSync, rmSync } from "node:fs";
+                  import { join } from "node:path";
+                  import { tmpdir } from "node:os";
+                  import { SqliteSessionStore } from "@clinebot/core/node";
+
+                  const sessionsDir = mkdtempSync(join(tmpdir(), "cline-sqlite-smoke-"));
+                  try {
+                    const store = new SqliteSessionStore({ sessionsDir });
+                    store.init();
+                    console.log("SQLite smoke test passed");
+                  } finally {
+                    rmSync(sessionsDir, { recursive: true, force: true });
+                  }
+                  EOF
+
+            - name: Run TUI e2e tests
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
               run: bun -F @clinebot/cli test:e2e:cli:tui
 
             - name: Verify packages are publishable
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
               run: bun scripts/version.ts 0.0.0-verify --publish --check
