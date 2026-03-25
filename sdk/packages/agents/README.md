@@ -1,4 +1,4 @@
-# @clinebot/agents
+# [experimental] @clinebot/agents
 
 `@clinebot/agents` is the runtime-agnostic agent loop package in the Cline SDK.
 It gives you the core primitives for building tool-using LLM agents without

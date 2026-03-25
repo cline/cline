@@ -1,4 +1,4 @@
-# @clinebot/shared
+# [experimental] @clinebot/shared
 
 Package-level docs are centralized:
 

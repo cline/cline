@@ -1,4 +1,4 @@
-# @clinebot/llms
+# [experimental] @clinebot/llms
 
 `@clinebot/llms` is the model and provider layer for the Cline SDK. It gives
 you typed provider settings, model catalogs, and handler creation for supported

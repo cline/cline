@@ -1,4 +1,4 @@
-# @clinebot/core
+# [experimental] @clinebot/core
 
 `@clinebot/core` is the stateful orchestration layer of the Cline SDK. It
 connects the agent runtime, provider settings, storage, default tools, and

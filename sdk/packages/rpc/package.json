@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/rpc",
-	"version": "0.0.12",
+	"version": "0.0.13",
 	"description": "[INTERNAL] gRPC routing server for clients, sessions, tasks, and tool approvals",
 	"type": "module",
 	"main": "./dist/index.js",
