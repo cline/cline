@@ -299,17 +299,22 @@ async function showKanbanMigrationView(): Promise<KanbanMigrationAction> {
 }
 
 async function startKanban(options: InitOptions): Promise<boolean> {
-	const context = await initializeCli({ ...options, enableAuth: true })
-	AuthService.getInstance(context.controller)
+	try {
+		const context = await initializeCli({ ...options, enableAuth: true })
+		AuthService.getInstance(context.controller)
 
-	const remoteConfig = await fetchUserRemoteConfig()
+		const remoteConfig = await fetchUserRemoteConfig()
 
-	if (remoteConfig && remoteConfig.kanbanEnabled !== true) {
+		if (remoteConfig && remoteConfig.kanbanEnabled !== true) {
+			return false
+		}
+
+		runKanbanAlias(options)
+		return true
+	} catch {
 		return false
 	}
 
-	runKanbanAlias(options)
-	return true
 }
 
 async function addMcpServer(name: string, targetOrCommand: string[] = [], options: McpAddOptions): Promise<void> {
