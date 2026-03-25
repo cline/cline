@@ -43,7 +43,7 @@ import { expectVisible } from "../helpers/terminal.js"
 // ---------------------------------------------------------------------------
 test.describe("cline (unauthenticated) — shows auth view", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("unauthenticated"),
 	})
@@ -60,7 +60,7 @@ test.describe("cline (unauthenticated) — shows auth view", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline (authenticated) — shows chat view", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("claude-sonnet-4.6"),
 	})
@@ -75,7 +75,7 @@ test.describe("cline (authenticated) — shows chat view", () => {
 // ---------------------------------------------------------------------------
 test.describe("/settings — tab navigation", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("claude-sonnet-4.6"),
 	})
@@ -115,7 +115,7 @@ test.describe("/settings — tab navigation", () => {
 // ---------------------------------------------------------------------------
 test.describe("/models — model browser", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("claude-sonnet-4.6"),
 	})
@@ -138,7 +138,7 @@ test.describe("/models — model browser", () => {
 // ---------------------------------------------------------------------------
 test.describe("/history — task history", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("claude-sonnet-4.6"),
 	})
@@ -161,7 +161,7 @@ test.describe("/history — task history", () => {
 // ---------------------------------------------------------------------------
 test.describe("/skills — skills view", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -184,7 +184,7 @@ test.describe("/skills — skills view", () => {
 // ---------------------------------------------------------------------------
 test.describe("Plan/Act mode toggle", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -204,7 +204,7 @@ test.describe("Plan/Act mode toggle", () => {
 // ---------------------------------------------------------------------------
 test.describe("Auto-approve all — Shift+Tab toggle", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
