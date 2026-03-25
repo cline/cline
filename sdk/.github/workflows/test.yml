@@ -89,6 +89,9 @@ jobs:
                   SMOKE_DIR="$RUNNER_TEMP/cline-node-smoke"
                   rm -rf "$PACK_DIR" "$SMOKE_DIR"
                   mkdir -p "$PACK_DIR" "$SMOKE_DIR"
+                  trap 'git restore packages/*/package.json; rm -f .publish-verify-package-json-backup.json' EXIT
+
+                  bun scripts/version.ts 0.0.0-node.smoke --publish
 
                   CORE_TGZ=$(cd packages/core && npm pack --pack-destination "$PACK_DIR" | tail -n 1)
                   AGENTS_TGZ=$(cd packages/agents && npm pack --pack-destination "$PACK_DIR" | tail -n 1)
