@@ -85,6 +85,33 @@ jobs:
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
               shell: bash
               run: |
+                  PACK_DIR="$RUNNER_TEMP/cline-node-smoke-packs"
+                  SMOKE_DIR="$RUNNER_TEMP/cline-node-smoke"
+                  rm -rf "$PACK_DIR" "$SMOKE_DIR"
+                  mkdir -p "$PACK_DIR" "$SMOKE_DIR"
+
+                  CORE_TGZ=$(cd packages/core && npm pack --pack-destination "$PACK_DIR" | tail -n 1)
+                  AGENTS_TGZ=$(cd packages/agents && npm pack --pack-destination "$PACK_DIR" | tail -n 1)
+                  LLMS_TGZ=$(cd packages/llms && npm pack --pack-destination "$PACK_DIR" | tail -n 1)
+                  SHARED_TGZ=$(cd packages/shared && npm pack --pack-destination "$PACK_DIR" | tail -n 1)
+
+                  cat > "$SMOKE_DIR/package.json" <<EOF
+                  {
+                    "name": "cline-node-smoke",
+                    "private": true,
+                    "type": "module",
+                    "dependencies": {
+                      "@clinebot/core": "file:$PACK_DIR/$CORE_TGZ",
+                      "@clinebot/agents": "file:$PACK_DIR/$AGENTS_TGZ",
+                      "@clinebot/llms": "file:$PACK_DIR/$LLMS_TGZ",
+                      "@clinebot/shared": "file:$PACK_DIR/$SHARED_TGZ"
+                    }
+                  }
+                  EOF
+
+                  cd "$SMOKE_DIR"
+                  npm install --ignore-scripts
+
                   node --input-type=module - <<'EOF'
                   import { mkdtempSync, rmSync } from "node:fs";
                   import { join } from "node:path";
