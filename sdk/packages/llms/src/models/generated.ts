@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1774365323810,
+	version: 1774472249946,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -1121,6 +1121,48 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		bedrock: {
+			"minimax.minimax-m2.5": {
+				id: "minimax.minimax-m2.5",
+				name: "MiniMax M2.5",
+				contextWindow: 196608,
+				maxTokens: 98304,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.3,
+					output: 1.2,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-18",
+			},
+			"zai.glm-5": {
+				id: "zai.glm-5",
+				name: "GLM-5",
+				contextWindow: 202752,
+				maxTokens: 101376,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 1,
+					output: 3.2,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-18",
+			},
+			"nvidia.nemotron-super-3-120b": {
+				id: "nvidia.nemotron-super-3-120b",
+				name: "NVIDIA Nemotron 3 Super 120B A12B",
+				contextWindow: 262144,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.15,
+					output: 0.65,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-11",
+			},
 			"anthropic.claude-sonnet-4-6": {
 				id: "anthropic.claude-sonnet-4-6",
 				name: "Claude Sonnet 4.6",
@@ -1190,34 +1232,6 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 3.75,
 				},
 				releaseDate: "2026-02-17",
-			},
-			"minimax.minimax-m2.5": {
-				id: "minimax.minimax-m2.5",
-				name: "MiniMax M2.5",
-				contextWindow: 1000000,
-				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
-				pricing: {
-					input: 0.3,
-					output: 1.2,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2026-02-12",
-			},
-			"zai.glm-5": {
-				id: "zai.glm-5",
-				name: "GLM-5",
-				contextWindow: 200000,
-				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
-				pricing: {
-					input: 1,
-					output: 3.2,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2026-02-11",
 			},
 			"deepseek.v3.2": {
 				id: "deepseek.v3.2",

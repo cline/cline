@@ -103,6 +103,21 @@ async function restorePublishVerifyBackup(): Promise<void> {
 	}
 }
 
+async function runCommandOrThrow(
+	cmd: string[],
+	options: { cwd: string },
+): Promise<void> {
+	const proc = Bun.spawn(cmd, {
+		cwd: options.cwd,
+		stdout: "inherit",
+		stderr: "inherit",
+	});
+	const exitCode = await proc.exited;
+	if (exitCode !== 0) {
+		throw new Error(`${cmd[0]} exited with code ${exitCode}`);
+	}
+}
+
 async function runPublishVerification(): Promise<number> {
 	const published: { name: string; dir: string; workspace: string }[] = [];
 
@@ -297,8 +312,8 @@ async function runPublishVerification(): Promise<number> {
 					`import { join } from "node:path";`,
 					`const pkgJson = JSON.parse(readFileSync(join(process.cwd(), "node_modules", "@clinebot", "core", "package.json"), "utf8"));`,
 					`try {`,
-					`  if (pkgJson.dependencies?.["better-sqlite3"] !== "^11.10.0") {`,
-					`    console.error("  FAIL @clinebot/core: package.json is missing runtime dependency better-sqlite3");`,
+					`  if (pkgJson.dependencies?.["better-sqlite3"] !== undefined) {`,
+					`    console.error("  FAIL @clinebot/core: package.json should not declare better-sqlite3 directly");`,
 					`    process.exit(1);`,
 					`  }`,
 					`  const root = await import("@clinebot/core");`,
@@ -452,4 +467,11 @@ if (values.check) {
 	const exitCode = await runPublishVerification();
 	await restorePublishVerifyBackup();
 	process.exit(exitCode);
+}
+
+if (!values.dry) {
+	await runCommandOrThrow(["bun", "-F", "@clinebot/llms", "generate:models"], {
+		cwd: root,
+	});
+	await runCommandOrThrow(["bun", "format", "--write"], { cwd: root });
 }
