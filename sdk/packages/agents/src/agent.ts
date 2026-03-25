@@ -146,7 +146,7 @@ export class Agent {
 			maxIterations: config.maxIterations,
 			maxParallelToolCalls: config.maxParallelToolCalls ?? 8,
 			apiTimeoutMs: config.apiTimeoutMs ?? 120000,
-			maxConsecutiveMistakes: config.maxConsecutiveMistakes ?? 3,
+			maxConsecutiveMistakes: config.maxConsecutiveMistakes ?? 6,
 			maxTokensPerTurn: config.maxTokensPerTurn,
 			reminderAfterIterations: config.reminderAfterIterations ?? 0,
 			reminderText: config.reminderText ?? DEFAULT_REMINDER_TEXT,

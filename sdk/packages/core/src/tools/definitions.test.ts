@@ -5,6 +5,7 @@ import {
 	createReadFilesTool,
 	createSkillsTool,
 } from "./definitions.js";
+import { EDITOR_NEW_TEXT_CHAR_LIMIT } from "./schemas.js";
 import type { SkillsExecutorWithMetadata } from "./types.js";
 
 function createMockSkillsExecutor(
@@ -604,5 +605,54 @@ describe("default editor tool", () => {
 			process.cwd(),
 			expect.anything(),
 		);
+	});
+
+	it("returns a recoverable tool error when text exceeds the soft character limit", async () => {
+		const execute = vi.fn(async () => "patched");
+		const tools = createDefaultTools({
+			executors: {
+				editor: execute,
+			},
+			enableReadFiles: false,
+			enableSearch: false,
+			enableBash: false,
+			enableWebFetch: false,
+			enableSkills: false,
+			enableAskQuestion: false,
+			enableApplyPatch: false,
+			enableEditor: true,
+		});
+		const editorTool = tools.find((tool) => tool.name === "editor");
+		expect(editorTool).toBeDefined();
+		if (!editorTool) {
+			throw new Error("Expected editor tool to be defined.");
+		}
+
+		const oversizedText = "x".repeat(EDITOR_NEW_TEXT_CHAR_LIMIT + 1);
+		const result = await editorTool.execute(
+			{
+				path: "/tmp/example.ts",
+				new_text: oversizedText,
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual({
+			query: "edit:/tmp/example.ts",
+			result: "",
+			error: expect.stringContaining("new_text was"),
+			success: false,
+		});
+		if (typeof result !== "object" || result == null || !("error" in result)) {
+			throw new Error("Expected editor tool result to include an error.");
+		}
+		expect(result.error).toContain(
+			`recommended limit of ${EDITOR_NEW_TEXT_CHAR_LIMIT}`,
+		);
+		expect(execute).not.toHaveBeenCalled();
 	});
 });

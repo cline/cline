@@ -16,6 +16,7 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	INPUT_ARG_CHAR_LIMIT,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -55,6 +56,21 @@ function formatError(error: unknown): string {
 		return error.message;
 	}
 	return String(error);
+}
+
+function getEditorSizeError(input: EditFileInput): string | null {
+	if (
+		typeof input.old_text === "string" &&
+		input.old_text.length > INPUT_ARG_CHAR_LIMIT
+	) {
+		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+	}
+
+	if (input.new_text.length > INPUT_ARG_CHAR_LIMIT) {
+		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
+	}
+
+	return null;
 }
 
 /**
@@ -480,6 +496,16 @@ export function createEditorTool(
 		execute: async (input, context) => {
 			const validatedInput = validateWithZod(EditFileInputSchema, input);
 			const operation = validatedInput.insert_line == null ? "edit" : "insert";
+			const sizeError = getEditorSizeError(validatedInput);
+
+			if (sizeError) {
+				return {
+					query: `${operation}:${validatedInput.path}`,
+					result: "",
+					error: sizeError,
+					success: false,
+				};
+			}
 
 			try {
 				const result = await withTimeout(
