@@ -5,6 +5,7 @@
 import { Box, Text, useInput } from "ink"
 import React, { useEffect, useMemo, useState } from "react"
 import { COLORS } from "../constants/colors"
+import { FeatureTip } from "./FeatureTip"
 
 interface ThinkingIndicatorProps {
 	mode?: "act" | "plan"
@@ -118,9 +119,12 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "ac
 	}, [startTime, elapsedMs])
 
 	return (
-		<Box paddingLeft={1}>
-			<ShimmerText color={color} shimmerPos={shimmerPos} text={fullText} />
-			{elapsedStr && <Text color="gray"> ({elapsedStr} · esc to interrupt)</Text>}
+		<Box flexDirection="column">
+			<Box paddingLeft={1}>
+				<ShimmerText color={color} shimmerPos={shimmerPos} text={fullText} />
+				{elapsedStr && <Text color="gray"> ({elapsedStr} · esc to interrupt)</Text>}
+			</Box>
+			<FeatureTip />
 		</Box>
 	)
 }
