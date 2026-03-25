@@ -80,6 +80,13 @@ const agentFeatures: FeatureToggle[] = [
 
 const editorFeatures: FeatureToggle[] = [
 	{
+		id: "show-feature-tips",
+		label: "Feature Tips",
+		description: "Show rotating tips during the thinking phase to help you discover Cline features.",
+		stateKey: "showFeatureTips",
+		settingKey: "showFeatureTips",
+	},
+	{
 		id: "background-edit",
 		label: "Background Edit",
 		description: "Allow edits without stealing editor focus",
@@ -211,6 +218,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		showFeatureTips,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -224,6 +232,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 	// State lookup for mapped features
 	const featureState: Record<string, boolean | undefined> = {
+		showFeatureTips,
 		enableCheckpointsSetting,
 		strictPlanModeEnabled,
 		hooksEnabled,
