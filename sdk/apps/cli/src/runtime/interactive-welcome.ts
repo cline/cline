@@ -48,6 +48,11 @@ export function listInteractiveSlashCommands(
 			instructions: "",
 			description: "Open interactive config browser",
 		},
+		{
+			name: "settings",
+			instructions: "",
+			description: "Alias for /config",
+		},
 	];
 	if (!watcher) {
 		return builtins;
