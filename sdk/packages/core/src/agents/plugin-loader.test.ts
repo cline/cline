@@ -1,15 +1,11 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	loadAgentPluginFromPath,
 	loadAgentPluginsFromPaths,
 } from "./plugin-loader";
-
-const TEST_DIR = fileURLToPath(new URL(".", import.meta.url));
-const REPO_ROOT = resolve(TEST_DIR, "..", "..", "..", "..");
 
 describe("plugin-loader", () => {
 	it("loads default-exported plugin from path", async () => {
@@ -193,10 +189,14 @@ describe("plugin-loader", () => {
 			const pluginPath = join(dir, "portable-subagents.ts");
 			await writeFile(
 				pluginPath,
-				await readFile(
-					resolve(REPO_ROOT, "apps/examples/subagent-plugin/index.ts"),
-					"utf8",
-				),
+				[
+					"import { resolveClineDataDir } from '@clinebot/shared/storage';",
+					"import YAML from 'yaml';",
+					"export default {",
+					"  name: typeof resolveClineDataDir === 'function' ? YAML.stringify({ ok: true }) : 'invalid',",
+					"  manifest: { capabilities: ['tools'] },",
+					"};",
+				].join("\n"),
 				"utf8",
 			);
 
