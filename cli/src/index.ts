@@ -1189,15 +1189,14 @@ program
 				exit(1)
 			}
 
-			startKanban(options).then((started) => {
-				if (started) {
-					exit(0)
-				}
+			const started = await startKanban(options)
+			if (started) {
+				exit(0)
+			}
 
-				printWarning(
-					"The Kanban view has been disabled for your organization. Please contact your administrator to enable it.",
-				)
-			})
+			printWarning(
+				"The Kanban view has been disabled for your organization. Please contact your administrator to enable it.",
+			)
 		}
 
 		// Check for ACP mode first - this takes precedence over everything else
