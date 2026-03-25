@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1774472249946,
+	version: 1774477517254,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -11650,6 +11650,20 @@ export const GENERATED_PROVIDER_MODELS: {
 					input: 0,
 					output: 0,
 					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-01-19",
+			},
+			"glm-4.7-flashx": {
+				id: "glm-4.7-flashx",
+				name: "GLM-4.7-FlashX",
+				contextWindow: 200000,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.07,
+					output: 0.4,
+					cacheRead: 0.01,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-01-19",
