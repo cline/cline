@@ -21,7 +21,7 @@ import { expectVisible } from "../utils.js"
 // ---------------------------------------------------------------------------
 test.describe("cline --act", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--act"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--act"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -37,7 +37,7 @@ test.describe("cline --act", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --plan", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--plan"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--plan"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -53,7 +53,7 @@ test.describe("cline --plan", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --timeout (interactive mode, flag ignored) ⚠️", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--timeout", "30"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--timeout", "30"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -71,7 +71,7 @@ test.describe("cline --model (interactive mode, flag ignored) ⚠️", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
-			args: ["--model", "claude-3-5-haiku-20241022"],
+			args: ["--tui", "--model", "claude-3-5-haiku-20241022"],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
@@ -88,7 +88,7 @@ test.describe("cline --model (interactive mode, flag ignored) ⚠️", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --verbose (interactive mode, flag ignored) ⚠️", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--verbose"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--verbose"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -104,7 +104,7 @@ test.describe("cline --verbose (interactive mode, flag ignored) ⚠️", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --cwd <dir>", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--cwd", "/tmp"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--cwd", "/tmp"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -116,7 +116,7 @@ test.describe("cline --cwd <dir>", () => {
 
 test.describe("cline -c <dir> (short alias)", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["-c", "/tmp"] },
+		program: { file: CLINE_BIN, args: ["--tui", "-c", "/tmp"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -134,7 +134,7 @@ test.describe("cline --config (claude-sonnet-4.6)", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
-			args: ["--config", "configs/claude-sonnet-4.6"],
+			args: ["--tui", "--config", "configs/claude-sonnet-4.6"],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("claude-sonnet-4.6"),
@@ -152,7 +152,7 @@ test.describe("cline --config (claude-sonnet-4.6)", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --thinking ⚠️", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--thinking"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--thinking"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -169,7 +169,7 @@ test.describe("cline --thinking ⚠️", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --reasoning-effort ⚠️", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--reasoning-effort", "high"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--reasoning-effort", "high"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
@@ -186,7 +186,7 @@ test.describe("cline --max-consecutive-mistakes", () => {
 	test.use({
 		program: {
 			file: CLINE_BIN,
-			args: ["--max-consecutive-mistakes", "5"],
+			args: ["--tui", "--max-consecutive-mistakes", "5"],
 		},
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
@@ -202,7 +202,7 @@ test.describe("cline --max-consecutive-mistakes", () => {
 // ---------------------------------------------------------------------------
 test.describe("cline --double-check-completion", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--double-check-completion"] },
+		program: { file: CLINE_BIN, args: ["--tui", "--double-check-completion"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("default"),
 	})
