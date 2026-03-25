@@ -478,7 +478,7 @@ export async function readRemoteConfigFromCache(organizationId?: string): Promis
 	}
 }
 
-export async function writeRemoteConfigToCache(organizationId: string, config: RemoteConfig): Promise<void> {
+export async function writeRemoteConfigToCache(organizationId: string | undefined, config: RemoteConfig): Promise<void> {
 	try {
 		const remoteConfigFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.remoteConfig(organizationId))
 		await fs.writeFile(remoteConfigFilePath, JSON.stringify(config))

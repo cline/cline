@@ -101,6 +101,8 @@ export async function fetchUserRemoteConfig(): Promise<RemoteConfig | undefined>
 		const parsedConfig = JSON.parse(configData.value)
 		const validatedConfig = RemoteConfigSchema.parse(parsedConfig)
 
+		writeRemoteConfigToCache(undefined, parsedConfig)
+
 		return validatedConfig
 	} catch (error) {
 		Logger.error(`Failed to fetch remote config`, error)
