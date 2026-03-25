@@ -18,6 +18,7 @@ import {
 	startRpcServer,
 	stopRpcServer,
 } from "@clinebot/rpc";
+import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
 import { Command } from "commander";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
@@ -35,7 +36,6 @@ const RPC_STARTUP_LOCK_BYPASS_ENV = "CLINE_RPC_STARTUP_LOCK_HELD";
 const RPC_OWNER_ID_ENV = "CLINE_RPC_OWNER_ID";
 const RPC_BUILD_ID_ENV = "CLINE_RPC_BUILD_ID";
 const RPC_DISCOVERY_PATH_ENV = "CLINE_RPC_DISCOVERY_PATH";
-const DEFAULT_RPC_ADDRESS = "127.0.0.1:4317";
 
 // ---------------------------------------------------------------------------
 // Shared types
@@ -933,6 +933,9 @@ async function runRpcRegisterCommand(
 // Commander command tree
 // ---------------------------------------------------------------------------
 
+const DEFAULT_RPC_ADDRESS =
+	process.env.CLINE_RPC_ADDRESS || CLINE_DEFAULT_RPC_ADDRESS;
+
 export function createRpcCommand(
 	io: RpcCommandIo,
 	setExitCode: (code: number) => void,
@@ -949,11 +952,7 @@ export function createRpcCommand(
 	rpc
 		.command("ensure")
 		.description("Ensure the RPC runtime is running")
-		.option(
-			addressOption(),
-			"RPC server address",
-			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
-		)
+		.option(addressOption(), "RPC server address", DEFAULT_RPC_ADDRESS)
 		.option("--json", "Output as JSON")
 		.action(async function (this: Command) {
 			const opts = this.opts<{ address: string; json?: boolean }>();
@@ -969,11 +968,7 @@ export function createRpcCommand(
 	rpc
 		.command("register")
 		.description("Register an RPC client")
-		.option(
-			addressOption(),
-			"RPC server address",
-			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
-		)
+		.option(addressOption(), "RPC server address", DEFAULT_RPC_ADDRESS)
 		.option("--client-id <id>", "Client ID")
 		.option("--client-type <type>", "Client type", "desktop")
 		.option(
@@ -1006,11 +1001,7 @@ export function createRpcCommand(
 	rpc
 		.command("start")
 		.description("Start the RPC server")
-		.option(
-			addressOption(),
-			"RPC server address",
-			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
-		)
+		.option(addressOption(), "RPC server address", DEFAULT_RPC_ADDRESS)
 		.action(async function (this: Command) {
 			const opts = this.opts<{ address: string }>();
 			setExitCode(
@@ -1025,11 +1016,7 @@ export function createRpcCommand(
 	rpc
 		.command("status")
 		.description("Show RPC server status")
-		.option(
-			addressOption(),
-			"RPC server address",
-			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
-		)
+		.option(addressOption(), "RPC server address", DEFAULT_RPC_ADDRESS)
 		.option("--json", "Output as JSON")
 		.action(async function (this: Command) {
 			const opts = this.opts<{ address: string; json?: boolean }>();
@@ -1045,11 +1032,7 @@ export function createRpcCommand(
 	rpc
 		.command("stop")
 		.description("Stop the RPC server")
-		.option(
-			addressOption(),
-			"RPC server address",
-			process.env.CLINE_RPC_ADDRESS || DEFAULT_RPC_ADDRESS,
-		)
+		.option(addressOption(), "RPC server address", DEFAULT_RPC_ADDRESS)
 		.action(async function (this: Command) {
 			const opts = this.opts<{ address: string }>();
 			setExitCode(

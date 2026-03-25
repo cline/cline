@@ -1,6 +1,7 @@
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import type { watch } from "node:fs";
 import type { RpcChatTurnResult } from "@clinebot/core";
+import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -93,7 +94,8 @@ export type HostContext = {
 };
 
 export const BunRuntime = (globalThis as { Bun?: any }).Bun;
-export const DEFAULT_RPC_ADDRESS = "127.0.0.1:4317";
+export const DEFAULT_RPC_ADDRESS =
+	process.env.CLINE_RPC_ADDRESS || CLINE_DEFAULT_RPC_ADDRESS;
 export const DEFAULT_RPC_CLIENT_ID = "code-desktop";
 export const DEFAULT_RPC_CLIENT_TYPE = "desktop";
 export const HOST_MODE = "bun";
