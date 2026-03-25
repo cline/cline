@@ -504,6 +504,15 @@ async function executeChatTurn(
 		sendApprovalSnapshot(ctx, sessionId);
 
 		return { result, queued: false };
+	} catch (error) {
+		const persistedMessages = readPersistedChatMessages(sessionId);
+		if (persistedMessages) {
+			session.messages = persistedMessages;
+		}
+		session.status = "failed";
+		session.endedAt = nowMs();
+		sendApprovalSnapshot(ctx, sessionId);
+		throw error;
 	} finally {
 		session.busy = false;
 	}

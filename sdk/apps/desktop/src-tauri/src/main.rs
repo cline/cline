@@ -4338,6 +4338,9 @@ async fn handle_chat_session_command(
                 } else {
                     session.status = "failed".to_string();
                     session.ended_at = Some(now_ms());
+                    if let Ok(Some(messages)) = read_persisted_chat_messages(&session_id) {
+                        session.messages = messages;
+                    }
                 }
             }
 

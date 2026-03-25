@@ -163,11 +163,12 @@ export function shouldAutoContinueTeamRuns(
 	session: ActiveSession,
 	finishReason: AgentResult["finishReason"],
 ): boolean {
-	if (
-		session.aborting ||
-		finishReason === "aborted" ||
-		finishReason === "error"
-	) {
+	if (session.aborting) {
+		return false;
+	}
+	const canAutoContinue =
+		finishReason === "completed" || finishReason === "max_iterations";
+	if (!canAutoContinue) {
 		return false;
 	}
 	return (

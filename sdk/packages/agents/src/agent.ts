@@ -716,7 +716,7 @@ export class Agent {
 						`The previous turn failed with an API/runtime error: ${message}. Retry and continue from the latest state.`,
 						"api_error",
 					);
-					const shouldContinue = await this.recordMistake({
+					const mistakeOutcome = await this.recordMistake({
 						iteration,
 						reason: "api_error",
 						details: message,
@@ -725,9 +725,10 @@ export class Agent {
 							consecutiveMistakes = value;
 						},
 					});
-					if (shouldContinue) {
+					if (mistakeOutcome.action === "continue") {
 						continue;
 					}
+					this.appendStopNotice(mistakeOutcome.message);
 					await this.lifecycle.dispatch("hook.stop_error", {
 						stage: "stop_error",
 						iteration,
@@ -739,7 +740,8 @@ export class Agent {
 							error: errorObj,
 						},
 					});
-					throw errorObj;
+					finishReason = "mistake_limit";
+					break;
 				}
 				if (assistantMessage) {
 					this.conversationStore.appendMessage(assistantMessage);
@@ -793,7 +795,7 @@ export class Agent {
 						this.buildInvalidToolResultMessage(turn.invalidToolCalls),
 					);
 					this.appendRecoveryNotice(feedback, "invalid_tool_call");
-					const shouldContinue = await this.recordMistake({
+					const mistakeOutcome = await this.recordMistake({
 						iteration,
 						reason: "invalid_tool_call",
 						details: feedback,
@@ -802,12 +804,12 @@ export class Agent {
 							consecutiveMistakes = value;
 						},
 					});
-					if (shouldContinue) {
+					if (mistakeOutcome.action === "continue") {
 						continue;
 					}
-					throw new Error(
-						`maximum consecutive mistakes reached (${this.config.maxConsecutiveMistakes})`,
-					);
+					this.appendStopNotice(mistakeOutcome.message);
+					finishReason = "mistake_limit";
+					break;
 				}
 
 				if (turn.toolCalls.length === 0) {
@@ -885,7 +887,7 @@ export class Agent {
 				} else if (failedToolCalls > 0) {
 					const failedToolCallDetails =
 						this.buildFailedToolCallFeedback(toolResults);
-					const shouldContinue = await this.recordMistake({
+					const mistakeOutcome = await this.recordMistake({
 						iteration,
 						reason: "tool_execution_failed",
 						details: `${failedToolCalls} tool call(s) failed${
@@ -896,10 +898,10 @@ export class Agent {
 							consecutiveMistakes = value;
 						},
 					});
-					if (!shouldContinue) {
-						throw new Error(
-							`maximum consecutive mistakes reached (${this.config.maxConsecutiveMistakes})`,
-						);
+					if (mistakeOutcome.action === "stop") {
+						this.appendStopNotice(mistakeOutcome.message);
+						finishReason = "mistake_limit";
+						break;
 					}
 				}
 
@@ -1116,7 +1118,10 @@ export class Agent {
 		details?: string;
 		consecutiveMistakes: () => number;
 		setConsecutiveMistakes: (value: number) => void;
-	}): Promise<boolean> {
+	}): Promise<
+		| { action: "continue" }
+		| { action: "stop"; message: string; reason?: string }
+	> {
 		const next = input.consecutiveMistakes() + 1;
 		input.setConsecutiveMistakes(next);
 		const errorMessage =
@@ -1139,7 +1144,7 @@ export class Agent {
 		});
 		const maxConsecutiveMistakes = this.config.maxConsecutiveMistakes;
 		if (!maxConsecutiveMistakes || next < maxConsecutiveMistakes) {
-			return true;
+			return { action: "continue" };
 		}
 
 		const decision = await this.resolveConsecutiveMistakeDecision({
@@ -1155,9 +1160,45 @@ export class Agent {
 				this.appendRecoveryNotice(guidance, input.reason);
 			}
 			input.setConsecutiveMistakes(0);
-			return true;
+			return { action: "continue" };
 		}
-		return false;
+		return {
+			action: "stop",
+			reason: decision.reason?.trim() || undefined,
+			message: this.buildMistakeLimitStopMessage({
+				iteration: input.iteration,
+				consecutiveMistakes: next,
+				maxConsecutiveMistakes,
+				reason: input.reason,
+				details: input.details,
+				stopReason: decision.reason,
+			}),
+		};
+	}
+
+	private buildMistakeLimitStopMessage(input: {
+		iteration: number;
+		consecutiveMistakes: number;
+		maxConsecutiveMistakes: number;
+		reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
+		details?: string;
+		stopReason?: string;
+	}): string {
+		const parts = [
+			`Stopped after ${input.consecutiveMistakes}/${input.maxConsecutiveMistakes} consecutive mistakes (${input.reason}) at iteration ${input.iteration}.`,
+		];
+		const details = input.details?.trim();
+		if (details) {
+			parts.push(`Latest failure: ${details}`);
+		}
+		const stopReason = input.stopReason?.trim();
+		if (stopReason) {
+			parts.push(`Decision: ${stopReason}`);
+		}
+		parts.push(
+			"Session state was preserved. Send a new prompt to resume from the latest state.",
+		);
+		return parts.join(" ");
 	}
 
 	private async resolveConsecutiveMistakeDecision(input: {
@@ -1421,6 +1462,31 @@ export class Agent {
 			message: text,
 			displayRole: "system",
 			reason,
+			metadata: { ...metadata },
+		});
+	}
+
+	private appendStopNotice(message: string): void {
+		const text = message.trim();
+		if (!text) {
+			return;
+		}
+		const metadata = {
+			kind: "stop_notice",
+			reason: "mistake_limit",
+			displayRole: "status",
+		} as const;
+		this.conversationStore.appendMessage({
+			role: "user",
+			content: [{ type: "text", text }],
+			metadata,
+		});
+		this.emit({
+			type: "notice",
+			noticeType: "stop",
+			message: text,
+			displayRole: "status",
+			reason: "mistake_limit",
 			metadata: { ...metadata },
 		});
 	}

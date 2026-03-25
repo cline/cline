@@ -22,7 +22,12 @@ type ChatApiResult = {
 		outputTokens?: number;
 	};
 	iterations?: number;
-	finishReason?: "completed" | "max_iterations" | "aborted" | "error";
+	finishReason?:
+		| "completed"
+		| "max_iterations"
+		| "aborted"
+		| "mistake_limit"
+		| "error";
 	toolCalls?: Array<{
 		name: string;
 		input?: unknown;
@@ -99,7 +104,12 @@ async function postSession(body: Record<string, unknown>) {
 			inputTokens?: number;
 			outputTokens?: number;
 			iterations?: number;
-			finishReason?: "completed" | "max_iterations" | "aborted" | "error";
+			finishReason?:
+				| "completed"
+				| "max_iterations"
+				| "aborted"
+				| "mistake_limit"
+				| "error";
 			toolCalls?: Array<{
 				name: string;
 				input?: unknown;

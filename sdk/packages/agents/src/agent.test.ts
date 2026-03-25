@@ -236,11 +236,12 @@ describe("Agent", () => {
 			maxConsecutiveMistakes: 2,
 		});
 
-		await expect(agent.run("retry")).rejects.toThrow("upstream api timeout");
+		const result = await agent.run("retry");
+		expect(result.finishReason).toBe("mistake_limit");
 		expect(handler.createMessage).toHaveBeenCalledTimes(2);
 	});
 
-	it("retries invalid tool payloads until max consecutive mistakes is reached", async () => {
+	it("stops at the mistake limit and can resume from preserved state", async () => {
 		const { Agent } = await import("./agent.js");
 		const handler = makeHandler([
 			[
@@ -271,11 +272,16 @@ describe("Agent", () => {
 				},
 				{ type: "done", id: "r2", success: true },
 			],
+			[
+				{ type: "text", id: "r3", text: "Recovered after resume." },
+				{ type: "done", id: "r3", success: true },
+			],
 		]);
 		createHandlerMock.mockReturnValue(handler);
 
 		const notices: string[] = [];
 		const errors: string[] = [];
+		const stopNotices: string[] = [];
 		const agent = new Agent({
 			providerId: "anthropic",
 			modelId: "mock-model",
@@ -285,6 +291,9 @@ describe("Agent", () => {
 			onEvent: (event) => {
 				if (event.type === "notice") {
 					notices.push(event.message);
+					if (event.noticeType === "stop") {
+						stopNotices.push(event.message);
+					}
 				}
 				if (event.type === "error") {
 					errors.push(event.error.message);
@@ -292,16 +301,28 @@ describe("Agent", () => {
 			},
 		});
 
-		await expect(agent.run("try editing a file")).rejects.toThrow(
-			"maximum consecutive mistakes reached (2)",
-		);
-		expect(handler.createMessage).toHaveBeenCalledTimes(2);
+		const first = await agent.run("try editing a file");
+		expect(first.finishReason).toBe("mistake_limit");
+		expect(first.messages.at(-1)).toMatchObject({
+			role: "user",
+			metadata: {
+				kind: "stop_notice",
+				reason: "mistake_limit",
+				displayRole: "status",
+			},
+		});
+		expect(stopNotices).toHaveLength(1);
 		expect(notices).toContain(
 			"One or more tool calls were invalid or missing required parameters (editor [call_1]: Tool call arguments could not be parsed as JSON. Ensure the outer tool payload is valid JSON and escape embedded quotes/newlines inside string fields.). Retry with valid tool names and arguments.",
 		);
 		expect(errors).toContain(
 			"One or more tool calls were invalid or missing required parameters (editor [call_1]: Tool call arguments could not be parsed as JSON. Ensure the outer tool payload is valid JSON and escape embedded quotes/newlines inside string fields.). Retry with valid tool names and arguments.",
 		);
+
+		const resumed = await agent.continue("resume from the latest state");
+		expect(resumed.finishReason).toBe("completed");
+		expect(resumed.text).toBe("Recovered after resume.");
+		expect(handler.createMessage).toHaveBeenCalledTimes(3);
 	});
 
 	it("recovers from missing tool call arguments and retries", async () => {
@@ -485,7 +506,8 @@ describe("Agent", () => {
 			tools: [],
 		});
 
-		await expect(agent.run("retry")).rejects.toThrow("upstream api timeout");
+		const result = await agent.run("retry");
+		expect(result.finishReason).toBe("mistake_limit");
 		expect(handler.createMessage).toHaveBeenCalledTimes(6);
 	});
 
@@ -686,9 +708,8 @@ describe("Agent", () => {
 			maxConsecutiveMistakes: 1,
 		});
 
-		await expect(agent.run("retry")).rejects.toThrow(
-			"API request timed out after 10ms",
-		);
+		const result = await agent.run("retry");
+		expect(result.finishReason).toBe("mistake_limit");
 		expect(handler.setAbortSignal).toHaveBeenCalled();
 	});
 
@@ -811,9 +832,8 @@ describe("Agent", () => {
 			maxConsecutiveMistakes: 1,
 		});
 
-		await expect(agent.run("replace this text")).rejects.toThrow(
-			"maximum consecutive mistakes reached (1)",
-		);
+		const result = await agent.run("replace this text");
+		expect(result.finishReason).toBe("mistake_limit");
 		expect(handler.createMessage).toHaveBeenCalledTimes(1);
 	});
 

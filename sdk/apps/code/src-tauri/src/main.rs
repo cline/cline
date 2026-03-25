@@ -3108,6 +3108,7 @@ fn persist_chat_turn_result(
 }
 
 fn mark_chat_turn_failed(state: &Arc<ChatSessionStore>, session_id: &str) -> Result<(), String> {
+    let persisted_messages = read_persisted_chat_messages(session_id)?;
     let mut sessions = state
         .sessions
         .lock()
@@ -3116,6 +3117,9 @@ fn mark_chat_turn_failed(state: &Arc<ChatSessionStore>, session_id: &str) -> Res
         session.busy = false;
         session.status = "failed".to_string();
         session.ended_at = Some(now_ms());
+        if let Some(messages) = persisted_messages {
+            session.messages = messages;
+        }
     }
     Ok(())
 }

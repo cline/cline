@@ -121,10 +121,14 @@ export interface AgentUsageEvent {
 
 export interface AgentNoticeEvent {
 	type: "notice";
-	noticeType: "recovery";
+	noticeType: "recovery" | "stop";
 	message: string;
 	displayRole?: "system" | "status";
-	reason?: "api_error" | "invalid_tool_call" | "tool_execution_failed";
+	reason?:
+		| "api_error"
+		| "invalid_tool_call"
+		| "tool_execution_failed"
+		| "mistake_limit";
 	metadata?: Record<string, unknown>;
 }
 
@@ -615,12 +619,14 @@ export type AgentFinishReason =
 	| "completed" // Normal completion (no more tool calls)
 	| "max_iterations" // Hit the maximum iteration limit
 	| "aborted" // User or system aborted
+	| "mistake_limit" // Stopped after repeated recoverable mistakes
 	| "error"; // Unrecoverable error occurred
 
 export const AgentFinishReasonSchema = z.enum([
 	"completed",
 	"max_iterations",
 	"aborted",
+	"mistake_limit",
 	"error",
 ]);
 

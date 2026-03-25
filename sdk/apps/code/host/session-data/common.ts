@@ -239,6 +239,8 @@ export function normalizeChatFinishStatus(status?: string): string {
 		normalized.includes("complete") ||
 		normalized.includes("done") ||
 		normalized.includes("stop") ||
+		normalized.includes("mistake_limit") ||
+		normalized.includes("mistake-limit") ||
 		normalized.includes("max_iteration") ||
 		normalized.includes("max-iteration")
 	) {

@@ -627,6 +627,8 @@ function mapFinishReason(reason: string): StopReason {
 			return "cancelled";
 		case "max_iterations":
 			return "max_turn_requests";
+		case "mistake_limit":
+			return "end_turn";
 		default:
 			return "end_turn";
 	}

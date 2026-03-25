@@ -49,7 +49,12 @@ export type ChatApiResult = {
 		totalCost?: number;
 	};
 	iterations?: number;
-	finishReason?: "completed" | "max_iterations" | "aborted" | "error";
+	finishReason?:
+		| "completed"
+		| "max_iterations"
+		| "aborted"
+		| "mistake_limit"
+		| "error";
 	toolCalls?: Array<{
 		name: string;
 		input?: unknown;
