@@ -105,9 +105,8 @@ export const SearchCodebaseUnionInputSchema = z.union([
 
 const CommandInputSchema = z
 	.string()
-	.max(2000)
 	.describe(
-		"The non-interactive shell command to execute - MUST keep input short and concise to avoid timeouts",
+		"The non-interactive shell command to execute - MUST keep input short and concise to avoid timeouts.",
 	);
 /**
  * Schema for run_commands tool input
@@ -156,17 +155,17 @@ export const EditFileInputSchema = z
 			.describe("The absolute file path for the action to be performed on"),
 		old_text: z
 			.string()
-			.max(3000)
+			.max(6000)
 			.nullable()
 			.optional()
 			.describe(
-				"Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line.",
+				"Exact text to replace (must match exactly once). Omit this when creating a missing file or inserting via insert_line. Character limit is set to 6000.",
 			),
 		new_text: z
 			.string()
-			.max(3000)
+			.max(6000)
 			.describe(
-				"The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided - IMPORTANT: keep this as small as possible to avoid timeouts. For large edits, use multiple calls with small chunks of new_text and precise old_text to iteratively edit the file.",
+				"The new content to write when creating a missing file, the replacement text for edits, or the inserted text when insert_line is provided - IMPORTANT: Character limit of 6000 is to ensure performance and avoid timeouts; for large edits, use multiple calls with small chunks of old_text and new_text to iteratively edit the file.",
 			),
 		insert_line: z
 			.number()
