@@ -30,7 +30,7 @@
 	},
 	"lint-staged": {
 		"*": [
-			"bun biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true"
+			"bun run types && bun biome check --staged --no-errors-on-unmatched --files-ignore-unknown=true"
 		]
 	},
 	"module": "index.ts",

@@ -2,6 +2,7 @@ import {
 	ClineAccountService,
 	getFileIndex,
 	type LlmsProviders,
+	listAvailableSkillsFromWatcher,
 	listAvailableWorkflowsFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core/node";
@@ -41,31 +42,22 @@ function rankPath(path: string, query: string): number {
 export function listInteractiveSlashCommands(
 	watcher?: UserInstructionConfigWatcher,
 ): InteractiveSlashCommand[] {
-	if (!watcher) {
-		return [
-			{
-				name: "config",
-				instructions: "",
-				description: "Open interactive config browser",
-			},
-			{
-				name: "settings",
-				instructions: "",
-				description: "Alias for /config",
-			},
-		];
-	}
-	return [
+	const builtins = [
 		{
 			name: "config",
 			instructions: "",
 			description: "Open interactive config browser",
 		},
-		{
-			name: "settings",
-			instructions: "",
-			description: "Alias for /config",
-		},
+	];
+	if (!watcher) {
+		return builtins;
+	}
+	return [
+		...builtins,
+		...listAvailableSkillsFromWatcher(watcher).map((skill) => ({
+			name: skill.name,
+			instructions: skill.instructions,
+		})),
 		...listAvailableWorkflowsFromWatcher(watcher).map((workflow) => ({
 			name: workflow.name,
 			instructions: workflow.instructions,
