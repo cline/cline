@@ -5,7 +5,7 @@ import {
 	createReadFilesTool,
 	createSkillsTool,
 } from "./definitions.js";
-import { EDITOR_NEW_TEXT_CHAR_LIMIT } from "./schemas.js";
+import { INPUT_ARG_CHAR_LIMIT } from "./schemas.js";
 import type { SkillsExecutorWithMetadata } from "./types.js";
 
 function createMockSkillsExecutor(
@@ -628,7 +628,7 @@ describe("default editor tool", () => {
 			throw new Error("Expected editor tool to be defined.");
 		}
 
-		const oversizedText = "x".repeat(EDITOR_NEW_TEXT_CHAR_LIMIT + 1);
+		const oversizedText = "x".repeat(INPUT_ARG_CHAR_LIMIT + 1);
 		const result = await editorTool.execute(
 			{
 				path: "/tmp/example.ts",
@@ -651,7 +651,7 @@ describe("default editor tool", () => {
 			throw new Error("Expected editor tool result to include an error.");
 		}
 		expect(result.error).toContain(
-			`recommended limit of ${EDITOR_NEW_TEXT_CHAR_LIMIT}`,
+			`recommended limit of ${INPUT_ARG_CHAR_LIMIT}`,
 		);
 		expect(execute).not.toHaveBeenCalled();
 	});
