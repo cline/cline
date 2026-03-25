@@ -37,6 +37,7 @@ import { CliCommentReviewController } from "./controllers/CliCommentReviewContro
 import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
+import { printError, printInfo, printWarning } from "./utils/display"
 import {
 	forwardSignalToKanbanProcess,
 	KANBAN_LAUNCH_COMMAND,
@@ -48,7 +49,6 @@ import {
 	shouldShowKanbanMigrationAnnouncementForCurrentUser,
 	spawnKanbanProcess,
 } from "./utils/kanban"
-import { printError, printInfo, printWarning } from "./utils/display"
 import { addMcpServerShortcut, type McpAddOptions } from "./utils/mcp"
 import { selectOutputMode } from "./utils/mode-selection"
 import { parseImagesFromInput, processImagePaths } from "./utils/parser"
@@ -298,14 +298,18 @@ async function showKanbanMigrationView(): Promise<KanbanMigrationAction> {
 	return selectedAction
 }
 
+async function isKanbanEnabled(options: InitOptions): Promise<boolean> {
+	const context = await initializeCli({ ...options, enableAuth: true })
+	AuthService.getInstance(context.controller)
+
+	const remoteConfig = await fetchUserRemoteConfig()
+
+	return !remoteConfig || remoteConfig.kanbanEnabled === true
+}
+
 async function startKanban(options: InitOptions): Promise<boolean> {
 	try {
-		const context = await initializeCli({ ...options, enableAuth: true })
-		AuthService.getInstance(context.controller)
-
-		const remoteConfig = await fetchUserRemoteConfig()
-
-		if (remoteConfig && remoteConfig.kanbanEnabled !== true) {
+		if (!isKanbanEnabled(options)) {
 			return false
 		}
 
@@ -314,7 +318,6 @@ async function startKanban(options: InitOptions): Promise<boolean> {
 	} catch {
 		return false
 	}
-
 }
 
 async function addMcpServer(name: string, targetOrCommand: string[] = [], options: McpAddOptions): Promise<void> {
@@ -1231,7 +1234,8 @@ program
 				taskId: options.taskId,
 				continue: options.continue,
 				tui: options.tui,
-			})
+			}) &&
+			(await isKanbanEnabled(options))
 		) {
 			let migrationAction: "kanban" | "exit" = "kanban"
 			const ctx = await initializeCli({ ...options, enableAuth: true })
