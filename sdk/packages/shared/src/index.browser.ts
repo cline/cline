@@ -47,6 +47,28 @@ export {
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
+export type {
+	AnthropicModel,
+	AnthropicSettings,
+	APIKeySettings,
+	AwsBedrockCustomModel,
+	AwsBedrockModel,
+	AwsBedrockSettings,
+	EnterpriseTelemetry,
+	GlobalInstructionsFile,
+	LiteLLMModel,
+	LiteLLMSettings,
+	MCPServer,
+	OpenAiCompatible,
+	OpenAiCompatibleModel,
+	PromptUploading,
+	ProviderSettings,
+	RemoteConfig,
+	RemoteMCPServer,
+	S3AccessKeySettings,
+	VertexModel,
+	VertexSettings,
+} from "./remote-config/schema";
 export {
 	AllowedMCPServerSchema,
 	AnthropicModelSchema,
@@ -69,28 +91,6 @@ export {
 	S3AccessKeySettingsSchema,
 	VertexModelSchema,
 	VertexSettingsSchema,
-} from "./remote-config/schema";
-export type {
-	AnthropicModel,
-	AnthropicSettings,
-	APIKeySettings,
-	AwsBedrockCustomModel,
-	AwsBedrockModel,
-	AwsBedrockSettings,
-	EnterpriseTelemetry,
-	GlobalInstructionsFile,
-	LiteLLMModel,
-	LiteLLMSettings,
-	MCPServer,
-	OpenAiCompatible,
-	OpenAiCompatibleModel,
-	PromptUploading,
-	ProviderSettings,
-	RemoteConfig,
-	RemoteMCPServer,
-	S3AccessKeySettings,
-	VertexModel,
-	VertexSettings,
 } from "./remote-config/schema";
 export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
 export type {

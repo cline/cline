@@ -2,9 +2,9 @@
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
 		"declaration": true,
-		"declarationMap": false,
-		"sourceMap": false,
+		"declarationMap": true,
 		"emitDeclarationOnly": true,
+		"sourceMap": false,
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"incremental": false
