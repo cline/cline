@@ -102,6 +102,18 @@ export class ClineAccountService {
 		return me.organizations ?? [];
 	}
 
+	public async fetchOrganization(
+		organizationId: string,
+	): Promise<ClineAccountOrganizationBalance> {
+		const orgId = organizationId.trim();
+		if (!orgId) {
+			throw new Error("organizationId is required");
+		}
+		return this.request<ClineAccountOrganizationBalance>(
+			`/api/v1/organizations/${encodeURIComponent(orgId)}`,
+		);
+	}
+
 	public async fetchOrganizationBalance(
 		organizationId: string,
 	): Promise<ClineAccountOrganizationBalance> {

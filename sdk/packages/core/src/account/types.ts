@@ -56,6 +56,18 @@ export interface ClineAccountPaymentTransaction {
 	credits: number;
 }
 
+export interface ClineOrganization {
+	createdAt: string;
+	defaultRemoteConfig?: string;
+	deletedAt?: string;
+	externalOrganizationId?: string;
+	id: string;
+	memberCount?: number;
+	name: string;
+	remoteConfigEnabled: boolean;
+	updatedAt: string;
+}
+
 export interface ClineAccountOrganizationBalance {
 	balance: number;
 	organizationId: string;
