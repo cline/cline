@@ -118,6 +118,7 @@ export {
 	isRpcClineAccountActionRequest,
 	RpcClineAccountService,
 	type RpcProviderActionExecutor,
+	type UserRemoteConfigResponse,
 } from "./account";
 export { startLocalOAuthServer } from "./auth/server";
 export type {

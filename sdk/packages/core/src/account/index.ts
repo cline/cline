@@ -17,4 +17,5 @@ export type {
 	ClineAccountPaymentTransaction,
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
+	UserRemoteConfigResponse,
 } from "./types";
