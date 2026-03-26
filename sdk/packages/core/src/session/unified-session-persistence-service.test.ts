@@ -12,8 +12,7 @@ describe("UnifiedSessionPersistenceService", () => {
 
 	afterEach(() => {
 		for (const store of stores.splice(0)) {
-			const db = (store as unknown as { db?: { close?: () => void } }).db;
-			db?.close?.();
+			store.close();
 		}
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });

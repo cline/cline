@@ -57,6 +57,11 @@ export class SqliteSessionStore implements SessionStore {
 		return db;
 	}
 
+	close(): void {
+		this.db?.close?.();
+		this.db = undefined;
+	}
+
 	run(sql: string, params: unknown[] = []): { changes?: number } {
 		return this.getRawDb()
 			.prepare(sql)

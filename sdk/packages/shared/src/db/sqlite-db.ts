@@ -11,6 +11,7 @@ export type SqliteStatement = {
 export type SqliteDb = {
 	prepare: (sql: string) => SqliteStatement;
 	exec: (sql: string) => void;
+	close?: () => void;
 };
 
 export function nowIso(): string {
@@ -38,10 +39,12 @@ export function asBool(value: unknown): boolean {
 function wrapBunDb(db: {
 	query: (sql: string) => SqliteStatement;
 	exec: (sql: string) => void;
+	close?: () => void;
 }): SqliteDb {
 	return {
 		prepare: (sql) => db.query(sql),
 		exec: (sql) => db.exec(sql),
+		close: () => db.close?.(),
 	};
 }
 
@@ -52,6 +55,7 @@ function wrapNodeDb(db: {
 		all: (...params: unknown[]) => Record<string, unknown>[];
 	};
 	exec: (sql: string) => void;
+	close?: () => void;
 }): SqliteDb {
 	return {
 		prepare: (sql) => {
@@ -63,6 +67,7 @@ function wrapNodeDb(db: {
 			};
 		},
 		exec: (sql) => db.exec(sql),
+		close: () => db.close?.(),
 	};
 }
 
@@ -78,6 +83,7 @@ export function loadSqliteDb(filePath: string): SqliteDb {
 			) => {
 				query: (sql: string) => SqliteStatement;
 				exec: (sql: string) => void;
+				close?: () => void;
 			};
 		};
 		return wrapBunDb(new Database(filePath, { create: true }));
@@ -103,6 +109,7 @@ export function loadSqliteDb(filePath: string): SqliteDb {
 					all: (...params: unknown[]) => Record<string, unknown>[];
 				};
 				exec: (sql: string) => void;
+				close?: () => void;
 			};
 		};
 		process.emitWarning = originalEmit;
