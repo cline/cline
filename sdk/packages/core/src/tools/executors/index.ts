@@ -8,7 +8,7 @@
 
 import type { ToolExecutors } from "../types.js";
 import { createApplyPatchExecutor } from "./apply-patch.js";
-import { createBashExecutor } from "./bash.js";
+import { createBashExecutor, createWindowsExecutor } from "./bash.js";
 import { createEditorExecutor } from "./editor.js";
 import { createFileReadExecutor } from "./file-read.js";
 import { createSearchExecutor } from "./search.js";
@@ -19,7 +19,11 @@ export {
 	type ApplyPatchExecutorOptions,
 	createApplyPatchExecutor,
 } from "./apply-patch.js";
-export { type BashExecutorOptions, createBashExecutor } from "./bash.js";
+export {
+	type BashExecutorOptions,
+	createBashExecutor,
+	createWindowsExecutor,
+} from "./bash.js";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor.js";
 export {
 	createFileReadExecutor,
@@ -67,7 +71,10 @@ export function createDefaultExecutors(
 	return {
 		readFile: createFileReadExecutor(options.fileRead),
 		search: createSearchExecutor(options.search),
-		bash: createBashExecutor(options.bash),
+		bash:
+			process?.platform === "win32"
+				? (createWindowsExecutor(options.bash) as ToolExecutors["bash"])
+				: createBashExecutor(options.bash),
 		webFetch: createWebFetchExecutor(options.webFetch),
 		applyPatch: createApplyPatchExecutor(options.applyPatch),
 		editor: createEditorExecutor(options.editor),

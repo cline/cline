@@ -19,6 +19,7 @@ export {
 	createSearchTool,
 	createSkillsTool,
 	createWebFetchTool,
+	createWindowsShellTool,
 } from "./definitions.js";
 // Built-in Executors
 export {
@@ -31,6 +32,7 @@ export {
 	createFileReadExecutor,
 	createSearchExecutor,
 	createWebFetchExecutor,
+	createWindowsExecutor,
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,

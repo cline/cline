@@ -110,6 +110,7 @@ const CommandInputSchema = z
 	.describe(
 		`The non-interactive shell command to execute - MUST keep input short and concise (within ${INPUT_ARG_CHAR_LIMIT * 2} characters) to avoid timeouts.`,
 	);
+
 /**
  * Schema for run_commands tool input
  */
@@ -127,6 +128,45 @@ export const RunCommandsInputUnionSchema = z.union([
 	z.object({ commands: CommandInputSchema }),
 	z.array(z.string()),
 	z.string(),
+]);
+
+export const StructuredCommandInputSchema = z.object({
+	command: z
+		.string()
+		.min(1)
+		.describe("The executable to run directly without shell parsing."),
+	args: z
+		.array(z.string())
+		.optional()
+		.describe("Optional argv list passed directly to the executable."),
+});
+
+export const StructuredCommandEntrySchema = z.union([
+	CommandInputSchema,
+	StructuredCommandInputSchema,
+]);
+/**
+ * Schema for run_commands tool input
+ */
+export const StructuredCommandsInputSchema = z.object({
+	commands: z
+		.array(StructuredCommandEntrySchema)
+		.describe(
+			"Array of commands to execute. Prefer structured { command, args } entries for portability; plain strings are still supported and are interpreted by the active shell.",
+		),
+});
+
+/**
+ * Union schema for run_commands tool input. More flexible.
+ */
+export const StructuredCommandsInputUnionSchema = z.union([
+	RunCommandsInputSchema,
+	StructuredCommandsInputSchema,
+	z.object({ commands: StructuredCommandEntrySchema }),
+	z.array(z.string()),
+	z.array(StructuredCommandInputSchema),
+	z.string(),
+	StructuredCommandInputSchema,
 ]);
 
 /**
@@ -252,6 +292,9 @@ export type SearchCodebaseInput = z.infer<typeof SearchCodebaseInputSchema>;
  * Input for the run_commands tool
  */
 export type RunCommandsInput = z.infer<typeof RunCommandsInputSchema>;
+export type StructuredCommandInput = z.infer<
+	typeof StructuredCommandInputSchema
+>;
 
 /**
  * Web fetch request parameters

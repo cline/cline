@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 import {
-	createBashTool,
 	createDefaultTools,
 	createReadFilesTool,
 	createSkillsTool,
+	createWindowsShellTool,
 } from "./definitions.js";
 import { INPUT_ARG_CHAR_LIMIT } from "./schemas.js";
 import type { SkillsExecutorWithMetadata } from "./types.js";
@@ -256,8 +256,10 @@ describe("default apply_patch tool", () => {
 
 describe("default run_commands tool", () => {
 	it("accepts object input with commands as a single string", async () => {
-		const execute = vi.fn(async (command: string) => `ran:${command}`);
-		const tool = createBashTool(execute);
+		const execute = vi.fn(async (command: string | { command: string }) =>
+			typeof command === "string" ? `ran:${command}` : `ran:${command.command}`,
+		);
+		const tool = createWindowsShellTool(execute);
 
 		const result = await tool.execute({ commands: "ls" } as never, {
 			agentId: "agent-1",
@@ -275,6 +277,50 @@ describe("default run_commands tool", () => {
 		expect(execute).toHaveBeenCalledTimes(1);
 		expect(execute).toHaveBeenCalledWith(
 			"ls",
+			process.cwd(),
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
+	it("accepts structured commands and preserves argv", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string; args?: string[] }) =>
+				typeof command === "string"
+					? `ran:${command}`
+					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
+		);
+		const tool = createWindowsShellTool(execute);
+
+		const result = await tool.execute(
+			{
+				commands: {
+					command: "node",
+					args: ["-e", "console.log('ok')"],
+				},
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "node -e console.log('ok')",
+				result: "ran:node:-e,console.log('ok')",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			{
+				command: "node",
+				args: ["-e", "console.log('ok')"],
+			},
 			process.cwd(),
 			expect.objectContaining({
 				agentId: "agent-1",

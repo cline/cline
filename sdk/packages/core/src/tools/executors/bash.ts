@@ -5,8 +5,12 @@
  */
 
 import { spawn } from "node:child_process";
-import type { ToolContext } from "@clinebot/agents";
-import type { BashExecutor } from "../types.js";
+import {
+	getDefaultShell,
+	getShellArgs,
+	type ToolContext,
+} from "@clinebot/shared";
+import type { BashExecutor, WindowsShellExecutor } from "../types.js";
 
 /**
  * Options for the bash executor
@@ -14,7 +18,7 @@ import type { BashExecutor } from "../types.js";
 export interface BashExecutorOptions {
 	/**
 	 * Shell to use for execution
-	 * @default "/bin/bash" on Unix, "cmd.exe" on Windows
+	 * @default "/bin/bash" on Unix, "powershell" on Windows
 	 */
 	shell?: string;
 
@@ -42,6 +46,123 @@ export interface BashExecutorOptions {
 	combineOutput?: boolean;
 }
 
+interface SpawnConfig {
+	executable: string;
+	args: string[];
+	cwd: string;
+	env: Record<string, string>;
+}
+
+function spawnAndCollect(
+	config: SpawnConfig,
+	context: ToolContext,
+	timeoutMs: number,
+	maxOutputBytes: number,
+	combineOutput: boolean,
+): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const isWindows = process.platform === "win32";
+
+		const child = spawn(config.executable, config.args, {
+			cwd: config.cwd,
+			env: { ...process.env, ...config.env },
+			stdio: ["pipe", "pipe", "pipe"],
+			detached: !isWindows,
+		});
+		const childPid = child.pid;
+
+		let stdout = "";
+		let stderr = "";
+		let outputSize = 0;
+		let killed = false;
+		let settled = false;
+
+		const settle = (fn: () => void) => {
+			if (settled) return;
+			settled = true;
+			fn();
+		};
+
+		const killProcessTree = () => {
+			if (!childPid) return;
+			if (isWindows) {
+				const killer = spawn(
+					"taskkill",
+					["/pid", String(childPid), "/T", "/F"],
+					{ stdio: "ignore", windowsHide: true },
+				);
+				killer.unref();
+				return;
+			}
+			try {
+				process.kill(-childPid, "SIGKILL");
+			} catch {
+				child.kill("SIGKILL");
+			}
+		};
+
+		const killAndReject = (error: Error) => {
+			killed = true;
+			killProcessTree();
+			settle(() => reject(error));
+		};
+
+		const timeout = setTimeout(
+			() => killAndReject(new Error(`Command timed out after ${timeoutMs}ms`)),
+			timeoutMs,
+		);
+
+		const abortHandler = () => killAndReject(new Error("Command was aborted"));
+
+		if (context.abortSignal) {
+			context.abortSignal.addEventListener("abort", abortHandler);
+		}
+
+		const cleanup = () => {
+			clearTimeout(timeout);
+			context.abortSignal?.removeEventListener("abort", abortHandler);
+		};
+
+		child.stdout?.on("data", (data: Buffer) => {
+			outputSize += data.length;
+			if (outputSize <= maxOutputBytes) stdout += data.toString();
+		});
+
+		child.stderr?.on("data", (data: Buffer) => {
+			outputSize += data.length;
+			if (outputSize <= maxOutputBytes) stderr += data.toString();
+		});
+
+		child.on("close", (code) => {
+			cleanup();
+			if (killed) return;
+
+			let output = combineOutput
+				? stdout + (stderr ? `\n[stderr]\n${stderr}` : "")
+				: stdout;
+
+			if (outputSize > maxOutputBytes) {
+				output += `\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
+			}
+
+			if (code !== 0) {
+				settle(() =>
+					reject(new Error(stderr || `Command exited with code ${code}`)),
+				);
+			} else {
+				settle(() => resolve(output));
+			}
+		});
+
+		child.on("error", (error) => {
+			cleanup();
+			settle(() =>
+				reject(new Error(`Failed to execute command: ${error.message}`)),
+			);
+		});
+	});
+}
+
 /**
  * Create a bash executor using Node.js spawn
  *
@@ -59,147 +180,54 @@ export function createBashExecutor(
 	options: BashExecutorOptions = {},
 ): BashExecutor {
 	const {
-		shell = process.platform === "win32" ? "cmd.exe" : "/bin/bash",
+		shell = "/bin/bash",
 		timeoutMs = 30000,
 		maxOutputBytes = 1_000_000,
 		env = {},
 		combineOutput = true,
 	} = options;
 
-	return async (
-		command: string,
-		cwd: string,
-		context: ToolContext,
-	): Promise<string> => {
-		return new Promise((resolve, reject) => {
-			const shellArgs =
-				process.platform === "win32" ? ["/c", command] : ["-c", command];
-			const isWindows = process.platform === "win32";
-
-			const child = spawn(shell, shellArgs, {
+	return (command, cwd, context) =>
+		spawnAndCollect(
+			{
+				executable: shell,
+				args: process.platform === "win32" ? ["/c", command] : ["-c", command],
 				cwd,
-				env: { ...process.env, ...env },
-				stdio: ["pipe", "pipe", "pipe"],
-				// On Unix, place command in its own process group so abort can kill descendants too.
-				detached: !isWindows,
-			});
-			const childPid = child.pid;
+				env,
+			},
+			context,
+			timeoutMs,
+			maxOutputBytes,
+			combineOutput,
+		);
+}
 
-			let stdout = "";
-			let stderr = "";
-			let outputSize = 0;
-			let killed = false;
-			let settled = false;
+export function createWindowsExecutor(
+	options: BashExecutorOptions = {},
+): WindowsShellExecutor {
+	const {
+		shell = getDefaultShell(process.platform),
+		timeoutMs = 30000,
+		maxOutputBytes = 1_000_000,
+		env = {},
+		combineOutput = true,
+	} = options;
 
-			const finalizeReject = (error: Error) => {
-				if (settled) {
-					return;
-				}
-				settled = true;
-				reject(error);
-			};
-
-			const finalizeResolve = (output: string) => {
-				if (settled) {
-					return;
-				}
-				settled = true;
-				resolve(output);
-			};
-
-			const killProcessTree = () => {
-				if (!childPid) {
-					return;
-				}
-				if (isWindows) {
-					const killer = spawn(
-						"taskkill",
-						["/pid", String(childPid), "/T", "/F"],
-						{
-							stdio: "ignore",
-							windowsHide: true,
-						},
-					);
-					killer.unref();
-					return;
-				}
-				try {
-					process.kill(-childPid, "SIGKILL");
-				} catch {
-					child.kill("SIGKILL");
-				}
-			};
-
-			// Handle timeout
-			const timeout = setTimeout(() => {
-				killed = true;
-				killProcessTree();
-				finalizeReject(new Error(`Command timed out after ${timeoutMs}ms`));
-			}, timeoutMs);
-
-			// Handle abort signal
-			const abortHandler = () => {
-				killed = true;
-				killProcessTree();
-				finalizeReject(new Error("Command was aborted"));
-			};
-
-			if (context.abortSignal) {
-				context.abortSignal.addEventListener("abort", abortHandler);
-			}
-
-			// Collect stdout
-			child.stdout?.on("data", (data: Buffer) => {
-				outputSize += data.length;
-				if (outputSize <= maxOutputBytes) {
-					stdout += data.toString();
-				}
-			});
-
-			// Collect stderr
-			child.stderr?.on("data", (data: Buffer) => {
-				outputSize += data.length;
-				if (outputSize <= maxOutputBytes) {
-					stderr += data.toString();
-				}
-			});
-
-			// Handle completion
-			child.on("close", (code) => {
-				clearTimeout(timeout);
-				if (context.abortSignal) {
-					context.abortSignal.removeEventListener("abort", abortHandler);
-				}
-
-				if (killed) return;
-
-				// Truncation warning
-				let output = combineOutput
-					? stdout + (stderr ? `\n[stderr]\n${stderr}` : "")
-					: stdout;
-
-				if (outputSize > maxOutputBytes) {
-					output += `\n\n[Output truncated: ${outputSize} bytes total, showing first ${maxOutputBytes} bytes]`;
-				}
-
-				if (code !== 0) {
-					const errorMsg = stderr || `Command exited with code ${code}`;
-					finalizeReject(new Error(errorMsg));
-				} else {
-					finalizeResolve(output);
-				}
-			});
-
-			// Handle spawn errors
-			child.on("error", (error) => {
-				clearTimeout(timeout);
-				if (context.abortSignal) {
-					context.abortSignal.removeEventListener("abort", abortHandler);
-				}
-				finalizeReject(
-					new Error(`Failed to execute command: ${error.message}`),
-				);
-			});
-		});
+	return (command, cwd, context) => {
+		const isStructured = typeof command !== "string";
+		return spawnAndCollect(
+			{
+				executable: isStructured ? command.command : shell,
+				args: isStructured
+					? (command.args ?? [])
+					: getShellArgs(shell, command),
+				cwd,
+				env,
+			},
+			context,
+			timeoutMs,
+			maxOutputBytes,
+			combineOutput,
+		);
 	};
 }

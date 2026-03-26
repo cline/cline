@@ -9,6 +9,7 @@ import type {
 	ApplyPatchInput,
 	EditFileInput,
 	ReadFileRequest,
+	StructuredCommandInput,
 } from "./schemas";
 
 // =============================================================================
@@ -71,6 +72,12 @@ export type SearchExecutor = (
  */
 export type BashExecutor = (
 	command: string,
+	cwd: string,
+	context: ToolContext,
+) => Promise<string>;
+
+export type WindowsShellExecutor = (
+	command: string | StructuredCommandInput,
 	cwd: string,
 	context: ToolContext,
 ) => Promise<string>;

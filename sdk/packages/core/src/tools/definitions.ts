@@ -7,6 +7,15 @@
 import { createTool, type Tool } from "@clinebot/agents";
 import { validateWithZod, zodToJsonSchema } from "@clinebot/shared";
 import {
+	formatError,
+	formatReadFileQuery,
+	formatRunCommandQuery,
+	getEditorSizeError,
+	normalizeReadFileRequests,
+	normalizeRunCommandsInput,
+	withTimeout,
+} from "./helpers.js";
+import {
 	type ApplyPatchInput,
 	ApplyPatchInputSchema,
 	ApplyPatchInputUnionSchema,
@@ -16,11 +25,8 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
-	INPUT_ARG_CHAR_LIMIT,
-	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
-	ReadFilesInputUnionSchema,
 	type RunCommandsInput,
 	RunCommandsInputSchema,
 	RunCommandsInputUnionSchema,
@@ -29,6 +35,8 @@ import {
 	SearchCodebaseUnionInputSchema,
 	type SkillsInput,
 	SkillsInputSchema,
+	type StructuredCommandInput,
+	StructuredCommandsInputUnionSchema,
 } from "./schemas.js";
 import type {
 	ApplyPatchExecutor,
@@ -42,92 +50,12 @@ import type {
 	SkillsExecutorWithMetadata,
 	ToolOperationResult,
 	WebFetchExecutor,
+	WindowsShellExecutor,
 } from "./types.js";
 
 // =============================================================================
 // Helper Functions
 // =============================================================================
-
-/**
- * Format an error into a string message
- */
-function formatError(error: unknown): string {
-	if (error instanceof Error) {
-		return error.message;
-	}
-	return String(error);
-}
-
-function getEditorSizeError(input: EditFileInput): string | null {
-	if (
-		typeof input.old_text === "string" &&
-		input.old_text.length > INPUT_ARG_CHAR_LIMIT
-	) {
-		return `Editor input too large: old_text was ${input.old_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
-	}
-
-	if (input.new_text.length > INPUT_ARG_CHAR_LIMIT) {
-		return `Editor input too large: new_text was ${input.new_text.length} characters, exceeding the recommended limit of ${INPUT_ARG_CHAR_LIMIT}. Split the edit into smaller tool calls so later tool calls are less likely to be truncated or time out.`;
-	}
-
-	return null;
-}
-
-/**
- * Create a timeout-wrapped promise
- */
-function withTimeout<T>(
-	promise: Promise<T>,
-	ms: number,
-	message: string,
-): Promise<T> {
-	return Promise.race([
-		promise,
-		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new Error(message)), ms);
-		}),
-	]);
-}
-
-function normalizeReadFileRequests(input: unknown): ReadFileRequest[] {
-	const validate = validateWithZod(ReadFilesInputUnionSchema, input);
-
-	if (typeof validate === "string") {
-		return [{ path: validate }];
-	}
-
-	if (Array.isArray(validate)) {
-		return validate.map((value) =>
-			typeof value === "string" ? { path: value } : value,
-		);
-	}
-
-	if ("files" in validate) {
-		const files = Array.isArray(validate.files)
-			? validate.files
-			: [validate.files];
-		return files;
-	}
-
-	if ("file_paths" in validate) {
-		const filePaths = Array.isArray(validate.file_paths)
-			? validate.file_paths
-			: [validate.file_paths];
-		return filePaths.map((filePath) => ({ path: filePath }));
-	}
-
-	return [validate];
-}
-
-function formatReadFileQuery(request: ReadFileRequest): string {
-	const { path, start_line, end_line } = request;
-	if (start_line == null && end_line == null) {
-		return path;
-	}
-	const start = start_line ?? 1;
-	const end = end_line ?? "EOF";
-	return `${path}:${start}-${end}`;
-}
 
 // =============================================================================
 // Tool Factory Functions
@@ -263,7 +191,7 @@ export function createBashTool(
 	return createTool<RunCommandsInput, ToolOperationResult[]>({
 		name: "run_commands",
 		description:
-			"Run shell commands at the root of the project. " +
+			"Run shell commands from the root of the workspace. " +
 			"Use for listing files, checking git status, running builds, executing tests, etc. " +
 			"Commands should be properly shell-escaped.",
 		inputSchema: zodToJsonSchema(RunCommandsInputSchema),
@@ -297,6 +225,59 @@ export function createBashTool(
 						const msg = formatError(error);
 						return {
 							query: command,
+							result: "",
+							error: `Command failed: ${msg}`,
+							success: false,
+						};
+					}
+				}),
+			);
+		},
+	});
+}
+
+/**
+ * Create the run_commands tool
+ *
+ * Executes shell commands in the project directory.
+ */
+export function createWindowsShellTool(
+	executor: WindowsShellExecutor,
+	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
+): Tool<StructuredCommandInput, ToolOperationResult[]> {
+	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	const cwd = config.cwd ?? process.cwd();
+
+	return createTool<StructuredCommandInput, ToolOperationResult[]>({
+		name: "run_commands",
+		description:
+			"Run shell commands from the root of the workspacein Windows environment. " +
+			"Use for listing files, checking git status, running builds, executing tests, etc. " +
+			"Prefer structured { command, args } entries for portability; plain string commands should be properly shell-escaped.",
+		inputSchema: zodToJsonSchema(StructuredCommandsInputUnionSchema),
+		timeoutMs: timeoutMs * 2,
+		retryable: false, // Shell commands often have side effects
+		maxRetries: 0,
+		execute: async (input, context) => {
+			const commands = normalizeRunCommandsInput(input);
+
+			return Promise.all(
+				commands.map(async (command): Promise<ToolOperationResult> => {
+					try {
+						const output = await withTimeout(
+							executor(command, cwd, context),
+							timeoutMs,
+							`Command timed out after ${timeoutMs}ms`,
+						);
+						return {
+							query: formatRunCommandQuery(command),
+							result: output,
+							success: true,
+						};
+					} catch (error) {
+						const msg = formatError(error);
+						return {
+							query: formatRunCommandQuery(command),
 							result: "",
 							error: `Command failed: ${msg}`,
 							success: false,
@@ -680,8 +661,7 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 		...config
 	} = options;
 
-	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	const tools: Tool<any, any>[] = [];
+	const tools: Tool<any>[] = [];
 
 	// Add read_files tool if enabled and executor provided
 	if (enableReadFiles && executors.readFile) {
@@ -695,7 +675,16 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 
 	// Add run_commands tool if enabled and executor provided
 	if (enableBash && executors.bash) {
-		tools.push(createBashTool(executors.bash, config));
+		if (process.platform === "win32") {
+			tools.push(
+				createWindowsShellTool(
+					executors.bash as unknown as WindowsShellExecutor,
+					config,
+				),
+			);
+		} else {
+			tools.push(createBashTool(executors.bash, config));
+		}
 	}
 
 	// Add fetch_web_content tool if enabled and executor provided

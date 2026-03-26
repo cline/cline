@@ -38,6 +38,7 @@ export type {
 export { ToolCallRecordSchema, ToolContextSchema } from "./llms/tools";
 export type { BasicLogger } from "./logging/logger";
 export { parseJsonStream, safeJsonStringify } from "./parse/json";
+export { getDefaultShell, getShellArgs } from "./parse/shell";
 export { formatHumanReadableDate } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export {
