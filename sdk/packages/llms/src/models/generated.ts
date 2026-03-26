@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1774477517254,
+	version: 1774491093117,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -5392,6 +5392,20 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-03-17",
+			},
+			"mistralai/mistral-small-2603": {
+				id: "mistralai/mistral-small-2603",
+				name: "Mistral Small 4",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: ["images", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.15,
+					output: 0.6,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-16",
 			},
 			"x-ai/grok-4.20-beta": {
 				id: "x-ai/grok-4.20-beta",

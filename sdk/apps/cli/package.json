@@ -50,7 +50,8 @@
 		"pino": "^10.3.1",
 		"react": "^19.2.4",
 		"react-devtools-core": "^7.0.1",
-		"yaml": "^2.8.2"
+		"yaml": "^2.8.2",
+		"zod": "^4.1.11"
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {

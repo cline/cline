@@ -38,6 +38,11 @@ function normalizeValue(value: unknown): unknown {
 async function generate(): Promise<void> {
 	await generateProviderLoaders();
 
+	const __filename = fileURLToPath(import.meta.url);
+	const __dirname = dirname(__filename);
+	const root = join(__dirname, "..");
+	const outputPath = join(root, OUTPUT_FILE);
+
 	const providerModels: Record<string, Record<string, ModelInfo>> = {};
 	let loadError: Error | undefined;
 
@@ -51,8 +56,14 @@ async function generate(): Promise<void> {
 
 	if (Object.keys(providerModels).length === 0) {
 		const details = loadError?.message ?? "unknown error";
+		if (existsSync(outputPath)) {
+			console.warn(
+				`Skipping model generation: no provider models were loaded (${details}). Existing generated catalog was left unchanged.`,
+			);
+			return;
+		}
 		throw new Error(
-			`Aborting model generation: no provider models were loaded (${details}). Existing generated catalog was left unchanged.`,
+			`Aborting model generation: no provider models were loaded (${details}). No existing generated catalog was found.`,
 		);
 	}
 
@@ -78,12 +89,6 @@ export const GENERATED_PROVIDER_MODELS: {
   providers: ${JSON.stringify(sortedProviders, null, 2)}
 }
 `;
-
-	const __filename = fileURLToPath(import.meta.url);
-	const __dirname = dirname(__filename);
-	const root = join(__dirname, "..");
-	const outputPath = join(root, OUTPUT_FILE);
-
 	mkdirSync(dirname(outputPath), { recursive: true });
 
 	if (existsSync(outputPath)) {
