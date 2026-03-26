@@ -115,6 +115,7 @@ export abstract class WebviewProvider {
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
 					img-src ${this.getCspSource()} https: data:; 
+					media-src ${this.getCspSource()} https: data: blob:;
 					script-src 'nonce-${nonce}' 'unsafe-eval';">
 				<title>Cline</title>
 			</head>
@@ -202,6 +203,7 @@ export abstract class WebviewProvider {
 			`font-src ${this.getCspSource()}`,
 			`style-src ${this.getCspSource()} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`img-src ${this.getCspSource()} https: data:`,
+			`media-src ${this.getCspSource()} https: data: blob: http://${localServerUrl} http://0.0.0.0:${localPort}`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
 		]

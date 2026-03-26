@@ -1,4 +1,5 @@
 demo.gif filter=lfs diff=lfs merge=lfs -text
 assets/docs/demo.gif filter=lfs diff=lfs merge=lfs -text
+webview-ui/src/assets/cline_kanban_demo.mp4 filter=lfs diff=lfs merge=lfs -text
 
 * text=auto eol=lf

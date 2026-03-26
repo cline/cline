@@ -1,6 +1,11 @@
-import { LightbulbIcon } from "lucide-react"
-import { memo, useCallback, useEffect, useRef, useState } from "react"
-import { cn } from "@/lib/utils"
+/**
+ * Rotating feature tips shown during thinking/acting phases.
+ * Appears after a brief delay and cycles through tips to educate users
+ * about Cline features while they wait.
+ */
+
+import { Box, Text } from "ink"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 
 interface FeatureTipItem {
 	text: string
@@ -14,7 +19,7 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Add a .clinerules file to your project root to give Cline project-specific instructions.",
 	},
 	{
-		text: "Switch to Plan Mode to discuss and plan an approach before Cline takes action.",
+		text: "Press Tab to switch between Plan and Act mode — plan an approach before Cline takes action.",
 	},
 	{
 		text: "Use @ in the chat input to add files, folders, or URLs as context for your task.",
@@ -32,10 +37,10 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Enable auto-approve for read-only tools like file reads to speed up exploration.",
 	},
 	{
-		text: "Use the quote button to select text from Cline's response and reference it in your reply.",
+		text: "Use /settings to configure your API provider and model without leaving the terminal.",
 	},
 	{
-		text: "You can drag and drop images into the chat to share screenshots with Cline.",
+		text: "You can pass images with --images flag or paste image file paths in the chat.",
 	},
 	{
 		text: "Cline can browse websites — ask it to test your local dev server in the browser.",
@@ -44,42 +49,47 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
 	},
 	{
-		text: 'You can disable these tips in Settings → Features → "Feature Tips".',
+		text: "Try 'npm i -g cline' to manage tasks on a Kankan board — orchestrate coding agents across worktrees.",
+	},
+	{
+		text: "Use Shift+Tab to toggle auto-approve all — let Cline work uninterrupted on trusted tasks.",
+	},
+	{
+		text: "Press Up/Down arrows in an empty input to browse your previous task prompts.",
+	},
+	{
+		text: "Type / to see all available commands — /history, /compact, /settings, and more.",
+	},
+	{
+		text: "Use /skills to browse and attach reusable skill files that guide Cline's behavior.",
+	},
+	{
+		text: 'You can disable these tips in /settings → Features → "Feature tips".',
 	},
 ]
 
 const SHOW_DELAY_MS = 2000
 const CYCLE_INTERVAL_MS = 8000
-const FADE_DURATION_MS = 300
 
 /**
- * Shows rotating feature tips below the "Thinking..." indicator.
- * Appears after a brief delay and cycles through tips while Cline is thinking.
+ * Shows rotating feature tips below the thinking indicator.
+ * Appears after a brief delay and cycles through tips while Cline is thinking/acting.
  */
-export const FeatureTip = memo(() => {
+export const FeatureTip: React.FC = React.memo(() => {
 	const [isVisible, setIsVisible] = useState(false)
-	const [hasFadedIn, setHasFadedIn] = useState(false)
-	const [isFading, setIsFading] = useState(false)
-	const [tipIndex, setTipIndex] = useState(() => Math.floor(Math.random() * FEATURE_TIPS.length))
+	const [tipIndex, setTipIndex] = useState(Math.floor(Math.random() * FEATURE_TIPS.length))
 	const cycleTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 	const showTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-	const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	const currentTip = FEATURE_TIPS[tipIndex]
 
 	const advanceTip = useCallback(() => {
-		setIsFading(true)
-		fadeTimerRef.current = setTimeout(() => {
-			setTipIndex((prev) => (prev + 1) % FEATURE_TIPS.length)
-			setIsFading(false)
-		}, FADE_DURATION_MS)
+		setTipIndex((prev) => (prev + 1) % FEATURE_TIPS.length)
 	}, [])
 
 	useEffect(() => {
 		showTimerRef.current = setTimeout(() => {
 			setIsVisible(true)
-			// Trigger fade-in on next frame so transition applies
-			requestAnimationFrame(() => setHasFadedIn(true))
 			cycleTimerRef.current = setInterval(advanceTip, CYCLE_INTERVAL_MS)
 		}, SHOW_DELAY_MS)
 
@@ -90,9 +100,6 @@ export const FeatureTip = memo(() => {
 			if (cycleTimerRef.current) {
 				clearInterval(cycleTimerRef.current)
 			}
-			if (fadeTimerRef.current) {
-				clearTimeout(fadeTimerRef.current)
-			}
 		}
 	}, [advanceTip])
 
@@ -101,17 +108,10 @@ export const FeatureTip = memo(() => {
 	}
 
 	return (
-		<div
-			className={cn(
-				"flex items-start gap-1.5 mt-2 ml-1 transition-opacity duration-300",
-				!hasFadedIn || isFading ? "opacity-0" : "opacity-100",
-			)}>
-			<LightbulbIcon className="size-3 text-description shrink-0 mt-[1px]" />
-			<span className="text-xs text-description leading-relaxed">
-				<span className="font-medium">Tip:</span> {currentTip.text}
-			</span>
-		</div>
+		<Box paddingLeft={1}>
+			<Text color="gray">
+				💡 <Text bold>Tip:</Text> {currentTip.text}
+			</Text>
+		</Box>
 	)
 })
-
-FeatureTip.displayName = "FeatureTip"

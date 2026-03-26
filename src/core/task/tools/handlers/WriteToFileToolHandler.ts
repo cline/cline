@@ -114,7 +114,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (block.name === "replace_in_file" && !rawDiff) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "diff")
+			const relPath = rawRelPath || "unknown"
+			await config.callbacks.say(
+				"error",
+				`Cline tried to use replace_in_file for '${relPath}' without value for required parameter 'diff'. Retrying...`,
+			)
+			return formatResponse.toolError(formatResponse.replaceInFileMissingDiffError(relPath))
 		}
 
 		if (block.name === "write_to_file" && !rawContent) {

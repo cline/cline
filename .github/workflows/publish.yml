@@ -43,6 +43,7 @@ jobs:
                   ref: main
                   fetch-depth: 0
                   fetch-tags: true
+                  lfs: true
 
             - name: Resolve Release Tag
               id: resolve_tag
@@ -132,6 +133,14 @@ jobs:
                     exit 1
                   fi
                   echo "Tag and package version match: $TAG"
+
+            - name: Verify LFS media assets are resolved
+              run: |
+                  FILE="webview-ui/src/assets/cline_kanban_demo.mp4"
+                  if grep -q "git-lfs.github.com/spec/v1" "$FILE"; then
+                    echo "Error: $FILE is still a Git LFS pointer in CI checkout"
+                    exit 1
+                  fi
 
             - name: Package and Publish Extension
               env:

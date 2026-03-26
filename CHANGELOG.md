@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.75.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+### Fixed
+
+- Stabilize flaky hooks tests
+
+### Changed
+
+- Remove example hooks in favor of reading the docs
+
 ## [3.74.0]
 
 ### Added
