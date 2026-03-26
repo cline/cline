@@ -16,12 +16,12 @@ It runs locally, requires no account or setup, and works out of the box from any
 
 ```bash
 npm i -g cline
-cline --kanban
+cline
 ```
 
 ## How It Works
 
-1. **Run `cline --kanban`** from the root of any git repo — a local web server opens in your browser
+1. **Run `cline`** from the root of any git repo — a local web server opens in your browser
 2. **Create task cards** manually or ask the sidebar chat agent to break work into tasks
 3. **Hit play** on a card — Kanban creates an ephemeral worktree and starts an agent
 4. **Monitor progress** — each card shows the agent's latest message or tool call
@@ -57,6 +57,7 @@ cline --kanban
   </Card>
   <Card title="Core Workflow" icon="arrows-spin" href="/kanban/core-workflow">
     The full workflow from creating tasks to shipping PRs.
+  </Card>
 - [npm Package](https://www.npmjs.com/package/cline) — version history and package details
   <Card title="Features" icon="list-check" href="/kanban/features">
     Worktrees, auto-commit, task linking, diff viewer, git interface, and more.
