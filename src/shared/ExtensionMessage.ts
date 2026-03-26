@@ -109,6 +109,8 @@ export interface ExtensionState {
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
 	showFeatureTips?: boolean
+	codeIntelligenceEnabled?: boolean
+	codeIntelligenceAvailable?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean

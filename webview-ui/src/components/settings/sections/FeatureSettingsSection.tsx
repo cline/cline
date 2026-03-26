@@ -133,6 +133,14 @@ const experimentalFeatures: FeatureToggle[] = [
 		stateKey: "doubleCheckCompletionEnabled",
 		settingKey: "doubleCheckCompletionEnabled",
 	},
+	{
+		id: "code-intelligence",
+		label: "Code Intelligence",
+		description:
+			"Enable IDE-powered code intelligence (definitions, references, callers, type hierarchy) for more accurate code navigation.",
+		stateKey: "codeIntelligenceEnabled",
+		settingKey: "codeIntelligenceEnabled",
+	},
 ]
 
 const advancedFeatures: FeatureToggle[] = [
@@ -219,6 +227,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
 		showFeatureTips,
+		codeIntelligenceEnabled,
+		codeIntelligenceAvailable,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -245,6 +255,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		codeIntelligenceEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
@@ -252,6 +263,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const featureVisibility: Record<string, boolean | undefined> = {
 		clineWebToolsEnabled: clineWebToolsEnabled?.featureFlag,
 		worktreesEnabled: worktreesEnabled?.featureFlag,
+		codeIntelligenceEnabled: codeIntelligenceAvailable,
 	}
 
 	// Handler for feature toggle changes, supports nested settings like focusChainSettings

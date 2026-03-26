@@ -9,8 +9,8 @@ const GENERIC: ClineToolSpec = {
 	id,
 	name: "code_intelligence",
 	description:
-		"Query the IDE's code intelligence for semantic code navigation. Leverages the IDE's full type resolution, cross-file references, and call graphs — much richer than text-based search. Only available when \"IDE Code Intelligence: Available\" appears in environment_details. If unavailable, fall back to search_files or list_code_definition_names.\n\nSupports batch queries — include multiple queries per call to avoid round-trips.",
-	contextRequirements: (context) => context.isCliEnvironment !== true,
+		"Query the JetBrains IDE's code intelligence (PSI) for semantic code navigation. Leverages IntelliJ's full type resolution, cross-file references, and call graphs — much richer than text-based search. Available in JetBrains IDEs (IntelliJ IDEA, WebStorm, PyCharm, etc.) when indexing is complete. If unavailable, fall back to search_files or list_code_definition_names.\n\nSupports batch queries — include multiple queries per call to avoid round-trips.",
+	contextRequirements: (context) => context.codeIntelligenceAvailable === true,
 	parameters: [
 		{
 			name: "queries",

@@ -179,6 +179,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			}
 		}
 
+		// Update code intelligence setting (JetBrains PSI)
+		if (request.codeIntelligenceEnabled !== undefined) {
+			controller.stateManager.setGlobalState("codeIntelligenceEnabled", !!request.codeIntelligenceEnabled)
+		}
+
 		// Update auto-condense setting
 		if (request.useAutoCondense !== undefined) {
 			if (controller.task) {

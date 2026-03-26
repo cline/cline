@@ -18,7 +18,7 @@ import { TelemetryProviderFactory } from "./TelemetryProviderFactory"
  * When adding a new category, add it both here and to the initial values in telemetryCategoryEnabled
  * Ensure `if (!this.isCategoryEnabled('<category_name>')` is added to the capture method
  */
-type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents" | "skills" | "hooks"
+type TelemetryCategory = "checkpoints" | "browser" | "focus_chain" | "subagents" | "skills" | "hooks" | "code_intelligence"
 
 /**
  * Terminal type for telemetry differentiation
@@ -124,6 +124,7 @@ export class TelemetryService {
 		["subagents", true], // CLI Subagents telemetry enabled
 		["skills", true], // Skills telemetry enabled
 		["hooks", true], // Hooks telemetry enabled
+		["code_intelligence", true], // Code intelligence telemetry enabled
 	])
 
 	private userId?: string

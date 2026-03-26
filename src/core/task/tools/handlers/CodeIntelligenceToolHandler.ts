@@ -4,11 +4,13 @@ import type { PsiServiceClientInterface } from "@generated/hosts/host-bridge-cli
 import * as proto from "@shared/proto/index"
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
+import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
 import type { IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
+import { getModelInfo } from "../utils/AiOutputTelemetry"
 
 // ─── Types ─────────────────────────────────────────────────
 
@@ -79,10 +81,26 @@ export class CodeIntelligenceToolHandler implements IToolHandler {
 			const cwd = config.cwd
 			const results = await executeQueries(psiClient, queries, cwd)
 			const formatted = formatResults(queries, results)
+
+			// Capture telemetry for successful code intelligence usage
+			const { providerId, modelId } = getModelInfo(config)
+			telemetryService.safeCapture(
+				() => telemetryService.captureToolUsage(config.ulid, this.name, modelId, providerId, true, true),
+				"CodeIntelligenceToolHandler.execute",
+			)
+
 			return formatted
 		} catch (error) {
 			const msg = error instanceof Error ? error.message : String(error)
 			Logger.error("CodeIntelligence error:", msg)
+
+			// Capture telemetry for failed code intelligence usage
+			const { providerId: errProviderId, modelId: errModelId } = getModelInfo(config)
+			telemetryService.safeCapture(
+				() => telemetryService.captureToolUsage(config.ulid, this.name, errModelId, errProviderId, true, false),
+				"CodeIntelligenceToolHandler.execute.error",
+			)
+
 			return formatResponse.toolError(`Code intelligence error: ${msg}`)
 		}
 	}
