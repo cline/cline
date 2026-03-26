@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "vitest";
-import { providers } from "./index";
+import { LlmsProviders } from "./index";
 
-type ProviderConfig = providers.ProviderConfig;
-type ProviderSettings = providers.ProviderSettings;
+type ProviderConfig = LlmsProviders.ProviderConfig;
+type ProviderSettings = LlmsProviders.ProviderSettings;
 
 interface StoredProviderSettingsEntryLike {
 	settings?: unknown;
@@ -29,7 +29,7 @@ function requireProvidersFilePath(): string {
 	const filePath = process.env[PROVIDERS_FILE_ENV];
 	if (!filePath) {
 		throw new Error(
-			`Set ${PROVIDERS_FILE_ENV} to a providers.json file path before running live provider tests.`,
+			`Set ${PROVIDERS_FILE_ENV} to a LlmsProviders.json file path before running live provider tests.`,
 		);
 	}
 	return path.resolve(filePath);
@@ -42,12 +42,12 @@ function toTargetsFromStoredFormat(
 	return entries.map(([entryKey, entryValue]) => {
 		const maybeEntry = entryValue as StoredProviderSettingsEntryLike;
 		const rawSettings = maybeEntry.settings ?? entryValue;
-		const parsed = providers.ProviderSettingsSchema.parse(
+		const parsed = LlmsProviders.ProviderSettingsSchema.parse(
 			rawSettings,
 		) as ProviderSettings;
 		return {
 			label: `${entryKey} (${parsed.provider})`,
-			config: providers.toProviderConfig(parsed),
+			config: LlmsProviders.toProviderConfig(parsed),
 		};
 	});
 }
@@ -58,12 +58,12 @@ function loadProviderTargets(filePath: string): ProviderTarget[] {
 
 	if (Array.isArray(parsed)) {
 		return parsed.map((entry, index) => {
-			const settings = providers.ProviderSettingsSchema.parse(
+			const settings = LlmsProviders.ProviderSettingsSchema.parse(
 				entry,
 			) as ProviderSettings;
 			return {
 				label: `index:${index} (${settings.provider})`,
-				config: providers.toProviderConfig(settings),
+				config: LlmsProviders.toProviderConfig(settings),
 			};
 		});
 	}
@@ -94,7 +94,7 @@ async function withTimeout<T>(
 }
 
 async function runPrompt(target: ProviderTarget): Promise<void> {
-	const handler = await providers.createHandlerAsync(target.config);
+	const handler = await LlmsProviders.createHandlerAsync(target.config);
 	const stream = handler.createMessage("You are a concise assistant.", [
 		{ role: "user", content: "Reply with the single word OK." },
 	]);

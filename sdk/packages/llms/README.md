@@ -20,9 +20,9 @@ npm install @clinebot/llms zod
 ## Quick Start
 
 ```ts
-import { providers } from "@clinebot/llms";
+import { LlmsProviders } from "@clinebot/llms";
 
-const handler = providers.createHandler({
+const handler = LlmsProviders.createHandler({
 	provider: "anthropic",
 	apiKey: process.env.ANTHROPIC_API_KEY ?? "",
 	model: "claude-sonnet-4-6",

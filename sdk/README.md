@@ -453,9 +453,9 @@ Minimal composition sketch:
 ```ts
 import { Agent, createBuiltinTools } from "@clinebot/agents"
 import { DefaultRuntimeBuilder } from "@clinebot/core/node"
-import { providers } from "@clinebot/llms"
+import { LlmsProviders } from "@clinebot/llms"
 
-const catalog = await providers.getLiveModelsCatalog()
+const catalog = await LlmsProviders.getLiveModelsCatalog()
 const providerId = "anthropic"
 const modelId = catalog[providerId]?.[0]?.id ?? "claude-sonnet-4-6"
 
