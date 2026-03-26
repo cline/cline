@@ -37,7 +37,7 @@ const BASE_DIFF_INSTRUCTIONS = `One or more SEARCH/REPLACE blocks following this
   4. Special operations:
      * To move code: Use two SEARCH/REPLACE blocks (one to delete from original + one to insert at new location)
      * To delete code: Use empty REPLACE section
-  5. If your source context came from read_file and includes line labels (for example, "L42: const x = 1"), do NOT include the "L42: " prefix in SEARCH or REPLACE content. Match only the raw file text.`
+  5. If your source context came from read_file and includes line labels (for example, "42 | const x = 1"), do NOT include the "42 | " prefix in SEARCH or REPLACE content. Match only the raw file text.`
 
 const NOTEBOOK_INSTRUCTIONS = `
   5. For Jupyter Notebook (.ipynb) files:

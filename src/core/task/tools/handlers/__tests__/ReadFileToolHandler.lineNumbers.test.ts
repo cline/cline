@@ -6,13 +6,13 @@ describe("formatFileContentWithLineNumbers", () => {
 	describe("line labels", () => {
 		it("adds 1-indexed line prefixes", () => {
 			const result = formatFileContentWithLineNumbers("alpha\nbeta")
-			assert.ok(result.startsWith("L1: alpha\nL2: beta"))
+			assert.ok(result.startsWith("1 | alpha\n2 | beta"))
 		})
 
 		it("does not add an extra numbered line for trailing newline", () => {
 			const result = formatFileContentWithLineNumbers("alpha\nbeta\n")
-			assert.ok(result.startsWith("L1: alpha\nL2: beta"))
-			assert.ok(!result.includes("L3:"))
+			assert.ok(result.startsWith("1 | alpha\n2 | beta"))
+			assert.ok(!result.includes("3 |"))
 		})
 
 		it("returns empty content unchanged", () => {
@@ -26,33 +26,33 @@ describe("formatFileContentWithLineNumbers", () => {
 
 		it("defaults to reading from line 1", () => {
 			const result = formatFileContentWithLineNumbers(tenLines)
-			assert.ok(result.startsWith("L1: line1\n"))
+			assert.ok(result.startsWith("1 | line1\n"))
 		})
 
 		it("respects start_line parameter", () => {
 			const result = formatFileContentWithLineNumbers(tenLines, 5)
-			assert.ok(result.startsWith("L5: line5\n"))
-			assert.ok(!result.includes("L4:"))
+			assert.ok(result.startsWith("5 | line5\n"))
+			assert.ok(!result.includes("4 |"))
 		})
 
 		it("respects start_line and end_line parameters", () => {
 			const result = formatFileContentWithLineNumbers(tenLines, 3, 5)
-			assert.ok(result.startsWith("L3: line3\n"))
-			assert.ok(result.includes("L4: line4\n"))
-			assert.ok(result.includes("L5: line5"))
-			assert.ok(!result.includes("L2:"))
-			assert.ok(!result.includes("L6:"))
+			assert.ok(result.startsWith("3 | line3\n"))
+			assert.ok(result.includes("4 | line4\n"))
+			assert.ok(result.includes("5 | line5"))
+			assert.ok(!result.includes("2 |"))
+			assert.ok(!result.includes("6 |"))
 		})
 
 		it("clamps start_line to 1 if below", () => {
 			const result = formatFileContentWithLineNumbers(tenLines, -5, 3)
-			assert.ok(result.startsWith("L1: line1\n"))
+			assert.ok(result.startsWith("1 | line1\n"))
 		})
 
 		it("clamps end_line to total lines if beyond", () => {
 			const result = formatFileContentWithLineNumbers(tenLines, 8, 999)
-			assert.ok(result.includes("L10: line10"))
-			assert.ok(!result.includes("L11:"))
+			assert.ok(result.includes("10 | line10"))
+			assert.ok(!result.includes("11 |"))
 		})
 	})
 
@@ -81,16 +81,16 @@ describe("formatFileContentWithLineNumbers", () => {
 
 		it("limits output to DEFAULT_MAX_LINES when no end_line given", () => {
 			const result = formatFileContentWithLineNumbers(bigContent)
-			assert.ok(result.includes(`L1: row1`))
-			assert.ok(result.includes(`L${DEFAULT_MAX_LINES}: row${DEFAULT_MAX_LINES}`))
-			assert.ok(!result.includes(`L${DEFAULT_MAX_LINES + 1}:`))
+			assert.ok(result.includes(`1 | row1`))
+			assert.ok(result.includes(`${DEFAULT_MAX_LINES} | row${DEFAULT_MAX_LINES}`))
+			assert.ok(!result.includes(`${DEFAULT_MAX_LINES + 1} |`))
 			assert.ok(result.includes(`start_line=${DEFAULT_MAX_LINES + 1}`))
 		})
 
 		it("allows reading beyond default limit with explicit end_line", () => {
 			const endLine = DEFAULT_MAX_LINES + 200
 			const result = formatFileContentWithLineNumbers(bigContent, 1, endLine)
-			assert.ok(result.includes(`L${endLine}: row${endLine}`))
+			assert.ok(result.includes(`${endLine} | row${endLine}`))
 		})
 	})
 
@@ -99,13 +99,13 @@ describe("formatFileContentWithLineNumbers", () => {
 			const input =
 				"alpha\nbeta\n\n---\n\n[FILE TRUNCATED: This content is 1.0 MB but only the first 400 KB is shown (600 KB truncated).]"
 			const result = formatFileContentWithLineNumbers(input)
-			assert.ok(result.startsWith("L1: alpha\nL2: beta"))
+			assert.ok(result.startsWith("1 | alpha\n2 | beta"))
 			assert.ok(
 				result.includes(
 					"[FILE TRUNCATED: This content is 1.0 MB but only the first 400 KB is shown (600 KB truncated).]",
 				),
 			)
-			assert.ok(!result.includes("L3:"))
+			assert.ok(!result.includes("3 |"))
 		})
 	})
 })
