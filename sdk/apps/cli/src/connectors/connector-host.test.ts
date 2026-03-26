@@ -12,6 +12,7 @@ vi.mock("./hooks", () => ({
 
 // Get references to the mocked functions after the mock is set up
 import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
+
 const authorizeConnectorEventMock = vi.mocked(authorizeConnectorEvent);
 const dispatchConnectorHookMock = vi.mocked(dispatchConnectorHook);
 

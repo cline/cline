@@ -39,7 +39,7 @@ describe("agent config YAML loader", () => {
 	it("resolves default agents settings directory from CLINE_DATA_DIR", () => {
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 		expect(resolveAgentsConfigDirPath()).toBe(
-			`/tmp/cline-data/settings/${AGENT_CONFIG_DIRECTORY_NAME}`,
+			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
 		);
 	});
 
@@ -47,7 +47,7 @@ describe("agent config YAML loader", () => {
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 		expect(resolveAgentConfigSearchPaths()).toEqual([
 			resolveDocumentsAgentConfigDirectoryPath(),
-			`/tmp/cline-data/settings/${AGENT_CONFIG_DIRECTORY_NAME}`,
+			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
 		]);
 	});
 
@@ -57,7 +57,7 @@ describe("agent config YAML loader", () => {
 		expect(definition.type).toBe("agent");
 		expect(definition.directories).toEqual([
 			resolveDocumentsAgentConfigDirectoryPath(),
-			`/tmp/cline-data/settings/${AGENT_CONFIG_DIRECTORY_NAME}`,
+			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
 		]);
 		expect(definition.includeFile?.("agent.yaml", "/tmp/agent.yaml")).toBe(
 			true,

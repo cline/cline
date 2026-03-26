@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { resolveTeamDataDir } from "@clinebot/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { AgentTeamsRuntime } from "./multi-agent";
@@ -38,7 +39,7 @@ describe("resolveTeamDataDir", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_TEAM_DATA_DIR;
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
-		expect(resolveTeamDataDir()).toBe("/tmp/cline-data/teams");
+		expect(resolveTeamDataDir()).toBe(join("/tmp/cline-data", "teams"));
 	});
 });
 
