@@ -40,7 +40,7 @@ const BASE_DIFF_INSTRUCTIONS = `One or more SEARCH/REPLACE blocks following this
   5. If your source context came from read_file and includes line labels (for example, "42 | const x = 1"), do NOT include the "42 | " prefix in SEARCH or REPLACE content. Match only the raw file text.`
 
 const NOTEBOOK_INSTRUCTIONS = `
-  5. For Jupyter Notebook (.ipynb) files:
+  6. For Jupyter Notebook (.ipynb) files:
      * Match the exact JSON structure including quotes, commas, and \\n characters
      * Each line in "source" array (except last) must end with "\\n"
      * Each source line is a separate JSON string in the array
