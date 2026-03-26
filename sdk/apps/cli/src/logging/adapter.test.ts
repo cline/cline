@@ -140,8 +140,11 @@ describe("createCliLoggerAdapter", () => {
 
 	it("falls back when log destination path is not writable", () => {
 		const snapshot = withEnvSnapshot();
+		const unwritablePath = mkdtempSync(
+			join(tmpdir(), `${commandName}-log-dir-as-file-`),
+		);
 		delete process.env.CLINE_DATA_DIR;
-		process.env.CLINE_LOG_PATH = `/dev/null/${commandName}.log`;
+		process.env.CLINE_LOG_PATH = unwritablePath;
 		delete process.env.CLINE_LOG_LEVEL;
 		delete process.env.CLINE_LOG_NAME;
 		delete process.env.CLINE_LOG_ENABLED;
@@ -158,8 +161,11 @@ describe("createCliLoggerAdapter", () => {
 
 	it("uses a sync stderr fallback for cli runtime", () => {
 		const snapshot = withEnvSnapshot();
+		const unwritablePath = mkdtempSync(
+			join(tmpdir(), `${commandName}-log-dir-as-file-`),
+		);
 		delete process.env.CLINE_DATA_DIR;
-		process.env.CLINE_LOG_PATH = `/dev/null/${commandName}.log`;
+		process.env.CLINE_LOG_PATH = unwritablePath;
 		delete process.env.CLINE_LOG_LEVEL;
 		delete process.env.CLINE_LOG_NAME;
 		delete process.env.CLINE_LOG_ENABLED;
@@ -167,12 +173,12 @@ describe("createCliLoggerAdapter", () => {
 		const destinationSpy = vi.spyOn(pino, "destination");
 		try {
 			createCliLoggerAdapter({ runtime: "cli" });
-			expect(destinationSpy).toHaveBeenCalledWith(
+			expect(destinationSpy.mock.calls).toContainEqual([
 				expect.objectContaining({
 					dest: 2,
 					sync: true,
 				}),
-			);
+			]);
 		} finally {
 			restoreEnv(snapshot);
 		}
