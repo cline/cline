@@ -8,8 +8,13 @@ import { CoreSessionService } from "./session-service";
 
 describe("UnifiedSessionPersistenceService", () => {
 	const tempDirs: string[] = [];
+	const stores: Array<SqliteSessionStore> = [];
 
 	afterEach(() => {
+		for (const store of stores.splice(0)) {
+			const db = (store as unknown as { db?: { close?: () => void } }).db;
+			db?.close?.();
+		}
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -19,9 +24,9 @@ describe("UnifiedSessionPersistenceService", () => {
 		const sessionsDir = mkdtempSync(join(tmpdir(), "stale-session-reconcile-"));
 		tempDirs.push(sessionsDir);
 
-		const service = new CoreSessionService(
-			new SqliteSessionStore({ sessionsDir }),
-		);
+		const store = new SqliteSessionStore({ sessionsDir });
+		stores.push(store);
+		const service = new CoreSessionService(store);
 		const sessionId = "stale-root-session";
 		const artifacts = await service.createRootSessionWithArtifacts({
 			sessionId,

@@ -345,10 +345,33 @@ function parseShebangCommand(path: string): string[] | undefined {
 	}
 }
 
+function normalizeHookInterpreter(tokens: string[]): string[] | undefined {
+	if (tokens.length === 0) {
+		return undefined;
+	}
+	const [rawCommand, ...rest] = tokens;
+	const normalizedCommand = rawCommand.replace(/\\/g, "/").toLowerCase();
+	const commandName = normalizedCommand.split("/").at(-1) ?? normalizedCommand;
+
+	if (commandName === "env") {
+		return normalizeHookInterpreter(rest);
+	}
+
+	if (commandName === "bash" || commandName === "sh" || commandName === "zsh") {
+		return [commandName, ...rest];
+	}
+
+	if (commandName === "python3" || commandName === "python") {
+		return [process.platform === "win32" ? "python" : commandName, ...rest];
+	}
+
+	return tokens;
+}
+
 function inferHookCommand(path: string): string[] {
 	const shebang = parseShebangCommand(path);
 	if (shebang && shebang.length > 0) {
-		return [...shebang, path];
+		return [...(normalizeHookInterpreter(shebang) ?? shebang), path];
 	}
 	const lowered = path.toLowerCase();
 	if (
@@ -356,7 +379,7 @@ function inferHookCommand(path: string): string[] {
 		lowered.endsWith(".bash") ||
 		lowered.endsWith(".zsh")
 	) {
-		return ["/bin/bash", path];
+		return ["bash", path];
 	}
 	if (
 		lowered.endsWith(".js") ||
@@ -373,10 +396,17 @@ function inferHookCommand(path: string): string[] {
 		return ["bun", "run", path];
 	}
 	if (lowered.endsWith(".py")) {
-		return ["python3", path];
+		return [process.platform === "win32" ? "python" : "python3", path];
+	}
+	if (lowered.endsWith(".ps1")) {
+		return [
+			process.platform === "win32" ? "powershell" : "pwsh",
+			"-File",
+			path,
+		];
 	}
 	// Default to bash for legacy hook files with no extension/shebang.
-	return ["/bin/bash", path];
+	return ["bash", path];
 }
 
 function createHookCommandMap(workspacePath: string): HookCommandMap {

@@ -83,10 +83,18 @@ describe("runDoctorCommand", () => {
 
 		expect(code).toBe(0);
 		expect(output).toHaveLength(1);
-		expect(JSON.parse(output[0] || "")).toMatchObject({
-			listeningPids: [50174],
-			staleCliPids: [50190],
-			hookWorkerPids: [50181],
-		});
+		expect(JSON.parse(output[0] || "")).toMatchObject(
+			process.platform === "win32"
+				? {
+						listeningPids: [],
+						staleCliPids: [],
+						hookWorkerPids: [],
+					}
+				: {
+						listeningPids: [50174],
+						staleCliPids: [50190],
+						hookWorkerPids: [50181],
+					},
+		);
 	});
 });

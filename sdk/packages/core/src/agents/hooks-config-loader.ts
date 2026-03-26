@@ -59,6 +59,7 @@ const SUPPORTED_HOOK_FILE_EXTENSIONS = new Set([
 	".mts",
 	".cts",
 	".py",
+	".ps1",
 ]);
 
 export function toHookConfigFileName(

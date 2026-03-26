@@ -46,17 +46,17 @@ describe("user instruction config loader", () => {
 		const workspacePath = "/repo/demo";
 		expect(resolveSkillsConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([
-				"/repo/demo/.clinerules/skills",
-				"/repo/demo/.cline/skills",
-				"/repo/demo/.claude/skills",
-				"/repo/demo/.agents/skills",
+				join(workspacePath, ".clinerules", "skills"),
+				join(workspacePath, ".cline", "skills"),
+				join(workspacePath, ".claude", "skills"),
+				join(workspacePath, ".agents", "skills"),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
-			expect.arrayContaining(["/repo/demo/.clinerules"]),
+			expect.arrayContaining([join(workspacePath, ".clinerules")]),
 		);
 		expect(resolveWorkflowsConfigSearchPaths(workspacePath)).toEqual(
-			expect.arrayContaining(["/repo/demo/.clinerules/workflows"]),
+			expect.arrayContaining([join(workspacePath, ".clinerules", "workflows")]),
 		);
 	});
 

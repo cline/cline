@@ -172,6 +172,40 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
+	it.skipIf(process.platform !== "win32")(
+		"executes PowerShell hook files on Windows",
+		async () => {
+			const { workspace } = await createWorkspaceWithHook(
+				"PreToolUse.ps1",
+				'Write-Output \'HOOK_CONTROL\t{"cancel": false, "context": "powershell-ok"}\'\n',
+			);
+			try {
+				const hooks = createHookConfigFileHooks({
+					cwd: workspace,
+					workspacePath: workspace,
+				});
+				expect(hooks?.onToolCallStart).toBeTypeOf("function");
+				const control = await hooks?.onToolCallStart?.({
+					agentId: "agent_1",
+					conversationId: "conv_1",
+					parentAgentId: null,
+					iteration: 1,
+					call: {
+						id: "call_1",
+						name: "read_file",
+						input: { path: "README.md" },
+					},
+				});
+				expect(control).toMatchObject({
+					cancel: false,
+					context: "powershell-ok",
+				});
+			} finally {
+				await rm(workspace, { recursive: true, force: true });
+			}
+		},
+	);
+
 	it("maps TaskError hook files to agent_error stop events", async () => {
 		const outputPath = join(tmpdir(), `hooks-task-error-${Date.now()}.json`);
 		const { workspace } = await createWorkspaceWithHook(
