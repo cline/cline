@@ -298,7 +298,6 @@ function runKanbanAlias(spawnOptions?: Parameters<typeof spawnKanbanProcess>[0])
 		exit(1)
 	}
 
-	printInfo(`'${KANBAN_LAUNCH_COMMAND}' not found. Installing with '${installCommand.displayCommand}'...`)
 	const installProcess = spawnKanbanInstallProcess(installCommand)
 
 	installProcess.on("error", (error) => {
