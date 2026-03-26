@@ -1,6 +1,6 @@
+import type { ToolContext } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
 import { createBashExecutor, createWindowsExecutor } from "./bash.js";
-import type { ToolContext } from "@clinebot/shared";
 
 const ctx: ToolContext = {
 	agentId: "agent-1",
@@ -36,9 +36,9 @@ describe("createBashExecutor", () => {
 
 	it("rejects on timeout", async () => {
 		const bash = createBashExecutor({ timeoutMs: 50 });
-		await expect(
-			bash("sleep 10", process.cwd(), ctx),
-		).rejects.toThrow("timed out");
+		await expect(bash("sleep 10", process.cwd(), ctx)).rejects.toThrow(
+			"timed out",
+		);
 	});
 
 	it("truncates output exceeding maxOutputBytes", async () => {
@@ -57,9 +57,9 @@ describe("createBashExecutor", () => {
 		const bash = createBashExecutor();
 
 		setTimeout(() => ac.abort(), 50);
-		await expect(
-			bash("sleep 10", process.cwd(), abortCtx),
-		).rejects.toThrow("aborted");
+		await expect(bash("sleep 10", process.cwd(), abortCtx)).rejects.toThrow(
+			"aborted",
+		);
 	});
 });
 

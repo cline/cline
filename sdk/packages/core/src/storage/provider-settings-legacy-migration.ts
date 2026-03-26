@@ -1,5 +1,5 @@
-import { existsSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { LlmsModels, LlmsProviders } from "@clinebot/llms";
 import { resolveClineDataDir } from "@clinebot/shared/storage";
 import type { ProviderSettings } from "../types/provider-settings";
@@ -149,6 +149,29 @@ interface LegacyProviderStorage {
 	secrets: LegacySecrets;
 }
 
+type StoredModelsFile = {
+	version: 1;
+	providers: Record<
+		string,
+		{
+			provider: {
+				name: string;
+				baseUrl: string;
+				defaultModelId?: string;
+			};
+			models: Record<
+				string,
+				{
+					id: string;
+					name: string;
+				}
+			>;
+		}
+	>;
+};
+
+const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai-compatible";
+
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
 	dataDir?: string;
@@ -230,6 +253,29 @@ function readJsonObject<T extends object>(filePath: string): T | undefined {
 	return undefined;
 }
 
+function readModelsFile(filePath: string): StoredModelsFile {
+	const parsed = readJsonObject<StoredModelsFile>(filePath);
+	if (
+		parsed?.version === 1 &&
+		parsed.providers &&
+		typeof parsed.providers === "object"
+	) {
+		return parsed;
+	}
+	return {
+		version: 1,
+		providers: {},
+	};
+}
+
+function writeModelsFile(filePath: string, state: StoredModelsFile): void {
+	const dir = dirname(filePath);
+	if (!existsSync(dir)) {
+		mkdirSync(dir, { recursive: true });
+	}
+	writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
+}
+
 function resolveLegacyStorage(
 	options: MigrateLegacyProviderSettingsOptions,
 ): LegacyProviderStorage | undefined {
@@ -246,6 +292,46 @@ function resolveLegacyStorage(
 		globalState: globalState ?? {},
 		secrets: secrets ?? {},
 	};
+}
+
+function isOfficialOpenAiBaseUrl(baseUrl: string): boolean {
+	try {
+		const url = new URL(baseUrl);
+		const hostname = url.hostname.toLowerCase();
+		return (
+			hostname === "api.openai.com" ||
+			hostname.endsWith(".openai.azure.com") ||
+			hostname.endsWith(".services.ai.azure.com")
+		);
+	} catch {
+		return false;
+	}
+}
+
+function shouldMigrateLegacyOpenAiAsCustomProvider(
+	legacyGlobalState: LegacyGlobalState,
+): boolean {
+	const baseUrl = trimNonEmpty(legacyGlobalState.openAiBaseUrl);
+	if (!baseUrl) {
+		return false;
+	}
+	if (legacyGlobalState.azureApiVersion || legacyGlobalState.azureIdentity) {
+		return false;
+	}
+	return !isOfficialOpenAiBaseUrl(baseUrl);
+}
+
+function resolveMigratedProviderId(
+	providerId: string,
+	legacyGlobalState: LegacyGlobalState,
+): string {
+	if (
+		providerId === "openai" &&
+		shouldMigrateLegacyOpenAiAsCustomProvider(legacyGlobalState)
+	) {
+		return LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID;
+	}
+	return providerId;
 }
 
 function resolveModelForProvider(
@@ -384,6 +470,10 @@ function buildLegacyProviderSettings(
 	legacySecrets: LegacySecrets,
 	mode: LegacyMode,
 ): ProviderSettings | undefined {
+	const targetProviderId = resolveMigratedProviderId(
+		providerId,
+		legacyGlobalState,
+	);
 	const activeProviderForMode = trimNonEmpty(
 		mode === "plan"
 			? legacyGlobalState.planModeApiProvider
@@ -395,8 +485,8 @@ function buildLegacyProviderSettings(
 			providerId,
 			mode,
 			activeProviderForMode,
-		) ?? getDefaultModelForProvider(providerId);
-	const reasoning = resolveReasoning(legacyGlobalState, providerId, mode);
+		) ?? getDefaultModelForProvider(targetProviderId);
+	const reasoning = resolveReasoning(legacyGlobalState, targetProviderId, mode);
 	const timeout =
 		typeof legacyGlobalState.requestTimeoutMs === "number" &&
 		Number.isInteger(legacyGlobalState.requestTimeoutMs) &&
@@ -560,7 +650,7 @@ function buildLegacyProviderSettings(
 	const baseUrl = trimNonEmpty(baseUrlByProvider[providerId]);
 
 	const settings: ProviderSettings = {
-		provider: providerId as ProviderSettings["provider"],
+		provider: targetProviderId as ProviderSettings["provider"],
 		...(apiKey ? { apiKey } : {}),
 		...(model ? { model } : {}),
 		...(baseUrl ? { baseUrl } : {}),
@@ -575,6 +665,31 @@ function buildLegacyProviderSettings(
 	const hasNonProviderFields =
 		Object.keys(settings).filter((key) => key !== "provider").length > 0;
 	return hasNonProviderFields ? parsed.data : undefined;
+}
+
+function resolveLegacyCustomProviderRegistration(
+	providerId: string,
+	settings: ProviderSettings,
+): StoredModelsFile["providers"][string] | undefined {
+	if (providerId !== LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID) {
+		return undefined;
+	}
+	if (!settings.baseUrl || !settings.model) {
+		return undefined;
+	}
+	return {
+		provider: {
+			name: "OpenAI Compatible",
+			baseUrl: settings.baseUrl,
+			defaultModelId: settings.model,
+		},
+		models: {
+			[settings.model]: {
+				id: settings.model,
+				name: settings.model,
+			},
+		},
+	};
 }
 
 function collectCandidateProviderIds(
@@ -638,13 +753,20 @@ export function migrateLegacyProviderSettings(
 	next.lastUsedProvider = existing.lastUsedProvider;
 	const now = new Date().toISOString();
 	let addedProviderCount = 0;
+	const modelsPath = join(
+		dirname(options.providerSettingsManager.getFilePath()),
+		"models.json",
+	);
+	const modelsState = readModelsFile(modelsPath);
+	let addedCustomProviderCount = 0;
 
-	for (const providerId of candidates) {
+	for (const legacyProviderId of candidates) {
+		const providerId = resolveMigratedProviderId(legacyProviderId, globalState);
 		if (next.providers[providerId]) {
 			continue;
 		}
 		const settings = buildLegacyProviderSettings(
-			providerId,
+			legacyProviderId,
 			globalState,
 			secrets,
 			mode,
@@ -658,9 +780,17 @@ export function migrateLegacyProviderSettings(
 			tokenSource: "migration",
 		};
 		addedProviderCount += 1;
+		const registration = resolveLegacyCustomProviderRegistration(
+			providerId,
+			settings,
+		);
+		if (registration && !modelsState.providers[providerId]) {
+			modelsState.providers[providerId] = registration;
+			addedCustomProviderCount += 1;
+		}
 	}
 
-	if (addedProviderCount === 0) {
+	if (addedProviderCount === 0 && addedCustomProviderCount === 0) {
 		return {
 			migrated: false,
 			providerCount: Object.keys(existing.providers).length,
@@ -673,16 +803,22 @@ export function migrateLegacyProviderSettings(
 			? globalState.planModeApiProvider
 			: globalState.actModeApiProvider,
 	);
+	const migratedPreferredProvider = preferredProvider
+		? resolveMigratedProviderId(preferredProvider, globalState)
+		: undefined;
 	next.lastUsedProvider =
 		existing.lastUsedProvider ??
-		(preferredProvider && next.providers[preferredProvider]
-			? preferredProvider
+		(migratedPreferredProvider && next.providers[migratedPreferredProvider]
+			? migratedPreferredProvider
 			: Object.keys(next.providers)[0]);
 
 	options.providerSettingsManager.write(next);
+	if (addedCustomProviderCount > 0) {
+		writeModelsFile(modelsPath, modelsState);
+	}
 
 	return {
-		migrated: true,
+		migrated: addedProviderCount > 0 || addedCustomProviderCount > 0,
 		providerCount: Object.keys(next.providers).length,
 		lastUsedProvider: next.lastUsedProvider,
 	};

@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -175,6 +175,124 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers["openai-codex"]?.tokenSource).toBe(
 			"migration",
 		);
+	});
+
+	it("migrates legacy custom OpenAI-compatible config into a standalone provider", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "gpt-oss-120b",
+					openAiBaseUrl: "https://gateway.example.invalid/v1",
+					openAiHeaders: {
+						"X-Test": "legacy-header",
+					},
+					requestTimeoutMs: 45000,
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-openai-compatible-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 1,
+			lastUsedProvider: "openai-compatible",
+		});
+		expect(manager.getProviderSettings("openai-compatible")).toEqual({
+			provider: "openai-compatible",
+			model: "gpt-oss-120b",
+			apiKey: "legacy-openai-compatible-key",
+			baseUrl: "https://gateway.example.invalid/v1",
+			headers: {
+				"X-Test": "legacy-header",
+			},
+			timeout: 45000,
+		});
+		expect(manager.getProviderSettings("openai")).toBeUndefined();
+
+		const modelsPath = path.join(tempDir, "settings", "models.json");
+		expect(JSON.parse(readFileSync(modelsPath, "utf8"))).toEqual({
+			version: 1,
+			providers: {
+				"openai-compatible": {
+					provider: {
+						name: "OpenAI Compatible",
+						baseUrl: "https://gateway.example.invalid/v1",
+						defaultModelId: "gpt-oss-120b",
+					},
+					models: {
+						"gpt-oss-120b": {
+							id: "gpt-oss-120b",
+							name: "gpt-oss-120b",
+						},
+					},
+				},
+			},
+		});
+	});
+
+	it("keeps official OpenAI endpoints under the built-in openai provider", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "gpt-5",
+					openAiBaseUrl: "https://api.openai.com/v1",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-openai-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 1,
+			lastUsedProvider: "openai",
+		});
+		expect(manager.getProviderSettings("openai")).toEqual({
+			provider: "openai",
+			model: "gpt-5",
+			apiKey: "legacy-openai-key",
+			baseUrl: "https://api.openai.com/v1",
+		});
+		expect(manager.getProviderSettings("openai-compatible")).toBeUndefined();
 	});
 });
 
