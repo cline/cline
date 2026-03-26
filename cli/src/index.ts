@@ -38,13 +38,16 @@ import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
 import {
 	forwardSignalToKanbanProcess,
+	isKanbanCommandAvailable,
 	KANBAN_LAUNCH_COMMAND,
 	KANBAN_SHUTDOWN_TIMEOUT_MS,
 	type KanbanMigrationAction,
 	LEGACY_TUI_FLAG,
 	markKanbanMigrationAnnouncementShown,
+	resolveKanbanInstallCommand,
 	shouldLaunchKanbanByDefault,
 	shouldShowKanbanMigrationAnnouncementForCurrentUser,
+	spawnKanbanInstallProcess,
 	spawnKanbanProcess,
 } from "./utils/kanban"
 import { addMcpServerShortcut, type McpAddOptions } from "./utils/mcp"
@@ -265,18 +268,52 @@ function getPlainTextModeReason(options: TaskOptions): string {
 }
 
 function runKanbanAlias(spawnOptions?: Parameters<typeof spawnKanbanProcess>[0]): void {
-	const child = spawnKanbanProcess(spawnOptions)
-	activeKanbanProcess = child
+	const launchKanban = () => {
+		const child = spawnKanbanProcess(spawnOptions)
+		activeKanbanProcess = child
 
-	child.on("error", () => {
-		clearActiveKanbanProcess()
-		printWarning(`Failed to run '${KANBAN_LAUNCH_COMMAND}'. Make sure npx is installed and available in PATH.`)
+		child.on("error", (error) => {
+			clearActiveKanbanProcess()
+			const errorMessage = error instanceof Error ? ` ${error.message}` : ""
+			printWarning(`Failed to run '${KANBAN_LAUNCH_COMMAND}'.${errorMessage}`)
+			exit(1)
+		})
+
+		child.on("close", (code, signal) => {
+			clearActiveKanbanProcess()
+			exit(resolveProcessExitCode(code, signal))
+		})
+	}
+
+	if (isKanbanCommandAvailable()) {
+		launchKanban()
+		return
+	}
+
+	const installCommand = resolveKanbanInstallCommand()
+	if (!installCommand) {
+		printWarning(
+			`'${KANBAN_LAUNCH_COMMAND}' not found and no supported package manager was detected in PATH (npm, pnpm, bun). Install Kanban globally and try again.`,
+		)
+		exit(1)
+	}
+
+	const installProcess = spawnKanbanInstallProcess(installCommand)
+
+	installProcess.on("error", (error) => {
+		const errorMessage = error instanceof Error ? ` ${error.message}` : ""
+		printWarning(`Failed to run '${installCommand.displayCommand}'.${errorMessage}`)
 		exit(1)
 	})
 
-	child.on("close", (code, signal) => {
-		clearActiveKanbanProcess()
-		exit(resolveProcessExitCode(code, signal))
+	installProcess.on("close", (code, signal) => {
+		const installExitCode = resolveProcessExitCode(code, signal)
+		if (installExitCode !== 0) {
+			printWarning(`Failed to install Kanban automatically. Please run '${installCommand.displayCommand}' manually.`)
+			exit(installExitCode)
+		}
+
+		launchKanban()
 	})
 }
 
