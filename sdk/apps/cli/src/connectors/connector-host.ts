@@ -12,7 +12,7 @@ import {
 	type ChatCommandState,
 	maybeHandleChatCommand,
 } from "../utils/chat-commands";
-import { dispatchConnectorHook } from "./hooks";
+import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
 import {
 	createConnectorRuntimeTurnStream,
 	formatConnectorApprovalPrompt,
@@ -108,6 +108,76 @@ export async function handleConnectorUserTurn<
 		input.bindingsPath,
 		input.baseStartRequest,
 	);
+	const authorization = await authorizeConnectorEvent(
+		input.hookCommand,
+		{
+			adapter: input.transport,
+			botUserName: input.botUserName,
+			request: {
+				actor: {
+					id: initialState.participantKey || undefined,
+					label: initialState.participantLabel || undefined,
+					participantKey: initialState.participantKey || undefined,
+					participantLabel: initialState.participantLabel || undefined,
+				},
+				context: {
+					source: input.transport,
+					sourceEvent: "message.received",
+					threadId: input.thread.id,
+					channelId: input.thread.channelId,
+					isDM: input.thread.isDM,
+					sessionId: initialState.sessionId || undefined,
+					workspaceRoot:
+						initialState.workspaceRoot || input.baseStartRequest.workspaceRoot,
+					metadata: {
+						botUserName: input.botUserName,
+					},
+				},
+				payload: {
+					text: resolvedInput,
+					textLength: resolvedInput.length,
+					textPreview: truncateConnectorText(resolvedInput),
+				},
+			},
+		},
+		input.logger,
+	);
+	if (authorization.action === "deny") {
+		const denialMessage =
+			authorization.message?.trim() ||
+			"You are not authorized to use this bot.";
+		await input.thread.post(denialMessage);
+		await dispatchConnectorHook(
+			input.hookCommand,
+			{
+				adapter: input.transport,
+				botUserName: input.botUserName,
+				event: "message.denied",
+				payload: {
+					threadId: input.thread.id,
+					channelId: input.thread.channelId,
+					isDM: input.thread.isDM,
+					participantKey: initialState.participantKey,
+					participantLabel: initialState.participantLabel,
+					reason: authorization.reason,
+					message: denialMessage,
+				},
+				ts: new Date().toISOString(),
+			},
+			input.logger,
+		);
+		input.logger.core.info?.(
+			"Inbound connector event denied by authorization hook",
+			{
+				transport: input.transport,
+				threadId: input.thread.id,
+				channelId: input.thread.channelId,
+				participantKey: initialState.participantKey,
+				reason: authorization.reason,
+			},
+		);
+		return;
+	}
 	const turnKey =
 		input.turnKey ||
 		resolveThreadBindingKey(
@@ -255,7 +325,7 @@ export async function handleConnectorUserTurn<
 					{
 						adapter: input.transport,
 						botUserName: input.botUserName,
-						event: "thread.reset",
+						event: "session.reset",
 						payload: {
 							threadId: input.thread.id,
 							channelId: input.thread.channelId,

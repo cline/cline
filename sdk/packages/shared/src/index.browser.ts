@@ -7,10 +7,18 @@ export {
 } from "./auth/constants";
 export type * from "./connectors/adapters";
 export type {
+	ConnectorAuthorizationDecision,
+	ConnectorAuthorizationRequest,
+	ConnectorEventActor,
+	ConnectorEventContext,
 	ConnectorHookEvent,
 	ConnectorHookEventName,
 } from "./connectors/events";
 export {
+	ConnectorAuthorizationDecisionSchema,
+	ConnectorAuthorizationRequestSchema,
+	ConnectorEventActorSchema,
+	ConnectorEventContextSchema,
 	ConnectorHookEventNameSchema,
 	ConnectorHookEventSchema,
 } from "./connectors/events";

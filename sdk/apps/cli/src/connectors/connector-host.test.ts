@@ -5,6 +5,20 @@ import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleConnectorUserTurn } from "./connector-host";
 
+const authorizeConnectorEventMock = vi.fn<
+	(...args: unknown[]) => Promise<{
+		action: "allow" | "deny";
+		message?: string;
+		reason?: string;
+	}>
+>(async () => ({ action: "allow" }));
+const dispatchConnectorHookMock = vi.fn(async () => undefined);
+
+vi.mock("./hooks", () => ({
+	authorizeConnectorEvent: authorizeConnectorEventMock,
+	dispatchConnectorHook: dispatchConnectorHookMock,
+}));
+
 type TestState = {
 	sessionId?: string;
 	enableTools?: boolean;
@@ -61,6 +75,9 @@ describe("handleConnectorUserTurn", () => {
 	const tempDirs: string[] = [];
 
 	afterEach(() => {
+		authorizeConnectorEventMock.mockReset();
+		authorizeConnectorEventMock.mockResolvedValue({ action: "allow" });
+		dispatchConnectorHookMock.mockReset();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -125,5 +142,68 @@ describe("handleConnectorUserTurn", () => {
 		).toHaveLength(1);
 		expect(posts.at(-1)).toContain("participantKey=telegram:user:alice");
 		expect(getState().welcomeSentAt).toBeTruthy();
+	});
+
+	it("blocks unauthorized inbound messages through the shared authorization hook", async () => {
+		authorizeConnectorEventMock.mockResolvedValue({
+			action: "deny",
+			message: "Access denied.",
+			reason: "not_on_allowlist",
+		});
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "slack:user:U123",
+			participantLabel: "alice",
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "hello",
+			client: {} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: {
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				systemPrompt: "system",
+				provider: "cline",
+				model: "test-model",
+				mode: "act",
+			} as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: { core: {} } as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			hookCommand: "echo noop",
+			systemRules: "rules",
+			errorLabel: "Slack",
+			firstContactMessage: "Connected.\nWelcome.",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+		});
+
+		expect(posts).toEqual(["Access denied."]);
+		expect(dispatchConnectorHookMock).toHaveBeenCalledWith(
+			"echo noop",
+			expect.objectContaining({
+				event: "message.denied",
+				payload: expect.objectContaining({
+					participantKey: "slack:user:U123",
+					reason: "not_on_allowlist",
+				}),
+			}),
+			expect.anything(),
+		);
+		expect(getState().welcomeSentAt).toBeUndefined();
 	});
 });
