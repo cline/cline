@@ -11,6 +11,20 @@ const publishVerifyBackupPath = join(
 	".publish-verify-package-json-backup.json",
 );
 const smokeVersion = "0.0.0-node.smoke";
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
+
+type MutablePackageJson = {
+	name?: string;
+	version?: string;
+	private?: boolean;
+	main?: string;
+	types?: string;
+	internal?: boolean;
+	exports?: Record<string, unknown>;
+	dependencies?: Record<string, string>;
+	peerDependencies?: Record<string, string>;
+	optionalDependencies?: Record<string, string>;
+};
 
 async function runCommand(
 	cmd: string[],
@@ -45,6 +59,18 @@ async function restorePublishVerifyBackup(): Promise<void> {
 	}
 }
 
+function requireLastLine(output: string, label: string): string {
+	const lastLine = output
+		.split("\n")
+		.map((line) => line.trim())
+		.filter(Boolean)
+		.pop();
+	if (!lastLine) {
+		throw new Error(`Missing ${label} output`);
+	}
+	return lastLine;
+}
+
 async function preparePublishableManifests(): Promise<void> {
 	const workspaces = await readdir(packagesDir);
 	const packageJsonBackups: Record<string, string> = {};
@@ -73,7 +99,7 @@ async function preparePublishableManifests(): Promise<void> {
 	);
 
 	for (const [pkgPath, raw] of Object.entries(packageJsonBackups)) {
-		const pkg = JSON.parse(raw) as Record<string, any>;
+		const pkg = JSON.parse(raw) as MutablePackageJson;
 		pkg.version = smokeVersion;
 		delete pkg.private;
 
@@ -82,19 +108,18 @@ async function preparePublishableManifests(): Promise<void> {
 			"peerDependencies",
 			"optionalDependencies",
 		] as const) {
-			if (!pkg[depType] || typeof pkg[depType] !== "object") {
+			const deps = pkg[depType];
+			if (!deps || typeof deps !== "object") {
 				continue;
 			}
-			for (const [dep, version] of Object.entries(
-				pkg[depType] as Record<string, string>,
-			)) {
+			for (const [dep, version] of Object.entries(deps)) {
 				if (!dep.startsWith("@clinebot/") || version !== "workspace:*") {
 					continue;
 				}
 				if (internalPackages.has(dep)) {
-					delete pkg[depType][dep];
+					delete deps[dep];
 				} else {
-					pkg[depType][dep] = smokeVersion;
+					deps[dep] = smokeVersion;
 				}
 			}
 		}
@@ -102,8 +127,13 @@ async function preparePublishableManifests(): Promise<void> {
 		if (pkg.name === "@clinebot/core") {
 			pkg.main = "./dist/index.node.js";
 			pkg.types = "./dist/index.node.d.ts";
-			if (pkg.exports?.["."]) {
-				pkg.exports["."] = {
+			const exportsField = pkg.exports;
+			if (
+				exportsField &&
+				typeof exportsField === "object" &&
+				"." in exportsField
+			) {
+				exportsField["."] = {
 					development: "./dist/index.node.js",
 					types: "./dist/index.node.d.ts",
 					import: "./dist/index.node.js",
@@ -126,38 +156,34 @@ async function main(): Promise<void> {
 		await preparePublishableManifests();
 
 		const tarballs = {
-			core: (
-				await runCommand(["npm", "pack", "--pack-destination", packDir], {
+			core: requireLastLine(
+				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/core"),
 					env: npmEnv,
-				})
-			)
-				.split("\n")
-				.pop()!,
-			agents: (
-				await runCommand(["npm", "pack", "--pack-destination", packDir], {
+				}),
+				"core tarball",
+			),
+			agents: requireLastLine(
+				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/agents"),
 					env: npmEnv,
-				})
-			)
-				.split("\n")
-				.pop()!,
-			llms: (
-				await runCommand(["npm", "pack", "--pack-destination", packDir], {
+				}),
+				"agents tarball",
+			),
+			llms: requireLastLine(
+				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/llms"),
 					env: npmEnv,
-				})
-			)
-				.split("\n")
-				.pop()!,
-			shared: (
-				await runCommand(["npm", "pack", "--pack-destination", packDir], {
+				}),
+				"llms tarball",
+			),
+			shared: requireLastLine(
+				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/shared"),
 					env: npmEnv,
-				})
-			)
-				.split("\n")
-				.pop()!,
+				}),
+				"shared tarball",
+			),
 		};
 
 		await writeFile(
@@ -179,7 +205,10 @@ async function main(): Promise<void> {
 			)}\n`,
 		);
 
-		await runCommand(["npm", "install"], { cwd: smokeDir, env: npmEnv });
+		await runCommand([npmCommand, "install"], {
+			cwd: smokeDir,
+			env: npmEnv,
+		});
 
 		const nodeMajor = Number(process.versions.node.split(".")[0] || "0");
 		const smokeSource =
