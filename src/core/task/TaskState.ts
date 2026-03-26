@@ -44,6 +44,8 @@ export class TaskState {
 	didAlreadyUseTool = false
 	didEditFile = false
 	lastToolName = "" // Track last tool used for consecutive call detection
+	lastToolParams = "" // Canonical signature of last tool's params (via toolCallSignature)
+	consecutiveIdenticalToolCount = 0 // Consecutive calls with identical tool name + params
 
 	// File read deduplication cache - prevents the model from endlessly reading the same files
 	// Maps absolute file path → { readCount: times read in this task, mtime: last modified timestamp, imageBlock: optional image data for multimodal models }

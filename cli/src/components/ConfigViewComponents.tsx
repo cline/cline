@@ -56,7 +56,13 @@ export interface ObjectEditorState {
 	editValue: string
 }
 
-export const EXCLUDED_KEYS = new Set(["taskHistory", "primaryRootIndex", "welcomeViewCompleted", "isNewUser"])
+export const EXCLUDED_KEYS = new Set([
+	"taskHistory",
+	"primaryRootIndex",
+	"welcomeViewCompleted",
+	"isNewUser",
+	"cliKanbanMigrationAnnouncementShown",
+])
 
 export const EDITABLE_TYPES: Set<ValueType> = new Set(["string", "number", "boolean", "object"])
 export const MAX_VISIBLE = 12

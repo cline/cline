@@ -43,6 +43,7 @@ test.describe("cline --help", () => {
 			"--json",
 			"--double-check-completion",
 			"--acp",
+			"--tui",
 			"--taskId",
 		])
 	})
