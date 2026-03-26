@@ -342,7 +342,11 @@ console.log(JSON.stringify({
 			result.contextModification?.should.equal("STALE_TASK: Long conversation paused for extended time")
 		})
 
-		it("should combine context deletion with other state", async () => {
+		it("should combine context deletion with other state", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));

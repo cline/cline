@@ -12,6 +12,7 @@ describe("TaskStart Hook", () => {
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
 	let hookTestEnv: HookTestEnv
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 	const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
@@ -31,7 +32,11 @@ describe("TaskStart Hook", () => {
 	})
 
 	describe("Hook Input Format", () => {
-		it("should receive task metadata from startTask", async () => {
+		it("should receive task metadata from startTask", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskStart")
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
