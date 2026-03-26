@@ -283,3 +283,7 @@ export {
 } from "./storage/provider-settings-legacy-migration";
 export { ProviderSettingsManager } from "./storage/provider-settings-manager";
 export { SqliteSessionStore } from "./storage/sqlite-session-store";
+export {
+	LoggerTelemetryAdapter,
+	type LoggerTelemetryAdapterOptions,
+} from "./telemetry/LoggerTelemetryAdapter";
