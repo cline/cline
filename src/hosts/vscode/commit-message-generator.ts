@@ -1,10 +1,12 @@
 import { buildApiHandler } from "@core/api"
+import fs from "fs/promises"
 import * as path from "path"
 import * as vscode from "vscode"
 import { Controller } from "@/core/controller"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
+import { fileExistsAtPath, isDirectory, readDirectory } from "@/utils/fs"
 import { getGitDiff } from "@/utils/git"
 
 /**
@@ -162,15 +164,25 @@ async function generateCommitMsgForRepository(controller: Controller, repository
 			title: `Generating commit message for ${repoPath.split(path.sep).pop() || "repository"}...`,
 			cancellable: true,
 		},
-		() => performCommitMsgGeneration(controller, gitDiff, inputBox),
+		() => performCommitMsgGeneration(controller, gitDiff, inputBox, repoPath),
 	)
 }
 
-async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any) {
+async function performCommitMsgGeneration(controller: Controller, gitDiff: string, inputBox: any, repoPath?: string) {
 	try {
 		vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", true)
 
 		const prompts = [PROMPT.instruction]
+
+		// Load .clinerules and commitlint config for commit message conventions
+		if (repoPath) {
+			const customRules = await loadCommitRules(repoPath)
+			if (customRules) {
+				prompts.push(
+					`# Project Rules\nFollow these project-specific rules when generating the commit message:\n\n${customRules}`,
+				)
+			}
+		}
 
 		const workspaceManager = await controller.ensureWorkspaceManager()
 		if (workspaceManager) {
@@ -233,6 +245,72 @@ async function performCommitMsgGeneration(controller: Controller, gitDiff: strin
 export function abortCommitGeneration() {
 	commitGenerationAbortController?.abort()
 	vscode.commands.executeCommand("setContext", "cline.isGeneratingCommit", false)
+}
+
+const COMMITLINT_CONFIG_PATTERNS = [
+	"commitlint.config.js",
+	"commitlint.config.cjs",
+	"commitlint.config.mjs",
+	"commitlint.config.ts",
+	".commitlintrc.js",
+	".commitlintrc.cjs",
+	".commitlintrc.json",
+	".commitlintrc.yml",
+	".commitlintrc.yaml",
+]
+
+/**
+ * Loads project-specific commit message rules from .clinerules and commitlint config.
+ * Reads .clinerules (file or directory) and any commitlint config file found in the repo root.
+ */
+async function loadCommitRules(repoPath: string): Promise<string | undefined> {
+	const parts: string[] = []
+
+	// 1. Read .clinerules
+	try {
+		const clinerulesPath = path.join(repoPath, ".clinerules")
+		if (await fileExistsAtPath(clinerulesPath)) {
+			if (await isDirectory(clinerulesPath)) {
+				const files = await readDirectory(clinerulesPath)
+				for (const filePath of files) {
+					try {
+						const content = (await fs.readFile(filePath, "utf8")).trim()
+						if (content) {
+							const relativePath = path.relative(repoPath, filePath)
+							parts.push(`## ${relativePath}\n${content}`)
+						}
+					} catch {
+						// Skip unreadable files
+					}
+				}
+			} else {
+				const content = (await fs.readFile(clinerulesPath, "utf8")).trim()
+				if (content) {
+					parts.push(`## .clinerules\n${content}`)
+				}
+			}
+		}
+	} catch {
+		// .clinerules not available, continue
+	}
+
+	// 2. Read commitlint config
+	try {
+		for (const configName of COMMITLINT_CONFIG_PATTERNS) {
+			const configPath = path.join(repoPath, configName)
+			if (await fileExistsAtPath(configPath)) {
+				const content = (await fs.readFile(configPath, "utf8")).trim()
+				if (content) {
+					parts.push(`## ${configName}\n${content}`)
+				}
+				break // Use first found config
+			}
+		}
+	} catch {
+		// commitlint config not available, continue
+	}
+
+	return parts.length > 0 ? parts.join("\n\n") : undefined
 }
 
 /**
