@@ -333,6 +333,21 @@
 				]
 			},
 			{
+				"tab": "Kanban",
+				"icon": "table-columns",
+				"groups": [
+					{
+						"group": "Cline Kanban",
+						"pages": [
+							"kanban/overview",
+							"kanban/getting-started",
+							"kanban/core-workflow",
+							"kanban/features"
+						]
+					}
+				]
+			},
+			{
 				"tab": "Learn",
 				"icon": "graduation-cap",
 				"href": "https://cline.bot/learn"
