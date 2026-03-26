@@ -1,0 +1,120 @@
+---
+title: "Features"
+description: "Detailed overview of Cline Kanban features: worktrees, auto-commit, task linking, diff viewer, git interface, and more"
+---
+
+<Warning>
+Kanban is a **research preview**. Some features described here use experimental capabilities. Expect changes.
+</Warning>
+
+## Ephemeral Worktrees
+
+Every task card runs in its own [git worktree](https://git-scm.com/docs/git-worktree) — an isolated checkout of your repository. This is the foundation that enables parallel agent execution:
+
+- Each agent works in its own directory with its own terminal
+- Changes in one worktree don't affect other worktrees or your main working directory
+- No merge conflicts between agents running simultaneously
+- Worktrees are cleaned up when you move a card to trash
+
+### Symlinked Dependencies
+
+When creating a worktree, Kanban symlinks gitignored files (like `node_modules`) from your main repo rather than copying or reinstalling them. This avoids the overhead of running `npm install` for every task.
+
+<Warning>
+Symlinks point back to the original files in your main repo. This works well for dependencies that agents don't modify, but if an agent does modify a symlinked file, the change affects the original too.
+</Warning>
+
+## Auto-Commit
+
+When enabled, agents automatically commit their changes to the worktree branch as they work. This creates a trail of incremental commits rather than one large diff at the end.
+
+Auto-commit can be toggled in the Kanban settings.
+
+## Auto-PR
+
+When enabled alongside auto-commit, agents can automatically create pull requests when they finish their work. The agent generates a PR with the changes from its worktree branch.
+
+Auto-PR can be toggled in the Kanban settings.
+
+## Task Linking & Dependency Chains
+
+Task linking lets you create sequential workflows where completing one task triggers the next:
+
+1. **⌘ + click** a card to link it to another card
+2. When the first card is completed and moved to trash, the linked card **starts automatically**
+3. Chain multiple cards together for multi-step workflows
+
+When combined with auto-commit, this creates fully autonomous pipelines — one agent finishes, its work is committed, and the next agent picks up where it left off.
+
+## Diff Viewer & Checkpoints
+
+Clicking a card opens a detail view with a full diff of all changes in that worktree. The diff viewer includes:
+
+- **Checkpoint-scoped diffs** — rather than showing only the cumulative diff, you can view changes from specific message ranges. This is useful for understanding what changed at each step.
+- **Inline commenting** — click any line in the diff to leave a comment that gets sent back to the agent. Use this to give targeted feedback like "handle this edge case" or "use a different pattern here."
+
+## Sidebar Chat & Board Management
+
+The sidebar chat gives you a conversational interface for managing the board. Instead of manually creating and configuring cards, you can ask the agent to:
+
+- Break down a piece of work into multiple task cards
+- Link cards together into dependency chains
+- Start tasks on the board
+
+The agent manipulates the board directly based on your instructions.
+
+## Keyboard Shortcuts
+
+Kanban includes keyboard shortcuts for common actions:
+
+| Shortcut | Action |
+|----------|--------|
+| **C** | Create a new task card |
+| **⌘ + click** | Link a card to another card |
+
+<Tip>
+The "C" shortcut works from the main board view. You need at least one project open to create a task.
+</Tip>
+
+## Settings
+
+Open the settings dialog to configure how Kanban behaves. Available settings include:
+
+- **Auto-commit** — toggle whether agents automatically commit changes as they work
+- **Auto-PR** — toggle whether agents automatically create pull requests on completion (requires auto-commit)
+- **Script shortcuts** — define frequently-used commands that appear as buttons on task cards
+- **Project paths** — displayed with `~` instead of full home directory paths for readability
+
+## Script Shortcuts
+
+Define frequently-used commands (like `npm run dev` or `npm test`) in the Kanban settings. These appear as play buttons on task cards, giving you quick access to run, test, or debug the application within a worktree without switching to a separate terminal.
+
+## Git Interface
+
+Click the **branch name** in the navbar to open a full git interface. From here you can:
+
+- Browse commit history
+- Switch branches
+- Fetch, pull, and push
+- Visualize the git graph
+
+This lets you manage your repository without leaving Kanban or opening a separate git client.
+
+## Agent Compatibility
+
+Kanban works with CLI-based coding agents. It uses experimental features that bypass permissions and runtime hooks, giving agents more autonomy to work without interruption. Agents currently compatible with Kanban include:
+
+- **Cline CLI**
+- **Claude Code**
+- **Codex**
+- **OpenCode**
+
+and more. Check settings for all available agent runtimes
+
+## Resume Tasks
+
+When you move a card to trash, the worktree is cleaned up but Kanban saves a **resume ID**. If you need to continue work on a trashed task, you can use this ID to pick up where you left off without starting from scratch.
+
+## Remote Config Gating
+
+For teams and organizations, Kanban access can be gated via Cline remote config. This allows administrators to control who can access the Kanban board within their organization, enabling phased rollouts or restricting access to specific teams.
