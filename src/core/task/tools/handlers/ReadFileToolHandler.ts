@@ -46,7 +46,7 @@ export function formatFileContentWithLineNumbers(content: string, startLine?: nu
 	const end = Math.min(totalLines, endLine ?? start + DEFAULT_MAX_LINES - 1)
 
 	const slice = lines.slice(start - 1, end)
-	const labeled = slice.map((line, i) => `L${start + i}: ${line}`).join("\n")
+	const labeled = slice.map((line, i) => `${start + i} | ${line}`).join("\n")
 
 	let suffix = truncationSuffix
 	if (!truncationSuffix) {
@@ -227,9 +227,14 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			return fileContent.text
 		}
 
+		// Parse and validate line parameters with proper NaN guards
 		const startLine = block.params.start_line ? Number.parseInt(block.params.start_line, 10) : undefined
 		const endLine = block.params.end_line ? Number.parseInt(block.params.end_line, 10) : undefined
+		
+		// Validate parsed numbers to prevent NaN propagation
+		const safeStartLine = startLine !== undefined && !Number.isNaN(startLine) ? startLine : undefined
+		const safeEndLine = endLine !== undefined && !Number.isNaN(endLine) ? endLine : undefined
 
-		return formatFileContentWithLineNumbers(fileContent.text, startLine, endLine)
+		return formatFileContentWithLineNumbers(fileContent.text, safeStartLine, safeEndLine)
 	}
 }
