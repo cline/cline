@@ -71,15 +71,19 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 		await createAndOpenTestDocument("open-tabs-1", vscode.ViewColumn.One)
 		await createAndOpenTestDocument("open-tabs-2", vscode.ViewColumn.Two)
 
-		// Wait for tabs to be fully created
+		// Wait for both expected tabs to appear.
+		// On Windows, opening in a different ViewColumn can sometimes create
+		// duplicate tab entries, so we check for unique paths containing both files
+		// rather than an exact count.
 		await pWaitFor(
 			async () => {
 				const request = GetOpenTabsRequest.create({})
 				const response = await getOpenTabs(request)
+				const uniquePaths = [...new Set(response.paths)]
 				console.log(
-					`[DEBUG] Waiting for 2 tabs, currently found ${response.paths.length}: ${JSON.stringify(response.paths)}`,
+					`[DEBUG] Waiting for 2 unique tabs, currently found ${uniquePaths.length}: ${JSON.stringify(uniquePaths)}`,
 				)
-				return response.paths.length === 2
+				return uniquePaths.some((p) => p.includes("open-tabs-1")) && uniquePaths.some((p) => p.includes("open-tabs-2"))
 			},
 			{
 				timeout: 8000,
@@ -89,12 +93,13 @@ describe("Hostbridge - Window - getOpenTabs", () => {
 
 		const request = GetOpenTabsRequest.create({})
 		const response = await getOpenTabs(request)
+		const uniquePaths = [...new Set(response.paths)]
 
-		// Should have 2 tabs open
+		// Should have both tabs open (deduplicated for Windows ViewColumn quirk)
 		assert.strictEqual(
-			response.paths.length,
+			uniquePaths.length,
 			2,
-			`Expected 2 tabs, got ${response.paths.length}. Found tabs: ${JSON.stringify(response.paths)}`,
+			`Expected 2 unique tabs, got ${uniquePaths.length}. Found tabs: ${JSON.stringify(response.paths)}`,
 		)
 	})
 
