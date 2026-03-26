@@ -28,20 +28,44 @@ type MutablePackageJson = {
 
 async function runCommand(
 	cmd: string[],
-	options: { cwd: string; env?: Record<string, string | undefined> },
+	options: {
+		cwd: string;
+		env?: Record<string, string | undefined>;
+		captureStdout?: boolean;
+		timeoutMs?: number;
+	},
 ): Promise<string> {
+	const captureStdout = options.captureStdout === true;
+	let timedOut = false;
 	const proc = Bun.spawn(cmd, {
 		cwd: options.cwd,
 		env: {
 			...process.env,
 			...options.env,
 		},
-		stdout: "pipe",
+		stdout: captureStdout ? "pipe" : "inherit",
 		stderr: "inherit",
 	});
-	const exitCode = await proc.exited;
-	const stdout = await new Response(proc.stdout).text();
+	const stdoutPromise =
+		captureStdout && proc.stdout
+			? new Response(proc.stdout).text()
+			: Promise.resolve("");
+	const timeout = setTimeout(
+		() => {
+			timedOut = true;
+			proc.kill();
+		},
+		options.timeoutMs ?? 5 * 60_000,
+	);
+	timeout.unref();
+	const exitCode = await proc.exited.finally(() => clearTimeout(timeout));
+	const stdout = await stdoutPromise;
 	if (exitCode !== 0) {
+		if (timedOut) {
+			throw new Error(
+				`${cmd.join(" ")} timed out after ${options.timeoutMs ?? 5 * 60_000}ms`,
+			);
+		}
 		throw new Error(`${cmd.join(" ")} exited with code ${exitCode}`);
 	}
 	return stdout.trim();
@@ -153,13 +177,16 @@ async function main(): Promise<void> {
 	const npmEnv = { npm_config_cache: npmCacheDir };
 
 	try {
+		console.log("Preparing publishable manifests for Node smoke test...");
 		await preparePublishableManifests();
 
+		console.log("Packing smoke-test tarballs...");
 		const tarballs = {
 			core: requireLastLine(
 				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/core"),
 					env: npmEnv,
+					captureStdout: true,
 				}),
 				"core tarball",
 			),
@@ -167,6 +194,7 @@ async function main(): Promise<void> {
 				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/agents"),
 					env: npmEnv,
+					captureStdout: true,
 				}),
 				"agents tarball",
 			),
@@ -174,6 +202,7 @@ async function main(): Promise<void> {
 				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/llms"),
 					env: npmEnv,
+					captureStdout: true,
 				}),
 				"llms tarball",
 			),
@@ -181,6 +210,7 @@ async function main(): Promise<void> {
 				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
 					cwd: join(root, "packages/shared"),
 					env: npmEnv,
+					captureStdout: true,
 				}),
 				"shared tarball",
 			),
@@ -205,9 +235,11 @@ async function main(): Promise<void> {
 			)}\n`,
 		);
 
+		console.log("Installing smoke-test dependencies...");
 		await runCommand([npmCommand, "install"], {
 			cwd: smokeDir,
 			env: npmEnv,
+			timeoutMs: 10 * 60_000,
 		});
 
 		const nodeMajor = Number(process.versions.node.split(".")[0] || "0");
@@ -216,8 +248,12 @@ async function main(): Promise<void> {
 				? `
 					const { SqliteSessionStore } = await import("@clinebot/core/node");
 					const store = new SqliteSessionStore({ sessionsDir: process.env.CLINE_DATA_DIR });
-					store.init();
-					console.log("SQLite smoke test passed");
+					try {
+						store.init();
+						console.log("SQLite smoke test passed");
+					} finally {
+						store.close();
+					}
 				`
 				: `
 					const { resolveSessionBackend } = await import("@clinebot/core/node");
@@ -233,12 +269,15 @@ async function main(): Promise<void> {
 			].join("\n"),
 		);
 
+		console.log("Running Node smoke probe...");
 		await runCommand(["node", "smoke.mjs"], {
 			cwd: smokeDir,
 			env: {
 				CLINE_DATA_DIR: sessionsDir,
 			},
+			timeoutMs: 60_000,
 		});
+		console.log("Node smoke test passed.");
 	} finally {
 		await restorePublishVerifyBackup().catch(() => {});
 		await rm(packDir, { recursive: true, force: true });
