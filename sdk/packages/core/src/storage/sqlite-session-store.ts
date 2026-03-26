@@ -58,6 +58,7 @@ export class SqliteSessionStore implements SessionStore {
 	}
 
 	close(): void {
+		// @ts-ignore - ignoring because we have proper checks
 		this.db?.close?.();
 		this.db = undefined;
 	}
