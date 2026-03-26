@@ -5,19 +5,15 @@ import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { handleConnectorUserTurn } from "./connector-host";
 
-const authorizeConnectorEventMock = vi.fn<
-	(...args: unknown[]) => Promise<{
-		action: "allow" | "deny";
-		message?: string;
-		reason?: string;
-	}>
->(async () => ({ action: "allow" }));
-const dispatchConnectorHookMock = vi.fn(async () => undefined);
-
 vi.mock("./hooks", () => ({
-	authorizeConnectorEvent: authorizeConnectorEventMock,
-	dispatchConnectorHook: dispatchConnectorHookMock,
+	authorizeConnectorEvent: vi.fn(async () => ({ action: "allow" })),
+	dispatchConnectorHook: vi.fn(async () => undefined),
 }));
+
+// Get references to the mocked functions after the mock is set up
+import { authorizeConnectorEvent, dispatchConnectorHook } from "./hooks";
+const authorizeConnectorEventMock = vi.mocked(authorizeConnectorEvent);
+const dispatchConnectorHookMock = vi.mocked(dispatchConnectorHook);
 
 type TestState = {
 	sessionId?: string;
