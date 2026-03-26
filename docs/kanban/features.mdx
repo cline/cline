@@ -63,6 +63,28 @@ The sidebar chat gives you a conversational interface for managing the board. In
 
 The agent manipulates the board directly based on your instructions.
 
+## Keyboard Shortcuts
+
+Kanban includes keyboard shortcuts for common actions:
+
+| Shortcut | Action |
+|----------|--------|
+| **C** | Create a new task card |
+| **⌘ + click** | Link a card to another card |
+
+<Tip>
+The "C" shortcut works from the main board view. You need at least one project open to create a task.
+</Tip>
+
+## Settings
+
+Open the settings dialog to configure how Kanban behaves. Available settings include:
+
+- **Auto-commit** — toggle whether agents automatically commit changes as they work
+- **Auto-PR** — toggle whether agents automatically create pull requests on completion (requires auto-commit)
+- **Script shortcuts** — define frequently-used commands that appear as buttons on task cards
+- **Project paths** — displayed with `~` instead of full home directory paths for readability
+
 ## Script Shortcuts
 
 Define frequently-used commands (like `npm run dev` or `npm test`) in the Kanban settings. These appear as play buttons on task cards, giving you quick access to run, test, or debug the application within a worktree without switching to a separate terminal.
@@ -89,3 +111,7 @@ Kanban works with CLI-based coding agents. It uses experimental features that by
 ## Resume Tasks
 
 When you move a card to trash, the worktree is cleaned up but Kanban saves a **resume ID**. If you need to continue work on a trashed task, you can use this ID to pick up where you left off without starting from scratch.
+
+## Remote Config Gating
+
+For teams and organizations, Kanban access can be gated via Cline remote config. This allows administrators to control who can access the Kanban board within their organization, enabling phased rollouts or restricting access to specific teams.
