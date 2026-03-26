@@ -326,7 +326,14 @@ function getNotificationTemplate(): string {
 #     event: string,
 #     source: string,
 #     message: string,
-#     waitingForUserInput: boolean
+#     waitingForUserInput: boolean,
+#     eventVersion: string,
+#     eventId: string,
+#     messageTruncated: boolean,
+#     sourceType: string,
+#     sourceId: string,
+#     requiresUserAction: boolean,
+#     severity: string
 #   },
 #   clineVersion,
 #   timestamp,
@@ -337,6 +344,11 @@ function getNotificationTemplate(): string {
 # Typical events:
 # - user_attention (ask prompt requiring user input)
 # - task_complete (task reached completion)
+#
+# Notification hooks are observation-only:
+# - cancel is ignored by the caller
+# - contextModification is ignored by the caller
+# - hook failures are non-fatal
 
 INPUT=$(cat)
 
@@ -344,13 +356,21 @@ if command -v jq &> /dev/null; then
   EVENT=$(echo "$INPUT" | jq -r '.notification.event // "unknown"')
   SOURCE=$(echo "$INPUT" | jq -r '.notification.source // "unknown"')
   WAITING=$(echo "$INPUT" | jq -r '.notification.waitingForUserInput // false')
+  EVENT_VERSION=$(echo "$INPUT" | jq -r '.notification.eventVersion // "unknown"')
+  SOURCE_TYPE=$(echo "$INPUT" | jq -r '.notification.sourceType // "unknown"')
+  REQUIRES_ACTION=$(echo "$INPUT" | jq -r '.notification.requiresUserAction // false')
+  SEVERITY=$(echo "$INPUT" | jq -r '.notification.severity // "info"')
 else
   EVENT="unknown"
   SOURCE="unknown"
   WAITING="false"
+  EVENT_VERSION="unknown"
+  SOURCE_TYPE="unknown"
+  REQUIRES_ACTION="false"
+  SEVERITY="info"
 fi
 
-echo "[Notification] event=$EVENT source=$SOURCE waitingForUserInput=$WAITING" >&2
+echo "[Notification] event=$EVENT source=$SOURCE sourceType=$SOURCE_TYPE waitingForUserInput=$WAITING requiresUserAction=$REQUIRES_ACTION severity=$SEVERITY eventVersion=$EVENT_VERSION" >&2
 
 echo "{\"cancel\":false,\"contextModification\":\"\",\"errorMessage\":\"\"}"
 `

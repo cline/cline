@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert"
+import * as NotificationHook from "@core/hooks/notification-hook"
 import { Task } from "@core/task"
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, it } from "mocha"
@@ -22,6 +23,12 @@ function createFakeTask(taskState: {
 
 	const fakeTask = {
 		taskState,
+		api: { getModel: () => ({ id: "test-model" }) },
+		stateManager: {
+			getGlobalSettingsKey: (key: string) => (key === "hooksEnabled" ? false : "act"),
+			getApiConfiguration: () => ({ actModeApiProvider: "anthropic", planModeApiProvider: "anthropic" }),
+		},
+		taskId: "task-1",
 		messageStateHandler: {
 			addToClineMessages: async (message: ClineMessage) => {
 				clineMessages.push(message)
@@ -29,7 +36,6 @@ function createFakeTask(taskState: {
 			getClineMessages: () => clineMessages,
 		},
 		postStateToWebview: async () => undefined,
-		runNotificationHook: async () => undefined,
 	}
 
 	return { clineMessages, fakeTask }
@@ -188,6 +194,86 @@ describe("Task.ask", () => {
 			await clock.tickAsync(100)
 			await rejectionPromise
 		} finally {
+			clock.restore()
+		}
+	})
+
+	it("emits notification hooks for non-command_output asks", async () => {
+		const clock = sinon.useFakeTimers()
+		const notificationStub = sinon.stub(NotificationHook, "emitUserAttentionNotification").resolves()
+		const taskState: {
+			abort: boolean
+			askResponse: string | undefined
+			askResponseText: string | undefined
+			askResponseImages: string[] | undefined
+			askResponseFiles: string[] | undefined
+			lastMessageTs: number | undefined
+		} = {
+			abort: false,
+			askResponse: undefined,
+			askResponseText: undefined,
+			askResponseImages: undefined,
+			askResponseFiles: undefined,
+			lastMessageTs: undefined,
+		}
+		const { fakeTask } = createFakeTask(taskState)
+
+		try {
+			const askPromise = (
+				Task.prototype as unknown as {
+					ask: (type: "completion_result", text?: string) => Promise<{ response: string }>
+				}
+			).ask.call(fakeTask, "completion_result", "Need approval")
+
+			await flushMicrotasks()
+			sinon.assert.calledOnce(notificationStub)
+			assert.equal(notificationStub.firstCall.args[1].source, "completion_result")
+			assert.equal(notificationStub.firstCall.args[1].message, "Need approval")
+
+			taskState.askResponse = "yesButtonClicked"
+			await clock.tickAsync(100)
+			await askPromise
+		} finally {
+			notificationStub.restore()
+			clock.restore()
+		}
+	})
+
+	it("skips notification hooks for command_output asks", async () => {
+		const clock = sinon.useFakeTimers()
+		const notificationStub = sinon.stub(NotificationHook, "emitUserAttentionNotification").resolves()
+		const taskState: {
+			abort: boolean
+			askResponse: string | undefined
+			askResponseText: string | undefined
+			askResponseImages: string[] | undefined
+			askResponseFiles: string[] | undefined
+			lastMessageTs: number | undefined
+		} = {
+			abort: false,
+			askResponse: undefined,
+			askResponseText: undefined,
+			askResponseImages: undefined,
+			askResponseFiles: undefined,
+			lastMessageTs: undefined,
+		}
+		const { fakeTask } = createFakeTask(taskState)
+
+		try {
+			const askPromise = (
+				Task.prototype as unknown as {
+					ask: (type: "command_output", text?: string) => Promise<{ response: string }>
+				}
+			).ask.call(fakeTask, "command_output", "stream update")
+
+			await flushMicrotasks()
+			sinon.assert.notCalled(notificationStub)
+
+			taskState.askResponse = "yesButtonClicked"
+			await clock.tickAsync(100)
+			await askPromise
+		} finally {
+			notificationStub.restore()
 			clock.restore()
 		}
 	})
