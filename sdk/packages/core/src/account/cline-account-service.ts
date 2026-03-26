@@ -6,6 +6,7 @@ import type {
 	ClineAccountPaymentTransaction,
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
+	ClineOrganization,
 	UserRemoteConfigResponse,
 } from "./types";
 
@@ -100,6 +101,18 @@ export class ClineAccountService {
 	public async fetchUserOrganizations(): Promise<ClineAccountOrganization[]> {
 		const me = await this.fetchMe();
 		return me.organizations ?? [];
+	}
+
+	public async fetchOrganization(
+		organizationId: string,
+	): Promise<ClineOrganization> {
+		const orgId = organizationId.trim();
+		if (!orgId) {
+			throw new Error("organizationId is required");
+		}
+		return this.request<ClineOrganization>(
+			`/api/v1/organizations/${encodeURIComponent(orgId)}`,
+		);
 	}
 
 	public async fetchOrganizationBalance(

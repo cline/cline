@@ -76,6 +76,7 @@ export {
 	type ClineAccountServiceOptions,
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
+	type ClineOrganization,
 	executeRpcClineAccountAction,
 	isRpcClineAccountActionRequest,
 	RpcClineAccountService,
