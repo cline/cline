@@ -657,15 +657,19 @@ async function initializeCli(options: InitOptions): Promise<CliContext> {
 			DATA_DIR,
 		)
 	}
+	if (!StateManager.isInitialized()) {
+		await StateManager.initialize(storageContext)
+	}
 
-	await StateManager.initialize(storageContext)
-	await ErrorService.initialize()
+	if (!ErrorService.isInitialized()) {
+		await ErrorService.initialize()
+
+		await telemetryService.captureExtensionActivated()
+		await telemetryService.captureHostEvent("cline_cli", "initialized")
+	}
 
 	const webview = HostProvider.get().createWebviewProvider() as CliWebviewProvider
 	const controller = webview.controller
-
-	await telemetryService.captureExtensionActivated()
-	await telemetryService.captureHostEvent("cline_cli", "initialized")
 
 	const ctx = { extensionContext, dataDir: DATA_DIR, extensionDir: EXTENSION_DIR, workspacePath, controller }
 	activeContext = ctx
