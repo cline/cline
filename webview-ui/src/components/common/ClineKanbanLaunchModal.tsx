@@ -1,7 +1,7 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
-import kanbanDemoVideo from "@/assets/cline_kanban_demo.mp4"
+import kanbanDemoVideo from "@/assets/cline_kanban_demo.webm"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
