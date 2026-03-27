@@ -45,8 +45,7 @@
 		}
 	},
 	"files": [
-		"dist",
-		"src"
+		"dist"
 	],
 	"peerDependenciesMeta": {
 		"@aws-sdk/client-bedrock-runtime": {

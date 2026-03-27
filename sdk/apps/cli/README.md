@@ -30,7 +30,7 @@ Quick Start:
 bun install
 bun run build
 
-bun run dev:cli # Run Dev script for the CLI package 
+bun run cli # Run Dev script for the CLI package 
 # or
 bun run -F @clinebot/cli dev "your prompt" # Run the CLI from the package workspace
 # or

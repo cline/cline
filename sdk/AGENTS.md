@@ -67,7 +67,8 @@ All data is rooted at `~/.cline/data` (overridable via `CLINE_DATA_DIR`).
 
 ### Essential Commands
 - `bun run build`: Build SDK and CLI.
-- `bun run dev`: Build SDK and run CLI interactively.
+- `bun run dev`: Build SDK and CLI in development mode.
+- `bun run cli`: Run CLI interactively.
 - `bun run test`: Run the Vitest suite.
 - `bun run lint / format / fix`: Code quality and formatting.
 

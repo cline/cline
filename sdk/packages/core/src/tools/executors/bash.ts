@@ -18,7 +18,7 @@ import type { BashExecutor, WindowsShellExecutor } from "../types.js";
 export interface BashExecutorOptions {
 	/**
 	 * Shell to use for execution
-	 * @default "/bin/bash" on Unix, "powershell" on Windows
+	 * @default getDefaultShell(process.platform) — "/bin/bash" on Unix, "powershell" on Windows
 	 */
 	shell?: string;
 
@@ -180,7 +180,7 @@ export function createBashExecutor(
 	options: BashExecutorOptions = {},
 ): BashExecutor {
 	const {
-		shell = "/bin/bash",
+		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,
 		maxOutputBytes = 1_000_000,
 		env = {},
@@ -191,7 +191,7 @@ export function createBashExecutor(
 		spawnAndCollect(
 			{
 				executable: shell,
-				args: process.platform === "win32" ? ["/c", command] : ["-c", command],
+				args: getShellArgs(shell, command),
 				cwd,
 				env,
 			},

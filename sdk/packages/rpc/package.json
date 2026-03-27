@@ -24,8 +24,7 @@
 		}
 	},
 	"files": [
-		"dist",
-		"src"
+		"dist"
 	],
 	"scripts": {
 		"build": "bun run generate:proto && bun run bun.mts && bun tsc --emitDeclarationOnly",

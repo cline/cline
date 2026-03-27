@@ -8,7 +8,8 @@
 		"esModuleInterop": true,
 		"skipLibCheck": true,
 		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true
+		"resolveJsonModule": true,
+		"customConditions": ["development"]
 	},
 	"include": ["**/*.ts", "**/*.tsx", "**/bun.mts"],
 	"exclude": ["node_modules", "**/dist/**", "**/.next/**"]

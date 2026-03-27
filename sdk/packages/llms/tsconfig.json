@@ -1,23 +1,10 @@
 {
+	"extends": "../tsconfig.base.json",
 	"compilerOptions": {
-		"target": "ES2022",
-		"module": "ESNext",
-		"moduleResolution": "bundler",
-		"incremental": true,
-		"tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo",
-		"lib": ["ES2022"],
-		"declaration": true,
-		"declarationMap": true,
-		"sourceMap": true,
 		"outDir": "./dist",
 		"rootDir": "./src",
-		"strict": true,
-		"esModuleInterop": true,
-		"skipLibCheck": true,
-		"forceConsistentCasingInFileNames": true,
-		"resolveJsonModule": true,
-		"isolatedModules": true,
-		"types": ["node"]
+		"incremental": true,
+		"tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
 	},
 	"include": ["src/**/*"],
 	"exclude": ["node_modules", "dist", "**/*.test.ts"]

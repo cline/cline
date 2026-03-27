@@ -40,8 +40,7 @@
 	},
 	"description": "State-aware orchestration for Cline Agent runtimes",
 	"files": [
-		"dist",
-		"src"
+		"dist"
 	],
 	"scripts": {
 		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",

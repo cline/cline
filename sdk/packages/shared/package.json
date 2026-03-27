@@ -29,8 +29,7 @@
 		}
 	},
 	"files": [
-		"dist",
-		"src"
+		"dist"
 	],
 	"scripts": {
 		"build": "BUILD_MODE=package bun bun.mts",
