@@ -34,6 +34,7 @@ import {
 	configureSandboxEnvironment,
 	resolveWorkspaceRoot,
 } from "./utils/helpers";
+import { getInternalLaunchViolation } from "./utils/internal-launch";
 import {
 	c,
 	installStreamErrorGuards,
@@ -115,6 +116,12 @@ export async function runCli(): Promise<void> {
 
 	let launchConfigView = false;
 	const normalizedArgs = cliArgs;
+	const internalLaunchViolation = getInternalLaunchViolation(normalizedArgs);
+	if (internalLaunchViolation) {
+		writeErr(internalLaunchViolation);
+		process.exitCode = 1;
+		return;
+	}
 
 	// Subcommand routing via Commander
 	const ctx: { exitCode?: number; resumeSessionId?: string } = {};

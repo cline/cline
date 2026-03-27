@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1774491093117,
+	version: 1774632809575,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -3082,6 +3082,34 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-09-05",
 			},
+			"groq/compound": {
+				id: "groq/compound",
+				name: "Compound",
+				contextWindow: 131072,
+				maxTokens: 8192,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2025-09-04",
+			},
+			"groq/compound-mini": {
+				id: "groq/compound-mini",
+				name: "Compound Mini",
+				contextWindow: 131072,
+				maxTokens: 8192,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2025-09-04",
+			},
 			"openai/gpt-oss-120b": {
 				id: "openai/gpt-oss-120b",
 				name: "GPT OSS 120B",
@@ -3120,20 +3148,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-08-05",
 			},
-			"meta-llama/llama-4-maverick-17b-128e-instruct": {
-				id: "meta-llama/llama-4-maverick-17b-128e-instruct",
-				name: "Llama 4 Maverick 17B",
-				contextWindow: 131072,
-				maxTokens: 8192,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
-				pricing: {
-					input: 0.2,
-					output: 0.6,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-04-05",
-			},
 			"meta-llama/llama-4-scout-17b-16e-instruct": {
 				id: "meta-llama/llama-4-scout-17b-16e-instruct",
 				name: "Llama 4 Scout 17B",
@@ -3148,11 +3162,25 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-04-05",
 			},
+			"openai/gpt-oss-safeguard-20b": {
+				id: "openai/gpt-oss-safeguard-20b",
+				name: "Safety GPT OSS 20B",
+				contextWindow: 131072,
+				maxTokens: 65536,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.075,
+					output: 0.3,
+					cacheRead: 0.037,
+					cacheWrite: 0,
+				},
+				releaseDate: "2025-03-05",
+			},
 			"qwen/qwen3-32b": {
 				id: "qwen/qwen3-32b",
 				name: "Qwen3 32B",
 				contextWindow: 131072,
-				maxTokens: 16384,
+				maxTokens: 40960,
 				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
 					input: 0.29,

@@ -11,9 +11,11 @@ import { createRuntimeHooks } from "./hooks";
 
 describe("createRuntimeHooks", () => {
 	const originalArgv = process.argv.slice();
+	const originalEnv = { ...process.env };
 
 	afterEach(() => {
 		process.argv = originalArgv.slice();
+		process.env = { ...originalEnv };
 		vi.restoreAllMocks();
 	});
 
@@ -32,6 +34,16 @@ describe("createRuntimeHooks", () => {
 		const runtimeHooks = createRuntimeHooks({ yolo: false });
 
 		expect(runtimeHooks.hooks).toBeDefined();
+		await expect(runtimeHooks.shutdown()).resolves.toBeUndefined();
+	});
+
+	it("disables runtime hooks for internal hook-worker processes", async () => {
+		process.argv = [process.argv[0] || "node", "/tmp/clite.js"];
+		process.env.CLINE_INTERNAL_ROLE = "hook-worker";
+
+		const runtimeHooks = createRuntimeHooks({ yolo: false });
+
+		expect(runtimeHooks.hooks).toBeUndefined();
 		await expect(runtimeHooks.shutdown()).resolves.toBeUndefined();
 	});
 });

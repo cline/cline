@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { statSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
-import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
+import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@clinebot/core";
 import {
 	createSqliteRpcSessionBackend,
@@ -22,6 +22,10 @@ import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
 import { Command } from "commander";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
+import {
+	buildCliSubcommandCommand,
+	resolveCliLaunchSpec,
+} from "../utils/internal-launch";
 import { createRpcRuntimeHandlers } from "./rpc-runtime";
 
 const c = {
@@ -131,9 +135,7 @@ function parseRpcAddress(address: string): { host: string; port: number } {
 // ---------------------------------------------------------------------------
 
 function resolveRpcEntrypoint(): string | undefined {
-	const entryArg = process.argv[1]?.trim();
-	if (!entryArg) return undefined;
-	return isAbsolute(entryArg) ? entryArg : resolvePath(process.cwd(), entryArg);
+	return resolveCliLaunchSpec()?.identityPath;
 }
 
 function getEntrypointMtimeMs(path: string | undefined): number {
@@ -433,23 +435,16 @@ function spawnRpcStartDetached(address: string, owner: RpcOwnerContext): void {
 	const lease = tryAcquireRpcSpawnLease(address);
 	if (!lease) return;
 
-	const entry = owner.entryPath ?? resolveRpcEntrypoint();
-	if (!entry) {
-		lease.release();
-		throw new Error("unable to resolve CLI entrypoint for detached rpc start");
-	}
-	const conditionsArg = process.execArgv.find((arg) =>
-		arg.startsWith("--conditions="),
-	);
-	const childArgs = [
-		...(conditionsArg ? [conditionsArg] : []),
-		entry,
-		"rpc",
+	const command = buildCliSubcommandCommand("rpc", [
 		"start",
 		"--address",
 		address,
-	];
-	const child = spawn(process.execPath, childArgs, {
+	]);
+	if (!command) {
+		lease.release();
+		throw new Error("unable to resolve CLI entrypoint for detached rpc start");
+	}
+	const child = spawn(command.launcher, command.childArgs, {
 		detached: true,
 		stdio: "ignore",
 		env: {
@@ -463,7 +458,7 @@ function spawnRpcStartDetached(address: string, owner: RpcOwnerContext): void {
 	});
 	logSpawnedProcess({
 		component: "rpc",
-		command: [process.execPath, ...childArgs],
+		command: [command.launcher, ...command.childArgs],
 		childPid: child.pid ?? undefined,
 		detached: true,
 		cwd: process.cwd(),

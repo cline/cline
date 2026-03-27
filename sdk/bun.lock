@@ -30,11 +30,6 @@
         "@chat-adapter/slack": "^4.20.2",
         "@chat-adapter/telegram": "^4.20.2",
         "@chat-adapter/whatsapp": "^4.20.2",
-        "@clinebot/agents": "workspace:*",
-        "@clinebot/core": "workspace:*",
-        "@clinebot/llms": "workspace:*",
-        "@clinebot/rpc": "workspace:*",
-        "@clinebot/shared": "workspace:*",
         "chat": "^4.20.2",
         "commander": "^14.0.3",
         "ink": "^6.8.0",
@@ -46,6 +41,11 @@
         "zod": "^4.1.11",
       },
       "devDependencies": {
+        "@clinebot/agents": "workspace:*",
+        "@clinebot/core": "workspace:*",
+        "@clinebot/llms": "workspace:*",
+        "@clinebot/rpc": "workspace:*",
+        "@clinebot/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
         "@types/react": "19.2.14",
       },
@@ -317,7 +317,7 @@
     },
     "packages/agents": {
       "name": "@clinebot/agents",
-      "version": "0.0.20",
+      "version": "0.0.22",
       "dependencies": {
         "@clinebot/llms": "workspace:*",
         "zod": "^4.3.6",
@@ -328,7 +328,7 @@
     },
     "packages/core": {
       "name": "@clinebot/core",
-      "version": "0.0.20",
+      "version": "0.0.22",
       "dependencies": {
         "@clinebot/agents": "workspace:*",
         "@clinebot/llms": "workspace:*",
@@ -353,7 +353,7 @@
     },
     "packages/llms": {
       "name": "@clinebot/llms",
-      "version": "0.0.20",
+      "version": "0.0.22",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^4.0.67",
         "@ai-sdk/google-vertex": "^4.0.74",
@@ -381,7 +381,7 @@
     },
     "packages/rpc": {
       "name": "@clinebot/rpc",
-      "version": "0.0.20",
+      "version": "0.0.22",
       "dependencies": {
         "@clinebot/scheduler": "workspace:*",
         "@clinebot/shared": "workspace:*",
@@ -391,14 +391,14 @@
     },
     "packages/scheduler": {
       "name": "@clinebot/scheduler",
-      "version": "0.0.20",
+      "version": "0.0.22",
       "dependencies": {
         "@clinebot/shared": "workspace:*",
       },
     },
     "packages/shared": {
       "name": "@clinebot/shared",
-      "version": "0.0.20",
+      "version": "0.0.22",
       "dependencies": {
         "jsonrepair": "^3.13.2",
         "zod": "^4.3.6",

@@ -8,11 +8,12 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { readFile } from "node:fs/promises";
-import { join, resolve as resolvePath } from "node:path";
+import { join } from "node:path";
 import { ensureParentDir, resolveClineDataDir } from "@clinebot/core";
 import type { RpcSessionClient, RpcSessionRow } from "@clinebot/rpc";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
+import { resolveCliLaunchSpec } from "../utils/internal-launch";
 
 export function parseBooleanFlag(rawArgs: string[], flag: string): boolean {
 	return rawArgs.includes(flag);
@@ -103,23 +104,19 @@ function buildDetachedConnectorCommand(
 	execArgv = process.execArgv,
 	cwd = process.cwd(),
 ): { launcher: string; childArgs: string[] } | undefined {
-	const entry = entryArg?.trim();
-	if (!entry) {
+	const spec = resolveCliLaunchSpec({
+		execPath,
+		argv: [process.argv[0] || "node", entryArg ?? ""],
+		execArgv,
+		cwd,
+	});
+	if (!spec) {
 		return undefined;
 	}
-	const resolvedEntry = resolvePath(cwd, entry);
-	if (!existsSync(resolvedEntry)) {
-		return undefined;
-	}
-	const conditionsArg = execArgv.find((arg) => arg.startsWith("--conditions="));
 	const commandArgs = buildDetachedConnectorArgs(commandPrefixArgs, rawArgs);
 	return {
-		launcher: execPath,
-		childArgs: [
-			...(conditionsArg ? [conditionsArg] : []),
-			resolvedEntry,
-			...commandArgs,
-		],
+		launcher: spec.launcher,
+		childArgs: [...spec.childArgsPrefix, ...commandArgs],
 	};
 }
 

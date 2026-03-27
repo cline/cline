@@ -15,8 +15,8 @@
 		"dist"
 	],
 	"scripts": {
-		"build": "rm -rf dist && bun run --production bun.mts",
-		"build:binary": "bun build ./src/index.ts --compile --outfile ./dist/clite --external @anthropic-ai/vertex-sdk",
+		"build": "rm -rf dist && bun run bun.mts",
+		"build:binary": "bun build --compile ./src/index.ts --compile --outfile ./dist/cline",
 		"build:tgz": "bun run build && bun pm pack --destination ./dist",
 		"dev": "bun ./src/index.ts",
 		"clean": "rm -rf dist node_modules",
@@ -27,8 +27,7 @@
 		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",
 		"test:watch": "vitest --config vitest.config.ts",
 		"test:e2e:cli:tui": "cd src/tests && tui-test",
-		"pack": "bun ./scripts/deps.mts",
-		"release": "bun run build && bun run pack prepare && npm publish --access public && bun run pack restore",
+		"release": "bun run build && bun publish --access public",
 		"link": "bun unlink && bun link"
 	},
 	"dependencies": {
@@ -38,11 +37,6 @@
 		"@chat-adapter/slack": "^4.20.2",
 		"@chat-adapter/telegram": "^4.20.2",
 		"@chat-adapter/whatsapp": "^4.20.2",
-		"@clinebot/agents": "workspace:*",
-		"@clinebot/core": "workspace:*",
-		"@clinebot/llms": "workspace:*",
-		"@clinebot/rpc": "workspace:*",
-		"@clinebot/shared": "workspace:*",
 		"chat": "^4.20.2",
 		"commander": "^14.0.3",
 		"ink": "^6.8.0",
@@ -55,6 +49,11 @@
 	},
 	"license": "Apache-2.0",
 	"devDependencies": {
+		"@clinebot/agents": "workspace:*",
+		"@clinebot/core": "workspace:*",
+		"@clinebot/llms": "workspace:*",
+		"@clinebot/rpc": "workspace:*",
+		"@clinebot/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",
 		"@types/react": "19.2.14"
 	}
