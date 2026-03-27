@@ -160,6 +160,10 @@ export class ClineAccountService {
 		}
 	}
 
+	/**
+	 * Fetches a short-lived Featurebase SSO JWT for the current user
+	 * @returns FeaturebaseTokenResponse or undefined if failed
+	 */
 	async fetchFeaturebaseToken(): Promise<FeaturebaseTokenResponse | undefined> {
 		try {
 			const data = await this.authenticatedRequest<FeaturebaseTokenResponse>(CLINE_API_ENDPOINT.FEATUREBASE_TOKEN)
