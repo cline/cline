@@ -2,6 +2,7 @@ import type { ToolUse } from "@core/assistant-message"
 import { formatResponse } from "@core/prompts/responses"
 import type { PsiServiceClientInterface } from "@generated/hosts/host-bridge-client-types"
 import * as proto from "@shared/proto/index"
+import "@utils/path" // Import for toPosix() String prototype extension
 import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { telemetryService } from "@/services/telemetry"
@@ -462,17 +463,19 @@ function formatReferenceTable(referencedSymbols: Map<string, RefSymbol>): string
 
 function shortenPath(filePath: string): string {
 	if (!filePath) return ""
+	// Normalize to POSIX separators for consistent cross-platform display
+	const normalized = filePath.toPosix()
 	// Try to find src/ and show from there
-	const srcIdx = filePath.indexOf("/src/")
+	const srcIdx = normalized.indexOf("/src/")
 	if (srcIdx >= 0) {
-		return "src/" + filePath.substring(srcIdx + 5)
+		return "src/" + normalized.substring(srcIdx + 5)
 	}
 	// Otherwise try just the filename parts
-	const parts = filePath.split("/")
+	const parts = normalized.split("/")
 	if (parts.length > 3) {
 		return ".../" + parts.slice(-3).join("/")
 	}
-	return filePath
+	return normalized
 }
 
 function addRefSymbol(map: Map<string, RefSymbol>, name: string, kind: string, filePath: string, line: number): void {
