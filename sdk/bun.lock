@@ -314,8 +314,10 @@
       "version": "0.0.20",
       "dependencies": {
         "@clinebot/llms": "workspace:*",
-        "@clinebot/shared": "workspace:*",
         "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@clinebot/shared": "workspace:*",
       },
     },
     "packages/core": {
@@ -324,8 +326,6 @@
       "dependencies": {
         "@clinebot/agents": "workspace:*",
         "@clinebot/llms": "workspace:*",
-        "@clinebot/rpc": "workspace:*",
-        "@clinebot/shared": "workspace:*",
         "@opentelemetry/api": "^1.9.0",
         "@opentelemetry/api-logs": "^0.56.0",
         "@opentelemetry/exporter-logs-otlp-http": "^0.56.0",
@@ -339,6 +339,10 @@
         "simple-git": "^3.32.3",
         "yaml": "^2.8.2",
         "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@clinebot/rpc": "workspace:*",
+        "@clinebot/shared": "workspace:*",
       },
     },
     "packages/llms": {

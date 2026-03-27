@@ -9,8 +9,10 @@
 	"main": "dist/index.js",
 	"dependencies": {
 		"@clinebot/llms": "workspace:*",
-		"@clinebot/shared": "workspace:*",
 		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@clinebot/shared": "workspace:*"
 	},
 	"exports": {
 		".": {

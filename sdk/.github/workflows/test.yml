@@ -99,4 +99,4 @@ jobs:
 
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
-              run: bun scripts/version.ts 0.0.0-verify --check
+              run: bun scripts/check-publish.ts

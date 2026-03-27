@@ -78,17 +78,18 @@ Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs
 ### Publishing SDK Packages
 - Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly, even when some of those dependencies are bundled out of the published tarballs.
 - `bun scripts/version.ts <version>` updates all workspace package versions in place.
-- `bun scripts/version.ts <version> --check` packs the publishable packages with `bun pm pack`, installs them together in an isolated temp directory, and verifies imports.
+- `bun scripts/check-publish.ts` packs the publishable packages with `bun pm pack`, installs them together in an isolated temp directory, and verifies imports.
 - `bun publish` resolves `workspace:*` dependencies to concrete versions when it packs the tarball, so the source manifests can keep workspace protocol references.
 - Local publish flow:
   - `bun run build`
   - `bun run test`
-  - `bun scripts/version.ts <version> --check`
+  - `bun scripts/version.ts <version>`
+  - `bun scripts/check-publish.ts`
   - `cd packages/shared && bun publish`
   - `cd ../llms && bun publish`
   - `cd ../agents && bun publish`
   - `cd ../core && bun publish`
-- CI publish flow in `.github/workflows/publish-sdk.yaml` runs `version.ts --check` and then publishes `shared -> llms -> agents -> core` with `bun publish`.
+- CI publish flow in `.github/workflows/publish-sdk.yaml` runs `version.ts`, then `check:publish`, and then publishes `shared -> llms -> agents -> core` with `bun publish`.
 
 ### Change Routing
 - **Model/Provider schemas**: `@clinebot/llms`
