@@ -8,7 +8,7 @@ import {
 	DefaultSessionManager,
 	type LlmsProviders,
 	SqliteSessionStore,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { type RpcRuntimeHandlers, RpcSessionClient } from "@clinebot/rpc";
 import {
 	CLINE_DEFAULT_RPC_ADDRESS,

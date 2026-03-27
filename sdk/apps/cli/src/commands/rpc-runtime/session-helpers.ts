@@ -3,16 +3,17 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import type { AgentHooks } from "@clinebot/agents";
 import {
+	type DefaultSessionManager,
 	LlmsProviders,
 	type RpcChatMessage,
 	type RpcChatRunTurnRequest,
 	type RpcChatRuntimeConfigBase,
 	type RpcChatStartSessionRequest,
 	type RpcChatTurnResult,
+	SessionSource,
 	setHomeDir,
 	setHomeDirIfUnset,
 } from "@clinebot/core";
-import { type DefaultSessionManager, SessionSource } from "@clinebot/core/node";
 import { createCliLoggerAdapter } from "../../logging/adapter";
 import { resolveSystemPrompt } from "../../runtime/prompt";
 import { getCliTelemetryService } from "../../utils/telemetry";

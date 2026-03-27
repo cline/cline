@@ -15,7 +15,7 @@ import {
 	resolveWorkflowsConfigSearchPaths,
 	type SkillConfig,
 	type WorkflowConfig,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { Command } from "commander";
 import type { CliOutputMode } from "../utils/types";
 

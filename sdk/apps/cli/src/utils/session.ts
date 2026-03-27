@@ -27,7 +27,7 @@ import {
 	type SessionBackend,
 	type SessionManifest,
 	SessionSource,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { getRpcServerDefaultAddress, RpcSessionClient } from "@clinebot/rpc";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { getCliTelemetryService } from "./telemetry";
@@ -52,18 +52,18 @@ function resolveSessionBackendMode(): "auto" | "rpc" | "local" {
 
 export interface CliSessionManager {
 	start(input: {
-		config: import("@clinebot/core/node").CoreSessionConfig & {
+		config: import("@clinebot/core").CoreSessionConfig & {
 			loggerConfig?: RpcChatRuntimeLoggerConfig;
 		};
-		source?: import("@clinebot/core/node").SessionSource;
+		source?: import("@clinebot/core").SessionSource;
 		prompt?: string;
 		interactive?: boolean;
 		initialMessages?: LlmsProviders.Message[];
 		userImages?: string[];
 		userFiles?: string[];
-		userInstructionWatcher?: import("@clinebot/core/node").UserInstructionConfigWatcher;
+		userInstructionWatcher?: import("@clinebot/core").UserInstructionConfigWatcher;
 		onTeamRestored?: () => void;
-		defaultToolExecutors?: Partial<import("@clinebot/core/node").ToolExecutors>;
+		defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
 		toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
 		requestToolApproval?: (
 			request: import("@clinebot/agents").ToolApprovalRequest,
@@ -137,7 +137,7 @@ export async function getCoreSessionBackend(): Promise<SessionBackend> {
 }
 
 export async function createDefaultCliSessionManager(options?: {
-	defaultToolExecutors?: Partial<import("@clinebot/core/node").ToolExecutors>;
+	defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
 	toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
 	logger?: BasicLogger;
 	requestToolApproval?: (
@@ -443,9 +443,7 @@ function resolveTextDelta(
 function createRpcRuntimeCliSessionManager(
 	options:
 		| {
-				defaultToolExecutors?: Partial<
-					import("@clinebot/core/node").ToolExecutors
-				>;
+				defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
 				toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
 				requestToolApproval?: (
 					request: ToolApprovalRequest,

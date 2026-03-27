@@ -5,10 +5,9 @@
 		"moduleResolution": "bundler",
 		"paths": {
 			"@clinebot/agents": ["../../packages/agents/src/index.ts"],
-			"@clinebot/core": ["../../packages/core/src/index.node.ts"],
-			"@clinebot/core/node": ["../../packages/core/src/index.node.ts"],
-			"@clinebot/core/telemetry/opentelemetry": [
-				"../../packages/core/src/telemetry/opentelemetry.ts"
+			"@clinebot/core": ["../../packages/core/src/index.ts"],
+			"@clinebot/core/telemetry": [
+				"../../packages/core/src/telemetry/index.ts"
 			],
 			"@clinebot/llms": ["../../packages/llms/src/index.ts"],
 			"@clinebot/llms/models": ["../../packages/llms/src/models.ts"],

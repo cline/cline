@@ -5,7 +5,7 @@ import {
 	LlmsProviders,
 	listLocalProviders,
 	type ProviderSettingsManager,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { Command } from "commander";
 import { Box, render, Text, useApp, useInput } from "ink";
 import open from "open";
@@ -93,7 +93,7 @@ let cachedCoreOAuthApi: Promise<CoreOAuthApi> | undefined;
 
 async function getCoreOAuthApi(): Promise<CoreOAuthApi> {
 	if (!cachedCoreOAuthApi) {
-		cachedCoreOAuthApi = import("@clinebot/core/node").then((module) => {
+		cachedCoreOAuthApi = import("@clinebot/core").then((module) => {
 			const runtimeApi = module as Partial<CoreOAuthApi>;
 			if (
 				typeof runtimeApi.loginClineOAuth !== "function" ||

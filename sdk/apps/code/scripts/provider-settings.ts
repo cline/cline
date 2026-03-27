@@ -7,7 +7,7 @@ import {
 	listLocalProviders,
 	ProviderSettingsManager,
 	saveLocalProviderSettings,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 
 function readStdin(): string {
 	return readFileSync(0, "utf8");

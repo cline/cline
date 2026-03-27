@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { resolveClineDataDir } from "@clinebot/core/node";
+import { resolveClineDataDir } from "@clinebot/core";
 import { Command, CommanderError } from "commander";
 import {
 	isProcessRunning,

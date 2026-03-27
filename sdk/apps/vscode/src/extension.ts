@@ -3,19 +3,17 @@ import { join } from "node:path";
 import { getClineDefaultSystemPrompt } from "@clinebot/agents";
 import {
 	type BasicLogger,
+	buildWorkspaceMetadata,
+	createSessionHost,
 	type ITelemetryService,
 	LlmsModels as llmModels,
 	LlmsProviders as llmProviders,
 	ProviderSettingsManager,
 	type RpcProviderModel,
+	type SessionHost,
 	type ToolPolicy,
 } from "@clinebot/core";
-import {
-	buildWorkspaceMetadata,
-	createSessionHost,
-	type SessionHost,
-} from "@clinebot/core/node";
-import { createConfiguredTelemetryService } from "@clinebot/core/telemetry/opentelemetry";
+import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
 import {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,

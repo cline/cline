@@ -13,7 +13,7 @@ const ensureRpcRuntimeAddress = vi.fn();
 
 class MockRpcCoreSessionService {}
 
-vi.mock("@clinebot/core/node", () => ({
+vi.mock("@clinebot/core", () => ({
 	RpcCoreSessionService: MockRpcCoreSessionService,
 	resolveSessionBackend,
 	createSessionHost: vi.fn(),

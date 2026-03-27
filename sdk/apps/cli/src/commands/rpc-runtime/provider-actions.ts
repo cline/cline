@@ -16,7 +16,7 @@ import {
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 
 export async function runProviderAction(
 	request: RpcProviderActionRequest,

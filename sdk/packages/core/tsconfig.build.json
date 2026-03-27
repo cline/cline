@@ -2,16 +2,11 @@
 	"extends": "./tsconfig.json",
 	"compilerOptions": {
 		"declaration": true,
-		"declarationMap": true,
 		"emitDeclarationOnly": true,
 		"sourceMap": false,
 		"outDir": "./dist",
 		"rootDir": "./src",
 		"incremental": false
 	},
-	"include": [
-		"src/index.ts",
-		"src/index.node.ts",
-		"src/telemetry/opentelemetry.ts"
-	]
+	"include": ["src/index.ts", "src/telemetry/index.ts"]
 }

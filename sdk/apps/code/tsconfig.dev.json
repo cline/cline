@@ -3,8 +3,7 @@
 	"compilerOptions": {
 		"paths": {
 			"@/*": ["./*"],
-			"@clinebot/core": ["../../packages/core/src/index.node.ts"],
-			"@clinebot/core/node": ["../../packages/core/src/index.node.ts"],
+			"@clinebot/core": ["../../packages/core/src/index.ts"],
 			"@clinebot/rpc": ["../../packages/rpc/src/index.ts"],
 			"@clinebot/shared": ["../../packages/shared/src/index.ts"],
 			"@clinebot/shared/storage": [

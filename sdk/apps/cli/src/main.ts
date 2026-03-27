@@ -66,13 +66,13 @@ function mergeToolPolicies(
 }
 
 async function createProviderSettingsManager() {
-	const { ProviderSettingsManager } = await import("@clinebot/core/node");
+	const { ProviderSettingsManager } = await import("@clinebot/core");
 	return new ProviderSettingsManager();
 }
 
 async function loadCliRuntimeModules() {
 	const [coreServer, providers, prompt, runAgentModule] = await Promise.all([
-		import("@clinebot/core/node"),
+		import("@clinebot/core"),
 		import("@clinebot/llms/providers"),
 		import("./runtime/prompt"),
 		import("./runtime/run-agent"),

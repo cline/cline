@@ -57,9 +57,7 @@
 									"!@clinebot/llms/providers/*",
 									"!@clinebot/agents/node",
 									"!@clinebot/agents/browser",
-									"!@clinebot/core/node",
-									"!@clinebot/core/node/*",
-									"!@clinebot/core/telemetry/opentelemetry",
+									"!@clinebot/core/telemetry",
 									"!@clinebot/shared/storage",
 									"!@clinebot/shared/db"
 								],

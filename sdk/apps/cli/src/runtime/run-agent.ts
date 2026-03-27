@@ -4,7 +4,7 @@ import {
 	prewarmFileIndex,
 	SessionSource,
 	type UserInstructionConfigWatcher,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { askQuestionInTerminal, requestToolApproval } from "../utils/approval";
 import { handleEvent, handleTeamEvent } from "../utils/events";
 import { createRuntimeHooks } from "../utils/hooks";

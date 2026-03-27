@@ -1,7 +1,40 @@
 {
 	"name": "@clinebot/core",
+	"description": "Cline Core SDK for Node Runtime",
 	"version": "0.0.22",
-	"main": "./dist/index.node.js",
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"development": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./node": {
+			"development": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./telemetry": {
+			"development": "./src/telemetry/index.ts",
+			"types": "./dist/telemetry/index.d.ts",
+			"import": "./dist/telemetry/index.js"
+		}
+	},
+	"scripts": {
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"clean": "rm -rf dist node_modules",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "bun run test:unit && bun run test:e2e",
+		"test:unit": "vitest run --config vitest.config.ts",
+		"test:e2e": "vitest run --config vitest.e2e.config.ts",
+		"test:watch": "vitest --config vitest.config.ts"
+	},
 	"dependencies": {
 		"@clinebot/agents": "workspace:*",
 		"@clinebot/llms": "workspace:*",
@@ -23,39 +56,11 @@
 		"@clinebot/rpc": "workspace:*",
 		"@clinebot/shared": "workspace:*"
 	},
-	"exports": {
-		".": {
-			"development": "./dist/index.node.js",
-			"types": "./dist/index.node.d.ts",
-			"import": "./dist/index.node.js"
-		},
-		"./node": {
-			"development": "./src/index.node.ts",
-			"types": "./dist/index.node.d.ts",
-			"import": "./dist/index.node.js"
-		},
-		"./telemetry/opentelemetry": {
-			"development": "./src/telemetry/opentelemetry.ts",
-			"types": "./dist/telemetry/opentelemetry.d.ts",
-			"import": "./dist/telemetry/opentelemetry.js"
-		}
-	},
-	"description": "State-aware orchestration for Cline Agent runtimes",
-	"files": [
-		"dist"
-	],
-	"scripts": {
-		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
-		"clean": "rm -rf dist node_modules",
-		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
-		"test": "bun run test:unit && bun run test:e2e",
-		"test:unit": "vitest run --config vitest.config.ts",
-		"test:e2e": "vitest run --config vitest.e2e.config.ts",
-		"test:watch": "vitest --config vitest.config.ts"
-	},
 	"engines": {
 		"node": ">=20"
 	},
-	"type": "module",
-	"types": "./dist/index.node.d.ts"
+	"files": [
+		"dist",
+		"src"
+	]
 }

@@ -64,7 +64,7 @@ vi.mock("./runtime/run-interactive", () => {
 	};
 });
 vi.mock("./utils/session", () => sessionMocks);
-vi.mock("@clinebot/core/node", () => ({
+vi.mock("@clinebot/core", () => ({
 	createTeamName: vi.fn(() => "team-test"),
 	createUserInstructionConfigWatcher: vi.fn(() => ({
 		start: vi.fn(async () => {}),

@@ -1,6 +1,6 @@
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
-import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
+import { createUserInstructionConfigWatcher } from "@clinebot/core";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
 import type {
 	ConnectSlackOptions,

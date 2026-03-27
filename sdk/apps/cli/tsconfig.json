@@ -9,10 +9,9 @@
 			"@clinebot/agents/browser": [
 				"../../packages/agents/src/index.browser.ts"
 			],
-			"@clinebot/core": ["../../packages/core/src/index.node.ts"],
-			"@clinebot/core/node": ["../../packages/core/src/index.node.ts"],
-			"@clinebot/core/telemetry/opentelemetry": [
-				"../../packages/core/src/telemetry/opentelemetry.ts"
+			"@clinebot/core": ["../../packages/core/src/index.ts"],
+			"@clinebot/core/telemetry": [
+				"../../packages/core/src/telemetry/index.ts"
 			],
 			"@clinebot/rpc": ["../../packages/rpc/src/index.ts"],
 			"@clinebot/llms": ["../../packages/llms/src/index.ts"],

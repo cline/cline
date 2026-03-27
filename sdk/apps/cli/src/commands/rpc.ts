@@ -4,11 +4,11 @@ import { statSync } from "node:fs";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { createServer } from "node:net";
 import { dirname, join } from "node:path";
-import { resolveClineDataDir } from "@clinebot/core";
 import {
 	createSqliteRpcSessionBackend,
+	resolveClineDataDir,
 	tryAcquireRpcSpawnLease,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import {
 	getRpcServerHealth,
 	RPC_PROTOCOL_VERSION,

@@ -2,7 +2,7 @@ import {
 	type AgentExtensionCommand,
 	createContributionRegistry,
 } from "@clinebot/agents";
-import { resolveAndLoadAgentPlugins } from "@clinebot/core/node";
+import { resolveAndLoadAgentPlugins } from "@clinebot/core";
 import {
 	type ChatCommandDefinition,
 	type ChatCommandHost,

@@ -12,8 +12,11 @@
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
  */
 
-import { type AgentConfig, createTool } from "@clinebot/agents";
-import { createSessionHost } from "@clinebot/core";
+import {
+	type AgentConfig,
+	createSessionHost,
+	createTool,
+} from "@clinebot/core";
 
 type Plugin = NonNullable<AgentConfig["extensions"]>[number];
 

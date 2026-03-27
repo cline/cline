@@ -6,7 +6,7 @@ import {
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	saveLocalProviderOAuthCredentials,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 
 type RequestBody = {
 	provider: string;

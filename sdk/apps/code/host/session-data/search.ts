@@ -1,4 +1,4 @@
-import { getFileIndex } from "@clinebot/core/node";
+import { getFileIndex } from "@clinebot/core";
 import type { HostContext } from "../types";
 
 export function searchWorkspaceFiles(

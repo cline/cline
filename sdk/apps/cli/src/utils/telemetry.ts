@@ -1,5 +1,5 @@
 import { LoggerTelemetryAdapter } from "@clinebot/core";
-import { createConfiguredTelemetryService } from "@clinebot/core/telemetry/opentelemetry";
+import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
 import {
 	type BasicLogger,
 	createClineTelemetryServiceConfig,

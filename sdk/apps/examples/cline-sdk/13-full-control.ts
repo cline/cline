@@ -12,8 +12,13 @@
 
 import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
-import type { AgentConfig, Tool, ToolContext } from "@clinebot/agents";
-import { createSessionHost, type ToolExecutors } from "@clinebot/core";
+import {
+	type AgentConfig,
+	createSessionHost,
+	type Tool,
+	type ToolContext,
+	type ToolExecutors,
+} from "@clinebot/core";
 
 const exec = promisify(execCb);
 
@@ -84,10 +89,11 @@ const hooks: NonNullable<AgentConfig["hooks"]> = {
 
 const executors: Partial<ToolExecutors> = {
 	bash: async (command, cwd) => {
-		if (command.includes("rm -rf") || command.includes("sudo")) {
-			throw new Error(`Blocked unsafe command: ${command}`);
+		const cmd = typeof command === "string" ? command : command.command;
+		if (cmd.includes("rm -rf") || cmd.includes("sudo")) {
+			throw new Error(`Blocked unsafe command: ${cmd}`);
 		}
-		const { stdout, stderr } = await exec(command, { cwd, timeout: 30_000 });
+		const { stdout, stderr } = await exec(cmd, { cwd, timeout: 30_000 });
 		return stderr ? `stdout:\n${stdout}\n\nstderr:\n${stderr}` : stdout;
 	},
 };

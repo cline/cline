@@ -4,7 +4,7 @@ import {
 	type LlmsProviders,
 	listAvailableRuntimeCommandsFromWatcher,
 	type UserInstructionConfigWatcher,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { formatCreditBalance, normalizeCreditBalance } from "../utils/output";
 import type { Config } from "../utils/types";
 

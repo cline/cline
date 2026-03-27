@@ -250,7 +250,7 @@ async function main(): Promise<number> {
 					`    process.exit(1);`,
 					`  }`,
 					`  const root = await import("@clinebot/core");`,
-					`  const node = await import("@clinebot/core/node");`,
+					`  const node = await import("@clinebot/core");`,
 					`  if (typeof root.createSessionHost !== "function") {`,
 					`    console.error("  FAIL @clinebot/core: root export is missing createSessionHost");`,
 					`    process.exit(1);`,

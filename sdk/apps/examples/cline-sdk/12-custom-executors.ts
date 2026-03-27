@@ -22,16 +22,21 @@ const exec = promisify(execCb);
 
 function createSafeBashExecutor(): NonNullable<ToolExecutors["bash"]> {
 	return async (
-		command: string,
+		command: string | { command: string; args?: string[] },
 		cwd: string,
 		_context: ToolContext,
 	): Promise<string> => {
-		if (command.includes("rm -rf") || command.includes("sudo")) {
-			throw new Error(`Blocked unsafe command: ${command}`);
+		const cmd =
+			typeof command === "string"
+				? command
+				: [command.command, ...(command.args ?? [])].join(" ");
+
+		if (cmd.includes("rm -rf") || cmd.includes("sudo")) {
+			throw new Error(`Blocked unsafe command: ${cmd}`);
 		}
 
-		console.log(`🔧 bash executor running: ${command}`);
-		const { stdout, stderr } = await exec(command, { cwd, timeout: 30_000 });
+		console.log(`🔧 bash executor running: ${cmd}`);
+		const { stdout, stderr } = await exec(cmd, { cwd, timeout: 30_000 });
 		if (stderr.trim().length > 0) {
 			return `stdout:\n${stdout}\n\nstderr:\n${stderr}`;
 		}

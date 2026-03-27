@@ -1,6 +1,6 @@
 import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
 import type { RpcChatStartSessionRequest } from "@clinebot/core";
-import { createUserInstructionConfigWatcher } from "@clinebot/core/node";
+import { createUserInstructionConfigWatcher } from "@clinebot/core";
 import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
 import type {
 	ConnectWhatsAppOptions,

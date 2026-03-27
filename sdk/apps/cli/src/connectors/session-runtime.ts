@@ -6,7 +6,7 @@ import {
 	CoreSessionService,
 	ProviderSettingsManager,
 	SqliteSessionStore,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import * as LlmsModels from "@clinebot/llms/models";
 import { RpcSessionClient } from "@clinebot/rpc";
 import type { Thread } from "chat";

@@ -2,7 +2,7 @@ import type { RpcSaveProviderSettingsActionRequest } from "@clinebot/core";
 import {
 	type ProviderSettingsManager,
 	saveLocalProviderSettings,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import { describe, expect, it, vi } from "vitest";
 
 describe("saveLocalProviderSettings", () => {

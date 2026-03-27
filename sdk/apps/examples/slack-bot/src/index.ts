@@ -1,3 +1,24 @@
+/**
+ * Slack Bot Example (Chat SDK + Cline Agents SDK)
+ *
+ * A production-ready Slack bot that connects Cline agent intelligence to Slack.
+ *
+ * This example shows how to:
+ * - Wire a Chat SDK Slack adapter to a Cline Agent runtime
+ * - Support single-workspace and multi-workspace OAuth Slack installs
+ * - Maintain per-thread agent conversation memory
+ * - Serialize concurrent messages per thread to avoid race conditions
+ * - Handle slash commands (/reset) to clear agent state
+ * - Use the Slack Assistants API for suggested prompts
+ *
+ * Prerequisites:
+ * - A configured Slack app (see README.md for manifest)
+ * - Environment variables: SLACK_BOT_TOKEN + SLACK_SIGNING_SECRET (or OAuth creds)
+ * - A provider config file pointed to by CLINE_SLACK_BOT_PROVIDER_CONFIG
+ *
+ * Run: bun --env-file apps/examples/slack-bot/.env apps/examples/slack-bot/src/index.ts
+ */
+
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
@@ -12,6 +33,12 @@ import {
 	type StateAdapter,
 	type Thread,
 } from "chat";
+
+// ---------------------------------------------------------------------------
+// Step 1: State adapter — Chat SDK needs a StateAdapter for subscriptions,
+// message queues, and lock management. This in-memory implementation works
+// for single-process deployments. Swap with Redis/DB for multi-instance.
+// ---------------------------------------------------------------------------
 
 class InMemoryStateAdapter implements StateAdapter {
 	private readonly values = new Map<
@@ -131,7 +158,50 @@ class InMemoryStateAdapter implements StateAdapter {
 			this.locks.delete(lock.threadId);
 		}
 	}
+
+	async forceReleaseLock(threadId: string): Promise<void> {
+		this.locks.delete(threadId);
+	}
+
+	async appendToList(
+		key: string,
+		value: unknown,
+		options?: { maxLength?: number; ttlMs?: number },
+	): Promise<void> {
+		const entry = this.values.get(key);
+		const list: unknown[] = Array.isArray(entry?.value)
+			? (entry.value as unknown[])
+			: [];
+		list.push(value);
+		if (options?.maxLength && list.length > options.maxLength) {
+			list.splice(0, list.length - options.maxLength);
+		}
+		await this.set(key, list, options?.ttlMs);
+	}
+
+	async getList<T = unknown>(key: string): Promise<T[]> {
+		const value = await this.get<T[]>(key);
+		return Array.isArray(value) ? value : [];
+	}
+
+	async setIfNotExists(
+		key: string,
+		value: unknown,
+		ttlMs?: number,
+	): Promise<boolean> {
+		const existing = await this.get(key);
+		if (existing !== null) {
+			return false;
+		}
+		await this.set(key, value, ttlMs);
+		return true;
+	}
 }
+
+// ---------------------------------------------------------------------------
+// Step 2: Environment helpers — validate required env vars up front so
+// errors surface at startup, not at request time.
+// ---------------------------------------------------------------------------
 
 function getRequiredEnv(name: string): string {
 	const value = process.env[name];
@@ -140,6 +210,15 @@ function getRequiredEnv(name: string): string {
 	}
 	return value;
 }
+
+// ---------------------------------------------------------------------------
+// Step 3: Provider config loader — reads the model/provider/auth from a JSON
+// file on disk. Accepts three formats:
+//   1. Stored providers.json (with lastUsedProvider + providers map)
+//   2. Array of provider settings (uses first entry)
+//   3. Single provider settings object
+// See README.md for examples of each format.
+// ---------------------------------------------------------------------------
 
 type StoredProviderSettingsEntryLike = { settings?: unknown };
 type StoredProviderSettingsLike = {
@@ -211,6 +290,11 @@ function parseProviderConfigFromDisk(filePathInput: string): {
 	};
 }
 
+// ---------------------------------------------------------------------------
+// Step 4: Bootstrap — set up logging, load provider config, create the
+// Slack adapter (single-workspace or OAuth), and initialize the Chat bot.
+// ---------------------------------------------------------------------------
+
 type ThreadAgentRuntime = {
 	agent: Agent;
 	hasRun: boolean;
@@ -238,6 +322,7 @@ if (!providerConfig.apiKey) {
 	);
 }
 
+// Decide between single-workspace mode (bot token) and multi-workspace OAuth
 const useOAuthMode =
 	Boolean(process.env.SLACK_CLIENT_ID) &&
 	Boolean(process.env.SLACK_CLIENT_SECRET);
@@ -249,6 +334,7 @@ const slackAdapter = useOAuthMode
 		})
 	: createSlackAdapter();
 
+// Create the Chat bot — this ties the Slack adapter, state, and logger together
 const bot = new Chat({
 	userName: process.env.BOT_USERNAME ?? "cline",
 	adapters: {
@@ -258,9 +344,16 @@ const bot = new Chat({
 	logger,
 });
 
+// ---------------------------------------------------------------------------
+// Step 5: Per-thread agent management — each Slack thread gets its own Agent
+// instance so conversation history stays isolated. The `hasRun` flag tracks
+// whether to call agent.run() (first message) or agent.continue() (follow-ups).
+// ---------------------------------------------------------------------------
+
 const runtimes = new Map<string, ThreadAgentRuntime>();
 const threadQueues = new Map<string, Promise<void>>();
 
+// Lazily create an Agent for each thread on first message
 function getThreadRuntime(threadId: string): ThreadAgentRuntime {
 	const existing = runtimes.get(threadId);
 	if (existing) {
@@ -274,8 +367,8 @@ function getThreadRuntime(threadId: string): ThreadAgentRuntime {
 			baseUrl: providerConfig.baseUrl,
 			headers: providerConfig.headers,
 			systemPrompt,
-			tools: [],
-			maxIterations: 8,
+			tools: [], // No tools — pure LLM conversation; add tools here to give the agent capabilities
+			maxIterations: 8, // Safety limit on agent loop iterations
 		}),
 		hasRun: false,
 	};
@@ -283,6 +376,8 @@ function getThreadRuntime(threadId: string): ThreadAgentRuntime {
 	return created;
 }
 
+// Serialize turns per thread — Slack can deliver multiple messages quickly;
+// this queue ensures the agent processes them one at a time per thread.
 async function enqueueThreadTurn(
 	threadId: string,
 	work: () => Promise<void>,
@@ -300,13 +395,17 @@ async function enqueueThreadTurn(
 	return current;
 }
 
+// Core message handler — sends text to the agent and posts the response
 async function handleUserTurn(thread: Thread, text: string): Promise<void> {
 	const input = text.trim();
 	if (!input) {
 		return;
 	}
+	// Show a typing indicator while the agent processes
 	await thread.startTyping("Thinking...");
 	const runtime = getThreadRuntime(thread.id);
+
+	// First message in a thread uses run(); follow-ups use continue()
 	const result = runtime.hasRun
 		? await runtime.agent.continue(input)
 		: await runtime.agent.run(input);
@@ -317,6 +416,11 @@ async function handleUserTurn(thread: Thread, text: string): Promise<void> {
 	await thread.post(answer);
 }
 
+// ---------------------------------------------------------------------------
+// Step 6: Event handlers — wire Chat SDK events to the agent runtime.
+// ---------------------------------------------------------------------------
+
+// When the bot is @mentioned in a channel, subscribe to the thread and respond
 bot.onNewMention(async (thread, message) => {
 	await thread.subscribe();
 	await enqueueThreadTurn(thread.id, async () => {
@@ -324,12 +428,14 @@ bot.onNewMention(async (thread, message) => {
 	});
 });
 
+// Follow-up messages in a thread the bot is already subscribed to
 bot.onSubscribedMessage(async (thread, message) => {
 	await enqueueThreadTurn(thread.id, async () => {
 		await handleUserTurn(thread, message.text);
 	});
 });
 
+// /reset slash command — clears all agent thread history in the channel
 bot.onSlashCommand("/reset", async (event) => {
 	const channelPrefix = `${event.channel.id}:`;
 	for (const threadId of runtimes.keys()) {
@@ -342,6 +448,7 @@ bot.onSlashCommand("/reset", async (event) => {
 	);
 });
 
+// Slack Assistants API — suggest prompts when a user opens an assistant thread
 bot.onAssistantThreadStarted(async (event) => {
 	const adapter = bot.getAdapter("slack") as SlackAdapter;
 	await adapter.setSuggestedPrompts(event.channelId, event.threadTs, [
@@ -351,15 +458,25 @@ bot.onAssistantThreadStarted(async (event) => {
 	]);
 });
 
+// ---------------------------------------------------------------------------
+// Step 7: Start the HTTP server — expose webhook, OAuth callback, and health
+// endpoints. Chat SDK handles Slack event verification and routing internally.
+// ---------------------------------------------------------------------------
+
 const port = Number(process.env.PORT ?? 8787);
 const baseUrl = process.env.BASE_URL ?? `http://localhost:${port}`;
 
+// Initialize the Chat SDK (connects adapters and state)
 await bot.initialize();
 
+// Start a Bun HTTP server with route handlers
 Bun.serve({
 	port,
 	routes: {
+		// All Slack events (messages, mentions, slash commands) arrive here
 		"/api/webhooks/slack": async (request) => bot.webhooks.slack(request),
+
+		// OAuth install callback (only used in multi-workspace mode)
 		"/api/slack/install/callback": async (request) => {
 			if (!useOAuthMode) {
 				return new Response(

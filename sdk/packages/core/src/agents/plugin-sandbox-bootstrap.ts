@@ -194,7 +194,7 @@ function collectWorkspaceAliases(startDir: string): Record<string, string> {
 	const aliases: Record<string, string> = {};
 	const candidates: Record<string, string> = {
 		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
-		"@clinebot/core": resolve(root, "packages/core/src/index.node.ts"),
+		"@clinebot/core": resolve(root, "packages/core/src/index.ts"),
 		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
 		"@clinebot/llms/models": resolve(root, "packages/llms/src/models.ts"),
 		"@clinebot/llms/providers": resolve(root, "packages/llms/src/providers.ts"),

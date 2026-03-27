@@ -8,15 +8,15 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
-				find: /^@clinebot\/core\/telemetry\/opentelemetry$/,
+				find: /^@clinebot\/core\/telemetry$/,
 				replacement: resolve(
 					rootDir,
-					"../../packages/core/src/telemetry/opentelemetry.ts",
+					"../../packages/core/src/telemetry/index.ts",
 				),
 			},
 			{
-				find: /^@clinebot\/core\/node$/,
-				replacement: resolve(rootDir, "../../packages/core/src/index.node.ts"),
+				find: /^@clinebot\/core$/,
+				replacement: resolve(rootDir, "../../packages/core/src/index.ts"),
 			},
 			{
 				find: /^@clinebot\/core\/(.+)$/,

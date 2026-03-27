@@ -19,7 +19,7 @@ import {
 	SqliteSessionStore,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
-} from "@clinebot/core/node";
+} from "@clinebot/core";
 import {
 	resolveCliEntrypointPath,
 	resolveMcpSettingsPath,

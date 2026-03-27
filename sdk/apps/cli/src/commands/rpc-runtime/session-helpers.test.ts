@@ -8,7 +8,7 @@ vi.mock("@clinebot/core", () => ({
 	setHomeDirIfUnset: vi.fn(),
 }));
 
-vi.mock("@clinebot/core/node", () => ({
+vi.mock("@clinebot/core", () => ({
 	SessionSource: {
 		CLI: "cli",
 	},
