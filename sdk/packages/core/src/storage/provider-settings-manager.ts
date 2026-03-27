@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@clinebot/shared/storage";
+import { ensureCustomProvidersLoadedSync } from "../providers/local-provider-registry";
 import {
 	emptyStoredProviderSettings,
 	type ProviderConfig,
@@ -51,6 +52,7 @@ export class ProviderSettingsManager {
 				dataDir: this.dataDir,
 			});
 		}
+		ensureCustomProvidersLoadedSync(this);
 	}
 
 	getFilePath(): string {

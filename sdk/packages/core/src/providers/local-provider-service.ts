@@ -1,10 +1,7 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname, join } from "node:path";
 import { LlmsModels, type LlmsProviders } from "@clinebot/llms";
 import type {
 	RpcAddProviderActionRequest,
 	RpcOAuthProviderId,
-	RpcProviderCapability,
 	RpcProviderListItem,
 	RpcProviderModel,
 	RpcSaveProviderSettingsActionRequest,
@@ -14,32 +11,15 @@ import { loginClineOAuth } from "../auth/cline";
 import { loginOpenAICodex } from "../auth/codex";
 import { loginOcaOAuth } from "../auth/oca";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import {
+	readModelsFile,
+	registerCustomProvider,
+	resolveModelsRegistryPath,
+	toRpcProviderModel,
+	writeModelsFile,
+} from "./local-provider-registry";
 
-type StoredModelsFile = {
-	version: 1;
-	providers: Record<
-		string,
-		{
-			provider: {
-				name: string;
-				baseUrl: string;
-				defaultModelId?: string;
-				capabilities?: RpcProviderCapability[];
-				modelsSourceUrl?: string;
-			};
-			models: Record<
-				string,
-				{
-					id: string;
-					name: string;
-					supportsVision?: boolean;
-					supportsAttachments?: boolean;
-					supportsReasoning?: boolean;
-				}
-			>;
-		}
-	>;
-};
+export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
 function resolveVisibleApiKey(settings: {
 	apiKey?: string;
@@ -96,151 +76,6 @@ function stableColor(id: string): string {
 		hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
 	}
 	return palette[hash % palette.length];
-}
-
-function resolveModelsRegistryPath(manager: ProviderSettingsManager): string {
-	return join(dirname(manager.getFilePath()), "models.json");
-}
-
-function emptyModelsFile(): StoredModelsFile {
-	return { version: 1, providers: {} };
-}
-
-async function readModelsFile(filePath: string): Promise<StoredModelsFile> {
-	try {
-		const raw = await readFile(filePath, "utf8");
-		const parsed = JSON.parse(raw) as Partial<StoredModelsFile>;
-		if (
-			parsed &&
-			parsed.version === 1 &&
-			parsed.providers &&
-			typeof parsed.providers === "object"
-		) {
-			return { version: 1, providers: parsed.providers };
-		}
-	} catch {
-		// Invalid or missing files fall back to an empty registry.
-	}
-	return emptyModelsFile();
-}
-
-async function writeModelsFile(
-	filePath: string,
-	state: StoredModelsFile,
-): Promise<void> {
-	await mkdir(dirname(filePath), { recursive: true });
-	await writeFile(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
-}
-
-function toRpcProviderModel(
-	modelId: string,
-	info: {
-		name?: string;
-		capabilities?: string[];
-		thinkingConfig?: unknown;
-	},
-): RpcProviderModel {
-	return {
-		id: modelId,
-		name: info.name ?? modelId,
-		supportsAttachments: info.capabilities?.includes("files"),
-		supportsVision: info.capabilities?.includes("images"),
-		supportsReasoning:
-			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
-	};
-}
-
-function toProviderCapabilities(
-	capabilities: RpcProviderCapability[] | undefined,
-): Array<"reasoning" | "prompt-cache" | "tools"> | undefined {
-	if (!capabilities || capabilities.length === 0) {
-		return undefined;
-	}
-	const next = new Set<"reasoning" | "prompt-cache" | "tools">();
-	if (capabilities.includes("reasoning")) {
-		next.add("reasoning");
-	}
-	if (capabilities.includes("prompt-cache")) {
-		next.add("prompt-cache");
-	}
-	if (capabilities.includes("tools")) {
-		next.add("tools");
-	}
-	return next.size > 0 ? [...next] : undefined;
-}
-
-function toModelCapabilities(
-	capabilities: RpcProviderCapability[] | undefined,
-): Array<
-	"streaming" | "tools" | "reasoning" | "prompt-cache" | "images" | "files"
-> {
-	const next = new Set<
-		"streaming" | "tools" | "reasoning" | "prompt-cache" | "images" | "files"
-	>();
-	if (!capabilities || capabilities.length === 0) {
-		return [...next];
-	}
-	if (capabilities.includes("streaming")) next.add("streaming");
-	if (capabilities.includes("tools")) next.add("tools");
-	if (capabilities.includes("reasoning")) next.add("reasoning");
-	if (capabilities.includes("prompt-cache")) next.add("prompt-cache");
-	if (capabilities.includes("vision")) {
-		next.add("images");
-		next.add("files");
-	}
-	return [...next];
-}
-
-function registerCustomProvider(
-	providerId: string,
-	entry: StoredModelsFile["providers"][string],
-): void {
-	const modelCapabilities = toModelCapabilities(entry.provider.capabilities);
-	const modelEntries = Object.values(entry.models)
-		.map((model) => model.id.trim())
-		.filter((modelId) => modelId.length > 0);
-	const defaultModelId =
-		entry.provider.defaultModelId?.trim() || modelEntries[0] || "default";
-	const normalizedModels = Object.fromEntries(
-		modelEntries.map((modelId) => [
-			modelId,
-			{
-				id: modelId,
-				name: entry.models[modelId]?.name ?? modelId,
-				capabilities:
-					modelCapabilities.length > 0 ? modelCapabilities : undefined,
-				status: "active" as const,
-			},
-		]),
-	);
-
-	LlmsModels.registerProvider({
-		provider: {
-			id: providerId,
-			name: entry.provider.name.trim() || titleCaseFromId(providerId),
-			protocol: "openai-chat",
-			baseUrl: entry.provider.baseUrl,
-			defaultModelId,
-			capabilities: toProviderCapabilities(entry.provider.capabilities),
-		},
-		models: normalizedModels,
-	});
-}
-
-let customProvidersLoaded = false;
-
-export async function ensureCustomProvidersLoaded(
-	manager: ProviderSettingsManager,
-): Promise<void> {
-	if (customProvidersLoaded) {
-		return;
-	}
-	const modelsPath = resolveModelsRegistryPath(manager);
-	const state = await readModelsFile(modelsPath);
-	for (const [providerId, entry] of Object.entries(state.providers)) {
-		registerCustomProvider(providerId, entry);
-	}
-	customProvidersLoaded = true;
 }
 
 function parseModelIdList(input: unknown): string[] {

@@ -12,7 +12,7 @@ export enum BUILT_IN_PROVIDER {
 	CLAUDE_CODE = "claude-code",
 	CLINE = "cline",
 	// OpenAI variants
-	OPENAI = "openai", // OpenAi Completions
+	// OPENAI = "openai", // OpenAi Completions (deprecated - not a built-in pre-configured provider)
 	OPENAI_NATIVE = "openai-native",
 	OPENAI_CODEX = "openai-codex",
 	// CLI / Subscription-based providers

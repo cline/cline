@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { LlmsModels } from "@clinebot/llms";
 import { afterEach, describe, expect, it } from "vitest";
 import { ProviderSettingsManager } from "./provider-settings-manager";
 
@@ -8,6 +9,7 @@ describe("ProviderSettingsManager", () => {
 	const tempDirs: string[] = [];
 
 	afterEach(() => {
+		LlmsModels.resetRegistry();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -77,6 +79,50 @@ describe("ProviderSettingsManager", () => {
 			apiKey: "legacy-key",
 		});
 		expect(manager.read().providers.anthropic?.tokenSource).toBe("migration");
+	});
+
+	it("registers migrated custom providers during manager construction", async () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "gpt-oss-120b",
+					openAiBaseUrl: "https://gateway.example.invalid/v1",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-key" }, null, 2),
+		);
+
+		const manager = new ProviderSettingsManager({ filePath, dataDir: tempDir });
+		const providers = await LlmsModels.getAllProviders();
+		const openAiProvider = providers.find(
+			(provider) => provider.id === "openai",
+		);
+
+		expect(manager.getProviderSettings("openai")).toEqual({
+			provider: "openai",
+			model: "gpt-oss-120b",
+			apiKey: "legacy-key",
+			baseUrl: "https://gateway.example.invalid/v1",
+		});
+		expect(openAiProvider).toMatchObject({
+			id: "openai",
+			baseUrl: "https://gateway.example.invalid/v1",
+			defaultModelId: "gpt-oss-120b",
+		});
 	});
 
 	it("tracks provider-specific settings while preserving last-used provider", () => {

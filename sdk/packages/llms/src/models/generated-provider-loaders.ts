@@ -110,10 +110,6 @@ export const GENERATED_PROVIDER_LOADER_ENTRIES: GeneratedProviderLoaderEntry[] =
 			async () => (await import("./providers/ollama")).OLLAMA_PROVIDER,
 		],
 		[
-			"openai",
-			async () => (await import("./providers/openai")).OPENAI_PROVIDER,
-		],
-		[
 			"openai-codex",
 			async () =>
 				(await import("./providers/openai-codex")).OPENAI_CODEX_PROVIDER,

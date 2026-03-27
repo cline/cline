@@ -170,7 +170,7 @@ type StoredModelsFile = {
 	>;
 };
 
-const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai-compatible";
+const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
 
 export interface MigrateLegacyProviderSettingsOptions {
 	providerSettingsManager: ProviderSettingsManager;
