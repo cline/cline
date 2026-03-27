@@ -10,8 +10,15 @@ type PackageInfo = {
 	workspace: string;
 };
 
+type PackedManifest = {
+	name?: string;
+	version?: string;
+	dependencies?: Record<string, string>;
+};
+
 const root = join(import.meta.dir, "..");
 const packagesDir = join(root, "packages");
+const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 
 async function runCommandOrThrow(
 	cmd: string[],
@@ -90,6 +97,18 @@ async function packWorkspacePackage(
 	return join(destination, files[0]);
 }
 
+async function readPackedPackageJson(tarball: string): Promise<PackedManifest> {
+	const raw = await runCommandOrThrow(
+		["tar", "-xOf", tarball, "package/package.json"],
+		{
+			cwd: root,
+			stdout: "pipe",
+			stderr: "pipe",
+		},
+	);
+	return JSON.parse(raw) as PackedManifest;
+}
+
 async function main(): Promise<number> {
 	const published = await listPublishedPackages();
 	if (published.length === 0) {
@@ -103,7 +122,9 @@ async function main(): Promise<number> {
 
 	const testDir = await mkdtemp(join(tmpdir(), "cline-pkg-verify-"));
 	const packDir = await mkdtemp(join(tmpdir(), "cline-pkg-packs-"));
+	const npmCacheDir = await mkdtemp(join(tmpdir(), "cline-pkg-npm-cache-"));
 	const tarballs: { name: string; tarball: string }[] = [];
+	const packedManifests = new Map<string, PackedManifest>();
 
 	let exitCode = 0;
 
@@ -112,8 +133,32 @@ async function main(): Promise<number> {
 		for (const pkg of published) {
 			const tarball = await packWorkspacePackage(pkg, packDir);
 			tarballs.push({ name: pkg.name, tarball });
+			packedManifests.set(pkg.name, await readPackedPackageJson(tarball));
 			console.log(`  ${pkg.name} -> ${tarball.split("/").pop()}`);
 		}
+
+		console.log("\n--- Verifying packed manifest versions ---");
+		let manifestFailed = false;
+		for (const [pkgName, manifest] of packedManifests.entries()) {
+			for (const [depName, depVersion] of Object.entries(
+				manifest.dependencies ?? {},
+			)) {
+				const packedDep = packedManifests.get(depName);
+				if (!packedDep) {
+					continue;
+				}
+				if (depVersion !== packedDep.version) {
+					console.error(
+						`  FAIL ${pkgName}: dependencies.${depName} = "${depVersion}" but packed ${depName} version is "${packedDep.version}"`,
+					);
+					manifestFailed = true;
+				}
+			}
+		}
+		if (manifestFailed) {
+			return 1;
+		}
+		console.log("  OK - packed workspace dependency versions are aligned\n");
 
 		console.log("\n--- Installing packages in isolated directory ---");
 		const testPkg = {
@@ -121,7 +166,7 @@ async function main(): Promise<number> {
 			private: true,
 			type: "module",
 			dependencies: Object.fromEntries(
-				tarballs.map((entry) => [entry.name, entry.tarball]),
+				tarballs.map((entry) => [entry.name, `file:${entry.tarball}`]),
 			),
 		};
 		await writeFile(
@@ -129,12 +174,16 @@ async function main(): Promise<number> {
 			JSON.stringify(testPkg, null, 2),
 		);
 
-		await runCommandOrThrow(["bun", "install", "--ignore-scripts"], {
+		await runCommandOrThrow([npmCommand, "install", "--ignore-scripts"], {
 			cwd: testDir,
+			env: {
+				...process.env,
+				npm_config_cache: npmCacheDir,
+			},
 			stdout: "pipe",
 			stderr: "pipe",
 		});
-		console.log("  OK - bun install succeeded\n");
+		console.log("  OK - npm install succeeded\n");
 
 		console.log("--- Verifying module resolution ---");
 		let importFailed = false;
@@ -262,6 +311,7 @@ async function main(): Promise<number> {
 	} finally {
 		await rm(testDir, { recursive: true, force: true });
 		await rm(packDir, { recursive: true, force: true });
+		await rm(npmCacheDir, { recursive: true, force: true });
 	}
 
 	return exitCode;

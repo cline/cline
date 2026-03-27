@@ -108,4 +108,5 @@ if (!values.dry) {
 		root,
 	);
 	await runCommandOrThrow(["bun", "format", "--write"], root);
+	await runCommandOrThrow(["bun", "run", "build"], root);
 }

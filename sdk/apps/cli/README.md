@@ -59,7 +59,7 @@ bun run build:models
 bun publish --dry-run
 # Example Output: Total files: 3 / Unpacked size: 2.28MB
 
-# Publish to npm (version bump required)
+# Publish to npm with Bun (version bump required)
 bun run release
 ```
 

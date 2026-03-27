@@ -78,22 +78,21 @@ Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs
 ### Publishing SDK Packages
 - Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly.
 - Published runtime workspace packages stay in `dependencies`. Bundled internal workspace packages must live in `devDependencies` so they do not leak into packed manifests.
-- `bun scripts/version.ts <version>` updates all workspace package versions in place. It will also pull and updated the generated model list to the latest version. 
+- `bun scripts/version.ts <version>` updates all workspace package versions in place, refreshes generated models, formats the repo, and runs `bun run build` so the post-bump artifacts match the release version.
 - `bun scripts/check-publish.ts` packs the publishable packages with `bun pm pack`, installs them together in an isolated temp directory, and verifies imports.
 - `bun publish` resolves published `workspace:*` dependencies to concrete versions when it packs the tarball.
 - Manual publish guide:
-  1. Run `bun run build:models && bun run build` from the repo root.
-  2. Run `bun run test` from the repo root.
-  3. Choose the release version like `0.0.21`.
-  4. Run `bun scripts/version.ts <version>` to update all workspace package versions.
-  5. Review the changed `package.json` files and generated model artifacts before publishing.
-  6. Run `bun scripts/check-publish.ts` to verify the packed SDK tarballs install and import together.
-  7. Publish in dependency order:
+  1. Run `bun run test` from the repo root.
+  2. Choose the release version like `0.0.21`.
+  3. Run `bun scripts/version.ts <version>` to update all workspace package versions and rebuild from the bumped versions.
+  4. Review the changed `package.json` files and generated model artifacts before publishing.
+  5. Run `bun scripts/check-publish.ts` to verify the packed SDK tarballs install and import together.
+  6. Publish in dependency order:
      `cd packages/shared && bun publish`
      `cd ../llms && bun publish`
      `cd ../agents && bun publish`
      `cd ../core && bun publish`
-  8. If you are doing a tagged production release, create and push the corresponding git tags after publish.
+  7. If you are doing a tagged production release, create and push the corresponding git tags after publish.
 - CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same order: build, version, `check:publish`, then publish `shared -> llms -> agents -> core`.
 
 ### Change Routing
