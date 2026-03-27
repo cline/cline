@@ -116,9 +116,13 @@ jobs:
           echo "Publish version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Update all package versions and verify publishability
+      - name: Update all package versions
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun scripts/version.ts "${{ steps.version.outputs.version }}" --check
+        run: bun scripts/version.ts "${{ steps.version.outputs.version }}"
+
+      - name: Verify publishability
+        if: steps.check_commits.outputs.skip != 'true'
+        run: bun scripts/check-publish.ts
 
       # Publish sequentially in dependency order: shared → llms → agents → core
       - name: Publish @clinebot/shared

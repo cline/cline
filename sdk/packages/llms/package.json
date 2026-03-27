@@ -53,7 +53,7 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run --production bun.mts && bun tsc -p tsconfig.build.json",
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest",
