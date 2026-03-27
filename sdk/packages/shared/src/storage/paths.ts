@@ -5,6 +5,7 @@ import {
 	readFileSync,
 	statSync,
 } from "node:fs";
+import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
@@ -15,7 +16,28 @@ export const WORKFLOWS_CONFIG_DIRECTORY_NAME = "workflows";
 export const PLUGINS_DIRECTORY_NAME = "plugins";
 export const CLINE_MCP_SETTINGS_FILE_NAME = "cline_mcp_settings.json";
 
-let HOME_DIR = process?.env?.HOME || "~";
+function resolveDefaultHomeDir(): string {
+	const envHome = process?.env?.HOME?.trim();
+	if (envHome && envHome !== "~") {
+		return envHome;
+	}
+	const envUserProfile = process?.env?.USERPROFILE?.trim();
+	if (envUserProfile) {
+		return envUserProfile;
+	}
+	const envHomeDrive = process?.env?.HOMEDRIVE?.trim();
+	const envHomePath = process?.env?.HOMEPATH?.trim();
+	if (envHomeDrive && envHomePath) {
+		return `${envHomeDrive}${envHomePath}`;
+	}
+	const osHomeDir = homedir().trim();
+	if (osHomeDir && osHomeDir !== "~") {
+		return osHomeDir;
+	}
+	return "~";
+}
+
+let HOME_DIR = resolveDefaultHomeDir();
 let HOME_DIR_SET_EXPLICITLY = false;
 
 export function setHomeDir(dir: string) {
