@@ -10,6 +10,11 @@ import { formatHookDispatchOutput } from "../commands/hook";
 import { logSpawnedProcess } from "../logging/process";
 import { closeInlineStreamIfNeeded } from "./events";
 import {
+	buildCliSubcommandCommand,
+	buildInternalCliEnv,
+	shouldDisableInternalRuntimeHooks,
+} from "./internal-launch";
+import {
 	c,
 	emitJsonLine,
 	getActiveCliSession,
@@ -38,17 +43,13 @@ function hasHookControlOutput(value: unknown): boolean {
 }
 
 function getHookCommand(): string[] | undefined {
-	if (!process.argv[1]) {
-		return undefined;
-	}
-	return [process.execPath, process.argv[1], "hook"];
+	const command = buildCliSubcommandCommand("hook");
+	return command ? [command.launcher, ...command.childArgs] : undefined;
 }
 
 function getHookWorkerCommand(): string[] | undefined {
-	if (!process.argv[1]) {
-		return undefined;
-	}
-	return [process.execPath, process.argv[1], "hook-worker"];
+	const command = buildCliSubcommandCommand("hook-worker");
+	return command ? [command.launcher, ...command.childArgs] : undefined;
 }
 
 export function currentHookSessionContext(): HookSessionContext | undefined {
@@ -117,7 +118,7 @@ export function createRuntimeHooks(options?: {
 	hooks?: AgentHooks;
 	shutdown: () => Promise<void>;
 } {
-	if (options?.yolo === true) {
+	if (options?.yolo === true || shouldDisableInternalRuntimeHooks()) {
 		return {
 			hooks: undefined,
 			shutdown: async () => {},
@@ -133,7 +134,7 @@ export function createRuntimeHooks(options?: {
 	}
 	const verbose = options?.verbose === true;
 	const sharedOptions: Omit<PersistentSubprocessHooksOptions, "command"> = {
-		env: process.env,
+		env: buildInternalCliEnv("hook-worker"),
 		cwd: process.cwd(),
 		sessionContext: currentHookSessionContext,
 		onDispatchError: (error: Error) => {

@@ -22,6 +22,10 @@ import {
 } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
 import {
+	buildCliSubcommandCommand,
+	buildInternalCliEnv,
+} from "../utils/internal-launch";
+import {
 	createRpcToolApprovalRequester,
 	subscribeRuntimeEventBridge,
 } from "./rpc-runtime/event-bridge";
@@ -52,10 +56,8 @@ type HookSessionShutdownContext = Parameters<
 >[0];
 
 function getHookWorkerCommand(): string[] | undefined {
-	if (!process.argv[1]) {
-		return undefined;
-	}
-	return [process.execPath, process.argv[1], "hook-worker"];
+	const command = buildCliSubcommandCommand("hook-worker");
+	return command ? [command.launcher, ...command.childArgs] : undefined;
 }
 
 class RpcRuntimeHookService {
@@ -81,7 +83,7 @@ class RpcRuntimeHookService {
 		this.control = createPersistentSubprocessHooks({
 			command,
 			cwd: process.cwd(),
-			env: process.env,
+			env: buildInternalCliEnv("hook-worker"),
 			sessionContext: (input) => this.resolveSessionContext(input),
 			onDispatchError: (error, payload) => {
 				this.logger.warn?.("RPC hook dispatch failed", {
