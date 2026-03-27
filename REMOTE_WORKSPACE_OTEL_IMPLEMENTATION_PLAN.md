@@ -6,6 +6,7 @@
 - [x] Add `is_remote_workspace` to shared telemetry metadata in `TelemetryService`
 - [x] Ensure the existing `workspace.initialized` event picks up the new metadata automatically
 - [x] Add/update automated tests for telemetry metadata derivation and typed fixtures
+- [x] Add workspace setup assertions proving `workspace.initialized` is emitted through the existing flow
 - [x] Run automated validation (`npm run check-types` and targeted telemetry unit tests)
 - [ ] Manually verify `workspace.initialized` in both local and remote VS Code workspaces
 
@@ -123,6 +124,7 @@ Status:
 
 - [x] `npm run check-types`
 - [x] `npm run test:unit -- src/services/telemetry/TelemetryService.test.ts src/services/telemetry/__tests__/TelemetryService.metrics.test.ts`
+- [x] `npm run test:unit -- src/core/workspace/__tests__/setup.test.ts src/services/telemetry/TelemetryService.test.ts src/services/telemetry/__tests__/TelemetryService.metrics.test.ts`
 
 ### Manual
 

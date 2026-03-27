@@ -11,7 +11,10 @@ import { WorkspaceRootManager } from "../WorkspaceRootManager"
 
 describe("setupWorkspaceManager", () => {
 	const sandbox = sinon.createSandbox()
-	let fakeTelemetry: any
+	let fakeTelemetry: {
+		captureWorkspaceInitialized: sinon.SinonStub
+		captureWorkspaceInitError: sinon.SinonStub
+	}
 
 	const cwd = "/Users/test/project"
 	const defaultRoots: WorkspaceRoot[] = [
@@ -75,12 +78,12 @@ describe("setupWorkspaceManager", () => {
 			getWorkspacePaths: sandbox.stub().resolves({ paths: ["/ws/root1", "/ws/root2"] }),
 		} as any)
 
-		// Telemetry stubs via getTelemetryService proxy
+		// Telemetry stubs by replacing the exported proxy with a test double
 		fakeTelemetry = {
-			captureWorkspaceInitialized: sandbox.stub(),
-			captureWorkspaceInitError: sandbox.stub(),
+			captureWorkspaceInitialized: sandbox.stub().resolves(),
+			captureWorkspaceInitError: sandbox.stub().resolves(),
 		}
-		sandbox.stub(telemetry, "getTelemetryService").resolves(fakeTelemetry)
+		sandbox.stub(telemetry, "telemetryService").value(fakeTelemetry)
 
 		// Stub WorkspaceRootManager.fromLegacyCwd to be deterministic
 		sandbox.stub(WorkspaceRootManager, "fromLegacyCwd").callsFake(async (legacyCwd: string) => {
@@ -116,6 +119,10 @@ describe("setupWorkspaceManager", () => {
 		expect(stateManager._state.primaryIndex).to.equal(0)
 
 		// telemetry captured (skipped assertion in unit tests)
+		expect(fakeTelemetry.captureWorkspaceInitialized.calledOnce).to.equal(true)
+		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[0]).to.equal(2)
+		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[1]).to.deep.equal(["git", "none"])
+		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[3]).to.equal(true)
 	})
 
 	it("uses single-root cwd when history restore is disabled (historyItem present)", async () => {
@@ -157,6 +164,10 @@ describe("setupWorkspaceManager", () => {
 		// persisted
 		expect(stateManager._state.roots?.[0].path).to.equal(cwd)
 		// telemetry called (skipped assertion in unit tests)
+		expect(fakeTelemetry.captureWorkspaceInitialized.calledOnce).to.equal(true)
+		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[0]).to.equal(1)
+		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[1]).to.deep.equal(["none"])
+		expect(fakeTelemetry.captureWorkspaceInitialized.firstCall.args[3]).to.equal(false)
 	})
 
 	it("gracefully handles errors and falls back to fromLegacyCwd while warning user", async () => {
@@ -176,7 +187,10 @@ describe("setupWorkspaceManager", () => {
 		expect(manager.getRoots()).to.have.length(1)
 		expect(manager.getRoots()[0].path).to.equal(cwd)
 
-		// telemetry error captured (skipped assertion in unit tests)
+		expect(fakeTelemetry.captureWorkspaceInitError.calledOnce).to.equal(true)
+		expect(fakeTelemetry.captureWorkspaceInitError.firstCall.args[0]).to.be.instanceOf(Error)
+		expect(fakeTelemetry.captureWorkspaceInitError.firstCall.args[1]).to.equal(true)
+		expect(fakeTelemetry.captureWorkspaceInitError.firstCall.args[2]).to.equal(2)
 
 		// persisted fallback state
 		expect(stateManager._state.roots?.[0].path).to.equal(cwd)
