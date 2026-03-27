@@ -21,6 +21,10 @@ export interface BalanceResponse {
 	userId: string
 }
 
+export interface FeaturebaseTokenResponse {
+	featurebaseJwt: string
+}
+
 export interface UsageTransaction {
 	aiInferenceProviderName: string
 	aiModelName: string
