@@ -316,7 +316,7 @@ function formatSearchResults(response: proto.host.SymbolQueryResponse, reference
 		const containerSuffix = r.containerName ? ` in ${r.containerName}` : ""
 		const shortPath = shortenPath(r.filePath)
 
-		lines.push(`${i + 1}. ${r.symbolName}${callableSuffix(r.kind)}${kindSuffix}${containerSuffix}`)
+		lines.push(`${i + 1}. ${r.symbolName}${kindSuffix}${containerSuffix}`)
 		lines.push(`   ${shortPath}:${r.line}`)
 
 		if (r.containerName) {
@@ -348,9 +348,7 @@ function formatSymbolQueryResults(
 		if (multiGroup && def) {
 			const kindSuffix = def.kind && def.kind !== "symbol" ? ` — ${def.kind}` : ""
 			const containerSuffix = def.containerName ? ` in ${def.containerName}` : ""
-			lines.push(
-				`━━ ${def.symbolName}${callableSuffix(def.kind)}${kindSuffix}${containerSuffix} (${shortenPath(def.filePath)}:${def.line}) ━━`,
-			)
+			lines.push(`━━ ${def.symbolName}${kindSuffix}${containerSuffix} (${shortenPath(def.filePath)}:${def.line}) ━━`)
 			lines.push("")
 		}
 
@@ -388,7 +386,7 @@ function formatSymbolQueryResults(
 
 			if (r.containerName) {
 				const kindSuffix = r.kind && r.kind !== "symbol" ? ` — ${r.kind}` : ""
-				lines.push(`   │ in: ${r.containerName}${callableSuffix(r.kind)}${kindSuffix}`)
+				lines.push(`   │ in: ${r.containerName}${kindSuffix}`)
 				addRefSymbol(referencedSymbols, r.containerName, r.kind || "symbol", r.containerFilePath, r.containerLine)
 			}
 			lines.push("")
@@ -483,10 +481,6 @@ function shortenPath(filePath: string): string {
 		return ".../" + parts.slice(-3).join("/")
 	}
 	return normalized
-}
-
-function callableSuffix(kind?: string): string {
-	return /function|method|constructor/i.test(kind ?? "") ? "()" : ""
 }
 
 function addRefSymbol(map: Map<string, RefSymbol>, name: string, kind: string, filePath: string, line: number): void {
