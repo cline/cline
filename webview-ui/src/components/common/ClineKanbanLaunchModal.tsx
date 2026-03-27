@@ -1,16 +1,17 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useMemo, useState } from "react"
-import kanbanDemoVideo from "@/assets/cline_kanban_demo.webm"
+import kanbanDemoVideoMp4 from "@/assets/cline_kanban_demo.mp4"
+import kanbanDemoVideoWebm from "@/assets/cline_kanban_demo.webm"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
 import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 
 const INSTALL_COMMAND = "npm install -g cline"
 const COPIED_TIMEOUT = 1500
-const kanbanDemoVideoSrc = kanbanDemoVideo.startsWith("/src/")
-	? new URL(kanbanDemoVideo, import.meta.url).toString()
-	: kanbanDemoVideo
+const resolveAssetSrc = (src: string) => (src.startsWith("/src/") ? new URL(src, import.meta.url).toString() : src)
+const kanbanDemoMp4Src = resolveAssetSrc(kanbanDemoVideoMp4)
+const kanbanDemoWebmSrc = resolveAssetSrc(kanbanDemoVideoWebm)
 
 export const CLINE_KANBAN_MODAL_DISMISS_ID = "cline-kanban-launch-modal-v1"
 
@@ -76,9 +77,10 @@ export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ 
 						className="w-full rounded-md border border-[var(--vscode-editorGroup-border)]"
 						loop
 						muted
-						playsInline
-						src={kanbanDemoVideoSrc}
-					/>
+						playsInline>
+						<source src={kanbanDemoMp4Src} type="video/mp4" />
+						<source src={kanbanDemoWebmSrc} type="video/webm" />
+					</video>
 
 					<p className="text-sm" style={{ color: "var(--vscode-descriptionForeground)" }}>
 						A replacement for your IDE better suited for running many agents in parallel and reviewing diffs. Enable

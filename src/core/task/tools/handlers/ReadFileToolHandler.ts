@@ -15,6 +15,73 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+export const DEFAULT_MAX_LINES = 1000
+const FILE_TRUNCATED_MARKER = "\n\n---\n\n[FILE TRUNCATED:"
+
+/**
+ * Slice file content to the requested line range, add one-based `N |` line labels,
+ * and append a continuation hint when the file has more lines to read.
+ */
+export function formatFileContentWithLineNumbers(content: string, startLine?: number, endLine?: number): string {
+	if (!content) {
+		return content
+	}
+
+	// Separate any byte-truncation notice appended by content-limits.ts
+	let body = content
+	let truncationSuffix = ""
+	const truncationIndex = content.indexOf(FILE_TRUNCATED_MARKER)
+	if (truncationIndex !== -1) {
+		body = content.slice(0, truncationIndex)
+		truncationSuffix = content.slice(truncationIndex)
+	}
+
+	const lines = body.split(/\r?\n/)
+	if (body.endsWith("\n") && lines.length > 0) {
+		lines.pop()
+	}
+	const totalLines = lines.length
+
+	const requestedStart = Math.max(1, startLine ?? 1)
+	const requestedEnd = endLine !== undefined ? Math.max(1, endLine) : requestedStart + DEFAULT_MAX_LINES - 1
+	const shouldSwapBounds = endLine !== undefined && requestedEnd < requestedStart
+	const start = shouldSwapBounds ? requestedEnd : requestedStart
+	const end = Math.min(totalLines, shouldSwapBounds ? requestedStart : requestedEnd)
+
+	const slice = lines.slice(start - 1, end)
+	const labeled = slice.map((line, i) => `${start + i} | ${line}`).join("\n")
+
+	let suffix = truncationSuffix
+	if (!truncationSuffix) {
+		if (end < totalLines) {
+			suffix = `\n\n(Showing lines ${start}-${end} of ${totalLines} total. Use start_line=${end + 1} to continue reading.)`
+		} else {
+			suffix = `\n\n(File has ${totalLines} lines total.)`
+		}
+	}
+
+	return labeled + suffix
+}
+
+function parseRequestedLineRange(block: ToolUse): { startLine?: number; endLine?: number } {
+	const startLine = block.params.start_line ? Number.parseInt(block.params.start_line, 10) : undefined
+	const endLine = block.params.end_line ? Number.parseInt(block.params.end_line, 10) : undefined
+
+	return {
+		startLine: startLine !== undefined && !Number.isNaN(startLine) ? startLine : undefined,
+		endLine: endLine !== undefined && !Number.isNaN(endLine) ? endLine : undefined,
+	}
+}
+
+function buildReadResponse(block: ToolUse, fileContent: FileContentResult, prefix?: string): string {
+	const { startLine, endLine } = parseRequestedLineRange(block)
+	const text = fileContent.imageBlock
+		? fileContent.text
+		: formatFileContentWithLineNumbers(fileContent.text, startLine, endLine)
+
+	return prefix ? `${prefix}\n${text}` : text
+}
+
 export class ReadFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_READ
 
@@ -216,10 +283,18 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 
 			if (validCached.readCount >= 3) {
-				return `[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.\n\n${fileContent.text}`
+				return buildReadResponse(
+					block,
+					fileContent,
+					`[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.`,
+				)
 			}
 
-			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:\n${fileContent.text}`
+			return buildReadResponse(
+				block,
+				fileContent,
+				`[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:`,
+			)
 		}
 
 		// Execute the actual file read operation
@@ -263,8 +338,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
+			return buildReadResponse(block, fileContent)
 		}
 
-		return fileContent.text
+		return buildReadResponse(block, fileContent)
 	}
 }
