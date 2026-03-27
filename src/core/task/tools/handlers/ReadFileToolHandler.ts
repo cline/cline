@@ -190,39 +190,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 		}
 
-		// Re-check after possible mtime eviction
-		const validCached = config.taskState.fileReadCache.get(cacheKey)
-
-		if (validCached) {
-			validCached.readCount++
-
-			// Re-push image block for multimodal models so image context is not lost on cached reads
-			if (validCached.imageBlock) {
-				config.taskState.userMessageContent.push(validCached.imageBlock)
-			}
-
-			// Re-read from disk (cache doesn't store content to save memory)
-			const supportsImages = config.api.getModel().info.supportsImages ?? false
-			let fileContent: FileContentResult
-			try {
-				fileContent = await extractFileContent(absolutePath, supportsImages)
-			} catch (error) {
-				config.taskState.consecutiveMistakeCount++
-				const errorMessage = error instanceof Error ? error.message : String(error)
-				const normalizedMessage = errorMessage.startsWith("Error reading file:")
-					? errorMessage
-					: `Error reading file: ${errorMessage}`
-				return formatResponse.toolError(normalizedMessage)
-			}
-
-			if (validCached.readCount >= 3) {
-				return `[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.\n\n${fileContent.text}`
-			}
-
-			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:\n${fileContent.text}`
-		}
-
-		// Execute the actual file read operation
+		// Execute the actual file read operation.
+		// Always read from disk — the cache stores only metadata (readCount, mtime),
+		// not file content, to keep memory usage minimal.
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
 		let fileContent: FileContentResult
 		try {
@@ -237,6 +207,24 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 				? errorMessage
 				: `Error reading file: ${errorMessage}`
 			return formatResponse.toolError(normalizedMessage)
+		}
+
+		// Re-check after possible mtime eviction
+		const validCached = config.taskState.fileReadCache.get(cacheKey)
+
+		if (validCached) {
+			validCached.readCount++
+
+			// Re-push image block for multimodal models so image context is not lost on cached reads
+			if (validCached.imageBlock) {
+				config.taskState.userMessageContent.push(validCached.imageBlock)
+			}
+
+			if (validCached.readCount >= 3) {
+				return `[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.\n\n${fileContent.text}`
+			}
+
+			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:\n${fileContent.text}`
 		}
 
 		// Only reset mistake count after a successful read, so that repeated
