@@ -23,10 +23,15 @@ describe("formatFileContentWithLineNumbers", () => {
 
 	describe("chunked reads", () => {
 		const tenLines = Array.from({ length: 10 }, (_, i) => `line${i + 1}`).join("\n")
+		const oversizedContent = Array.from({ length: DEFAULT_MAX_LINES + 10 }, (_, i) => `line${i + 1}`).join("\n")
 
-		it("defaults to reading from line 1", () => {
-			const result = formatFileContentWithLineNumbers(tenLines)
+		it("defaults to reading from line 1 and applies the default chunk size", () => {
+			const result = formatFileContentWithLineNumbers(oversizedContent)
 			assert.ok(result.startsWith("1 | line1\n"))
+			assert.ok(result.includes(`${DEFAULT_MAX_LINES} | line${DEFAULT_MAX_LINES}`))
+			assert.ok(!result.includes(`${DEFAULT_MAX_LINES + 1} |`))
+			assert.ok(result.includes(`Showing lines 1-${DEFAULT_MAX_LINES} of ${DEFAULT_MAX_LINES + 10} total`))
+			assert.ok(result.includes(`start_line=${DEFAULT_MAX_LINES + 1}`))
 		})
 
 		it("respects start_line parameter", () => {

@@ -19,7 +19,7 @@ export const DEFAULT_MAX_LINES = 1000
 const FILE_TRUNCATED_MARKER = "\n\n---\n\n[FILE TRUNCATED:"
 
 /**
- * Slice file content to the requested line range, add L-prefixed line labels,
+ * Slice file content to the requested line range, add one-based `N |` line labels,
  * and append a continuation hint when the file has more lines to read.
  */
 export function formatFileContentWithLineNumbers(content: string, startLine?: number, endLine?: number): string {
