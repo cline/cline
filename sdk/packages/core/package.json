@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/core",
-	"version": "0.0.21",
+	"version": "0.0.22",
 	"main": "./dist/index.node.js",
 	"dependencies": {
 		"@clinebot/agents": "workspace:*",
