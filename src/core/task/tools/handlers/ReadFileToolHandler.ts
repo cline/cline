@@ -60,6 +60,25 @@ export function formatFileContentWithLineNumbers(content: string, startLine?: nu
 	return labeled + suffix
 }
 
+function parseRequestedLineRange(block: ToolUse): { startLine?: number; endLine?: number } {
+	const startLine = block.params.start_line ? Number.parseInt(block.params.start_line, 10) : undefined
+	const endLine = block.params.end_line ? Number.parseInt(block.params.end_line, 10) : undefined
+
+	return {
+		startLine: startLine !== undefined && !Number.isNaN(startLine) ? startLine : undefined,
+		endLine: endLine !== undefined && !Number.isNaN(endLine) ? endLine : undefined,
+	}
+}
+
+function buildReadResponse(block: ToolUse, fileContent: FileContentResult, prefix?: string): string {
+	const { startLine, endLine } = parseRequestedLineRange(block)
+	const text = fileContent.imageBlock
+		? fileContent.text
+		: formatFileContentWithLineNumbers(fileContent.text, startLine, endLine)
+
+	return prefix ? `${prefix}\n${text}` : text
+}
+
 export class ReadFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_READ
 
@@ -261,10 +280,18 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 
 			if (validCached.readCount >= 3) {
-				return `[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.\n\n${fileContent.text}`
+				return buildReadResponse(
+					block,
+					fileContent,
+					`[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.`,
+				)
 			}
 
-			return `[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:\n${fileContent.text}`
+			return buildReadResponse(
+				block,
+				fileContent,
+				`[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:`,
+			)
 		}
 
 		// Execute the actual file read operation
@@ -308,17 +335,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
-			return fileContent.text
+			return buildReadResponse(block, fileContent)
 		}
 
-		// Parse and validate line parameters with proper NaN guards
-		const startLine = block.params.start_line ? Number.parseInt(block.params.start_line, 10) : undefined
-		const endLine = block.params.end_line ? Number.parseInt(block.params.end_line, 10) : undefined
-		
-		// Validate parsed numbers to prevent NaN propagation
-		const safeStartLine = startLine !== undefined && !Number.isNaN(startLine) ? startLine : undefined
-		const safeEndLine = endLine !== undefined && !Number.isNaN(endLine) ? endLine : undefined
-
-		return formatFileContentWithLineNumbers(fileContent.text, safeStartLine, safeEndLine)
+		return buildReadResponse(block, fileContent)
 	}
 }
