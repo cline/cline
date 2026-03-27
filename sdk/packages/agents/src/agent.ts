@@ -1026,7 +1026,12 @@ export class Agent {
 	}
 
 	private emit(event: AgentEvent): void {
-		this.runtimeBus.emitRuntimeEvent(event);
+		this.runtimeBus.emitRuntimeEvent({
+			...event,
+			agentId: this.agentId,
+			conversationId: this.conversationStore.getConversationId(),
+			parentAgentId: this.parentAgentId,
+		});
 	}
 
 	private reportRecoverableError(error: unknown): void {

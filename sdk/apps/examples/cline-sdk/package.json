@@ -25,9 +25,9 @@
 		"all:advanced": "bun run 10 && bun run 11 && bun run 12 && bun run 13"
 	},
 	"dependencies": {
-		"@clinebot/agents": "nightly",
-		"@clinebot/core": "nightly",
-		"@clinebot/llms": "nightly"
+		"@clinebot/agents": "workspace:*",
+		"@clinebot/core": "workspace:*",
+		"@clinebot/llms": "workspace:*"
 	},
 	"devDependencies": {
 		"@types/node": "^22.10.5",

@@ -48,7 +48,16 @@ export type AgentEvent =
 
 export type AgentContentType = "text" | "reasoning" | "tool";
 
-export interface AgentContentStartEvent {
+export interface AgentEventMetadata {
+	/** Current ID */
+	agentId?: string;
+	/** Task ID */
+	conversationId?: string;
+	/** ID of the agent that created this agent */
+	parentAgentId?: string | null;
+}
+
+export interface AgentContentStartEvent extends AgentEventMetadata {
 	type: "content_start";
 	contentType: AgentContentType;
 	/** The text chunk received from the model */
@@ -67,7 +76,7 @@ export interface AgentContentStartEvent {
 	input?: unknown;
 }
 
-export interface AgentContentEndEvent {
+export interface AgentContentEndEvent extends AgentEventMetadata {
 	type: "content_end";
 	contentType: AgentContentType;
 	/** Final text generated for this turn */
@@ -86,13 +95,13 @@ export interface AgentContentEndEvent {
 	durationMs?: number;
 }
 
-export interface AgentIterationStartEvent {
+export interface AgentIterationStartEvent extends AgentEventMetadata {
 	type: "iteration_start";
 	/** The iteration number (1-based) */
 	iteration: number;
 }
 
-export interface AgentIterationEndEvent {
+export interface AgentIterationEndEvent extends AgentEventMetadata {
 	type: "iteration_end";
 	/** The iteration number that just completed */
 	iteration: number;
@@ -102,7 +111,7 @@ export interface AgentIterationEndEvent {
 	toolCallCount: number;
 }
 
-export interface AgentUsageEvent {
+export interface AgentUsageEvent extends AgentEventMetadata {
 	type: "usage";
 	/** Number of input tokens for this turn */
 	inputTokens: number;
@@ -123,7 +132,7 @@ export interface AgentUsageEvent {
 	totalCost?: number;
 }
 
-export interface AgentNoticeEvent {
+export interface AgentNoticeEvent extends AgentEventMetadata {
 	type: "notice";
 	noticeType: "recovery" | "stop";
 	message: string;
@@ -136,7 +145,7 @@ export interface AgentNoticeEvent {
 	metadata?: Record<string, unknown>;
 }
 
-export interface AgentDoneEvent {
+export interface AgentDoneEvent extends AgentEventMetadata {
 	type: "done";
 	/** The reason the agent stopped */
 	reason: AgentFinishReason;
@@ -148,7 +157,7 @@ export interface AgentDoneEvent {
 	usage?: AgentUsage;
 }
 
-export interface AgentErrorEvent {
+export interface AgentErrorEvent extends AgentEventMetadata {
 	type: "error";
 	/** The error that occurred */
 	error: Error;

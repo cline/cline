@@ -4,6 +4,8 @@
  * Utilities for orchestrating multiple agents working together.
  */
 
+import { sanitizeFileName } from "@clinebot/shared";
+import { nanoid } from "nanoid";
 import { type Agent, createAgent } from "../agent.js";
 import type { AgentConfig, AgentEvent, AgentResult } from "../types.js";
 
@@ -77,7 +79,7 @@ export interface TeammateLifecycleSpec {
 	parentAgentId?: string | null;
 }
 
-const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000;
+const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
  * Event emitted during team execution
@@ -860,7 +862,7 @@ export class AgentTeamsRuntime {
 
 	constructor(options: AgentTeamsRuntimeOptions) {
 		this.teamName = options.teamName;
-		this.teamId = `team_${sanitizeId(options.teamName)}_${Date.now().toString(36)}`;
+		this.teamId = `t_${sanitizeFileName(nanoid(10))}`;
 		this.onTeamEvent = options.onTeamEvent;
 		this.missionLogIntervalSteps = Math.max(
 			1,
@@ -1993,14 +1995,6 @@ export class AgentTeamsRuntime {
 			// Ignore callback errors to avoid disrupting execution.
 		}
 	}
-}
-
-function sanitizeId(value: string): string {
-	return value
-		.toLowerCase()
-		.replace(/[^a-z0-9]+/g, "_")
-		.replace(/^_+|_+$/g, "")
-		.slice(0, 24);
 }
 
 function sleep(ms: number): Promise<void> {
