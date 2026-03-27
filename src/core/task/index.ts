@@ -242,6 +242,22 @@ export class Task {
 	private modelContextTracker: ModelContextTracker
 	private environmentContextTracker: EnvironmentContextTracker
 
+	// Agent prompt & IO collection
+	private collectedSystemPrompt: string = ""
+	private collectedThinkingMode: "fast" | "slow" = "fast"
+	private collectedIoLog: Array<{
+		request_number: number
+		timestamp: string
+		provider: string
+		model: string
+		mode: string
+		system_prompt: string
+		messages: unknown[]
+		tools: unknown[]
+		response: unknown | null
+	}> = []
+	private currentRequestIoEntry: (typeof this.collectedIoLog)[number] | null = null
+
 	// Focus Chain
 	private FocusChainManager?: FocusChainManager
 
@@ -1624,6 +1640,9 @@ export class Task {
 				Logger.error("Failed to post state after setting abort flag", error)
 			}
 
+			// PHASE 5.5: Write agent output files (system prompt + IO log)
+			await this.writeAgentOutputFiles()
+
 			// PHASE 6: Check for incomplete progress
 			if (this.FocusChainManager) {
 				// Extract current model and provider for telemetry
@@ -1784,6 +1803,51 @@ export class Task {
 			])
 		} catch (error) {
 			Logger.error("Failed to write prompt metadata artifacts:", error)
+		}
+	}
+
+	/**
+	 * Write two JSON files to the task directory when the task completes:
+	 * 1. agent_prompt_info.json - system prompt and thinking mode
+	 * 2. agent_io_log.json - all request/response data from the task
+	 */
+	private async writeAgentOutputFiles(): Promise<void> {
+		try {
+			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+
+			// If we have an in-flight request entry that didn't get a response (e.g. aborted mid-stream),
+			// still include it in the log
+			if (this.currentRequestIoEntry) {
+				this.collectedIoLog.push(this.currentRequestIoEntry)
+				this.currentRequestIoEntry = null
+			}
+
+			const promptInfo = {
+				coding_agent_system_prompt: this.collectedSystemPrompt,
+				thinking_mode: this.collectedThinkingMode,
+			}
+
+			const ioLog = {
+				task_id: this.taskId,
+				total_requests: this.collectedIoLog.length,
+				requests: this.collectedIoLog,
+			}
+
+			await Promise.all([
+				fs.writeFile(
+					path.join(taskDir, GlobalFileNames.agentPromptInfo),
+					JSON.stringify(promptInfo, null, 2),
+					"utf8",
+				),
+				fs.writeFile(
+					path.join(taskDir, GlobalFileNames.agentIoLog),
+					JSON.stringify(ioLog, null, 2),
+					"utf8",
+				),
+			])
+			Logger.info(`[Task ${this.taskId}] Agent output files written to ${taskDir}`)
+		} catch (error) {
+			Logger.error(`[Task ${this.taskId}] Failed to write agent output files:`, error)
 		}
 	}
 
@@ -1993,6 +2057,21 @@ export class Task {
 		this.useNativeToolCalls = !!tools?.length
 		await this.writePromptMetadataArtifacts({ systemPrompt, providerInfo })
 
+		// Collect system prompt (always keep the latest)
+		this.collectedSystemPrompt = systemPrompt
+
+		// Determine thinking mode: "slow" if extended thinking budget is set, "fast" otherwise
+		{
+			const apiConfig = this.stateManager.getApiConfiguration()
+			const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+			const thinkingBudget =
+				currentMode === "plan" ? apiConfig.planModeThinkingBudgetTokens : apiConfig.actModeThinkingBudgetTokens
+			const modelId = providerInfo.model.id
+			const hasThinkingBudget = thinkingBudget !== undefined && thinkingBudget > 0
+			const isFastModel = modelId.includes(":fast")
+			this.collectedThinkingMode = hasThinkingBudget && !isFastModel ? "slow" : "fast"
+		}
+
 		const contextManagementMetadata = await this.contextManager.getNewContextMessagesAndMetadata(
 			this.messageStateHandler.getApiConversationHistory(),
 			this.messageStateHandler.getClineMessages(),
@@ -2007,6 +2086,19 @@ export class Task {
 			this.taskState.conversationHistoryDeletedRange = contextManagementMetadata.conversationHistoryDeletedRange
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			// saves task history item which we use to keep track of conversation history deleted range
+		}
+
+		// Collect IO log entry for this request (response will be filled after streaming)
+		this.currentRequestIoEntry = {
+			request_number: this.taskState.apiRequestCount,
+			timestamp: new Date().toISOString(),
+			provider: providerInfo.providerId,
+			model: providerInfo.model.id,
+			mode: providerInfo.mode,
+			system_prompt: systemPrompt,
+			messages: contextManagementMetadata.truncatedConversationHistory,
+			tools: tools || [],
+			response: null,
 		}
 
 		// Response API requires native tool calls to be enabled
@@ -3153,6 +3245,26 @@ export class Task {
 						},
 						ts: Date.now(),
 					})
+				}
+
+				// Capture response into IO log entry
+				if (this.currentRequestIoEntry) {
+					this.currentRequestIoEntry.response = {
+						role: "assistant",
+						content: assistantContent,
+						modelInfo,
+						id: requestId,
+						metrics: {
+							tokens: {
+								prompt: taskMetrics.inputTokens,
+								completion: taskMetrics.outputTokens,
+								cached: (taskMetrics.cacheWriteTokens ?? 0) + (taskMetrics.cacheReadTokens ?? 0),
+							},
+							cost: taskMetrics.totalCost,
+						},
+					}
+					this.collectedIoLog.push(this.currentRequestIoEntry)
+					this.currentRequestIoEntry = null
 				}
 			}
 

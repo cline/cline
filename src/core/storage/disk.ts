@@ -45,6 +45,8 @@ export const GlobalFileNames = {
 	apiConversationHistory: "api_conversation_history.json",
 	contextHistory: "context_history.json",
 	uiMessages: "ui_messages.json",
+	agentPromptInfo: "agent_prompt_info.json",
+	agentIoLog: "agent_io_log.json",
 	clineRecommendedModels: "cline_recommended_models.json",
 	clineModels: "cline_models.json",
 	openRouterModels: "openrouter_models.json",
