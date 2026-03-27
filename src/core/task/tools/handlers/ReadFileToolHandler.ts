@@ -42,8 +42,11 @@ export function formatFileContentWithLineNumbers(content: string, startLine?: nu
 	}
 	const totalLines = lines.length
 
-	const start = Math.max(1, startLine ?? 1)
-	const end = Math.min(totalLines, endLine ?? start + DEFAULT_MAX_LINES - 1)
+	const requestedStart = Math.max(1, startLine ?? 1)
+	const requestedEnd = endLine !== undefined ? Math.max(1, endLine) : requestedStart + DEFAULT_MAX_LINES - 1
+	const shouldSwapBounds = endLine !== undefined && requestedEnd < requestedStart
+	const start = shouldSwapBounds ? requestedEnd : requestedStart
+	const end = Math.min(totalLines, shouldSwapBounds ? requestedStart : requestedEnd)
 
 	const slice = lines.slice(start - 1, end)
 	const labeled = slice.map((line, i) => `${start + i} | ${line}`).join("\n")

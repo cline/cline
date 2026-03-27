@@ -49,6 +49,15 @@ describe("formatFileContentWithLineNumbers", () => {
 			assert.ok(!result.includes("6 |"))
 		})
 
+		it("normalizes inverted start_line and end_line parameters", () => {
+			const result = formatFileContentWithLineNumbers(tenLines, 5, 3)
+			assert.ok(result.startsWith("3 | line3\n"))
+			assert.ok(result.includes("4 | line4\n"))
+			assert.ok(result.includes("5 | line5"))
+			assert.ok(!result.includes("2 |"))
+			assert.ok(!result.includes("6 |"))
+		})
+
 		it("clamps start_line to 1 if below", () => {
 			const result = formatFileContentWithLineNumbers(tenLines, -5, 3)
 			assert.ok(result.startsWith("1 | line1\n"))
