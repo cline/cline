@@ -52,8 +52,6 @@ export class CodeIntelligenceToolHandler implements IToolHandler {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "queries")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
-
 		// Check if PSI client is available
 		const psiClient = HostProvider.psi
 		if (!psiClient) {
@@ -61,6 +59,17 @@ export class CodeIntelligenceToolHandler implements IToolHandler {
 				"Code intelligence is not available in this environment. Use search_files or list_code_definition_names instead.",
 			)
 		}
+
+		// Parse queries before committing to UI or resetting mistake count
+		const queries = parseQueries(queriesText)
+		if (queries.length === 0) {
+			config.taskState.consecutiveMistakeCount++
+			return formatResponse.toolError(
+				"No valid queries found. Expected format: operation | [file_path[:line] |] symbol_name",
+			)
+		}
+
+		config.taskState.consecutiveMistakeCount = 0
 
 		// Auto-approve: this is a read-only tool, show the result directly
 		const sharedMessageProps = {
@@ -71,14 +80,6 @@ export class CodeIntelligenceToolHandler implements IToolHandler {
 		await config.callbacks.say("tool", JSON.stringify(sharedMessageProps), undefined, undefined, false)
 
 		try {
-			// Parse and execute queries
-			const queries = parseQueries(queriesText)
-			if (queries.length === 0) {
-				return formatResponse.toolError(
-					"No valid queries found. Expected format: operation | [file_path[:line] |] symbol_name",
-				)
-			}
-
 			const cwd = config.cwd
 			const results = await executeQueries(psiClient, queries, cwd)
 			const formatted = formatResults(queries, results)
@@ -311,7 +312,7 @@ function formatSearchResults(response: proto.host.SymbolQueryResponse, reference
 		const containerSuffix = r.containerName ? ` in ${r.containerName}` : ""
 		const shortPath = shortenPath(r.filePath)
 
-		lines.push(`${i + 1}. ${r.symbolName}()${kindSuffix}${containerSuffix}`)
+		lines.push(`${i + 1}. ${r.symbolName}${callableSuffix(r.kind)}${kindSuffix}${containerSuffix}`)
 		lines.push(`   ${shortPath}:${r.line}`)
 
 		if (r.containerName) {
@@ -343,7 +344,9 @@ function formatSymbolQueryResults(
 		if (multiGroup && def) {
 			const kindSuffix = def.kind && def.kind !== "symbol" ? ` — ${def.kind}` : ""
 			const containerSuffix = def.containerName ? ` in ${def.containerName}` : ""
-			lines.push(`━━ ${def.symbolName}()${kindSuffix}${containerSuffix} (${shortenPath(def.filePath)}:${def.line}) ━━`)
+			lines.push(
+				`━━ ${def.symbolName}${callableSuffix(def.kind)}${kindSuffix}${containerSuffix} (${shortenPath(def.filePath)}:${def.line}) ━━`,
+			)
 			lines.push("")
 		}
 
@@ -381,7 +384,7 @@ function formatSymbolQueryResults(
 
 			if (r.containerName) {
 				const kindSuffix = r.kind && r.kind !== "symbol" ? ` — ${r.kind}` : ""
-				lines.push(`   │ in: ${r.containerName}()${kindSuffix}`)
+				lines.push(`   │ in: ${r.containerName}${callableSuffix(r.kind)}${kindSuffix}`)
 				addRefSymbol(referencedSymbols, r.containerName, r.kind || "symbol", r.containerFilePath, r.containerLine)
 			}
 			lines.push("")
@@ -476,6 +479,10 @@ function shortenPath(filePath: string): string {
 		return ".../" + parts.slice(-3).join("/")
 	}
 	return normalized
+}
+
+function callableSuffix(kind?: string): string {
+	return /function|method|constructor/i.test(kind ?? "") ? "()" : ""
 }
 
 function addRefSymbol(map: Map<string, RefSymbol>, name: string, kind: string, filePath: string, line: number): void {

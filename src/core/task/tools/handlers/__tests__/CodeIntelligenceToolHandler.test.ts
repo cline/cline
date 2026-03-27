@@ -217,15 +217,19 @@ describe("CodeIntelligenceToolHandler", () => {
 			assert.ok(result.includes("Unknown operation"), `Expected unknown op error but got: ${result}`)
 		})
 
-		it("should return error for empty queries (only whitespace/comments)", async () => {
+		it("should return error and increment mistake count for empty queries (only whitespace/comments)", async () => {
 			const mockPsi = {}
 			sandbox.stub(HostProvider, "psi" as any).get(() => mockPsi)
 
-			const { config } = createConfig()
+			const { config, taskState, callbacks } = createConfig()
+			assert.equal(taskState.consecutiveMistakeCount, 0)
+
 			const result = await handler.execute(config, makeBlock("# just a comment\n\n"))
 
 			assert.ok(typeof result === "string")
 			assert.ok(result.includes("No valid queries"), `Expected no valid queries error but got: ${result}`)
+			assert.equal(taskState.consecutiveMistakeCount, 1, "Should increment mistake count for empty queries")
+			assert.ok(!callbacks.say.called, "Should not call say() for invalid queries")
 		})
 
 		it("should handle multiple queries in a single call", async () => {
