@@ -1,10 +1,11 @@
 export { defineLlmsConfig } from "./config";
-export * as LlmsModels from "./models/index";
-export * as LlmsProviders from "./providers/public";
+export { createLlmsRuntime } from "./runtime";
 export { createLlmsSdk } from "./sdk";
 export type {
+	BuiltInProviderSummary,
 	CustomProviderConfig,
 	LlmsConfig,
 	LlmsSdk,
 	ProviderSelectionConfig,
+	RegisterBuiltinProviderInput,
 } from "./types";

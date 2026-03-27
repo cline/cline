@@ -22,6 +22,7 @@ import type {
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
+import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
@@ -55,11 +56,13 @@ export class OpenAIBaseHandler extends BaseHandler {
 				throw new Error("Base URL is required. Set baseUrl in config.");
 			}
 			const apiKey = resolveApiKeyForProvider(
-				this.config.providerId,
+				resolveRoutingProviderId(this.config),
 				this.config.apiKey,
 			);
 			if (!apiKey) {
-				throw new Error(getMissingApiKeyError(this.config.providerId));
+				throw new Error(
+					getMissingApiKeyError(resolveRoutingProviderId(this.config)),
+				);
 			}
 			const requestHeaders = this.getRequestHeaders();
 			// const hasAuthorizationHeader = Object.keys(requestHeaders).some((key) => key.toLowerCase() === "authorization")
@@ -148,6 +151,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 		const client = this.ensureClient();
 		const { id: modelId, info: modelInfo } = this.getModel();
 		const responseId = this.createResponseId();
+		const routingProviderId = resolveRoutingProviderId(this.config);
 
 		// Convert messages to OpenAI format
 		const openAiMessages = this.getMessages(systemPrompt, messages);
@@ -161,7 +165,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 			stream_options: { include_usage: true },
 			...getOpenAIToolParams(tools, {
 				// OpenRouter can reject strict function schemas on some routed models.
-				strict: this.config.providerId !== "openrouter",
+				strict: routingProviderId !== "openrouter",
 			}),
 		};
 
@@ -170,7 +174,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 		// as the conversation grows, rather than relying on explicit per-block
 		// breakpoints which are limited to 4.
 		if (
-			this.config.providerId === "openrouter" &&
+			routingProviderId === "openrouter" &&
 			modelId.startsWith("anthropic/")
 		) {
 			requestOptions.cache_control = { type: "ephemeral" };
@@ -210,7 +214,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 			(key) => key.toLowerCase() === "authorization",
 		);
 		const apiKey = resolveApiKeyForProvider(
-			this.config.providerId,
+			routingProviderId,
 			this.config.apiKey,
 		);
 		if (!hasAuthorizationHeader && apiKey) {

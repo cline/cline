@@ -1,3 +1,19 @@
+// Commonly used exports from other packages in the monorepo.
+// Re-exported here for easier imports from consumer code.
+export {
+	type AgentConfig,
+	type CreateMcpToolsOptions,
+	createMcpTools,
+	createTool,
+	getClineDefaultSystemPrompt,
+	type Tool,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
+	type ToolContext,
+} from "@clinebot/agents";
+export * as LlmsModels from "@clinebot/llms/models";
+export * as LlmsProviders from "@clinebot/llms/providers";
+export * from "@clinebot/shared/storage";
 export type {
 	AgentConfigWatcher,
 	AgentConfigWatcherEvent,

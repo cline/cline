@@ -82,11 +82,14 @@ vi.mock("@clinebot/core/node", () => ({
 	},
 }));
 vi.mock("./commands/auth", () => authMocks);
-vi.mock("@clinebot/llms", () => ({
-	LlmsProviders: {
+vi.mock("@clinebot/llms/providers", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("@clinebot/llms/providers")>();
+	return {
+		...actual,
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
-	},
-}));
+	};
+});
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));

@@ -4,6 +4,66 @@
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",
+	"engines": {
+		"node": ">=20"
+	},
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"exports": {
+		".": {
+			"browser": "./dist/index.browser.js",
+			"react-server": "./dist/index.browser.js",
+			"development": "./src/index.ts",
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
+		"./node": {
+			"development": "./src/index.ts",
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		},
+		"./browser": {
+			"development": "./src/index.browser.ts",
+			"import": "./dist/index.browser.js",
+			"types": "./dist/index.browser.d.ts"
+		},
+		"./models": {
+			"development": "./src/models.ts",
+			"import": "./dist/models.js",
+			"types": "./dist/models.d.ts"
+		},
+		"./providers": {
+			"development": "./src/providers.ts",
+			"import": "./dist/providers.js",
+			"types": "./dist/providers.d.ts"
+		},
+		"./providers/browser": {
+			"development": "./src/providers.browser.ts",
+			"import": "./dist/providers.browser.js",
+			"types": "./dist/providers.browser.d.ts"
+		},
+		"./runtime": {
+			"development": "./src/runtime.ts",
+			"import": "./dist/runtime.js",
+			"types": "./dist/runtime.d.ts"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"clean": "rm -rf dist node_modules",
+		"generate:models": "bun run scripts/generate-models.ts"
+	},
+	"peerDependenciesMeta": {
+		"@aws-sdk/client-bedrock-runtime": {
+			"optional": true
+		}
+	},
 	"dependencies": {
 		"@clinebot/shared": "workspace:*",
 		"@ai-sdk/amazon-bedrock": "^4.0.67",
@@ -24,45 +84,5 @@
 	},
 	"peerDependencies": {
 		"@aws-sdk/client-bedrock-runtime": "^3.0.0"
-	},
-	"exports": {
-		".": {
-			"browser": "./dist/index.browser.js",
-			"react-server": "./dist/index.browser.js",
-			"development": "./src/index.ts",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
-		"./node": {
-			"development": "./src/index.ts",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
-		"./browser": {
-			"development": "./src/index.browser.ts",
-			"import": "./dist/index.browser.js",
-			"types": "./dist/index.browser.d.ts"
-		}
-	},
-	"files": [
-		"dist"
-	],
-	"peerDependenciesMeta": {
-		"@aws-sdk/client-bedrock-runtime": {
-			"optional": true
-		}
-	},
-	"scripts": {
-		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
-		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
-		"test": "vitest run",
-		"test:watch": "vitest",
-		"clean": "rm -rf dist node_modules",
-		"generate:models": "bun run scripts/generate-models.ts"
-	},
-	"engines": {
-		"node": ">=20"
-	},
-	"type": "module",
-	"types": "./dist/index.d.ts"
+	}
 }

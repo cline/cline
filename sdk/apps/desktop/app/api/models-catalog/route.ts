@@ -1,4 +1,4 @@
-import { LlmsModels as models } from "@clinebot/llms";
+import * as models from "@clinebot/llms/models";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-static";

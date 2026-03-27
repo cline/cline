@@ -6,6 +6,8 @@
 
 export {
 	type AgentConfig,
+	type CreateMcpToolsOptions,
+	createMcpTools,
 	createTool,
 	getClineDefaultSystemPrompt,
 	type Tool,
@@ -13,7 +15,8 @@ export {
 	type ToolApprovalResult,
 	type ToolContext,
 } from "@clinebot/agents";
-export { LlmsModels, LlmsProviders } from "@clinebot/llms";
+export * as LlmsModels from "@clinebot/llms/models";
+export * as LlmsProviders from "@clinebot/llms/providers";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AgentMode,

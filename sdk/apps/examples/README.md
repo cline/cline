@@ -80,13 +80,13 @@ bun run 01-minimal.ts
 
 > **Note:** Examples work without the CLI installed. They use local in-process sessions with automatic SQLite fallback.
 
-To use the SDK in your own Node app (outside this monorepo), install published packages:
+To use the SDK in your own Node app (outside this monorepo), start with the simplest path:
 
 ```bash
-npm add @clinebot/core @clinebot/agents @clinebot/llms
+npm add @clinebot/core
 ```
 
-For RPC client helpers, import from `@clinebot/core` (re-exported there), not `@clinebot/rpc`.
+Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally want lower-level control. For RPC client helpers, import from `@clinebot/core` (re-exported there), not `@clinebot/rpc`.
 
 ## 📚 Learning Path
 

@@ -9,7 +9,7 @@ import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
 } from "@clinebot/agents";
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import { normalizeUserInput, resolveRootSessionId } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import { z } from "zod";

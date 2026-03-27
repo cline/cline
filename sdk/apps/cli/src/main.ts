@@ -2,6 +2,7 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import type { ToolPolicy } from "@clinebot/core";
 import { setClineDir, setHomeDir } from "@clinebot/core";
+import { requestRpcServerShutdown } from "@clinebot/rpc";
 import type { Command } from "commander";
 import {
 	ensureOAuthProviderApiKey,
@@ -69,15 +70,15 @@ async function createProviderSettingsManager() {
 }
 
 async function loadCliRuntimeModules() {
-	const [coreServer, llms, prompt, runAgentModule] = await Promise.all([
+	const [coreServer, providers, prompt, runAgentModule] = await Promise.all([
 		import("@clinebot/core/node"),
-		import("@clinebot/llms"),
+		import("@clinebot/llms/providers"),
 		import("./runtime/prompt"),
 		import("./runtime/run-agent"),
 	]);
 	return {
 		coreServer,
-		llms,
+		providers,
 		resolveSystemPrompt: prompt.resolveSystemPrompt,
 		runAgent: runAgentModule.runAgent,
 	};
@@ -368,7 +369,6 @@ export async function runCli(): Promise<void> {
 		.option("-v, --verbose", "Show verbose output")
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
-			const { requestRpcServerShutdown } = await import("@clinebot/rpc");
 			const address = process.env.CLINE_RPC_ADDRESS || "127.0.0.1:4317";
 			requestRpcServerShutdown(address).catch(() => {});
 			writeErr(
@@ -517,7 +517,7 @@ export async function runCli(): Promise<void> {
 			createUserInstructionConfigWatcher,
 			loadRulesForSystemPromptFromWatcher,
 		},
-		llms: { LlmsProviders: providers },
+		providers,
 		resolveSystemPrompt,
 		runAgent,
 	} = await loadCliRuntimeModules();

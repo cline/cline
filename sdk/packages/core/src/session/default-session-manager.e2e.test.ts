@@ -10,7 +10,7 @@ import {
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentResult } from "@clinebot/agents";
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";

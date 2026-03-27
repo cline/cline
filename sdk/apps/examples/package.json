@@ -1,6 +1,6 @@
 {
 	"name": "examples",
-	"module": "index.ts",
+	"description": "Example apps for the Cline SDK",
 	"type": "module",
 	"private": true,
 	"devDependencies": {
@@ -10,10 +10,6 @@
 		"typescript": "^5"
 	},
 	"dependencies": {
-		"@chat-adapter/slack": "^4.16.1",
-		"@clinebot/agents": "latest",
-		"@clinebot/core": "latest",
-		"@clinebot/llms": "latest",
-		"chat": "^4.16.1"
+		"@clinebot/core": "workspace:*"
 	}
 }

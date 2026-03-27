@@ -1,10 +1,10 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "vitest";
-import { LlmsProviders } from "./index";
+import * as LlmsProviders from "./providers";
 
-type ProviderConfig = LlmsProviders.ProviderConfig;
-type ProviderSettings = LlmsProviders.ProviderSettings;
+type ProviderConfig = import("./providers").ProviderConfig;
+type ProviderSettings = import("./providers").ProviderSettings;
 
 interface StoredProviderSettingsEntryLike {
 	settings?: unknown;

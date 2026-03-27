@@ -18,6 +18,7 @@ import {
 	type ApiStream,
 	type HandlerModelInfo,
 	type ProviderConfig,
+	resolveRoutingProviderId,
 	supportsModelThinking,
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
@@ -46,11 +47,13 @@ export class AnthropicHandler extends BaseHandler {
 	private ensureClient(): Anthropic {
 		if (!this.client) {
 			const apiKey = resolveApiKeyForProvider(
-				this.config.providerId,
+				resolveRoutingProviderId(this.config),
 				this.config.apiKey,
 			);
 			if (!apiKey) {
-				throw new Error(getMissingApiKeyError(this.config.providerId));
+				throw new Error(
+					getMissingApiKeyError(resolveRoutingProviderId(this.config)),
+				);
 			}
 
 			this.client = new Anthropic({

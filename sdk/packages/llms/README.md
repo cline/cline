@@ -6,10 +6,9 @@ LLM backends.
 
 ## What You Get
 
-- `providers` for creating runtime handlers and working with provider settings
-- `models` for browsing generated model catalogs
-- `defineLlmsConfig(...)` for declarative SDK config
-- `createLlmsSdk(...)` for higher-level provider/model workflows
+- `@clinebot/llms/runtime` for declarative config and runtime registry creation
+- `@clinebot/llms/providers` for handler creation and provider settings/types
+- `@clinebot/llms/models` for model catalogs and query helpers
 
 ## Installation
 
@@ -20,7 +19,7 @@ npm install @clinebot/llms zod
 ## Quick Start
 
 ```ts
-import { LlmsProviders } from "@clinebot/llms";
+import * as LlmsProviders from "@clinebot/llms/providers";
 
 const handler = LlmsProviders.createHandler({
 	provider: "anthropic",
@@ -40,9 +39,24 @@ for await (const chunk of stream) {
 
 ## Main APIs
 
+### Runtime
+
+Use `createLlmsRuntime(...)` when you want a small registry around:
+
+- configured providers and their default models
+- builtin provider discovery via `getBuiltInProviders()`
+- custom provider registration via `registerBuiltinProvider(...)`
+- handler creation for builtin or custom providers
+
+Preferred import:
+
+```ts
+import { createLlmsRuntime, defineLlmsConfig } from "@clinebot/llms/runtime";
+```
+
 ### Providers
 
-Use the `providers` namespace for:
+Use `@clinebot/llms/providers` for:
 
 - `createHandler(...)` and `createHandlerAsync(...)`
 - `ProviderSettings` and `ProviderSettingsSchema`
@@ -51,14 +65,17 @@ Use the `providers` namespace for:
 
 ### Models
 
-Use the `models` namespace when you need generated provider/model metadata for
+Use `@clinebot/llms/models` when you need generated provider/model metadata for
 selection UIs, defaults, or validation.
 
 ## Entry Points
 
-- `@clinebot/llms`: default package entrypoint
+- `@clinebot/llms`: runtime-focused convenience entrypoint
 - `@clinebot/llms/node`: explicit Node/runtime entrypoint
 - `@clinebot/llms/browser`: browser-safe bundle
+- `@clinebot/llms/runtime`: focused runtime entrypoint
+- `@clinebot/llms/models`: model catalog/query entrypoint
+- `@clinebot/llms/providers`: provider handler/settings entrypoint
 
 ## Related Packages
 

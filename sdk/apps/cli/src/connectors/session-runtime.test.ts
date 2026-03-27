@@ -36,15 +36,13 @@ vi.mock("../runtime/prompt", () => ({
 	resolveSystemPrompt: mockResolveSystemPrompt,
 }));
 
-vi.mock("@clinebot/llms", async () => {
-	const actual =
-		await vi.importActual<typeof import("@clinebot/llms")>("@clinebot/llms");
+vi.mock("@clinebot/llms/models", async () => {
+	const actual = await vi.importActual<typeof import("@clinebot/llms/models")>(
+		"@clinebot/llms/models",
+	);
 	return {
 		...actual,
-		LlmsModels: {
-			...actual.LlmsModels,
-			getProviderCollection: mockGetProviderCollection,
-		},
+		getProviderCollection: mockGetProviderCollection,
 	};
 });
 

@@ -1,4 +1,5 @@
 import type { ApiStream, HandlerModelInfo, ProviderConfig } from "../types";
+import { resolveRoutingProviderId } from "../types";
 import type { ContentBlock, Message } from "../types/messages";
 import { resolveApiKeyForProvider } from "./auth";
 import { FetchBaseHandler } from "./fetch-base";
@@ -51,7 +52,7 @@ export class AskSageHandler extends FetchBaseHandler {
 		extra?: Record<string, string>,
 	): Record<string, string> {
 		const apiKey = resolveApiKeyForProvider(
-			this.config.providerId,
+			resolveRoutingProviderId(this.config),
 			this.config.apiKey,
 		);
 		if (!apiKey) {

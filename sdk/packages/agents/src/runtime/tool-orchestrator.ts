@@ -1,4 +1,4 @@
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
 	executeToolsInParallel,
 	formatStructuredToolResult,

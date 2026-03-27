@@ -6,6 +6,6 @@ export function defineLlmsConfig(config: LlmsConfig): LlmsConfig {
 
 export async function loadLlmsConfigFromFile(): Promise<LlmsConfig> {
 	throw new Error(
-		"loadLlmsConfigFromFile is Node-only. Use @clinebot/llms in a Node runtime or pass a config object directly in browser runtimes.",
+		"loadLlmsConfigFromFile is Node-only. Use @clinebot/llms/runtime in a Node runtime or pass a config object directly in browser runtimes.",
 	);
 }

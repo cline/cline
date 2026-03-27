@@ -1,0 +1,16 @@
+{
+	"name": "cline-sdk-slack-bot-example",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Slack bot example for the Cline SDK",
+	"type": "module",
+	"scripts": {
+		"start": "bun run src/index.ts"
+	},
+	"dependencies": {
+		"@chat-adapter/slack": "^4.16.1",
+		"@clinebot/agents": "workspace:*",
+		"@clinebot/llms": "workspace:*",
+		"chat": "^4.16.1"
+	}
+}

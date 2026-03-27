@@ -5,7 +5,7 @@
  * and invalid tool-call feedback for the agent loop.
  */
 
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import type {
 	AgentEvent,
 	ConsecutiveMistakeLimitContext,

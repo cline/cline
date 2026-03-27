@@ -1,6 +1,6 @@
 "use client";
 
-import { LlmsModels as models } from "@clinebot/llms";
+import * as models from "@clinebot/llms/models";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {

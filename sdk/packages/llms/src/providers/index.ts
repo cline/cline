@@ -280,6 +280,7 @@ import {
 	normalizeProviderId,
 	type ProviderConfig,
 	type ProviderId,
+	resolveRoutingProviderId,
 } from "./types";
 
 function withNormalizedProviderId(config: ProviderConfig): ProviderConfig {
@@ -329,7 +330,7 @@ function mergeProviderDefaults(
 	return {
 		...config,
 		baseUrl:
-			config.providerId === BUILT_IN_PROVIDER.OCA
+			resolveRoutingProviderId(config) === BUILT_IN_PROVIDER.OCA
 				? resolveOcaBaseUrl(config, defaults)
 				: (config.baseUrl ?? defaults.baseUrl),
 		modelId: config.modelId ?? defaults.modelId,
@@ -355,20 +356,21 @@ const BUILT_IN_HANDLER_FACTORIES: Record<string, HandlerFactory> = {
 };
 
 function createOpenAICompatibleHandler(config: ProviderConfig): ApiHandler {
-	if (config.providerId === BUILT_IN_PROVIDER.OPENAI_CODEX) {
+	const routingProviderId = resolveRoutingProviderId(config);
+	if (routingProviderId === BUILT_IN_PROVIDER.OPENAI_CODEX) {
 		return new CodexHandler(config);
 	}
-	if (config.providerId === BUILT_IN_PROVIDER.SAPAICORE) {
+	if (routingProviderId === BUILT_IN_PROVIDER.SAPAICORE) {
 		return new SapAiCoreHandler(config);
 	}
-	if (config.providerId === BUILT_IN_PROVIDER.OCA) {
+	if (routingProviderId === BUILT_IN_PROVIDER.OCA) {
 		return createOcaHandler(config);
 	}
 	return new OpenAIBaseHandler(config);
 }
 
 function createBuiltInHandler(config: ProviderConfig): ApiHandler | undefined {
-	const factory = BUILT_IN_HANDLER_FACTORIES[config.providerId];
+	const factory = BUILT_IN_HANDLER_FACTORIES[resolveRoutingProviderId(config)];
 	return factory ? factory(config) : undefined;
 }
 
@@ -397,6 +399,7 @@ function createBuiltInHandler(config: ProviderConfig): ApiHandler | undefined {
 export function createHandler(config: ProviderConfig): ApiHandler {
 	const normalizedConfig = withNormalizedProviderId(config);
 	const { providerId } = normalizedConfig;
+	const routingProviderId = resolveRoutingProviderId(normalizedConfig);
 
 	// Check custom registry first (allows overriding built-in handlers)
 	if (hasRegisteredHandler(providerId)) {
@@ -411,13 +414,16 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 		}
 	}
 
-	const builtInHandler = createBuiltInHandler(normalizedConfig);
+	const builtInHandler = createBuiltInHandler({
+		...normalizedConfig,
+		routingProviderId,
+	});
 	if (builtInHandler) {
 		return builtInHandler;
 	}
 
 	// Check if it's an OpenAI-compatible provider
-	if (isOpenAICompatibleProvider(providerId)) {
+	if (isOpenAICompatibleProvider(routingProviderId)) {
 		if (
 			normalizedConfig.modelCatalog?.loadLatestOnInit ||
 			normalizedConfig.modelCatalog?.loadPrivateOnAuth
@@ -426,17 +432,21 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 				`Provider "${providerId}" has runtime model refresh enabled. Use createHandlerAsync() to allow async model refresh.`,
 			);
 		}
-		const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[providerId];
+		const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[routingProviderId];
 		return createOpenAICompatibleHandler(
-			mergeProviderDefaults(normalizedConfig, providerDefaults),
+			mergeProviderDefaults(
+				{ ...normalizedConfig, routingProviderId },
+				providerDefaults,
+			),
 		);
 	}
 
 	// Fall back to OpenAI-compatible with custom base URL
 	return normalizedConfig.baseUrl
-		? new OpenAIBaseHandler(normalizedConfig)
+		? new OpenAIBaseHandler({ ...normalizedConfig, routingProviderId })
 		: new OpenAIResponsesHandler({
 				...normalizedConfig,
+				routingProviderId,
 				baseUrl: "https://api.openai.com/v1",
 			});
 }
@@ -470,6 +480,7 @@ export async function createHandlerAsync(
 ): Promise<ApiHandler> {
 	const normalizedConfig = withNormalizedProviderId(config);
 	const { providerId } = normalizedConfig;
+	const routingProviderId = resolveRoutingProviderId(normalizedConfig);
 
 	// Check custom registry first (allows overriding built-in handlers)
 	if (hasRegisteredHandler(providerId)) {
@@ -482,15 +493,18 @@ export async function createHandlerAsync(
 		}
 	}
 
-	if (isOpenAICompatibleProvider(providerId)) {
+	if (isOpenAICompatibleProvider(routingProviderId)) {
 		const providerDefaults = await resolveProviderConfig(
-			providerId,
+			routingProviderId,
 			normalizedConfig.modelCatalog,
-			normalizedConfig,
+			{ ...normalizedConfig, routingProviderId },
 		);
 		if (providerDefaults) {
 			return createOpenAICompatibleHandler(
-				mergeProviderDefaults(normalizedConfig, providerDefaults),
+				mergeProviderDefaults(
+					{ ...normalizedConfig, routingProviderId },
+					providerDefaults,
+				),
 			);
 		}
 	}

@@ -59,10 +59,10 @@ bun run 01-minimal.ts
 Using these SDK packages in your own app (npm/pnpm/yarn):
 
 ```bash
-npm add @clinebot/core @clinebot/agents @clinebot/llms
+npm add @clinebot/core
 ```
 
-If you need RPC client/server helpers, import them from `@clinebot/rpc` directly. `@clinebot/core` is now the transport-agnostic session/runtime package.
+Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally need lower-level control than the `@clinebot/core` API. If you need RPC client/server helpers, import them from `@clinebot/rpc` directly. `@clinebot/core` is now the transport-agnostic session/runtime package.
 
 > **Note:** `createSessionHost` works without the CLI app installed. It runs local in-process sessions and falls back to a local SQLite backend when RPC is unavailable. Use `CLINE_BACKEND_MODE=local` to force local mode explicitly.
 
@@ -77,11 +77,11 @@ CLINE_BACKEND_MODE=local bun run 13-full-control.ts
 
 The Cline SDK is organized into focused packages:
 
-- **`@clinebot/core`** - Session management, storage, runtime orchestration
+- **`@clinebot/core`** - Recommended starting point. Session management, storage, runtime orchestration, and re-exported SDK conveniences
 - **`@clinebot/rpc`** - Optional remote-session helpers (`RpcSessionClient`, `getRpcServerHealth`, etc.)
-- **`@clinebot/agents`** - Agent runtime loop, tools, hooks, teams
-- **`@clinebot/llms`** - Model catalog, provider settings, handlers
-- Shared primitives/types/path helpers are consumed through `@clinebot/core` re-exports in app/example code.
+- **`@clinebot/agents`** - Advanced agent runtime loop, tools, hooks, teams
+- **`@clinebot/llms`** - Advanced model catalog, provider settings, handlers
+- Most app/example code should start from `@clinebot/core` and only reach for lower-level packages when needed.
 
 ### Session Flow
 

@@ -287,6 +287,14 @@ export interface ProviderConfig
 	/** Provider ID - determines which handler to use */
 	providerId: ProviderId;
 
+	/**
+	 * Optional built-in provider family to use for handler routing.
+	 *
+	 * This lets clients expose a custom provider ID and model catalog while
+	 * reusing the runtime behavior of a built-in provider implementation.
+	 */
+	routingProviderId?: ProviderId;
+
 	/** Capabilities this provider/model supports */
 	capabilities?: ProviderCapability[];
 
@@ -365,6 +373,15 @@ export function supportsReasoning(config: ProviderConfig): boolean {
  */
 export function supportsPromptCache(config: ProviderConfig): boolean {
 	return hasCapability(config, "prompt-cache");
+}
+
+/**
+ * Resolve the provider ID used for handler selection and built-in behavior.
+ */
+export function resolveRoutingProviderId(
+	config: Pick<ProviderConfig, "providerId" | "routingProviderId">,
+): string {
+	return normalizeProviderId(config.routingProviderId ?? config.providerId);
 }
 
 // =============================================================================

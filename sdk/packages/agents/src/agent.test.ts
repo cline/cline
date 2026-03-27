@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createTool } from "./tools/create.js";
 import type { AgentExtension, Tool } from "./types.js";
@@ -35,11 +35,9 @@ const toProviderConfigMock = vi.fn((settings: unknown) => {
 	};
 });
 
-vi.mock("@clinebot/llms", () => ({
-	LlmsProviders: {
-		createHandler: (config: unknown) => createHandlerMock(config),
-		toProviderConfig: (settings: unknown) => toProviderConfigMock(settings),
-	},
+vi.mock("@clinebot/llms/providers", () => ({
+	createHandler: (config: unknown) => createHandlerMock(config),
+	toProviderConfig: (settings: unknown) => toProviderConfigMock(settings),
 }));
 
 async function* streamChunks(chunks: FakeChunk[]): AsyncGenerator<FakeChunk> {

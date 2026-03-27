@@ -4,7 +4,7 @@
  * The main class for building and running agentic loops with LLMs.
  */
 
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import { nanoid } from "nanoid";
 import { buildInitialUserContent } from "./agent-input.js";
 import {

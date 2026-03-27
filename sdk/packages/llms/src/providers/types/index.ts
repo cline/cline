@@ -34,6 +34,7 @@ export {
 	type ProviderSpecificConfig,
 	type ReasoningConfig,
 	type RegionConfig,
+	resolveRoutingProviderId,
 	type SapConfig,
 	type SimpleProviderConfig,
 	supportsPromptCache,

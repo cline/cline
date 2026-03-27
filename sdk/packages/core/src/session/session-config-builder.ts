@@ -1,4 +1,3 @@
-import type { LlmsProviders } from "@clinebot/llms";
 import type { ITelemetryService } from "@clinebot/shared";
 import { resolveAndLoadAgentPlugins } from "../agents/plugin-config-loader";
 import {
@@ -9,6 +8,7 @@ import {
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import type { CoreSessionConfig } from "../types/config";
 import {
+	type ProviderConfig,
 	type ProviderSettings,
 	toProviderConfig,
 } from "../types/provider-settings";
@@ -80,7 +80,7 @@ export function buildResolvedProviderConfig(
 		config: CoreSessionConfig,
 		storedReasoning: ProviderSettings["reasoning"],
 	) => ProviderSettings["reasoning"],
-): LlmsProviders.ProviderConfig {
+): ProviderConfig {
 	const stored = providerSettingsManager.getProviderSettings(config.providerId);
 	const settings: ProviderSettings = {
 		...(stored ?? {}),

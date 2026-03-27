@@ -22,6 +22,7 @@ import type {
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
+import { resolveRoutingProviderId } from "../types";
 import type {
 	ContentBlock,
 	Message,
@@ -180,11 +181,13 @@ export class OpenAIResponsesHandler extends BaseHandler {
 				throw new Error("Base URL is required. Set baseUrl in config.");
 			}
 			const apiKey = resolveApiKeyForProvider(
-				this.config.providerId,
+				resolveRoutingProviderId(this.config),
 				this.config.apiKey,
 			);
 			if (!apiKey) {
-				throw new Error(getMissingApiKeyError(this.config.providerId));
+				throw new Error(
+					getMissingApiKeyError(resolveRoutingProviderId(this.config)),
+				);
 			}
 			const requestHeaders = this.getRequestHeaders();
 			const hasAuthorizationHeader = Object.keys(requestHeaders).some(
@@ -257,6 +260,7 @@ export class OpenAIResponsesHandler extends BaseHandler {
 		const { id: modelId, info: modelInfo } = this.getModel();
 		const abortSignal = this.getAbortSignal();
 		const fallbackResponseId = this.createResponseId();
+		const routingProviderId = resolveRoutingProviderId(this.config);
 		let resolvedResponseId: string | undefined;
 		const functionCallMetadataByItemId = new Map<
 			string,
@@ -268,7 +272,7 @@ export class OpenAIResponsesHandler extends BaseHandler {
 
 		// Convert tools to Responses API format
 		const responseTools = convertToolsToResponsesFormat(tools, {
-			stripFormat: this.config.providerId === "openai-codex",
+			stripFormat: routingProviderId === "openai-codex",
 		});
 
 		// Responses API requires tools for native tool calling
@@ -296,14 +300,14 @@ export class OpenAIResponsesHandler extends BaseHandler {
 			(key) => key.toLowerCase() === "authorization",
 		);
 		const apiKey = resolveApiKeyForProvider(
-			this.config.providerId,
+			routingProviderId,
 			this.config.apiKey,
 		);
 		if (!hasAuthorizationHeader && apiKey) {
 			requestHeaders.Authorization = `Bearer ${apiKey}`;
 		}
 		if (
-			this.config.providerId === "openai-codex" &&
+			routingProviderId === "openai-codex" &&
 			typeof this.config.accountId === "string" &&
 			this.config.accountId.trim().length > 0
 		) {
@@ -322,7 +326,7 @@ export class OpenAIResponsesHandler extends BaseHandler {
 					instructions: systemPrompt,
 					input,
 					// ChatGPT account Codex rejects requests unless explicit non-storage is set.
-					store: this.config.providerId === "openai-codex" ? false : undefined,
+					store: routingProviderId === "openai-codex" ? false : undefined,
 					stream: true,
 					tools: responseTools,
 					reasoning: reasoningConfig,
@@ -335,7 +339,7 @@ export class OpenAIResponsesHandler extends BaseHandler {
 			if (normalizedBadRequest) {
 				throw normalizedBadRequest;
 			}
-			if (this.config.providerId === "openai-codex") {
+			if (routingProviderId === "openai-codex") {
 				const rawError = error as
 					| (Error & {
 							status?: number;

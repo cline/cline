@@ -20,6 +20,7 @@ import type {
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
+import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
@@ -57,11 +58,13 @@ export class R1BaseHandler extends BaseHandler {
 				throw new Error("Base URL is required. Set baseUrl in config.");
 			}
 			const apiKey = resolveApiKeyForProvider(
-				this.config.providerId,
+				resolveRoutingProviderId(this.config),
 				this.config.apiKey,
 			);
 			if (!apiKey) {
-				throw new Error(getMissingApiKeyError(this.config.providerId));
+				throw new Error(
+					getMissingApiKeyError(resolveRoutingProviderId(this.config)),
+				);
 			}
 			const requestHeaders = this.getRequestHeaders();
 			const hasAuthorizationHeader = Object.keys(requestHeaders).some(
@@ -170,7 +173,7 @@ export class R1BaseHandler extends BaseHandler {
 			(key) => key.toLowerCase() === "authorization",
 		);
 		const apiKey = resolveApiKeyForProvider(
-			this.config.providerId,
+			resolveRoutingProviderId(this.config),
 			this.config.apiKey,
 		);
 		if (!hasAuthorizationHeader && apiKey) {

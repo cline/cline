@@ -1,4 +1,5 @@
-import { LlmsModels, type LlmsProviders } from "@clinebot/llms";
+import * as LlmsModels from "@clinebot/llms/models";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import type {
 	RpcAddProviderActionRequest,
 	RpcOAuthProviderId,

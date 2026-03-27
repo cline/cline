@@ -18,7 +18,12 @@ const external = Object.keys({
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
-		entrypoints: ["./src/index.ts"],
+		entrypoints: [
+			"./src/index.ts",
+			"./src/models.ts",
+			"./src/providers.ts",
+			"./src/runtime.ts",
+		],
 		outdir: "./dist",
 		target: "node",
 		external,
@@ -27,7 +32,7 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		sourcemap: "none",
 	},
 	{
-		entrypoints: ["./src/index.browser.ts"],
+		entrypoints: ["./src/index.browser.ts", "./src/providers.browser.ts"],
 		outdir: "./dist",
 		target: "browser",
 		external,

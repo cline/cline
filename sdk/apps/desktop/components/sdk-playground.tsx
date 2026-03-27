@@ -1,10 +1,10 @@
 "use client";
 
+import * as LlmsModels from "@clinebot/llms/models";
 import type {
 	CustomProviderConfig,
 	ProviderSelectionConfig,
-} from "@clinebot/llms";
-import { LlmsModels } from "@clinebot/llms";
+} from "@clinebot/llms/runtime";
 import {
 	AlertCircle,
 	Braces,
@@ -1279,7 +1279,7 @@ function generateConfigCode(providers: ProviderConfig[]): string {
 			return lines.join("\n");
 		});
 
-	return `import { createLlmsSdk, defineLlmsConfig } from "@clinebot/llms"
+	return `import { createLlmsSdk, defineLlmsConfig } from "@clinebot/llms/runtime"
 
 const config = defineLlmsConfig({
   providers: [

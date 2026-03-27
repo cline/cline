@@ -46,10 +46,24 @@
 									"@clinebot/llms/*",
 									"@clinebot/agents/*",
 									"@clinebot/core/*",
+									"@clinebot/shared/*",
+									"!@clinebot/llms/node",
+									"!@clinebot/llms/browser",
+									"!@clinebot/llms/runtime",
+									"!@clinebot/llms/runtime/*",
+									"!@clinebot/llms/models",
+									"!@clinebot/llms/models/*",
+									"!@clinebot/llms/providers",
+									"!@clinebot/llms/providers/*",
+									"!@clinebot/agents/node",
+									"!@clinebot/agents/browser",
 									"!@clinebot/core/node",
-									"!@clinebot/core/node/*"
+									"!@clinebot/core/node/*",
+									"!@clinebot/core/telemetry/opentelemetry",
+									"!@clinebot/shared/storage",
+									"!@clinebot/shared/db"
 								],
-								"message": "Cross-workspace deep imports are forbidden (except @clinebot/core/node). Import from package entry points instead."
+								"message": "Cross-workspace deep imports are forbidden unless they are declared package entry points. Import from exported package entry points instead."
 							}
 						]
 					}

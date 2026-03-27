@@ -3,7 +3,7 @@
  */
 
 import { basename, resolve } from "node:path";
-import type { LlmsProviders } from "@clinebot/llms";
+import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
 	type ITelemetryService,
 	type Tool,
