@@ -55,7 +55,13 @@ describe("Telemetry system is abstracted and can easily switch between providers
 
 	describe("Telemetry Service", () => {
 		it("should derive remote workspace metadata from host version", async () => {
+			const remoteProvider = new NoOpTelemetryProvider()
+			const localProvider = new NoOpTelemetryProvider()
+			const remoteLogSpy = sinon.spy(remoteProvider, "log")
+			const localLogSpy = sinon.spy(localProvider, "log")
 			const hostVersionStub = sinon.stub(HostProvider.env, "getHostVersion")
+			const createProvidersStub = sinon.stub(TelemetryProviderFactory, "createProviders")
+
 			hostVersionStub.onFirstCall().resolves({
 				platform: "VS Code",
 				version: "1.103.0",
@@ -67,17 +73,27 @@ describe("Telemetry system is abstracted and can easily switch between providers
 				version: "1.103.0",
 				clineType: "VSCode Extension",
 			})
+			createProvidersStub.onFirstCall().resolves([remoteProvider])
+			createProvidersStub.onSecondCall().resolves([localProvider])
 
 			const remoteService = await TelemetryService.create()
 			const localService = await TelemetryService.create()
 
-			const remoteMetadata = (remoteService as unknown as { telemetryMetadata: TelemetryMetadata }).telemetryMetadata
-			const localMetadata = (localService as unknown as { telemetryMetadata: TelemetryMetadata }).telemetryMetadata
+			remoteLogSpy.resetHistory()
+			localLogSpy.resetHistory()
 
-			assert.strictEqual(remoteMetadata.is_remote_workspace, true)
-			assert.strictEqual(localMetadata.is_remote_workspace, false)
+			remoteService.captureTaskCreated("task-remote", "openai")
+			localService.captureTaskCreated("task-local", "openai")
+
+			assert.ok(remoteLogSpy.calledOnce, "remote service should emit an event")
+			assert.ok(localLogSpy.calledOnce, "local service should emit an event")
+			assert.strictEqual(remoteLogSpy.firstCall.args[1]?.is_remote_workspace, true)
+			assert.strictEqual(localLogSpy.firstCall.args[1]?.is_remote_workspace, false)
 
 			hostVersionStub.restore()
+			createProvidersStub.restore()
+			remoteLogSpy.restore()
+			localLogSpy.restore()
 			await remoteService.dispose()
 			await localService.dispose()
 		})
