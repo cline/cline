@@ -4728,7 +4728,7 @@ export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
 export const minimaxModels = {
 	"MiniMax-M2.7": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
@@ -4740,7 +4740,7 @@ export const minimaxModels = {
 	},
 	"MiniMax-M2.7-highspeed": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
@@ -4752,7 +4752,7 @@ export const minimaxModels = {
 	},
 	"MiniMax-M2.5": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
@@ -4763,7 +4763,7 @@ export const minimaxModels = {
 	},
 	"MiniMax-M2.5-highspeed": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
@@ -4774,7 +4774,7 @@ export const minimaxModels = {
 	},
 	"MiniMax-M2.1": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.3,
@@ -4784,7 +4784,7 @@ export const minimaxModels = {
 	},
 	"MiniMax-M2.1-lightning": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.6,
@@ -4794,7 +4794,7 @@ export const minimaxModels = {
 	},
 	"MiniMax-M2": {
 		maxTokens: 128_000,
-		contextWindow: 192_000,
+		contextWindow: 204_800,
 		supportsImages: false,
 		supportsPromptCache: false,
 		inputPrice: 0.3,
