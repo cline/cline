@@ -1,5 +1,14 @@
 # Minimal implementation plan: remote-workspace telemetry
 
+## Progress
+
+- [x] Reuse the existing VS Code remote-workspace signal from host version metadata
+- [x] Add `is_remote_workspace` to shared telemetry metadata in `TelemetryService`
+- [x] Ensure the existing `workspace.initialized` event picks up the new metadata automatically
+- [x] Add/update automated tests for telemetry metadata derivation and typed fixtures
+- [x] Run automated validation (`npm run check-types` and targeted telemetry unit tests)
+- [ ] Manually verify `workspace.initialized` in both local and remote VS Code workspaces
+
 ## Goal
 
 Capture telemetry when the user opens a **remote workspace** in the Cline VS Code extension, while keeping the change set as small as possible.
@@ -47,6 +56,8 @@ This is why the minimal change can stay small.
 
 ### 1) Add `is_remote_workspace` to telemetry metadata
 
+- [x] Implemented
+
 **File:** `src/services/telemetry/TelemetryService.ts`
 
 Extend `TelemetryMetadata` with:
@@ -71,6 +82,8 @@ is_remote_workspace: isRemoteWorkspace
 ```
 
 ### 2) Rely on the existing `workspace.initialized` event
+
+- [x] Implemented
 
 **File:** `src/core/workspace/setup.ts`
 
@@ -106,12 +119,22 @@ npm run check-types
 npm run test:unit
 ```
 
+Status:
+
+- [x] `npm run check-types`
+- [x] `npm run test:unit -- src/services/telemetry/TelemetryService.test.ts src/services/telemetry/__tests__/TelemetryService.metrics.test.ts`
+
 ### Manual
 
 Verify that `workspace.initialized` carries:
 
 - `is_remote_workspace = false` for a local VS Code workspace
 - `is_remote_workspace = true` for a remote VS Code workspace
+
+Status:
+
+- [ ] Local VS Code workspace manual verification
+- [ ] Remote VS Code workspace manual verification
 
 Also confirm that the usual metadata is still present:
 

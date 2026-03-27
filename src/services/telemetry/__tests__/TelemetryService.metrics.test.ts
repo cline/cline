@@ -72,6 +72,7 @@ function createTelemetryService(provider: FakeProvider): TelemetryService {
 		platform_version: "1.0.0",
 		os_type: "darwin",
 		os_version: "24",
+		is_remote_workspace: false,
 		is_dev: "true",
 	} as TelemetryMetadata)
 }
