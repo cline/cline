@@ -53,6 +53,7 @@ import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import { CompletionOutputRow } from "./CompletionOutputRow"
 import { DiffEditRow } from "./DiffEditRow"
 import ErrorRow from "./ErrorRow"
+import { FeatureTip } from "./FeatureTip"
 import HookMessage from "./HookMessage"
 import { MarkdownRow } from "./MarkdownRow"
 import NewTaskPreview from "./NewTaskPreview"
@@ -154,6 +155,7 @@ export const ChatRowContent = memo(
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
+			showFeatureTips,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
@@ -888,17 +890,22 @@ export const ChatRowContent = memo(
 					case "reasoning": {
 						const isReasoningStreaming = message.partial === true
 						const hasReasoningText = !!message.text?.trim()
+						// Show feature tips throughout the entire thinking/reasoning phase
+						const showFeatureTip = isReasoningStreaming
 						return (
-							<ThinkingRow
-								isExpanded={(isReasoningStreaming && hasReasoningText) || isExpanded}
-								isStreaming={isReasoningStreaming}
-								isVisible={true}
-								onToggle={isReasoningStreaming ? undefined : handleToggle}
-								reasoningContent={message.text}
-								showChevron={!isReasoningStreaming || hasReasoningText}
-								showTitle={true}
-								title={isReasoningStreaming ? "Thinking..." : "Thinking"}
-							/>
+							<div>
+								<ThinkingRow
+									isExpanded={(isReasoningStreaming && hasReasoningText) || isExpanded}
+									isStreaming={isReasoningStreaming}
+									isVisible={true}
+									onToggle={isReasoningStreaming ? undefined : handleToggle}
+									reasoningContent={message.text}
+									showChevron={!isReasoningStreaming || hasReasoningText}
+									showTitle={true}
+									title={isReasoningStreaming ? "Thinking..." : "Thinking"}
+								/>
+								{isReasoningStreaming && showFeatureTips !== false && <FeatureTip />}
+							</div>
 						)
 					}
 					case "user_feedback":
