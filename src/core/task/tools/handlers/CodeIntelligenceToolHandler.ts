@@ -86,10 +86,12 @@ export class CodeIntelligenceToolHandler implements IToolHandler {
 
 			// Capture telemetry for successful code intelligence usage
 			const { providerId, modelId } = getModelInfo(config)
-			telemetryService.safeCapture(
-				() => telemetryService.captureToolUsage(config.ulid, this.name, modelId, providerId, true, true),
-				"CodeIntelligenceToolHandler.execute",
-			)
+			if (telemetryService.isCategoryEnabled("code_intelligence")) {
+				telemetryService.safeCapture(
+					() => telemetryService.captureToolUsage(config.ulid, this.name, modelId, providerId, true, true),
+					"CodeIntelligenceToolHandler.execute",
+				)
+			}
 
 			return formatted
 		} catch (error) {
@@ -98,10 +100,12 @@ export class CodeIntelligenceToolHandler implements IToolHandler {
 
 			// Capture telemetry for failed code intelligence usage
 			const { providerId: errProviderId, modelId: errModelId } = getModelInfo(config)
-			telemetryService.safeCapture(
-				() => telemetryService.captureToolUsage(config.ulid, this.name, errModelId, errProviderId, true, false),
-				"CodeIntelligenceToolHandler.execute.error",
-			)
+			if (telemetryService.isCategoryEnabled("code_intelligence")) {
+				telemetryService.safeCapture(
+					() => telemetryService.captureToolUsage(config.ulid, this.name, errModelId, errProviderId, true, false),
+					"CodeIntelligenceToolHandler.execute.error",
+				)
+			}
 
 			return formatResponse.toolError(`Code intelligence error: ${msg}`)
 		}
