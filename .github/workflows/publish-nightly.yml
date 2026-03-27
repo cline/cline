@@ -53,11 +53,12 @@ jobs:
 
             - name: Verify LFS media assets are resolved
               run: |
-                  FILE="webview-ui/src/assets/cline_kanban_demo.mp4"
-                  if grep -q "git-lfs.github.com/spec/v1" "$FILE"; then
-                    echo "Error: $FILE is still a Git LFS pointer in CI checkout"
-                    exit 1
-                  fi
+                  for FILE in webview-ui/src/assets/cline_kanban_demo.mp4 webview-ui/src/assets/cline_kanban_demo.webm; do
+                    if grep -q "git-lfs.github.com/spec/v1" "$FILE"; then
+                      echo "Error: $FILE is still a Git LFS pointer in CI checkout"
+                      exit 1
+                    fi
+                  done
 
             - name: Publish Extension as Pre-release
               env:
