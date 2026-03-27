@@ -1,0 +1,953 @@
+{
+  "schemaVersion": 2,
+  "bundleName": "a2c-life-project-workflow",
+  "projectScoped": true,
+  "worktreeSkillPolicy": {
+    "description": "Controls which skills are deployed to worktree workflows",
+    "universal": [
+      "meta-knowledge",
+      "workflow-provisioner"
+    ],
+    "optional": [
+      "aidlc-discovery-sprint",
+      "webapp-testing",
+      "frontend-design",
+      "screen-interaction-design",
+      "skill-creator"
+    ]
+  },
+  "skills": [
+    {
+      "name": "aidlc-discovery-sprint",
+      "path": "aidlc-discovery-sprint",
+      "entrypoint": "aidlc-discovery-sprint/SKILL.md",
+      "agentsMetadata": "aidlc-discovery-sprint/agents/openai.yaml",
+      "description": "Run AIDLC-aligned discovery sprints for unfinished UI and wireframe work.",
+      "layer": "skill-bundle",
+      "reads": [
+        "aidlc-docs/aidlc-state.md",
+        "aidlc-docs/audit.md",
+        "aidlc-docs/discovery/",
+        "aidlc-docs/inception/"
+      ],
+      "writes": [
+        "aidlc-docs/audit.md",
+        "aidlc-docs/discovery/",
+        "aidlc-docs/inception/"
+      ],
+      "scripts": [
+        "aidlc-discovery-sprint/scripts/append_audit_entry.py",
+        "aidlc-discovery-sprint/scripts/scaffold_discovery_sprint.py",
+        "aidlc-discovery-sprint/scripts/summarize_playwright_results.py"
+      ],
+      "references": [
+        "aidlc-discovery-sprint/references/aidlc-integration.md",
+        "aidlc-discovery-sprint/references/discovery-sprint-loop.md",
+        "aidlc-discovery-sprint/references/helper-skills.md",
+        "aidlc-discovery-sprint/references/artifact-contracts.md",
+        "aidlc-discovery-sprint/references/inception-feedback.md"
+      ],
+      "templates": [
+        "aidlc-discovery-sprint/assets/templates/sprint-brief.md",
+        "aidlc-discovery-sprint/assets/templates/sprint-review.md",
+        "aidlc-discovery-sprint/assets/templates/inception-feedback-note.md"
+      ],
+      "helperSkills": [
+        "skill-installer",
+        "playwright-interactive",
+        "screenshot",
+        "playwright",
+        "figma",
+        "figma-implement-design"
+      ]
+    },
+    {
+      "name": "algorithmic-art",
+      "path": "algorithmic-art",
+      "entrypoint": "algorithmic-art/SKILL.md",
+      "description": "Creating algorithmic art using p5.js with seeded randomness and interactive parameter exploration. Use this when users request creating art using code, generative art, algorithmic art, flow fields, or particle systems. Create original algorithmic art rather than copying existing artists' work to avoid copyright violations.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "templates": [
+        "algorithmic-art/templates/generator_template.js",
+        "algorithmic-art/templates/viewer.html"
+      ]
+    },
+    {
+      "name": "brand-guidelines",
+      "path": "brand-guidelines",
+      "entrypoint": "brand-guidelines/SKILL.md",
+      "description": "Applies Anthropic's official brand colors and typography to any sort of artifact that may benefit from having Anthropic's look-and-feel. Use it when brand colors or style guidelines, visual formatting, or company design standards apply.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "browser-use",
+      "path": "browser-use",
+      "entrypoint": "browser-use/SKILL.md",
+      "description": "Automates browser interactions for web testing, form filling, screenshots, and data extraction when the agent needs to navigate and interact with web pages.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "canvas-design",
+      "path": "canvas-design",
+      "entrypoint": "canvas-design/SKILL.md",
+      "description": "Create beautiful visual art in .png and .pdf documents using design philosophy. You should use this skill when the user asks to create a poster, piece of art, design, or other static piece. Create original visual designs, never copying existing artists' work to avoid copyright violations.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "claude-api",
+      "path": "claude-api",
+      "entrypoint": "claude-api/SKILL.md",
+      "description": "Build apps with the Claude API or Anthropic SDK. TRIGGER when: code imports `anthropic`/`@anthropic-ai/sdk`/`claude_agent_sdk`, or user asks to use Claude API, Anthropic SDKs, or Agent SDK. DO NOT TRIGGER when: code imports `openai`/other AI SDK, general programming, or ML/data-science tasks.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "deep-agents-core",
+      "path": "deep-agents-core",
+      "entrypoint": "deep-agents-core/SKILL.md",
+      "description": "INVOKE THIS SKILL when building ANY Deep Agents application. Covers create_deep_agent(), harness architecture, SKILL.md format, and configuration options.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "deep-agents-memory",
+      "path": "deep-agents-memory",
+      "entrypoint": "deep-agents-memory/SKILL.md",
+      "description": "INVOKE THIS SKILL when your Deep Agent needs memory, persistence, or filesystem access. Covers StateBackend (ephemeral), StoreBackend (persistent), FilesystemMiddleware, and CompositeBackend for routing.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "deep-agents-orchestration",
+      "path": "deep-agents-orchestration",
+      "entrypoint": "deep-agents-orchestration/SKILL.md",
+      "description": "INVOKE THIS SKILL when using subagents, task planning, or human approval in Deep Agents. Covers SubAgentMiddleware, TodoList for planning, and HITL interrupts.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "doc-coauthoring",
+      "path": "doc-coauthoring",
+      "entrypoint": "doc-coauthoring/SKILL.md",
+      "description": "Guide users through a structured workflow for co-authoring documentation. Use when user wants to write documentation, proposals, technical specs, decision docs, or similar structured content. This workflow helps users efficiently transfer context, refine content through iteration, and verify the doc works for readers. Trigger when user mentions writing docs, creating proposals, drafting specs, or similar documentation tasks.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "docx",
+      "path": "docx",
+      "entrypoint": "docx/SKILL.md",
+      "description": "Use this skill whenever the user wants to create, read, edit, or manipulate Word documents (.docx files). Triggers include: any mention of 'Word doc', 'word document', '.docx', or requests to produce professional documents with formatting like tables of contents, headings, page numbers, or letterheads. Also use when extracting or reorganizing content from .docx files, inserting or replacing images in documents, performing find-and-replace in Word files, working with tracked changes or comments, or converting content into a polished Word document. If the user asks for a 'report', 'memo', 'letter', 'template', or similar deliverable as a Word or .docx file, use this skill. Do NOT use for PDFs, spreadsheets, Google Docs, or general coding tasks unrelated to document generation.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "scripts": [
+        "docx/scripts/__init__.py",
+        "docx/scripts/accept_changes.py",
+        "docx/scripts/comment.py",
+        "docx/scripts/office/helpers/__init__.py",
+        "docx/scripts/office/helpers/merge_runs.py",
+        "docx/scripts/office/helpers/simplify_redlines.py",
+        "docx/scripts/office/pack.py",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+        "docx/scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+        "docx/scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+        "docx/scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+        "docx/scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+        "docx/scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+        "docx/scripts/office/schemas/mce/mc.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-2010.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-2012.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-2018.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+        "docx/scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+        "docx/scripts/office/soffice.py",
+        "docx/scripts/office/unpack.py",
+        "docx/scripts/office/validate.py",
+        "docx/scripts/office/validators/__init__.py",
+        "docx/scripts/office/validators/base.py",
+        "docx/scripts/office/validators/docx.py",
+        "docx/scripts/office/validators/pptx.py",
+        "docx/scripts/office/validators/redlining.py",
+        "docx/scripts/templates/comments.xml",
+        "docx/scripts/templates/commentsExtended.xml",
+        "docx/scripts/templates/commentsExtensible.xml",
+        "docx/scripts/templates/commentsIds.xml",
+        "docx/scripts/templates/people.xml"
+      ]
+    },
+    {
+      "name": "framework-selection",
+      "path": "framework-selection",
+      "entrypoint": "framework-selection/SKILL.md",
+      "description": "INVOKE THIS SKILL at the START of any LangChain/LangGraph/Deep Agents project, before writing any agent code. Determines which framework layer is right for the task: LangChain, LangGraph, Deep Agents, or a combination. Must be consulted before other agent skills.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "frontend-design",
+      "path": "frontend-design",
+      "entrypoint": "frontend-design/SKILL.md",
+      "description": "Create distinctive, production-grade frontend interfaces with high design quality. Generates creative, polished code and UI design that avoids generic AI aesthetics.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "references": [
+        "frontend-design/references/z-index-guidelines.md"
+      ],
+      "helperSkills": []
+    },
+    {
+      "name": "langchain-dependencies",
+      "path": "langchain-dependencies",
+      "entrypoint": "langchain-dependencies/SKILL.md",
+      "description": "INVOKE THIS SKILL when setting up a new project or when asked about package versions, installation, or dependency management for LangChain, LangGraph, LangSmith, or Deep Agents. Covers required packages, minimum versions, environment requirements, versioning best practices, and common community tool packages for both Python and TypeScript.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "langchain-fundamentals",
+      "path": "langchain-fundamentals",
+      "entrypoint": "langchain-fundamentals/SKILL.md",
+      "description": "Create LangChain agents with create_agent, define tools, and use middleware for human-in-the-loop and error handling.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "langchain-middleware",
+      "path": "langchain-middleware",
+      "entrypoint": "langchain-middleware/SKILL.md",
+      "description": "INVOKE THIS SKILL when you need human-in-the-loop approval, custom middleware, or structured output. Covers HumanInTheLoopMiddleware for human approval of dangerous tool calls, creating custom middleware with hooks, Command resume patterns, and structured output with Pydantic/Zod.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "langchain-rag",
+      "path": "langchain-rag",
+      "entrypoint": "langchain-rag/SKILL.md",
+      "description": "INVOKE THIS SKILL when building ANY retrieval-augmented generation (RAG) system. Covers document loaders, RecursiveCharacterTextSplitter, embeddings (OpenAI), and vector stores (Chroma, FAISS, Pinecone).",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "langgraph-fundamentals",
+      "path": "langgraph-fundamentals",
+      "entrypoint": "langgraph-fundamentals/SKILL.md",
+      "description": "INVOKE THIS SKILL when writing ANY LangGraph code. Covers StateGraph, state schemas, nodes, edges, Command, Send, invoke, streaming, and error handling.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "langgraph-human-in-the-loop",
+      "path": "langgraph-human-in-the-loop",
+      "entrypoint": "langgraph-human-in-the-loop/SKILL.md",
+      "description": "INVOKE THIS SKILL when implementing human-in-the-loop patterns, pausing for approval, or handling errors in LangGraph. Covers interrupt(), Command(resume=...), approval/validation workflows, and the 4-tier error handling strategy.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "langgraph-persistence",
+      "path": "langgraph-persistence",
+      "entrypoint": "langgraph-persistence/SKILL.md",
+      "description": "INVOKE THIS SKILL when your LangGraph needs to persist state, remember conversations, travel through history, or configure subgraph checkpointer scoping. Covers checkpointers, thread_id, time travel, Store, and subgraph persistence modes.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "mcp-builder",
+      "path": "mcp-builder",
+      "entrypoint": "mcp-builder/SKILL.md",
+      "description": "Guide for creating high-quality MCP (Model Context Protocol) servers that enable LLMs to interact with external services through well-designed tools. Use when building MCP servers to integrate external APIs or services, whether in Python (FastMCP) or Node/TypeScript (MCP SDK).",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "scripts": [
+        "mcp-builder/scripts/connections.py",
+        "mcp-builder/scripts/evaluation.py",
+        "mcp-builder/scripts/example_evaluation.xml",
+        "mcp-builder/scripts/requirements.txt"
+      ],
+      "references": [
+        "mcp-builder/reference/evaluation.md",
+        "mcp-builder/reference/mcp_best_practices.md",
+        "mcp-builder/reference/node_mcp_server.md",
+        "mcp-builder/reference/python_mcp_server.md"
+      ]
+    },
+    {
+      "name": "meta-knowledge",
+      "path": "meta-knowledge",
+      "entrypoint": "meta-knowledge/SKILL.md",
+      "agentsMetadata": "meta-knowledge/agents/openai.yaml",
+      "description": "Turn recurring lessons learned into durable improvements for skills, rules, templates, and process documents.",
+      "layer": "skill-bundle",
+      "reads": [
+        "aidlc-docs/meta-knowledge/knowledge-base.md",
+        "aidlc-docs/meta-knowledge/improvement-backlog.md",
+        "aidlc-docs/meta-knowledge/reviews/",
+        "aidlc-docs/audit.md"
+      ],
+      "writes": [
+        "aidlc-docs/meta-knowledge/knowledge-base.md",
+        "aidlc-docs/meta-knowledge/improvement-backlog.md",
+        "aidlc-docs/meta-knowledge/reviews/",
+        "aidlc-docs/audit.md"
+      ],
+      "scripts": [
+        "meta-knowledge/scripts/append_meta_insight.py",
+        "meta-knowledge/scripts/scaffold_meta_review.py",
+        "meta-knowledge/scripts/promote_improvement_item.py"
+      ],
+      "references": [
+        "meta-knowledge/references/evidence-sources.md",
+        "meta-knowledge/references/lesson-distillation.md",
+        "meta-knowledge/references/change-routing.md",
+        "meta-knowledge/references/new-skill-proposals.md",
+        "meta-knowledge/references/discovery-integration.md",
+        "meta-knowledge/references/self-improvement.md"
+      ],
+      "templates": [
+        "meta-knowledge/assets/templates/meta-review.md",
+        "meta-knowledge/assets/templates/improvement-proposal.md",
+        "meta-knowledge/assets/templates/new-skill-proposal.md",
+        "meta-knowledge/assets/templates/self-improvement-review.md"
+      ],
+      "dependsOnSkills": [
+        "aidlc-discovery-sprint"
+      ]
+    },
+    {
+      "name": "pdf",
+      "path": "pdf",
+      "entrypoint": "pdf/SKILL.md",
+      "description": "Use this skill whenever the user wants to do anything with PDF files. This includes reading or extracting text/tables from PDFs, combining or merging multiple PDFs into one, splitting PDFs apart, rotating pages, adding watermarks, creating new PDFs, filling PDF forms, encrypting/decrypting PDFs, extracting images, and OCR on scanned PDFs to make them searchable. If the user mentions a .pdf file or asks to produce one, use this skill.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "scripts": [
+        "pdf/scripts/check_bounding_boxes.py",
+        "pdf/scripts/check_fillable_fields.py",
+        "pdf/scripts/convert_pdf_to_images.py",
+        "pdf/scripts/create_validation_image.py",
+        "pdf/scripts/extract_form_field_info.py",
+        "pdf/scripts/extract_form_structure.py",
+        "pdf/scripts/fill_fillable_fields.py",
+        "pdf/scripts/fill_pdf_form_with_annotations.py"
+      ],
+      "references": [
+        "pdf/forms.md",
+        "pdf/reference.md"
+      ]
+    },
+    {
+      "name": "playwright-skill",
+      "path": "playwright-skill",
+      "entrypoint": "playwright-skill/SKILL.md",
+      "description": "Complete browser automation with Playwright. Auto-detects dev servers, writes clean test scripts to /tmp. Test pages, fill forms, take screenshots, check responsive design, validate UX, test login flows, check links, automate any browser task. Use when user wants to test websites, automate browser interactions, validate web functionality, or perform any browser-based testing.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "references": [
+        "playwright-skill/API_REFERENCE.md"
+      ]
+    },
+    {
+      "name": "pptx",
+      "path": "pptx",
+      "entrypoint": "pptx/SKILL.md",
+      "description": "Use this skill any time a .pptx file is involved in any way — as input, output, or both. This includes: creating slide decks, pitch decks, or presentations; reading, parsing, or extracting text from any .pptx file (even if the extracted content will be used elsewhere, like in an email or summary); editing, modifying, or updating existing presentations; combining or splitting slide files; working with templates, layouts, speaker notes, or comments. Trigger whenever the user mentions \\\"deck,\\\" \\\"slides,\\\" \\\"presentation,\\\" or references a .pptx filename, regardless of what they plan to do with the content afterward. If a .pptx file needs to be opened, created, or touched, use this skill.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "scripts": [
+        "pptx/scripts/__init__.py",
+        "pptx/scripts/add_slide.py",
+        "pptx/scripts/clean.py",
+        "pptx/scripts/office/helpers/__init__.py",
+        "pptx/scripts/office/helpers/merge_runs.py",
+        "pptx/scripts/office/helpers/simplify_redlines.py",
+        "pptx/scripts/office/pack.py",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+        "pptx/scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+        "pptx/scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+        "pptx/scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+        "pptx/scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+        "pptx/scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+        "pptx/scripts/office/schemas/mce/mc.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-2010.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-2012.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-2018.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+        "pptx/scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+        "pptx/scripts/office/soffice.py",
+        "pptx/scripts/office/unpack.py",
+        "pptx/scripts/office/validate.py",
+        "pptx/scripts/office/validators/__init__.py",
+        "pptx/scripts/office/validators/base.py",
+        "pptx/scripts/office/validators/docx.py",
+        "pptx/scripts/office/validators/pptx.py",
+        "pptx/scripts/office/validators/redlining.py",
+        "pptx/scripts/thumbnail.py"
+      ],
+      "references": [
+        "pptx/editing.md",
+        "pptx/pptxgenjs.md"
+      ]
+    },
+    {
+      "name": "screen-interaction-design",
+      "path": "screen-interaction-design",
+      "entrypoint": "screen-interaction-design/SKILL.md",
+      "description": "Design screen specifications and interaction flows for web applications, producing HTML prototypes with step-by-step user journey documentation.",
+      "layer": "skill-bundle",
+      "reads": [
+        "aidlc-docs/inception/application-design/",
+        "aidlc-docs/inception/user-stories/",
+        "aidlc-docs/discovery/screen-design/"
+      ],
+      "writes": [
+        "aidlc-docs/discovery/screen-design/"
+      ],
+      "references": [
+        "screen-interaction-design/core/workflow.md",
+        "screen-interaction-design/core/artifact-contract.md",
+        "screen-interaction-design/core/screen-states-checklist.md"
+      ],
+      "templates": [
+        "screen-interaction-design/core/screen-spec-template.md",
+        "screen-interaction-design/core/interaction-flow-template.md",
+        "screen-interaction-design/assets/prototype-boilerplate.html"
+      ],
+      "helperSkills": [
+        "frontend-design",
+        "doc-coauthoring",
+        "webapp-testing"
+      ]
+    },
+    {
+      "name": "skill-creator",
+      "path": "skill-creator",
+      "entrypoint": "skill-creator/SKILL.md",
+      "description": "Create new skills, modify and improve existing skills for this project. Ensures all created skills follow project deployment conventions, Layer1/Layer2 architecture, and accumulated knowledge-base lessons.",
+      "layer": "skill-bundle",
+      "reads": [
+        ".agent/skills/skills.json",
+        "aidlc-docs/meta-knowledge/knowledge-base.md"
+      ],
+      "writes": [
+        ".agent/skills/",
+        ".claude/skills",
+        ".codex/skills"
+      ],
+      "references": [
+        "skill-creator/references/meta-handoff-contract.md",
+        "skill-creator/references/project-deployment-rules.md",
+        "skill-creator/references/knowledge-base-lessons.md",
+        "skill-creator/references/skill-anatomy.md"
+      ]
+    },
+    {
+      "name": "theme-factory",
+      "path": "theme-factory",
+      "entrypoint": "theme-factory/SKILL.md",
+      "description": "Toolkit for styling artifacts with a theme. These artifacts can be slides, docs, reportings, HTML landing pages, etc. There are 10 pre-set themes with colors/fonts that you can apply to any artifact that has been creating, or can generate a new theme on-the-fly.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "webapp-testing",
+      "path": "webapp-testing",
+      "entrypoint": "webapp-testing/SKILL.md",
+      "agentsMetadata": "webapp-testing/agents/openai.yaml",
+      "description": "Screen-design 산출물 기반 Vitest 단위테스트 + Playwright 통합테스트 자동 생성 및 실행.",
+      "layer": "skill-bundle",
+      "reads": [
+        "aidlc-docs/discovery/screen-design/screen-inventory.md",
+        "aidlc-docs/discovery/screen-design/screen-story-matrix.md",
+        "aidlc-docs/discovery/screen-design/interaction-flows/",
+        "nextjs/__tests__/",
+        "nextjs/tests/"
+      ],
+      "writes": [
+        "nextjs/__tests__/screens/",
+        "nextjs/__tests__/coverage-gaps/",
+        "nextjs/tests/screens/"
+      ],
+      "scripts": [
+        "webapp-testing/scripts/test_generator.py",
+        "webapp-testing/scripts/coverage_reporter.py",
+        "webapp-testing/scripts/test_reconnaissance.py",
+        "webapp-testing/scripts/test_runner_base.py",
+        "webapp-testing/scripts/wireframe_buttons.py",
+        "webapp-testing/scripts/with_server.py"
+      ],
+      "references": [
+        "webapp-testing/references/test-strategy.md"
+      ],
+      "helperSkills": [
+        "playwright"
+      ]
+    },
+    {
+      "name": "authentication-setup",
+      "path": "authentication-setup",
+      "entrypoint": "authentication-setup/SKILL.md",
+      "description": "Design and implement authentication and authorization systems. Use when setting up user login, JWT tokens, OAuth, session management, or role-based access control. Handles password security, token management, SSO integration.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "docker-expert",
+      "path": "docker-expert",
+      "entrypoint": "docker-expert/SKILL.md",
+      "description": "Advanced Docker containerization guidance covering optimization, security hardening, multi-stage builds, orchestration patterns, and production deployment strategies.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "multi-stage-dockerfile",
+      "path": "multi-stage-dockerfile",
+      "entrypoint": "multi-stage-dockerfile/SKILL.md",
+      "description": "Create optimized multi-stage Dockerfiles for any language or framework.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "postgresql-table-design",
+      "path": "postgresql-table-design",
+      "entrypoint": "postgresql-table-design/SKILL.md",
+      "description": "Design a PostgreSQL-specific schema with best-practices for data types, indexing, constraints, performance patterns, and advanced features.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "python-design-patterns",
+      "path": "python-design-patterns",
+      "entrypoint": "python-design-patterns/SKILL.md",
+      "description": "Python design patterns including KISS, separation of concerns, single responsibility, and composition over inheritance for architecture and refactoring decisions.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "remote-browser",
+      "path": "remote-browser",
+      "entrypoint": "remote-browser/SKILL.md",
+      "description": "Controls a cloud browser from a sandboxed remote machine when an agent without local GUI access still needs browser automation, screenshots, and web interaction.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "remotion-best-practices",
+      "path": "remotion-best-practices",
+      "entrypoint": "remotion-best-practices/SKILL.md",
+      "description": "Best practices for Remotion video creation in React, including animation, audio, captions, asset handling, timing, and composition patterns.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "code-reviewer",
+      "path": "code-reviewer",
+      "entrypoint": "code-reviewer/SKILL.md",
+      "description": "Structured code review guidance that looks for bugs, security issues, performance problems, maintainability drift, and code smells across changed files and diffs.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "excalidraw-diagram",
+      "path": "excalidraw-diagram",
+      "entrypoint": "excalidraw-diagram/SKILL.md",
+      "description": "Create Excalidraw diagram JSON files for workflows, architectures, and technical concepts using visual-argument design principles.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-admin-reports",
+      "path": "gws-admin-reports",
+      "entrypoint": "gws-admin-reports/SKILL.md",
+      "description": "Google Workspace Admin SDK guidance for audit logs and usage reports via the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-calendar",
+      "path": "gws-calendar",
+      "entrypoint": "gws-calendar/SKILL.md",
+      "description": "Google Calendar workflow guidance for managing calendars and events through the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-chat",
+      "path": "gws-chat",
+      "entrypoint": "gws-chat/SKILL.md",
+      "description": "Google Chat workflow guidance for spaces and messages through the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-docs",
+      "path": "gws-docs",
+      "entrypoint": "gws-docs/SKILL.md",
+      "description": "Google Docs workflow guidance for reading and writing Docs through the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-drive",
+      "path": "gws-drive",
+      "entrypoint": "gws-drive/SKILL.md",
+      "description": "Google Drive workflow guidance for managing files, folders, and shared drives through the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-gmail",
+      "path": "gws-gmail",
+      "entrypoint": "gws-gmail/SKILL.md",
+      "description": "Gmail workflow guidance for sending, reading, and managing email through the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-sheets",
+      "path": "gws-sheets",
+      "entrypoint": "gws-sheets/SKILL.md",
+      "description": "Google Sheets workflow guidance for spreadsheet reads and writes through the `gws` CLI.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "gws-shared",
+      "path": "gws-shared",
+      "entrypoint": "gws-shared/SKILL.md",
+      "description": "Shared authentication, flags, and output-formatting reference for the Google Workspace `gws` skill family.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "mysql",
+      "path": "mysql",
+      "entrypoint": "mysql/SKILL.md",
+      "description": "MySQL and InnoDB best practices for schema design, indexing, query tuning, transactions, migrations, and operations.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "neki",
+      "path": "neki",
+      "entrypoint": "neki/SKILL.md",
+      "description": "PlanetScale Neki overview and guidance for sharded Postgres design and scaling considerations.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "postgres",
+      "path": "postgres",
+      "entrypoint": "postgres/SKILL.md",
+      "description": "PlanetScale Postgres guidance for PostgreSQL best practices, troubleshooting, performance tuning, and connection issues.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "shannon",
+      "path": "shannon",
+      "entrypoint": "shannon/SKILL.md",
+      "description": "Autonomous AI pentesting guidance for white-box web-app and API security assessments using Shannon.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "security-requirement-extraction",
+      "path": "security-requirement-extraction",
+      "entrypoint": "security-requirement-extraction/SKILL.md",
+      "description": "Derive security requirements from threat models and business context. Use when translating threats into actionable requirements, creating security user stories, or building security test cases.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "security-review",
+      "path": "security-review",
+      "entrypoint": "security-review/SKILL.md",
+      "description": "Use this skill when adding authentication, handling user input, working with secrets, creating API endpoints, or implementing payment and other sensitive features.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "references": [
+        "security-review/cloud-infrastructure-security.md"
+      ]
+    },
+    {
+      "name": "software-architecture",
+      "path": "software-architecture",
+      "entrypoint": "software-architecture/SKILL.md",
+      "description": "Quality-focused software architecture guidance for design, implementation, and code analysis work across software development tasks.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "simplify",
+      "path": "simplify",
+      "entrypoint": "simplify/SKILL.md",
+      "description": "Simplify and refine recently modified code for readability, clarity, consistency, and maintainability without changing functionality.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "tdd",
+      "path": "tdd",
+      "entrypoint": "tdd/SKILL.md",
+      "description": "Test-driven development with a red-green-refactor loop for feature work, bug fixes, integration tests, and test-first development.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "references": [
+        "tdd/deep-modules.md",
+        "tdd/interface-design.md",
+        "tdd/mocking.md",
+        "tdd/refactoring.md",
+        "tdd/tests.md"
+      ]
+    },
+    {
+      "name": "threat-modeling-expert",
+      "path": "threat-modeling-expert",
+      "entrypoint": "threat-modeling-expert/SKILL.md",
+      "description": "Threat modeling expertise covering STRIDE, PASTA, attack trees, security architecture review, and secure-by-design risk assessment.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "two-factor-authentication-best-practices",
+      "path": "two-factor-authentication-best-practices",
+      "entrypoint": "two-factor-authentication-best-practices/SKILL.md",
+      "description": "Implement TOTP, OTP delivery, backup codes, trusted devices, and 2FA sign-in flows using Better Auth's twoFactor plugin.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "valyu-best-practices",
+      "path": "valyu-best-practices",
+      "entrypoint": "valyu-best-practices/SKILL.md",
+      "description": "Valyu search best practices for real-time web, academic, medical, transportation, and financial data retrieval with citations.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "vitess",
+      "path": "vitess",
+      "entrypoint": "vitess/SKILL.md",
+      "description": "Vitess best practices for sharding, query optimization, VSchema configuration, and MySQL scaling issues.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": []
+    },
+    {
+      "name": "workflow-provisioner",
+      "path": "workflow-provisioner",
+      "entrypoint": "workflow-provisioner/SKILL.md",
+      "description": "Create and manage AI workflow projects as isolated git worktrees with 4-Layer baseline scaffolding, skills deployment, and Claude runtime setup.",
+      "layer": "skill-bundle",
+      "reads": [
+        ".agent/skills/skills.json",
+        ".worktreeinclude"
+      ],
+      "writes": [],
+      "references": [
+        "workflow-provisioner/references/worktree-lifecycle.md",
+        "workflow-provisioner/references/scaffolding-template.md",
+        "workflow-provisioner/references/claude-runtime-setup.md",
+        "workflow-provisioner/references/baseline/README.md"
+      ],
+      "templates": [
+        "workflow-provisioner/references/baseline/CLAUDE.md.template",
+        "workflow-provisioner/references/baseline/workflow.md.template",
+        "workflow-provisioner/references/baseline/workflow-state.md.template",
+        "workflow-provisioner/references/baseline/audit.md.template",
+        "workflow-provisioner/references/baseline/welcome-message.md.template"
+      ]
+    },
+    {
+      "name": "xlsx",
+      "path": "xlsx",
+      "entrypoint": "xlsx/SKILL.md",
+      "description": "Use this skill any time a spreadsheet file is the primary input or output. This means any task where the user wants to: open, read, edit, or fix an existing .xlsx, .xlsm, .csv, or .tsv file (e.g., adding columns, computing formulas, formatting, charting, cleaning messy data); create a new spreadsheet from scratch or from other data sources; or convert between tabular file formats. Trigger especially when the user references a spreadsheet file by name or path — even casually (like \\\"the xlsx in my downloads\\\") — and wants something done to it or produced from it. Also trigger for cleaning or restructuring messy tabular data files (malformed rows, misplaced headers, junk data) into proper spreadsheets. The deliverable must be a spreadsheet file. Do NOT trigger when the primary deliverable is a Word document, HTML report, standalone Python script, database pipeline, or Google Sheets API integration, even if tabular data is involved.",
+      "layer": "skill-bundle",
+      "reads": [],
+      "writes": [],
+      "scripts": [
+        "xlsx/scripts/office/helpers/__init__.py",
+        "xlsx/scripts/office/helpers/merge_runs.py",
+        "xlsx/scripts/office/helpers/simplify_redlines.py",
+        "xlsx/scripts/office/pack.py",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chart.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-chartDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-diagram.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-lockedCanvas.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-main.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-picture.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-spreadsheetDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/dml-wordprocessingDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/pml.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-additionalCharacteristics.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-bibliography.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-commonSimpleTypes.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlDataProperties.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-customXmlSchemaProperties.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesCustom.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesExtended.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-documentPropertiesVariantTypes.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-math.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/shared-relationshipReference.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/sml.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-main.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-officeDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-presentationDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-spreadsheetDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/vml-wordprocessingDrawing.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/wml.xsd",
+        "xlsx/scripts/office/schemas/ISO-IEC29500-4_2016/xml.xsd",
+        "xlsx/scripts/office/schemas/ecma/fouth-edition/opc-contentTypes.xsd",
+        "xlsx/scripts/office/schemas/ecma/fouth-edition/opc-coreProperties.xsd",
+        "xlsx/scripts/office/schemas/ecma/fouth-edition/opc-digSig.xsd",
+        "xlsx/scripts/office/schemas/ecma/fouth-edition/opc-relationships.xsd",
+        "xlsx/scripts/office/schemas/mce/mc.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-2010.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-2012.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-2018.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-cex-2018.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-cid-2016.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-sdtdatahash-2020.xsd",
+        "xlsx/scripts/office/schemas/microsoft/wml-symex-2015.xsd",
+        "xlsx/scripts/office/soffice.py",
+        "xlsx/scripts/office/unpack.py",
+        "xlsx/scripts/office/validate.py",
+        "xlsx/scripts/office/validators/__init__.py",
+        "xlsx/scripts/office/validators/base.py",
+        "xlsx/scripts/office/validators/docx.py",
+        "xlsx/scripts/office/validators/pptx.py",
+        "xlsx/scripts/office/validators/redlining.py",
+        "xlsx/scripts/recalc.py"
+      ]
+    },
+    {
+      "name": "consistency",
+      "path": "consistency",
+      "entrypoint": "consistency/SKILL.md",
+      "description": "AIDLC 산출물 정합성 검토 및 유지. 설계 결정 변경 시 전체 산출물(설계 문서, 코드, 시각화, plan, flow)을 Ground Truth 기준으로 스캔하여 충돌을 식별하고 일괄 수정한다. 사용자가 정합성 검토를 요청하거나, 설계 결정이 변경되었을 때, 또는 hook에서 정합성 리마인더가 트리거될 때 활용한다.",
+      "layer": "skill-bundle",
+      "reads": [
+        "aidlc-docs/aidlc-state.md",
+        "aidlc-docs/audit.md",
+        "aidlc-docs/inception/",
+        "aidlc-docs/construction/"
+      ],
+      "writes": [
+        "aidlc-docs/audit.md",
+        "aidlc-docs/construction/plans/"
+      ]
+    }
+  ]
+}

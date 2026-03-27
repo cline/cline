@@ -1,0 +1,4 @@
+interface:
+  display_name: "Meta Knowledge"
+  short_description: "Improve skills and rules from lessons learned"
+  default_prompt: "Use $meta-knowledge to turn recent lessons learned into improvements for the active skills and rules."

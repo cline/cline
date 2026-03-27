@@ -1,0 +1,4 @@
+interface:
+  display_name: "AIDLC Discovery Sprint"
+  short_description: "Run AIDLC-aligned discovery sprints"
+  default_prompt: "Use $aidlc-discovery-sprint to run the next discovery sprint and sync AIDLC artifacts."

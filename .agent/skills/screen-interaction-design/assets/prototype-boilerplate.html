@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>__SCREEN_NAME__ — Prototype</title>
+  <style>
+    /* === State Switcher === */
+    .state-switcher {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 9999;
+      background: #1a1a2e; color: #e0e0e0; padding: 8px 16px;
+      display: flex; gap: 8px; align-items: center; font-family: monospace; font-size: 13px;
+      border-bottom: 2px solid #e94560;
+    }
+    .state-switcher label { color: #e94560; font-weight: bold; margin-right: 8px; }
+    .state-switcher button {
+      background: #16213e; color: #e0e0e0; border: 1px solid #0f3460;
+      padding: 4px 12px; border-radius: 4px; cursor: pointer; font-family: monospace;
+    }
+    .state-switcher button:hover { background: #0f3460; }
+    .state-switcher button.active { background: #e94560; color: white; border-color: #e94560; }
+    .state-switcher .breakpoint {
+      margin-left: auto; display: flex; gap: 4px;
+    }
+    .state-switcher .breakpoint button { font-size: 11px; padding: 2px 8px; }
+
+    /* === Reset === */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: system-ui, -apple-system, sans-serif; padding-top: 44px; }
+
+    /* === Screen Container === */
+    .screen-container { max-width: 1280px; margin: 0 auto; min-height: calc(100vh - 44px); }
+
+    /* === State Visibility === */
+    [data-state] { display: none; }
+    [data-state].visible { display: block; }
+
+    /* === Responsive === */
+    @media (max-width: 767px) {
+      .desktop-only { display: none !important; }
+    }
+    @media (min-width: 768px) {
+      .mobile-only { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- State Switcher Bar -->
+<div class="state-switcher">
+  <label>STATE:</label>
+  <button class="active" onclick="switchState('initial')">Initial</button>
+  <button onclick="switchState('loading')">Loading</button>
+  <button onclick="switchState('populated')">Populated</button>
+  <button onclick="switchState('empty')">Empty</button>
+  <button onclick="switchState('error')">Error</button>
+  <!-- Add more state buttons as needed -->
+  <div class="breakpoint">
+    <label>VIEW:</label>
+    <button onclick="setBreakpoint('375px')">Mobile</button>
+    <button onclick="setBreakpoint('768px')">Tablet</button>
+    <button class="active" onclick="setBreakpoint('100%')">Desktop</button>
+  </div>
+</div>
+
+<!-- Screen Content -->
+<div class="screen-container" id="screen">
+
+  <!-- STATE: Initial -->
+  <div data-state="initial" class="visible">
+    <h2>__SCREEN_NAME__ — Initial State</h2>
+    <p>Replace this with the actual screen content.</p>
+  </div>
+
+  <!-- STATE: Loading -->
+  <div data-state="loading">
+    <h2>__SCREEN_NAME__ — Loading</h2>
+    <p>Loading indicator here...</p>
+  </div>
+
+  <!-- STATE: Populated -->
+  <div data-state="populated">
+    <h2>__SCREEN_NAME__ — Populated</h2>
+    <p>Normal content with data here...</p>
+  </div>
+
+  <!-- STATE: Empty -->
+  <div data-state="empty">
+    <h2>__SCREEN_NAME__ — Empty</h2>
+    <p>Empty state messaging here...</p>
+  </div>
+
+  <!-- STATE: Error -->
+  <div data-state="error">
+    <h2>__SCREEN_NAME__ — Error</h2>
+    <p>Error messaging and recovery options here...</p>
+  </div>
+
+</div>
+
+<script>
+  function switchState(stateName) {
+    document.querySelectorAll('[data-state]').forEach(el => el.classList.remove('visible'));
+    const target = document.querySelector(`[data-state="${stateName}"]`);
+    if (target) target.classList.add('visible');
+
+    document.querySelectorAll('.state-switcher button:not(.breakpoint button)').forEach(btn => {
+      btn.classList.toggle('active', btn.textContent.toLowerCase() === stateName);
+    });
+  }
+
+  function setBreakpoint(width) {
+    const screen = document.getElementById('screen');
+    if (width === '100%') {
+      screen.style.maxWidth = '1280px';
+    } else {
+      screen.style.maxWidth = width;
+    }
+    screen.style.margin = '0 auto';
+
+    document.querySelectorAll('.breakpoint button').forEach(btn => {
+      const isActive = (width === '375px' && btn.textContent === 'Mobile') ||
+                       (width === '768px' && btn.textContent === 'Tablet') ||
+                       (width === '100%' && btn.textContent === 'Desktop');
+      btn.classList.toggle('active', isActive);
+    });
+  }
+</script>
+
+</body>
+</html>
