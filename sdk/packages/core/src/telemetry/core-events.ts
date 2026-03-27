@@ -2,7 +2,33 @@ import type { ITelemetryService, TelemetryProperties } from "@clinebot/shared";
 
 const MAX_ERROR_MESSAGE_LENGTH = 500;
 
-export const LegacyTelemetryEvents = {
+export type TelemetryAgentKind =
+	| "root"
+	| "subagent"
+	| "team_lead"
+	| "team_teammate";
+
+export interface TelemetryAgentIdentityProperties {
+	agentId: string;
+	agentKind: TelemetryAgentKind;
+	conversationId?: string;
+	parentAgentId?: string;
+	createdByAgentId?: string;
+	isSubagent: boolean;
+	teamId?: string;
+	teamName?: string;
+	teamRole?: "lead" | "teammate";
+	teamAgentId?: string;
+}
+
+export const CORE_TELEMETRY_EVENTS = {
+	CLIENT: {
+		STARTED: "extension.activated",
+	},
+	SESSION: {
+		STARTED: "session.started",
+		ENDED: "session.ended",
+	},
 	USER: {
 		AUTH_STARTED: "user.auth_started",
 		AUTH_SUCCEEDED: "user.auth_succeeded",
@@ -23,6 +49,8 @@ export const LegacyTelemetryEvents = {
 		MENTION_USED: "task.mention_used",
 		MENTION_FAILED: "task.mention_failed",
 		MENTION_SEARCH_RESULTS: "task.mention_search_results",
+		AGENT_CREATED: "task.agent_created",
+		AGENT_TEAM_CREATED: "task.agent_team_created",
 		SUBAGENT_STARTED: "task.subagent_started",
 		SUBAGENT_COMPLETED: "task.subagent_completed",
 	},
@@ -50,14 +78,14 @@ export function captureAuthStarted(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.USER.AUTH_STARTED, { provider });
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_STARTED, { provider });
 }
 
 export function captureAuthSucceeded(
 	telemetry: ITelemetryService | undefined,
 	provider?: string,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.USER.AUTH_SUCCEEDED, { provider });
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, { provider });
 }
 
 export function captureAuthFailed(
@@ -65,7 +93,7 @@ export function captureAuthFailed(
 	provider?: string,
 	errorMessage?: string,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.USER.AUTH_FAILED, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_FAILED, {
 		provider,
 		errorMessage: truncateErrorMessage(errorMessage),
 	});
@@ -76,7 +104,7 @@ export function captureAuthLoggedOut(
 	provider?: string,
 	reason?: string,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.USER.AUTH_LOGGED_OUT, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
 		provider,
 		reason,
 	});
@@ -113,9 +141,9 @@ export function captureTaskCreated(
 		ulid: string;
 		apiProvider?: string;
 		openAiCompatibleDomain?: string;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.CREATED, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CREATED, properties);
 }
 
 export function captureTaskRestarted(
@@ -124,9 +152,9 @@ export function captureTaskRestarted(
 		ulid: string;
 		apiProvider?: string;
 		openAiCompatibleDomain?: string;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.RESTARTED, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
 }
 
 export function captureTaskCompleted(
@@ -137,9 +165,9 @@ export function captureTaskCompleted(
 		modelId?: string;
 		mode?: string;
 		durationMs?: number;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.COMPLETED, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPLETED, properties);
 }
 
 export function captureConversationTurnEvent(
@@ -150,15 +178,9 @@ export function captureConversationTurnEvent(
 		model?: string;
 		source: "user" | "assistant";
 		mode?: string;
-		tokensIn?: number;
-		tokensOut?: number;
-		cacheWriteTokens?: number;
-		cacheReadTokens?: number;
-		totalCost?: number;
-		isNativeToolCall?: boolean;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.CONVERSATION_TURN, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CONVERSATION_TURN, {
 		...properties,
 		timestamp: new Date().toISOString(),
 	});
@@ -170,10 +192,13 @@ export function captureTokenUsage(
 		ulid: string;
 		tokensIn: number;
 		tokensOut: number;
+		cacheWriteTokens?: number;
+		cacheReadTokens?: number;
+		totalCost?: number;
 		model: string;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.TOKEN_USAGE, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.TOKEN_USAGE, properties);
 }
 
 export function captureModeSwitch(
@@ -181,7 +206,7 @@ export function captureModeSwitch(
 	ulid: string,
 	mode?: string,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.MODE_SWITCH, { ulid, mode });
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MODE_SWITCH, { ulid, mode });
 }
 
 export function captureToolUsage(
@@ -193,10 +218,9 @@ export function captureToolUsage(
 		provider?: string;
 		autoApproved?: boolean;
 		success: boolean;
-		isNativeToolCall?: boolean;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.TOOL_USED, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.TOOL_USED, properties);
 }
 
 export function captureSkillUsed(
@@ -209,9 +233,9 @@ export function captureSkillUsed(
 		skillsAvailableProject: number;
 		provider?: string;
 		modelId?: string;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.SKILL_USED, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.SKILL_USED, properties);
 }
 
 export function captureDiffEditFailure(
@@ -221,10 +245,9 @@ export function captureDiffEditFailure(
 		modelId?: string;
 		provider?: string;
 		errorType?: string;
-		isNativeToolCall?: boolean;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.DIFF_EDIT_FAILED, properties);
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.DIFF_EDIT_FAILED, properties);
 }
 
 export function captureProviderApiError(
@@ -236,10 +259,9 @@ export function captureProviderApiError(
 		provider?: string;
 		errorStatus?: number;
 		requestId?: string;
-		isNativeToolCall?: boolean;
-	},
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.PROVIDER_API_ERROR, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR, {
 		...properties,
 		errorMessage: truncateErrorMessage(properties.errorMessage) ?? "unknown",
 		timestamp: new Date().toISOString(),
@@ -258,7 +280,7 @@ export function captureMentionUsed(
 		| "commit",
 	contentLength?: number,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.MENTION_USED, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MENTION_USED, {
 		mentionType,
 		contentLength,
 		timestamp: new Date().toISOString(),
@@ -283,7 +305,7 @@ export function captureMentionFailed(
 		| "unknown",
 	errorMessage?: string,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.MENTION_FAILED, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MENTION_FAILED, {
 		mentionType,
 		errorType,
 		errorMessage: truncateErrorMessage(errorMessage),
@@ -298,11 +320,41 @@ export function captureMentionSearchResults(
 	searchType: "file" | "folder" | "all",
 	isEmpty: boolean,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.TASK.MENTION_SEARCH_RESULTS, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MENTION_SEARCH_RESULTS, {
 		queryLength: query.length,
 		resultCount,
 		searchType,
 		isEmpty,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureAgentCreated(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		modelId?: string;
+		provider?: string;
+	} & TelemetryAgentIdentityProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.AGENT_CREATED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureAgentTeamCreated(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		teamId: string;
+		teamName: string;
+		leadAgentId?: string;
+		restoredFromPersistence?: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.AGENT_TEAM_CREATED, {
+		...properties,
 		timestamp: new Date().toISOString(),
 	});
 }
@@ -312,15 +364,19 @@ export function captureSubagentExecution(
 	properties: {
 		ulid: string;
 		durationMs: number;
-		outputLines: number;
-		success: boolean;
-	},
+		outputLines?: number;
+		event: "created" | "started" | "ended";
+		agentId: string;
+		parentId?: string;
+		errorMessage?: string;
+		type?: "agent" | "team";
+	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(
 		telemetry,
-		properties.success
-			? LegacyTelemetryEvents.TASK.SUBAGENT_COMPLETED
-			: LegacyTelemetryEvents.TASK.SUBAGENT_STARTED,
+		properties.event === "ended"
+			? CORE_TELEMETRY_EVENTS.TASK.SUBAGENT_COMPLETED
+			: CORE_TELEMETRY_EVENTS.TASK.SUBAGENT_STARTED,
 		{
 			...properties,
 			timestamp: new Date().toISOString(),
@@ -334,7 +390,7 @@ export function captureHookDiscovery(
 	globalCount: number,
 	workspaceCount: number,
 ): void {
-	emit(telemetry, LegacyTelemetryEvents.HOOKS.DISCOVERY_COMPLETED, {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.HOOKS.DISCOVERY_COMPLETED, {
 		hookName,
 		globalCount,
 		workspaceCount,

@@ -188,6 +188,11 @@ describe("DefaultSessionManager", () => {
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({
 				tools: [],
+				teamRuntime: {
+					getTeamId: vi.fn().mockReturnValue("team_test-team"),
+					getTeamName: vi.fn().mockReturnValue("test-team"),
+				},
+				teamRestoredFromPersistence: false,
 				shutdown: vi.fn(),
 			}),
 		};
@@ -195,6 +200,8 @@ describe("DefaultSessionManager", () => {
 			run: vi.fn().mockResolvedValue(createResult()),
 			continue: vi.fn().mockResolvedValue(createResult()),
 			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
 			abort: vi.fn(),
 			shutdown: vi.fn().mockResolvedValue(undefined),
 		};
@@ -215,6 +222,30 @@ describe("DefaultSessionManager", () => {
 			"session.started",
 			expect.objectContaining({
 				sessionId,
+				agentId: "agent-root-1",
+				agentKind: "team_lead",
+				conversationId: "conv-root-1",
+				teamRole: "lead",
+				distinct_id: distinctId,
+			}),
+		);
+		expect(adapter.emit).toHaveBeenCalledWith(
+			"task.agent_created",
+			expect.objectContaining({
+				ulid: sessionId,
+				agentId: "agent-root-1",
+				agentKind: "team_lead",
+				conversationId: "conv-root-1",
+				teamRole: "lead",
+				distinct_id: distinctId,
+			}),
+		);
+		expect(adapter.emit).toHaveBeenCalledWith(
+			"task.agent_team_created",
+			expect.objectContaining({
+				ulid: sessionId,
+				leadAgentId: "agent-root-1",
+				restoredFromPersistence: false,
 				distinct_id: distinctId,
 			}),
 		);

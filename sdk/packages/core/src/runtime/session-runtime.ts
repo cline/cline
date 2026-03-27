@@ -16,6 +16,7 @@ export interface BuiltRuntime {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	teamRuntime?: AgentTeamsRuntime;
+	teamRestoredFromPersistence?: boolean;
 	completionGuard?: () => string | undefined;
 	shutdown: (reason: string) => Promise<void> | void;
 }

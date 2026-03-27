@@ -6,6 +6,7 @@ import {
 	captureSkillUsed,
 	captureTokenUsage,
 	captureToolUsage,
+	type TelemetryAgentIdentityProperties,
 } from "../telemetry/core-events";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
@@ -38,12 +39,92 @@ export interface AgentEventContext {
 	emit: (event: CoreSessionEvent) => void;
 }
 
+export interface AgentTelemetryContextOverrides {
+	agentId?: string;
+	conversationId?: string;
+	parentAgentId?: string | null;
+	createdByAgentId?: string;
+	teamId?: string;
+	teamName?: string;
+	teamRole?: "lead" | "teammate";
+	teamAgentId?: string;
+	isPrimaryAgentEvent?: boolean;
+}
+
+export function extractAgentEventMetadata(event: AgentEvent): {
+	agentId?: string;
+	conversationId?: string;
+	parentAgentId?: string;
+} {
+	if (!event || typeof event !== "object") {
+		return {};
+	}
+	const record = event as unknown as Record<string, unknown>;
+	return {
+		agentId: typeof record.agentId === "string" ? record.agentId : undefined,
+		conversationId:
+			typeof record.conversationId === "string"
+				? record.conversationId
+				: undefined,
+		parentAgentId:
+			typeof record.parentAgentId === "string"
+				? record.parentAgentId
+				: undefined,
+	};
+}
+
+export function buildTelemetryAgentIdentity(
+	context: AgentTelemetryContextOverrides,
+): TelemetryAgentIdentityProperties | undefined {
+	const agentId = context.agentId?.trim();
+	if (!agentId) {
+		return undefined;
+	}
+	const parentAgentId = context.parentAgentId?.trim() || undefined;
+	const teamRole = context.teamRole;
+	let agentKind: TelemetryAgentIdentityProperties["agentKind"] = "root";
+	if (teamRole === "teammate") {
+		agentKind = "team_teammate";
+	} else if (teamRole === "lead") {
+		agentKind = "team_lead";
+	} else if (parentAgentId) {
+		agentKind = "subagent";
+	}
+	return {
+		agentId,
+		agentKind,
+		conversationId: context.conversationId?.trim() || undefined,
+		parentAgentId,
+		createdByAgentId:
+			context.createdByAgentId?.trim() || parentAgentId || undefined,
+		isSubagent: Boolean(parentAgentId),
+		teamId: context.teamId?.trim() || undefined,
+		teamName: context.teamName?.trim() || undefined,
+		teamRole,
+		teamAgentId: context.teamAgentId?.trim() || undefined,
+	};
+}
+
 export function handleAgentEvent(
 	ctx: AgentEventContext,
 	event: AgentEvent,
+	overrides?: AgentTelemetryContextOverrides,
 ): void {
 	const { sessionId, config, liveSession, emit } = ctx;
 	const telemetry = config.telemetry;
+	const teamRuntime = liveSession?.runtime.teamRuntime;
+	const isPrimaryAgentEvent = overrides?.isPrimaryAgentEvent ?? true;
+	const eventMetadata = extractAgentEventMetadata(event);
+	const agentIdentity = buildTelemetryAgentIdentity({
+		agentId: overrides?.agentId ?? eventMetadata.agentId,
+		conversationId: overrides?.conversationId ?? eventMetadata.conversationId,
+		parentAgentId: overrides?.parentAgentId ?? eventMetadata.parentAgentId,
+		createdByAgentId: overrides?.createdByAgentId,
+		teamId: overrides?.teamId ?? teamRuntime?.getTeamId(),
+		teamName: overrides?.teamName ?? teamRuntime?.getTeamName(),
+		teamRole: overrides?.teamRole,
+		teamAgentId: overrides?.teamAgentId,
+	});
 
 	if (
 		event.type === "content_start" &&
@@ -60,6 +141,7 @@ export function handleAgentEvent(
 				skillsAvailableProject: 0,
 				provider: config.providerId,
 				modelId: config.modelId,
+				...agentIdentity,
 			});
 		}
 	}
@@ -74,7 +156,7 @@ export function handleAgentEvent(
 			success,
 			modelId: config.modelId,
 			provider: config.providerId,
-			isNativeToolCall: false,
+			...agentIdentity,
 		});
 		if (!success && (toolName === "editor" || toolName === "apply_patch")) {
 			captureDiffEditFailure(telemetry, {
@@ -82,7 +164,7 @@ export function handleAgentEvent(
 				modelId: config.modelId,
 				provider: config.providerId,
 				errorType: event.error,
-				isNativeToolCall: false,
+				...agentIdentity,
 			});
 		}
 	}
@@ -93,6 +175,7 @@ export function handleAgentEvent(
 			model: config.modelId,
 			provider: config.providerId,
 			errorMessage: event.message,
+			...agentIdentity,
 		});
 	}
 
@@ -102,16 +185,23 @@ export function handleAgentEvent(
 			model: config.modelId,
 			provider: config.providerId,
 			errorMessage: event.error?.message ?? "unknown error",
+			...agentIdentity,
 		});
 	}
 
-	if (event.type === "usage" && liveSession?.turnUsageBaseline) {
+	if (
+		event.type === "usage" &&
+		isPrimaryAgentEvent &&
+		liveSession?.turnUsageBaseline
+	) {
 		ctx.usageBySession.set(
 			sessionId,
 			accumulateUsageTotals(liveSession.turnUsageBaseline, {
-				inputTokens: event.totalInputTokens,
-				outputTokens: event.totalOutputTokens,
-				totalCost: event.totalCost,
+				inputTokens: event.inputTokens,
+				outputTokens: event.outputTokens,
+				cacheWriteTokens: event.cacheWriteTokens,
+				cacheReadTokens: event.cacheReadTokens,
+				totalCost: event.cost,
 			}),
 		);
 		captureConversationTurnEvent(telemetry, {
@@ -120,22 +210,21 @@ export function handleAgentEvent(
 			model: config.modelId,
 			source: "assistant",
 			mode: config.mode,
-			tokensIn: event.inputTokens,
-			tokensOut: event.outputTokens,
-			cacheWriteTokens: event.cacheWriteTokens,
-			cacheReadTokens: event.cacheReadTokens,
-			totalCost: event.cost,
-			isNativeToolCall: false,
+			...agentIdentity,
 		});
 		captureTokenUsage(telemetry, {
 			ulid: sessionId,
 			tokensIn: event.inputTokens,
 			tokensOut: event.outputTokens,
+			cacheWriteTokens: event.cacheWriteTokens,
+			cacheReadTokens: event.cacheReadTokens,
+			totalCost: event.cost,
 			model: config.modelId,
+			...agentIdentity,
 		});
 	}
 
-	if (event.type === "iteration_end") {
+	if (event.type === "iteration_end" && isPrimaryAgentEvent) {
 		ctx.persistMessages(
 			sessionId,
 			liveSession?.agent.getMessages() ?? [],

@@ -684,6 +684,8 @@ export class Agent {
 					cost: turn.usage.cost,
 					totalInputTokens: totalUsage.inputTokens,
 					totalOutputTokens: totalUsage.outputTokens,
+					totalCacheReadTokens: totalUsage.cacheReadTokens,
+					totalCacheWriteTokens: totalUsage.cacheWriteTokens,
 					totalCost: totalUsage.totalCost,
 				});
 

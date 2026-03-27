@@ -8,6 +8,7 @@
 import type { LlmsProviders } from "@clinebot/llms";
 import {
 	type BasicLogger,
+	type ITelemetryService,
 	type Tool,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
@@ -113,8 +114,11 @@ export interface AgentUsageEvent {
 	cacheWriteTokens?: number;
 	/** Cost for this turn */
 	cost?: number;
+
 	/** Accumulated totals */
 	totalInputTokens: number;
+	totalCacheReadTokens?: number;
+	totalCacheWriteTokens?: number;
 	totalOutputTokens: number;
 	totalCost?: number;
 }
@@ -225,9 +229,21 @@ export interface AgentHookControl {
 }
 
 export interface AgentHookRunStartContext {
+	/**
+	 * ID of the agent
+	 */
 	agentId: string;
+	/**
+	 * Session ID
+	 */
 	conversationId: string;
+	/**
+	 * ID of the agent that spawned the agent that is executing this run
+	 */
 	parentAgentId: string | null;
+	/**
+	 * The prompt submitted by user
+	 */
 	userMessage: string;
 }
 
@@ -879,6 +895,10 @@ export interface AgentConfig {
 	 * Optional logger for tracing agent loop lifecycle and recoverable failures.
 	 */
 	logger?: BasicLogger;
+	/**
+	 * Optional Telemetry service for emitting structured events about agent execution to configured telemetry backends.
+	 */
+	telemetry?: ITelemetryService;
 
 	// -------------------------------------------------------------------------
 	// Completion Guard

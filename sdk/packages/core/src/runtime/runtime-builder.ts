@@ -45,7 +45,7 @@ type SkillsExecutorWithMetadata = SkillsExecutor & {
 };
 
 export function createTeamName(): string {
-	return `agent-team-${nanoid(5)}`;
+	return `team-${nanoid(5)}`;
 }
 
 function createBuiltinToolsList(
@@ -333,9 +333,11 @@ function normalizeConfig(
 		| "enableAgentTeams"
 		| "missionLogIntervalSteps"
 		| "missionLogIntervalMs"
+		| "sessionId"
 	>
 > {
 	return {
+		sessionId: config.sessionId || "",
 		mode: config.mode === "plan" ? "plan" : "act",
 		enableTools: config.enableTools !== false,
 		enableSpawnAgent: config.enableSpawnAgent !== false,
@@ -360,6 +362,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			hooks,
 			extensions,
 			logger,
+			telemetry,
 			createSpawnTool,
 			onTeamRestored,
 			userInstructionWatcher: sharedUserInstructionWatcher,
@@ -435,7 +438,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			if (!teamRuntime) {
 				teamRuntime = new AgentTeamsRuntime({
 					teamName: effectiveTeamName,
-					leadAgentId: "lead",
+					leadAgentId: config.sessionId || "lead",
 					missionLogIntervalSteps: normalized.missionLogIntervalSteps,
 					missionLogIntervalMs: normalized.missionLogIntervalMs,
 					onTeamEvent: (event: TeamEvent) => {
@@ -512,6 +515,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						hooks,
 						extensions: extensions ?? config.extensions,
 						logger: logger ?? config.logger,
+						telemetry: input.telemetry ?? config.telemetry,
 					},
 				});
 
@@ -575,8 +579,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		return {
 			tools,
 			logger: logger ?? config.logger,
-			telemetry: input.telemetry ?? config.telemetry,
+			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
+			teamRestoredFromPersistence: Boolean(restoredTeamState),
 			completionGuard,
 			shutdown: (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);

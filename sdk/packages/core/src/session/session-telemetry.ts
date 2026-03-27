@@ -11,6 +11,7 @@ import {
 	captureMentionUsed,
 	captureTaskCreated,
 	captureTaskRestarted,
+	type TelemetryAgentIdentityProperties,
 } from "../telemetry/core-events";
 import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
@@ -21,16 +22,19 @@ export function emitSessionCreationTelemetry(
 	source: SessionSource,
 	isRestart: boolean,
 	workspacePath: string,
+	agentIdentity?: Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	if (isRestart) {
 		captureTaskRestarted(config.telemetry, {
 			ulid: sessionId,
 			apiProvider: config.providerId,
+			...agentIdentity,
 		});
 	} else {
 		captureTaskCreated(config.telemetry, {
 			ulid: sessionId,
 			apiProvider: config.providerId,
+			...agentIdentity,
 		});
 	}
 	captureHookDiscoveryTelemetry(config.telemetry, { workspacePath });
@@ -44,6 +48,7 @@ export function emitSessionCreationTelemetry(
 			enableTools: config.enableTools,
 			enableSpawnAgent: config.enableSpawnAgent,
 			enableAgentTeams: config.enableAgentTeams,
+			...agentIdentity,
 		},
 	});
 }

@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import type {
 	AgentHooks,
 	PersistentSubprocessHookControl,
@@ -11,9 +10,11 @@ import {
 	SqliteSessionStore,
 } from "@clinebot/core/node";
 import { type RpcRuntimeHandlers, RpcSessionClient } from "@clinebot/rpc";
-import type {
-	HookSessionContext,
-	HookSessionContextLookup,
+import {
+	CLINE_DEFAULT_RPC_ADDRESS,
+	createSessionId,
+	type HookSessionContext,
+	type HookSessionContextLookup,
 } from "@clinebot/shared";
 import {
 	createCliLoggerAdapter,
@@ -285,16 +286,18 @@ class RpcRuntimeHookService {
 
 export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 	const RPC_SESSION_COMPONENT = "rpc-runtime-session";
+	const processId = process.pid.toString();
 	const sessionManager = new DefaultSessionManager({
-		distinctId: process.pid.toString(),
+		distinctId: processId,
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
 	});
 	const hookService = new RpcRuntimeHookService();
 	const sessionModes = new Map<string, "act" | "plan">();
 	const activeSessions = new Set<string>();
-	const rpcAddress = process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:4317";
+	const rpcAddress =
+		process.env.CLINE_RPC_ADDRESS?.trim() || CLINE_DEFAULT_RPC_ADDRESS;
 	const eventClient = new RpcSessionClient({ address: rpcAddress });
-	const runtimeClientId = `cli-rpc-runtime-${process.pid}`;
+	const runtimeClientId = `cli-rpc-runtime-${processId}`;
 	const unsubscribeEventBridge = subscribeRuntimeEventBridge({
 		sessionManager,
 		eventClient,
@@ -354,8 +357,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 				component: RPC_SESSION_COMPONENT,
 				runtimeConfig: config.logger,
 			}).core;
-			const sessionId =
-				config.sessionId?.trim() || `${Date.now()}_${randomUUID().slice(0, 5)}`;
+			const sessionId = config.sessionId?.trim() || createSessionId();
 			const startedConfig = await buildSessionStartInput({
 				config,
 				sessionId,

@@ -117,6 +117,9 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 				rolePrompt: "Write concise Python-focused haiku",
 				modelId: "claude-sonnet-4-5-20250929",
 				maxIterations: 7,
+				runtimeAgentId: "teammate-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
 			},
 		});
 	});

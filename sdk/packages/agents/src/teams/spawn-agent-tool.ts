@@ -5,6 +5,7 @@
 import { basename, resolve } from "node:path";
 import type { LlmsProviders } from "@clinebot/llms";
 import {
+	type ITelemetryService,
 	type Tool,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
@@ -118,6 +119,7 @@ export interface SpawnAgentToolConfig {
 	 * Optional logger forwarded to spawned sub-agent runs.
 	 */
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 }
 
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";

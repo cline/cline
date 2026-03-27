@@ -128,7 +128,14 @@ export {
 	buildTeamProgressSummary,
 	toTeamProgressLifecycleEvent,
 } from "./team";
+export type {
+	TelemetryAgentIdentityProperties,
+	TelemetryAgentKind,
+} from "./telemetry/core-events";
 export {
+	CORE_TELEMETRY_EVENTS,
+	captureAgentCreated,
+	captureAgentTeamCreated,
 	captureAuthFailed,
 	captureAuthLoggedOut,
 	captureAuthStarted,
@@ -149,7 +156,6 @@ export {
 	captureTokenUsage,
 	captureToolUsage,
 	identifyAccount,
-	LegacyTelemetryEvents,
 } from "./telemetry/core-events";
 export type { ITelemetryAdapter } from "./telemetry/ITelemetryAdapter";
 export {

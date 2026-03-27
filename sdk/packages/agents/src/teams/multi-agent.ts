@@ -72,6 +72,9 @@ export interface TeammateLifecycleSpec {
 	rolePrompt: string;
 	modelId?: string;
 	maxIterations?: number;
+	runtimeAgentId?: string;
+	conversationId?: string;
+	parentAgentId?: string | null;
 }
 
 const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000;
@@ -1195,6 +1198,9 @@ export class AgentTeamsRuntime {
 				rolePrompt: config.systemPrompt,
 				modelId: config.modelId,
 				maxIterations: config.maxIterations,
+				runtimeAgentId: agent.getAgentId(),
+				conversationId: agent.getConversationId(),
+				parentAgentId: null,
 			},
 		});
 		return {

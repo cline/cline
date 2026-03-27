@@ -199,9 +199,9 @@
       "name": "examples",
       "dependencies": {
         "@chat-adapter/slack": "^4.16.1",
-        "@clinebot/agents": "nightly",
-        "@clinebot/core": "nightly",
-        "@clinebot/llms": "nightly",
+        "@clinebot/agents": "latest",
+        "@clinebot/core": "latest",
+        "@clinebot/llms": "latest",
         "chat": "^4.16.1",
       },
       "devDependencies": {
@@ -3276,13 +3276,11 @@
 
     "eslint/chalk": ["chalk@4.1.2", "", { "dependencies": { "ansi-styles": "^4.1.0", "supports-color": "^7.1.0" } }, "sha512-oKnbhFyRIXpUuez8iBMmyEa4nbj4IOQyuhc/wy9kY7/WVPcwIO9VA668Pu8RkO7+0G76SLROeyw9CpQ061i4mA=="],
 
-    "examples/@clinebot/agents": ["@clinebot/agents@0.0.6", "", { "dependencies": { "@clinebot/llms": "0.0.6", "zod": "^4.3.6" } }, "sha512-ijycRwF/nezWQLHApixlTYqHJ7Q4AM4Mz/UtbDo3XEfkL2PCM61Zspj+byI82HjpyF8UgsVGYbceqRiX2EqRzQ=="],
+    "examples/@clinebot/agents": ["@clinebot/agents@0.0.20", "", { "dependencies": { "@clinebot/llms": "0.0.20", "@clinebot/shared": "0.0.20", "zod": "^4.3.6" } }, "sha512-vQM8ueP+nsacgX1D7oqTApB6Afm/HzACojs+AMwOYJMrpPRD9mBUbc6Mmks7hAD7mvGIZeMGPwowSkw1qlOCtw=="],
 
-    "examples/@clinebot/core": ["@clinebot/core@0.0.6", "", { "dependencies": { "@clinebot/agents": "0.0.6", "@clinebot/llms": "0.0.6", "@opentelemetry/api": "^1.9.0", "@opentelemetry/api-logs": "^0.56.0", "@opentelemetry/exporter-logs-otlp-http": "^0.56.0", "@opentelemetry/exporter-metrics-otlp-http": "^0.56.0", "@opentelemetry/resources": "^1.30.1", "@opentelemetry/sdk-logs": "^0.56.0", "@opentelemetry/sdk-metrics": "^1.30.1", "@opentelemetry/semantic-conventions": "^1.37.0", "better-sqlite3": "^11.10.0", "nanoid": "^5.1.7", "simple-git": "^3.32.3", "yaml": "^2.8.2", "zod": "^4.3.6" } }, "sha512-PG2XdrpD4BEwyNFj0KyCPYasO9FAdgF+63ezGhdkZijHCCxaPWS5lnGEDbUqK5nDk7rlyCd9vxEw9scuTThA1Q=="],
+    "examples/@clinebot/core": ["@clinebot/core@0.0.20", "", { "dependencies": { "@clinebot/agents": "0.0.20", "@clinebot/llms": "0.0.20", "@clinebot/shared": "0.0.20", "@opentelemetry/api": "^1.9.0", "@opentelemetry/api-logs": "^0.56.0", "@opentelemetry/exporter-logs-otlp-http": "^0.56.0", "@opentelemetry/exporter-metrics-otlp-http": "^0.56.0", "@opentelemetry/resources": "^1.30.1", "@opentelemetry/sdk-logs": "^0.56.0", "@opentelemetry/sdk-metrics": "^1.30.1", "@opentelemetry/semantic-conventions": "^1.37.0", "jiti": "^1.21.7", "nanoid": "^5.1.7", "simple-git": "^3.32.3", "yaml": "^2.8.2", "zod": "^4.3.6" } }, "sha512-kg0UzBimizFRcqwXccrpCvNKonwt3FXglAENo8brifUDd+wG0sWWwGTMt6ajJbeu3u8xmHk9tCaV9OpGdJtuDQ=="],
 
-    "examples/@clinebot/llms": ["@clinebot/llms@0.0.6", "", { "dependencies": { "@ai-sdk/amazon-bedrock": "^4.0.67", "@ai-sdk/google-vertex": "^4.0.74", "@ai-sdk/mistral": "^3.0.24", "@anthropic-ai/sdk": "^0.78.0", "@aws-sdk/credential-providers": "^3.922.0", "@google/genai": "^1.43.0", "@streamparser/json": "^0.0.21", "ai": "^6.0.112", "ai-sdk-provider-claude-code": "^3.4.3", "ai-sdk-provider-codex-cli": "^1.1.0", "ai-sdk-provider-opencode-sdk": "^2.1.2", "dify-ai-provider": "^1.1.0", "nanoid": "^5.1.7", "openai": "^6.25.0", "zod": "^4.3.6" }, "peerDependencies": { "@aws-sdk/client-bedrock-runtime": "^3.0.0" }, "optionalPeers": ["@aws-sdk/client-bedrock-runtime"] }, "sha512-ZY/xvrUpGVdQYj3bX7apisUj0kp3BxJ3llyrRpYXuPRU4mz04DPiZj8WRni5wFOWgoV8Zx5x9nTAk7wjsReuIw=="],
-
-    "examples/chat": ["chat@4.20.2", "", { "dependencies": { "@workflow/serde": "4.1.0-beta.2", "mdast-util-to-string": "^4.0.0", "remark-gfm": "^4.0.0", "remark-parse": "^11.0.0", "remark-stringify": "^11.0.0", "remend": "^1.2.1", "unified": "^11.0.5" } }, "sha512-iTyMjE3ZRnubw1t4HgSyhU+sOG5coIBYxNS4DZbBmjQCJ9DnArmiejtG3cMigb11E2OlilZ97oKuRGigIOPh4g=="],
+    "examples/@clinebot/llms": ["@clinebot/llms@0.0.20", "", { "dependencies": { "@ai-sdk/amazon-bedrock": "^4.0.67", "@ai-sdk/google-vertex": "^4.0.74", "@ai-sdk/mistral": "^3.0.24", "@anthropic-ai/sdk": "^0.78.0", "@aws-sdk/credential-providers": "^3.922.0", "@clinebot/shared": "0.0.20", "@google/genai": "^1.43.0", "@streamparser/json": "^0.0.21", "ai": "^6.0.112", "ai-sdk-provider-claude-code": "^3.4.3", "ai-sdk-provider-codex-cli": "^1.1.0", "ai-sdk-provider-opencode-sdk": "^2.1.2", "dify-ai-provider": "^1.1.0", "nanoid": "^5.1.7", "openai": "^6.25.0", "zod": "^4.3.6" }, "peerDependencies": { "@aws-sdk/client-bedrock-runtime": "^3.0.0" }, "optionalPeers": ["@aws-sdk/client-bedrock-runtime"] }, "sha512-vHh5pAzlUBzdDeiur9p99c86XTtMysSXnuTbCxxwLezsaWFIjcAECh140uTajR6oYu7hkpz7uPReNuanUIhD/A=="],
 
     "execa/is-stream": ["is-stream@4.0.1", "", {}, "sha512-Dnz92NInDqYckGEUJv689RbRiTSEHCQ7wOVeALbkOz999YpqT46yMRIGtSNl2iCL1waAZSx40+h59NV/EwzV/A=="],
 
@@ -3896,7 +3894,11 @@
 
     "eslint/chalk/ansi-styles": ["ansi-styles@4.3.0", "", { "dependencies": { "color-convert": "^2.0.1" } }, "sha512-zbB9rCJAT1rbjiVDb2hqKFHNYLxgtk8NURxZ3IZwD3F6NtxbXZQCnnSi1Lkx+IDohdPlFp222wVALIheZJQSEg=="],
 
-    "examples/@clinebot/core/better-sqlite3": ["better-sqlite3@11.10.0", "", { "dependencies": { "bindings": "^1.5.0", "prebuild-install": "^7.1.1" } }, "sha512-EwhOpyXiOEL/lKzHz9AW1msWFNzGc/z+LzeB3/jnFJpxu+th2yqvzsSWas1v9jgs9+xiXJcD5A8CJxAG2TaghQ=="],
+    "examples/@clinebot/agents/@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
+
+    "examples/@clinebot/core/@clinebot/agents": ["@clinebot/agents@workspace:packages/agents"],
+
+    "examples/@clinebot/core/@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
 
     "execa/pretty-ms/parse-ms": ["parse-ms@4.0.0", "", {}, "sha512-TXfryirbmq34y8QBwgqCVLi+8oA3oWx2eAnSn62ITyEhEYaWRlVZ2DvMM9eZbMs/RfxPu/PK/aBLyGj4IrqMHw=="],
 

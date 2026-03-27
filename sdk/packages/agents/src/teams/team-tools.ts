@@ -1,6 +1,11 @@
 import { basename, resolve } from "node:path";
 import type { LlmsProviders } from "@clinebot/llms";
-import { type Tool, validateWithZod, zodToJsonSchema } from "@clinebot/shared";
+import {
+	type ITelemetryService,
+	type Tool,
+	validateWithZod,
+	zodToJsonSchema,
+} from "@clinebot/shared";
 import { z } from "zod";
 import { getClineDefaultSystemPrompt } from "../prompts/cline.js";
 import { createTool } from "../tools/create.js";
@@ -353,6 +358,7 @@ export interface TeamTeammateRuntimeConfig {
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
 	logger?: BasicLogger;
+	telemetry?: ITelemetryService;
 }
 
 export interface CreateAgentTeamsToolsOptions {

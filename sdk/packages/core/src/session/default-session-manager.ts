@@ -15,6 +15,7 @@ import {
 } from "@clinebot/agents";
 import type { LlmsProviders } from "@clinebot/llms";
 import {
+	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
@@ -26,6 +27,8 @@ import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type { RuntimeBuilder } from "../runtime/session-runtime";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
+	captureAgentCreated,
+	captureAgentTeamCreated,
 	captureConversationTurnEvent,
 	captureModeSwitch,
 	captureSubagentExecution,
@@ -45,6 +48,8 @@ import {
 } from "./runtime-oauth-token-manager";
 import {
 	type AgentEventContext,
+	buildTelemetryAgentIdentity,
+	extractAgentEventMetadata,
 	handleAgentEvent,
 } from "./session-agent-events";
 import { nowIso } from "./session-artifacts";
@@ -178,10 +183,7 @@ export class DefaultSessionManager implements SessionManager {
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
-		const sessionId =
-			requestedSessionId.length > 0
-				? requestedSessionId
-				: `${Date.now()}_${nanoid(5)}`;
+		const sessionId = requestedSessionId || createSessionId();
 		this.usageBySession.set(sessionId, createInitialAccumulatedUsage());
 
 		const sessionsDir =
@@ -256,15 +258,11 @@ export class DefaultSessionManager implements SessionManager {
 			defaultToolExecutors:
 				input.defaultToolExecutors ?? this.defaultToolExecutors,
 		});
+		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
+			configWithProvider.teamName = runtime.teamRuntime.getTeamName();
+		}
 
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
-		emitSessionCreationTelemetry(
-			configWithProvider,
-			sessionId,
-			source,
-			requestedSessionId.length > 0,
-			workspacePath,
-		);
 
 		const agent = this.createAgentInstance({
 			providerId: providerConfig.providerId,
@@ -296,6 +294,38 @@ export class DefaultSessionManager implements SessionManager {
 			onEvent: (event: AgentEvent) =>
 				this.onAgentEvent(sessionId, configWithProvider, event),
 		});
+		const rootAgentIdentity = buildTelemetryAgentIdentity({
+			agentId: this.readAgentId(agent),
+			conversationId: this.readAgentConversationId(agent),
+			teamId: runtime.teamRuntime?.getTeamId(),
+			teamName: runtime.teamRuntime?.getTeamName(),
+			teamRole: runtime.teamRuntime ? "lead" : undefined,
+		});
+		emitSessionCreationTelemetry(
+			configWithProvider,
+			sessionId,
+			source,
+			requestedSessionId.length > 0,
+			workspacePath,
+			rootAgentIdentity,
+		);
+		if (rootAgentIdentity) {
+			captureAgentCreated(configWithProvider.telemetry, {
+				ulid: sessionId,
+				modelId: configWithProvider.modelId,
+				provider: configWithProvider.providerId,
+				...rootAgentIdentity,
+			});
+		}
+		if (runtime.teamRuntime) {
+			captureAgentTeamCreated(configWithProvider.telemetry, {
+				ulid: sessionId,
+				teamId: runtime.teamRuntime.getTeamId(),
+				teamName: runtime.teamRuntime.getTeamName(),
+				leadAgentId: this.readAgentId(agent),
+				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
+			});
+		}
 
 		const active: ActiveSession = {
 			sessionId,
@@ -587,7 +617,7 @@ export class DefaultSessionManager implements SessionManager {
 			model: session.config.modelId,
 			source: "user",
 			mode: session.config.mode,
-			isNativeToolCall: false,
+			...this.getSessionAgentTelemetryIdentity(session),
 		});
 
 		try {
@@ -740,6 +770,7 @@ export class DefaultSessionManager implements SessionManager {
 				modelId: session.config.modelId,
 				mode: session.config.mode,
 				durationMs: Date.now() - Date.parse(session.startedAt),
+				...this.getSessionAgentTelemetryIdentity(session),
 			});
 		}
 		notifyTeamRunWaiters(session);
@@ -938,10 +969,11 @@ export class DefaultSessionManager implements SessionManager {
 		config: CoreSessionConfig,
 		event: AgentEvent,
 	): void {
+		const liveSession = this.sessions.get(sessionId);
 		const ctx: AgentEventContext = {
 			sessionId,
 			config,
-			liveSession: this.sessions.get(sessionId),
+			liveSession,
 			usageBySession: this.usageBySession,
 			persistMessages: (sid, messages, systemPrompt) => {
 				void this.invoke<void>(
@@ -953,7 +985,22 @@ export class DefaultSessionManager implements SessionManager {
 			},
 			emit: (e) => this.emit(e),
 		};
-		handleAgentEvent(ctx, event);
+		const eventMetadata = extractAgentEventMetadata(event);
+		const isRootAgentEvent =
+			liveSession &&
+			eventMetadata.agentId === this.readAgentId(liveSession.agent);
+		handleAgentEvent(
+			ctx,
+			event,
+			isRootAgentEvent
+				? {
+						isPrimaryAgentEvent: true,
+						...(liveSession?.runtime.teamRuntime
+							? { teamRole: "lead" as const }
+							: {}),
+					}
+				: { isPrimaryAgentEvent: false },
+		);
 	}
 
 	private emitPendingPrompts(session: ActiveSession): void {
@@ -1035,24 +1082,66 @@ export class DefaultSessionManager implements SessionManager {
 			toolPolicies: this.defaultToolPolicies,
 			requestToolApproval: this.defaultRequestToolApproval,
 			logger: config.logger,
+			telemetry: config.telemetry,
+			onSubAgentEvent: (event) =>
+				this.onAgentEvent(rootSessionId, config, event),
 			onSubAgentStart: (context) => {
+				const teamRuntime =
+					this.sessions.get(rootSessionId)?.runtime.teamRuntime;
 				this.subAgentStarts.set(context.subAgentId, {
 					startedAt: Date.now(),
 					rootSessionId,
 				});
+				const agentIdentity = buildTelemetryAgentIdentity({
+					agentId: context.subAgentId,
+					conversationId: context.conversationId,
+					parentAgentId: context.parentAgentId,
+					teamId: teamRuntime?.getTeamId(),
+					teamName: teamRuntime?.getTeamName(),
+					createdByAgentId: context.parentAgentId,
+				});
+				if (agentIdentity) {
+					captureAgentCreated(config.telemetry, {
+						ulid: rootSessionId,
+						modelId: config.modelId,
+						provider: config.providerId,
+						...agentIdentity,
+					});
+				}
+				captureSubagentExecution(config.telemetry, {
+					event: "started",
+					ulid: rootSessionId,
+					durationMs: 0,
+					parentId: context.parentAgentId,
+					agentId: context.subAgentId,
+					...agentIdentity,
+				});
 				void this.invokeOptional("handleSubAgentStart", rootSessionId, context);
 			},
 			onSubAgentEnd: (context) => {
+				const teamRuntime =
+					this.sessions.get(rootSessionId)?.runtime.teamRuntime;
 				const started = this.subAgentStarts.get(context.subAgentId);
 				const durationMs = started ? Date.now() - started.startedAt : 0;
 				const outputLines = context.result?.text
 					? context.result.text.split("\n").length
 					: 0;
 				captureSubagentExecution(config.telemetry, {
+					event: "ended",
 					ulid: rootSessionId,
 					durationMs,
 					outputLines,
-					success: !context.error,
+					errorMessage: context.error ? String(context.error) : undefined,
+					agentId: context.subAgentId,
+					parentId: context.parentAgentId,
+					...buildTelemetryAgentIdentity({
+						agentId: context.subAgentId,
+						conversationId: context.conversationId,
+						parentAgentId: context.parentAgentId,
+						teamId: teamRuntime?.getTeamId(),
+						teamName: teamRuntime?.getTeamName(),
+						createdByAgentId: context.parentAgentId,
+					}),
 				});
 				this.subAgentStarts.delete(context.subAgentId);
 				void this.invokeOptional("handleSubAgentEnd", rootSessionId, context);
@@ -1069,6 +1158,48 @@ export class DefaultSessionManager implements SessionManager {
 		const session = this.sessions.get(rootSessionId);
 		if (session) {
 			trackTeamRunState(session, event);
+			if (event.type === "agent_event") {
+				const ctx: AgentEventContext = {
+					sessionId: rootSessionId,
+					config: session.config,
+					liveSession: session,
+					usageBySession: this.usageBySession,
+					persistMessages: (sid, messages, systemPrompt) => {
+						void this.invoke<void>(
+							"persistSessionMessages",
+							sid,
+							messages,
+							systemPrompt,
+						);
+					},
+					emit: (e) => this.emit(e),
+				};
+				handleAgentEvent(ctx, event.event, {
+					teamRole: "teammate",
+					teamAgentId: event.agentId,
+					isPrimaryAgentEvent: false,
+				});
+			}
+			if (event.type === "teammate_spawned") {
+				const agentIdentity = buildTelemetryAgentIdentity({
+					agentId: event.teammate.runtimeAgentId ?? event.agentId,
+					conversationId: event.teammate.conversationId,
+					parentAgentId: event.teammate.parentAgentId,
+					createdByAgentId: this.readAgentId(session.agent),
+					teamId: session.runtime.teamRuntime?.getTeamId(),
+					teamName: session.runtime.teamRuntime?.getTeamName(),
+					teamRole: "teammate",
+					teamAgentId: event.agentId,
+				});
+				if (agentIdentity) {
+					captureAgentCreated(session.config.telemetry, {
+						ulid: rootSessionId,
+						modelId: event.teammate.modelId ?? session.config.modelId,
+						provider: session.config.providerId,
+						...agentIdentity,
+					});
+				}
+			}
 		}
 
 		await dispatchTeamEventToBackend(
@@ -1155,6 +1286,26 @@ export class DefaultSessionManager implements SessionManager {
 			}) => void;
 		};
 		agentWithConnection.updateConnection?.(overrides);
+	}
+
+	private getSessionAgentTelemetryIdentity(session: ActiveSession) {
+		return buildTelemetryAgentIdentity({
+			agentId: this.readAgentId(session.agent),
+			conversationId: this.readAgentConversationId(session.agent),
+			teamId: session.runtime.teamRuntime?.getTeamId(),
+			teamName: session.runtime.teamRuntime?.getTeamName(),
+			teamRole: session.runtime.teamRuntime ? "lead" : undefined,
+		});
+	}
+
+	private readAgentId(agent: Agent): string | undefined {
+		return (agent as Agent & { getAgentId?: () => string }).getAgentId?.();
+	}
+
+	private readAgentConversationId(agent: Agent): string | undefined {
+		return (
+			agent as Agent & { getConversationId?: () => string }
+		).getConversationId?.();
 	}
 
 	private emitStatus(sessionId: string, status: string): void {

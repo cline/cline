@@ -171,6 +171,7 @@ export {
 	resolveHookSessionContext,
 	resolveRootSessionId,
 } from "./session/hook-context";
+export { createSessionId } from "./session/index";
 export type {
 	SessionLineage,
 	SessionRuntimeRecordShape,
