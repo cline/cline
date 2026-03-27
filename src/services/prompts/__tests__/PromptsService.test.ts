@@ -43,14 +43,11 @@ describe("PromptsService", () => {
 	let service: PromptsService
 	let httpGetStub: sinon.SinonStub
 	let fetchRawContentStub: sinon.SinonStub
-	let fetchLastCommitDateStub: sinon.SinonStub
 
 	beforeEach(() => {
 		service = new PromptsService()
 		httpGetStub = sinon.stub(service as any, "httpGet")
 		fetchRawContentStub = sinon.stub(service as any, "fetchRawContent")
-		fetchLastCommitDateStub = sinon.stub(service as any, "fetchLastCommitDate")
-		fetchLastCommitDateStub.resolves("2025-06-15T10:30:00Z") // Default stub
 	})
 
 	afterEach(() => {
@@ -226,30 +223,6 @@ describe("PromptsService", () => {
 				const catalog = await service.fetchPromptsCatalog()
 
 				assert.strictEqual(catalog.items.length, 1)
-			})
-		})
-
-		describe("Commit Date Fetching", () => {
-			it("should populate createdAt and updatedAt from commit date", async () => {
-				httpGetStub.resolves(mockTreeResponse([{ path: ".clinerules/dated.md" }]))
-				fetchRawContentStub.resolves(makeMarkdown({ description: "Test" }))
-				fetchLastCommitDateStub.resolves("2025-06-15T10:30:00Z")
-
-				const catalog = await service.fetchPromptsCatalog()
-
-				assert.strictEqual(catalog.items[0].createdAt, "2025-06-15T10:30:00Z")
-				assert.strictEqual(catalog.items[0].updatedAt, "2025-06-15T10:30:00Z")
-			})
-
-			it("should handle commit date fetch failure gracefully", async () => {
-				httpGetStub.resolves(mockTreeResponse([{ path: ".clinerules/no-date.md" }]))
-				fetchRawContentStub.resolves(makeMarkdown({ description: "Test" }))
-				fetchLastCommitDateStub.resolves("") // Failed to fetch
-
-				const catalog = await service.fetchPromptsCatalog()
-
-				assert.strictEqual(catalog.items[0].createdAt, "")
-				assert.strictEqual(catalog.items[0].updatedAt, "")
 			})
 		})
 

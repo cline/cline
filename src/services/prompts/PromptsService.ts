@@ -123,25 +123,6 @@ export class PromptsService {
 	}
 
 	/**
-	 * Fetches the date of the last commit that modified a file.
-	 * Uses the GitHub Commits API (rate-limited). Returns empty string on failure.
-	 * Protected to allow test stubbing.
-	 */
-	protected async fetchLastCommitDate(filePath: string): Promise<string> {
-		try {
-			const url = `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/commits?path=${encodeURIComponent(filePath)}&per_page=1`
-			const response = await this.httpGet(url)
-			const commits = response.data
-			if (Array.isArray(commits) && commits.length > 0) {
-				return commits[0]?.commit?.author?.date || ""
-			}
-		} catch (error) {
-			Logger.error(`Error fetching commit date for ${filePath}:`, error)
-		}
-		return ""
-	}
-
-	/**
 	 * Fetches the prompts catalog from the cline/prompts GitHub repository.
 	 *
 	 * 1. Uses the Git Tree API (1 rate-limited call) to list all files
@@ -199,8 +180,7 @@ export class PromptsService {
 	}
 
 	/**
-	 * Processes a single file: fetches content from CDN, parses frontmatter,
-	 * and fetches the last commit date from the GitHub Commits API.
+	 * Processes a single file: fetches content from CDN and parses frontmatter.
 	 */
 	private async processFile(filePath: string): Promise<PromptItem | null> {
 		// Determine prompt type from directory
@@ -213,8 +193,8 @@ export class PromptsService {
 		}
 		if (!promptType) return null
 
-		// Fetch raw content (CDN, not rate-limited) and commit date (API, rate-limited) in parallel
-		const [content, lastCommitDate] = await Promise.all([this.fetchRawContent(filePath), this.fetchLastCommitDate(filePath)])
+		// Fetch raw content from CDN (not rate-limited)
+		const content = await this.fetchRawContent(filePath)
 
 		// Parse YAML frontmatter
 		const frontmatter = parseFrontmatter(content)
@@ -248,8 +228,8 @@ export class PromptsService {
 			content, // Include full content for apply
 			version,
 			globs: Array.isArray(frontmatter.globs) ? frontmatter.globs.map(String) : [],
-			createdAt: lastCommitDate,
-			updatedAt: lastCommitDate,
+			createdAt: "",
+			updatedAt: "",
 		}
 	}
 }
