@@ -77,11 +77,11 @@ jobs:
 
             - name: Build Apps
               id: build_apps_step
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
               run: bun run build:apps
 
             - name: Run Tests
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' && steps.build_apps_step.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_apps_step.outcome == 'success' }}
               run: bun run test
 
             - name: Smoke test SQLite under Node
