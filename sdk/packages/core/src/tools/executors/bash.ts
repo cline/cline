@@ -10,7 +10,7 @@ import {
 	getShellArgs,
 	type ToolContext,
 } from "@clinebot/shared";
-import type { BashExecutor, WindowsShellExecutor } from "../types.js";
+import type { BashExecutor } from "../types.js";
 
 /**
  * Options for the bash executor
@@ -18,7 +18,7 @@ import type { BashExecutor, WindowsShellExecutor } from "../types.js";
 export interface BashExecutorOptions {
 	/**
 	 * Shell to use for execution
-	 * @default getDefaultShell(process.platform) — "/bin/bash" on Unix, "powershell" on Windows
+	 * @default "/bin/bash" on Unix, "powershell" on Windows
 	 */
 	shell?: string;
 
@@ -179,32 +179,6 @@ function spawnAndCollect(
 export function createBashExecutor(
 	options: BashExecutorOptions = {},
 ): BashExecutor {
-	const {
-		shell = getDefaultShell(process.platform),
-		timeoutMs = 30000,
-		maxOutputBytes = 1_000_000,
-		env = {},
-		combineOutput = true,
-	} = options;
-
-	return (command, cwd, context) =>
-		spawnAndCollect(
-			{
-				executable: shell,
-				args: getShellArgs(shell, command),
-				cwd,
-				env,
-			},
-			context,
-			timeoutMs,
-			maxOutputBytes,
-			combineOutput,
-		);
-}
-
-export function createWindowsExecutor(
-	options: BashExecutorOptions = {},
-): WindowsShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
 		timeoutMs = 30000,

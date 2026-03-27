@@ -71,12 +71,6 @@ export type SearchExecutor = (
  * @returns Command output (stdout)
  */
 export type BashExecutor = (
-	command: string,
-	cwd: string,
-	context: ToolContext,
-) => Promise<string>;
-
-export type WindowsShellExecutor = (
 	command: string | StructuredCommandInput,
 	cwd: string,
 	context: ToolContext,

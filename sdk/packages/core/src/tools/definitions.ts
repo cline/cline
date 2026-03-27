@@ -50,7 +50,6 @@ import type {
 	SkillsExecutorWithMetadata,
 	ToolOperationResult,
 	WebFetchExecutor,
-	WindowsShellExecutor,
 } from "./types.js";
 
 // =============================================================================
@@ -242,7 +241,7 @@ export function createBashTool(
  * Executes shell commands in the project directory.
  */
 export function createWindowsShellTool(
-	executor: WindowsShellExecutor,
+	executor: BashExecutor,
 	config: Pick<DefaultToolsConfig, "cwd" | "bashTimeoutMs"> = {},
 ): Tool<StructuredCommandInput, ToolOperationResult[]> {
 	const timeoutMs = config.bashTimeoutMs ?? 30000;
@@ -676,12 +675,7 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 	// Add run_commands tool if enabled and executor provided
 	if (enableBash && executors.bash) {
 		if (process.platform === "win32") {
-			tools.push(
-				createWindowsShellTool(
-					executors.bash as unknown as WindowsShellExecutor,
-					config,
-				),
-			);
+			tools.push(createWindowsShellTool(executors.bash, config));
 		} else {
 			tools.push(createBashTool(executors.bash, config));
 		}

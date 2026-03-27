@@ -172,7 +172,7 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
-	it.skipIf(process.platform !== "win32")(
+	it.runIf(process.platform === "win32")(
 		"executes PowerShell hook files on Windows",
 		async () => {
 			const { workspace } = await createWorkspaceWithHook(

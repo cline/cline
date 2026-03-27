@@ -20,9 +20,9 @@ describe("plugin chat commands", () => {
 		const pluginsDir = join(tempRoot, ".clinerules", "plugins");
 		await mkdir(pluginsDir, { recursive: true });
 		await writeFile(
-			join(pluginsDir, "echo.ts"),
+			join(pluginsDir, "echo.mjs"),
 			[
-				"export const plugin = {",
+				"export default {",
 				"  name: 'echo-plugin',",
 				"  manifest: { capabilities: ['commands'] },",
 				"  setup(api) {",
@@ -31,7 +31,7 @@ describe("plugin chat commands", () => {
 				"      description: 'Echo input',",
 				"      handler: async (input) => `echo:${input}`",
 				"    });",
-				"  }",
+				"  },",
 				"};",
 			].join("\n"),
 		);

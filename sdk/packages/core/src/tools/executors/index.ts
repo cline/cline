@@ -7,12 +7,21 @@
  */
 
 import type { ToolExecutors } from "../types.js";
-import { createApplyPatchExecutor } from "./apply-patch.js";
-import { createBashExecutor, createWindowsExecutor } from "./bash.js";
-import { createEditorExecutor } from "./editor.js";
-import { createFileReadExecutor } from "./file-read.js";
-import { createSearchExecutor } from "./search.js";
-import { createWebFetchExecutor } from "./web-fetch.js";
+import {
+	type ApplyPatchExecutorOptions,
+	createApplyPatchExecutor,
+} from "./apply-patch.js";
+import { type BashExecutorOptions, createBashExecutor } from "./bash.js";
+import { createEditorExecutor, type EditorExecutorOptions } from "./editor.js";
+import {
+	createFileReadExecutor,
+	type FileReadExecutorOptions,
+} from "./file-read.js";
+import { createSearchExecutor, type SearchExecutorOptions } from "./search.js";
+import {
+	createWebFetchExecutor,
+	type WebFetchExecutorOptions,
+} from "./web-fetch.js";
 
 // Re-export individual executors and their options types
 export {
@@ -22,7 +31,6 @@ export {
 export {
 	type BashExecutorOptions,
 	createBashExecutor,
-	createWindowsExecutor,
 } from "./bash.js";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor.js";
 export {
@@ -39,12 +47,12 @@ export {
  * Options for creating default executors
  */
 export interface DefaultExecutorsOptions {
-	fileRead?: import("./file-read.js").FileReadExecutorOptions;
-	search?: import("./search.js").SearchExecutorOptions;
-	bash?: import("./bash.js").BashExecutorOptions;
-	webFetch?: import("./web-fetch.js").WebFetchExecutorOptions;
-	applyPatch?: import("./apply-patch.js").ApplyPatchExecutorOptions;
-	editor?: import("./editor.js").EditorExecutorOptions;
+	fileRead?: FileReadExecutorOptions;
+	search?: SearchExecutorOptions;
+	bash?: BashExecutorOptions;
+	webFetch?: WebFetchExecutorOptions;
+	applyPatch?: ApplyPatchExecutorOptions;
+	editor?: EditorExecutorOptions;
 }
 
 /**
@@ -71,10 +79,7 @@ export function createDefaultExecutors(
 	return {
 		readFile: createFileReadExecutor(options.fileRead),
 		search: createSearchExecutor(options.search),
-		bash:
-			process?.platform === "win32"
-				? (createWindowsExecutor(options.bash) as ToolExecutors["bash"])
-				: createBashExecutor(options.bash),
+		bash: createBashExecutor(options.bash),
 		webFetch: createWebFetchExecutor(options.webFetch),
 		applyPatch: createApplyPatchExecutor(options.applyPatch),
 		editor: createEditorExecutor(options.editor),

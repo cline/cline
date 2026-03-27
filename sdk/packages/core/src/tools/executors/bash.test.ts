@@ -1,6 +1,6 @@
 import type { ToolContext } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import { createBashExecutor, createWindowsExecutor } from "./bash.js";
+import { createBashExecutor } from "./bash.js";
 
 const ctx: ToolContext = {
 	agentId: "agent-1",
@@ -22,7 +22,8 @@ describe("createBashExecutor", () => {
 
 	it("includes stderr in combined output on success", async () => {
 		const bash = createBashExecutor({ combineOutput: true });
-		const output = await bash("echo ok && echo warn >&2", process.cwd(), ctx);
+		const cmd = `${process.execPath} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
+		const output = await bash(cmd, process.cwd(), ctx);
 		expect(output).toContain("ok");
 		expect(output).toContain("[stderr]");
 		expect(output).toContain("warn");
@@ -30,7 +31,8 @@ describe("createBashExecutor", () => {
 
 	it("excludes stderr when combineOutput is false", async () => {
 		const bash = createBashExecutor({ combineOutput: false });
-		const output = await bash("echo ok && echo warn >&2", process.cwd(), ctx);
+		const cmd = `${process.execPath} -e "process.stdout.write('ok'); process.stderr.write('warn')"`;
+		const output = await bash(cmd, process.cwd(), ctx);
 		expect(output.trim()).toBe("ok");
 	});
 
@@ -63,9 +65,9 @@ describe("createBashExecutor", () => {
 	});
 });
 
-describe("createWindowsExecutor", () => {
+describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 	it("runs structured commands without shell parsing", async () => {
-		const executor = createWindowsExecutor();
+		const executor = createBashExecutor();
 		const output = await executor(
 			{
 				command: process.execPath,
@@ -78,7 +80,7 @@ describe("createWindowsExecutor", () => {
 	});
 
 	it("runs string commands through the shell", async () => {
-		const executor = createWindowsExecutor();
+		const executor = createBashExecutor();
 		const output = await executor("echo shell-ok", process.cwd(), ctx);
 		expect(output.trim()).toBe("shell-ok");
 	});

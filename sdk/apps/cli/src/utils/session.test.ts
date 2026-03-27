@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	afterEach,
+	beforeAll,
+	beforeEach,
+	describe,
+	expect,
+	it,
+	vi,
+} from "vitest";
 
 const resolveSessionBackend = vi.fn();
 const ensureRpcRuntimeAddress = vi.fn();
@@ -33,10 +41,15 @@ vi.mock("./telemetry", () => ({
 }));
 
 describe("createDefaultCliSessionManager", () => {
+	let createDefaultCliSessionManager: typeof import("./session").createDefaultCliSessionManager;
 	const envSnapshot = {
 		CLINE_RPC_ADDRESS: process.env.CLINE_RPC_ADDRESS,
 		CLINE_SESSION_BACKEND_MODE: process.env.CLINE_SESSION_BACKEND_MODE,
 	};
+
+	beforeAll(async () => {
+		({ createDefaultCliSessionManager } = await import("./session"));
+	});
 
 	beforeEach(() => {
 		resolveSessionBackend.mockReset();
@@ -55,7 +68,6 @@ describe("createDefaultCliSessionManager", () => {
 	it("treats an explicit rpc address as a shared server to attach to", async () => {
 		process.env.CLINE_RPC_ADDRESS = "127.0.0.1:5001";
 
-		const { createDefaultCliSessionManager } = await import("./session");
 		await createDefaultCliSessionManager();
 
 		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
@@ -67,7 +79,6 @@ describe("createDefaultCliSessionManager", () => {
 	});
 
 	it("uses the local backend by default when no explicit rpc address is configured", async () => {
-		const { createDefaultCliSessionManager } = await import("./session");
 		await createDefaultCliSessionManager();
 
 		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();

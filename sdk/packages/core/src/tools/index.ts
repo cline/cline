@@ -32,7 +32,6 @@ export {
 	createFileReadExecutor,
 	createSearchExecutor,
 	createWebFetchExecutor,
-	createWindowsExecutor,
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,
