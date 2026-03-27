@@ -76,20 +76,25 @@ All data is rooted at `~/.cline/data` (overridable via `CLINE_DATA_DIR`).
 Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs pick up rebuilt code immediately; RPC-backed hosts auto-replace their owner-scoped sidecar when the current build changes. If you touch CLI/RPC bootstrap, preserve the startup lock and owner-scoped discovery behavior so multiple builds can coexist safely. Use `dev:*` scripts for automatic rebuilding during development.
 
 ### Publishing SDK Packages
-- Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly, even when some of those dependencies are bundled out of the published tarballs.
-- `bun scripts/version.ts <version>` updates all workspace package versions in place.
+- Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly.
+- Published runtime workspace packages stay in `dependencies`. Bundled internal workspace packages must live in `devDependencies` so they do not leak into packed manifests.
+- `bun scripts/version.ts <version>` updates all workspace package versions in place. It will also pull and updated the generated model list to the latest version. 
 - `bun scripts/check-publish.ts` packs the publishable packages with `bun pm pack`, installs them together in an isolated temp directory, and verifies imports.
-- `bun publish` resolves `workspace:*` dependencies to concrete versions when it packs the tarball, so the source manifests can keep workspace protocol references.
-- Local publish flow:
-  - `bun run build`
-  - `bun run test`
-  - `bun scripts/version.ts <version>`
-  - `bun scripts/check-publish.ts`
-  - `cd packages/shared && bun publish`
-  - `cd ../llms && bun publish`
-  - `cd ../agents && bun publish`
-  - `cd ../core && bun publish`
-- CI publish flow in `.github/workflows/publish-sdk.yaml` runs `version.ts`, then `check:publish`, and then publishes `shared -> llms -> agents -> core` with `bun publish`.
+- `bun publish` resolves published `workspace:*` dependencies to concrete versions when it packs the tarball.
+- Manual publish guide:
+  1. Run `bun run build:models && bun run build` from the repo root.
+  2. Run `bun run test` from the repo root.
+  3. Choose the release version like `0.0.21`.
+  4. Run `bun scripts/version.ts <version>` to update all workspace package versions.
+  5. Review the changed `package.json` files and generated model artifacts before publishing.
+  6. Run `bun scripts/check-publish.ts` to verify the packed SDK tarballs install and import together.
+  7. Publish in dependency order:
+     `cd packages/shared && bun publish`
+     `cd ../llms && bun publish`
+     `cd ../agents && bun publish`
+     `cd ../core && bun publish`
+  8. If you are doing a tagged production release, create and push the corresponding git tags after publish.
+- CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same order: build, version, `check:publish`, then publish `shared -> llms -> agents -> core`.
 
 ### Change Routing
 - **Model/Provider schemas**: `@clinebot/llms`

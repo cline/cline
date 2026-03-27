@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/agents",
-	"version": "0.0.20",
+	"version": "0.0.21",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline.git",
