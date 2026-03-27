@@ -1,0 +1,27 @@
+# {{WORKFLOW_NAME}} — State Tracking
+
+## Workflow Information
+- **Created**: {{ISO_TIMESTAMP}}
+- **Worktree Path**: {{WORKTREE_PATH}}
+- **Branch**: {{BRANCH_NAME}}
+- **Current Stage**: Stage 1
+
+## Stage Progress
+
+{{STAGE_CHECKBOXES}}
+
+<!--
+  Checkbox format:
+  - [ ] Stage Name                           (not started)
+  - [x] Stage Name (2026-03-15T21:30:00)    (completed with timestamp)
+  - [ ] Stage Name — BLOCKED: [reason]       (blocked, cannot proceed)
+
+  Update rules:
+  - Mark [x] with ISO 8601 timestamp immediately when a stage completes
+  - Update Current Stage pointer after each stage transition
+  - Never remove or reorder entries
+-->
+
+## Current Status
+- **Active Stage**: Stage 1 — {{STAGE_1_NAME}}
+- **Status**: Not Started

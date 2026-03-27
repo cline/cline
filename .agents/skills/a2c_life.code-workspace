@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../seller-agent"
+		},
+		{
+			"path": "../../aidlc-starter/aidlc-mcp-server"
+		}
+	],
+	"settings": {}
+}

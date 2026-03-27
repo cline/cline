@@ -1,0 +1,283 @@
+# {{WORKFLOW_NAME}}
+
+{{WORKFLOW_DESCRIPTION}}
+
+## Workflow Runtime Instructions
+
+This workspace runs a structured AI workflow built on a 4-Layer pattern system. Follow these instructions exactly when operating in this workspace.
+
+---
+
+## Layer 1: Agent Harness
+
+The Agent Harness controls HOW the AI agent behaves — predictable, trackable, auditable.
+
+### Mechanism 1: Session Start Protocol
+
+When starting or resuming a session:
+
+1. **Read** `workflow-state.md` to determine current progress and active stage
+2. **Read** `audit.md` to understand previous decisions and context
+3. **Load** all artifacts listed in the current stage's `Inputs` field
+4. **Present** a welcome-back prompt:
+   ```
+   Based on your workflow-state.md, here is your current status:
+   - **Workflow**: [workflow name]
+   - **Current Stage**: [stage name]
+   - **Last Completed**: [last completed stage]
+   - **Next Step**: [next action]
+
+   A) Continue where you left off
+   B) Review a previous stage
+
+   [Answer]:
+   ```
+5. **Log** the session start in `audit.md`
+
+### Mechanism 2: Stage Execution Loop
+
+For EVERY stage, execute this exact 7-step loop:
+
+1. **Announce** — Display stage name, purpose, and Role to the user
+2. **Check Inputs** — Verify ALL artifacts listed in the stage's `Inputs` field exist. If any are missing, mark the stage as `blocked` and STOP
+3. **Execute** — Perform the stage work:
+   - Assume the Role specified in the stage definition
+   - If Pattern is `Plan-then-Execute`: create plan first, get approval, then execute
+   - If Q&A is needed: use file-based Q&A (Mechanism 4)
+4. **Produce Artifacts** — Save outputs to `artifacts/<stage-slug>/`
+   - Use descriptive file names (never generic names like `output.md`)
+   - Include references to input artifacts for traceability
+5. **Log** — Append a completion entry to `audit.md`
+6. **Update State** — Mark the stage as `[x]` in `workflow-state.md` with ISO 8601 timestamp
+7. **Gate Check** — If `Approval Gate: Yes`, present results and STOP:
+   ```
+   Stage "[stage name]" is complete.
+
+   Please review the artifacts at: artifacts/<stage-slug>/
+
+   A) Approve — proceed to next stage
+   B) Request Changes — specify what to modify
+
+   [Answer]:
+   ```
+   Do NOT proceed until the user explicitly approves. Only two options allowed.
+
+### Mechanism 3: Approval Gates
+
+- **Binary only**: Approve or Request Changes. No other options.
+- **Never** present 3 or more choices at an approval gate.
+- **Never** proceed to the next stage without explicit user approval.
+- **Log** every gate decision in `audit.md` with the user's exact response.
+
+### Mechanism 4: Q&A Harness
+
+When you need user input during a stage:
+
+1. **Create** a question file at `questions/<stage-slug>-questions.md`
+2. **Format** every question as multiple choice with `[Answer]:` tags:
+   ```
+   ## Question 1
+   [Clear, specific question]
+
+   A) [Option A]
+   B) [Option B]
+   C) [Option C]
+   X) Other (please describe after [Answer]: tag below)
+
+   [Answer]:
+   ```
+3. **Rules**:
+   - NEVER ask questions directly in chat — always use question files
+   - ALWAYS include "Other" as the last option (MANDATORY)
+   - Only include meaningful options — do not pad with filler choices
+   - Minimum: 2 meaningful options + Other
+4. **Inform** the user: "I've created `questions/<stage-slug>-questions.md` with [N] questions. Please fill in the [Answer]: tags and let me know when done."
+5. **Wait** for the user to confirm completion
+6. **Read** the file and validate all `[Answer]:` tags are filled
+7. **Analyze** answers for contradictions (see Layer 2: Contradiction Detection)
+8. **Log** all answers in `audit.md`
+
+### Mechanism 5: Audit Trail
+
+- **Append-only** — NEVER overwrite existing content in `audit.md`
+- **ISO 8601 timestamps** on every entry
+- **Verbatim user input** — record the user's complete raw input, never summarize
+- **Stage context** on every entry
+- **Format**:
+  ```
+  ## [Stage Name]
+  **Timestamp**: [ISO 8601]
+  **Action**: [What was done]
+  **Output**: [Key results or artifact paths]
+  **User Decision**: [If approval gate, record exact decision]
+
+  ---
+  ```
+
+### Mechanism 6: Artifact Management
+
+- Save each stage's outputs to `artifacts/<stage-slug>/`
+- Use descriptive file names that reflect content (e.g., `trend-analysis-report.md`, not `output.md`)
+- Reference artifact paths in `audit.md` entries
+- Maintain per-stage isolation — never mix artifacts from different stages in one directory
+
+### Mechanism 7: State Tracking
+
+- Track progress in `workflow-state.md` using checkboxes
+- When a stage completes: `- [x] Stage Name (2026-03-15T21:30:00+09:00)`
+- Maintain a `Current Stage` pointer
+- Support `blocked` state when a stage cannot proceed:
+  ```
+  - [ ] Stage Name — BLOCKED: [reason]
+  ```
+
+---
+
+## Layer 2: Knowledge Building
+
+Controls WHAT the AI knows before acting — ensuring sufficient context for quality decisions.
+
+### Context-First Execution
+
+- Every stage MUST load all artifacts listed in its `Inputs` field before execution begins
+- If any required input artifact is missing, the stage is `blocked` — do NOT attempt to execute without inputs
+- Later stages accumulate more context from prior stages, enabling progressively better judgment
+
+### Progressive Context Enrichment
+
+- Each stage's output becomes input context for subsequent stages
+- The stage chain is not just sequential execution — it is cumulative context building
+- Artifacts serve dual purpose: deliverable AND context for the next stage's decisions
+
+### Structured Q&A with Contradiction Detection
+
+After collecting Q&A answers, you MUST check for contradictions and ambiguities:
+
+1. **Detect contradictions**: Look for logically inconsistent answers across questions
+   - Scope mismatch (e.g., "low budget" but "premium positioning")
+   - Goal mismatch (e.g., "high margin" but "lowest price strategy")
+   - Timeline mismatch (e.g., "quick launch" but "extensive testing")
+2. **Detect ambiguities**: Look for vague or unclear responses
+   - "mix of", "depends", "not sure", "maybe", "probably"
+   - Answers that combine multiple options without decision criteria
+3. **If contradictions or ambiguities found**:
+   - Create `questions/<stage-slug>-clarification-questions.md`
+   - Clearly state what contradiction was detected and which answers conflict
+   - Ask targeted questions to resolve the issue
+   - Do NOT proceed until ALL contradictions are resolved
+4. **Cross-stage contradiction detection**: When a new stage's Q&A answers conflict with decisions from previous stages, flag the contradiction and require resolution
+
+### Adaptive Depth
+
+- **Stage execution**: Binary decision — EXECUTE or SKIP
+- **Detail level within a stage**: Adaptive based on complexity
+  - **Minimal**: Simple, clear tasks — concise artifacts with essential detail only
+  - **Standard**: Normal complexity — balanced artifacts with moderate detail
+  - **Comprehensive**: Complex, high-risk tasks — thorough artifacts with extensive detail
+- **AI determines depth** based on 6 factors:
+  1. Request clarity — how specific and well-defined is the task?
+  2. Problem complexity — how intricate is the solution space?
+  3. Scope — how many components or areas are affected?
+  4. Risk level — what is the impact of errors or omissions?
+  5. Available context — how much prior information exists?
+  6. User preference — has the user expressed preference for brevity or detail?
+
+---
+
+## Layer 3: Execution Quality
+
+Controls HOW WELL the AI executes — maintaining quality through structural constraints.
+
+### Plan-then-Execute
+
+For stages marked with `Pattern: Plan-then-Execute`:
+
+1. **Part 1 — Planning**:
+   - Create a detailed execution plan with numbered steps and checkboxes
+   - Save the plan to `artifacts/<stage-slug>/<stage-slug>-plan.md`
+   - Present the plan summary to the user
+   - **Wait for explicit approval** before proceeding to Part 2
+2. **Part 2 — Execution**:
+   - Execute ONLY what is written in the approved plan
+   - Follow the step sequence exactly — do NOT deviate
+   - Mark each step `[x]` immediately after completion
+   - The plan is the Single Source of Truth — nothing outside the plan is executed
+   - **NO HARDCODED LOGIC**: If it's not in the plan, it doesn't get done
+
+### Role Assumption
+
+- Each stage specifies a `Role` — the expert perspective the AI should adopt
+- The AI assumes this role's viewpoint when:
+  - Analyzing input artifacts
+  - Generating questions
+  - Making judgments and recommendations
+  - Producing output artifacts
+- The same data viewed through different roles yields different insights
+- Example: A Market Analyst focuses on trends and opportunity sizing, while a Pricing Consultant focuses on cost structures and margin optimization
+
+### Conditional Stage Execution
+
+- Stages are classified as `ALWAYS` or `CONDITIONAL`
+- `CONDITIONAL` stages specify execution conditions (`Execute IF` / `Skip IF`)
+- At workflow start or when reaching a conditional stage, evaluate the conditions
+- The user can override any EXECUTE/SKIP decision
+- Default rule: When in doubt, include the stage
+
+### Artifact Traceability
+
+- Every artifact MUST reference the input artifacts it was derived from
+- Include a `Sources` section in each artifact:
+  ```
+  ## Sources
+  - Derived from: artifacts/trend-analysis/trend-report.md (Stage 1)
+  - Derived from: artifacts/product-selection/shortlist.md (Stage 2)
+  ```
+- This enables tracking: "Where did this output come from?" is always answerable
+- When an upstream artifact changes, all downstream artifacts that reference it should be reviewed
+
+---
+
+## Layer 4: Governance
+
+Controls WHAT BOUNDARIES the AI respects — preventing drift and ensuring consistency.
+
+### Extension System
+
+- Additional domain-specific rules can be added via `extensions/` directory
+- Each extension has an opt-in file (`*.opt-in.md`) and a rules file (`*.md`)
+- Extensions are presented to the user during the first stage for opt-in/opt-out
+- Only opted-in extensions have their rules loaded — saving context
+- Extensions are enforced as hard constraints, not suggestions
+
+### Content Validation
+
+- Validate all artifacts before writing to files
+- Check markdown syntax, special character escaping, and structural correctness
+- If validation fails: use fallback content and inform the user
+- Domain-specific validation rules can be added (e.g., numeric format for pricing data, encoding for multilingual content)
+
+### Emergent Behavior Prevention
+
+- **Control areas** (gates, state tracking, audit): strict format compliance — no creative variations
+- **Execution areas** (stage work, analysis, recommendations): domain knowledge and creativity allowed
+- Approval gates MUST have exactly 2 options — NEVER 3 or more
+- Stage completion messages follow a standardized format — no free-form variations
+- The plan is the Single Source of Truth — executing anything not in the plan is prohibited
+
+### Error Handling
+
+- If a stage cannot be completed:
+  1. Log the blocker in `audit.md` with full context
+  2. Mark the stage as `blocked` in `workflow-state.md`
+  3. Inform the user with a clear explanation of what is blocking progress
+  4. Do NOT skip the stage — blocked stages must be resolved before proceeding
+
+---
+
+## Workflow Stages
+
+See `workflow.md` for complete stage definitions.
+
+## Current Status
+
+See `workflow-state.md` for current progress.

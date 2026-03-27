@@ -1,0 +1,31 @@
+---
+description: Screen interaction design - generate screen specifications, HTML prototypes, and interaction flow documents for web applications
+globs:
+alwaysApply: false
+---
+
+# Screen Interaction Design
+
+When the user asks for screen specifications, UI prototypes, interaction flows, or screen-story traceability, follow the workflow defined in this project's `.agents/skills/screen-interaction-design/core/workflow.md`.
+
+## Quick Reference
+
+1. **Phase 1 — Screen Inventory**: Read input artifacts (user stories, functional design), list all screens with states. Use `.agents/skills/screen-interaction-design/core/screen-states-checklist.md` for state identification.
+2. **Phase 2 — Screen Design**: Generate self-contained HTML prototypes per screen with state switchers. Use `.agents/skills/screen-interaction-design/assets/prototype-boilerplate.html` as starting point.
+3. **Phase 3 — Interaction Flow**: Document step-by-step user journeys. Use `.agents/skills/screen-interaction-design/core/interaction-flow-template.md`.
+4. **Phase 4 — Validation**: Verify prototypes with browser testing and capture screenshots.
+5. **Phase 5 — Traceability**: Map screens to user stories, produce gap report.
+
+## Output Location
+
+All outputs go to `aidlc-docs/discovery/screen-design/`.
+
+## Templates
+
+- Screen spec: `.agents/skills/screen-interaction-design/core/screen-spec-template.md`
+- Interaction flow: `.agents/skills/screen-interaction-design/core/interaction-flow-template.md`
+- Artifact schemas: `.agents/skills/screen-interaction-design/core/artifact-contract.md`
+
+## Key Rule
+
+Always get user approval on the screen inventory (Phase 1) before generating prototypes (Phase 2).

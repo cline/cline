@@ -1,0 +1,43 @@
+# Welcome to {{WORKFLOW_NAME}}
+
+{{WORKFLOW_WELCOME_INTRO}}
+
+## What This Workflow Does
+
+{{WORKFLOW_PURPOSE_DESCRIPTION}}
+
+## How It Works
+
+This workflow uses a structured AI-guided process with {{STAGE_COUNT}} stages. At each stage, the AI:
+
+- **Analyzes** your situation and asks clarifying questions when needed
+- **Plans** the approach and gets your approval before executing
+- **Produces** documented artifacts you can review
+- **Tracks** all decisions so nothing is lost between sessions
+
+## The Stages
+
+{{STAGE_VISUAL_DIAGRAM}}
+
+## Your Role
+
+- **Answer questions** in dedicated question files using `[Answer]:` tags
+- **Review artifacts** produced at each stage
+- **Approve or request changes** at approval gates before the workflow proceeds
+- **You are always in control** — the AI does not proceed without your explicit approval
+
+## Key Principles
+
+- **Context-First**: The AI builds understanding before acting — no premature execution
+- **Plan-then-Execute**: Complex stages show you the plan before doing the work
+- **Full Audit Trail**: Every decision is logged — you can always trace back why something was done
+- **Adaptive**: Simple tasks are handled quickly; complex tasks get thorough treatment
+
+## What Happens Next
+
+1. The AI reads the current workflow state
+2. It loads context from prior stages (if any)
+3. It announces the current stage and begins work
+4. You review, approve, and move forward
+
+Let's begin!

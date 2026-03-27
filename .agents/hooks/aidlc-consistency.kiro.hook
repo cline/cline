@@ -1,0 +1,13 @@
+{
+  "enabled": true,
+  "name": "AIDLC Consistency",
+  "description": "AIDLC workflow 진행 중 매 prompt마다 핵심 rule 준수와 산출물 정합성 유지를 리마인드합니다. consistency skill과 연동하여 설계 결정 변경 시 정합성 검토를 트리거합니다.",
+  "version": "2",
+  "when": {
+    "type": "promptSubmit"
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "AIDLC workflow 진행 중입니다. 다음 핵심 rule을 준수하세요:\n1. 질문은 반드시 md 파일로 생성 (chat에서 직접 질문 금지)\n2. 각 stage 완료 시 승인 메시지를 제시하고 사용자 명시적 승인 대기\n3. audit.md에 모든 user input을 원문 그대로 기록 (append only, 덮어쓰기 금지)\n4. plan 파일의 checkbox를 작업 완료 즉시 업데이트\n5. aidlc-state.md의 stage progress를 동기화\n6. 질문 선택지에 Recommend 표시 포함 (Layer2 steering rule)\n\n[Consistency Check] 현재 사용자 요청에 설계 결정 변경이 포함되어 있다면, consistency skill (`.agent/skills/consistency/SKILL.md`)의 워크플로우에 따라 Ground Truth 식별 → 전수 스캔 → 충돌 분류 → 질문 파일 생성 → 일괄 수정 → 검증을 수행하세요."
+  }
+}

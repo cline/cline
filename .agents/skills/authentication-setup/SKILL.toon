@@ -1,0 +1,18 @@
+N:authentication-setup
+D:Design and implement authentication and authorization systems. Use when setting up user login, JW...
+G:authentication authorization security JWT OAuth
+U[5]:
+  **User Login System**: When adding user authentication to a new application
+  **API Security**: When adding an authentication layer to a REST or GraphQL API
+  **Permission Management**: When role-based access control is needed
+  **Authentication Migration**: When migrating an existing auth system to JWT or OAuth
+  **SSO Integration**: When integrating social login with Google, GitHub, Microsoft, etc.
+S[5]{n,action}:
+  1,Design the Data Model
+  2,Implement Password Security
+  3,Generate and Verify JWT Tokens
+  4,Implement Authentication Middleware
+  5,Implement Authentication API Endpoints
+R[2]:
+  Access Token (short expiry
+  Refresh Token (long expiry

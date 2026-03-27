@@ -1,0 +1,4 @@
+interface:
+  display_name: "Webapp Testing"
+  short_description: "Screen-design 기반 테스트 자동 생성 및 실행"
+  default_prompt: "$webapp-testing"

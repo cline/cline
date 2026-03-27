@@ -1,0 +1,62 @@
+# {{WORKFLOW_NAME}} — Stage Definitions
+
+## Overview
+
+{{WORKFLOW_DESCRIPTION}}
+
+## Stage Summary
+
+{{STAGE_SUMMARY_LIST}}
+
+## Stage Details
+
+<!--
+  Each stage follows this structure to support the 4-Layer pattern system:
+  - Role (Layer 3: Role Assumption)
+  - Type/Conditions (Layer 3: Conditional Execution)
+  - Depth (Layer 2: Adaptive Depth)
+  - Pattern (Layer 3: Plan-then-Execute or Simple)
+  - Inputs (Layer 2: Context-First Execution)
+  - Outputs (Layer 2: Progressive Context Enrichment)
+  - Completion Criteria (Layer 1: Stage Execution Loop)
+  - Approval Gate (Layer 1: Approval Gates)
+-->
+
+### Stage 1: {{STAGE_1_NAME}}
+
+**Role**: {{EXPERT_ROLE}}
+**Purpose**: {{WHY_THIS_STAGE_EXISTS}}
+**Type**: ALWAYS | CONDITIONAL
+**Execute IF**: {{CONDITIONS — omit for ALWAYS stages}}
+**Depth**: Adaptive (Minimal / Standard / Comprehensive)
+**Pattern**: Simple | Plan-then-Execute
+
+**Inputs**:
+- {{None for first stage, or list prior stage artifacts}}
+
+**Outputs**:
+- {{Output description}}
+- Artifacts saved to: `artifacts/{{stage-slug}}/`
+
+**Completion Criteria**:
+- [ ] {{Criterion 1}}
+- [ ] {{Criterion 2}}
+
+**Approval Gate**: Yes | No
+
+---
+
+<!--
+  Repeat the Stage block for each subsequent stage.
+
+  For stages with Pattern: Plan-then-Execute, the execution loop automatically splits into:
+  - Part 1: Plan creation → user approval
+  - Part 2: Execute approved plan → checkpoint tracking
+
+  For stages with Approval Gate: Yes, the execution loop automatically stops
+  after step 7 (Gate Check) and waits for binary user approval.
+
+  Input/Output chains create the Progressive Context Enrichment pattern:
+  Stage 1 outputs → Stage 2 inputs → Stage 2 outputs → Stage 3 inputs → ...
+  Later stages have richer context from accumulated prior artifacts.
+-->

@@ -1,0 +1,18 @@
+# {{WORKFLOW_NAME}} — Audit Log
+
+<!--
+  CRITICAL RULES:
+  - APPEND-ONLY: Never overwrite or delete existing entries
+  - VERBATIM: Record user input exactly as provided, never summarize
+  - TIMESTAMPS: Use ISO 8601 format on every entry
+  - CONTEXT: Include stage name on every entry
+  - COMPLETENESS: Log every significant event, not just approvals
+-->
+
+## Workflow Created
+**Timestamp**: {{ISO_TIMESTAMP}}
+**Action**: Workflow provisioned via workflow-provisioner skill
+**Worktree Path**: {{WORKTREE_PATH}}
+**Branch**: {{BRANCH_NAME}}
+
+---

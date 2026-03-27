@@ -1,0 +1,7 @@
+[project]
+name = "excalidraw-render"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "playwright>=1.40.0",
+]
