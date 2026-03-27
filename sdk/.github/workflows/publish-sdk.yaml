@@ -118,11 +118,7 @@ jobs:
 
       - name: Update all package versions and verify publishability
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun scripts/version.ts "${{ steps.version.outputs.version }}" --publish --check
-
-      - name: Re-apply publish manifest transform
-        if: steps.check_commits.outputs.skip != 'true'
-        run: bun scripts/version.ts "${{ steps.version.outputs.version }}" --publish
+        run: bun scripts/version.ts "${{ steps.version.outputs.version }}" --check
 
       # Publish sequentially in dependency order: shared → llms → agents → core
       - name: Publish @clinebot/shared
@@ -131,7 +127,7 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/shared@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/shared
-          npm publish --tag "$CHANNEL" --access restricted
+          bun publish --tag "$CHANNEL" --access restricted
 
       - name: Publish @clinebot/llms
         if: steps.check_commits.outputs.skip != 'true'
@@ -139,7 +135,7 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/llms@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/llms
-          npm publish --tag "$CHANNEL" --access restricted
+          bun publish --tag "$CHANNEL" --access restricted
 
       - name: Publish @clinebot/agents
         if: steps.check_commits.outputs.skip != 'true'
@@ -147,7 +143,7 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/agents@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/agents
-          npm publish --tag "$CHANNEL" --access restricted
+          bun publish --tag "$CHANNEL" --access restricted
 
       - name: Publish @clinebot/core
         if: steps.check_commits.outputs.skip != 'true'
@@ -155,7 +151,7 @@ jobs:
           CHANNEL="${{ steps.channel.outputs.channel }}"
           echo "Publishing @clinebot/core@${{ steps.version.outputs.version }} with tag '${CHANNEL}'..."
           cd packages/core
-          npm publish --tag "$CHANNEL" --access restricted
+          bun publish --tag "$CHANNEL" --access restricted
 
       - name: Create package tags for production publish
         if: steps.check_commits.outputs.skip != 'true' && steps.channel.outputs.channel == 'latest'

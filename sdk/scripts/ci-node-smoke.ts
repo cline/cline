@@ -1,30 +1,11 @@
 #!/usr/bin/env bun
 
-import { mkdtemp, readdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const root = join(import.meta.dir, "..");
-const packagesDir = join(root, "packages");
-const publishVerifyBackupPath = join(
-	root,
-	".publish-verify-package-json-backup.json",
-);
-const smokeVersion = "0.0.0-node.smoke";
 const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
-
-type MutablePackageJson = {
-	name?: string;
-	version?: string;
-	private?: boolean;
-	main?: string;
-	types?: string;
-	internal?: boolean;
-	exports?: Record<string, unknown>;
-	dependencies?: Record<string, string>;
-	peerDependencies?: Record<string, string>;
-	optionalDependencies?: Record<string, string>;
-};
 
 async function runCommand(
 	cmd: string[],
@@ -71,102 +52,24 @@ async function runCommand(
 	return stdout.trim();
 }
 
-async function restorePublishVerifyBackup(): Promise<void> {
-	try {
-		const raw = await readFile(publishVerifyBackupPath, "utf-8");
-		const backups = JSON.parse(raw) as Record<string, string>;
-		for (const [filePath, contents] of Object.entries(backups)) {
-			await writeFile(filePath, contents);
-		}
-	} finally {
-		await rm(publishVerifyBackupPath, { force: true });
-	}
-}
-
-function requireLastLine(output: string, label: string): string {
-	const lastLine = output
-		.split("\n")
-		.map((line) => line.trim())
-		.filter(Boolean)
-		.pop();
-	if (!lastLine) {
-		throw new Error(`Missing ${label} output`);
-	}
-	return lastLine;
-}
-
-async function preparePublishableManifests(): Promise<void> {
-	const workspaces = await readdir(packagesDir);
-	const packageJsonBackups: Record<string, string> = {};
-	const internalPackages = new Set<string>();
-
-	for (const workspace of workspaces) {
-		const pkgPath = join(packagesDir, workspace, "package.json");
-		try {
-			const raw = await readFile(pkgPath, "utf-8");
-			packageJsonBackups[pkgPath] = raw;
-			const pkg = JSON.parse(raw) as {
-				name?: string;
-				internal?: boolean;
-			};
-			if (pkg.internal && typeof pkg.name === "string") {
-				internalPackages.add(pkg.name);
-			}
-		} catch {
-			// Skip directories without a package manifest.
-		}
-	}
-
-	await writeFile(
-		publishVerifyBackupPath,
-		`${JSON.stringify(packageJsonBackups, null, "\t")}\n`,
+async function packWorkspace(
+	workspace: "core" | "agents" | "llms" | "shared",
+	packDir: string,
+): Promise<string> {
+	const destination = await mkdtemp(join(packDir, `${workspace}-`));
+	await runCommand(["bun", "pm", "pack", "--destination", destination], {
+		cwd: join(root, `packages/${workspace}`),
+		timeoutMs: 2 * 60_000,
+	});
+	const files = (await readdir(destination)).filter((file) =>
+		file.endsWith(".tgz"),
 	);
-
-	for (const [pkgPath, raw] of Object.entries(packageJsonBackups)) {
-		const pkg = JSON.parse(raw) as MutablePackageJson;
-		pkg.version = smokeVersion;
-		delete pkg.private;
-
-		for (const depType of [
-			"dependencies",
-			"peerDependencies",
-			"optionalDependencies",
-		] as const) {
-			const deps = pkg[depType];
-			if (!deps || typeof deps !== "object") {
-				continue;
-			}
-			for (const [dep, version] of Object.entries(deps)) {
-				if (!dep.startsWith("@clinebot/") || version !== "workspace:*") {
-					continue;
-				}
-				if (internalPackages.has(dep)) {
-					delete deps[dep];
-				} else {
-					deps[dep] = smokeVersion;
-				}
-			}
-		}
-
-		if (pkg.name === "@clinebot/core") {
-			pkg.main = "./dist/index.node.js";
-			pkg.types = "./dist/index.node.d.ts";
-			const exportsField = pkg.exports;
-			if (
-				exportsField &&
-				typeof exportsField === "object" &&
-				"." in exportsField
-			) {
-				exportsField["."] = {
-					development: "./dist/index.node.js",
-					types: "./dist/index.node.d.ts",
-					import: "./dist/index.node.js",
-				};
-			}
-		}
-
-		await writeFile(pkgPath, `${JSON.stringify(pkg, null, "\t")}\n`);
+	if (files.length !== 1) {
+		throw new Error(
+			`Expected one tarball for ${workspace}, found ${files.length}`,
+		);
 	}
+	return join(destination, files[0]);
 }
 
 async function main(): Promise<void> {
@@ -177,43 +80,12 @@ async function main(): Promise<void> {
 	const npmEnv = { npm_config_cache: npmCacheDir };
 
 	try {
-		console.log("Preparing publishable manifests for Node smoke test...");
-		await preparePublishableManifests();
-
-		console.log("Packing smoke-test tarballs...");
+		console.log("Packing smoke-test tarballs with Bun...");
 		const tarballs = {
-			core: requireLastLine(
-				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
-					cwd: join(root, "packages/core"),
-					env: npmEnv,
-					captureStdout: true,
-				}),
-				"core tarball",
-			),
-			agents: requireLastLine(
-				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
-					cwd: join(root, "packages/agents"),
-					env: npmEnv,
-					captureStdout: true,
-				}),
-				"agents tarball",
-			),
-			llms: requireLastLine(
-				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
-					cwd: join(root, "packages/llms"),
-					env: npmEnv,
-					captureStdout: true,
-				}),
-				"llms tarball",
-			),
-			shared: requireLastLine(
-				await runCommand([npmCommand, "pack", "--pack-destination", packDir], {
-					cwd: join(root, "packages/shared"),
-					env: npmEnv,
-					captureStdout: true,
-				}),
-				"shared tarball",
-			),
+			core: await packWorkspace("core", packDir),
+			agents: await packWorkspace("agents", packDir),
+			llms: await packWorkspace("llms", packDir),
+			shared: await packWorkspace("shared", packDir),
 		};
 
 		await writeFile(
@@ -224,10 +96,10 @@ async function main(): Promise<void> {
 					private: true,
 					type: "module",
 					dependencies: {
-						"@clinebot/core": `file:${join(packDir, tarballs.core)}`,
-						"@clinebot/agents": `file:${join(packDir, tarballs.agents)}`,
-						"@clinebot/llms": `file:${join(packDir, tarballs.llms)}`,
-						"@clinebot/shared": `file:${join(packDir, tarballs.shared)}`,
+						"@clinebot/core": `file:${tarballs.core}`,
+						"@clinebot/agents": `file:${tarballs.agents}`,
+						"@clinebot/llms": `file:${tarballs.llms}`,
+						"@clinebot/shared": `file:${tarballs.shared}`,
 					},
 				},
 				null,
@@ -258,28 +130,21 @@ async function main(): Promise<void> {
 				: `
 					const { resolveSessionBackend } = await import("@clinebot/core/node");
 					await resolveSessionBackend({ backendMode: "local" });
-					console.log("Local backend fallback smoke test passed");
+					console.log("Node compatibility smoke test passed");
 				`;
+		const smokeFile = join(smokeDir, "smoke.mjs");
+		await writeFile(smokeFile, `${smokeSource.trim()}\n`);
 
-		await writeFile(
-			join(smokeDir, "smoke.mjs"),
-			[
-				"process.env.CLINE_DATA_DIR = process.env.CLINE_DATA_DIR || '';",
-				smokeSource,
-			].join("\n"),
-		);
-
-		console.log("Running Node smoke probe...");
-		await runCommand(["node", "smoke.mjs"], {
+		console.log("Running smoke test...");
+		await runCommand(["node", smokeFile], {
 			cwd: smokeDir,
 			env: {
+				...npmEnv,
 				CLINE_DATA_DIR: sessionsDir,
 			},
-			timeoutMs: 60_000,
+			timeoutMs: 2 * 60_000,
 		});
-		console.log("Node smoke test passed.");
 	} finally {
-		await restorePublishVerifyBackup().catch(() => {});
 		await rm(packDir, { recursive: true, force: true });
 		await rm(smokeDir, { recursive: true, force: true });
 		await rm(sessionsDir, { recursive: true, force: true });

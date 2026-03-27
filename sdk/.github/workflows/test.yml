@@ -81,8 +81,12 @@ jobs:
               run: bun -F @clinebot/cli build
 
             - name: Run Tests
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               run: bun run test
+
+            - name: Run Tests (Windows)
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'windows-latest' }}
+              run: bun -F './packages/**' -F './apps/cli' test
 
             - name: Smoke test SQLite under Node
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}

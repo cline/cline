@@ -1,25 +1,20 @@
 /// <reference types="@types/bun" />
 export {};
 
-// Only externalize published packages; bundle internal workspace packages used by llms.
-const external = [
-	"@ai-sdk/amazon-bedrock",
-	"@ai-sdk/google-vertex",
-	"@ai-sdk/mistral",
-	"@anthropic-ai/sdk",
-	"@aws-sdk/credential-providers",
-	"@aws-sdk/client-bedrock-runtime",
-	"@google/genai",
-	"@streamparser/json",
-	"ai",
-	"ai-sdk-provider-claude-code",
-	"ai-sdk-provider-codex-cli",
-	"ai-sdk-provider-opencode-sdk",
-	"dify-ai-provider",
-	"nanoid",
-	"openai",
-	"zod",
-];
+type PackageManifest = {
+	dependencies?: Record<string, string>;
+	peerDependencies?: Record<string, string>;
+};
+
+const packageJson = (await Bun.file(
+	new URL("./package.json", import.meta.url),
+).json()) as PackageManifest;
+
+// Keep published third-party runtime packages external, but bundle internal workspace code.
+const external = Object.keys({
+	...(packageJson.dependencies ?? {}),
+	...(packageJson.peerDependencies ?? {}),
+}).filter((name) => !name.startsWith("@clinebot/"));
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
@@ -36,8 +31,8 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		outdir: "./dist",
 		target: "browser",
 		external,
-		minify: true,
 		packages: "bundle",
+		minify: true,
 		sourcemap: "none",
 	},
 ];

@@ -12,12 +12,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
+type PackageInfo = {
+	name: string;
+	dir: string;
+	workspace: string;
+};
+
 const { values, positionals } = parseArgs({
 	args: Bun.argv.slice(2),
 	options: {
 		check: { type: "boolean", default: false },
 		dry: { type: "boolean", default: false },
-		publish: { type: "boolean", default: false },
 	},
 	allowPositionals: true,
 	strict: true,
@@ -35,11 +40,6 @@ function incrementPatchVersion(input: string): string {
 	return `${major}.${minor}.${Number(patch) + 1}`;
 }
 
-if (values.check && !values.publish) {
-	console.error("--check requires --publish");
-	process.exit(1);
-}
-
 if (values.check && values.dry) {
 	console.error("--check cannot be used with --dry");
 	process.exit(1);
@@ -47,11 +47,6 @@ if (values.check && values.dry) {
 
 const root = join(import.meta.dir, "..");
 const packagesDir = join(root, "packages");
-const publishVerifyBackupPath = join(
-	root,
-	".publish-verify-package-json-backup.json",
-);
-
 const dirs = await readdir(packagesDir, { withFileTypes: true });
 const workspaces = dirs.filter((d) => d.isDirectory()).map((d) => d.name);
 
@@ -87,45 +82,46 @@ if (positionals[0] === undefined) {
 	console.log(`No version provided, defaulting to next patch: ${version}`);
 }
 
-async function restorePublishVerifyBackup(): Promise<void> {
-	try {
-		const raw = await readFile(publishVerifyBackupPath, "utf-8");
-		const backups = JSON.parse(raw) as Record<string, string>;
-		for (const [filePath, contents] of Object.entries(backups)) {
-			await writeFile(filePath, contents);
-		}
-	} catch (error: unknown) {
-		if ((error as NodeJS.ErrnoException)?.code !== "ENOENT") {
-			throw error;
-		}
-	} finally {
-		await rm(publishVerifyBackupPath, { force: true });
-	}
-}
-
 async function runCommandOrThrow(
 	cmd: string[],
-	options: { cwd: string },
-): Promise<void> {
+	options: {
+		cwd: string;
+		env?: Record<string, string | undefined>;
+		stdout?: "inherit" | "pipe";
+		stderr?: "inherit" | "pipe";
+	},
+): Promise<string> {
 	const proc = Bun.spawn(cmd, {
 		cwd: options.cwd,
-		stdout: "inherit",
-		stderr: "inherit",
+		env: options.env,
+		stdout: options.stdout ?? "inherit",
+		stderr: options.stderr ?? "inherit",
 	});
 	const exitCode = await proc.exited;
+	const stdout =
+		options.stdout === "pipe" && proc.stdout
+			? await new Response(proc.stdout).text()
+			: "";
+	const stderr =
+		options.stderr === "pipe" && proc.stderr
+			? await new Response(proc.stderr).text()
+			: "";
 	if (exitCode !== 0) {
-		throw new Error(`${cmd[0]} exited with code ${exitCode}`);
+		throw new Error(
+			stderr.trim() || stdout.trim() || `${cmd[0]} exited with code ${exitCode}`,
+		);
 	}
+	return stdout;
 }
 
-async function runPublishVerification(): Promise<number> {
-	const published: { name: string; dir: string; workspace: string }[] = [];
+async function listPublishedPackages(): Promise<PackageInfo[]> {
+	const published: PackageInfo[] = [];
 
 	for (const workspace of workspaces) {
 		const pkgPath = join(packagesDir, workspace, "package.json");
 		try {
 			const pkg = JSON.parse(await readFile(pkgPath, "utf-8"));
-			if (!pkg.internal) {
+			if (!pkg.internal && typeof pkg.name === "string") {
 				published.push({
 					name: pkg.name,
 					dir: join(packagesDir, workspace),
@@ -133,104 +129,64 @@ async function runPublishVerification(): Promise<number> {
 				});
 			}
 		} catch {
-			// skip
+			// skip directories without a package manifest
 		}
 	}
 
+	return published;
+}
+
+async function packWorkspacePackage(
+	pkg: PackageInfo,
+	packRoot: string,
+): Promise<string> {
+	const destination = await mkdtemp(join(packRoot, `${pkg.workspace}-`));
+	await runCommandOrThrow(
+		["bun", "pm", "pack", "--destination", destination],
+		{ cwd: pkg.dir },
+	);
+	const files = (await readdir(destination)).filter((file) =>
+		file.endsWith(".tgz"),
+	);
+	if (files.length !== 1) {
+		throw new Error(
+			`Expected one tarball for ${pkg.name}, found ${files.length} in ${destination}`,
+		);
+	}
+	return join(destination, files[0]);
+}
+
+async function runPublishVerification(): Promise<number> {
+	const published = await listPublishedPackages();
 	if (published.length === 0) {
 		console.error("No published packages found");
 		return 1;
 	}
 
 	console.log(
-		`\nFound ${published.length} published package(s): ${published.map((p) => p.name).join(", ")}\n`,
+		`\nFound ${published.length} published package(s): ${published.map((pkg) => pkg.name).join(", ")}\n`,
 	);
 
-	console.log("--- Checking for leaked workspace:* dependencies ---");
-	let hasLeaks = false;
-
-	for (const pkg of published) {
-		const raw = JSON.parse(
-			await readFile(join(pkg.dir, "package.json"), "utf-8"),
-		);
-		for (const depType of [
-			"dependencies",
-			"peerDependencies",
-			"optionalDependencies",
-		] as const) {
-			for (const [dep, ver] of Object.entries(
-				(raw[depType] ?? {}) as Record<string, string>,
-			)) {
-				if (ver === "workspace:*" || ver.startsWith("workspace:")) {
-					console.error(
-						`  FAIL ${pkg.name} -> ${depType}.${dep} = "${ver}" (workspace protocol not supported by npm)`,
-					);
-					hasLeaks = true;
-				}
-			}
-		}
-	}
-
-	if (hasLeaks) {
-		console.error("\nworkspace:* dependencies detected in published packages.");
-		return 1;
-	}
-	console.log("  OK - no workspace protocol leaks\n");
-
 	const testDir = await mkdtemp(join(tmpdir(), "cline-pkg-verify-"));
+	const packDir = await mkdtemp(join(tmpdir(), "cline-pkg-packs-"));
 	const npmCacheDir = join(testDir, ".npm-cache");
 	await mkdir(npmCacheDir, { recursive: true });
 
-	function npmEnv() {
-		return {
-			...process.env,
-			npm_config_cache: npmCacheDir,
-		};
-	}
-
-	async function runCommand(
-		cmd: string[],
-		options: { cwd: string },
-	): Promise<string> {
-		const proc = Bun.spawn(cmd, {
-			cwd: options.cwd,
-			env: npmEnv(),
-			stdout: "pipe",
-			stderr: "pipe",
-		});
-		const exitCode = await proc.exited;
-		const stdout = await new Response(proc.stdout).text();
-		const stderr = await new Response(proc.stderr).text();
-		if (exitCode !== 0) {
-			throw new Error(
-				stderr || stdout || `${cmd[0]} exited with code ${exitCode}`,
-			);
-		}
-		return stdout;
-	}
-
 	const tarballs: { name: string; tarball: string }[] = [];
 
-	async function cleanup() {
-		await rm(testDir, { recursive: true, force: true });
-		for (const t of tarballs) {
-			await rm(t.tarball, { force: true });
-		}
-	}
+	const npmEnv = {
+		...process.env,
+		npm_config_cache: npmCacheDir,
+	};
 
 	let exitCode = 0;
 
 	try {
-		console.log("--- Packing tarballs ---");
+		console.log("--- Packing tarballs with Bun ---");
 		for (const pkg of published) {
-			const result = await runCommand(
-				["npm", "pack", "--pack-destination", root],
-				{ cwd: pkg.dir },
-			);
-			const tarballName = result.trim().split("\n").pop()!;
-			const tarball = join(root, tarballName);
+			const tarball = await packWorkspacePackage(pkg, packDir);
 			tarballs.push({ name: pkg.name, tarball });
-			console.log(`  ${pkg.name} -> ${tarballName}`);
+			console.log(`  ${pkg.name} -> ${tarball.split("/").pop()}`);
 		}
 
 		console.log("\n--- Installing packages in isolated directory ---");
@@ -239,7 +195,7 @@ async function runPublishVerification(): Promise<number> {
 			private: true,
 			type: "module",
 			dependencies: Object.fromEntries(
-				tarballs.map((t) => [t.name, t.tarball]),
+				tarballs.map((entry) => [entry.name, entry.tarball]),
 			),
 		};
 		await writeFile(
@@ -247,8 +203,11 @@ async function runPublishVerification(): Promise<number> {
 			JSON.stringify(testPkg, null, 2),
 		);
 
-		await runCommand(["npm", "install", "--ignore-scripts"], {
+		await runCommandOrThrow(["npm", "install", "--ignore-scripts"], {
 			cwd: testDir,
+			env: npmEnv,
+			stdout: "pipe",
+			stderr: "pipe",
 		});
 		console.log("  OK - npm install succeeded\n");
 
@@ -291,10 +250,10 @@ async function runPublishVerification(): Promise<number> {
 				if (result !== 0 || output.includes("FAIL")) {
 					importFailed = true;
 				}
-			} catch (e: unknown) {
+			} catch (error: unknown) {
 				importFailed = true;
-				const msg = e instanceof Error ? e.message : String(e);
-				console.error(`  FAIL - could not import ${pkg.name}: ${msg}`);
+				const message = error instanceof Error ? error.message : String(error);
+				console.error(`  FAIL - could not import ${pkg.name}: ${message}`);
 			}
 		}
 
@@ -356,11 +315,11 @@ async function runPublishVerification(): Promise<number> {
 				if (result !== 0 || output.includes("FAIL")) {
 					importFailed = true;
 				}
-			} catch (e: unknown) {
+			} catch (error: unknown) {
 				importFailed = true;
-				const msg = e instanceof Error ? e.message : String(e);
+				const message = error instanceof Error ? error.message : String(error);
 				console.error(
-					`  FAIL - could not verify publish shape for ${pkg.name}: ${msg}`,
+					`  FAIL - could not verify publish shape for ${pkg.name}: ${message}`,
 				);
 			}
 		}
@@ -371,44 +330,19 @@ async function runPublishVerification(): Promise<number> {
 		} else {
 			console.log("\nAll packages verified successfully.");
 		}
-	} catch (e: unknown) {
+	} catch (error: unknown) {
 		exitCode = 1;
-		const msg = e instanceof Error ? e.message : String(e);
-		console.error(`\nVerification failed:\n${msg}`);
+		const message = error instanceof Error ? error.message : String(error);
+		console.error(`\nVerification failed:\n${message}`);
 	} finally {
-		await cleanup();
+		await rm(testDir, { recursive: true, force: true });
+		await rm(packDir, { recursive: true, force: true });
 	}
 
 	return exitCode;
 }
 
-// Build a set of internal (bundled-only) package names from their package.json "internal" field.
-// When --publish is used, workspace:* deps pointing to internal packages are stripped (they're bundled
-// into the build output), while deps pointing to published packages are resolved to the concrete version.
-const internalPackages = new Set<string>();
-const packageJsonBackups: Record<string, string> = {};
-for (const workspace of workspaces) {
-	try {
-		const pkgPath = join(packagesDir, workspace, "package.json");
-		const raw = await readFile(pkgPath, "utf-8");
-		const pkg = JSON.parse(raw);
-		packageJsonBackups[pkgPath] = raw;
-		if (pkg.internal) {
-			internalPackages.add(pkg.name);
-		}
-	} catch {
-		// skip
-	}
-}
-
 let updated = 0;
-
-if (values.publish && !values.dry) {
-	await writeFile(
-		publishVerifyBackupPath,
-		`${JSON.stringify(packageJsonBackups, null, "\t")}\n`,
-	);
-}
 
 for (const workspace of workspaces) {
 	const pkgPath = join(packagesDir, workspace, "package.json");
@@ -417,33 +351,6 @@ for (const workspace of workspaces) {
 		const pkg = JSON.parse(raw);
 		const oldVersion = pkg.version;
 		pkg.version = version;
-
-		if (values.publish) {
-			delete pkg.private;
-			for (const [dep, ver] of Object.entries(
-				(pkg.dependencies ?? {}) as Record<string, string>,
-			)) {
-				if (dep.startsWith("@clinebot/") && ver === "workspace:*") {
-					if (!internalPackages.has(dep)) {
-						pkg.dependencies[dep] = version;
-					} else {
-						delete pkg.dependencies[dep];
-					}
-				}
-			}
-
-			if (pkg.name === "@clinebot/core") {
-				pkg.main = "./dist/index.node.js";
-				pkg.types = "./dist/index.node.d.ts";
-				if (pkg.exports?.["."]) {
-					pkg.exports["."] = {
-						development: "./dist/index.node.js",
-						types: "./dist/index.node.d.ts",
-						import: "./dist/index.node.js",
-					};
-				}
-			}
-		}
 
 		const out = `${JSON.stringify(pkg, null, "\t")}\n`;
 
@@ -465,7 +372,6 @@ console.log(
 
 if (values.check) {
 	const exitCode = await runPublishVerification();
-	await restorePublishVerifyBackup();
 	process.exit(exitCode);
 }
 

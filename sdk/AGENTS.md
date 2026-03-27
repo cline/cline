@@ -77,19 +77,18 @@ Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs
 
 ### Publishing SDK Packages
 - Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly, even when some of those dependencies are bundled out of the published tarballs.
-- `bun scripts/version.ts <version> --publish` rewrites `packages/*/package.json` into publish-ready manifests and writes a temporary backup file at `.publish-verify-package-json-backup.json`.
-- `bun scripts/version.ts <version> --publish --check` packs the publishable packages, installs them together in an isolated temp directory, verifies imports, then restores the original workspace manifests from that backup.
-- Because `--check` restores the manifests, you must re-run `bun scripts/version.ts <version> --publish` after verification and before any real `npm publish`.
+- `bun scripts/version.ts <version>` updates all workspace package versions in place.
+- `bun scripts/version.ts <version> --check` packs the publishable packages with `bun pm pack`, installs them together in an isolated temp directory, and verifies imports.
+- `bun publish` resolves `workspace:*` dependencies to concrete versions when it packs the tarball, so the source manifests can keep workspace protocol references.
 - Local publish flow:
   - `bun run build`
   - `bun run test`
-  - `bun scripts/version.ts <version> --publish --check`
-  - `bun scripts/version.ts <version> --publish`
-  - `cd packages/shared && npm publish`
-  - `cd ../llms && npm publish`
-  - `cd ../agents && npm publish`
-  - `cd ../core && npm publish`
-- CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same rule: it runs `version.ts --publish --check`, then re-runs `version.ts --publish` before publishing `shared -> llms -> agents -> core`.
+  - `bun scripts/version.ts <version> --check`
+  - `cd packages/shared && bun publish`
+  - `cd ../llms && bun publish`
+  - `cd ../agents && bun publish`
+  - `cd ../core && bun publish`
+- CI publish flow in `.github/workflows/publish-sdk.yaml` runs `version.ts --check` and then publishes `shared -> llms -> agents -> core` with `bun publish`.
 
 ### Change Routing
 - **Model/Provider schemas**: `@clinebot/llms`
