@@ -282,4 +282,29 @@ describe("createCliLoggerAdapter", () => {
 			restoreEnv(snapshot);
 		}
 	});
+
+	it("clears log cleanup timers during shutdown", () => {
+		const snapshot = withEnvSnapshot();
+		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-timer-test-`));
+		process.env.CLINE_DATA_DIR = dataDir;
+		delete process.env.CLINE_LOG_PATH;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+		try {
+			createCliLoggerAdapter({
+				runtime: "cli",
+				component: "timer-test",
+			});
+
+			shutdownCliLoggerAdapters();
+
+			expect(clearIntervalSpy).toHaveBeenCalled();
+		} finally {
+			clearIntervalSpy.mockRestore();
+			restoreEnv(snapshot);
+		}
+	});
 });

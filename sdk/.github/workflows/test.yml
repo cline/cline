@@ -34,7 +34,7 @@ jobs:
             - name: Typecheck
               run: |
                   bun run build:sdk
-                  bun run build:apps
+                  bun run -F @clinebot/cli build
                   bun run types
 
             - name: Lint & Format
@@ -95,4 +95,4 @@ jobs:
 
             - name: Verify packages are publishable
               if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && steps.build_cli_step.outcome == 'success' && matrix.os == 'ubuntu-latest' && matrix.node-version == '24.x' }}
-              run: bun scripts/version.ts 0.0.0-verify --publish --check
+              run: bun scripts/version.ts 0.0.0-verify --check

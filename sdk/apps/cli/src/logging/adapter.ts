@@ -195,6 +195,13 @@ function startLogCleanupTimer(destination: string): void {
 	cleanupTimersByDestination.set(destination, timer);
 }
 
+function stopLogCleanupTimers(): void {
+	for (const timer of cleanupTimersByDestination.values()) {
+		clearInterval(timer);
+	}
+	cleanupTimersByDestination.clear();
+}
+
 function toPinoFields(
 	metadata?: Record<string, unknown>,
 ): Record<string, unknown> | undefined {
@@ -333,4 +340,5 @@ export function shutdownCliLoggerAdapters(): void {
 		}
 	}
 	loggerCache.clear();
+	stopLogCleanupTimers();
 }
