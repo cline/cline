@@ -1,6 +1,6 @@
-import type { ToolPolicy } from "../types.js";
-import { defaultMcpToolNameTransform } from "./name-transform.js";
-import type { McpToolNameTransform } from "./types.js";
+import type { ToolPolicy } from "../types";
+import { defaultMcpToolNameTransform } from "./name-transform";
+import type { McpToolNameTransform } from "./types";
 
 export interface CreateDisabledMcpToolPolicyOptions {
 	serverName: string;

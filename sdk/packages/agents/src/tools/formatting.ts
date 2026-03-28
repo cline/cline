@@ -4,7 +4,7 @@
  * Functions for formatting tool results for various purposes.
  */
 
-import type { ToolCallRecord } from "../types.js";
+import type { ToolCallRecord } from "../types";
 
 /**
  * Format a tool result for sending back to the model

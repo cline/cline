@@ -6,7 +6,7 @@ import type {
 	AgentExtensionRegistry,
 	PluginManifest,
 	Tool,
-} from "./types.js";
+} from "./types";
 
 export interface ContributionRegistryOptions {
 	extensions?: AgentExtension[];

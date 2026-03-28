@@ -6,42 +6,42 @@
  * for custom implementations.
  */
 
-import type { ToolExecutors } from "../types.js";
+import type { ToolExecutors } from "../types";
 import {
 	type ApplyPatchExecutorOptions,
 	createApplyPatchExecutor,
-} from "./apply-patch.js";
-import { type BashExecutorOptions, createBashExecutor } from "./bash.js";
-import { createEditorExecutor, type EditorExecutorOptions } from "./editor.js";
+} from "./apply-patch";
+import { type BashExecutorOptions, createBashExecutor } from "./bash";
+import { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 import {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
-} from "./file-read.js";
-import { createSearchExecutor, type SearchExecutorOptions } from "./search.js";
+} from "./file-read";
+import { createSearchExecutor, type SearchExecutorOptions } from "./search";
 import {
 	createWebFetchExecutor,
 	type WebFetchExecutorOptions,
-} from "./web-fetch.js";
+} from "./web-fetch";
 
 // Re-export individual executors and their options types
 export {
 	type ApplyPatchExecutorOptions,
 	createApplyPatchExecutor,
-} from "./apply-patch.js";
+} from "./apply-patch";
 export {
 	type BashExecutorOptions,
 	createBashExecutor,
-} from "./bash.js";
-export { createEditorExecutor, type EditorExecutorOptions } from "./editor.js";
+} from "./bash";
+export { createEditorExecutor, type EditorExecutorOptions } from "./editor";
 export {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
-} from "./file-read.js";
-export { createSearchExecutor, type SearchExecutorOptions } from "./search.js";
+} from "./file-read";
+export { createSearchExecutor, type SearchExecutorOptions } from "./search";
 export {
 	createWebFetchExecutor,
 	type WebFetchExecutorOptions,
-} from "./web-fetch.js";
+} from "./web-fetch";
 
 /**
  * Options for creating default executors

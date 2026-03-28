@@ -9,7 +9,7 @@ export class RpcSessionClient {
 		throw browserOnlyError();
 	}
 }
-export type { RpcStreamTeamProgressHandlers } from "./client.js";
+export type { RpcStreamTeamProgressHandlers } from "./client";
 
 export class RpcRuntimeChatClient {
 	constructor() {
@@ -27,17 +27,17 @@ export async function runRpcRuntimeCommandBridge(): Promise<never> {
 export type {
 	RpcRuntimeEvent,
 	RpcRuntimeStreamStop,
-} from "./runtime-chat-client.js";
+} from "./client/runtime-chat-client";
 export type {
 	RpcRuntimeBridgeCommand,
 	RpcRuntimeBridgeCommandOutputLine,
 	RpcRuntimeBridgeRequestEnvelope,
 	RpcRuntimeBridgeResponseEnvelope,
-} from "./runtime-chat-command-bridge.js";
+} from "./client/runtime-chat-command-bridge";
 export type {
 	RpcRuntimeBridgeControlLine,
 	RpcRuntimeBridgeOutputLine,
-} from "./runtime-chat-stream-bridge.js";
+} from "./client/runtime-chat-stream-bridge";
 
 export function getRpcServerHandle(): never {
 	throw browserOnlyError();
@@ -84,4 +84,4 @@ export type {
 	RpcSessionStatus,
 	RpcSessionUpdateInput,
 	RpcSpawnQueueItem,
-} from "./types.js";
+} from "./types";

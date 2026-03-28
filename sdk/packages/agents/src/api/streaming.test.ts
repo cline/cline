@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import type { AgentEvent, AgentResult } from "../types.js";
+import type { AgentEvent, AgentResult } from "../types";
 import {
 	batchEvents,
 	collectEvents,
@@ -8,7 +8,7 @@ import {
 	streamContinue,
 	streamRun,
 	streamText,
-} from "./streaming.js";
+} from "./streaming";
 
 class FakeAgent {
 	config: { onEvent?: (event: AgentEvent) => void } = {};

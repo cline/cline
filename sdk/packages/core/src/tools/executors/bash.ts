@@ -10,7 +10,7 @@ import {
 	getShellArgs,
 	type ToolContext,
 } from "@clinebot/shared";
-import type { BashExecutor } from "../types.js";
+import type { BashExecutor } from "../types";
 
 /**
  * Options for the bash executor

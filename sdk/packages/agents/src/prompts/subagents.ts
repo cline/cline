@@ -1,9 +1,9 @@
-import type { SpawnAgentToolConfig, TeamTeammateRuntimeConfig } from "../teams";
+import type { DelegatedAgentRuntimeConfig } from "../teams";
 import { getClineDefaultSystemPrompt } from "./cline";
 
 export function buildTeammateSystemPrompt(
 	prompt: string,
-	config: TeamTeammateRuntimeConfig,
+	config: DelegatedAgentRuntimeConfig,
 ): string {
 	const trimmedPrompt = prompt.trim();
 	if (config.providerId.toLowerCase() !== "cline") {
@@ -22,7 +22,7 @@ export function buildTeammateSystemPrompt(
 export function buildSubAgentSystemPrompt(
 	// The prompt provided when spawning the subagent
 	prompt: string,
-	config: SpawnAgentToolConfig,
+	config: DelegatedAgentRuntimeConfig,
 ): string {
 	const trimmedPrompt = prompt.trim();
 	if (config.providerId.toLowerCase() !== "cline") {

@@ -460,7 +460,7 @@ describe("SchedulerService", () => {
 		expect(execution?.costUsd).toBe(0.53);
 		expect(harness.sendSession).toHaveBeenCalledTimes(3);
 		expect(harness.sendSession.mock.calls[1]?.[1].prompt).toContain(
-			"team_list_tasks",
+			'team_task with action="list"',
 		);
 	});
 });

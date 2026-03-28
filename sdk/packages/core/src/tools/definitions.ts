@@ -14,7 +14,7 @@ import {
 	normalizeReadFileRequests,
 	normalizeRunCommandsInput,
 	withTimeout,
-} from "./helpers.js";
+} from "./helpers";
 import {
 	type ApplyPatchInput,
 	ApplyPatchInputSchema,
@@ -37,7 +37,7 @@ import {
 	SkillsInputSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputUnionSchema,
-} from "./schemas.js";
+} from "./schemas";
 import type {
 	ApplyPatchExecutor,
 	AskQuestionExecutor,
@@ -50,7 +50,7 @@ import type {
 	SkillsExecutorWithMetadata,
 	ToolOperationResult,
 	WebFetchExecutor,
-} from "./types.js";
+} from "./types";
 
 // =============================================================================
 // Helper Functions

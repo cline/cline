@@ -3,8 +3,8 @@ import type {
 	AgentExtension,
 	AgentExtensionHookStage,
 	AgentHookControl,
-} from "../types.js";
-import type { HookEngine, HookHandler } from "./engine.js";
+} from "../types";
+import type { HookEngine, HookHandler } from "./engine";
 
 type LifecycleConfig = Pick<AgentConfig, "hooks" | "extensions">;
 

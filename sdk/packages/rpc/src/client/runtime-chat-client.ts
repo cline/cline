@@ -3,7 +3,7 @@ import type {
 	RpcChatStartSessionRequest,
 	RpcChatTurnResult,
 } from "@clinebot/shared";
-import { RpcSessionClient } from "./client.js";
+import { RpcSessionClient } from "../client";
 
 export type RpcRuntimeEvent = {
 	sessionId: string;

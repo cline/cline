@@ -126,6 +126,12 @@ export function formatToolInput(toolName: string, input: unknown): string {
 			if (action === "create") {
 				return truncate(`create ${String(obj.title ?? "")}`, 60);
 			}
+			if (action === "list") {
+				return truncate(
+					`list status=${String(obj.status ?? "any")} readyOnly=${String(obj.readyOnly ?? false)}`,
+					60,
+				);
+			}
 			if (action === "claim") {
 				return truncate(`claim ${String(obj.taskId ?? "")}`, 60);
 			}
@@ -143,20 +149,6 @@ export function formatToolInput(toolName: string, input: unknown): string {
 			}
 			break;
 		}
-		case "team_create_task":
-			return truncate(`create ${String(obj.title ?? "")}`, 60);
-		case "team_claim_task":
-			return truncate(`claim ${String(obj.taskId ?? "")}`, 60);
-		case "team_complete_task":
-			return truncate(
-				`complete ${String(obj.taskId ?? "")}: ${String(obj.summary ?? "")}`,
-				70,
-			);
-		case "team_block_task":
-			return truncate(
-				`block ${String(obj.taskId ?? "")}: ${String(obj.reason ?? "")}`,
-				70,
-			);
 		case "team_run_task":
 			return truncate(
 				`${String(obj.runMode ?? "sync")} ${String(obj.agentId ?? "")}: ${String(obj.task ?? "")}`,

@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 
 import { MODELS_DEV_PROVIDER_KEY_MAP } from "@clinebot/shared";
-import { fetchModelsDevProviderModels } from "../../src/models/models-dev-catalog.js";
-import type { ModelInfo } from "../../src/models/types/index.js";
+import { fetchModelsDevProviderModels } from "../../src/models/models-dev-catalog";
+import type { ModelInfo } from "../../src/models/types/index";
 
 function sortObjectByKey<T>(
 	input: Record<string, T>,

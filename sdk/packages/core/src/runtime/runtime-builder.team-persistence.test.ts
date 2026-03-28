@@ -38,6 +38,25 @@ class MockAgentTeamsRuntime {
 vi.mock("@clinebot/agents", () => ({
 	AgentTeamsRuntime: MockAgentTeamsRuntime,
 	bootstrapAgentTeams: bootstrapAgentTeamsMock,
+	createDelegatedAgentConfigProvider: (config: Record<string, unknown>) => {
+		let runtimeConfig = { ...config };
+		return {
+			getRuntimeConfig: () => runtimeConfig,
+			getConnectionConfig: () => ({
+				providerId: runtimeConfig.providerId,
+				modelId: runtimeConfig.modelId,
+				apiKey: runtimeConfig.apiKey,
+				baseUrl: runtimeConfig.baseUrl,
+				headers: runtimeConfig.headers,
+				providerConfig: runtimeConfig.providerConfig,
+				knownModels: runtimeConfig.knownModels,
+				thinking: runtimeConfig.thinking,
+			}),
+			updateConnectionDefaults: (overrides: Record<string, unknown>) => {
+				runtimeConfig = { ...runtimeConfig, ...overrides };
+			},
+		};
+	},
 }));
 
 vi.mock("../default-tools", () => ({
@@ -111,11 +130,22 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			expect.objectContaining({
 				restoredFromPersistence: true,
 				restoredTeammates: [expect.objectContaining({ agentId: "restored-1" })],
-				teammateRuntime: expect.objectContaining({
-					headers: {
-						Authorization: "Bearer team-token",
-					},
+				teammateConfigProvider: expect.objectContaining({
+					getRuntimeConfig: expect.any(Function),
 				}),
+			}),
+		);
+		const bootstrapCall = (
+			bootstrapAgentTeamsMock.mock.calls as unknown as Array<
+				[Record<string, any>]
+			>
+		)[0]?.[0];
+		expect(bootstrapCall).toBeDefined();
+		expect(bootstrapCall?.teammateConfigProvider.getRuntimeConfig()).toEqual(
+			expect.objectContaining({
+				headers: {
+					Authorization: "Bearer team-token",
+				},
 			}),
 		);
 		expect(onTeamRestored).toHaveBeenCalledTimes(1);
@@ -189,13 +219,26 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 
 		expect(bootstrapAgentTeamsMock).toHaveBeenCalledWith(
 			expect.objectContaining({
-				teammateRuntime: expect.objectContaining({
-					providerId: "cline",
-					cwd: "/repo/demo",
-					clineWorkspaceMetadata: expect.stringContaining(
-						"# Workspace Configuration",
-					),
+				teammateConfigProvider: expect.objectContaining({
+					getRuntimeConfig: expect.any(Function),
 				}),
+			}),
+		);
+		const clineBootstrapCall = (
+			bootstrapAgentTeamsMock.mock.calls as unknown as Array<
+				[Record<string, any>]
+			>
+		)[0]?.[0];
+		expect(clineBootstrapCall).toBeDefined();
+		expect(
+			clineBootstrapCall?.teammateConfigProvider.getRuntimeConfig(),
+		).toEqual(
+			expect.objectContaining({
+				providerId: "cline",
+				cwd: "/repo/demo",
+				clineWorkspaceMetadata: expect.stringContaining(
+					"# Workspace Configuration",
+				),
 			}),
 		);
 	});

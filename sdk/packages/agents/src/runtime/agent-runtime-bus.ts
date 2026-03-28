@@ -1,4 +1,4 @@
-import type { AgentEvent, HookStage } from "../types.js";
+import type { AgentEvent, HookStage } from "../types";
 
 export interface LifecycleBusEvent<TPayload = unknown> {
 	stage: HookStage;

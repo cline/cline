@@ -4,9 +4,9 @@ import {
 	createReadFilesTool,
 	createSkillsTool,
 	createWindowsShellTool,
-} from "./definitions.js";
-import { INPUT_ARG_CHAR_LIMIT } from "./schemas.js";
-import type { SkillsExecutorWithMetadata } from "./types.js";
+} from "./definitions";
+import { INPUT_ARG_CHAR_LIMIT } from "./schemas";
+import type { SkillsExecutorWithMetadata } from "./types";
 
 function createMockSkillsExecutor(
 	fn: (...args: unknown[]) => Promise<string> = async () => "ok",

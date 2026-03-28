@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AgentExtension } from "../types.js";
+import type { AgentExtension } from "../types";
+import { createDelegatedAgentConfigProvider } from "./delegated-agent";
 
 const runMock = vi.fn();
 const getAgentIdMock = vi.fn(() => "sub-agent-1");
@@ -52,11 +53,13 @@ describe("createSpawnAgentTool", () => {
 		];
 
 		const tool = createSpawnAgentTool({
-			providerId: "anthropic",
-			modelId: "mock-model",
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "mock-model",
+				extensions,
+			}),
 			defaultMaxIterations: 4,
 			createSubAgentTools,
-			extensions,
 			onSubAgentStart,
 			onSubAgentEnd,
 		});
@@ -101,8 +104,10 @@ describe("createSpawnAgentTool", () => {
 		const onSubAgentEnd = vi.fn();
 
 		const tool = createSpawnAgentTool({
-			providerId: "anthropic",
-			modelId: "mock-model",
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "mock-model",
+			}),
 			subAgentTools: [],
 			onSubAgentEnd,
 		});
@@ -146,8 +151,10 @@ describe("createSpawnAgentTool", () => {
 		});
 
 		const tool = createSpawnAgentTool({
-			providerId: "anthropic",
-			modelId: "mock-model",
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "mock-model",
+			}),
 			subAgentTools: [],
 		});
 
@@ -189,10 +196,12 @@ describe("createSpawnAgentTool", () => {
 }`;
 
 		const tool = createSpawnAgentTool({
-			providerId: "cline",
-			modelId: "anthropic/claude-sonnet-4.6",
-			cwd: "/repo/demo",
-			clineWorkspaceMetadata: workspaceMetadata,
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				cwd: "/repo/demo",
+				clineWorkspaceMetadata: workspaceMetadata,
+			}),
 			subAgentTools: [],
 		});
 
@@ -236,10 +245,12 @@ describe("createSpawnAgentTool", () => {
 }`;
 
 		const tool = createSpawnAgentTool({
-			providerId: "cline",
-			modelId: "anthropic/claude-sonnet-4.6",
-			cwd: "/repo/demo",
-			clineWorkspaceMetadata: "# Workspace Configuration\n{}",
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "cline",
+				modelId: "anthropic/claude-sonnet-4.6",
+				cwd: "/repo/demo",
+				clineWorkspaceMetadata: "# Workspace Configuration\n{}",
+			}),
 			subAgentTools: [],
 		});
 
@@ -271,16 +282,22 @@ describe("createSpawnAgentTool", () => {
 			usage: { inputTokens: 1, outputTokens: 1 },
 		});
 
-		const getConnectionOverrides = vi.fn().mockReturnValue({
+		const configProvider = createDelegatedAgentConfigProvider({
+			providerId: "cline",
+			modelId: "stale-model",
+			apiKey: "oauth-access-old",
+		});
+		const updateConnectionDefaults = vi.spyOn(
+			configProvider,
+			"updateConnectionDefaults",
+		);
+		configProvider.updateConnectionDefaults({
 			apiKey: "oauth-access-new",
 			modelId: "updated-model",
 		});
 
 		const tool = createSpawnAgentTool({
-			providerId: "cline",
-			modelId: "stale-model",
-			apiKey: "oauth-access-old",
-			getConnectionOverrides,
+			configProvider,
 			subAgentTools: [],
 		});
 
@@ -296,7 +313,7 @@ describe("createSpawnAgentTool", () => {
 			},
 		);
 
-		expect(getConnectionOverrides).toHaveBeenCalledTimes(1);
+		expect(updateConnectionDefaults).toHaveBeenCalledTimes(1);
 		expect(agentConstructorSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				apiKey: "oauth-access-new",

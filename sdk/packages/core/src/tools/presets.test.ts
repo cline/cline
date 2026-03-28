@@ -3,7 +3,7 @@ import {
 	createDefaultToolsWithPreset,
 	createToolPoliciesWithPreset,
 	ToolPresets,
-} from "./presets.js";
+} from "./presets";
 
 describe("default tool presets", () => {
 	it("explicitly configures ask_question across presets", () => {

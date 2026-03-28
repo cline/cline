@@ -1,7 +1,7 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { describe, expect, it } from "vitest";
-import { MessageBuilder } from "../message-builder.js";
-import { TurnProcessor } from "./turn-processor.js";
+import { MessageBuilder } from "../message-builder";
+import { TurnProcessor } from "./turn-processor";
 
 async function* streamChunks(
 	chunks: LlmsProviders.ApiStreamChunk[],

@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { McpToolNameTransform } from "./types.js";
+import type { McpToolNameTransform } from "./types";
 
 const MAX_MCP_TOOL_NAME_LENGTH = 128;
 const INVALID_MCP_TOOL_NAME_CHARACTERS = /[^a-zA-Z0-9_-]+/g;

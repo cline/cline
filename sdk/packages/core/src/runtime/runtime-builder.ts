@@ -3,6 +3,7 @@ import { join } from "node:path";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
+	createDelegatedAgentConfigProvider,
 	type TeamEvent,
 	type TeamTeammateSpec,
 	type Tool,
@@ -31,6 +32,7 @@ import type {
 	RuntimeBuilderInput,
 	BuiltRuntime as RuntimeEnvironment,
 } from "./session-runtime";
+import { TeamRuntimeRegistry } from "./team-runtime-registry";
 
 type SkillsExecutorMetadataItem = {
 	id: string;
@@ -357,6 +359,8 @@ function normalizeConfig(
 }
 
 export class DefaultRuntimeBuilder implements RuntimeBuilder {
+	private readonly teamRuntimeRegistry = new TeamRuntimeRegistry();
+
 	build(input: RuntimeBuilderInput): RuntimeEnvironment {
 		const {
 			config,
@@ -374,12 +378,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const tools: Tool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		let teamToolsRegistered = false;
-		let teammateRuntimeConfig:
-			| {
-					apiKey: string;
-					modelId: string;
-			  }
-			| undefined;
 		const watcherProvided = Boolean(sharedUserInstructionWatcher);
 		let userInstructionWatcher = sharedUserInstructionWatcher;
 		let watcherReady = Promise.resolve();
@@ -436,11 +434,56 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const teammateSpecs = new Map(
 			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
 		);
+		const registryKey = config.sessionId || effectiveTeamName;
+		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
+			providerId: config.providerId,
+			modelId: config.modelId,
+			cwd: config.cwd,
+			apiKey: config.apiKey ?? "",
+			baseUrl: config.baseUrl,
+			headers: config.headers,
+			providerConfig: config.providerConfig,
+			knownModels: config.knownModels,
+			thinking: config.thinking,
+			clineWorkspaceMetadata:
+				config.providerId === "cline"
+					? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
+					: undefined,
+			maxIterations: config.maxIterations,
+			hooks,
+			extensions: extensions ?? config.extensions,
+			logger: logger ?? config.logger,
+			telemetry: input.telemetry ?? config.telemetry,
+		});
+		const runtimeMetadata = delegatedAgentConfigProvider.getRuntimeConfig();
+		if (
+			config.providerId === "cline" &&
+			!runtimeMetadata.clineWorkspaceMetadata
+		) {
+			buildWorkspaceMetadata(config.cwd ?? "").then((metadata) => {
+				const current = delegatedAgentConfigProvider.getRuntimeConfig();
+				if (current.clineWorkspaceMetadata) {
+					return;
+				}
+				Object.assign(current, { clineWorkspaceMetadata: metadata });
+			});
+		}
+		this.teamRuntimeRegistry.getOrCreate(registryKey, () => ({
+			delegatedAgentConfigProvider,
+		}));
 
 		const ensureTeamRuntime = (): AgentTeamsRuntime | undefined => {
 			if (!normalized.enableAgentTeams) {
 				return undefined;
 			}
+
+			const registryEntry = this.teamRuntimeRegistry.getOrCreate(
+				registryKey,
+				() => ({
+					delegatedAgentConfigProvider,
+				}),
+			);
+			teamRuntime = registryEntry.runtime;
 
 			if (!teamRuntime) {
 				teamRuntime = new AgentTeamsRuntime({
@@ -479,6 +522,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					teamRuntime.hydrateState(restoredTeamState);
 					teamRuntime.markStaleRunsInterrupted("runtime_recovered");
 				}
+				registryEntry.runtime = teamRuntime;
 			}
 
 			if (!teamToolsRegistered) {
@@ -504,40 +548,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									defaultToolExecutors,
 								)
 						: undefined,
-					teammateRuntime: (() => {
-						const runtime = {
-							providerId: config.providerId,
-							modelId: config.modelId,
-							cwd: config.cwd,
-							apiKey: config.apiKey ?? "",
-							baseUrl: config.baseUrl,
-							headers: config.headers,
-							providerConfig: config.providerConfig,
-							knownModels: config.knownModels,
-							thinking: config.thinking,
-							clineWorkspaceMetadata:
-								config.providerId === "cline"
-									? extractWorkspaceMetadataFromSystemPrompt(
-											config.systemPrompt,
-										)
-									: undefined,
-							maxIterations: config.maxIterations,
-							hooks,
-							extensions: extensions ?? config.extensions,
-							logger: logger ?? config.logger,
-							telemetry: input.telemetry ?? config.telemetry,
-						};
-						if (
-							config.providerId === "cline" &&
-							!runtime.clineWorkspaceMetadata
-						) {
-							buildWorkspaceMetadata(config.cwd ?? "").then((metadata) => {
-								runtime.clineWorkspaceMetadata = metadata;
-							});
-						}
-						teammateRuntimeConfig = runtime;
-						return runtime;
-					})(),
+					teammateConfigProvider: delegatedAgentConfigProvider,
 				});
 
 				if (teamBootstrap.restoredFromPersistence) {
@@ -564,9 +575,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
-		const completionGuard = teamRuntime
+		const completionGuard = normalized.enableAgentTeams
 			? () => {
-					const rt = teamRuntime;
+					const rt = this.teamRuntimeRegistry.get(registryKey)?.runtime;
 					if (!rt) return undefined;
 					const tasks = rt.listTasks();
 					const hasInProgress = tasks.some(
@@ -591,7 +602,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						if (pending) parts.push(`Unfinished tasks: ${pending}`);
 						if (activeRunSummary)
 							parts.push(`Active runs: ${activeRunSummary}`);
-						return `[SYSTEM] You still have team obligations. ${parts.join(". ")}. Use team_run_task to delegate work, or team_complete_task to mark tasks done, or team_await_run / team_await_all_runs to wait for active runs. Do NOT stop until all tasks are completed.`;
+						return `[SYSTEM] You still have team obligations. ${parts.join(". ")}. Use team_run_task to delegate work, or team_task with action=complete to mark tasks done, or team_await_run / team_await_all_runs to wait for active runs. Do NOT stop until all tasks are completed.`;
 					}
 					return undefined;
 				}
@@ -603,20 +614,13 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
 			teamRestoredFromPersistence: Boolean(restoredTeamState),
-			updateTeamTeammateConnectionDefaults: (overrides) => {
-				if (!teammateRuntimeConfig) {
-					return;
-				}
-				if (typeof overrides.apiKey === "string") {
-					teammateRuntimeConfig.apiKey = overrides.apiKey;
-				}
-				if (typeof overrides.modelId === "string") {
-					teammateRuntimeConfig.modelId = overrides.modelId;
-				}
-			},
+			delegatedAgentConfigProvider:
+				this.teamRuntimeRegistry.get(registryKey)
+					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			completionGuard,
 			shutdown: (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
+				this.teamRuntimeRegistry.delete(registryKey);
 				if (!watcherProvided) {
 					userInstructionWatcher?.stop();
 				}

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { createOAuthClientCallbacks } from "./client.js";
+import { createOAuthClientCallbacks } from "./client";
 
 describe("auth/client createOAuthClientCallbacks", () => {
 	it("emits instructions and URL and forwards prompts", async () => {

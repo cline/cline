@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { defaultMcpToolNameTransform } from "./name-transform.js";
+import { defaultMcpToolNameTransform } from "./name-transform";
 
 describe("defaultMcpToolNameTransform", () => {
 	it("keeps already valid MCP tool names unchanged", () => {

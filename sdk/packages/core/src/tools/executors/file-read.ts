@@ -7,8 +7,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ToolContext } from "@clinebot/agents";
-import type { ReadFileRequest } from "../schemas.js";
-import type { FileReadExecutor } from "../types.js";
+import type { ReadFileRequest } from "../schemas";
+import type { FileReadExecutor } from "../types";
 
 /**
  * Options for the file read executor

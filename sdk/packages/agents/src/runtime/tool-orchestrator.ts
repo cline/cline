@@ -1,9 +1,9 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
-import type { AuthorizationResult } from "../tools/execution.js";
+import type { AuthorizationResult } from "../tools/execution";
 import {
 	executeToolsInParallel,
 	formatStructuredToolResult,
-} from "../tools/index.js";
+} from "../tools/index";
 import type {
 	AgentEvent,
 	AgentHookControl,
@@ -11,7 +11,7 @@ import type {
 	Tool,
 	ToolCallRecord,
 	ToolContext,
-} from "../types.js";
+} from "../types";
 
 export interface ToolOrchestratorOptions {
 	getAgentId: () => string;

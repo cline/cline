@@ -1,24 +1,24 @@
 export {
 	RpcSessionClient,
 	type RpcStreamTeamProgressHandlers,
-} from "./client.js";
+} from "./client";
 export {
 	RpcRuntimeChatClient,
 	type RpcRuntimeEvent,
 	type RpcRuntimeStreamStop,
-} from "./runtime-chat-client.js";
+} from "./client/runtime-chat-client";
 export {
 	type RpcRuntimeBridgeCommand,
 	type RpcRuntimeBridgeCommandOutputLine,
 	type RpcRuntimeBridgeRequestEnvelope,
 	type RpcRuntimeBridgeResponseEnvelope,
 	runRpcRuntimeCommandBridge,
-} from "./runtime-chat-command-bridge.js";
+} from "./client/runtime-chat-command-bridge";
 export {
 	type RpcRuntimeBridgeControlLine,
 	type RpcRuntimeBridgeOutputLine,
 	runRpcRuntimeEventBridge,
-} from "./runtime-chat-stream-bridge.js";
+} from "./client/runtime-chat-stream-bridge";
 export {
 	getRpcServerDefaultAddress,
 	getRpcServerHandle,
@@ -27,7 +27,7 @@ export {
 	requestRpcServerShutdown,
 	startRpcServer,
 	stopRpcServer,
-} from "./server.js";
+} from "./server";
 export type {
 	PendingApproval,
 	RoutedEvent,
@@ -45,5 +45,5 @@ export type {
 	RpcSessionStatus,
 	RpcSessionUpdateInput,
 	RpcSpawnQueueItem,
-} from "./types.js";
-export { RPC_BUILD_VERSION, RPC_PROTOCOL_VERSION } from "./version.js";
+} from "./types";
+export { RPC_BUILD_VERSION, RPC_PROTOCOL_VERSION } from "./version";

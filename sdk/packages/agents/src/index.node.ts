@@ -17,5 +17,5 @@ export {
 	runSubprocessEvent,
 	type SubprocessHookControl,
 	type SubprocessHooksOptions,
-} from "./hooks/node.js";
-export * from "./index.js";
+} from "./hooks/node";
+export * from "./index";

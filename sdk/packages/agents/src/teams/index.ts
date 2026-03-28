@@ -1,3 +1,13 @@
+export {
+	buildDelegatedAgentConfig,
+	createDelegatedAgent,
+	createDelegatedAgentConfigProvider,
+	type DelegatedAgentConfigProvider,
+	type DelegatedAgentConnectionConfig,
+	type DelegatedAgentKind,
+	type DelegatedAgentRuntimeConfig,
+} from "./delegated-agent";
+
 // =============================================================================
 // Spawn Agent Tool
 // =============================================================================
@@ -9,7 +19,7 @@ export {
 	type SpawnAgentToolConfig,
 	type SubAgentEndContext,
 	type SubAgentStartContext,
-} from "./spawn-agent-tool.js";
+} from "./spawn-agent-tool";
 
 // =============================================================================
 // Multi-Agent
@@ -48,8 +58,8 @@ export {
 	type TeamRuntimeState,
 	type TeamTask,
 	type TeamTaskStatus,
-} from "./multi-agent.js";
-
+} from "./multi-agent";
+export type { TeamTeammateSpec } from "./schema";
 export {
 	type BootstrapAgentTeamsOptions,
 	type BootstrapAgentTeamsResult,
@@ -59,5 +69,4 @@ export {
 	reviveTeamStateDates,
 	sanitizeTeamName,
 	type TeamTeammateRuntimeConfig,
-	type TeamTeammateSpec,
-} from "./team-tools.js";
+} from "./team-tools";

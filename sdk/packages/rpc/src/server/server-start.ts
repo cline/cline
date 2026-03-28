@@ -2,10 +2,10 @@ import { randomUUID } from "node:crypto";
 import { SchedulerService } from "@clinebot/scheduler";
 import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
 import * as grpc from "@grpc/grpc-js";
-import type { RpcServerHandle, RpcServerOptions } from "../types.js";
+import type { RpcServerHandle, RpcServerOptions } from "../types";
 
-import { loadGatewayService, parseAddress } from "./grpc-service.js";
-import { nowIso } from "./helpers.js";
+import { loadGatewayService, parseAddress } from "./grpc-service";
+import { nowIso } from "./helpers";
 import type {
 	AbortRuntimeSessionRequest,
 	AbortRuntimeSessionResponse,
@@ -78,8 +78,8 @@ import type {
 	UpdateSessionResponse,
 	UpsertSessionRequest,
 	UpsertSessionResponse,
-} from "./proto-types.js";
-import { ClineGatewayRuntime } from "./runtime.js";
+} from "./proto-types";
+import { ClineGatewayRuntime } from "./runtime";
 
 let singletonHandle: RpcServerHandle | undefined;
 let singletonStartPromise: Promise<RpcServerHandle> | undefined;

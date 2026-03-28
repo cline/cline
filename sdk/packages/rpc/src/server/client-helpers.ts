@@ -2,16 +2,16 @@ import * as grpc from "@grpc/grpc-js";
 import type {
 	RpcClientRegistrationInput,
 	RpcClientRegistrationResult,
-} from "../types.js";
-import { loadGatewayService, SERVICE_NAME } from "./grpc-service.js";
-import { safeString } from "./helpers.js";
+} from "../types";
+import { loadGatewayService, SERVICE_NAME } from "./grpc-service";
+import { safeString } from "./helpers";
 import type {
 	HealthRequest,
 	HealthResponse,
 	RegisterClientResponse,
 	ShutdownRequest,
 	ShutdownResponse,
-} from "./proto-types.js";
+} from "./proto-types";
 
 type ClineGatewayHealthClient = grpc.Client & {
 	Health: (

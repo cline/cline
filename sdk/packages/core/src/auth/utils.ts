@@ -1,5 +1,5 @@
-import type { OAuthCallbackPayload } from "./server.js";
-import type { OAuthCredentials } from "./types.js";
+import type { OAuthCallbackPayload } from "./server";
+import type { OAuthCredentials } from "./types";
 
 function base64UrlEncode(input: Uint8Array): string {
 	let binary = "";

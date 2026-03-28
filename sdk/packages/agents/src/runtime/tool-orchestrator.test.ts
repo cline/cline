@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { ToolCallRecord } from "../index.js";
-import { ToolOrchestrator } from "./tool-orchestrator.js";
+import type { ToolCallRecord } from "../index";
+import { ToolOrchestrator } from "./tool-orchestrator";
 
 function createOrchestrator(): ToolOrchestrator {
 	return new ToolOrchestrator({

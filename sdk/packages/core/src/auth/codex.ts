@@ -14,13 +14,13 @@ import {
 	captureAuthSucceeded,
 	identifyAccount,
 } from "../telemetry/core-events";
-import { startLocalOAuthServer } from "./server.js";
+import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
 	OAuthPrompt,
 	OAuthProviderInterface,
-} from "./types.js";
+} from "./types";
 import {
 	decodeJwtPayload,
 	getProofKey,
@@ -28,7 +28,7 @@ import {
 	parseAuthorizationInput,
 	parseOAuthError,
 	resolveAuthorizationCodeInput,
-} from "./utils.js";
+} from "./utils";
 
 export const OPENAI_CODEX_OAUTH_CONFIG = {
 	authorizationEndpoint: "https://auth.openai.com/oauth/authorize",

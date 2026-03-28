@@ -1,6 +1,7 @@
 import { join } from "node:path";
 import { resolveTeamDataDir } from "@clinebot/shared/storage";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { createDelegatedAgentConfigProvider } from "./delegated-agent";
 import { AgentTeamsRuntime } from "./multi-agent";
 import { createAgentTeamsTools } from "./team-tools";
 
@@ -19,6 +20,16 @@ function captureEnv(): EnvSnapshot {
 function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
 	process.env.CLINE_TEAM_DATA_DIR = snapshot.CLINE_TEAM_DATA_DIR;
+}
+
+function makeTeammateConfigProvider(
+	overrides?: Partial<Parameters<typeof createDelegatedAgentConfigProvider>[0]>,
+) {
+	return createDelegatedAgentConfigProvider({
+		providerId: "anthropic",
+		modelId: "claude-sonnet-4-5-20250929",
+		...overrides,
+	});
 }
 
 describe("resolveTeamDataDir", () => {
@@ -44,19 +55,16 @@ describe("resolveTeamDataDir", () => {
 });
 
 describe("createAgentTeamsTools schema surface", () => {
-	it("exposes strict object schemas for split team tools", () => {
+	it("exposes a compact task action tool plus strict schemas elsewhere", () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 
 		const spawn = tools.find((tool) => tool.name === "team_spawn_teammate");
-		const createTask = tools.find((tool) => tool.name === "team_create_task");
+		const teamTask = tools.find((tool) => tool.name === "team_task");
 		const send = tools.find((tool) => tool.name === "team_send_message");
 		const createOutcome = tools.find(
 			(tool) => tool.name === "team_create_outcome",
@@ -65,7 +73,13 @@ describe("createAgentTeamsTools schema surface", () => {
 		const teamLogUpdate = tools.find((tool) => tool.name === "team_log_update");
 
 		expect(spawn?.inputSchema.type).toBe("object");
-		expect(createTask?.inputSchema.type).toBe("object");
+		const teamTaskSchema = teamTask?.inputSchema as
+			| { anyOf?: unknown[]; oneOf?: unknown[] }
+			| undefined;
+		expect(
+			Array.isArray(teamTaskSchema?.anyOf) ||
+				Array.isArray(teamTaskSchema?.oneOf),
+		).toBe(true);
 		expect(send?.inputSchema.type).toBe("object");
 		expect(createOutcome?.inputSchema.type).toBe("object");
 		expect(teamAwaitRun?.inputSchema.type).toBe("object");
@@ -84,10 +98,7 @@ describe("createAgentTeamsTools schema surface", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const spawn = tools.find((tool) => tool.name === "team_spawn_teammate");
 		expect(spawn).toBeDefined();
@@ -113,16 +124,13 @@ describe("createAgentTeamsTools schema surface", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const createTask = tools.find((tool) => tool.name === "team_create_task");
-		expect(createTask).toBeDefined();
+		const teamTask = tools.find((tool) => tool.name === "team_task");
+		expect(teamTask).toBeDefined();
 
 		await expect(
-			createTask?.execute(["create", "task"], {
+			teamTask?.execute(["create", "task"], {
 				agentId: "lead",
 				conversationId: "conv-1",
 				iteration: 1,
@@ -135,19 +143,15 @@ describe("createAgentTeamsTools schema surface", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const completeTask = tools.find(
-			(tool) => tool.name === "team_complete_task",
-		);
-		expect(completeTask).toBeDefined();
+		const teamTask = tools.find((tool) => tool.name === "team_task");
+		expect(teamTask).toBeDefined();
 
 		await expect(
-			completeTask?.execute(
+			teamTask?.execute(
 				{
+					action: "complete",
 					taskId: "task_0001",
 					summary: null,
 				},
@@ -165,17 +169,15 @@ describe("createAgentTeamsTools schema surface", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const createTask = tools.find((tool) => tool.name === "team_create_task");
-		expect(createTask).toBeDefined();
+		const teamTask = tools.find((tool) => tool.name === "team_task");
+		expect(teamTask).toBeDefined();
 
 		await expect(
-			createTask?.execute(
+			teamTask?.execute(
 				{
+					action: "create",
 					title: "Investigate llms boundaries",
 					description: "Deep dive models and providers",
 					dependsOn: null,
@@ -194,10 +196,7 @@ describe("createAgentTeamsTools schema surface", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const createOutcome = tools.find(
 			(tool) => tool.name === "team_create_outcome",
@@ -234,10 +233,7 @@ describe("createAgentTeamsTools schema surface", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const createOutcome = tools.find(
 			(tool) => tool.name === "team_create_outcome",
@@ -288,11 +284,11 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
+			teammateConfigProvider: makeTeammateConfigProvider({
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
 				headers: { Authorization: "Bearer token" },
-			},
+			}),
 			createBaseTools: () => [],
 		});
 		const spawnTool = tools.find((tool) => tool.name === "team_spawn_teammate");
@@ -340,12 +336,12 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
+			teammateConfigProvider: makeTeammateConfigProvider({
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
 				cwd: "/repo/app",
 				clineWorkspaceMetadata: workspaceMetadata,
-			},
+			}),
 		});
 		const spawnTool = tools.find((tool) => tool.name === "team_spawn_teammate");
 		expect(spawnTool).toBeDefined();
@@ -392,10 +388,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
 		expect(awaitRun).toBeDefined();
@@ -423,10 +416,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const awaitAllRuns = tools.find(
 			(tool) => tool.name === "team_await_all_runs",
@@ -487,10 +477,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
 
@@ -556,10 +543,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const listRuns = tools.find((tool) => tool.name === "team_list_runs");
 
@@ -595,10 +579,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
 		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
 		const awaitAllRuns = tools.find(
@@ -608,23 +589,19 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(awaitAllRuns?.timeoutMs).toBe(60 * 60 * 1000);
 	});
 
-	it("lists ready-to-claim tasks through team_list_tasks", async () => {
+	it("lists ready-to-claim tasks through team_task list action", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
-			teammateRuntime: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5-20250929",
-			},
+			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const createTask = tools.find((tool) => tool.name === "team_create_task");
-		const listTasks = tools.find((tool) => tool.name === "team_list_tasks");
-		expect(createTask).toBeDefined();
-		expect(listTasks).toBeDefined();
+		const teamTask = tools.find((tool) => tool.name === "team_task");
+		expect(teamTask).toBeDefined();
 
-		const first = (await createTask?.execute(
+		const first = (await teamTask?.execute(
 			{
+				action: "create",
 				title: "Ready task",
 				description: "Claim immediately",
 			},
@@ -634,8 +611,9 @@ describe("createAgentTeamsTools runtime behavior", () => {
 				iteration: 1,
 			},
 		)) as { taskId: string };
-		await createTask?.execute(
+		await teamTask?.execute(
 			{
+				action: "create",
 				title: "Blocked task",
 				description: "Wait on dependency",
 				dependsOn: [first.taskId],
@@ -648,20 +626,23 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		);
 
 		await expect(
-			listTasks?.execute(
-				{ readyOnly: true },
+			teamTask?.execute(
+				{ action: "list", readyOnly: true },
 				{
 					agentId: "lead",
 					conversationId: "conv-1",
 					iteration: 1,
 				},
 			),
-		).resolves.toEqual([
-			expect.objectContaining({
-				id: first.taskId,
-				isReady: true,
-				blockedBy: [],
-			}),
-		]);
+		).resolves.toEqual({
+			action: "list",
+			tasks: [
+				expect.objectContaining({
+					id: first.taskId,
+					isReady: true,
+					blockedBy: [],
+				}),
+			],
+		});
 	});
 });

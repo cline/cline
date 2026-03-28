@@ -56,14 +56,25 @@ function summarizeTeamTool(event: TeamToolEvent): ReactNode {
 			return `${statePrefix} shutdown teammate ${asString(input?.agentId) ?? asString(output?.agentId) ?? "agent"}`;
 		case "team_status":
 			return `${statePrefix} fetch team status`;
-		case "team_create_task":
-			return `${statePrefix} create task ${asString(output?.taskId) ?? ""}${asString(input?.title) ? `: ${asString(input?.title)}` : ""}`.trim();
-		case "team_claim_task":
-			return `${statePrefix} claim task ${asString(input?.taskId) ?? asString(output?.taskId) ?? ""}`.trim();
-		case "team_complete_task":
-			return `${statePrefix} complete task ${asString(input?.taskId) ?? asString(output?.taskId) ?? ""}`.trim();
-		case "team_block_task":
-			return `${statePrefix} block task ${asString(input?.taskId) ?? asString(output?.taskId) ?? ""}`.trim();
+		case "team_task": {
+			const action = asString(input?.action);
+			if (action === "create") {
+				return `${statePrefix} create task ${asString(output?.taskId) ?? ""}${asString(input?.title) ? `: ${asString(input?.title)}` : ""}`.trim();
+			}
+			if (action === "list") {
+				return `${statePrefix} list team tasks`;
+			}
+			if (action === "claim") {
+				return `${statePrefix} claim task ${asString(input?.taskId) ?? asString(output?.taskId) ?? ""}`.trim();
+			}
+			if (action === "complete") {
+				return `${statePrefix} complete task ${asString(input?.taskId) ?? asString(output?.taskId) ?? ""}`.trim();
+			}
+			if (action === "block") {
+				return `${statePrefix} block task ${asString(input?.taskId) ?? asString(output?.taskId) ?? ""}`.trim();
+			}
+			return `${statePrefix} update team task`;
+		}
 		case "team_run_task": {
 			const agentId =
 				asString(input?.agentId) ?? asString(output?.agentId) ?? "agent";
@@ -114,10 +125,24 @@ function describeTeamTool(event: TeamToolEvent): string | undefined {
 	const output = asRecord(event.output);
 
 	switch (event.name) {
-		case "team_create_task":
-			return asString(input?.description);
-		case "team_block_task":
-			return asString(input?.reason);
+		case "team_task": {
+			const action = asString(input?.action);
+			if (action === "create") {
+				return asString(input?.description);
+			}
+			if (action === "block") {
+				return asString(input?.reason);
+			}
+			if (action === "list") {
+				const tasks = Array.isArray(output?.tasks)
+					? output.tasks.length
+					: undefined;
+				return typeof tasks === "number"
+					? `${tasks} task${tasks === 1 ? "" : "s"}`
+					: undefined;
+			}
+			return undefined;
+		}
 		case "team_run_task":
 			return asString(output?.runId) ?? asString(output?.text);
 		case "team_send_message":

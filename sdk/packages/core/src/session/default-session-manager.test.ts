@@ -408,11 +408,15 @@ describe("DefaultSessionManager", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
-		const updateTeamTeammateConnectionDefaults = vi.fn();
+		const updateConnectionDefaults = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({
 				tools: [],
-				updateTeamTeammateConnectionDefaults,
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults,
+				},
 				shutdown: vi.fn(),
 			}),
 		};
@@ -504,11 +508,15 @@ describe("DefaultSessionManager", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
-		const updateTeamTeammateConnectionDefaults = vi.fn();
+		const updateConnectionDefaults = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({
 				tools: [],
-				updateTeamTeammateConnectionDefaults,
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults,
+				},
 				shutdown: vi.fn(),
 			}),
 		};
@@ -593,11 +601,15 @@ describe("DefaultSessionManager", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
-		const updateTeamTeammateConnectionDefaults = vi.fn();
+		const updateConnectionDefaults = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({
 				tools: [],
-				updateTeamTeammateConnectionDefaults,
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults,
+				},
 				shutdown: vi.fn(),
 			}),
 		};
@@ -1247,11 +1259,15 @@ describe("DefaultSessionManager", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
-		const updateTeamTeammateConnectionDefaults = vi.fn();
+		const updateConnectionDefaults = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({
 				tools: [],
-				updateTeamTeammateConnectionDefaults,
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults,
+				},
 				shutdown: vi.fn(),
 			}),
 		};
@@ -1291,7 +1307,7 @@ describe("DefaultSessionManager", () => {
 		});
 		await manager.send({ sessionId, prompt: "hello" });
 
-		expect(updateTeamTeammateConnectionDefaults).toHaveBeenCalledWith({
+		expect(updateConnectionDefaults).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
 		});
 		expect(updateConnection).toHaveBeenCalledWith({
@@ -1474,11 +1490,15 @@ describe("DefaultSessionManager", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
-		const updateTeamTeammateConnectionDefaults = vi.fn();
+		const updateConnectionDefaults = vi.fn();
 		const runtimeBuilder = {
 			build: vi.fn().mockReturnValue({
 				tools: [],
-				updateTeamTeammateConnectionDefaults,
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults,
+				},
 				shutdown: vi.fn(),
 			}),
 		};
@@ -1540,7 +1560,7 @@ describe("DefaultSessionManager", () => {
 		expect(updateConnection).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
 		});
-		expect(updateTeamTeammateConnectionDefaults).toHaveBeenCalledWith({
+		expect(updateConnectionDefaults).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
 		});
 	});

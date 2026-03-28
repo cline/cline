@@ -551,6 +551,9 @@ export class DefaultSessionManager implements SessionManager {
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {
 		const session = this.getSessionOrThrow(sessionId);
 		session.config.modelId = modelId;
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
+			modelId,
+		});
 		this.updateAgentConnection(session, { modelId });
 	}
 
@@ -1068,34 +1071,46 @@ export class DefaultSessionManager implements SessionManager {
 		};
 
 		return createSpawnAgentTool({
-			providerId: config.providerId,
-			modelId: config.modelId,
-			cwd: config.cwd,
-			apiKey: config.apiKey,
-			baseUrl: config.baseUrl,
-			providerConfig: config.providerConfig,
-			knownModels: config.knownModels,
-			getConnectionOverrides: () => ({
-				providerId: config.providerId,
-				modelId: config.modelId,
-				apiKey: config.apiKey,
-				baseUrl: config.baseUrl,
-				headers: config.headers,
-				providerConfig: config.providerConfig,
-				knownModels: config.knownModels,
-				thinking: config.thinking,
-			}),
-			clineWorkspaceMetadata:
-				config.providerId === "cline"
-					? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
-					: undefined,
+			configProvider: {
+				getRuntimeConfig: () =>
+					this.sessions
+						.get(rootSessionId)
+						?.runtime.delegatedAgentConfigProvider?.getRuntimeConfig() ?? {
+						providerId: config.providerId,
+						modelId: config.modelId,
+						cwd: config.cwd,
+						apiKey: config.apiKey,
+						baseUrl: config.baseUrl,
+						headers: config.headers,
+						providerConfig: config.providerConfig,
+						knownModels: config.knownModels,
+						thinking: config.thinking,
+						clineWorkspaceMetadata:
+							config.providerId === "cline"
+								? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
+								: undefined,
+						maxIterations: config.maxIterations,
+						hooks: config.hooks,
+						extensions: config.extensions,
+						logger: config.logger,
+						telemetry: config.telemetry,
+					},
+				getConnectionConfig: () =>
+					this.sessions
+						.get(rootSessionId)
+						?.runtime.delegatedAgentConfigProvider?.getConnectionConfig() ?? {
+						providerId: config.providerId,
+						modelId: config.modelId,
+						apiKey: config.apiKey,
+						baseUrl: config.baseUrl,
+						headers: config.headers,
+						providerConfig: config.providerConfig,
+						knownModels: config.knownModels,
+						thinking: config.thinking,
+					},
+				updateConnectionDefaults: () => {},
+			},
 			createSubAgentTools,
-			hooks: config.hooks,
-			extensions: config.extensions,
-			toolPolicies: this.defaultToolPolicies,
-			requestToolApproval: this.defaultRequestToolApproval,
-			logger: config.logger,
-			telemetry: config.telemetry,
 			onSubAgentEvent: (event) =>
 				this.onAgentEvent(rootSessionId, config, event),
 			onSubAgentStart: (context) => {
@@ -1266,7 +1281,7 @@ export class DefaultSessionManager implements SessionManager {
 		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
 		session.config.apiKey = resolved.apiKey;
 		this.updateAgentConnection(session, { apiKey: resolved.apiKey });
-		session.runtime.updateTeamTeammateConnectionDefaults?.({
+		session.runtime.delegatedAgentConfigProvider?.updateConnectionDefaults({
 			apiKey: resolved.apiKey,
 		});
 		session.runtime.teamRuntime?.updateTeammateConnections({

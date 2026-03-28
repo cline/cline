@@ -2,7 +2,6 @@
  * Reusable spawn_agent tool for delegating tasks to sub-agents.
  */
 
-import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
 	type ITelemetryService,
 	type Tool,
@@ -13,18 +12,19 @@ import {
 	zodToJsonSchema,
 } from "@clinebot/shared";
 import { z } from "zod";
-import { Agent } from "../agent.js";
-import { buildSubAgentSystemPrompt } from "../prompts/subagents.js";
-import { createTool } from "../tools/create.js";
+import { createTool } from "../tools/create";
 import type {
-	AgentConfig,
 	AgentEvent,
 	AgentExtension,
 	AgentFinishReason,
 	AgentHooks,
 	BasicLogger,
 	HookErrorMode,
-} from "../types.js";
+} from "../types";
+import {
+	createDelegatedAgent,
+	type DelegatedAgentConfigProvider,
+} from "./delegated-agent";
 
 export const SpawnAgentInputSchema = z.object({
 	systemPrompt: z
@@ -68,17 +68,7 @@ export interface SubAgentEndContext {
 }
 
 export interface SpawnAgentToolConfig {
-	providerId: string;
-	modelId: string;
-	cwd?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
-	providerConfig?: LlmsProviders.ProviderConfig;
-	knownModels?: Record<string, LlmsProviders.ModelInfo>;
-	thinking?: boolean;
-	clineWorkspaceMetadata?: string;
-	clinePlatform?: string;
+	configProvider: DelegatedAgentConfigProvider;
 	defaultMaxIterations?: number;
 	subAgentTools?: Tool[];
 	createSubAgentTools?: (
@@ -123,19 +113,6 @@ export interface SpawnAgentToolConfig {
 	 */
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
-	getConnectionOverrides?: () => Partial<
-		Pick<
-			AgentConfig,
-			| "providerId"
-			| "modelId"
-			| "apiKey"
-			| "baseUrl"
-			| "headers"
-			| "providerConfig"
-			| "knownModels"
-			| "thinking"
-		>
-	>;
 }
 
 /**
@@ -152,30 +129,19 @@ export function createSpawnAgentTool(
 			const tools = config.createSubAgentTools
 				? await config.createSubAgentTools(input, context)
 				: (config.subAgentTools ?? []);
-			const connectionOverrides = config.getConnectionOverrides?.() ?? {};
 
-			const subAgent = new Agent({
-				providerId: connectionOverrides.providerId ?? config.providerId,
-				modelId: connectionOverrides.modelId ?? config.modelId,
-				apiKey: connectionOverrides.apiKey ?? config.apiKey,
-				baseUrl: connectionOverrides.baseUrl ?? config.baseUrl,
-				headers: connectionOverrides.headers ?? config.headers,
-				providerConfig:
-					connectionOverrides.providerConfig ?? config.providerConfig,
-				knownModels: connectionOverrides.knownModels ?? config.knownModels,
-				thinking: connectionOverrides.thinking ?? config.thinking,
-				systemPrompt: buildSubAgentSystemPrompt(input.systemPrompt, config),
+			const subAgent = createDelegatedAgent({
+				kind: "subagent",
+				prompt: input.systemPrompt,
+				configProvider: config.configProvider,
 				tools,
 				maxIterations: input.maxIterations ?? config.defaultMaxIterations,
 				parentAgentId: context.agentId,
 				abortSignal: context.abortSignal,
 				onEvent: config.onSubAgentEvent,
-				hooks: config.hooks,
-				extensions: config.extensions,
 				hookErrorMode: config.hookErrorMode,
 				toolPolicies: config.toolPolicies,
 				requestToolApproval: config.requestToolApproval,
-				logger: config.logger,
 			});
 			const subAgentId = subAgent.getAgentId();
 			const conversationId = subAgent.getConversationId();

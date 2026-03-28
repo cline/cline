@@ -6,7 +6,7 @@ import {
 	parseOAuthError,
 	resolveAuthorizationCodeInput,
 	resolveUrl,
-} from "./utils.js";
+} from "./utils";
 
 function toBase64Url(value: string): string {
 	return Buffer.from(value, "utf8").toString("base64url");

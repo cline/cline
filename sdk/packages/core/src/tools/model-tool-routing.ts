@@ -1,5 +1,5 @@
 import type { CoreAgentMode } from "../types/config";
-import type { DefaultToolName, DefaultToolsConfig } from "./types.js";
+import type { DefaultToolName, DefaultToolsConfig } from "./types";
 
 export interface ToolRoutingRule {
 	/**

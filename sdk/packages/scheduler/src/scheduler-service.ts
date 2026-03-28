@@ -124,13 +124,13 @@ function buildSchedulePrompt(
 	}
 	return `${schedule.prompt}
 
-When you finish the immediate scheduled work, remain available for autonomous follow-up. During idle polling, inspect team mailbox and team tasks. Use team_list_tasks to find ready unassigned work, claim it with team_claim_task, and resume execution when work exists. Reply exactly ${AUTONOMOUS_IDLE_NOOP_TOKEN} only when the poll finds no actionable work.`;
+When you finish the immediate scheduled work, remain available for autonomous follow-up. During idle polling, inspect team mailbox and team tasks. Use team_task with action="list" to find ready unassigned work, claim it with team_task and action="claim", and resume execution when work exists. Reply exactly ${AUTONOMOUS_IDLE_NOOP_TOKEN} only when the poll finds no actionable work.`;
 }
 
 function buildAutonomousPollPrompt(
 	autonomous: ScheduleAutonomousOptions,
 ): string {
-	return `Autonomous idle poll. Check team_read_mailbox for unread messages and use team_list_tasks to find ready unassigned tasks. Claim and execute one task if actionable work exists. If there is nothing to do right now, reply exactly ${AUTONOMOUS_IDLE_NOOP_TOKEN} and nothing else. Poll cadence is ${autonomous.pollIntervalSeconds}s and the idle shutdown window is ${autonomous.idleTimeoutSeconds}s.`;
+	return `Autonomous idle poll. Check team_read_mailbox for unread messages and use team_task with action="list" to find ready unassigned tasks. Claim and execute one task if actionable work exists. If there is nothing to do right now, reply exactly ${AUTONOMOUS_IDLE_NOOP_TOKEN} and nothing else. Poll cadence is ${autonomous.pollIntervalSeconds}s and the idle shutdown window is ${autonomous.idleTimeoutSeconds}s.`;
 }
 
 function isAutonomousNoop(result: RpcChatTurnResult): boolean {

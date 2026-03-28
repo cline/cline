@@ -2,13 +2,13 @@ import type {
 	ScheduleExecutionRecord,
 	ScheduleRecord,
 } from "@clinebot/scheduler";
-import { fromProtoStruct, toProtoStruct } from "../proto/serde.js";
-import type { RpcSessionRow, RpcSessionStatus } from "../types.js";
+import { fromProtoStruct, toProtoStruct } from "../proto/serde";
+import type { RpcSessionRow, RpcSessionStatus } from "../types";
 import type {
 	ScheduleExecutionMessage,
 	ScheduleMessage,
 	SessionRecordMessage,
-} from "./proto-types.js";
+} from "./proto-types";
 
 export function nowIso(): string {
 	return new Date().toISOString();

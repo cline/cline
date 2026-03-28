@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import * as os from "node:os";
 import * as path from "node:path";
 import { describe, expect, it } from "vitest";
-import { createEditorExecutor } from "./editor.js";
+import { createEditorExecutor } from "./editor";
 
 describe("createEditorExecutor", () => {
 	it("creates a missing file when edit is used", async () => {

@@ -1,6 +1,6 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { describe, expect, it } from "vitest";
-import { MessageBuilder } from "./message-builder.js";
+import { MessageBuilder } from "./message-builder";
 
 describe("MessageBuilder", () => {
 	it("keeps cached indexes consistent across append and reset flows", () => {

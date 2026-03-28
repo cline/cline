@@ -5,7 +5,7 @@
  */
 
 import { z } from "zod";
-import type { Tool } from "../types.js";
+import type { Tool } from "../types";
 
 /**
  * Validate that all tools have unique names

@@ -6,8 +6,8 @@
 
 import { sanitizeFileName } from "@clinebot/shared";
 import { nanoid } from "nanoid";
-import { type Agent, createAgent } from "../agent.js";
-import type { AgentConfig, AgentEvent, AgentResult } from "../types.js";
+import { type Agent, createAgent } from "../agent";
+import type { AgentConfig, AgentEvent, AgentResult } from "../types";
 
 // =============================================================================
 // Types

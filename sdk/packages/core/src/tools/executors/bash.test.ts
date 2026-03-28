@@ -1,6 +1,6 @@
 import type { ToolContext } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import { createBashExecutor } from "./bash.js";
+import { createBashExecutor } from "./bash";
 
 const ctx: ToolContext = {
 	agentId: "agent-1",

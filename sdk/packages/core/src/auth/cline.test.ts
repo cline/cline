@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { ClineOAuthCredentials } from "./cline.js";
-import { getValidClineCredentials } from "./cline.js";
+import type { ClineOAuthCredentials } from "./cline";
+import { getValidClineCredentials } from "./cline";
 
 const PROVIDER_OPTIONS = {
 	apiBaseUrl: "https://auth.example.com",

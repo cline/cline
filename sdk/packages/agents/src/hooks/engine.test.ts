@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { HookEngine } from "./engine.js";
+import { HookEngine } from "./engine";
 
 describe("HookEngine", () => {
 	it("executes handlers in deterministic priority/name order and merges control", async () => {

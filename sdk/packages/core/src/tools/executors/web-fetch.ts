@@ -5,7 +5,7 @@
  */
 
 import type { ToolContext } from "@clinebot/agents";
-import type { WebFetchExecutor } from "../types.js";
+import type { WebFetchExecutor } from "../types";
 
 /**
  * Options for the web fetch executor

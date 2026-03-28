@@ -5,7 +5,7 @@ import {
 	zodToJsonSchema,
 } from "@clinebot/shared";
 import { z } from "zod";
-import { createTool } from "./create.js";
+import { createTool } from "./create";
 
 export const AskQuestionInputSchema = z.object({
 	question: z

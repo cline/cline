@@ -327,14 +327,14 @@ Provides tasks, mailbox, mission log, async run scheduler, outcome fragments, an
 - Auto-continues lead agent with system-delivered run terminal updates on completion/failure/cancel
 - Failed teammate runs include conversation snapshots, persisted to team-task sub-session files
 - Run records carry live activity metadata (`currentActivity`, `lastProgressMessage`, heartbeats)
-- `team_list_tasks` returns claimable readiness and unresolved dependencies
+- `team_task` with `action="list"` returns claimable readiness and unresolved dependencies
 
 ## Scheduled Execution
 
 Cron-based schedules are managed through `@clinebot/scheduler` (embedded in the RPC server).
 
 - Standard execution: one scheduled prompt with timeout/concurrency enforcement
-- Autonomous mode (`autonomous.enabled = true`): scheduler appends autonomous instructions, then enters idle poll loop where the agent inspects `team_read_mailbox` and `team_list_tasks`, claims ready tasks, and continues work
+- Autonomous mode (`autonomous.enabled = true`): scheduler appends autonomous instructions, then enters idle poll loop where the agent inspects `team_read_mailbox` and `team_task` with `action="list"`, claims ready tasks, and continues work
 - Autonomous loop bounded by `pollIntervalSeconds` and `idleTimeoutSeconds`
 - Execution metrics (`iterations`, `tokensUsed`, `costUsd`) aggregate across all turns in the routine lifecycle
 

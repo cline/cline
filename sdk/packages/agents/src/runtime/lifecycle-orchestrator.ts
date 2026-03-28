@@ -1,6 +1,6 @@
-import type { HookDispatchInput, HookEngine } from "../hooks/index.js";
-import type { AgentEvent, AgentHookControl, HookStage } from "../types.js";
-import type { AgentRuntimeBus } from "./agent-runtime-bus.js";
+import type { HookDispatchInput, HookEngine } from "../hooks/index";
+import type { AgentEvent, AgentHookControl, HookStage } from "../types";
+import type { AgentRuntimeBus } from "./agent-runtime-bus";
 
 export interface LifecycleOrchestratorOptions {
 	hookEngine: HookEngine;

@@ -10,9 +10,9 @@ export {
 	AskQuestionInputSchema,
 	type AskQuestionToolConfig,
 	createAskQuestionTool,
-} from "./ask-question.js";
+} from "./ask-question";
 // Creation
-export { createTool, toToolDefinition, toToolDefinitions } from "./create.js";
+export { createTool, toToolDefinition, toToolDefinitions } from "./create";
 // Execution
 export {
 	executeTool,
@@ -21,14 +21,14 @@ export {
 	executeToolWithRetry,
 	type ToolExecutionAuthorizer,
 	type ToolExecutionObserver,
-} from "./execution.js";
+} from "./execution";
 // Formatting
 export {
 	formatStructuredToolResult,
 	formatToolCallRecord,
 	formatToolResult,
 	formatToolResultsSummary,
-} from "./formatting.js";
+} from "./formatting";
 // Registry
 export {
 	createToolRegistry,
@@ -36,11 +36,11 @@ export {
 	getTool,
 	getToolNames,
 	hasTool,
-} from "./registry.js";
+} from "./registry";
 
 // Validation
 export {
 	validateToolDefinition,
 	validateToolInput,
 	validateTools,
-} from "./validation.js";
+} from "./validation";

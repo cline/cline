@@ -4,7 +4,7 @@
  * Tool name constants and utility arrays.
  */
 
-import type { DefaultToolName } from "./types.js";
+import type { DefaultToolName } from "./types";
 
 /**
  * Constants for default tool names

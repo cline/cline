@@ -1,13 +1,13 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { parseJsonStream } from "@clinebot/shared";
-import type { MessageBuilder } from "../message-builder.js";
-import { toToolDefinitions } from "../tools/index.js";
+import type { MessageBuilder } from "../message-builder";
+import { toToolDefinitions } from "../tools/index";
 import type {
 	AgentEvent,
 	PendingToolCall,
 	ProcessedTurn,
 	Tool,
-} from "../types.js";
+} from "../types";
 
 export interface TurnProcessorOptions {
 	handler: LlmsProviders.ApiHandler;

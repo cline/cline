@@ -5,9 +5,9 @@
  */
 
 import type { Tool, ToolPolicy } from "@clinebot/shared";
-import { ALL_DEFAULT_TOOL_NAMES } from "./constants.js";
-import { createDefaultTools } from "./definitions.js";
-import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types.js";
+import { ALL_DEFAULT_TOOL_NAMES } from "./constants";
+import { createDefaultTools } from "./definitions";
+import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types";
 
 /**
  * Preset configurations for common use cases

@@ -28,6 +28,8 @@
 			"types": "./dist/index.browser.d.ts"
 		},
 		"./models": {
+			"browser": "./dist/models.browser.js",
+			"react-server": "./dist/models.browser.js",
 			"development": "./src/models.ts",
 			"import": "./dist/models.js",
 			"types": "./dist/models.d.ts"

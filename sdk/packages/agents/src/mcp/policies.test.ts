@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
-} from "./policies.js";
+} from "./policies";
 
 describe("mcp policy helpers", () => {
 	it("creates a disabled policy for a single MCP tool", () => {

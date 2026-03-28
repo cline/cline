@@ -5,13 +5,9 @@ import type {
 	RpcProviderActionRequest,
 } from "@clinebot/shared";
 import type * as grpc from "@grpc/grpc-js";
-import {
-	fromProtoStruct,
-	fromProtoValue,
-	toProtoValue,
-} from "../proto/serde.js";
-import type { RpcRuntimeHandlers, RpcSessionBackend } from "../types.js";
-import { RPC_PROTOCOL_VERSION } from "../version.js";
+import { fromProtoStruct, fromProtoValue, toProtoValue } from "../proto/serde";
+import type { RpcRuntimeHandlers, RpcSessionBackend } from "../types";
+import { RPC_PROTOCOL_VERSION } from "../version";
 import {
 	messageToRow,
 	normalizeMetadataMap,
@@ -19,7 +15,7 @@ import {
 	nowIso,
 	rowToMessage,
 	safeString,
-} from "./helpers.js";
+} from "./helpers";
 import type {
 	AbortRuntimeSessionRequest,
 	AbortRuntimeSessionResponse,
@@ -89,10 +85,10 @@ import type {
 	UpdateSessionResponse,
 	UpsertSessionRequest,
 	UpsertSessionResponse,
-} from "./proto-types.js";
-import { RuntimeApprovalService } from "./runtime-approvals.js";
-import { RuntimeEventService } from "./runtime-events.js";
-import { RuntimeScheduleService } from "./runtime-schedules.js";
+} from "./proto-types";
+import { RuntimeApprovalService } from "./runtime-approvals";
+import { RuntimeEventService } from "./runtime-events";
+import { RuntimeScheduleService } from "./runtime-schedules";
 
 interface SessionState {
 	sessionId: string;

@@ -1,9 +1,9 @@
 import { createInterface } from "node:readline";
-import { RpcRuntimeChatClient } from "./runtime-chat-client.js";
+import { RpcRuntimeChatClient } from "./runtime-chat-client";
 import {
 	createRpcRuntimeStreamRelay,
 	type RpcRuntimeBridgeStreamLine,
-} from "./runtime-chat-stream-relay.js";
+} from "./runtime-chat-stream-relay";
 
 export type RpcRuntimeBridgeControlLine =
 	| {

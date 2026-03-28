@@ -11,62 +11,62 @@ import {
 	type TeamProgressProjectionEvent,
 } from "@clinebot/shared";
 import type * as grpc from "@grpc/grpc-js";
-import { createGatewayGenericClient } from "./gateway-client.js";
-import type { AbortRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/AbortRuntimeSessionResponse.js";
-import type { ClaimSpawnRequestRequest } from "./proto/generated/cline/rpc/v1/ClaimSpawnRequestRequest.js";
-import type { ClaimSpawnRequestResponse__Output } from "./proto/generated/cline/rpc/v1/ClaimSpawnRequestResponse.js";
-import type { ClineGatewayClient } from "./proto/generated/cline/rpc/v1/ClineGateway.js";
-import type { CreateScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/CreateScheduleResponse.js";
-import type { DeleteScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/DeleteScheduleResponse.js";
-import type { DeleteSessionResponse__Output } from "./proto/generated/cline/rpc/v1/DeleteSessionResponse.js";
-import type { EnqueueSpawnRequestResponse__Output } from "./proto/generated/cline/rpc/v1/EnqueueSpawnRequestResponse.js";
-import type { GetActiveScheduledExecutionsResponse__Output } from "./proto/generated/cline/rpc/v1/GetActiveScheduledExecutionsResponse.js";
-import type { GetScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/GetScheduleResponse.js";
-import type { GetScheduleStatsResponse__Output } from "./proto/generated/cline/rpc/v1/GetScheduleStatsResponse.js";
-import type { GetSessionResponse__Output } from "./proto/generated/cline/rpc/v1/GetSessionResponse.js";
-import type { GetUpcomingScheduledRunsResponse__Output } from "./proto/generated/cline/rpc/v1/GetUpcomingScheduledRunsResponse.js";
-import type { ListPendingApprovalsResponse__Output } from "./proto/generated/cline/rpc/v1/ListPendingApprovalsResponse.js";
-import type { ListScheduleExecutionsResponse__Output } from "./proto/generated/cline/rpc/v1/ListScheduleExecutionsResponse.js";
-import type { ListSchedulesResponse__Output } from "./proto/generated/cline/rpc/v1/ListSchedulesResponse.js";
-import type { ListSessionsResponse__Output } from "./proto/generated/cline/rpc/v1/ListSessionsResponse.js";
-import type { PauseScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/PauseScheduleResponse.js";
-import type { PublishEventResponse__Output } from "./proto/generated/cline/rpc/v1/PublishEventResponse.js";
-import type { RequestToolApprovalRequest } from "./proto/generated/cline/rpc/v1/RequestToolApprovalRequest.js";
-import type { RequestToolApprovalResponse__Output } from "./proto/generated/cline/rpc/v1/RequestToolApprovalResponse.js";
-import type { RespondToolApprovalRequest } from "./proto/generated/cline/rpc/v1/RespondToolApprovalRequest.js";
-import type { RespondToolApprovalResponse__Output } from "./proto/generated/cline/rpc/v1/RespondToolApprovalResponse.js";
-import type { ResumeScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/ResumeScheduleResponse.js";
-import type { RoutedEvent__Output } from "./proto/generated/cline/rpc/v1/RoutedEvent.js";
-import type { RunProviderActionResponse__Output } from "./proto/generated/cline/rpc/v1/RunProviderActionResponse.js";
-import type { RunProviderOAuthLoginResponse__Output } from "./proto/generated/cline/rpc/v1/RunProviderOAuthLoginResponse.js";
-import type { Schedule__Output } from "./proto/generated/cline/rpc/v1/Schedule.js";
-import type { ScheduleExecution__Output } from "./proto/generated/cline/rpc/v1/ScheduleExecution.js";
-import type { SendRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/SendRuntimeSessionResponse.js";
+import { createGatewayGenericClient } from "./gateway-client";
+import type { AbortRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/AbortRuntimeSessionResponse";
+import type { ClaimSpawnRequestRequest } from "./proto/generated/cline/rpc/v1/ClaimSpawnRequestRequest";
+import type { ClaimSpawnRequestResponse__Output } from "./proto/generated/cline/rpc/v1/ClaimSpawnRequestResponse";
+import type { ClineGatewayClient } from "./proto/generated/cline/rpc/v1/ClineGateway";
+import type { CreateScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/CreateScheduleResponse";
+import type { DeleteScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/DeleteScheduleResponse";
+import type { DeleteSessionResponse__Output } from "./proto/generated/cline/rpc/v1/DeleteSessionResponse";
+import type { EnqueueSpawnRequestResponse__Output } from "./proto/generated/cline/rpc/v1/EnqueueSpawnRequestResponse";
+import type { GetActiveScheduledExecutionsResponse__Output } from "./proto/generated/cline/rpc/v1/GetActiveScheduledExecutionsResponse";
+import type { GetScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/GetScheduleResponse";
+import type { GetScheduleStatsResponse__Output } from "./proto/generated/cline/rpc/v1/GetScheduleStatsResponse";
+import type { GetSessionResponse__Output } from "./proto/generated/cline/rpc/v1/GetSessionResponse";
+import type { GetUpcomingScheduledRunsResponse__Output } from "./proto/generated/cline/rpc/v1/GetUpcomingScheduledRunsResponse";
+import type { ListPendingApprovalsResponse__Output } from "./proto/generated/cline/rpc/v1/ListPendingApprovalsResponse";
+import type { ListScheduleExecutionsResponse__Output } from "./proto/generated/cline/rpc/v1/ListScheduleExecutionsResponse";
+import type { ListSchedulesResponse__Output } from "./proto/generated/cline/rpc/v1/ListSchedulesResponse";
+import type { ListSessionsResponse__Output } from "./proto/generated/cline/rpc/v1/ListSessionsResponse";
+import type { PauseScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/PauseScheduleResponse";
+import type { PublishEventResponse__Output } from "./proto/generated/cline/rpc/v1/PublishEventResponse";
+import type { RequestToolApprovalRequest } from "./proto/generated/cline/rpc/v1/RequestToolApprovalRequest";
+import type { RequestToolApprovalResponse__Output } from "./proto/generated/cline/rpc/v1/RequestToolApprovalResponse";
+import type { RespondToolApprovalRequest } from "./proto/generated/cline/rpc/v1/RespondToolApprovalRequest";
+import type { RespondToolApprovalResponse__Output } from "./proto/generated/cline/rpc/v1/RespondToolApprovalResponse";
+import type { ResumeScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/ResumeScheduleResponse";
+import type { RoutedEvent__Output } from "./proto/generated/cline/rpc/v1/RoutedEvent";
+import type { RunProviderActionResponse__Output } from "./proto/generated/cline/rpc/v1/RunProviderActionResponse";
+import type { RunProviderOAuthLoginResponse__Output } from "./proto/generated/cline/rpc/v1/RunProviderOAuthLoginResponse";
+import type { Schedule__Output } from "./proto/generated/cline/rpc/v1/Schedule";
+import type { ScheduleExecution__Output } from "./proto/generated/cline/rpc/v1/ScheduleExecution";
+import type { SendRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/SendRuntimeSessionResponse";
 import type {
 	SessionRecord,
 	SessionRecord__Output,
-} from "./proto/generated/cline/rpc/v1/SessionRecord.js";
-import type { StartRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/StartRuntimeSessionResponse.js";
-import type { StopRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/StopRuntimeSessionResponse.js";
-import type { TriggerScheduleNowResponse__Output } from "./proto/generated/cline/rpc/v1/TriggerScheduleNowResponse.js";
-import type { UpcomingScheduledRun__Output } from "./proto/generated/cline/rpc/v1/UpcomingScheduledRun.js";
-import type { UpdateScheduleRequest } from "./proto/generated/cline/rpc/v1/UpdateScheduleRequest.js";
-import type { UpdateScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/UpdateScheduleResponse.js";
-import type { UpdateSessionRequest } from "./proto/generated/cline/rpc/v1/UpdateSessionRequest.js";
-import type { UpdateSessionResponse__Output } from "./proto/generated/cline/rpc/v1/UpdateSessionResponse.js";
-import type { UpsertSessionRequest } from "./proto/generated/cline/rpc/v1/UpsertSessionRequest.js";
+} from "./proto/generated/cline/rpc/v1/SessionRecord";
+import type { StartRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/StartRuntimeSessionResponse";
+import type { StopRuntimeSessionResponse__Output } from "./proto/generated/cline/rpc/v1/StopRuntimeSessionResponse";
+import type { TriggerScheduleNowResponse__Output } from "./proto/generated/cline/rpc/v1/TriggerScheduleNowResponse";
+import type { UpcomingScheduledRun__Output } from "./proto/generated/cline/rpc/v1/UpcomingScheduledRun";
+import type { UpdateScheduleRequest } from "./proto/generated/cline/rpc/v1/UpdateScheduleRequest";
+import type { UpdateScheduleResponse__Output } from "./proto/generated/cline/rpc/v1/UpdateScheduleResponse";
+import type { UpdateSessionRequest } from "./proto/generated/cline/rpc/v1/UpdateSessionRequest";
+import type { UpdateSessionResponse__Output } from "./proto/generated/cline/rpc/v1/UpdateSessionResponse";
+import type { UpsertSessionRequest } from "./proto/generated/cline/rpc/v1/UpsertSessionRequest";
 import {
 	fromProtoStruct,
 	fromProtoValue,
 	toProtoStruct,
 	toProtoValue,
-} from "./proto/serde.js";
+} from "./proto/serde";
 import type {
 	RpcScheduleExecution,
 	RpcScheduleRecord,
 	RpcSessionRow,
 	RpcSessionUpdateInput,
-} from "./types.js";
+} from "./types";
 
 function toMessage(row: RpcSessionRow): SessionRecord {
 	return {

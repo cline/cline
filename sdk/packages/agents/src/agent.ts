@@ -13,19 +13,19 @@ import {
 	isNonRecoverableApiError,
 	type MistakeTrackingDeps,
 	recordMistake,
-} from "./api/error-handling.js";
+} from "./api/error-handling";
 import {
 	type ContributionRegistry,
 	createContributionRegistry,
-} from "./extensions.js";
-import { HookEngine, registerLifecycleHandlers } from "./hooks/index.js";
-import { MessageBuilder } from "./message-builder.js";
-import { createAgentRuntimeBus } from "./runtime/agent-runtime-bus.js";
-import { ConversationStore } from "./runtime/conversation-store.js";
-import { LifecycleOrchestrator } from "./runtime/lifecycle-orchestrator.js";
-import { ToolOrchestrator } from "./runtime/tool-orchestrator.js";
-import { TurnProcessor } from "./runtime/turn-processor.js";
-import { createToolRegistry, validateTools } from "./tools/index.js";
+} from "./extensions";
+import { HookEngine, registerLifecycleHandlers } from "./hooks/index";
+import { MessageBuilder } from "./message-builder";
+import { createAgentRuntimeBus } from "./runtime/agent-runtime-bus";
+import { ConversationStore } from "./runtime/conversation-store";
+import { LifecycleOrchestrator } from "./runtime/lifecycle-orchestrator";
+import { ToolOrchestrator } from "./runtime/tool-orchestrator";
+import { TurnProcessor } from "./runtime/turn-processor";
+import { createToolRegistry, validateTools } from "./tools/index";
 import type {
 	AgentConfig,
 	AgentEvent,
@@ -40,15 +40,15 @@ import type {
 	ToolCallRecord,
 	ToolContext,
 	ToolPolicy,
-} from "./types.js";
-import { buildInitialUserContent } from "./utils/agent-input.js";
+} from "./types";
+import { buildInitialUserContent } from "./utils/agent-input";
 import {
 	createApiTimeoutSignal,
 	createHandlerFromConfig,
 	mergeAbortSignals,
 	observeAbortSignal,
 	serializeAbortReason,
-} from "./utils/config-helpers.js";
+} from "./utils/config-helpers";
 
 const DEFAULT_REMINDER_TEXT =
 	"REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools.";

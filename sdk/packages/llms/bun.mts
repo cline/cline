@@ -32,7 +32,11 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		sourcemap: "none",
 	},
 	{
-		entrypoints: ["./src/index.browser.ts", "./src/providers.browser.ts"],
+		entrypoints: [
+			"./src/index.browser.ts",
+			"./src/providers.browser.ts",
+			"./src/models.browser.ts",
+		],
 		outdir: "./dist",
 		target: "browser",
 		external,

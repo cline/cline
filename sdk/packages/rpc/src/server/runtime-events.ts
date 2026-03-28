@@ -1,14 +1,14 @@
 import { randomUUID } from "node:crypto";
 import type * as grpc from "@grpc/grpc-js";
-import { fromProtoStruct, toProtoStruct } from "../proto/serde.js";
-import type { RoutedEvent } from "../types.js";
-import { normalizeSessionIds, nowIso, safeString } from "./helpers.js";
+import { fromProtoStruct, toProtoStruct } from "../proto/serde";
+import type { RoutedEvent } from "../types";
+import { normalizeSessionIds, nowIso, safeString } from "./helpers";
 import type {
 	PublishEventRequest,
 	PublishEventResponse,
 	RoutedEventMessage,
 	StreamEventsRequest,
-} from "./proto-types.js";
+} from "./proto-types";
 
 interface StreamSubscriber {
 	call: grpc.ServerWritableStream<StreamEventsRequest, RoutedEventMessage>;

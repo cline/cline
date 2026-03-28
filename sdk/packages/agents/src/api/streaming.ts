@@ -4,8 +4,8 @@
  * Provides async iterable wrapper for streaming agent events in real-time.
  */
 
-import type { Agent } from "../agent.js";
-import type { AgentEvent, AgentResult } from "../types.js";
+import type { Agent } from "../agent";
+import type { AgentEvent, AgentResult } from "../types";
 
 // =============================================================================
 // AgentStream

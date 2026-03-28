@@ -3,13 +3,13 @@ import type {
 	SchedulerService,
 	UpdateScheduleInput,
 } from "@clinebot/scheduler";
-import { fromProtoStruct } from "../proto/serde.js";
+import { fromProtoStruct } from "../proto/serde";
 import {
 	parseJsonArrayString,
 	safeString,
 	scheduleExecutionToMessage,
 	scheduleToMessage,
-} from "./helpers.js";
+} from "./helpers";
 import type {
 	CreateScheduleRequest,
 	CreateScheduleResponse,
@@ -37,7 +37,7 @@ import type {
 	TriggerScheduleNowResponse,
 	UpdateScheduleRequest,
 	UpdateScheduleResponse,
-} from "./proto-types.js";
+} from "./proto-types";
 
 export class RuntimeScheduleService {
 	constructor(private readonly scheduler?: SchedulerService) {}

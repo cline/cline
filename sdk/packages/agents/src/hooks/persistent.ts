@@ -10,7 +10,7 @@ import type {
 	AgentHookToolCallEndContext,
 	AgentHookToolCallStartContext,
 	AgentHookTurnEndContext,
-} from "../types.js";
+} from "../types";
 import {
 	type AgentAbortHookPayload,
 	type AgentEndHookPayload,
@@ -27,7 +27,7 @@ import {
 	type SessionShutdownHookPayload,
 	type ToolCallHookPayload,
 	type ToolResultHookPayload,
-} from "./subprocess.js";
+} from "./subprocess";
 
 interface PersistentHookRequest {
 	id: string;

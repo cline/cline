@@ -8,11 +8,11 @@
 // Core Agent
 // =============================================================================
 
-export { Agent, createAgent } from "./agent.js";
+export { Agent, createAgent } from "./agent";
 export {
 	ContributionRegistry,
 	createContributionRegistry,
-} from "./extensions.js";
+} from "./extensions";
 
 // =============================================================================
 // Tooling (consumer-facing)
@@ -27,7 +27,7 @@ export {
 	createTool,
 	toToolDefinition,
 	toToolDefinitions,
-} from "./tools/index.js";
+} from "./tools/index";
 
 // =============================================================================
 // Hooks
@@ -37,7 +37,7 @@ export {
 	type HookDispatchInput,
 	HookEngine,
 	type HookHandler,
-} from "./hooks/index.js";
+} from "./hooks/index";
 export type {
 	HookEventName,
 	HookEventPayload,
@@ -50,7 +50,7 @@ export type {
 	RunSubprocessEventResult,
 	SubprocessHookControl,
 	SubprocessHooksOptions,
-} from "./hooks/node.js";
+} from "./hooks/node";
 export {
 	createPersistentSubprocessHooks,
 	createSubprocessHooks,
@@ -60,14 +60,14 @@ export {
 	parseHookEventPayload,
 	runHook,
 	runSubprocessEvent,
-} from "./hooks/node.js";
+} from "./hooks/node";
 
 // =============================================================================
 // Prompts and formatting
 // =============================================================================
 
 export { formatFileContentBlock } from "@clinebot/shared";
-export { getClineDefaultSystemPrompt } from "./prompts/index.js";
+export { getClineDefaultSystemPrompt } from "./prompts/index";
 
 // =============================================================================
 // Teams and spawn support
@@ -79,9 +79,15 @@ export {
 	type BootstrapAgentTeamsOptions,
 	type BootstrapAgentTeamsResult,
 	bootstrapAgentTeams,
+	buildDelegatedAgentConfig,
 	type CreateAgentTeamsToolsOptions,
 	createAgentTeamsTools,
+	createDelegatedAgent,
+	createDelegatedAgentConfigProvider,
 	createSpawnAgentTool,
+	type DelegatedAgentConfigProvider,
+	type DelegatedAgentConnectionConfig,
+	type DelegatedAgentRuntimeConfig,
 	type SubAgentEndContext,
 	type SubAgentStartContext,
 	type TeamEvent,
@@ -93,7 +99,7 @@ export {
 	type TeamRuntimeState,
 	type TeamTeammateRuntimeConfig,
 	type TeamTeammateSpec,
-} from "./teams/index.js";
+} from "./teams/index";
 
 // =============================================================================
 // MCP bridge
@@ -111,7 +117,7 @@ export {
 	type McpToolDescriptor,
 	type McpToolNameTransform,
 	type McpToolProvider,
-} from "./mcp/index.js";
+} from "./mcp/index";
 
 // =============================================================================
 // Public types
@@ -142,4 +148,4 @@ export {
 	type ToolContext,
 	ToolContextSchema,
 	type ToolPolicy,
-} from "./types.js";
+} from "./types";

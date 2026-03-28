@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { createMcpTools } from "./tools.js";
-import type { McpToolDescriptor, McpToolProvider } from "./types.js";
+import { createMcpTools } from "./tools";
+import type { McpToolDescriptor, McpToolProvider } from "./types";
 
 describe("createMcpTools", () => {
 	it("converts MCP tools into agent tools and delegates execution", async () => {

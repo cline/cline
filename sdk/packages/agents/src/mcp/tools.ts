@@ -1,7 +1,7 @@
-import { createTool } from "../tools/create.js";
-import type { Tool } from "../types.js";
-import { defaultMcpToolNameTransform } from "./name-transform.js";
-import type { CreateMcpToolsOptions, McpToolDescriptor } from "./types.js";
+import { createTool } from "../tools/create";
+import type { Tool } from "../types";
+import { defaultMcpToolNameTransform } from "./name-transform";
+import type { CreateMcpToolsOptions, McpToolDescriptor } from "./types";
 
 function defaultMcpDescription(
 	serverName: string,

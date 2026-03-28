@@ -7,7 +7,7 @@
 // Zod Utilities
 export { validateWithZod, zodToJsonSchema } from "@clinebot/shared";
 // Constants
-export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants.js";
+export { ALL_DEFAULT_TOOL_NAMES, DefaultToolNames } from "./constants";
 // Tool Definitions
 export {
 	createApplyPatchTool,
@@ -20,7 +20,7 @@ export {
 	createSkillsTool,
 	createWebFetchTool,
 	createWindowsShellTool,
-} from "./definitions.js";
+} from "./definitions";
 // Built-in Executors
 export {
 	type ApplyPatchExecutorOptions,
@@ -37,12 +37,12 @@ export {
 	type FileReadExecutorOptions,
 	type SearchExecutorOptions,
 	type WebFetchExecutorOptions,
-} from "./executors/index.js";
+} from "./executors/index";
 export {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	resolveToolRoutingConfig,
 	type ToolRoutingRule,
-} from "./model-tool-routing.js";
+} from "./model-tool-routing";
 // Presets
 export {
 	createDefaultToolsWithPreset,
@@ -50,7 +50,7 @@ export {
 	type ToolPolicyPresetName,
 	type ToolPresetName,
 	ToolPresets,
-} from "./presets.js";
+} from "./presets";
 // Schemas
 export {
 	type ApplyPatchInput,
@@ -73,7 +73,7 @@ export {
 	SkillsInputSchema,
 	type WebFetchRequest,
 	WebFetchRequestSchema,
-} from "./schemas.js";
+} from "./schemas";
 // Types
 export type {
 	ApplyPatchExecutor,
@@ -91,19 +91,19 @@ export type {
 	ToolExecutors,
 	ToolOperationResult,
 	WebFetchExecutor,
-} from "./types.js";
+} from "./types";
 
 // =============================================================================
 // Convenience: Create Tools with Built-in Executors
 // =============================================================================
 
 import type { Tool } from "@clinebot/agents";
-import { createDefaultTools } from "./definitions.js";
+import { createDefaultTools } from "./definitions";
 import {
 	createDefaultExecutors,
 	type DefaultExecutorsOptions,
-} from "./executors/index.js";
-import type { CreateDefaultToolsOptions, ToolExecutors } from "./types.js";
+} from "./executors/index";
+import type { CreateDefaultToolsOptions, ToolExecutors } from "./types";
 
 /**
  * Options for creating default tools with built-in executors

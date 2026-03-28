@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { getValidOcaCredentials } from "./oca.js";
-import type { OAuthCredentials } from "./types.js";
+import { getValidOcaCredentials } from "./oca";
+import type { OAuthCredentials } from "./types";
 
 function toBase64Url(value: string): string {
 	return Buffer.from(value, "utf8").toString("base64url");

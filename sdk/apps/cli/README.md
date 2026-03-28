@@ -484,7 +484,7 @@ Custom provider registry notes:
 - **Sub-agent spawning** - `spawn_agent` is available by default unless disabled
 - **Recursive delegation** - Sub-agents spawned via `spawn_agent` also receive `spawn_agent` when spawn is enabled
 - **Agent teams runtime** - Team tools (tasks/mailbox/mission log) are available by default unless disabled
-- Team tools use strict single-action schemas (for example `team_create_task`, `team_send_message`, `team_create_outcome`) instead of `action` unions
+- Team tools keep related operations grouped where that improves usability (for example `team_task` uses an `action` field, while teammate/runs/mailbox/outcome tools stay separate)
 - **Pipe support** - Accepts piped input for processing files
 - **Interactive mode** - Multi-turn conversations
 - **JSON output mode** - NDJSON records for run lifecycle, agent/team events, and final result (`--json`)

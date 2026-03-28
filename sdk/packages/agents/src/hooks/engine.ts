@@ -7,7 +7,7 @@ import type {
 	HookStage,
 	HookStagePolicy,
 	HookStagePolicyInput,
-} from "../types.js";
+} from "../types";
 
 export interface HookHandler {
 	name: string;

@@ -7,8 +7,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ToolContext } from "@clinebot/agents";
-import type { EditFileInput } from "../schemas.js";
-import type { EditorExecutor } from "../types.js";
+import type { EditFileInput } from "../schemas";
+import type { EditorExecutor } from "../types";
 
 /**
  * Options for the editor executor

@@ -1,12 +1,12 @@
 export type {
 	CreateDisabledMcpToolPoliciesOptions,
 	CreateDisabledMcpToolPolicyOptions,
-} from "./policies.js";
+} from "./policies";
 export {
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
-} from "./policies.js";
-export { createMcpTools } from "./tools.js";
+} from "./policies";
+export { createMcpTools } from "./tools";
 export type {
 	CreateMcpToolsOptions,
 	McpToolCallRequest,
@@ -14,4 +14,4 @@ export type {
 	McpToolDescriptor,
 	McpToolNameTransform,
 	McpToolProvider,
-} from "./types.js";
+} from "./types";

@@ -7,8 +7,8 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ToolContext } from "@clinebot/agents";
-import type { ApplyPatchInput } from "../schemas.js";
-import type { ApplyPatchExecutor } from "../types.js";
+import type { ApplyPatchInput } from "../schemas";
+import type { ApplyPatchExecutor } from "../types";
 import {
 	BASH_WRAPPERS,
 	DiffError,
@@ -16,7 +16,7 @@ import {
 	PatchActionType,
 	type PatchChunk,
 	PatchParser,
-} from "./apply-patch-parser.js";
+} from "./apply-patch-parser";
 
 interface FileChange {
 	type: PatchActionType;

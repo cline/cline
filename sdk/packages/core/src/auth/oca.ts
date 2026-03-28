@@ -7,7 +7,7 @@ import {
 	captureAuthSucceeded,
 	identifyAccount,
 } from "../telemetry/core-events";
-import { startLocalOAuthServer } from "./server.js";
+import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
@@ -17,14 +17,14 @@ import type {
 	OcaOAuthConfig,
 	OcaOAuthProviderOptions,
 	OcaTokenResolution,
-} from "./types.js";
+} from "./types";
 import {
 	decodeJwtPayload,
 	getProofKey,
 	isCredentialLikelyExpired,
 	normalizeBaseUrl,
 	resolveAuthorizationCodeInput,
-} from "./utils.js";
+} from "./utils";
 
 export const DEFAULT_INTERNAL_IDCS_CLIENT_ID =
 	"a8331954c0cf48ba99b5dd223a14c6ea";

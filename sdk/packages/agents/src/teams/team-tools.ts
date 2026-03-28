@@ -1,251 +1,62 @@
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import { type Tool, validateWithZod, zodToJsonSchema } from "@clinebot/shared";
+import { createTool } from "../tools/create";
 import {
-	type ITelemetryService,
-	type Tool,
-	validateWithZod,
-	zodToJsonSchema,
-} from "@clinebot/shared";
-import { z } from "zod";
-import { buildTeammateSystemPrompt } from "../prompts/subagents.js";
-import { createTool } from "../tools/create.js";
-import type { AgentConfig, AgentHooks, BasicLogger } from "../types.js";
+	buildDelegatedAgentConfig,
+	type DelegatedAgentConfigProvider,
+	type DelegatedAgentRuntimeConfig,
+} from "./delegated-agent";
 import type {
 	AgentTeamsRuntime,
 	TeamRunRecord,
 	TeamRuntimeState,
-	TeamTaskListItem,
-} from "./multi-agent.js";
-
-export interface TeamTeammateSpec {
-	agentId: string;
-	rolePrompt: string;
-	modelId?: string;
-	maxIterations?: number;
-}
-
-const TeamSpawnTeammateInputSchema = z
-	.object({
-		agentId: z.string().min(1).describe("Teammate identifier"),
-		rolePrompt: z
-			.string()
-			.min(1)
-			.describe("System prompt describing teammate role"),
-		maxIterations: z
-			.number()
-			.int()
-			.min(1)
-			.optional()
-			.describe("Max iterations per teammate run for spawn"),
-	})
-	.strict();
-
-const TeamShutdownTeammateInputSchema = z.object({
-	agentId: z.string().min(1).describe("Teammate identifier"),
-	reason: z.string().min(1).optional().describe("Optional shutdown reason"),
-});
-
-const TeamStatusInputSchema = z.object({});
-
-const TeamCreateTaskInputSchema = z.object({
-	title: z.string().min(1).describe("Task title"),
-	description: z.string().min(1).describe("Task details"),
-	dependsOn: z
-		.array(z.string().describe("Dependency task ID"))
-		.optional()
-		.describe("Array of the dependency task IDs"),
-	assignee: z.string().min(1).optional().describe("Optional assignee"),
-});
-
-const TeamListTasksInputSchema = z.object({
-	status: z
-		.enum(["pending", "in_progress", "blocked", "completed"])
-		.optional()
-		.describe("Optional task status filter"),
-	assignee: z.string().min(1).optional().describe("Optional assignee filter"),
-	unassignedOnly: z
-		.boolean()
-		.optional()
-		.describe("Only include tasks without an assignee"),
-	readyOnly: z
-		.boolean()
-		.optional()
-		.describe("Only include tasks ready to claim now"),
-});
-
-const TeamClaimTaskInputSchema = z.object({
-	taskId: z.string().describe("Task ID"),
-});
-
-const TeamCompleteTaskInputSchema = z.object({
-	taskId: z.string().describe("Task ID"),
-	summary: z.string().min(1).describe("Completion summary"),
-});
-
-const TeamBlockTaskInputSchema = z.object({
-	taskId: z.string().describe("Task ID"),
-	reason: z.string().min(1).describe("Blocking reason"),
-});
-
-const TeamRunTaskInputSchema = z.object({
-	agentId: z.string().describe("Teammate agent ID"),
-	task: z.string().min(1).describe("Task instructions for the teammate"),
-	taskId: z
-		.string()
-		.optional()
-		.nullable()
-		.describe("Optional shared task list ID"),
-	runMode: z
-		.enum(["sync", "async"])
-		.optional()
-		.nullable()
-		.describe(
-			"Execution mode: sync waits for result; async returns a runId immediately",
-		),
-	continueConversation: z
-		.boolean()
-		.optional()
-		.nullable()
-		.describe(
-			"If true, continue the teammate conversation; otherwise start fresh",
-		),
-});
-
-const TeamListRunsInputSchema = z.object({
-	status: z
-		.enum([
-			"queued",
-			"running",
-			"completed",
-			"failed",
-			"cancelled",
-			"interrupted",
-		])
-		.nullable()
-		.optional()
-		.describe("Optional run status filter. Omit to include all statuses."),
-	agentId: z
-		.string()
-		.min(1)
-		.nullable()
-		.optional()
-		.describe("Optional teammate ID filter. Omit to include all teammates."),
-	includeCompleted: z
-		.boolean()
-		.optional()
-		.nullable()
-		.describe("Include completed/failed runs (default true)"),
-});
-
-const TeamCancelRunInputSchema = z.object({
-	runId: z.string().min(1).describe("Run ID"),
-	reason: z.string().min(1).optional().describe("Optional cancellation reason"),
-});
-
-const TeamAwaitRunInputSchema = z.object({
-	runId: z.string().min(1).describe("Async run ID to await"),
-});
-
-const TeamAwaitAllRunsInputSchema = z.object({});
-
-const TeamSendMessageInputSchema = z.object({
-	toAgentId: z.string().min(1).describe("Recipient agent ID"),
-	subject: z.string().min(1).describe("Message subject"),
-	body: z.string().min(1).describe("Message body"),
-	taskId: z
-		.string()
-		.min(1)
-		.optional()
-		.nullable()
-		.describe("Optional task ID context"),
-});
-
-const TeamBroadcastInputSchema = z.object({
-	subject: z.string().min(1).describe("Message subject"),
-	body: z.string().min(1).describe("Message body"),
-	taskId: z
-		.string()
-		.min(1)
-		.optional()
-		.nullable()
-		.describe("Optional task ID context"),
-	includeLead: z
-		.boolean()
-		.optional()
-		.nullable()
-		.describe("Include the lead agent in broadcast recipients"),
-});
-
-const TeamReadMailboxInputSchema = z.object({
-	unreadOnly: z
-		.boolean()
-		.optional()
-		.describe("Only unread messages for read action (default true)"),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(100)
-		.optional()
-		.describe("Optional max number of messages for read action"),
-});
-
-const TeamLogUpdateInputSchema = z.object({
-	kind: z.enum(["progress", "handoff", "blocked", "decision", "done", "error"]),
-	summary: z.string().min(1).describe("Update summary"),
-	taskId: z.string().min(1).optional().describe("Optional task ID context"),
-	evidence: z
-		.array(z.string().min(1))
-		.optional()
-		.describe("Optional evidence links/snippets"),
-	nextAction: z.string().min(1).optional().describe("Planned next step"),
-});
-
-const TeamCleanupInputSchema = z.object({});
-
-const DEFAULT_OUTCOME_REQUIRED_SECTIONS = [
-	"current_state",
-	"boundary_analysis",
-	"interface_proposal",
-];
-const TEAM_AWAIT_TIMEOUT_MS = 60 * 60 * 1000;
-const TEAM_RUN_MESSAGE_PREVIEW_LIMIT = 240;
-const TEAM_RUN_TEXT_PREVIEW_LIMIT = 400;
-
-export interface TeamRunResultSummary {
-	textPreview: string;
-	iterations: number;
-	finishReason: string;
-	durationMs: number;
-	usage: {
-		inputTokens: number;
-		outputTokens: number;
-		cacheReadTokens?: number;
-		cacheWriteTokens?: number;
-		totalCost?: number;
-	};
-}
-
-export interface TeamRunToolSummary {
-	id: string;
-	agentId: string;
-	taskId?: string;
-	status: TeamRunRecord["status"];
-	messagePreview: string;
-	priority: number;
-	retryCount: number;
-	maxRetries: number;
-	nextAttemptAt?: Date;
-	continueConversation?: boolean;
-	startedAt: Date;
-	endedAt?: Date;
-	leaseOwner?: string;
-	heartbeatAt?: Date;
-	lastProgressAt?: Date;
-	lastProgressMessage?: string;
-	currentActivity?: string;
-	error?: string;
-	resultSummary?: TeamRunResultSummary;
-}
+} from "./multi-agent";
+import {
+	TEAM_AWAIT_TIMEOUT_MS,
+	TEAM_RUN_MESSAGE_PREVIEW_LIMIT,
+	TEAM_RUN_TEXT_PREVIEW_LIMIT,
+	type TeamAttachOutcomeFragmentInput,
+	TeamAttachOutcomeFragmentInputSchema,
+	type TeamAwaitAllRunsInput,
+	TeamAwaitAllRunsInputSchema,
+	type TeamAwaitRunInput,
+	TeamAwaitRunInputSchema,
+	type TeamBroadcastInput,
+	TeamBroadcastInputSchema,
+	type TeamCancelRunInput,
+	TeamCancelRunInputSchema,
+	type TeamCleanupInput,
+	TeamCleanupInputSchema,
+	type TeamCreateOutcomeInput,
+	TeamCreateOutcomeInputSchema,
+	type TeamFinalizeOutcomeInput,
+	TeamFinalizeOutcomeInputSchema,
+	type TeamListOutcomesInput,
+	TeamListOutcomesInputSchema,
+	type TeamListRunsInput,
+	TeamListRunsInputSchema,
+	type TeamLogUpdateInput,
+	TeamLogUpdateInputSchema,
+	type TeamReadMailboxInput,
+	TeamReadMailboxInputSchema,
+	type TeamReviewOutcomeFragmentInput,
+	TeamReviewOutcomeFragmentInputSchema,
+	type TeamRunResultSummary,
+	type TeamRunTaskInput,
+	TeamRunTaskInputSchema,
+	type TeamRunToolSummary,
+	type TeamSendMessageInput,
+	TeamSendMessageInputSchema,
+	type TeamShutdownTeammateInput,
+	TeamShutdownTeammateInputSchema,
+	type TeamSpawnTeammateInput,
+	TeamSpawnTeammateInputSchema,
+	type TeamStatusInput,
+	TeamStatusInputSchema,
+	type TeamTaskInput,
+	TeamTaskInputSchema,
+	type TeamTaskToolResult,
+	type TeamTeammateSpec,
+} from "./schema";
 
 function truncateText(value: string, maxLength: number): string {
 	const normalized = value.replace(/\s+/g, " ").trim();
@@ -300,95 +111,19 @@ function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
 	};
 }
 
-const TeamCreateOutcomeInputSchema = z.object({
-	title: z.string().describe("Outcome title"),
-	requiredSections: z
-		.array(z.string())
-		.default(DEFAULT_OUTCOME_REQUIRED_SECTIONS)
-		.describe(
-			"Required sections for finalization gate (defaults to current_state,boundary_analysis,interface_proposal)",
-		),
-});
-
-const TeamAttachOutcomeFragmentInputSchema = z.object({
-	outcomeId: z.string().describe("Outcome ID"),
-	section: z.string().describe("Section name"),
-	sourceRunId: z.string().optional().describe("Optional source run ID"),
-	content: z.string().describe("Section fragment content"),
-});
-
-const TeamReviewOutcomeFragmentInputSchema = z.object({
-	fragmentId: z.string().describe("Fragment ID"),
-	approved: z.boolean().describe("Review decision"),
-});
-
-const TeamFinalizeOutcomeInputSchema = z.object({
-	outcomeId: z.string().describe("Outcome ID"),
-});
-
-const TeamListOutcomesInputSchema = z.object({});
-
-type TeamSpawnTeammateInput = z.infer<typeof TeamSpawnTeammateInputSchema>;
-type TeamShutdownTeammateInput = z.infer<
-	typeof TeamShutdownTeammateInputSchema
->;
-type TeamStatusInput = z.infer<typeof TeamStatusInputSchema>;
-type TeamCreateTaskInput = z.infer<typeof TeamCreateTaskInputSchema>;
-type TeamListTasksInput = z.infer<typeof TeamListTasksInputSchema>;
-type TeamClaimTaskInput = z.infer<typeof TeamClaimTaskInputSchema>;
-type TeamCompleteTaskInput = z.infer<typeof TeamCompleteTaskInputSchema>;
-type TeamBlockTaskInput = z.infer<typeof TeamBlockTaskInputSchema>;
-type TeamRunTaskInput = z.infer<typeof TeamRunTaskInputSchema>;
-type TeamListRunsInput = z.infer<typeof TeamListRunsInputSchema>;
-type TeamCancelRunInput = z.infer<typeof TeamCancelRunInputSchema>;
-type TeamAwaitRunInput = z.infer<typeof TeamAwaitRunInputSchema>;
-type TeamAwaitAllRunsInput = z.infer<typeof TeamAwaitAllRunsInputSchema>;
-type TeamSendMessageInput = z.infer<typeof TeamSendMessageInputSchema>;
-type TeamBroadcastInput = z.infer<typeof TeamBroadcastInputSchema>;
-type TeamReadMailboxInput = z.infer<typeof TeamReadMailboxInputSchema>;
-type TeamLogUpdateInput = z.infer<typeof TeamLogUpdateInputSchema>;
-type TeamCleanupInput = z.infer<typeof TeamCleanupInputSchema>;
-type TeamCreateOutcomeInput = z.infer<typeof TeamCreateOutcomeInputSchema>;
-type TeamAttachOutcomeFragmentInput = z.infer<
-	typeof TeamAttachOutcomeFragmentInputSchema
->;
-type TeamReviewOutcomeFragmentInput = z.infer<
-	typeof TeamReviewOutcomeFragmentInputSchema
->;
-type TeamFinalizeOutcomeInput = z.infer<typeof TeamFinalizeOutcomeInputSchema>;
-type TeamListOutcomesInput = z.infer<typeof TeamListOutcomesInputSchema>;
-
-export interface TeamTeammateRuntimeConfig {
-	providerId: string;
-	modelId: string;
-	cwd?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
-	providerConfig?: LlmsProviders.ProviderConfig;
-	knownModels?: Record<string, LlmsProviders.ModelInfo>;
-	thinking?: boolean;
-	clineWorkspaceMetadata?: string;
-	clineIdeName?: string;
-	clinePlatform?: string;
-	maxIterations?: number;
-	hooks?: AgentHooks;
-	extensions?: AgentConfig["extensions"];
-	logger?: BasicLogger;
-	telemetry?: ITelemetryService;
-}
+export type TeamTeammateRuntimeConfig = DelegatedAgentRuntimeConfig;
 
 export interface CreateAgentTeamsToolsOptions {
 	runtime: AgentTeamsRuntime;
 	requesterId: string;
-	teammateRuntime: TeamTeammateRuntimeConfig;
+	teammateConfigProvider: DelegatedAgentConfigProvider;
 	createBaseTools?: () => Tool[];
 	allowSpawn?: boolean;
 }
 
 export interface BootstrapAgentTeamsOptions {
 	runtime: AgentTeamsRuntime;
-	teammateRuntime: TeamTeammateRuntimeConfig;
+	teammateConfigProvider: DelegatedAgentConfigProvider;
 	createBaseTools?: () => Tool[];
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
@@ -415,33 +150,21 @@ function spawnTeamTeammate(
 		...createAgentTeamsTools({
 			runtime: options.runtime,
 			requesterId: options.spec.agentId,
-			teammateRuntime: options.teammateRuntime,
+			teammateConfigProvider: options.teammateConfigProvider,
 			createBaseTools: options.createBaseTools,
 			allowSpawn: false,
 		}),
 	);
 	options.runtime.spawnTeammate({
 		agentId: options.spec.agentId,
-		config: {
-			providerId: options.teammateRuntime.providerId,
-			modelId: options.spec.modelId ?? options.teammateRuntime.modelId,
-			apiKey: options.teammateRuntime.apiKey,
-			baseUrl: options.teammateRuntime.baseUrl,
-			headers: options.teammateRuntime.headers,
-			providerConfig: options.teammateRuntime.providerConfig,
-			knownModels: options.teammateRuntime.knownModels,
-			thinking: options.teammateRuntime.thinking,
-			systemPrompt: buildTeammateSystemPrompt(
-				options.spec.rolePrompt,
-				options.teammateRuntime,
-			),
-			maxIterations:
-				options.spec.maxIterations ?? options.teammateRuntime.maxIterations,
+		config: buildDelegatedAgentConfig({
+			kind: "teammate",
+			prompt: options.spec.rolePrompt,
+			role: options.spec.rolePrompt,
+			configProvider: options.teammateConfigProvider,
 			tools: teammateTools,
-			hooks: options.teammateRuntime.hooks,
-			extensions: options.teammateRuntime.extensions,
-			logger: options.teammateRuntime.logger,
-		},
+			maxIterations: options.spec.maxIterations,
+		}),
 	});
 }
 
@@ -454,7 +177,7 @@ export function bootstrapAgentTeams(
 	const tools = createAgentTeamsTools({
 		runtime: options.runtime,
 		requesterId: leadAgentId,
-		teammateRuntime: options.teammateRuntime,
+		teammateConfigProvider: options.teammateConfigProvider,
 		createBaseTools: options.createBaseTools,
 		allowSpawn: true,
 	});
@@ -467,7 +190,7 @@ export function bootstrapAgentTeams(
 		spawnTeamTeammate({
 			runtime: options.runtime,
 			requesterId: leadAgentId,
-			teammateRuntime: options.teammateRuntime,
+			teammateConfigProvider: options.teammateConfigProvider,
 			createBaseTools: options.createBaseTools,
 			spec,
 		});
@@ -511,7 +234,7 @@ export function createAgentTeamsTools(
 				spawnTeamTeammate({
 					runtime: options.runtime,
 					requesterId: options.requesterId,
-					teammateRuntime: options.teammateRuntime,
+					teammateConfigProvider: options.teammateConfigProvider,
 					createBaseTools: options.createBaseTools,
 					spec,
 				});
@@ -556,102 +279,76 @@ export function createAgentTeamsTools(
 	);
 
 	tools.push(
-		createTool<TeamCreateTaskInput, { taskId: string; status: string }>({
-			name: "team_create_task",
-			description: "Create a shared team task with title and description.",
-			inputSchema: zodToJsonSchema(TeamCreateTaskInputSchema),
-			execute: async (input) => {
-				const validatedInput = validateWithZod(
-					TeamCreateTaskInputSchema,
-					input,
-				);
-				const task = options.runtime.createTask({
-					title: validatedInput.title,
-					description: validatedInput.description,
-					dependsOn: validatedInput.dependsOn,
-					assignee: validatedInput.assignee,
-					createdBy: options.requesterId,
-				});
-				return { taskId: task.id, status: task.status };
-			},
-		}) as Tool,
-	);
-
-	tools.push(
-		createTool<TeamListTasksInput, TeamTaskListItem[]>({
-			name: "team_list_tasks",
+		createTool<TeamTaskInput, TeamTaskToolResult>({
+			name: "team_task",
 			description:
-				"List shared team tasks, including whether each task is ready to claim and which dependencies still block it.",
-			inputSchema: zodToJsonSchema(TeamListTasksInputSchema),
+				"Manage shared team tasks. Use action=create|list|claim|complete|block.",
+			inputSchema: zodToJsonSchema(TeamTaskInputSchema),
 			execute: async (input) => {
-				const validatedInput = validateWithZod(TeamListTasksInputSchema, input);
-				return options.runtime.listTaskItems({
-					status: validatedInput.status,
-					assignee: validatedInput.assignee,
-					unassignedOnly: validatedInput.unassignedOnly,
-					readyOnly: validatedInput.readyOnly,
-				});
-			},
-		}) as Tool,
-	);
-
-	tools.push(
-		createTool<
-			TeamClaimTaskInput,
-			{ taskId: string; status: string; nextStep: string }
-		>({
-			name: "team_claim_task",
-			description: "Claim a task by taskId.",
-			inputSchema: zodToJsonSchema(TeamClaimTaskInputSchema),
-			execute: async (input) => {
-				const validatedInput = validateWithZod(TeamClaimTaskInputSchema, input);
-				const task = options.runtime.claimTask(
-					validatedInput.taskId,
-					options.requesterId,
-				);
-				return {
-					taskId: task.id,
-					status: task.status,
-					nextStep:
-						"Task is now in_progress. Execute the work using team_run_task or your own tools, then call team_complete_task when done.",
-				};
-			},
-		}) as Tool,
-	);
-
-	tools.push(
-		createTool<TeamCompleteTaskInput, { taskId: string; status: string }>({
-			name: "team_complete_task",
-			description: "Complete a task by taskId and provide a summary.",
-			inputSchema: zodToJsonSchema(TeamCompleteTaskInputSchema),
-			execute: async (input) => {
-				const validatedInput = validateWithZod(
-					TeamCompleteTaskInputSchema,
-					input,
-				);
-				const task = options.runtime.completeTask(
-					validatedInput.taskId,
-					options.requesterId,
-					validatedInput.summary,
-				);
-				return { taskId: task.id, status: task.status };
-			},
-		}) as Tool,
-	);
-
-	tools.push(
-		createTool<TeamBlockTaskInput, { taskId: string; status: string }>({
-			name: "team_block_task",
-			description: "Block a task by taskId with a reason.",
-			inputSchema: zodToJsonSchema(TeamBlockTaskInputSchema),
-			execute: async (input) => {
-				const validatedInput = validateWithZod(TeamBlockTaskInputSchema, input);
-				const task = options.runtime.blockTask(
-					validatedInput.taskId,
-					options.requesterId,
-					validatedInput.reason,
-				);
-				return { taskId: task.id, status: task.status };
+				const validatedInput = validateWithZod(TeamTaskInputSchema, input);
+				switch (validatedInput.action) {
+					case "create": {
+						const task = options.runtime.createTask({
+							title: validatedInput.title,
+							description: validatedInput.description,
+							dependsOn: validatedInput.dependsOn,
+							assignee: validatedInput.assignee,
+							createdBy: options.requesterId,
+						});
+						return {
+							action: "create",
+							taskId: task.id,
+							status: task.status,
+						};
+					}
+					case "list":
+						return {
+							action: "list",
+							tasks: options.runtime.listTaskItems({
+								status: validatedInput.status,
+								assignee: validatedInput.assignee,
+								unassignedOnly: validatedInput.unassignedOnly,
+								readyOnly: validatedInput.readyOnly,
+							}),
+						};
+					case "claim": {
+						const task = options.runtime.claimTask(
+							validatedInput.taskId,
+							options.requesterId,
+						);
+						return {
+							action: "claim",
+							taskId: task.id,
+							status: task.status,
+							nextStep:
+								"Task is now in_progress. Execute the work using team_run_task or your own tools, then call team_task with action=complete when done.",
+						};
+					}
+					case "complete": {
+						const task = options.runtime.completeTask(
+							validatedInput.taskId,
+							options.requesterId,
+							validatedInput.summary,
+						);
+						return {
+							action: "complete",
+							taskId: task.id,
+							status: task.status,
+						};
+					}
+					case "block": {
+						const task = options.runtime.blockTask(
+							validatedInput.taskId,
+							options.requesterId,
+							validatedInput.reason,
+						);
+						return {
+							action: "block",
+							taskId: task.id,
+							status: task.status,
+						};
+					}
+				}
 			},
 		}) as Tool,
 	);
@@ -915,7 +612,11 @@ export function createAgentTeamsTools(
 					requiredSections: validatedInput.requiredSections,
 					createdBy: options.requesterId,
 				});
-				return { outcomeId: outcome.id, status: outcome.status };
+				return {
+					outcomeId: outcome.id,
+					status: outcome.status,
+					requiredSections: outcome.requiredSections,
+				};
 			},
 		}) as Tool,
 	);

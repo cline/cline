@@ -14,11 +14,11 @@ import type {
 	AgentHookToolCallStartContext,
 	AgentHookTurnEndContext,
 	ToolCallRecord,
-} from "../types.js";
+} from "../types";
 import {
 	type RunSubprocessEventResult,
 	runSubprocessEvent,
-} from "./subprocess-runner.js";
+} from "./subprocess-runner";
 
 export const HookEventNameSchema = z.enum([
 	"agent_start",

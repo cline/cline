@@ -1,7 +1,7 @@
 import * as grpc from "@grpc/grpc-js";
 import * as protoLoader from "@grpc/proto-loader";
-import { resolveRpcProtoPath } from "../proto/resolve-proto-path.js";
-import type { ProtoGrpcType } from "./proto-types.js";
+import { resolveRpcProtoPath } from "../proto/resolve-proto-path";
+import type { ProtoGrpcType } from "./proto-types";
 
 export const PACKAGE_NAME = "cline.rpc.v1";
 export const SERVICE_NAME = "ClineGateway";

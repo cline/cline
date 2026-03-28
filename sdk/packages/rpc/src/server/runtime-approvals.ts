@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
-import { toProtoStruct } from "../proto/serde.js";
-import type { PendingApproval } from "../types.js";
-import { nowIso, safeString } from "./helpers.js";
+import { toProtoStruct } from "../proto/serde";
+import type { PendingApproval } from "../types";
+import { nowIso, safeString } from "./helpers";
 import type {
 	ListPendingApprovalsRequest,
 	ListPendingApprovalsResponse,
@@ -12,7 +12,7 @@ import type {
 	RequestToolApprovalResponse,
 	RespondToolApprovalRequest,
 	RespondToolApprovalResponse,
-} from "./proto-types.js";
+} from "./proto-types";
 
 const DEFAULT_APPROVAL_TIMEOUT_MS = 5 * 60_000;
 

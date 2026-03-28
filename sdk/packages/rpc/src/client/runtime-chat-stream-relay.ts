@@ -2,7 +2,7 @@ import type {
 	RpcRuntimeChatClient,
 	RpcRuntimeEvent,
 	RpcRuntimeStreamStop,
-} from "./runtime-chat-client.js";
+} from "./runtime-chat-client";
 
 export type RpcRuntimeBridgeStreamLine =
 	| {

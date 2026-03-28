@@ -1,4 +1,4 @@
-import type { OAuthLoginCallbacks, OAuthPrompt } from "./types.js";
+import type { OAuthLoginCallbacks, OAuthPrompt } from "./types";
 
 export interface OAuthClientCallbacksOptions {
 	onPrompt: (prompt: OAuthPrompt) => Promise<string>;

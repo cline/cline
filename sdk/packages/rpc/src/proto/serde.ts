@@ -1,6 +1,6 @@
-import type { ListValue } from "./generated/google/protobuf/ListValue.js";
-import type { Struct } from "./generated/google/protobuf/Struct.js";
-import type { Value } from "./generated/google/protobuf/Value.js";
+import type { ListValue } from "./generated/google/protobuf/ListValue";
+import type { Struct } from "./generated/google/protobuf/Struct";
+import type { Value } from "./generated/google/protobuf/Value";
 
 function toValueInternal(input: unknown): Value {
 	if (input === null || input === undefined) {

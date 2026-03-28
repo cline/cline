@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	resolveToolRoutingConfig,
-} from "./model-tool-routing.js";
+} from "./model-tool-routing";
 
 describe("model tool routing", () => {
 	it("applies default codex/gpt routing in act mode", () => {

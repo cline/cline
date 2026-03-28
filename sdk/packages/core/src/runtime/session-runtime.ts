@@ -3,6 +3,7 @@ import type {
 	AgentHooks,
 	AgentResult,
 	AgentTeamsRuntime,
+	DelegatedAgentConfigProvider,
 	Tool,
 } from "@clinebot/agents";
 import type { BasicLogger, ITelemetryService } from "@clinebot/shared";
@@ -17,10 +18,7 @@ export interface BuiltRuntime {
 	telemetry?: ITelemetryService;
 	teamRuntime?: AgentTeamsRuntime;
 	teamRestoredFromPersistence?: boolean;
-	updateTeamTeammateConnectionDefaults?: (overrides: {
-		apiKey?: string;
-		modelId?: string;
-	}) => void;
+	delegatedAgentConfigProvider?: DelegatedAgentConfigProvider;
 	completionGuard?: () => string | undefined;
 	shutdown: (reason: string) => Promise<void> | void;
 }

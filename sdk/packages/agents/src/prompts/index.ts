@@ -1,1 +1,1 @@
-export { getClineDefaultSystemPrompt } from "./cline.js";
+export { getClineDefaultSystemPrompt } from "./cline";

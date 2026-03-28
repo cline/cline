@@ -6,19 +6,19 @@ import {
 	captureAuthSucceeded,
 	identifyAccount,
 } from "../telemetry/core-events";
-import { startLocalOAuthServer } from "./server.js";
+import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,
 	OAuthLoginCallbacks,
 	OAuthProviderInterface,
-} from "./types.js";
+} from "./types";
 import {
 	isCredentialLikelyExpired,
 	parseAuthorizationInput,
 	parseOAuthError,
 	resolveAuthorizationCodeInput,
 	resolveUrl,
-} from "./utils.js";
+} from "./utils";
 
 const DEFAULT_AUTH_ENDPOINTS = {
 	authorize: "/api/v1/auth/authorize",

@@ -6,7 +6,7 @@ import {
 	ReadFilesInputUnionSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputUnionSchema,
-} from "./schemas.js";
+} from "./schemas";
 
 /**
  * Format an error into a string message

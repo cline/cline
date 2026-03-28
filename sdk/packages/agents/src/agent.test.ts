@@ -3,8 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createTool } from "./tools/create.js";
-import type { AgentExtension, Tool } from "./types.js";
+import { createTool } from "./tools/create";
+import type { AgentExtension, Tool } from "./types";
 
 type FakeChunk = Record<string, unknown>;
 

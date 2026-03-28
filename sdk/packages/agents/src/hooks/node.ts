@@ -4,7 +4,7 @@ export {
 	type PersistentHookClientOptions,
 	type PersistentSubprocessHookControl,
 	type PersistentSubprocessHooksOptions,
-} from "./persistent.js";
+} from "./persistent";
 export {
 	createSubprocessHooks,
 	type HookEventName,
@@ -17,9 +17,9 @@ export {
 	runHook,
 	type SubprocessHookControl,
 	type SubprocessHooksOptions,
-} from "./subprocess.js";
+} from "./subprocess";
 export {
 	type RunSubprocessEventOptions,
 	type RunSubprocessEventResult,
 	runSubprocessEvent,
-} from "./subprocess-runner.js";
+} from "./subprocess-runner";

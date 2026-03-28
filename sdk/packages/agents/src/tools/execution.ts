@@ -5,7 +5,7 @@
  */
 
 import type { Tool, ToolCallRecord, ToolContext } from "@clinebot/shared";
-import type { PendingToolCall } from "../types.js";
+import type { PendingToolCall } from "../types";
 
 export interface ToolExecutionObserver {
 	onToolCallStart?: (call: PendingToolCall) => Promise<void> | void;

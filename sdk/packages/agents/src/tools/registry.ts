@@ -4,7 +4,7 @@
  * Utilities for managing collections of tools.
  */
 
-import type { Tool } from "../types.js";
+import type { Tool } from "../types";
 
 /**
  * Create a map of tools by name for quick lookup
