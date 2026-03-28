@@ -34,6 +34,7 @@ import {
 	captureSubagentExecution,
 	captureTaskCompleted,
 } from "../telemetry/core-events";
+import { resolveCoreDistinctId } from "../telemetry/distinct-id";
 import { createBuiltinTools, type ToolExecutors, ToolPresets } from "../tools";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
@@ -122,7 +123,7 @@ async function loadUserFileContent(path: string): Promise<string> {
 }
 
 export interface DefaultSessionManagerOptions {
-	distinctId: string;
+	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
 	createAgent?: (config: AgentConfig) => Agent;
@@ -159,6 +160,7 @@ export class DefaultSessionManager implements SessionManager {
 	constructor(options: DefaultSessionManagerOptions) {
 		const homeDir = homedir();
 		if (homeDir) setHomeDirIfUnset(homeDir);
+		const distinctId = resolveCoreDistinctId(options.distinctId);
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
@@ -174,6 +176,7 @@ export class DefaultSessionManager implements SessionManager {
 				telemetry: options.telemetry,
 			});
 		this.defaultTelemetry = options.telemetry;
+		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultRequestToolApproval = options.requestToolApproval;
 	}
 

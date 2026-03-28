@@ -16,8 +16,8 @@
  *   - Run from the repo root
  */
 
-import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
 
@@ -113,10 +113,7 @@ async function main() {
 
 	if (version === "0.0.0") {
 		const sharedPkg = JSON.parse(
-			readFileSync(
-				join(ROOT_DIR, "packages/shared/package.json"),
-				"utf-8",
-			),
+			readFileSync(join(ROOT_DIR, "packages/shared/package.json"), "utf-8"),
 		);
 		version = sharedPkg.version;
 	}
@@ -168,11 +165,21 @@ async function main() {
 			const bootstrapDir = join(buildDir, "agents");
 			mkdirSync(bootstrapDir, { recursive: true });
 			const content = readFileSync(bootstrapSrc);
-			await Bun.write(join(bootstrapDir, "plugin-sandbox-bootstrap.js"), content);
+			await Bun.write(
+				join(bootstrapDir, "plugin-sandbox-bootstrap.js"),
+				content,
+			);
 		}
 
 		log(`Creating tarball: ${tarballName}`);
-		await exec(["tar", "-czf", join(STAGING_DIR, tarballName), "-C", buildDir, "."]);
+		await exec([
+			"tar",
+			"-czf",
+			join(STAGING_DIR, tarballName),
+			"-C",
+			buildDir,
+			".",
+		]);
 
 		tarballPaths[platform] = join(STAGING_DIR, tarballName);
 	}
@@ -190,7 +197,9 @@ async function main() {
 	// ── Create GitHub release & upload assets ───────────────────────────
 
 	if (DRY_RUN) {
-		log(`[dry-run] Would create release ${tag} on ${REPO} and upload ${TARGETS.length} tarballs`);
+		log(
+			`[dry-run] Would create release ${tag} on ${REPO} and upload ${TARGETS.length} tarballs`,
+		);
 	} else {
 		log(`Creating GitHub release ${tag} on ${REPO}...`);
 
@@ -198,7 +207,16 @@ async function main() {
 		try {
 			await run(["gh", "release", "view", tag, "--repo", REPO]);
 			log(`Release ${tag} already exists, deleting...`);
-			await exec(["gh", "release", "delete", tag, "--repo", REPO, "--yes", "--cleanup-tag"]);
+			await exec([
+				"gh",
+				"release",
+				"delete",
+				tag,
+				"--repo",
+				REPO,
+				"--yes",
+				"--cleanup-tag",
+			]);
 		} catch {
 			// Release doesn't exist, that's fine
 		}
@@ -230,10 +248,22 @@ async function main() {
 
 	let caskContent = readFileSync(TEMPLATE_PATH, "utf-8");
 	caskContent = caskContent.replace(/__CLI_VERSION__/g, version);
-	caskContent = caskContent.replace(/__CLI_MAC_ARM_SHA256__/g, hashes["darwin-arm64"]);
-	caskContent = caskContent.replace(/__CLI_MAC_INTEL_SHA256__/g, hashes["darwin-x64"]);
-	caskContent = caskContent.replace(/__CLI_LINUX_SHA256__/g, hashes["linux-x64"]);
-	caskContent = caskContent.replace(/__CLI_LINUX_ARM_SHA256__/g, hashes["linux-arm64"]);
+	caskContent = caskContent.replace(
+		/__CLI_MAC_ARM_SHA256__/g,
+		hashes["darwin-arm64"],
+	);
+	caskContent = caskContent.replace(
+		/__CLI_MAC_INTEL_SHA256__/g,
+		hashes["darwin-x64"],
+	);
+	caskContent = caskContent.replace(
+		/__CLI_LINUX_SHA256__/g,
+		hashes["linux-x64"],
+	);
+	caskContent = caskContent.replace(
+		/__CLI_LINUX_ARM_SHA256__/g,
+		hashes["linux-arm64"],
+	);
 
 	const caskFile = join(STAGING_DIR, "cline.rb");
 	await Bun.write(caskFile, caskContent);
@@ -251,7 +281,16 @@ async function main() {
 		const tapClone = join(STAGING_DIR, "homebrew-internal-tap");
 
 		log(`Cloning ${TAP_REPO}...`);
-		await exec(["gh", "repo", "clone", TAP_REPO, tapClone, "--", "--depth", "1"]);
+		await exec([
+			"gh",
+			"repo",
+			"clone",
+			TAP_REPO,
+			tapClone,
+			"--",
+			"--depth",
+			"1",
+		]);
 
 		mkdirSync(join(tapClone, "Casks"), { recursive: true });
 		const caskData = readFileSync(caskFile);
@@ -269,10 +308,9 @@ async function main() {
 		if (diffResult.exitCode === 0) {
 			log("No changes to Casks/cline.rb, skipping push.");
 		} else {
-			await exec(
-				["git", "commit", "-m", `Update cline cask to v${version}`],
-				{ cwd: tapClone },
-			);
+			await exec(["git", "commit", "-m", `Update cline cask to v${version}`], {
+				cwd: tapClone,
+			});
 			await exec(["git", "push", "origin", "HEAD"], { cwd: tapClone });
 			log(`Pushed Casks/cline.rb to ${TAP_REPO}`);
 		}

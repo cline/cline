@@ -1,7 +1,7 @@
 {
 	"name": "@clinebot/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.23",
+	"version": "0.0.22",
 	"type": "module",
 	"types": "./dist/index.d.ts",
 	"main": "./dist/index.js",
@@ -47,6 +47,7 @@
 		"@opentelemetry/sdk-metrics": "^1.30.1",
 		"@opentelemetry/semantic-conventions": "^1.37.0",
 		"jiti": "^1.21.7",
+		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
 		"simple-git": "^3.32.3",
 		"yaml": "^2.8.2",

@@ -290,7 +290,6 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 	const RPC_SESSION_COMPONENT = "rpc-runtime-session";
 	const processId = process.pid.toString();
 	const sessionManager = new DefaultSessionManager({
-		distinctId: processId,
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
 	});
 	const hookService = new RpcRuntimeHookService();

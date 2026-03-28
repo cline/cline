@@ -1,4 +1,8 @@
-import { formatHumanReadableDate } from "@clinebot/shared";
+import {
+	formatHumanReadableDate,
+	normalizeUserInput,
+	truncateStr,
+} from "@clinebot/shared";
 import { Box, render, Text, useInput } from "ink";
 import React, { useMemo, useState } from "react";
 import { formatUsd, writeln } from "../utils/output";
@@ -9,15 +13,28 @@ import {
 } from "../utils/session-history-rows";
 import type { CliOutputMode } from "../utils/types";
 
+function formatHistoryTitle(
+	title: string | undefined,
+	prompt: string | undefined,
+): string | undefined {
+	const rawTitle = title?.trim() || prompt?.trim() || undefined;
+	if (!rawTitle) return;
+	const normalized = normalizeUserInput(rawTitle);
+	return truncateStr(normalized.replace(/\s+/g, " "), 40);
+}
+
 export function formatHistoryListLine(row: HistoryListRow): string {
-	const sessionId = row.sessionId.trim() || "(unknown-session)";
-	const title =
-		row.metadata?.title?.trim() || row.prompt?.trim() || "(no-title)";
-	const cost = formatUsd(row.metadata?.totalCost ?? 0);
-	const provider = row.provider?.trim() || "(unknown-provider)";
-	const model = row.model?.trim() || "(unknown-model)";
+	// const sessionId = truncateStr(row.sessionId.trim() || "(unknown-session)", 28);
+	const title = formatHistoryTitle(row.metadata?.title, row.prompt);
+	if (!title) return "";
+	const cost = formatUsd(row.metadata?.totalCost ?? 0, 2);
+	const provider = truncateStr(
+		row.provider?.trim() || "(unknown-provider)",
+		20,
+	);
+	const model = truncateStr(row.model?.trim() || "(unknown-model)", 28);
 	const date = formatHumanReadableDate(row.startedAt);
-	return `${date} - ${sessionId} - ${title} - ${cost} - ${provider} - ${model}`;
+	return `${date} - ${cost} - ${provider}:${model} - ${title} `;
 }
 
 type HistoryIo = {
@@ -152,24 +169,26 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 		React.createElement(
 			Text,
 			{ bold: true, color: "cyan" },
-			"Session History (Up/Down to navigate, Enter to continue, Esc to quit)",
+			"Sessions (Up/Down to navigate | Enter to resume | Esc to quit)",
 		),
 		React.createElement(
 			Box,
 			{ flexDirection: "column", marginTop: 1 },
-			visibleWindow.items.map((row, index) => {
-				const absoluteIndex = visibleWindow.startIndex + index;
-				const isSelected = absoluteIndex === selectedIndex;
-				return React.createElement(
-					Text,
-					{
-						key: row.sessionId || absoluteIndex,
-						color: isSelected ? "blue" : undefined,
-						inverse: isSelected,
-					},
-					`${isSelected ? "❯" : " "} ${formatHistoryListLine(row)}`,
-				);
-			}),
+			visibleWindow.items
+				.filter((row) => !!row.prompt?.trim())
+				.map((row, index) => {
+					const absoluteIndex = visibleWindow.startIndex + index;
+					const isSelected = absoluteIndex === selectedIndex;
+					return React.createElement(
+						Text,
+						{
+							key: row.sessionId || absoluteIndex,
+							color: isSelected ? "blue" : undefined,
+							inverse: isSelected,
+						},
+						`${isSelected ? "❯" : " "} ${formatHistoryListLine(row)}`,
+					);
+				}),
 		),
 		rows.length > pageSize &&
 			React.createElement(

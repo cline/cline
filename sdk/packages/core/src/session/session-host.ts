@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import type {
 	AgentConfig,
@@ -9,8 +9,8 @@ import type {
 import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
 import type { ITelemetryService } from "@clinebot/shared";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
-import { nanoid } from "nanoid";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
+import { resolveCoreDistinctId } from "../telemetry/distinct-id";
 import type { ToolExecutors } from "../tools";
 import { DefaultSessionManager } from "./default-session-manager";
 import { FileSessionService } from "./file-session-service";
@@ -129,37 +129,6 @@ function createLocalBackend(): SessionBackend {
 	}
 }
 
-function resolveHostDistinctId(explicitDistinctId: string | undefined): string {
-	if (
-		typeof explicitDistinctId === "string" &&
-		explicitDistinctId.trim().length > 0
-	) {
-		return explicitDistinctId.trim();
-	}
-
-	const sessionDataDir = resolveSessionDataDir();
-	const distinctIdPath = resolve(sessionDataDir, "machine-id");
-	try {
-		if (existsSync(distinctIdPath)) {
-			const savedDistinctId = readFileSync(distinctIdPath, "utf8").trim();
-			if (savedDistinctId.length > 0) {
-				return savedDistinctId;
-			}
-		}
-	} catch {
-		// Ignore read errors and generate a fresh fallback ID.
-	}
-
-	const generatedDistinctId = nanoid();
-	try {
-		mkdirSync(sessionDataDir, { recursive: true });
-		writeFileSync(distinctIdPath, generatedDistinctId, "utf8");
-	} catch {
-		// Ignore write errors and continue with in-memory fallback.
-	}
-	return generatedDistinctId;
-}
-
 export async function resolveSessionBackend(
 	options: CreateSessionHostOptions,
 ): Promise<SessionBackend> {
@@ -227,7 +196,7 @@ export async function resolveSessionBackend(
 export async function createSessionHost(
 	options: CreateSessionHostOptions,
 ): Promise<SessionHost> {
-	const distinctId = resolveHostDistinctId(options.distinctId);
+	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const backend =
 		options.sessionService ?? (await resolveSessionBackend(options));

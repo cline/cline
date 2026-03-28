@@ -13,7 +13,7 @@ import type * as LlmsProviders from "@clinebot/llms/providers";
 import { normalizeUserInput, resolveRootSessionId } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import type { SessionStatus } from "../types/common";
+import { SessionSource, type SessionStatus } from "../types/common";
 import { nowIso, SessionArtifacts, unlinkIfExists } from "./session-artifacts";
 import {
 	deriveSubsessionStatus,
@@ -31,16 +31,14 @@ import type {
 	UpsertSubagentInput,
 } from "./session-service";
 
-const SUBSESSION_SOURCE = "cli_subagent";
+const SUBSESSION_SOURCE = SessionSource.SUBAGENT;
 const MAX_TITLE_LENGTH = 120;
 const OCC_MAX_RETRIES = 4;
 
-const SpawnAgentInputSchema = z
-	.object({
-		task: z.string().optional(),
-		systemPrompt: z.string().optional(),
-	})
-	.passthrough();
+const SpawnAgentInputSchema = z.looseObject({
+	task: z.string().optional(),
+	systemPrompt: z.string().optional(),
+});
 
 // ── Metadata helpers ──────────────────────────────────────────────────
 

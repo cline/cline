@@ -294,14 +294,10 @@ function toManifestFromSessionRow(
 	if (!row) {
 		return undefined;
 	}
-	const source = row.source?.trim() as SessionSource | undefined;
-	if (!source || !Object.values(SessionSource).includes(source)) {
-		return undefined;
-	}
 	return {
 		version: 1,
 		session_id: row.sessionId?.trim() || sessionId,
-		source,
+		source: row.source?.trim() || SessionSource.UNKNOWN,
 		pid: row.pid,
 		started_at: row.startedAt,
 		ended_at: row.endedAt || undefined,
@@ -332,10 +328,8 @@ function toFallbackManifest(
 	return {
 		version: 1,
 		session_id: sessionId,
-		source:
-			source === "cli-subagent"
-				? SessionSource.CLI_SUBAGENT
-				: SessionSource.CLI,
+		// Best effort to set a meaningful source even when manifest is unavailable.
+		source: source || SessionSource.UNKNOWN,
 		pid: process.pid,
 		started_at: new Date().toISOString(),
 		status: "running",

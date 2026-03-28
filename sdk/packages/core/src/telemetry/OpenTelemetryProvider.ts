@@ -25,6 +25,7 @@ import {
 	ATTR_SERVICE_NAME,
 	ATTR_SERVICE_VERSION,
 } from "@opentelemetry/semantic-conventions";
+import { resolveCoreDistinctId } from "./distinct-id";
 import {
 	OpenTelemetryAdapter,
 	type OpenTelemetryAdapterOptions,
@@ -111,7 +112,7 @@ export class OpenTelemetryProvider {
 		});
 		return new TelemetryService({
 			adapters: [adapter],
-			distinctId: options.distinctId,
+			distinctId: resolveCoreDistinctId(options.distinctId),
 			commonProperties: options.commonProperties,
 			logger: options.logger,
 		});
@@ -232,7 +233,9 @@ export function createConfiguredTelemetryService(
 } {
 	if (options.enabled !== true) {
 		return {
-			telemetry: new TelemetryService(),
+			telemetry: new TelemetryService({
+				distinctId: resolveCoreDistinctId(options.distinctId),
+			}),
 		};
 	}
 

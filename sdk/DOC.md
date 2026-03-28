@@ -244,7 +244,7 @@ await provider.dispose()
 
 Notes:
 - `telemetry` can be passed either at host construction time (`createSessionHost({ telemetry })`) or directly on `CoreSessionConfig`.
-- `createSessionHost` will attach the resolved SDK distinct ID to the telemetry service automatically.
+- Core resolves a default distinct ID from `node-machine-id` and uses that for both telemetry services and session hosts unless you pass an explicit `distinctId` override.
 - The session manager emits basic lifecycle events including `session.started`, `session.input_sent`, `session.aborted`, and `session.stopped`.
 - The OpenTelemetry provider subpath stays separate from the main core barrel so OpenTelemetry code is only loaded when you import it.
 

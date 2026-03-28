@@ -11,7 +11,12 @@ export function formatUserInputBlock(
 
 export function normalizeUserInput(input?: string): string {
 	if (!input?.trim()) return "";
-	return xmlTagsRemoval(input, "user_input");
+	// First try to extract content from properly closed tags
+	const extracted = xmlTagsRemoval(input, "user_input");
+	const withoutTags = (
+		extracted !== input ? extracted : input.replace(/<user_input[^>]*>/g, "")
+	).trim();
+	return withoutTags;
 }
 
 export function xmlTagsRemoval(input?: string, tag?: string): string {

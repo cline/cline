@@ -175,17 +175,17 @@ export function writeErr(text: string): void {
 // Formatting helpers
 // =============================================================================
 
-export function formatUsd(value: number): string {
-	if (!Number.isFinite(value)) {
+export function formatUsd(value: number, fixed = 6): string {
+	if (!Number.isFinite(value) || value <= 0) {
 		return "$0.00";
 	}
 	if (value >= 1) {
-		return `$${value.toFixed(2)}`;
+		return `$${value.toFixed(fixed)}`;
 	}
 	if (value >= 0.01) {
-		return `$${value.toFixed(4)}`;
+		return `$${value.toFixed(fixed)}`;
 	}
-	return `$${value.toFixed(6)}`;
+	return `$${value.toFixed(fixed)}`;
 }
 
 export function formatCreditBalance(value: number): string {
