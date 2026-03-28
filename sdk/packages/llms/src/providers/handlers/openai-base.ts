@@ -12,6 +12,10 @@
 import OpenAI from "openai";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions";
 import {
+	getMissingApiKeyError,
+	resolveApiKeyForProvider,
+} from "../runtime/auth";
+import {
 	convertToOpenAIMessages,
 	getOpenAIToolParams,
 } from "../transform/openai-format";
@@ -26,7 +30,6 @@ import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
-import { getMissingApiKeyError, resolveApiKeyForProvider } from "./auth";
 import { BaseHandler } from "./base";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;

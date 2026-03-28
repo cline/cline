@@ -12,7 +12,7 @@ import {
 	ModelQueryConfigSchema,
 	matchesQuery,
 	sortModels,
-} from "./schemas/index";
+} from "./types/index";
 
 // =============================================================================
 // Query Execution

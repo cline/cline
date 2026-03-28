@@ -1,4 +1,4 @@
-import type { ModelInfo } from "./schemas/index";
+import type { ModelInfo } from "./types/index";
 
 export interface ModelsDevModel {
 	name?: string;

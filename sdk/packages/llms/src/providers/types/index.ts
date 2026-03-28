@@ -40,44 +40,7 @@ export {
 	supportsPromptCache,
 	supportsReasoning,
 	type TokenConfig,
-} from "./config";
-// Handler types
-export type {
-	ApiHandler,
-	HandlerFactory,
-	HandlerModelInfo,
-	LazyHandlerFactory,
-	SingleCompletionHandler,
-} from "./handler";
-
-// Message types
-export type {
-	ContentBlock,
-	FileContent,
-	ImageContent,
-	Message,
-	MessageRole,
-	MessageWithMetadata,
-	RedactedThinkingContent,
-	TextContent,
-	ThinkingContent,
-	ToolDefinition,
-	ToolResultContent,
-	ToolUseContent,
-} from "./messages";
-// Model information types
-export {
-	ApiFormat,
-	getModelPricing,
-	hasModelCapability,
-	type ModelCapability,
-	type ModelInfo,
-	type ModelPricing,
-	type ModelWithId,
-	type OpenAICompatibleModelInfo,
-	supportsModelThinking,
-	type ThinkingConfig,
-} from "./model-info";
+} from "../config/provider-config";
 // Settings types and functions (Zod-based validation)
 export {
 	type AuthSettings,
@@ -107,7 +70,43 @@ export {
 	safeCreateProviderConfig,
 	safeParseSettings,
 	toProviderConfig,
-} from "./settings";
+} from "../config/provider-settings";
+// Handler types
+export type {
+	ApiHandler,
+	HandlerFactory,
+	HandlerModelInfo,
+	LazyHandlerFactory,
+	SingleCompletionHandler,
+} from "./handler";
+// Message types
+export type {
+	ContentBlock,
+	FileContent,
+	ImageContent,
+	Message,
+	MessageRole,
+	MessageWithMetadata,
+	RedactedThinkingContent,
+	TextContent,
+	ThinkingContent,
+	ToolDefinition,
+	ToolResultContent,
+	ToolUseContent,
+} from "./messages";
+// Model information types
+export {
+	ApiFormat,
+	getModelPricing,
+	hasModelCapability,
+	type ModelCapability,
+	type ModelInfo,
+	type ModelPricing,
+	type ModelWithId,
+	type OpenAICompatibleModelInfo,
+	supportsModelThinking,
+	type ThinkingConfig,
+} from "./model-info";
 // Stream types
 export type {
 	ApiStream,

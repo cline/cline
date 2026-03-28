@@ -7,7 +7,7 @@
  * Uses lazy loading - providers are only loaded when first accessed.
  */
 import { GENERATED_PROVIDER_LOADER_ENTRIES } from "./generated-provider-loaders";
-import type { ModelCollection, ModelInfo, ProviderInfo } from "./schemas/index";
+import type { ModelCollection, ModelInfo, ProviderInfo } from "./types/index";
 
 // =============================================================================
 // Types

@@ -2,7 +2,7 @@ import type { ModelCollection, ModelInfo, ProviderInfo } from "../models/index";
 import type {
 	ProviderCapability as ModelProviderCapability,
 	ProviderProtocol,
-} from "../models/schemas/index";
+} from "../models/types/index";
 import type {
 	ApiHandler,
 	BuiltInProviderId,

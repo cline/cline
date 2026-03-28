@@ -91,7 +91,7 @@ export {
 	ThinkingConfigSchema,
 	validateModelInfo,
 	validateQueryConfig,
-} from "./schemas/index";
+} from "./types/index";
 
 // =============================================================================
 // Registry Exports
@@ -268,4 +268,4 @@ export {
 	// xAI
 	XAI_MODELS,
 	XAI_PROVIDER,
-} from "./providers/index";
+} from "./catalog/providers/index";

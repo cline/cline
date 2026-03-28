@@ -3,7 +3,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ModelInfo } from "../src/models/schemas/index.js";
+import type { ModelInfo } from "../src/models/types/index.js";
 import { generateProviderLoaders } from "./generate-provider-loaders";
 import { loadModelsDevProviderModels } from "./models/generate-models-dev";
 
@@ -79,7 +79,7 @@ async function generate(): Promise<void> {
  * - ./scripts/generate-models-dev.ts
  */
 
-import type { ModelInfo } from "./schemas/index.js"
+import type { ModelInfo } from "./types/index.js"
 
 export const GENERATED_PROVIDER_MODELS: {
   version: number

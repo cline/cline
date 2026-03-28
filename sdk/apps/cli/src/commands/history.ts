@@ -10,13 +10,13 @@ import {
 import type { CliOutputMode } from "../utils/types";
 
 export function formatHistoryListLine(row: HistoryListRow): string {
-	const sessionId = row.session_id?.trim() || "(unknown-session)";
+	const sessionId = row.sessionId.trim() || "(unknown-session)";
 	const title =
 		row.metadata?.title?.trim() || row.prompt?.trim() || "(no-title)";
 	const cost = formatUsd(row.metadata?.totalCost ?? 0);
 	const provider = row.provider?.trim() || "(unknown-provider)";
 	const model = row.model?.trim() || "(unknown-model)";
-	const date = formatHumanReadableDate(row.started_at);
+	const date = formatHumanReadableDate(row.startedAt);
 	return `${date} - ${sessionId} - ${title} - ${cost} - ${provider} - ${model}`;
 }
 
@@ -138,8 +138,8 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 			setSelectedIndex((prev) => (prev < rows.length - 1 ? prev + 1 : 0));
 		} else if (key.return) {
 			const selected = rows[selectedIndex];
-			if (selected?.session_id) {
-				onSelect(selected.session_id);
+			if (selected?.sessionId) {
+				onSelect(selected.sessionId);
 			}
 		} else if (key.escape || (key.ctrl && input === "c")) {
 			onExit();
@@ -163,7 +163,7 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 				return React.createElement(
 					Text,
 					{
-						key: row.session_id ?? absoluteIndex,
+						key: row.sessionId || absoluteIndex,
 						color: isSelected ? "blue" : undefined,
 						inverse: isSelected,
 					},

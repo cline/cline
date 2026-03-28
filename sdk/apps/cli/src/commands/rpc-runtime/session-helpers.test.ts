@@ -1,18 +1,18 @@
 import { describe, expect, it, vi } from "vitest";
 
-vi.mock("@clinebot/core", () => ({
-	LlmsProviders: {
-		normalizeProviderId: vi.fn((provider: string) => provider),
-	},
-	setHomeDir: vi.fn(),
-	setHomeDirIfUnset: vi.fn(),
-}));
-
-vi.mock("@clinebot/core", () => ({
-	SessionSource: {
-		CLI: "cli",
-	},
-}));
+vi.mock("@clinebot/core", async () => {
+	const actual =
+		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
+	return {
+		...actual,
+		LlmsProviders: {
+			...actual.LlmsProviders,
+			normalizeProviderId: vi.fn((provider: string) => provider),
+		},
+		setHomeDir: vi.fn(),
+		setHomeDirIfUnset: vi.fn(),
+	};
+});
 
 vi.mock("../../runtime/prompt", () => ({
 	resolveSystemPrompt: vi.fn(async () => "resolved system prompt"),

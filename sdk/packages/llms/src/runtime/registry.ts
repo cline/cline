@@ -4,6 +4,7 @@ import {
 	registerModel as registerModelInCatalog,
 	registerProvider as registerProviderInCatalog,
 } from "../models/index";
+import { BUILT_IN_PROVIDER_IDS } from "../providers/config/provider-ids";
 import {
 	type ApiHandler,
 	createHandler as createProviderHandler,
@@ -11,7 +12,6 @@ import {
 	registerAsyncHandler,
 	registerHandler,
 } from "../providers/index";
-import { BUILT_IN_PROVIDER_IDS } from "../providers/types/provider-ids";
 import type {
 	BuiltInProviderSummary,
 	CreateHandlerInput,

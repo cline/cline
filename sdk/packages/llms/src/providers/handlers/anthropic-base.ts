@@ -11,6 +11,10 @@ import type {
 	RawMessageStreamEvent,
 } from "@anthropic-ai/sdk/resources";
 import {
+	getMissingApiKeyError,
+	resolveApiKeyForProvider,
+} from "../runtime/auth";
+import {
 	convertToAnthropicMessages,
 	convertToolsToAnthropic,
 } from "../transform/anthropic-format";
@@ -23,7 +27,6 @@ import {
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
-import { getMissingApiKeyError, resolveApiKeyForProvider } from "./auth";
 import { BaseHandler } from "./base";
 
 const DEFAULT_THINKING_BUDGET_TOKENS = 1024;

@@ -13,14 +13,16 @@ const ensureRpcRuntimeAddress = vi.fn();
 
 class MockRpcCoreSessionService {}
 
-vi.mock("@clinebot/core", () => ({
-	RpcCoreSessionService: MockRpcCoreSessionService,
-	resolveSessionBackend,
-	createSessionHost: vi.fn(),
-	SessionSource: {
-		CLI: "cli",
-	},
-}));
+vi.mock("@clinebot/core", async () => {
+	const actual =
+		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
+	return {
+		...actual,
+		RpcCoreSessionService: MockRpcCoreSessionService as any,
+		resolveSessionBackend,
+		createSessionHost: vi.fn(),
+	};
+});
 
 vi.mock("@clinebot/rpc", () => ({
 	getRpcServerDefaultAddress: vi.fn(() => "127.0.0.1:4317"),

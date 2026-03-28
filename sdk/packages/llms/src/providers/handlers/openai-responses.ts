@@ -13,6 +13,10 @@
 
 import OpenAI from "openai";
 import {
+	getMissingApiKeyError,
+	resolveApiKeyForProvider,
+} from "../runtime/auth";
+import {
 	normalizeToolUseInput,
 	serializeToolResultContent,
 } from "../transform/content-format";
@@ -30,7 +34,6 @@ import type {
 	ToolUseContent,
 } from "../types/messages";
 import { retryStream } from "../utils/retry";
-import { getMissingApiKeyError, resolveApiKeyForProvider } from "./auth";
 import { BaseHandler } from "./base";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;

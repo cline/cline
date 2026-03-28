@@ -1,8 +1,8 @@
 import { fstatSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("node:fs", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("node:fs")>();
+vi.mock("node:fs", async () => {
+	const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
 	return { ...actual, fstatSync: vi.fn(actual.fstatSync) };
 });
 
@@ -64,27 +64,36 @@ vi.mock("./runtime/run-interactive", () => {
 	};
 });
 vi.mock("./utils/session", () => sessionMocks);
-vi.mock("@clinebot/core", () => ({
-	createTeamName: vi.fn(() => "team-test"),
-	createUserInstructionConfigWatcher: vi.fn(() => ({
-		start: vi.fn(async () => {}),
-		stop: vi.fn(() => {}),
-	})),
-	loadRulesForSystemPromptFromWatcher: vi.fn(() => []),
-	ProviderSettingsManager: class {
-		getLastUsedProviderSettings() {
-			return undefined;
-		}
-		getProviderSettings() {
-			return undefined;
-		}
-		saveProviderSettings() {}
-	},
-}));
-vi.mock("./commands/auth", () => authMocks);
-vi.mock("@clinebot/llms/providers", async (importOriginal) => {
+vi.mock("@clinebot/core", async () => {
 	const actual =
-		await importOriginal<typeof import("@clinebot/llms/providers")>();
+		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
+	return {
+		...actual,
+		createTeamName: vi.fn(() => "team-test"),
+		createUserInstructionConfigWatcher: vi.fn(
+			() =>
+				({
+					start: vi.fn(async () => {}),
+					stop: vi.fn(() => {}),
+				}) as any,
+		),
+		loadRulesForSystemPromptFromWatcher: vi.fn(() => []),
+		ProviderSettingsManager: class {
+			getLastUsedProviderSettings() {
+				return undefined;
+			}
+			getProviderSettings() {
+				return undefined;
+			}
+			saveProviderSettings() {}
+		},
+	};
+});
+vi.mock("./commands/auth", () => authMocks);
+vi.mock("@clinebot/llms/providers", async () => {
+	const actual = await vi.importActual<
+		typeof import("@clinebot/llms/providers")
+	>("@clinebot/llms/providers");
 	return {
 		...actual,
 		resolveProviderConfig: llmMocks.resolveProviderConfig,

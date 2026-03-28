@@ -3,8 +3,8 @@ import { createHandler } from "../index";
 import type { ApiStreamChunk } from "../types";
 import { AskSageHandler } from "./asksage";
 
-vi.mock("./auth", async () => {
-	const actual = await vi.importActual("./auth");
+vi.mock("../runtime/auth", async () => {
+	const actual = await vi.importActual("../runtime/auth");
 	return {
 		...(actual as object),
 		resolveApiKeyForProvider: (_providerId: string, explicitApiKey?: string) =>

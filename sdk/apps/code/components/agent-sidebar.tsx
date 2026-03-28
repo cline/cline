@@ -84,6 +84,8 @@ type SessionTitleUpdatedEvent = CustomEvent<{
 
 const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
+const INITIAL_HISTORY_FETCH_LIMIT = 300;
+const INITIAL_VISIBLE_THREAD_COUNT = 10;
 
 function parseTimestamp(value?: string): number {
 	if (!value) return Number.NEGATIVE_INFINITY;
@@ -112,10 +114,10 @@ function compareSessionsByStartedAtDesc(
 }
 
 function normalizeDiscoveredStatus(
-	status: string,
+	status?: string,
 	prompt?: string,
 ): SessionHistoryStatus {
-	const normalized = status.toLowerCase();
+	const normalized = (status || "").toLowerCase();
 	const hasPrompt = Boolean(prompt?.trim());
 	if (normalized.includes("complete") || normalized.includes("done"))
 		return "completed";
@@ -429,10 +431,12 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
-	const [showMoreCount, setShowMoreCount] = useState(10);
+	const [showMoreCount, setShowMoreCount] = useState(
+		INITIAL_VISIBLE_THREAD_COUNT,
+	);
 	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
-	const fetchLimitRef = useRef(10);
+	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -506,7 +510,13 @@ export function AgentSidebar({
 				.map((session) => {
 					const normalized: SessionHistoryItem = {
 						...session,
+						sessionId: String(session.sessionId ?? "").trim(),
 						status: normalizeDiscoveredStatus(session.status, session.prompt),
+						provider: session.provider || "",
+						model: session.model || "",
+						cwd: session.cwd || "",
+						workspaceRoot: session.workspaceRoot || session.cwd || "",
+						startedAt: String(session.startedAt ?? ""),
 						metadata:
 							session.metadata && typeof session.metadata === "object"
 								? (session.metadata as SessionMetadata)
@@ -514,6 +524,7 @@ export function AgentSidebar({
 					};
 					return normalized;
 				})
+				.filter((session) => Boolean(session.sessionId))
 				.filter((session) => !session.isSubagent && !session.parentSessionId)
 				.sort(compareSessionsByStartedAtDesc);
 			const mergedSessions = mergeDiscoveredSessions(
@@ -816,7 +827,7 @@ export function AgentSidebar({
 				<DropdownMenuRadioGroup
 					onValueChange={(value) => {
 						setFilter(value as FilterOption);
-						setShowMoreCount(10);
+						setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
 					}}
 					value={filter}
 				>
@@ -994,7 +1005,8 @@ export function AgentSidebar({
 								)}
 								disabled={isLoadingMore}
 								onClick={() => {
-									const nextCount = showMoreCount + 10;
+									const nextCount =
+										showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
 									setShowMoreCount(nextCount);
 									if (fetchLimitRef.current < nextCount) {
 										fetchLimitRef.current = nextCount;

@@ -1,7 +1,7 @@
+import { resolveApiKeyForProvider } from "../runtime/auth";
 import type { ApiStream, HandlerModelInfo, ProviderConfig } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type { ContentBlock, Message } from "../types/messages";
-import { resolveApiKeyForProvider } from "./auth";
 import { FetchBaseHandler } from "./fetch-base";
 
 export const DEFAULT_ASKSAGE_BASE_URL = "https://api.asksage.ai/server";

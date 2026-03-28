@@ -1,11 +1,11 @@
-import type { ProviderCapability } from "./models/schemas/index";
+import type { ProviderCapability } from "./models/types/index";
 import {
 	buildOpenAICompatibleProviderDefaults,
 	type OpenAICompatibleProviderDefaults,
-} from "./providers/shared/openai-compatible";
+} from "./providers/runtime/openai-compatible";
 
 export * as models from "./models/index";
-export type { ProviderCapability } from "./models/schemas/index";
+export type { ProviderCapability } from "./models/types/index";
 
 export interface CatalogProviderDefaults
 	extends Omit<OpenAICompatibleProviderDefaults, "capabilities"> {

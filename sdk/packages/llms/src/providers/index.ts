@@ -241,7 +241,7 @@ import { CLINE_PROVIDER } from "../models";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
-} from "../models/providers/oca";
+} from "../models/catalog/providers/oca";
 // =============================================================================
 // Main Factory Function
 // =============================================================================
@@ -260,19 +260,19 @@ import {
 import { GeminiHandler } from "./handlers/gemini-base";
 import { OpenAIBaseHandler } from "./handlers/openai-base";
 import { OpenAIResponsesHandler } from "./handlers/openai-responses";
+import { VertexHandler } from "./handlers/vertex";
 import {
 	isOpenAICompatibleProvider,
 	OPENAI_COMPATIBLE_PROVIDERS,
 	type ProviderDefaults,
 	resolveProviderConfig,
-} from "./handlers/providers";
+} from "./runtime/provider-defaults";
 import {
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
 	isRegisteredHandlerAsync,
-} from "./handlers/registry";
-import { VertexHandler } from "./handlers/vertex";
+} from "./runtime/registry";
 import {
 	ApiFormat,
 	type ApiHandler,

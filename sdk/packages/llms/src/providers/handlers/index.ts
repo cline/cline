@@ -4,14 +4,38 @@
  * Re-exports all handler classes and factory functions.
  */
 
-export { AnthropicHandler, createAnthropicHandler } from "./anthropic-base";
-export { AskSageHandler, createAskSageHandler } from "./asksage";
 export {
 	getMissingApiKeyError,
 	getProviderEnvKeys,
 	normalizeProviderId,
 	resolveApiKeyForProvider,
-} from "./auth";
+} from "../runtime/auth";
+// Provider configurations
+export {
+	clearLiveModelsCatalogCache,
+	clearPrivateModelsCatalogCache,
+	DEFAULT_MODELS_CATALOG_URL,
+	getLiveModelsCatalog,
+	getProviderConfig,
+	isOpenAICompatibleProvider,
+	OPENAI_COMPATIBLE_PROVIDERS,
+	type ProviderDefaults,
+	resolveProviderConfig,
+} from "../runtime/provider-defaults";
+// Custom handler registry
+export {
+	clearRegistry,
+	getRegisteredHandler,
+	getRegisteredHandlerAsync,
+	getRegisteredProviderIds,
+	hasRegisteredHandler,
+	isRegisteredHandlerAsync,
+	registerAsyncHandler,
+	registerHandler,
+	unregisterHandler,
+} from "../runtime/registry";
+export { AnthropicHandler, createAnthropicHandler } from "./anthropic-base";
+export { AskSageHandler, createAskSageHandler } from "./asksage";
 // Base classes
 export { BaseHandler } from "./base";
 export { BedrockHandler, createBedrockHandler } from "./bedrock-base";
@@ -38,30 +62,6 @@ export {
 	createOpenAIResponsesHandler,
 	OpenAIResponsesHandler,
 } from "./openai-responses";
-// Provider configurations
-export {
-	clearLiveModelsCatalogCache,
-	clearPrivateModelsCatalogCache,
-	DEFAULT_MODELS_CATALOG_URL,
-	getLiveModelsCatalog,
-	getProviderConfig,
-	isOpenAICompatibleProvider,
-	OPENAI_COMPATIBLE_PROVIDERS,
-	type ProviderDefaults,
-	resolveProviderConfig,
-} from "./providers";
 // R1-based handlers (DeepSeek Reasoner, etc.)
 export { createR1Handler, R1BaseHandler } from "./r1-base";
-// Custom handler registry
-export {
-	clearRegistry,
-	getRegisteredHandler,
-	getRegisteredHandlerAsync,
-	getRegisteredProviderIds,
-	hasRegisteredHandler,
-	isRegisteredHandlerAsync,
-	registerAsyncHandler,
-	registerHandler,
-	unregisterHandler,
-} from "./registry";
 export { createVertexHandler, VertexHandler } from "./vertex";
