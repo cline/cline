@@ -62,6 +62,7 @@ describe("PromptRegistry", () => {
 				{ id: "claude-sonnet-4", expected: ModelFamily.NEXT_GEN },
 				{ id: "gpt-5", provider: "cline", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
 				{ id: "gpt-5", provider: "openai-native", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
+				{ id: "gpt-oss-120b", provider: "openai-compatible", expected: ModelFamily.NATIVE_GPT_5, useNativeTools: true },
 				{ id: "gpt-5", provider: "cline", expected: ModelFamily.GPT_5, useNativeTools: false },
 				{ id: "gpt-5-1", provider: "openai-native", expected: ModelFamily.NATIVE_GPT_5_1, useNativeTools: true },
 				{ id: "openai/gpt-5", expected: ModelFamily.NEXT_GEN },
@@ -99,6 +100,36 @@ describe("PromptRegistry", () => {
 				// It's okay if it throws an error about missing variants
 				expect(error).to.be.instanceOf(Error)
 			}
+		})
+	})
+
+	describe("native tools", () => {
+		it("should not include focus_chain in native tools output", async () => {
+			const nativeContext: SystemPromptContext = {
+				...mockContext,
+				enableNativeToolCalls: true,
+				providerInfo: {
+					...mockProviderInfo,
+					providerId: "openai-native",
+					model: { ...mockProviderInfo.model, id: "gpt-5" },
+				},
+			}
+
+			await registry.get(nativeContext)
+			const nativeTools = registry.nativeTools
+
+			expect(nativeTools).to.be.an("array").that.is.not.empty
+
+			// OpenAI-native tools are function tools; keep a fallback for other providers.
+			const toolNames = (nativeTools as any[]).map((tool) => {
+				if (tool?.type === "function") {
+					return tool.function?.name
+				}
+				return tool?.name
+			})
+
+			expect(toolNames).to.not.include("focus_chain")
+			expect(JSON.stringify(nativeTools)).to.not.include('"focus_chain"')
 		})
 	})
 

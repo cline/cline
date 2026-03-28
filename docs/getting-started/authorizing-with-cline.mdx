@@ -1,0 +1,166 @@
+---
+title: "Authorization & Model Selection"
+description: "Authenticate with Cline and choose your first AI model"
+---
+
+Cline connects to AI models through a **provider**. You have two paths:
+
+<CardGroup cols={2}>
+  <Card title="Cline Provider" icon="bolt">
+    Sign in with Google, GitHub, or email. No API keys to manage — access multiple models with built-in billing, free options, and early access to new releases.
+
+    **Best for:** Most users, fastest setup
+  </Card>
+  <Card title="Bring Your Own Key (BYOK)" icon="key">
+    Use 3rd party provider or API keys from Anthropic, OpenAI, OpenRouter, or any supported provider. Run models locally with Ollama or LM Studio for complete privacy.
+
+    **Best for:** Enterprise, custom billing, local models
+  </Card>
+</CardGroup>
+
+<Tip>
+  **Watch:** [Selecting Your Model](https://youtu.be/GuPmu5TVtfA) walks through choosing and configuring your first model.
+</Tip>
+
+## Setup Steps
+
+<Steps>
+  <Step title="Open Settings">
+    Click the settings icon in the top-right of the Cline panel.
+  </Step>
+
+  <Step title="Select a Provider">
+    Choose from the **API Provider** dropdown:
+    - **Cline** — simplest setup, no API key needed
+    - **OpenRouter** — many models, one API key
+    - **Anthropic** — direct Claude access
+    - **Ollama / LM Studio** — run models locally
+  </Step>
+
+  <Step title="Authenticate">
+    **Cline Provider:** Click **Sign In** and authenticate via Google, GitHub, or email. See [OAuth details](#how-oauth-works) below.
+
+    **BYOK:** Paste your API key from your provider's dashboard.
+
+    **Local:** No key needed — just ensure your local server is running.
+
+    <Note>
+    API keys are stored in your system's credential manager and sent only to your selected provider. They are never logged or transmitted to Cline's servers.
+    </Note>
+  </Step>
+
+  <Step title="Choose a Model">
+    Select a model from the **Model** dropdown. Consider:
+    - **Context window** — how much code the model can process at once
+    - **Speed** — smaller models respond faster
+    - **Cost** — varies by model; local models are free
+  </Step>
+
+  <Step title="Verify">
+    Send any message. If Cline responds, you're ready.
+  </Step>
+</Steps>
+
+## Cline Provider
+
+The Cline Provider gives you one account, one billing relationship, and access to models from Anthropic, OpenAI, Google, and more.
+
+- **No API key juggling** — one sign-in, multiple models
+- **Built-in billing** — add credits once, use across all models
+- **Free models** — search "free" in the model selector to find no-cost options tagged **FREE**
+- **Stealth models** — early access to new releases before they're widely available
+- **Always current** — new models added as they launch
+
+### Adding Credits
+
+Click **Add Credits** in Cline settings or visit your [account dashboard](https://app.cline.bot/dashboard). Credits work across all available models.
+
+### How OAuth Works
+
+<Steps>
+  <Step title="Sign In">
+    Click **Sign In** in Cline settings. Your browser opens to `app.cline.bot`.
+  </Step>
+  <Step title="Authenticate">
+    Choose Google, GitHub, or email.
+  </Step>
+  <Step title="Return to IDE">
+    After authentication, you're redirected back with an authorization code.
+  </Step>
+  <Step title="Secure Storage">
+    Tokens are stored in your IDE's native secret storage (VS Code Secrets, JetBrains Credential Store, etc.).
+  </Step>
+</Steps>
+
+## Bring Your Own Key (BYOK)
+
+Use your own API keys when you need specific billing arrangements, higher rate limits, access to beta models, or local privacy.
+
+### Cloud Providers
+
+| Provider | Best For | Setup Guide |
+|----------|----------|-------------|
+| **OpenRouter** | Multiple models, competitive pricing | [Setup](/provider-config/openrouter) |
+| **Anthropic** | Direct Claude access | [Setup](/provider-config/anthropic) |
+| **Claude Code** | Claude Max/Pro subscription | [Setup](/provider-config/claude-code) |
+| **OpenAI** | GPT models | [Setup](/provider-config/openai) |
+| **Google Gemini** | Large context windows | [Setup](/provider-config/gcp-vertex-ai) |
+| **AWS Bedrock** | Enterprise | [Setup](/provider-config/aws-bedrock/api-key) |
+| **DeepSeek** | Great value | [Setup](/provider-config/deepseek) |
+
+### Local Models
+
+Run models on your own hardware for complete privacy and zero per-request costs.
+
+| Provider | Best For | Setup Guide |
+|----------|----------|-------------|
+| **Ollama** | Easy setup, wide model selection | [Setup](/running-models-locally/ollama) |
+| **LM Studio** | GUI-based model management | [Setup](/running-models-locally/lm-studio) |
+
+Local models require sufficient hardware (especially GPU memory). See [Running Models Locally](/running-models-locally/overview) for requirements.
+
+## Which Model Should I Choose?
+
+| Priority | Recommended Model |
+|----------|-------------------|
+| **Reliability** | Claude Sonnet 4 |
+| **Value** | Qwen3 Coder |
+| **Speed** | Cerebras GLm 4.6 |
+| **Privacy** | Any Ollama/LM Studio model |
+| **Existing subscription** | Claude Code with Max/Pro |
+
+<Note>
+Learn more about LLMs and models in [Chapter 2 of AI Coding University](https://cline.bot/learn).
+</Note>
+
+## CLI Authentication
+
+```bash
+# Authenticate from the terminal
+cline auth
+
+# Shorthand
+cline a
+```
+
+Opens a browser for OAuth, same as the IDE extension. Your session persists until you sign out.
+
+## Account Management
+
+- **Balance & usage:** Open Cline settings — your credit balance is at the top. Click **View Usage** for transaction history.
+- **Switch organization:** Go to Cline settings → **Switch Organization** to change which billing account is charged.
+
+## Troubleshooting
+
+| Issue | Fix |
+|-------|-----|
+| "Unauthorized: Please sign in" | Session expired. Click **Sign In** to re-authenticate. |
+| Browser doesn't open | Check default browser settings. Copy the URL from the Cline output panel manually. |
+| Frequent re-authentication | Check org security policies. Ensure you're not clearing IDE secrets. Try a full sign-out/sign-in. |
+| Can't access organization | Verify membership at [app.cline.bot](https://app.cline.bot). Ask your admin about permissions. Sign out and back in. |
+
+## Next Steps
+
+- [Your First Project](/getting-started/your-first-project) — build something with Cline
+- [Core Workflows](/core-workflows/task-management) — patterns you'll use daily
+- [Customization](/customization/overview) — tailor Cline to your workflow

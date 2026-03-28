@@ -1,10 +1,11 @@
-import { ClineMessage } from "@shared/ExtensionMessage"
-import React, { useMemo } from "react"
+import type { ClineMessage } from "@shared/ExtensionMessage"
+import type React from "react"
+import { useMemo } from "react"
 import BrowserSessionRow from "@/components/chat/BrowserSessionRow"
 import ChatRow from "@/components/chat/ChatRow"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
-import { MessageHandlers } from "../../types/chatTypes"
+import type { MessageHandlers } from "../../types/chatTypes"
 import { findReasoningForApiReq, isTextMessagePendingToolCall, isToolGroup } from "../../utils/messageUtils"
 import { ToolGroupRenderer } from "./ToolGroupRenderer"
 
@@ -19,6 +20,7 @@ interface MessageRendererProps {
 	onSetQuote: (quote: string | null) => void
 	inputValue: string
 	messageHandlers: MessageHandlers
+	footerActive: boolean
 }
 
 /**
@@ -36,6 +38,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	onSetQuote,
 	inputValue,
 	messageHandlers,
+	footerActive,
 }) => {
 	const { mode } = useExtensionState()
 
@@ -60,10 +63,22 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	}, [messageOrGroup, modifiedMessages])
 
 	// Tool group (low-stakes tools grouped together)
-	// Always render - the loading state in ChatRow shows current activities,
-	// while ToolGroupRenderer shows what's in context. Overlap is fine.
+	// Determine if this is the last tool group to show active items
+	const isLastToolGroup = useMemo(() => {
+		if (!isToolGroup(messageOrGroup)) {
+			return false
+		}
+		// Find the last tool group in groupedMessages
+		for (let i = groupedMessages.length - 1; i >= 0; i--) {
+			if (isToolGroup(groupedMessages[i])) {
+				return i === index
+			}
+		}
+		return false
+	}, [messageOrGroup, groupedMessages, index])
+
 	if (isToolGroup(messageOrGroup)) {
-		return <ToolGroupRenderer allMessages={modifiedMessages} messages={messageOrGroup} />
+		return <ToolGroupRenderer allMessages={modifiedMessages} isLastGroup={isLastToolGroup} messages={messageOrGroup} />
 	}
 
 	// Browser session group
@@ -86,7 +101,7 @@ export const MessageRenderer: React.FC<MessageRendererProps> = ({
 	return (
 		<div
 			className={cn({
-				"pb-2.5": isLastMessage,
+				"pb-2.5": isLastMessage && !footerActive,
 			})}
 			data-message-ts={messageOrGroup.ts}>
 			<ChatRow
@@ -123,10 +138,12 @@ export const createMessageRenderer = (
 	onSetQuote: (quote: string | null) => void,
 	inputValue: string,
 	messageHandlers: MessageHandlers,
+	footerActive: boolean,
 ) => {
 	return (index: number, messageOrGroup: ClineMessage | ClineMessage[]) => (
 		<MessageRenderer
 			expandedRows={expandedRows}
+			footerActive={footerActive}
 			groupedMessages={groupedMessages}
 			index={index}
 			inputValue={inputValue}

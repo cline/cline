@@ -11,7 +11,7 @@ import {
 	PROCESS_HOT_TIMEOUT_NORMAL,
 	TRUNCATE_KEEP_LINES,
 } from "@/integrations/terminal/constants"
-import type { ITerminalProcess, TerminalProcessEvents } from "@/integrations/terminal/types"
+import type { ITerminalProcess, TerminalCompletionDetails, TerminalProcessEvents } from "@/integrations/terminal/types"
 import { Logger } from "@/shared/services/Logger"
 
 /**
@@ -30,15 +30,20 @@ import { Logger } from "@/shared/services/Logger"
  * - 'no_shell_integration': Emitted when shell integration is not available
  */
 export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
-	waitForShellIntegration: boolean = true
-	private isListening: boolean = true
-	private buffer: string = ""
-	private fullOutput: string = ""
-	private lastRetrievedIndex: number = 0
-	isHot: boolean = false
+	waitForShellIntegration = true
+	private isListening = true
+	private buffer = ""
+	private fullOutput = ""
+	private lastRetrievedIndex = 0
+	isHot = false
 	private hotTimer: NodeJS.Timeout | null = null
+	private exitCode: number | null | undefined = undefined
+	private signal: NodeJS.Signals | null = null
 
 	async run(terminal: vscode.Terminal, command: string) {
+		this.exitCode = undefined
+		this.signal = null
+
 		// When command does not produce any output, we can assume the shell integration API failed and as a fallback return the current terminal contents
 		const returnCurrentTerminalContents = async () => {
 			try {
@@ -62,6 +67,17 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			let didEmitEmptyLine = false
 
 			for await (let data of stream) {
+				// Parse shell integration completion markers when present.
+				// Sequence format: ]633;D;<exitCode>
+				const completionMatches = [...data.matchAll(/\]633;D(?:;(-?\d+))?/g)]
+				const latestCompletionMatch = completionMatches[completionMatches.length - 1]
+				if (latestCompletionMatch?.[1] !== undefined) {
+					const parsedExitCode = Number.parseInt(latestCompletionMatch[1], 10)
+					if (Number.isInteger(parsedExitCode)) {
+						this.exitCode = parsedExitCode
+					}
+				}
+
 				// 1. Process chunk and remove artifacts
 				if (isFirstChunk) {
 					/*
@@ -218,7 +234,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 			this.isHot = false
 
-			this.emit("completed")
+			this.emit("completed", this.getCompletionDetails())
 			this.emit("continue")
 		} else {
 			// no shell integration detected, we'll fallback to running the command and capturing the terminal's output after some time
@@ -239,7 +255,7 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 			// For terminals without shell integration, we can't know when the command completes
 			// So we'll just emit the continue event after a delay
-			this.emit("completed")
+			this.emit("completed", this.getCompletionDetails())
 			this.emit("continue")
 			this.emit("no_shell_integration")
 			// setTimeout(() => {
@@ -301,6 +317,13 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 		}
 
 		return this.removeLastLineArtifacts(unretrieved)
+	}
+
+	getCompletionDetails(): TerminalCompletionDetails {
+		return {
+			exitCode: this.exitCode,
+			signal: this.signal,
+		}
 	}
 
 	// some processing to remove artifacts like '%' at the end of the buffer (it seems that since vsode uses % at the beginning of newlines in terminal, it makes its way into the stream)

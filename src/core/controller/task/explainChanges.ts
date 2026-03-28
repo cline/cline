@@ -200,7 +200,7 @@ export async function explainChanges(controller: Controller, request: ExplainCha
 			changedFiles,
 			// onCommentStart: Create the comment UI immediately when we know the location
 			(filePath, startLine, endLine) => {
-				const matchingFile = changedFiles.find((f) => f.absolutePath === filePath)
+				const matchingFile = changedFiles.find((f) => f.absolutePath === filePath || f.relativePath === filePath)
 				commentController.startStreamingComment(
 					filePath,
 					startLine,

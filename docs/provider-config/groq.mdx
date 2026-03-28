@@ -18,15 +18,24 @@ Groq provides ultra-fast AI inference through their custom LPU™ (Language Proc
 
 Cline supports the following Groq models:
 
--   `llama-3.3-70b-versatile` (Meta) - Balanced performance with 131K context
--   `llama-3.1-8b-instant` (Meta) - Fast inference with 131K context  
--   `openai/gpt-oss-120b` (OpenAI) - Featured flagship model with 131K context
--   `openai/gpt-oss-20b` (OpenAI) - Featured compact model with 131K context
--   `moonshotai/kimi-k2-instruct` (Moonshot AI) - 1 trillion parameter model with prompt caching
--   `deepseek-r1-distill-llama-70b` (DeepSeek/Meta) - Reasoning-optimized model
--   `qwen/qwen3-32b` (Alibaba Cloud) - Enhanced for Q&A tasks
--   `meta-llama/llama-4-maverick-17b-128e-instruct` (Meta) - Latest Llama 4 variant
--   `meta-llama/llama-4-scout-17b-16e-instruct` (Meta) - Latest Llama 4 variant
+#### Featured Models
+-   `moonshotai/kimi-k2-instruct-0905` (Default) - Kimi K2 September update with 262K context and prompt caching ($0.60/$2.50 per 1M tokens)
+-   `moonshotai/kimi-k2-instruct` - Kimi K2 1T parameter model with prompt caching ($1.00/$3.00 per 1M tokens)
+-   `openai/gpt-oss-120b` - OpenAI's 120B open-weight MoE model ($0.15/$0.75 per 1M tokens)
+-   `openai/gpt-oss-20b` - OpenAI's compact 20B open-weight model ($0.10/$0.50 per 1M tokens)
+
+#### Compound Models
+-   `compound-beta` - Hybrid architecture using Llama 4 Scout + Llama 3.3 70B for routing and tool use (free)
+-   `compound-beta-mini` - Lightweight compound model for faster inference (free)
+
+#### Meta Llama Models
+-   `meta-llama/llama-4-maverick-17b-128e-instruct` - Llama 4 Maverick with 128 experts and vision support ($0.20/$0.60 per 1M tokens)
+-   `meta-llama/llama-4-scout-17b-16e-instruct` - Llama 4 Scout with 16 experts and vision support ($0.11/$0.34 per 1M tokens)
+-   `llama-3.3-70b-versatile` - Balanced performance with 131K context ($0.59/$0.79 per 1M tokens)
+-   `llama-3.1-8b-instant` - Fast inference with 131K context ($0.05/$0.08 per 1M tokens)
+
+#### Reasoning Models
+-   `deepseek-r1-distill-llama-70b` - DeepSeek R1 reasoning distilled into Llama 70B ($0.75/$0.99 per 1M tokens)
 
 ### Configuration in Cline
 

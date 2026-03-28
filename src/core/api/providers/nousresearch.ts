@@ -1,6 +1,7 @@
 import { ModelInfo, NousResearchModelId, nousResearchDefaultModelId, nousResearchModels } from "@shared/api"
 import OpenAI from "openai"
 import { ClineStorageMessage } from "@/shared/messages/content"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -25,7 +26,7 @@ export class NousResearchHandler implements ApiHandler {
 				throw new Error("NousResearch API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://inference-api.nousResearch.com/v1",
 					apiKey: this.options.nousResearchApiKey,
 				})

@@ -1,4 +1,5 @@
 import { AskSageModelId, askSageDefaultModelId, askSageDefaultURL, askSageModels, ModelInfo } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -96,10 +97,7 @@ export class AskSageHandler implements ApiHandler {
 			// Make request to AskSage API
 			const response = await fetch(`${this.apiUrl}/query`, {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"x-access-tokens": this.apiKey,
-				},
+				headers: this.headers(),
 				body: JSON.stringify(request),
 			})
 
@@ -157,10 +155,7 @@ export class AskSageHandler implements ApiHandler {
 		try {
 			const response = await fetch(`${this.apiUrl}/count-monthly-tokens`, {
 				method: "POST",
-				headers: {
-					"Content-Type": "application/json",
-					"x-access-tokens": this.apiKey,
-				},
+				headers: this.headers(),
 				body: JSON.stringify({ app_name: "asksage" }),
 			})
 
@@ -192,6 +187,14 @@ export class AskSageHandler implements ApiHandler {
 		return {
 			id: askSageDefaultModelId,
 			info: askSageModels[askSageDefaultModelId],
+		}
+	}
+
+	private headers() {
+		return {
+			"Content-Type": "application/json",
+			"x-access-tokens": this.apiKey,
+			...buildExternalBasicHeaders(),
 		}
 	}
 }

@@ -1,5 +1,64 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import OpenAI from "openai"
+import { ClineAssistantThinkingBlock, ClineStorageMessage } from "@/shared/messages/content"
+
+/**
+ * DeepSeek Reasoner message format with reasoning_content support.
+ */
+export type DeepSeekReasonerMessage = OpenAI.Chat.ChatCompletionMessageParam & {
+	reasoning_content?: string
+}
+
+/**
+ * Adds reasoning_content to OpenAI messages for DeepSeek Reasoner.
+ * Per DeepSeek API: reasoning_content should be passed back during tool calling in the same turn,
+ * and omitted when starting a new turn.
+ */
+export function addReasoningContent(
+	openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[],
+	originalMessages: ClineStorageMessage[],
+): DeepSeekReasonerMessage[] {
+	// Find last user message index (start of current turn)
+	// If no user message exists (lastUserIndex = -1), all messages are in the "current turn",
+	// so reasoning_content will be added to all assistant messages. This is intentional.
+	let lastUserIndex = -1
+	for (let i = openAiMessages.length - 1; i >= 0; i--) {
+		if (openAiMessages[i].role === "user") {
+			lastUserIndex = i
+			break
+		}
+	}
+
+	// Extract thinking content from original messages, keyed by assistant index
+	const thinkingByIndex = new Map<number, string>()
+	let assistantIdx = 0
+	for (const msg of originalMessages) {
+		if (msg.role === "assistant") {
+			if (Array.isArray(msg.content)) {
+				const thinking = msg.content
+					.filter((p): p is ClineAssistantThinkingBlock => p.type === "thinking")
+					.map((p) => p.thinking)
+					.join("\n")
+				if (thinking) {
+					thinkingByIndex.set(assistantIdx, thinking)
+				}
+			}
+			assistantIdx++
+		}
+	}
+
+	// Add reasoning_content only to assistant messages in current turn
+	let aiIdx = 0
+	return openAiMessages.map((msg, i): DeepSeekReasonerMessage => {
+		if (msg.role === "assistant") {
+			const thinking = thinkingByIndex.get(aiIdx++)
+			if (thinking && i >= lastUserIndex) {
+				return { ...msg, reasoning_content: thinking }
+			}
+		}
+		return msg
+	})
+}
 
 /**
  * Converts Anthropic messages to OpenAI format and merges consecutive messages with the same role.

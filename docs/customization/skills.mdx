@@ -1,0 +1,261 @@
+---
+title: "Skills"
+sidebarTitle: "Skills"
+description: "Modular instruction sets that extend Cline's capabilities for specific tasks."
+---
+
+Skills are modular instruction sets that extend Cline's capabilities for specific tasks. Each skill packages detailed guidance, workflows, and optional resources that Cline loads only when relevant to your request.
+
+Install multiple skills and Cline only loads what it needs. A deployment skill stays dormant until you ask about deploying. Unlike [rules](/customization/cline-rules) (which are always active), skills load on-demand so they don't consume context when you're working on something unrelated.
+
+<Note>
+Skills is an experimental feature. Enable it in **Settings → Features → Enable Skills**.
+</Note>
+
+## How Skills Work
+
+Skills use progressive loading to maximize efficiency:
+
+| Level | When Loaded | Token Cost | Content |
+|-------|-------------|------------|---------|
+| Metadata | Always (at startup) | ~100 tokens per skill | `name` and `description` from YAML frontmatter |
+| Instructions | When skill is triggered | Under 5k tokens | SKILL.md body with instructions and guidance |
+| Resources | As needed | Effectively unlimited | Bundled files accessed via `read_file` or executed scripts |
+
+When you send a message, Cline sees a list of available skills with their descriptions. If your request matches a skill's description, Cline activates it using the `use_skill` tool, which loads the full instructions from SKILL.md.
+
+## Skill Structure
+
+Every skill is a directory containing a `SKILL.md` file with YAML frontmatter.
+
+```text title="Skill directory structure"
+my-skill/
+├── SKILL.md          # Required: main instructions
+├── docs/             # Optional: additional documentation
+│   └── advanced.md
+└── scripts/          # Optional: utility scripts
+    └── helper.sh
+```
+
+The `SKILL.md` file has two parts: metadata and instructions.
+
+```markdown title="SKILL.md"
+---
+name: my-skill
+description: Brief description of what this skill does and when to use it.
+---
+
+# My Skill
+
+Detailed instructions for Cline to follow when this skill is activated.
+
+## Steps
+1. First, do this
+2. Then do that
+3. For advanced usage, see [advanced.md](docs/advanced.md)
+```
+
+Required fields:
+- `name` must exactly match the directory name
+- `description` tells Cline when to use this skill (max 1024 characters)
+
+## Creating a Skill
+
+<Steps>
+  <Step title="Open the Skills menu">
+    Click the scale icon at the bottom of the Cline panel, to the left of the model selector. Switch to the Skills tab.
+  </Step>
+  <Step title="Create a new skill">
+    Click "New skill..." and enter a name for your skill (e.g., `aws-deploy`). Cline creates a skill directory with a template `SKILL.md` file.
+  </Step>
+  <Step title="Write your skill instructions">
+    Edit the `SKILL.md` file:
+    - Update the `description` field to specify when this skill should trigger
+    - Add detailed instructions in the body
+    - Optionally add supporting files in `docs/`, `templates/`, or `scripts/` subdirectories
+  </Step>
+</Steps>
+
+You can also create skills manually by creating the directory structure in your file system. Place skill directories in `.cline/skills/` (workspace) or `~/.cline/skills/` (global) and Cline will detect them automatically.
+
+Put the important information first in your SKILL.md. Cline reads the file sequentially, so front-load the common cases. Use clear section headers like "## Error Handling" or "## Configuration" so Cline can scan for relevant sections.
+
+### Toggling Skills
+
+Every skill has a toggle to enable or disable it. This lets you control which skills are active without deleting the skill directory. Skills are enabled by default when discovered.
+
+For example, you might disable a CI/CD skill when working on local development, or enable a client-specific skill only when working on that client's project.
+
+## Writing Your SKILL.md
+
+### Naming Conventions
+
+The skill name appears in the `name` field and must match the directory name exactly. Use lowercase with hyphens (kebab-case) and be descriptive about what the skill does.
+
+Good names:
+- `aws-cdk-deploy`
+- `pr-review-checklist`
+- `database-migration`
+- `api-client-generator`
+
+Avoid:
+- `aws` (too vague)
+- `my_skill` (underscores, not descriptive)
+- `DeployToAWS` (use kebab-case, not PascalCase)
+- `misc-helpers` (too generic)
+
+### Writing Effective Descriptions
+
+The description determines when Cline activates the skill. A vague description means the skill won't trigger when you expect it to.
+
+Good descriptions are specific and actionable:
+
+```yaml
+description: Deploy applications to AWS using CDK. Use when deploying, updating infrastructure, or managing AWS resources.
+
+description: Generate release notes from git commits. Use when preparing releases, writing changelogs, or summarizing recent changes.
+
+description: Analyze CSV and Excel data files. Use when exploring datasets, generating statistics, or creating visualizations from tabular data.
+```
+
+Weak descriptions leave too much ambiguity:
+
+```yaml
+description: Helps with AWS stuff.
+
+description: Data analysis helper.
+
+description: Useful for releases.
+```
+
+Start with what the skill does (action verbs), include trigger phrases users might say, and mention specific file types, tools, or domains. Test your descriptions by trying different phrasings of requests to see if the skill triggers.
+
+### Keeping Skills Focused
+
+Keep SKILL.md under 5k tokens. If your skill needs more content, split it into separate files in a `docs/` directory and reference them from the main instructions. Cline loads referenced files only when needed.
+
+Include real examples. Show what commands to run, what output to expect, and what the result should look like. Abstract instructions are harder to follow than concrete examples.
+
+## Where Skills Live
+
+Skills can be stored globally or in a project workspace. See [Storage Locations](/customization/overview#storage-locations) for guidance on when to use each.
+
+Project skills:
+- `.cline/skills/` (recommended)
+- `.clinerules/skills/`
+- `.claude/skills/`
+
+Global skills:
+- `~/.cline/skills/` (macOS/Linux)
+- `C:\Users\USERNAME\.cline\skills\` (Windows)
+
+When a global skill and project skill have the same name, the global skill takes precedence. This lets you keep general-purpose skills globally while using project-specific skills in `.cline/skills/` so the whole team can use them.
+
+Version control your project skills by committing `.cline/skills/`. Your team can share, review, and improve them together.
+
+## Bundling Supporting Files
+
+Skills can include additional files that Cline accesses only when needed.
+
+```text title="Directory structure"
+complex-skill/
+├── SKILL.md
+├── docs/
+│   ├── setup.md
+│   └── troubleshooting.md
+├── templates/
+│   └── config.yaml
+└── scripts/
+    └── validate.py
+```
+
+### docs/
+
+Use docs for information that's too detailed for SKILL.md or only relevant in specific situations:
+- Advanced configuration options
+- Troubleshooting guides for edge cases
+- Reference material (API schemas, database schemas)
+- Platform-specific instructions
+
+A deployment skill might have `docs/aws.md`, `docs/gcp.md`, and `docs/azure.md`. Cline loads only the relevant platform guide based on your request.
+
+### templates/
+
+Use templates when your skill creates configuration files, boilerplate code, or structured documents:
+- Config files (Terraform, Docker Compose, CI/CD pipelines)
+- Code scaffolding (component templates, test fixtures)
+- Documentation templates (README, API docs)
+
+A project setup skill could include `templates/dockerfile`, `templates/docker-compose.yml`, and `templates/.env.example` that Cline customizes for each new project.
+
+### scripts/
+
+Use scripts for deterministic operations where you want consistent behavior:
+- Validation (linting configs, checking prerequisites)
+- Data processing (parsing, formatting, transforming)
+- Complex calculations (cost estimation, resource sizing)
+- API interactions (fetching data, running health checks)
+
+Scripts are token-efficient because only their output enters context, not the code itself. A 500-line validation script produces a simple "Passed" or detailed error messages without consuming any context for the script logic.
+
+### Referencing Bundled Files
+
+Reference these files in your SKILL.md instructions:
+
+```markdown title="SKILL.md (referencing bundled files)"
+For initial setup, follow [setup.md](docs/setup.md).
+Use the config template at `templates/config.yaml` as a starting point.
+Run the validation script to check your configuration:
+
+python scripts/validate.py
+```
+
+Cline reads documentation files using `read_file` when the instructions reference them. Scripts can be executed directly, and only the script's output enters the context window.
+
+| Use Scripts For | Use Instructions For |
+|-----------------|---------------------|
+| Deterministic operations (validation, formatting) | Flexible guidance that adapts to context |
+| Complex computations | Decision-making workflows |
+| Operations that need reliability | Steps that might vary by situation |
+| Anything you'd rather not consume tokens explaining | Best practices and patterns |
+
+## Example: Data Analysis Skill
+
+Here's a practical skill for data analysis tasks. Create a directory called `data-analysis/` with this `SKILL.md`:
+
+```markdown title="data-analysis/SKILL.md"
+---
+name: data-analysis
+description: Analyze data files and generate insights. Use when working with CSV, Excel, or JSON data files that need exploration, cleaning, or visualization.
+---
+
+# Data Analysis
+
+When analyzing data files, follow this workflow:
+
+## 1. Understand the Data
+- Read a sample of the file to understand its structure
+- Identify column types and data quality issues
+- Note any missing values or anomalies
+
+## 2. Ask Clarifying Questions
+Before diving in, ask the user:
+- What specific insights are they looking for?
+- Are there any known data quality issues?
+- What format do they want for the output?
+
+## 3. Perform Analysis
+Use pandas for data manipulation:
+
+import pandas as pd
+
+# Load and explore
+df = pd.read_csv("data.csv")
+print(df.head())
+print(df.describe())
+print(df.info())
+
+For visualization, prefer matplotlib or seaborn depending on complexity.
+```
+
+Skills transform Cline from a general-purpose assistant into a specialist that knows your domain. Start with one skill for a task you repeat often, test it, and iterate on the description until it triggers reliably.

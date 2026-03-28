@@ -9,11 +9,10 @@ import type { ToolResponse } from "../../index"
 import type { IPartialBlockHandler, IToolHandler } from "../ToolExecutorCoordinator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { getTaskCompletionTelemetry } from "../utils"
 
 export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandler {
 	readonly name = ClineDefaultTool.PLAN_MODE
-
-	constructor() {}
 
 	getDescription(block: ToolUse): string {
 		return `[${block.name}]`
@@ -85,9 +84,8 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 
 				// we dont need to process any text, options, files or other content here
 				return formatResponse.toolResult(`[The user has switched to ACT MODE, so you may now proceed with the task.]`)
-			} else {
-				Logger.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
 			}
+			Logger.warn("YOLO MODE: Failed to switch to ACT MODE, continuing with normal plan mode")
 		}
 
 		// Set awaiting plan response state
@@ -134,6 +132,8 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			fileContentString = await processFilesIntoText(planResponseFiles)
 		}
 
+		telemetryService.captureTaskCompleted(config.ulid, getTaskCompletionTelemetry(config))
+
 		// Handle mode switching response
 		if (config.taskState.didRespondToPlanAskBySwitchingMode) {
 			const result = formatResponse.toolResult(
@@ -147,9 +147,8 @@ export class PlanModeRespondHandler implements IToolHandler, IPartialBlockHandle
 			// Reset the flag after using it to prevent it from persisting
 			config.taskState.didRespondToPlanAskBySwitchingMode = false
 			return result
-		} else {
-			// if we didn't switch to ACT MODE, then we can just send the user_feedback message
-			return formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images, fileContentString)
 		}
+		// if we didn't switch to ACT MODE, then we can just send the user_feedback message
+		return formatResponse.toolResult(`<user_message>\n${text}\n</user_message>`, images, fileContentString)
 	}
 }

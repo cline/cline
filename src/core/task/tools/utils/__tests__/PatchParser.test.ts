@@ -375,6 +375,45 @@ describe("PatchParser", () => {
 				expectedError: /Unknown line while parsing/,
 			},
 
+			// Duplicate delete error
+			{
+				name: "error: duplicate delete",
+				patchLines: ["*** Begin Patch", "*** Delete File: old.ts", "*** Delete File: old.ts", "*** End Patch"],
+				currentFiles: {
+					"old.ts": "content",
+				},
+				expectedError: /Duplicate delete/,
+			},
+
+			// Duplicate add error
+			{
+				name: "error: duplicate add",
+				patchLines: [
+					"*** Begin Patch",
+					"*** Add File: new.ts",
+					"+content",
+					"*** Add File: new.ts",
+					"+content2",
+					"*** End Patch",
+				],
+				currentFiles: {},
+				expectedError: /Duplicate add/,
+			},
+
+			// Invalid add line (missing '+')
+			{
+				name: "error: add file line missing '+'",
+				patchLines: [
+					"*** Begin Patch",
+					"*** Add File: new.ts",
+					"+valid line",
+					"invalid line without plus",
+					"*** End Patch",
+				],
+				currentFiles: {},
+				expectedError: /Invalid Add File line/,
+			},
+
 			// Move operation
 			{
 				name: "update with move",
@@ -782,34 +821,34 @@ describe("PatchParser", () => {
 							expect(actualAction, `Action for ${filePath} should exist`).to.exist
 
 							// Check action type
-							expect(actualAction!.type).to.equal(expectedAction.type)
+							expect(actualAction.type).to.equal(expectedAction.type)
 
 							// Check newFile for ADD operations
 							if (expectedAction.newFile !== undefined) {
-								expect(actualAction!.newFile).to.equal(expectedAction.newFile)
+								expect(actualAction?.newFile).to.equal(expectedAction.newFile)
 							}
 
 							// Check movePath for MOVE operations
 							if (expectedAction.movePath !== undefined) {
-								expect(actualAction!.movePath).to.equal(expectedAction.movePath)
+								expect(actualAction?.movePath).to.equal(expectedAction.movePath)
 							}
 
 							// Check chunks if provided
 							if (expectedAction.chunks !== undefined) {
-								expect(actualAction!.chunks).to.have.lengthOf(expectedAction.chunks.length)
+								expect(actualAction?.chunks).to.have.lengthOf(expectedAction.chunks.length)
 
 								for (let i = 0; i < expectedAction.chunks.length; i++) {
 									const expectedChunk = expectedAction.chunks[i]
-									const actualChunk = actualAction!.chunks[i]
+									const actualChunk = actualAction?.chunks[i]
 
 									if (expectedChunk.origIndex !== undefined) {
-										expect(actualChunk!.origIndex).to.equal(expectedChunk.origIndex)
+										expect(actualChunk?.origIndex).to.equal(expectedChunk.origIndex)
 									}
 									if (expectedChunk.delLines !== undefined) {
-										expect(actualChunk!.delLines).to.deep.equal(expectedChunk.delLines)
+										expect(actualChunk?.delLines).to.deep.equal(expectedChunk.delLines)
 									}
 									if (expectedChunk.insLines !== undefined) {
-										expect(actualChunk!.insLines).to.deep.equal(expectedChunk.insLines)
+										expect(actualChunk?.insLines).to.deep.equal(expectedChunk.insLines)
 									}
 								}
 							}
@@ -857,8 +896,8 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			expect(result.patch.actions["large.ts"]).to.exist
-			expect(result.patch.actions["large.ts"]!.chunks).to.have.lengthOf(1)
-			expect(result.patch.actions["large.ts"]!.chunks[0]!.origIndex).to.equal(501)
+			expect(result.patch.actions["large.ts"].chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["large.ts"].chunks[0].origIndex).to.equal(501)
 		})
 
 		it("should handle unicode characters in content", () => {
@@ -878,7 +917,7 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			expect(result.patch.actions["unicode.ts"]).to.exist
-			expect(result.patch.actions["unicode.ts"]!.chunks[0]!.insLines[0]).to.equal("const text = '你好'")
+			expect(result.patch.actions["unicode.ts"]?.chunks[0]?.insLines[0]).to.equal("const text = '你好'")
 		})
 
 		it("should handle empty lines in context", () => {
@@ -890,6 +929,183 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			expect(result.patch.actions["test.ts"]).to.exist
+		})
+
+		it("should handle updating an empty file", () => {
+			// A file with only a single line (no context needed)
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: empty.ts",
+				"@@",
+				"-old content",
+				"+new content",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"empty.ts": "old content",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["empty.ts"]).to.exist
+			expect(result.patch.actions["empty.ts"].chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["empty.ts"].chunks[0].origIndex).to.equal(0)
+			expect(result.patch.actions["empty.ts"].chunks[0].delLines).to.deep.equal(["old content"])
+			expect(result.patch.actions["empty.ts"].chunks[0].insLines).to.deep.equal(["new content"])
+		})
+
+		it("should not include warnings property when there are no warnings", () => {
+			const patchLines = ["*** Begin Patch", "*** Update File: test.ts", "@@", " context", "-old", "+new", "*** End Patch"]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "context\nold",
+			})
+			const result = parser.parse()
+
+			// warnings should be absent (deleted) when empty
+			expect(result.patch.warnings).to.be.undefined
+		})
+
+		it("should handle add file with empty content (no lines)", () => {
+			const patchLines = ["*** Begin Patch", "*** Add File: empty.ts", "*** End Patch"]
+
+			const parser = new PatchParser(patchLines, {})
+			const result = parser.parse()
+
+			expect(result.patch.actions["empty.ts"]).to.exist
+			expect(result.patch.actions["empty.ts"].type).to.equal(PatchActionType.ADD)
+			expect(result.patch.actions["empty.ts"].newFile).to.equal("")
+		})
+
+		it("should handle move without content changes", () => {
+			// Move-only: no @@ section, just rename
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: old.ts",
+				"*** Move to: new.ts",
+				"@@",
+				" unchanged line",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"old.ts": "unchanged line",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["old.ts"]).to.exist
+			expect(result.patch.actions["old.ts"].movePath).to.equal("new.ts")
+			expect(result.patch.actions["old.ts"].chunks).to.have.lengthOf(0)
+		})
+
+		it("should handle unicode punctuation normalization (curly quotes match straight quotes)", () => {
+			// File uses straight quotes, patch uses Unicode curly quotes — canonicalize should match them
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				" const x = \u201Chello\u201D", // LEFT/RIGHT DOUBLE QUOTATION MARK
+				"-const y = \u2018old\u2019", // LEFT/RIGHT SINGLE QUOTATION MARK
+				"+const y = 'new'",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "const x = \"hello\"\nconst y = 'old'",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["test.ts"]).to.exist
+			expect(result.patch.actions["test.ts"].chunks).to.have.lengthOf(1)
+		})
+
+		it("should handle unicode dash normalization (em-dash matches hyphen)", () => {
+			// File uses a regular hyphen, patch uses an em-dash — canonicalize should match them
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				" // section \u2014 header", // EM DASH
+				"-old",
+				"+new",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "// section - header\nold",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["test.ts"]).to.exist
+			expect(result.patch.actions["test.ts"].chunks).to.have.lengthOf(1)
+		})
+
+		it("should handle @@ context string not found in file (silently continues from current position)", () => {
+			// When the @@ context string doesn't exist in the file, the parser should
+			// continue searching from the current index rather than throwing
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@ nonexistent function",
+				" actual context",
+				"-old",
+				"+new",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "actual context\nold",
+			})
+			const result = parser.parse()
+
+			// Should still find the chunk via context lines even though @@ string wasn't found
+			expect(result.patch.actions["test.ts"]).to.exist
+		})
+
+		it("should handle patch with only insertions (no deletions)", () => {
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				" line1",
+				"+inserted line",
+				" line2",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "line1\nline2",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["test.ts"]).to.exist
+			const chunks = result.patch.actions["test.ts"].chunks
+			expect(chunks).to.have.lengthOf(1)
+			expect(chunks[0].delLines).to.deep.equal([])
+			expect(chunks[0].insLines).to.deep.equal(["inserted line"])
+		})
+
+		it("should handle patch with only deletions (no insertions)", () => {
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				" line1",
+				"-line to delete",
+				" line2",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "line1\nline to delete\nline2",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["test.ts"]).to.exist
+			const chunks = result.patch.actions["test.ts"].chunks
+			expect(chunks).to.have.lengthOf(1)
+			expect(chunks[0].delLines).to.deep.equal(["line to delete"])
+			expect(chunks[0].insLines).to.deep.equal([])
 		})
 	})
 
@@ -968,14 +1184,14 @@ describe("PatchParser", () => {
 
 			// Should have one valid chunk applied
 			expect(result.patch.actions["test.ts"]).to.exist
-			expect(result.patch.actions["test.ts"]!.chunks).to.have.lengthOf(1)
-			expect(result.patch.actions["test.ts"]!.chunks[0]!.origIndex).to.equal(1)
+			expect(result.patch.actions["test.ts"].chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["test.ts"].chunks[0].origIndex).to.equal(1)
 
 			// Should have warnings for skipped chunk
 			expect(result.patch.warnings).to.exist
 			expect(result.patch.warnings).to.have.lengthOf(1)
-			expect(result.patch.warnings![0]!.path).to.equal("test.ts")
-			expect(result.patch.warnings![0]!.message).to.match(/Could not find matching context/)
+			expect(result.patch.warnings?.[0]?.path).to.equal("test.ts")
+			expect(result.patch.warnings?.[0]?.message).to.match(/Could not find matching context/)
 		})
 
 		it("should handle mixed valid and invalid chunks", () => {
@@ -1003,7 +1219,7 @@ describe("PatchParser", () => {
 			const result = parser.parse()
 
 			// Should have 2 valid chunks (1st and 3rd)
-			expect(result.patch.actions["test.ts"]!.chunks).to.have.lengthOf(2)
+			expect(result.patch.actions["test.ts"].chunks).to.have.lengthOf(2)
 
 			// Should have 1 warning for skipped chunk
 			expect(result.patch.warnings).to.have.lengthOf(1)

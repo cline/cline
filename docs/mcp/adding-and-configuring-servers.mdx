@@ -1,0 +1,137 @@
+---
+title: "Adding & Configuring Servers"
+sidebarTitle: "Adding & Configuring"
+description: "Find MCP servers, add them to Cline, and configure settings."
+---
+
+This guide covers finding MCP servers, adding them to Cline, and configuring their settings.
+
+## Finding MCP Servers
+
+Several places to find MCP servers:
+
+- **[Cline MCP Marketplace](/mcp/mcp-marketplace)**: Browse and install directly from Cline
+- **[Official MCP servers](https://github.com/modelcontextprotocol/servers)**: GitHub repository
+- **[Awesome-MCP servers](https://github.com/punkpeye/awesome-mcp-servers)**: Community collection
+- **Online directories**: [mcpservers.org](https://mcpservers.org/), [mcp.so](https://mcp.so/), [glama.ai/mcp/servers](https://glama.ai/mcp/servers)
+
+## Adding Servers with Cline
+
+The easiest way to add an MCP server is to have Cline build it for you:
+
+1. Provide Cline with the GitHub repository URL
+2. Optionally include the README contents for context
+3. Cline clones the repo, builds it, and adds the configuration
+
+Example conversation:
+```text
+User: "Add the MCP server from https://github.com/modelcontextprotocol/servers/tree/main/src/brave-search"
+
+Cline: "Cloning the repository. It needs to be built. Should I run 'npm run build'?"
+
+User: "Yes"
+
+Cline: "Build complete. This server needs an API key. Where should I find it?"
+```
+
+## Managing Servers
+
+Access server settings through the MCP Servers icon in Cline's top navigation bar.
+
+### Enable/Disable
+
+Toggle the switch next to any server to enable or disable it.
+
+### Restart
+
+Click "Restart Server" if a server becomes unresponsive.
+
+### Delete
+
+Click the trash icon or "Delete Server" button. No confirmation dialog.
+
+### Network Timeout
+
+Set how long to wait for responses (30 seconds to 1 hour, default 1 minute).
+
+## Editing Configuration Files
+
+Settings are stored in `cline_mcp_settings.json`:
+
+1. Click MCP Servers icon
+2. Select "Configure" tab
+3. Click "Configure MCP Servers"
+
+### STDIO Transport (Local Servers)
+
+```json
+{
+  "mcpServers": {
+    "local-server": {
+      "command": "node",
+      "args": ["/path/to/server.js"],
+      "env": {
+        "API_KEY": "your_api_key"
+      },
+      "alwaysAllow": ["tool1", "tool2"],
+      "disabled": false
+    }
+  }
+}
+```
+
+### SSE Transport (Remote Servers)
+
+```json
+{
+  "mcpServers": {
+    "remote-server": {
+      "url": "https://your-server-url.com/mcp",
+      "headers": {
+        "Authorization": "Bearer your-token"
+      },
+      "alwaysAllow": ["tool3"],
+      "disabled": false
+    }
+  }
+}
+```
+
+## Global MCP Mode
+
+Control how MCP servers affect token usage:
+
+1. Click MCP Servers icon
+2. Select "Configure" tab
+3. Click "Advanced MCP Settings"
+4. Find `Cline>Mcp:Mode` and select your preference
+
+<Frame>
+	<img
+		src="https://storage.googleapis.com/cline_public_images/docs/assets/MCP-settings-edit%20(1).png"
+		alt="MCP settings"
+	/>
+</Frame>
+
+## Using MCP Tools
+
+After configuring a server, Cline automatically detects available tools:
+
+1. Type your request in chat
+2. Cline identifies when an MCP tool can help
+3. Approve the tool use (or use [auto-approval](/features/auto-approve))
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| Server not responding | Check if process is running, verify network connectivity |
+| Permission errors | Ensure API keys and credentials are configured |
+| Tool not available | Confirm server implements the tool and it's not disabled |
+| Slow performance | Increase network timeout for the server |
+
+## Related
+
+- [What is MCP?](/mcp/mcp-overview)
+- [MCP Marketplace](/mcp/mcp-marketplace)
+- [Building Your Own MCP Server](/mcp/mcp-server-development-protocol)

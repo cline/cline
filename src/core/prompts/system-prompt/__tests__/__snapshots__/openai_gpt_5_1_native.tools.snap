@@ -3,7 +3,7 @@
     "type": "function",
     "function": {
       "name": "execute_command",
-      "description": "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: {{CWD}}{{MULTI_ROOT_HINT}}",
+      "description": "Request to execute a CLI command on the system. Use this when you need to perform system operations or run specific commands to accomplish any step in the user's task. You must tailor your command to the user's system and provide a clear explanation of what the command does. For command chaining, use the appropriate chaining syntax for the user's shell. Prefer to execute complex CLI commands over creating executable scripts, as they are more flexible and easier to run. Commands will be executed in the current working directory: /test/project",
       "strict": false,
       "parameters": {
         "type": "object",
@@ -29,14 +29,22 @@
     "type": "function",
     "function": {
       "name": "read_file",
-      "description": "Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.",
+      "description": "Request to read the contents of a file at the specified path. Use this when you need to examine the contents of an existing file you do not know the contents of, for example to analyze code, review text files, or extract information from configuration files. Returned text lines are prefixed with line labels (e.g. `1 |`, `2 |`). These labels are metadata, not part of the file content. For large files, output is automatically limited to 1000 lines. Use start_line and end_line to read specific sections. Automatically extracts raw text from PDF and DOCX files. May not be suitable for other types of binary files, as it returns the raw content as a string. Do NOT use this tool to list the contents of a directory. Only use this tool on files.",
       "strict": false,
       "parameters": {
         "type": "object",
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the file to read (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}"
+            "description": "The path of the file to read (relative to the current working directory /test/project)"
+          },
+          "start_line": {
+            "type": "integer",
+            "description": "The 1-based line number to start reading from (inclusive). Defaults to 1."
+          },
+          "end_line": {
+            "type": "integer",
+            "description": "The 1-based line number to stop reading at (inclusive). Defaults to start_line + 1000. Use with start_line to read specific sections of large files."
           },
           "task_progress": {
             "type": "string",
@@ -86,7 +94,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the directory to search in (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}. This directory will be recursively searched."
+            "description": "The path of the directory to search in (relative to the current working directory /test/project). This directory will be recursively searched."
           },
           "regex": {
             "type": "string",
@@ -120,7 +128,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the directory to list contents for (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}}"
+            "description": "The path of the directory to list contents for (relative to the current working directory /test/project)"
           },
           "recursive": {
             "type": "boolean",
@@ -149,7 +157,7 @@
         "properties": {
           "path": {
             "type": "string",
-            "description": "The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for."
+            "description": "The path of a directory (not a file) relative to the current working directory /test/project. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead."
           },
           "task_progress": {
             "type": "string",
@@ -376,20 +384,6 @@
   {
     "type": "function",
     "function": {
-      "name": "focus_chain",
-      "description": "",
-      "strict": false,
-      "parameters": {
-        "type": "object",
-        "properties": {},
-        "required": [],
-        "additionalProperties": false
-      }
-    }
-  },
-  {
-    "type": "function",
-    "function": {
       "name": "generate_explanation",
       "description": "Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
       "strict": false,
@@ -412,6 +406,43 @@
         "required": [
           "title",
           "from_ref"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  {
+    "type": "function",
+    "function": {
+      "name": "use_subagents",
+      "description": "Run up to five focused in-process subagents in parallel. Each subagent gets its own prompt and returns a comprehensive research result with tool and token stats. Use this for broad exploration when reading many files would consume the main agent's context window. You do not need to launch multiple subagents every time; using one subagent is valid when it avoids unnecessary context usage for light discovery work.",
+      "strict": false,
+      "parameters": {
+        "type": "object",
+        "properties": {
+          "prompt_1": {
+            "type": "string",
+            "description": "First subagent prompt."
+          },
+          "prompt_2": {
+            "type": "string",
+            "description": "Optional second subagent prompt."
+          },
+          "prompt_3": {
+            "type": "string",
+            "description": "Optional third subagent prompt."
+          },
+          "prompt_4": {
+            "type": "string",
+            "description": "Optional fourth subagent prompt."
+          },
+          "prompt_5": {
+            "type": "string",
+            "description": "Optional fifth subagent prompt."
+          }
+        },
+        "required": [
+          "prompt_1"
         ],
         "additionalProperties": false
       }

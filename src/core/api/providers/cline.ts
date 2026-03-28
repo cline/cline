@@ -1,22 +1,24 @@
-import { ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
+import { type ModelInfo, openRouterDefaultModelId, openRouterDefaultModelInfo } from "@shared/api"
 import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineEnv } from "@/config"
+import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import { ClineAccountService } from "@/services/account/ClineAccountService"
 import { AuthService } from "@/services/auth/AuthService"
 import { buildClineExtraHeaders } from "@/services/EnvUtils"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@/shared/ClineAccount"
-import { ClineStorageMessage } from "@/shared/messages/content"
+import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
+import type { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
+import type { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
-import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
+import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
-import { OpenRouterErrorResponse } from "./types"
+import type { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	ulid?: string
@@ -27,25 +29,49 @@ interface ClineHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelId?: string
 	openRouterModelInfo?: ModelInfo
 	clineAccountId?: string
-	geminiThinkingLevel?: string
+	clineApiKey?: string
+	enableParallelToolCalling?: boolean
 }
+
+function normalizeModelId(modelId: string): string {
+	return modelId.trim().toLowerCase()
+}
+
+const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
 
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
 	private _authService: AuthService
 	private client: OpenAI | undefined
-	private readonly _baseUrl = ClineEnv.config().apiBaseUrl
 	lastGenerationId?: string
 	private lastRequestId?: string
+
+	private get _baseUrl(): string {
+		return ClineEnv.config().apiBaseUrl
+	}
 
 	constructor(options: ClineHandlerOptions) {
 		this.options = options
 		this._authService = AuthService.getInstance()
 	}
 
+	private async getFreeModelIdSet(): Promise<Set<string>> {
+		try {
+			const models = await refreshClineRecommendedModels()
+			const freeModelIds = models.free.map((model) => normalizeModelId(model.id)).filter((modelId) => modelId.length > 0)
+			if (freeModelIds.length > 0) {
+				return new Set(freeModelIds)
+			}
+		} catch (error) {
+			Logger.error("Error resolving Cline free model IDs from recommended models:", error)
+		}
+
+		return CLINE_FREE_MODEL_IDS
+	}
+
 	private async ensureClient(): Promise<OpenAI> {
-		const clineAccountAuthToken = await this._authService.getAuthToken()
+		const clineAccountAuthToken = this.options.clineApiKey || (await this._authService.getAuthToken())
 		if (!clineAccountAuthToken) {
 			throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
 		}
@@ -105,7 +131,8 @@ export class ClineHandler implements ApiHandler {
 			this.lastGenerationId = undefined
 			this.lastRequestId = undefined
 
-			let didOutputUsage: boolean = false
+			let didOutputUsage = false
+			const freeModelIds = await this.getFreeModelIdSet()
 
 			const stream = await createOpenRouterStream(
 				client,
@@ -116,7 +143,7 @@ export class ClineHandler implements ApiHandler {
 				this.options.thinkingBudgetTokens,
 				this.options.openRouterProviderSorting,
 				tools,
-				this.options.geminiThinkingLevel,
+				this.options.enableParallelToolCalling,
 			)
 
 			const toolCallProcessor = new ToolCallProcessor()
@@ -145,11 +172,8 @@ export class ClineHandler implements ApiHandler {
 						const error = choiceWithError.error
 						Logger.error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
 						throw new Error(`Cline Mid-Stream Error: ${error.code || error.type || "Unknown"} - ${error.message}`)
-					} else {
-						throw new Error(
-							"Cline Mid-Stream Error: Stream terminated with error status but no error details provided",
-						)
 					}
+					throw new Error("Cline Mid-Stream Error: Stream terminated with error status but no error details provided")
 				}
 
 				const delta = choice?.delta
@@ -167,7 +191,12 @@ export class ClineHandler implements ApiHandler {
 
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				if (
+					delta &&
+					"reasoning" in delta &&
+					delta.reasoning &&
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -182,9 +211,10 @@ export class ClineHandler implements ApiHandler {
 				See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
 				*/
 				if (
+					delta &&
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					delta?.reasoning_details?.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
@@ -196,10 +226,12 @@ export class ClineHandler implements ApiHandler {
 				}
 
 				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
+					const modelId = this.getModel().id
+					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
 
-					if (["x-ai/grok-code-fast-1", "kwaipilot/kat-coder-pro"].includes(this.getModel().id)) {
+					if (isFreeModel) {
 						totalCost = 0
 					}
 
@@ -218,7 +250,7 @@ export class ClineHandler implements ApiHandler {
 			// Fallback to generation endpoint if usage chunk not returned
 			if (!didOutputUsage) {
 				Logger.warn("Cline API did not return usage chunk, fetching from generation endpoint")
-				const apiStreamUsage = await this.getApiStreamUsage()
+				const apiStreamUsage = await this.getApiStreamUsage(freeModelIds)
 				if (apiStreamUsage) {
 					yield apiStreamUsage
 				}
@@ -229,9 +261,10 @@ export class ClineHandler implements ApiHandler {
 		}
 	}
 
-	async getApiStreamUsage(): Promise<ApiStreamUsageChunk | undefined> {
+	async getApiStreamUsage(freeModelIds?: Set<string>): Promise<ApiStreamUsageChunk | undefined> {
 		if (this.lastGenerationId) {
 			try {
+				const resolvedFreeModelIds = freeModelIds || (await this.getFreeModelIdSet())
 				const clineAccountAuthToken = await this._authService.getAuthToken()
 				if (!clineAccountAuthToken) {
 					throw new Error(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE)
@@ -249,6 +282,14 @@ export class ClineHandler implements ApiHandler {
 				})
 
 				const generation = response.data
+				let totalCost = generation?.total_cost || 0
+				const modelId = this.getModel().id
+				const isFreeModel = resolvedFreeModelIds.has(normalizeModelId(modelId))
+
+				if (isFreeModel) {
+					totalCost = 0
+				}
+
 				return {
 					type: "usage",
 					cacheWriteTokens: 0,
@@ -256,7 +297,7 @@ export class ClineHandler implements ApiHandler {
 					// openrouter generation endpoint fails often
 					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
 					outputTokens: generation?.native_tokens_completion || 0,
-					totalCost: generation?.total_cost || 0,
+					totalCost,
 				}
 			} catch (error) {
 				// ignore if fails
@@ -276,6 +317,11 @@ export class ClineHandler implements ApiHandler {
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
+		}
+		// If we have a model ID but no model info (e.g., CLI featured models),
+		// use the ID with default model info rather than falling back to a different model
+		if (modelId) {
+			return { id: modelId, info: openRouterDefaultModelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}

@@ -14,12 +14,12 @@ import { getOcaConfig } from "./utils/utils"
 export class OcaAuthService {
 	protected static instance: OcaAuthService | null = null
 	protected readonly _config: OcaConfig
-	protected _authenticated: boolean = false
+	protected _authenticated = false
 	protected _ocaAuthState: OcaAuthState | null = null
 	protected _provider: OcaAuthProvider | null = null
 	protected _controller: Controller | null = null
 	protected _refreshInFlight: Promise<void> | null = null
-	protected _interactiveLoginPending: boolean = false
+	protected _interactiveLoginPending = false
 	protected _activeAuthStatusUpdateSubscriptions = new Set<{
 		controller: Controller
 		responseStream: StreamingResponseHandler<OcaAuthState>
@@ -143,7 +143,7 @@ export class OcaAuthService {
 		// Start the auth handler
 		const authHandler = AuthHandler.getInstance()
 		authHandler.setEnabled(true)
-		const callbackUrl = `${await authHandler.getCallbackUrl()}/auth/oca`
+		const callbackUrl = await authHandler.getCallbackUrl("/auth/oca")
 		const authUrl = this.requireProvider().getAuthUrl(callbackUrl!, ocaMode)
 		const authUrlString = authUrl?.toString() || ""
 		if (!authUrlString) {

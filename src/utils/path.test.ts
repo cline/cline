@@ -2,9 +2,41 @@ import { describe, it } from "mocha"
 import * as os from "os"
 import * as path from "path"
 import "should"
-import { arePathsEqual, getReadablePath } from "./path"
+import { arePathsEqual, getReadablePath, isLocatedInPath } from "./path"
 
 describe("Path Utilities", () => {
+	describe("isLocatedInPath", () => {
+		it("should return true for a path located within the directory", () => {
+			const dirPath = "/home/user/project"
+			const filePath = "/home/user/project/src/index.js"
+			isLocatedInPath(dirPath, filePath).should.be.true()
+		})
+
+		it("should return false for a path located outside the directory", () => {
+			const dirPath = "/home/user/project"
+			const filePath = "/home/user/other/index.js"
+			isLocatedInPath(dirPath, filePath).should.be.false()
+		})
+
+		it("should handle edge cases with trailing slashes", () => {
+			const dirPath = "/home/user/project/"
+			const filePath = "/home/user/project/src/index.js"
+			isLocatedInPath(dirPath, filePath).should.be.true()
+		})
+
+		it("should handle edge cases with relative paths", () => {
+			const dirPath = "/home/user/project"
+			const filePath = "/home/user/project/../project/src/index.js"
+			isLocatedInPath(dirPath, filePath).should.be.true()
+		})
+
+		it("should return false when the directory is similarly named", () => {
+			const dirPath = "/home/user/project"
+			const filePath = "/home/user/project_backup/index.js"
+			isLocatedInPath(dirPath, filePath).should.be.false()
+		})
+	})
+
 	describe("arePathsEqual", () => {
 		it("should handle undefined paths", () => {
 			arePathsEqual(undefined, undefined).should.be.true()

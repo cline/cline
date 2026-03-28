@@ -24,6 +24,8 @@ jobs:
 
         steps:
             - uses: actions/checkout@v4
+              with:
+                  lfs: true
 
             - name: Check for recent commits
               run: |
@@ -36,34 +38,27 @@ jobs:
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
-                  node-version: "lts/*"
-
-            # Cache root dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache root dependencies
-              uses: actions/cache@v4
-              id: root-cache
-              with:
-                  path: node_modules
-                  key: ${{ runner.os }}-npm-${{ hashFiles('package-lock.json') }}
-
-            # Cache webview-ui dependencies - only reuse if package-lock.json exactly matches
-            - name: Cache webview-ui dependencies
-              uses: actions/cache@v4
-              id: webview-cache
-              with:
-                  path: webview-ui/node_modules
-                  key: ${{ runner.os }}-npm-webview-${{ hashFiles('webview-ui/package-lock.json') }}
+                  # Keep publish environment aligned with test workflow/tooling lockfile expectations.
+                  # Newer LTS (Node 24 / npm 11) can make `npm list` fail with ELSPROBLEMS during vsce packaging.
+                  node-version: 22
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci --include=optional
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci --include=optional
 
             - name: Install Publishing Tools
               run: npm install -g @vscode/vsce ovsx
+
+            - name: Verify LFS media assets are resolved
+              run: |
+                  for FILE in webview-ui/src/assets/cline_kanban_demo.mp4 webview-ui/src/assets/cline_kanban_demo.webm; do
+                    if grep -q "git-lfs.github.com/spec/v1" "$FILE"; then
+                      echo "Error: $FILE is still a Git LFS pointer in CI checkout"
+                      exit 1
+                    fi
+                  done
 
             - name: Publish Extension as Pre-release
               env:

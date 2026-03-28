@@ -13,13 +13,15 @@ export const addSelectedCodeToClineWebview = async (_page: Page) => {
 
 	// Open Code Actions via keyboard for cross-platform reliability
 	await _page.keyboard.press("ControlOrMeta+.")
-	// Wait for the Code Actions UI to appear (listbox or menu depending on platform/version)
-	try {
-		await _page.getByRole("listbox").first().waitFor({ state: "visible", timeout: 5000 })
-	} catch {
-		await _page.getByRole("menu").first().waitFor({ state: "visible", timeout: 5000 })
-	}
-	await _page.keyboard.press("Enter", { delay: 100 }) // First action - "Add to Cline"
+
+	// Target the explicit action instead of pressing Enter on the first item.
+	// The first item can vary by platform or diagnostics.
+	const addToCline = _page.getByText(/Add to Cline/i)
+	await addToCline.waitFor({ state: "visible" })
+	// For whatever reason, we need to move the mouse to make the context menu item clickable
+	await _page.mouse.move(10, 10)
+	await _page.mouse.move(20, 10)
+	await addToCline.click()
 }
 
 export const toggleNotifications = async (_page: Page) => {

@@ -18,9 +18,8 @@ export const TabContent = ({ className, children, ...props }: TabProps) => {
 	const onWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
 		const target = e.target as HTMLElement
 
-		// Prevent scrolling if the target is a listbox or option
-		// (e.g. selects, dropdowns, etc).
-		if (target.role === "listbox" || target.role === "option") {
+		// Prevent scrolling if the target or any of its ancestors is a listbox or option
+		if (target.closest('[role="listbox"], [role="combobox"], [role="option"]')) {
 			return
 		}
 

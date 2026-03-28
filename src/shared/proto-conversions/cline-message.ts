@@ -25,6 +25,7 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		condense: ClineAsk.CONDENSE,
 		summarize_task: ClineAsk.SUMMARIZE_TASK,
 		report_bug: ClineAsk.REPORT_BUG,
+		use_subagents: ClineAsk.USE_SUBAGENTS,
 	}
 
 	const result = mapping[ask]
@@ -57,6 +58,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.CONDENSE]: "condense",
 		[ClineAsk.SUMMARIZE_TASK]: "summarize_task",
 		[ClineAsk.REPORT_BUG]: "report_bug",
+		[ClineAsk.USE_SUBAGENTS]: "use_subagents",
 	}
 
 	return mapping[ask]
@@ -103,6 +105,9 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		hook_status: ClineSay.HOOK_STATUS,
 		hook_output_stream: ClineSay.HOOK_OUTPUT_STREAM,
 		conditional_rules_applied: ClineSay.CONDITIONAL_RULES_APPLIED,
+		subagent: ClineSay.SUBAGENT_STATUS,
+		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
+		subagent_usage: ClineSay.SUBAGENT_USAGE,
 		generate_explanation: ClineSay.GENERATE_EXPLANATION,
 	}
 
@@ -152,6 +157,9 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.HOOK_STATUS]: "hook_status",
 		[ClineSay.HOOK_OUTPUT_STREAM]: "hook_output_stream",
 		[ClineSay.CONDITIONAL_RULES_APPLIED]: "conditional_rules_applied",
+		[ClineSay.SUBAGENT_STATUS]: "subagent",
+		[ClineSay.USE_SUBAGENTS_SAY]: "use_subagents",
+		[ClineSay.SUBAGENT_USAGE]: "subagent_usage",
 	}
 
 	return mapping[say]

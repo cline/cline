@@ -1,5 +1,6 @@
 import { McpDisplayMode } from "@shared/McpDisplayMode"
 import { VSCodeProgressRing } from "@vscode/webview-ui-toolkit/react"
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { useCallback, useEffect, useState } from "react"
 import styled from "styled-components"
 import ChatErrorBoundary from "@/components/chat/ChatErrorBoundary"
@@ -223,7 +224,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 						marginBottom: isExpanded ? "8px" : "0px",
 					}}>
 					<div className="header-title">
-						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
+						{isExpanded ? (
+							<ChevronDownIcon className="header-icon" size={16} />
+						) : (
+							<ChevronRightIcon className="header-icon" size={16} />
+						)}
 						Response
 					</div>
 					<DropdownContainer
@@ -247,7 +252,11 @@ const McpResponseDisplay: React.FC<McpResponseDisplayProps> = ({ responseText })
 			<ResponseContainer>
 				<ResponseHeader onClick={toggleExpand}>
 					<div className="header-title">
-						<span className={`codicon codicon-chevron-${isExpanded ? "down" : "right"} header-icon`}></span>
+						{isExpanded ? (
+							<ChevronDownIcon className="header-icon" size={16} />
+						) : (
+							<ChevronRightIcon className="header-icon" size={16} />
+						)}
 						Response (Error)
 					</div>
 				</ResponseHeader>

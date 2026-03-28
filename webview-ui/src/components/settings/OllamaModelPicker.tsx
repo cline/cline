@@ -139,6 +139,7 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 					}}
 					onKeyDown={handleKeyDown}
 					placeholder={placeholder}
+					role="combobox"
 					style={{
 						width: "100%",
 						zIndex: OLLAMA_MODEL_PICKER_Z_INDEX,
@@ -164,7 +165,7 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 					)}
 				</VSCodeTextField>
 				{isDropdownVisible && modelSearchResults.length > 0 && (
-					<DropdownList ref={dropdownListRef}>
+					<DropdownList ref={dropdownListRef} role="listbox">
 						{modelSearchResults.map((item, index) => (
 							<DropdownItem
 								isSelected={index === selectedIndex}
@@ -174,7 +175,8 @@ const OllamaModelPicker: React.FC<OllamaModelPickerProps> = ({
 									setIsDropdownVisible(false)
 								}}
 								onMouseEnter={() => setSelectedIndex(index)}
-								ref={(el) => (itemRefs.current[index] = el)}>
+								ref={(el) => (itemRefs.current[index] = el)}
+								role="option">
 								<span dangerouslySetInnerHTML={{ __html: item.html }} />
 							</DropdownItem>
 						))}

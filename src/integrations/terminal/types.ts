@@ -14,10 +14,17 @@ import type { EventEmitter } from "events"
 /**
  * Event types for terminal process
  */
+export interface TerminalCompletionDetails {
+	/** Process exit code when available */
+	exitCode?: number | null
+	/** Termination signal when available */
+	signal?: NodeJS.Signals | null
+}
+
 export interface TerminalProcessEvents {
 	line: [line: string]
 	continue: []
-	completed: []
+	completed: [details?: TerminalCompletionDetails]
 	error: [error: Error]
 	no_shell_integration: []
 }
@@ -57,6 +64,11 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	 * @returns The unretrieved output
 	 */
 	getUnretrievedOutput(): string
+
+	/**
+	 * Get completion metadata for the most recent command execution.
+	 */
+	getCompletionDetails?(): TerminalCompletionDetails
 
 	/**
 	 * Terminate the process if it's still running.
@@ -136,7 +148,7 @@ export type TerminalProcessResultPromise = Promise<void> &
 		/** Listen for line output events */
 		on(event: "line", listener: (line: string) => void): TerminalProcessResultPromise
 		/** Listen for completion event */
-		on(event: "completed", listener: () => void): TerminalProcessResultPromise
+		on(event: "completed", listener: (details?: TerminalCompletionDetails) => void): TerminalProcessResultPromise
 		/** Listen for continue event */
 		on(event: "continue", listener: () => void): TerminalProcessResultPromise
 		/** Listen for error events */
@@ -212,12 +224,6 @@ export interface ITerminalManager {
 	setTerminalOutputLineLimit(limit: number): void
 
 	/**
-	 * Set the maximum number of output lines for subagent commands.
-	 * @param limit Maximum number of lines
-	 */
-	setSubagentTerminalOutputLineLimit(limit: number): void
-
-	/**
 	 * Set the default terminal profile.
 	 * @param profile The profile identifier
 	 */
@@ -227,10 +233,9 @@ export interface ITerminalManager {
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override
-	 * @param isSubagentCommand Whether this is a subagent command
 	 * @returns Processed output string
 	 */
-	processOutput(outputLines: string[], overrideLimit?: number, isSubagentCommand?: boolean): string
+	processOutput(outputLines: string[], overrideLimit?: number): string
 }
 
 /**
@@ -337,6 +342,22 @@ export interface CommandExecutorCallbacks {
 }
 
 /**
+ * Optional per-command execution behavior overrides.
+ */
+export interface CommandExecutionOptions {
+	/**
+	 * Force command execution in standalone/background terminal mode for this command.
+	 * This is useful for subagent runs and headless-style execution flows.
+	 */
+	useBackgroundExecution?: boolean
+	/**
+	 * Suppress command interaction/output UI messages (ask/say) for this command execution.
+	 * Command output is still captured and returned as the tool result.
+	 */
+	suppressUserInteraction?: boolean
+}
+
+/**
  * Configuration for CommandExecutor
  */
 export interface CommandExecutorConfig {
@@ -383,6 +404,11 @@ export interface OrchestrationOptions {
 	 * Defaults to "vscode" for backward compatibility.
 	 */
 	terminalType?: "vscode" | "standalone"
+	/**
+	 * If true, suppresses command-output ask/say UI interactions.
+	 * Output is still collected and included in the final result.
+	 */
+	suppressUserInteraction?: boolean
 }
 
 /**
@@ -399,4 +425,8 @@ export interface OrchestrationResult {
 	outputLines: string[]
 	/** Path to log file if output was too large and written to file */
 	logFilePath?: string
+	/** Process exit code when available */
+	exitCode?: number | null
+	/** Process termination signal when available */
+	signal?: NodeJS.Signals | null
 }

@@ -1,65 +1,33 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { StateManager } from "../../storage/StateManager"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
-import { loadFixture } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
 describe("TaskComplete Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let getEnv: () => { tempDir: string }
+	let hookTestEnv: HookTestEnv
+	const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
-	// Helper to write executable hook script
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
-		} as any)
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 
 		getEnv = () => ({ tempDir })
-
-		// Reset hook discovery cache for clean test state
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("Hook Input Format", () => {
@@ -93,7 +61,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All metadata present")
+			result.contextModification?.should.equal("All metadata present")
 		})
 
 		it("should handle completion without command", async () => {
@@ -126,7 +94,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Command: ''")
+			result.contextModification?.should.equal("Command: ''")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -135,7 +103,8 @@ console.log(JSON.stringify({
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName === 'TaskComplete' && 
                      input.timestamp && input.taskId && 
-                     input.workspaceRoots !== undefined;
+                     input.workspaceRoots !== undefined &&
+                     input.model && input.model.provider && input.model.slug;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields",
@@ -160,7 +129,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 
 		it("should receive result text for logging", async () => {
@@ -192,7 +161,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Result length: 75")
+			result.contextModification?.should.equal("Result length: 75")
 		})
 	})
 
@@ -224,7 +193,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskComplete hook executed successfully")
+			result.contextModification?.should.equal("TaskComplete hook executed successfully")
 		})
 
 		it("should capture contextModification for logging even though task is complete", async () => {
@@ -255,7 +224,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TASK_COMPLETE: Task 'test-task-id' finished")
+			result.contextModification?.should.equal("TASK_COMPLETE: Task 'test-task-id' finished")
 		})
 
 		it("should not block task completion when hook returns cancel: true", async () => {
@@ -287,7 +256,7 @@ console.log(JSON.stringify({
 			// Hook can return cancel: true, but it's ignored (task is already complete)
 			// This is similar to TaskCancel behavior
 			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Hook tried to block completion")
+			result.errorMessage?.should.equal("Hook tried to block completion")
 		})
 	})
 
@@ -352,20 +321,16 @@ console.log("not valid json")`
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			// Mock getAllHooksDirs to include our test global directory
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				const workspaceDirs = await originalGetAllHooksDirs()
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			// Use deterministic hook directories to avoid test flakiness.
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace TaskComplete hooks", async () => {
@@ -404,8 +369,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Task complete/)
-			result.contextModification!.should.match(/WORKSPACE: Task complete/)
+			result.contextModification?.should.match(/GLOBAL: Task complete/)
+			result.contextModification?.should.match(/WORKSPACE: Task complete/)
 		})
 
 		it("should handle when global hook has error but workspace succeeds", async () => {
@@ -469,72 +434,73 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fixture-Based Tests", () => {
-		it("should work with success fixture", async () => {
-			await loadFixture("hooks/taskcomplete/success", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskComplete")
-
-			const result = await runner.run({
-				taskId: "test-task-id",
-				taskComplete: {
-					taskMetadata: {
-						taskId: "test-task-id",
-						ulid: "test-ulid",
-						result: "Test task",
-						command: "",
+		it("should validate representative fixtures end-to-end", async () => {
+			const scenarios: Array<{
+				fixtureName: string
+				resultText: string
+				assert: (result: HookOutput) => void
+			}> = [
+				{
+					fixtureName: "success",
+					resultText: "Test task",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("TaskComplete hook executed successfully")
 					},
 				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("TaskComplete hook executed successfully")
-		})
-
-		it("should work with error fixture", async () => {
-			await loadFixture("hooks/taskcomplete/error", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskComplete")
-
-			try {
-				await runner.run({
-					taskId: "test-task-id",
-					taskComplete: {
-						taskMetadata: {
-							taskId: "test-task-id",
-							ulid: "test-ulid",
-							result: "Test task",
-							command: "",
-						},
+				{
+					fixtureName: "context-injection",
+					resultText: "Build a todo app",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("COMPLETED: Build a todo app")
 					},
-				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/TaskComplete.*exited with code 1/)
+				},
+			]
+
+			for (const scenario of scenarios) {
+				await withFixtureRunner(
+					"TaskComplete",
+					`hooks/taskcomplete/${scenario.fixtureName}`,
+					hookTestEnv,
+					async (runner) => {
+						const result = await runner.run({
+							taskId: "test-task-id",
+							taskComplete: {
+								taskMetadata: {
+									taskId: "test-task-id",
+									ulid: "test-ulid",
+									result: scenario.resultText,
+									command: "",
+								},
+							},
+						})
+
+						scenario.assert(result)
+					},
+				)
 			}
 		})
 
-		it("should work with context-injection fixture", async () => {
-			await loadFixture("hooks/taskcomplete/context-injection", getEnv().tempDir)
-
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskComplete")
-
-			const result = await runner.run({
-				taskId: "test-task-id",
-				taskComplete: {
-					taskMetadata: {
+		it("should preserve fixture-based failure behavior", async () => {
+			await withFixtureRunner("TaskComplete", "hooks/taskcomplete/error", hookTestEnv, async (runner) => {
+				try {
+					await runner.run({
 						taskId: "test-task-id",
-						ulid: "test-ulid",
-						result: "Build a todo app",
-						command: "",
-					},
-				},
+						taskComplete: {
+							taskMetadata: {
+								taskId: "test-task-id",
+								ulid: "test-ulid",
+								result: "Test task",
+								command: "",
+							},
+						},
+					})
+					throw new Error("Should have thrown")
+				} catch (error: unknown) {
+					getErrorMessage(error).should.match(/TaskComplete.*exited with code 1/)
+				}
 			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("COMPLETED: Build a todo app")
 		})
 	})
 })

@@ -29,26 +29,32 @@
 		"noUncheckedSideEffectImports": true,
 
 		/* Aliasing */
-		"baseUrl": ".",
 		"paths": {
 			"@/*": [
-				"src/*"
+				"./src/*"
 			],
 			"@components/*": [
-				"src/components/*"
+				"./src/components/*"
 			],
 			"@context/*": [
-				"src/context/*"
+				"./src/context/*"
 			],
 			"@shared/*": [
 				"../src/shared/*"
 			],
 			"@utils/*": [
-				"src/utils/*"
+				"./src/utils/*"
 			]
 		}
 	},
 	"include": [
 		"src"
+	],
+	"exclude": [
+		"src/**/*.test.tsx",
+		"src/**/*.test.ts",
+		"src/**/*.spec.tsx",
+		"src/**/*.spec.ts",
+		"src/**/__tests__/**"
 	]
 }

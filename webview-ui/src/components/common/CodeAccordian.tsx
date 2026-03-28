@@ -1,3 +1,4 @@
+import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import { memo, useMemo } from "react"
 import CodeBlock from "@/components/common/CodeBlock"
 import { cn } from "@/lib/utils"
@@ -88,7 +89,7 @@ const CodeAccordian = ({
 							<span>{numberOfEdits}</span>
 						</div>
 					)}
-					<span className={`codicon codicon-chevron-${isExpanded ? "up" : "down"}`} />
+					{isExpanded ? <ChevronDownIcon className="size-4" /> : <ChevronRightIcon className="size-4" />}
 				</Button>
 			)}
 			{(!(path || isFeedback || isConsoleLogs) || isExpanded) && (

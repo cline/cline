@@ -527,6 +527,17 @@ describe("Remote Config Schema", () => {
 
 			expect(() => RemoteConfigSchema.parse(config)).to.throw()
 		})
+
+		it("should accept headers", () => {
+			const config = {
+				version: "v1",
+				remoteMCPServers: [{ name: "test-server", url: "https://example.com/mcp", headers: { Authorization: "test" } }],
+			}
+
+			const result = RemoteConfigSchema.parse(config)
+			expect(result.remoteMCPServers).to.have.lengthOf(1)
+			expect(result.remoteMCPServers?.[0].headers).to.deep.equal({ Authorization: "test" })
+		})
 	})
 
 	describe("RemoteConfigSchema", () => {
@@ -534,6 +545,7 @@ describe("Remote Config Schema", () => {
 			const validConfig: RemoteConfig = {
 				version: "v1",
 				telemetryEnabled: true,
+				kanbanEnabled: true,
 				mcpMarketplaceEnabled: true,
 				yoloModeAllowed: false,
 				providerSettings: {
@@ -628,6 +640,7 @@ describe("Remote Config Schema", () => {
 			const config = {
 				version: "v1",
 				telemetryEnabled: true,
+				kanbanEnabled: true,
 				mcpMarketplaceEnabled: false,
 				blockPersonalRemoteMCPServers: true,
 				allowedMCPServers: [{ id: "https://github.com/mcp/filesystem" }, { id: "https://github.com/mcp/github" }],
@@ -731,6 +744,13 @@ describe("Remote Config Schema", () => {
 						vertexProjectId: "my-gcp-project",
 						vertexRegion: "us-central1",
 					},
+					Anthropic: {
+						models: [
+							{ id: "claude-3-5-sonnet-20241022" },
+							{ id: "claude-3-5-sonnet-20241024", thinkingBudgetTokens: 1600 },
+						],
+						baseUrl: "https://example.cline.bot",
+					},
 				},
 				enterpriseTelemetry: {
 					promptUploading: {
@@ -751,6 +771,7 @@ describe("Remote Config Schema", () => {
 			expect(result.version).to.equal("v1")
 			expect(result.telemetryEnabled).to.equal(true)
 			expect(result.yoloModeAllowed).to.equal(true)
+			expect(result.kanbanEnabled).to.equal(true)
 
 			expect(result.mcpMarketplaceEnabled).to.equal(false)
 			expect(result.allowedMCPServers).to.deep.equal(config.allowedMCPServers)
@@ -782,6 +803,13 @@ describe("Remote Config Schema", () => {
 			expect(result.providerSettings?.Vertex?.models?.[1].thinkingBudgetTokens).to.be.undefined
 			expect(result.providerSettings?.Vertex?.vertexProjectId).to.equal("my-gcp-project")
 			expect(result.providerSettings?.Vertex?.vertexRegion).to.equal("us-central1")
+
+			expect(result.providerSettings?.Anthropic?.models).to.have.lengthOf(2)
+			expect(result.providerSettings?.Anthropic?.models?.[0].id).to.equal("claude-3-5-sonnet-20241022")
+			expect(result.providerSettings?.Anthropic?.models?.[0].thinkingBudgetTokens).to.be.undefined
+			expect(result.providerSettings?.Anthropic?.models?.[1].id).to.equal("claude-3-5-sonnet-20241024")
+			expect(result.providerSettings?.Anthropic?.models?.[1].thinkingBudgetTokens).to.equal(1600)
+			expect(result.providerSettings?.Anthropic?.baseUrl).to.equal("https://example.cline.bot")
 
 			// Verify OpenTelemetry settings
 			expect(result.openTelemetryEnabled).to.equal(true)

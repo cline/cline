@@ -1,3 +1,4 @@
+import { ClineEndpoint } from "@/config"
 import { isPostHogConfigValid, PostHogClientConfig, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"
 import { ClineError } from "./ClineError"
@@ -38,6 +39,7 @@ export class ErrorProviderFactory {
 							errorTrackingApiKey: errorTrackingApiKey,
 							host: config.config.host,
 							uiHost: config.config.uiHost,
+							enableExceptionAutocapture: !!config.config.enableErrorAutocapture,
 						}).initialize()
 					: new NoOpErrorProvider() // Fallback to no-op provider
 			}
@@ -48,9 +50,16 @@ export class ErrorProviderFactory {
 
 	/**
 	 * Gets the default error provider configuration
-	 * @returns Default configuration using PostHog
+	 * @returns Default configuration using PostHog, or no-op for self-hosted mode
 	 */
 	public static getDefaultConfig(): ErrorProviderConfig {
+		// Use no-op provider in self-hosted mode to avoid external network calls
+		if (ClineEndpoint.isSelfHosted()) {
+			return {
+				type: "no-op",
+				config: posthogConfig,
+			}
+		}
 		return {
 			type: "posthog",
 			config: posthogConfig,
@@ -63,6 +72,10 @@ export class ErrorProviderFactory {
  * or for testing purposes
  */
 class NoOpErrorProvider implements IErrorProvider {
+	async captureException(error: Error | ClineError, properties?: Record<string, unknown>): Promise<void> {
+		Logger.error("[NoOpErrorProvider] captureException called", { error: error.message || String(error), properties })
+	}
+
 	public logException(error: Error | ClineError, _properties?: Record<string, unknown>): void {
 		// Use Logger.error directly to avoid potential infinite recursion through Logger
 		Logger.error("[NoOpErrorProvider]", error.message || String(error))

@@ -1,0 +1,215 @@
+# Build and Pack CLI
+#
+# Builds a CLI tarball from any branch/commit and publishes it as a GitHub Release.
+# Requires write access to the repository (maintainers/collaborators only).
+#
+# Security: Split into two jobs to isolate untrusted build code from write tokens.
+# The build job runs arbitrary ref code with zero permissions. The release job
+# only runs trusted GitHub Actions with write scope.
+#
+# Usage (helper script, auto-detects current branch):
+#   ./scripts/build-cli-artifact.sh
+#   ./scripts/build-cli-artifact.sh feature/my-changes
+#   ./scripts/build-cli-artifact.sh feature/my-changes 1234  # comments on PR
+#
+# Usage (gh CLI directly):
+#   gh workflow run pack-cli.yml -f ref=main
+#   gh workflow run pack-cli.yml -f ref=abc123 -f pr_number=1234
+#
+# Install the built CLI (no auth required):
+#   npm install -g https://github.com/cline/cline/releases/download/cli-build-<sha>/cline-<ver>.tgz
+#
+# Find releases:
+#   gh release list --limit 10
+
+name: Build and Pack CLI
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: 'Branch, tag, or commit SHA to build (leave empty for default branch)'
+        required: false
+        type: string
+      pr_number:
+        description: 'PR number to comment on with install instructions (optional)'
+        required: false
+        type: number
+
+jobs:
+  # ── Build job: runs untrusted ref code with ZERO permissions ──
+  build:
+    name: Build CLI
+    runs-on: ubuntu-latest
+    permissions: {}
+    outputs:
+      commit_sha: ${{ steps.commit.outputs.sha }}
+      tarball: ${{ steps.pack.outputs.tarball }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+          persist-credentials: false
+
+      - name: Get commit SHA
+        id: commit
+        run: |
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          echo "sha=$COMMIT_SHA" >> $GITHUB_OUTPUT
+          echo "Building from commit: $COMMIT_SHA"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.x"
+
+      - name: Install dependencies
+        run: npm ci --include=optional
+
+      - name: Generate Protos
+        run: npm run protos
+
+      - name: Build standalone package
+        run: node scripts/package-npm.mjs
+
+      - name: Create Tarball
+        id: pack
+        run: |
+          cd dist-standalone
+          TARBALL=$(npm pack)
+          echo "tarball=$TARBALL" >> $GITHUB_OUTPUT
+          echo "Created tarball: $TARBALL"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-tarball
+          path: dist-standalone/*.tgz
+
+  # ── Release job: only trusted Actions code, with write permissions ──
+  release:
+    name: Release CLI
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-tarball
+          path: dist-standalone
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const commit = '${{ needs.build.outputs.commit_sha }}';
+            const tarball = '${{ needs.build.outputs.tarball }}';
+
+            // Delete existing release/tag if re-running for the same commit
+            const tagName = `cli-build-${commit}`;
+            try {
+              const existing = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tagName
+              });
+              await github.rest.repos.deleteRelease({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                release_id: existing.data.id
+              });
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `tags/${tagName}`
+              });
+              core.info(`Deleted existing release for ${tagName}`);
+            } catch (e) {
+              // Release doesn't exist yet, that's fine
+            }
+
+            // Create a release
+            const release = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tagName,
+              name: `CLI Build (${commit})`,
+              body: `Automated CLI build from commit ${commit}\n\nInstall with:\n\`\`\`bash\nnpm install -g https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tagName}/${tarball}\n\`\`\``,
+              draft: false,
+              prerelease: true
+            });
+
+            // Upload the tarball as a release asset
+            const tarballPath = path.join('dist-standalone', tarball);
+            const tarballData = fs.readFileSync(tarballPath);
+
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: release.data.id,
+              name: tarball,
+              data: tarballData
+            });
+
+            const downloadUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tagName}/${tarball}`;
+            core.setOutput('release_url', release.data.html_url);
+            core.setOutput('download_url', downloadUrl);
+
+      - name: Comment on PR with download instructions
+        if: inputs.pr_number != ''
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commit = '${{ needs.build.outputs.commit_sha }}';
+            const releaseUrl = '${{ steps.create_release.outputs.release_url }}';
+            const downloadUrl = '${{ steps.create_release.outputs.download_url }}';
+            const prNumber = ${{ inputs.pr_number || 0 }};
+            if (!prNumber) return;
+
+            const comment = `## 📦 CLI Build Ready
+
+            A CLI build has been created for commit \`${commit}\`.
+
+            ### Install Directly from URL (No Authentication Required!)
+
+            \`\`\`bash
+            npm install -g ${downloadUrl}
+            \`\`\`
+
+            ### Alternative: Download and Install
+
+            \`\`\`bash
+            curl -L ${downloadUrl} -o cline.tgz
+            npm install -g ./cline.tgz
+            \`\`\`
+
+            📦 [View Release](${releaseUrl})
+            `;
+
+            await github.rest.issues.createComment({
+              issue_number: prNumber,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+
+      - name: Summary
+        run: |
+          echo "✅ CLI build complete!"
+          echo ""
+          echo "📦 Release: ${{ steps.create_release.outputs.release_url }}"
+          echo "🔗 Download URL: ${{ steps.create_release.outputs.download_url }}"
+          echo ""
+          echo "Install from anywhere (no authentication required):"
+          echo "  npm install -g ${{ steps.create_release.outputs.download_url }}"

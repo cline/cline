@@ -80,12 +80,15 @@ jobs:
                       playwright-browsers-${{ runner.os }}-
 
             - name: Install root dependencies
-              if: steps.root-cache.outputs.cache-hit != 'true'
               run: npm ci
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
             - name: Install webview-ui dependencies
-              if: steps.webview-cache.outputs.cache-hit != 'true'
               run: cd webview-ui && npm ci
+
+            - name: Install vsce
+              run: npm install -g @vscode/vsce
 
             - name: Install xvfb on Linux
               if: matrix.runner == 'ubuntu'

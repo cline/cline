@@ -14,7 +14,7 @@ This file is the secret sauce for working effectively in this codebase. It captu
 
 ## Miscellaneous
 - This is a VS Code extension—check `package.json` for available scripts before trying to verify builds (e.g., `npm run compile`, not `npm run build`).
-- When creating PRs, if the change is user-facing and significant enough to warrant a changelog entry, run `npm run changeset` and create a patch changeset. Never create minor or major version bumps. Skip changesets for trivial fixes, internal refactors, or minor UI tweaks that users wouldn't notice.
+- When creating PRs, contributors should not create changelog-entry files. Maintainers handle release versioning and changelog curation during the release process.
 - When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 - Additional instructions about making requests: @.clinerules/network.md
 
@@ -146,6 +146,17 @@ Required steps:
 3. StateManager handles read/write via `setGlobalState()`/`getGlobalStateKey()` after initialization
 
 Common mistake: Adding only the return value without the `context.globalState.get()` call. This compiles but the value is always `undefined` on load.
+
+Settings plumbing gotcha: if a key is user-toggleable from settings, wire both controller update paths:
+- `src/core/controller/state/updateSettings.ts` for webview `updateSetting(...)`
+- `src/core/controller/state/updateSettingsCli.ts` for CLI/ACP settings updates
+Missing one path causes a toggle to appear to change in one surface while the backend state stays unchanged.
+
+Webview toggle gotcha: settings changes must also round-trip back in state payloads.
+- Add the field to `UpdateSettingsRequest` in `proto/cline/state.proto` (for webview update requests), then run `npm run protos`
+- Include the key in `Controller.getStateToPostToWebview()` (`src/core/controller/index.ts`)
+- Ensure `ExtensionState` and webview defaults include the key (`src/shared/ExtensionMessage.ts`, `webview-ui/src/context/ExtensionStateContext.tsx`)
+If this round-trip wiring is missing, the backend value can update but the toggle in webview appears stuck or reverts.
 
 ## StateManager Cache vs Direct globalState Access
 StateManager uses an in-memory cache populated during `StateManager.initialize(context)` in `common.ts`. For most state, use `controller.stateManager.setGlobalState()`/`getGlobalStateKey()`.

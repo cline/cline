@@ -4,11 +4,15 @@ import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
 import fs from "fs/promises"
 import path from "path"
+import { StateManager } from "@/core/storage/StateManager"
 import { telemetryService } from "@/services/telemetry"
 import { getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { groqModels } from "../../../shared/api"
 import { Controller } from ".."
+
+// Track pending refresh promise to prevent duplicate concurrent fetches
+let pendingRefresh: Promise<Record<string, ModelInfo>> | null = null
 
 /**
  * Core function: Refreshes the Groq models and returns application types
@@ -16,6 +20,31 @@ import { Controller } from ".."
  * @returns Record of model ID to ModelInfo (application types)
  */
 export async function refreshGroqModels(controller: Controller): Promise<Record<string, ModelInfo>> {
+	// Check in-memory cache first
+	const cache = StateManager.get().getModelsCache("groq")
+	if (cache) {
+		return cache
+	}
+
+	// If a fetch is already in progress, return the same promise
+	if (pendingRefresh) {
+		return pendingRefresh
+	}
+
+	// Start new fetch and track the promise
+	pendingRefresh = (async () => {
+		try {
+			return await fetchAndCacheModels(controller)
+		} finally {
+			// Clear pending promise when done (success or error)
+			pendingRefresh = null
+		}
+	})()
+
+	return pendingRefresh
+}
+
+async function fetchAndCacheModels(controller: Controller): Promise<Record<string, ModelInfo>> {
 	const groqModelsFilePath = path.join(await ensureCacheDirectoryExists(), GlobalFileNames.groqModels)
 
 	const groqApiKey = controller.stateManager.getSecretKey("groqApiKey")
@@ -83,11 +112,12 @@ export async function refreshGroqModels(controller: Controller): Promise<Record<
 
 					models[rawModel.id] = modelInfo
 				}
+
+				await fs.writeFile(groqModelsFilePath, JSON.stringify(models))
+				Logger.log("Groq models fetched and saved", models)
 			} else {
 				Logger.error("Invalid response from Groq API")
 			}
-			await fs.writeFile(groqModelsFilePath, JSON.stringify(models))
-			Logger.log("Groq models fetched and saved", models)
 		}
 	} catch (error) {
 		Logger.error("Error fetching Groq models:", error)
@@ -158,6 +188,9 @@ export async function refreshGroqModels(controller: Controller): Promise<Record<
 			tiers: model.tiers,
 		}
 	}
+
+	// Store in StateManager's in-memory cache
+	StateManager.get().setModelsCache("groq", typedModels)
 
 	return typedModels
 }

@@ -56,6 +56,30 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
+					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider) {
+						return !clineUser ? (
+							// User is using Cline provider and is not logged in
+							<div className="flex flex-col gap-3">
+								<div className="flex items-center justify-center rounded border border-neutral-500/30 bg-vscode-editor-background p-6 text-center text-vscode-foreground">
+									Whoops looks like you're logged out – click below to sign in
+								</div>
+								<Button className="w-full" disabled={isLoginLoading} onClick={handleSignIn}>
+									Sign in to Cline
+									{isLoginLoading && (
+										<span className="ml-1 animate-spin">
+											<span className="codicon codicon-refresh" />
+										</span>
+									)}
+								</Button>
+							</div>
+						) : (
+							// Don't show sign in button after the user has logged in, just ask them to retry
+							<div className="mt-4">
+								<span className="text-description">(Click "Retry" below)</span>
+							</div>
+						)
+					}
+
 					return (
 						<p className="m-0 whitespace-pre-wrap text-error wrap-anywhere flex flex-col gap-3">
 							{/* Display the well-formatted error extracted from the ClineError instance */}
@@ -83,28 +107,15 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 							{/* Display raw API error if different from parsed error message */}
 							{errorMessage !== rawApiError && <div>{rawApiError}</div>}
 
-							{/* Display Login button for non-logged in users using the Cline provider */}
-							<div>
-								{/* The user is signed in or not using cline provider */}
-								{isClineProvider && !clineUser ? (
-									<Button className="w-full mb-4" disabled={isLoginLoading} onClick={handleSignIn}>
-										Sign in to Cline
-										{isLoginLoading && (
-											<span className="ml-1 animate-spin">
-												<span className="codicon codicon-refresh"></span>
-											</span>
-										)}
-									</Button>
-								) : (
-									<span className="mb-4 text-description">(Click "Retry" below)</span>
-								)}
+							<div className="mt-4">
+								<span className="text-description">(Click "Retry" below)</span>
 							</div>
 						</p>
 					)
 				}
 
 				// Regular error message
-				return <p className="m-0 mt-4 whitespace-pre-wrap text-error wrap-anywhere">{message.text}</p>
+				return <p className="m-0 mt-0 whitespace-pre-wrap text-error wrap-anywhere">{message.text}</p>
 
 			case "diff_error":
 				return (

@@ -6,7 +6,7 @@ import axios from "axios"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch, getAxiosSettings } from "@/shared/net"
+import { createOpenAIClient, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../"
 import { withRetry } from "../retry"
@@ -22,7 +22,7 @@ interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
 	openRouterProviderSorting?: string
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
-	geminiThinkingLevel?: string
+	enableParallelToolCalling?: boolean
 }
 
 export class OpenRouterHandler implements ApiHandler {
@@ -40,14 +40,13 @@ export class OpenRouterHandler implements ApiHandler {
 				throw new Error("OpenRouter API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://openrouter.ai/api/v1",
 					apiKey: this.options.openRouterApiKey,
 					defaultHeaders: {
 						"HTTP-Referer": "https://cline.bot", // Optional, for including your app on openrouter.ai rankings.
 						"X-Title": "Cline", // Optional. Shows in rankings on openrouter.ai.
 					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating OpenRouter client: ${error.message}`)
@@ -70,10 +69,10 @@ export class OpenRouterHandler implements ApiHandler {
 			this.options.thinkingBudgetTokens,
 			this.options.openRouterProviderSorting,
 			tools,
-			this.options.geminiThinkingLevel,
+			this.options.enableParallelToolCalling,
 		)
 
-		let didOutputUsage: boolean = false
+		let didOutputUsage = false
 		const toolCallProcessor = new ToolCallProcessor()
 
 		for await (const chunk of stream) {
@@ -102,12 +101,9 @@ export class OpenRouterHandler implements ApiHandler {
 					// Format error details
 					const errorDetails = typeof error === "object" ? JSON.stringify(error, null, 2) : String(error)
 					throw new Error(`OpenRouter Mid-Stream Error: ${errorDetails}`)
-				} else {
-					// Fallback if error details are not available
-					throw new Error(
-						`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`,
-					)
 				}
+				// Fallback if error details are not available
+				throw new Error(`OpenRouter Mid-Stream Error: Stream terminated with error status but no error details provided`)
 			}
 
 			if (!this.lastGenerationId && chunk.id) {
@@ -128,7 +124,12 @@ export class OpenRouterHandler implements ApiHandler {
 
 			// Reasoning tokens are returned separately from the content
 			// Skip reasoning content for Grok 4 models since it only displays "thinking" without providing useful information
-			if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+			if (
+				delta &&
+				"reasoning" in delta &&
+				delta.reasoning &&
+				!shouldSkipReasoningForModel(this.options.openRouterModelId)
+			) {
 				yield {
 					type: "reasoning",
 					reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -138,9 +139,10 @@ export class OpenRouterHandler implements ApiHandler {
 			// OpenRouter passes reasoning details that we can pass back unmodified in api requests to preserve reasoning traces for model
 			// See: https://openrouter.ai/docs/use-cases/reasoning-tokens#preserving-reasoning-blocks
 			if (
+				delta &&
 				"reasoning_details" in delta &&
 				delta.reasoning_details &&
-				// @ts-ignore-next-line
+				// @ts-expect-error-next-line
 				delta.reasoning_details.length && // exists and non-0
 				!shouldSkipReasoningForModel(this.options.openRouterModelId)
 			) {
@@ -152,13 +154,18 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 
 			if (!didOutputUsage && chunk.usage) {
+				// @ts-expect-error-next-line -- OpenRouter returns cache_write_tokens for Anthropic models
+				const cacheWriteTokens = chunk.usage.prompt_tokens_details?.cache_write_tokens || 0
 				yield {
 					type: "usage",
-					cacheWriteTokens: 0,
+					cacheWriteTokens,
 					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+					inputTokens:
+						(chunk.usage.prompt_tokens || 0) -
+						(chunk.usage.prompt_tokens_details?.cached_tokens || 0) -
+						(cacheWriteTokens || 0),
 					outputTokens: chunk.usage.completion_tokens || 0,
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
 				}
 				didOutputUsage = true
@@ -183,7 +190,7 @@ export class OpenRouterHandler implements ApiHandler {
 				// Logger.log("OpenRouter generation details:", generation)
 				return {
 					type: "usage",
-					cacheWriteTokens: 0,
+					cacheWriteTokens: generation?.native_tokens_cache_write || 0,
 					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
 					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),

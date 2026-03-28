@@ -1,0 +1,127 @@
+---
+title: "All Cline Tools"
+sidebarTitle: "All Cline Tools"
+description: "Complete reference for Cline's built-in tools and capabilities."
+---
+
+Cline has access to a set of tools for various tasks. This reference covers all available tools and how to use them.
+
+## What Can Cline Do?
+
+- Edit and create files in your project
+- Run terminal commands
+- Search and analyze your code
+- Help debug and fix issues
+- Automate repetitive tasks
+- Integrate with external tools via MCP
+
+## File Operations
+
+| Tool | Description |
+|------|-------------|
+| `write_to_file` | Create or overwrite files |
+| `read_file` | Read file contents |
+| `replace_in_file` | Make targeted edits to files |
+| `search_files` | Search files using regex |
+| `list_files` | List directory contents |
+| `list_code_definition_names` | List code definitions in files |
+
+### Examples
+
+Create a new file:
+```xml
+<write_to_file>
+<path>src/components/Header.tsx</path>
+<content>
+import React from "react"
+
+interface HeaderProps {
+  title: string
+}
+
+export default function Header({ title }: HeaderProps) {
+  return (
+    <header style={{ padding: "1rem", borderBottom: "1px solid #eee" }}>
+      <h1>{title}</h1>
+    </header>
+  )
+}
+</content>
+</write_to_file>
+```
+
+Search for a pattern:
+```xml
+<search_files>
+<path>src</path>
+<regex>function\s+\w+\(</regex>
+<file_pattern>*.ts</file_pattern>
+</search_files>
+```
+
+## Terminal Operations
+
+| Tool | Description |
+|------|-------------|
+| `execute_command` | Run CLI commands |
+
+Run a command:
+```xml
+<execute_command>
+<command>npm install axios</command>
+<requires_approval>false</requires_approval>
+</execute_command>
+```
+
+## Browser Operations
+
+| Tool | Description |
+|------|-------------|
+| `browser_action` | Interact with websites through Puppeteer |
+
+See [Browser Automation](/tools-reference/browser-automation) for details.
+
+## MCP Tools
+
+| Tool | Description |
+|------|-------------|
+| `use_mcp_tool` | Use tools from MCP servers |
+| `access_mcp_resource` | Access MCP server resources |
+
+MCP tools extend Cline's capabilities through external integrations. See [MCP documentation](/mcp/mcp-overview) for details.
+
+## Interaction Tools
+
+| Tool | Description |
+|------|-------------|
+| `ask_followup_question` | Ask user for clarification |
+| `attempt_completion` | Present final results |
+
+## New Task Tool
+
+The `new_task` tool enables context management and task continuity. It packages current progress and context into a fresh task with a clean context window.
+
+### When to Use
+
+- Context window filling up but work isn't done
+- Completing a logical subtask before starting the next
+- After research phase, ready to implement
+
+### How It Works
+
+1. Cline proposes creating a new task with summarized context
+2. You can refine the proposed context
+3. Once approved, current task ends and new one begins with the context preloaded
+
+### Using the /newtask Command
+
+Type `/newtask` in chat to manually trigger this process. Cline will:
+- Analyze the conversation
+- Propose distilled context to carry forward
+- Let you refine before creating the new task
+
+This works like a developer handoff, packaging what matters (plan, work done, files, next steps) while leaving behind noise.
+
+## Source Code
+
+For the most up-to-date implementation details, see the [Cline repository](https://github.com/cline/cline/blob/main/src/core/prompts/system-prompt/tools).

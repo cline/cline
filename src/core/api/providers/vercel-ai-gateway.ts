@@ -3,7 +3,7 @@ import { shouldSkipReasoningForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
@@ -17,7 +17,6 @@ interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	openRouterModelInfo?: ModelInfo
 	reasoningEffort?: string
 	thinkingBudgetTokens?: number
-	geminiThinkingLevel?: string
 }
 
 export class VercelAIGatewayHandler implements ApiHandler {
@@ -34,14 +33,13 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				throw new Error("Vercel AI Gateway API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL: "https://ai-gateway.vercel.sh/v1",
 					apiKey: this.options.vercelAiGatewayApiKey,
 					defaultHeaders: {
 						"http-referer": "https://cline.bot",
 						"x-title": "Cline",
 					},
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error: any) {
 				throw new Error(`Error creating Vercel AI Gateway client: ${error.message}`)
@@ -65,9 +63,8 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				this.options.reasoningEffort,
 				this.options.thinkingBudgetTokens,
 				tools,
-				this.options.geminiThinkingLevel,
 			)
-			let didOutputUsage: boolean = false
+			let didOutputUsage = false
 
 			const toolCallProcessor = new ToolCallProcessor()
 
@@ -87,7 +84,12 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 				// Reasoning tokens are returned separately from the content
 				// Skip reasoning content for models that don't support it (e.g., devstral, grok-4)
-				if ("reasoning" in delta && delta.reasoning && !shouldSkipReasoningForModel(this.options.openRouterModelId)) {
+				if (
+					delta &&
+					"reasoning" in delta &&
+					delta.reasoning &&
+					!shouldSkipReasoningForModel(this.options.openRouterModelId)
+				) {
 					yield {
 						type: "reasoning",
 						reasoning: typeof delta.reasoning === "string" ? delta.reasoning : JSON.stringify(delta.reasoning),
@@ -96,9 +98,10 @@ export class VercelAIGatewayHandler implements ApiHandler {
 
 				// Reasoning details that can be passed back in API requests to preserve reasoning traces
 				if (
+					delta &&
 					"reasoning_details" in delta &&
 					delta.reasoning_details &&
-					// @ts-ignore-next-line
+					// @ts-expect-error-next-line
 					delta.reasoning_details.length && // exists and non-0
 					!shouldSkipReasoningForModel(this.options.openRouterModelId)
 				) {
@@ -110,7 +113,7 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				}
 
 				if (!didOutputUsage && chunk.usage) {
-					// @ts-ignore - Vercel AI Gateway extends OpenAI types
+					// @ts-expect-error - Vercel AI Gateway extends OpenAI types
 					const totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
 					yield {
@@ -140,6 +143,11 @@ export class VercelAIGatewayHandler implements ApiHandler {
 		const modelInfo = this.options.openRouterModelInfo
 		if (modelId && modelInfo) {
 			return { id: modelId, info: modelInfo }
+		}
+		// If we have a model ID but no model info, preserve the selected model ID
+		// and fall back only the metadata to defaults.
+		if (modelId) {
+			return { id: modelId, info: openRouterDefaultModelInfo }
 		}
 		return { id: openRouterDefaultModelId, info: openRouterDefaultModelInfo }
 	}

@@ -1,11 +1,11 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, before, beforeEach, describe, it } from "mocha"
 import "should"
 import { Controller } from "@core/controller"
 import type { McpMarketplaceItem } from "@shared/mcp"
 import type { RemoteConfig } from "@shared/remote-config/schema"
 import axios from "axios"
 import * as sinon from "sinon"
-import { ClineEnv } from "@/config"
+import { ClineEndpoint, ClineEnv } from "@/config"
 import { HostProvider } from "@/hosts/host-provider"
 
 /**
@@ -18,7 +18,14 @@ describe("Controller Marketplace Filtering", () => {
 	let stateManagerStub: sinon.SinonStub
 	let mockStateManager: any
 	let axiosGetStub: sinon.SinonStub
-	let hostProviderInitialized: boolean = false
+	let hostProviderInitialized = false
+
+	// Initialize ClineEndpoint before tests run (required for ClineEnv.config() to work)
+	before(async () => {
+		if (!ClineEndpoint.isInitialized()) {
+			await ClineEndpoint.initialize("/test/extension")
+		}
+	})
 
 	const mockMarketplaceData: McpMarketplaceItem[] = [
 		{
@@ -77,12 +84,18 @@ describe("Controller Marketplace Filtering", () => {
 		},
 	]
 
-	beforeEach(() => {
+	beforeEach(async () => {
 		// Initialize HostProvider if not already done
 		if (!HostProvider.isInitialized()) {
 			const mockHostBridge: any = {
 				workspaceClient: {},
-				envClient: {},
+				envClient: {
+					getHostVersion: sinon.stub().resolves({
+						clineVersion: "1.0.0",
+						platform: "darwin",
+						clineType: "vscode",
+					}),
+				},
 				windowClient: {},
 				diffClient: {},
 			}
@@ -94,13 +107,16 @@ describe("Controller Marketplace Filtering", () => {
 				() => null as any, // createTerminalManager
 				mockHostBridge,
 				() => {}, // logToChannel
-				async () => "http://localhost", // getCallbackUrl
+				async (path: string) => `http://localhost${path}`, // getCallbackUrl
 				async () => "", // getBinaryLocation
 				"/test/extension", // extensionFsPath
 				"/test/storage", // globalStorageFsPath
 			)
 			hostProviderInitialized = true
 		}
+
+		// Initialize HostRegistryInfo before creating Controller
+		await require("@/registry").HostRegistryInfo.init()
 
 		// Mock VSCode context
 		mockContext = {

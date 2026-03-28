@@ -183,6 +183,10 @@ export abstract class DiffViewProvider {
 		// Default no-op - subclasses can override if needed
 	}
 
+	private lastUpdateContentLength = -1
+	private lastUpdateTime = 0
+	private static readonly UPDATE_THROTTLE_MS = 100 // Throttle updates to max 10/second during streaming
+
 	async update(
 		accumulatedContent: string,
 		isFinal: boolean,
@@ -190,6 +194,25 @@ export abstract class DiffViewProvider {
 	) {
 		if (!this.isEditing) {
 			throw new Error("Not editing any file")
+		}
+
+		// Throttle updates during streaming to prevent performance issues with large files
+		// This is especially important for notebooks where streaming can trigger thousands of calls
+		if (!isFinal) {
+			const now = Date.now()
+			const contentLength = accumulatedContent.length
+			const timeSinceLastUpdate = now - this.lastUpdateTime
+
+			// Skip if: no content, content unchanged, or throttle period not elapsed
+			if (contentLength === 0 || contentLength === this.lastUpdateContentLength) {
+				return
+			}
+			if (timeSinceLastUpdate < DiffViewProvider.UPDATE_THROTTLE_MS) {
+				return // Throttle: too soon since last update
+			}
+
+			this.lastUpdateContentLength = contentLength
+			this.lastUpdateTime = now
 		}
 
 		// --- Fix to prevent duplicate BOM ---
@@ -478,6 +501,8 @@ export abstract class DiffViewProvider {
 		this.streamedLines = []
 		this.createdDirs = []
 		this.newContent = undefined
+		this.lastUpdateContentLength = -1
+		this.lastUpdateTime = 0
 
 		await this.resetDiffView()
 	}

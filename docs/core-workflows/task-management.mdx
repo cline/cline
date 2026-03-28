@@ -1,0 +1,160 @@
+---
+title: "Tasks"
+sidebarTitle: "Tasks"
+description: "Organize your work with tasks - self-contained sessions that capture your conversations, code changes, and decisions."
+---
+
+Every interaction with Cline happens within a task. Tasks are self-contained work sessions that capture your entire conversation, code changes, command executions, and decisions.
+
+## What are Tasks?
+
+A task begins when you submit a prompt to Cline. Your prompt defines the goal, and Cline works toward it through conversation, code changes, and tool use. The quality of your initial prompt directly affects how well Cline performs - clear, specific prompts lead to better results.
+
+Each task:
+
+- Starts with your prompt and builds context through the conversation
+- Has a unique identifier and dedicated storage directory
+- Contains the full conversation history
+- Tracks token usage, API costs, and execution time
+- Can be interrupted and resumed across sessions
+- Creates [checkpoints](/core-workflows/checkpoints) for file changes through Git-based snapshots
+
+<Tip>
+Want to get better results from Cline? Learn how to write effective prompts in our [Prompt Module](https://cline.bot/learn).
+</Tip>
+
+## Scoping Your Tasks
+
+Each task carries its own context: the conversation history, decisions made, and understanding built up over the session. How you scope your tasks directly affects how well Cline can help you.
+
+Think of it this way: **one task = one goal**. "Implement user authentication" is one task. "Fix an unrelated CSS bug" is a separate task, even if you notice it while working on auth.
+
+A focused task produces better results. When a task tries to cover too many unrelated goals, the context becomes cluttered and responses become less relevant.
+
+<Note>
+If you're unsure, err on the side of starting fresh. You can always find previous sessions in your task history.
+</Note>
+
+### Context Window
+
+Every AI model has a context window - a limit on how much information it can process at once. Think of it as Cline's working memory for the current task.
+
+As you work, the context window fills up with:
+- Your prompts and Cline's responses
+- File contents Cline reads or edits
+- Command outputs and tool results
+- System instructions that guide Cline's behavior (including [Cline Rules](/customization/cline-rules))
+
+When the context window approaches its limit, Cline automatically compresses older parts of the conversation to make room. This means very long tasks may lose some earlier details, though Cline preserves the most important context.
+
+This is why task scoping matters: a focused task keeps relevant information in the context window. A sprawling task fills the window with noise, pushing out useful context.
+
+If your starting context seems high even for simple prompts, add a [`.clineignore`](/customization/clineignore) file to exclude dependencies, build artifacts, and other files Cline doesn't need. This can dramatically reduce your baseline token usage.
+
+<Tip>
+For long-running tasks, enable [Auto-Compact](/features/auto-compact) to intelligently manage context as you work.
+</Tip>
+
+### New Task vs. Continue
+
+Knowing when to start fresh versus continue can feel unclear at first. As you work with Cline more, you'll develop an intuition for it. Use this table as a starting point:
+
+| Scenario | Action | Why |
+|----------|--------|-----|
+| Switching to a different feature | **New task** | Clean context, focused responses |
+| Building on work Cline just completed | **Continue** | Shared understanding preserved |
+| Cline keeps going off-track | **New task** | Fighting context wastes time |
+| Iterating on the same files | **Continue** | Conversation history helps |
+| Explaining what to ignore | **New task** | Cluttered context hurts quality |
+| Refining Cline's last output | **Continue** | Momentum and decisions preserved |
+
+To start a new task, click the **+** button in the Cline sidebar or use the `/newtask` command. Your file changes are preserved through [checkpoints](/core-workflows/checkpoints), and you can reference previous tasks from history anytime.
+
+## Understanding Task Costs
+
+Every cloud-based AI model charges for usage based on tokens, the units of text the model processes. Cline tracks these costs automatically and displays them in the task header so you can monitor spending as you work.
+
+### How Costs Are Calculated
+
+When you interact with Cline, the model processes:
+
+- **Input tokens**: Your prompts, file contents, conversation history, and system instructions
+- **Output tokens**: The model's responses, code suggestions, and tool calls
+
+Cloud providers charge per million tokens, with output tokens typically costing more than input. Some providers also support **prompt caching**, which reduces costs when the same context (like your cline rules or large files) appears in multiple requests. Cline automatically tracks cache savings when available.
+
+The estimated cost shown in the task header updates after each API request. This estimate uses the pricing information from your selected provider and may vary slightly from your final bill depending on how your provider rounds or bills usage.
+
+### When You Pay
+
+You pay for AI usage when using cloud providers like Anthropic, OpenAI, OpenRouter, or Google. Costs vary significantly:
+
+| Provider Type | Billing Model |
+|--------------|---------------|
+| **Cline Provider** | Pay-per-use with credits you purchase |
+| **Direct API keys** | Billed by your provider (Anthropic, OpenAI, etc.) |
+| **OpenRouter/Requesty** | Aggregated billing across multiple models |
+| **Local models** | Free (you provide the hardware) |
+
+If you're using your own API keys, check your provider's pricing page for current rates. Prices change frequently and vary by model.
+
+### Free Options
+
+Not ready to pay? Cline offers several free paths:
+
+- **Free models**: Search "free" in the model selector when using the Cline provider. These models display a **FREE** tag and work well for learning and experimentation.
+- **Free tiers**: Some providers offer limited free usage when you use your own API key.
+- **Local models**: Run models on your own hardware with zero per-request costs.
+
+### Self-Hosted Models
+
+Running models locally means no API costs, ever. Your only expense is the hardware to run them.
+
+To run local models effectively, you need:
+
+- **32GB RAM minimum** for entry-level models (4-bit quantization)
+- **64GB RAM** for better quality (8-bit quantization)
+- **128GB+ RAM** for cloud-competitive performance
+
+The trade-off is speed. Local models run at 5-20 tokens per second on typical hardware, compared to hundreds of tokens per second from cloud APIs. They also require more setup and configuration.
+
+<Tip>
+If you have the hardware, local models offer unlimited experimentation with complete privacy. See [Running Models Locally](/running-models-locally/overview) to get started.
+</Tip>
+
+For most users, starting with free cloud models and moving to paid options as needed provides the best balance of cost, speed, and capability. Check [Selecting Your Model](/getting-started/authorizing-with-cline) for guidance on choosing the right option for your workflow.
+
+
+## Task History
+
+Every task you work on is saved automatically to your local machine. You can revisit past conversations, resume interrupted work, or reference successful approaches from earlier sessions.
+
+### Finding Your History
+
+Click the **History** button in the Cline sidebar (clock icon at the top-right) to open the history view. You'll see all your past tasks with their initial prompt, timestamp, and token usage. Each task card expands to show a preview of the conversation.
+
+### Searching Tasks
+
+Use the search bar at the top of the history view to find specific tasks. The fuzzy search looks across everything: your prompts, Cline's responses, code snippets, and file names. 
+
+Sort results by:
+- **Newest/Oldest** for chronological browsing
+- **Most Expensive/Most Tokens** to find resource-heavy tasks
+- **Most Relevant** when searching for specific content
+- **Favorites** to show only starred tasks
+
+<Tip>
+Use favorites strategically. Star tasks that represent successful patterns, good prompts, or complex work you might want to reference later. Favorited tasks are protected from deletion.
+</Tip>
+
+## Resuming Tasks
+
+Cline can resume interrupted tasks with full context:
+
+1. Open the task from history
+2. Cline loads the complete conversation
+3. File states are checked against [checkpoints](/core-workflows/checkpoints)
+4. The task continues with awareness of the interruption
+5. Provide additional context if needed
+
+This works across sessions. Even if you close the editor and return days later, Cline can pick up where you left off.

@@ -1,0 +1,11 @@
+User Analytics Report
+=====================
+Total users: 1,523
+Active users (last 30 days): 892
+New signups this month: 147
+Churn rate: 3.2%
+
+Top features by usage:
+1. Dashboard (89%)
+2. Reports (67%)
+3. Settings (45%)

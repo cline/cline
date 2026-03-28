@@ -1,0 +1,34 @@
+{
+	"name": "@cline/analysis",
+	"version": "1.0.0",
+	"description": "Analysis framework for Cline evaluations with failure classification and metrics",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"scripts": {
+		"start": "tsx src/cli.ts",
+		"build": "tsc",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:ui": "vitest --ui"
+	},
+	"keywords": [
+		"cline",
+		"evaluation",
+		"benchmarking",
+		"ai-testing",
+		"metrics"
+	],
+	"dependencies": {
+		"commander": "^12.0.0",
+		"js-yaml": "^4.1.0",
+		"chalk": "^5.0.0"
+	},
+	"devDependencies": {
+		"@types/node": "^20.0.0",
+		"@types/js-yaml": "^4.0.0",
+		"tsx": "^4.0.0",
+		"typescript": "^5.0.0",
+		"vitest": "^1.0.0"
+	}
+}

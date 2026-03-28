@@ -1,3 +1,4 @@
+import { ClineEndpoint } from "@/config"
 import { isPostHogConfigValid, posthogConfig } from "@/shared/services/config/posthog-config"
 import { Logger } from "@/shared/services/Logger"
 import { PostHogClientProvider } from "../telemetry/providers/posthog/PostHogClientProvider"
@@ -44,9 +45,13 @@ export class FeatureFlagsProviderFactory {
 
 	/**
 	 * Gets the default feature flags provider configuration
-	 * @returns Default configuration using PostHog
+	 * @returns Default configuration using PostHog, or no-op for self-hosted mode
 	 */
 	public static getDefaultConfig(): FeatureFlagsProviderConfig {
+		// Use no-op provider in self-hosted mode to avoid external network calls
+		if (ClineEndpoint.isSelfHosted()) {
+			return { type: "no-op" }
+		}
 		const hasValidConfig = isPostHogConfigValid(posthogConfig)
 		return {
 			type: hasValidConfig ? "posthog" : "no-op",

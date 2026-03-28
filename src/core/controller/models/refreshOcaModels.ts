@@ -7,6 +7,7 @@ import {
 	CHAT_COMPLETIONS_API,
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
+	MESSAGES_API,
 	RESPONSES_API,
 } from "@/services/auth/oca/utils/constants"
 import { createOcaHeaders } from "@/services/auth/oca/utils/utils"
@@ -25,7 +26,7 @@ import { Controller } from ".."
 export async function refreshOcaModels(controller: Controller, request: StringRequest): Promise<OcaCompatibleModelInfo> {
 	const parsePrice = (price: any) => {
 		if (price) {
-			return parseFloat(price) * 1_000_000
+			return Number.parseFloat(price) * 1_000_000
 		}
 		return undefined
 	}
@@ -63,10 +64,16 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 				}
 				const modelInfo = model.model_info
 				const supportedApiList = modelInfo.supported_api_list ?? [CHAT_COMPLETIONS_API]
-				const apiFormat: ApiFormat =
-					supportedApiList.includes(RESPONSES_API) && !supportedApiList.includes(CHAT_COMPLETIONS_API)
-						? ApiFormat.OPENAI_RESPONSES
-						: ApiFormat.OPENAI_CHAT
+
+				let apiFormat: ApiFormat = ApiFormat.OPENAI_CHAT
+				if (supportsChatCompletions(supportedApiList)) {
+					apiFormat = ApiFormat.OPENAI_CHAT
+				} else if (supportsResponses(supportedApiList)) {
+					apiFormat = ApiFormat.OPENAI_RESPONSES
+				} else if (supportsMessages(supportedApiList)) {
+					apiFormat = ApiFormat.ANTHROPIC_CHAT
+				}
+
 				models[modelId] = OcaModelInfo.create({
 					maxTokens: model.litellm_params?.max_tokens || -1,
 					contextWindow: modelInfo.context_window,
@@ -179,4 +186,16 @@ export async function refreshOcaModels(controller: Controller, request: StringRe
 		return OcaCompatibleModelInfo.create({ error: userMsg })
 	}
 	return OcaCompatibleModelInfo.create({ models })
+}
+
+function supportsChatCompletions(modelSupportedApiList: any): boolean {
+	return modelSupportedApiList.includes(CHAT_COMPLETIONS_API)
+}
+
+function supportsResponses(modelSupportedApiList: any): boolean {
+	return modelSupportedApiList.includes(RESPONSES_API)
+}
+
+function supportsMessages(modelSupportedApiList: any): boolean {
+	return modelSupportedApiList.includes(MESSAGES_API)
 }

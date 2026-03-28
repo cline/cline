@@ -1,5 +1,6 @@
 import Cerebras from "@cerebras/cerebras_cloud_sdk"
 import { CerebrasModelId, cerebrasDefaultModelId, cerebrasModels, ModelInfo } from "@shared/api"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
@@ -35,11 +36,13 @@ export class CerebrasHandler implements ApiHandler {
 			}
 
 			try {
+				const externalHeaders = buildExternalBasicHeaders()
 				this.client = new Cerebras({
 					apiKey: cleanApiKey,
 					timeout: 30000, // 30 second timeout
 					fetch, // Use configured fetch with proxy support
 					defaultHeaders: {
+						...externalHeaders,
 						"X-Cerebras-3rd-Party-Integration": "cline",
 					},
 				})
@@ -81,7 +84,8 @@ export class CerebrasHandler implements ApiHandler {
 							.map((block) => {
 								if (block.type === "text") {
 									return block.text
-								} else if (block.type === "image") {
+								}
+								if (block.type === "image") {
 									return "[Image content not supported in Cerebras]"
 								}
 								return ""
@@ -112,10 +116,11 @@ export class CerebrasHandler implements ApiHandler {
 		}
 
 		try {
+			const model = this.getModel()
 			const stream = await client.chat.completions.create({
-				model: this.getModel().id,
+				model: model.id,
 				messages: cerebrasMessages,
-				temperature: 0,
+				temperature: model.info.temperature ?? 0,
 				stream: true,
 				max_tokens: CEREBRAS_DEFAULT_MAX_TOKENS,
 			})
@@ -191,14 +196,18 @@ export class CerebrasHandler implements ApiHandler {
 				// Rate limit error - will be handled by retry decorator with patient backoff
 				const _limits = this.getRateLimits()
 				throw new Error(`Cerebras API rate limit exceeded.`)
-			} else if (error?.status === 401) {
+			}
+			if (error?.status === 401) {
 				throw new Error("Cerebras API authentication failed. Please check your API key.")
-			} else if (error?.status === 403) {
+			}
+			if (error?.status === 403) {
 				throw new Error("Cerebras API access denied. Please check your API key permissions.")
-			} else if (error?.status >= 500) {
+			}
+			if (error?.status >= 500) {
 				// Server errors - retryable
 				throw new Error(`Cerebras API server error (${error.status}): ${error.message || "Unknown server error"}`)
-			} else if (error?.status === 400) {
+			}
+			if (error?.status === 400) {
 				// Client errors - not retryable
 				throw new Error(`Cerebras API bad request: ${error.message || "Invalid request parameters"}`)
 			}
@@ -245,9 +254,7 @@ export class CerebrasHandler implements ApiHandler {
 			case "qwen-3-235b-a22b-instruct-2507":
 			case "qwen-3-235b-a22b-thinking-2507":
 				return { requestsPerMinute: 30, tokensPerMinute: 60_000 }
-			case "llama-3.3-70b":
 			case "gpt-oss-120b":
-			case "qwen-3-32b":
 				return { requestsPerMinute: 30, tokensPerMinute: 64_000 }
 			default:
 				// Default rate limits for unknown models

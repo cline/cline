@@ -10,6 +10,7 @@ const GENERIC: ClineToolSpec = {
 	name: "generate_explanation",
 	description:
 		"Opens a multi-file diff view and generates AI-powered inline comments explaining the changes between two git references. Use this tool to help users understand code changes from git commits, pull requests, branches, or any git refs. The tool uses git to retrieve file contents and displays a side-by-side diff view with explanatory comments.",
+	contextRequirements: (context) => context.isCliEnvironment !== true,
 	parameters: [
 		{
 			name: "title",

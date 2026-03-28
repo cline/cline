@@ -1,3 +1,4 @@
+import { ClineEndpoint } from "@/config"
 import {
 	getValidOpenTelemetryConfig,
 	getValidRuntimeOpenTelemetryConfig,
@@ -105,12 +106,15 @@ export class TelemetryProviderFactory {
 	public static getDefaultConfigs(): TelemetryProviderConfig[] {
 		const configs: TelemetryProviderConfig[] = []
 
-		if (isPostHogConfigValid(posthogConfig)) {
+		// Skip PostHog in selfHosted mode - enterprise customers should not send telemetry to PostHog
+		if (!ClineEndpoint.isSelfHosted() && isPostHogConfigValid(posthogConfig)) {
 			configs.push({ type: "posthog", ...posthogConfig })
 		}
 
+		// Skip build-time OTEL in selfHosted mode - enterprise customers should not send telemetry to Cline's collector
+		// Note: Runtime env OTEL and remote config OTEL are still allowed (user/org explicitly configured them)
 		const otelConfig = getValidOpenTelemetryConfig()
-		if (otelConfig) {
+		if (!ClineEndpoint.isSelfHosted() && otelConfig) {
 			configs.push({
 				type: "opentelemetry",
 				config: otelConfig,
@@ -150,16 +154,11 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 	identifyUser(_userInfo: any, _properties?: TelemetryProperties): void {
 		Logger.info(`[NoOpTelemetryProvider] identifyUser - ${JSON.stringify(_userInfo)} - ${JSON.stringify(_properties)}`)
 	}
-	setOptIn(_optIn: boolean): void {
-		Logger.info(`[NoOpTelemetryProvider] setOptIn(${_optIn})`)
-		this.isOptIn = _optIn
-	}
 	isEnabled(): boolean {
 		return false
 	}
 	getSettings(): TelemetrySettings {
 		return {
-			extensionEnabled: false,
 			hostEnabled: false,
 			level: "off",
 		}
@@ -191,6 +190,8 @@ export class NoOpTelemetryProvider implements ITelemetryProvider {
 	): void {
 		// no-op
 	}
+
+	async forceFlush() {}
 	async dispose(): Promise<void> {
 		Logger.info(`[NoOpTelemetryProvider] Disposing (optIn=${this.isOptIn})`)
 	}

@@ -2,23 +2,28 @@ repositories
 temp-files
 results
 
+# Tool precision - results and databases
+benchmarks/tool-precision/replace-in-file/results/
+benchmarks/tool-precision/replace-in-file/*.db
+benchmarks/tool-precision/replace-in-file/*.db-wal
+benchmarks/tool-precision/replace-in-file/*.db-shm
+
+# Tool precision - private test cases (from real sessions)
+# Public/synthetic cases (example-*.json) ARE committed
+benchmarks/tool-precision/replace-in-file/cases/private-*.json
+benchmarks/tool-precision/replace-in-file/cases/session-*.json
+
+# Legacy paths (kept for backwards compatibility)
 diff-edits/cases/
 diff-edits/results/
+diff_editing/test_cases/
+diff_editing/test_outputs/
+diff-edits/cases.zip
 
 # Environment variables
 .env
 
-# backwards compatible
-diff_editing/test_cases/
-diff_editing/test_outputs/
-
-*.db
-*.db-wal
-*.db-shm
-
-.cache
-
 # Python bytecode cache
 *__pycache__/
 
-diff-edits/cases.zip
+.cache

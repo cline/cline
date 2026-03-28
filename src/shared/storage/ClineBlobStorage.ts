@@ -78,7 +78,7 @@ export class ClineBlobStorage extends ClineStorage {
 				this.adapter = adapter
 				this.settings = settings
 				this.initialized = true
-				Logger.log("[ClineBlobStorage] Adapter created")
+				Logger.log(`[ClineBlobStorage] Adapter created for ${settings.adapterType}`)
 			}
 		} catch (error) {
 			// Log but don't throw - allow startup to continue
@@ -102,7 +102,7 @@ export class ClineBlobStorage extends ClineStorage {
 		const hasRequiredVars = !!settings.bucket && !!settings.accessKeyId && !!settings.secretAccessKey
 
 		if (adapter === "r2") {
-			return hasRequiredVars && !!settings.accountId
+			return hasRequiredVars && !!(settings.accountId || settings.endpoint)
 		}
 
 		return hasRequiredVars
@@ -114,8 +114,8 @@ export class ClineBlobStorage extends ClineStorage {
 		}
 		try {
 			return await this.adapter!.read(key)
-		} catch (error) {
-			Logger.error(`[ClineBlobStorage] failed to get '${key}':`, error)
+		} catch {
+			// Silently return undefined on read errors
 			return undefined
 		}
 	}
@@ -128,7 +128,6 @@ export class ClineBlobStorage extends ClineStorage {
 		try {
 			await this.adapter!.write(key, value)
 		} catch (error) {
-			Logger.error(`[ClineBlobStorage] failed to store '${key}':`, error)
 			throw error
 		}
 	}
@@ -141,7 +140,6 @@ export class ClineBlobStorage extends ClineStorage {
 		try {
 			await this.adapter!.remove(key)
 		} catch (error) {
-			Logger.error(`[ClineBlobStorage] failed to delete '${key}':`, error)
 			throw error
 		}
 	}

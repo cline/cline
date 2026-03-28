@@ -1,7 +1,7 @@
+import { ensureAgentSkillsDirectoryExists } from "@core/storage/disk"
 import { CreateSkillRequest, SkillsToggles } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
-import { ensureSkillsDirectoryExists } from "@/core/storage/disk"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -55,7 +55,8 @@ export async function createSkillFile(controller: Controller, request: CreateSki
 	let skillDir: string
 
 	if (isGlobal) {
-		const globalSkillsDir = await ensureSkillsDirectoryExists()
+		// Create in ~/.agents/skills using the unified helper
+		const globalSkillsDir = await ensureAgentSkillsDirectoryExists({ isGlobal: true })
 		skillDir = path.join(globalSkillsDir, sanitizedName)
 	} else {
 		const workspacePaths = await HostProvider.workspace.getWorkspacePaths({})
@@ -63,9 +64,11 @@ export async function createSkillFile(controller: Controller, request: CreateSki
 		if (!primaryWorkspace) {
 			throw new Error("No workspace folder open")
 		}
-		// Create in .cline/skills by default
-		const localSkillsDir = path.join(primaryWorkspace, ".cline", "skills")
-		await fs.mkdir(localSkillsDir, { recursive: true })
+		// Create in .agents/skills using the unified helper
+		const localSkillsDir = await ensureAgentSkillsDirectoryExists({
+			isGlobal: false,
+			workspacePath: primaryWorkspace,
+		})
 		skillDir = path.join(localSkillsDir, sanitizedName)
 	}
 

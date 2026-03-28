@@ -11,6 +11,7 @@ export enum ModelFamily {
 	HERMES = "hermes",
 	DEVSTRAL = "devstral",
 	NEXT_GEN = "next-gen",
+	TRINITY = "trinity",
 	GENERIC = "generic",
 	XS = "xs",
 	NATIVE_NEXT_GEN = "native-next-gen", // Uses native tool calling

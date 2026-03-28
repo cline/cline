@@ -16,17 +16,36 @@ Cline supports accessing models directly through the official OpenAI API.
 
 ### Supported Models
 
-Cline is compatible with a variety of OpenAI models, including common choices from OpenAI's featured/frontier lists:
+Cline is compatible with a variety of OpenAI models, including the latest frontier and reasoning models:
 
--   `gpt-5.2`
--   `gpt-5.2-codex`
--   `gpt-5-mini`
--   `gpt-5-nano`
--   `gpt-4.1`
--   `gpt-4o`
--   `gpt-4o-mini`
--   `o3`
--   `o4-mini`
+#### GPT-5 Series
+-   `gpt-5.2` (Default) - Latest flagship model with reasoning support
+-   `gpt-5.2-codex` - Codex variant using Responses API (400K context)
+-   `gpt-5.1` - Previous GPT-5 generation
+-   `gpt-5.1-2025-11-13` - Dated snapshot of GPT-5.1
+-   `gpt-5.1-codex` - Codex variant using Responses API
+-   `gpt-5.1-chat-latest` - Chat-optimized variant (400K context)
+-   `gpt-5-2025-08-07` - Original GPT-5 release
+-   `gpt-5-codex` - GPT-5 Codex variant
+-   `gpt-5-mini-2025-08-07` - Compact, cost-effective GPT-5
+-   `gpt-5-nano-2025-08-07` - Ultra-compact GPT-5 for budget use
+-   `gpt-5-chat-latest` - Chat-optimized GPT-5
+
+#### Reasoning Models
+-   `o3` - Advanced reasoning with 200K context
+-   `o4-mini` - Fast reasoning model
+-   `o3-mini` - Compact reasoning model
+-   `o1` - Original reasoning model
+-   `o1-preview` - Preview reasoning model
+-   `o1-mini` - Compact original reasoning model
+
+#### GPT-4 Series
+-   `gpt-4.1` - 1M+ context window model
+-   `gpt-4.1-mini` - Compact 1M context model
+-   `gpt-4.1-nano` - Ultra-compact 1M context model
+-   `gpt-4o` - Multimodal model with 128K context
+-   `gpt-4o-mini` - Fast, affordable multimodal model
+-   `chatgpt-4o-latest` - Latest ChatGPT-optimized variant
 
 For the most current list of available models and their capabilities, please refer to the official [OpenAI Models documentation](https://platform.openai.com/docs/models).
 

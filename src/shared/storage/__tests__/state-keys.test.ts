@@ -291,6 +291,7 @@ describe("State Keys Type Safety", () => {
 				{ key: "shellIntegrationTimeout", expectedType: "number" },
 				{ key: "preferredLanguage", expectedType: "string" },
 				{ key: "yoloModeToggled", expectedType: "boolean" },
+				{ key: "autoApproveAllToggled", expectedType: "boolean" },
 			]
 
 			for (const { key, expectedType } of testCases) {

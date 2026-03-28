@@ -1,10 +1,11 @@
 import { String } from "@shared/proto/cline/common"
-import { PlanActMode, OpenaiReasoningEffort as ProtoOpenaiReasoningEffort } from "@shared/proto/cline/state"
+import { PlanActMode } from "@shared/proto/cline/state"
 import { NewTaskRequest } from "@shared/proto/cline/task"
 import { Settings } from "@shared/storage/state-keys"
 import { convertProtoToApiProvider } from "@/shared/proto-conversions/models/api-configuration-conversion"
 import { DEFAULT_BROWSER_SETTINGS } from "../../../shared/BrowserSettings"
 import { Controller } from ".."
+import { normalizeOpenaiReasoningEffort } from "../state/reasoningEffort"
 
 /**
  * Creates a new task with the given text and optional images
@@ -13,21 +14,6 @@ import { Controller } from ".."
  * @returns Empty response
  */
 export async function newTask(controller: Controller, request: NewTaskRequest): Promise<String> {
-	const convertOpenaiReasoningEffort = (effort: ProtoOpenaiReasoningEffort): string => {
-		switch (effort) {
-			case ProtoOpenaiReasoningEffort.LOW:
-				return "low"
-			case ProtoOpenaiReasoningEffort.MEDIUM:
-				return "medium"
-			case ProtoOpenaiReasoningEffort.HIGH:
-				return "high"
-			case ProtoOpenaiReasoningEffort.MINIMAL:
-				return "minimal"
-			default:
-				return "medium"
-		}
-	}
-
 	const convertPlanActMode = (mode: PlanActMode): string => {
 		return mode === PlanActMode.PLAN ? "plan" : "act"
 	}
@@ -65,8 +51,11 @@ export async function newTask(controller: Controller, request: NewTaskRequest): 
 					customArgs: request.taskSettings.browserSettings.customArgs,
 				},
 			}),
-			...(request.taskSettings?.openaiReasoningEffort !== undefined && {
-				openaiReasoningEffort: convertOpenaiReasoningEffort(request.taskSettings.openaiReasoningEffort),
+			...(request.taskSettings?.planModeReasoningEffort !== undefined && {
+				planModeReasoningEffort: normalizeOpenaiReasoningEffort(request.taskSettings.planModeReasoningEffort),
+			}),
+			...(request.taskSettings?.actModeReasoningEffort !== undefined && {
+				actModeReasoningEffort: normalizeOpenaiReasoningEffort(request.taskSettings.actModeReasoningEffort),
 			}),
 			...(request.taskSettings?.mode !== undefined && {
 				mode: convertPlanActMode(request.taskSettings.mode),

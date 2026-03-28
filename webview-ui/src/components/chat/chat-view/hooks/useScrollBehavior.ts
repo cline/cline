@@ -246,7 +246,8 @@ export function useScrollBehavior(
 					scrollToBottomAuto()
 				}, 0)
 				return () => clearTimeout(timer)
-			} else if (isCollapsing && (isLast || isSecondToLast)) {
+			}
+			if (isCollapsing && (isLast || isSecondToLast)) {
 				if (isSecondToLast && !isLastCollapsedApiReq) {
 					return
 				}
@@ -277,12 +278,20 @@ export function useScrollBehavior(
 
 	useEffect(() => {
 		if (!disableAutoScrollRef.current) {
+			scrollToBottomSmooth()
 			setTimeout(() => {
-				scrollToBottomSmooth()
-			}, 50)
+				if (!disableAutoScrollRef.current) {
+					scrollToBottomAuto()
+				}
+			}, 40)
+			setTimeout(() => {
+				if (!disableAutoScrollRef.current) {
+					scrollToBottomAuto()
+				}
+			}, 70)
 			// return () => clearTimeout(timer) // dont cleanup since if visibleMessages.length changes it cancels.
 		}
-	}, [groupedMessages.length, scrollToBottomSmooth])
+	}, [groupedMessages.length, scrollToBottomSmooth, scrollToBottomAuto])
 
 	useEffect(() => {
 		if (pendingScrollToMessage !== null) {

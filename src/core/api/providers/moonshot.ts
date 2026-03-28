@@ -2,7 +2,7 @@ import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { ModelInfo, MoonshotModelId, moonshotDefaultModelId, moonshotModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
-import { fetch } from "@/shared/net"
+import { createOpenAIClient } from "@/shared/net"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
 import { convertToOpenAiMessages } from "../transform/openai-format"
@@ -13,6 +13,11 @@ interface MoonshotHandlerOptions extends CommonApiHandlerOptions {
 	moonshotApiKey?: string
 	moonshotApiLine?: string
 	apiModelId?: string
+}
+
+// Enhanced usage interface to support Moonshot's cached token field
+interface MoonshotUsage extends OpenAI.CompletionUsage {
+	cached_tokens?: number
 }
 
 export class MoonshotHandler implements ApiHandler {
@@ -26,11 +31,10 @@ export class MoonshotHandler implements ApiHandler {
 				throw new Error("Moonshot API key is required")
 			}
 			try {
-				this.client = new OpenAI({
+				this.client = createOpenAIClient({
 					baseURL:
 						this.options.moonshotApiLine === "china" ? "https://api.moonshot.cn/v1" : "https://api.moonshot.ai/v1",
 					apiKey: this.options.moonshotApiKey,
-					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
 				throw new Error(`Error creating Moonshot client: ${error.message}`)
@@ -52,7 +56,7 @@ export class MoonshotHandler implements ApiHandler {
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			messages: openAiMessages,
-			temperature: 0,
+			temperature: model.info.temperature,
 			max_tokens: model.info.maxTokens,
 			stream: true,
 			stream_options: { include_usage: true },
@@ -82,10 +86,13 @@ export class MoonshotHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
+				const usage = chunk.usage as MoonshotUsage
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
-					outputTokens: chunk.usage.completion_tokens || 0,
+					cacheWriteTokens: 0,
+					cacheReadTokens: usage.cached_tokens ?? 0,
+					inputTokens: (usage.prompt_tokens || 0) - (usage.cached_tokens ?? 0),
+					outputTokens: usage.completion_tokens || 0,
 				}
 			}
 		}

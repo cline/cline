@@ -92,16 +92,14 @@ export function getReadablePath(cwd: string, relPath?: string): string {
 	if (arePathsEqual(path.normalize(absolutePath), path.normalize(cwd))) {
 		const basenameResult = workspaceResolver.getBasename(absolutePath, "Utils.path.getReadablePath")
 		return basenameResult.toPosix()
-	} else {
-		// show the relative path to the cwd
-		const normalizedRelPath = path.relative(cwd, absolutePath)
-		if (absolutePath.includes(cwd)) {
-			return normalizedRelPath.toPosix()
-		} else {
-			// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
-			return absolutePath.toPosix()
-		}
 	}
+	// show the relative path to the cwd
+	const normalizedRelPath = path.relative(cwd, absolutePath)
+	if (isLocatedInPath(cwd, absolutePath)) {
+		return normalizedRelPath.toPosix()
+	}
+	// we are outside the cwd, so show the absolute path (useful for when cline passes in '../../' for example)
+	return absolutePath.toPosix()
 }
 
 // Returns the path of the first workspace directory, or the defaultCwdPath if there is no workspace open.
@@ -132,7 +130,7 @@ export async function getWorkspacePath(defaultCwd = ""): Promise<string> {
 	return await getCwd(defaultCwd)
 }
 
-export async function isLocatedInWorkspace(pathToCheck: string = ""): Promise<boolean> {
+export async function isLocatedInWorkspace(pathToCheck = ""): Promise<boolean> {
 	const workspacePaths = (await HostProvider.workspace.getWorkspacePaths({})).paths
 	for (const workspacePath of workspacePaths) {
 		const resolvedPathResult = workspaceResolver.resolveWorkspacePath(

@@ -1,6 +1,7 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
+import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { MinimaxModelId, ModelInfo, minimaxDefaultModelId, minimaxModels } from "@/shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -30,12 +31,14 @@ export class MinimaxHandler implements ApiHandler {
 				throw new Error("MiniMax API key is required")
 			}
 			try {
+				const externalHeaders = buildExternalBasicHeaders()
 				this.client = new Anthropic({
 					apiKey: this.options.minimaxApiKey,
 					baseURL:
 						this.options.minimaxApiLine === "china"
 							? "https://api.minimaxi.com/anthropic"
 							: "https://api.minimax.io/anthropic",
+					defaultHeaders: externalHeaders,
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {
@@ -53,18 +56,22 @@ export class MinimaxHandler implements ApiHandler {
 		// Tools are available only when native tools are enabled
 		const nativeToolsOn = tools?.length && tools?.length > 0
 
+		const budget_tokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
+
 		// MiniMax M2 uses Anthropic API format
-		// Note: According to MiniMax docs, some Anthropic parameters like 'thinking' are ignored
-		// but we'll include the standard Anthropic streaming pattern for consistency
 		const stream: AnthropicStream<Anthropic.RawMessageStreamEvent> = await client.messages.create({
 			model: model.id,
 			max_tokens: model.info.maxTokens || 8192,
-			temperature: 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
 			system: [{ text: systemPrompt, type: "text" }],
 			messages,
 			stream: true,
 			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-			tool_choice: nativeToolsOn ? { type: "any" } : undefined,
+			thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+			// "Thinking isn't compatible with temperature, top_p, or top_k modifications"
+			temperature: reasoningOn ? undefined : 1.0, // MiniMax recommends 1.0, range is (0.0, 1.0]
+			// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
+			tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 		})
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
@@ -100,13 +107,7 @@ export class MinimaxHandler implements ApiHandler {
 							yield {
 								type: "reasoning",
 								reasoning: chunk.content_block.thinking || "",
-							}
-							if (chunk.content_block.thinking && chunk.content_block.signature) {
-								yield {
-									type: "reasoning",
-									reasoning: chunk.content_block.thinking,
-									signature: chunk.content_block.signature,
-								}
+								signature: chunk.content_block.signature,
 							}
 							break
 						case "redacted_thinking":

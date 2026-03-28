@@ -9,7 +9,7 @@ export default defineConfig({
 	forbidOnly: isCI,
 	testDir: "src/test/e2e",
 	testMatch: /.*\.test\.ts/,
-	timeout: isCI || isWindow ? 40000 : 20000,
+	timeout: isCI || isWindow ? 60000 : 20000,
 	expect: {
 		timeout: isCI || isWindow ? 5000 : 2000,
 	},

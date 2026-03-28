@@ -6,8 +6,10 @@ import { formatResponse } from "@core/prompts/responses"
 import { getWorkspaceBasename, resolveWorkspacePath } from "@core/workspace"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { ClineSayTool } from "@shared/ExtensionMessage"
+import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { applyPatch } from "diff"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -16,6 +18,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -96,7 +99,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Extract provider information for telemetry
-		const { providerId, modelId } = this.getModelInfo(config)
+		const { providerId, modelId } = getModelInfo(config)
 
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
@@ -111,13 +114,38 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (block.name === "replace_in_file" && !rawDiff) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "diff")
+			const relPath = rawRelPath || "unknown"
+			await config.callbacks.say(
+				"error",
+				`Cline tried to use replace_in_file for '${relPath}' without value for required parameter 'diff'. Retrying...`,
+			)
+			return formatResponse.toolError(formatResponse.replaceInFileMissingDiffError(relPath))
 		}
 
 		if (block.name === "write_to_file" && !rawContent) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
+
+			// Use progressive error with token budget awareness
+			const relPath = rawRelPath || "unknown"
+			const contextWindow = config.api.getModel().info.contextWindow ?? 128_000
+			const lastApiReqTotalTokens = getLastApiReqTotalTokens(config.messageState.getClineMessages())
+			const contextUsagePercent = contextWindow > 0 ? Math.round((lastApiReqTotalTokens / contextWindow) * 100) : undefined
+			const errorMessage = formatResponse.writeToFileMissingContentError(
+				relPath,
+				config.taskState.consecutiveMistakeCount,
+				contextUsagePercent,
+			)
+
+			await config.callbacks.say(
+				"error",
+				`Cline tried to use write_to_file for '${relPath}' without value for required parameter 'content'. ${
+					config.taskState.consecutiveMistakeCount >= 2
+						? "This has happened multiple times — Cline will try a different approach."
+						: "Retrying..."
+				}`,
+			)
+			return formatResponse.toolError(errorMessage)
 		}
 
 		if (block.name === "new_rule" && !rawContent) {
@@ -126,7 +154,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(block.name, "content")
 		}
 
-		config.taskState.consecutiveMistakeCount = 0
+		// NOTE: Do NOT reset consecutiveMistakeCount here - it should only be reset after successful completion
+		// The reset was moved to after saveChanges() succeeds to properly track consecutive failures
 
 		try {
 			const result = await this.validateAndPrepareFileOperation(config, block, rawRelPath, rawDiff, rawContent)
@@ -189,6 +218,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 
+				// Capture AI output accepted telemetry with line diff stats
+				captureAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					source: "agent",
+					beforeContent: config.services.diffViewProvider.originalContent || "",
+					afterContent: newContent,
+					providerId,
+					modelId,
+					filesCreated: fileExists ? 0 : 1,
+				})
+
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
 			} else {
@@ -243,37 +284,60 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						block.isNativeToolCall,
 					)
 
+					// Capture AI output rejected telemetry with line diff stats
+					captureRejected({
+						ulid: config.ulid,
+						tool: block.name,
+						source: "agent",
+						beforeContent: config.services.diffViewProvider.originalContent || "",
+						afterContent: newContent,
+						providerId,
+						modelId,
+						filesCreated: fileExists ? 0 : 1,
+					})
+
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
-				} else {
-					// User hit the approve button, and may have provided feedback
-					if (text || (images && images.length > 0) || (files && files.length > 0)) {
-						let fileContentString = ""
-						if (files && files.length > 0) {
-							fileContentString = await processFilesIntoText(files)
-						}
-
-						// Push additional tool feedback using existing utilities
-						ToolResultUtils.pushAdditionalToolFeedback(
-							config.taskState.userMessageContent,
-							text,
-							images,
-							fileContentString,
-						)
-						await config.callbacks.say("user_feedback", text, images, files)
+				}
+				// User hit the approve button, and may have provided feedback
+				if (text || (images && images.length > 0) || (files && files.length > 0)) {
+					let fileContentString = ""
+					if (files && files.length > 0) {
+						fileContentString = await processFilesIntoText(files)
 					}
 
-					telemetryService.captureToolUsage(
-						config.ulid,
-						block.name,
-						modelId,
-						providerId,
-						false,
-						true,
-						workspaceContext,
-						block.isNativeToolCall,
+					// Push additional tool feedback using existing utilities
+					ToolResultUtils.pushAdditionalToolFeedback(
+						config.taskState.userMessageContent,
+						text,
+						images,
+						fileContentString,
 					)
+					await config.callbacks.say("user_feedback", text, images, files)
 				}
+
+				telemetryService.captureToolUsage(
+					config.ulid,
+					block.name,
+					modelId,
+					providerId,
+					false,
+					true,
+					workspaceContext,
+					block.isNativeToolCall,
+				)
+
+				// Capture AI output accepted telemetry with line diff stats (manual approval)
+				captureAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					source: "agent",
+					beforeContent: config.services.diffViewProvider.originalContent || "",
+					afterContent: newContent,
+					providerId,
+					modelId,
+					filesCreated: fileExists ? 0 : 1,
+				})
 			}
 
 			// Run PreToolUse hook after approval but before execution
@@ -297,7 +361,13 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			const { newProblemsMessage, userEdits, autoFormattingEdits, finalContent } =
 				await config.services.diffViewProvider.saveChanges()
 
+			// Reset consecutive mistake counter on successful file operation
+			config.taskState.consecutiveMistakeCount = 0
+
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
+
+			// Invalidate file read cache for this file so re-reads get fresh content
+			config.taskState.fileReadCache.delete(absolutePath.toLowerCase())
 
 			// Track file edit operation
 			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
@@ -316,6 +386,20 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						diff: userEdits,
 					}),
 				)
+
+				// Capture human edit telemetry: diff between agent's proposed content and user's pre-save edits
+				// Use applyPatch to reconstruct pre-save content from userEdits, excluding auto-formatting noise
+				const preSaveContent = applyPatch(newContent, userEdits)
+				captureAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					source: "human",
+					beforeContent: newContent,
+					afterContent: preSaveContent || finalContent || "",
+					providerId,
+					modelId,
+				})
+
 				return formatResponse.fileEditWithUserChanges(
 					relPath,
 					userEdits,
@@ -323,9 +407,8 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					finalContent,
 					newProblemsMessage,
 				)
-			} else {
-				return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 			}
+			return formatResponse.fileEditWithoutUserChanges(relPath, autoFormattingEdits, finalContent, newProblemsMessage)
 		} catch (error) {
 			// Reset diff view on error
 			await config.services.diffViewProvider.revertChanges()
@@ -423,19 +506,20 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				newContent = result.newContent
 				matchIndices = result.matchIndices
 			} catch (error) {
-				// Check if we've already pushed an error for this specific tool call (prevents duplicates during streaming)
-				const callId = block.call_id || ""
-				if (callId && config.taskState.errorPushedForCallIds.has(callId)) {
+				// During streaming (block.partial=true), the diff may fail repeatedly as incomplete content streams in.
+				// Skip all error UI handling for partial blocks to prevent flickering.
+				if (block.partial) {
 					return
 				}
 
-				// Full original behavior - comprehensive error handling even for partial blocks
+				config.taskState.consecutiveMistakeCount++
+
 				// Removes any existing diff_error messages to avoid duplicates.
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("say", "diff_error")
 				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
-				const { providerId, modelId } = this.getModelInfo(config)
+				const { providerId, modelId } = getModelInfo(config)
 
 				// Extract error type from error message if possible
 				const errorType =
@@ -461,10 +545,6 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.taskState.toolUseIdMap,
 				)
 
-				// Mark this call as having had its error pushed (prevents duplicates during streaming)
-				if (callId) {
-					config.taskState.errorPushedForCallIds.add(callId)
-				}
 				if (!config.enableParallelToolCalling) {
 					config.taskState.didAlreadyUseTool = true
 				}
@@ -496,14 +576,5 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices }
-	}
-
-	private getModelInfo(config: TaskConfig) {
-		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const modelId = config.api.getModel().id
-		return { providerId, modelId }
 	}
 }

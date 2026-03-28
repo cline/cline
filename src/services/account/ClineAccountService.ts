@@ -251,24 +251,6 @@ export class ClineAccountService {
 		}
 	}
 
-	/**
-	 * Transcribes audio using the Cline transcription service
-	 * @param audioBase64 - Base64 encoded audio data
-	 * @param language - Optional language hint for transcription
-	 * @returns Promise with transcribed text or error
-	 */
-	async transcribeAudio(audioBase64: string, language = "en"): Promise<{ text: string }> {
-		const response = await this.authenticatedRequest<{ text: string }>(`/api/v1/chat/transcriptions`, {
-			method: "POST",
-			data: {
-				audioData: audioBase64,
-				language: language,
-			},
-		})
-
-		return response
-	}
-
 	private getCurrentUser() {
 		return this._authService.getInfo().user
 	}

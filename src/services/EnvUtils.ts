@@ -15,8 +15,14 @@ export const ClineHeaders = {
 } as const
 export type ClineHeaderName = (typeof ClineHeaders)[keyof typeof ClineHeaders]
 
+export function buildExternalBasicHeaders(): Record<string, string> {
+	return {
+		"User-Agent": `Cline/${ExtensionRegistryInfo.version}`,
+	}
+}
+
 export async function buildBasicClineHeaders(): Promise<Record<string, string>> {
-	const headers: Record<string, string> = {}
+	const headers: Record<string, string> = buildExternalBasicHeaders()
 	try {
 		const host = await HostProvider.env.getHostVersion(EmptyRequest.create({}))
 		headers[ClineHeaders.PLATFORM] = host.platform || "unknown"

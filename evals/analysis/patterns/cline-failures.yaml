@@ -1,0 +1,57 @@
+# Cline-specific failure patterns for classification
+# Version 1.0
+
+version: "1.0"
+
+patterns:
+  # Provider-specific bugs (Cline integration issues)
+  - name: "gemini_signature"
+    pattern: "missing.?signature|thoughtSignature"
+    category: "provider_bug"
+    issue: "https://github.com/cline/cline/issues/7974"
+    description: "Gemini 3 Pro requires thoughtSignature for native tool calls"
+
+  - name: "claude_tool_format"
+    pattern: "write_to_file.*missing.*content|content.*parameter.*required"
+    category: "provider_bug"
+    issue: "https://github.com/cline/cline/issues/7998"
+    description: "Claude tool parameter extraction failure"
+
+  # Transient failures (retriable)
+  - name: "rate_limit"
+    pattern: "429|rate.?limit|too.?many.?requests|quota.?exceeded"
+    category: "transient"
+    description: "API rate limiting"
+
+  - name: "network_timeout"
+    pattern: "ECONNREFUSED|ETIMEDOUT|ENOTFOUND|timed.?out"
+    category: "transient"
+    description: "Network connectivity issues"
+
+  - name: "model_overloaded"
+    pattern: "503|service.?unavailable|overloaded"
+    category: "transient"
+    description: "Provider service unavailable"
+
+  # Infrastructure/harness failures
+  - name: "harness_error"
+    pattern: "verifier.*failed|test.*harness.*error|missing.*test.*file"
+    category: "harness"
+    description: "Test harness or verification script failure"
+
+  - name: "environment_failure"
+    pattern: "docker.*failed|container.*exit|OCI.*runtime|pod.*error"
+    category: "environment"
+    description: "Docker/Daytona environment setup failure"
+
+  # Policy/safety failures
+  - name: "safety_refusal"
+    pattern: "content.*policy|safety.*filter|inappropriate.*request"
+    category: "policy"
+    description: "Model refused due to safety/content policy"
+
+  # Auth issues (non-retriable)
+  - name: "auth_error"
+    pattern: "401|unauthorized|invalid.?api.?key"
+    category: "auth"
+    description: "Invalid API credentials"
