@@ -48,3 +48,4 @@ packages/rpc/src/proto/generated
 apps/cli/src/tests/.tui-test
 apps/cli/src/tests/tui-traces
 
+.cli-release-staging
