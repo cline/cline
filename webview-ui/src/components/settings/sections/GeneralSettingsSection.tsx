@@ -10,7 +10,7 @@ interface GeneralSettingsSectionProps {
 }
 
 const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionProps) => {
-	const { telemetrySetting, remoteConfigSettings } = useExtensionState()
+	const { telemetrySetting, remoteConfigSettings, featureTipEnabled } = useExtensionState()
 
 	return (
 		<div>
@@ -59,6 +59,18 @@ const GeneralSettingsSection = ({ renderSectionHeader }: GeneralSettingsSectionP
 						</VSCodeLink>{" "}
 						for more details.
 					</p>
+				</div>
+
+				<div className="mb-[5px]">
+					<VSCodeCheckbox
+						checked={featureTipEnabled === true}
+						onChange={(e: any) => {
+							const checked = e.target.checked === true
+							updateSetting("featureTipEnabled", checked)
+						}}>
+						Show feature tips while thinking
+					</VSCodeCheckbox>
+					<p className="text-sm mt-[5px] text-description">Display rotating feature tips while Cline is thinking.</p>
 				</div>
 			</Section>
 		</div>

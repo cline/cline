@@ -150,6 +150,7 @@ export const ChatRowContent = memo(
 	}: ChatRowContentProps) => {
 		const {
 			backgroundEditEnabled,
+			featureTipEnabled,
 			mcpServers,
 			mcpMarketplaceCatalog,
 			onRelinquishControl,
@@ -889,8 +890,6 @@ export const ChatRowContent = memo(
 					case "reasoning": {
 						const isReasoningStreaming = message.partial === true
 						const hasReasoningText = !!message.text?.trim()
-						// Show feature tips throughout the entire thinking/reasoning phase
-						const showFeatureTip = isReasoningStreaming
 						return (
 							<div>
 								<ThinkingRow
@@ -903,7 +902,7 @@ export const ChatRowContent = memo(
 									showTitle={true}
 									title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								/>
-						{isReasoningStreaming && <FeatureTip />}
+								{isReasoningStreaming && featureTipEnabled && <FeatureTip />}
 							</div>
 						)
 					}

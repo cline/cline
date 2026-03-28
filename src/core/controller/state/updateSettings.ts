@@ -344,6 +344,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("doubleCheckCompletionEnabled", request.doubleCheckCompletionEnabled)
 		}
 
+		if (request.featureTipEnabled !== undefined) {
+			controller.stateManager.setGlobalState("featureTipEnabled", request.featureTipEnabled)
+		}
+
 		// Post updated state to webview
 		await controller.postStateToWebview()
 
