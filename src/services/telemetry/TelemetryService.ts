@@ -89,6 +89,8 @@ export type TelemetryMetadata = {
 	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
 	 * This is the value returned by os.version() */
 	os_version: string
+	/** Whether the current workspace is a VS Code remote workspace */
+	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
 }
@@ -360,6 +362,8 @@ export class TelemetryService {
 			cline_type: hostVersion.clineType || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
+			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
+			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
 		}
 		return new TelemetryService(providers, metadata)
