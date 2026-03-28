@@ -305,6 +305,10 @@ export type RpcClineAccountActionRequest =
 			action: "clineAccount";
 			operation: "switchAccount";
 			organizationId?: string | null;
+	  }
+	| {
+			action: "clineAccount";
+			operation: "fetchFeaturebaseToken";
 	  };
 
 export type RpcProviderActionRequest =

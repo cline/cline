@@ -73,6 +73,7 @@ export {
 	executeRpcClineAccountAction,
 	isRpcClineAccountActionRequest,
 	RpcClineAccountService,
+	type FeaturebaseTokenResponse,
 	type RpcProviderActionExecutor,
 	type UserRemoteConfigResponse,
 } from "./account";

@@ -10,6 +10,7 @@ import type {
 	ClineAccountPaymentTransaction,
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
+	FeaturebaseTokenResponse,
 } from "./types";
 
 export interface ClineAccountOperations {
@@ -30,6 +31,7 @@ export interface ClineAccountOperations {
 		memberId?: string;
 	}): Promise<ClineAccountOrganizationUsageTransaction[]>;
 	switchAccount(organizationId?: string | null): Promise<void>;
+	fetchFeaturebaseToken(): Promise<FeaturebaseTokenResponse | undefined>;
 }
 
 export function isRpcClineAccountActionRequest(
@@ -63,6 +65,8 @@ export async function executeRpcClineAccountAction(
 		case "switchAccount":
 			await service.switchAccount(request.organizationId);
 			return { updated: true };
+		case "fetchFeaturebaseToken":
+			return service.fetchFeaturebaseToken();
 		default: {
 			const exhaustive: never = request;
 			throw new Error(
@@ -162,6 +166,15 @@ export class RpcClineAccountService implements ClineAccountOperations {
 			action: "clineAccount",
 			operation: "switchAccount",
 			organizationId: organizationId?.trim() || null,
+		});
+	}
+
+	public async fetchFeaturebaseToken(): Promise<
+		FeaturebaseTokenResponse | undefined
+	> {
+		return this.request<FeaturebaseTokenResponse | undefined>({
+			action: "clineAccount",
+			operation: "fetchFeaturebaseToken",
 		});
 	}
 

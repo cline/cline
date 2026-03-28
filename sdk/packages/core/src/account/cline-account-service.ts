@@ -7,6 +7,7 @@ import type {
 	ClineAccountUsageTransaction,
 	ClineAccountUser,
 	ClineOrganization,
+	FeaturebaseTokenResponse,
 	UserRemoteConfigResponse,
 } from "./types";
 
@@ -69,6 +70,18 @@ export class ClineAccountService {
 		return this.request<UserRemoteConfigResponse>(
 			"/api/v1/users/me/remote-config",
 		);
+	}
+
+	public async fetchFeaturebaseToken(): Promise<
+		FeaturebaseTokenResponse | undefined
+	> {
+		try {
+			return await this.request<FeaturebaseTokenResponse>(
+				"/api/v1/users/me/featurebase-token",
+			);
+		} catch {
+			return undefined;
+		}
 	}
 
 	public async fetchBalance(userId?: string): Promise<ClineAccountBalance> {

@@ -27,6 +27,7 @@ describe("executeRpcClineAccountAction", () => {
 			})),
 			fetchOrganizationUsageTransactions: vi.fn(async () => []),
 			switchAccount: vi.fn(async () => {}),
+			fetchFeaturebaseToken: vi.fn(async () => undefined),
 		};
 
 		const result = await executeRpcClineAccountAction(

@@ -73,6 +73,10 @@ export interface ClineAccountOrganizationBalance {
 	organizationId: string;
 }
 
+export interface FeaturebaseTokenResponse {
+	featurebaseJwt: string;
+}
+
 export interface ClineAccountOrganizationUsageTransaction {
 	aiInferenceProviderName: string;
 	aiModelName: string;
