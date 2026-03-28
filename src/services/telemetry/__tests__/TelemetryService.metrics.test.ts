@@ -64,7 +64,7 @@ class FakeProvider implements ITelemetryProvider {
 	async dispose(): Promise<void> {}
 }
 
-function createTelemetryService(provider: FakeProvider): TelemetryService {
+function createTelemetryService(provider: FakeProvider, overrides: Partial<TelemetryMetadata> = {}): TelemetryService {
 	return new TelemetryService([provider], {
 		extension_version: "test",
 		cline_type: "cline-unit-tests",
@@ -72,7 +72,9 @@ function createTelemetryService(provider: FakeProvider): TelemetryService {
 		platform_version: "1.0.0",
 		os_type: "darwin",
 		os_version: "24",
+		is_remote_workspace: false,
 		is_dev: "true",
+		...overrides,
 	} as TelemetryMetadata)
 }
 
@@ -192,6 +194,17 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(tokenEvent?.properties?.cacheWriteTokens, 50)
 		assert.strictEqual(tokenEvent?.properties?.cacheReadTokens, 30)
 		assert.strictEqual(tokenEvent?.properties?.totalCost, 0.42)
+	})
+
+	it("metrics include is_remote_workspace in standard attributes", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, { is_remote_workspace: true })
+
+		service.captureTokenUsage("task-remote", 120, 80, "anthropic", "model-a")
+
+		assert.ok(provider.counters.length > 0)
+		assert.strictEqual(provider.counters[0].attributes.is_remote_workspace, true)
+		assert.strictEqual(provider.histograms[0].attributes.is_remote_workspace, true)
 	})
 
 	it("captureConversationTurnEvent emits counters with cache and cost", () => {
