@@ -3,10 +3,10 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
-import { execa } from "execa"
-import readline from "readline"
+import { RuntimeShimWrapper } from "@/core/api/runtime/shim-wrapper"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
+import { ClaudeCodeStreamTranslator } from "./stream-translator"
 import { ClaudeCodeMessage } from "./types"
 
 type ClaudeCodeOptions = {
@@ -16,13 +16,6 @@ type ClaudeCodeOptions = {
 	modelId: string
 	thinkingBudgetTokens?: number
 	shouldUseFile?: boolean
-}
-
-type ProcessState = {
-	partialData: string | null
-	error: Error | null
-	stderrLogs: string
-	exitCode: number | null
 }
 
 // The maximum argument length is longer than this,
@@ -42,65 +35,29 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		options.shouldUseFile = true
 	}
 
-	const cProcess = runProcess(options, await getCwd())
-
-	const rl = readline.createInterface({
-		input: cProcess.stdout,
-	})
-
-	const processState: ProcessState = {
-		error: null,
-		stderrLogs: "",
-		exitCode: null,
-		partialData: null,
-	}
+	const shim = new RuntimeShimWrapper()
+	const streamTranslator = new ClaudeCodeStreamTranslator()
 
 	try {
-		cProcess.stderr.on("data", (data) => {
-			processState.stderrLogs += data.toString()
-		})
-
-		cProcess.on("close", (code) => {
-			processState.exitCode = code
-		})
-
-		cProcess.on("error", (err) => {
-			processState.error = err
-		})
-
-		for await (const line of rl) {
-			if (processState.error) {
-				throw processState.error
-			}
-
-			if (line.trim()) {
-				const chunk = parseChunk(line, processState)
-
-				if (!chunk) {
-					continue
-				}
-
-				yield chunk
-			}
-		}
-
-		// We rely on the assistant message. If the output was truncated, it's better having a poorly formatted message
-		// from which to extract something, than throwing an error/showing the model didn't return any messages.
-		if (processState.partialData && processState.partialData.startsWith(`{"type":"assistant"`)) {
-			yield processState.partialData
-		}
-
-		const { exitCode } = await cProcess
-		if (exitCode !== null && exitCode !== 0) {
-			const errorOutput = processState.error?.message || processState.stderrLogs?.trim()
-			throw new Error(
-				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
-			)
+		for await (const chunk of shim.execute(
+			{
+				command: options.path?.trim() || "claude",
+				args: buildClaudeCodeArgs(options),
+				cwd: await getCwd(),
+				env: buildClaudeCodeEnv(options.thinkingBudgetTokens),
+				stdinPayload: JSON.stringify(options.messages),
+				maxBufferBytes: BUFFER_SIZE,
+				timeoutMs: CLAUDE_CODE_TIMEOUT,
+			},
+			streamTranslator,
+		)) {
+			yield chunk
 		}
 	} catch (err) {
 		Logger.error(`Error during Claude Code execution:`, err)
 
-		if (processState.stderrLogs.includes("unknown option '--system-prompt-file'")) {
+		const stderrLogs = err instanceof Error && "stderrOutput" in err ? String((err as any).stderrOutput ?? "") : ""
+		if (stderrLogs.includes("unknown option '--system-prompt-file'")) {
 			throw new Error(`The Claude Code executable is outdated. Please update it to the latest version.`, {
 				cause: err,
 			})
@@ -141,17 +98,12 @@ Anthropic is aware of this issue and is considering a fix: https://github.com/an
 			if (startOfCommand !== -1) {
 				const messageWithoutCommand = err.message.slice(0, startOfCommand).trim()
 
-				throw new Error(`${messageWithoutCommand}\n${processState.stderrLogs?.trim()}`, { cause: err })
+				throw new Error(`${messageWithoutCommand}\n${stderrLogs.trim()}`, { cause: err })
 			}
 		}
 
 		throw err
 	} finally {
-		rl.close()
-		if (!cProcess.killed) {
-			cProcess.kill()
-		}
-
 		if (options.shouldUseFile) {
 			fs.unlink(tempFilePath).catch(Logger.error)
 		}
@@ -194,31 +146,23 @@ const BUFFER_SIZE = 20_000_000 // 20 MB
 // This is the limit imposed by the CLI
 const CLAUDE_CODE_MAX_OUTPUT_TOKENS = "32000"
 
-function runProcess(
-	{ systemPrompt, messages, path, modelId, thinkingBudgetTokens, shouldUseFile }: ClaudeCodeOptions,
-	cwd: string,
-) {
-	const claudePath = path?.trim() || "claude"
+const buildClaudeCodeArgs = ({ systemPrompt, modelId, shouldUseFile }: ClaudeCodeOptions) => [
+	shouldUseFile ? "--system-prompt-file" : "--system-prompt",
+	systemPrompt,
+	"--verbose",
+	"--output-format",
+	"stream-json",
+	"--disallowedTools",
+	claudeCodeTools,
+	// Cline will handle recursive calls
+	"--max-turns",
+	"1",
+	"--model",
+	modelId,
+	"-p",
+]
 
-	const args = [
-		shouldUseFile ? "--system-prompt-file" : "--system-prompt",
-		systemPrompt,
-		"--verbose",
-		"--output-format",
-		"stream-json",
-		"--disallowedTools",
-		claudeCodeTools,
-		// Cline will handle recursive calls
-		"--max-turns",
-		"1",
-		"--model",
-		modelId,
-		"-p",
-	]
-
-	/**
-	 * @see {@link https://docs.anthropic.com/en/docs/claude-code/settings#environment-variables}
-	 */
+const buildClaudeCodeEnv = (thinkingBudgetTokens?: number): NodeJS.ProcessEnv => {
 	const env: NodeJS.ProcessEnv = {
 		...process.env,
 		// Respect the user's environment variables but set defaults.
@@ -232,51 +176,5 @@ function runProcess(
 	// We don't want to consume the user's ANTHROPIC_API_KEY,
 	// and will allow Claude Code to resolve auth by itself
 	delete env["ANTHROPIC_API_KEY"]
-
-	const claudeCodeProcess = execa(claudePath, args, {
-		stdin: "pipe",
-		stdout: "pipe",
-		stderr: "pipe",
-		env,
-		cwd,
-		maxBuffer: BUFFER_SIZE,
-		timeout: CLAUDE_CODE_TIMEOUT,
-	})
-
-	claudeCodeProcess.stdin.write(JSON.stringify(messages))
-	claudeCodeProcess.stdin.end()
-
-	return claudeCodeProcess
-}
-
-function parseChunk(data: string, processState: ProcessState) {
-	if (processState.partialData) {
-		processState.partialData += data
-
-		const chunk = attemptParseChunk(processState.partialData)
-
-		if (!chunk) {
-			return null
-		}
-
-		processState.partialData = null
-		return chunk
-	}
-
-	const chunk = attemptParseChunk(data)
-
-	if (!chunk) {
-		processState.partialData = data
-	}
-
-	return chunk
-}
-
-function attemptParseChunk(data: string): ClaudeCodeMessage | null {
-	try {
-		return JSON.parse(data)
-	} catch (error) {
-		Logger.error("Error parsing chunk:", error, data.length)
-		return null
-	}
+	return env
 }

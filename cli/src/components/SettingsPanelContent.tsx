@@ -1156,6 +1156,14 @@ export const SettingsPanelContent: React.FC<SettingsPanelContentProps> = ({
 				return
 			}
 
+			if (providerId === "kiro-cli") {
+				await applyProviderConfig({ providerId, controller })
+				setProvider(providerId)
+				refreshModelIds()
+				setIsPickingProvider(false)
+				return
+			}
+
 			// Check if this provider needs an API key
 			const keyField = ProviderToApiKeyMap[providerId as ApiProvider]
 			if (keyField) {

@@ -668,6 +668,28 @@ export class StateManager {
 		return this.secretsCache[key]
 	}
 
+	getSettingsKeysSnapshot(keys: SettingsKey[]): Partial<Settings> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		return keys.reduce<Partial<Settings>>((snapshot, key) => {
+			;(snapshot as Record<SettingsKey, Settings[SettingsKey] | undefined>)[key] = this.getGlobalSettingsKey(key)
+			return snapshot
+		}, {})
+	}
+
+	getSecretKeysSnapshot(keys: SecretKey[]): Partial<Secrets> {
+		if (!this.isInitialized) {
+			throw new Error(STATE_MANAGER_NOT_INITIALIZED)
+		}
+
+		return keys.reduce<Partial<Secrets>>((snapshot, key) => {
+			;(snapshot as Record<SecretKey, Secrets[SecretKey] | undefined>)[key] = this.getSecretKey(key)
+			return snapshot
+		}, {})
+	}
+
 	/**
 	 * Get method for workspace state keys - reads from in-memory cache
 	 */

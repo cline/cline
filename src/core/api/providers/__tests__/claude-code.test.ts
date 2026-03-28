@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import sinon from "sinon"
 import "should"
+import { buildApiHandler } from "@core/api"
 import { ClaudeCodeHandler } from "@core/api/providers/claude-code"
 import { ClineStorageMessage } from "@/shared/messages/content"
 
@@ -21,6 +22,21 @@ describe("ClaudeCodeHandler", () => {
 	})
 
 	describe("token counting", () => {
+		it("should preserve claude-code handler selection through the runtime registry", () => {
+			const built = buildApiHandler(
+				{
+					actModeApiProvider: "claude-code",
+					planModeApiProvider: "claude-code",
+					actModeApiModelId: "claude-opus-4-1-20250805",
+					planModeApiModelId: "claude-opus-4-1-20250805",
+					claudeCodePath: "/mock/path",
+				},
+				"act",
+			)
+
+			built.should.be.instanceOf(ClaudeCodeHandler)
+		})
+
 		it("should correctly handle token usage from assistant messages", async () => {
 			// The 'input_tokens' field represents the TOTAL number of input tokens used.
 			// See https://docs.anthropic.com/en/api/messages#usage-object

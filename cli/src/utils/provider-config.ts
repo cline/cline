@@ -3,9 +3,10 @@
  * Used by both AuthView (onboarding) and SettingsPanelContent (settings)
  */
 
-import type { ApiProvider } from "@shared/api"
-import { getProviderModelIdKey, ProviderToApiKeyMap } from "@shared/storage"
+import type { ApiConfiguration, ApiProvider } from "@shared/api"
+import { getProviderModelIdKey } from "@shared/storage"
 import { buildApiHandler } from "@/core/api"
+import { getRuntimeConfigFacade } from "@/core/api/runtime/runtime-config-facade"
 import type { Controller } from "@/core/controller"
 import { refreshOpenRouterModels } from "@/core/controller/models/refreshOpenRouterModels"
 import { refreshVercelAiGatewayModels } from "@/core/controller/models/refreshVercelAiGatewayModels"
@@ -27,11 +28,9 @@ export interface ApplyProviderConfigOptions {
 export async function applyProviderConfig(options: ApplyProviderConfigOptions): Promise<void> {
 	const { providerId, apiKey, modelId, baseUrl, controller } = options
 	const stateManager = StateManager.get()
+	const runtimeConfigFacade = getRuntimeConfigFacade()
 
-	const config: Record<string, string> = {
-		actModeApiProvider: providerId,
-		planModeApiProvider: providerId,
-	}
+	const config: Record<string, string> = {}
 
 	// Add model ID (use provided or fall back to default)
 	// Use provider-specific model ID keys (e.g., actModeOpenRouterModelId for cline/openrouter)
@@ -61,22 +60,20 @@ export async function applyProviderConfig(options: ApplyProviderConfigOptions): 
 		}
 	}
 
-	// Add API key if provided (maps to provider-specific field like anthropicApiKey, openAiApiKey, etc.)
-	if (apiKey) {
-		const keyField = ProviderToApiKeyMap[providerId as keyof typeof ProviderToApiKeyMap]
-		if (keyField) {
-			const fields = Array.isArray(keyField) ? keyField : [keyField]
-			config[fields[0]] = apiKey
-		}
-	}
-
 	// Add base URL if provided (for OpenAI-compatible providers)
 	if (baseUrl) {
 		config.openAiBaseUrl = baseUrl
 	}
 
 	// Save via StateManager
-	stateManager.setApiConfiguration(config)
+	runtimeConfigFacade.writeLegacyProviderConfig(stateManager as any, {
+		providerId: providerId as ApiProvider,
+		apiKey,
+		modelId: finalModelId,
+		baseUrl,
+		additionalSettings: config,
+		source: "cli",
+	})
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists
@@ -103,6 +100,7 @@ export interface ApplyBedrockConfigOptions {
 export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Promise<void> {
 	const { bedrockConfig, modelId, customModelBaseId, controller } = options
 	const stateManager = StateManager.get()
+	const runtimeConfigFacade = getRuntimeConfigFacade()
 
 	const config: Record<string, unknown> = {
 		actModeApiProvider: "bedrock",
@@ -140,7 +138,12 @@ export async function applyBedrockConfig(options: ApplyBedrockConfigOptions): Pr
 	if (bedrockConfig.awsSessionToken) config.awsSessionToken = bedrockConfig.awsSessionToken
 
 	// Save via StateManager
-	stateManager.setApiConfiguration(config as Record<string, string>)
+	runtimeConfigFacade.writeLegacyProviderConfig(stateManager as any, {
+		providerId: "bedrock",
+		modelId: finalModelId,
+		additionalSettings: config as Partial<ApiConfiguration>,
+		source: "cli",
+	})
 	await stateManager.flushPendingState()
 
 	// Rebuild API handler on active task if one exists

@@ -15,8 +15,12 @@ import {
 	BedrockModelId,
 	ModelInfo,
 	OcaModelInfo,
+	RuntimeId,
+	getRuntimeIdForProvider,
+	getLegacyProviderForRuntimeId,
 } from "../../api"
 import { OpenaiReasoningEffort } from "../../storage/types"
+import type { Mode } from "../../storage/types"
 
 // Convert application ThinkingConfig to proto ThinkingConfig
 function convertThinkingConfigToProto(config: ModelInfo["thinkingConfig"]): ThinkingConfig | undefined {
@@ -328,9 +332,15 @@ function convertApiProviderToProto(provider: string | undefined): ProtoApiProvid
 			return ProtoApiProvider.NOUSRESEARCH
 		case "openai-codex":
 			return ProtoApiProvider.OPENAI_CODEX
+		case "kiro-cli":
+			return ProtoApiProvider.KIRO_CLI
 		default:
 			return ProtoApiProvider.ANTHROPIC
 	}
+}
+
+export function convertRuntimeIdToProto(runtimeId: RuntimeId | undefined): ProtoApiProvider {
+	return convertApiProviderToProto(runtimeId ? getLegacyProviderForRuntimeId(runtimeId) : undefined)
 }
 
 // Convert proto ApiProvider to application ApiProvider
@@ -420,8 +430,28 @@ export function convertProtoToApiProvider(provider: ProtoApiProvider): ApiProvid
 			return "nousResearch"
 		case ProtoApiProvider.OPENAI_CODEX:
 			return "openai-codex"
+		case ProtoApiProvider.KIRO_CLI:
+			return "kiro-cli"
 		default:
 			return "anthropic"
+	}
+}
+
+export function convertProtoToRuntimeId(provider: ProtoApiProvider): RuntimeId {
+	return convertProtoToApiProvider(provider)
+}
+
+export function getRuntimeSelectionFromApiConfiguration(
+	config: Pick<ApiConfiguration, "actModeApiProvider" | "planModeApiProvider" | "actModeApiModelId" | "planModeApiModelId">,
+	mode: Mode,
+): { runtimeId: RuntimeId; provider?: ApiProvider; modelId?: string } {
+	const provider = mode === "plan" ? config.planModeApiProvider : config.actModeApiProvider
+	const modelId = mode === "plan" ? config.planModeApiModelId : config.actModeApiModelId
+
+	return {
+		runtimeId: getRuntimeIdForProvider(provider),
+		provider,
+		modelId,
 	}
 }
 

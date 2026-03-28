@@ -1,4 +1,4 @@
-import { ApiConfiguration, ModelInfo, QwenApiRegions } from "@shared/api"
+import { ApiConfiguration, ApiProvider, ModelInfo, QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
@@ -20,6 +20,7 @@ import { GroqHandler } from "./providers/groq"
 import { HicapHandler } from "./providers/hicap"
 import { HuaweiCloudMaaSHandler } from "./providers/huawei-cloud-maas"
 import { HuggingFaceHandler } from "./providers/huggingface"
+import { KiroCliHandler } from "./providers/kiro-cli"
 import { LiteLlmHandler } from "./providers/litellm"
 import { LmStudioHandler } from "./providers/lmstudio"
 import { MinimaxHandler } from "./providers/minimax"
@@ -45,6 +46,10 @@ import { VsCodeLmHandler } from "./providers/vscode-lm"
 import { WandbHandler } from "./providers/wandb"
 import { XAIHandler } from "./providers/xai"
 import { ZAiHandler } from "./providers/zai"
+import { type RuntimeDefinition } from "./runtime/contracts"
+import { getRuntimeHandlerFactoryRegistry } from "./runtime/runtime-handler-factory-registry"
+import { resolveLegacyProviderForRuntime, resolveRuntimeIdFromProvider } from "./runtime/legacy-provider-mapping"
+import { RuntimeRegistry } from "./runtime/registry"
 import { ApiStream, ApiStreamUsageChunk } from "./transform/stream"
 
 export type CommonApiHandlerOptions = {
@@ -71,6 +76,97 @@ export interface ApiProviderInfo {
 
 export interface SingleCompletionHandler {
 	completePrompt(prompt: string): Promise<string>
+}
+
+const defaultRuntimeCapabilities = {
+	executionKind: "api",
+	supportsStreaming: true,
+	supportsToolCalls: true,
+	supportsReasoning: true,
+} as const
+
+const runtimeDefinition = (
+	legacyProvider: ApiProvider,
+	displayName: string,
+	overrides: Partial<RuntimeDefinition["capabilities"]> = {},
+): RuntimeDefinition => ({
+	runtimeId: legacyProvider,
+	legacyProvider,
+	displayName,
+	capabilities: {
+		...defaultRuntimeCapabilities,
+		...overrides,
+	},
+})
+
+const DEFAULT_RUNTIME_DEFINITIONS: RuntimeDefinition[] = [
+	runtimeDefinition("anthropic", "Anthropic"),
+	runtimeDefinition("claude-code", "Claude Code", {
+		executionKind: "cli",
+		supportsImages: false,
+	}),
+	runtimeDefinition("kiro-cli", "Kiro CLI", {
+		executionKind: "cli",
+		supportsStreaming: false,
+		supportsToolCalls: false,
+		supportsReasoning: false,
+		supportsImages: false,
+	}),
+	runtimeDefinition("openrouter", "OpenRouter"),
+	runtimeDefinition("bedrock", "Amazon Bedrock"),
+	runtimeDefinition("vertex", "Vertex"),
+	runtimeDefinition("openai", "OpenAI Compatible"),
+	runtimeDefinition("ollama", "Ollama"),
+	runtimeDefinition("lmstudio", "LM Studio"),
+	runtimeDefinition("gemini", "Gemini"),
+	runtimeDefinition("openai-native", "OpenAI Native"),
+	runtimeDefinition("openai-codex", "OpenAI Codex"),
+	runtimeDefinition("requesty", "Requesty"),
+	runtimeDefinition("together", "Together"),
+	runtimeDefinition("deepseek", "DeepSeek"),
+	runtimeDefinition("qwen", "Qwen"),
+	runtimeDefinition("qwen-code", "Qwen Code", {
+		executionKind: "cli",
+	}),
+	runtimeDefinition("doubao", "Doubao"),
+	runtimeDefinition("mistral", "Mistral"),
+	runtimeDefinition("vscode-lm", "VS Code LM"),
+	runtimeDefinition("cline", "Cline"),
+	runtimeDefinition("litellm", "LiteLLM"),
+	runtimeDefinition("moonshot", "Moonshot"),
+	runtimeDefinition("nebius", "Nebius"),
+	runtimeDefinition("fireworks", "Fireworks"),
+	runtimeDefinition("asksage", "Ask Sage"),
+	runtimeDefinition("xai", "xAI"),
+	runtimeDefinition("sambanova", "SambaNova"),
+	runtimeDefinition("cerebras", "Cerebras"),
+	runtimeDefinition("groq", "Groq"),
+	runtimeDefinition("huggingface", "Hugging Face"),
+	runtimeDefinition("huawei-cloud-maas", "Huawei Cloud MaaS"),
+	runtimeDefinition("dify", "Dify", {
+		supportsStreaming: false,
+		supportsToolCalls: false,
+	}),
+	runtimeDefinition("baseten", "Baseten"),
+	runtimeDefinition("vercel-ai-gateway", "Vercel AI Gateway"),
+	runtimeDefinition("zai", "Z.AI"),
+	runtimeDefinition("oca", "OCA"),
+	runtimeDefinition("aihubmix", "AIHubMix"),
+	runtimeDefinition("minimax", "MiniMax"),
+	runtimeDefinition("hicap", "HiCap"),
+	runtimeDefinition("nousResearch", "Nous Research"),
+	runtimeDefinition("wandb", "Weights & Biases"),
+	runtimeDefinition("sapaicore", "SAP AI Core"),
+]
+
+let defaultRuntimeRegistry: RuntimeRegistry | undefined
+
+export function getApiRuntimeRegistry(): RuntimeRegistry {
+	if (!defaultRuntimeRegistry) {
+		defaultRuntimeRegistry = new RuntimeRegistry(DEFAULT_RUNTIME_DEFINITIONS)
+	}
+
+	return defaultRuntimeRegistry
 }
 
 function createHandlerForProvider(
@@ -374,6 +470,12 @@ function createHandlerForProvider(
 				thinkingBudgetTokens:
 					mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens,
 			})
+		case "kiro-cli":
+			return new KiroCliHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				kiroCliPath: options.kiroCliPath,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
+			})
 		case "huawei-cloud-maas":
 			return new HuaweiCloudMaaSHandler({
 				onRetryAttempt: options.onRetryAttempt,
@@ -475,13 +577,23 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 	const { planModeApiProvider, actModeApiProvider, ...options } = configuration
 
 	const apiProvider = mode === "plan" ? planModeApiProvider : actModeApiProvider
+	const runtimeRegistry = getApiRuntimeRegistry()
+	const runtimeHandlerFactoryRegistry = getRuntimeHandlerFactoryRegistry()
+	const runtimeId = resolveRuntimeIdFromProvider(apiProvider, runtimeRegistry)
+	const runtimeDefinition = runtimeRegistry.getRuntime(runtimeId)
+	const legacyProvider = resolveLegacyProviderForRuntime(runtimeDefinition.runtimeId, runtimeRegistry)
+	const runtimeFactory = runtimeHandlerFactoryRegistry.get(runtimeDefinition.runtimeId)
+	const buildSelectedHandler = () =>
+		runtimeFactory
+			? runtimeFactory.buildHandler({ configuration, mode })
+			: createHandlerForProvider(legacyProvider, options, mode)
 
 	// Validate thinking budget tokens against model's maxTokens to prevent API errors
 	// wrapped in a try-catch for safety, but this should never throw
 	try {
 		const thinkingBudgetTokens = mode === "plan" ? options.planModeThinkingBudgetTokens : options.actModeThinkingBudgetTokens
 		if (thinkingBudgetTokens && thinkingBudgetTokens > 0) {
-			const handler = createHandlerForProvider(apiProvider, options, mode)
+			const handler = buildSelectedHandler()
 
 			const modelInfo = handler.getModel().info
 			if (modelInfo?.maxTokens && modelInfo.maxTokens > 0 && thinkingBudgetTokens > modelInfo.maxTokens) {
@@ -499,5 +611,5 @@ export function buildApiHandler(configuration: ApiConfiguration, mode: Mode): Ap
 		Logger.error("buildApiHandler error:", error)
 	}
 
-	return createHandlerForProvider(apiProvider, options, mode)
+	return buildSelectedHandler()
 }

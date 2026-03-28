@@ -57,6 +57,10 @@
 			"label": "Claude Code"
 		},
 		{
+			"value": "kiro-cli",
+			"label": "Kiro CLI"
+		},
+		{
 			"value": "sapaicore",
 			"label": "SAP AI Core"
 		},

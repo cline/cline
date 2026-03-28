@@ -377,11 +377,31 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				startOpenAiCodexAuth()
 			} else if (value === "bedrock") {
 				setStep("bedrock")
+			} else if (value === "kiro-cli") {
+				setModelId("")
+				setStep("saving")
+				void (async () => {
+					try {
+						await applyProviderConfig({
+							providerId: value,
+							controller,
+						})
+
+						const stateManager = StateManager.get()
+						stateManager.setGlobalState("welcomeViewCompleted", true)
+						await stateManager.flushPendingState()
+
+						setStep("success")
+					} catch (error) {
+						setErrorMessage(error instanceof Error ? error.message : String(error))
+						setStep("error")
+					}
+				})()
 			} else {
 				setStep("apikey")
 			}
 		},
-		[startOcaAuth, startOpenAiCodexAuth],
+		[startOcaAuth, startOpenAiCodexAuth, controller],
 	)
 
 	const handleApiKeySubmit = useCallback(
@@ -575,6 +595,8 @@ export const AuthView: React.FC<AuthViewProps> = ({ controller, onComplete, onEr
 				} else if (selectedProvider === "bedrock") {
 					// Bedrock skips the API key step — go back to Bedrock setup
 					setStep("bedrock")
+				} else if (selectedProvider === "kiro-cli") {
+					setStep("provider")
 				} else {
 					setStep("apikey")
 				}

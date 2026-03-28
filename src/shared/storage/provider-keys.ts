@@ -3,11 +3,13 @@
 import { Secrets, SettingsKey } from "@shared/storage/state-keys"
 import {
 	ApiProvider,
+	RuntimeId,
 	anthropicDefaultModelId,
 	basetenDefaultModelId,
 	bedrockDefaultModelId,
 	deepSeekDefaultModelId,
 	fireworksDefaultModelId,
+	getLegacyProviderForRuntimeId,
 	geminiDefaultModelId,
 	groqDefaultModelId,
 	huaweiCloudMaasDefaultModelId,
@@ -88,6 +90,7 @@ export const ProviderToApiKeyMap: Partial<Record<ApiProvider, keyof Secrets | (k
 } as const
 
 const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
+	"kiro-cli": "",
 	anthropic: anthropicDefaultModelId,
 	openrouter: openRouterDefaultModelId,
 	cline: openRouterDefaultModelId,
@@ -122,8 +125,13 @@ const ProviderDefaultModelMap: Partial<Record<ApiProvider, string>> = {
  * Get the provider-specific model ID key for a given provider and mode.
  * Different providers store their model IDs in different state keys.
  */
-export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan"): SettingsKey {
-	const keySuffix = ProviderKeyMap[provider]
+export function getProviderModelIdKey(provider: ApiProvider | RuntimeId, mode: "act" | "plan"): SettingsKey {
+	const legacyProvider = getLegacyProviderForRuntimeId(provider)
+	if (!legacyProvider) {
+		return `${mode}ModeApiModelId`
+	}
+
+	const keySuffix = ProviderKeyMap[legacyProvider]
 	if (keySuffix) {
 		// E.g. actModeOpenAiModelId, planModeOpenAiModelId, etc.
 		return `${mode}Mode${keySuffix}` as SettingsKey
@@ -134,6 +142,11 @@ export function getProviderModelIdKey(provider: ApiProvider, mode: "act" | "plan
 	return `${mode}ModeApiModelId`
 }
 
-export function getProviderDefaultModelId(provider: ApiProvider): string | null {
-	return ProviderDefaultModelMap[provider] || ""
+export function getProviderDefaultModelId(provider: ApiProvider | RuntimeId): string | null {
+	const legacyProvider = getLegacyProviderForRuntimeId(provider)
+	if (!legacyProvider) {
+		return null
+	}
+
+	return ProviderDefaultModelMap[legacyProvider] || ""
 }

@@ -4,6 +4,7 @@ import type { ApiHandlerSettings } from "./storage/state-keys"
 export type ApiProvider =
 	| "anthropic"
 	| "claude-code"
+	| "kiro-cli"
 	| "openrouter"
 	| "bedrock"
 	| "vertex"
@@ -46,6 +47,26 @@ export type ApiProvider =
 	| "wandb"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
+export const FUTURE_RUNTIME_IDS = ["github-cli", "custom-langgraph-cli"] as const
+export type FutureRuntimeId = (typeof FUTURE_RUNTIME_IDS)[number]
+export type RuntimeId = ApiProvider | FutureRuntimeId
+export const DEFAULT_RUNTIME_ID = DEFAULT_API_PROVIDER as RuntimeId
+
+export function isFutureRuntimeId(runtimeId: RuntimeId): runtimeId is FutureRuntimeId {
+	return (FUTURE_RUNTIME_IDS as readonly string[]).includes(runtimeId)
+}
+
+export function getRuntimeIdForProvider(provider?: ApiProvider): RuntimeId {
+	return provider ?? DEFAULT_RUNTIME_ID
+}
+
+export function getLegacyProviderForRuntimeId(runtimeId: RuntimeId): ApiProvider | undefined {
+	if (isFutureRuntimeId(runtimeId)) {
+		return undefined
+	}
+
+	return runtimeId
+}
 
 export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 	ulid?: string // Used to identify the task in API requests

@@ -111,6 +111,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	awsProfile: { default: undefined as string | undefined },
 	awsBedrockEndpoint: { default: undefined as string | undefined },
 	claudeCodePath: { default: undefined as string | undefined },
+	kiroCliPath: { default: undefined as string | undefined },
 	vertexProjectId: { default: undefined as string | undefined },
 	vertexRegion: { default: undefined as string | undefined },
 	openAiBaseUrl: { default: undefined as string | undefined },

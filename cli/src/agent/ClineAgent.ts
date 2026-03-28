@@ -38,8 +38,8 @@ import {
 } from "@shared/api"
 import type { ClineAsk, ClineMessage as ClineMessageType } from "@shared/ExtensionMessage"
 import { CLI_ONLY_COMMANDS, VSCODE_ONLY_COMMANDS } from "@shared/slashCommands"
-import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
+import { getRuntimeConfigFacade } from "@/core/api/runtime/runtime-config-facade"
 import { Controller } from "@/core/controller"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
 import { setRuntimeHooksDir } from "@/core/storage/disk"
@@ -342,18 +342,12 @@ export class ClineAgent implements acp.Agent {
 	 */
 	private async getSessionModelState(mode: Mode): Promise<acp.SessionModelState> {
 		const stateManager = StateManager.get()
+		const runtimeConfigFacade = getRuntimeConfigFacade()
 
 		// Get current provider and model for the mode
-		const providerKey = mode === "act" ? "actModeApiProvider" : "planModeApiProvider"
-		const currentProvider = stateManager.getGlobalSettingsKey(providerKey) as ApiProvider | undefined
-
-		// Use provider-specific model ID key (e.g., cline uses actModeOpenRouterModelId)
-		const modelKey = currentProvider ? getProviderModelIdKey(currentProvider, mode) : null
-		const currentModelId = modelKey ? stateManager.getGlobalSettingsKey(modelKey) : undefined
-
-		// Build the current model ID in provider/model format
-		const currentFullModelId =
-			currentProvider && currentModelId ? `${currentProvider}/${currentModelId}` : currentProvider || ""
+		const selection = runtimeConfigFacade.readLegacyModelSelection(stateManager as any, mode)
+		const currentProvider = selection.provider
+		const currentFullModelId = selection.fullModelId
 
 		// Get available models based on provider
 		let modelIds: string[] = []
@@ -410,20 +404,9 @@ export class ClineAgent implements acp.Agent {
 		const modelId = params.modelId.substring(slashIndex + 1)
 
 		const stateManager = StateManager.get()
+		const runtimeConfigFacade = getRuntimeConfigFacade()
 
-		// Update provider for both modes
-		stateManager.setGlobalState("actModeApiProvider", provider)
-		stateManager.setGlobalState("planModeApiProvider", provider)
-
-		// Update model ID using provider-specific keys (e.g., cline uses actModeOpenRouterModelId)
-		const actProviderModelKey = getProviderModelIdKey(provider, "act")
-		if (actProviderModelKey) {
-			stateManager.setGlobalState(actProviderModelKey, modelId)
-		}
-		const planProviderModelKey = getProviderModelIdKey(provider, "plan")
-		if (planProviderModelKey) {
-			stateManager.setGlobalState(planProviderModelKey, modelId)
-		}
+		runtimeConfigFacade.writeLegacyModelSelection(stateManager as any, provider, modelId)
 
 		// Store the model override in the session for both modes
 		session.actModeModelId = params.modelId
