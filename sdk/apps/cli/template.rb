@@ -33,7 +33,7 @@ cask "cline" do
   desc "Cline CLI"
   homepage "https://github.com/cline/sdk-wip"
   version "__CLI_VERSION__"
-  binary "cline"
+  binary "cline", target: "clite"
   
   on_macos do
     on_arm do
