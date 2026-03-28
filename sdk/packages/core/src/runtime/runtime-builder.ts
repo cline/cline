@@ -14,6 +14,7 @@ import {
 	type SkillConfig,
 	type UserInstructionConfigWatcher,
 } from "../agents";
+import { buildWorkspaceMetadata } from "../session/workspace-manifest";
 import { createLocalTeamStore } from "../storage/team-store";
 import {
 	createBuiltinTools,
@@ -373,6 +374,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const tools: Tool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		let teamToolsRegistered = false;
+		let teammateRuntimeConfig:
+			| {
+					apiKey: string;
+					modelId: string;
+			  }
+			| undefined;
 		const watcherProvided = Boolean(sharedUserInstructionWatcher);
 		let userInstructionWatcher = sharedUserInstructionWatcher;
 		let watcherReady = Promise.resolve();
@@ -497,26 +504,40 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									defaultToolExecutors,
 								)
 						: undefined,
-					teammateRuntime: {
-						providerId: config.providerId,
-						modelId: config.modelId,
-						cwd: config.cwd,
-						apiKey: config.apiKey ?? "",
-						baseUrl: config.baseUrl,
-						headers: config.headers,
-						providerConfig: config.providerConfig,
-						knownModels: config.knownModels,
-						thinking: config.thinking,
-						clineWorkspaceMetadata:
-							config.providerId === "cline"
-								? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
-								: undefined,
-						maxIterations: config.maxIterations,
-						hooks,
-						extensions: extensions ?? config.extensions,
-						logger: logger ?? config.logger,
-						telemetry: input.telemetry ?? config.telemetry,
-					},
+					teammateRuntime: (() => {
+						const runtime = {
+							providerId: config.providerId,
+							modelId: config.modelId,
+							cwd: config.cwd,
+							apiKey: config.apiKey ?? "",
+							baseUrl: config.baseUrl,
+							headers: config.headers,
+							providerConfig: config.providerConfig,
+							knownModels: config.knownModels,
+							thinking: config.thinking,
+							clineWorkspaceMetadata:
+								config.providerId === "cline"
+									? extractWorkspaceMetadataFromSystemPrompt(
+											config.systemPrompt,
+										)
+									: undefined,
+							maxIterations: config.maxIterations,
+							hooks,
+							extensions: extensions ?? config.extensions,
+							logger: logger ?? config.logger,
+							telemetry: input.telemetry ?? config.telemetry,
+						};
+						if (
+							config.providerId === "cline" &&
+							!runtime.clineWorkspaceMetadata
+						) {
+							buildWorkspaceMetadata(config.cwd ?? "").then((metadata) => {
+								runtime.clineWorkspaceMetadata = metadata;
+							});
+						}
+						teammateRuntimeConfig = runtime;
+						return runtime;
+					})(),
 				});
 
 				if (teamBootstrap.restoredFromPersistence) {
@@ -582,6 +603,17 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
 			teamRestoredFromPersistence: Boolean(restoredTeamState),
+			updateTeamTeammateConnectionDefaults: (overrides) => {
+				if (!teammateRuntimeConfig) {
+					return;
+				}
+				if (typeof overrides.apiKey === "string") {
+					teammateRuntimeConfig.apiKey = overrides.apiKey;
+				}
+				if (typeof overrides.modelId === "string") {
+					teammateRuntimeConfig.modelId = overrides.modelId;
+				}
+			},
 			completionGuard,
 			shutdown: (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);

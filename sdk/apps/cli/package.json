@@ -18,7 +18,7 @@
 		"build": "rm -rf dist && bun run bun.mts",
 		"build:binary": "bun build --compile ./src/index.ts --compile --outfile ./dist/cline",
 		"build:tgz": "bun run build && bun pm pack --destination ./dist",
-		"dev": "bun ./src/index.ts",
+		"dev": "bun --conditions=development ./src/index.ts",
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",

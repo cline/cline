@@ -1,3 +1,5 @@
+import { basename, resolve } from "node:path";
+
 const DEFAULT_CLINE_SYSTEM_PROMPT = `You are Cline, an AI coding agent. Your primary goal is to assist users with various coding tasks by leveraging your knowledge and the tools at your disposal. Given the user's prompt, you should use the tools available to you to answer user's question.
 
 Always gather all the necessary context before starting to work on a task. For example, if you are generating a unit test or new code, make sure you understand the requirement, the naming conventions, frameworks and libraries used and aligned in the current codebase, and the environment and commands used to run and test the code etc. Always validate the new unit test at the end including running the code if possible for live feedback.
@@ -33,21 +35,41 @@ If user asked a simple question without any coding context, answer it directly w
 {{CLINE_RULES}}
 {{CLINE_METADATA}}`;
 
+const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
+
+function buildWorkspaceMetadata(metadata: string, cwd: string): string {
+	if (metadata.trim() && metadata.includes(WORKSPACE_CONFIGURATION_MARKER)) {
+		return metadata.trim();
+	}
+	const rootPath = resolve(cwd);
+	return `\n${WORKSPACE_CONFIGURATION_MARKER}\n${
+		metadata ||
+		JSON.stringify(
+			{
+				workspaces: {
+					[rootPath]: {
+						hint: basename(rootPath),
+					},
+				},
+			},
+			null,
+			2,
+		)
+	}`;
+}
+
 export function getClineDefaultSystemPrompt(
 	ide: string,
 	cwd: string,
 	metadata = "",
 	rules = "",
+	platform = (typeof process !== "undefined" && process?.platform) || "unknown",
 ) {
-	const platform =
-		typeof process !== "undefined" && process?.platform
-			? process.platform
-			: "unknown";
 	return DEFAULT_CLINE_SYSTEM_PROMPT.replace("{{PLATFORM_NAME}}", platform)
 		.replace("{{CWD}}", cwd)
 		.replace("{{CURRENT_DATE}}", new Date().toLocaleDateString())
 		.replace("{{IDE_NAME}}", ide)
-		.replace("{{CLINE_METADATA}}", metadata)
+		.replace("{{CLINE_METADATA}}", buildWorkspaceMetadata(metadata, cwd))
 		.replace("{{CLINE_RULES}}", rules)
 		.trim();
 }

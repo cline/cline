@@ -261,4 +261,47 @@ describe("createSpawnAgentTool", () => {
 			}),
 		);
 	});
+
+	it("resolves connection settings lazily at execution time", async () => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		runMock.mockResolvedValue({
+			text: "ok",
+			iterations: 1,
+			finishReason: "completed",
+			usage: { inputTokens: 1, outputTokens: 1 },
+		});
+
+		const getConnectionOverrides = vi.fn().mockReturnValue({
+			apiKey: "oauth-access-new",
+			modelId: "updated-model",
+		});
+
+		const tool = createSpawnAgentTool({
+			providerId: "cline",
+			modelId: "stale-model",
+			apiKey: "oauth-access-old",
+			getConnectionOverrides,
+			subAgentTools: [],
+		});
+
+		await tool.execute(
+			{
+				systemPrompt: "System",
+				task: "Do task",
+			},
+			{
+				agentId: "parent-6",
+				conversationId: "conv-parent",
+				iteration: 1,
+			},
+		);
+
+		expect(getConnectionOverrides).toHaveBeenCalledTimes(1);
+		expect(agentConstructorSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				apiKey: "oauth-access-new",
+				modelId: "updated-model",
+			}),
+		);
+	});
 });

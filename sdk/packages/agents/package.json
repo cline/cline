@@ -17,17 +17,17 @@
 	"exports": {
 		".": {
 			"browser": "./dist/index.browser.js",
-			"development": "./dist/index.js",
+			"development": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
 		"./node": {
-			"development": "./dist/index.node.js",
+			"development": "./src/index.node.ts",
 			"types": "./dist/index.node.d.ts",
 			"import": "./dist/index.node.js"
 		},
 		"./browser": {
-			"development": "./dist/index.browser.js",
+			"development": "./src/index.browser.ts",
 			"types": "./dist/index.browser.d.ts",
 			"import": "./dist/index.browser.js"
 		}

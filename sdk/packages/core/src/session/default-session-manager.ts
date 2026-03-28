@@ -1075,6 +1075,16 @@ export class DefaultSessionManager implements SessionManager {
 			baseUrl: config.baseUrl,
 			providerConfig: config.providerConfig,
 			knownModels: config.knownModels,
+			getConnectionOverrides: () => ({
+				providerId: config.providerId,
+				modelId: config.modelId,
+				apiKey: config.apiKey,
+				baseUrl: config.baseUrl,
+				headers: config.headers,
+				providerConfig: config.providerConfig,
+				knownModels: config.knownModels,
+				thinking: config.thinking,
+			}),
 			clineWorkspaceMetadata:
 				config.providerId === "cline"
 					? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
@@ -1256,6 +1266,9 @@ export class DefaultSessionManager implements SessionManager {
 		if (!resolved?.apiKey || session.config.apiKey === resolved.apiKey) return;
 		session.config.apiKey = resolved.apiKey;
 		this.updateAgentConnection(session, { apiKey: resolved.apiKey });
+		session.runtime.updateTeamTeammateConnectionDefaults?.({
+			apiKey: resolved.apiKey,
+		});
 		session.runtime.teamRuntime?.updateTeammateConnections({
 			apiKey: resolved.apiKey,
 		});

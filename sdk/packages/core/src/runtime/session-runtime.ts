@@ -17,6 +17,10 @@ export interface BuiltRuntime {
 	telemetry?: ITelemetryService;
 	teamRuntime?: AgentTeamsRuntime;
 	teamRestoredFromPersistence?: boolean;
+	updateTeamTeammateConnectionDefaults?: (overrides: {
+		apiKey?: string;
+		modelId?: string;
+	}) => void;
 	completionGuard?: () => string | undefined;
 	shutdown: (reason: string) => Promise<void> | void;
 }

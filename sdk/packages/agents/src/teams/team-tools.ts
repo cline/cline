@@ -1,4 +1,3 @@
-import { basename, resolve } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
 	type ITelemetryService,
@@ -7,7 +6,7 @@ import {
 	zodToJsonSchema,
 } from "@clinebot/shared";
 import { z } from "zod";
-import { getClineDefaultSystemPrompt } from "../prompts/cline.js";
+import { buildTeammateSystemPrompt } from "../prompts/subagents.js";
 import { createTool } from "../tools/create.js";
 import type { AgentConfig, AgentHooks, BasicLogger } from "../types.js";
 import type {
@@ -90,16 +89,22 @@ const TeamBlockTaskInputSchema = z.object({
 const TeamRunTaskInputSchema = z.object({
 	agentId: z.string().describe("Teammate agent ID"),
 	task: z.string().min(1).describe("Task instructions for the teammate"),
-	taskId: z.string().optional().describe("Optional shared task list ID"),
+	taskId: z
+		.string()
+		.optional()
+		.nullable()
+		.describe("Optional shared task list ID"),
 	runMode: z
 		.enum(["sync", "async"])
 		.optional()
+		.nullable()
 		.describe(
 			"Execution mode: sync waits for result; async returns a runId immediately",
 		),
 	continueConversation: z
 		.boolean()
 		.optional()
+		.nullable()
 		.describe(
 			"If true, continue the teammate conversation; otherwise start fresh",
 		),
@@ -146,16 +151,27 @@ const TeamSendMessageInputSchema = z.object({
 	toAgentId: z.string().min(1).describe("Recipient agent ID"),
 	subject: z.string().min(1).describe("Message subject"),
 	body: z.string().min(1).describe("Message body"),
-	taskId: z.string().min(1).optional().describe("Optional task ID context"),
+	taskId: z
+		.string()
+		.min(1)
+		.optional()
+		.nullable()
+		.describe("Optional task ID context"),
 });
 
 const TeamBroadcastInputSchema = z.object({
 	subject: z.string().min(1).describe("Message subject"),
 	body: z.string().min(1).describe("Message body"),
-	taskId: z.string().min(1).optional().describe("Optional task ID context"),
+	taskId: z
+		.string()
+		.min(1)
+		.optional()
+		.nullable()
+		.describe("Optional task ID context"),
 	includeLead: z
 		.boolean()
 		.optional()
+		.nullable()
 		.describe("Include the lead agent in broadcast recipients"),
 });
 
@@ -354,6 +370,7 @@ export interface TeamTeammateRuntimeConfig {
 	thinking?: boolean;
 	clineWorkspaceMetadata?: string;
 	clineIdeName?: string;
+	clinePlatform?: string;
 	maxIterations?: number;
 	hooks?: AgentHooks;
 	extensions?: AgentConfig["extensions"];
@@ -382,42 +399,6 @@ export interface BootstrapAgentTeamsResult {
 	tools: Tool[];
 	restoredFromPersistence: boolean;
 	restoredTeammates: string[];
-}
-
-function buildFallbackWorkspaceMetadata(cwd: string): string {
-	const rootPath = resolve(cwd);
-	return `# Workspace Configuration\n${JSON.stringify(
-		{
-			workspaces: {
-				[rootPath]: {
-					hint: basename(rootPath),
-				},
-			},
-		},
-		null,
-		2,
-	)}`;
-}
-
-function buildTeammateSystemPrompt(
-	spec: TeamTeammateSpec,
-	teammateRuntime: TeamTeammateRuntimeConfig,
-): string {
-	if (teammateRuntime.providerId !== "cline") {
-		return spec.rolePrompt;
-	}
-	const cwd = teammateRuntime.cwd?.trim() || process.cwd();
-	const metadata =
-		teammateRuntime.clineWorkspaceMetadata?.trim() ||
-		buildFallbackWorkspaceMetadata(cwd);
-	const rolePrompt = spec.rolePrompt.trim();
-	const teammateRules = rolePrompt ? `# Team Teammate Role\n${rolePrompt}` : "";
-	return getClineDefaultSystemPrompt(
-		teammateRuntime.clineIdeName?.trim() || "Terminal Shell",
-		cwd,
-		metadata,
-		teammateRules,
-	);
 }
 
 function spawnTeamTeammate(
@@ -451,7 +432,7 @@ function spawnTeamTeammate(
 			knownModels: options.teammateRuntime.knownModels,
 			thinking: options.teammateRuntime.thinking,
 			systemPrompt: buildTeammateSystemPrompt(
-				options.spec,
+				options.spec.rolePrompt,
 				options.teammateRuntime,
 			),
 			maxIterations:
@@ -697,9 +678,10 @@ export function createAgentTeamsTools(
 						validatedInput.agentId,
 						validatedInput.task,
 						{
-							taskId: validatedInput.taskId,
+							taskId: validatedInput.taskId || undefined,
 							fromAgentId: options.requesterId,
-							continueConversation: validatedInput.continueConversation,
+							continueConversation:
+								validatedInput.continueConversation || undefined,
 						},
 					);
 					return {
@@ -712,9 +694,10 @@ export function createAgentTeamsTools(
 					validatedInput.agentId,
 					validatedInput.task,
 					{
-						taskId: validatedInput.taskId,
+						taskId: validatedInput.taskId || undefined,
 						fromAgentId: options.requesterId,
-						continueConversation: validatedInput.continueConversation,
+						continueConversation:
+							validatedInput.continueConversation || undefined,
 					},
 				);
 				return {
@@ -830,7 +813,7 @@ export function createAgentTeamsTools(
 					validatedInput.toAgentId,
 					validatedInput.subject,
 					validatedInput.body,
-					validatedInput.taskId,
+					validatedInput.taskId ?? undefined,
 				);
 				return { id: message.id, toAgentId: message.toAgentId };
 			},
@@ -849,8 +832,8 @@ export function createAgentTeamsTools(
 					validatedInput.subject,
 					validatedInput.body,
 					{
-						taskId: validatedInput.taskId,
-						includeLead: validatedInput.includeLead,
+						taskId: validatedInput.taskId ?? undefined,
+						includeLead: validatedInput.includeLead ?? undefined,
 					},
 				);
 				return { delivered: messages.length };

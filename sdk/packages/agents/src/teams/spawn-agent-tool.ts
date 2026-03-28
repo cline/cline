@@ -2,7 +2,6 @@
  * Reusable spawn_agent tool for delegating tasks to sub-agents.
  */
 
-import { basename, resolve } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
 	type ITelemetryService,
@@ -15,8 +14,10 @@ import {
 } from "@clinebot/shared";
 import { z } from "zod";
 import { Agent } from "../agent.js";
+import { buildSubAgentSystemPrompt } from "../prompts/subagents.js";
 import { createTool } from "../tools/create.js";
 import type {
+	AgentConfig,
 	AgentEvent,
 	AgentExtension,
 	AgentFinishReason,
@@ -72,10 +73,12 @@ export interface SpawnAgentToolConfig {
 	cwd?: string;
 	apiKey?: string;
 	baseUrl?: string;
+	headers?: Record<string, string>;
 	providerConfig?: LlmsProviders.ProviderConfig;
 	knownModels?: Record<string, LlmsProviders.ModelInfo>;
 	thinking?: boolean;
 	clineWorkspaceMetadata?: string;
+	clinePlatform?: string;
 	defaultMaxIterations?: number;
 	subAgentTools?: Tool[];
 	createSubAgentTools?: (
@@ -120,44 +123,19 @@ export interface SpawnAgentToolConfig {
 	 */
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
-}
-
-const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
-
-function buildFallbackWorkspaceMetadata(cwd: string): string {
-	const rootPath = resolve(cwd);
-	return `# Workspace Configuration\n${JSON.stringify(
-		{
-			workspaces: {
-				[rootPath]: {
-					hint: basename(rootPath),
-				},
-			},
-		},
-		null,
-		2,
-	)}`;
-}
-
-function normalizeSubAgentSystemPrompt(
-	inputSystemPrompt: string,
-	config: SpawnAgentToolConfig,
-): string {
-	if (config.providerId !== "cline") {
-		return inputSystemPrompt;
-	}
-	const trimmedPrompt = inputSystemPrompt.trim();
-	if (trimmedPrompt.includes(WORKSPACE_CONFIGURATION_MARKER)) {
-		return trimmedPrompt;
-	}
-	const cwd = config.cwd?.trim() || process.cwd();
-	const workspaceMetadata =
-		config.clineWorkspaceMetadata?.trim() ||
-		buildFallbackWorkspaceMetadata(cwd);
-	if (!workspaceMetadata) {
-		return trimmedPrompt;
-	}
-	return `${trimmedPrompt}\n\n${workspaceMetadata}`;
+	getConnectionOverrides?: () => Partial<
+		Pick<
+			AgentConfig,
+			| "providerId"
+			| "modelId"
+			| "apiKey"
+			| "baseUrl"
+			| "headers"
+			| "providerConfig"
+			| "knownModels"
+			| "thinking"
+		>
+	>;
 }
 
 /**
@@ -174,16 +152,19 @@ export function createSpawnAgentTool(
 			const tools = config.createSubAgentTools
 				? await config.createSubAgentTools(input, context)
 				: (config.subAgentTools ?? []);
+			const connectionOverrides = config.getConnectionOverrides?.() ?? {};
 
 			const subAgent = new Agent({
-				providerId: config.providerId,
-				modelId: config.modelId,
-				apiKey: config.apiKey,
-				baseUrl: config.baseUrl,
-				providerConfig: config.providerConfig,
-				knownModels: config.knownModels,
-				thinking: config.thinking,
-				systemPrompt: normalizeSubAgentSystemPrompt(input.systemPrompt, config),
+				providerId: connectionOverrides.providerId ?? config.providerId,
+				modelId: connectionOverrides.modelId ?? config.modelId,
+				apiKey: connectionOverrides.apiKey ?? config.apiKey,
+				baseUrl: connectionOverrides.baseUrl ?? config.baseUrl,
+				headers: connectionOverrides.headers ?? config.headers,
+				providerConfig:
+					connectionOverrides.providerConfig ?? config.providerConfig,
+				knownModels: connectionOverrides.knownModels ?? config.knownModels,
+				thinking: connectionOverrides.thinking ?? config.thinking,
+				systemPrompt: buildSubAgentSystemPrompt(input.systemPrompt, config),
 				tools,
 				maxIterations: input.maxIterations ?? config.defaultMaxIterations,
 				parentAgentId: context.agentId,
