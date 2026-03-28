@@ -6,7 +6,7 @@
  */
 
 import * as LlmsProviders from "@clinebot/llms/providers";
-import type { AgentConfig, BasicLogger } from "./types.js";
+import type { AgentConfig, BasicLogger } from "../types.js";
 
 // =============================================================================
 // Provider Config Resolution

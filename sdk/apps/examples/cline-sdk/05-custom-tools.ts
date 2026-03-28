@@ -16,7 +16,7 @@
  * Run: bun run 05-custom-tools.ts
  */
 
-import { createSessionHost, type Tool } from "@clinebot/core";
+import { ClineCore, type Tool } from "@clinebot/core";
 
 // Example 1: Simple calculator tool
 const calculatorTool: Tool = {
@@ -282,7 +282,7 @@ Is File: ${stats.isFile()}`,
 async function demoCalculatorTool() {
 	console.log("\n=== Calculator Tool ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -311,7 +311,7 @@ async function demoCalculatorTool() {
 async function demoWeatherTool() {
 	console.log("\n=== Weather Tool ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -337,7 +337,7 @@ async function demoWeatherTool() {
 async function demoDatabaseTool() {
 	console.log("\n=== Database Query Tool ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -363,7 +363,7 @@ async function demoDatabaseTool() {
 async function demoMultipleTools() {
 	console.log("\n=== Multiple Custom Tools ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {

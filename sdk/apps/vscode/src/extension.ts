@@ -4,7 +4,7 @@ import { getClineDefaultSystemPrompt } from "@clinebot/agents";
 import {
 	type BasicLogger,
 	buildWorkspaceMetadata,
-	createSessionHost,
+	ClineCore,
 	type ITelemetryService,
 	LlmsModels as llmModels,
 	LlmsProviders as llmProviders,
@@ -722,7 +722,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async getSessionHost(): Promise<SessionHost> {
 		if (!this.host) {
-			this.host = await createSessionHost({
+			this.host = await ClineCore.create({
 				backendMode: "local",
 				telemetry: this.telemetry,
 			});

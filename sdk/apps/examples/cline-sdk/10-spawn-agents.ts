@@ -22,12 +22,12 @@
  * Run: bun run 10-spawn-agents.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function demoBasicSpawn() {
 	console.log("\n=== Basic Agent Spawning ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -62,7 +62,7 @@ Spawn separate agents for each task to work in parallel.`,
 async function demoSpecializedSpawn() {
 	console.log("\n=== Specialized Spawned Agents ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -101,7 +101,7 @@ Spawn a specialized agent for each analysis type.`,
 async function demoParallelDataProcessing() {
 	console.log("\n=== Parallel Data Processing ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -140,7 +140,7 @@ Process these in parallel using spawned agents.`,
 async function demoErrorHandlingWithSpawn() {
 	console.log("\n=== Error Handling with Spawned Agents ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -178,7 +178,7 @@ Spawn agents for each task and handle any errors gracefully.`,
 async function demoRecursiveSpawn() {
 	console.log("\n=== Recursive Agent Spawning ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -220,7 +220,7 @@ Please coordinate this hierarchical analysis.`,
 async function demoSpawnWithCustomTools() {
 	console.log("\n=== Spawned Agents with Limited Tools ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {

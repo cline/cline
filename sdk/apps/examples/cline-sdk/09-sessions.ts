@@ -25,12 +25,12 @@
 import { readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function demoCreateSession() {
 	console.log("\n=== Create New Session ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -58,7 +58,7 @@ async function demoCreateSession() {
 }
 
 async function demoContinueSession(
-	sessionManager: Awaited<ReturnType<typeof createSessionHost>>,
+	sessionManager: ClineCore,
 	sessionId: string,
 ) {
 	console.log("\n=== Continue Existing Session ===\n");
@@ -75,9 +75,7 @@ async function demoContinueSession(
 	return sessionManager;
 }
 
-async function demoListSessions(
-	sessionManager: Awaited<ReturnType<typeof createSessionHost>>,
-) {
+async function demoListSessions(sessionManager: ClineCore) {
 	console.log("\n=== List All Sessions ===\n");
 
 	// List recent sessions
@@ -151,10 +149,7 @@ async function demoReadSessionArtifacts(sessionId: string) {
 	}
 }
 
-async function demoStopSession(
-	sessionManager: Awaited<ReturnType<typeof createSessionHost>>,
-	sessionId: string,
-) {
+async function demoStopSession(sessionManager: ClineCore, sessionId: string) {
 	console.log("\n=== Stop Session ===\n");
 
 	await sessionManager.stop(sessionId);
@@ -172,7 +167,7 @@ async function demoStopSession(
 async function demoMultipleSessions() {
 	console.log("\n=== Multiple Concurrent Sessions ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	// Create multiple sessions
 	console.log("Creating 3 parallel sessions...\n");
@@ -244,7 +239,7 @@ async function demoSessionResume() {
 	console.log("\n=== Resume Session After Restart ===\n");
 
 	// Create a session and close the manager
-	const manager1 = await createSessionHost({});
+	const manager1 = await ClineCore.create({});
 
 	const result = await manager1.start({
 		config: {
@@ -271,7 +266,7 @@ async function demoSessionResume() {
 	console.log("Session manager disposed (simulating restart)\n");
 
 	// Create new manager and resume the session
-	const manager2 = await createSessionHost({});
+	const manager2 = await ClineCore.create({});
 
 	console.log("Resuming session with new manager...");
 

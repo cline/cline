@@ -26,7 +26,7 @@
  * Run: bun run 06-hooks.ts
  */
 
-import { type AgentConfig, createSessionHost } from "@clinebot/core";
+import { type AgentConfig, ClineCore } from "@clinebot/core";
 
 type AgentHooksConfig = NonNullable<AgentConfig["hooks"]>;
 
@@ -106,7 +106,7 @@ const contextHooks: AgentHooksConfig = {
 async function demoLoggingHook() {
 	console.log("\n=== Logging Hook ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -133,7 +133,7 @@ async function demoLoggingHook() {
 async function demoPerformanceHook() {
 	console.log("\n=== Performance Monitoring Hook ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -157,7 +157,7 @@ async function demoPerformanceHook() {
 async function demoSecurityHook() {
 	console.log("\n=== Security Audit Hook ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -182,7 +182,7 @@ async function demoSecurityHook() {
 async function demoMultipleHooks() {
 	console.log("\n=== Multiple Hooks Combined ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -214,7 +214,7 @@ async function demoMultipleHooks() {
 async function demoContextEnrichment() {
 	console.log("\n=== Context Enrichment Hook ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {

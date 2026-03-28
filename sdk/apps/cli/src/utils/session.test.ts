@@ -20,7 +20,9 @@ vi.mock("@clinebot/core", async () => {
 		...actual,
 		RpcCoreSessionService: MockRpcCoreSessionService as any,
 		resolveSessionBackend,
-		createSessionHost: vi.fn(),
+		ClineCore: {
+			create: vi.fn(),
+		},
 	};
 });
 
@@ -75,8 +77,7 @@ describe("createDefaultCliSessionManager", () => {
 		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
 		expect(resolveSessionBackend).toHaveBeenCalledWith({
 			backendMode: "rpc",
-			rpcAddress: "127.0.0.1:5001",
-			autoStartRpcServer: false,
+			rpc: { address: "127.0.0.1:5001", autoStart: false },
 		});
 	});
 
@@ -86,7 +87,7 @@ describe("createDefaultCliSessionManager", () => {
 		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
 		expect(resolveSessionBackend).toHaveBeenCalledWith({
 			backendMode: "local",
-			autoStartRpcServer: false,
+			rpc: { autoStart: false },
 		});
 	});
 });

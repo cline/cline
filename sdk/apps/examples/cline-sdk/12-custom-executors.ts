@@ -13,7 +13,7 @@
 import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
 import {
-	createSessionHost,
+	ClineCore,
 	type ToolContext,
 	type ToolExecutors,
 } from "@clinebot/core";
@@ -45,7 +45,7 @@ function createSafeBashExecutor(): NonNullable<ToolExecutors["bash"]> {
 }
 
 async function runDemo() {
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		defaultToolExecutors: {
 			bash: createSafeBashExecutor(),
 		},

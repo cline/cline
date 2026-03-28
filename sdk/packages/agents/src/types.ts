@@ -1117,6 +1117,7 @@ export interface ProcessedTurn {
 // =============================================================================
 
 export type ContentBlock = LlmsProviders.ContentBlock;
-export type Message = LlmsProviders.MessageWithMetadata;
+// export type Message = LlmsProviders.MessageWithMetadata;
+export type MessageWithMetadata = LlmsProviders.MessageWithMetadata;
 export type ModelInfo = LlmsProviders.ModelInfo;
 export type ToolDefinition = LlmsProviders.ToolDefinition;

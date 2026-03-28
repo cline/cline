@@ -60,6 +60,11 @@ export {
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./agents";
+export {
+	ClineCore,
+	type ClineCoreOptions,
+	type RpcOptions,
+} from "./ClineCore";
 export type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -78,10 +83,7 @@ export type {
 	RuntimeBuilderInput,
 	SessionRuntime,
 } from "./runtime/session-runtime";
-export type {
-	CreateSessionHostOptions,
-	SessionHost,
-} from "./session/session-host";
+export type { SessionHost } from "./session/session-host";
 export type {
 	SendSessionInput,
 	SessionAccumulatedUsage,
@@ -118,6 +120,7 @@ export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
 export type { WorkspaceInfo } from "./types/workspace";
 
 // Backward-compat alias used by CLI persistence.
+/** @deprecated   */
 export interface StoredMessages {
 	version: 1;
 	updatedAt: string;
@@ -125,4 +128,5 @@ export interface StoredMessages {
 }
 
 // Backward-compat alias with previous event naming.
+/** @deprecated Use `CoreSessionEvent` instead. */
 export type SessionEvent = CoreSessionEvent;

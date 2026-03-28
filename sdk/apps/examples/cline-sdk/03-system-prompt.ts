@@ -15,12 +15,12 @@
  * Run: bun run 03-system-prompt.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function demoBasicSystemPrompt() {
 	console.log("\n=== Basic System Prompt ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -47,7 +47,7 @@ async function demoBasicSystemPrompt() {
 async function demoSpecializedAgent() {
 	console.log("\n=== Specialized Agent: Code Reviewer ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -86,7 +86,7 @@ async function demoStyleControl() {
 	console.log("\n=== Style Control: Concise vs Detailed ===");
 
 	// Concise style
-	const conciseManager = await createSessionHost({});
+	const conciseManager = await ClineCore.create({});
 	const conciseResult = await conciseManager.start({
 		config: {
 			providerId: "anthropic",
@@ -110,7 +110,7 @@ async function demoStyleControl() {
 	console.log("\n---\n");
 
 	// Detailed style
-	const detailedManager = await createSessionHost({});
+	const detailedManager = await ClineCore.create({});
 	const detailedResult = await detailedManager.start({
 		config: {
 			providerId: "anthropic",
@@ -138,7 +138,7 @@ async function demoStyleControl() {
 async function demoArchitectAgent() {
 	console.log("\n=== Domain Expert: Software Architect ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -179,7 +179,7 @@ Be pragmatic and business-focused.`,
 async function demoWithDomainKnowledge() {
 	console.log("\n=== Domain Knowledge: Blockchain Expert ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {

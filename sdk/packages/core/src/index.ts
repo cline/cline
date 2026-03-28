@@ -192,6 +192,11 @@ export type {
 	OcaOAuthProviderOptions,
 	OcaTokenResolution,
 } from "./auth/types";
+export {
+	ClineCore,
+	type ClineCoreOptions,
+	type RpcOptions,
+} from "./ClineCore";
 export type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -303,7 +308,6 @@ export {
 	sanitizeSessionToken,
 } from "./session/session-graph";
 export type {
-	CreateSessionHostOptions,
 	SessionBackend,
 	SessionHost,
 } from "./session/session-host";

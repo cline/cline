@@ -6,14 +6,6 @@
 
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { nanoid } from "nanoid";
-import { buildInitialUserContent } from "./agent-input.js";
-import {
-	createApiTimeoutSignal,
-	createHandlerFromConfig,
-	mergeAbortSignals,
-	observeAbortSignal,
-	serializeAbortReason,
-} from "./config-helpers.js";
 import {
 	buildFailedToolCallFeedback,
 	buildInvalidToolCallFeedback,
@@ -21,7 +13,7 @@ import {
 	isNonRecoverableApiError,
 	type MistakeTrackingDeps,
 	recordMistake,
-} from "./error-handling.js";
+} from "./api/error-handling.js";
 import {
 	type ContributionRegistry,
 	createContributionRegistry,
@@ -49,6 +41,14 @@ import type {
 	ToolContext,
 	ToolPolicy,
 } from "./types.js";
+import { buildInitialUserContent } from "./utils/agent-input.js";
+import {
+	createApiTimeoutSignal,
+	createHandlerFromConfig,
+	mergeAbortSignals,
+	observeAbortSignal,
+	serializeAbortReason,
+} from "./utils/config-helpers.js";
 
 const DEFAULT_REMINDER_TEXT =
 	"REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools.";

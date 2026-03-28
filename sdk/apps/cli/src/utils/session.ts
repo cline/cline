@@ -19,8 +19,8 @@ import type {
 } from "@clinebot/core";
 import {
 	accumulateUsageTotals,
+	ClineCore,
 	createInitialAccumulatedUsage,
-	createSessionHost,
 	RpcCoreSessionService,
 	resolveSessionBackend,
 	type SessionAccumulatedUsage,
@@ -107,7 +107,7 @@ async function getCoreSessions(): Promise<SessionBackend> {
 		process.stderr.write("Forcing local in-process sessions\n");
 		return resolveSessionBackend({
 			backendMode: "local",
-			autoStartRpcServer: false,
+			rpc: { autoStart: false },
 		});
 	}
 
@@ -120,15 +120,14 @@ async function getCoreSessions(): Promise<SessionBackend> {
 		process.env.CLINE_RPC_ADDRESS = address;
 		return resolveSessionBackend({
 			backendMode: "rpc",
-			rpcAddress: address,
-			autoStartRpcServer: false,
+			rpc: { address, autoStart: false },
 		});
 	}
 
 	// Default auto path: use local in-process backend.
 	return resolveSessionBackend({
 		backendMode: "local",
-		autoStartRpcServer: false,
+		rpc: { autoStart: false },
 	});
 }
 
@@ -148,7 +147,7 @@ export async function createDefaultCliSessionManager(options?: {
 	if (sessionBackend instanceof RpcCoreSessionService) {
 		return createRpcRuntimeCliSessionManager(options, sessionBackend);
 	}
-	return (await createSessionHost({
+	return (await ClineCore.create({
 		sessionService: sessionBackend,
 		defaultToolExecutors: options?.defaultToolExecutors,
 		telemetry: getCliTelemetryService(options?.logger),

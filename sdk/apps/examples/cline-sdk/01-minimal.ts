@@ -14,11 +14,11 @@
  * Run: bun run 01-minimal.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function main() {
 	// Create a session manager (handles all session lifecycle)
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	// Start a session with minimal configuration
 	const result = await sessionManager.start({

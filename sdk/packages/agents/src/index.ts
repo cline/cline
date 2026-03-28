@@ -132,7 +132,7 @@ export {
 	type ConsecutiveMistakeLimitDecision,
 	type ContentBlock,
 	type HookErrorMode,
-	type Message,
+	type MessageWithMetadata,
 	type ModelInfo,
 	type Tool,
 	type ToolApprovalRequest,

@@ -13,7 +13,7 @@ import {
 	type Tool,
 	type ToolContext,
 } from "@clinebot/agents";
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 import {
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,
@@ -26,7 +26,7 @@ import { z } from "zod";
 // ---------------------------------------------------------------------------
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
-type SessionManager = Awaited<ReturnType<typeof createSessionHost>>;
+type SessionManager = ClineCore;
 
 /** Minimal plugin host interface injected by the runtime via globalThis. */
 interface ClinePluginHost {
@@ -500,7 +500,7 @@ function emitSteer(sessionId: string | undefined, prompt: string): void {
 }
 
 async function getSessionManager(): Promise<SessionManager> {
-	sessionManagerPromise ??= createSessionHost({
+	sessionManagerPromise ??= ClineCore.create({
 		backendMode:
 			DEFAULT_BACKEND_MODE === "local" || DEFAULT_BACKEND_MODE === "rpc"
 				? DEFAULT_BACKEND_MODE

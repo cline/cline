@@ -1,17 +1,11 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
-import type {
-	AgentConfig,
-	ToolApprovalRequest,
-	ToolApprovalResult,
-} from "@clinebot/agents";
 import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
-import type { ITelemetryService } from "@clinebot/shared";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
+import type { ClineCoreOptions } from "../ClineCore";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../telemetry/distinct-id";
-import type { ToolExecutors } from "../tools";
 import { DefaultSessionManager } from "./default-session-manager";
 import { FileSessionService } from "./file-session-service";
 import { RpcCoreSessionService } from "./rpc-session-service";
@@ -27,26 +21,10 @@ export type SessionBackend =
 	| CoreSessionService
 	| FileSessionService;
 
+export type SessionHost = SessionManager;
+
 let cachedBackend: SessionBackend | undefined;
 let backendInitPromise: Promise<SessionBackend> | undefined;
-
-export interface CreateSessionHostOptions {
-	distinctId?: string;
-	sessionService?: SessionBackend;
-	backendMode?: "auto" | "rpc" | "local";
-	rpcAddress?: string;
-	autoStartRpcServer?: boolean;
-	rpcConnectAttempts?: number;
-	rpcConnectDelayMs?: number;
-	defaultToolExecutors?: Partial<ToolExecutors>;
-	telemetry?: ITelemetryService;
-	toolPolicies?: AgentConfig["toolPolicies"];
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
-}
-
-export type SessionHost = SessionManager;
 
 async function reconcileDeadSessionsIfSupported(
 	backend: SessionBackend,
@@ -130,7 +108,7 @@ function createLocalBackend(): SessionBackend {
 }
 
 export async function resolveSessionBackend(
-	options: CreateSessionHostOptions,
+	options: ClineCoreOptions,
 ): Promise<SessionBackend> {
 	if (cachedBackend) {
 		return cachedBackend;
@@ -140,10 +118,10 @@ export async function resolveSessionBackend(
 	}
 
 	const mode = options.backendMode ?? "auto";
-	const address = options.rpcAddress?.trim() || DEFAULT_RPC_ADDRESS;
-	const attempts = Math.max(1, options.rpcConnectAttempts ?? 5);
-	const delayMs = Math.max(0, options.rpcConnectDelayMs ?? 100);
-	const autoStartRpc = options.autoStartRpcServer !== false;
+	const address = options.rpc?.address?.trim() || DEFAULT_RPC_ADDRESS;
+	const attempts = Math.max(1, options.rpc?.connectAttempts ?? 5);
+	const delayMs = Math.max(0, options.rpc?.connectDelayMs ?? 100);
+	const autoStartRpc = options.rpc?.autoStart !== false;
 
 	backendInitPromise = (async () => {
 		if (mode === "local") {
@@ -193,8 +171,13 @@ export async function resolveSessionBackend(
 	return await backendInitPromise;
 }
 
+/**
+ * NOTE Internal only - replaced with ClineCore.create() for public API.
+ * Creates a SessionHost instance based on the provided options.
+ * This will attempt to connect to an RPC session service if configured, and fall back to a local session service if not.
+ */
 export async function createSessionHost(
-	options: CreateSessionHostOptions,
+	options: ClineCoreOptions,
 ): Promise<SessionHost> {
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);

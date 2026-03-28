@@ -14,7 +14,7 @@ import { exec as execCb } from "node:child_process";
 import { promisify } from "node:util";
 import {
 	type AgentConfig,
-	createSessionHost,
+	ClineCore,
 	type Tool,
 	type ToolContext,
 	type ToolExecutors,
@@ -107,7 +107,7 @@ async function main() {
 	const backendMode =
 		process.env.CLINE_BACKEND_MODE === "local" ? "local" : "auto";
 
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		backendMode,
 		defaultToolExecutors: executors,
 	});

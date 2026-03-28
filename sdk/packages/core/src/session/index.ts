@@ -1,3 +1,7 @@
+export type {
+	ClineCore,
+	ClineCoreOptions,
+} from "../ClineCore";
 export { DefaultSessionManager } from "./default-session-manager";
 export { RpcCoreSessionService } from "./rpc-session-service";
 export {
@@ -7,7 +11,6 @@ export {
 	sanitizeSessionToken,
 } from "./session-graph";
 export type {
-	CreateSessionHostOptions,
 	SessionBackend,
 	SessionHost,
 } from "./session-host";

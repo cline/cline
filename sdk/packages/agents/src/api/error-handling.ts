@@ -11,7 +11,7 @@ import type {
 	ConsecutiveMistakeLimitContext,
 	ConsecutiveMistakeLimitDecision,
 	ToolCallRecord,
-} from "./types.js";
+} from "../types.js";
 
 // =============================================================================
 // API Error Classification

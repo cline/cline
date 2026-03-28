@@ -15,7 +15,7 @@ import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import process, { stdin as input, stdout as output } from "node:process";
 import { createInterface } from "node:readline/promises";
-import { type AgentConfig, createSessionHost } from "@clinebot/core";
+import { type AgentConfig, ClineCore } from "@clinebot/core";
 
 type ProviderOption = {
 	label: string;
@@ -209,7 +209,7 @@ async function main() {
 		},
 	};
 
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		backendMode,
 		toolPolicies: {
 			read_files: { enabled: true, autoApprove: true },
@@ -259,7 +259,7 @@ async function main() {
 1) 3 beginner capabilities
 2) 3 intermediate capabilities
 3) 2 advanced capabilities
-4) one tiny code snippet showing createSessionHost + start
+4) one tiny code snippet showing ClineCore.create + start
 5) a one-sentence challenge for building a first app.
 
 Keep it short and motivating.`,

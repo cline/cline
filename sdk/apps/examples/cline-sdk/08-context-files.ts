@@ -15,12 +15,12 @@
  * Run: bun run 08-context-files.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function demoSingleFile() {
 	console.log("\n=== Single File Context ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -50,7 +50,7 @@ async function demoSingleFile() {
 async function demoMultipleFiles() {
 	console.log("\n=== Multiple Files Context ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -80,7 +80,7 @@ async function demoMultipleFiles() {
 async function demoCodeAnalysis() {
 	console.log("\n=== Code Analysis with Context ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -110,7 +110,7 @@ async function demoCodeAnalysis() {
 async function demoDocumentationGeneration() {
 	console.log("\n=== Documentation Generation ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -142,7 +142,7 @@ async function demoDocumentationGeneration() {
 async function demoRefactoringWithContext() {
 	console.log("\n=== Refactoring with Context ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -171,7 +171,7 @@ async function demoRefactoringWithContext() {
 async function demoInteractiveWithFiles() {
 	console.log("\n=== Interactive Session with File Context ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	// Start session with initial files
 	const startResult = await sessionManager.start({
@@ -210,7 +210,7 @@ async function demoInteractiveWithFiles() {
 async function demoLargeContextProject() {
 	console.log("\n=== Large Context with Multiple Files ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {

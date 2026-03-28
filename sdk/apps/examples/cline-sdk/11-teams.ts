@@ -23,12 +23,12 @@
  * Run: bun run 11-teams.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function demoBasicTeam() {
 	console.log("\n=== Basic Agent Team ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -69,7 +69,7 @@ Delegate tasks to appropriate team members and synthesize their findings.`,
 async function demoSoftwareDevTeam() {
 	console.log("\n=== Software Development Team ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -113,7 +113,7 @@ Coordinate the team to produce a comprehensive plan.`,
 async function demoResearchTeam() {
 	console.log("\n=== Research & Analysis Team ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -150,7 +150,7 @@ async function demoTeamPersistence() {
 	console.log("\n=== Team Persistence Across Sessions ===\n");
 
 	// Session 1: Start team work
-	const manager1 = await createSessionHost({});
+	const manager1 = await ClineCore.create({});
 
 	const result1 = await manager1.start({
 		config: {
@@ -197,7 +197,7 @@ async function demoTeamPersistence() {
 async function demoTeamCoordination() {
 	console.log("\n=== Complex Team Coordination ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -241,7 +241,7 @@ Ensure each team completes their work before the next begins.`,
 async function demoTeamWithSpawn() {
 	console.log("\n=== Teams + Spawn Agents ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {

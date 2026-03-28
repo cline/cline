@@ -21,7 +21,7 @@
  * Run: bun run 07-extensions.ts
  */
 
-import { type AgentConfig, createSessionHost, type Tool } from "@clinebot/core";
+import { type AgentConfig, ClineCore, type Tool } from "@clinebot/core";
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 
@@ -209,7 +209,7 @@ const loggingExtension: AgentExtension = {
 async function demoAnalyticsExtension() {
 	console.log("\n=== Analytics Extension ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -236,7 +236,7 @@ async function demoAnalyticsExtension() {
 async function demoCachingExtension() {
 	console.log("\n=== Caching Extension ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -262,7 +262,7 @@ async function demoCachingExtension() {
 async function demoNotificationExtension() {
 	console.log("\n=== Notification Extension ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {
@@ -287,7 +287,7 @@ async function demoNotificationExtension() {
 async function demoMultipleExtensions() {
 	console.log("\n=== Multiple Extensions Combined ===\n");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	await sessionManager.start({
 		config: {

@@ -15,12 +15,12 @@
  * Run: bun run 02-custom-model.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 async function demoAnthropicModel() {
 	console.log("\n=== Anthropic Claude Sonnet ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -51,7 +51,7 @@ async function demoAnthropicModel() {
 async function demoOpenAIModel() {
 	console.log("\n=== OpenAI GPT-4 ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -79,7 +79,7 @@ async function demoOpenAIModel() {
 async function demoGeminiModel() {
 	console.log("\n=== Google Gemini ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -108,7 +108,7 @@ async function demoGeminiModel() {
 async function demoCustomBaseUrl() {
 	console.log("\n=== Custom Base URL (e.g., OpenAI-compatible API) ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {

@@ -24,7 +24,7 @@
  * Run: bun run 04-tools.ts
  */
 
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
 const POLICY_ALLOWED = { enabled: true, autoApprove: true };
 const POLICY_BLOCKED = { enabled: false, autoApprove: false };
@@ -33,7 +33,7 @@ const POLICY_REQUIRE_APPROVAL = { enabled: true, autoApprove: false };
 async function demoBasicTools() {
 	console.log("\n=== Basic Tool Usage ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -62,7 +62,7 @@ async function demoBasicTools() {
 async function demoReadOnlyMode() {
 	console.log("\n=== Read-Only Mode (Safe Exploration) ===");
 
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		// Configure tool policies at the session manager level
 		toolPolicies: {
 			// Allow reading and searching
@@ -99,7 +99,7 @@ async function demoReadOnlyMode() {
 async function demoToolApproval() {
 	console.log("\n=== Tool Approval Workflow ===");
 
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		toolPolicies: {
 			// Allow safe operations
 			read_files: POLICY_ALLOWED,
@@ -155,7 +155,7 @@ async function demoToolApproval() {
 async function demoNoTools() {
 	console.log("\n=== No Tools (Pure Conversation) ===");
 
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	const result = await sessionManager.start({
 		config: {
@@ -183,7 +183,7 @@ async function demoNoTools() {
 async function demoSpecificTools() {
 	console.log("\n=== Specific Tool Control ===");
 
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		toolPolicies: {
 			// Only allow file reading
 			read_files: POLICY_ALLOWED,
@@ -221,7 +221,7 @@ async function demoSpecificTools() {
 async function demoWebFetchTool() {
 	console.log("\n=== Web Fetch Tool ===");
 
-	const sessionManager = await createSessionHost({
+	const sessionManager = await ClineCore.create({
 		toolPolicies: {
 			fetch_web_content: POLICY_ALLOWED,
 		},

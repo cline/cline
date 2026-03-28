@@ -12,11 +12,7 @@
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
  */
 
-import {
-	type AgentConfig,
-	createSessionHost,
-	createTool,
-} from "@clinebot/core";
+import { type AgentConfig, ClineCore, createTool } from "@clinebot/core";
 
 type Plugin = NonNullable<AgentConfig["extensions"]>[number];
 
@@ -74,7 +70,7 @@ const plugin: Plugin = {
 };
 
 async function runDemo(): Promise<void> {
-	const sessionManager = await createSessionHost({});
+	const sessionManager = await ClineCore.create({});
 
 	try {
 		const result = await sessionManager.start({
