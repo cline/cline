@@ -850,6 +850,81 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 	return result
 }
 
+/**
+ * Determine whether the inline "Thinking..." loader row should be shown.
+ *
+ * Shows only for true transitional waiting states:
+ * - Brand-new task: no visible rows have been rendered yet.
+ * - After user_feedback / user_feedback_diff: waiting for the next model turn.
+ * - After checkpoint_created: brief gap before the next turn begins.
+ * - While api_req_started has no cost yet: model is still responding.
+ *
+ * Explicitly hides when:
+ * - The last raw message is an `ask` (waiting on user input, not model output).
+ * - The last say is completion_result (task is wrapping up cleanly).
+ * - The last api_req_started was user-cancelled.
+ * - Any real response content (text, tool group, etc.) is already the last visible row.
+ */
+export function shouldShowThinkingLoader(params: {
+	lastRawMessage: ClineMessage | undefined
+	modifiedMessages: ClineMessage[]
+	groupedMessages: (ClineMessage | ClineMessage[])[]
+}): boolean {
+	const { lastRawMessage, modifiedMessages, groupedMessages } = params
+
+	// Never show while waiting on user input.
+	if (lastRawMessage?.type === "ask") {
+		return false
+	}
+
+	// Completion result is a final state - no loader needed.
+	if (lastRawMessage?.type === "say" && lastRawMessage.say === "completion_result") {
+		return false
+	}
+
+	// User-cancelled api request - no loader.
+	if (lastRawMessage?.type === "say" && lastRawMessage.say === "api_req_started") {
+		try {
+			const info = JSON.parse(lastRawMessage.text || "{}")
+			if (info.cancelReason === "user_cancelled") {
+				return false
+			}
+		} catch {
+			// ignore parse errors
+		}
+	}
+
+	// Brand-new task: no visible rows yet - show loader.
+	if (groupedMessages.length === 0) {
+		return true
+	}
+
+	const lastMsg = modifiedMessages[modifiedMessages.length - 1]
+
+	// After user_feedback / user_feedback_diff - waiting for next turn.
+	if (lastMsg?.say === "user_feedback" || lastMsg?.say === "user_feedback_diff") {
+		return true
+	}
+
+	// After checkpoint_created with no further content - brief transitional gap.
+	if (lastMsg?.say === "checkpoint_created") {
+		return true
+	}
+
+	// Pending api_req_started with no cost yet - model is still working.
+	if (lastMsg?.say === "api_req_started") {
+		try {
+			const info = JSON.parse(lastMsg.text || "{}")
+			return info.cost == null
+		} catch {
+			return true
+		}
+	}
+
+	// Real content is already visible - no loader needed.
+	return false
+}
+
 export function getIconByToolName(toolName: string) {
 	switch (toolName) {
 		case "readFile":

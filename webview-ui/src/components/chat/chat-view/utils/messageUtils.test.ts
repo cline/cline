@@ -1,6 +1,6 @@
 import type { ClineMessage } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
-import { groupLowStakesTools, isToolGroup } from "./messageUtils"
+import { groupLowStakesTools, isToolGroup, shouldShowThinkingLoader } from "./messageUtils"
 
 const createTextMessage = (ts: number, text: string): ClineMessage => ({
 	type: "say",
@@ -21,6 +21,137 @@ const createReasoningMessage = (ts: number, text: string): ClineMessage => ({
 	say: "reasoning",
 	text,
 	ts,
+})
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const makeMsg = (overrides: Partial<ClineMessage> & { ts: number }): ClineMessage =>
+	({ type: "say", text: "", ...overrides }) as ClineMessage
+
+const apiReqMsg = (ts: number, cost?: number): ClineMessage =>
+	makeMsg({ ts, say: "api_req_started", text: JSON.stringify(cost != null ? { cost } : {}) })
+
+const textMsg = (ts: number): ClineMessage => makeMsg({ ts, say: "text", text: "hello" })
+
+const askMsg = (ts: number, ask: string): ClineMessage => makeMsg({ ts, type: "ask", ask } as Partial<ClineMessage> & { ts: number })
+
+// ---------------------------------------------------------------------------
+// shouldShowThinkingLoader
+// ---------------------------------------------------------------------------
+
+describe("shouldShowThinkingLoader", () => {
+	it("returns false when last raw message is an ask (waiting on user)", () => {
+		const lastRawMessage = askMsg(2, "followup")
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage,
+				modifiedMessages: [apiReqMsg(1)],
+				groupedMessages: [apiReqMsg(1)],
+			}),
+		).toBe(false)
+	})
+
+	it("returns false for completion_result say (task finished)", () => {
+		const lastRawMessage = makeMsg({ ts: 2, say: "completion_result" })
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage,
+				modifiedMessages: [lastRawMessage],
+				groupedMessages: [lastRawMessage],
+			}),
+		).toBe(false)
+	})
+
+	it("returns false for user-cancelled api_req_started", () => {
+		const cancelled = makeMsg({ ts: 1, say: "api_req_started", text: JSON.stringify({ cancelReason: "user_cancelled" }) })
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: cancelled,
+				modifiedMessages: [cancelled],
+				groupedMessages: [cancelled],
+			}),
+		).toBe(false)
+	})
+
+	it("returns true when there are no grouped messages yet (brand-new task)", () => {
+		const req = apiReqMsg(1)
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: req,
+				modifiedMessages: [req],
+				groupedMessages: [],
+			}),
+		).toBe(true)
+	})
+
+	it("returns true after user_feedback while waiting for next turn", () => {
+		const feedback = makeMsg({ ts: 2, say: "user_feedback", text: "do this" })
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: feedback,
+				modifiedMessages: [apiReqMsg(1), feedback],
+				groupedMessages: [apiReqMsg(1), feedback],
+			}),
+		).toBe(true)
+	})
+
+	it("returns true after user_feedback_diff while waiting for next turn", () => {
+		const feedback = makeMsg({ ts: 2, say: "user_feedback_diff", text: "diff" })
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: feedback,
+				modifiedMessages: [apiReqMsg(1), feedback],
+				groupedMessages: [apiReqMsg(1), feedback],
+			}),
+		).toBe(true)
+	})
+
+	it("returns true after checkpoint_created with no further content", () => {
+		const checkpoint = makeMsg({ ts: 2, say: "checkpoint_created" })
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: checkpoint,
+				modifiedMessages: [apiReqMsg(1), checkpoint],
+				groupedMessages: [apiReqMsg(1), checkpoint],
+			}),
+		).toBe(true)
+	})
+
+	it("returns true while api_req_started has no cost (model still working)", () => {
+		const pending = apiReqMsg(2) // no cost
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: pending,
+				modifiedMessages: [apiReqMsg(1, 0.01), pending],
+				groupedMessages: [apiReqMsg(1, 0.01), pending],
+			}),
+		).toBe(true)
+	})
+
+	it("returns false once real text content is the last visible row", () => {
+		const text = textMsg(3)
+		const completedReq = apiReqMsg(2, 0.01)
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: text,
+				modifiedMessages: [apiReqMsg(1), completedReq, text],
+				groupedMessages: [completedReq, text],
+			}),
+		).toBe(false)
+	})
+
+	it("returns false when api_req_started has a cost (request complete)", () => {
+		const completed = apiReqMsg(2, 0.05)
+		expect(
+			shouldShowThinkingLoader({
+				lastRawMessage: completed,
+				modifiedMessages: [completed],
+				groupedMessages: [completed],
+			}),
+		).toBe(false)
+	})
 })
 
 describe("groupLowStakesTools", () => {
