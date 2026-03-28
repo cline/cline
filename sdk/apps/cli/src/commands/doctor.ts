@@ -25,11 +25,12 @@ type DoctorStatus = {
 };
 
 type ActiveConnectorRecord = {
-	type: "telegram" | "gchat" | "whatsapp" | "linear";
+	type: string; //"telegram" | "gchat" | "whatsapp" | "linear" | "discord";
 	pid: number;
 	rpcAddress: string;
 	startedAt?: string;
-	botUsername?: string;
+	applicationId?: string;
+	botUsername?: string; // Username for Assistant Bots
 	userName?: string;
 	phoneNumberId?: string;
 	port?: number;
@@ -231,6 +232,53 @@ function readJsonRecord(path: string): Record<string, unknown> | undefined {
 	return undefined;
 }
 
+type ConnectorFieldKey = keyof Omit<
+	ActiveConnectorRecord,
+	"type" | "pid" | "rpcAddress"
+>;
+
+type ConnectorFieldExtractor = (
+	p: Record<string, unknown>,
+) => string | number | undefined;
+
+const connectorFieldExtractors: Record<
+	ConnectorFieldKey,
+	ConnectorFieldExtractor
+> = {
+	startedAt: (p) => (typeof p.startedAt === "string" ? p.startedAt : undefined),
+	port: (p) => (typeof p.port === "number" ? p.port : undefined),
+	baseUrl: (p) => (typeof p.baseUrl === "string" ? p.baseUrl : undefined),
+	userName: (p) => (typeof p.userName === "string" ? p.userName : undefined),
+	botUsername: (p) =>
+		typeof p.botUsername === "string" ? p.botUsername : undefined,
+	applicationId: (p) =>
+		typeof p.applicationId === "string" ? p.applicationId : undefined,
+	phoneNumberId: (p) =>
+		typeof p.phoneNumberId === "string" ? p.phoneNumberId : undefined,
+};
+
+type ConnectorConfig = {
+	required: ConnectorFieldKey[];
+	optional: ConnectorFieldKey[];
+};
+
+const connectorConfigs: Record<string, ConnectorConfig> = {
+	discord: {
+		required: ["userName", "applicationId"],
+		optional: ["startedAt", "port", "baseUrl"],
+	},
+	telegram: { required: ["botUsername"], optional: ["startedAt"] },
+	gchat: { required: ["userName"], optional: ["startedAt", "port", "baseUrl"] },
+	linear: {
+		required: ["userName"],
+		optional: ["startedAt", "port", "baseUrl"],
+	},
+	whatsapp: {
+		required: ["userName"],
+		optional: ["startedAt", "phoneNumberId", "port", "baseUrl"],
+	},
+};
+
 function readActiveConnectorRecord(
 	type: ActiveConnectorRecord["type"],
 	statePath: string,
@@ -245,73 +293,27 @@ function readActiveConnectorRecord(
 	if (!pid || !rpcAddress || !isProcessRunning(pid)) {
 		return undefined;
 	}
-	if (
-		type === "telegram" &&
-		typeof parsed.botUsername === "string" &&
-		parsed.botUsername.trim()
-	) {
-		return {
-			type,
-			pid,
-			rpcAddress,
-			startedAt:
-				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
-			botUsername: parsed.botUsername,
-		};
+	const config = connectorConfigs[type];
+	if (!config) {
+		return undefined;
 	}
-	if (
-		type === "gchat" &&
-		typeof parsed.userName === "string" &&
-		parsed.userName.trim()
-	) {
-		return {
-			type,
-			pid,
-			rpcAddress,
-			startedAt:
-				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
-			userName: parsed.userName,
-			port: typeof parsed.port === "number" ? parsed.port : undefined,
-			baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl : undefined,
-		};
+	const fields: Partial<
+		Omit<ActiveConnectorRecord, "type" | "pid" | "rpcAddress">
+	> = {};
+	for (const key of config.required) {
+		const value = connectorFieldExtractors[key](parsed);
+		if (!value || (typeof value === "string" && !value.trim())) {
+			return undefined;
+		}
+		(fields as Record<string, unknown>)[key] = value;
 	}
-	if (
-		type === "linear" &&
-		typeof parsed.userName === "string" &&
-		parsed.userName.trim()
-	) {
-		return {
-			type,
-			pid,
-			rpcAddress,
-			startedAt:
-				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
-			userName: parsed.userName,
-			port: typeof parsed.port === "number" ? parsed.port : undefined,
-			baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl : undefined,
-		};
+	for (const key of config.optional) {
+		const value = connectorFieldExtractors[key](parsed);
+		if (value !== undefined) {
+			(fields as Record<string, unknown>)[key] = value;
+		}
 	}
-	if (
-		type === "whatsapp" &&
-		typeof parsed.userName === "string" &&
-		parsed.userName.trim()
-	) {
-		return {
-			type,
-			pid,
-			rpcAddress,
-			startedAt:
-				typeof parsed.startedAt === "string" ? parsed.startedAt : undefined,
-			userName: parsed.userName,
-			phoneNumberId:
-				typeof parsed.phoneNumberId === "string"
-					? parsed.phoneNumberId
-					: undefined,
-			port: typeof parsed.port === "number" ? parsed.port : undefined,
-			baseUrl: typeof parsed.baseUrl === "string" ? parsed.baseUrl : undefined,
-		};
-	}
-	return undefined;
+	return { type, pid, rpcAddress, ...fields } as ActiveConnectorRecord;
 }
 
 function listActiveConnectors(): ActiveConnectorRecord[] {
@@ -378,7 +380,9 @@ function formatActiveConnector(record: ActiveConnectorRecord): string {
 	const identity =
 		record.type === "telegram"
 			? `bot=@${record.botUsername ?? "unknown"}`
-			: `user=${record.userName ?? "unknown"}`;
+			: record.type === "discord"
+				? `user=${record.userName ?? "unknown"} app=${record.applicationId ?? "unknown"}`
+				: `user=${record.userName ?? "unknown"}`;
 	const pieces = [
 		record.type,
 		identity,
@@ -447,7 +451,7 @@ export async function runDoctorCommand(
 			before.hookWorkerPids.length > 0
 		) {
 			io.writeln(
-				"\nRun `clite doctor --fix` to kill all stale local processes.",
+				"\nRun `cline doctor --fix` to kill all stale local processes.",
 			);
 		}
 		return 0;

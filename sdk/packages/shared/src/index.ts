@@ -5,7 +5,6 @@ export {
 	isOAuthProviderId,
 	OAUTH_PROVIDER_IDS,
 } from "./auth/constants";
-export type * from "./connectors/adapters";
 export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,
@@ -22,6 +21,7 @@ export {
 	ConnectorHookEventNameSchema,
 	ConnectorHookEventSchema,
 } from "./connectors/events";
+export type * from "./connectors/options";
 export {
 	MODELS_DEV_PROVIDER_KEY_ENTRIES,
 	MODELS_DEV_PROVIDER_KEY_MAP,

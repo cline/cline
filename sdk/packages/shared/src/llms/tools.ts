@@ -66,7 +66,11 @@ export interface Tool<TInput = unknown, TOutput = unknown> {
 	/** JSON Schema defining the tool's input parameters */
 	inputSchema: Record<string, unknown>;
 	/** The function that executes the tool */
-	execute: (input: TInput, context: ToolContext) => Promise<TOutput>;
+	execute: (
+		input: TInput,
+		context: ToolContext,
+		onChange?: (update: unknown) => void,
+	) => Promise<TOutput>;
 	/**
 	 * Optional timeout in milliseconds for tool execution
 	 * @default 30000 (30 seconds)

@@ -169,7 +169,7 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 		React.createElement(
 			Text,
 			{ bold: true, color: "cyan" },
-			"Sessions (Up/Down to navigate | Enter to resume | Esc to quit)",
+			"History (Up/Down to navigate | Enter to resume | Esc to quit)",
 		),
 		React.createElement(
 			Box,

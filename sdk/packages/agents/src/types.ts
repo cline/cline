@@ -38,6 +38,7 @@ export { ToolCallRecordSchema, ToolContextSchema } from "@clinebot/shared";
  */
 export type AgentEvent =
 	| AgentContentStartEvent
+	| AgentContentUpdateEvent
 	| AgentContentEndEvent
 	| AgentIterationStartEvent
 	| AgentIterationEndEvent
@@ -74,6 +75,17 @@ export interface AgentContentStartEvent extends AgentEventMetadata {
 	toolCallId?: string;
 	/** Input being passed to the tool */
 	input?: unknown;
+}
+
+export interface AgentContentUpdateEvent extends AgentEventMetadata {
+	type: "content_update";
+	contentType: "tool";
+	/** Name of the tool emitting progress */
+	toolName?: string;
+	/** Unique identifier for this tool call */
+	toolCallId?: string;
+	/** Partial result emitted by the tool */
+	update: unknown;
 }
 
 export interface AgentContentEndEvent extends AgentEventMetadata {

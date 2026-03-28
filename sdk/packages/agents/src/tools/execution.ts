@@ -9,17 +9,22 @@ import type { PendingToolCall } from "../types.js";
 
 export interface ToolExecutionObserver {
 	onToolCallStart?: (call: PendingToolCall) => Promise<void> | void;
+	onToolCallUpdate?: (
+		call: PendingToolCall,
+		update: unknown,
+	) => Promise<void> | void;
 	onToolCallEnd?: (record: ToolCallRecord) => Promise<void> | void;
 }
+
+export type AuthorizationResult =
+	| { allowed: true; overrideInput?: unknown }
+	| { allowed: false; reason: string };
 
 export interface ToolExecutionAuthorizer {
 	authorize?: (
 		call: PendingToolCall,
 		context: ToolContext,
-	) =>
-		| Promise<{ allowed: true } | { allowed: false; reason: string }>
-		| { allowed: true }
-		| { allowed: false; reason: string };
+	) => Promise<AuthorizationResult> | AuthorizationResult;
 }
 
 export interface ToolExecutionOptions {
@@ -38,6 +43,7 @@ export async function executeTool(
 	tool: Tool,
 	input: unknown,
 	context: ToolContext,
+	onChange?: (update: unknown) => void,
 ): Promise<{ output: unknown; error?: string; durationMs: number }> {
 	const startTime = Date.now();
 	const timeoutMs = tool.timeoutMs ?? 30000;
@@ -68,7 +74,7 @@ export async function executeTool(
 	try {
 		// Execute with timeout and optional abort
 		const promises: Promise<unknown>[] = [
-			tool.execute(input, context),
+			tool.execute(input, context, onChange),
 			timeoutPromise,
 		];
 		if (abortPromise) {
@@ -101,6 +107,7 @@ export async function executeToolWithRetry(
 	tool: Tool,
 	input: unknown,
 	context: ToolContext,
+	onChange?: (update: unknown) => void,
 ): Promise<{ output: unknown; error?: string; durationMs: number }> {
 	const maxRetries = tool.maxRetries ?? 2;
 	let lastResult: {
@@ -119,7 +126,7 @@ export async function executeToolWithRetry(
 			};
 		}
 
-		const result = await executeTool(tool, input, context);
+		const result = await executeTool(tool, input, context, onChange);
 		lastResult = result;
 
 		// If no error, return immediately
@@ -156,77 +163,95 @@ export async function executeToolsInParallel(
 	authorizer?: ToolExecutionAuthorizer,
 	options?: ToolExecutionOptions,
 ): Promise<ToolCallRecord[]> {
-	const executeCall = async (
-		call: PendingToolCall,
-	): Promise<ToolCallRecord> => {
-		const startedAt = new Date();
-		await observer?.onToolCallStart?.(call);
-		const tool = toolRegistry.get(call.name);
-
-		if (!tool) {
-			const endedAt = new Date();
-			const record = {
-				id: call.id,
-				name: call.name,
-				input: call.input,
-				output: null,
-				error: `Unknown tool: ${call.name}`,
-				durationMs: endedAt.getTime() - startedAt.getTime(),
-				startedAt,
-				endedAt,
-			};
-			await observer?.onToolCallEnd?.(record);
-			return record;
-		}
-
-		const authorization = await authorizer?.authorize?.(call, context);
-		if (authorization && !authorization.allowed) {
-			const endedAt = new Date();
-			const record = {
-				id: call.id,
-				name: call.name,
-				input: call.input,
-				output: null,
-				error: authorization.reason,
-				durationMs: endedAt.getTime() - startedAt.getTime(),
-				startedAt,
-				endedAt,
-			};
-			await observer?.onToolCallEnd?.(record);
-			return record;
-		}
-
-		const result = await executeToolWithRetry(tool, call.input, context);
-		const endedAt = new Date();
-
-		const record = {
-			id: call.id,
-			name: call.name,
-			input: call.input,
-			output: result.output,
-			error: result.error,
-			durationMs: result.durationMs,
-			startedAt,
-			endedAt,
-		};
-		await observer?.onToolCallEnd?.(record);
-		return record;
-	};
-
-	const maxConcurrency = Math.max(
-		1,
-		options?.maxConcurrency ?? (calls.length || 1),
+	// Phase 1: Run all onToolCallStart hooks + authorization in parallel (unbounded).
+	// These are fast coordination calls and must not be throttled by the execution
+	// concurrency cap — hooks can mutate call.input and call.review before execution.
+	const prepared = await Promise.all(
+		calls.map(async (call) => {
+			await observer?.onToolCallStart?.(call);
+			const authorization = await authorizer?.authorize?.(call, context);
+			return { call, authorization };
+		}),
 	);
+
+	// Phase 2: Execute tools with concurrency cap applied only to tool.execute().
+	const maxConcurrency = options?.maxConcurrency ?? calls.length;
+	const max = Math.max(1, maxConcurrency);
 	const results = new Array<ToolCallRecord>(calls.length);
 	let nextIndex = 0;
-	const workerCount = Math.min(maxConcurrency, calls.length);
+	const workerCount = Math.min(max, prepared.length);
 	const workers = Array.from({ length: workerCount }, async () => {
 		while (true) {
 			const index = nextIndex++;
-			if (index >= calls.length) {
+			if (index >= prepared.length) {
 				return;
 			}
-			results[index] = await executeCall(calls[index]);
+
+			const { call, authorization } = prepared[index];
+			const startedAt = new Date();
+			const tool = toolRegistry.get(call.name);
+
+			if (!tool) {
+				const endedAt = new Date();
+				const record = {
+					id: call.id,
+					name: call.name,
+					input: call.input,
+					output: null,
+					error: `Unknown tool: ${call.name}`,
+					durationMs: endedAt.getTime() - startedAt.getTime(),
+					startedAt,
+					endedAt,
+				};
+				await observer?.onToolCallEnd?.(record);
+				results[index] = record;
+				continue;
+			}
+
+			if (authorization && !authorization.allowed) {
+				const endedAt = new Date();
+				const record = {
+					id: call.id,
+					name: call.name,
+					input: call.input,
+					output: null,
+					error: authorization.reason,
+					durationMs: endedAt.getTime() - startedAt.getTime(),
+					startedAt,
+					endedAt,
+				};
+				await observer?.onToolCallEnd?.(record);
+				results[index] = record;
+				continue;
+			}
+
+			const effectiveInput =
+				authorization?.overrideInput !== undefined
+					? authorization.overrideInput
+					: call.input;
+			const { onToolCallUpdate } = observer ?? {};
+			const onChange = onToolCallUpdate
+				? (update: unknown) => onToolCallUpdate(call, update)
+				: undefined;
+			const result = await executeToolWithRetry(
+				tool,
+				effectiveInput,
+				context,
+				onChange,
+			);
+			const endedAt = new Date();
+			const record = {
+				id: call.id,
+				name: call.name,
+				input: effectiveInput,
+				output: result.output,
+				error: result.error,
+				durationMs: result.durationMs,
+				startedAt,
+				endedAt,
+			};
+			await observer?.onToolCallEnd?.(record);
+			results[index] = record;
 		}
 	});
 	await Promise.all(workers);
@@ -290,13 +315,26 @@ export async function executeToolsSequentially(
 			continue;
 		}
 
-		const result = await executeToolWithRetry(tool, call.input, context);
+		const effectiveInput =
+			authorization?.overrideInput !== undefined
+				? authorization.overrideInput
+				: call.input;
+		const { onToolCallUpdate } = observer ?? {};
+		const onChange = onToolCallUpdate
+			? (update: unknown) => onToolCallUpdate(call, update)
+			: undefined;
+		const result = await executeToolWithRetry(
+			tool,
+			effectiveInput,
+			context,
+			onChange,
+		);
 		const endedAt = new Date();
 
 		const record = {
 			id: call.id,
 			name: call.name,
-			input: call.input,
+			input: effectiveInput,
 			output: result.output,
 			error: result.error,
 			durationMs: result.durationMs,

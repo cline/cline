@@ -1,4 +1,5 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
+import type { AuthorizationResult } from "../tools/execution.js";
 import {
 	executeToolsInParallel,
 	formatStructuredToolResult,
@@ -26,7 +27,7 @@ export interface ToolOrchestratorOptions {
 	authorizeToolCall: (
 		call: PendingToolCall,
 		context: ToolContext,
-	) => Promise<{ allowed: true } | { allowed: false; reason: string }>;
+	) => Promise<AuthorizationResult>;
 	onCancelRequested?: () => void;
 	onLog?: (
 		level: "debug" | "warn",
@@ -98,6 +99,15 @@ export class ToolOrchestrator {
 						cancelRequested = true;
 						this.options.onCancelRequested?.();
 					}
+				},
+				onToolCallUpdate: (call, update) => {
+					this.options.emit({
+						type: "content_update",
+						contentType: "tool",
+						toolName: call.name,
+						toolCallId: call.id,
+						update,
+					});
 				},
 				onToolCallEnd: async (record) => {
 					this.options.onLog?.("debug", "Tool call finished", {
