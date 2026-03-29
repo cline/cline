@@ -183,7 +183,9 @@ vi.mock("@shared/getApiMetrics", () => ({
 
 vi.mock("child_process", () => ({
 	exec: vi.fn(),
+	execFile: vi.fn(),
 	execSync: vi.fn(() => "main"),
+	execFileSync: vi.fn(() => ""),
 }))
 
 // Mock telemetry service to prevent HostProvider errors in shutdown handler

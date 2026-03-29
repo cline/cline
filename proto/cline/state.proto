@@ -287,6 +287,7 @@ message Settings {
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
   optional bool lazy_teammate_mode_enabled = 183;
+  optional bool kanban_auto_start_enabled = 184;
 }
 
 message State {
@@ -430,6 +431,7 @@ message UpdateSettingsRequest {
   optional bool double_check_completion_enabled = 41;
   optional bool show_feature_tips = 42;
   optional bool lazy_teammate_mode_enabled = 43;
+  optional bool kanban_auto_start_enabled = 44;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {
