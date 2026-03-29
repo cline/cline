@@ -278,6 +278,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundEditEnabled: false,
 		doubleCheckCompletionEnabled: false,
 		showFeatureTips: true,
+		kanbanAutoStartEnabled: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

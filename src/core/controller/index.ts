@@ -888,6 +888,7 @@ export class Controller {
 		const dismissedBanners = this.stateManager.getGlobalStateKey("dismissedBanners")
 		const doubleCheckCompletionEnabled = this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled")
 		const showFeatureTips = this.stateManager.getGlobalSettingsKey("showFeatureTips")
+		const kanbanAutoStartEnabled = this.stateManager.getGlobalSettingsKey("kanbanAutoStartEnabled")
 
 		const localClineRulesToggles = this.stateManager.getWorkspaceStateKey("localClineRulesToggles")
 		const localWindsurfRulesToggles = this.stateManager.getWorkspaceStateKey("localWindsurfRulesToggles")
@@ -999,6 +1000,7 @@ export class Controller {
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			doubleCheckCompletionEnabled,
 			showFeatureTips,
+			kanbanAutoStartEnabled,
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,

@@ -11,6 +11,7 @@ import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
 import { Mode } from "@/shared/storage/types"
 import { telemetryService } from "../../../services/telemetry"
+import { installKanbanLaunchAgent, uninstallKanbanLaunchAgent } from "../../../shared/services/kanban-service"
 import { Controller } from ".."
 import { accountLogoutClicked } from "../account/accountLogoutClicked"
 import { normalizeOpenaiReasoningEffort } from "./reasoningEffort"
@@ -54,6 +55,7 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				focusChainSettings,
 				browserSettings,
 				defaultTerminalProfile,
+				kanbanAutoStartEnabled,
 				...simpleSettings
 			} = request.settings
 
@@ -264,6 +266,21 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 							message,
 						})
 					}
+				}
+			}
+			if (kanbanAutoStartEnabled !== undefined) {
+				controller.stateManager.setGlobalState("kanbanAutoStartEnabled", kanbanAutoStartEnabled)
+				try {
+					if (kanbanAutoStartEnabled) {
+						const { execFileSync } = await import("node:child_process")
+						const kanbanBinaryPath = execFileSync("which", ["kanban"], { encoding: "utf-8" }).trim()
+						await installKanbanLaunchAgent(kanbanBinaryPath)
+					} else {
+						await uninstallKanbanLaunchAgent()
+					}
+				} catch (error) {
+					Logger.error("Failed to update Kanban launch agent:", error)
+					controller.stateManager.setGlobalState("kanbanAutoStartEnabled", !kanbanAutoStartEnabled)
 				}
 			}
 		}

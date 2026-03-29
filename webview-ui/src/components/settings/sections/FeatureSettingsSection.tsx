@@ -114,6 +114,13 @@ const editorFeatures: FeatureToggle[] = [
 		stateKey: "worktreesEnabled",
 		settingKey: "worktreesEnabled",
 	},
+	{
+		id: "kanban-auto-start",
+		label: "Kanban Auto-Start",
+		description: "Automatically start Kanban when you log in to your Mac.",
+		stateKey: "kanbanAutoStartEnabled",
+		settingKey: "kanbanAutoStartEnabled",
+	},
 ]
 
 const experimentalFeatures: FeatureToggle[] = [
@@ -219,6 +226,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
 		showFeatureTips,
+		kanbanAutoStartEnabled,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -242,6 +250,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
+		kanbanAutoStartEnabled,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
