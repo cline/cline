@@ -17,6 +17,7 @@ import type { Config } from "./types";
 let activeInlineStream: "text" | "reasoning" | undefined;
 let inlineStreamHasOutput = false;
 let shouldPrefixNextTextWithBlankLine = false;
+const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 
 export function closeInlineStreamIfNeeded(): void {
 	if (!inlineStreamHasOutput) {
@@ -182,15 +183,18 @@ export function handleTeamEvent(event: TeamEvent): void {
 			break;
 		case "run_queued":
 			write(
-				`\n${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}`,
+				`\n${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
 			);
 			break;
 		case "run_started":
 			write(
-				`\n${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}`,
+				`\n${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
 			);
 			break;
 		case "run_progress":
+			if (event.message === "heartbeat") {
+				break;
+			}
 			write(
 				`\n${c.dim}[team run]${c.reset} progress ${c.cyan}${event.run.id}${c.reset}: ${event.message}`,
 			);

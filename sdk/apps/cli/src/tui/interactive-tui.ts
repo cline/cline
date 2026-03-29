@@ -95,6 +95,7 @@ const COMPLETION_DEBOUNCE_MS = 120;
 const MAX_COMPLETION_RESULTS = 8;
 const MAX_MENU_ITEMS_VISIBLE = 5;
 const MAX_CONFIG_ITEMS_VISIBLE = 12;
+const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 const CONFIG_TABS: InteractiveConfigTab[] = [
 	"workflows",
 	"rules",
@@ -657,15 +658,18 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					break;
 				case "run_queued":
 					appendLine(
-						`${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}`,
+						`${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
 					);
 					break;
 				case "run_started":
 					appendLine(
-						`${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}`,
+						`${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
 					);
 					break;
 				case "run_progress":
+					if (event.message === "heartbeat") {
+						break;
+					}
 					appendLine(
 						`${c.dim}[team run]${c.reset} progress ${c.cyan}${event.run.id}${c.reset}: ${event.message}`,
 					);
