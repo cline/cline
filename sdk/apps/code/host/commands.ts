@@ -265,7 +265,6 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		return saveLocalProviderSettings(manager, {
-			action: "saveProviderSettings",
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
@@ -276,7 +275,6 @@ export async function handleCommand(
 		const manager = new ProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
 		return await addLocalProvider(manager, {
-			action: "addProvider",
 			providerId: String(args?.provider_id ?? ""),
 			name: String(args?.name ?? ""),
 			baseUrl: String(args?.base_url ?? ""),

@@ -242,8 +242,82 @@ export interface RpcSaveProviderSettingsActionRequest {
 	action: "saveProviderSettings";
 	providerId: string;
 	enabled?: boolean;
+	// Authentication
 	apiKey?: string;
+	auth?: {
+		apiKey?: string;
+		accessToken?: string;
+		refreshToken?: string;
+		expiresAt?: number;
+		accountId?: string;
+	};
+	// Model configuration
+	model?: string;
+	maxTokens?: number;
+	contextWindow?: number;
+	// Endpoint configuration
 	baseUrl?: string;
+	headers?: Record<string, string>;
+	timeout?: number;
+	// Reasoning/thinking configuration
+	reasoning?: {
+		enabled?: boolean;
+		effort?: "none" | "low" | "medium" | "high" | "xhigh";
+		budgetTokens?: number;
+	};
+	// AWS/Bedrock configuration
+	aws?: {
+		accessKey?: string;
+		secretKey?: string;
+		sessionToken?: string;
+		region?: string;
+		profile?: string;
+		authentication?: "iam" | "api-key" | "profile";
+		usePromptCache?: boolean;
+		useCrossRegionInference?: boolean;
+		useGlobalInference?: boolean;
+		endpoint?: string;
+		customModelBaseId?: string;
+	};
+	// GCP/Vertex configuration
+	gcp?: {
+		projectId?: string;
+		region?: string;
+	};
+	// Azure configuration
+	azure?: {
+		apiVersion?: string;
+		useIdentity?: boolean;
+	};
+	// SAP AI Core configuration
+	sap?: {
+		clientId?: string;
+		clientSecret?: string;
+		tokenUrl?: string;
+		resourceGroup?: string;
+		deploymentId?: string;
+		useOrchestrationMode?: boolean;
+		api?: "orchestration" | "foundation-models";
+		defaultSettings?: Record<string, unknown>;
+	};
+	// OCA configuration
+	oca?: {
+		mode?: "internal" | "external";
+		usePromptCache?: boolean;
+	};
+	// Region configuration
+	region?: string;
+	apiLine?: "china" | "international";
+	// Capabilities
+	capabilities?: (
+		| "reasoning"
+		| "prompt-cache"
+		| "streaming"
+		| "tools"
+		| "vision"
+		| "computer-use"
+		| "oauth"
+	)[];
 }
 
 export interface RpcAddProviderActionRequest {
