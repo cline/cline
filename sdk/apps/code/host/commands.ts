@@ -7,6 +7,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import type { RpcProviderCapability } from "@clinebot/core";
 import {
 	addLocalProvider,
 	ensureCustomProvidersLoaded,
@@ -260,7 +261,11 @@ export async function handleCommand(
 		return await listLocalProviders(manager);
 	}
 	if (command === "list_provider_models") {
-		return await getLocalProviderModels(String(args?.provider ?? ""));
+		const manager = new ProviderSettingsManager();
+		return await getLocalProviderModels(
+			String(args?.provider ?? ""),
+			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+		);
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
@@ -297,7 +302,7 @@ export async function handleCommand(
 					? args.models_source_url
 					: undefined,
 			capabilities: Array.isArray(args?.capabilities)
-				? (args?.capabilities as any)
+				? (args.capabilities as RpcProviderCapability[])
 				: undefined,
 		});
 	}

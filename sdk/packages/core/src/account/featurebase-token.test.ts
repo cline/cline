@@ -68,10 +68,10 @@ describe("ClineAccountService.fetchFeaturebaseToken", () => {
 
 	it("returns undefined on HTTP error response", async () => {
 		const fetchImpl = vi.fn(async () => {
-			return new Response(
-				JSON.stringify({ error: "Unauthorized" }),
-				{ status: 401, headers: { "Content-Type": "application/json" } },
-			);
+			return new Response(JSON.stringify({ error: "Unauthorized" }), {
+				status: 401,
+				headers: { "Content-Type": "application/json" },
+			});
 		});
 
 		const service = new ClineAccountService({

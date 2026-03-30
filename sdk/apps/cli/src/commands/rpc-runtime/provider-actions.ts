@@ -42,7 +42,12 @@ export async function runProviderAction(
 		return { result: await listLocalProviders(manager) };
 	}
 	if (parsed.action === "getProviderModels") {
-		return { result: await getLocalProviderModels(parsed.providerId) };
+		return {
+			result: await getLocalProviderModels(
+				parsed.providerId,
+				manager.getProviderConfig(parsed.providerId),
+			),
+		};
 	}
 	if (parsed.action === "addProvider") {
 		return { result: await addLocalProvider(manager, parsed) };

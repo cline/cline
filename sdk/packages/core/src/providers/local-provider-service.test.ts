@@ -40,6 +40,7 @@ function makeTempManager(): {
 afterEach(() => {
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 // ===========================================================================
@@ -404,6 +405,50 @@ describe("addLocalProvider – capabilities", () => {
 		expect(models[0].supportsVision).toBeFalsy();
 		expect(models[0].supportsReasoning).toBeFalsy();
 	});
+
+	it("merges LiteLLM private models into the provider model listing when auth is configured", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key-catalog",
+				baseUrl: "http://localhost:4010",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							model_name: "private-proxy-model",
+							litellm_params: { model: "openai/gpt-4o-mini" },
+							model_info: {
+								supports_vision: true,
+								supports_reasoning: true,
+							},
+						},
+					],
+				}),
+			}),
+		);
+
+		const { models } = await getLocalProviderModels(
+			"litellm",
+			manager.getProviderConfig("litellm"),
+		);
+
+		expect(models.map((model) => model.id)).toContain("private-proxy-model");
+		expect(models.map((model) => model.id)).toContain("openai/gpt-4o-mini");
+		expect(
+			models.find((model) => model.id === "private-proxy-model"),
+		).toMatchObject({
+			supportsVision: true,
+			supportsReasoning: true,
+		});
+	});
 });
 
 // ===========================================================================
@@ -595,6 +640,69 @@ describe("listLocalProviders", () => {
 		const p = providers.find((x) => x.id === "color-letter-provider");
 		expect(p?.color).toMatch(/^#[0-9a-f]{6}$/i);
 		expect(p?.letter).toBeTruthy();
+	});
+
+	it("leaves LiteLLM model lists unresolved in the provider catalog path", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key",
+				baseUrl: "http://localhost:4000",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue({
+				ok: true,
+				json: async () => ({
+					data: [
+						{
+							model_name: "team-private-model",
+							litellm_params: { model: "team/private-model" },
+							model_info: {},
+						},
+					],
+				}),
+			}),
+		);
+
+		const { providers } = await listLocalProviders(manager);
+		const litellm = providers.find((provider) => provider.id === "litellm");
+
+		expect(litellm?.modelList).toBeUndefined();
+	});
+
+	it("does not eagerly fetch LiteLLM private models while listing providers", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "litellm",
+				apiKey: "test-key",
+				baseUrl: "http://localhost:4000",
+				model: "gpt-4o",
+			},
+			{ setLastUsed: false },
+		);
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({
+				data: [
+					{
+						model_name: "team-private-model",
+						litellm_params: { model: "team/private-model" },
+						model_info: {},
+					},
+				],
+			}),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { providers } = await listLocalProviders(manager);
+		const litellm = providers.find((provider) => provider.id === "litellm");
+
+		expect(fetchMock).not.toHaveBeenCalled();
+		expect(litellm?.modelList).toBeUndefined();
 	});
 });
 

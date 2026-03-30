@@ -42,6 +42,7 @@ export interface ProviderDefaults {
 export const DEFAULT_MODELS_CATALOG_URL = "https://models.dev/api.json";
 const DEFAULT_MODELS_CATALOG_CACHE_TTL_MS = 10 * 60 * 1000;
 const DEFAULT_PRIVATE_MODELS_CACHE_TTL_MS = 5 * 60 * 1000;
+const DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS = 5_000;
 
 const MODELS_CATALOG_CACHE = new Map<
 	string,
@@ -126,6 +127,17 @@ function resolvePrivateCacheKey(
 	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}:${fingerprint(resolveAuthToken(config) ?? "")}`;
 }
 
+async function fetchWithTimeout(
+	input: string,
+	init: RequestInit,
+	timeoutMs = DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
+): Promise<Response> {
+	return fetch(input, {
+		...init,
+		signal: AbortSignal.timeout(timeoutMs),
+	});
+}
+
 function includeCapability(
 	capabilities: NonNullable<ModelInfo["capabilities"]>,
 	capability: NonNullable<ModelInfo["capabilities"]>[number],
@@ -186,13 +198,16 @@ async function fetchBasetenPrivateModels(
 	_config: ProviderConfig,
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
-	const response = await fetch("https://inference.baseten.co/v1/models", {
-		method: "GET",
-		headers: {
-			Authorization: `Bearer ${token}`,
-			"Content-Type": "application/json",
+	const response = await fetchWithTimeout(
+		"https://inference.baseten.co/v1/models",
+		{
+			method: "GET",
+			headers: {
+				Authorization: `Bearer ${token}`,
+				"Content-Type": "application/json",
+			},
 		},
-	});
+	);
 	if (!response.ok) {
 		throw new Error(`Baseten model refresh failed: HTTP ${response.status}`);
 	}
@@ -233,12 +248,15 @@ async function fetchHicapPrivateModels(
 	_config: ProviderConfig,
 	token: string,
 ): Promise<Record<string, ModelInfo>> {
-	const response = await fetch("https://api.hicap.ai/v2/openai/models", {
-		method: "GET",
-		headers: {
-			"api-key": token,
+	const response = await fetchWithTimeout(
+		"https://api.hicap.ai/v2/openai/models",
+		{
+			method: "GET",
+			headers: {
+				"api-key": token,
+			},
 		},
-	});
+	);
 	if (!response.ok) {
 		throw new Error(`Hicap model refresh failed: HTTP ${response.status}`);
 	}
@@ -294,7 +312,7 @@ async function fetchLiteLlmPrivateModels(
 	const fetchWithHeaders = async (
 		headers: Record<string, string>,
 	): Promise<Response> =>
-		fetch(endpoint, {
+		fetchWithTimeout(endpoint, {
 			method: "GET",
 			headers: {
 				accept: "application/json",

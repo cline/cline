@@ -1,5 +1,5 @@
 import * as LlmsModels from "@clinebot/llms/models";
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import * as LlmsProviders from "@clinebot/llms/providers";
 import type {
 	RpcAddProviderActionRequest,
 	RpcOAuthProviderId,
@@ -135,6 +135,32 @@ async function fetchModelIdsFromSource(
 	);
 }
 
+async function resolveProviderModelMap(
+	providerId: string,
+	config?: LlmsProviders.ProviderConfig,
+): Promise<Record<string, LlmsProviders.ModelInfo>> {
+	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
+	if (!config) {
+		return registeredModels;
+	}
+
+	const resolved = await LlmsProviders.resolveProviderConfig(
+		providerId,
+		{
+			loadPrivateOnAuth: true,
+			failOnError: false,
+		},
+		config,
+	);
+
+	return resolved?.knownModels
+		? {
+				...registeredModels,
+				...resolved.knownModels,
+			}
+		: registeredModels;
+}
+
 // --- Public API ---
 
 export async function addLocalProvider(
@@ -244,16 +270,16 @@ export async function listLocalProviders(
 
 	const providers = await Promise.all(
 		ids.map(async (id): Promise<RpcProviderListItem> => {
-			const [info, providerModels] = await Promise.all([
+			const [info, registeredModels] = await Promise.all([
 				LlmsModels.getProvider(id),
-				getLocalProviderModels(id),
+				LlmsModels.getModelsForProvider(id),
 			]);
 			const persistedSettings = state.providers[id]?.settings;
 			const name = info?.name ?? titleCaseFromId(id);
 			return {
 				id,
 				name,
-				models: providerModels.models.length,
+				models: Object.keys(registeredModels).length,
 				color: stableColor(id),
 				letter: createLetter(name),
 				enabled: Boolean(persistedSettings),
@@ -267,7 +293,6 @@ export async function listLocalProviders(
 				defaultModelId: info?.defaultModelId,
 				authDescription: "This provider uses API keys for authentication.",
 				baseUrlDescription: "The base endpoint to use for provider requests.",
-				modelList: providerModels.models,
 			};
 		}),
 	);
@@ -277,9 +302,10 @@ export async function listLocalProviders(
 
 export async function getLocalProviderModels(
 	providerId: string,
+	config?: LlmsProviders.ProviderConfig,
 ): Promise<{ providerId: string; models: RpcProviderModel[] }> {
 	const id = providerId.trim();
-	const modelMap = await LlmsModels.getModelsForProvider(id);
+	const modelMap = await resolveProviderModelMap(id, config);
 	const models = Object.entries(modelMap)
 		.sort(([a], [b]) => a.localeCompare(b))
 		.map(([modelId, info]) => toRpcProviderModel(modelId, info));
