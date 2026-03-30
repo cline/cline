@@ -3,7 +3,8 @@
 		"ts"
 	],
 	"spec": [
-		"src/**/__tests__/*.ts"
+		"src/**/__tests__/*.ts",
+		"src/test/services/**/*.test.ts"
 	],
 	"require": [
 		"ts-node/register",
