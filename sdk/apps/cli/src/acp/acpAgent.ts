@@ -512,7 +512,7 @@ export class AcpAgent implements Agent {
 			apiKey,
 			systemPrompt,
 			maxIterations: undefined,
-			maxConsecutiveMistakes: undefined,
+			execution: undefined,
 			verbose: false,
 			sandbox: false,
 			thinking: false,

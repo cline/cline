@@ -19,6 +19,12 @@ import {
 	createContributionRegistry,
 } from "./extensions";
 import { HookEngine, registerLifecycleHandlers } from "./hooks/index";
+import {
+	checkRepeatedToolCall,
+	createLoopDetectionState,
+	resetLoopDetectionState,
+	toolCallSignature,
+} from "./loop-detection";
 import { MessageBuilder } from "./message-builder";
 import { createAgentRuntimeBus } from "./runtime/agent-runtime-bus";
 import { ConversationStore } from "./runtime/conversation-store";
@@ -29,11 +35,13 @@ import { createToolRegistry, validateTools } from "./tools/index";
 import type {
 	AgentConfig,
 	AgentEvent,
+	AgentExecutionConfig,
 	AgentExtensionRegistry,
 	AgentFinishReason,
 	AgentResult,
 	AgentUsage,
 	BasicLogger,
+	LoopDetectionConfig,
 	PendingToolCall,
 	Tool,
 	ToolApprovalResult,
@@ -63,13 +71,17 @@ export class Agent {
 			| "tools"
 			| "maxParallelToolCalls"
 			| "apiTimeoutMs"
-			| "maxConsecutiveMistakes"
-			| "reminderAfterIterations"
-			| "reminderText"
 			| "hookErrorMode"
 		>
 	> &
 		AgentConfig;
+	private readonly executionConfig: Required<
+		Pick<
+			AgentExecutionConfig,
+			"maxConsecutiveMistakes" | "reminderAfterIterations" | "reminderText"
+		>
+	> &
+		AgentExecutionConfig;
 	private handler: LlmsProviders.ApiHandler;
 	private toolRegistry: Map<string, Tool>;
 	private abortController: AbortController | null = null;
@@ -94,13 +106,16 @@ export class Agent {
 			maxIterations: config.maxIterations,
 			maxParallelToolCalls: config.maxParallelToolCalls ?? 8,
 			apiTimeoutMs: config.apiTimeoutMs ?? 120000,
-			maxConsecutiveMistakes: config.maxConsecutiveMistakes ?? 6,
 			maxTokensPerTurn: config.maxTokensPerTurn,
-			reminderAfterIterations: config.reminderAfterIterations ?? 0,
-			reminderText: config.reminderText ?? DEFAULT_REMINDER_TEXT,
 			hookErrorMode: config.hookErrorMode ?? "ignore",
 			extensions: config.extensions ?? [],
 			toolPolicies: config.toolPolicies ?? {},
+		};
+		this.executionConfig = {
+			...(config.execution ?? {}),
+			maxConsecutiveMistakes: config.execution?.maxConsecutiveMistakes ?? 6,
+			reminderAfterIterations: config.execution?.reminderAfterIterations ?? 0,
+			reminderText: config.execution?.reminderText ?? DEFAULT_REMINDER_TEXT,
 		};
 
 		this.agentId = `agent_${Date.now()}_${nanoid(6)}`;
@@ -421,7 +436,7 @@ export class Agent {
 			getConversationId: () => this.conversationStore.getConversationId(),
 			getActiveRunId: () =>
 				this.activeRunId || this.conversationStore.getConversationId(),
-			maxConsecutiveMistakes: this.config.maxConsecutiveMistakes,
+			maxConsecutiveMistakes: this.executionConfig.maxConsecutiveMistakes,
 			onConsecutiveMistakeLimitReached:
 				this.config.onConsecutiveMistakeLimitReached,
 			emit: (event) => this.emit(event),
@@ -429,6 +444,14 @@ export class Agent {
 			appendRecoveryNotice: (message, reason) =>
 				this.appendRecoveryNotice(message, reason),
 		};
+		const loopDetectionInput = this.executionConfig.loopDetection;
+		const loopConfig: LoopDetectionConfig | undefined = loopDetectionInput
+			? {
+					softThreshold: loopDetectionInput.softThreshold ?? 3,
+					hardThreshold: loopDetectionInput.hardThreshold ?? 5,
+				}
+			: undefined;
+		const loopState = loopConfig ? createLoopDetectionState() : undefined;
 
 		try {
 			if (!this.conversationStore.isSessionStarted()) {
@@ -777,15 +800,64 @@ export class Agent {
 				allToolCalls.push(...toolResults);
 				this.conversationStore.appendMessage(
 					this.toolOrchestrator.buildToolResultMessage(toolResults, iteration, {
-						afterIterations: this.config.reminderAfterIterations,
-						text: this.config.reminderText,
+						afterIterations: this.executionConfig.reminderAfterIterations,
+						text: this.executionConfig.reminderText,
 					}),
 				);
+				// --- Loop detection ---
+				let loopEscalation = false;
+				let stopForLoopDetection = false;
+				if (loopState && loopConfig) {
+					for (const toolResult of toolResults) {
+						const sig = toolCallSignature(toolResult.input);
+						const loopCheck = checkRepeatedToolCall(
+							loopState,
+							toolResult.name,
+							sig,
+							loopConfig,
+						);
+						if (loopCheck.softWarning) {
+							this.appendRecoveryNotice(
+								`Tool [${toolResult.name}] has been called ${loopConfig.softThreshold} times consecutively with identical arguments. This is not making progress. You must use a different tool or different arguments.`,
+								"tool_execution_failed",
+							);
+						}
+						if (loopCheck.hardEscalation) {
+							loopEscalation = true;
+							const loopOutcome = await recordMistake(
+								{
+									iteration,
+									reason: "tool_execution_failed",
+									forceAtLimit: true,
+									details: `Tool [${toolResult.name}] called ${loopState.consecutiveIdenticalCount} times with identical arguments — stuck in a loop.`,
+									consecutiveMistakes: () => consecutiveMistakes,
+									setConsecutiveMistakes: (value: number) => {
+										consecutiveMistakes = value;
+										if (value === 0) {
+											resetLoopDetectionState(loopState);
+										}
+									},
+								},
+								mistakeDeps,
+							);
+							if (loopOutcome.action === "stop") {
+								this.appendStopNotice(loopOutcome.message);
+								finishReason = "mistake_limit";
+								stopForLoopDetection = true;
+							}
+							break;
+						}
+					}
+				}
+				if (stopForLoopDetection) {
+					break;
+				}
+
 				const successfulToolCalls = toolResults.filter(
 					(record) => !record.error,
 				).length;
 				const failedToolCalls = toolResults.length - successfulToolCalls;
-				if (successfulToolCalls > 0) {
+				if (successfulToolCalls > 0 && !loopEscalation) {
 					consecutiveMistakes = 0;
 				} else if (failedToolCalls > 0) {
 					const failedToolCallDetails =

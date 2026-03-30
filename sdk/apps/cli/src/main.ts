@@ -627,7 +627,9 @@ export async function runCli(): Promise<void> {
 				rules: loadRulesForSystemPromptFromWatcher(userInstructionWatcher),
 			}),
 			maxIterations: args.maxIterations,
-			maxConsecutiveMistakes: args.maxConsecutiveMistakes ?? 3,
+			execution: {
+				maxConsecutiveMistakes: args.maxConsecutiveMistakes ?? 3,
+			},
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,

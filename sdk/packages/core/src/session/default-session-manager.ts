@@ -280,7 +280,7 @@ export class DefaultSessionManager implements SessionManager {
 				configWithProvider.reasoningEffort ?? providerConfig.reasoningEffort,
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
-			maxConsecutiveMistakes: configWithProvider.maxConsecutiveMistakes,
+			execution: configWithProvider.execution,
 			tools,
 			hooks: effectiveConfig.hooks,
 			extensions: effectiveConfig.extensions,

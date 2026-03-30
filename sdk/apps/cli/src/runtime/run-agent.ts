@@ -20,6 +20,7 @@ import {
 import { createDefaultCliSessionManager } from "../utils/session";
 import type { Config } from "../utils/types";
 import { setActiveRuntimeAbort } from "./active-runtime";
+import { CLI_DEFAULT_LOOP_DETECTION } from "./defaults";
 import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
 import { resolveClineWelcomeLine } from "./interactive-welcome";
 import { buildUserInputMessage } from "./prompt";
@@ -230,6 +231,11 @@ export async function runAgent(
 			source: SessionSource.CLI,
 			config: {
 				...config,
+				execution: {
+					...config.execution,
+					loopDetection:
+						config.execution?.loopDetection ?? CLI_DEFAULT_LOOP_DETECTION,
+				},
 				hooks: runtimeHooks.hooks,
 				onTeamEvent: handleTeamEvent,
 				onConsecutiveMistakeLimitReached: (context) =>

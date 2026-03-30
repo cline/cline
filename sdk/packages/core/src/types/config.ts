@@ -55,6 +55,7 @@ export interface CoreSessionConfig
 			| "teamName"
 			| "missionLogIntervalSteps"
 			| "missionLogIntervalMs"
+			| "maxConsecutiveMistakes"
 		> {
 	sessionId?: string;
 	workspaceRoot?: string;
@@ -69,6 +70,7 @@ export interface CoreSessionConfig
 	extraTools?: Tool[];
 	pluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
+	execution?: AgentConfig["execution"];
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

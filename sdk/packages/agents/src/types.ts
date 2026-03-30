@@ -203,6 +203,43 @@ export type ConsecutiveMistakeLimitDecision =
 			reason?: string;
 	  };
 
+export interface LoopDetectionConfig {
+	softThreshold: number;
+	hardThreshold: number;
+}
+
+export interface AgentExecutionConfig {
+	/**
+	 * Maximum consecutive internal mistakes before escalation.
+	 * Mistakes include API turn failures, invalid/missing tool-call arguments,
+	 * and iterations where every executed tool call fails.
+	 * @default 6
+	 */
+	maxConsecutiveMistakes?: number;
+	/**
+	 * After this many consecutive iterations with tool calls,
+	 * inject a reminder text block asking the agent to answer if it has enough info.
+	 * Set to `0` or omit to disable.
+	 * @default 0
+	 */
+	reminderAfterIterations?: number;
+	/**
+	 * Custom reminder text to inject after `reminderAfterIterations`.
+	 * @default "REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools."
+	 */
+	reminderText?: string;
+	/**
+	 * Repeated tool call loop detection. When enabled, the agent detects
+	 * consecutive identical tool calls and intervenes:
+	 * - At `softThreshold`: injects a recovery notice urging a different approach.
+	 * - At `hardThreshold`: triggers the consecutive-mistake-limit decision path.
+	 *
+	 * Set to `false` to explicitly disable. Omit or leave `undefined` for no detection.
+	 * The CLI enables this by default with `{ softThreshold: 3, hardThreshold: 5 }`.
+	 */
+	loopDetection?: false | Partial<LoopDetectionConfig>;
+}
+
 // =============================================================================
 // Hooks
 // =============================================================================
@@ -808,29 +845,10 @@ export interface AgentConfig {
 	 */
 	maxTokensPerTurn?: number;
 	/**
-	 * After this many consecutive iterations with tool calls,
-	 * inject a reminder text block asking the agent to answer if it has enough info.
-	 * Set to 0 to disable.
-	 * @default 6
-	 */
-	reminderAfterIterations?: number;
-	/**
-	 * Custom reminder text to inject after reminderAfterIterations.
-	 * @default "REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools."
-	 */
-	reminderText?: string;
-	/**
 	 * Timeout for each API call in milliseconds
 	 * @default 120000 (2 minutes)
 	 */
 	apiTimeoutMs?: number;
-	/**
-	 * Maximum consecutive internal mistakes before escalation.
-	 * Mistakes include API turn failures, invalid/missing tool-call arguments,
-	 * and iterations where every executed tool call fails.
-	 * @default 3
-	 */
-	maxConsecutiveMistakes?: number;
 	/**
 	 * Optional runtime file-content loader used when user files are attached.
 	 * When omitted, attached files will be represented as loader errors.
@@ -841,6 +859,8 @@ export interface AgentConfig {
 	 * Hosts can use this to thread runtime-specific identifiers such as session IDs.
 	 */
 	toolContextMetadata?: Record<string, unknown>;
+	/** Execution guardrails and recovery settings. */
+	execution?: AgentExecutionConfig;
 
 	// -------------------------------------------------------------------------
 	// Reasoning Settings (for capable models)
@@ -964,15 +984,28 @@ export const AgentConfigSchema = z.object({
 	maxParallelToolCalls: z.number().int().positive().default(8),
 	maxTokensPerTurn: z.number().positive().optional(),
 	apiTimeoutMs: z.number().positive().default(120000),
-	maxConsecutiveMistakes: z.number().int().positive().default(6),
 	userFileContentLoader: z
 		.function()
 		.input([z.string()])
 		.output(z.promise(z.string()))
 		.optional(),
 	toolContextMetadata: z.record(z.string(), z.unknown()).optional(),
-	reminderAfterIterations: z.number().nonnegative().default(6),
-	reminderText: z.string().optional(),
+	execution: z
+		.object({
+			maxConsecutiveMistakes: z.number().int().positive().optional(),
+			reminderAfterIterations: z.number().nonnegative().optional(),
+			reminderText: z.string().optional(),
+			loopDetection: z
+				.union([
+					z.literal(false),
+					z.object({
+						softThreshold: z.number().int().positive().optional(),
+						hardThreshold: z.number().int().positive().optional(),
+					}),
+				])
+				.optional(),
+		})
+		.optional(),
 
 	// Reasoning Settings
 	reasoningEffort: ReasoningEffortSchema.optional(),

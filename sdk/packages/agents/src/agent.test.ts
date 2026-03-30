@@ -231,7 +231,7 @@ describe("Agent", () => {
 			modelId: "mock-model",
 			systemPrompt: "Handle retries",
 			tools: [],
-			maxConsecutiveMistakes: 2,
+			execution: { maxConsecutiveMistakes: 2 },
 		});
 
 		const result = await agent.run("retry");
@@ -285,7 +285,7 @@ describe("Agent", () => {
 			modelId: "mock-model",
 			systemPrompt: "Use tools.",
 			tools: [],
-			maxConsecutiveMistakes: 2,
+			execution: { maxConsecutiveMistakes: 2 },
 			onEvent: (event) => {
 				if (event.type === "notice") {
 					notices.push(event.message);
@@ -529,7 +529,7 @@ describe("Agent", () => {
 			modelId: "gemini-flash-latest-1",
 			systemPrompt: "Handle retries",
 			tools: [],
-			maxConsecutiveMistakes: 3,
+			execution: { maxConsecutiveMistakes: 3 },
 		});
 
 		await expect(agent.run("retry")).rejects.toThrow("404");
@@ -652,7 +652,7 @@ describe("Agent", () => {
 			modelId: "mock-model",
 			systemPrompt: "Handle retries",
 			tools: [],
-			maxConsecutiveMistakes: 2,
+			execution: { maxConsecutiveMistakes: 2 },
 			onConsecutiveMistakeLimitReached,
 		});
 
@@ -703,7 +703,7 @@ describe("Agent", () => {
 			systemPrompt: "Handle stalled providers",
 			tools: [],
 			apiTimeoutMs: 10,
-			maxConsecutiveMistakes: 1,
+			execution: { maxConsecutiveMistakes: 1 },
 		});
 
 		const result = await agent.run("retry");
@@ -827,7 +827,7 @@ describe("Agent", () => {
 			modelId: "mock-model",
 			systemPrompt: "Run the replacement tool",
 			tools: [strReplaceTool],
-			maxConsecutiveMistakes: 1,
+			execution: { maxConsecutiveMistakes: 1 },
 		});
 
 		const result = await agent.run("replace this text");
@@ -1573,5 +1573,137 @@ describe("Agent", () => {
 		} finally {
 			await rm(tempDir, { recursive: true, force: true });
 		}
+	});
+
+	it("stops at mistake_limit when loop detection detects repeated identical tool calls", async () => {
+		const { Agent } = await import("./agent.js");
+		const echoTool = createTool({
+			name: "echo",
+			description: "Echo input",
+			inputSchema: {
+				type: "object",
+				properties: { msg: { type: "string" } },
+				required: ["msg"],
+			},
+			execute: async ({ msg }: { msg: string }) => ({ msg }),
+		}) as Tool;
+
+		const identicalTurn = (id: string) => [
+			{
+				type: "tool_calls",
+				id,
+				tool_call: {
+					call_id: `call_${id}`,
+					function: { name: "echo", arguments: '{"msg":"hi"}' },
+				},
+			},
+			{ type: "usage", id, inputTokens: 10, outputTokens: 5 },
+			{ type: "done", id, success: true },
+		];
+		const handler = makeHandler([
+			identicalTurn("r1"),
+			identicalTurn("r2"),
+			identicalTurn("r3"),
+			identicalTurn("r4"),
+			identicalTurn("r5"),
+			[
+				{ type: "text", id: "r6", text: "unreachable" },
+				{ type: "done", id: "r6", success: true },
+			],
+		]);
+		createHandlerMock.mockReturnValue(handler);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "Echo repeatedly",
+			tools: [echoTool],
+			execution: {
+				loopDetection: { softThreshold: 3, hardThreshold: 5 },
+				maxConsecutiveMistakes: 6,
+			},
+		});
+
+		const result = await agent.run("go");
+		expect(result.finishReason).toBe("mistake_limit");
+		expect(result.toolCalls).toHaveLength(5);
+	});
+
+	it("detects repeated identical tool calls within a batched iteration even when another tool runs last", async () => {
+		const { Agent } = await import("./agent.js");
+		const echoTool = createTool({
+			name: "echo",
+			description: "Echo input",
+			inputSchema: {
+				type: "object",
+				properties: { msg: { type: "string" } },
+				required: ["msg"],
+			},
+			execute: async ({ msg }: { msg: string }) => ({ msg }),
+		}) as Tool;
+		const noopTool = createTool({
+			name: "noop",
+			description: "Return ok",
+			inputSchema: {
+				type: "object",
+				properties: {},
+			},
+			execute: async () => ({ ok: true }),
+		}) as Tool;
+
+		const handler = makeHandler([
+			[
+				{
+					type: "tool_calls",
+					id: "r1a",
+					tool_call: {
+						call_id: "call_1",
+						function: { name: "echo", arguments: '{"msg":"hi"}' },
+					},
+				},
+				{
+					type: "tool_calls",
+					id: "r1b",
+					tool_call: {
+						call_id: "call_2",
+						function: { name: "echo", arguments: '{"msg":"hi"}' },
+					},
+				},
+				{
+					type: "tool_calls",
+					id: "r1c",
+					tool_call: {
+						call_id: "call_3",
+						function: { name: "echo", arguments: '{"msg":"hi"}' },
+					},
+				},
+				{
+					type: "tool_calls",
+					id: "r1d",
+					tool_call: {
+						call_id: "call_4",
+						function: { name: "noop", arguments: "{}" },
+					},
+				},
+				{ type: "usage", id: "r1", inputTokens: 10, outputTokens: 5 },
+				{ type: "done", id: "r1", success: true },
+			],
+		]);
+		createHandlerMock.mockReturnValue(handler);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "Echo repeatedly",
+			tools: [echoTool, noopTool],
+			execution: {
+				loopDetection: { softThreshold: 2, hardThreshold: 3 },
+				maxConsecutiveMistakes: 6,
+			},
+		});
+
+		const result = await agent.run("go");
+		expect(result.finishReason).toBe("mistake_limit");
+		expect(result.toolCalls).toHaveLength(4);
 	});
 });

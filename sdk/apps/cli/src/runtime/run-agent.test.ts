@@ -148,8 +148,10 @@ describe("runAgent", () => {
 				enableAgentTeams: false,
 				enableSpawnAgent: false,
 				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
 				logger: undefined,
-				maxConsecutiveMistakes: 3,
 				maxIterations: 10,
 				mode: "act",
 				modelId: "google/gemini-3-flash-preview",

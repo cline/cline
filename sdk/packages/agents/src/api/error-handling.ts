@@ -150,6 +150,8 @@ export interface RecordMistakeInput {
 	iteration: number;
 	reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
 	details?: string;
+	/** When true, jump straight to maxConsecutiveMistakes instead of incrementing by 1. */
+	forceAtLimit?: boolean;
 	consecutiveMistakes: () => number;
 	setConsecutiveMistakes: (value: number) => void;
 }
@@ -184,7 +186,9 @@ export async function recordMistake(
 	input: RecordMistakeInput,
 	deps: MistakeTrackingDeps,
 ): Promise<MistakeOutcome> {
-	const next = input.consecutiveMistakes() + 1;
+	const max = deps.maxConsecutiveMistakes;
+	const next =
+		input.forceAtLimit && max ? max : input.consecutiveMistakes() + 1;
 	input.setConsecutiveMistakes(next);
 	const errorMessage =
 		input.details?.trim() || `consecutive mistake (${input.reason})`;
