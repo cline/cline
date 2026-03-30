@@ -62,7 +62,7 @@ const InternalKanbanMigrationView: React.FC<Pick<KanbanMigrationViewProps, "onSe
 			<Text bold color="white">
 				Cline is moving out of the terminal. Introducing Cline Kanban.
 			</Text>
-			<Text color="gray">If you want the old Cline, exit and run cline --tui.</Text>
+			<Text color="gray">A board for orchestrating coding agents across worktrees, right from your browser.</Text>
 			<Text> </Text>
 			{items.map((item, index) => {
 				const isSelected = index === selectedIndex
