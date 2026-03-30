@@ -4445,6 +4445,7 @@ export const internationalZAiModels = {
 		inputPrice: 0,
 		outputPrice: 0,
 		cacheReadsPrice: 0,
+		cacheWritesPrice: 0,
 	},
 	"glm-5": {
 		maxTokens: 128_000,
