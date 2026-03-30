@@ -36,6 +36,8 @@ import {
 	GlobalFileNames,
 	getSavedApiConversationHistory,
 	getSavedClineMessages,
+	getTaskMetadata,
+	saveTaskMetadata,
 } from "@core/storage/disk"
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
@@ -1988,6 +1990,23 @@ export class Task {
 		if (activatedConditionalRules.length > 0) {
 			await this.say("conditional_rules_applied", JSON.stringify({ rules: activatedConditionalRules }))
 		}
+
+		// Save active rules snapshot to task metadata (see #5710)
+		const metadata = await getTaskMetadata(this.taskId)
+		metadata.active_rules = {
+			ts: Date.now(),
+			global: Object.entries(globalToggles)
+				.filter(([, enabled]) => enabled !== false)
+				.map(([filePath]) => filePath),
+			local: Object.entries(localToggles)
+				.filter(([, enabled]) => enabled !== false)
+				.map(([filePath]) => filePath),
+			activated_conditional_rules: activatedConditionalRules.map((rule) => ({
+				name: rule.name,
+				matched_conditions: rule.matchedConditions,
+			})),
+		}
+		await saveTaskMetadata(this.taskId, metadata)
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length

@@ -25,8 +25,19 @@ export interface EnvironmentMetadataEntry {
 	cline_version: string
 }
 
+export interface ActiveRulesMetadataEntry {
+	ts: number
+	global: string[]
+	local: string[]
+	activated_conditional_rules: Array<{
+		name: string
+		matched_conditions: Record<string, string[]>
+	}>
+}
+
 export interface TaskMetadata {
 	files_in_context: FileMetadataEntry[]
 	model_usage: ModelMetadataEntry[]
 	environment_history: EnvironmentMetadataEntry[]
+	active_rules?: ActiveRulesMetadataEntry
 }
