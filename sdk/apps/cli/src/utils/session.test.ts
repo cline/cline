@@ -27,6 +27,7 @@ vi.mock("@clinebot/core", async () => {
 });
 
 vi.mock("@clinebot/rpc", () => ({
+	RPC_BUILD_VERSION: "rpc-build-test",
 	getRpcServerDefaultAddress: vi.fn(() => "127.0.0.1:4317"),
 	RpcSessionClient: vi.fn().mockImplementation(function RpcSessionClient() {
 		return {

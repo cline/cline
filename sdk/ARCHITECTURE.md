@@ -274,9 +274,9 @@ Interactive CLI and connector bridges clone the host and register extra commands
 - `clite rpc start`: starts in-process gateway if no server is active
 - `clite rpc status`: probes server health
 - `clite rpc stop`: requests graceful shutdown
-- `clite rpc ensure`: serializes startup with a cross-process lock under `~/.cline/data/locks/`
+- `clite rpc ensure`: delegates to shared `@clinebot/core` ensure logic and serializes startup with a cross-process lock under `~/.cline/data/locks/`
 
-Startup is fail-closed on the default address (`127.0.0.1:4317`): if occupied by an unhealthy listener, CLI attempts graceful shutdown, then force-kills the stale listener before starting a replacement.
+Sidecar reuse/replacement is owner-scoped. The shared ensure path records discovery under `~/.cline/data/rpc/owners/`, reuses a compatible owned sidecar when its runtime build key matches, and otherwise starts a replacement on the requested address or the next free port. The default runtime build key is derived from `@clinebot/core` and `@clinebot/rpc` package versions, with optional host-specific extension.
 
 ### Connector bridge system
 
@@ -361,7 +361,7 @@ SQLite at `~/.cline/data/sessions/sessions.db` (or `CLINE_SESSION_DATA_DIR`). Us
 ## VS Code Extension (`@clinebot/vscode`)
 
 1. Registers `Cline: Open RPC Chat` command, launches webview panel
-2. Ensures RPC server via `clite rpc ensure --json`
+2. Ensures RPC server via the shared ensure path exposed through `clite rpc ensure --json`
 3. Creates `RpcSessionClient` against the ensured address
 4. Chat turns run through runtime RPC methods (`Start/Send/Abort/StopRuntimeSession`)
 5. Streams `runtime.chat.text_delta` and tool lifecycle events to the webview

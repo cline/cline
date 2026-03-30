@@ -727,7 +727,7 @@ The `hook-worker` handler performs the same bookkeeping but keeps the process al
 clite rpc start [--address host:port]          # start RPC server (blocks)
 clite rpc status [--address host:port]         # check server health
 clite rpc stop [--address host:port]           # request graceful shutdown
-clite rpc ensure [--address host:port] [--json] # ensure server is running, auto-select port
+clite rpc ensure [--address host:port] [--json] # ensure a compatible owner-scoped server is running
 clite rpc register --client-type <type> --client-id <id>  # register a client
 ```
 
@@ -737,7 +737,7 @@ clite rpc register --client-type <type> --client-id <id>  # register a client
 
 The RPC server provides a gRPC interface (`@clinebot/rpc`) that desktop clients or other tooling can connect to for session management. Default address is `127.0.0.1:4317` (overridden by `CLINE_RPC_ADDRESS`).
 
-When any agent command starts, the CLI automatically attempts to connect to the RPC server and spawns one in the background if not found (see [RPC Server](#rpc-server)).
+Compatibility and sidecar replacement are handled by shared `@clinebot/core` ensure logic. That path uses owner-scoped discovery plus a runtime build key derived from `@clinebot/core` and `@clinebot/rpc` package versions, and can optionally be extended by hosts with a host-specific build key. When any agent command starts in RPC-backed mode, the host attempts to connect to the RPC server and starts a compatible sidecar in the background if needed.
 
 ---
 

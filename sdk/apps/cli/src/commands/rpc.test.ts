@@ -11,6 +11,7 @@ const {
 	mockCreateServer,
 	mockRequestRpcServerShutdown,
 	rpcProtocolVersion,
+	rpcBuildVersion,
 } = vi.hoisted(() => {
 	return {
 		mockSpawn: vi.fn(),
@@ -20,6 +21,7 @@ const {
 		mockCreateServer: vi.fn(),
 		mockRequestRpcServerShutdown: vi.fn(),
 		rpcProtocolVersion: "1",
+		rpcBuildVersion: "rpc-build-test",
 	};
 });
 
@@ -39,6 +41,7 @@ vi.mock("@clinebot/rpc", () => ({
 	requestRpcServerShutdown: mockRequestRpcServerShutdown,
 	startRpcServer: vi.fn(),
 	stopRpcServer: vi.fn(),
+	RPC_BUILD_VERSION: rpcBuildVersion,
 	RPC_PROTOCOL_VERSION: rpcProtocolVersion,
 	RpcSessionClient: class {
 		async stopRuntimeSession(sessionId: string) {

@@ -296,6 +296,25 @@ export {
 	resolveWorkflowSlashCommandFromWatcher,
 } from "./runtime/workflows";
 export { DefaultSessionManager } from "./session/default-session-manager";
+export {
+	clearRpcDiscoveryIfAddressMatches,
+	type EnsureRpcRuntimeOptions,
+	ensureRpcRuntimeAddress,
+	isCompatibleRuntime,
+	type ResolveRpcRuntimeResult,
+	RPC_BUILD_ID_ENV,
+	RPC_DISCOVERY_PATH_ENV,
+	RPC_OWNER_ID_ENV,
+	RPC_STARTUP_LOCK_BYPASS_ENV,
+	type RpcDiscoveryRecord,
+	type RpcOwnerContext,
+	recordRpcDiscovery,
+	resolveEnsuredRpcRuntime,
+	resolveRpcOwnerContext,
+	resolveRpcRuntimeBuildKey,
+	waitForCompatibleRpcRuntime,
+	withRpcStartupLock,
+} from "./session/rpc-runtime-ensure";
 export { RpcCoreSessionService } from "./session/rpc-session-service";
 export {
 	type RpcSpawnLease,
@@ -401,6 +420,7 @@ export {
 	LoggerTelemetryAdapter,
 	type LoggerTelemetryAdapterOptions,
 } from "./telemetry/LoggerTelemetryAdapter";
+export { CORE_BUILD_VERSION } from "./version";
 export async function loadOpenTelemetryAdapter() {
 	return import("./telemetry/index.js");
 }

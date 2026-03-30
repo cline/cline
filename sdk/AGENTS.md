@@ -40,7 +40,7 @@ flowchart TD
 4. **Core** persists session state and artifacts (logs, messages).
 
 ### Bootstrap & RPC
-- **CLI**: Direct CLI runs default to local in-process sessions. RPC-backed hosts still use `CLINE_RPC_ADDRESS` as a preferred base address, but bootstrap is owner-scoped rather than machine-global: startup paths take a lock under `~/.cline/data/locks/`, reuse the current install's compatible sidecar when available, and otherwise start a fresh background RPC sidecar for that build without requiring users to restart older listeners manually.
+- **CLI**: Direct CLI runs default to local in-process sessions. RPC-backed hosts still use `CLINE_RPC_ADDRESS` as a preferred base address, but sidecar bootstrap is owner-scoped rather than machine-global and now uses shared `@clinebot/core` ensure logic: startup paths take a lock under `~/.cline/data/locks/`, reuse a compatible owned sidecar when available, and otherwise start a fresh background RPC sidecar without requiring users to restart older listeners manually.
 - **UI Apps**: Use Tauri or Extension hosts to ensure a compatible RPC server and communicate via WebSocket or gRPC bridges.
 - **Connectors**: Background bridges (Telegram, WhatsApp, etc.) that map external threads to RPC sessions.
 - **Hooks**: Direct local CLI runs own one persistent `hook-worker` per CLI runtime; RPC-backed sessions share one persistent hook service owned by the RPC server process.
@@ -73,7 +73,7 @@ All data is rooted at `~/.cline/data` (overridable via `CLINE_DATA_DIR`).
 - `bun run lint / format / fix`: Code quality and formatting.
 
 ### Rebuilding
-Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs pick up rebuilt code immediately; RPC-backed hosts auto-replace their owner-scoped sidecar when the current build changes. If you touch CLI/RPC bootstrap, preserve the startup lock and owner-scoped discovery behavior so multiple builds can coexist safely. Use `dev:*` scripts for automatic rebuilding during development.
+Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs pick up rebuilt code immediately; RPC-backed hosts auto-replace their owner-scoped sidecar when the shared RPC runtime build changes. Today that build identity is keyed from `@clinebot/core` and `@clinebot/rpc` package versions, and hosts can extend it with a host-specific build key if needed. If you touch RPC bootstrap, preserve the startup lock and owner-scoped discovery behavior so multiple builds can coexist safely. Use `dev:*` scripts for automatic rebuilding during development.
 
 ### Publishing SDK Packages
 - Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly.

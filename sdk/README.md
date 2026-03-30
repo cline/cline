@@ -53,7 +53,7 @@ Useful workspace scripts (root `package.json`):
 - `bun run clean` - remove build outputs across packages
 - `bun run version 1.2.3` - update all packages/* version number to v1.2.3
 
-> **RPC hosts self-heal across rebuilds.** Direct CLI runs use the local in-process runtime. RPC-backed hosts use `clite rpc ensure`, which now reuses the current build's compatible sidecar or starts a fresh sidecar automatically when the build/protocol changes.
+> **RPC hosts self-heal across rebuilds.** Direct CLI runs use the local in-process runtime. RPC-backed hosts use shared `@clinebot/core` ensure logic, exposed through `clite rpc ensure` and reused by core session bootstrap, to reuse a compatible owned sidecar or start a fresh one automatically when the RPC runtime build changes. The default runtime build key is derived from `@clinebot/core` and `@clinebot/rpc`.
 
 
 # Repository Structure

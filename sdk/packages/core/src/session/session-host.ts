@@ -8,6 +8,10 @@ import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../telemetry/distinct-id";
 import { DefaultSessionManager } from "./default-session-manager";
 import { FileSessionService } from "./file-session-service";
+import {
+	ensureRpcRuntimeAddress,
+	resolveRpcOwnerContext,
+} from "./rpc-runtime-ensure";
 import { RpcCoreSessionService } from "./rpc-session-service";
 import { tryAcquireRpcSpawnLease } from "./rpc-spawn-lease";
 import type { SessionManager } from "./session-manager";
@@ -118,7 +122,7 @@ export async function resolveSessionBackend(
 	}
 
 	const mode = options.backendMode ?? "auto";
-	const address = options.rpc?.address?.trim() || DEFAULT_RPC_ADDRESS;
+	const requestedAddress = options.rpc?.address?.trim() || DEFAULT_RPC_ADDRESS;
 	const attempts = Math.max(1, options.rpc?.connectAttempts ?? 5);
 	const delayMs = Math.max(0, options.rpc?.connectDelayMs ?? 100);
 	const autoStartRpc = options.rpc?.autoStart !== false;
@@ -130,6 +134,7 @@ export async function resolveSessionBackend(
 			return cachedBackend;
 		}
 
+		let address = requestedAddress;
 		const existingRpcBackend = await tryConnectRpcBackend(address);
 		if (existingRpcBackend) {
 			cachedBackend = existingRpcBackend;
@@ -143,7 +148,13 @@ export async function resolveSessionBackend(
 
 		if (autoStartRpc) {
 			try {
-				startRpcServerInBackground(address);
+				const ensured = await ensureRpcRuntimeAddress(address, {
+					resolveOwner: () => resolveRpcOwnerContext({ ownerPrefix: "core" }),
+					spawnIfNeeded: (rpcAddress) => {
+						startRpcServerInBackground(rpcAddress);
+					},
+				});
+				address = ensured.address;
 			} catch {
 				// Ignore launch failures and fall back to local backend.
 			}

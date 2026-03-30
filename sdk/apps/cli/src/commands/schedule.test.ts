@@ -6,6 +6,7 @@ const mockClientClose = vi.hoisted(() => vi.fn());
 const mockGetRpcServerHealth = vi.hoisted(() => vi.fn());
 
 vi.mock("@clinebot/rpc", () => ({
+	RPC_BUILD_VERSION: "rpc-build-test",
 	getRpcServerHealth: mockGetRpcServerHealth,
 	RpcSessionClient: class {
 		async listSchedules(input: unknown) {
