@@ -48,6 +48,22 @@ function normalizeParticipantKey(
 	return trimmed ? trimmed : undefined;
 }
 
+function readSerializedThreadIdentity(
+	serializedThread: string | undefined,
+): Partial<ConnectorBindingThreadIdentity> | undefined {
+	if (!serializedThread?.trim()) {
+		return undefined;
+	}
+	try {
+		const parsed = JSON.parse(
+			serializedThread,
+		) as Partial<ConnectorBindingThreadIdentity>;
+		return parsed && typeof parsed === "object" ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
 export function resolveThreadBindingKey(
 	thread: ConnectorBindingThreadIdentity,
 	state?: ConnectorThreadState | null,
@@ -116,22 +132,50 @@ export function findBindingForThread<TState extends ConnectorThreadState>(
 
 export function readBindingForThread<TState extends ConnectorThreadState>(
 	path: string,
-	thread: ConnectorBindingThreadIdentity,
+	thread: Thread<TState>,
+	errorLabel: string,
+	participantKey?: string,
 ): ConnectorThreadBinding<TState> | undefined {
 	const bindings = readBindings<TState>(path);
-	const match = findBindingForThread(bindings, thread);
+	const threadIdentity: ConnectorBindingThreadIdentity = {
+		id: thread.id,
+		channelId: thread.channelId,
+		isDM: thread.isDM,
+		participantKey,
+	};
+	const match = findBindingForThread(bindings, threadIdentity);
 	if (!match) {
 		return undefined;
 	}
-	const targetKey = resolveThreadBindingKey(thread, match.binding.state);
-	if (match.key !== targetKey) {
+	const targetKey = resolveThreadBindingKey(
+		threadIdentity,
+		match.binding.state,
+	);
+	const normalizedParticipantKey = normalizeParticipantKey(participantKey);
+	const storedThread = readSerializedThreadIdentity(
+		match.binding.serializedThread,
+	);
+	const storedParticipantKey = normalizeParticipantKey(
+		match.binding.participantKey ?? match.binding.state?.participantKey,
+	);
+	const needsRefresh =
+		match.key !== targetKey ||
+		storedThread?.id !== thread.id ||
+		storedThread?.channelId !== thread.channelId ||
+		storedThread?.isDM !== thread.isDM ||
+		storedParticipantKey !== normalizedParticipantKey;
+	if (needsRefresh) {
 		bindings[targetKey] = {
 			...match.binding,
-			participantKey:
-				normalizeParticipantKey(thread.participantKey) ??
-				match.binding.participantKey,
+			channelId: thread.channelId,
+			isDM: thread.isDM,
+			participantKey: normalizedParticipantKey ?? match.binding.participantKey,
+			serializedThread: serializeThread(thread, errorLabel),
+			updatedAt: new Date().toISOString(),
 		};
-		delete bindings[match.key];
+		if (match.key !== targetKey) {
+			delete bindings[match.key];
+		}
 		writeBindings(path, bindings);
 	}
 	return bindings[targetKey];
@@ -238,10 +282,12 @@ export async function loadThreadState<TState extends ConnectorThreadState>(
 	base: ConnectorThreadState,
 ): Promise<TState> {
 	const threadState = await thread.state;
-	const binding = readBindingForThread<TState>(bindingsPath, {
-		...(thread as ConnectorBindingThreadIdentity),
-		participantKey: threadState?.participantKey,
-	});
+	const binding = readBindingForThread<TState>(
+		bindingsPath,
+		thread,
+		"Connector",
+		threadState?.participantKey,
+	);
 	return mergeThreadState(threadState, binding?.state, base);
 }
 

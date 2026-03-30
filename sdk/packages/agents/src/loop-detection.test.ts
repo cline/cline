@@ -49,7 +49,9 @@ describe("checkRepeatedToolCall", () => {
 		const sig = toolCallSignature({ command: "python test.py" });
 		const results = [];
 		for (let i = 0; i < DEFAULT_CONFIG.hardThreshold; i++) {
-			results.push(checkRepeatedToolCall(state, "run_commands", sig, DEFAULT_CONFIG));
+			results.push(
+				checkRepeatedToolCall(state, "run_commands", sig, DEFAULT_CONFIG),
+			);
 		}
 		expect(results[0].softWarning).toBe(false);
 		expect(results[1].softWarning).toBe(false);
@@ -72,7 +74,12 @@ describe("checkRepeatedToolCall", () => {
 		const state = createLoopDetectionState();
 		checkRepeatedToolCall(state, "run_commands", "sig1", DEFAULT_CONFIG);
 		checkRepeatedToolCall(state, "run_commands", "sig1", DEFAULT_CONFIG);
-		const r = checkRepeatedToolCall(state, "run_commands", "sig2", DEFAULT_CONFIG);
+		const r = checkRepeatedToolCall(
+			state,
+			"run_commands",
+			"sig2",
+			DEFAULT_CONFIG,
+		);
 		expect(r.softWarning).toBe(false);
 		expect(state.consecutiveIdenticalCount).toBe(1);
 	});
@@ -104,6 +111,8 @@ describe("checkRepeatedToolCall", () => {
 		const state = createLoopDetectionState();
 		checkRepeatedToolCall(state, "t", "s", cfg);
 		expect(checkRepeatedToolCall(state, "t", "s", cfg).softWarning).toBe(true);
-		expect(checkRepeatedToolCall(state, "t", "s", cfg).hardEscalation).toBe(true);
+		expect(checkRepeatedToolCall(state, "t", "s", cfg).hardEscalation).toBe(
+			true,
+		);
 	});
 });

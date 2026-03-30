@@ -155,7 +155,7 @@ describe("handleConnectorUserTurn", () => {
 			autoApproveTools: false,
 			cwd: "/tmp/work",
 			workspaceRoot: "/tmp/work",
-			participantKey: "slack:user:U123",
+			participantKey: "slack:team:T123:user:U123",
 			participantLabel: "alice",
 		});
 
@@ -195,7 +195,7 @@ describe("handleConnectorUserTurn", () => {
 			expect.objectContaining({
 				event: "message.denied",
 				payload: expect.objectContaining({
-					participantKey: "slack:user:U123",
+					participantKey: "slack:team:T123:user:U123",
 					reason: "not_on_allowlist",
 				}),
 			}),

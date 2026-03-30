@@ -125,8 +125,13 @@ function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function buildSlackParticipantKey(teamId: string, userId: string): string {
+	return `slack:team:${teamId}:user:${userId}`;
+}
+
 function resolveSlackParticipant(
 	rawMessage: unknown,
+	teamId?: string,
 ): { key: string; label?: string } | undefined {
 	const raw = asRecord(rawMessage);
 	const event = asRecord(raw?.event);
@@ -141,11 +146,11 @@ function resolveSlackParticipant(
 		readString(event?.username) ||
 		readString(message?.username);
 	const label = username || user;
-	if (!user) {
+	if (!user || !teamId?.trim()) {
 		return undefined;
 	}
 	return {
-		key: `slack:user:${user}`,
+		key: buildSlackParticipantKey(teamId.trim(), user),
 		label,
 	};
 }
@@ -188,8 +193,8 @@ async function persistSlackThreadContext(input: {
 	errorLabel: string;
 }): Promise<void> {
 	const teamId = extractSlackTeamId(input.rawMessage);
-	const participant = resolveSlackParticipant(input.rawMessage);
-	if (!teamId && !participant) {
+	const participant = resolveSlackParticipant(input.rawMessage, teamId);
+	if (!teamId) {
 		return;
 	}
 	const currentState = await loadThreadState(
@@ -938,6 +943,8 @@ class SlackConnector extends ConnectorBase<
 export const slackConnector: ConnectCommandDefinition = new SlackConnector();
 
 export const __test__ = {
+	buildSlackParticipantKey,
+	resolveSlackParticipant,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<SlackThreadState>,
 		thread: Pick<Thread<SlackThreadState>, "id" | "channelId" | "isDM"> & {
