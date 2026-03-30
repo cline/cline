@@ -704,6 +704,11 @@ export class ClineGatewayRuntime {
 					memberId:
 						safeString(request.request.clineAccount?.memberId) || undefined,
 				};
+			} else if (operation === "fetchFeaturebaseToken") {
+				payload = {
+					action: "clineAccount",
+					operation: "fetchFeaturebaseToken",
+				};
 			} else {
 				payload = {
 					action: "clineAccount",

@@ -31,7 +31,7 @@ export interface ClineAccountOperations {
 		memberId?: string;
 	}): Promise<ClineAccountOrganizationUsageTransaction[]>;
 	switchAccount(organizationId?: string | null): Promise<void>;
-	fetchFeaturebaseToken(): Promise<FeaturebaseTokenResponse | undefined>;
+	fetchFeaturebaseToken?(): Promise<FeaturebaseTokenResponse | undefined>;
 }
 
 export function isRpcClineAccountActionRequest(
@@ -66,7 +66,7 @@ export async function executeRpcClineAccountAction(
 			await service.switchAccount(request.organizationId);
 			return { updated: true };
 		case "fetchFeaturebaseToken":
-			return service.fetchFeaturebaseToken();
+			return service.fetchFeaturebaseToken?.();
 		default: {
 			const exhaustive: never = request;
 			throw new Error(

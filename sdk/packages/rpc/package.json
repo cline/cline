@@ -30,6 +30,7 @@
 		"build": "bun run generate:proto && bun run bun.mts && bun tsc --emitDeclarationOnly",
 		"clean": "rm -rf dist node_modules",
 		"generate:proto": "proto-loader-gen-types --longs=String --enums=String --defaults --oneofs --grpcLib=@grpc/grpc-js -O ./src/proto/generated ./src/proto/rpc.proto",
+		"test": "vitest run",
 		"typecheck": "bun tsc --noEmit"
 	},
 	"dependencies": {
