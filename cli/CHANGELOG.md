@@ -1,5 +1,45 @@
 # cline
 
+## [2.9.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+## [2.8.2]
+
+### Fixed
+- Use `kanban@latest` in `cline kanban` to always fetch the newest version
+
+## [2.8.1]
+
+### Added
+- Implement dynamic free model detection for Cline API
+- Add file read deduplication cache to prevent repeated reads
+- Add feature tips tooltip during thinking state
+
+### Fixed
+- Fix flaky CLI Enter-key handling across Windows/test environments
+- Replace error message when not logged in to Cline
+- Align ClineRulesToggleModal padding with ServersToggleModal
+- Skip WebP for GLM and Devstral models running through llama.cpp
+- Respect user-configured context window in LiteLLM getModel()
+- Honor explicit model IDs outside static catalog in W&B provider
+- Add missing Fireworks serverless models and pricing
+
+## [2.8.0]
+
+### Added
+
+- Added W&B Inference by CoreWeave as a new API provider with 17 models including DeepSeek-V3.1, Llama 4, and Qwen3-Coder
+- Added CLI TUI end-to-end test suite
+
+### Fixed
+
+- Claude Code: handle rate limit events, empty content arrays, error results, and unknown content types without crashing
+- CLI: `/q` and `/exit` slash commands now execute immediately on Enter without requiring the slash menu to be visible
+- CLI: slash command filtering now prioritizes exact and prefix matches over fuzzy matches
+
 ## [2.7.0]
 
 ### Added

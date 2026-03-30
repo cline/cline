@@ -8,6 +8,7 @@ import { Box, Text, useInput } from "ink"
 import React, { useState } from "react"
 import { COLORS } from "../constants/colors"
 import { useStdinContext } from "../context/StdinContext"
+import { isEnterKey } from "../utils/input"
 
 export interface SelectListItem {
 	id: string
@@ -31,7 +32,7 @@ export function SelectList<T extends SelectListItem>({ items, onSelect, isActive
 				setSelectedIndex((i) => (i > 0 ? i - 1 : items.length - 1))
 			} else if (key.downArrow) {
 				setSelectedIndex((i) => (i < items.length - 1 ? i + 1 : 0))
-			} else if (key.return) {
+			} else if (isEnterKey(_input, key)) {
 				const item = items[selectedIndex]
 				if (item) {
 					onSelect(item)

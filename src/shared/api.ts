@@ -4587,56 +4587,107 @@ export const mainlandZAiModels = {
 
 // Fireworks AI
 export type FireworksModelId = keyof typeof fireworksModels
-export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2-instruct-0905"
+export const fireworksDefaultModelId: FireworksModelId = "accounts/fireworks/models/kimi-k2p5"
 export const fireworksModels = {
-	"accounts/fireworks/models/kimi-k2-instruct-0905": {
+	"accounts/fireworks/models/kimi-k2p5": {
 		maxTokens: 16384,
 		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.6,
+		outputPrice: 3,
+		cacheWritesPrice: 0.6,
+		cacheReadsPrice: 0.1,
+		description:
+			"Moonshot's flagship open agentic model. Kimi K2.5 unifies vision and text, thinking and non-thinking modes, and single-agent and multi-agent execution.",
+	},
+	"accounts/fireworks/models/qwen3-vl-30b-a3b-thinking": {
+		maxTokens: 32768,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.15,
+		cacheReadsPrice: 0.07,
+		description:
+			"Reasoning-enabled Qwen3-VL model with strong multimodal understanding, long context support, and function calling.",
+	},
+	"accounts/fireworks/models/qwen3-vl-30b-a3b-instruct": {
+		maxTokens: 32768,
+		contextWindow: 262144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Qwen3-VL instruct model with strong multimodal reasoning, long context support, and function calling.",
+	},
+	"accounts/fireworks/models/deepseek-v3p2": {
+		maxTokens: 16384,
+		contextWindow: 163840,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.56,
+		outputPrice: 1.68,
+		cacheWritesPrice: 0.56,
+		cacheReadsPrice: 0.28,
+		description: "DeepSeek V3.2 model tuned for high computational efficiency and strong reasoning and agent performance.",
+	},
+	"accounts/fireworks/models/glm-4p7": {
+		maxTokens: 16384,
+		contextWindow: 202752,
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0.6,
-		outputPrice: 2.5,
-		cacheReadsPrice: 0.15,
-		description:
-			"Kimi K2 model gets a new version update: Agentic coding: more accurate, better generalization across scaffolds. Frontend coding: improved aesthetics and functionalities on web, 3d, and other tasks. Context length: extended from 128k to 256k, providing better long-horizon support.",
+		outputPrice: 2.2,
+		cacheWritesPrice: 0.6,
+		cacheReadsPrice: 0.3,
+		description: "GLM-4.7 is a next-generation general-purpose model optimized for coding, reasoning, and agentic workflows.",
 	},
-	"accounts/fireworks/models/qwen3-235b-a22b-instruct-2507": {
-		maxTokens: 32768,
-		contextWindow: 256000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.22,
-		outputPrice: 0.88,
-		description: "Latest Qwen3 thinking model, competitive against the best closed source models in Jul 2025.",
-	},
-	"accounts/fireworks/models/qwen3-coder-480b-a35b-instruct": {
-		maxTokens: 32768,
-		contextWindow: 256000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.45,
-		outputPrice: 1.8,
-		description: "Qwen3's most agentic code model to date.",
-	},
-	"accounts/fireworks/models/deepseek-r1-0528": {
-		maxTokens: 20480,
-		contextWindow: 160000,
-		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 3,
-		outputPrice: 8,
-		description:
-			"05/28 updated checkpoint of Deepseek R1. Its overall performance is now approaching that of leading models, such as O3 and Gemini 2.5 Pro. Compared to the previous version, the upgraded model shows significant improvements in handling complex reasoning tasks, and this version also offers a reduced hallucination rate, enhanced support for function calling, and better experience for vibe coding. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
-	},
-	"accounts/fireworks/models/deepseek-v3": {
+	"accounts/fireworks/models/glm-5": {
 		maxTokens: 16384,
-		contextWindow: 128000,
+		contextWindow: 202752,
 		supportsImages: false,
-		supportsPromptCache: false,
-		inputPrice: 0.9,
-		outputPrice: 0.9,
+		supportsPromptCache: true,
+		inputPrice: 1.0,
+		outputPrice: 3.2,
+		cacheWritesPrice: 1.0,
+		cacheReadsPrice: 0.2,
+		description: "GLM-5 is Z.ai's flagship reasoning model for complex systems engineering and long-horizon agentic tasks.",
+	},
+	"accounts/fireworks/models/minimax-m2p5": {
+		maxTokens: 16384,
+		contextWindow: 196608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
+		description: "MiniMax M2.5 is built for state-of-the-art coding, agentic tool use.",
+	},
+	"accounts/fireworks/models/minimax-m2p1": {
+		maxTokens: 16384,
+		contextWindow: 196608,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.3,
+		cacheReadsPrice: 0.03,
 		description:
-			"A strong Mixture-of-Experts (MoE) language model with 671B total parameters with 37B activated for each token from Deepseek. Note that fine-tuning for this model is only available through contacting fireworks at https://fireworks.ai/company/contact-us.",
+			"MiniMax M2.1 is tuned for strong real-world performance across coding, agent-driven, and workflow-heavy tasks.",
+	},
+	"accounts/fireworks/models/gpt-oss-120b": {
+		maxTokens: 16384,
+		contextWindow: 131072,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		cacheWritesPrice: 0.15,
+		cacheReadsPrice: 0.01,
+		description: "OpenAI gpt-oss-120b open-weight model for production and high-reasoning use cases.",
 	},
 } as const satisfies Record<string, ModelInfo>
 
@@ -4673,8 +4724,32 @@ export const qwenCodeDefaultModelId: QwenCodeModelId = "qwen3-coder-plus"
 // https://www.minimax.io/platform/document/text_api_intro
 // https://www.minimax.io/platform/document/pricing
 export type MinimaxModelId = keyof typeof minimaxModels
-export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.5"
+export const minimaxDefaultModelId: MinimaxModelId = "MiniMax-M2.7"
 export const minimaxModels = {
+	"MiniMax-M2.7": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
+		cacheWritesPrice: 0.375,
+		cacheReadsPrice: 0.06,
+		description: "Latest flagship model with enhanced reasoning and coding",
+	},
+	"MiniMax-M2.7-highspeed": {
+		maxTokens: 128_000,
+		contextWindow: 192_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.375,
+		cacheReadsPrice: 0.06,
+		description: "High-speed version of M2.7 for low-latency scenarios",
+	},
 	"MiniMax-M2.5": {
 		maxTokens: 128_000,
 		contextWindow: 192_000,
@@ -4683,7 +4758,7 @@ export const minimaxModels = {
 		supportsReasoning: true,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
-		cacheWritesPrice: 0.0375,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2.5-highspeed": {
@@ -4692,9 +4767,9 @@ export const minimaxModels = {
 		supportsImages: false,
 		supportsPromptCache: true,
 		supportsReasoning: true,
-		inputPrice: 0.3,
-		outputPrice: 1.2,
-		cacheWritesPrice: 0.0375,
+		inputPrice: 0.6,
+		outputPrice: 2.4,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2.1": {
@@ -4704,7 +4779,7 @@ export const minimaxModels = {
 		supportsPromptCache: true,
 		inputPrice: 0.3,
 		outputPrice: 1.2,
-		cacheWritesPrice: 0.0375,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2.1-lightning": {
@@ -4712,9 +4787,9 @@ export const minimaxModels = {
 		contextWindow: 192_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0.3,
+		inputPrice: 0.6,
 		outputPrice: 2.4,
-		cacheWritesPrice: 0.0375,
+		cacheWritesPrice: 0.375,
 		cacheReadsPrice: 0.03,
 	},
 	"MiniMax-M2": {

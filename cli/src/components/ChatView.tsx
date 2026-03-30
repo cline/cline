@@ -1492,13 +1492,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					if (item.type === "header") {
 						// Show static robot frame in header (first frame, looking straight ahead)
 						return (
-							<Box flexDirection="column" key="header">
+							<Box flexDirection="column" key="header" marginBottom={1}>
 								<StaticRobotFrame />
 								<Text> </Text>
 								<Text bold color="white">
 									{centerText("What can I do for you?")}
 								</Text>
-								<Text> </Text>
 							</Box>
 						)
 					}

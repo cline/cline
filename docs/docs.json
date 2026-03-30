@@ -101,6 +101,7 @@
 						"pages": [
 							"cline-cli/overview",
 							"cline-cli/installation",
+							"cline-sdk/overview",
 							"cline-cli/interactive-mode",
 							{
 								"group": "Headless Mode",
@@ -116,7 +117,6 @@
 							},
 							"cline-cli/configuration",
 							"cline-cli/acp-editor-integrations",
-							"cline-sdk/overview",
 							"cline-cli/cli-reference"
 						]
 					},
@@ -328,6 +328,21 @@
 							"api/models",
 							"api/errors",
 							"api/sdk-examples"
+						]
+					}
+				]
+			},
+			{
+				"tab": "Kanban",
+				"icon": "table-columns",
+				"groups": [
+					{
+						"group": "Cline Kanban",
+						"pages": [
+							"kanban/overview",
+							"kanban/getting-started",
+							"kanban/core-workflow",
+							"kanban/features"
 						]
 					}
 				]

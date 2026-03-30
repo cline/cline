@@ -120,6 +120,19 @@ function makeBlock(relPath?: string) {
 	}
 }
 
+function makeBlockWithRange(relPath: string, startLine?: string, endLine?: string) {
+	return {
+		type: "tool_use" as const,
+		name: ClineDefaultTool.FILE_READ,
+		params: {
+			path: relPath,
+			...(startLine !== undefined ? { start_line: startLine } : {}),
+			...(endLine !== undefined ? { end_line: endLine } : {}),
+		},
+		partial: false,
+	}
+}
+
 describe("ReadFileToolHandler.execute – file not found", () => {
 	let sandbox: sinon.SinonSandbox
 
@@ -173,7 +186,7 @@ describe("ReadFileToolHandler.execute – file not found", () => {
 		await fs.writeFile(path.join(tmpDir, realFile), "hello world")
 
 		const result = await handler.execute(config, makeBlock(realFile))
-		assert.equal(result, "hello world")
+		assert.equal(result, "1 | hello world\n\n(File has 1 lines total.)")
 		assert.equal(taskState.consecutiveMistakeCount, 0)
 	})
 
@@ -185,5 +198,22 @@ describe("ReadFileToolHandler.execute – file not found", () => {
 
 		assert.equal(result, "missing")
 		assert.equal(taskState.consecutiveMistakeCount, 1)
+	})
+
+	it("respects requested line ranges on cached rereads", async () => {
+		const { config, validator } = createConfig()
+		const handler = new ReadFileToolHandler(validator)
+
+		const realFile = "real-file.txt"
+		await fs.writeFile(path.join(tmpDir, realFile), "alpha\nbeta\ngamma\n")
+
+		const firstRead = await handler.execute(config, makeBlock(realFile))
+		assert.equal(firstRead, "1 | alpha\n2 | beta\n3 | gamma\n\n(File has 3 lines total.)")
+
+		const secondRead = await handler.execute(config, makeBlockWithRange(realFile, "2", "2"))
+		assert.equal(
+			secondRead,
+			"[File already read] The file 'real-file.txt' was already read earlier in this conversation. Returning content:\n2 | beta\n\n(Showing lines 2-2 of 3 total. Use start_line=3 to continue reading.)",
+		)
 	})
 })
