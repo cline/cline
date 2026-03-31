@@ -97,12 +97,14 @@ bun install --lockfile-only
   5. Review the changed `package.json` files, regenerated `bun.lock`, and generated model artifacts before publishing.
   6. Run `bun scripts/check-publish.ts` to verify the packed SDK tarballs are version-aligned and install together correctly.
   7. If you want to inspect one package manually before publish, run `bun pm pack` in that package and inspect `package/package.json` from the generated tarball.
-  8. Publish in dependency order:
+  8. Makes sure you're signed in with `npm login`.
+  9. Publish in dependency order:
      `cd packages/shared && bun publish`
      `cd ../llms && bun publish`
      `cd ../agents && bun publish`
      `cd ../core && bun publish`
-  9. If you are doing a tagged production release, create and push the corresponding git tags after publish.
+     or `cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish`
+  10. If you are doing a tagged production release, create and push the corresponding git tags after publish.
 - CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same order: build, version, `check:publish`, then publish `shared -> llms -> agents -> core`.
 
 #### Verification Steps

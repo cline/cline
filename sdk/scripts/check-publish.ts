@@ -156,6 +156,12 @@ async function main(): Promise<number> {
 			}
 		}
 		if (manifestFailed) {
+			console.info(
+				"\nPacked manifest dependency versions are not aligned. Please ensure that all workspace dependencies are declared with exact versions that match the packed versions.\n",
+			);
+			console.info(
+				"Try running `rm bun.lock && bun install --lockfile-only` to regenerate lockfile entries with exact versions for workspace dependencies, before running this script again.",
+			);
 			return 1;
 		}
 		console.log("  OK - packed workspace dependency versions are aligned\n");
