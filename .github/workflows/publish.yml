@@ -197,3 +197,25 @@ jobs:
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Post release to Slack
+              uses: slackapi/slack-github-action@v3.0.1
+              with:
+                  method: chat.postMessage
+                  token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+                  payload: |
+                    channel: "C0APVKGGZFC"
+                    text: "Cline ${{ steps.resolve_tag.outputs.tag }}"
+                    blocks:
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: "*Cline ${{ steps.resolve_tag.outputs.tag }}*"
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: ${{ toJSON(steps.changelog.outputs.content) }}
+                      - type: "context"
+                        elements:
+                          - type: "mrkdwn"
+                            text: "Full Changelog: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.resolve_tag.outputs.tag }}"
