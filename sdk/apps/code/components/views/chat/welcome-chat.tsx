@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, FolderOpen } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	Command,
 	CommandEmpty,
@@ -60,8 +60,28 @@ export function WelcomeScreen({
 	onStartChat: (prompt: string) => void;
 	quickActions: QuickAction[];
 }) {
-	const { workspaceRoot, workspaces, switchWorkspace } = useWorkspace();
+	const { workspaceRoot, workspaces, refreshWorkspaces, switchWorkspace } =
+		useWorkspace();
 	const [switchingWorkspace, setSwitchingWorkspace] = useState(false);
+	const availableWorkspaces = useMemo(() => {
+		const next = new Map<string, string>();
+		const register = (path: string) => {
+			const trimmed = path.trim();
+			if (!trimmed) {
+				return;
+			}
+			next.set(normalizeWorkspacePath(trimmed), trimmed);
+		};
+		register(workspaceRoot);
+		for (const workspacePath of workspaces) {
+			register(workspacePath);
+		}
+		return [...next.values()];
+	}, [workspaceRoot, workspaces]);
+
+	useEffect(() => {
+		void refreshWorkspaces();
+	}, [refreshWorkspaces]);
 
 	const handleSelectWorkspace = useCallback(
 		async (path: string) => {
@@ -105,7 +125,7 @@ export function WelcomeScreen({
 						<CommandList>
 							<CommandEmpty>No workspaces found.</CommandEmpty>
 							<CommandGroup>
-								{workspaces.map((wsPath) => {
+								{availableWorkspaces.map((wsPath) => {
 									const isActive =
 										normalizeWorkspacePath(wsPath) ===
 										normalizeWorkspacePath(workspaceRoot);

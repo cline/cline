@@ -449,6 +449,13 @@ export class DefaultSessionManager implements SessionManager {
 			event: "session.stopped",
 			properties: { sessionId },
 		});
+		// Abort the agent first if it's running, so shutdown can proceed
+		session.aborting = true;
+		(
+			session.agent as Agent & {
+				abort: (abortReason?: unknown) => void;
+			}
+		).abort(new Error("session_stop"));
 		await this.shutdownSession(session, {
 			status: "cancelled",
 			exitCode: 0,

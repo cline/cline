@@ -203,12 +203,23 @@ export const TeamReadMailboxInputSchema = z.object({
 export const TeamLogUpdateInputSchema = z.object({
 	kind: z.enum(["progress", "handoff", "blocked", "decision", "done", "error"]),
 	summary: z.string().min(1).describe("Update summary"),
-	taskId: z.string().min(1).optional().describe("Optional task ID context"),
+	taskId: z
+		.string()
+		.min(1)
+		.optional()
+		.nullable()
+		.describe("Optional task ID context"),
 	evidence: z
 		.array(z.string().min(1))
 		.optional()
+		.nullable()
 		.describe("Optional evidence links/snippets"),
-	nextAction: z.string().min(1).optional().describe("Planned next step"),
+	nextAction: z
+		.string()
+		.min(1)
+		.optional()
+		.nullable()
+		.describe("Planned next step"),
 });
 
 export const TeamCleanupInputSchema = z.object({});
@@ -226,7 +237,11 @@ export const TeamCreateOutcomeInputSchema = z.object({
 export const TeamAttachOutcomeFragmentInputSchema = z.object({
 	outcomeId: z.string().describe("Outcome ID"),
 	section: z.string().describe("Section name"),
-	sourceRunId: z.string().optional().describe("Optional source run ID"),
+	sourceRunId: z
+		.string()
+		.optional()
+		.nullable()
+		.describe("Optional source run ID"),
 	content: z.string().describe("Section fragment content"),
 });
 

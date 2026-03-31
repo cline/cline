@@ -620,18 +620,51 @@ async function handleAbort(
 	request: ChatSessionCommandRequest,
 ) {
 	const sessionId = request.sessionId?.trim();
+	let applied = false;
 	if (sessionId) {
-		await runBridgeCommand(ctx, { action: "abort", sessionId });
-		const session = ctx.liveSessions.get(sessionId);
-		if (session) {
-			session.busy = false;
-			session.promptsInQueue = [];
-			session.status = "cancelled";
-			session.endedAt = nowMs();
+		const response = (await runBridgeCommand(ctx, {
+			action: "abort",
+			sessionId,
+		})) as { ok?: boolean } | null;
+		if (response?.ok) {
+			applied = true;
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				session.busy = false;
+				session.promptsInQueue = [];
+				session.status = "cancelled";
+				session.endedAt = nowMs();
+			}
+			sendPromptsInQueueSnapshot(ctx, sessionId);
 		}
-		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
-	return { sessionId: request.sessionId, ok: true };
+	return { sessionId: request.sessionId, ok: applied };
+}
+
+async function handleStop(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const sessionId = request.sessionId?.trim();
+	let applied = false;
+	if (sessionId) {
+		const response = (await runBridgeCommand(ctx, {
+			action: "stop",
+			sessionId,
+		})) as { ok?: boolean } | null;
+		if (response?.ok) {
+			applied = true;
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				session.busy = false;
+				session.promptsInQueue = [];
+				session.status = "cancelled";
+				session.endedAt = nowMs();
+			}
+			sendPromptsInQueueSnapshot(ctx, sessionId);
+		}
+	}
+	return { sessionId: request.sessionId, ok: applied };
 }
 
 async function handleReset(
@@ -695,6 +728,7 @@ const ACTION_HANDLERS: Record<
 > = {
 	start: handleStart,
 	send: handleSend,
+	stop: handleStop,
 	abort: handleAbort,
 	reset: handleReset,
 	pending_prompts: handlePendingPrompts,

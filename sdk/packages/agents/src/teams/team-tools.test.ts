@@ -270,6 +270,54 @@ describe("createAgentTeamsTools schema surface", () => {
 			]),
 		);
 	});
+
+	it("accepts null sourceRunId for team_attach_outcome_fragment", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const createOutcome = tools.find(
+			(tool) => tool.name === "team_create_outcome",
+		);
+		const attachFragment = tools.find(
+			(tool) => tool.name === "team_attach_outcome_fragment",
+		);
+		expect(createOutcome).toBeDefined();
+		expect(attachFragment).toBeDefined();
+
+		const created = await createOutcome?.execute(
+			{ title: "Providers report" },
+			{
+				agentId: "lead",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		await expect(
+			attachFragment?.execute(
+				{
+					outcomeId: created?.outcomeId,
+					section: "current_state",
+					sourceRunId: null,
+					content: "Current findings.",
+				},
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).resolves.toMatchObject({
+			fragmentId: expect.stringMatching(/^frag_/),
+			status: "draft",
+		});
+
+		const [fragment] = runtime.listOutcomeFragments(created?.outcomeId);
+		expect(fragment?.sourceRunId).toBeUndefined();
+	});
 });
 
 describe("createAgentTeamsTools runtime behavior", () => {

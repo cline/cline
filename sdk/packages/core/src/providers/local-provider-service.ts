@@ -68,6 +68,14 @@ function stableColor(id: string): string {
 	return palette[hash % palette.length];
 }
 
+function toSortedRpcProviderModels(
+	modelMap: Record<string, LlmsProviders.ModelInfo>,
+): RpcProviderModel[] {
+	return Object.entries(modelMap)
+		.sort(([a], [b]) => a.localeCompare(b))
+		.map(([modelId, info]) => toRpcProviderModel(modelId, info));
+}
+
 // --- Model ID parsing ---
 
 function parseModelIdList(input: unknown): string[] {
@@ -274,12 +282,13 @@ export async function listLocalProviders(
 				LlmsModels.getProvider(id),
 				LlmsModels.getModelsForProvider(id),
 			]);
+			const modelList = toSortedRpcProviderModels(registeredModels);
 			const persistedSettings = state.providers[id]?.settings;
 			const name = info?.name ?? titleCaseFromId(id);
 			return {
 				id,
 				name,
-				models: Object.keys(registeredModels).length,
+				models: modelList.length,
 				color: stableColor(id),
 				letter: createLetter(name),
 				enabled: Boolean(persistedSettings),
@@ -293,6 +302,7 @@ export async function listLocalProviders(
 				defaultModelId: info?.defaultModelId,
 				authDescription: "This provider uses API keys for authentication.",
 				baseUrlDescription: "The base endpoint to use for provider requests.",
+				modelList,
 			};
 		}),
 	);
@@ -306,9 +316,7 @@ export async function getLocalProviderModels(
 ): Promise<{ providerId: string; models: RpcProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
-	const models = Object.entries(modelMap)
-		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([modelId, info]) => toRpcProviderModel(modelId, info));
+	const models = toSortedRpcProviderModels(modelMap);
 	return { providerId: id, models };
 }
 

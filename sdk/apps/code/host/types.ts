@@ -32,6 +32,7 @@ export type ChatSessionCommandRequest = {
 	action:
 		| "start"
 		| "send"
+		| "stop"
 		| "abort"
 		| "reset"
 		| "pending_prompts"

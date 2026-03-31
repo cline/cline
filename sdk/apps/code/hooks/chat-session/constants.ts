@@ -1,5 +1,6 @@
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
+import { normalizeProviderId } from "@/lib/provider-id";
 
 export const CHAT_TRANSPORT_UNAVAILABLE_MESSAGE =
 	"Chat connection is unavailable. Reopen the app window to restore realtime chat.";
@@ -37,9 +38,10 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 
 export function getInitialChatConfig(): ChatSessionConfig {
 	const selection = readModelSelectionStorageFromWindow();
-	const rememberedProvider = selection.lastProvider.trim();
+	const rememberedProvider = normalizeProviderId(selection.lastProvider);
 	const rememberedModelForProvider = rememberedProvider
-		? selection.lastModelByProvider[rememberedProvider]
+		? (selection.lastModelByProvider[rememberedProvider] ??
+			selection.lastModelByProvider[selection.lastProvider.trim()])
 		: undefined;
 	const rememberedModelForDefaultProvider =
 		selection.lastModelByProvider[DEFAULT_CHAT_CONFIG.provider];

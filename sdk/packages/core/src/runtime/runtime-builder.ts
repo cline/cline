@@ -531,9 +531,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 				teamToolsRegistered = true;
 
+				const leadAgentId = config.sessionId || "lead";
 				const teamBootstrap = bootstrapAgentTeams({
 					runtime: teamRuntime,
-					leadAgentId: "lead",
+					leadAgentId,
 					restoredFromPersistence: Boolean(restoredTeamState),
 					restoredTeammates: restoredTeammateSpecs,
 					createBaseTools: normalized.enableTools

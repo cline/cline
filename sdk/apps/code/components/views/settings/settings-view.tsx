@@ -265,7 +265,7 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 		const selected = providers.find(
 			(provider) => provider.id === selectedProviderId,
 		);
-		if (!selected || selected.modelList) {
+		if (!selected || (selected.modelList?.length ?? 0) > 0) {
 			return;
 		}
 		void loadProviderModels(selectedProviderId);

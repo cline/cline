@@ -179,11 +179,13 @@ export function useChatSession() {
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
+	const abortedRef = useRef(false);
+	const abortFallbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
 	const hydrationRequestIdRef = useRef(0);
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
-	const messagesRef = useRef<ChatMessage[]>([]);
-
 	// ---- Ref syncs ----
 
 	useEffect(() => {
@@ -192,15 +194,19 @@ export function useChatSession() {
 	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
-	useEffect(() => {
-		messagesRef.current = messages;
-	}, [messages]);
 
 	// ---- Shared state reset helpers ----
 
 	const clearLiveToolRefs = useCallback(() => {
 		liveToolMessageIdsRef.current = {};
 		liveToolInputsRef.current = {};
+	}, []);
+
+	const clearAbortFallbackTimeout = useCallback(() => {
+		if (abortFallbackTimeoutRef.current) {
+			clearTimeout(abortFallbackTimeoutRef.current);
+			abortFallbackTimeoutRef.current = null;
+		}
 	}, []);
 
 	const resetCounters = useCallback(() => {
@@ -290,9 +296,7 @@ export function useChatSession() {
 	// ---- Message helpers ----
 
 	const addMessage = useCallback((message: ChatMessage) => {
-		setMessages((prev) =>
-			sliceMessages(sortMessagesChronologically([...prev, message])),
-		);
+		setMessages((prev) => sliceMessages([...prev, message]));
 	}, []);
 
 	const materializeToolMessagesFromResult = useCallback(
@@ -431,6 +435,9 @@ export function useChatSession() {
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
 				return;
 			}
+			if (abortedRef.current) {
+				return;
+			}
 
 			if (payload.stream === "chat_queued_prompt_start") {
 				let parsed: { prompt?: string; attachmentCount?: number } = {};
@@ -451,11 +458,11 @@ export function useChatSession() {
 					attachmentCount > 0
 						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachmentCount} file${attachmentCount === 1 ? "" : "s"}]`
 						: prompt;
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
+				clearLiveToolRefs();
+				setStatus("running");
 				if (userLabel) {
-					activeAssistantMessageIdRef.current = null;
-					setActiveAssistantMessageId(null);
-					clearLiveToolRefs();
-					setStatus("running");
 					addMessage({
 						id: makeId("user"),
 						sessionId: listeningSessionId,
@@ -471,22 +478,14 @@ export function useChatSession() {
 			if (payload.stream === "chat_text") {
 				let assistantId = activeAssistantMessageIdRef.current;
 				if (!assistantId) {
-					const sessionMessages = messagesRef.current.filter(
-						(m) => m.sessionId === listeningSessionId,
-					);
-					const latest = sessionMessages.at(-1);
-					if (latest?.role === "assistant") {
-						assistantId = latest.id;
-					} else {
-						assistantId = makeId("assistant");
-						addMessage({
-							id: assistantId,
-							sessionId: listeningSessionId,
-							role: "assistant",
-							content: "",
-							createdAt: payload.ts || Date.now(),
-						});
-					}
+					assistantId = makeId("assistant");
+					addMessage({
+						id: assistantId,
+						sessionId: listeningSessionId,
+						role: "assistant",
+						content: "",
+						createdAt: payload.ts || Date.now(),
+					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
 				}
@@ -514,6 +513,9 @@ export function useChatSession() {
 				const messageId = makeId("tool");
 				liveToolMessageIdsRef.current[toolCallId] = messageId;
 				liveToolInputsRef.current[toolCallId] = parsed.input;
+				// Reset so text after this tool call gets a fresh assistant message
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
 				addMessage({
 					id: messageId,
 					sessionId: listeningSessionId,
@@ -655,6 +657,8 @@ export function useChatSession() {
 
 			setError(null);
 			setIsHydratingSession(false);
+			abortedRef.current = false;
+			clearAbortFallbackTimeout();
 			let activeSessionId = sessionId;
 
 			const validation = validateConfig(config);
@@ -727,6 +731,10 @@ export function useChatSession() {
 
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
+				if (abortedRef.current) {
+					setStatus("cancelled");
+					return;
+				}
 				const assistantText = (result?.text ?? "").trim();
 				const fallbackAssistantText = extractAssistantTextFromRpcMessages(
 					result?.messages,
@@ -825,7 +833,9 @@ export function useChatSession() {
 				const hasQueuedFollowUps =
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
-				if (result?.finishReason === "error") {
+				if (abortedRef.current) {
+					setStatus("cancelled");
+				} else if (result?.finishReason === "error") {
 					if (!resolvedAssistantText) {
 						const toolError = Array.isArray(result?.toolCalls)
 							? result.toolCalls.find((c) => c.error)?.error
@@ -848,6 +858,10 @@ export function useChatSession() {
 				}
 				void refreshSessionDiffSummary(activeSessionId);
 			} catch (err) {
+				if (abortedRef.current) {
+					setStatus("cancelled");
+					return;
+				}
 				if (optimisticQueuedPromptId) {
 					setPromptsInQueue((prev) =>
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
@@ -855,6 +869,7 @@ export function useChatSession() {
 				}
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
+				clearAbortFallbackTimeout();
 				if (!shouldQueue) {
 					activeAssistantMessageIdRef.current = null;
 					setActiveAssistantMessageId(null);
@@ -865,6 +880,7 @@ export function useChatSession() {
 		[
 			addMessage,
 			applyPromptsInQueue,
+			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
 			materializeToolMessagesFromResult,
@@ -908,13 +924,28 @@ export function useChatSession() {
 
 	const abort = useCallback(async () => {
 		if (!sessionId) return;
+		abortedRef.current = true;
+		setStatus("stopping");
+		clearAbortFallbackTimeout();
+		abortFallbackTimeoutRef.current = setTimeout(() => {
+			if (abortedRef.current) {
+				setStatus("cancelled");
+			}
+			abortFallbackTimeoutRef.current = null;
+		}, 2000);
 		try {
-			await postSession({ action: "abort", sessionId });
+			const response = await postSession({ action: "stop", sessionId });
+			if (!response.ok) {
+				abortedRef.current = false;
+				clearAbortFallbackTimeout();
+				setStatus("running");
+			}
 		} catch {
-			// Best-effort abort path.
+			abortedRef.current = false;
+			clearAbortFallbackTimeout();
+			setStatus("running");
 		}
-		setStatus("cancelled");
-	}, [sessionId, postSession]);
+	}, [clearAbortFallbackTimeout, postSession, sessionId]);
 
 	const reset = useCallback(async () => {
 		const activeSessionId = sessionId;

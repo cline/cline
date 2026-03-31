@@ -569,11 +569,13 @@ export function createAgentTeamsTools(
 				const validatedInput = validateWithZod(TeamLogUpdateInputSchema, input);
 				const entry = options.runtime.appendMissionLog({
 					agentId: options.requesterId,
-					taskId: validatedInput.taskId,
+					taskId: validatedInput.taskId || undefined,
 					kind: validatedInput.kind,
 					summary: validatedInput.summary,
-					evidence: validatedInput.evidence,
-					nextAction: validatedInput.nextAction,
+					evidence: validatedInput.evidence?.length
+						? validatedInput.evidence
+						: undefined,
+					nextAction: validatedInput.nextAction || undefined,
 				});
 				return { id: entry.id };
 			},
@@ -638,7 +640,7 @@ export function createAgentTeamsTools(
 					outcomeId: validatedInput.outcomeId,
 					section: validatedInput.section,
 					sourceAgentId: options.requesterId,
-					sourceRunId: validatedInput.sourceRunId,
+					sourceRunId: validatedInput.sourceRunId || undefined,
 					content: validatedInput.content,
 				});
 				return { fragmentId: fragment.id, status: fragment.status };

@@ -642,36 +642,26 @@ describe("listLocalProviders", () => {
 		expect(p?.letter).toBeTruthy();
 	});
 
-	it("leaves LiteLLM model lists unresolved in the provider catalog path", async () => {
+	it("includes built-in model lists in the provider catalog path", async () => {
 		manager.saveProviderSettings(
 			{
-				provider: "litellm",
+				provider: "openai-native",
 				apiKey: "test-key",
-				baseUrl: "http://localhost:4000",
-				model: "gpt-4o",
+				baseUrl: "https://api.openai.com/v1",
+				model: "gpt-5.3-codex",
 			},
 			{ setLastUsed: false },
 		);
-		vi.stubGlobal(
-			"fetch",
-			vi.fn().mockResolvedValue({
-				ok: true,
-				json: async () => ({
-					data: [
-						{
-							model_name: "team-private-model",
-							litellm_params: { model: "team/private-model" },
-							model_info: {},
-						},
-					],
-				}),
-			}),
-		);
 
 		const { providers } = await listLocalProviders(manager);
-		const litellm = providers.find((provider) => provider.id === "litellm");
+		const openai = providers.find(
+			(provider) => provider.id === "openai-native",
+		);
 
-		expect(litellm?.modelList).toBeUndefined();
+		expect(openai?.modelList?.length).toBeGreaterThan(0);
+		expect(
+			openai?.modelList?.some((model) => model.id === "gpt-5.3-codex"),
+		).toBe(true);
 	});
 
 	it("does not eagerly fetch LiteLLM private models while listing providers", async () => {
@@ -702,7 +692,10 @@ describe("listLocalProviders", () => {
 		const litellm = providers.find((provider) => provider.id === "litellm");
 
 		expect(fetchMock).not.toHaveBeenCalled();
-		expect(litellm?.modelList).toBeUndefined();
+		expect(litellm?.modelList).toEqual([]);
+		expect(
+			litellm?.modelList?.some((model) => model.id === "team/private-model"),
+		).toBe(false);
 	});
 });
 

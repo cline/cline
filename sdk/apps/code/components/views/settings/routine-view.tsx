@@ -43,7 +43,11 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
-import { loadProviderModelCatalog } from "@/lib/provider-model-catalog";
+import { normalizeProviderId } from "@/lib/provider-id";
+import {
+	loadProviderModelCatalog,
+	loadProviderModels,
+} from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 
 interface RoutineSchedule {
@@ -130,7 +134,7 @@ interface ProcessContext {
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: ["anthropic/claude-sonnet-4.6"],
 	anthropic: ["claude-sonnet-4-6"],
-	openai: ["gpt-5.3-codex"],
+	"openai-native": ["gpt-5.3-codex"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-2.5-pro"],
 };
@@ -250,6 +254,9 @@ export function RoutineSchedulesContent() {
 	const [lastModelSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
+	const rememberedProvider = normalizeProviderId(
+		lastModelSelection.lastProvider,
+	);
 	const [createForm, setCreateForm] = useState<RoutineFormState>({
 		name: "",
 		scheduleHour: "9",
@@ -314,7 +321,21 @@ export function RoutineSchedulesContent() {
 					return;
 				}
 				setProviderModels(payload.providerModels);
-				setEnabledProviderIds(payload.enabledProviderIds);
+				setEnabledProviderIds((current) => {
+					const nextProviderIds = new Set(payload.enabledProviderIds);
+					const normalizedCurrentProvider = normalizeProviderId(
+						createForm.provider,
+					);
+					if (normalizedCurrentProvider) {
+						nextProviderIds.add(normalizedCurrentProvider);
+					}
+					for (const providerId of current) {
+						if (providerId in payload.providerModels) {
+							nextProviderIds.add(providerId);
+						}
+					}
+					return Array.from(nextProviderIds);
+				});
 			} catch {
 				// Keep fallback values if provider catalog is unavailable.
 			}
@@ -324,21 +345,59 @@ export function RoutineSchedulesContent() {
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [createForm.provider]);
+
+	useEffect(() => {
+		const normalizedProvider = normalizeProviderId(createForm.provider);
+		if (!normalizedProvider) {
+			return;
+		}
+		if ((providerModels[normalizedProvider] ?? []).length > 0) {
+			return;
+		}
+
+		let cancelled = false;
+
+		async function loadModelsForProvider() {
+			try {
+				const models = await loadProviderModels(normalizedProvider);
+				if (cancelled || models.length === 0) {
+					return;
+				}
+				setProviderModels((current) => ({
+					...current,
+					[normalizedProvider]: models.map((entry) => entry.id),
+				}));
+				setEnabledProviderIds((current) =>
+					current.includes(normalizedProvider)
+						? current
+						: [...current, normalizedProvider],
+				);
+			} catch {
+				// Keep existing values when provider-specific model loading fails.
+			}
+		}
+
+		void loadModelsForProvider();
+		return () => {
+			cancelled = true;
+		};
+	}, [createForm.provider, providerModels]);
 
 	useEffect(() => {
 		if (availableProviders.length === 0) {
 			return;
 		}
-		if (!availableProviders.includes(createForm.provider)) {
+		const normalizedFormProvider = normalizeProviderId(createForm.provider);
+		if (!availableProviders.includes(normalizedFormProvider)) {
 			const nextProvider =
-				lastModelSelection.lastProvider &&
-				availableProviders.includes(lastModelSelection.lastProvider)
-					? lastModelSelection.lastProvider
+				rememberedProvider && availableProviders.includes(rememberedProvider)
+					? rememberedProvider
 					: availableProviders[0];
 			const models = visibleProviderModels[nextProvider] ?? [];
 			const rememberedModel =
-				lastModelSelection.lastModelByProvider[nextProvider];
+				lastModelSelection.lastModelByProvider[nextProvider] ??
+				lastModelSelection.lastModelByProvider[lastModelSelection.lastProvider];
 			const nextModel =
 				rememberedModel && models.includes(rememberedModel)
 					? rememberedModel
@@ -350,18 +409,23 @@ export function RoutineSchedulesContent() {
 			}));
 			return;
 		}
-		const models = visibleProviderModels[createForm.provider] ?? [];
+		const models = visibleProviderModels[normalizedFormProvider] ?? [];
 		if (models.length === 0) {
 			return;
 		}
 		if (!models.includes(createForm.model)) {
 			const rememberedModel =
-				lastModelSelection.lastModelByProvider[createForm.provider];
+				lastModelSelection.lastModelByProvider[normalizedFormProvider] ??
+				lastModelSelection.lastModelByProvider[lastModelSelection.lastProvider];
 			const nextModel =
 				rememberedModel && models.includes(rememberedModel)
 					? rememberedModel
 					: models[0];
-			setCreateForm((prev) => ({ ...prev, model: nextModel }));
+			setCreateForm((prev) => ({
+				...prev,
+				provider: normalizedFormProvider,
+				model: nextModel,
+			}));
 		}
 	}, [
 		availableProviders,
@@ -369,6 +433,7 @@ export function RoutineSchedulesContent() {
 		createForm.provider,
 		lastModelSelection.lastModelByProvider,
 		lastModelSelection.lastProvider,
+		rememberedProvider,
 		visibleProviderModels,
 	]);
 
@@ -483,13 +548,13 @@ export function RoutineSchedulesContent() {
 			// Use empty defaults when context lookup fails.
 		}
 		const preferredProvider =
-			lastModelSelection.lastProvider &&
-			availableProviders.includes(lastModelSelection.lastProvider)
-				? lastModelSelection.lastProvider
+			rememberedProvider && availableProviders.includes(rememberedProvider)
+				? rememberedProvider
 				: (availableProviders[0] ?? "cline");
 		const modelsForProvider = visibleProviderModels[preferredProvider] ?? [];
 		const rememberedModel =
-			lastModelSelection.lastModelByProvider[preferredProvider];
+			lastModelSelection.lastModelByProvider[preferredProvider] ??
+			lastModelSelection.lastModelByProvider[lastModelSelection.lastProvider];
 		const preferredModel =
 			rememberedModel && modelsForProvider.includes(rememberedModel)
 				? rememberedModel
@@ -544,7 +609,9 @@ export function RoutineSchedulesContent() {
 		setIsCreating(true);
 		try {
 			const provider =
-				createForm.provider.trim() || availableProviders[0] || "cline";
+				normalizeProviderId(createForm.provider) ||
+				availableProviders[0] ||
+				"cline";
 			const model =
 				createForm.model.trim() ||
 				(visibleProviderModels[provider] ?? [])[0] ||

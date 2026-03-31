@@ -5,6 +5,7 @@ import type {
 	Provider,
 	ProviderCatalogResponse,
 	ProviderModel,
+	ProviderModelsResponse,
 } from "@/lib/provider-schema";
 
 export type ProviderModelCatalog = {
@@ -52,4 +53,16 @@ export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> 
 		"list_provider_catalog",
 	);
 	return buildProviderModelCatalog(payload.providers ?? []);
+}
+
+export async function loadProviderModels(
+	providerId: string,
+): Promise<ProviderModel[]> {
+	const payload = await desktopClient.invoke<ProviderModelsResponse>(
+		"list_provider_models",
+		{
+			provider: providerId,
+		},
+	);
+	return payload.models ?? [];
 }

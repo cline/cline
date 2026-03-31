@@ -28,7 +28,11 @@ import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import { loadProviderModelCatalog } from "@/lib/provider-model-catalog";
+import { normalizeProviderId } from "@/lib/provider-id";
+import {
+	loadProviderModelCatalog,
+	loadProviderModels,
+} from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { WorkspaceSelector } from "./workspace-selector";
 
@@ -41,7 +45,7 @@ type ActiveMention = {
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: ["anthropic/claude-sonnet-4.6"],
 	anthropic: ["claude-sonnet-4-6"],
-	openai: ["gpt-5.3-codex"],
+	"openai-native": ["gpt-5.3-codex"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-2.5-pro"],
 };
@@ -49,7 +53,7 @@ const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	cline: ["anthropic/claude-sonnet-4.6"],
 	anthropic: ["claude-sonnet-4-6"],
-	openai: ["gpt-5.3-codex"],
+	"openai-native": ["gpt-5.3-codex"],
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-2.5-pro"],
 };
@@ -59,7 +63,12 @@ function hasReasoningCapability(
 	provider: string,
 	model: string,
 ): boolean {
-	return (providerReasoningModels[provider] ?? []).includes(model);
+	const normalizedProvider = normalizeProviderId(provider);
+	return (
+		providerReasoningModels[normalizedProvider] ??
+		providerReasoningModels[provider] ??
+		[]
+	).includes(model);
 }
 
 function getActiveMention(input: string, cursor: number): ActiveMention | null {
@@ -149,7 +158,7 @@ export function ChatInputBar({
 	const isBusy =
 		status === "starting" || status === "running" || status === "stopping";
 	const hasDraft = promptInput.trim().length > 0 || attachments.length > 0;
-	const canAbort = isBusy && !hasDraft;
+
 	const [modelSupportsReasoning, setModelSupportsReasoning] = useState(() =>
 		hasReasoningCapability(FALLBACK_PROVIDER_REASONING_MODELS, provider, model),
 	);
@@ -428,8 +437,6 @@ export function ChatInputBar({
 									e.preventDefault();
 									if (canSend) {
 										onSend();
-									} else if (canAbort) {
-										onAbort();
 									}
 								}
 							}}
@@ -512,18 +519,25 @@ export function ChatInputBar({
 					>
 						<Mic className="h-4 w-4" />
 					</button>
-					<button
-						className="rounded-full bg-foreground p-1.5 text-background hover:bg-foreground/80 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
-						disabled={!canSend && !canAbort}
-						onClick={canSend ? onSend : onAbort}
-						type="button"
-					>
-						{canSend ? (
-							<ArrowUp className="h-4 w-4" />
-						) : (
+					{isBusy && (
+						<button
+							className="rounded-full bg-foreground p-1.5 text-background hover:bg-foreground/80 transition-colors"
+							onClick={onAbort}
+							type="button"
+						>
 							<CircleStop className="h-4 w-4" />
-						)}
-					</button>
+						</button>
+					)}
+					{(!isBusy || canSend) && (
+						<button
+							className="rounded-full bg-foreground p-1.5 text-background hover:bg-foreground/80 transition-colors disabled:cursor-not-allowed disabled:opacity-60"
+							disabled={!canSend}
+							onClick={onSend}
+							type="button"
+						>
+							<ArrowUp className="h-4 w-4" />
+						</button>
+					)}
 				</div>
 			</div>
 
@@ -591,6 +605,7 @@ function ModelSelector({
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean) => void;
 }) {
+	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
 		Record<string, string[]>
 	>(FALLBACK_PROVIDER_MODELS);
@@ -612,19 +627,20 @@ function ModelSelector({
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
 	);
+	const rememberedLastProvider = lastSelection.lastProvider.trim();
 	const resolvedProvider = useMemo(() => {
 		if (providers.length === 0) {
 			return "";
 		}
-		const rememberedProvider = lastSelection.lastProvider.trim();
-		if (provider && providers.includes(provider)) {
-			return provider;
+		const rememberedProvider = normalizeProviderId(rememberedLastProvider);
+		if (normalizedProvider && providers.includes(normalizedProvider)) {
+			return normalizedProvider;
 		}
 		if (rememberedProvider && providers.includes(rememberedProvider)) {
 			return rememberedProvider;
 		}
 		return providers[0] ?? "";
-	}, [lastSelection.lastProvider, provider, providers]);
+	}, [normalizedProvider, providers, rememberedLastProvider]);
 	const modelsForProvider = useMemo(
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
@@ -633,7 +649,9 @@ function ModelSelector({
 		if (modelsForProvider.length === 0) {
 			return "";
 		}
-		const rememberedModel = lastSelection.lastModelByProvider[resolvedProvider];
+		const rememberedModel =
+			lastSelection.lastModelByProvider[resolvedProvider] ??
+			lastSelection.lastModelByProvider[rememberedLastProvider];
 		if (model && modelsForProvider.includes(model)) {
 			return model;
 		}
@@ -645,6 +663,7 @@ function ModelSelector({
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		rememberedLastProvider,
 		resolvedProvider,
 	]);
 
@@ -659,7 +678,18 @@ function ModelSelector({
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
-				setEnabledProviderIds(payload.enabledProviderIds);
+				setEnabledProviderIds((current) => {
+					const nextProviderIds = new Set(payload.enabledProviderIds);
+					if (normalizedProvider) {
+						nextProviderIds.add(normalizedProvider);
+					}
+					for (const providerId of current) {
+						if (providerId in payload.providerModels) {
+							nextProviderIds.add(providerId);
+						}
+					}
+					return Array.from(nextProviderIds);
+				});
 			} catch {
 				// Keep local fallback values when provider catalog is unavailable.
 			}
@@ -669,28 +699,72 @@ function ModelSelector({
 		return () => {
 			cancelled = true;
 		};
-	}, []);
+	}, [normalizedProvider]);
+
+	useEffect(() => {
+		if (!normalizedProvider) {
+			return;
+		}
+		if ((providerModels[normalizedProvider] ?? []).length > 0) {
+			return;
+		}
+
+		let cancelled = false;
+
+		async function loadModelsForProvider() {
+			try {
+				const models = await loadProviderModels(normalizedProvider);
+				if (cancelled || models.length === 0) {
+					return;
+				}
+				const modelIds = models.map((entry) => entry.id);
+				const reasoningModelIds = models
+					.filter((entry) => entry.supportsReasoning)
+					.map((entry) => entry.id);
+				setProviderModels((current) => ({
+					...current,
+					[normalizedProvider]: modelIds,
+				}));
+				setProviderReasoningModels((current) => ({
+					...current,
+					[normalizedProvider]: reasoningModelIds,
+				}));
+				setEnabledProviderIds((current) =>
+					current.includes(normalizedProvider)
+						? current
+						: [...current, normalizedProvider],
+				);
+			} catch {
+				// Keep existing values when provider-specific model loading fails.
+			}
+		}
+
+		void loadModelsForProvider();
+		return () => {
+			cancelled = true;
+		};
+	}, [normalizedProvider, providerModels]);
 
 	useEffect(() => {
 		setLastSelection((prev) => {
-			if (!provider || !model) {
+			if (!normalizedProvider || !model) {
 				return prev;
 			}
 			if (
-				prev.lastProvider === provider &&
-				prev.lastModelByProvider[provider] === model
+				prev.lastProvider === normalizedProvider &&
+				prev.lastModelByProvider[normalizedProvider] === model
 			) {
 				return prev;
 			}
 			return {
-				lastProvider: provider,
+				lastProvider: normalizedProvider,
 				lastModelByProvider: {
 					...prev.lastModelByProvider,
-					[provider]: model,
+					[normalizedProvider]: model,
 				},
 			};
 		});
-	}, [model, provider]);
+	}, [model, normalizedProvider]);
 
 	useEffect(() => {
 		try {
@@ -704,7 +778,7 @@ function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
-		if (resolvedProvider && resolvedProvider !== provider) {
+		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
 			onProviderChange(resolvedProvider);
 		}
 		if (resolvedModel && resolvedModel !== model) {
@@ -714,7 +788,7 @@ function ModelSelector({
 		model,
 		onModelChange,
 		onProviderChange,
-		provider,
+		normalizedProvider,
 		providers,
 		resolvedModel,
 		resolvedProvider,
@@ -722,12 +796,16 @@ function ModelSelector({
 
 	useEffect(() => {
 		onModelSupportsReasoningChange(
-			hasReasoningCapability(providerReasoningModels, provider, model),
+			hasReasoningCapability(
+				providerReasoningModels,
+				normalizedProvider,
+				model,
+			),
 		);
 	}, [
 		model,
 		onModelSupportsReasoningChange,
-		provider,
+		normalizedProvider,
 		providerReasoningModels,
 	]);
 

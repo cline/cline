@@ -237,6 +237,7 @@ export async function readSessionMessages(
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
+	let nextCreatedAt = baseTs;
 
 	for (let idx = start; idx < messages.length; idx += 1) {
 		const rawMessage = messages[idx];
@@ -253,7 +254,6 @@ export async function readSessionMessages(
 			normalizeRole(message.role),
 			readMessageMetadata(message),
 		);
-		const createdAtBase = parseU64Value(message.ts) ?? baseTs + idx;
 		const messageIdBase =
 			(typeof message.id === "string" && message.id.trim()) ||
 			`history_message_${idx}`;
@@ -271,7 +271,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt: createdAtBase,
+				createdAt: nextCreatedAt++,
 				meta: textMeta,
 			});
 			continue;
@@ -280,7 +280,7 @@ export async function readSessionMessages(
 		const textParts: string[] = [];
 		let textSegmentIndex = 0;
 		const outStartIndex = out.length;
-		const flushTextParts = (ts: number) => {
+		const flushTextParts = () => {
 			if (textParts.length === 0) {
 				return;
 			}
@@ -294,7 +294,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content: joined,
-				createdAt: ts,
+				createdAt: nextCreatedAt++,
 				meta: textMeta,
 			});
 			textSegmentIndex += 1;
@@ -303,7 +303,6 @@ export async function readSessionMessages(
 
 		for (let blockIdx = 0; blockIdx < contentBlocks.length; blockIdx += 1) {
 			const block = contentBlocks[blockIdx];
-			const blockTs = createdAtBase + blockIdx;
 			if (!block || typeof block !== "object") {
 				const line = stringifyMessageContent(block);
 				if (line.trim()) {
@@ -314,7 +313,7 @@ export async function readSessionMessages(
 			const record = block as JsonRecord;
 			const blockType = typeof record.type === "string" ? record.type : "";
 			if (blockType === "tool_use") {
-				flushTextParts(blockTs);
+				flushTextParts();
 				const toolName =
 					typeof record.name === "string" ? record.name : "tool_call";
 				const toolUseId = typeof record.id === "string" ? record.id : "";
@@ -325,7 +324,7 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt: blockTs,
+					createdAt: nextCreatedAt++,
 					meta: {
 						toolName,
 						hookEventName: "history_tool_use",
@@ -337,7 +336,7 @@ export async function readSessionMessages(
 				continue;
 			}
 			if (blockType === "tool_result") {
-				flushTextParts(blockTs);
+				flushTextParts();
 				const toolUseId =
 					typeof record.tool_use_id === "string" ? record.tool_use_id : "";
 				const result = record.content ?? null;
@@ -365,7 +364,7 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt: blockTs,
+						createdAt: nextCreatedAt++,
 						meta: {
 							toolName: "tool_result",
 							hookEventName: "history_tool_result",
@@ -380,7 +379,7 @@ export async function readSessionMessages(
 			}
 		}
 
-		flushTextParts(createdAtBase + contentBlocks.length);
+		flushTextParts();
 		if (textMeta && out[outStartIndex]) {
 			out[outStartIndex].meta = {
 				...(typeof out[outStartIndex].meta === "object"
