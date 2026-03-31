@@ -66,7 +66,7 @@ The Cline CLI uses these tokens when you authenticate via:
 cline auth
 
 # Or quick setup with an API key
-cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4-6
+cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4.6
 ```
 
 See the [CLI Reference](/cline-cli/cli-reference#cline-auth) for all auth options.
@@ -95,7 +95,7 @@ export CLINE_API_KEY="your_api_key_here"
 curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer $CLINE_API_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"model": "anthropic/claude-sonnet-4-6", "messages": [{"role": "user", "content": "Hello"}]}'
+  -d '{"model": "anthropic/claude-sonnet-4.6", "messages": [{"role": "user", "content": "Hello"}]}'
 ```
 
 ### Using a .env File

@@ -60,7 +60,7 @@ POST /chat/completions
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `model` | string | Yes | Model ID in `provider/model` format (e.g., `anthropic/claude-sonnet-4-6`) |
+| `model` | string | Yes | Model ID in `provider/model` format (e.g., `anthropic/claude-sonnet-4.6`) |
 | `messages` | array | Yes | Array of message objects with `role` and `content` |
 | `stream` | boolean | No | Enable SSE streaming (default: `true`) |
 | `tools` | array | No | Tool definitions in OpenAI function calling format |
@@ -73,7 +73,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [
       {"role": "system", "content": "You are a helpful assistant."},
       {"role": "user", "content": "Explain what a context window is in 2 sentences."}
@@ -87,9 +87,9 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
 When `stream: true`, the response is a series of [Server-Sent Events](https://developer.mozilla.org/en-US/docs/Web/API/Server-Sent_Events). Each event contains a JSON chunk:
 
 ```json
-data: {"id":"gen-abc123","choices":[{"delta":{"content":"A context"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+data: {"id":"gen-abc123","choices":[{"delta":{"content":"A context"},"index":0}],"model":"anthropic/claude-sonnet-4.6"}
 
-data: {"id":"gen-abc123","choices":[{"delta":{"content":" window is"},"index":0}],"model":"anthropic/claude-sonnet-4-6"}
+data: {"id":"gen-abc123","choices":[{"delta":{"content":" window is"},"index":0}],"model":"anthropic/claude-sonnet-4.6"}
 
 data: [DONE]
 ```
@@ -116,7 +116,7 @@ When `stream: false`, the response is a single JSON object:
 ```json
 {
   "id": "gen-abc123",
-  "model": "anthropic/claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4.6",
   "choices": [
     {
       "message": {
@@ -140,8 +140,8 @@ Model IDs use the `provider/model-name` format, the same format used by [OpenRou
 
 | Model ID | Description |
 |----------|-------------|
-| `anthropic/claude-sonnet-4-6` | Claude Sonnet 4.6 |
-| `anthropic/claude-sonnet-4-5` | Claude Sonnet 4.5 |
+| `anthropic/claude-sonnet-4.6` | Claude Sonnet 4.6 |
+| `anthropic/claude-sonnet-4.5` | Claude Sonnet 4.5 |
 | `google/gemini-2.5-pro` | Gemini 2.5 Pro |
 | `openai/gpt-4o` | GPT-4o |
 
@@ -196,7 +196,7 @@ Select **Cline** as your provider in the model picker dropdown. Sign in with you
 Configure the CLI with your API key in one command:
 
 ```bash
-cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4-6
+cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4.6
 ```
 
 Then run tasks normally:
@@ -222,7 +222,7 @@ client = OpenAI(
 )
 
 response = client.chat.completions.create(
-    model="anthropic/claude-sonnet-4-6",
+    model="anthropic/claude-sonnet-4.6",
     messages=[{"role": "user", "content": "Hello!"}],
 )
 print(response.choices[0].message.content)
@@ -239,7 +239,7 @@ const client = new OpenAI({
 })
 
 const response = await client.chat.completions.create({
-  model: "anthropic/claude-sonnet-4-6",
+  model: "anthropic/claude-sonnet-4.6",
   messages: [{ role: "user", content: "Hello!" }],
 })
 console.log(response.choices[0].message.content)

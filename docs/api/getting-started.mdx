@@ -38,7 +38,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [
       {"role": "user", "content": "What is the capital of France?"}
     ],
@@ -53,7 +53,7 @@ You should get a JSON response like this:
 ```json
 {
   "id": "gen-abc123",
-  "model": "anthropic/claude-sonnet-4-6",
+  "model": "anthropic/claude-sonnet-4.6",
   "choices": [
     {
       "message": {
@@ -82,7 +82,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [
       {"role": "user", "content": "Write a haiku about programming."}
     ],

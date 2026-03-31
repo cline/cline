@@ -15,7 +15,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer $CLINE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [{"role": "user", "content": "What is 2+2?"}],
     "stream": false
   }'
@@ -28,7 +28,7 @@ curl -X POST https://api.cline.bot/api/v1/chat/completions \
   -H "Authorization: Bearer $CLINE_API_KEY" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "anthropic/claude-sonnet-4-6",
+    "model": "anthropic/claude-sonnet-4.6",
     "messages": [{"role": "user", "content": "Write a short poem about code."}],
     "stream": true
   }'
@@ -50,7 +50,7 @@ client = OpenAI(
 
 # Non-streaming
 response = client.chat.completions.create(
-    model="anthropic/claude-sonnet-4-6",
+    model="anthropic/claude-sonnet-4.6",
     messages=[{"role": "user", "content": "Explain recursion in one sentence."}],
 )
 print(response.choices[0].message.content)
@@ -67,7 +67,7 @@ client = OpenAI(
 )
 
 stream = client.chat.completions.create(
-    model="anthropic/claude-sonnet-4-6",
+    model="anthropic/claude-sonnet-4.6",
     messages=[{"role": "user", "content": "Write a function to reverse a string in Python."}],
     stream=True,
 )
@@ -108,7 +108,7 @@ tools = [
 ]
 
 response = client.chat.completions.create(
-    model="anthropic/claude-sonnet-4-6",
+    model="anthropic/claude-sonnet-4.6",
     messages=[{"role": "user", "content": "What's the weather in Tokyo?"}],
     tools=tools,
 )
@@ -135,7 +135,7 @@ response = requests.post(
         "Content-Type": "application/json",
     },
     json={
-        "model": "anthropic/claude-sonnet-4-6",
+        "model": "anthropic/claude-sonnet-4.6",
         "messages": [{"role": "user", "content": "Hello!"}],
         "stream": False,
     },
@@ -161,7 +161,7 @@ const client = new OpenAI({
 
 // Non-streaming
 const response = await client.chat.completions.create({
-  model: "anthropic/claude-sonnet-4-6",
+  model: "anthropic/claude-sonnet-4.6",
   messages: [{ role: "user", content: "Explain async/await in one sentence." }],
 })
 console.log(response.choices[0].message.content)
@@ -178,7 +178,7 @@ const client = new OpenAI({
 })
 
 const stream = await client.chat.completions.create({
-  model: "anthropic/claude-sonnet-4-6",
+  model: "anthropic/claude-sonnet-4.6",
   messages: [{ role: "user", content: "Write a haiku about TypeScript." }],
   stream: true,
 })
@@ -202,7 +202,7 @@ const response = await fetch("https://api.cline.bot/api/v1/chat/completions", {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    model: "anthropic/claude-sonnet-4-6",
+    model: "anthropic/claude-sonnet-4.6",
     messages: [{ role: "user", content: "Hello!" }],
     stream: false,
   }),
@@ -223,7 +223,7 @@ The [Cline CLI](/cline-cli/cli-reference) is the fastest way to use the Cline AP
 npm install -g @anthropic-ai/cline
 
 # Authenticate with a Cline API key
-cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4-6
+cline auth -p cline -k "YOUR_API_KEY" -m anthropic/claude-sonnet-4.6
 ```
 
 ### Run Tasks
