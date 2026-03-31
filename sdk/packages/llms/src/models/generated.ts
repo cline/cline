@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1774632809575,
+	version: 1774928342555,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -2984,6 +2984,20 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-03-20",
 			},
+			"gemma-3-27b-it": {
+				id: "gemma-3-27b-it",
+				name: "Gemma 3 27B",
+				contextWindow: 131072,
+				maxTokens: 8192,
+				capabilities: ["images", "tools", "structured_output", "temperature"],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2025-03-12",
+			},
 			"gemini-2.0-flash": {
 				id: "gemini-2.0-flash",
 				name: "Gemini 2.0 Flash",
@@ -4817,6 +4831,20 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-03-05",
 			},
+			"gpt-5.3-chat-latest": {
+				id: "gpt-5.3-chat-latest",
+				name: "GPT-5.3 Chat (latest)",
+				contextWindow: 128000,
+				maxTokens: 16384,
+				capabilities: ["images", "tools", "structured_output", "temperature"],
+				pricing: {
+					input: 1.75,
+					output: 14,
+					cacheRead: 0.175,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-03",
+			},
 			"gpt-5.3-codex": {
 				id: "gpt-5.3-codex",
 				name: "GPT-5.3 Codex",
@@ -5327,6 +5355,25 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"qwen/qwen3.6-plus-preview:free": {
+				id: "qwen/qwen3.6-plus-preview:free",
+				name: "Qwen3.6 Plus Preview (free)",
+				contextWindow: 1000000,
+				maxTokens: 65536,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-30",
+			},
 			"minimax/minimax-m2.7": {
 				id: "minimax/minimax-m2.7",
 				name: "MiniMax M2.7",
@@ -5463,8 +5510,8 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-03-11",
 			},
-			"nvidia/nemotron-3-super-120b-a12b-free": {
-				id: "nvidia/nemotron-3-super-120b-a12b-free",
+			"nvidia/nemotron-3-super-120b-a12b:free": {
+				id: "nvidia/nemotron-3-super-120b-a12b:free",
 				name: "Nemotron 3 Super (free)",
 				contextWindow: 262144,
 				maxTokens: 13107,
@@ -8803,6 +8850,20 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		"vercel-ai-gateway": {
+			"kwaipilot/kat-coder-pro-v2": {
+				id: "kwaipilot/kat-coder-pro-v2",
+				name: "Kat Coder Pro V2",
+				contextWindow: 256000,
+				maxTokens: 12800,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.3,
+					output: 1.2,
+					cacheRead: 0.06,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-27",
+			},
 			"minimax/minimax-m2.7": {
 				id: "minimax/minimax-m2.7",
 				name: "Minimax M2.7",
@@ -8872,6 +8933,20 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-03-17",
+			},
+			"mistral/mistral-small": {
+				id: "mistral/mistral-small",
+				name: "Mistral Small (latest)",
+				contextWindow: 256000,
+				maxTokens: 12800,
+				capabilities: ["images", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.15,
+					output: 0.6,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-16",
 			},
 			"zai/glm-5-turbo": {
 				id: "zai/glm-5-turbo",
@@ -10942,20 +11017,6 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 0,
 				},
 				releaseDate: "2024-09-25",
-			},
-			"mistral/mistral-small": {
-				id: "mistral/mistral-small",
-				name: "Mistral Small (latest)",
-				contextWindow: 128000,
-				maxTokens: 16384,
-				capabilities: ["images", "tools", "temperature"],
-				pricing: {
-					input: 0.1,
-					output: 0.3,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2024-09-01",
 			},
 			"mistral/pixtral-12b": {
 				id: "mistral/pixtral-12b",

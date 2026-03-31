@@ -79,7 +79,7 @@ async function generate(): Promise<void> {
  * - ./scripts/generate-models-dev.ts
  */
 
-import type { ModelInfo } from "./types/index.js"
+import type { ModelInfo } from "./types/index"
 
 export const GENERATED_PROVIDER_MODELS: {
   version: number
