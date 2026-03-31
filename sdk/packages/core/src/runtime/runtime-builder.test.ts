@@ -246,6 +246,47 @@ Use conventional commits.`,
 		runtime.shutdown("test");
 	});
 
+	it("allows tool routing rules to disable skills even when skills exist", () => {
+		const cwd = mkdtempSync(
+			join(tmpdir(), "runtime-builder-skills-routing-disabled-"),
+		);
+		const skillDir = join(cwd, ".cline", "skills", "commit");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: commit
+description: Create commit message
+---
+Use conventional commits.`,
+			"utf8",
+		);
+
+		const runtime = new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "openrouter",
+				modelId: "google/gemini-3-flash-preview",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd,
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				toolRoutingRules: [
+					{
+						mode: "act",
+						providerIdIncludes: ["openrouter"],
+						modelIdIncludes: ["gemini"],
+						disableTools: ["skills"],
+					},
+				],
+			},
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
+		runtime.shutdown("test");
+	});
+
 	it("marks configured but disabled skills in executor metadata", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-skills-disabled-"));
 		const enabledDir = join(cwd, ".cline", "skills", "commit");

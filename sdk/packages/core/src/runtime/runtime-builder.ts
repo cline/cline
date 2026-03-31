@@ -72,8 +72,8 @@ function createBuiltinToolsList(
 	return createBuiltinTools({
 		cwd,
 		...preset,
-		...toolRoutingConfig,
 		enableSkills: !!skillsExecutor,
+		...toolRoutingConfig,
 		executors: {
 			...(skillsExecutor
 				? {
@@ -531,10 +531,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 				teamToolsRegistered = true;
 
-				const leadAgentId = config.sessionId || "lead";
 				const teamBootstrap = bootstrapAgentTeams({
 					runtime: teamRuntime,
-					leadAgentId,
+					leadAgentId: "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
 					restoredTeammates: restoredTeammateSpecs,
 					createBaseTools: normalized.enableTools
