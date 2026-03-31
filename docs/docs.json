@@ -76,6 +76,21 @@
 						]
 					},
 					{
+						"group": "Architecture Deep Dive",
+						"pages": [
+							{
+								"group": "English",
+								"pages": [
+									"en/quick-start",
+									"en/architecture",
+									"en/runtime-flow",
+									"en/math-theory",
+									"en/source-map"
+								]
+							}
+						]
+					},
+					{
 						"group": "Core Workflows",
 						"pages": [
 							"core-workflows/task-management",

@@ -1,0 +1,131 @@
+---
+title: "Cline Source Map"
+sidebarTitle: "Source Map"
+description: "A practical file map for navigating Cline's extension host, task engine, MCP layer, storage system, webview UI, and CLI runtime."
+---
+
+When a repository is large, the fastest path is not “read everything.” The fastest path is “know where to stand.” This map tells you where to stand.
+
+## If you only read 12 files, read these
+
+| File | Why it matters |
+|---|---|
+| `src/extension.ts` | VS Code boot sequence, command registration, storage migration, and webview registration |
+| `src/hosts/vscode/VscodeWebviewProvider.ts` | message bridge between React and the extension host |
+| `src/core/controller/index.ts` | service ownership, task creation, remote config, and MCP setup |
+| `src/core/task/index.ts` | main conversation loop and task-owned services |
+| `src/core/task/ToolExecutor.ts` | approval, validation, safety, and tool result plumbing |
+| `src/core/task/tools/ToolExecutorCoordinator.ts` | typed routing from tool names to handlers |
+| `src/core/task/loop-detection.ts` | repeated-tool safety logic |
+| `src/core/task/TaskPresentationScheduler.ts` | streaming UI scheduling |
+| `src/services/mcp/McpHub.ts` | MCP settings watching, transport setup, reconnect logic |
+| `src/core/storage/StateManager.ts` | cached state, debounce, and persistence rules |
+| `webview-ui/src/services/grpc-client-base.ts` | webview request and streaming response transport |
+| `cli/src/agent/ClineAgent.ts` | ACP integration and multi-session CLI embedding |
+
+## Read by subsystem
+
+### VS Code host and webview bridge
+
+- `src/extension.ts`
+- `src/hosts/vscode/VscodeWebviewProvider.ts`
+- `src/shared/WebviewMessage.ts`
+- `src/shared/ExtensionMessage.ts`
+
+Read these when you need to answer: “How does the sidebar talk to the extension?”
+
+### Controller and shared service wiring
+
+- `src/core/controller/index.ts`
+- `src/core/storage/StateManager.ts`
+- `src/core/storage/disk.ts`
+
+Read these when you need to answer: “Who owns long-lived services and persistent state?”
+
+### Task engine and tool path
+
+- `src/core/task/index.ts`
+- `src/core/task/ToolExecutor.ts`
+- `src/core/task/tools/ToolExecutorCoordinator.ts`
+- `src/core/task/tools/handlers/UseMcpToolHandler.ts`
+
+Read these when you need to answer: “How does one model-emitted tool call become a real side effect?”
+
+### Safety and responsiveness
+
+- `src/core/task/loop-detection.ts`
+- `src/core/task/TaskPresentationScheduler.ts`
+- `src/core/task/message-state.ts`
+
+Read these when you need to answer: “How does Cline stay sane while streaming?”
+
+### MCP
+
+- `src/services/mcp/McpHub.ts`
+- `src/services/mcp/McpOAuthManager.ts`
+- `src/services/mcp/schemas.ts`
+
+Read these when you need to answer: “How are external tools discovered, authenticated, and called?”
+
+### Checkpoints and recovery
+
+- `src/integrations/checkpoints/factory.ts`
+- `docs/troubleshooting/task-history-recovery.mdx`
+- `src/core/storage/disk.ts`
+
+Read these when you need to answer: “Why can task history and checkpoints survive upgrades?”
+
+### CLI and ACP
+
+- `cli/src/index.ts`
+- `cli/src/utils/mode-selection.ts`
+- `cli/src/agent/ClineAgent.ts`
+- `cli/src/agent/messageTranslator.ts`
+
+Read these when you need to answer: “Why does the CLI feel native while still reusing the shared engine?”
+
+## Debug from symptom to source
+
+| Symptom | Start here | Why |
+|---|---|---|
+| Sidebar UI is not receiving updates | `src/hosts/vscode/VscodeWebviewProvider.ts`, `webview-ui/src/services/grpc-client-base.ts` | this is the request and streaming response boundary |
+| A tool keeps repeating | `src/core/task/ToolExecutor.ts`, `src/core/task/loop-detection.ts` | approval and loop detection live here |
+| MCP server will not connect | `src/services/mcp/McpHub.ts`, `src/services/mcp/schemas.ts` | validation, file watching, and transport setup are centralized there |
+| CLI behaves differently from VS Code | `cli/src/index.ts`, `cli/src/agent/ClineAgent.ts`, `src/hosts/external/ExternalWebviewProvider.ts` | host differences should appear here, not in the task engine |
+| Task history or checkpoint data looks wrong | `src/core/storage/StateManager.ts`, `src/core/storage/disk.ts`, `src/integrations/checkpoints/factory.ts` | storage and checkpoint policy are separated but adjacent |
+
+## Reading paths by persona
+
+<CardGroup cols={2}>
+  <Card title="New contributor" icon="book">
+    Read `quick-start`, then `architecture`, then the twelve files listed above.
+  </Card>
+  <Card title="Agent systems engineer" icon="code">
+    Start at `src/core/task/index.ts`, `ToolExecutor.ts`, `loop-detection.ts`, and `TaskPresentationScheduler.ts`.
+  </Card>
+  <Card title="Frontend engineer" icon="desktop">
+    Start at `webview-ui/src/App.tsx`, `ExtensionStateContext.tsx`, and `grpc-client-base.ts`, then trace back into `VscodeWebviewProvider.ts`.
+  </Card>
+  <Card title="Platform engineer" icon="server">
+    Start at `StateManager.ts`, `disk.ts`, `McpHub.ts`, and the checkpoint factory.
+  </Card>
+</CardGroup>
+
+## Suggested reading order
+
+```text
+1. src/extension.ts
+2. src/core/controller/index.ts
+3. src/core/task/index.ts
+4. src/core/task/ToolExecutor.ts
+5. src/core/task/tools/ToolExecutorCoordinator.ts
+6. src/core/task/loop-detection.ts
+7. src/core/task/TaskPresentationScheduler.ts
+8. src/services/mcp/McpHub.ts
+9. src/core/storage/StateManager.ts
+10. webview-ui/src/services/grpc-client-base.ts
+11. cli/src/index.ts
+12. cli/src/agent/ClineAgent.ts
+```
+
+Once you finish that list, the rest of the repository stops feeling like a maze. It becomes a set of adapters around a clear execution core.
