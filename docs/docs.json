@@ -87,6 +87,16 @@
 									"en/math-theory",
 									"en/source-map"
 								]
+							},
+							{
+								"group": "中文",
+								"pages": [
+									"zh/quick-start",
+									"zh/architecture",
+									"zh/runtime-flow",
+									"zh/math-theory",
+									"zh/source-map"
+								]
 							}
 						]
 					},
