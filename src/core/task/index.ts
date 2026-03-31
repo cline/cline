@@ -5,6 +5,7 @@ import { AssistantMessageContent, parseAssistantMessageV2, ToolUse } from "@core
 import { ContextManager } from "@core/context/context-management/ContextManager"
 import { checkContextWindowExceededError } from "@core/context/context-management/context-error-handling"
 import { getContextWindowInfo } from "@core/context/context-management/context-window-utils"
+import { buildActiveRulesMetadata } from "@core/context/context-tracking/buildActiveRulesMetadata"
 import { EnvironmentContextTracker } from "@core/context/context-tracking/EnvironmentContextTracker"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { ModelContextTracker } from "@core/context/context-tracking/ModelContextTracker"
@@ -1991,22 +1992,19 @@ export class Task {
 			await this.say("conditional_rules_applied", JSON.stringify({ rules: activatedConditionalRules }))
 		}
 
-		// Save active rules snapshot to task metadata (see #5710)
+		// Save active rules snapshot on first turn only (see #5710)
 		const metadata = await getTaskMetadata(this.taskId)
-		metadata.active_rules = {
-			ts: Date.now(),
-			global: Object.entries(globalToggles)
-				.filter(([, enabled]) => enabled !== false)
-				.map(([filePath]) => filePath),
-			local: Object.entries(localToggles)
-				.filter(([, enabled]) => enabled !== false)
-				.map(([filePath]) => filePath),
-			activated_conditional_rules: activatedConditionalRules.map((rule) => ({
-				name: rule.name,
-				matched_conditions: rule.matchedConditions,
-			})),
+		if (!metadata.active_rules) {
+			metadata.active_rules = buildActiveRulesMetadata({
+				globalToggles,
+				localToggles,
+				cursorLocalToggles,
+				windsurfLocalToggles,
+				agentsLocalToggles,
+				activatedConditionalRules,
+			})
+			await saveTaskMetadata(this.taskId, metadata)
 		}
-		await saveTaskMetadata(this.taskId, metadata)
 
 		const { systemPrompt, tools } = await getSystemPrompt(promptContext)
 		this.useNativeToolCalls = !!tools?.length

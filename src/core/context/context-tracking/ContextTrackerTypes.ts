@@ -29,6 +29,9 @@ export interface ActiveRulesMetadataEntry {
 	ts: number
 	global: string[]
 	local: string[]
+	cursor: string[]
+	windsurf: string[]
+	agents: string[]
 	activated_conditional_rules: Array<{
 		name: string
 		matched_conditions: Record<string, string[]>
