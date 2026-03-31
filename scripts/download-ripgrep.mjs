@@ -44,7 +44,7 @@ const PLATFORMS = [
 		isZip: false,
 	},
 	{
-		name: "linux-arm64",
+		name: "linux-aarch64",
 		archiveName: `ripgrep-${RIPGREP_VERSION}-aarch64-unknown-linux-gnu.tar.gz`,
 		url: `https://github.com/BurntSushi/ripgrep/releases/download/${RIPGREP_VERSION}/ripgrep-${RIPGREP_VERSION}-aarch64-unknown-linux-gnu.tar.gz`,
 		binaryPath: "rg",
