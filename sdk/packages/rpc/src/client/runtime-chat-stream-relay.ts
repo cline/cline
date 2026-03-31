@@ -11,6 +11,12 @@ export type RpcRuntimeBridgeStreamLine =
 			chunk: string;
 	  }
 	| {
+			type: "chat_reasoning";
+			sessionId: string;
+			chunk: string;
+			redacted?: boolean;
+	  }
+	| {
 			type: "tool_call_start";
 			sessionId: string;
 			toolCallId?: string;
@@ -134,6 +140,28 @@ export function createRpcRuntimeStreamRelay(options: {
 							type: "chat_text",
 							sessionId: event.sessionId,
 							chunk: resolved.delta,
+						});
+						return;
+					}
+					if (event.eventType === "runtime.chat.reasoning_delta") {
+						const text =
+							typeof payload.text === "string"
+								? payload.text
+								: typeof payload.accumulated === "string"
+									? payload.accumulated
+									: "";
+						const redacted =
+							typeof payload.redacted === "boolean"
+								? payload.redacted
+								: undefined;
+						if (!text && !redacted) {
+							return;
+						}
+						options.writeLine({
+							type: "chat_reasoning",
+							sessionId: event.sessionId,
+							chunk: text,
+							redacted,
 						});
 						return;
 					}

@@ -219,6 +219,7 @@ struct ChatRuntimeBridgeLine {
     result: Option<ChatTurnResult>,
     session_id: Option<String>,
     chunk: Option<String>,
+    redacted: Option<bool>,
     tool_call_id: Option<String>,
     tool_name: Option<String>,
     input: Option<Value>,
@@ -2755,6 +2756,16 @@ fn ensure_chat_runtime_bridge_started(
                         continue;
                     };
                     emit_chunk(&stdout_app, session_id, "chat_text", chunk);
+                }
+                "chat_reasoning" => {
+                    let Some(session_id) = parsed.session_id.as_deref() else {
+                        continue;
+                    };
+                    let payload = serde_json::json!({
+                        "text": parsed.chunk.unwrap_or_default(),
+                        "redacted": parsed.redacted.unwrap_or(false),
+                    });
+                    emit_chunk(&stdout_app, session_id, "chat_reasoning", payload.to_string());
                 }
                 "tool_call_start" => {
                     let Some(session_id) = parsed.session_id.as_deref() else {

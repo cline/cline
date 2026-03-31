@@ -179,6 +179,30 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("maps --thinking to medium effort", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "--thinking", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				thinking: true,
+				reasoningEffort: "medium",
+			}),
+			expect.anything(),
+		);
+	});
+
 	it("does not fail fast for headless json mode with an OAuth provider", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();

@@ -12,6 +12,11 @@ export type AgentChunkEvent = {
 	ts: number;
 };
 
+export type ReasoningDeltaEvent = {
+	text?: string;
+	redacted?: boolean;
+};
+
 export type ToolCallStartEvent = {
 	toolCallId?: string;
 	toolName?: string;

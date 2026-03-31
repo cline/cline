@@ -278,6 +278,8 @@ export async function readSessionMessages(
 		}
 
 		const textParts: string[] = [];
+		const reasoningParts: string[] = [];
+		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
 		const outStartIndex = out.length;
 		const flushTextParts = () => {
@@ -373,6 +375,18 @@ export async function readSessionMessages(
 				}
 				continue;
 			}
+			if (blockType === "thinking") {
+				const thinking =
+					typeof record.thinking === "string" ? record.thinking : "";
+				if (thinking.trim()) {
+					reasoningParts.push(thinking);
+				}
+				continue;
+			}
+			if (blockType === "redacted_thinking") {
+				reasoningRedacted = true;
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -380,6 +394,32 @@ export async function readSessionMessages(
 		}
 
 		flushTextParts();
+		if (reasoningParts.length > 0 || reasoningRedacted) {
+			const reasoning = reasoningParts.join("\n").trim();
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				if (reasoning) {
+					target.reasoning = reasoning;
+				}
+				if (reasoningRedacted) {
+					target.reasoningRedacted = true;
+				}
+			} else {
+				out.push({
+					id: `${messageIdBase}_reasoning`,
+					sessionId,
+					role,
+					content: "",
+					reasoning: reasoning || undefined,
+					reasoningRedacted: reasoningRedacted || undefined,
+					createdAt: nextCreatedAt++,
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
 		if (textMeta && out[outStartIndex]) {
 			out[outStartIndex].meta = {
 				...(typeof out[outStartIndex].meta === "object"

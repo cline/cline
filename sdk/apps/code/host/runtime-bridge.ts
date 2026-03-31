@@ -164,6 +164,18 @@ function handleBridgeStdoutLine(ctx: HostContext, parsed: JsonRecord) {
 			emitChunk(ctx, sessionId, "chat_text", String(parsed.chunk ?? ""));
 			return;
 
+		case "chat_reasoning":
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_reasoning",
+				JSON.stringify({
+					text: String(parsed.chunk ?? ""),
+					redacted: parsed.redacted === true,
+				}),
+			);
+			return;
+
 		case "tool_call_start":
 			emitChunk(
 				ctx,

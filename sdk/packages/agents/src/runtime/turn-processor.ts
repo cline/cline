@@ -47,6 +47,7 @@ export class TurnProcessor {
 		let textSignature: string | undefined;
 		let reasoning = "";
 		let reasoningSignature: string | undefined;
+		const reasoningDetails: unknown[] = [];
 		const redactedReasoningBlocks: string[] = [];
 		const usage = {
 			inputTokens: 0,
@@ -88,6 +89,13 @@ export class TurnProcessor {
 					reasoning += chunk.reasoning;
 					if (chunk.signature) {
 						reasoningSignature = chunk.signature;
+					}
+					if (chunk.details) {
+						if (Array.isArray(chunk.details)) {
+							reasoningDetails.push(...chunk.details);
+						} else {
+							reasoningDetails.push(chunk.details);
+						}
 					}
 					if (chunk.redacted_data) {
 						redactedReasoningBlocks.push(chunk.redacted_data);
@@ -154,6 +162,7 @@ export class TurnProcessor {
 				type: "thinking",
 				thinking: reasoning,
 				signature: reasoningSignature,
+				details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
 			});
 			for (const redactedData of redactedReasoningBlocks) {
 				assistantContent.push({

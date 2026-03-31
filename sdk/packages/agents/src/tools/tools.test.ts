@@ -13,6 +13,7 @@ import {
 	formatToolResult,
 	formatToolResultsSummary,
 	getToolNames,
+	toToolDefinition,
 	validateToolDefinition,
 	validateToolInput,
 	validateTools,
@@ -104,6 +105,40 @@ describe("tools utilities", () => {
 		const registry = createToolRegistry([a, b]);
 		expect(getToolNames(registry)).toEqual(["a", "b"]);
 		expect(() => createToolRegistry([a, a])).toThrow("Duplicate tool name: a");
+	});
+
+	it("preserves full JSON Schema when converting tool definitions", () => {
+		const tool = createTool({
+			name: "union_tool",
+			description: "Supports union inputs",
+			inputSchema: {
+				oneOf: [
+					{
+						type: "object",
+						properties: {
+							action: { type: "string", const: "create" },
+							title: { type: "string" },
+						},
+						required: ["action", "title"],
+						additionalProperties: false,
+					},
+					{
+						type: "object",
+						properties: {
+							action: { type: "string", const: "claim" },
+							taskId: { type: "string" },
+						},
+						required: ["action", "taskId"],
+						additionalProperties: false,
+					},
+				],
+			},
+			execute: async () => "ok",
+		});
+
+		expect(toToolDefinition(tool as Tool).inputSchema).toEqual(
+			tool.inputSchema,
+		);
 	});
 
 	it("executes tools with timeout, retry, and authorization", async () => {

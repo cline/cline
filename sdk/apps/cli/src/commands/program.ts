@@ -71,7 +71,7 @@ export function addRootOptions(cmd: Command): Command {
 		.option("--team-name <name>", "Override the runtime team state name")
 		.option("--teams", undefined, true)
 		.option("--no-teams", "Disable agent-team tools")
-		.option("--thinking", "Enable extended thinking (default: 1024 tokens)")
+		.option("--thinking", "Enable extended thinking (default: medium effort)")
 		.option(
 			"-t, --timeout <seconds>",
 			"Optional timeout in seconds (applies only when provided)",

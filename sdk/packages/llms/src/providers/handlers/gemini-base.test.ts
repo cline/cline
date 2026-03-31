@@ -19,7 +19,7 @@ vi.mock("@google/genai", () => {
 	return {
 		GoogleGenAI,
 		FunctionCallingConfigMode: { AUTO: "AUTO" },
-		ThinkingLevel: { HIGH: "HIGH", LOW: "LOW" },
+		ThinkingLevel: { HIGH: "HIGH", MEDIUM: "MEDIUM", LOW: "LOW" },
 	};
 });
 
@@ -257,5 +257,126 @@ describe("GeminiHandler", () => {
 			config?: { maxOutputTokens?: number };
 		};
 		expect(request.config?.maxOutputTokens).toBe(128000);
+	});
+
+	it("requests thought summaries for Gemini reasoning models that only advertise reasoning capability", async () => {
+		generateContentStreamSpy.mockResolvedValue(createAsyncIterable([]));
+
+		const handler = new GeminiHandler({
+			providerId: "gemini",
+			modelId: "google/gemini-2.5-flash",
+			apiKey: "test-key",
+			thinking: true,
+			modelInfo: {
+				id: "google/gemini-2.5-flash",
+				contextWindow: 1_000_000,
+				maxTokens: 8192,
+				temperature: 1,
+				capabilities: ["reasoning"],
+			},
+		});
+
+		await collectChunks(
+			handler.createMessage("System", [{ role: "user", content: "go" }]),
+		);
+
+		const request = generateContentStreamSpy.mock.calls[0]?.[0] as {
+			config?: {
+				thinkingConfig?: {
+					includeThoughts?: boolean;
+					thinkingBudget?: number;
+					thinkingLevel?: string;
+				};
+			};
+		};
+		expect(request.config?.thinkingConfig).toMatchObject({
+			includeThoughts: true,
+			thinkingBudget: 1024,
+		});
+		expect(request.config?.thinkingConfig?.thinkingLevel).toBeUndefined();
+	});
+
+	it("uses Gemini 3 thinking levels and streams thought summaries as reasoning chunks", async () => {
+		generateContentStreamSpy.mockResolvedValue(
+			createAsyncIterable([
+				{
+					candidates: [
+						{
+							content: {
+								parts: [
+									{
+										text: "First inspect the repo layout.",
+										thought: true,
+										thoughtSignature: "sig-thought",
+									},
+									{
+										text: "This repo is an SDK workspace.",
+									},
+								],
+							},
+						},
+					],
+					usageMetadata: {
+						promptTokenCount: 8,
+						candidatesTokenCount: 5,
+						thoughtsTokenCount: 3,
+					},
+				},
+			]),
+		);
+
+		const handler = new GeminiHandler({
+			providerId: "gemini",
+			modelId: "google/gemini-3-flash-preview",
+			apiKey: "test-key",
+			thinking: true,
+			reasoningEffort: "medium",
+			modelInfo: {
+				id: "google/gemini-3-flash-preview",
+				contextWindow: 1_000_000,
+				maxTokens: 8192,
+				temperature: 1,
+				capabilities: ["reasoning"],
+			},
+		});
+
+		const chunks = await collectChunks(
+			handler.createMessage("System", [{ role: "user", content: "go" }]),
+		);
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "reasoning",
+				reasoning: "First inspect the repo layout.",
+				signature: "sig-thought",
+			}),
+		);
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "text",
+				text: "This repo is an SDK workspace.",
+			}),
+		);
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				thoughtsTokenCount: 3,
+			}),
+		);
+
+		const request = generateContentStreamSpy.mock.calls[0]?.[0] as {
+			config?: {
+				thinkingConfig?: {
+					includeThoughts?: boolean;
+					thinkingBudget?: number;
+					thinkingLevel?: string;
+				};
+			};
+		};
+		expect(request.config?.thinkingConfig).toMatchObject({
+			includeThoughts: true,
+			thinkingLevel: "MEDIUM",
+		});
+		expect(request.config?.thinkingConfig?.thinkingBudget).toBeUndefined();
 	});
 });

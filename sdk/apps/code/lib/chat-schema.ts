@@ -44,6 +44,8 @@ export const ChatMessageSchema = z.object({
 	sessionId: z.string().nullable(),
 	role: ChatMessageRoleSchema,
 	content: z.string(),
+	reasoning: z.string().optional(),
+	reasoningRedacted: z.boolean().optional(),
 	createdAt: z.number().int().nonnegative(),
 	meta: z
 		.object({

@@ -269,6 +269,55 @@ describe("format conversion", () => {
 		});
 	});
 
+	it("replays openrouter reasoning on assistant tool-call messages", () => {
+		const reasoningDetails = [
+			{
+				type: "reasoning.text",
+				text: "Need weather data before answering.",
+				signature: "sig-think",
+				format: "anthropic-claude-v1",
+				index: 0,
+			},
+		];
+		const messages: Message[] = [
+			{ role: "user", content: "weather?" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "Need weather data before answering.",
+						signature: "sig-think",
+						details: reasoningDetails,
+					},
+					{
+						type: "tool_use",
+						id: "call_1",
+						name: "get_weather",
+						input: { city: "Boston" },
+					},
+				],
+			},
+		];
+
+		const openai = convertToOpenAIMessages(messages) as any[];
+		expect(openai[1]).toMatchObject({
+			role: "assistant",
+			content: null,
+			reasoning: "Need weather data before answering.",
+			reasoning_content: "Need weather data before answering.",
+			reasoning_details: reasoningDetails,
+		});
+		expect(openai[1].tool_calls?.[0]).toMatchObject({
+			id: "call_1",
+			type: "function",
+			function: {
+				name: "get_weather",
+				arguments: JSON.stringify({ city: "Boston" }),
+			},
+		});
+	});
+
 	it("keeps anthropic thinking signature and cache marker behavior", () => {
 		const messages: Message[] = [
 			{ role: "user", content: "hello" },

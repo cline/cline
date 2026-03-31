@@ -437,6 +437,7 @@ function MessageBubble({
 	}
 
 	const normalizedContent = normalizeTitle(message.content);
+	const reasoningContent = message.reasoning?.trim() || "";
 
 	return (
 		<div
@@ -452,14 +453,64 @@ function MessageBubble({
 				)}
 			>
 				{isStreaming && message.role === "assistant" ? (
-					<div className="whitespace-pre-wrap">{normalizedContent || " "}</div>
+					<>
+						{reasoningContent || message.reasoningRedacted ? (
+							<ReasoningBlock
+								content={reasoningContent}
+								redacted={message.reasoningRedacted === true}
+							/>
+						) : null}
+						<div className="whitespace-pre-wrap">
+							{normalizedContent || " "}
+						</div>
+					</>
 				) : (
-					<MemoizedMarkdown
-						content={normalizedContent || " "}
-						id={message.id}
-					/>
+					<>
+						{reasoningContent || message.reasoningRedacted ? (
+							<ReasoningBlock
+								content={reasoningContent}
+								redacted={message.reasoningRedacted === true}
+							/>
+						) : null}
+						<MemoizedMarkdown
+							content={normalizedContent || " "}
+							id={message.id}
+						/>
+					</>
 				)}
 			</div>
+		</div>
+	);
+}
+
+function ReasoningBlock({
+	content,
+	redacted,
+}: {
+	content: string;
+	redacted: boolean;
+}) {
+	const [expanded, setExpanded] = useState(false);
+	const displayContent = content || (redacted ? "[redacted]" : "");
+	if (!displayContent) {
+		return null;
+	}
+
+	return (
+		<div className="mb-2">
+			<Button
+				className="w-full justify-start gap-2 p-0 text-left font-medium text-foreground/70 hover:bg-transparent text-xs"
+				onClick={() => setExpanded((current) => !current)}
+				type="button"
+				variant="ghost"
+			>
+				Thinking
+			</Button>
+			{expanded ? (
+				<div className="mt-1 whitespace-pre-wrap rounded-lg border border-border/70 bg-muted/30 p-3 text-xs text-muted-foreground">
+					{displayContent}
+				</div>
+			) : null}
 		</div>
 	);
 }

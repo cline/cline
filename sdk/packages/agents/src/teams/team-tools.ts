@@ -289,8 +289,8 @@ export function createAgentTeamsTools(
 				switch (validatedInput.action) {
 					case "create": {
 						const task = options.runtime.createTask({
-							title: validatedInput.title,
-							description: validatedInput.description,
+							title: validatedInput.title!,
+							description: validatedInput.description!,
 							dependsOn: validatedInput.dependsOn,
 							assignee: validatedInput.assignee,
 							createdBy: options.requesterId,
@@ -313,7 +313,7 @@ export function createAgentTeamsTools(
 						};
 					case "claim": {
 						const task = options.runtime.claimTask(
-							validatedInput.taskId,
+							validatedInput.taskId!,
 							options.requesterId,
 						);
 						return {
@@ -326,9 +326,9 @@ export function createAgentTeamsTools(
 					}
 					case "complete": {
 						const task = options.runtime.completeTask(
-							validatedInput.taskId,
+							validatedInput.taskId!,
 							options.requesterId,
-							validatedInput.summary,
+							validatedInput.summary!,
 						);
 						return {
 							action: "complete",
@@ -338,9 +338,9 @@ export function createAgentTeamsTools(
 					}
 					case "block": {
 						const task = options.runtime.blockTask(
-							validatedInput.taskId,
+							validatedInput.taskId!,
 							options.requesterId,
-							validatedInput.reason,
+							validatedInput.reason!,
 						);
 						return {
 							action: "block",

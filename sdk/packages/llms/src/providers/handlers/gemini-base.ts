@@ -29,11 +29,17 @@ const DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const DEFAULT_MAX_OUTPUT_TOKENS = 128_000;
 const GEMINI_3_FLASH_MAX_OUTPUT_TOKENS = 8192;
 
+function isGemini3Model(modelId: string): boolean {
+	const normalized = modelId.toLowerCase();
+	return normalized.includes("gemini-3");
+}
+
 function isGemini3FlashModel(modelId: string): boolean {
 	const normalized = modelId.toLowerCase();
 	return (
-		normalized.includes("gemini-3-flash") ||
-		normalized.includes("gemini-3.0-flash")
+		isGemini3Model(modelId) &&
+		normalized.includes("flash") &&
+		!normalized.includes("lite")
 	);
 }
 
@@ -118,23 +124,28 @@ export class GeminiHandler extends BaseHandler {
 			typeof this.config.reasoningEffort === "string";
 		let thinkingBudget = 0;
 		let thinkingLevel: ThinkingLevel | undefined;
+		const usesThinkingLevel =
+			info.thinkingConfig?.thinkingLevel != null || isGemini3Model(modelId);
 
 		if (thinkingSupported && thinkingRequested) {
 			const requestedBudget =
 				this.config.thinkingBudgetTokens ??
-				(this.config.thinking ? DEFAULT_THINKING_BUDGET_TOKENS : 0);
+				(thinkingRequested ? DEFAULT_THINKING_BUDGET_TOKENS : 0);
 			thinkingBudget = Math.min(
 				Math.max(0, requestedBudget),
 				info.thinkingConfig?.maxBudget ?? 24576,
 			);
 
-			// If thinkingConfig has a thinkingLevel, it supports thinking level control
-			if (info.thinkingConfig?.thinkingLevel) {
+			if (usesThinkingLevel) {
 				const level = this.config.reasoningEffort;
-				if (level === "high") {
+				if (level === "high" || level === "xhigh") {
 					thinkingLevel = ThinkingLevel.HIGH;
-				} else if (level === "low" || level === "medium") {
+				} else if (level === "medium") {
+					thinkingLevel = ThinkingLevel.MEDIUM;
+				} else if (level === "low") {
 					thinkingLevel = ThinkingLevel.LOW;
+				} else if (this.config.thinking) {
+					thinkingLevel = ThinkingLevel.MEDIUM;
 				}
 			}
 		}
@@ -157,13 +168,12 @@ export class GeminiHandler extends BaseHandler {
 
 		// Add thinking config only when explicitly requested and supported.
 		if (
-			info.thinkingConfig &&
 			thinkingSupported &&
 			thinkingRequested &&
-			(thinkingBudget > 0 || !!thinkingLevel)
+			(usesThinkingLevel || thinkingBudget > 0)
 		) {
 			requestConfig.thinkingConfig = {
-				thinkingBudget: thinkingLevel ? undefined : thinkingBudget,
+				thinkingBudget: usesThinkingLevel ? undefined : thinkingBudget,
 				thinkingLevel,
 				includeThoughts: true,
 			};

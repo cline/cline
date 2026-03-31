@@ -5,7 +5,7 @@ import { serializeAttachments } from "@/hooks/chat-session/attachments";
 import { getInitialChatConfig } from "@/hooks/chat-session/constants";
 import {
 	buildToolPayloadString,
-	extractAssistantTextFromRpcMessages,
+	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	makeId,
 	normalizeRuntimeConfig,
@@ -19,6 +19,7 @@ import type {
 	CoreLogChunk,
 	ProcessContext,
 	PromptInQueue,
+	ReasoningDeltaEvent,
 	ToolApprovalRequestItem,
 	ToolCallEndEvent,
 	ToolCallStartEvent,
@@ -44,6 +45,7 @@ const MAX_MESSAGES = 800;
 
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
+	"chat_reasoning",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -352,6 +354,29 @@ export function useChatSession() {
 		);
 	}, []);
 
+	const appendMessageReasoning = useCallback(
+		(id: string, chunk: string, redacted = false) => {
+			if (!chunk && !redacted) return;
+			setMessages((prev) =>
+				updateMessageById(prev, id, (msg) => {
+					const reasoningChunk = chunk || (redacted ? "[redacted]" : "");
+					const existing = msg.reasoning ?? "";
+					if (reasoningChunk && existing.endsWith(reasoningChunk)) {
+						return redacted && !msg.reasoningRedacted
+							? { ...msg, reasoningRedacted: true }
+							: msg;
+					}
+					return {
+						...msg,
+						reasoning: `${existing}${reasoningChunk}`,
+						reasoningRedacted: msg.reasoningRedacted || redacted,
+					};
+				}),
+			);
+		},
+		[],
+	);
+
 	// ---- Process context ----
 
 	const applyProcessContext = useCallback(async () => {
@@ -494,6 +519,34 @@ export function useChatSession() {
 				return;
 			}
 
+			if (payload.stream === "chat_reasoning") {
+				let assistantId = activeAssistantMessageIdRef.current;
+				if (!assistantId) {
+					assistantId = makeId("assistant");
+					addMessage({
+						id: assistantId,
+						sessionId: listeningSessionId,
+						role: "assistant",
+						content: "",
+						createdAt: payload.ts || Date.now(),
+					});
+					activeAssistantMessageIdRef.current = assistantId;
+					setActiveAssistantMessageId(assistantId);
+				}
+				let parsed: ReasoningDeltaEvent = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as ReasoningDeltaEvent;
+				} catch {
+					parsed = { text: payload.chunk };
+				}
+				appendMessageReasoning(
+					assistantId,
+					parsed.text ?? "",
+					parsed.redacted === true,
+				);
+				return;
+			}
+
 			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
 				dispatchCoreLog(payload.chunk);
@@ -571,7 +624,12 @@ export function useChatSession() {
 			// Ignore unmatched tool end events so stale completions from the
 			// previous turn do not get rendered under a newer streaming turn.
 		},
-		[addMessage, appendMessageContent, clearLiveToolRefs],
+		[
+			addMessage,
+			appendMessageContent,
+			appendMessageReasoning,
+			clearLiveToolRefs,
+		],
 	);
 
 	// ---- Transport / event subscriptions ----
@@ -736,10 +794,11 @@ export function useChatSession() {
 					return;
 				}
 				const assistantText = (result?.text ?? "").trim();
-				const fallbackAssistantText = extractAssistantTextFromRpcMessages(
+				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
-				const resolvedAssistantText = assistantText || fallbackAssistantText;
+				const resolvedAssistantText =
+					assistantText || fallbackAssistantTurn.text;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -759,6 +818,44 @@ export function useChatSession() {
 								sessionId: activeSessionId,
 								role: "assistant" as const,
 								content: resolvedAssistantText,
+								reasoning: fallbackAssistantTurn.reasoning || undefined,
+								reasoningRedacted:
+									fallbackAssistantTurn.reasoningRedacted || undefined,
+								createdAt: now + 1,
+							},
+						]);
+					});
+				} else if (
+					fallbackAssistantTurn.reasoning ||
+					fallbackAssistantTurn.reasoningRedacted
+				) {
+					const assistantMessageId =
+						activeAssistantMessageIdRef.current ?? makeId("assistant");
+					activeAssistantMessageIdRef.current = assistantMessageId;
+					setActiveAssistantMessageId(assistantMessageId);
+					setMessages((prev) => {
+						const updated = updateMessageById(
+							prev,
+							assistantMessageId,
+							(msg) => ({
+								...msg,
+								reasoning: fallbackAssistantTurn.reasoning || msg.reasoning,
+								reasoningRedacted:
+									fallbackAssistantTurn.reasoningRedacted ||
+									msg.reasoningRedacted,
+							}),
+						);
+						if (updated !== prev) return updated;
+						return sliceMessages([
+							...prev,
+							{
+								id: assistantMessageId,
+								sessionId: activeSessionId,
+								role: "assistant" as const,
+								content: "",
+								reasoning: fallbackAssistantTurn.reasoning || undefined,
+								reasoningRedacted:
+									fallbackAssistantTurn.reasoningRedacted || undefined,
 								createdAt: now + 1,
 							},
 						]);

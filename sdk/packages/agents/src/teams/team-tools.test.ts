@@ -74,12 +74,15 @@ describe("createAgentTeamsTools schema surface", () => {
 
 		expect(spawn?.inputSchema.type).toBe("object");
 		const teamTaskSchema = teamTask?.inputSchema as
-			| { anyOf?: unknown[]; oneOf?: unknown[] }
+			| {
+					type?: string;
+					properties?: Record<string, unknown>;
+					required?: unknown[];
+			  }
 			| undefined;
-		expect(
-			Array.isArray(teamTaskSchema?.anyOf) ||
-				Array.isArray(teamTaskSchema?.oneOf),
-		).toBe(true);
+		expect(teamTaskSchema?.type).toBe("object");
+		expect(teamTaskSchema?.properties).toHaveProperty("action");
+		expect(teamTaskSchema?.required).toEqual(["action"]);
 		expect(send?.inputSchema.type).toBe("object");
 		expect(createOutcome?.inputSchema.type).toBe("object");
 		expect(teamAwaitRun?.inputSchema.type).toBe("object");
@@ -138,7 +141,7 @@ describe("createAgentTeamsTools schema surface", () => {
 		).rejects.toThrow("expected object");
 	});
 
-	it("rejects null placeholders for required fields", async () => {
+	it("normalizes null placeholders for required fields into missing-field errors", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
@@ -161,10 +164,10 @@ describe("createAgentTeamsTools schema surface", () => {
 					iteration: 1,
 				},
 			),
-		).rejects.toThrow("expected string");
+		).rejects.toThrow('Field "summary" is required when action=complete');
 	});
 
-	it("rejects null placeholders for optional fields", async () => {
+	it("accepts null placeholders for optional fields", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
@@ -173,9 +176,12 @@ describe("createAgentTeamsTools schema surface", () => {
 		});
 		const teamTask = tools.find((tool) => tool.name === "team_task");
 		expect(teamTask).toBeDefined();
+		if (!teamTask) {
+			throw new Error("Expected team_task tool to be defined");
+		}
 
 		await expect(
-			teamTask?.execute(
+			teamTask.execute(
 				{
 					action: "create",
 					title: "Investigate llms boundaries",
@@ -188,7 +194,37 @@ describe("createAgentTeamsTools schema surface", () => {
 					iteration: 1,
 				},
 			),
-		).rejects.toThrow("expected array");
+		).resolves.toMatchObject({
+			action: "create",
+			status: "pending",
+			taskId: expect.stringMatching(/^task_/),
+		});
+	});
+
+	it("rejects fields that do not belong to the selected action", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const teamTask = tools.find((tool) => tool.name === "team_task");
+		expect(teamTask).toBeDefined();
+
+		await expect(
+			teamTask?.execute(
+				{
+					action: "claim",
+					taskId: "task_0001",
+					title: "should not be here",
+				},
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).rejects.toThrow('Field "title" is not allowed when action=claim');
 	});
 
 	it("defaults requiredSections for team_create_outcome", async () => {
@@ -286,20 +322,24 @@ describe("createAgentTeamsTools schema surface", () => {
 		);
 		expect(createOutcome).toBeDefined();
 		expect(attachFragment).toBeDefined();
+		if (!createOutcome || !attachFragment) {
+			throw new Error("Expected outcome tools to be defined");
+		}
 
-		const created = await createOutcome?.execute(
-			{ title: "Providers report" },
-			{
-				agentId: "lead",
-				conversationId: "conv-1",
-				iteration: 1,
-			},
-		);
+		const created: { outcomeId: string; status: string } =
+			await createOutcome.execute(
+				{ title: "Providers report" },
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			);
 
 		await expect(
-			attachFragment?.execute(
+			attachFragment.execute(
 				{
-					outcomeId: created?.outcomeId,
+					outcomeId: created.outcomeId,
 					section: "current_state",
 					sourceRunId: null,
 					content: "Current findings.",
@@ -315,7 +355,7 @@ describe("createAgentTeamsTools schema surface", () => {
 			status: "draft",
 		});
 
-		const [fragment] = runtime.listOutcomeFragments(created?.outcomeId);
+		const [fragment] = runtime.listOutcomeFragments(created.outcomeId);
 		expect(fragment?.sourceRunId).toBeUndefined();
 	});
 });

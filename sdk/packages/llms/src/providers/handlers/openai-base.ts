@@ -34,6 +34,30 @@ import { BaseHandler } from "./base";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;
 
+function buildOpenRouterReasoningConfig(options: {
+	thinking?: boolean;
+	effort?: string;
+	budgetTokens?: number;
+}) {
+	const reasoning: {
+		enabled?: boolean;
+		effort?: string;
+		max_tokens?: number;
+	} = {};
+
+	if (typeof options.thinking === "boolean") {
+		reasoning.enabled = options.thinking;
+	}
+	if (options.effort) {
+		reasoning.effort = options.effort;
+	}
+	if (typeof options.budgetTokens === "number" && options.budgetTokens > 0) {
+		reasoning.max_tokens = options.budgetTokens;
+	}
+
+	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
+}
+
 /**
  * Base handler for OpenAI SDK-based providers
  *
@@ -204,7 +228,20 @@ export class OpenAIBaseHandler extends BaseHandler {
 		const effectiveReasoningEffort =
 			this.config.reasoningEffort ??
 			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);
-		if (supportsReasoningEffort && effectiveReasoningEffort) {
+		if (routingProviderId === "openrouter") {
+			const reasoning = buildOpenRouterReasoningConfig({
+				thinking: this.config.thinking,
+				effort: effectiveReasoningEffort,
+				budgetTokens: this.config.thinkingBudgetTokens,
+			});
+			if (reasoning) {
+				(
+					requestOptions as OpenAI.ChatCompletionCreateParamsStreaming & {
+						reasoning?: typeof reasoning;
+					}
+				).reasoning = reasoning;
+			}
+		} else if (supportsReasoningEffort && effectiveReasoningEffort) {
 			(
 				requestOptions as OpenAI.ChatCompletionCreateParamsStreaming & {
 					reasoning_effort?: string;
@@ -268,8 +305,14 @@ export class OpenAIBaseHandler extends BaseHandler {
 		const rawDelta = chunk.choices?.[0]?.delta;
 		const delta = rawDelta && {
 			...rawDelta,
+			reasoning:
+				typeof (rawDelta as { reasoning?: unknown }).reasoning === "string"
+					? ((rawDelta as { reasoning?: string }).reasoning ?? "")
+					: undefined,
 			reasoning_content: (rawDelta as { reasoning_content?: string })
 				.reasoning_content,
+			reasoning_details: (rawDelta as { reasoning_details?: unknown })
+				.reasoning_details,
 		};
 
 		// Handle text content
@@ -278,10 +321,16 @@ export class OpenAIBaseHandler extends BaseHandler {
 		}
 
 		// Handle reasoning content (DeepSeek, xAI, etc.)
-		if (delta?.reasoning_content) {
+		if (
+			delta?.reasoning_content ||
+			delta?.reasoning ||
+			(Array.isArray(delta?.reasoning_details) &&
+				delta.reasoning_details.length > 0)
+		) {
 			yield {
 				type: "reasoning",
-				reasoning: delta.reasoning_content,
+				reasoning: delta.reasoning_content ?? delta.reasoning ?? "",
+				details: delta.reasoning_details,
 				id: responseId,
 			};
 		}
@@ -307,6 +356,9 @@ export class OpenAIBaseHandler extends BaseHandler {
 					cached_tokens?: number;
 					cache_write_tokens?: number;
 				};
+				completion_tokens_details?: {
+					reasoning_tokens?: number;
+				};
 				cache_creation_input_tokens?: number;
 				cache_read_input_tokens?: number;
 			};
@@ -328,6 +380,8 @@ export class OpenAIBaseHandler extends BaseHandler {
 				outputTokens,
 				cacheReadTokens,
 				cacheWriteTokens,
+				thoughtsTokenCount:
+					usageWithCache.completion_tokens_details?.reasoning_tokens,
 				totalCost: this.calculateCostFromInclusiveInput(
 					inputTokens,
 					outputTokens,

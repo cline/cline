@@ -83,14 +83,7 @@ export function toToolDefinition(tool: Tool): LlmsProviders.ToolDefinition {
 	return {
 		name: tool.name,
 		description: tool.description,
-		inputSchema: {
-			type: "object",
-			properties: tool.inputSchema.properties as Record<string, unknown>,
-			required: tool.inputSchema.required as string[] | undefined,
-			additionalProperties: tool.inputSchema.additionalProperties as
-				| boolean
-				| undefined,
-		},
+		inputSchema: tool.inputSchema as Record<string, unknown>,
 	};
 }
 

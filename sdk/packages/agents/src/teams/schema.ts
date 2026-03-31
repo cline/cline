@@ -10,6 +10,13 @@ export const TEAM_AWAIT_TIMEOUT_MS = 60 * 60 * 1000;
 export const TEAM_RUN_MESSAGE_PREVIEW_LIMIT = 240;
 export const TEAM_RUN_TEXT_PREVIEW_LIMIT = 400;
 
+function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
+	return z.preprocess(
+		(value) => (value === null ? undefined : value),
+		schema.optional(),
+	);
+}
+
 export interface TeamTeammateSpec {
 	agentId: string;
 	rolePrompt: string;
@@ -25,131 +32,125 @@ export const TeamSpawnTeammateInputSchema = z
 			.min(1)
 			.describe("System prompt describing teammate role"),
 		maxIterations: z
-			.number()
-			.int()
-			.min(1)
-			.optional()
+			.preprocess(
+				(value) => (value === null ? undefined : value),
+				z.number().int().min(1).optional(),
+			)
 			.describe("Max iterations per teammate run for spawn"),
 	})
 	.strict();
 
 export const TeamShutdownTeammateInputSchema = z.object({
 	agentId: z.string().min(1).describe("Teammate identifier"),
-	reason: z.string().min(1).optional().describe("Optional shutdown reason"),
+	reason: nullableOptional(z.string().min(1)).describe(
+		"Optional shutdown reason",
+	),
 });
 
 export const TeamStatusInputSchema = z.object({});
 
-export const TeamTaskInputSchema = z.discriminatedUnion("action", [
-	z
-		.object({
-			action: z.literal("create"),
-			title: z.string().min(1).describe("Task title"),
-			description: z.string().min(1).describe("Task details"),
-			dependsOn: z
-				.array(z.string().describe("Dependency task ID"))
-				.optional()
-				.describe("Array of dependency task IDs"),
-			assignee: z.string().min(1).optional().describe("Optional assignee"),
-		})
-		.strict(),
-	z
-		.object({
-			action: z.literal("list"),
-			status: z
-				.enum(["pending", "in_progress", "blocked", "completed"])
-				.optional()
-				.describe("Optional task status filter"),
-			assignee: z
-				.string()
-				.min(1)
-				.optional()
-				.describe("Optional assignee filter"),
-			unassignedOnly: z
-				.boolean()
-				.optional()
-				.describe("Only include tasks without an assignee"),
-			readyOnly: z
-				.boolean()
-				.optional()
-				.describe("Only include tasks ready to claim now"),
-		})
-		.strict(),
-	z
-		.object({
-			action: z.literal("claim"),
-			taskId: z.string().describe("Task ID"),
-		})
-		.strict(),
-	z
-		.object({
-			action: z.literal("complete"),
-			taskId: z.string().describe("Task ID"),
-			summary: z.string().min(1).describe("Completion summary"),
-		})
-		.strict(),
-	z
-		.object({
-			action: z.literal("block"),
-			taskId: z.string().describe("Task ID"),
-			reason: z.string().min(1).describe("Blocking reason"),
-		})
-		.strict(),
-]);
+const TEAM_TASK_FIELDS_BY_ACTION = {
+	create: ["title", "description", "dependsOn", "assignee"],
+	list: ["status", "assignee", "unassignedOnly", "readyOnly"],
+	claim: ["taskId"],
+	complete: ["taskId", "summary"],
+	block: ["taskId", "reason"],
+} as const;
+
+const TEAM_TASK_REQUIRED_FIELDS_BY_ACTION = {
+	create: ["title", "description"],
+	list: [],
+	claim: ["taskId"],
+	complete: ["taskId", "summary"],
+	block: ["taskId", "reason"],
+} as const;
+
+export const TeamTaskInputSchema = z
+	.object({
+		action: z.enum(["create", "list", "claim", "complete", "block"]),
+		title: nullableOptional(z.string().min(1)).describe("Task title"),
+		description: nullableOptional(z.string().min(1)).describe("Task details"),
+		dependsOn: nullableOptional(
+			z.array(z.string().describe("Dependency task ID")),
+		).describe("Array of dependency task IDs"),
+		assignee: nullableOptional(z.string().min(1)).describe("Optional assignee"),
+		status: nullableOptional(
+			z.enum(["pending", "in_progress", "blocked", "completed"]),
+		).describe("Optional task status filter"),
+		unassignedOnly: nullableOptional(z.boolean()).describe(
+			"Only include tasks without an assignee",
+		),
+		readyOnly: nullableOptional(z.boolean()).describe(
+			"Only include tasks ready to claim now",
+		),
+		taskId: nullableOptional(z.string()).describe("Task ID"),
+		summary: nullableOptional(z.string().min(1)).describe("Completion summary"),
+		reason: nullableOptional(z.string().min(1)).describe("Blocking reason"),
+	})
+	.superRefine((input, ctx) => {
+		const allowedFields = new Set([
+			"action",
+			...TEAM_TASK_FIELDS_BY_ACTION[input.action],
+		]);
+		for (const [key, value] of Object.entries(input)) {
+			if (key === "action" || value === undefined || allowedFields.has(key)) {
+				continue;
+			}
+			ctx.addIssue({
+				code: "custom",
+				path: [key],
+				message: `Field "${key}" is not allowed when action=${input.action}`,
+			});
+		}
+
+		for (const field of TEAM_TASK_REQUIRED_FIELDS_BY_ACTION[input.action]) {
+			if (input[field] !== undefined) {
+				continue;
+			}
+			ctx.addIssue({
+				code: "custom",
+				path: [field],
+				message: `Field "${field}" is required when action=${input.action}`,
+			});
+		}
+	});
 
 export const TeamRunTaskInputSchema = z.object({
 	agentId: z.string().describe("Teammate agent ID"),
 	task: z.string().min(1).describe("Task instructions for the teammate"),
-	taskId: z
-		.string()
-		.optional()
-		.nullable()
-		.describe("Optional shared task list ID"),
-	runMode: z
-		.enum(["sync", "async"])
-		.optional()
-		.nullable()
-		.describe(
-			"Execution mode: sync waits for result; async returns a runId immediately",
-		),
-	continueConversation: z
-		.boolean()
-		.optional()
-		.nullable()
-		.describe(
-			"If true, continue the teammate conversation; otherwise start fresh",
-		),
+	taskId: nullableOptional(z.string()).describe("Optional shared task list ID"),
+	runMode: nullableOptional(z.enum(["sync", "async"])).describe(
+		"Execution mode: sync waits for result; async returns a runId immediately",
+	),
+	continueConversation: nullableOptional(z.boolean()).describe(
+		"If true, continue the teammate conversation; otherwise start fresh",
+	),
 });
 
 export const TeamListRunsInputSchema = z.object({
-	status: z
-		.enum([
+	status: nullableOptional(
+		z.enum([
 			"queued",
 			"running",
 			"completed",
 			"failed",
 			"cancelled",
 			"interrupted",
-		])
-		.nullable()
-		.optional()
-		.describe("Optional run status filter. Omit to include all statuses."),
-	agentId: z
-		.string()
-		.min(1)
-		.nullable()
-		.optional()
-		.describe("Optional teammate ID filter. Omit to include all teammates."),
-	includeCompleted: z
-		.boolean()
-		.optional()
-		.nullable()
-		.describe("Include completed/failed runs (default true)"),
+		]),
+	).describe("Optional run status filter. Omit to include all statuses."),
+	agentId: nullableOptional(z.string().min(1)).describe(
+		"Optional teammate ID filter. Omit to include all teammates.",
+	),
+	includeCompleted: nullableOptional(z.boolean()).describe(
+		"Include completed/failed runs (default true)",
+	),
 });
 
 export const TeamCancelRunInputSchema = z.object({
 	runId: z.string().min(1).describe("Run ID"),
-	reason: z.string().min(1).optional().describe("Optional cancellation reason"),
+	reason: nullableOptional(z.string().min(1)).describe(
+		"Optional cancellation reason",
+	),
 });
 
 export const TeamAwaitRunInputSchema = z.object({
@@ -162,64 +163,41 @@ export const TeamSendMessageInputSchema = z.object({
 	toAgentId: z.string().min(1).describe("Recipient agent ID"),
 	subject: z.string().min(1).describe("Message subject"),
 	body: z.string().min(1).describe("Message body"),
-	taskId: z
-		.string()
-		.min(1)
-		.optional()
-		.nullable()
-		.describe("Optional task ID context"),
+	taskId: nullableOptional(z.string().min(1)).describe(
+		"Optional task ID context",
+	),
 });
 
 export const TeamBroadcastInputSchema = z.object({
 	subject: z.string().min(1).describe("Message subject"),
 	body: z.string().min(1).describe("Message body"),
-	taskId: z
-		.string()
-		.min(1)
-		.optional()
-		.nullable()
-		.describe("Optional task ID context"),
-	includeLead: z
-		.boolean()
-		.optional()
-		.nullable()
-		.describe("Include the lead agent in broadcast recipients"),
+	taskId: nullableOptional(z.string().min(1)).describe(
+		"Optional task ID context",
+	),
+	includeLead: nullableOptional(z.boolean()).describe(
+		"Include the lead agent in broadcast recipients",
+	),
 });
 
 export const TeamReadMailboxInputSchema = z.object({
-	unreadOnly: z
-		.boolean()
-		.optional()
-		.describe("Only unread messages for read action (default true)"),
-	limit: z
-		.number()
-		.int()
-		.min(1)
-		.max(100)
-		.optional()
-		.describe("Optional max number of messages for read action"),
+	unreadOnly: nullableOptional(z.boolean()).describe(
+		"Only unread messages for read action (default true)",
+	),
+	limit: nullableOptional(z.number().int().min(1).max(100)).describe(
+		"Optional max number of messages for read action",
+	),
 });
 
 export const TeamLogUpdateInputSchema = z.object({
 	kind: z.enum(["progress", "handoff", "blocked", "decision", "done", "error"]),
 	summary: z.string().min(1).describe("Update summary"),
-	taskId: z
-		.string()
-		.min(1)
-		.optional()
-		.nullable()
-		.describe("Optional task ID context"),
-	evidence: z
-		.array(z.string().min(1))
-		.optional()
-		.nullable()
-		.describe("Optional evidence links/snippets"),
-	nextAction: z
-		.string()
-		.min(1)
-		.optional()
-		.nullable()
-		.describe("Planned next step"),
+	taskId: nullableOptional(z.string().min(1)).describe(
+		"Optional task ID context",
+	),
+	evidence: nullableOptional(z.array(z.string().min(1))).describe(
+		"Optional evidence links/snippets",
+	),
+	nextAction: nullableOptional(z.string().min(1)).describe("Planned next step"),
 });
 
 export const TeamCleanupInputSchema = z.object({});
@@ -237,11 +215,7 @@ export const TeamCreateOutcomeInputSchema = z.object({
 export const TeamAttachOutcomeFragmentInputSchema = z.object({
 	outcomeId: z.string().describe("Outcome ID"),
 	section: z.string().describe("Section name"),
-	sourceRunId: z
-		.string()
-		.optional()
-		.nullable()
-		.describe("Optional source run ID"),
+	sourceRunId: nullableOptional(z.string()).describe("Optional source run ID"),
 	content: z.string().describe("Section fragment content"),
 });
 

@@ -50,20 +50,50 @@ function stringifyRpcMessageContent(content: unknown): string {
 }
 
 export function extractAssistantTextFromRpcMessages(messages: unknown): string {
+	return extractAssistantTurnDataFromRpcMessages(messages).text;
+}
+
+export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
+	text: string;
+	reasoning: string;
+	reasoningRedacted: boolean;
+} {
 	if (!Array.isArray(messages)) {
-		return "";
+		return { text: "", reasoning: "", reasoningRedacted: false };
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
 		if (message?.role !== "assistant") {
 			continue;
 		}
-		const text = stringifyRpcMessageContent(message.content).trim();
-		if (text) {
-			return text;
+		const reasoningParts: string[] = [];
+		let reasoningRedacted = false;
+		if (Array.isArray(message.content)) {
+			for (const block of message.content) {
+				if (!block || typeof block !== "object") {
+					continue;
+				}
+				const obj = block as Record<string, unknown>;
+				if (obj.type === "thinking") {
+					const thinking =
+						typeof obj.thinking === "string" ? obj.thinking.trim() : "";
+					if (thinking) {
+						reasoningParts.push(thinking);
+					}
+					continue;
+				}
+				if (obj.type === "redacted_thinking") {
+					reasoningRedacted = true;
+				}
+			}
 		}
+		return {
+			text: stringifyRpcMessageContent(message.content).trim(),
+			reasoning: reasoningParts.join("\n").trim(),
+			reasoningRedacted,
+		};
 	}
-	return "";
+	return { text: "", reasoning: "", reasoningRedacted: false };
 }
 
 export function buildToolPayloadString(options: {

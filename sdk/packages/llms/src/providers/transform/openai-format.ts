@@ -12,6 +12,7 @@ import type {
 	ImageContent,
 	Message,
 	TextContent,
+	ThinkingContent,
 	ToolResultContent,
 	ToolUseContent,
 } from "../types/messages";
@@ -75,6 +76,8 @@ function convertMessage(
 function convertAssistantMessage(content: ContentBlock[]): OpenAIMessage {
 	const textParts: string[] = [];
 	const toolCalls: OpenAI.Chat.ChatCompletionMessageToolCall[] = [];
+	const reasoningParts: string[] = [];
+	const reasoningDetails: unknown[] = [];
 
 	for (const block of content) {
 		switch (block.type) {
@@ -93,19 +96,45 @@ function convertAssistantMessage(content: ContentBlock[]): OpenAIMessage {
 				});
 				break;
 			}
-			case "thinking":
-				// OpenAI doesn't have native thinking blocks, skip
+			case "thinking": {
+				const thinkingBlock = block as ThinkingContent;
+				if (thinkingBlock.thinking) {
+					reasoningParts.push(thinkingBlock.thinking);
+				}
+				const details = Array.isArray(thinkingBlock.details)
+					? thinkingBlock.details
+					: Array.isArray(thinkingBlock.summary)
+						? thinkingBlock.summary
+						: [];
+				if (details.length > 0) {
+					reasoningDetails.push(...details);
+				}
 				break;
+			}
 		}
 	}
 
-	const message: OpenAI.Chat.ChatCompletionAssistantMessageParam = {
+	const message: OpenAI.Chat.ChatCompletionAssistantMessageParam & {
+		reasoning?: string;
+		reasoning_content?: string;
+		reasoning_details?: unknown[];
+	} = {
 		role: "assistant",
 		content: textParts.length > 0 ? textParts.join("\n") : null,
 	};
 
 	if (toolCalls.length > 0) {
 		message.tool_calls = toolCalls;
+	}
+
+	if (reasoningParts.length > 0) {
+		const reasoningText = reasoningParts.join("\n");
+		message.reasoning = reasoningText;
+		message.reasoning_content = reasoningText;
+	}
+
+	if (reasoningDetails.length > 0) {
+		message.reasoning_details = reasoningDetails;
 	}
 
 	return message;
@@ -190,65 +219,6 @@ function convertUserMessage(
 }
 
 /**
- * Normalize a JSON Schema for OpenAI strict mode.
- *
- * Strict mode requires:
- * - `additionalProperties: false` on every object
- * - All properties listed in `required` (optional ones become nullable)
- */
-function normalizeForStrictMode(schema: unknown): unknown {
-	if (!schema || typeof schema !== "object" || Array.isArray(schema)) {
-		return schema;
-	}
-
-	const s = { ...(schema as Record<string, unknown>) };
-
-	// Remove $schema – OpenAI rejects it
-	delete s.$schema;
-
-	if (s.type === "object") {
-		s.additionalProperties = false;
-
-		const properties = s.properties as Record<string, unknown> | undefined;
-		const required = (s.required as string[] | undefined) ?? [];
-
-		if (properties) {
-			const allKeys = Object.keys(properties);
-			const requiredSet = new Set(required);
-
-			// Make every property required; wrap non-required ones as nullable
-			const normalized: Record<string, unknown> = {};
-			for (const key of allKeys) {
-				let prop = normalizeForStrictMode(properties[key]);
-				if (!requiredSet.has(key)) {
-					// Wrap as nullable via anyOf
-					prop = { anyOf: [prop, { type: "null" }] };
-				}
-				normalized[key] = prop;
-			}
-			s.properties = normalized;
-			s.required = allKeys;
-		}
-	}
-
-	// Recurse into nested schemas
-	if (s.items) {
-		s.items = Array.isArray(s.items)
-			? s.items.map((i) => normalizeForStrictMode(i))
-			: normalizeForStrictMode(s.items);
-	}
-	for (const keyword of ["anyOf", "oneOf", "allOf"] as const) {
-		if (Array.isArray(s[keyword])) {
-			s[keyword] = (s[keyword] as unknown[]).map((i) =>
-				normalizeForStrictMode(i),
-			);
-		}
-	}
-
-	return s;
-}
-
-/**
  * Convert tool definitions to OpenAI format
  */
 export function convertToolsToOpenAI(
@@ -261,9 +231,7 @@ export function convertToolsToOpenAI(
 		function: {
 			name: tool.name,
 			description: tool.description,
-			parameters: normalizeForStrictMode(
-				tool.inputSchema,
-			) as OpenAI.FunctionParameters,
+			parameters: tool.inputSchema as OpenAI.FunctionParameters,
 			strict,
 		},
 	}));
