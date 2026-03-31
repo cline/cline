@@ -56,7 +56,6 @@ export function addRootOptions(cmd: Command): Command {
 			"--reasoning-effort <level>",
 			"Reasoning effort: none|low|medium|high|xhigh",
 		)
-		.option("--reasoning-effor <level>") // legacy typo alias
 		.option("--refresh-models", "Refresh provider model catalog for this run")
 		.option("--require-tool-approval", "Require approval for every tool call")
 		.option("--sandbox", "Use isolated local state instead of ~/.cline")

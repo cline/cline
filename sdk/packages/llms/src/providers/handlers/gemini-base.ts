@@ -208,12 +208,12 @@ export class GeminiHandler extends BaseHandler {
 				const parts = chunk?.candidates?.[0]?.content?.parts ?? [];
 
 				for (const part of parts) {
-					if ((part as any).thought && part.text) {
+					if (part.thought && part.text) {
 						// Thinking content
 						yield {
 							type: "reasoning",
 							reasoning: part.text || "",
-							signature: (part as any).thoughtSignature,
+							signature: part.thoughtSignature,
 							id: responseId,
 						};
 					} else if (part.text) {
@@ -222,7 +222,7 @@ export class GeminiHandler extends BaseHandler {
 							type: "text",
 							text: part.text,
 							id: responseId,
-							signature: (part as any).thoughtSignature,
+							signature: part.thoughtSignature,
 						};
 					}
 
@@ -245,7 +245,7 @@ export class GeminiHandler extends BaseHandler {
 									},
 								},
 								id: responseId,
-								signature: (part as any).thoughtSignature,
+								signature: part.thoughtSignature,
 							};
 						}
 					}
@@ -257,11 +257,9 @@ export class GeminiHandler extends BaseHandler {
 					outputTokens =
 						chunk.usageMetadata.candidatesTokenCount ?? outputTokens;
 					thoughtsTokenCount =
-						(chunk.usageMetadata as any).thoughtsTokenCount ??
-						thoughtsTokenCount;
+						chunk.usageMetadata.thoughtsTokenCount ?? thoughtsTokenCount;
 					cacheReadTokens =
-						(chunk.usageMetadata as any).cachedContentTokenCount ??
-						cacheReadTokens;
+						chunk.usageMetadata.cachedContentTokenCount ?? cacheReadTokens;
 				}
 			}
 

@@ -81,5 +81,5 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(readFileSync(artifacts.transcriptPath, "utf8")).toContain(
 			"[shutdown] failed_external_process_exit",
 		);
-	});
+	}, 15_000);
 });

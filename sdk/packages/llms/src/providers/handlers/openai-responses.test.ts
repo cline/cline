@@ -1,6 +1,27 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TeamTaskInputSchema } from "../../../../agents/src/teams/schema";
+import { zodToJsonSchema } from "../../../../shared/src/parse/zod";
 import type { Message } from "../types/messages";
 import type { ApiStreamChunk } from "../types/stream";
+
+const responsesCreateSpy = vi.fn();
+
+beforeEach(() => {
+	responsesCreateSpy.mockClear();
+});
+
+vi.mock("openai", () => {
+	class OpenAI {
+		responses = {
+			create: responsesCreateSpy,
+		};
+	}
+
+	return {
+		default: OpenAI,
+	};
+});
+
 import { OpenAIResponsesHandler } from "./openai-responses";
 
 class TestOpenAIResponsesHandler extends OpenAIResponsesHandler {
@@ -19,6 +40,24 @@ class TestOpenAIResponsesHandler extends OpenAIResponsesHandler {
 			),
 		];
 	}
+}
+
+function createAsyncIterable<T>(items: T[]): AsyncIterable<T> {
+	return {
+		async *[Symbol.asyncIterator]() {
+			for (const item of items) {
+				yield item;
+			}
+		},
+	};
+}
+
+async function collectChunks(stream: AsyncIterable<ApiStreamChunk>) {
+	const chunks: ApiStreamChunk[] = [];
+	for await (const chunk of stream) {
+		chunks.push(chunk);
+	}
+	return chunks;
 }
 
 describe("OpenAIResponsesHandler", () => {
@@ -255,5 +294,48 @@ describe("OpenAIResponsesHandler", () => {
 		if (chunks[0]?.type === "usage") {
 			expect(chunks[0].totalCost).toBeCloseTo(0.0001675, 10);
 		}
+	});
+
+	it("sends team_task optional fields through the native OpenAI responses path without strict chat schemas", async () => {
+		responsesCreateSpy.mockResolvedValueOnce(createAsyncIterable([]));
+
+		const teamTaskSchema = zodToJsonSchema(TeamTaskInputSchema);
+		const handler = new OpenAIResponsesHandler({
+			providerId: "openai-native",
+			modelId: "gpt-5.4",
+			apiKey: "test-key",
+			baseUrl: "https://example.com",
+		});
+
+		await collectChunks(
+			handler.createMessage(
+				"system",
+				[{ role: "user", content: "List ready tasks" }],
+				[
+					{
+						name: "team_task",
+						description: "Manage shared team tasks.",
+						inputSchema: teamTaskSchema,
+					},
+				],
+			),
+		);
+
+		expect(responsesCreateSpy).toHaveBeenCalledTimes(1);
+		const request = responsesCreateSpy.mock.calls[0]?.[0] as {
+			tools?: Array<Record<string, unknown>>;
+		};
+		expect(request.tools).toEqual([
+			{
+				type: "function",
+				name: "team_task",
+				description: "Manage shared team tasks.",
+				parameters: teamTaskSchema,
+			},
+		]);
+		expect(request.tools?.[0]).not.toHaveProperty("strict");
+		expect(
+			(request.tools?.[0]?.parameters as { required?: string[] }).required,
+		).toEqual(["action"]);
 	});
 });

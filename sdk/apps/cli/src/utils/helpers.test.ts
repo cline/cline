@@ -164,9 +164,6 @@ describe("parseArgs", () => {
 	});
 
 	it("parses and validates reasoning effort", () => {
-		const parsedXhigh = parseArgs(["--reasoning-effor", "xhigh"]);
-		expect(parsedXhigh.reasoningEffort).toBe("xhigh");
-
 		const parsedInvalid = parseArgs(["--reasoning-effort", "ultra"]);
 		expect(parsedInvalid.reasoningEffort).toBeUndefined();
 		expect(parsedInvalid.invalidReasoningEffort).toBe("ultra");
