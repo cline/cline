@@ -5,7 +5,7 @@ import { expectVisible, testEnv, typeAndSubmit } from "./utils.js"
 
 test.describe("cline interactive basics", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: [] },
+		program: { file: CLINE_BIN, args: ["--tui"] },
 		rows: 50,
 		columns: 120,
 		env: testEnv("default"),

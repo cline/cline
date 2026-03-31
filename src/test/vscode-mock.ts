@@ -1,6 +1,8 @@
 // Mock implementation of VSCode API for unit tests
 export const env = {
 	machineId: "test-machine-id",
+	appName: "VS Code",
+	remoteName: undefined as string | undefined,
 	isTelemetryEnabled: true,
 	onDidChangeTelemetryEnabled: (_callback: (enabled: boolean) => void) => {
 		// Return a disposable mock
@@ -9,6 +11,8 @@ export const env = {
 		}
 	},
 }
+
+export const version = "1.103.0"
 
 export const workspace = {
 	getConfiguration: (section?: string) => {

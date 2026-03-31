@@ -15,6 +15,73 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
+export const DEFAULT_MAX_LINES = 1000
+const FILE_TRUNCATED_MARKER = "\n\n---\n\n[FILE TRUNCATED:"
+
+/**
+ * Slice file content to the requested line range, add one-based `N |` line labels,
+ * and append a continuation hint when the file has more lines to read.
+ */
+export function formatFileContentWithLineNumbers(content: string, startLine?: number, endLine?: number): string {
+	if (!content) {
+		return content
+	}
+
+	// Separate any byte-truncation notice appended by content-limits.ts
+	let body = content
+	let truncationSuffix = ""
+	const truncationIndex = content.indexOf(FILE_TRUNCATED_MARKER)
+	if (truncationIndex !== -1) {
+		body = content.slice(0, truncationIndex)
+		truncationSuffix = content.slice(truncationIndex)
+	}
+
+	const lines = body.split(/\r?\n/)
+	if (body.endsWith("\n") && lines.length > 0) {
+		lines.pop()
+	}
+	const totalLines = lines.length
+
+	const requestedStart = Math.max(1, startLine ?? 1)
+	const requestedEnd = endLine !== undefined ? Math.max(1, endLine) : requestedStart + DEFAULT_MAX_LINES - 1
+	const shouldSwapBounds = endLine !== undefined && requestedEnd < requestedStart
+	const start = shouldSwapBounds ? requestedEnd : requestedStart
+	const end = Math.min(totalLines, shouldSwapBounds ? requestedStart : requestedEnd)
+
+	const slice = lines.slice(start - 1, end)
+	const labeled = slice.map((line, i) => `${start + i} | ${line}`).join("\n")
+
+	let suffix = truncationSuffix
+	if (!truncationSuffix) {
+		if (end < totalLines) {
+			suffix = `\n\n(Showing lines ${start}-${end} of ${totalLines} total. Use start_line=${end + 1} to continue reading.)`
+		} else {
+			suffix = `\n\n(File has ${totalLines} lines total.)`
+		}
+	}
+
+	return labeled + suffix
+}
+
+function parseRequestedLineRange(block: ToolUse): { startLine?: number; endLine?: number } {
+	const startLine = block.params.start_line ? Number.parseInt(block.params.start_line, 10) : undefined
+	const endLine = block.params.end_line ? Number.parseInt(block.params.end_line, 10) : undefined
+
+	return {
+		startLine: startLine !== undefined && !Number.isNaN(startLine) ? startLine : undefined,
+		endLine: endLine !== undefined && !Number.isNaN(endLine) ? endLine : undefined,
+	}
+}
+
+function buildReadResponse(block: ToolUse, fileContent: FileContentResult, prefix?: string): string {
+	const { startLine, endLine } = parseRequestedLineRange(block)
+	const text = fileContent.imageBlock
+		? fileContent.text
+		: formatFileContentWithLineNumbers(fileContent.text, startLine, endLine)
+
+	return prefix ? `${prefix}\n${text}` : text
+}
+
 export class ReadFileToolHandler implements IFullyManagedTool {
 	readonly name = ClineDefaultTool.FILE_READ
 
@@ -167,6 +234,69 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			throw error
 		}
 
+		// === File Read Deduplication ===
+		// Check if we've already read this exact file in this task.
+		// This prevents the model from endlessly reading the same file, which wastes API tokens.
+		// The cache stores only metadata (readCount, mtime, imageBlock) — not file content —
+		// to keep memory usage minimal. On cache hits we re-read from disk to return fresh content.
+		const cacheKey = absolutePath.toLowerCase()
+		const cached = config.taskState.fileReadCache.get(cacheKey)
+
+		if (cached) {
+			// Check if the file has been modified externally (e.g. user edited in their editor)
+			// by comparing the mtime. If it changed, treat this as a fresh read.
+			try {
+				const stat = await import("node:fs/promises").then((fs) => fs.stat(absolutePath))
+				if (stat.mtimeMs !== cached.mtime) {
+					// File was modified externally — evict cache entry and fall through to fresh read
+					config.taskState.fileReadCache.delete(cacheKey)
+				}
+			} catch {
+				// If we can't stat the file, evict the cache and let extractFileContent handle the error
+				config.taskState.fileReadCache.delete(cacheKey)
+			}
+		}
+
+		// Re-check after possible mtime eviction
+		const validCached = config.taskState.fileReadCache.get(cacheKey)
+
+		if (validCached) {
+			validCached.readCount++
+
+			// Re-push image block for multimodal models so image context is not lost on cached reads
+			if (validCached.imageBlock) {
+				config.taskState.userMessageContent.push(validCached.imageBlock)
+			}
+
+			// Re-read from disk (cache doesn't store content to save memory)
+			const supportsImages = config.api.getModel().info.supportsImages ?? false
+			let fileContent: FileContentResult
+			try {
+				fileContent = await extractFileContent(absolutePath, supportsImages)
+			} catch (error) {
+				config.taskState.consecutiveMistakeCount++
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				const normalizedMessage = errorMessage.startsWith("Error reading file:")
+					? errorMessage
+					: `Error reading file: ${errorMessage}`
+				return formatResponse.toolError(normalizedMessage)
+			}
+
+			if (validCached.readCount >= 3) {
+				return buildReadResponse(
+					block,
+					fileContent,
+					`[DUPLICATE READ] You have already read '${displayPath}' ${validCached.readCount} times in this conversation. The content has not changed since your last read. Please use the information you already have and proceed with your task.`,
+				)
+			}
+
+			return buildReadResponse(
+				block,
+				fileContent,
+				`[File already read] The file '${displayPath}' was already read earlier in this conversation. Returning content:`,
+			)
+		}
+
 		// Execute the actual file read operation
 		const supportsImages = config.api.getModel().info.supportsImages ?? false
 		let fileContent: FileContentResult
@@ -191,11 +321,26 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Track file read operation
 		await config.services.fileContextTracker.trackFileContext(relPath!, "read_tool")
 
+		// Cache metadata for deduplication (no content stored — saves memory)
+		let mtime = 0
+		try {
+			const stat = await import("node:fs/promises").then((fs) => fs.stat(absolutePath))
+			mtime = stat.mtimeMs
+		} catch {
+			// If stat fails, use 0 — the next cache hit will evict due to mtime mismatch
+		}
+		config.taskState.fileReadCache.set(cacheKey, {
+			readCount: 1,
+			mtime,
+			imageBlock: fileContent.imageBlock,
+		})
+
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
+			return buildReadResponse(block, fileContent)
 		}
 
-		return fileContent.text
+		return buildReadResponse(block, fileContent)
 	}
 }

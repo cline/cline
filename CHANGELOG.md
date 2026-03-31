@@ -1,5 +1,58 @@
 # Changelog
 
+## [3.76.0]
+
+### Added
+
+- Add Cline Kanban launch modal in webview; CLI now launches Kanban by default with a migration view
+- Add toggle to disable feature tips in chat
+- Add repeated tool call loop detection to prevent infinite loops wasting tokens
+
+### Fixed
+
+- Fix CLI Kanban spawn on Windows by enabling shell mode for `npx.cmd`
+
+## [3.75.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+### Fixed
+
+- Stabilize flaky hooks tests
+
+### Changed
+
+- Remove example hooks in favor of reading the docs
+
+## [3.74.0]
+
+### Added
+- Implement dynamic free model detection for Cline API
+- Add file read deduplication cache to prevent repeated reads
+- Add feature tips tooltip during thinking state
+
+### Fixed
+- Replace error message when not logged in to Cline
+- Align ClineRulesToggleModal padding with ServersToggleModal
+- Skip WebP for GLM and Devstral models running through llama.cpp
+- Respect user-configured context window in LiteLLM getModel()
+- Honor explicit model IDs outside static catalog in W&B provider
+- Add missing Fireworks serverless models and pricing
+
+## [3.73.0]
+
+### Added
+
+- Added W&B Inference by CoreWeave as a new API provider with 17 models
+- Improved parallel tool calling support for OpenRouter and Cline providers
+
+### Fixed
+
+- Claude Code Provider: handle rate limit events, empty content arrays, error results, and unknown content types without crashing
+- Tool handlers (`read_file`, `list_files`, `list_code_definition_names`, `search_files`) now return graceful errors instead of crashing
+
 ## [3.72.0]
 
 ### Added

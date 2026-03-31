@@ -30,6 +30,7 @@ test.describe("root flag descriptions", () => {
 			"Output messages as JSON",
 			"first completion attempt",
 			"ACP",
+			"legacy terminal UI",
 			"Resume an existing task",
 		])
 	})
