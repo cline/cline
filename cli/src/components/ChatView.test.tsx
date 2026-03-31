@@ -291,6 +291,71 @@ describe("ChatView Exit and Cleanup", () => {
 	})
 })
 
+describe("ChatView Paste Handling", () => {
+	beforeEach(() => {
+		vi.clearAllMocks()
+		shutdownMockState.reset()
+	})
+
+	it("should collapse large paste (>100 chars) into a placeholder", async () => {
+		const { lastFrame, stdin } = render(<ChatView />)
+		await delay()
+
+		// Simulate pasting a large block of text (>100 chars)
+		const largePaste = "a".repeat(50) + "\n" + "b".repeat(60)
+		stdin.write(largePaste)
+		await delay()
+
+		const frame = lastFrame()
+		// Should show placeholder, not the raw pasted text
+		expect(frame).toContain("[Pasted text #1")
+		expect(frame).not.toContain("aaaaaa")
+	})
+
+	it("should capture small trailing chunk during active paste session", async () => {
+		const { lastFrame, stdin } = render(<ChatView />)
+		await delay()
+
+		// First chunk - large paste that triggers placeholder
+		const firstChunk = "x".repeat(120)
+		stdin.write(firstChunk)
+		await delay(30) // Short delay - within paste session window
+
+		// Second chunk - small trailing text that was previously leaking
+		const trailingChunk = "ng scripts"
+		stdin.write(trailingChunk)
+		await delay()
+
+		const frame = lastFrame()
+		// The trailing text should NOT appear as separate text after the placeholder
+		expect(frame).not.toContain("ng scripts")
+		// Should still show the placeholder
+		expect(frame).toContain("[Pasted text #1")
+	})
+
+	it("should allow normal typing after paste session ends", async () => {
+		const { lastFrame, stdin } = render(<ChatView />)
+		await delay()
+
+		// Paste a large block
+		stdin.write("y".repeat(120))
+		await delay()
+
+		// Wait for paste session to expire (>200ms)
+		await delay(250)
+
+		// Type normal text - should appear as regular input, not captured by paste
+		stdin.write("h")
+		stdin.write("i")
+		await delay()
+
+		const frame = lastFrame()
+		// Should have both the placeholder and the typed text
+		expect(frame).toContain("[Pasted text #1")
+		expect(frame).toContain("hi")
+	})
+})
+
 describe("ChatView UI State During Exit", () => {
 	beforeEach(() => {
 		vi.clearAllMocks()

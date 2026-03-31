@@ -405,7 +405,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const activePasteStartPosRef = useRef<number>(0) // Where the placeholder starts in the text
 	const activePasteLinesRef = useRef<number>(0) // Total line count for current paste
 	const pasteUpdateTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Debounce placeholder updates
+	const pasteCompletionTimeoutRef = useRef<NodeJS.Timeout | null>(null) // Marks paste session as complete after cooldown
 	const PASTE_CHUNK_WINDOW_MS = 150 // Chunks within this window are combined into one paste
+	const PASTE_COMPLETION_MS = 200 // After this much silence, paste session ends and normal input resumes
 	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
 
 	// Slash command state
@@ -1353,6 +1355,63 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		// 11. Detect paste by checking if input length exceeds threshold
 		// Large pastes mess up the terminal UI, so we collapse them into a placeholder
 		// Terminal sends large pastes in multiple chunks, so we combine chunks that arrive rapidly
+		//
+		// BUG FIX: The final chunk of a paste is often small (<PASTE_COLLAPSE_THRESHOLD chars).
+		// Without the active paste session check below, these small trailing chunks would fall
+		// through to normal input handling and appear as leaked text after the placeholder.
+		// e.g., "[Pasted text #1 +66 lines]ng scripts" instead of "[Pasted text #1 +66 lines]"
+		// We use pasteCompletionTimeoutRef to keep the paste session active for PASTE_COMPLETION_MS
+		// after the last chunk, capturing ALL input during that window regardless of size.
+
+		// Helper to schedule paste session completion (resets active paste state after cooldown)
+		const schedulePasteCompletion = () => {
+			if (pasteCompletionTimeoutRef.current) {
+				clearTimeout(pasteCompletionTimeoutRef.current)
+			}
+			pasteCompletionTimeoutRef.current = setTimeout(() => {
+				activePasteNumRef.current = 0
+				lastPasteTimeRef.current = 0
+				pasteCompletionTimeoutRef.current = null
+			}, PASTE_COMPLETION_MS)
+		}
+
+		// Active paste session: capture ALL input (even small chunks) as part of the ongoing paste.
+		// This prevents the last small chunk of a multi-chunk paste from leaking as normal text.
+		if (input && activePasteNumRef.current > 0 && input.length <= PASTE_COLLAPSE_THRESHOLD) {
+			const now = Date.now()
+			const timeSinceLastPaste = now - lastPasteTimeRef.current
+			if (timeSinceLastPaste < PASTE_COMPLETION_MS) {
+				lastPasteTimeRef.current = now
+				const pasteNum = activePasteNumRef.current
+				const chunkLines = input.match(/[\r\n]/g)?.length || 0
+				activePasteLinesRef.current += chunkLines
+
+				setPastedTexts((prev) => {
+					const next = new Map(prev)
+					const existing = next.get(pasteNum) || ""
+					next.set(pasteNum, existing + input)
+					return next
+				})
+
+				// Debounce the visual update
+				if (pasteUpdateTimeoutRef.current) {
+					clearTimeout(pasteUpdateTimeoutRef.current)
+				}
+				pasteUpdateTimeoutRef.current = setTimeout(() => {
+					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
+					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
+					const newText = textInputRef.current.replace(pattern, newPlaceholder)
+					textInputRef.current = newText
+					setTextInput(newText)
+					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
+				}, PASTE_UPDATE_DEBOUNCE_MS)
+
+				// Reset the completion timer since we got more paste data
+				schedulePasteCompletion()
+				return
+			}
+		}
+
 		if (input && input.length > PASTE_COLLAPSE_THRESHOLD) {
 			const now = Date.now()
 			const timeSinceLastPaste = now - lastPasteTimeRef.current
@@ -1387,6 +1446,8 @@ export const ChatView: React.FC<ChatViewProps> = ({
 					Logger.info(`Paste #${pasteNum} complete: ${activePasteLinesRef.current} lines`)
 				}, PASTE_UPDATE_DEBOUNCE_MS)
 
+				// Reset the completion timer
+				schedulePasteCompletion()
 				return // Don't add another placeholder
 			}
 
@@ -1412,6 +1473,9 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
 			setTextInput(newText)
 			setCursorPos(currentCursorPos + placeholder.length)
+
+			// Start paste completion timer - after PASTE_COMPLETION_MS of silence, paste session ends
+			schedulePasteCompletion()
 			return // Exit early - don't also add the raw input via normal handling below
 		}
 
