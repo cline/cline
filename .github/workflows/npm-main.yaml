@@ -91,3 +91,21 @@ jobs:
           echo ""
           echo "📦 Install with: npm install -g cline"
           echo "🔗 NPM: https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}"
+
+      - name: Post release to Slack
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          payload: |
+            channel: "C0APVKGGZFC"
+            text: "Cline CLI v${{ steps.version.outputs.version }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "*Cline CLI v${{ steps.version.outputs.version }}*"
+              - type: "context"
+                elements:
+                  - type: "mrkdwn"
+                    text: "<https://www.npmjs.com/package/cline/v/${{ steps.version.outputs.version }}|View on npm>"
