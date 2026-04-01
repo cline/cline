@@ -169,10 +169,7 @@ export async function* emitAiSdkStream(
 
 				yield {
 					type: "usage",
-					inputTokens: Math.max(
-						0,
-						usageMetrics.inputTokens - usageMetrics.cacheReadTokens,
-					),
+					inputTokens: usageMetrics.inputTokens,
 					outputTokens: usageMetrics.outputTokens,
 					thoughtsTokenCount: usageMetrics.thoughtsTokenCount,
 					cacheReadTokens: usageMetrics.cacheReadTokens,
@@ -207,10 +204,7 @@ export async function* emitAiSdkStream(
 		const usageMetrics = resolveUsageMetrics(usage);
 		yield {
 			type: "usage",
-			inputTokens: Math.max(
-				0,
-				usageMetrics.inputTokens - usageMetrics.cacheReadTokens,
-			),
+			inputTokens: usageMetrics.inputTokens,
 			outputTokens: usageMetrics.outputTokens,
 			thoughtsTokenCount: usageMetrics.thoughtsTokenCount,
 			cacheReadTokens: usageMetrics.cacheReadTokens,

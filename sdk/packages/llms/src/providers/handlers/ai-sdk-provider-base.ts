@@ -191,7 +191,7 @@ export abstract class AiSdkProviderHandler extends BaseHandler {
 				cacheReadTokens,
 				cacheWriteTokens,
 			) =>
-				this.calculateCost(
+				this.calculateCostFromInclusiveInput(
 					inputTokens,
 					outputTokens,
 					cacheReadTokens,

@@ -373,10 +373,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 
 			yield {
 				type: "usage",
-				inputTokens: Math.max(
-					0,
-					inputTokens - cacheReadTokens - cacheWriteTokens,
-				),
+				inputTokens,
 				outputTokens,
 				cacheReadTokens,
 				cacheWriteTokens,

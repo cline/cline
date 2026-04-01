@@ -589,10 +589,7 @@ export class OpenAIResponsesHandler extends BaseHandler {
 
 					yield {
 						type: "usage",
-						inputTokens: Math.max(
-							0,
-							inputTokens - cacheReadTokens - cacheWriteTokens,
-						),
+						inputTokens,
 						outputTokens,
 						cacheWriteTokens,
 						cacheReadTokens,

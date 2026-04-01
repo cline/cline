@@ -285,7 +285,7 @@ describe("OpenAIResponsesHandler", () => {
 
 		expect(chunks[0]).toMatchObject({
 			type: "usage",
-			inputTokens: 75,
+			inputTokens: 100,
 			outputTokens: 40,
 			cacheReadTokens: 25,
 			cacheWriteTokens: 0,

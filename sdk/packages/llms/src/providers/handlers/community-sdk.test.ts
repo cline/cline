@@ -142,10 +142,54 @@ describe("Community SDK handlers", () => {
 					chunk.type === "usage",
 			);
 			expect(usageChunk).toMatchObject({
-				inputTokens: 6,
+				inputTokens: 10,
 				outputTokens: 3,
 				cacheReadTokens: 4,
 			});
+		});
+
+		it("calculates cost from inclusive input tokens without double-charging cache reads", async () => {
+			streamTextSpy.mockReturnValue({
+				fullStream: makeStreamParts([
+					{
+						type: "finish",
+						usage: {
+							inputTokens: 100,
+							outputTokens: 40,
+							cachedInputTokens: 25,
+						},
+					},
+				]),
+			});
+
+			const handler = new ClaudeCodeHandler({
+				providerId: "claude-code",
+				modelId: "sonnet",
+				knownModels: {
+					sonnet: {
+						id: "sonnet",
+						pricing: {
+							input: 1,
+							output: 2,
+							cacheRead: 0.5,
+						},
+					},
+				},
+			});
+
+			const chunks: ApiStreamChunk[] = [];
+			for await (const chunk of handler.createMessage("System", [
+				{ role: "user", content: "Hi" },
+			])) {
+				chunks.push(chunk);
+			}
+
+			const usageChunk = chunks.find(
+				(chunk): chunk is Extract<ApiStreamChunk, { type: "usage" }> =>
+					chunk.type === "usage",
+			);
+
+			expect(usageChunk?.totalCost).toBeCloseTo(0.0001675, 10);
 		});
 
 		it("uses a fallback model id when model is missing", () => {
