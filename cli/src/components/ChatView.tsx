@@ -410,6 +410,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 	const PASTE_COMPLETION_MS = 200 // After this much silence, paste session ends and normal input resumes
 	const PASTE_UPDATE_DEBOUNCE_MS = 50 // Debounce visual updates to avoid flicker
 
+	// Cleanup paste timeouts on unmount
+	useEffect(() => {
+		return () => {
+			if (pasteCompletionTimeoutRef.current) clearTimeout(pasteCompletionTimeoutRef.current)
+			if (pasteUpdateTimeoutRef.current) clearTimeout(pasteUpdateTimeoutRef.current)
+		}
+	}, [])
+
 	// Slash command state
 	const [availableCommands, setAvailableCommands] = useState<SlashCommandInfo[]>(() => createCliOnlySlashCommands())
 	const [selectedSlashIndex, setSelectedSlashIndex] = useState(0)
@@ -1375,6 +1383,36 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}, PASTE_COMPLETION_MS)
 		}
 
+		// Helper to append a chunk to the active paste (stores content + debounces placeholder update)
+		const appendToActivePaste = (chunk: string) => {
+			const pasteNum = activePasteNumRef.current
+			const chunkLines = chunk.match(/[\r\n]/g)?.length || 0
+			activePasteLinesRef.current += chunkLines
+
+			setPastedTexts((prev) => {
+				const next = new Map(prev)
+				const existing = next.get(pasteNum) || ""
+				next.set(pasteNum, existing + chunk)
+				return next
+			})
+
+			// Debounce the visual update to avoid flicker while chunks are arriving
+			if (pasteUpdateTimeoutRef.current) {
+				clearTimeout(pasteUpdateTimeoutRef.current)
+			}
+			pasteUpdateTimeoutRef.current = setTimeout(() => {
+				const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
+				const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
+				const newText = textInputRef.current.replace(pattern, newPlaceholder)
+				textInputRef.current = newText
+				setTextInput(newText)
+				setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
+				Logger.info(`Paste #${pasteNum} updated: ${activePasteLinesRef.current} lines`)
+			}, PASTE_UPDATE_DEBOUNCE_MS)
+
+			schedulePasteCompletion()
+		}
+
 		// Active paste session: capture ALL input (even small chunks) as part of the ongoing paste.
 		// This prevents the last small chunk of a multi-chunk paste from leaking as normal text.
 		if (input && activePasteNumRef.current > 0 && input.length <= PASTE_COLLAPSE_THRESHOLD) {
@@ -1382,32 +1420,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			const timeSinceLastPaste = now - lastPasteTimeRef.current
 			if (timeSinceLastPaste < PASTE_COMPLETION_MS) {
 				lastPasteTimeRef.current = now
-				const pasteNum = activePasteNumRef.current
-				const chunkLines = input.match(/[\r\n]/g)?.length || 0
-				activePasteLinesRef.current += chunkLines
-
-				setPastedTexts((prev) => {
-					const next = new Map(prev)
-					const existing = next.get(pasteNum) || ""
-					next.set(pasteNum, existing + input)
-					return next
-				})
-
-				// Debounce the visual update
-				if (pasteUpdateTimeoutRef.current) {
-					clearTimeout(pasteUpdateTimeoutRef.current)
-				}
-				pasteUpdateTimeoutRef.current = setTimeout(() => {
-					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
-					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-					const newText = textInputRef.current.replace(pattern, newPlaceholder)
-					textInputRef.current = newText
-					setTextInput(newText)
-					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
-				}, PASTE_UPDATE_DEBOUNCE_MS)
-
-				// Reset the completion timer since we got more paste data
-				schedulePasteCompletion()
+				appendToActivePaste(input)
 				return
 			}
 		}
@@ -1419,35 +1432,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 
 			// Check if this is a continuation of a recent paste (within time window)
 			if (timeSinceLastPaste < PASTE_CHUNK_WINDOW_MS && activePasteNumRef.current > 0) {
-				// Append to existing paste content (store immediately, don't lose data)
-				const pasteNum = activePasteNumRef.current
-				const chunkLines = input.match(/[\r\n]/g)?.length || 0
-				activePasteLinesRef.current += chunkLines
-
-				setPastedTexts((prev) => {
-					const next = new Map(prev)
-					const existing = next.get(pasteNum) || ""
-					next.set(pasteNum, existing + input)
-					return next
-				})
-
-				// Debounce the visual update to avoid flicker while chunks are arriving
-				if (pasteUpdateTimeoutRef.current) {
-					clearTimeout(pasteUpdateTimeoutRef.current)
-				}
-				pasteUpdateTimeoutRef.current = setTimeout(() => {
-					const newPlaceholder = `[Pasted text #${pasteNum} +${activePasteLinesRef.current} lines]`
-					const pattern = new RegExp(`\\[Pasted text #${pasteNum} \\+\\d+ lines\\]`)
-					const newText = textInputRef.current.replace(pattern, newPlaceholder)
-					textInputRef.current = newText // Update ref immediately so setCursorPos bounds check works
-					setTextInput(newText)
-					// Update cursor to be right after the placeholder
-					setCursorPos(activePasteStartPosRef.current + newPlaceholder.length)
-					Logger.info(`Paste #${pasteNum} complete: ${activePasteLinesRef.current} lines`)
-				}, PASTE_UPDATE_DEBOUNCE_MS)
-
-				// Reset the completion timer
-				schedulePasteCompletion()
+				appendToActivePaste(input)
 				return // Don't add another placeholder
 			}
 
