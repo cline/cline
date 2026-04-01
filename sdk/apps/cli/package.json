@@ -4,6 +4,9 @@
 	"version": "0.0.0",
 	"description": "[EXPERIMENTAL] A lightweight Cline CLI built with the Cline SDKs",
 	"type": "module",
+	"publishConfig": {
+		"access": "restricted"
+	},
 	"bin": {
 		"clite": "dist/index.js"
 	},
@@ -27,7 +30,7 @@
 		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",
 		"test:watch": "vitest --config vitest.config.ts",
 		"test:e2e:cli:tui": "cd src/tests && tui-test",
-		"release": "bun run build && bun publish --access public",
+		"release": "bun run build && bun publish --access restricted",
 		"link": "bun unlink && bun link"
 	},
 	"dependencies": {

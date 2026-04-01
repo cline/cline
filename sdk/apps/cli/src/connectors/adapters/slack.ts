@@ -52,6 +52,7 @@ import {
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	writeBindings,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
@@ -170,11 +171,23 @@ function extractSlackTeamId(raw: unknown): string | undefined {
 }
 
 async function withSlackBindingBotToken<T>(input: {
-	slack: SlackAdapter;
+	slack: Pick<SlackAdapter, "getInstallation" | "withBotToken">;
 	binding: ConnectorThreadBinding<SlackThreadState>;
 	work: () => Promise<T>;
 }): Promise<T> {
-	const teamId = input.binding.state?.teamId?.trim();
+	return withSlackTeamBotToken({
+		slack: input.slack,
+		teamId: input.binding.state?.teamId,
+		work: input.work,
+	});
+}
+
+async function withSlackTeamBotToken<T>(input: {
+	slack: Pick<SlackAdapter, "getInstallation" | "withBotToken">;
+	teamId?: string;
+	work: () => Promise<T>;
+}): Promise<T> {
+	const teamId = input.teamId?.trim();
 	if (!teamId) {
 		return input.work();
 	}
@@ -183,6 +196,33 @@ async function withSlackBindingBotToken<T>(input: {
 		return input.work();
 	}
 	return input.slack.withBotToken(installation.botToken, input.work);
+}
+
+function isSlackInvalidThreadTsError(error: unknown): boolean {
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "";
+	return /\binvalid_thread_ts\b/i.test(message);
+}
+
+function clearSlackBinding(
+	bindingsPath: string,
+	bindingKey: string | undefined,
+): boolean {
+	const key = bindingKey?.trim();
+	if (!key) {
+		return false;
+	}
+	const bindings = readBindings<SlackThreadState>(bindingsPath);
+	if (!bindings[key]) {
+		return false;
+	}
+	delete bindings[key];
+	writeBindings(bindingsPath, bindings);
+	return true;
 }
 
 async function persistSlackThreadContext(input: {
@@ -266,6 +306,7 @@ async function deliverScheduledResult(input: {
 			? { key: threadId, binding: bindings[threadId] }
 			: undefined;
 	const binding = match?.binding;
+	const deliveryThreadId = match?.key || threadId || bindingKey;
 	if (!binding?.serializedThread) {
 		return;
 	}
@@ -282,11 +323,29 @@ async function deliverScheduledResult(input: {
 	} else {
 		body = `Schedule "${schedule?.name ?? input.scheduleId}" ${input.status}.${input.errorMessage ? `\n\n${input.errorMessage}` : ""}`;
 	}
-	await withSlackBindingBotToken({
-		slack: input.slack,
-		binding,
-		work: () => thread.post(body).then(() => undefined),
-	});
+	try {
+		await withSlackBindingBotToken({
+			slack: input.slack,
+			binding,
+			work: () => thread.post(body).then(() => undefined),
+		});
+	} catch (error) {
+		if (
+			isSlackInvalidThreadTsError(error) &&
+			clearSlackBinding(input.bindingsPath, deliveryThreadId)
+		) {
+			input.logger.core.warn?.(
+				"Cleared stale Slack binding after invalid_thread_ts",
+				{
+					transport: "slack",
+					threadId: deliveryThreadId,
+					scheduleId: input.scheduleId,
+					executionId: input.executionId,
+				},
+			);
+		}
+		throw error;
+	}
 }
 
 class SlackConnector extends ConnectorBase<
@@ -627,101 +686,118 @@ class SlackConnector extends ConnectorBase<
 			thread: Thread<SlackThreadState>,
 			text: string,
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const currentState = await loadThreadState(
+				thread,
+				bindingsPath,
+				startRequest,
+			);
+			const queueKey = currentState.participantKey || thread.id;
 			const runTurn = async () => {
 				try {
-					await handleConnectorUserTurn({
-						thread,
-						text,
-						client,
-						pendingApprovals,
-						baseStartRequest: startRequest,
-						explicitSystemPrompt:
-							options.systemPrompt?.trim() || getConnectorSystemPrompt("slack"),
-						clientId,
-						logger: loggerAdapter,
-						transport: "slack",
-						botUserName: options.userName,
-						requestStop,
-						bindingsPath,
-						hookCommand: options.hookCommand,
-						systemRules: SLACK_SYSTEM_RULES,
-						errorLabel: "Slack",
-						firstContactMessage: SLACK_FIRST_CONTACT_MESSAGE,
-						userInstructionWatcher,
-						chatCommandHost,
-						activeTurns,
-						turnKey: queueKey,
-						getSessionMetadata: (currentThread, _clientId, currentState) => ({
-							userName: options.userName,
-							slackThreadId: currentThread.id,
-							slackChannelId: currentThread.channelId,
-							...(currentState.participantKey
-								? { slackParticipantKey: currentState.participantKey }
-								: {}),
-							...(currentState.participantLabel
-								? { slackParticipantLabel: currentState.participantLabel }
-								: {}),
-						}),
-						reusedLogMessage: "Slack thread reusing RPC session",
-						startedLogMessage: "Slack thread started RPC session",
-						onMessageReceived: async (details) => {
-							await dispatchConnectorHook(
-								options.hookCommand,
-								{
-									adapter: "slack",
-									botUserName: options.userName,
-									event: "message.received",
-									payload: details,
-									ts: new Date().toISOString(),
+					await withSlackTeamBotToken({
+						slack,
+						teamId: currentState.teamId,
+						work: async () =>
+							handleConnectorUserTurn({
+								thread,
+								text,
+								client,
+								pendingApprovals,
+								baseStartRequest: startRequest,
+								explicitSystemPrompt:
+									options.systemPrompt?.trim() ||
+									getConnectorSystemPrompt("slack"),
+								clientId,
+								logger: loggerAdapter,
+								transport: "slack",
+								botUserName: options.userName,
+								requestStop,
+								bindingsPath,
+								hookCommand: options.hookCommand,
+								systemRules: SLACK_SYSTEM_RULES,
+								errorLabel: "Slack",
+								firstContactMessage: SLACK_FIRST_CONTACT_MESSAGE,
+								userInstructionWatcher,
+								chatCommandHost,
+								activeTurns,
+								turnKey: queueKey,
+								getSessionMetadata: (
+									currentThread,
+									_clientId,
+									currentState,
+								) => ({
+									userName: options.userName,
+									slackThreadId: currentThread.id,
+									slackChannelId: currentThread.channelId,
+									...(currentState.participantKey
+										? { slackParticipantKey: currentState.participantKey }
+										: {}),
+									...(currentState.participantLabel
+										? { slackParticipantLabel: currentState.participantLabel }
+										: {}),
+								}),
+								reusedLogMessage: "Slack thread reusing RPC session",
+								startedLogMessage: "Slack thread started RPC session",
+								onMessageReceived: async (details) => {
+									await dispatchConnectorHook(
+										options.hookCommand,
+										{
+											adapter: "slack",
+											botUserName: options.userName,
+											event: "message.received",
+											payload: details,
+											ts: new Date().toISOString(),
+										},
+										loggerAdapter,
+									);
 								},
-								loggerAdapter,
-							);
-						},
-						onReplyCompleted: async (result) => {
-							await dispatchConnectorHook(
-								options.hookCommand,
-								{
-									adapter: "slack",
-									botUserName: options.userName,
-									event: "message.completed",
-									payload: {
-										threadId: result.threadId,
-										sessionId: result.sessionId,
-										finishReason: result.finishReason,
-										iterations: result.iterations,
-										outputPreview: truncateText(result.text),
-										outputLength: result.text.length,
-									},
-									ts: new Date().toISOString(),
+								onReplyCompleted: async (result) => {
+									await dispatchConnectorHook(
+										options.hookCommand,
+										{
+											adapter: "slack",
+											botUserName: options.userName,
+											event: "message.completed",
+											payload: {
+												threadId: result.threadId,
+												sessionId: result.sessionId,
+												finishReason: result.finishReason,
+												iterations: result.iterations,
+												outputPreview: truncateText(result.text),
+												outputLength: result.text.length,
+											},
+											ts: new Date().toISOString(),
+										},
+										loggerAdapter,
+									);
 								},
-								loggerAdapter,
-							);
-						},
-						onReplyFailed: async (details) => {
-							await dispatchConnectorHook(
-								options.hookCommand,
-								{
-									adapter: "slack",
-									botUserName: options.userName,
-									event: "message.failed",
-									payload: {
-										threadId: details.threadId,
-										sessionId: details.sessionId,
-										error: details.error.message,
-									},
-									ts: new Date().toISOString(),
+								onReplyFailed: async (details) => {
+									await dispatchConnectorHook(
+										options.hookCommand,
+										{
+											adapter: "slack",
+											botUserName: options.userName,
+											event: "message.failed",
+											payload: {
+												threadId: details.threadId,
+												sessionId: details.sessionId,
+												error: details.error.message,
+											},
+											ts: new Date().toISOString(),
+										},
+										loggerAdapter,
+									);
 								},
-								loggerAdapter,
-							);
-						},
+							}),
 					});
 				} catch (error) {
 					const message =
 						error instanceof Error ? error.message : String(error);
-					await thread.post(`Slack bridge error: ${message}`);
+					await withSlackTeamBotToken({
+						slack,
+						teamId: currentState.teamId,
+						work: () => thread.post(`Slack bridge error: ${message}`),
+					});
 				}
 			};
 			if (activeTurns.has(queueKey)) {
@@ -814,12 +890,28 @@ class SlackConnector extends ConnectorBase<
 				logger: loggerAdapter,
 				bindingsPath,
 				transport: "slack",
-				postToThread: async ({ thread, binding, body }) => {
-					await withSlackBindingBotToken({
-						slack,
-						binding,
-						work: () => thread.post(body).then(() => undefined),
-					});
+				postToThread: async ({ thread, binding, body, threadId }) => {
+					try {
+						await withSlackBindingBotToken({
+							slack,
+							binding,
+							work: () => thread.post(body).then(() => undefined),
+						});
+					} catch (error) {
+						if (
+							isSlackInvalidThreadTsError(error) &&
+							clearSlackBinding(bindingsPath, threadId)
+						) {
+							loggerAdapter.core.warn?.(
+								"Cleared stale Slack binding after invalid_thread_ts",
+								{
+									transport: "slack",
+									threadId,
+								},
+							);
+						}
+						throw error;
+					}
 				},
 			});
 
@@ -945,6 +1037,8 @@ export const slackConnector: ConnectCommandDefinition = new SlackConnector();
 export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipant,
+	withSlackTeamBotToken,
+	isSlackInvalidThreadTsError,
 	findBindingForThread: (
 		bindings: ConnectorBindingStore<SlackThreadState>,
 		thread: Pick<Thread<SlackThreadState>, "id" | "channelId" | "isDM"> & {

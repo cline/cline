@@ -121,4 +121,41 @@ describe("slack binding lookup", () => {
 			label: "alice",
 		});
 	});
+
+	it("routes Slack posts through the installation bot token for a team", async () => {
+		const calls: string[] = [];
+		const result = await __test__.withSlackTeamBotToken({
+			slack: {
+				getInstallation: async (teamId: string) => {
+					calls.push(`get:${teamId}`);
+					return { botToken: "xoxb-team-token" };
+				},
+				withBotToken: <T>(token: string, work: () => T): T => {
+					calls.push(`token:${token}`);
+					return work();
+				},
+			},
+			teamId: "T123",
+			work: async () => {
+				calls.push("work");
+				return "ok";
+			},
+		});
+
+		expect(result).toBe("ok");
+		expect(calls).toEqual(["get:T123", "token:xoxb-team-token", "work"]);
+	});
+
+	it("detects Slack invalid_thread_ts errors", () => {
+		expect(
+			__test__.isSlackInvalidThreadTsError(
+				new Error("An API error occurred: invalid_thread_ts"),
+			),
+		).toBe(true);
+		expect(
+			__test__.isSlackInvalidThreadTsError(
+				new Error("An API error occurred: channel_not_found"),
+			),
+		).toBe(false);
+	});
 });
