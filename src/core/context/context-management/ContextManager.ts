@@ -245,18 +245,18 @@ export class ContextManager {
 					const totalTokens = (tokensIn || 0) + (tokensOut || 0) + (cacheWrites || 0) + (cacheReads || 0)
 					const { maxAllowedSize } = getContextWindowInfo(api)
 
+					// Attempt file read optimization on every turn to reduce repeated context load.
+					let { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
+						apiConversationHistory,
+						conversationHistoryDeletedRange,
+						timestamp,
+					)
+
 					// This is the most reliable way to know when we're close to hitting the context window.
 					if (totalTokens >= maxAllowedSize) {
 						// Since the user may switch between models with different context windows, truncating half may not be enough (ie if switching from claude 200k to deepseek 64k, half truncation will only remove 100k tokens, but we need to remove much more)
 						// So if totalTokens/2 is greater than maxAllowedSize, we truncate 3/4 instead of 1/2
 						const keep = totalTokens / 2 > maxAllowedSize ? "quarter" : "half"
-
-						// Attempt file read optimization and check if we need to truncate
-						let { anyContextUpdates, needToTruncate } = this.attemptFileReadOptimizationCore(
-							apiConversationHistory,
-							conversationHistoryDeletedRange,
-							timestamp,
-						)
 
 						if (needToTruncate) {
 							// go ahead with truncation
@@ -271,11 +271,11 @@ export class ContextManager {
 
 							updatedConversationHistoryDeletedRange = true
 						}
+					}
 
-						// if we alter the context history, save the updated version to disk
-						if (anyContextUpdates) {
-							await this.saveContextHistory(taskDirectory)
-						}
+					// if we alter the context history, save the updated version to disk
+					if (anyContextUpdates) {
+						await this.saveContextHistory(taskDirectory)
 					}
 				}
 			}
