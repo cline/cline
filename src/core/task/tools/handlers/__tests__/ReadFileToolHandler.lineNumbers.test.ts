@@ -1,6 +1,34 @@
 import assert from "node:assert/strict"
+import { ClineDefaultTool } from "@shared/tools"
 import { describe, it } from "mocha"
-import { DEFAULT_MAX_LINES, formatFileContentWithLineNumbers } from "../ReadFileToolHandler"
+import { DEFAULT_MAX_LINES, formatFileContentWithLineNumbers, getReadToolDisplayedLineRange } from "../ReadFileToolHandler"
+
+describe("getReadToolDisplayedLineRange", () => {
+	const block = (start?: string, end?: string) => ({
+		type: "tool_use" as const,
+		name: ClineDefaultTool.FILE_READ,
+		params: {
+			path: "f.txt",
+			...(start !== undefined ? { start_line: start } : {}),
+			...(end !== undefined ? { end_line: end } : {}),
+		},
+		partial: false,
+	})
+
+	it("matches the slice shown for explicit start/end", () => {
+		const text = Array.from({ length: 10 }, (_, i) => `L${i + 1}`).join("\n")
+		const r = getReadToolDisplayedLineRange(block("3", "5"), { text })
+		assert.deepEqual(r, { start: 3, end: 5 })
+	})
+
+	it("returns undefined for image reads", () => {
+		const r = getReadToolDisplayedLineRange(block(), {
+			text: "ok",
+			imageBlock: { type: "image", source: { type: "url", url: "x" } } as any,
+		})
+		assert.equal(r, undefined)
+	})
+})
 
 describe("formatFileContentWithLineNumbers", () => {
 	describe("line labels", () => {
