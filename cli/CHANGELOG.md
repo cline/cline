@@ -1,5 +1,19 @@
 # cline
 
+## [2.12.0]
+
+### Added
+
+- `read_file` tool now supports chunked reading for targeted file access
+
+### Fixed
+
+- Exclude `new_task` tool from system prompt in yolo/headless mode
+
+### Changed
+
+- Polish `Notification` hook functionality
+
 ## [2.9.0]
 
 ### Added
