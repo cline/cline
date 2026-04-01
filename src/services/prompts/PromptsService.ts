@@ -93,6 +93,49 @@ export class PromptsService {
 	private cachedCatalog: PromptsCatalog | null = null
 	private lastFetchTime = 0
 	private readonly CACHE_DURATION = 60 * 60 * 1000 // 1 hour
+	private cachedGitHubToken: string | null | undefined = undefined // undefined = not yet resolved
+
+	/**
+	 * Resolves a GitHub token for authenticated API requests.
+	 * Authenticated requests get 5,000 req/hour vs 60 for unauthenticated.
+	 * Checks environment variables first, then falls back to `gh auth token`.
+	 * Caches the result (including null for "no token available").
+	 * Protected to allow test stubbing.
+	 */
+	protected resolveGitHubToken(): string | null {
+		if (this.cachedGitHubToken !== undefined) {
+			return this.cachedGitHubToken
+		}
+
+		// Check environment variables
+		const envToken = process.env.GITHUB_TOKEN || process.env.GH_TOKEN
+		if (envToken) {
+			this.cachedGitHubToken = envToken
+			Logger.info("PromptsService: Using GitHub token from environment variable")
+			return envToken
+		}
+
+		// Try `gh auth token` (GitHub CLI)
+		try {
+			const { execSync } = require("child_process")
+			const token = execSync("gh auth token", {
+				encoding: "utf-8",
+				timeout: 5000,
+				stdio: ["pipe", "pipe", "pipe"],
+			}).trim()
+			if (token) {
+				this.cachedGitHubToken = token
+				Logger.info("PromptsService: Using GitHub token from gh CLI")
+				return token
+			}
+		} catch {
+			// gh CLI not available or not authenticated
+		}
+
+		this.cachedGitHubToken = null
+		Logger.info("PromptsService: No GitHub token available, using unauthenticated requests (60 req/hour)")
+		return null
+	}
 
 	/**
 	 * Wrapper for HTTP GET requests. Protected to allow test stubbing.
@@ -138,8 +181,14 @@ export class PromptsService {
 
 		try {
 			// Step 1: Get all files via Git Tree API (single rate-limited call)
+			// Use authenticated request if a GitHub token is available (5,000 req/hour vs 60)
 			const treeUrl = `${GITHUB_API_BASE}/repos/${REPO_OWNER}/${REPO_NAME}/git/trees/main?recursive=1`
-			const treeResponse = await this.httpGet(treeUrl)
+			const token = this.resolveGitHubToken()
+			const authHeaders: Record<string, string> = {}
+			if (token) {
+				authHeaders.Authorization = `token ${token}`
+			}
+			const treeResponse = await this.httpGet(treeUrl, authHeaders)
 			const entries: GitTreeEntry[] = treeResponse.data?.tree || []
 
 			// Filter to markdown files in known directories

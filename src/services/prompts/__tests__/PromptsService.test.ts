@@ -277,6 +277,89 @@ describe("PromptsService", () => {
 			})
 		})
 
+		describe("GitHub Token Authentication", () => {
+			it("should pass auth header when token is available", async () => {
+				// Stub resolveGitHubToken to return a token
+				sinon.stub(service as any, "resolveGitHubToken").returns("test-token-123")
+
+				// Restore httpGet so we can verify the call args
+				httpGetStub.restore()
+				httpGetStub = sinon.stub(service as any, "httpGet")
+				httpGetStub.resolves(mockTreeResponse([{ path: ".clinerules/test.md" }]))
+				fetchRawContentStub.resolves(makeMarkdown({ description: "Test" }))
+
+				await service.fetchPromptsCatalog()
+
+				assert.ok(httpGetStub.calledOnce)
+				const headers = httpGetStub.firstCall.args[1]
+				assert.strictEqual(headers?.Authorization, "token test-token-123")
+			})
+
+			it("should not pass auth header when no token is available", async () => {
+				// Stub resolveGitHubToken to return null
+				sinon.stub(service as any, "resolveGitHubToken").returns(null)
+
+				httpGetStub.restore()
+				httpGetStub = sinon.stub(service as any, "httpGet")
+				httpGetStub.resolves(mockTreeResponse([{ path: ".clinerules/test.md" }]))
+				fetchRawContentStub.resolves(makeMarkdown({ description: "Test" }))
+
+				await service.fetchPromptsCatalog()
+
+				assert.ok(httpGetStub.calledOnce)
+				const headers = httpGetStub.firstCall.args[1]
+				assert.strictEqual(headers?.Authorization, undefined)
+			})
+
+			it("should check GITHUB_TOKEN env var for token resolution", () => {
+				const originalToken = process.env.GITHUB_TOKEN
+				try {
+					process.env.GITHUB_TOKEN = "env-token-456"
+					// Reset cached token
+					;(service as any).cachedGitHubToken = undefined
+
+					const token = (service as any).resolveGitHubToken()
+					assert.strictEqual(token, "env-token-456")
+				} finally {
+					if (originalToken !== undefined) {
+						process.env.GITHUB_TOKEN = originalToken
+					} else {
+						delete process.env.GITHUB_TOKEN
+					}
+				}
+			})
+
+			it("should check GH_TOKEN env var as fallback", () => {
+				const originalGH = process.env.GH_TOKEN
+				const originalGITHUB = process.env.GITHUB_TOKEN
+				try {
+					delete process.env.GITHUB_TOKEN
+					process.env.GH_TOKEN = "gh-token-789"
+					;(service as any).cachedGitHubToken = undefined
+
+					const token = (service as any).resolveGitHubToken()
+					assert.strictEqual(token, "gh-token-789")
+				} finally {
+					if (originalGITHUB !== undefined) {
+						process.env.GITHUB_TOKEN = originalGITHUB
+					} else {
+						delete process.env.GITHUB_TOKEN
+					}
+					if (originalGH !== undefined) {
+						process.env.GH_TOKEN = originalGH
+					} else {
+						delete process.env.GH_TOKEN
+					}
+				}
+			})
+
+			it("should cache resolved token", () => {
+				;(service as any).cachedGitHubToken = "cached-token"
+				const token = (service as any).resolveGitHubToken()
+				assert.strictEqual(token, "cached-token")
+			})
+		})
+
 		describe("Caching Behavior", () => {
 			it("should cache results after first fetch", async () => {
 				httpGetStub.resolves(mockTreeResponse([{ path: ".clinerules/test.md" }]))
