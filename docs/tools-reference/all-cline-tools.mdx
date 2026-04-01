@@ -4,15 +4,22 @@ sidebarTitle: "All Cline Tools"
 description: "Complete reference for Cline's built-in tools and capabilities."
 ---
 
-Cline has access to a set of tools for various tasks. This reference covers all available tools and how to use them.
+Cline has access to a set of tools for various tasks. This reference covers all 27 available tools and how to use them.
+
+<Info>
+Most tools below are available for Cline to use autonomously during tasks. A few are **slash-command or system-triggered** — these are activated by you typing a command (like `/smol`) or automatically by the system, not chosen by the model on its own.
+</Info>
 
 ## What Can Cline Do?
 
 - Edit and create files in your project
 - Run terminal commands
 - Search and analyze your code
+- Search the web and fetch URL content
 - Help debug and fix issues
 - Automate repetitive tasks
+- Manage context and plan complex tasks
+- Run parallel subagents for broad exploration
 - Integrate with external tools via MCP
 
 ## File Operations
@@ -21,10 +28,15 @@ Cline has access to a set of tools for various tasks. This reference covers all 
 |------|-------------|
 | `write_to_file` | Create or overwrite files |
 | `read_file` | Read file contents |
-| `replace_in_file` | Make targeted edits to files |
-| `search_files` | Search files using regex |
+| `replace_in_file` | Make targeted edits to files using search/replace blocks |
+| `apply_patch` | Apply a diff patch to modify one or more files (newer alternative to `replace_in_file`) |
+| `search_files` | Search files using regex patterns |
 | `list_files` | List directory contents |
-| `list_code_definition_names` | List code definitions in files |
+| `list_code_definition_names` | List code definitions (classes, functions, etc.) in files |
+
+<Tip>
+`apply_patch` uses a custom V4A diff format with context lines and scope markers instead of line numbers, making it robust against minor line shifts. It supports creating, updating, deleting, and moving files in a single operation.
+</Tip>
 
 ### Examples
 
@@ -81,21 +93,93 @@ Run a command:
 
 See [Browser Automation](/tools-reference/browser-automation) for details.
 
+## Web Tools
+
+| Tool | Description |
+|------|-------------|
+| `web_search` | Search the web and return results with titles and URLs |
+| `web_fetch` | Fetch and analyze content from a specified URL |
+
+`web_search` supports optional domain filtering via allow-lists or block-lists. `web_fetch` retrieves page content and processes it using an analysis prompt you provide.
+
+<Note>
+Web Tools require the **Cline provider**. See [Web Tools](/features/web-tools) for setup and use cases.
+</Note>
+
 ## MCP Tools
 
 | Tool | Description |
 |------|-------------|
 | `use_mcp_tool` | Use tools from MCP servers |
 | `access_mcp_resource` | Access MCP server resources |
+| `load_mcp_documentation` | Load documentation about creating and installing MCP servers |
 
-MCP tools extend Cline's capabilities through external integrations. See [MCP documentation](/mcp/mcp-overview) for details.
+MCP tools extend Cline's capabilities through external integrations. `load_mcp_documentation` provides Cline with detailed instructions for setting up new MCP servers, including best practices and examples. See [MCP documentation](/mcp/mcp-overview) for details.
+
+## Context Management
+
+| Tool | Description |
+|------|-------------|
+| `condense` | Summarize the current conversation to free context space |
+| `summarize_task` | Generate a summary of the completed task |
+
+`condense` creates a detailed summary preserving technical details, code patterns, architectural decisions, and pending tasks. It is triggered via the `/smol` or `/compact` slash commands.
+
+`summarize_task` is automatically triggered by the system when the conversation is running out of context. It generates a comprehensive summary of the task's progress.
+
+<Tip>
+These tools work hand-in-hand with [Auto Compact](/features/auto-compact), which monitors token usage and triggers summarization when approaching context limits.
+</Tip>
+
+## Task Planning & Workflow
+
+| Tool | Description |
+|------|-------------|
+| `focus_chain` | Manage a structured todo list with real-time progress tracking |
+| `plan_mode_respond` | Respond in Plan mode for conversational planning without tool execution |
+| `act_mode_respond` | Respond in Act mode (internal counterpart to `plan_mode_respond`) |
+
+`focus_chain` maintains a visible checklist that persists across context window resets, helping Cline stay on track for long-running, multi-step tasks. See [Focus Chain](/features/focus-chain) for details on enabling and using it.
+
+`plan_mode_respond` and `act_mode_respond` support Cline's dual-mode system. In Plan mode, Cline engages in conversational planning and information gathering. In Act mode, Cline executes actions using its full tool set. See [Plan & Act Mode](/core-workflows/plan-and-act) for more.
+
+## Agent Tools
+
+| Tool | Description |
+|------|-------------|
+| `use_skill` | Load and activate a specialized skill by name |
+| `use_subagents` | Run up to 5 parallel in-process subagents for broad exploration |
+
+`use_skill` activates a skill when a user's request matches an available skill description. Skills provide specialized instructions for specific tasks (e.g., creating pull requests, managing kanban boards). Once activated, Cline follows the skill's instructions directly.
+
+`use_subagents` spawns focused subagents, each with its own prompt and separate context window, returning comprehensive results with tool and token stats. This is ideal for broad exploration when reading many files would consume the main agent's context window.
+
+<Note>
+Subagents have read-only access — they cannot write files, apply patches, use the browser, access MCP servers, or spawn nested subagents. See [Subagents](/features/subagents) for details.
+</Note>
+
+## Code Understanding
+
+| Tool | Description |
+|------|-------------|
+| `generate_explanation` | Open a multi-file diff view with AI-generated inline comments explaining git changes |
+
+`generate_explanation` compares two git references (commits, branches, tags, or relative refs like `HEAD~1`) and displays a side-by-side diff view with explanatory comments. This is useful for understanding code changes from commits, pull requests, or branch comparisons.
+
+You can also trigger this via the `/explain-changes` slash command in the chat input.
 
 ## Interaction Tools
 
 | Tool | Description |
 |------|-------------|
-| `ask_followup_question` | Ask user for clarification |
-| `attempt_completion` | Present final results |
+| `ask_followup_question` | Ask the user for clarification |
+| `attempt_completion` | Present final results to the user |
+| `new_rule` | Create a new `.clinerules` file from conversation context |
+| `report_bug` | Report a bug or issue to the Cline team |
+
+`new_rule` creates a `.clinerules` file capturing patterns, conventions, or instructions discovered during a conversation, so they persist for future tasks. It can be triggered via the `/newrule` slash command.
+
+`report_bug` allows Cline to report bugs or issues encountered during a task. It can be triggered via the `/reportbug` slash command.
 
 ## New Task Tool
 
