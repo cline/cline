@@ -33,6 +33,7 @@ export enum ClineDefaultTool {
 	GENERATE_EXPLANATION = "generate_explanation",
 	USE_SKILL = "use_skill",
 	USE_SUBAGENTS = "use_subagents",
+	CODE_INTELLIGENCE = "code_intelligence",
 }
 
 // Array of all tool names for compatibility
@@ -64,4 +65,5 @@ export const READ_ONLY_TOOLS = [
 	ClineDefaultTool.WEB_FETCH,
 	ClineDefaultTool.USE_SKILL,
 	ClineDefaultTool.USE_SUBAGENTS,
+	ClineDefaultTool.CODE_INTELLIGENCE,
 ] as const

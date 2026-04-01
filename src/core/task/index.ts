@@ -1976,6 +1976,7 @@ export class Task {
 			workspaceRoots,
 			isSubagentRun: false,
 			isCliEnvironment,
+			codeIntelligenceAvailable: !!HostProvider.psi && this.stateManager.getGlobalSettingsKey("codeIntelligenceEnabled"),
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
@@ -3731,6 +3732,22 @@ export class Task {
 		if (shouldShowContextWindow) {
 			details += "\n\n# Context Window Usage"
 			details += `\n${lastApiReqTotalTokens.toLocaleString()} / ${(contextWindow / 1000).toLocaleString()}K tokens used (${usagePercentage}%)`
+		}
+
+		// JetBrains Code Intelligence status (for code_intelligence tool)
+		if (this.stateManager.getGlobalSettingsKey("codeIntelligenceEnabled")) {
+			try {
+				const psiClient = HostProvider.psi
+				if (psiClient) {
+					const status = await psiClient.getIndexingStatus({})
+					details += `\n\n# JetBrains Code Intelligence (PSI)`
+					details += status.isSmartMode
+						? "\nAvailable — use the code_intelligence tool for semantic code navigation (go-to-definition, find references, callers, type hierarchy)."
+						: "\nUnavailable (indexing in progress) — use search_files or list_code_definition_names instead."
+				}
+			} catch {
+				// PSI service not available — omit section
+			}
 		}
 
 		details += "\n\n# Current Mode"

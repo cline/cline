@@ -187,6 +187,7 @@ const contextVariations: Array<{ name: string; override: Partial<SystemPromptCon
 	{ name: "no-browser", override: { supportsBrowserUse: false } },
 	{ name: "no-mcp", override: { mcpHub: { getServers: () => [] } as unknown as McpHub } },
 	{ name: "no-focus-chain", override: { focusChainSettings: { enabled: false, remindClineInterval: 0 } } },
+	{ name: "code-intelligence", override: { codeIntelligenceAvailable: true } },
 ]
 
 const modelTestCases = [

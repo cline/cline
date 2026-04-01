@@ -274,6 +274,7 @@ const USER_SETTINGS_FIELDS = {
 	optOutOfRemoteConfig: { default: false as boolean },
 	doubleCheckCompletionEnabled: { default: false as boolean },
 	showFeatureTips: { default: true as boolean },
+	codeIntelligenceEnabled: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

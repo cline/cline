@@ -999,6 +999,8 @@ export class Controller {
 			optOutOfRemoteConfig: this.stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 			doubleCheckCompletionEnabled,
 			showFeatureTips,
+			codeIntelligenceEnabled: this.stateManager.getGlobalSettingsKey("codeIntelligenceEnabled"),
+			codeIntelligenceAvailable: HostProvider.psi !== undefined,
 			banners,
 			welcomeBanners,
 			openAiCodexIsAuthenticated,

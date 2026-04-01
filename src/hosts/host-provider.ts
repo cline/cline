@@ -139,6 +139,10 @@ export class HostProvider {
 	public static get diff() {
 		return HostProvider.get().hostBridge.diffClient
 	}
+
+	public static get psi() {
+		return HostProvider.get().hostBridge.psiClient
+	}
 }
 
 /**

@@ -278,6 +278,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		backgroundEditEnabled: false,
 		doubleCheckCompletionEnabled: false,
 		showFeatureTips: true,
+		codeIntelligenceEnabled: false,
+		codeIntelligenceAvailable: false,
 		globalSkillsToggles: {},
 		localSkillsToggles: {},
 

@@ -1,0 +1,145 @@
+syntax = "proto3";
+
+package host;
+
+option go_package = "github.com/cline/grpc-go/host";
+option java_multiple_files = true;
+option java_package = "bot.cline.host.proto";
+
+// Provides PSI-based code intelligence capabilities.
+// All operations require smart mode (indexing complete) unless noted.
+service PsiService {
+  // Check if smart mode is active. Ultra-lightweight (<1ms).
+  // Can be called frequently (e.g., for every environment_details build).
+  rpc getIndexingStatus(GetIndexingStatusRequest) returns (GetIndexingStatusResponse);
+
+  // Search for symbols by name (like shift-shift "Go to Symbol").
+  // Partially DumbAware — may return limited results during indexing.
+  rpc searchSymbols(SearchSymbolsRequest) returns (SymbolQueryResponse);
+
+  // Resolve the definition(s) of the symbol at the given position.
+  rpc getDefinition(SymbolQuery) returns (SymbolQueryResponse);
+
+  // Find all references/usages of the symbol.
+  rpc getReferences(SymbolQuery) returns (SymbolQueryResponse);
+
+  // Find callables (methods/functions) that reference/call this symbol.
+  // Works for any symbol type — for methods this finds callers,
+  // for classes this finds instantiation sites, etc.
+  rpc getCallers(SymbolQuery) returns (SymbolQueryResponse);
+
+  // Find symbols referenced/called within the body of the given callable.
+  rpc getCallees(SymbolQuery) returns (SymbolQueryResponse);
+
+  // Get the type hierarchy (supertypes and subtypes) for a class/interface.
+  rpc getTypeHierarchy(SymbolQuery) returns (TypeHierarchyResponse);
+}
+
+// ─── Indexing Status ───────────────────────────────────────
+
+message GetIndexingStatusRequest {}
+
+message GetIndexingStatusResponse {
+  // True when indexing is complete and PSI operations are available.
+  bool is_smart_mode = 1;
+}
+
+// ─── Symbol Query (shared input for most operations) ──────
+
+message SymbolQuery {
+  // The text of the symbol to find (e.g., "resetBoard", "Player").
+  // Always required.
+  string symbol_text = 1;
+
+  // Absolute file path. Optional — if omitted, all matching symbols
+  // in the project are searched.
+  optional string file_path = 2;
+
+  // 1-based line number within the file. Optional — used for
+  // disambiguation when the same symbol appears multiple times.
+  optional int32 line = 3;
+
+  // Maximum number of results to return per definition group.
+  // Default: 50.
+  optional int32 max_results = 4;
+}
+
+// ─── Symbol Result ─────────────────────────────────────────
+
+message SymbolResult {
+  // Absolute file path where this result is located.
+  string file_path = 1;
+
+  // 1-based line number.
+  int32 line = 2;
+
+  // The full text of the source line (trimmed of leading/trailing whitespace).
+  string line_content = 3;
+
+  // The name of the symbol at this location.
+  string symbol_name = 4;
+
+  // The kind of symbol: "class", "method", "function", "field",
+  // "property", "variable", "interface", "enum", "constructor",
+  // "parameter", "type_alias", etc.
+  string kind = 5;
+
+  // Name of the enclosing class/function/module, if any.
+  string container_name = 6;
+
+  // 1-based line of the container's definition.
+  // 0 if there is no container (e.g., top-level symbol).
+  int32 container_line = 7;
+
+  // File path of the container (may differ from file_path for inner classes etc.)
+  string container_file_path = 8;
+}
+
+// ─── Responses ─────────────────────────────────────────────
+
+message SymbolQueryResponse {
+  // Empty string on success. Descriptive error message on failure.
+  string error = 1;
+
+  // Results, potentially grouped by definition when the query
+  // matched multiple definitions.
+  repeated SymbolResultGroup groups = 2;
+}
+
+message SymbolResultGroup {
+  // The definition this group of results relates to.
+  // For "definition" queries, this is the definition itself.
+  // For "references"/"callers"/"callees", this is the symbol being queried.
+  SymbolResult definition = 1;
+
+  // The results for this definition.
+  repeated SymbolResult results = 2;
+
+  // True if results were truncated due to max_results.
+  bool truncated = 3;
+}
+
+message TypeHierarchyResponse {
+  string error = 1;
+
+  // The queried type.
+  SymbolResult target = 2;
+
+  // Supertypes (parent classes/interfaces), ordered from direct parent to root.
+  repeated SymbolResult supertypes = 3;
+
+  // Direct subtypes (implementing classes, subclasses).
+  repeated SymbolResult subtypes = 4;
+
+  bool subtypes_truncated = 5;
+}
+
+// ─── Search Symbols ────────────────────────────────────────
+
+message SearchSymbolsRequest {
+  // The search pattern (supports partial/fuzzy matching like shift-shift).
+  string pattern = 1;
+
+  // Maximum results. Default: 20.
+  optional int32 max_results = 2;
+}
