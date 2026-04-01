@@ -29,6 +29,7 @@ import { version as CLI_VERSION } from "../package.json"
 import { runAcpMode } from "./acp/index.js"
 import { App } from "./components/App"
 import { KanbanMigrationView } from "./components/KanbanMigrationView"
+import { disableEnhancedKeyboardMode, enableEnhancedKeyboardMode } from "./constants/keyboard"
 import { checkRawModeSupport } from "./context/StdinContext"
 import { createCliHostBridgeProvider } from "./controllers"
 import { CliCommentReviewController } from "./controllers/CliCommentReviewController"
@@ -36,6 +37,7 @@ import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
+import { createEnhancedStdin } from "./utils/enhanced-stdin"
 import {
 	forwardSignalToKanbanProcess,
 	isKanbanCommandAvailable,
@@ -690,11 +692,23 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 	// Clear terminal for clean UI - robot will render at row 1
 	process.stdout.write("\x1b[2J\x1b[3J\x1b[H")
 
+	// Enable xterm modifyOtherKeys mode so terminals send distinct sequences
+	// for modifier+key combos (e.g., Alt+Backspace → \x1b[27;3;127~).
+	// This must be enabled before creating the stdin proxy.
+	enableEnhancedKeyboardMode()
+
+	// Create a stdin proxy that intercepts modifier key sequences before Ink
+	// sees them. Without this, Ink would insert the raw escape sequences as text.
+	const enhancedStdin = createEnhancedStdin()
+
 	// Note: incrementalRendering is disabled because it causes UI glitches on terminal resize.
 	// Ink's incremental rendering tries to erase N lines based on previous output height,
 	// but when the terminal shrinks, this leaves artifacts. Gemini CLI only enables
 	// incrementalRendering when alternateBuffer is also enabled (which we don't use).
-	const { waitUntilExit, unmount } = render(element, { exitOnCtrlC: true })
+	const { waitUntilExit, unmount } = render(element, {
+		exitOnCtrlC: true,
+		stdin: enhancedStdin as any,
+	})
 
 	try {
 		await waitUntilExit()
@@ -704,6 +718,7 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 		} catch {
 			// Already unmounted
 		}
+		disableEnhancedKeyboardMode()
 		restoreConsole()
 		await cleanup()
 	}

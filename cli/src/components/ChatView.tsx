@@ -373,6 +373,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		handleKeyboardSequence,
 		handleCtrlShortcut,
 		deleteCharBefore,
+		deleteWordBefore,
 		insertText: insertTextAtCursor,
 	} = useTextInput()
 
@@ -423,10 +424,12 @@ export const ChatView: React.FC<ChatViewProps> = ({
 		| null
 	>(null)
 
-	// Handle Home/End keys from raw stdin (Ink doesn't expose these in useInput)
+	// Handle Home/End keys and Option+Backspace from raw stdin
+	// (Ink doesn't properly expose these in useInput)
 	useHomeEndKeys({
 		onHome: useCallback(() => setCursorPos(0), [setCursorPos]),
 		onEnd: useCallback(() => setCursorPos(textInputRef.current.length), [setCursorPos]),
+		onOptionBackspace: useCallback(() => deleteWordBefore(), [deleteWordBefore]),
 		isActive: !activePanel, // Only active when no panel is open
 	})
 
@@ -1159,14 +1162,22 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		// 3. Handle Option+arrow via key.meta (backup - Ink sometimes parses these instead of passing raw sequence)
+		// 3. Handle Option+arrow/backspace via key.meta
+		// Terminals send these as either:
+		//   - CSI format: \x1b[1;3D → Ink sets key.meta + key.leftArrow
+		//   - Meta prefix: \x1bb → Ink sets key.meta + input='b' (emacs: Meta-b = word left)
+		// We handle both formats here.
 		if (key.meta) {
-			if (key.leftArrow) {
+			if (key.leftArrow || input === "b") {
 				setCursorPos(findWordStart(textInputRef.current, cursorPosRef.current))
 				return
 			}
-			if (key.rightArrow) {
+			if (key.rightArrow || input === "f") {
 				setCursorPos(findWordEnd(textInputRef.current, cursorPosRef.current))
+				return
+			}
+			if (key.backspace || key.delete) {
+				deleteWordBefore()
 				return
 			}
 		}
