@@ -133,6 +133,13 @@ const experimentalFeatures: FeatureToggle[] = [
 		stateKey: "doubleCheckCompletionEnabled",
 		settingKey: "doubleCheckCompletionEnabled",
 	},
+	{
+		id: "lazy-teammate",
+		label: "Lazy Teammate Mode",
+		description: "Sometimes Cline just isn't feeling it today. For entertainment purposes only.",
+		stateKey: "lazyTeammateModeEnabled",
+		settingKey: "lazyTeammateModeEnabled",
+	},
 ]
 
 const advancedFeatures: FeatureToggle[] = [
@@ -218,6 +225,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lazyTeammateModeEnabled,
 		showFeatureTips,
 	} = useExtensionState()
 
@@ -245,6 +253,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lazyTeammateModeEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
