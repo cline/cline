@@ -89,8 +89,22 @@ export type TelemetryMetadata = {
 	/** The operating system version e.g. 'Windows 10 Pro', 'Darwin Kernel Version 21.6.0...'
 	 * This is the value returned by os.version() */
 	os_version: string
+	/** Whether the current workspace is a VS Code remote workspace */
+	is_remote_workspace: boolean
 	/** Whether the extension is running in development mode */
 	is_dev: string | undefined
+}
+
+/**
+ * Token usage data shared across telemetry capture methods.
+ * Used by both `captureTokenUsage` and `captureConversationTurnEvent`.
+ */
+export interface TokenUsage {
+	tokensIn?: number
+	tokensOut?: number
+	cacheWriteTokens?: number
+	cacheReadTokens?: number
+	totalCost?: number
 }
 
 /**
@@ -348,6 +362,8 @@ export class TelemetryService {
 			cline_type: hostVersion.clineType || "unknown",
 			os_type: os.platform(),
 			os_version: os.version(),
+			// `remoteName` is normalized by the host bridge to `undefined` for local workspaces.
+			is_remote_workspace: !!hostVersion.remoteName,
 			is_dev: process.env.IS_DEV,
 		}
 		return new TelemetryService(providers, metadata)
@@ -750,13 +766,7 @@ export class TelemetryService {
 		model = "unknown",
 		source: "user" | "assistant",
 		mode: Mode,
-		tokenUsage: {
-			tokensIn?: number
-			tokensOut?: number
-			cacheWriteTokens?: number
-			cacheReadTokens?: number
-			totalCost?: number
-		} = {},
+		tokenUsage: TokenUsage = {},
 		isNativeToolCall?: boolean,
 	) {
 		// Ensure required parameters are provided
@@ -830,29 +840,60 @@ export class TelemetryService {
 	 * @param ulid Unique identifier for the task
 	 * @param tokensIn Number of input tokens consumed
 	 * @param tokensOut Number of output tokens generated
+	 * @param provider The API provider identifier (e.g. "anthropic", "openai", "cline")
 	 * @param model The model used for token calculation
 	 */
-	public captureTokenUsage(ulid: string, tokensIn: number, tokensOut: number, model: string) {
+	public captureTokenUsage(
+		ulid: string,
+		tokensIn: number,
+		tokensOut: number,
+		provider: string,
+		model: string,
+		options?: TokenUsage,
+	) {
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.TOKEN_USAGE,
 			properties: {
 				ulid,
 				tokensIn,
 				tokensOut,
+				provider,
 				model,
+				...options,
 			},
 		})
 
+		const attributes = { ulid, provider, model }
+
 		if (Number.isFinite(tokensIn)) {
 			const value = tokensIn ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_INPUT_TOTAL, value, attributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_INPUT_PER_RESPONSE, value, attributes)
 		}
 
 		if (Number.isFinite(tokensOut)) {
 			const value = tokensOut ?? 0
-			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, { ulid, model })
-			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, { ulid, model })
+			this.recordCounter(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_TOTAL, value, attributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.TOKENS_OUTPUT_PER_RESPONSE, value, attributes)
+		}
+
+		if (Number.isFinite(options?.cacheWriteTokens)) {
+			const cacheWriteTokens = options!.cacheWriteTokens ?? 0
+			this.recordCounter(TelemetryService.METRICS.CACHE.WRITE_TOTAL, cacheWriteTokens, attributes)
+			this.recordHistogram(TelemetryService.METRICS.CACHE.WRITE_PER_EVENT, cacheWriteTokens, attributes)
+		}
+
+		if (Number.isFinite(options?.cacheReadTokens)) {
+			const cacheReadTokens = options!.cacheReadTokens ?? 0
+			this.recordCounter(TelemetryService.METRICS.CACHE.READ_TOTAL, cacheReadTokens, attributes)
+			this.recordHistogram(TelemetryService.METRICS.CACHE.READ_PER_EVENT, cacheReadTokens, attributes)
+		}
+
+		if (Number.isFinite(options?.totalCost)) {
+			const totalCost = options!.totalCost ?? 0
+			const costAttributes = { ...attributes, currency: "USD" }
+			this.recordCounter(TelemetryService.METRICS.TASK.COST_TOTAL, totalCost, costAttributes)
+			this.recordHistogram(TelemetryService.METRICS.TASK.COST_PER_EVENT, totalCost, costAttributes)
 		}
 	}
 

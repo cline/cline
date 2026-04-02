@@ -4,7 +4,7 @@
  */
 
 import { Box, useApp } from "ink"
-import React, { ReactNode, useCallback, useState } from "react"
+import React, { ReactNode, useCallback, useEffect, useState } from "react"
 import { StdinProvider } from "../context/StdinContext"
 import { TaskContextProvider } from "../context/TaskContext"
 import { useTerminalSize } from "../hooks/useTerminalSize"
@@ -146,6 +146,17 @@ const InternalApp: React.FC<AppProps> = ({
 	const { resizeKey } = useTerminalSize()
 	const [currentView, setCurrentView] = useState<ViewType>(initialView)
 	const [selectedTaskId, setSelectedTaskId] = useState<string | undefined>(taskId)
+	const [pendingInitialPrompt, setPendingInitialPrompt] = useState<string | undefined>(initialPrompt)
+	const [pendingInitialImages, setPendingInitialImages] = useState<string[] | undefined>(initialImages)
+
+	useEffect(() => {
+		if (!pendingInitialPrompt && (!pendingInitialImages || pendingInitialImages.length === 0)) {
+			return
+		}
+
+		setPendingInitialPrompt(undefined)
+		setPendingInitialImages(undefined)
+	}, [pendingInitialPrompt, pendingInitialImages])
 
 	const handleSelectTask = useCallback((taskId: string) => {
 		setSelectedTaskId(taskId)
@@ -253,8 +264,8 @@ const InternalApp: React.FC<AppProps> = ({
 					) : (
 						<ChatView
 							controller={controller}
-							initialImages={initialImages}
-							initialPrompt={initialPrompt}
+							initialImages={pendingInitialImages}
+							initialPrompt={pendingInitialPrompt}
 							onComplete={onComplete}
 							onError={onError}
 							onExit={onWelcomeExit}

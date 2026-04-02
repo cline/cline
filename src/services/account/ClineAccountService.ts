@@ -1,5 +1,6 @@
 import type {
 	BalanceResponse,
+	FeaturebaseTokenResponse,
 	OrganizationBalanceResponse,
 	OrganizationUsageTransaction,
 	PaymentTransaction,
@@ -82,9 +83,8 @@ export class ClineAccountService {
 		}
 		if (response.statusText === "No Content") {
 			return {} as T // Return empty object if no content
-		} else {
-			return response.data.data as T
 		}
+		return response.data.data as T
 	}
 
 	/**
@@ -156,6 +156,20 @@ export class ClineAccountService {
 			return data
 		} catch (error) {
 			Logger.error("Failed to fetch user data (RPC):", error)
+			return undefined
+		}
+	}
+
+	/**
+	 * Fetches a short-lived Featurebase SSO JWT for the current user
+	 * @returns FeaturebaseTokenResponse or undefined if failed
+	 */
+	async fetchFeaturebaseToken(): Promise<FeaturebaseTokenResponse | undefined> {
+		try {
+			const data = await this.authenticatedRequest<FeaturebaseTokenResponse>(CLINE_API_ENDPOINT.FEATUREBASE_TOKEN)
+			return data
+		} catch (error) {
+			Logger.error("Failed to fetch Featurebase token:", error)
 			return undefined
 		}
 	}

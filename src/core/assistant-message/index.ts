@@ -54,6 +54,8 @@ export const toolParamNames = [
 	"prompt_3",
 	"prompt_4",
 	"prompt_5",
+	"start_line",
+	"end_line",
 ] as const
 
 export type ToolParamName = (typeof toolParamNames)[number]

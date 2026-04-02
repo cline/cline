@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import chalk from "chalk"
-import { execSync } from "child_process"
+import { execFileSync, execSync } from "child_process"
+import fsSync from "fs"
 import * as fs from "fs/promises"
 import { globby } from "globby"
 import { createRequire } from "module"
@@ -12,7 +13,20 @@ import { main as generateHostBridgeClient } from "./generate-host-bridge-client.
 import { main as generateProtoBusSetup } from "./generate-protobus-setup.mjs"
 
 const require = createRequire(import.meta.url)
-const PROTOC = path.join(require.resolve("grpc-tools"), "../bin/protoc")
+const isWindows = process.platform === "win32"
+const GRPC_TOOLS_PROTOC = path.join(require.resolve("grpc-tools"), "../bin", isWindows ? "protoc.exe" : "protoc")
+// Legacy compatibility: some older/local Windows setups provision protoc into tmp-protoc.
+// Prefer that path when present, but fall back to the grpc-tools bundled binary used by CI/npm installs.
+const LEGACY_WINDOWS_PROTOC = path.resolve("tmp-protoc/bin/protoc.exe")
+const PROTOC = isWindows && fsSync.existsSync(LEGACY_WINDOWS_PROTOC) ? LEGACY_WINDOWS_PROTOC : GRPC_TOOLS_PROTOC
+
+if (!fsSync.existsSync(PROTOC)) {
+	const windowsHint = isWindows
+		? ` Neither ${LEGACY_WINDOWS_PROTOC} nor the grpc-tools bundled protoc at ${GRPC_TOOLS_PROTOC} exists.`
+		: ""
+	console.error(chalk.red(`protoc not found at ${PROTOC}.${windowsHint}`))
+	process.exit(1)
+}
 
 const PROTO_DIR = path.resolve("proto")
 const TS_OUT_DIR = path.resolve("src/shared/proto")
@@ -20,7 +34,6 @@ const GRPC_JS_OUT_DIR = path.resolve("src/generated/grpc-js")
 const NICE_JS_OUT_DIR = path.resolve("src/generated/nice-grpc")
 const DESCRIPTOR_OUT_DIR = path.resolve("dist-standalone/proto")
 
-const isWindows = process.platform === "win32"
 const TS_PROTO_PLUGIN = isWindows
 	? path.resolve("node_modules/.bin/protoc-gen-ts_proto.cmd") // Use the .bin directory path for Windows
 	: require.resolve("ts-proto/protoc-gen-ts_proto")
@@ -62,16 +75,16 @@ async function compileProtos() {
 	tsProtoc(NICE_JS_OUT_DIR, protoFiles, ["outputServices=nice-grpc,useExactTypes=false", ...TS_PROTO_OPTIONS])
 
 	const descriptorFile = path.join(DESCRIPTOR_OUT_DIR, "descriptor_set.pb")
-	const descriptorProtocCommand = [
-		PROTOC,
-		`--proto_path="${PROTO_DIR}"`,
-		`--descriptor_set_out="${descriptorFile}"`,
+	const descriptorProtocArgs = [
+		`--proto_path=${PROTO_DIR}`,
+		`--descriptor_set_out=${descriptorFile}`,
 		"--include_imports",
 		...protoFiles,
-	].join(" ")
+	]
 	try {
 		log_verbose(chalk.cyan("Generating descriptor set..."))
-		execSync(descriptorProtocCommand, { stdio: "inherit" })
+		log_verbose(`${PROTOC} ${descriptorProtocArgs.join(" ")}`)
+		execFileSync(PROTOC, descriptorProtocArgs, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating descriptor set for proto file:"), error)
 		process.exit(1)
@@ -81,20 +94,18 @@ async function compileProtos() {
 	log_verbose(chalk.green(`TypeScript files generated in: ${TS_OUT_DIR}`))
 }
 
-async function tsProtoc(outDir, protoFiles, protoOptions) {
-	// Build the protoc command with proper path handling for cross-platform
-	const command = [
-		PROTOC,
-		`--proto_path="${PROTO_DIR}"`,
-		`--plugin=protoc-gen-ts_proto="${TS_PROTO_PLUGIN}"`,
-		`--ts_proto_out="${outDir}"`,
-		`--ts_proto_opt=${protoOptions.join(",")} `,
-		...protoFiles.map((s) => `"${s}"`),
-	].join(" ")
+function tsProtoc(outDir, protoFiles, protoOptions) {
+	const args = [
+		`--proto_path=${PROTO_DIR}`,
+		`--plugin=protoc-gen-ts_proto=${TS_PROTO_PLUGIN}`,
+		`--ts_proto_out=${outDir}`,
+		`--ts_proto_opt=${protoOptions.join(",")}`,
+		...protoFiles,
+	]
 	try {
 		log_verbose(chalk.cyan(`Generating TypeScript code in ${outDir} for:\n${protoFiles.join("\n")}...`))
-		log_verbose(command)
-		execSync(command, { stdio: "inherit" })
+		log_verbose(`${PROTOC} ${args.join(" ")}`)
+		execFileSync(PROTOC, args, { stdio: "inherit" })
 	} catch (error) {
 		console.error(chalk.red("Error generating TypeScript for proto files:"), error)
 		process.exit(1)

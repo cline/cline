@@ -881,12 +881,15 @@ export class StateManager {
 
 	/**
 	 * Helper to get a setting value with override support
-	 * Precedence: remote config > task settings > global settings
+	 * Precedence: remote config > session override > task settings > global settings
 	 */
 	private getSettingWithOverride<K extends keyof Settings>(key: K): Settings[K] {
 		const remoteValue = this.remoteConfigCache[key]
 		if (remoteValue !== undefined) {
 			return remoteValue
+		}
+		if (this.sessionOverrideCache[key] !== undefined) {
+			return this.sessionOverrideCache[key]
 		}
 		const taskValue = this.taskStateCache[key]
 		if (taskValue !== undefined) {
@@ -920,7 +923,10 @@ export class StateManager {
 		// Build API handler settings object with task override support
 		const settings = Object.fromEntries(ApiHandlerSettingsKeys.map((key) => [key, this.getSettingWithOverride(key)]))
 
-		return { ...secrets, ...settings } satisfies ApiConfiguration
+		return {
+			...secrets,
+			...settings,
+		} satisfies ApiConfiguration
 	}
 
 	/**

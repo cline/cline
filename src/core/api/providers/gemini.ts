@@ -9,6 +9,7 @@ import {
 	ThinkingLevel,
 } from "@google/genai"
 import { GeminiModelId, geminiDefaultModelId, geminiModels, ModelInfo } from "@shared/api"
+import { GEMINI_FLASH_MAX_OUTPUT_TOKENS, isGeminiFlashModel } from "@utils/model-utils"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { telemetryService } from "@/services/telemetry"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -43,6 +44,18 @@ function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel 
 		default:
 			return ThinkingLevel.LOW
 	}
+}
+
+function getGeminiMaxOutputTokens(modelId: string, modelMaxTokens?: number): number | undefined {
+	if (!isGeminiFlashModel(modelId)) {
+		return undefined
+	}
+
+	if (modelMaxTokens && modelMaxTokens > 0) {
+		return Math.min(modelMaxTokens, GEMINI_FLASH_MAX_OUTPUT_TOKENS)
+	}
+
+	return GEMINI_FLASH_MAX_OUTPUT_TOKENS
 }
 
 /**
@@ -136,6 +149,9 @@ export class GeminiHandler implements ApiHandler {
 		const client = this.ensureClient()
 		const { id: modelId, info } = this.getModel()
 		const contents = messages.map(convertAnthropicMessageToGemini)
+		// Gemini may emit multiple function calls under the same responseId and without functionCall.id.
+		// Track a local sequence so each emitted tool call has a stable unique ID.
+		const responseToolCallCount = new Map<string, number>()
 
 		// Configure thinking budget/level if supported
 		const _thinkingBudget = this.options.thinkingBudgetTokens ?? 0
@@ -152,6 +168,7 @@ export class GeminiHandler implements ApiHandler {
 		}
 
 		// Set up base generation config
+		const maxOutputTokens = getGeminiMaxOutputTokens(modelId, info.maxTokens)
 		const requestConfig: GenerateContentConfig = {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
@@ -159,6 +176,7 @@ export class GeminiHandler implements ApiHandler {
 			// Set temperature (default to 0)
 			// Gemini 3 recommends 1.0
 			temperature: info.temperature ?? 1,
+			...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
 		}
 
 		// Add thinking config only if the model supports it
@@ -210,6 +228,7 @@ export class GeminiHandler implements ApiHandler {
 
 			let isFirstSdkChunk = true
 			for await (const chunk of result) {
+				const responseKey = chunk.responseId || "gemini-response"
 				if (isFirstSdkChunk) {
 					sdkFirstChunkTime = Date.now()
 					ttftSdkMs = sdkFirstChunkTime - sdkCallStartTime
@@ -238,12 +257,21 @@ export class GeminiHandler implements ApiHandler {
 						const functionCall = part.functionCall
 						const args = Object.entries(functionCall.args || {}).filter(([_key, val]) => !!val)
 						if (functionCall.args && args.length > 0) {
+							const existingId = functionCall.id?.trim()
+							const toolCallId =
+								existingId ??
+								(() => {
+									const sequenceNumber = responseToolCallCount.get(responseKey) ?? 0
+									responseToolCallCount.set(responseKey, sequenceNumber + 1)
+									return `${responseKey}-tool-${sequenceNumber}`
+								})()
 							yield {
 								type: "tool_calls",
 								id: chunk.responseId,
 								tool_call: {
+									call_id: toolCallId,
 									function: {
-										id: chunk.responseId,
+										id: toolCallId,
 										name: functionCall.name,
 										arguments: JSON.stringify(functionCall.args),
 									},

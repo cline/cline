@@ -43,6 +43,7 @@ jobs:
                   ref: main
                   fetch-depth: 0
                   fetch-tags: true
+                  lfs: true
 
             - name: Resolve Release Tag
               id: resolve_tag
@@ -133,6 +134,15 @@ jobs:
                   fi
                   echo "Tag and package version match: $TAG"
 
+            - name: Verify LFS media assets are resolved
+              run: |
+                  for FILE in webview-ui/src/assets/cline_kanban_demo.mp4 webview-ui/src/assets/cline_kanban_demo.webm; do
+                    if grep -q "git-lfs.github.com/spec/v1" "$FILE"; then
+                      echo "Error: $FILE is still a Git LFS pointer in CI checkout"
+                      exit 1
+                    fi
+                  done
+
             - name: Package and Publish Extension
               env:
                   VSCE_PAT: ${{ secrets.VSCE_PAT }}
@@ -187,3 +197,25 @@ jobs:
                   prerelease: ${{ github.event.inputs.release-type == 'pre-release' }}
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Post release to Slack
+              uses: slackapi/slack-github-action@v3.0.1
+              with:
+                  method: chat.postMessage
+                  token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+                  payload: |
+                    channel: "C0APVKGGZFC"
+                    text: "Cline ${{ steps.resolve_tag.outputs.tag }}"
+                    blocks:
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: "*Cline ${{ steps.resolve_tag.outputs.tag }}*"
+                      - type: "section"
+                        text:
+                          type: "mrkdwn"
+                          text: ${{ toJSON(steps.changelog.outputs.content) }}
+                      - type: "context"
+                        elements:
+                          - type: "mrkdwn"
+                            text: "Full Changelog: https://github.com/${{ github.repository }}/compare/${{ steps.prev_tag.outputs.prev_tag }}...${{ steps.resolve_tag.outputs.tag }}"

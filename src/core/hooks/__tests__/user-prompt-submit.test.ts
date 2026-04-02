@@ -3,13 +3,23 @@ import "should"
 import fs from "fs/promises"
 import path from "path"
 import sinon from "sinon"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
-import { createHookTestEnv, HookTestEnv, stubHookDirs, writeHookScriptForPlatform } from "./test-utils"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
 describe("UserPromptSubmit Hook", () => {
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
 	let hookTestEnv: HookTestEnv
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
+
+	type FixtureScenario = {
+		fixtureName: string
+		prompt: string
+		assert: (result: HookOutput) => void
+	}
+
+	const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
 		await writeHookScriptForPlatform(hookPath, nodeScript)
@@ -245,8 +255,8 @@ process.exit(1)`
 					},
 				})
 				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/exited with code 1/)
+			} catch (error: unknown) {
+				getErrorMessage(error).should.match(/exited with code 1/)
 			}
 		})
 	})
@@ -358,161 +368,127 @@ console.log(JSON.stringify({
 	describe("Fixture-Based Tests", () => {
 		// These tests demonstrate using pre-written fixtures from the fixtures directory
 		// Fixtures serve as both test data and examples for manual testing
+		const isWindows = process.platform === "win32"
 
-		// Helper to load a fixture and create a runner
-		const loadFixtureAndCreateRunner = async (fixtureName: string) => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture(`hooks/userpromptsubmit/${fixtureName}`, tempDir)
+		it("should validate representative fixtures end-to-end", async function () {
+			if (isWindows) {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
 
-			const factory = new HookFactory()
-			return await factory.create("UserPromptSubmit")
-		}
-
-		it("should work with success fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("success")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
+			const scenarios: FixtureScenario[] = [
+				{
+					fixtureName: "success",
 					prompt: "Create a feature",
-					attachments: [],
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Prompt approved")
+					},
 				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("Prompt approved")
-		})
-
-		it("should work with blocking fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("blocking")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
+				{
+					fixtureName: "blocking",
 					prompt: "Do something forbidden",
-					attachments: [],
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.true()
+						result.errorMessage?.should.equal("Prompt violates policy")
+					},
 				},
-			})
-
-			result.cancel.should.be.true()
-			result.errorMessage?.should.equal("Prompt violates policy")
-		})
-
-		it("should work with context-injection fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("context-injection")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
+				{
+					fixtureName: "context-injection",
 					prompt: "Build something",
-					attachments: [],
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("CONTEXT_INJECTION: User is in plan mode")
+					},
 				},
-			})
+				{
+					fixtureName: "multiline",
+					prompt: "Line 1\nLine 2\nLine 3",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Line count: 3")
+					},
+				},
+				{
+					fixtureName: "special-chars",
+					prompt: "Test @user #feature $cost",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Special chars preserved")
+					},
+				},
+				{
+					fixtureName: "empty-prompt",
+					prompt: "",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Prompt length: 0")
+					},
+				},
+			]
 
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("CONTEXT_INJECTION: User is in plan mode")
+			if (!isWindows) {
+				scenarios.push({
+					fixtureName: "large-prompt",
+					prompt: "x".repeat(10000),
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Prompt size: 10000")
+					},
+				})
+			}
+
+			for (const scenario of scenarios) {
+				await withFixtureRunner(
+					"UserPromptSubmit",
+					`hooks/userpromptsubmit/${scenario.fixtureName}`,
+					hookTestEnv,
+					async (runner) => {
+						const result = await runner.run({
+							taskId: "test-task",
+							userPromptSubmit: {
+								prompt: scenario.prompt,
+								attachments: [],
+							},
+						})
+
+						scenario.assert(result)
+					},
+				)
+			}
 		})
 
-		it("should work with error fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("error")
-
-			try {
-				await runner.run({
+		it("should cover malformed-json fixture path", async () => {
+			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/malformed-json", hookTestEnv, async (runner) => {
+				const malformedResult = await runner.run({
 					taskId: "test-task",
 					userPromptSubmit: {
 						prompt: "Test",
 						attachments: [],
 					},
 				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/exited with code 1/)
-			}
+
+				malformedResult.cancel.should.be.false()
+				;(
+					malformedResult.contextModification === undefined || malformedResult.contextModification === ""
+				).should.be.true()
+			})
 		})
 
-		it("should work with malformed-json fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("malformed-json")
-
-			// When hook exits 0 but has malformed JSON, it returns success without context
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Test",
-					attachments: [],
-				},
+		it("should cover failing fixture path", async () => {
+			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/error", hookTestEnv, async (runner) => {
+				try {
+					await runner.run({
+						taskId: "test-task",
+						userPromptSubmit: {
+							prompt: "Test",
+							attachments: [],
+						},
+					})
+					throw new Error("Should have thrown")
+				} catch (error: unknown) {
+					getErrorMessage(error).should.match(/exited with code 1/)
+				}
 			})
-
-			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
-			result.cancel.should.be.false()
-			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
-		})
-
-		it("should work with multiline fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("multiline")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Line 1\nLine 2\nLine 3",
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("Line count: 3")
-		})
-
-		it("should work with large-prompt fixture", async function () {
-			// On Windows this fixture path duplicates coverage from
-			// "should handle large prompts" and can be timing-sensitive due to
-			// PowerShell process startup in CI.
-			if (process.platform === "win32") {
-				this.skip()
-			}
-
-			const runner = await loadFixtureAndCreateRunner("large-prompt")
-
-			const largePrompt = "x".repeat(10000)
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: largePrompt,
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("Prompt size: 10000")
-		})
-
-		it("should work with special-chars fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("special-chars")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Test @user #feature $cost",
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("Special chars preserved")
-		})
-
-		it("should work with empty-prompt fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("empty-prompt")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "",
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification?.should.equal("Prompt length: 0")
 		})
 	})
 })

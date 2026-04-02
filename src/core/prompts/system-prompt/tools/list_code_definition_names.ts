@@ -15,7 +15,7 @@ const generic: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for.`,
+			instruction: `The path of a directory (not a file) relative to the current working directory {{CWD}}{{MULTI_ROOT_HINT}}. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead.`,
 			usage: "Directory path here",
 		},
 		TASK_PROGRESS_PARAMETER,
@@ -32,7 +32,7 @@ const NATIVE_GPT_5: ClineToolSpec = {
 		{
 			name: "path",
 			required: true,
-			instruction: `The path of the directory (relative to the current working directory {{CWD}}){{MULTI_ROOT_HINT}} to list top level source code definitions for.`,
+			instruction: `The path of a directory (not a file) relative to the current working directory {{CWD}}{{MULTI_ROOT_HINT}}. Lists definitions across all source files in that directory. To inspect a single file, use read_file instead.`,
 		},
 		TASK_PROGRESS_PARAMETER,
 	],

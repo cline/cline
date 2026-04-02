@@ -180,13 +180,23 @@ Cline CLI supports [MCP (Model Context Protocol)](/mcp/mcp-overview) servers, gi
 
 ### Setting Up MCP Servers
 
-To configure MCP servers for the CLI, create or edit the settings file at:
+You can add MCP servers from the CLI:
+
+```bash
+# STDIO server
+cline mcp add kanban -- kanban mcp
+
+# Remote HTTP server
+cline mcp add linear https://mcp.linear.app/mcp --type http
+```
+
+These commands update:
 
 ```
 ~/.cline/data/settings/cline_mcp_settings.json
 ```
 
-The file uses the same JSON format as the VS Code extension:
+You can still edit this file directly. It uses the same JSON format as the VS Code extension:
 
 ```json
 {
@@ -207,7 +217,7 @@ The file uses the same JSON format as the VS Code extension:
 For the full configuration reference including STDIO and SSE transport types, see [Adding and Configuring MCP Servers](/mcp/adding-and-configuring-servers).
 
 <Note>
-The CLI does not yet have a `/mcp` slash command for managing MCP servers interactively. For now, you'll need to edit the `cline_mcp_settings.json` file directly.
+The CLI does not yet have a `/mcp` slash command for interactive management inside the terminal UI. Use `cline mcp add` or edit `cline_mcp_settings.json` directly.
 </Note>
 
 ### Custom Config Directory

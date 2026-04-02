@@ -1,6 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { Socket } from "node:net"
-import { parse } from "node:url"
 import { v4 as uuidv4 } from "uuid"
 import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
 import { E2E_MOCK_API_RESPONSES, E2E_REGISTERED_MOCK_ENDPOINTS } from "./api"
@@ -122,9 +121,9 @@ export class ClineApiServerMock {
 		log("Starting global server...")
 		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 			// Parse URL and method
-			const parsedUrl = parse(req.url || "", true)
-			const path = parsedUrl.pathname || ""
-			const query = parsedUrl.query
+			const parsedUrl = new URL(req.url || "/", MOCK_CLINE_API_SERVER_URL)
+			const path = parsedUrl.pathname
+			const query = Object.fromEntries(parsedUrl.searchParams.entries())
 			const method = req.method || "GET"
 
 			// Helper to read request body
@@ -212,6 +211,16 @@ export class ClineApiServerMock {
 							return sendApiError("Unauthorized", 401)
 						}
 						return sendApiResponse(currentUser)
+					}
+
+					if (endpoint === "/users/me/featurebase-token" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						return sendApiResponse({
+							featurebaseJwt: `mock-featurebase-jwt-${currentUser.id}`,
+						})
 					}
 
 					if (endpoint === "/users/{userId}/balance" && method === "GET") {
@@ -454,36 +463,35 @@ export class ClineApiServerMock {
 
 							sendChunk()
 							return
-						} else {
-							const response = {
-								id: generationId,
-								object: "chat.completion",
-								created: Math.floor(Date.now() / 1000),
-								model,
-								choices: [
-									{
-										index: 0,
-										message: {
-											role: "assistant",
-											content: "Hello! I'm a mock Cline API response.",
-										},
-										finish_reason: "stop",
-									},
-								],
-								usage: {
-									prompt_tokens: 140,
-									completion_tokens: responseText.length,
-									total_tokens: 140 + responseText.length,
-									cost: (140 + responseText.length) * 0.00015,
-								},
-							}
-							return sendJson(response)
 						}
+						const response = {
+							id: generationId,
+							object: "chat.completion",
+							created: Math.floor(Date.now() / 1000),
+							model,
+							choices: [
+								{
+									index: 0,
+									message: {
+										role: "assistant",
+										content: "Hello! I'm a mock Cline API response.",
+									},
+									finish_reason: "stop",
+								},
+							],
+							usage: {
+								prompt_tokens: 140,
+								completion_tokens: responseText.length,
+								total_tokens: 140 + responseText.length,
+								cost: (140 + responseText.length) * 0.00015,
+							},
+						}
+						return sendJson(response)
 					}
 
 					// Generation details endpoint
 					if (endpoint === "/generation" && method === "GET") {
-						const generationId = query.id as string
+						const generationId = parsedUrl.searchParams.get("id") || ""
 						const generation = controller.API_USER.getGeneration(generationId)
 
 						if (!generation) {
