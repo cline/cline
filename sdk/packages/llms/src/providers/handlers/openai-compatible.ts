@@ -1,5 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
-import { jsonSchema } from "ai";
+import z from "zod";
 import {
 	getMissingApiKeyError,
 	resolveApiKeyForProvider,
@@ -71,7 +71,7 @@ function toAiSdkTools(
 			tool.name,
 			{
 				description: tool.description,
-				parameters: jsonSchema(tool.inputSchema),
+				inputSchema: z.fromJSONSchema(tool.inputSchema),
 			},
 		]),
 	);
