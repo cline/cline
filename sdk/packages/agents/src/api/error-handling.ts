@@ -18,7 +18,7 @@ import type {
 // =============================================================================
 
 const NON_RECOVERABLE_STATUS_CODES = [
-	400, 401, 403, 404, 405, 406, 409, 410, 429,
+	400, 401, 402, 403, 404, 405, 406, 409, 410, 429,
 ];
 
 const NON_RECOVERABLE_PHRASES = [
@@ -29,6 +29,7 @@ const NON_RECOVERABLE_PHRASES = [
 	"authentication",
 	"unauthorized",
 	"forbidden",
+	"insufficient balance",
 ];
 
 export function isNonRecoverableApiError(error: Error): boolean {
