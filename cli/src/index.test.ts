@@ -99,6 +99,12 @@ describe("CLI Commands", () => {
 			.description("Run kanban")
 			.action(() => {})
 
+		program
+			.command("update")
+			.description("Check for updates and install if available")
+			.option("-v, --verbose", "Show verbose output")
+			.action(() => {})
+
 		// Default command for interactive mode
 		program
 			.argument("[prompt]", "Task prompt")
@@ -113,6 +119,7 @@ describe("CLI Commands", () => {
 			.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 			.option("--hooks-dir <path>", "Additional hooks directory")
 			.option("--auto-approve-all", "Enable auto-approve all")
+			.option("--update", "Check for updates and install if available")
 			.option("--kanban", "Run kanban")
 			.option("--tui", "Open the legacy terminal UI instead of the kanban experience")
 			.action(() => {})
@@ -315,6 +322,20 @@ describe("CLI Commands", () => {
 		})
 	})
 
+	describe("update command", () => {
+		it("should parse update command", () => {
+			const args = ["node", "cli", "update"]
+			program.parse(args)
+		})
+
+		it("should parse --verbose on update command", () => {
+			const updateCmd = getCommand("update")
+			const args = ["--verbose"]
+			updateCmd.parse(args, { from: "user" })
+			expect(updateCmd.opts().verbose).toBe(true)
+		})
+	})
+
 	describe("auth command", () => {
 		it("should parse auth command", () => {
 			const args = ["node", "cli", "auth"]
@@ -439,6 +460,11 @@ describe("CLI Commands", () => {
 			expect(program.opts().kanban).toBe(true)
 		})
 
+		it("should parse --update flag", () => {
+			program.parse(["node", "cli", "--update"])
+			expect(program.opts().update).toBe(true)
+		})
+
 		it("should parse --tui flag", () => {
 			program.parse(["node", "cli", "--tui"])
 			expect(program.opts().tui).toBe(true)
@@ -454,6 +480,7 @@ describe("CLI Commands", () => {
 			expect(commandNames).toContain("auth")
 			expect(commandNames).toContain("mcp")
 			expect(commandNames).toContain("kanban")
+			expect(commandNames).toContain("update")
 		})
 
 		it("should have correct aliases", () => {
