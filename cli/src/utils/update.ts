@@ -282,6 +282,10 @@ export async function checkForUpdates(currentVersion: string, options: CheckForU
 		}
 		const latestKanbanVersion = kanbanInstallerAvailable ? await getLatestKanbanVersion() : null
 		const installedKanbanVersion = includeKanban ? getInstalledKanbanVersion() : null
+		const kanbanIsUpToDate =
+			latestKanbanVersion !== null &&
+			installedKanbanVersion !== null &&
+			compareVersions(installedKanbanVersion, latestKanbanVersion) >= 0
 		const shouldInstallKanban =
 			kanbanInstallerAvailable &&
 			latestKanbanVersion !== null &&
@@ -292,8 +296,10 @@ export async function checkForUpdates(currentVersion: string, options: CheckForU
 		}
 
 		if (!canUpdateCline && !shouldInstallKanban) {
-			if (clineIsUpToDate) {
-				printInfo(`You are already on the latest version (${currentVersion})`)
+			if (clineIsUpToDate && kanbanIsUpToDate && installedKanbanVersion) {
+				printInfo(`You are already on the latest version cline@${currentVersion} and kanban@${installedKanbanVersion}`)
+			} else if (clineIsUpToDate) {
+				printInfo(`You are already on the latest version cline@${currentVersion}`)
 			}
 			exit(0)
 		}
