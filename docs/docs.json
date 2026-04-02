@@ -132,6 +132,7 @@
 							"features/background-edit",
 							"features/jupyter-notebooks",
 							"features/deep-planning",
+							"features/explain-changes",
 							"features/web-tools",
 							"features/worktrees"
 						]
@@ -643,7 +644,7 @@
 		},
 		{
 			"source": "/features/slash-commands/explain-changes",
-			"destination": "/core-workflows/using-commands#explain-changes"
+			"destination": "/features/explain-changes"
 		},
 		{
 			"source": "/features/slash-commands/new-rule",
