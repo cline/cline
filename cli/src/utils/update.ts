@@ -1,4 +1,4 @@
-import { type ChildProcess, spawn } from "node:child_process"
+import { type ChildProcess, spawn, spawnSync } from "node:child_process"
 import { realpathSync } from "node:fs"
 import { exit } from "node:process"
 import { ClineEndpoint } from "@/config"
@@ -113,6 +113,25 @@ async function getLatestPackageVersion(packageName: string, tag = "latest"): Pro
 
 async function getLatestKanbanVersion(): Promise<string | null> {
 	return getLatestPackageVersion("kanban")
+}
+
+function getInstalledKanbanVersion(): string | null {
+	try {
+		const command = process.platform === "win32" ? "kanban.cmd" : "kanban"
+		const result = spawnSync(command, ["--version"], {
+			encoding: "utf8",
+			shell: process.platform === "win32",
+		})
+		if (result.status !== 0) {
+			return null
+		}
+
+		const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`.trim()
+		const versionMatch = output.match(/\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?/)
+		return versionMatch?.[0] ?? null
+	} catch {
+		return null
+	}
 }
 
 /**
@@ -257,17 +276,22 @@ export async function checkForUpdates(currentVersion: string, options: CheckForU
 		}
 
 		const kanbanInstallCommand = includeKanban ? resolveKanbanInstallCommand() : null
-		const canUpdateKanban = kanbanInstallCommand !== null
-		if (includeKanban && !canUpdateKanban && options.verbose) {
+		const kanbanInstallerAvailable = kanbanInstallCommand !== null
+		if (includeKanban && !kanbanInstallerAvailable && options.verbose) {
 			printWarning("Unable to determine Kanban update command (npm, pnpm, or bun not found in PATH).")
 		}
-		const latestKanbanVersion = canUpdateKanban ? await getLatestKanbanVersion() : null
+		const latestKanbanVersion = kanbanInstallerAvailable ? await getLatestKanbanVersion() : null
+		const installedKanbanVersion = includeKanban ? getInstalledKanbanVersion() : null
+		const shouldInstallKanban =
+			kanbanInstallerAvailable &&
+			latestKanbanVersion !== null &&
+			(installedKanbanVersion === null || compareVersions(installedKanbanVersion, latestKanbanVersion) < 0)
 
-		if (!canCheckClineVersion && !canUpdateKanban) {
+		if (!canCheckClineVersion && !shouldInstallKanban) {
 			exit(1)
 		}
 
-		if (!canUpdateCline && !canUpdateKanban) {
+		if (!canUpdateCline && !shouldInstallKanban) {
 			if (clineIsUpToDate) {
 				printInfo(`You are already on the latest version (${currentVersion})`)
 			}
@@ -295,7 +319,7 @@ export async function checkForUpdates(currentVersion: string, options: CheckForU
 			}
 		}
 
-		if (kanbanInstallCommand) {
+		if (shouldInstallKanban && kanbanInstallCommand && latestKanbanVersion) {
 			const kanbanTargetVersion = latestKanbanVersion ?? "latest"
 			printInfo(`Installing kanban@${kanbanTargetVersion}...`)
 			try {
@@ -330,7 +354,7 @@ export async function checkForUpdates(currentVersion: string, options: CheckForU
 			exit(1)
 		}
 
-		if (canUpdateCline || canUpdateKanban) {
+		if (canUpdateCline || shouldInstallKanban) {
 			exit(0)
 		}
 		exit(1)
