@@ -57,6 +57,10 @@ export { FetchBaseHandler } from "./fetch-base";
 export { createGeminiHandler, GeminiHandler } from "./gemini-base";
 // OpenAI Chat Completions API handler
 export { createOpenAIHandler, OpenAIBaseHandler } from "./openai-base";
+export {
+	createOpenAICompatibleHandler,
+	OpenAICompatibleHandler,
+} from "./openai-compatible";
 // OpenAI Responses API handler
 export {
 	createOpenAIResponsesHandler,

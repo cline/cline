@@ -67,12 +67,13 @@
 		}
 	},
 	"dependencies": {
-		"@clinebot/shared": "workspace:*",
 		"@ai-sdk/amazon-bedrock": "^4.0.67",
 		"@ai-sdk/google-vertex": "^4.0.74",
 		"@ai-sdk/mistral": "^3.0.24",
+		"@ai-sdk/openai-compatible": "^2.0.37",
 		"@anthropic-ai/sdk": "^0.78.0",
 		"@aws-sdk/credential-providers": "^3.922.0",
+		"@clinebot/shared": "workspace:*",
 		"@google/genai": "^1.43.0",
 		"@streamparser/json": "^0.0.21",
 		"ai": "^6.0.112",

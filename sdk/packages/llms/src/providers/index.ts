@@ -157,6 +157,7 @@ export {
 	createDifyHandler,
 	createGeminiHandler,
 	createMistralHandler,
+	createOpenAICompatibleHandler,
 	createOpenAIHandler,
 	createOpenAIResponsesHandler,
 	createOpenCodeHandler,
@@ -181,6 +182,7 @@ export {
 	OPENAI_COMPATIBLE_PROVIDERS,
 	// OpenAI Chat Completions API handler
 	OpenAIBaseHandler,
+	OpenAICompatibleHandler,
 	// OpenAI Responses API handler
 	OpenAIResponsesHandler,
 	OpenCodeHandler,
@@ -261,6 +263,7 @@ import {
 } from "./handlers/community-sdk";
 import { GeminiHandler } from "./handlers/gemini-base";
 import { OpenAIBaseHandler } from "./handlers/openai-base";
+import { OpenAICompatibleHandler } from "./handlers/openai-compatible";
 import { OpenAIResponsesHandler } from "./handlers/openai-responses";
 import { VertexHandler } from "./handlers/vertex";
 import {
@@ -323,7 +326,7 @@ function createOcaHandler(config: ProviderConfig): ApiHandler {
 	if (apiFormat === ApiFormat.OPENAI_RESPONSES) {
 		return new OpenAIResponsesHandler(config);
 	}
-	return new OpenAIBaseHandler(config);
+	return new OpenAICompatibleHandler(config);
 }
 
 function mergeProviderDefaults(
@@ -386,7 +389,7 @@ const CLIENT_HANDLER_FACTORIES: Partial<
 	openai: (config) => new OpenAIResponsesHandler(config),
 	fetch: (config) => new OpenAIBaseHandler(config),
 	"ai-sdk-community": (config) => new OpenAIBaseHandler(config),
-	"openai-compatible": (config) => new OpenAIBaseHandler(config),
+	"openai-compatible": (config) => new OpenAICompatibleHandler(config),
 };
 
 function createBuiltInHandler(config: ProviderConfig): ApiHandler | undefined {
@@ -474,13 +477,14 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 			providerDefaults,
 		);
 		return (
-			createBuiltInHandler(mergedConfig) ?? new OpenAIBaseHandler(mergedConfig)
+			createBuiltInHandler(mergedConfig) ??
+			new OpenAICompatibleHandler(mergedConfig)
 		);
 	}
 
 	// Fall back to OpenAI-compatible with custom base URL
 	return normalizedConfig.baseUrl
-		? new OpenAIBaseHandler({ ...normalizedConfig, routingProviderId })
+		? new OpenAICompatibleHandler({ ...normalizedConfig, routingProviderId })
 		: new OpenAIResponsesHandler({
 				...normalizedConfig,
 				routingProviderId,
@@ -543,7 +547,7 @@ export async function createHandlerAsync(
 			);
 			return (
 				createBuiltInHandler(mergedConfig) ??
-				new OpenAIBaseHandler(mergedConfig)
+				new OpenAICompatibleHandler(mergedConfig)
 			);
 		}
 	}
