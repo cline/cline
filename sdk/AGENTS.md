@@ -93,7 +93,7 @@ bun install --lockfile-only
   2. Choose the release version like `0.0.22`.
   3. Run `bun scripts/version.ts <version>` to update all workspace package versions and rebuild from the bumped versions.
   4. Regenerate the Bun lockfile so packed `workspace:*` dependencies resolve to the new workspace versions:
-     `rm bun.lock && bun install --lockfile-only`
+     `rm bun.lock && bun install --lockfile-only && bun run build`
   5. Review the changed `package.json` files, regenerated `bun.lock`, and generated model artifacts before publishing.
   6. Run `bun scripts/check-publish.ts` to verify the packed SDK tarballs are version-aligned and install together correctly.
   7. If you want to inspect one package manually before publish, run `bun pm pack` in that package and inspect `package/package.json` from the generated tarball.

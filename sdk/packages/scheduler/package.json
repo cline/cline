@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/scheduler",
-	"version": "0.0.25",
+	"version": "0.0.26",
 	"description": "[INTERNAL] Scheduled runtime execution primitives for Cline RPC hosts",
 	"type": "module",
 	"main": "./dist/index.js",
