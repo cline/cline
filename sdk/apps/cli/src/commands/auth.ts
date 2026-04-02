@@ -1,10 +1,12 @@
 import { createInterface } from "node:readline";
 import {
 	createOAuthClientCallbacks,
+	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	LlmsProviders,
 	listLocalProviders,
 	type ProviderSettingsManager,
+	saveLocalProviderSettings,
 } from "@clinebot/core";
 import { Command } from "commander";
 import { Box, render, Text, useApp, useInput } from "ink";
@@ -215,6 +217,31 @@ async function loadProviderCatalog(
 		}))
 		.filter((provider) => provider.id.length > 0)
 		.sort((a, b) => a.id.localeCompare(b.id));
+}
+
+function toProviderLabels(
+	providers: Array<{ id: string; name: string }>,
+): string[] {
+	return providers.map((provider) => `${provider.name} (${provider.id})`);
+}
+
+async function deleteProviderFromAuth(
+	providerSettingsManager: ProviderSettingsManager,
+	providerId: string,
+): Promise<void> {
+	try {
+		await deleteLocalProvider(providerSettingsManager, { providerId });
+		return;
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		if (!message.includes("does not exist")) {
+			throw error;
+		}
+	}
+	saveLocalProviderSettings(providerSettingsManager, {
+		providerId,
+		enabled: false,
+	});
 }
 
 async function ensureQuickSetupInputValid(
@@ -432,10 +459,20 @@ async function runQuickAuthSetup(input: AuthCommandInput): Promise<number> {
 }
 
 type InteractiveAuthState = {
-	screen: "menu" | "provider" | "apikey" | "modelid" | "baseurl" | "done";
+	screen:
+		| "menu"
+		| "provider"
+		| "confirm-delete-provider"
+		| "apikey"
+		| "modelid"
+		| "baseurl"
+		| "done";
 	menuIndex: number;
 	providerIndex: number;
+	providerIds: string[];
+	providerLabels: string[];
 	selectedProvider: string;
+	providerPendingDelete?: string;
 	apiKey: string;
 	modelId: string;
 	baseUrl: string;
@@ -523,9 +560,7 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 		input.providerSettingsManager,
 	);
 	const providerIds = providerCatalog.map((provider) => provider.id);
-	const providerLabels = providerCatalog.map(
-		(provider) => `${provider.name} (${provider.id})`,
-	);
+	const providerLabels = toProviderLabels(providerCatalog);
 	const defaultProvider =
 		normalizeProviderId(
 			input.providerSettingsManager.getLastUsedProviderSettings()?.provider ??
@@ -546,6 +581,8 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 				screen: "menu",
 				menuIndex: 0,
 				providerIndex: initialProviderIndex,
+				providerIds,
+				providerLabels,
 				selectedProvider: providerIds[initialProviderIndex] ?? "anthropic",
 				apiKey: "",
 				modelId: "",
@@ -555,8 +592,8 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 			});
 
 			const currentProvider = useMemo(
-				() => providerIds[state.providerIndex] ?? state.selectedProvider,
-				[state.providerIndex, state.selectedProvider],
+				() => state.providerIds[state.providerIndex] ?? state.selectedProvider,
+				[state.providerIds, state.providerIndex, state.selectedProvider],
 			);
 
 			const finalize = (code: number) => {
@@ -654,7 +691,7 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 							providerIndex:
 								prev.providerIndex > 0
 									? prev.providerIndex - 1
-									: providerIds.length - 1,
+									: prev.providerIds.length - 1,
 						}));
 						return;
 					}
@@ -662,14 +699,28 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 						setState((prev) => ({
 							...prev,
 							providerIndex:
-								prev.providerIndex < providerIds.length - 1
+								prev.providerIndex < prev.providerIds.length - 1
 									? prev.providerIndex + 1
 									: 0,
 						}));
 						return;
 					}
+					if (value.toLowerCase() === "d") {
+						const providerId = state.providerIds[state.providerIndex];
+						if (!providerId) {
+							return;
+						}
+						setState((prev) => ({
+							...prev,
+							screen: "confirm-delete-provider",
+							providerPendingDelete: providerId,
+							errorMessage: undefined,
+						}));
+						return;
+					}
 					if (key.return) {
-						const providerId = providerIds[state.providerIndex] ?? "anthropic";
+						const providerId =
+							state.providerIds[state.providerIndex] ?? "anthropic";
 						const defaultModelId =
 							input.providerSettingsManager.getProviderSettings(providerId)
 								?.model ?? "";
@@ -680,6 +731,76 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 							screen: "apikey",
 							errorMessage: undefined,
 						}));
+					}
+					return;
+				}
+				if (state.screen === "confirm-delete-provider") {
+					if (key.escape || value.toLowerCase() === "n") {
+						setState((prev) => ({
+							...prev,
+							screen: "provider",
+							providerPendingDelete: undefined,
+						}));
+						return;
+					}
+					if (value.toLowerCase() === "y" || key.return) {
+						const providerId = state.providerPendingDelete;
+						if (!providerId) {
+							setState((prev) => ({
+								...prev,
+								screen: "provider",
+								providerPendingDelete: undefined,
+							}));
+							return;
+						}
+						setState((prev) => ({
+							...prev,
+							busy: true,
+							busyMessage: `Deleting provider ${providerId}...`,
+							errorMessage: undefined,
+						}));
+						void deleteProviderFromAuth(
+							input.providerSettingsManager,
+							providerId,
+						)
+							.then(async () => {
+								const nextCatalog = await loadProviderCatalog(
+									input.providerSettingsManager,
+								);
+								const nextProviderIds = nextCatalog.map(
+									(provider) => provider.id,
+								);
+								const nextProviderLabels = toProviderLabels(nextCatalog);
+								setState((prev) => {
+									const nextIndex = Math.min(
+										prev.providerIndex,
+										Math.max(0, nextProviderIds.length - 1),
+									);
+									return {
+										...prev,
+										busy: false,
+										busyMessage: undefined,
+										screen: "provider",
+										providerPendingDelete: undefined,
+										providerIds: nextProviderIds,
+										providerLabels: nextProviderLabels,
+										providerIndex: nextIndex,
+										selectedProvider:
+											nextProviderIds[nextIndex] ?? prev.selectedProvider,
+									};
+								});
+							})
+							.catch((error) => {
+								setState((prev) => ({
+									...prev,
+									busy: false,
+									busyMessage: undefined,
+									screen: "provider",
+									providerPendingDelete: undefined,
+									errorMessage:
+										error instanceof Error ? error.message : String(error),
+								}));
+							});
 					}
 					return;
 				}
@@ -824,7 +945,7 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 			}, [exit, props, state.exitCode, state.screen]);
 
 			const menuItems = AUTH_MENU_ITEMS.map((item) => item.label);
-			const providerItems = providerLabels;
+			const providerItems = state.providerLabels;
 			const showBaseUrlInput =
 				currentProvider === "openai" || currentProvider === "openai-native";
 
@@ -860,6 +981,34 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 							selected: state.providerIndex,
 							title: "Select provider for API key setup",
 						})
+					: null,
+				!state.busy && state.screen === "provider"
+					? React.createElement(
+							Text,
+							{ color: "gray" },
+							"Press d to delete selected provider config",
+						)
+					: null,
+				!state.busy && state.screen === "confirm-delete-provider"
+					? React.createElement(
+							Box,
+							{ flexDirection: "column", marginBottom: 1 },
+							React.createElement(
+								Text,
+								{ color: "yellow", bold: true },
+								`Delete provider "${state.providerPendingDelete ?? ""}"?`,
+							),
+							React.createElement(
+								Text,
+								{ color: "gray" },
+								"This removes saved config and deletes custom providers.",
+							),
+							React.createElement(
+								Text,
+								{ color: "gray" },
+								"Press y or Enter to confirm, n or Esc to cancel",
+							),
+						)
 					: null,
 				!state.busy && state.screen === "apikey"
 					? renderPromptInput({
