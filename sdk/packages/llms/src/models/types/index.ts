@@ -34,6 +34,7 @@ export {
 	type ProviderCapability,
 	// Provider
 	ProviderCapabilitySchema,
+	type ProviderClient,
 	type ProviderInfo,
 	ProviderInfoSchema,
 	type ProviderProtocol,

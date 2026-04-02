@@ -18,6 +18,7 @@ export const SAMBANOVA_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.sambanova.ai/v1",
 		defaultModelId: SAMBANOVA_DEFAULT_MODEL,
 		env: ["SAMBANOVA_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: SAMBANOVA_MODELS,
 };

@@ -200,6 +200,8 @@ export const ProviderCapabilitySchema = z.enum([
 	"prompt-cache",
 	"tools",
 	"oauth",
+	"temperature",
+	"files",
 ]);
 
 export type ProviderCapability = z.infer<typeof ProviderCapabilitySchema>;
@@ -213,7 +215,27 @@ export const ProviderProtocolSchema = z.enum([
 	"openai-chat",
 	"openai-responses",
 	"openai-r1",
+	"ai-sdk",
 ]);
+
+/**
+ * Provider categories based on underlying SDK/protocol
+ */
+const ProviderClientSchema = z.enum([
+	"anthropic", // Anthropic SDK
+	"ai-sdk", // AI SDK - Base Provider (abstract)
+	"ai-sdk-community", // AI SDK - Community Edition
+	"openai", // Native OpenAI SDK
+	"openai-compatible", // AI SDK - OpenAI-compatible
+	"openai-r1", // R1-specific OpenAI SDK
+	"gemini", // Google GenAI SDK
+	"bedrock", // AI SDK - AWS Bedrock
+	"custom", // AI SDK - Custom Providers
+	"fetch", // Fetch-based providers (no SDK)
+	"vertex", // AI SDK - Google Vertex AI (mixed Gemini/Anthropic)
+]);
+
+export type ProviderClient = z.infer<typeof ProviderClientSchema>;
 
 export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
 
@@ -237,6 +259,8 @@ export const ProviderInfoSchema = z.object({
 	capabilities: z.array(ProviderCapabilitySchema).optional(),
 	/** Environment variables associated with this provider */
 	env: z.array(z.string()).optional(),
+	/** Client type */
+	client: ProviderClientSchema,
 });
 
 export type ProviderInfo = z.infer<typeof ProviderInfoSchema>;

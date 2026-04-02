@@ -171,6 +171,7 @@ function convertToResponsesInput(messages: Message[]) {
  * - headers: Custom headers
  */
 export class OpenAIResponsesHandler extends BaseHandler {
+	readonly type = "openai";
 	protected client: OpenAI | undefined;
 
 	/**

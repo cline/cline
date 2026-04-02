@@ -14,6 +14,7 @@ export const MISTRAL_PROVIDER: ModelCollection = {
 		defaultModelId: "mistral-medium-latest",
 		capabilities: ["reasoning"],
 		env: ["MISTRAL_API_KEY"],
+		client: "ai-sdk-community",
 	},
 	models: {},
 };

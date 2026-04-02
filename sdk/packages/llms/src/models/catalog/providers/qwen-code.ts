@@ -28,6 +28,7 @@ export const QWEN_CODE_PROVIDER: ModelCollection = {
 		baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
 		defaultModelId: QWEN_CODE_DEFAULT_MODEL,
 		capabilities: ["reasoning", "oauth"],
+		client: "openai-compatible",
 	},
 	models: QWEN_CODE_MODELS,
 };

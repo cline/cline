@@ -23,6 +23,7 @@ export const OPENCODE_PROVIDER: ModelCollection = {
 		baseUrl: "",
 		defaultModelId: OPENCODE_DEFAULT_MODEL,
 		capabilities: ["reasoning", "oauth"],
+		client: "ai-sdk-community",
 	},
 	models: OPENCODE_MODELS,
 };

@@ -20,6 +20,7 @@ export const GROQ_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.groq.com/openai/v1",
 		defaultModelId: GROQ_DEFAULT_MODEL,
 		env: ["GROQ_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: GROQ_MODELS,
 };

@@ -25,6 +25,7 @@ export const OCA_PROVIDER: ModelCollection = {
 		defaultModelId: Object.keys(OCA_MODELS)[0] ?? OCA_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache", "tools"],
 		env: ["OCA_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: OCA_MODELS,
 };

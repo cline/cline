@@ -110,6 +110,9 @@ export const MODELS_DEV_PROVIDER_KEY_ENTRIES: ReadonlyArray<{
 	{ modelsDevKey: "amazon-bedrock", generatedProviderId: "bedrock" },
 	{ modelsDevKey: "moonshotai", generatedProviderId: "moonshot" },
 	{ modelsDevKey: "minimax", generatedProviderId: "minimax" },
+	{ modelsDevKey: "wandb", generatedProviderId: "wandb" },
+	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
+	{ modelsDevKey: "xiaomi", generatedProviderId: "xiaomi" },
 ];
 
 function buildProviderKeyMap(

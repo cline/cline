@@ -45,6 +45,7 @@ function isThinkingDebugEnabled(): boolean {
  * Handler for Anthropic's API
  */
 export class AnthropicHandler extends BaseHandler {
+	readonly type = "anthropic";
 	private client: Anthropic | undefined;
 
 	private ensureClient(): Anthropic {

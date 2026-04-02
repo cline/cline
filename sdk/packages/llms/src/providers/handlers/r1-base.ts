@@ -11,6 +11,7 @@
 
 import OpenAI from "openai";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions";
+import type { ProviderClient } from "../../models/types/model";
 import {
 	getMissingApiKeyError,
 	resolveApiKeyForProvider,
@@ -48,6 +49,7 @@ interface R1Usage extends OpenAI.CompletionUsage {
  * - headers: Custom headers
  */
 export class R1BaseHandler extends BaseHandler {
+	public readonly type: ProviderClient = "openai-r1";
 	protected client: OpenAI | undefined;
 
 	/**

@@ -12,6 +12,7 @@ export const DIFY_PROVIDER: ModelCollection = {
 		protocol: "openai-chat",
 		defaultModelId: "default",
 		env: ["DIFY_API_KEY"],
+		client: "ai-sdk-community",
 	},
 	models: {},
 };

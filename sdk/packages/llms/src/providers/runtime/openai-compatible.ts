@@ -5,6 +5,7 @@ import type {
 	ProviderCapability,
 	ProviderProtocol,
 } from "../../models/types/index";
+import type { ProviderClient } from "../../models/types/model";
 
 export interface OpenAICompatibleProviderDefaults {
 	baseUrl: string;
@@ -27,8 +28,10 @@ function isModelCollection(value: unknown): value is ModelCollection {
 
 function isOpenAICompatibleProtocol(
 	protocol: ProviderProtocol | undefined,
+	client: ProviderClient,
 ): boolean {
 	return (
+		client === "openai-compatible" ||
 		protocol === "openai-chat" ||
 		protocol === "openai-responses" ||
 		protocol === "openai-r1"
@@ -47,7 +50,10 @@ export function buildOpenAICompatibleProviderDefaults(options?: {
 		}
 
 		const provider = value.provider;
-		if (!isOpenAICompatibleProtocol(provider.protocol) || !provider.baseUrl) {
+		if (
+			!isOpenAICompatibleProtocol(provider.protocol, provider.client) ||
+			!provider.baseUrl
+		) {
 			continue;
 		}
 
@@ -60,4 +66,19 @@ export function buildOpenAICompatibleProviderDefaults(options?: {
 	}
 
 	return defaults;
+}
+
+/**
+ * Build a map of provider ID → ProviderClient from all catalog entries.
+ * This is the single source of truth for which client/SDK a provider uses.
+ */
+export function buildProviderClientMap(): Record<string, ProviderClient> {
+	const map: Record<string, ProviderClient> = {};
+	for (const value of Object.values(modelProviderExports)) {
+		if (!isModelCollection(value)) {
+			continue;
+		}
+		map[value.provider.id] = value.provider.client;
+	}
+	return map;
 }

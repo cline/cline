@@ -179,6 +179,7 @@ export class DefaultLlmsSdk implements LlmsSdk {
 				protocol: input.protocol,
 				baseUrl: input.baseUrl,
 				defaultModelId: defaultModel,
+				client: input.client ?? "openai-compatible",
 				capabilities: input.capabilities,
 				env: input.env,
 			},

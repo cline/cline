@@ -69,6 +69,7 @@ function buildOpenRouterReasoningConfig(options: {
  * - capabilities: Array of supported capabilities (reasoning, prompt-cache, etc.)
  */
 export class OpenAIBaseHandler extends BaseHandler {
+	readonly type = "openai";
 	protected client: OpenAI | undefined;
 
 	/**

@@ -20,6 +20,7 @@ export const CLINE_PROVIDER: ModelCollection = {
 		defaultModelId: CLINE_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache", "tools", "oauth"],
 		env: ["CLINE_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: CLINE_MODELS,
 };

@@ -242,10 +242,12 @@ import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
 } from "../models/catalog/providers/oca";
+
 // =============================================================================
 // Main Factory Function
 // =============================================================================
 
+import type { ProviderClient } from "../models/types/model";
 import { AnthropicHandler } from "./handlers/anthropic-base";
 import { AskSageHandler } from "./handlers/asksage";
 import { BedrockHandler } from "./handlers/bedrock-base";
@@ -262,6 +264,7 @@ import { OpenAIBaseHandler } from "./handlers/openai-base";
 import { OpenAIResponsesHandler } from "./handlers/openai-responses";
 import { VertexHandler } from "./handlers/vertex";
 import {
+	buildProviderClientMap,
 	isOpenAICompatibleProvider,
 	OPENAI_COMPATIBLE_PROVIDERS,
 	type ProviderDefaults,
@@ -341,37 +344,70 @@ function mergeProviderDefaults(
 
 type HandlerFactory = (config: ProviderConfig) => ApiHandler;
 
-const BUILT_IN_HANDLER_FACTORIES: Record<string, HandlerFactory> = {
-	[BUILT_IN_PROVIDER.ASKSAGE]: (config) => new AskSageHandler(config),
-	[BUILT_IN_PROVIDER.ANTHROPIC]: (config) => new AnthropicHandler(config),
-	[BUILT_IN_PROVIDER.BEDROCK]: (config) => new BedrockHandler(config),
-	[BUILT_IN_PROVIDER.CLAUDE_CODE]: (config) => new ClaudeCodeHandler(config),
-	[BUILT_IN_PROVIDER.GEMINI]: (config) => new GeminiHandler(config),
-	[BUILT_IN_PROVIDER.VERTEX]: (config) => new VertexHandler(config),
-	[BUILT_IN_PROVIDER.OPENCODE]: (config) => new OpenCodeHandler(config),
-	[BUILT_IN_PROVIDER.OPENAI_NATIVE]: (config) =>
-		new OpenAIResponsesHandler(config),
-	[BUILT_IN_PROVIDER.MISTRAL]: (config) => new MistralHandler(config),
-	[BUILT_IN_PROVIDER.DIFY]: (config) => new DifyHandler(config),
-};
-
-function createOpenAICompatibleHandler(config: ProviderConfig): ApiHandler {
-	const routingProviderId = resolveRoutingProviderId(config);
-	if (routingProviderId === BUILT_IN_PROVIDER.OPENAI_CODEX) {
-		return new CodexHandler(config);
+/**
+ * Lazy-initialized map of provider ID → ProviderClient derived from the model catalog.
+ * Used to dispatch handler creation based on the catalog's declared client type.
+ */
+let _providerClientMap: Record<string, ProviderClient> | undefined;
+function getProviderClientMap(): Record<string, ProviderClient> {
+	if (!_providerClientMap) {
+		_providerClientMap = buildProviderClientMap();
 	}
-	if (routingProviderId === BUILT_IN_PROVIDER.SAPAICORE) {
-		return new SapAiCoreHandler(config);
-	}
-	if (routingProviderId === BUILT_IN_PROVIDER.OCA) {
-		return createOcaHandler(config);
-	}
-	return new OpenAIBaseHandler(config);
+	return _providerClientMap;
 }
 
+/**
+ * Handlers for providers that share a client type but require a specific handler class.
+ * Takes precedence over CLIENT_HANDLER_FACTORIES.
+ */
+const PROVIDER_HANDLER_OVERRIDES: Record<string, HandlerFactory> = {
+	[BUILT_IN_PROVIDER.CLAUDE_CODE]: (config) => new ClaudeCodeHandler(config),
+	[BUILT_IN_PROVIDER.OPENAI_CODEX]: (config) => new CodexHandler(config),
+	[BUILT_IN_PROVIDER.OPENCODE]: (config) => new OpenCodeHandler(config),
+	[BUILT_IN_PROVIDER.SAPAICORE]: (config) => new SapAiCoreHandler(config),
+	[BUILT_IN_PROVIDER.MISTRAL]: (config) => new MistralHandler(config),
+	[BUILT_IN_PROVIDER.DIFY]: (config) => new DifyHandler(config),
+	[BUILT_IN_PROVIDER.ASKSAGE]: (config) => new AskSageHandler(config),
+	[BUILT_IN_PROVIDER.OCA]: (config) => createOcaHandler(config),
+};
+
+/**
+ * Handler factories keyed by the catalog's ProviderClient value.
+ * Dispatched after PROVIDER_HANDLER_OVERRIDES when no override is found.
+ * Defaults to OpenAIBaseHandler for unknown or openai-compatible clients.
+ */
+const CLIENT_HANDLER_FACTORIES: Partial<
+	Record<ProviderClient, HandlerFactory>
+> = {
+	anthropic: (config) => new AnthropicHandler(config),
+	gemini: (config) => new GeminiHandler(config),
+	vertex: (config) => new VertexHandler(config),
+	bedrock: (config) => new BedrockHandler(config),
+	openai: (config) => new OpenAIResponsesHandler(config),
+	fetch: (config) => new OpenAIBaseHandler(config),
+	"ai-sdk-community": (config) => new OpenAIBaseHandler(config),
+	"openai-compatible": (config) => new OpenAIBaseHandler(config),
+};
+
 function createBuiltInHandler(config: ProviderConfig): ApiHandler | undefined {
-	const factory = BUILT_IN_HANDLER_FACTORIES[resolveRoutingProviderId(config)];
-	return factory ? factory(config) : undefined;
+	const routingProviderId = resolveRoutingProviderId(config);
+
+	// Provider-specific overrides take precedence
+	const override = PROVIDER_HANDLER_OVERRIDES[routingProviderId];
+	if (override) {
+		return override(config);
+	}
+
+	// Dispatch by client type declared in the model catalog
+	const clientType = getProviderClientMap()[routingProviderId];
+	if (clientType) {
+		const factory = CLIENT_HANDLER_FACTORIES[clientType];
+		if (factory) {
+			return factory(config);
+		}
+	}
+
+	return undefined;
 }
 
 /**
@@ -433,11 +469,12 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 			);
 		}
 		const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[routingProviderId];
-		return createOpenAICompatibleHandler(
-			mergeProviderDefaults(
-				{ ...normalizedConfig, routingProviderId },
-				providerDefaults,
-			),
+		const mergedConfig = mergeProviderDefaults(
+			{ ...normalizedConfig, routingProviderId },
+			providerDefaults,
+		);
+		return (
+			createBuiltInHandler(mergedConfig) ?? new OpenAIBaseHandler(mergedConfig)
 		);
 	}
 
@@ -500,11 +537,13 @@ export async function createHandlerAsync(
 			{ ...normalizedConfig, routingProviderId },
 		);
 		if (providerDefaults) {
-			return createOpenAICompatibleHandler(
-				mergeProviderDefaults(
-					{ ...normalizedConfig, routingProviderId },
-					providerDefaults,
-				),
+			const mergedConfig = mergeProviderDefaults(
+				{ ...normalizedConfig, routingProviderId },
+				providerDefaults,
+			);
+			return (
+				createBuiltInHandler(mergedConfig) ??
+				new OpenAIBaseHandler(mergedConfig)
 			);
 		}
 	}

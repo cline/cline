@@ -14,6 +14,7 @@ export const ASKSAGE_PROVIDER: ModelCollection = {
 		defaultModelId: "gpt-4o",
 		capabilities: ["tools"],
 		env: ["ASKSAGE_API_KEY"],
+		client: "fetch",
 	},
 	models: {},
 };

@@ -25,6 +25,7 @@ export const BEDROCK_PROVIDER: ModelCollection = {
 			"AWS_SECRET_ACCESS_KEY",
 			"AWS_SESSION_TOKEN",
 		],
+		client: "bedrock",
 	},
 	models: BEDROCK_MODELS,
 };

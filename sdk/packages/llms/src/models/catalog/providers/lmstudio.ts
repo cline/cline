@@ -17,6 +17,7 @@ export const LMSTUDIO_PROVIDER: ModelCollection = {
 		baseUrl: "http://localhost:1234/v1",
 		defaultModelId: Object.keys(LMSTUDIO_MODELS)[0],
 		env: ["LMSTUDIO_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: LMSTUDIO_MODELS || {},
 };

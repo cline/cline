@@ -13,6 +13,7 @@ export const HICAP_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.hicap.ai/v1",
 		defaultModelId: "hicap-pro",
 		env: ["HICAP_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: {},
 };

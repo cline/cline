@@ -34,6 +34,7 @@ type AskSageResponse = {
 };
 
 export class AskSageHandler extends FetchBaseHandler {
+	readonly type = "fetch";
 	protected getDefaultBaseUrl(): string {
 		return DEFAULT_ASKSAGE_BASE_URL;
 	}

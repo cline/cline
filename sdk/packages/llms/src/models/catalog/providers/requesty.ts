@@ -18,6 +18,7 @@ export const REQUESTY_PROVIDER: ModelCollection = {
 		defaultModelId: Object.keys(REQUESTY_MODELS)[0],
 		capabilities: ["reasoning"],
 		env: ["REQUESTY_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: REQUESTY_MODELS,
 };

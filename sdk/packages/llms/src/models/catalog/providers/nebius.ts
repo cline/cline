@@ -19,6 +19,7 @@ export const NEBIUS_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.studio.nebius.ai/v1",
 		defaultModelId: NEBIUS_DEFAULT_MODEL,
 		env: ["NEBIUS_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: NEBIUS_MODELS,
 };

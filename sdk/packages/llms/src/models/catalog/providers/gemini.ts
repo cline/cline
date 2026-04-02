@@ -21,6 +21,7 @@ export const GEMINI_PROVIDER: ModelCollection = {
 		defaultModelId: GEMINI_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
+		client: "gemini",
 	},
 	models: GEMINI_MODELS,
 };

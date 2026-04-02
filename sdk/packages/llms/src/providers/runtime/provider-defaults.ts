@@ -22,8 +22,11 @@ import type {
 } from "../types/index";
 import {
 	buildOpenAICompatibleProviderDefaults,
+	buildProviderClientMap,
 	type OpenAICompatibleProviderDefaults,
 } from "./openai-compatible";
+
+export { buildProviderClientMap };
 
 /**
  * Provider defaults for OpenAI-compatible providers

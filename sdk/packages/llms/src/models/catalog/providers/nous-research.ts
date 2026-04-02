@@ -16,6 +16,7 @@ export const NOUS_RESEARCH_PROVIDER: ModelCollection = {
 		baseUrl: "https://inference-api.nousresearch.com/v1",
 		defaultModelId: NOUS_RESEARCH_DEFAULT_MODEL,
 		env: ["NOUS_RESEARCH_API_KEY", "NOUSRESEARCH_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: NOUS_RESEARCH_MODELS,
 };

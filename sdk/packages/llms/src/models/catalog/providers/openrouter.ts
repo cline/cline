@@ -19,6 +19,7 @@ export const OPENROUTER_PROVIDER: ModelCollection = {
 		defaultModelId: OPENROUTER_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["OPENROUTER_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: OPENROUTER_MODELS,
 };

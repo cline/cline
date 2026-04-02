@@ -19,6 +19,7 @@ export const CEREBRAS_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.cerebras.ai/v1",
 		defaultModelId: CEREBRAS_DEFAULT_MODEL,
 		env: ["CEREBRAS_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: CEREBRAS_MODELS,
 };

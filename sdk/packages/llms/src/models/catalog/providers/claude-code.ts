@@ -46,6 +46,7 @@ export const CLAUDE_CODE_PROVIDER: ModelCollection = {
 		baseUrl: "",
 		defaultModelId: CLAUDE_CODE_DEFAULT_MODEL,
 		capabilities: ["reasoning"],
+		client: "ai-sdk-community",
 	},
 	models: CLAUDE_CODE_MODELS,
 };

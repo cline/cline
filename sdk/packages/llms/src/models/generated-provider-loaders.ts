@@ -96,6 +96,10 @@ export const GENERATED_PROVIDER_LOADER_ENTRIES: GeneratedProviderLoaderEntry[] =
 				(await import("./catalog/providers/huggingface")).HUGGINGFACE_PROVIDER,
 		],
 		[
+			"kilo",
+			async () => (await import("./catalog/providers/kilo")).KILO_PROVIDER,
+		],
+		[
 			"litellm",
 			async () =>
 				(await import("./catalog/providers/litellm")).LITELLM_PROVIDER,
@@ -194,6 +198,14 @@ export const GENERATED_PROVIDER_LOADER_ENTRIES: GeneratedProviderLoaderEntry[] =
 			"vertex",
 			async () => (await import("./catalog/providers/vertex")).VERTEX_PROVIDER,
 		],
+		[
+			"wandb",
+			async () => (await import("./catalog/providers/wandb")).WANDB_PROVIDER,
+		],
 		["xai", async () => (await import("./catalog/providers/xai")).XAI_PROVIDER],
+		[
+			"xiaomi",
+			async () => (await import("./catalog/providers/xiaomi")).XIAOMI_PROVIDER,
+		],
 		["zai", async () => (await import("./catalog/providers/zai")).ZAI_PROVIDER],
 	];

@@ -20,6 +20,7 @@ export const DEEPSEEK_PROVIDER: ModelCollection = {
 		defaultModelId: DEEPSEEK_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["DEEPSEEK_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: DEEPSEEK_MODELS,
 };

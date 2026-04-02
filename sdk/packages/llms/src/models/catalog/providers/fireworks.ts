@@ -21,6 +21,7 @@ export const FIREWORKS_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.fireworks.ai/inference/v1",
 		defaultModelId: FIREWORKS_DEFAULT_MODEL,
 		env: ["FIREWORKS_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: FIREWORKS_MODELS,
 };

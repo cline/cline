@@ -16,6 +16,7 @@ export const BASETEN_PROVIDER: ModelCollection = {
 		baseUrl: "https://model-api.baseten.co/v1",
 		defaultModelId: Object.keys(BASETEN_MODELS)[0],
 		env: ["BASETEN_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: BASETEN_MODELS,
 };

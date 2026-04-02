@@ -87,6 +87,7 @@ function toVertexClaudeMessages(
  * Handler for Vertex AI that supports both Gemini and Claude models.
  */
 export class VertexHandler extends BaseHandler {
+	readonly type = "vertex";
 	private geminiHandler: GeminiHandler | undefined;
 	private vertexAnthropicModelFactory:
 		| ((modelId: string) => unknown)

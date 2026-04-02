@@ -28,6 +28,7 @@ export const DOUBAO_PROVIDER: ModelCollection = {
 		baseUrl: "https://ark.cn-beijing.volces.com/api/v3",
 		defaultModelId: DOUBAO_DEFAULT_MODEL,
 		env: ["DOUBAO_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: DOUBAO_MODELS,
 };

@@ -20,6 +20,7 @@ export const XAI_PROVIDER: ModelCollection = {
 		defaultModelId: XAI_DEFAULT_MODEL,
 		capabilities: ["reasoning"],
 		env: ["XAI_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: XAI_MODELS,
 };

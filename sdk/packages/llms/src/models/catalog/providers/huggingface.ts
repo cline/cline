@@ -17,6 +17,7 @@ export const HUGGINGFACE_PROVIDER: ModelCollection = {
 		baseUrl: "https://api-inference.huggingface.co/v1",
 		defaultModelId: Object.keys(HUGGINGFACE_MODELS)[0],
 		env: ["HF_TOKEN"],
+		client: "openai-compatible",
 	},
 	models: HUGGINGFACE_MODELS,
 };

@@ -29,6 +29,7 @@ export const SAP_AI_CORE_PROVIDER: ModelCollection = {
 		defaultModelId: SAP_AI_CORE_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
+		client: "ai-sdk-community",
 	},
 	models: SAP_AI_CORE_MODELS,
 };

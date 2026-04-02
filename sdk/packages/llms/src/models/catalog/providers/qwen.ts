@@ -29,6 +29,7 @@ export const QWEN_PROVIDER: ModelCollection = {
 		defaultModelId: QWEN_DEFAULT_MODEL,
 		capabilities: ["reasoning"],
 		env: ["QWEN_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: QWEN_MODELS,
 };

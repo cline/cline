@@ -5,6 +5,7 @@
  */
 
 import { nanoid } from "nanoid";
+import type { ProviderClient } from "../../models/types/model";
 import type {
 	ApiHandler,
 	ApiStream,
@@ -61,6 +62,7 @@ function serializeAbortReason(reason: unknown): unknown {
  * Base handler class with common functionality
  */
 export abstract class BaseHandler implements ApiHandler {
+	abstract readonly type: ProviderClient;
 	protected config: ProviderConfig;
 	protected abortController: AbortController | undefined;
 	private abortSignalSequence = 0;

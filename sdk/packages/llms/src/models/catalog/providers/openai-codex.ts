@@ -37,7 +37,7 @@ export const OPENAI_CODEX_PROVIDER: ModelCollection = {
 		name: "OpenAI Codex",
 		description: "OpenAI Codex via the local Codex CLI provider",
 		protocol: "openai-chat",
-
+		client: "ai-sdk-community",
 		baseUrl: "https://chatgpt.com/backend-api/codex",
 		defaultModelId: OPENAI_CODEX_DEFAULT_MODEL,
 		capabilities: ["reasoning", "oauth"],

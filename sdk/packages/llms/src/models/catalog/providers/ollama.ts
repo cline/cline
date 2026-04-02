@@ -13,6 +13,7 @@ export const OLLAMA_PROVIDER: ModelCollection = {
 		baseUrl: "http://localhost:11434/v1",
 		defaultModelId: "llama3.2",
 		env: ["OLLAMA_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: {},
 };

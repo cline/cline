@@ -167,6 +167,13 @@ function toModelCapabilities(
 	return [...next];
 }
 
+/**
+ * Custom Provider Registry
+ *
+ * This module manages the registration of custom OpenAI-compatible providers and
+ * their models based on local JSON files. It provides functions to read/write the models
+ * registry file and to register providers with the LlmsModels system.
+ */
 export function registerCustomProvider(
 	providerId: string,
 	entry: StoredModelsFile["providers"][string],
@@ -195,6 +202,7 @@ export function registerCustomProvider(
 			id: providerId,
 			name: entry.provider.name.trim() || titleCaseFromId(providerId),
 			protocol: "openai-chat",
+			client: "openai-compatible",
 			baseUrl: entry.provider.baseUrl,
 			defaultModelId,
 			capabilities: toProviderCapabilities(entry.provider.capabilities),

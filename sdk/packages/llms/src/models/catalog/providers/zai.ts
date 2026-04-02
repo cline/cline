@@ -20,6 +20,7 @@ export const ZAI_PROVIDER: ModelCollection = {
 		defaultModelId: ZAI_DEFAULT_MODEL,
 		capabilities: ["reasoning"],
 		env: ["ZHIPU_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: ZAI_MODELS,
 };

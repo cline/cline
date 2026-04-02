@@ -29,6 +29,7 @@ export const MINIMAX_PROVIDER: ModelCollection = {
 		defaultModelId: MINIMAX_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["MINIMAX_API_KEY"],
+		client: "anthropic",
 	},
 	models: MINIMAX_MODELS,
 };

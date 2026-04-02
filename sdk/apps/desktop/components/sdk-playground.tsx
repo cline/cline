@@ -471,6 +471,7 @@ function toCustomProviderConfig(
 					titleCaseProviderId(providerId),
 				baseUrl: provider.baseUrl.trim() || undefined,
 				defaultModelId: defaultModel,
+				client: "openai-compatible",
 				capabilities: normalizeProviderCapabilitiesForCatalog(
 					provider.capabilities,
 				),

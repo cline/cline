@@ -32,6 +32,7 @@ export const ANTHROPIC_PROVIDER: ModelCollection = {
 		defaultModelId: ANTHROPIC_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["ANTHROPIC_API_KEY"],
+		client: "anthropic",
 	},
 	models: ANTHROPIC_MODELS,
 };

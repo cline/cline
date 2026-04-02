@@ -22,6 +22,7 @@ export const TOGETHER_PROVIDER: ModelCollection = {
 		defaultModelId: TOGETHER_DEFAULT_MODEL,
 		capabilities: ["reasoning"],
 		env: ["TOGETHER_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: TOGETHER_MODELS,
 };

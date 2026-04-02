@@ -14,6 +14,7 @@ export const AIHUBMIX_PROVIDER: ModelCollection = {
 		baseUrl: "https://api.aihubmix.com/v1",
 		defaultModelId: "gpt-4o",
 		env: ["AIHUBMIX_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: getGeneratedModelsForProvider("aihubmix"),
 };

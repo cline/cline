@@ -1,6 +1,7 @@
 import type { ModelCollection, ModelInfo, ProviderInfo } from "../models/index";
 import type {
 	ProviderCapability as ModelProviderCapability,
+	ProviderClient,
 	ProviderProtocol,
 } from "../models/types/index";
 import type {
@@ -86,6 +87,7 @@ export interface RegisterBuiltinProviderInput {
 	description?: string;
 	protocol?: ProviderProtocol;
 	baseUrl?: string;
+	client?: ProviderClient;
 	capabilities?: ModelProviderCapability[];
 	env?: string[];
 	defaultModel?: string;

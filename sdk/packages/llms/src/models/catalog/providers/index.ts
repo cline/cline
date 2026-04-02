@@ -69,6 +69,7 @@ export {
 export { HICAP_PROVIDER } from "./hicap";
 export { HUAWEI_CLOUD_MAAS_PROVIDER } from "./huawei-cloud-maas";
 export { HUGGINGFACE_MODELS, HUGGINGFACE_PROVIDER } from "./huggingface";
+export { KILO_PROVIDER } from "./kilo";
 export { LITELLM_PROVIDER } from "./litellm";
 export { LMSTUDIO_PROVIDER } from "./lmstudio";
 export {
@@ -152,11 +153,12 @@ export {
 	VERTEX_MODELS,
 	VERTEX_PROVIDER,
 } from "./vertex";
-// === xAI (Grok) ===
+export { WANDB_PROVIDER } from "./wandb";
 export {
 	getActiveXAIModels,
 	XAI_DEFAULT_MODEL,
 	XAI_MODELS,
 	XAI_PROVIDER,
 } from "./xai";
+export { XIAOMI_PROVIDER } from "./xiaomi";
 export { ZAI_DEFAULT_MODEL, ZAI_MODELS, ZAI_PROVIDER } from "./zai";

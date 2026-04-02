@@ -47,6 +47,7 @@ function isGemini3FlashModel(modelId: string): boolean {
  * Handler for Google's Gemini API
  */
 export class GeminiHandler extends BaseHandler {
+	readonly type = "gemini";
 	private client: GoogleGenAI | undefined;
 
 	private ensureClient(): GoogleGenAI {

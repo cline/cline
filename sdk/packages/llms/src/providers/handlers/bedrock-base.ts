@@ -52,6 +52,7 @@ type ModelMessage = {
  * This handler is async-lazy loaded via createHandlerAsync.
  */
 export class BedrockHandler extends BaseHandler {
+	readonly type = "bedrock";
 	private clientFactory: ((modelId: string) => unknown) | undefined;
 
 	private async ensureClientFactory(): Promise<(modelId: string) => unknown> {

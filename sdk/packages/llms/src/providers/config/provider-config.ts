@@ -5,6 +5,7 @@
  * This replaces the per-provider config chaos with a single structure.
  */
 
+import type { ProviderClient } from "../../models/types/model";
 import type { ModelInfo } from "../types/model-info";
 import {
 	BUILT_IN_PROVIDER,
@@ -284,7 +285,10 @@ export interface ProviderConfig
 		RegionConfig,
 		CloudConfig,
 		ProviderOptions {
-	/** Provider ID - determines which handler to use */
+	/** Client type - determines which handler to use - OpenAI-Compatible deafult */
+	clientType?: ProviderClient;
+
+	/** Provider ID */
 	providerId: ProviderId;
 
 	/**
@@ -330,6 +334,7 @@ export interface ProviderConfig
  */
 export interface SimpleProviderConfig {
 	providerId: ProviderId;
+	clientType: ProviderClient;
 	apiKey: string;
 	modelId: string;
 	baseUrl?: string;
@@ -341,6 +346,7 @@ export interface SimpleProviderConfig {
 export function createConfig(simple: SimpleProviderConfig): ProviderConfig {
 	return {
 		providerId: simple.providerId,
+		clientType: simple.clientType,
 		apiKey: simple.apiKey,
 		modelId: simple.modelId,
 		baseUrl: simple.baseUrl,

@@ -31,6 +31,7 @@ export const VERTEX_PROVIDER: ModelCollection = {
 			"GEMINI_API_KEY",
 			"GOOGLE_API_KEY",
 		],
+		client: "vertex",
 	},
 	models: VERTEX_MODELS,
 };

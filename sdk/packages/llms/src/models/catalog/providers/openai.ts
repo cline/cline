@@ -21,6 +21,7 @@ export const OPENAI_PROVIDER: ModelCollection = {
 		defaultModelId: OPENAI_DEFAULT_MODEL,
 		capabilities: ["reasoning"],
 		env: ["OPENAI_API_KEY"],
+		client: "openai",
 	},
 	models: OPENAI_MODELS,
 };

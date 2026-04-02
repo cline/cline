@@ -42,6 +42,9 @@ export enum BUILT_IN_PROVIDER {
 	HICAP = "hicap",
 	NOUS_RESEARCH = "nousResearch",
 	HUAWEI_CLOUD_MAAS = "huawei-cloud-maas",
+	WANDB = "wandb",
+	XIAOMI = "xiaomi",
+	KILO = "kilo",
 	// Regional/specialized
 	QWEN = "qwen",
 	QWEN_CODE = "qwen-code",

@@ -6,6 +6,7 @@ import { BaseHandler } from "./base";
 type JsonRecord = Record<string, unknown>;
 
 export abstract class FetchBaseHandler extends BaseHandler {
+	readonly type = "fetch";
 	protected abstract getDefaultBaseUrl(): string;
 
 	getMessages(systemPrompt: string, messages: Message[]): unknown {

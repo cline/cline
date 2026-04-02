@@ -52,6 +52,7 @@ async function loadProviderModule(moduleName: string): Promise<ProviderModule> {
 }
 
 export abstract class AiSdkProviderHandler extends BaseHandler {
+	readonly type = "ai-sdk-community";
 	private provider: AiSdkCommunityProvider | undefined;
 	private providerPromise: Promise<AiSdkCommunityProvider> | undefined;
 

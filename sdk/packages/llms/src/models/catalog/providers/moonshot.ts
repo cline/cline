@@ -29,6 +29,7 @@ export const MOONSHOT_PROVIDER: ModelCollection = {
 		defaultModelId: MOONSHOT_DEFAULT_MODEL,
 		capabilities: ["reasoning", "prompt-cache"],
 		env: ["MOONSHOT_API_KEY"],
+		client: "openai-compatible",
 	},
 	models: MOONSHOT_MODELS,
 };
