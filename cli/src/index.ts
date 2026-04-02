@@ -540,6 +540,12 @@ function setupSignalHandlers() {
 		}
 		isShuttingDown = true
 
+		// Restore terminal keyboard mode before any output or exit.
+		// Without this, if the process crashes or is killed, the terminal stays
+		// in modifyOtherKeys/Kitty mode, corrupting subsequent input in the shell.
+		disableEnhancedKeyboardMode()
+		destroyEnhancedStdin()
+
 		// Notify components to hide UI before shutdown
 		shutdownEvent.fire()
 
@@ -603,6 +609,14 @@ function setupSignalHandlers() {
 
 	process.on("uncaughtException", (reason: unknown) => {
 		onUnhandledException(reason, "uncaughtException")
+	})
+
+	// Safety net: restore terminal keyboard mode on any exit path.
+	// This is synchronous-only (Node.js constraint for 'exit' event) but
+	// disableEnhancedKeyboardMode() is just process.stdout.write() which is sync.
+	// Prevents terminal corruption if process.exit() is called from unexpected code paths.
+	process.on("exit", () => {
+		disableEnhancedKeyboardMode()
 	})
 }
 

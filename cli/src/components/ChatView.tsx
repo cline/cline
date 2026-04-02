@@ -1162,11 +1162,14 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			return
 		}
 
-		// 3. Handle Option+arrow/backspace via key.meta
+		// 3. Handle Option+arrow via key.meta
 		// Terminals send these as either:
 		//   - CSI format: \x1b[1;3D → Ink sets key.meta + key.leftArrow
 		//   - Meta prefix: \x1bb → Ink sets key.meta + input='b' (emacs: Meta-b = word left)
 		// We handle both formats here.
+		// Note: Option+Backspace is NOT handled here — it's handled exclusively by
+		// useHomeEndKeys to avoid double word-delete (both this handler and
+		// useHomeEndKeys fire for the same \x1b\x7f input).
 		if (key.meta) {
 			if (key.leftArrow || input === "b") {
 				setCursorPos(findWordStart(textInputRef.current, cursorPosRef.current))
@@ -1174,10 +1177,6 @@ export const ChatView: React.FC<ChatViewProps> = ({
 			}
 			if (key.rightArrow || input === "f") {
 				setCursorPos(findWordEnd(textInputRef.current, cursorPosRef.current))
-				return
-			}
-			if (key.backspace || key.delete) {
-				deleteWordBefore()
 				return
 			}
 		}
