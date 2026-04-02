@@ -29,6 +29,7 @@ const NON_RECOVERABLE_PHRASES = [
 	"authentication",
 	"unauthorized",
 	"forbidden",
+	"overloaded",
 	"insufficient balance",
 ];
 
