@@ -5,12 +5,18 @@ import * as LlmsModels from "@clinebot/llms/models";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
+	readModelsFile,
+	resolveModelsRegistryPath,
+} from "./local-provider-registry";
+import {
 	addLocalProvider,
+	deleteLocalProvider,
 	getLocalProviderModels,
 	listLocalProviders,
 	normalizeOAuthProvider,
 	resolveLocalClineAuthToken,
 	saveLocalProviderSettings,
+	updateLocalProvider,
 } from "./local-provider-service";
 
 // ---------------------------------------------------------------------------
@@ -267,12 +273,13 @@ describe("addLocalProvider – validation", () => {
 		).rejects.toThrow("name is required");
 	});
 
-	it("throws when baseUrl is empty", async () => {
+	it("throws when baseUrl is empty and apiKey is provided", async () => {
 		await expect(
 			addLocalProvider(manager, {
 				providerId: "my-provider2",
 				name: "My Provider",
 				baseUrl: "   ",
+				apiKey: "present-key",
 				models: ["m"],
 			}),
 		).rejects.toThrow("baseUrl is required");
@@ -306,6 +313,71 @@ describe("addLocalProvider – validation", () => {
 				models: ["m2"],
 			}),
 		).rejects.toThrow('"duplicate-provider" already exists');
+	});
+});
+
+// ===========================================================================
+// addLocalProvider – delete compatibility path
+// ===========================================================================
+
+describe("addLocalProvider – delete compatibility", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "legacy-delete-provider",
+			name: "Legacy Delete Provider",
+			baseUrl: "https://example.invalid/v1",
+			models: ["legacy-model"],
+		});
+		manager.saveProviderSettings(
+			{
+				provider: "legacy-delete-provider",
+				baseUrl: "https://example.invalid/v1",
+				model: "legacy-model",
+			},
+			{ setLastUsed: true },
+		);
+	});
+
+	afterEach(() => cleanup());
+
+	it("treats empty baseUrl and apiKey as a delete request for existing provider", async () => {
+		const result = await addLocalProvider(manager, {
+			providerId: "legacy-delete-provider",
+			name: "Ignored",
+			baseUrl: "   ",
+			apiKey: "   ",
+			models: [],
+		});
+
+		expect(result.providerId).toBe("legacy-delete-provider");
+		expect(result.modelsCount).toBe(0);
+		expect(LlmsModels.hasProvider("legacy-delete-provider")).toBe(false);
+		expect(
+			manager.getProviderSettings("legacy-delete-provider"),
+		).toBeUndefined();
+		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+	});
+
+	it("is a no-op delete when provider is already missing", async () => {
+		await deleteLocalProvider(manager, {
+			providerId: "legacy-delete-provider",
+		});
+
+		await expect(
+			addLocalProvider(manager, {
+				providerId: "legacy-delete-provider",
+				name: "Ignored",
+				baseUrl: "   ",
+				models: [],
+			}),
+		).resolves.toMatchObject({
+			providerId: "legacy-delete-provider",
+			modelsCount: 0,
+		});
 	});
 });
 
@@ -565,6 +637,192 @@ describe("saveLocalProviderSettings", () => {
 		});
 
 		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+	});
+});
+
+// ===========================================================================
+// updateLocalProvider
+// ===========================================================================
+
+describe("updateLocalProvider", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "editable-provider",
+			name: "Editable Provider",
+			baseUrl: "https://example.invalid/v1",
+			apiKey: "seed-key",
+			models: ["model-a", "model-b"],
+			defaultModelId: "model-a",
+		});
+	});
+
+	afterEach(() => cleanup());
+
+	it("updates provider metadata and model registry", async () => {
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			name: "Renamed Provider",
+			baseUrl: "https://api.example.invalid/v2",
+			models: ["model-c", "model-d"],
+			defaultModelId: "model-d",
+			capabilities: ["vision", "reasoning"],
+		});
+
+		const provider = await LlmsModels.getProvider("editable-provider");
+		expect(provider?.name).toBe("Renamed Provider");
+		expect(provider?.baseUrl).toBe("https://api.example.invalid/v2");
+		expect(provider?.defaultModelId).toBe("model-d");
+
+		const { models } = await getLocalProviderModels("editable-provider");
+		expect(models.map((model) => model.id).sort()).toEqual([
+			"model-c",
+			"model-d",
+		]);
+		expect(models.find((model) => model.id === "model-c")?.supportsVision).toBe(
+			true,
+		);
+		expect(
+			models.find((model) => model.id === "model-c")?.supportsReasoning,
+		).toBe(true);
+	});
+
+	it("updates provider settings and can clear optional fields", async () => {
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			baseUrl: "https://api.example.invalid/v3",
+			apiKey: "",
+			headers: null,
+			timeoutMs: null,
+		});
+
+		const settings = manager.getProviderSettings("editable-provider");
+		expect(settings?.baseUrl).toBe("https://api.example.invalid/v3");
+		expect(settings).not.toHaveProperty("apiKey");
+		expect(settings).not.toHaveProperty("headers");
+		expect(settings).not.toHaveProperty("timeout");
+	});
+
+	it("clears capabilities with null and does not treat [] as a clear sentinel", async () => {
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			capabilities: ["vision"],
+		});
+		const modelsPath = resolveModelsRegistryPath(manager);
+		let modelsState = await readModelsFile(modelsPath);
+		expect(
+			modelsState.providers["editable-provider"]?.provider.capabilities,
+		).toEqual(["vision"]);
+
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			capabilities: [],
+		});
+		modelsState = await readModelsFile(modelsPath);
+		expect(
+			modelsState.providers["editable-provider"]?.provider.capabilities,
+		).toEqual([]);
+
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			capabilities: null,
+		});
+		modelsState = await readModelsFile(modelsPath);
+		expect(
+			modelsState.providers["editable-provider"]?.provider.capabilities,
+		).toBeUndefined();
+	});
+
+	it("allows modelsSourceUrl: null to clear URL while preserving existing models", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ["remote-a", "remote-b"],
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			models: ["model-a", "model-b"],
+			modelsSourceUrl: "https://example.invalid/models",
+		});
+
+		await updateLocalProvider(manager, {
+			providerId: "editable-provider",
+			modelsSourceUrl: null,
+		});
+
+		const modelsState = await readModelsFile(
+			resolveModelsRegistryPath(manager),
+		);
+		expect(
+			modelsState.providers["editable-provider"]?.provider.modelsSourceUrl,
+		).toBeUndefined();
+
+		const { models } = await getLocalProviderModels("editable-provider");
+		expect(models.map((model) => model.id).sort()).toEqual([
+			"model-a",
+			"model-b",
+			"remote-a",
+			"remote-b",
+		]);
+		expect(fetchMock).toHaveBeenCalledTimes(1);
+	});
+
+	it("throws when updating a provider that does not exist in custom registry", async () => {
+		await expect(
+			updateLocalProvider(manager, {
+				providerId: "missing-provider",
+				name: "Nope",
+			}),
+		).rejects.toThrow('"missing-provider" does not exist');
+	});
+});
+
+// ===========================================================================
+// deleteLocalProvider
+// ===========================================================================
+
+describe("deleteLocalProvider", () => {
+	let manager: ProviderSettingsManager;
+	let cleanup: () => void;
+
+	beforeEach(async () => {
+		({ manager, cleanup } = makeTempManager());
+		await addLocalProvider(manager, {
+			providerId: "delete-me-provider",
+			name: "Delete Me",
+			baseUrl: "https://example.invalid/v1",
+			models: ["delete-model"],
+		});
+		manager.saveProviderSettings(
+			{
+				provider: "delete-me-provider",
+				baseUrl: "https://example.invalid/v1",
+				model: "delete-model",
+			},
+			{ setLastUsed: true },
+		);
+	});
+
+	afterEach(() => cleanup());
+
+	it("removes provider from registry and local settings", async () => {
+		await deleteLocalProvider(manager, {
+			providerId: "delete-me-provider",
+		});
+
+		expect(LlmsModels.hasProvider("delete-me-provider")).toBe(false);
+		expect(manager.getProviderSettings("delete-me-provider")).toBeUndefined();
+		expect(manager.getLastUsedProviderSettings()).toBeUndefined();
+	});
+
+	it("throws when deleting an unknown provider", async () => {
+		await expect(
+			deleteLocalProvider(manager, { providerId: "missing-provider" }),
+		).rejects.toThrow('"missing-provider" does not exist');
 	});
 });
 

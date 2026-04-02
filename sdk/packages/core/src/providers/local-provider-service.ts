@@ -3,6 +3,7 @@ import * as LlmsProviders from "@clinebot/llms/providers";
 import type {
 	RpcAddProviderActionRequest,
 	RpcOAuthProviderId,
+	RpcProviderCapability,
 	RpcProviderListItem,
 	RpcProviderModel,
 	RpcSaveProviderSettingsActionRequest,
@@ -21,6 +22,23 @@ import {
 } from "./local-provider-registry";
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
+
+export interface UpdateLocalProviderRequest {
+	providerId: string;
+	name?: string;
+	baseUrl?: string;
+	apiKey?: string | null;
+	headers?: Record<string, string> | null;
+	timeoutMs?: number | null;
+	models?: string[];
+	defaultModelId?: string | null;
+	modelsSourceUrl?: string | null;
+	capabilities?: RpcProviderCapability[] | null;
+}
+
+export interface DeleteLocalProviderRequest {
+	providerId: string;
+}
 
 // --- Small pure helpers ---
 
@@ -169,6 +187,72 @@ async function resolveProviderModelMap(
 		: registeredModels;
 }
 
+function uniqueTrimmed(values?: string[]): string[] {
+	return [...new Set((values ?? []).map((v) => v.trim()).filter(Boolean))];
+}
+
+function normalizeHeaders(
+	headers: Record<string, string> | null | undefined,
+): Record<string, string> | undefined {
+	const entries = Object.entries(headers ?? {}).filter(
+		([key]) => key.trim().length > 0,
+	);
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function buildProviderModels(
+	modelIds: string[],
+	capabilities: RpcProviderCapability[] | undefined,
+) {
+	const supportsVision = capabilities?.includes("vision") ?? false;
+	const supportsReasoning = capabilities?.includes("reasoning") ?? false;
+	return Object.fromEntries(
+		modelIds.map((id) => [
+			id,
+			{
+				id,
+				name: id,
+				supportsVision,
+				supportsAttachments: supportsVision,
+				supportsReasoning,
+			},
+		]),
+	);
+}
+
+async function resolveModelIds(params: {
+	providerId: string;
+	explicitModels?: string[];
+	modelsSourceUrl?: string;
+	fallbackModelIds?: string[];
+	shouldRecompute: boolean;
+}): Promise<string[]> {
+	if (!params.shouldRecompute) {
+		return params.fallbackModelIds ?? [];
+	}
+	const fetchedModels = params.modelsSourceUrl
+		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId)
+		: [];
+	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
+}
+
+function removeProviderFromSettingsState(
+	manager: ProviderSettingsManager,
+	providerId: string,
+): void {
+	const state = manager.read();
+	let mutated = false;
+	if (state.providers[providerId]) {
+		delete state.providers[providerId];
+		mutated = true;
+	}
+	if (state.lastUsedProvider === providerId) {
+		delete state.lastUsedProvider;
+		mutated = true;
+	}
+	if (mutated) manager.write(state);
+}
+
 // --- Public API ---
 
 export async function addLocalProvider(
@@ -182,23 +266,48 @@ export async function addLocalProvider(
 }> {
 	const providerId = request.providerId.trim().toLowerCase();
 	if (!providerId) throw new Error("providerId is required");
+	const baseUrl = request.baseUrl.trim();
+	const apiKey = request.apiKey?.trim() ?? "";
+
+	// Compatibility path: empty baseUrl + empty apiKey is treated as a delete request.
+	if (!baseUrl && !apiKey) {
+		const modelsPath = resolveModelsRegistryPath(manager);
+		const modelsState = await readModelsFile(modelsPath);
+		if (modelsState.providers[providerId]) {
+			const deleted = await deleteLocalProvider(manager, { providerId });
+			return {
+				providerId,
+				settingsPath: deleted.settingsPath,
+				modelsPath: deleted.modelsPath,
+				modelsCount: 0,
+			};
+		}
+
+		removeProviderFromSettingsState(manager, providerId);
+
+		return {
+			providerId,
+			settingsPath: manager.getFilePath(),
+			modelsPath,
+			modelsCount: 0,
+		};
+	}
+
 	if (LlmsModels.hasProvider(providerId))
 		throw new Error(`provider "${providerId}" already exists`);
 
 	const providerName = request.name.trim();
 	if (!providerName) throw new Error("name is required");
-
-	const baseUrl = request.baseUrl.trim();
 	if (!baseUrl) throw new Error("baseUrl is required");
 
-	const typedModels = (request.models ?? [])
-		.map((m) => m.trim())
-		.filter(Boolean);
+	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
-	const fetchedModels = sourceUrl
-		? await fetchModelIdsFromSource(sourceUrl, providerId)
-		: [];
-	const modelIds = [...new Set([...typedModels, ...fetchedModels])];
+	const modelIds = await resolveModelIds({
+		providerId,
+		explicitModels: typedModels,
+		modelsSourceUrl: sourceUrl,
+		shouldRecompute: true,
+	});
 	if (modelIds.length === 0) {
 		throw new Error(
 			"at least one model is required (manual or via modelsSourceUrl)",
@@ -214,19 +323,14 @@ export async function addLocalProvider(
 	const capabilities = request.capabilities?.length
 		? [...new Set(request.capabilities)]
 		: undefined;
-	const headerEntries = Object.entries(request.headers ?? {}).filter(
-		([k]) => k.trim().length > 0,
-	);
+	const normalizedHeaders = normalizeHeaders(request.headers);
 
 	manager.saveProviderSettings(
 		{
 			provider: providerId,
-			apiKey: request.apiKey?.trim() || undefined,
+			apiKey: apiKey || undefined,
 			baseUrl,
-			headers:
-				headerEntries.length > 0
-					? Object.fromEntries(headerEntries)
-					: undefined,
+			headers: normalizedHeaders,
 			timeout: request.timeoutMs,
 			model: defaultModelId,
 		},
@@ -235,8 +339,6 @@ export async function addLocalProvider(
 
 	const modelsPath = resolveModelsRegistryPath(manager);
 	const modelsState = await readModelsFile(modelsPath);
-	const supportsVision = capabilities?.includes("vision") ?? false;
-	const supportsReasoning = capabilities?.includes("reasoning") ?? false;
 
 	modelsState.providers[providerId] = {
 		provider: {
@@ -246,18 +348,7 @@ export async function addLocalProvider(
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
-		models: Object.fromEntries(
-			modelIds.map((id) => [
-				id,
-				{
-					id,
-					name: id,
-					supportsVision,
-					supportsAttachments: supportsVision,
-					supportsReasoning,
-				},
-			]),
-		),
+		models: buildProviderModels(modelIds, capabilities),
 	};
 	await writeModelsFile(modelsPath, modelsState);
 	registerCustomProvider(providerId, modelsState.providers[providerId]);
@@ -267,6 +358,151 @@ export async function addLocalProvider(
 		settingsPath: manager.getFilePath(),
 		modelsPath,
 		modelsCount: modelIds.length,
+	};
+}
+
+export async function updateLocalProvider(
+	manager: ProviderSettingsManager,
+	request: UpdateLocalProviderRequest,
+): Promise<{
+	providerId: string;
+	settingsPath: string;
+	modelsPath: string;
+	modelsCount: number;
+}> {
+	const providerId = request.providerId.trim().toLowerCase();
+	if (!providerId) throw new Error("providerId is required");
+
+	const modelsPath = resolveModelsRegistryPath(manager);
+	const modelsState = await readModelsFile(modelsPath);
+	const existingEntry = modelsState.providers[providerId];
+	if (!existingEntry) {
+		throw new Error(`provider "${providerId}" does not exist`);
+	}
+
+	const providerName =
+		request.name?.trim() ?? existingEntry.provider.name.trim();
+	if (!providerName) throw new Error("name is required");
+
+	const baseUrl =
+		request.baseUrl?.trim() ?? existingEntry.provider.baseUrl.trim();
+	if (!baseUrl) throw new Error("baseUrl is required");
+
+	const capabilities =
+		request.capabilities === undefined
+			? existingEntry.provider.capabilities
+			: request.capabilities === null
+				? undefined
+				: [...new Set(request.capabilities)];
+
+	const explicitModels = uniqueTrimmed(request.models);
+	const nextModelsSourceUrl =
+		request.modelsSourceUrl === undefined
+			? existingEntry.provider.modelsSourceUrl
+			: request.modelsSourceUrl?.trim() || undefined;
+	const shouldRecomputeModels =
+		request.models !== undefined ||
+		(request.modelsSourceUrl !== undefined && !!nextModelsSourceUrl);
+	const existingModelIds = Object.keys(existingEntry.models)
+		.map((id) => id.trim())
+		.filter(Boolean);
+	const modelIds = await resolveModelIds({
+		providerId,
+		explicitModels,
+		modelsSourceUrl: nextModelsSourceUrl,
+		fallbackModelIds: existingModelIds,
+		shouldRecompute: shouldRecomputeModels,
+	});
+	if (modelIds.length === 0) {
+		throw new Error(
+			"at least one model is required (manual or via modelsSourceUrl)",
+		);
+	}
+
+	const defaultModelCandidate =
+		request.defaultModelId === undefined
+			? existingEntry.provider.defaultModelId?.trim()
+			: request.defaultModelId?.trim();
+	const defaultModelId =
+		defaultModelCandidate && modelIds.includes(defaultModelCandidate)
+			? defaultModelCandidate
+			: modelIds[0];
+
+	const existingSettings = manager.getProviderSettings(providerId);
+	const nextSettings: Record<string, unknown> = {
+		...(existingSettings ?? {}),
+		provider: providerId,
+		baseUrl,
+		model: defaultModelId,
+	};
+	if (request.apiKey !== undefined) {
+		const apiKey = request.apiKey?.trim() ?? "";
+		if (apiKey) nextSettings.apiKey = apiKey;
+		else delete nextSettings.apiKey;
+	}
+	if (request.headers !== undefined) {
+		const normalizedHeaders = normalizeHeaders(request.headers);
+		if (normalizedHeaders) nextSettings.headers = normalizedHeaders;
+		else delete nextSettings.headers;
+	}
+	if (request.timeoutMs !== undefined) {
+		if (typeof request.timeoutMs === "number") {
+			nextSettings.timeout = request.timeoutMs;
+		} else {
+			delete nextSettings.timeout;
+		}
+	}
+
+	manager.saveProviderSettings(nextSettings, { setLastUsed: false });
+
+	modelsState.providers[providerId] = {
+		provider: {
+			name: providerName,
+			baseUrl,
+			defaultModelId,
+			capabilities,
+			modelsSourceUrl: nextModelsSourceUrl,
+		},
+		models: buildProviderModels(modelIds, capabilities),
+	};
+	await writeModelsFile(modelsPath, modelsState);
+	registerCustomProvider(providerId, modelsState.providers[providerId]);
+
+	return {
+		providerId,
+		settingsPath: manager.getFilePath(),
+		modelsPath,
+		modelsCount: modelIds.length,
+	};
+}
+
+export async function deleteLocalProvider(
+	manager: ProviderSettingsManager,
+	request: DeleteLocalProviderRequest,
+): Promise<{
+	providerId: string;
+	settingsPath: string;
+	modelsPath: string;
+}> {
+	const providerId = request.providerId.trim().toLowerCase();
+	if (!providerId) throw new Error("providerId is required");
+
+	const modelsPath = resolveModelsRegistryPath(manager);
+	const modelsState = await readModelsFile(modelsPath);
+	if (!modelsState.providers[providerId]) {
+		throw new Error(`provider "${providerId}" does not exist`);
+	}
+
+	delete modelsState.providers[providerId];
+	await writeModelsFile(modelsPath, modelsState);
+	LlmsModels.unregisterProvider(providerId);
+
+	removeProviderFromSettingsState(manager, providerId);
+
+	return {
+		providerId,
+		settingsPath: manager.getFilePath(),
+		modelsPath,
 	};
 }
 

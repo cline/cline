@@ -246,6 +246,8 @@ export {
 } from "./mcp";
 export {
 	addLocalProvider,
+	type DeleteLocalProviderRequest,
+	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
 	listLocalProviders,
@@ -254,6 +256,8 @@ export {
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	type UpdateLocalProviderRequest,
+	updateLocalProvider,
 } from "./providers/local-provider-service";
 export type { AvailableRuntimeCommand } from "./runtime/commands";
 export {
