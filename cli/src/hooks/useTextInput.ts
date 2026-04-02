@@ -3,7 +3,7 @@
  *
  * Supports essential terminal shortcuts:
  * - Option+Left/Right: move by word (via escape sequences)
- * - Option+Backspace: delete word backwards (via escape sequences)
+ * - Option+Backspace: delete word backwards (handled by useHomeEndKeys)
  * - Ctrl+A/E: start/end of line
  * - Ctrl+W: delete word backwards
  * - Ctrl+U: delete to start of line
@@ -15,7 +15,7 @@
 
 import { useCallback, useRef, useState } from "react"
 
-import { OPTION_BACKSPACE_SEQUENCES, OPTION_LEFT_SEQUENCES, OPTION_RIGHT_SEQUENCES } from "../constants/keyboard"
+import { OPTION_LEFT_SEQUENCES, OPTION_RIGHT_SEQUENCES } from "../constants/keyboard"
 
 /**
  * Keyboard escape sequence types for special key combinations.
@@ -24,12 +24,11 @@ import { OPTION_BACKSPACE_SEQUENCES, OPTION_LEFT_SEQUENCES, OPTION_RIGHT_SEQUENC
 type KeyboardSequence =
 	| "option-left" // Move word left
 	| "option-right" // Move word right
-	| "option-backspace" // Delete word backwards
 	| null
 
 /**
  * Parse keyboard escape sequences for special key combinations.
- * Handles Option+arrow and Option+backspace. Home/End are handled by useHomeEndKeys.
+ * Handles Option+arrow. Home/End and Option+Backspace are handled by useHomeEndKeys.
  */
 function parseKeyboardSequence(input: string): KeyboardSequence {
 	if (OPTION_LEFT_SEQUENCES.has(input)) {
@@ -37,9 +36,6 @@ function parseKeyboardSequence(input: string): KeyboardSequence {
 	}
 	if (OPTION_RIGHT_SEQUENCES.has(input)) {
 		return "option-right"
-	}
-	if (OPTION_BACKSPACE_SEQUENCES.has(input)) {
-		return "option-backspace"
 	}
 	return null
 }
@@ -186,14 +182,11 @@ export function useTextInput(): UseTextInputReturn {
 				case "option-right":
 					moveWordRight()
 					return true
-				case "option-backspace":
-					deleteWordBefore()
-					return true
 				default:
 					return false
 			}
 		},
-		[moveWordLeft, moveWordRight, deleteWordBefore],
+		[moveWordLeft, moveWordRight],
 	)
 
 	const handleCtrlShortcut = useCallback(

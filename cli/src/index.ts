@@ -37,7 +37,7 @@ import { CliWebviewProvider } from "./controllers/CliWebviewProvider"
 import { isAuthConfigured } from "./utils/auth"
 import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printInfo, printWarning } from "./utils/display"
-import { createEnhancedStdin } from "./utils/enhanced-stdin"
+import { createEnhancedStdin, destroyEnhancedStdin } from "./utils/enhanced-stdin"
 import {
 	forwardSignalToKanbanProcess,
 	isKanbanCommandAvailable,
@@ -718,6 +718,7 @@ async function runInkApp(element: React.ReactElement, cleanup: () => Promise<voi
 		} catch {
 			// Already unmounted
 		}
+		destroyEnhancedStdin()
 		disableEnhancedKeyboardMode()
 		restoreConsole()
 		await cleanup()

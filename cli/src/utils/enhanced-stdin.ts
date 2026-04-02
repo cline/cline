@@ -32,6 +32,11 @@ const MODIFY_OTHER_KEYS_RE = /\x1b\[27;(\d+);(\d+)~/g
  */
 const KITTY_KEY_RE = /\x1b\[(\d+);(\d+)u/g
 
+const ESC = "\x1b"
+
+let activeProxy: (PassThrough & { setRawMode?: (mode: boolean) => void; isTTY?: boolean }) | null = null
+let teardownProxyListeners: (() => void) | null = null
+
 /**
  * Translate a modifyOtherKeys sequence back to its traditional encoding.
  *
@@ -42,10 +47,7 @@ const KITTY_KEY_RE = /\x1b\[(\d+);(\d+)u/g
  * @returns the translated bytes string, or null if this should be emitted as an event
  */
 export function translateModifyOtherKeys(modifier: number, keycode: number): string | null {
-	const isAlt = (modifier & 0x02) !== 0 // bit 1 = Alt (modifier values are 1-indexed: 3=Alt means bits: shift=0, alt=1)
-	const isCtrl = (modifier & 0x04) !== 0 // bit 2 = Ctrl
-
-	// Recalculate: xterm modifier encoding is (bits + 1), so:
+	// xterm modifier encoding is (bits + 1), so:
 	// modifier 2 = Shift (bit 0)
 	// modifier 3 = Alt (bit 1)
 	// modifier 5 = Ctrl (bit 2)
@@ -89,6 +91,10 @@ export function translateModifyOtherKeys(modifier: number, keycode: number): str
  * on enhancedKeyEvents instead of being passed to Ink.
  */
 export function createEnhancedStdin(): PassThrough & { setRawMode?: (mode: boolean) => void; isTTY?: boolean } {
+	if (activeProxy) {
+		return activeProxy
+	}
+
 	const proxy = new PassThrough() as PassThrough & {
 		setRawMode?: (mode: boolean) => void
 		isTTY?: boolean
@@ -116,7 +122,7 @@ export function createEnhancedStdin(): PassThrough & { setRawMode?: (mode: boole
 		}
 	}
 
-	process.stdin.on("data", (data: Buffer) => {
+	const onData = (data: Buffer) => {
 		const str = data.toString()
 
 		// Ctrl+Backspace sends \x08 (BS) on macOS/Linux — distinct from regular
@@ -129,7 +135,7 @@ export function createEnhancedStdin(): PassThrough & { setRawMode?: (mode: boole
 		}
 
 		// Fast path: if no ESC character, pass through as-is
-		if (!str.includes("\x1b")) {
+		if (!str.includes(ESC)) {
 			proxy.write(data)
 			return
 		}
@@ -138,7 +144,6 @@ export function createEnhancedStdin(): PassThrough & { setRawMode?: (mode: boole
 		// Use a combined regex approach: find and replace all protocol sequences
 		let result = ""
 		let lastIndex = 0
-		let hasEvent = false
 
 		// Process modifyOtherKeys format: \x1b[27;{mod};{key}~
 		const combined = str
@@ -193,7 +198,6 @@ export function createEnhancedStdin(): PassThrough & { setRawMode?: (mode: boole
 					result = ""
 				}
 				enhancedKeyEvents.emit("option-backspace")
-				hasEvent = true
 			} else {
 				result += translated
 			}
@@ -209,11 +213,27 @@ export function createEnhancedStdin(): PassThrough & { setRawMode?: (mode: boole
 		if (result.length > 0) {
 			proxy.write(Buffer.from(result))
 		}
-	})
+	}
 
-	// Forward other events
-	process.stdin.on("end", () => proxy.end())
-	process.stdin.on("error", (err) => proxy.emit("error", err))
+	const onEnd = () => proxy.end()
+	const onError = (err: Error) => proxy.emit("error", err)
+
+	process.stdin.on("data", onData)
+	process.stdin.on("end", onEnd)
+	process.stdin.on("error", onError)
+
+	teardownProxyListeners = () => {
+		process.stdin.off("data", onData)
+		process.stdin.off("end", onEnd)
+		process.stdin.off("error", onError)
+	}
+	activeProxy = proxy
 
 	return proxy
+}
+
+export function destroyEnhancedStdin(): void {
+	teardownProxyListeners?.()
+	teardownProxyListeners = null
+	activeProxy = null
 }
