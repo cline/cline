@@ -1,0 +1,36 @@
+{
+	"apiProvider": "anthropic",
+	"apiModelId": "claude-sonnet-4-20250514",
+	"lastShownAnnouncementId": "2025-01-01",
+	"customInstructions": "Always use TypeScript strict mode.",
+	"alwaysAllowReadOnly": true,
+	"alwaysAllowWrite": false,
+	"alwaysAllowExecute": false,
+	"alwaysAllowBrowser": false,
+	"alwaysAllowMcp": false,
+	"alwaysAllowModeSwitch": true,
+	"taskHistory": [
+		{
+			"id": "test-task-001",
+			"ts": 1700000000000,
+			"task": "Fix the login page CSS",
+			"tokensIn": 5000,
+			"tokensOut": 2000,
+			"totalCost": 0.05,
+			"modelId": "claude-sonnet-4-20250514"
+		},
+		{
+			"id": "test-task-002",
+			"ts": 1700100000000,
+			"task": "Add unit tests for the auth module",
+			"tokensIn": 12000,
+			"tokensOut": 8000,
+			"totalCost": 0.15,
+			"modelId": "claude-sonnet-4-20250514",
+			"isFavorited": true
+		}
+	],
+	"mode": "act",
+	"autoCondenseContext": true,
+	"autoCondenseContextPercent": 50
+}
