@@ -1027,7 +1027,7 @@ program
 	.command("update")
 	.description("Check for updates and install if available")
 	.option("-v, --verbose", "Show verbose output")
-	.action(() => checkForUpdates(CLI_VERSION))
+	.action((options) => checkForUpdates(CLI_VERSION, { verbose: options.verbose, includeKanban: true }))
 
 program
 	.command("kanban")
@@ -1183,6 +1183,7 @@ program
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("--update", "Check for updates and install if available")
 	.option("--kanban", `Run ${KANBAN_LAUNCH_COMMAND}`)
 	.option("--tui", "Open the legacy terminal UI instead of the kanban experience")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
@@ -1191,6 +1192,16 @@ program
 		if (options.kanban && options.tui) {
 			printWarning(`Use either --kanban or ${LEGACY_TUI_FLAG}, not both.`)
 			exit(1)
+		}
+
+		if (options.update) {
+			if (prompt || options.taskId || options.continue || options.kanban || options.tui || options.acp) {
+				printWarning("Use --update without a prompt or task flags.")
+				exit(1)
+			}
+
+			await checkForUpdates(CLI_VERSION, { verbose: options.verbose, includeKanban: true })
+			return
 		}
 
 		if (options.kanban) {
