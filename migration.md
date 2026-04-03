@@ -2232,6 +2232,60 @@ Once Unit 8 is working end-to-end via the gRPC compat layer:
 Each sub-step is a small diff with tests. The webview works at every
 intermediate step.
 
+**Implementation Notes (completed):**
+
+New files created:
+
+- `src/shared/WebviewMessages.ts` — Typed message protocol defining
+  all `WebviewOutbound` (extension → webview) and `WebviewInbound`
+  (webview → extension) message types. Replaces proto-encoded gRPC
+  envelopes with simple JSON-serializable TypeScript interfaces.
+
+- `webview-ui/src/services/typed-client.ts` — Webview-side client
+  providing `sendMessage()`, `sendRequest()`, and `onMessage()`
+  functions. Coexists with `grpc-client.ts` during transition.
+
+- `src/sdk/webview-bridge.ts` — Extension-side `WebviewBridge` class
+  with typed methods (`pushState`, `pushPartialMessage`, `navigate`,
+  `pushModels`, `pushMcpServers`, etc.) for sending messages to the
+  webview via any postMessage transport.
+
+- `src/sdk/inbound-handler.ts` — Extension-side `InboundMessageHandler`
+  that routes typed messages from the webview to controller methods.
+  Uses an `InboundController` interface for dependency injection.
+
+- `src/sdk/__tests__/webview-bridge.test.ts` — 15 unit tests for
+  WebviewBridge covering all message types.
+
+- `src/sdk/__tests__/inbound-handler.test.ts` — 18 unit tests for
+  InboundMessageHandler covering routing, error handling, and
+  generic operation delegation.
+
+Modified files:
+
+- `webview-ui/src/context/ExtensionStateContext.tsx` — Added a
+  second `useEffect` with typed message listeners (`onMessage`)
+  that coexist with the existing gRPC subscriptions. Both paths
+  accept state pushes, partial messages, navigation events, MCP
+  updates, model updates, and relinquish control events.
+
+**Key design decisions:**
+
+1. **Dual-listen pattern**: The webview listens for BOTH gRPC
+   streaming responses AND typed messages. This allows incremental
+   migration — the extension can send either format.
+
+2. **No proto dependency**: Typed messages use plain TypeScript
+   interfaces with JSON serialization. No protobuf encoding/decoding.
+
+3. **Request/response via requestId**: For unary RPCs that return
+   data, the webview sends a `requestId` and the extension responds
+   with an `rpcResponse` message containing that ID.
+
+4. **Generic operations**: Less-common RPCs (file ops, MCP ops, etc.)
+   use a generic `handleGenericOp` pattern during transition, avoiding
+   the need to type every single operation upfront.
+
 #### Unit 10: Delete classic core
 
 Once all webview communication goes through typed messages (no more
@@ -2264,10 +2318,10 @@ Phase B — Working Extension (Unit 8)
   [ ] Human verification: model picker works, chat works, settings work
 
 Phase C — Webview Simplification (Unit 9)
-  [ ] Unit 9a: Replace state subscription
-  [ ] Unit 9b: Replace partial message subscription
-  [ ] Unit 9c: Replace model/provider RPCs
-  [ ] Unit 9d: Replace remaining gRPC calls
+  [x] Unit 9a: Replace state subscription
+  [x] Unit 9b: Replace partial message subscription
+  [x] Unit 9c: Replace model/provider RPCs
+  [x] Unit 9d: Replace remaining gRPC calls
 
 Phase D — Cleanup (Unit 10)
   [ ] Unit 10: Delete classic core, proto, gRPC

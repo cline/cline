@@ -27,6 +27,19 @@ import {
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
 import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { onMessage } from "../services/typed-client"
+import type {
+	StateMessage,
+	PartialMessage,
+	NavigateMessage,
+	McpServersMessage,
+	McpMarketplaceMessage,
+	ModelsMessage,
+	RelinquishControlMessage,
+	AddToInputMessage,
+	ShowWebviewMessage,
+	TerminalProfilesMessage,
+} from "../../../src/shared/WebviewMessages"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -688,6 +701,183 @@ export const ExtensionStateContextProvider: React.FC<{
 			}
 		}
 	}, [])
+
+	// -----------------------------------------------------------------------
+	// Typed message listeners (Unit 9a-9d transition)
+	// These coexist with the gRPC subscriptions above. During the SDK
+	// migration, the extension sends typed messages directly instead of
+	// going through the proto/gRPC compat layer. The webview accepts
+	// whichever arrives first.
+	// -----------------------------------------------------------------------
+	useEffect(() => {
+		const unsubs: Array<() => void> = []
+
+		// 9a: State push — replaces subscribeToState
+		unsubs.push(
+			onMessage("state", (msg: StateMessage) => {
+				setState((prevState) => {
+					const stateData = msg.state
+					const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+					const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+					const shouldUpdateAutoApproval = incomingVersion > currentVersion
+
+					if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
+						stateData.clineMessages = stateData.clineMessages?.length
+							? stateData.clineMessages
+							: prevState.clineMessages
+					}
+
+					const newState = {
+						...stateData,
+						autoApprovalSettings: shouldUpdateAutoApproval
+							? stateData.autoApprovalSettings
+							: prevState.autoApprovalSettings,
+					}
+
+					if (!newState.welcomeViewCompleted && !showWelcome) {
+						setShowWelcome(true)
+						setOnboardingModels(newState.onboardingModels)
+					} else if (newState.welcomeViewCompleted) {
+						setShowWelcome(false)
+						setOnboardingModels(undefined)
+					}
+
+					setDidHydrateState(true)
+					return newState
+				})
+			}),
+		)
+
+		// 9b: Partial message — replaces subscribeToPartialMessage
+		unsubs.push(
+			onMessage("partialMessage", (msg: PartialMessage) => {
+				const partialMessage = msg.message
+				if (!partialMessage.ts || partialMessage.ts <= 0) {
+					console.error("Invalid timestamp in typed partial message:", partialMessage)
+					return
+				}
+				setState((prevState) => {
+					const lastIndex = findLastIndex(prevState.clineMessages, (m) => m.ts === partialMessage.ts)
+					if (lastIndex !== -1) {
+						const newClineMessages = [...prevState.clineMessages]
+						newClineMessages[lastIndex] = partialMessage
+						return { ...prevState, clineMessages: newClineMessages }
+					}
+					return prevState
+				})
+			}),
+		)
+
+		// Navigation — replaces subscribeToXxxButtonClicked
+		unsubs.push(
+			onMessage("navigate", (msg: NavigateMessage) => {
+				switch (msg.view) {
+					case "mcp":
+						navigateToMcp(msg.tab)
+						break
+					case "settings":
+						navigateToSettings(msg.targetSection)
+						break
+					case "history":
+						navigateToHistory()
+						break
+					case "account":
+						navigateToAccount()
+						break
+					case "worktrees":
+						navigateToWorktrees()
+						break
+					case "chat":
+						navigateToChat()
+						break
+				}
+			}),
+		)
+
+		// MCP servers — replaces subscribeToMcpServers
+		unsubs.push(
+			onMessage("mcpServers", (msg: McpServersMessage) => {
+				setMcpServers(msg.servers)
+			}),
+		)
+
+		// MCP marketplace — replaces subscribeToMcpMarketplaceCatalog
+		unsubs.push(
+			onMessage("mcpMarketplace", (msg: McpMarketplaceMessage) => {
+				setMcpMarketplaceCatalog(msg.catalog)
+			}),
+		)
+
+		// 9c: Models — replaces subscribeToOpenRouterModels / subscribeToLiteLlmModels
+		unsubs.push(
+			onMessage("models", (msg: ModelsMessage) => {
+				switch (msg.providerId) {
+					case "openrouter":
+						setOpenRouterModels({
+							[openRouterDefaultModelId]: openRouterDefaultModelInfo,
+							...msg.models,
+						})
+						break
+					case "litellm":
+						setLiteLlmModels(msg.models)
+						break
+					case "hicap":
+						setHicapModels(msg.models)
+						break
+					case "requesty":
+						setRequestyModels(msg.models)
+						break
+					case "groq":
+						setGroqModels(msg.models)
+						break
+					case "baseten":
+						setBasetenModels({
+							[basetenDefaultModelId]: basetenModels[basetenDefaultModelId],
+							...msg.models,
+						})
+						break
+					case "huggingface":
+						setHuggingFaceModels(msg.models)
+						break
+					case "vercel-ai-gateway":
+						setVercelAiGatewayModels(msg.models)
+						break
+					case "cline":
+						setClineModels((prev) =>
+							Object.keys(msg.models).length > 0 ? msg.models : (prev ?? null),
+						)
+						break
+				}
+			}),
+		)
+
+		// Relinquish control — replaces subscribeToRelinquishControl
+		unsubs.push(
+			onMessage("relinquishControl", (_msg: RelinquishControlMessage) => {
+				relinquishControlCallbacks.current.forEach((callback) => callback())
+			}),
+		)
+
+		// Add to input — replaces subscribeToAddToInput
+		unsubs.push(
+			onMessage("addToInput", (_msg: AddToInputMessage) => {
+				// This is handled by ChatView's own subscription
+			}),
+		)
+
+		// Terminal profiles — replaces getAvailableTerminalProfiles
+		unsubs.push(
+			onMessage("terminalProfiles", (msg: TerminalProfilesMessage) => {
+				setAvailableTerminalProfiles(msg.profiles as TerminalProfile[])
+			}),
+		)
+
+		return () => {
+			for (const unsub of unsubs) {
+				unsub()
+			}
+		}
+	}, [navigateToMcp, navigateToSettings, navigateToHistory, navigateToAccount, navigateToWorktrees, navigateToChat, showWelcome])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
