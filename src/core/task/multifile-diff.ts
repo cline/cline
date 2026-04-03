@@ -1,5 +1,5 @@
+import { CheckpointTracker } from "@/integrations/checkpoints/CheckpointTracker"
 import { HostProvider } from "@/hosts/host-provider"
-import CheckpointTracker from "@/integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@/shared/array"
 import { ShowMessageType } from "@/shared/proto/index.host"
 import { Logger } from "@/shared/services/Logger"

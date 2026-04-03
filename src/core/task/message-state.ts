@@ -1,4 +1,4 @@
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { CheckpointTracker } from "@integrations/checkpoints/CheckpointTracker"
 import { EventEmitter } from "events"
 import getFolderSize from "get-folder-size"
 import Mutex from "p-mutex"

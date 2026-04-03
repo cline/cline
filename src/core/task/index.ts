@@ -1,3 +1,9 @@
+import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
+import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
+import { ICheckpointManager } from "@integrations/checkpoints/types"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
+import { FocusChainManager } from "./focus-chain"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
@@ -40,15 +46,11 @@ import {
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
-import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
-import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
-import { ICheckpointManager } from "@integrations/checkpoints/types"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { ITerminalManager } from "@integrations/terminal/types"
-import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
@@ -110,11 +112,9 @@ import { Session } from "@/shared/services/Session"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
-import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
-import { FocusChainManager } from "./focus-chain"
 import {
 	getPresentationCadenceMs,
 	isPresentationSchedulingDisabled,
@@ -435,7 +435,7 @@ export class Task {
 						stateManager: this.stateManager,
 					})
 				) {
-					this.checkpointManager.initialize?.().catch((error: Error) => {
+					this.checkpointManager?.initialize?.().catch((error: Error) => {
 						Logger.error("Failed to initialize multi-root checkpoint manager:", error)
 						this.taskState.checkpointManagerErrorMessage = error?.message || String(error)
 					})
