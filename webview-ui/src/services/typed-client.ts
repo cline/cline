@@ -10,11 +10,7 @@
 
 import { v4 as uuidv4 } from "uuid"
 import { PLATFORM_CONFIG } from "../config/platform.config"
-import type {
-	WebviewInbound,
-	WebviewOutbound,
-	RpcResponseMessage,
-} from "../../../src/shared/WebviewMessages"
+import type { WebviewInbound, WebviewOutbound, RpcResponseMessage } from "../../../src/shared/WebviewMessages"
 
 // ---------------------------------------------------------------------------
 // Sending messages to the extension
@@ -42,10 +38,7 @@ export function sendRequest<T = unknown>(
 
 		const handleResponse = (event: MessageEvent) => {
 			const data = event.data
-			if (
-				data?.type === "rpcResponse" &&
-				(data as RpcResponseMessage).requestId === requestId
-			) {
+			if (data?.type === "rpcResponse" && (data as RpcResponseMessage).requestId === requestId) {
 				window.removeEventListener("message", handleResponse)
 				clearTimeout(timer)
 				if ((data as RpcResponseMessage).error) {
@@ -70,9 +63,7 @@ export function sendRequest<T = unknown>(
 // Listening for messages from the extension
 // ---------------------------------------------------------------------------
 
-type MessageHandler<T extends WebviewOutbound["type"]> = (
-	message: Extract<WebviewOutbound, { type: T }>,
-) => void
+type MessageHandler<T extends WebviewOutbound["type"]> = (message: Extract<WebviewOutbound, { type: T }>) => void
 
 const listeners = new Map<string, Set<MessageHandler<any>>>()
 let globalListenerInstalled = false
@@ -86,11 +77,7 @@ function ensureGlobalListener() {
 		if (!data || typeof data.type !== "string") return
 
 		// Skip gRPC messages — those are handled by grpc-client-base.ts
-		if (
-			data.type === "grpc_request" ||
-			data.type === "grpc_response" ||
-			data.type === "grpc_request_cancel"
-		) {
+		if (data.type === "grpc_request" || data.type === "grpc_response" || data.type === "grpc_request_cancel") {
 			return
 		}
 
@@ -111,10 +98,7 @@ function ensureGlobalListener() {
  * Subscribe to typed messages of a specific type from the extension.
  * Returns an unsubscribe function.
  */
-export function onMessage<T extends WebviewOutbound["type"]>(
-	type: T,
-	handler: MessageHandler<T>,
-): () => void {
+export function onMessage<T extends WebviewOutbound["type"]>(type: T, handler: MessageHandler<T>): () => void {
 	ensureGlobalListener()
 
 	if (!listeners.has(type)) {

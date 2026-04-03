@@ -81,7 +81,7 @@ export interface ShowWebviewMessage {
 /** Terminal profiles — replaces getAvailableTerminalProfiles response */
 export interface TerminalProfilesMessage {
 	type: "terminalProfiles"
-	profiles: Array<{ name: string; [key: string]: unknown }>
+	profiles: Array<{ id: string; name: string; path?: string; description?: string }>
 }
 
 /** Generic RPC response — for unary RPCs during transition */
