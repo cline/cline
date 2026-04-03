@@ -191,9 +191,9 @@ export class SdkController implements GrpcHandlerDelegate {
 		}
 	}
 
-	async askResponse(response: string, text?: string, _images?: string[]): Promise<void> {
-		if (this.currentSession && text) {
-			// Add user feedback message
+	async askResponse(response: string, text?: string, images?: string[]): Promise<void> {
+		// Add user feedback message if there's text
+		if (text) {
 			const feedbackMessage: ClineMessage = {
 				ts: Date.now(),
 				type: "say",
@@ -202,8 +202,19 @@ export class SdkController implements GrpcHandlerDelegate {
 			}
 			this.translator.getMessages().push(feedbackMessage)
 			this.pushStateUpdate()
+		}
 
-			await this.currentSession.sendResponse(text)
+		if (this.currentSession) {
+			// Send follow-up to the existing session
+			const prompt = text || ""
+			if (prompt) {
+				await this.currentSession.sendResponse(prompt)
+			}
+		} else if (text && this.sessionFactory) {
+			// No active session (e.g., after clearTask) — start a new one
+			// This handles the case where the user types a follow-up after
+			// the session has been disposed.
+			await this.newTask(text, images)
 		}
 	}
 
@@ -223,6 +234,17 @@ export class SdkController implements GrpcHandlerDelegate {
 			await this.currentSession.abort()
 		}
 		this.isTaskRunning = false
+
+		// Add resume_task ask so the webview shows the input for resuming
+		const resumeMsg: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "resume_task",
+			text: "",
+		}
+		this.translator.getMessages().push(resumeMsg)
+		this.grpcHandler.pushPartialMessage(resumeMsg)
+		this.pushStateUpdate()
 	}
 
 	getTaskHistory(offset?: number, limit?: number): HistoryItem[] {

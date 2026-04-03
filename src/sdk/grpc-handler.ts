@@ -556,7 +556,12 @@ export class GrpcHandler {
 	}
 
 	private async handleAskResponse(request: GrpcRequest): Promise<GrpcResponse> {
-		const response = (request.params?.response as string) ?? "messageResponse"
+		// Proto field is response_type (camelCase: responseType)
+		const response =
+			(request.params?.responseType as string) ??
+			(request.params?.response_type as string) ??
+			(request.params?.response as string) ??
+			"messageResponse"
 		const text = request.params?.text as string | undefined
 		const images = request.params?.images as string[] | undefined
 		await this.delegate.askResponse(response, text, images)
