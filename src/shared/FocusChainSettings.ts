@@ -1,11 +1,13 @@
+/**
+ * Focus chain settings type. Focus chain feature has been removed,
+ * but this type is preserved for backward compatibility with stored settings.
+ */
 export interface FocusChainSettings {
-	// Enable/disable the focus chain feature
 	enabled: boolean
-	// Interval (in messages) to remind Cline about focus chain
 	remindClineInterval: number
 }
 
 export const DEFAULT_FOCUS_CHAIN_SETTINGS: FocusChainSettings = {
-	enabled: true,
+	enabled: false,
 	remindClineInterval: 6,
 }

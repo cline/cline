@@ -1,4 +1,4 @@
-import CheckpointTracker from "@integrations/checkpoints/CheckpointTracker"
+import { CheckpointTracker } from "@integrations/checkpoints/CheckpointTracker"
 import { findLast } from "@shared/array"
 import { Empty } from "@shared/proto/cline/common"
 import { ExplainChangesRequest } from "@shared/proto/cline/task"
