@@ -16,4 +16,8 @@
  * - approval-adapter: Auto-approve settings → SDK tool policies
  */
 
-export {}
+export { LegacyStateReader } from "./legacy-state-reader"
+export type { LegacyGlobalState, LegacySecrets, LegacyStateReaderOptions } from "./legacy-state-reader"
+
+export { runProviderMigration, clearMigrationSentinel } from "./provider-migration"
+export type { ProviderMigrationOptions, ProviderMigrationResult } from "./provider-migration"

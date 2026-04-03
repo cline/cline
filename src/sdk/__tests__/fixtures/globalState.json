@@ -7,8 +7,25 @@
 	"alwaysAllowWrite": false,
 	"alwaysAllowExecute": false,
 	"alwaysAllowBrowser": false,
-	"alwaysAllowMcp": false,
+	"alwaysAllowMcp": true,
 	"alwaysAllowModeSwitch": true,
+	"autoApprovalSettings": {
+		"version": 2,
+		"enabled": true,
+		"favorites": [],
+		"maxRequests": 20,
+		"actions": {
+			"readFiles": true,
+			"readFilesExternally": false,
+			"editFiles": false,
+			"editFilesExternally": false,
+			"executeSafeCommands": true,
+			"executeAllCommands": false,
+			"useBrowser": false,
+			"useMcp": true
+		},
+		"enableNotifications": false
+	},
 	"taskHistory": [
 		{
 			"id": "test-task-001",
@@ -31,6 +48,16 @@
 		}
 	],
 	"mode": "act",
+	"planModeApiProvider": "openrouter",
+	"planModeApiModelId": "google/gemini-2.5-pro",
+	"actModeApiProvider": "anthropic",
+	"actModeApiModelId": "claude-sonnet-4-20250514",
+	"planActSeparateModelsSetting": true,
 	"autoCondenseContext": true,
-	"autoCondenseContextPercent": 50
+	"autoCondenseContextPercent": 50,
+	"telemetrySetting": "enabled",
+	"userInfo": {
+		"displayName": "Test User",
+		"email": "test@example.com"
+	}
 }
