@@ -19,6 +19,11 @@ import { GrpcHandler, type GrpcRequest, type GrpcResponse } from "./grpc-handler
 import { isTypedInboundMessage } from "@shared/WebviewMessages"
 import { InboundMessageHandler, type InboundController } from "./inbound-handler"
 
+const DEBUG = true
+function log(...args: any[]) {
+	if (DEBUG) console.log("[SDK-Bridge]", ...args)
+}
+
 // ---------------------------------------------------------------------------
 // Types matching the webview's gRPC envelope format
 // ---------------------------------------------------------------------------
@@ -72,6 +77,8 @@ export class WebviewGrpcBridge {
 	async handleMessage(message: any): Promise<void> {
 		if (!message || typeof message !== "object") return
 
+		log("← webview:", message.type, message.grpc_request?.method || message.grpc_request?.service || "")
+
 		// Handle gRPC protocol messages
 		if (message.type === "grpc_request" && message.grpc_request) {
 			await this.handleGrpcRequest(message.grpc_request)
@@ -96,6 +103,7 @@ export class WebviewGrpcBridge {
 	 */
 	private async handleGrpcRequest(request: WebviewGrpcRequest): Promise<void> {
 		const { service, method, message, request_id, is_streaming } = request
+		log(`gRPC ${is_streaming ? "stream" : "unary"}: ${service}.${method} [${request_id}]`)
 
 		if (is_streaming) {
 			await this.handleStreamingRequest(method, message, request_id)

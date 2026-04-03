@@ -140,10 +140,16 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			const globalState = legacyState.readGlobalState()
 			const taskHistory = legacyState.readTaskHistory()
 
+			// Build apiConfiguration from individual legacy state keys
+			const apiConfiguration = {
+				apiProvider: legacyState.getProvider() as any,
+				apiModelId: legacyState.getModelId(),
+			}
+
 			this.sdkController = new SdkController({
 				version: ExtensionRegistryInfo.version,
-				apiConfiguration: globalState.apiConfiguration as any,
-				mode: (globalState.mode as "act" | "plan") ?? "act",
+				apiConfiguration,
+				mode: legacyState.getMode(),
 				cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(),
 				taskHistory,
 				legacyState,
@@ -151,6 +157,14 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 
 			const postMessage = (msg: any) => this.webview?.webview.postMessage(msg)
 			this.bridge = new WebviewGrpcBridge(this.sdkController, postMessage)
+
+			// Wire push callbacks so SdkController state changes reach the webview
+			this.sdkController.onPushState((state) => this.bridge!.pushState(state))
+			this.sdkController.onPushPartialMessage((msg) => this.bridge!.pushPartialMessage(msg))
+
+			// Expose debug hooks for testing
+			;(globalThis as any).__sdkBridge = this.bridge
+			;(globalThis as any).__sdkController = this.sdkController
 
 			Logger.log("[VscodeWebviewProvider] SDK bridge initialized")
 		} catch (error) {
@@ -200,32 +214,11 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * @param webview A reference to the extension webview
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
-		// Route through SDK bridge if available
-		if (this.bridge) {
-			await this.bridge.handleMessage(message)
+		if (!this.bridge) {
+			Logger.error("[VscodeWebviewProvider] No SDK bridge — dropping message:", message.type)
 			return
 		}
-
-		// Fallback to classic handler (bridge failed to init)
-		const postMessageToWebview = (response: ExtensionMessage) => this.postMessageToWebview(response)
-
-		switch (message.type) {
-			case "grpc_request": {
-				if (message.grpc_request) {
-					await handleGrpcRequest(this.controller, postMessageToWebview, message.grpc_request)
-				}
-				break
-			}
-			case "grpc_request_cancel": {
-				if (message.grpc_request_cancel) {
-					await handleGrpcRequestCancel(postMessageToWebview, message.grpc_request_cancel)
-				}
-				break
-			}
-			default: {
-				Logger.error("Received unhandled WebviewMessage type:", JSON.stringify(message))
-			}
-		}
+		await this.bridge.handleMessage(message)
 	}
 
 	/**
