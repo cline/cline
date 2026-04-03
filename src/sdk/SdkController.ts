@@ -94,6 +94,10 @@ export class SdkController implements GrpcHandlerDelegate {
 	private isTaskRunning = false
 	private legacyState?: LegacyStateReader
 
+	/** External push callbacks (registered by WebviewGrpcBridge) */
+	private onPushStateCallback?: (state: ExtensionState) => void
+	private onPushPartialMessageCallback?: (message: ClineMessage) => void
+
 	constructor(options: SdkControllerOptions = {}) {
 		this.version = options.version ?? "0.0.0"
 		this.apiConfiguration = options.apiConfiguration
@@ -115,6 +119,16 @@ export class SdkController implements GrpcHandlerDelegate {
 	/** Get the message translator */
 	getTranslator(): MessageTranslator {
 		return this.translator
+	}
+
+	/** Register a callback for state push events */
+	onPushState(callback: (state: ExtensionState) => void): void {
+		this.onPushStateCallback = callback
+	}
+
+	/** Register a callback for partial message push events */
+	onPushPartialMessage(callback: (message: ClineMessage) => void): void {
+		this.onPushPartialMessageCallback = callback
 	}
 
 	// -----------------------------------------------------------------------
@@ -261,7 +275,9 @@ export class SdkController implements GrpcHandlerDelegate {
 		const messages = this.translator.getMessages()
 		for (const idx of [...update.added, ...update.modified]) {
 			if (idx >= 0 && idx < messages.length) {
-				this.grpcHandler.pushPartialMessage(messages[idx])
+				const msg = messages[idx]
+				this.grpcHandler.pushPartialMessage(msg)
+				this.onPushPartialMessageCallback?.(msg)
 			}
 		}
 
@@ -278,5 +294,6 @@ export class SdkController implements GrpcHandlerDelegate {
 	private pushStateUpdate(): void {
 		const state = this.getState()
 		this.grpcHandler.pushState(state)
+		this.onPushStateCallback?.(state)
 	}
 }
