@@ -1019,10 +1019,53 @@ These capabilities exist in the SDK and do not need to be rebuilt:
 17. Workflows system
 18. Old Go CLI artifacts
 
-### Phase -1: Close the visibility loop
+### Phase -1: Close the visibility loop ✅
 
-See visibility.md for the first step of your project: Give yourself
-debugging superpowers.
+**Status**: Complete. See `visibility.md` for requirements.
+
+**Tool**: `src/dev/debug-harness/server.ts` — HTTP-controlled debug
+server that launches VSCode with the Cline extension and provides
+programmatic access to the Node.js debugger, webview, and UI via CDP
+and Playwright.
+
+**Quick start:**
+```bash
+# Build (if needed):
+npm run protos && IS_DEV=true node esbuild.mjs
+
+# Launch:
+npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch
+
+# Use (from another terminal):
+curl localhost:19229/api -d '{"method":"status"}'
+curl localhost:19229/api -d '{"method":"ui.open_sidebar"}'
+curl localhost:19229/api -d '{"method":"ui.screenshot"}'
+curl localhost:19229/api -d '{"method":"ext.set_breakpoint","params":{"file":"src/extension.ts","line":42}}'
+curl localhost:19229/api -d '{"method":"ext.evaluate","params":{"expression":"1+2"}}'
+curl localhost:19229/api -d '{"method":"web.evaluate","params":{"expression":"document.title"}}'
+```
+
+**What works:**
+- Extension host: breakpoints (sourcemap-resolved from original src
+  files), evaluate expressions, step, pause/resume, call stack
+  inspection — all via CDP over WebSocket
+- Webview: evaluate expressions via Playwright `frame.evaluate()`;
+  CDP breakpoints available after `connect_webview`
+- UI automation: screenshots, open sidebar, click, fill, type,
+  command palette, Playwright locators — all via Playwright Electron
+- Sourcemap: 7916 source files indexed; `ext.set_breakpoint` maps
+  e.g. `src/extension.ts:42` → `dist/extension.js:1136584`
+
+**Caveats:**
+- macOS only (Playwright Electron launch).
+- Port 9230 must be free (extension host inspector).
+- Scripts parsed before CDP connects aren't tracked (breakpoints
+  still work via sourcemap).
+- Webview CDP session may fail depending on Electron version;
+  `web.evaluate` always works via Playwright fallback.
+
+**References:** `.clinerules/debug-harness.md` (brief),
+`src/dev/debug-harness/README.md` (full API docs).
 
 ### Phase 0: Preparation & Cleanup
 
