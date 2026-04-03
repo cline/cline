@@ -18,16 +18,19 @@ import { ToolResultUtils } from "../utils/ToolResultUtils"
 export const DEFAULT_MAX_LINES = 1000
 const FILE_TRUNCATED_MARKER = "\n\n---\n\n[FILE TRUNCATED:"
 
-/**
- * Slice file content to the requested line range, add one-based `N |` line labels,
- * and append a continuation hint when the file has more lines to read.
- */
-export function formatFileContentWithLineNumbers(content: string, startLine?: number, endLine?: number): string {
+type DisplayedLineSlice = {
+	start: number
+	end: number
+	totalLines: number
+	lines: string[]
+	truncationSuffix: string
+}
+
+function getDisplayedLineSlice(content: string, startLine?: number, endLine?: number): DisplayedLineSlice | null {
 	if (!content) {
-		return content
+		return null
 	}
 
-	// Separate any byte-truncation notice appended by content-limits.ts
 	let body = content
 	let truncationSuffix = ""
 	const truncationIndex = content.indexOf(FILE_TRUNCATED_MARKER)
@@ -48,6 +51,42 @@ export function formatFileContentWithLineNumbers(content: string, startLine?: nu
 	const start = shouldSwapBounds ? requestedEnd : requestedStart
 	const end = Math.min(totalLines, shouldSwapBounds ? requestedStart : requestedEnd)
 
+	return { start, end, totalLines, lines, truncationSuffix }
+}
+
+/**
+ * Line range shown for a read_file result (matches formatFileContentWithLineNumbers). Omits image reads and empty files.
+ */
+export function getReadToolDisplayedLineRange(
+	block: ToolUse,
+	fileContent: FileContentResult,
+): { start: number; end: number } | undefined {
+	if (fileContent.imageBlock) {
+		return undefined
+	}
+	const { startLine, endLine } = parseRequestedLineRange(block)
+	const slice = getDisplayedLineSlice(fileContent.text, startLine, endLine)
+	if (!slice || slice.totalLines === 0) {
+		return undefined
+	}
+	return { start: slice.start, end: slice.end }
+}
+
+/**
+ * Slice file content to the requested line range, add one-based `N |` line labels,
+ * and append a continuation hint when the file has more lines to read.
+ */
+export function formatFileContentWithLineNumbers(content: string, startLine?: number, endLine?: number): string {
+	if (!content) {
+		return content
+	}
+
+	const meta = getDisplayedLineSlice(content, startLine, endLine)
+	if (!meta) {
+		return content
+	}
+
+	const { start, end, totalLines, lines, truncationSuffix } = meta
 	const slice = lines.slice(start - 1, end)
 	const labeled = slice.map((line, i) => `${start + i} | ${line}`).join("\n")
 
@@ -80,6 +119,24 @@ function buildReadResponse(block: ToolUse, fileContent: FileContentResult, prefi
 		: formatFileContentWithLineNumbers(fileContent.text, startLine, endLine)
 
 	return prefix ? `${prefix}\n${text}` : text
+}
+
+async function emitReadFileToolUiComplete(
+	config: TaskConfig,
+	sharedMessageProps: ClineSayTool,
+	block: ToolUse,
+	fileContent: FileContentResult,
+): Promise<void> {
+	if (config.isSubagentExecution) {
+		return
+	}
+	const range = getReadToolDisplayedLineRange(block, fileContent)
+	const payload: ClineSayTool = { ...sharedMessageProps }
+	if (range) {
+		payload.readLineStart = range.start
+		payload.readLineEnd = range.end
+	}
+	await config.callbacks.say("tool", JSON.stringify(payload), undefined, undefined, false)
 }
 
 export class ReadFileToolHandler implements IFullyManagedTool {
@@ -170,10 +227,9 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		const shouldAutoApprove =
 			config.isSubagentExecution || (await config.callbacks.shouldAutoApproveToolWithPath(block.name, relPath))
 		if (shouldAutoApprove) {
-			// Auto-approval flow
+			// Auto-approval flow (completed read is announced after extractFileContent so line range is known)
 			if (!config.isSubagentExecution) {
 				await config.callbacks.removeLastPartialMessageIfExistsWithType("ask", "tool")
-				await config.callbacks.say("tool", completeMessage, undefined, undefined, false)
 			}
 
 			// Capture telemetry
@@ -283,6 +339,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 			}
 
 			if (validCached.readCount >= 3) {
+				await emitReadFileToolUiComplete(config, sharedMessageProps, block, fileContent)
 				return buildReadResponse(
 					block,
 					fileContent,
@@ -290,6 +347,7 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 				)
 			}
 
+			await emitReadFileToolUiComplete(config, sharedMessageProps, block, fileContent)
 			return buildReadResponse(
 				block,
 				fileContent,
@@ -338,9 +396,11 @@ export class ReadFileToolHandler implements IFullyManagedTool {
 		// Handle image blocks separately - they need to be pushed to userMessageContent
 		if (fileContent.imageBlock) {
 			config.taskState.userMessageContent.push(fileContent.imageBlock)
+			await emitReadFileToolUiComplete(config, sharedMessageProps, block, fileContent)
 			return buildReadResponse(block, fileContent)
 		}
 
+		await emitReadFileToolUiComplete(config, sharedMessageProps, block, fileContent)
 		return buildReadResponse(block, fileContent)
 	}
 }
