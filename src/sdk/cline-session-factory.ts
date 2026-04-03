@@ -347,10 +347,18 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		//   actModeClineModelId, actModeOpenRouterModelId, planModeOllamaModelId, etc.
 		const modelId = resolveModelId(provider, modePrefix, apiConfig) ?? "claude-sonnet-4-5-20250929"
 
-		const apiKey = config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined
+		// Some providers don't require a real API key, but ClineCore's
+		// validation still requires a non-empty string.  Use a dummy placeholder
+		// for these so the Zod schema doesn't reject the config.
+		const NO_KEY_PROVIDERS = new Set(["ollama", "lmstudio", "claude-code", "vscode-lm"])
+		const apiKey = NO_KEY_PROVIDERS.has(provider)
+			? (config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined) ?? provider
+			: config.apiConfiguration
+				? resolveApiKey(provider, config.apiConfiguration)
+				: undefined
 
 		Logger.log(
-			`[ClineSessionFactory] Creating session: provider=${provider}, model=${modelId}, cwd=${cwd}, mode=${mode}, hasKey=${!!apiKey}`,
+			`[ClineSessionFactory] Creating session: provider=${provider}, model=${modelId}, cwd=${cwd}, mode=${mode}, hasKey=${!!apiKey}, noKeyRequired=${NO_KEY_PROVIDERS.has(provider)}`,
 		)
 
 		// CoreSessionConfig expects 'workspaceRoot' (not 'cwd') and requires 'systemPrompt'.
@@ -366,7 +374,6 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		const coreConfig: Record<string, unknown> = {
 			providerId: provider,
 			modelId,
-			apiKey: apiKey ?? "",
 			cwd,
 			workspaceRoot: cwd,
 			systemPrompt,
@@ -375,14 +382,35 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 			enableAgentTeams: false,
 		}
 
+		// Only set apiKey if the provider actually uses one
+		if (apiKey) {
+			coreConfig.apiKey = apiKey
+		}
+
 		// Pass through additional provider-specific config
 		if (apiConfig) {
 			// Base URL overrides
 			if (apiConfig.openRouterBaseUrl) coreConfig.baseUrl = apiConfig.openRouterBaseUrl
 			if (apiConfig.openAiBaseUrl) coreConfig.baseUrl = apiConfig.openAiBaseUrl
-			if (apiConfig.ollamaBaseUrl) coreConfig.baseUrl = apiConfig.ollamaBaseUrl
 			if (apiConfig.liteLlmBaseUrl) coreConfig.baseUrl = apiConfig.liteLlmBaseUrl
-			if (apiConfig.lmStudioBaseUrl) coreConfig.baseUrl = apiConfig.lmStudioBaseUrl
+
+			// Ollama: ClineCore uses the OpenAI-compatible provider which sends
+			// requests to {baseUrl}/chat/completions.  Ollama's OpenAI-compat
+			// endpoint lives at /v1/chat/completions, so we must append /v1.
+			if (provider === "ollama") {
+				const rawUrl = (apiConfig.ollamaBaseUrl as string) || "http://localhost:11434"
+				coreConfig.baseUrl = rawUrl.endsWith("/v1") ? rawUrl : `${rawUrl.replace(/\/+$/, "")}/v1`
+				// Pass through optional Ollama API key (some deployments use auth)
+				if (apiConfig.ollamaApiKey) {
+					coreConfig.apiKey = apiConfig.ollamaApiKey
+				}
+			}
+
+			// LM Studio: same as Ollama — needs /v1 suffix for OpenAI compat
+			if (provider === "lmstudio") {
+				const rawUrl = (apiConfig.lmStudioBaseUrl as string) || "http://localhost:1234"
+				coreConfig.baseUrl = rawUrl.endsWith("/v1") ? rawUrl : `${rawUrl.replace(/\/+$/, "")}/v1`
+			}
 
 			// AWS-specific
 			if (provider === "bedrock") {

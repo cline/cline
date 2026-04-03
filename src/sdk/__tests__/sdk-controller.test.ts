@@ -304,6 +304,129 @@ describe("SdkController", () => {
 
 			expect(callback).toHaveBeenCalled()
 		})
+
+		it("updateApiConfigurationProto unwraps nested apiConfiguration and converts proto enum providers", async () => {
+			const ctrl = new SdkController()
+			const handler = ctrl.getGrpcHandler()
+
+			// Simulate what the webview sends: proto-JSON-encoded message with
+			// nested apiConfiguration and proto enum string names for providers
+			await handler.handleRequest({
+				method: "updateApiConfigurationProto",
+				params: {
+					apiConfiguration: {
+						actModeApiProvider: "OLLAMA",
+						planModeApiProvider: "OLLAMA",
+						actModeOllamaModelId: "phi4-mini:latest",
+						planModeOllamaModelId: "phi4-mini:latest",
+						ollamaBaseUrl: "http://localhost:11434",
+					},
+				},
+			})
+
+			const state = ctrl.getState()
+			// Provider should be converted from proto enum "OLLAMA" to app string "ollama"
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("ollama")
+			expect(state.apiConfiguration?.planModeApiProvider).toBe("ollama")
+			expect(state.apiConfiguration?.actModeOllamaModelId).toBe("phi4-mini:latest")
+			expect(state.apiConfiguration?.ollamaBaseUrl).toBe("http://localhost:11434")
+		})
+
+		it("updateApiConfigurationProto handles numeric enum values (VSCode messageEncoding=none)", async () => {
+			const ctrl = new SdkController()
+			const handler = ctrl.getGrpcHandler()
+
+			// VSCode passes proto objects as-is (messageEncoding: "none"),
+			// so enum values arrive as numbers, not strings.
+			// CLINE = 16, OLLAMA = 5 in the proto enum
+			await handler.handleRequest({
+				method: "updateApiConfigurationProto",
+				params: {
+					apiConfiguration: {
+						actModeApiProvider: 16, // CLINE
+						planModeApiProvider: 16,
+						actModeClineModelId: "claude-sonnet-4-5-20250929",
+					},
+				},
+			})
+
+			const state = ctrl.getState()
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("cline")
+			expect(state.apiConfiguration?.planModeApiProvider).toBe("cline")
+			expect(state.apiConfiguration?.actModeClineModelId).toBe("claude-sonnet-4-5-20250929")
+		})
+
+		it("updateApiConfigurationProto handles numeric enum for Ollama (5)", async () => {
+			const ctrl = new SdkController()
+			const handler = ctrl.getGrpcHandler()
+
+			await handler.handleRequest({
+				method: "updateApiConfigurationProto",
+				params: {
+					apiConfiguration: {
+						actModeApiProvider: 5, // OLLAMA
+						planModeApiProvider: 5,
+						actModeOllamaModelId: "phi4-mini:latest",
+						ollamaBaseUrl: "http://localhost:11434",
+					},
+				},
+			})
+
+			const state = ctrl.getState()
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("ollama")
+			expect(state.apiConfiguration?.planModeApiProvider).toBe("ollama")
+		})
+
+		it("updateApiConfigurationProto handles already-lowercase provider strings", async () => {
+			const ctrl = new SdkController()
+			const handler = ctrl.getGrpcHandler()
+
+			// If the provider is already in app format (shouldn't happen normally, but be safe)
+			await handler.handleRequest({
+				method: "updateApiConfigurationProto",
+				params: {
+					apiConfiguration: {
+						actModeApiProvider: "cline",
+						planModeApiProvider: "cline",
+					},
+				},
+			})
+
+			const state = ctrl.getState()
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("cline")
+			expect(state.apiConfiguration?.planModeApiProvider).toBe("cline")
+		})
+
+		it("updateApiConfigurationProto handles switching from one provider to another", async () => {
+			const ctrl = new SdkController({
+				apiConfiguration: {
+					actModeApiProvider: "ollama",
+					planModeApiProvider: "ollama",
+					actModeOllamaModelId: "phi4-mini:latest",
+				},
+			})
+			const handler = ctrl.getGrpcHandler()
+
+			// Switch to Cline provider (webview sends numeric proto format)
+			await handler.handleRequest({
+				method: "updateApiConfigurationProto",
+				params: {
+					apiConfiguration: {
+						actModeApiProvider: 16, // CLINE
+						planModeApiProvider: 16,
+						actModeClineModelId: "claude-sonnet-4-5-20250929",
+					},
+				},
+			})
+
+			const state = ctrl.getState()
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("cline")
+			expect(state.apiConfiguration?.planModeApiProvider).toBe("cline")
+			// Old Ollama model ID should still be preserved (merge behavior)
+			expect(state.apiConfiguration?.actModeOllamaModelId).toBe("phi4-mini:latest")
+			// New Cline model ID should be set
+			expect(state.apiConfiguration?.actModeClineModelId).toBe("claude-sonnet-4-5-20250929")
+		})
 	})
 
 	describe("end-to-end flow", () => {
