@@ -7,6 +7,10 @@ import { ExtensionRegistryInfo } from "@/registry"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { WebviewMessage } from "@/shared/WebviewMessage"
+import { WebviewGrpcBridge } from "@/sdk/webview-grpc-bridge"
+import { SdkController } from "@/sdk/SdkController"
+import { LegacyStateReader } from "@/sdk/legacy-state-reader"
+import { activateSdkExtension } from "@/sdk/extension-sdk"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -20,6 +24,10 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 
 	private webview?: vscode.WebviewView
 	private disposables: vscode.Disposable[] = []
+
+	/** SDK bridge for webview ↔ SDK adapter communication */
+	private bridge?: WebviewGrpcBridge
+	private sdkController?: SdkController
 
 	override getWebviewUrl(path: string) {
 		if (!this.webview) {
@@ -113,9 +121,42 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 		// if the extension is starting a new session, clear previous task state
 		this.controller.clearTask()
 
+		// Initialize the SDK bridge for webview communication
+		this.initSdkBridge()
+
 		Logger.log("[VscodeWebviewProvider] Webview view resolved")
 
 		// Title setting logic removed to allow VSCode to use the container title primarily.
+	}
+
+	/**
+	 * Initialize the SDK adapter bridge.
+	 * This creates an SdkController backed by legacy state and wires it
+	 * to the webview via the WebviewGrpcBridge.
+	 */
+	private initSdkBridge(): void {
+		try {
+			const legacyState = new LegacyStateReader()
+			const globalState = legacyState.readGlobalState()
+			const taskHistory = legacyState.readTaskHistory()
+
+			this.sdkController = new SdkController({
+				version: ExtensionRegistryInfo.version,
+				apiConfiguration: globalState.apiConfiguration as any,
+				mode: (globalState.mode as "act" | "plan") ?? "act",
+				cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(),
+				taskHistory,
+				legacyState,
+			})
+
+			const postMessage = (msg: any) => this.webview?.webview.postMessage(msg)
+			this.bridge = new WebviewGrpcBridge(this.sdkController, postMessage)
+
+			Logger.log("[VscodeWebviewProvider] SDK bridge initialized")
+		} catch (error) {
+			Logger.error("[VscodeWebviewProvider] Failed to initialize SDK bridge:", error)
+			// Bridge remains undefined — falls back to classic handler
+		}
 	}
 
 	/**
@@ -159,6 +200,13 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	 * @param webview A reference to the extension webview
 	 */
 	async handleWebviewMessage(message: WebviewMessage) {
+		// Route through SDK bridge if available
+		if (this.bridge) {
+			await this.bridge.handleMessage(message)
+			return
+		}
+
+		// Fallback to classic handler (bridge failed to init)
 		const postMessageToWebview = (response: ExtensionMessage) => this.postMessageToWebview(response)
 
 		switch (message.type) {
