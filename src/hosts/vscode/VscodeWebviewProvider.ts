@@ -10,10 +10,7 @@ import { WebviewMessage } from "@/shared/WebviewMessage"
 import { WebviewGrpcBridge } from "@/sdk/webview-grpc-bridge"
 import { SdkController } from "@/sdk/SdkController"
 import { LegacyStateReader } from "@/sdk/legacy-state-reader"
-import { activateSdkExtension } from "@/sdk/extension-sdk"
 import { createClineSessionFactory } from "@/sdk/cline-session-factory"
-import { ProviderToApiKeyMap } from "@/shared/storage/provider-keys"
-import type { ApiProvider } from "@/shared/api"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -140,43 +137,15 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	private initSdkBridge(): void {
 		try {
 			const legacyState = new LegacyStateReader()
-			const globalState = legacyState.readGlobalState()
 			const taskHistory = legacyState.readTaskHistory()
 
-			// Build apiConfiguration from individual legacy state keys + secrets
-			const provider = legacyState.getProvider() as ApiProvider
-			const secretKeyMapping = ProviderToApiKeyMap[provider]
-			const apiConfiguration: Record<string, any> = {
-				apiProvider: provider,
-				apiModelId: legacyState.getModelId(),
-			}
-
-			// Load API key(s) from secrets
-			if (secretKeyMapping) {
-				const keys = Array.isArray(secretKeyMapping) ? secretKeyMapping : [secretKeyMapping]
-				for (const key of keys) {
-					const value = legacyState.getSecret(key as any)
-					if (value) {
-						apiConfiguration[key] = value
-					}
-				}
-			}
-
-			// Also load common config fields from global state
-			const gs = globalState as Record<string, any>
-			for (const key of [
-				"openRouterModelId",
-				"openAiModelId",
-				"ollamaModelId",
-				"lmStudioModelId",
-				"anthropicBaseUrl",
-				"openAiBaseUrl",
-				"ollamaBaseUrl",
-				"lmStudioBaseUrl",
-				"azureApiVersion",
-			]) {
-				if (gs[key]) apiConfiguration[key] = gs[key]
-			}
+			// Build apiConfiguration from ALL flat globalState keys + secrets.
+			// The classic extension stores provider settings as flat keys:
+			//   actModeApiProvider, actModeClineModelId, planModeApiProvider, etc.
+			// plus secrets like clineApiKey, openRouterApiKey, etc.
+			// buildApiConfiguration() reads them all and merges into one object,
+			// replicating what StateManager.constructApiConfigurationFromCache() does.
+			const apiConfiguration = legacyState.buildApiConfiguration()
 
 			// Create session factory backed by @clinebot/core
 			const sessionFactory = createClineSessionFactory()

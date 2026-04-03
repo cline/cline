@@ -73,6 +73,69 @@ function resolveApiKey(provider: string, config: ApiConfiguration): string | und
 }
 
 // ---------------------------------------------------------------------------
+// Provider + mode → model ID resolution
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolve the model ID from mode-specific, provider-specific keys in the
+ * ApiConfiguration. The classic extension stores model IDs as flat keys:
+ *   actModeClineModelId, planModeOpenRouterModelId, actModeOllamaModelId, etc.
+ *
+ * Falls back to the generic ${modePrefix}ApiModelId if no provider-specific key exists.
+ */
+function resolveModelId(
+	provider: string,
+	modePrefix: string,
+	apiConfig: Record<string, unknown> | undefined,
+): string | undefined {
+	if (!apiConfig) return undefined
+
+	// Map provider ID → the suffix used in the model ID key
+	const providerModelKeyMap: Record<string, string> = {
+		cline: "ClineModelId",
+		openrouter: "OpenRouterModelId",
+		openai: "OpenAiModelId",
+		"openai-native": "OpenAiModelId",
+		"openai-codex": "OpenAiModelId",
+		ollama: "OllamaModelId",
+		"lm-studio": "LmStudioModelId",
+		lmstudio: "LmStudioModelId",
+		litellm: "LiteLlmModelId",
+		requesty: "RequestyModelId",
+		together: "TogetherModelId",
+		fireworks: "FireworksModelId",
+		groq: "GroqModelId",
+		huggingface: "HuggingFaceModelId",
+		"sap-ai-core": "SapAiCoreModelId",
+		baseten: "BasetenModelId",
+		"huawei-cloud-maas": "HuaweiCloudMaasModelId",
+		oca: "OcaModelId",
+		aihubmix: "AihubmixModelId",
+		hicap: "HicapModelId",
+		"nous-research": "NousResearchModelId",
+		"vercel-ai-gateway": "VercelAiGatewayModelId",
+	}
+
+	const suffix = providerModelKeyMap[provider]
+	if (suffix) {
+		const key = `${modePrefix}${suffix}`
+		const value = apiConfig[key]
+		if (typeof value === "string" && value) {
+			return value
+		}
+	}
+
+	// Fallback: generic mode model ID (used by anthropic, deepseek, gemini, etc.)
+	const genericKey = `${modePrefix}ApiModelId`
+	const genericValue = apiConfig[genericKey]
+	if (typeof genericValue === "string" && genericValue) {
+		return genericValue
+	}
+
+	return undefined
+}
+
+// ---------------------------------------------------------------------------
 // ClineCoreSession — real session backed by ClineCore
 // ---------------------------------------------------------------------------
 
@@ -248,11 +311,23 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 	return async (config) => {
 		const host = await getHost()
 
-		const provider = config.apiConfiguration?.apiProvider ?? "anthropic"
-		const modelId = config.apiConfiguration?.apiModelId ?? "claude-sonnet-4-5-20250929"
-		const apiKey = config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined
-		const cwd = config.cwd ?? process.cwd()
+		const apiConfig = config.apiConfiguration as Record<string, unknown> | undefined
 		const mode = config.mode ?? "act"
+		const cwd = config.cwd ?? process.cwd()
+
+		// Resolve provider from mode-specific keys (actModeApiProvider / planModeApiProvider)
+		// The classic extension stores provider per-mode, not as a single "apiProvider" key.
+		const modePrefix = mode === "plan" ? "planMode" : "actMode"
+		const provider = (apiConfig?.[`${modePrefix}ApiProvider`] as string)
+			?? (apiConfig?.apiProvider as string)
+			?? "anthropic"
+
+		// Resolve model ID from mode+provider specific keys.
+		// The classic extension stores model IDs per provider, e.g.:
+		//   actModeClineModelId, actModeOpenRouterModelId, planModeOllamaModelId, etc.
+		const modelId = resolveModelId(provider, modePrefix, apiConfig) ?? "claude-sonnet-4-5-20250929"
+
+		const apiKey = config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined
 
 		Logger.log(
 			`[ClineSessionFactory] Creating session: provider=${provider}, model=${modelId}, cwd=${cwd}, mode=${mode}, hasKey=${!!apiKey}`,
@@ -270,7 +345,6 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		}
 
 		// Pass through additional provider-specific config
-		const apiConfig = config.apiConfiguration as Record<string, unknown> | undefined
 		if (apiConfig) {
 			// Base URL overrides
 			if (apiConfig.openRouterBaseUrl) coreConfig.baseUrl = apiConfig.openRouterBaseUrl
