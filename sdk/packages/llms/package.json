@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/llms",
-	"version": "0.0.26",
+	"version": "0.0.27",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"main": "./dist/index.js",
 	"module": "./dist/index.js",

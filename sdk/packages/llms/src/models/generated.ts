@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1775067131083,
+	version: 1775176975314,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -868,20 +868,6 @@ export const GENERATED_PROVIDER_MODELS: {
 			"claude-3-7-sonnet-20250219": {
 				id: "claude-3-7-sonnet-20250219",
 				name: "Claude Sonnet 3.7",
-				contextWindow: 200000,
-				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
-				pricing: {
-					input: 3,
-					output: 15,
-					cacheRead: 0.3,
-					cacheWrite: 3.75,
-				},
-				releaseDate: "2025-02-19",
-			},
-			"claude-3-7-sonnet-latest": {
-				id: "claude-3-7-sonnet-latest",
-				name: "Claude Sonnet 3.7 (latest)",
 				contextWindow: 200000,
 				maxTokens: 64000,
 				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
@@ -8731,6 +8717,26 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"qwen/qwen3.6-plus:free": {
+				id: "qwen/qwen3.6-plus:free",
+				name: "Qwen3.6 Plus (free)",
+				contextWindow: 1000000,
+				maxTokens: 65536,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-02",
+			},
 			"qwen/qwen3.6-plus-preview:free": {
 				id: "qwen/qwen3.6-plus-preview:free",
 				name: "Qwen3.6 Plus Preview (free)",
