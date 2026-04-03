@@ -40,8 +40,8 @@ function buildOpenRouterReasoningConfig(options: {
 		max_tokens?: number;
 	} = {};
 
-	if (typeof options.thinking === "boolean") {
-		reasoning.enabled = options.thinking;
+	if (options.thinking === true) {
+		reasoning.enabled = true;
 	}
 	if (options.effort) {
 		reasoning.effort = options.effort;

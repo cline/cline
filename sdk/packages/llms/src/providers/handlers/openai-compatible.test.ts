@@ -67,6 +67,24 @@ describe("OpenAICompatibleHandler", () => {
 		});
 	});
 
+	it("omits OpenRouter reasoning options when thinking is disabled", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "google/gemma-4-31b-it",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		await drain(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+		expect(request.providerOptions).toBeUndefined();
+	});
+
 	it("sends function tools with object inputSchema", async () => {
 		const handler = new OpenAICompatibleHandler({
 			providerId: "openrouter",
