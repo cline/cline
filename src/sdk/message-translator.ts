@@ -109,7 +109,7 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 	metadata?: Record<string, unknown>
 }
 
-export type AgentFinishReason = "completed" | "max_iterations" | "aborted" | "mistake_limit" | "error"
+export type AgentFinishReason = "completed" | "end_turn" | "max_iterations" | "aborted" | "mistake_limit" | "error"
 
 export interface AgentDoneEvent extends AgentEventMetadata {
 	type: "done"
@@ -680,6 +680,38 @@ export class MessageTranslator {
 		// Finalize any in-progress streaming
 		const modified = this.finalizeStreaming()
 		const added: number[] = []
+
+		// Close the api_req_started with api_req_finished
+		if (this.currentApiReqIndex !== -1) {
+			// Update the api_req_started with final usage info
+			const existing = this.messages[this.currentApiReqIndex]
+			let reqInfo: ClineApiReqInfo = {}
+			try {
+				reqInfo = JSON.parse(existing.text ?? "{}") as ClineApiReqInfo
+			} catch {
+				reqInfo = {}
+			}
+			if (event.usage) {
+				reqInfo.tokensIn = event.usage.inputTokens
+				reqInfo.tokensOut = event.usage.outputTokens
+				reqInfo.cost = event.usage.totalCost
+			}
+			this.messages[this.currentApiReqIndex] = {
+				...existing,
+				text: JSON.stringify(reqInfo),
+			}
+			modified.push(this.currentApiReqIndex)
+
+			// Add api_req_finished message
+			const finishedIdx = this.messages.length
+			this.messages.push({
+				ts: Date.now(),
+				type: "say",
+				say: "api_req_finished",
+			} as ClineMessage)
+			added.push(finishedIdx)
+			this.currentApiReqIndex = -1
+		}
 
 		if (event.reason === "completed" || event.reason === "aborted") {
 			// Add completion_result message

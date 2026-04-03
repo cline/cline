@@ -730,11 +730,11 @@ describe("MessageTranslator", () => {
 			} as AgentDoneEvent)
 
 			const messages = translator.getMessages()
-			// api_req_started + text (finalized) + completion_result
+			// api_req_started + text (finalized) + api_req_finished + completion_result
 			const lastMsg = messages[messages.length - 1]
 			expect(lastMsg.say).toBe("completion_result")
 			expect(lastMsg.text).toBe("Task completed successfully.")
-			expect(update.added.length).toBe(1)
+			expect(update.added.length).toBe(2) // api_req_finished + completion_result
 
 			// Text should be finalized
 			expect(messages[1].partial).toBe(false)
@@ -956,8 +956,9 @@ describe("MessageTranslator", () => {
 			// 2: tool readFile
 			// 3: api_req_started (iteration 2)
 			// 4: text "The file contains..." (finalized)
-			// 5: completion_result
-			expect(messages.length).toBe(6)
+			// 5: api_req_finished (from done closing iter 2)
+			// 6: completion_result
+			expect(messages.length).toBe(7)
 
 			expect(messages[0].say).toBe("api_req_started")
 			expect(messages[1].say).toBe("text")
@@ -966,9 +967,10 @@ describe("MessageTranslator", () => {
 			expect(messages[3].say).toBe("api_req_started")
 			expect(messages[4].say).toBe("text")
 			expect(messages[4].partial).toBe(false)
-			expect(messages[5].say).toBe("completion_result")
+			expect(messages[5].say).toBe("api_req_finished")
+			expect(messages[6].say).toBe("completion_result")
 
-			// Check token accumulation on second api_req_started
+			// Check token accumulation on second api_req_started (updated by done event)
 			const reqInfo2 = JSON.parse(messages[3].text!) as ClineApiReqInfo
 			expect(reqInfo2.tokensIn).toBe(130)
 			expect(reqInfo2.tokensOut).toBe(50)
