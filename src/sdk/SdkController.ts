@@ -246,11 +246,27 @@ export class SdkController implements GrpcHandlerDelegate {
 
 	async updateApiConfiguration(config: Partial<ApiConfiguration>): Promise<void> {
 		this.apiConfiguration = { ...this.apiConfiguration, ...config } as ApiConfiguration
+		// Persist to disk so settings survive extension restart
+		if (this.legacyState) {
+			try {
+				this.legacyState.saveApiConfiguration(config)
+			} catch {
+				// Best-effort persistence
+			}
+		}
 		this.pushStateUpdate()
 	}
 
 	async togglePlanActMode(mode: Mode): Promise<void> {
 		this.mode = mode
+		// Persist mode to disk
+		if (this.legacyState) {
+			try {
+				this.legacyState.saveMode(mode)
+			} catch {
+				// Best-effort persistence
+			}
+		}
 		this.pushStateUpdate()
 	}
 

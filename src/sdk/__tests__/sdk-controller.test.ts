@@ -499,4 +499,44 @@ describe("SdkController", () => {
 			expect(finalState.currentTaskItem).toBeUndefined()
 		})
 	})
+
+	describe("settings persistence", () => {
+		it("updateApiConfiguration calls legacyState.saveApiConfiguration", async () => {
+			const mockLegacyState = {
+				saveApiConfiguration: vi.fn(),
+				saveMode: vi.fn(),
+				readGlobalState: vi.fn(() => ({})),
+				readSecrets: vi.fn(() => ({})),
+				buildApiConfiguration: vi.fn(() => ({})),
+				readTaskHistory: vi.fn(() => []),
+				readAutoApprovalSettings: vi.fn(() => ({})),
+			}
+			const ctrl = new SdkController({ legacyState: mockLegacyState as any })
+			await ctrl.updateApiConfiguration({ actModeApiProvider: "ollama" } as any)
+
+			expect(mockLegacyState.saveApiConfiguration).toHaveBeenCalledWith({ actModeApiProvider: "ollama" })
+		})
+
+		it("togglePlanActMode calls legacyState.saveMode", async () => {
+			const mockLegacyState = {
+				saveApiConfiguration: vi.fn(),
+				saveMode: vi.fn(),
+				readGlobalState: vi.fn(() => ({})),
+				readSecrets: vi.fn(() => ({})),
+				buildApiConfiguration: vi.fn(() => ({})),
+				readTaskHistory: vi.fn(() => []),
+				readAutoApprovalSettings: vi.fn(() => ({})),
+			}
+			const ctrl = new SdkController({ legacyState: mockLegacyState as any })
+			await ctrl.togglePlanActMode("plan")
+
+			expect(mockLegacyState.saveMode).toHaveBeenCalledWith("plan")
+		})
+
+		it("does not throw when legacyState is not provided", async () => {
+			const ctrl = new SdkController()
+			await expect(ctrl.updateApiConfiguration({ actModeApiProvider: "ollama" } as any)).resolves.not.toThrow()
+			await expect(ctrl.togglePlanActMode("plan")).resolves.not.toThrow()
+		})
+	})
 })

@@ -335,6 +335,66 @@ export class LegacyStateReader {
 	}
 
 	// -----------------------------------------------------------------------
+	// Write support — persist config changes back to disk
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Merge API configuration updates into globalState.json.
+	 * Only writes keys that are ApiHandlerSettings (not secrets).
+	 * Secrets are written to secrets.json separately.
+	 */
+	saveApiConfiguration(config: Partial<ApiConfiguration>): void {
+		const gsPath = path.join(this.dataDir, "globalState.json")
+		const secretsPath = path.join(this.dataDir, "secrets.json")
+
+		// Read current state
+		const gs = this.readGlobalState() as Record<string, unknown>
+		const secrets = this.readSecrets() as Record<string, unknown>
+
+		// Separate config into globalState keys and secret keys
+		const secretKeySet = new Set(SecretKeys as readonly string[])
+		const settingsKeySet = new Set(ApiHandlerSettingsKeys as readonly string[])
+		let gsChanged = false
+		let secretsChanged = false
+
+		for (const [key, value] of Object.entries(config)) {
+			if (secretKeySet.has(key)) {
+				if (value !== undefined && value !== null) {
+					secrets[key] = value
+				} else {
+					delete secrets[key]
+				}
+				secretsChanged = true
+			} else if (settingsKeySet.has(key)) {
+				if (value !== undefined && value !== null) {
+					gs[key] = value
+				} else {
+					delete gs[key]
+				}
+				gsChanged = true
+			}
+		}
+
+		// Write back atomically
+		if (gsChanged) {
+			this.writeJsonFile(gsPath, gs)
+		}
+		if (secretsChanged) {
+			this.writeJsonFile(secretsPath, secrets, 0o600)
+		}
+	}
+
+	/**
+	 * Save the current mode to globalState.json.
+	 */
+	saveMode(mode: Mode): void {
+		const gsPath = path.join(this.dataDir, "globalState.json")
+		const gs = this.readGlobalState() as Record<string, unknown>
+		gs.mode = mode
+		this.writeJsonFile(gsPath, gs)
+	}
+
+	// -----------------------------------------------------------------------
 	// MCP settings
 	// -----------------------------------------------------------------------
 
@@ -362,6 +422,26 @@ export class LegacyStateReader {
 		} catch {
 			// Missing, unreadable, or corrupt — all handled the same way
 			return null
+		}
+	}
+
+	/**
+	 * Atomically write a JSON file (write to temp, then rename).
+	 * Creates parent directories if they don't exist.
+	 */
+	private writeJsonFile(filePath: string, data: unknown, mode?: number): void {
+		try {
+			const dir = path.dirname(filePath)
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true })
+			}
+			const tmpPath = `${filePath}.tmp.${process.pid}`
+			const json = JSON.stringify(data, null, "\t")
+			fs.writeFileSync(tmpPath, json, { encoding: "utf-8", mode })
+			fs.renameSync(tmpPath, filePath)
+		} catch (err) {
+			// Best-effort — don't crash on write failure
+			console.error(`[LegacyStateReader] Failed to write ${filePath}:`, err)
 		}
 	}
 }
