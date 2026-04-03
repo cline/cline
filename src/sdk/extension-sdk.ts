@@ -23,7 +23,6 @@
 import { LegacyStateReader } from "./legacy-state-reader"
 import { runProviderMigration } from "./provider-migration"
 import { SdkController, type SdkControllerOptions } from "./SdkController"
-import { buildExtensionState } from "./state-builder"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -84,12 +83,12 @@ export async function activateSdkExtension(
 	let migrationResult: { migrated: boolean; provider?: string } | undefined
 	if (!options.skipMigration) {
 		try {
-			const result = await runProviderMigration({
-				legacyState,
+			const result = runProviderMigration({
+				dataDir: legacyState.dataDir,
 			})
 			migrationResult = {
-				migrated: result.migrated,
-				provider: result.sdkProvider,
+				migrated: result.ran,
+				provider: result.lastUsedProvider,
 			}
 		} catch {
 			// Migration failure is non-fatal — user can still configure manually
@@ -99,11 +98,13 @@ export async function activateSdkExtension(
 	// 3. Read task history from legacy state
 	const taskHistory = legacyState.readTaskHistory()
 
-	// 4. Read API configuration from legacy state
+	// 4. Build API configuration from flat globalState keys + secrets
+	//    (globalState.json stores provider settings as flat keys like
+	//    actModeApiProvider, actModeClineModelId, etc. — NOT as a nested
+	//    apiConfiguration object. We must reconstruct it the same way
+	//    StateManager.constructApiConfigurationFromCache() does.)
+	const apiConfiguration = legacyState.buildApiConfiguration()
 	const globalState = legacyState.readGlobalState()
-	const apiConfiguration = globalState.apiConfiguration as
-		| SdkControllerOptions["apiConfiguration"]
-		| undefined
 
 	// 5. Create SdkController
 	const controller = new SdkController({

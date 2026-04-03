@@ -25,6 +25,8 @@ import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { Mode } from "@shared/storage/types"
 import type { SecretKey } from "@shared/storage/state-keys"
+import { ApiHandlerSettingsKeys, SecretKeys } from "@shared/storage/state-keys"
+import type { ApiConfiguration } from "@shared/api"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -280,6 +282,56 @@ export class LegacyStateReader {
 	getCustomInstructions(): string | undefined {
 		const gs = this.readGlobalState()
 		return gs.customInstructions ?? undefined
+	}
+
+	// -----------------------------------------------------------------------
+	// ApiConfiguration builder
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Build a complete ApiConfiguration from flat globalState keys + secrets.
+	 *
+	 * This replicates what StateManager.constructApiConfigurationFromCache() does
+	 * in the classic extension: it reads all ApiHandlerSettings keys from
+	 * globalState.json and all secret keys from secrets.json, then merges them
+	 * into a single ApiConfiguration object.
+	 *
+	 * The webview expects this flat structure with keys like:
+	 *   actModeApiProvider, actModeClineModelId, planModeApiProvider,
+	 *   clineApiKey, openRouterApiKey, etc.
+	 */
+	buildApiConfiguration(): ApiConfiguration {
+		const gs = this.readGlobalState()
+		const secretsData = this.readSecrets()
+
+		const config: Record<string, unknown> = {}
+
+		// 1. Copy all ApiHandlerSettings keys from globalState
+		for (const key of ApiHandlerSettingsKeys) {
+			const value = (gs as Record<string, unknown>)[key]
+			if (value !== undefined) {
+				config[key] = value
+			}
+		}
+
+		// 2. Copy all secret keys from secrets.json
+		for (const key of SecretKeys) {
+			const value = secretsData[key as SecretKey]
+			if (value !== undefined) {
+				config[key] = value
+			}
+		}
+
+		// 3. Apply computed defaults: ensure mode providers default to "openrouter"
+		//    (matches handleComputedProperties in state-helpers.ts)
+		if (!config.planModeApiProvider) {
+			config.planModeApiProvider = "openrouter"
+		}
+		if (!config.actModeApiProvider) {
+			config.actModeApiProvider = "openrouter"
+		}
+
+		return config as ApiConfiguration
 	}
 
 	// -----------------------------------------------------------------------
