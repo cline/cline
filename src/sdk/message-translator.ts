@@ -713,17 +713,51 @@ export class MessageTranslator {
 			this.currentApiReqIndex = -1
 		}
 
-		if (event.reason === "completed" || event.reason === "aborted") {
-			// Add completion_result message
-			const msg: ClineMessage = {
+		if (event.reason === "completed" || event.reason === "end_turn") {
+			// Add completion_result "say" message (the result text)
+			const sayMsg: ClineMessage = {
 				ts: Date.now(),
 				type: "say",
 				say: "completion_result",
-				text: event.text || (event.reason === "aborted" ? "Task was aborted." : "Task completed."),
+				text: event.text || "Task completed.",
 			}
-			const idx = this.messages.length
-			this.messages.push(msg)
-			added.push(idx)
+			const sayIdx = this.messages.length
+			this.messages.push(sayMsg)
+			added.push(sayIdx)
+
+			// Add completion_result "ask" message — this is what triggers
+			// the webview to show the "Start New Task" button and enable
+			// the text input for follow-up messages.
+			const askMsg: ClineMessage = {
+				ts: Date.now(),
+				type: "ask",
+				ask: "completion_result",
+				text: "",
+			}
+			const askIdx = this.messages.length
+			this.messages.push(askMsg)
+			added.push(askIdx)
+		} else if (event.reason === "aborted") {
+			// Aborted tasks get a resume_task ask so the user can resume
+			const sayMsg: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "text",
+				text: event.text || "Task was aborted.",
+			}
+			const sayIdx = this.messages.length
+			this.messages.push(sayMsg)
+			added.push(sayIdx)
+
+			const askMsg: ClineMessage = {
+				ts: Date.now(),
+				type: "ask",
+				ask: "resume_task",
+				text: "",
+			}
+			const askIdx = this.messages.length
+			this.messages.push(askMsg)
+			added.push(askIdx)
 		} else if (event.reason === "error") {
 			const msg: ClineMessage = {
 				ts: Date.now(),
