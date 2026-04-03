@@ -357,19 +357,19 @@
       "name": "@clinebot/llms",
       "version": "0.0.27",
       "dependencies": {
-        "@ai-sdk/amazon-bedrock": "^4.0.67",
-        "@ai-sdk/google-vertex": "^4.0.74",
-        "@ai-sdk/mistral": "^3.0.24",
-        "@ai-sdk/openai-compatible": "^2.0.37",
+        "@ai-sdk/amazon-bedrock": "^4.0.89",
+        "@ai-sdk/google-vertex": "^4.0.100",
+        "@ai-sdk/mistral": "^3.0.28",
+        "@ai-sdk/openai-compatible": "^2.0.38",
         "@anthropic-ai/sdk": "^0.78.0",
         "@aws-sdk/credential-providers": "^3.922.0",
         "@clinebot/shared": "workspace:*",
         "@google/genai": "^1.43.0",
         "@streamparser/json": "^0.0.21",
-        "ai": "^6.0.112",
+        "ai": "^6.0.144",
         "ai-sdk-provider-claude-code": "^3.4.3",
         "ai-sdk-provider-codex-cli": "^1.1.0",
-        "ai-sdk-provider-opencode-sdk": "^2.1.2",
+        "ai-sdk-provider-opencode-sdk": "^3.0.1",
         "dify-ai-provider": "^1.1.0",
         "nanoid": "^5.1.7",
         "openai": "^6.25.0",
@@ -1535,7 +1535,7 @@
 
     "ai-sdk-provider-codex-cli": ["ai-sdk-provider-codex-cli@1.1.0", "", { "dependencies": { "@ai-sdk/provider": "^3.0.0", "@ai-sdk/provider-utils": "^4.0.1", "jsonc-parser": "^3.3.1" }, "optionalDependencies": { "@openai/codex": "^0.105.0" }, "peerDependencies": { "zod": "^3.0.0 || ^4.0.0" } }, "sha512-l1ap+RAwCpdwEaLmB2cpQ4br+h2ut2IR0IvI88QvUMAAk5c3h2dSnx+vYZhwsOt1th3CS7FUQmvCTcnxqYshWg=="],
 
-    "ai-sdk-provider-opencode-sdk": ["ai-sdk-provider-opencode-sdk@2.1.2", "", { "dependencies": { "@ai-sdk/provider": "^3.0.8", "@ai-sdk/provider-utils": "^4.0.15", "@opencode-ai/sdk": "^1.2.15" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-cfi7IPHIwEKGIuYBF56oozjFRmSRO9L8Vahri4yjv5qsMipgk6XPpbFwSrtIJvx4QMw1/gj8Yrauqce8RVZd7A=="],
+    "ai-sdk-provider-opencode-sdk": ["ai-sdk-provider-opencode-sdk@3.0.1", "", { "dependencies": { "@ai-sdk/provider": "^3.0.8", "@ai-sdk/provider-utils": "^4.0.15", "@opencode-ai/sdk": "^1.2.15" }, "peerDependencies": { "zod": "^3.25.76 || ^4.1.8" } }, "sha512-SH8AGNaAQHt3UIlhbMqmomF9M33Hx3F2uc4eFsKcVis+GKqE96hIjMmYep9Om/Dfh8Hnm+1q1ukYpo1X2giL9g=="],
 
     "ajv": ["ajv@6.14.0", "", { "dependencies": { "fast-deep-equal": "^3.1.1", "fast-json-stable-stringify": "^2.0.0", "json-schema-traverse": "^0.4.1", "uri-js": "^4.2.2" } }, "sha512-IWrosm/yrn43eiKqkfkHis7QioDleaXQHdDVPKg0FSwwd/DuvyX79TZnFOnYpB7dcsFAMmtFztZuXPDvSePkFw=="],
 

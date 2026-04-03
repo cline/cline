@@ -1,33 +1,36 @@
-import { formatFileContentBlock } from "@clinebot/shared";
+import {
+	type AiSdkFormatterMessage,
+	type AiSdkFormatterPart,
+	type AiSdkMessage,
+	type AiSdkMessagePart,
+	formatFileContentBlock,
+	formatMessagesForAiSdk,
+} from "@clinebot/shared";
 import type { Message } from "../types/messages";
 import {
 	normalizeToolUseInput,
 	serializeToolResultContent,
 } from "./content-format";
 
-export type AiSdkMessagePart = Record<string, unknown>;
-export type AiSdkMessage = {
-	role: "system" | "user" | "assistant" | "tool";
-	content: string | AiSdkMessagePart[];
-};
+export type { AiSdkMessage, AiSdkMessagePart } from "@clinebot/shared";
 
 export function toAiSdkMessages(
 	systemContent: string | AiSdkMessagePart[],
 	messages: Message[],
 	options?: { assistantToolCallArgKey?: "args" | "input" },
 ): AiSdkMessage[] {
-	const toolCallArgKey = options?.assistantToolCallArgKey ?? "args";
-	const result: AiSdkMessage[] = [{ role: "system", content: systemContent }];
+	const normalizedOptions = options ?? { assistantToolCallArgKey: "input" };
 	const toolNamesById = new Map<string, string>();
+	const normalizedMessages: AiSdkFormatterMessage[] = [];
 
 	for (const message of messages) {
 		if (typeof message.content === "string") {
-			result.push({ role: message.role, content: message.content });
+			normalizedMessages.push({ role: message.role, content: message.content });
 			continue;
 		}
 
 		if (message.role === "assistant") {
-			const parts: AiSdkMessagePart[] = [];
+			const parts: AiSdkFormatterPart[] = [];
 			for (const block of message.content) {
 				if (block.type === "text") {
 					parts.push({ type: "text", text: block.text });
@@ -48,18 +51,18 @@ export function toAiSdkMessages(
 						type: "tool-call",
 						toolCallId: block.id,
 						toolName: block.name,
-						[toolCallArgKey]: normalizeToolUseInput(block.input),
+						input: normalizeToolUseInput(block.input),
 					});
 				}
 			}
 
 			if (parts.length > 0) {
-				result.push({ role: "assistant", content: parts });
+				normalizedMessages.push({ role: "assistant", content: parts });
 			}
 			continue;
 		}
 
-		const userParts: AiSdkMessagePart[] = [];
+		const userParts: AiSdkFormatterPart[] = [];
 		for (const block of message.content) {
 			if (block.type === "text") {
 				userParts.push({ type: "text", text: block.text });
@@ -77,7 +80,7 @@ export function toAiSdkMessages(
 			if (block.type === "image") {
 				userParts.push({
 					type: "image",
-					image: Buffer.from(block.data, "base64"),
+					image: block.data,
 					mediaType: block.mediaType,
 				});
 				continue;
@@ -85,13 +88,13 @@ export function toAiSdkMessages(
 
 			if (block.type === "tool_result") {
 				if (userParts.length > 0) {
-					result.push({
+					normalizedMessages.push({
 						role: "user",
 						content: userParts.splice(0, userParts.length),
 					});
 				}
 
-				result.push({
+				normalizedMessages.push({
 					role: "tool",
 					content: [
 						{
@@ -107,9 +110,13 @@ export function toAiSdkMessages(
 		}
 
 		if (userParts.length > 0) {
-			result.push({ role: "user", content: userParts });
+			normalizedMessages.push({ role: "user", content: userParts });
 		}
 	}
 
-	return result;
+	return formatMessagesForAiSdk(
+		systemContent,
+		normalizedMessages,
+		normalizedOptions,
+	);
 }

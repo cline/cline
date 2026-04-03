@@ -142,7 +142,7 @@ export class OpenAICompatibleHandler extends BaseHandler {
 
 	getMessages(systemPrompt: string, messages: Message[]) {
 		return toAiSdkMessages(systemPrompt, messages, {
-			assistantToolCallArgKey: "args",
+			assistantToolCallArgKey: "input",
 		});
 	}
 

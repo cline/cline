@@ -85,7 +85,7 @@ export abstract class AiSdkProviderHandler extends BaseHandler {
 	}
 
 	protected getAssistantToolCallArgKey(): "args" | "input" {
-		return "args";
+		return "input";
 	}
 
 	protected normalizeModelId(modelId: string): string {

@@ -55,7 +55,7 @@ describe("ai sdk community format conversion", () => {
 			? converted[2].content
 			: [];
 		expect(assistantParts[0]).toMatchObject({
-			args: { commands: ["ls -la", "pwd"] },
+			input: { commands: ["ls -la", "pwd"] },
 		});
 		expect(converted[3]).toMatchObject({
 			role: "tool",
@@ -63,9 +63,12 @@ describe("ai sdk community format conversion", () => {
 				{
 					type: "tool-result",
 					toolCallId: "call_1",
-					output:
-						'<file_content path="/repo/readme.md">\nhello file body\n</file_content>',
-					isError: false,
+					toolName: "run_commands",
+					output: {
+						type: "text",
+						value:
+							'<file_content path="/repo/readme.md">\nhello file body\n</file_content>',
+					},
 				},
 			],
 		});

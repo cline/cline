@@ -22,6 +22,17 @@ export {
 	ConnectorHookEventSchema,
 } from "./connectors/events";
 export type * from "./connectors/options";
+export type {
+	AiSdkFormatterMessage,
+	AiSdkFormatterMessageRole,
+	AiSdkFormatterPart,
+	AiSdkMessage,
+	AiSdkMessagePart,
+} from "./llms/ai-sdk-format";
+export {
+	formatMessagesForAiSdk,
+	toAiSdkToolResultOutput,
+} from "./llms/ai-sdk-format";
 export {
 	MODELS_DEV_PROVIDER_KEY_ENTRIES,
 	MODELS_DEV_PROVIDER_KEY_MAP,

@@ -140,4 +140,50 @@ describe("OpenAICompatibleHandler", () => {
 			$schema: "https://json-schema.org/draft/2020-12/schema",
 		});
 	});
+
+	it("replays assistant tool history using AI SDK input parts", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		await drain(
+			handler.createMessage("system", [
+				{ role: "user", content: "inspect repo" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "call_1",
+							name: "read_files",
+							input: { files: ["/tmp/a.md"] },
+						},
+					],
+				},
+			]),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledTimes(1);
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			messages?: Array<{
+				role?: string;
+				content?: Array<Record<string, unknown>> | string;
+			}>;
+		};
+		const assistantMessage = request.messages?.[2];
+		expect(assistantMessage?.role).toBe("assistant");
+		const assistantParts = Array.isArray(assistantMessage?.content)
+			? assistantMessage.content
+			: [];
+		expect(assistantParts[0]).toMatchObject({
+			type: "tool-call",
+			toolCallId: "call_1",
+			toolName: "read_files",
+			input: { files: ["/tmp/a.md"] },
+		});
+		expect(assistantParts[0]?.args).toBeUndefined();
+	});
 });
