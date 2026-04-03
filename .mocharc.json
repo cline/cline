@@ -6,6 +6,9 @@
 		"src/**/__tests__/*.ts",
 		"src/test/services/**/*.test.ts"
 	],
+	"ignore": [
+		"src/sdk/**"
+	],
 	"require": [
 		"ts-node/register",
 		"source-map-support/register",

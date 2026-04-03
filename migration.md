@@ -20,6 +20,7 @@ existing code and the SDK code:
 cline - Cline core, classic VSCode extension, CLI
 sdk - Cline SDK
 plugin - JetBrains plugin
+vscode - Visual Studio Code opens source
 ij - IntelliJ open source
 jcef - JCEF IntelliJ's embedded Chromium layer
 

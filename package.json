@@ -421,6 +421,8 @@
 		"test": "npx npm-run-all test:unit test:integration",
 		"test:integration": "vscode-test",
 		"test:unit": "cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha",
+		"test:sdk": "vitest run --config vitest.config.sdk.ts",
+		"test:sdk:watch": "vitest --config vitest.config.sdk.ts",
 		"test:coverage": "vscode-test --coverage",
 		"test:sca-server": "npx tsx watch scripts/test-standalone-core-api-server.ts",
 		"test:tp-orchestrator": "npx tsx scripts/testing-platform-orchestrator.ts",
@@ -503,7 +505,8 @@
 		"ts-node": "^10.9.2",
 		"ts-proto": "^2.6.1",
 		"tsconfig-paths": "^4.2.0",
-		"typescript": "^5.4.5"
+		"typescript": "^5.4.5",
+		"vitest": "^4.1.2"
 	},
 	"dependencies": {
 		"@anthropic-ai/sdk": "^0.37.0",
@@ -513,6 +516,10 @@
 		"@azure/identity": "^4.13.0",
 		"@bufbuild/protobuf": "^2.2.5",
 		"@cerebras/cerebras_cloud_sdk": "^1.35.0",
+		"@clinebot/agents": "^0.0.28",
+		"@clinebot/core": "^0.0.28",
+		"@clinebot/llms": "^0.0.28",
+		"@clinebot/shared": "^0.0.28",
 		"@google-cloud/vertexai": "^1.9.3",
 		"@google/genai": "^1.30.0",
 		"@grpc/grpc-js": "^1.9.15",
