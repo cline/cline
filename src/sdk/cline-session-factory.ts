@@ -4,79 +4,168 @@
  * Creates SdkSession instances backed by @clinebot/core's ClineCore.
  * Maps ClineCore events to the AgentEvent format used by MessageTranslator.
  *
- * ClineCore API (from createSessionHost):
- *   host.start(config) → starts a session
- *   host.send(sessionId, message) → sends a prompt
- *   host.subscribe(sessionId, callback) → event subscription
- *   host.abort(sessionId) → cancels
- *   host.stop(sessionId) → stops session
- *
- * TODO: Wire to ClineCore once the API is fully understood.
- * For now, returns a stub session that shows an informative error.
+ * ClineCore API:
+ *   ClineCore.create(options) → session host (singleton)
+ *   host.start({ config, prompt, interactive }) → starts a session
+ *   host.subscribe(listener) → event subscription (all sessions)
+ *   host.send({ sessionId, prompt }) → send follow-up
+ *   host.abort(sessionId) → cancel
+ *   host.stop(sessionId) → stop session
  */
 
-import type { SdkSession, SessionFactory } from "./SdkController"
-import type { AgentEvent } from "./message-translator"
+import type { ApiConfiguration } from "@shared/api"
 import { Logger } from "@shared/services/Logger"
+import type { AgentEvent } from "./message-translator"
+import type { SdkSession, SessionFactory } from "./SdkController"
 
 // ---------------------------------------------------------------------------
-// Stub session — shows informative error until ClineCore is wired
+// Provider → API key resolution
 // ---------------------------------------------------------------------------
 
-class StubSession implements SdkSession {
+/**
+ * Map a provider ID to the API key stored in ApiConfiguration.
+ * ApiConfiguration is Partial<ApiHandlerSettings> which includes all
+ * secret key fields directly (apiKey, openRouterApiKey, etc.)
+ */
+function resolveApiKey(provider: string, config: ApiConfiguration): string | undefined {
+	// The ApiConfiguration has all keys from Secrets as optional fields
+	const apiConfig = config as Record<string, unknown>
+
+	const providerKeyMap: Record<string, string> = {
+		anthropic: "apiKey",
+		cline: "clineApiKey",
+		openrouter: "openRouterApiKey",
+		bedrock: "awsAccessKey", // Bedrock uses AWS credentials, not a simple key
+		openai: "openAiApiKey",
+		"openai-native": "openAiNativeApiKey",
+		"openai-codex": "openAiNativeApiKey",
+		gemini: "geminiApiKey",
+		ollama: "ollamaApiKey",
+		deepseek: "deepSeekApiKey",
+		requesty: "requestyApiKey",
+		together: "togetherApiKey",
+		fireworks: "fireworksApiKey",
+		qwen: "qwenApiKey",
+		doubao: "doubaoApiKey",
+		mistral: "mistralApiKey",
+		litellm: "liteLlmApiKey",
+		asksage: "asksageApiKey",
+		xai: "xaiApiKey",
+		moonshot: "moonshotApiKey",
+		zai: "zaiApiKey",
+		huggingface: "huggingFaceApiKey",
+		nebius: "nebiusApiKey",
+		sambanova: "sambanovaApiKey",
+		cerebras: "cerebrasApiKey",
+	}
+
+	const keyField = providerKeyMap[provider]
+	if (keyField && typeof apiConfig[keyField] === "string") {
+		return apiConfig[keyField] as string
+	}
+
+	// Fallback: try generic "apiKey"
+	if (typeof apiConfig.apiKey === "string") {
+		return apiConfig.apiKey as string
+	}
+
+	return undefined
+}
+
+// ---------------------------------------------------------------------------
+// ClineCoreSession — real session backed by ClineCore
+// ---------------------------------------------------------------------------
+
+class ClineCoreSession implements SdkSession {
 	private eventHandler?: (event: AgentEvent) => void
 	private running = false
+	private sessionId?: string
+	private unsubscribe?: () => void
+
+	constructor(
+		private readonly host: {
+			start: (input: {
+				config: Record<string, unknown>
+				prompt?: string
+				interactive?: boolean
+			}) => Promise<{ sessionId: string; result?: { text?: string } }>
+			send: (input: { sessionId: string; prompt: string }) => Promise<unknown>
+			abort: (sessionId: string) => Promise<void>
+			stop: (sessionId: string) => Promise<void>
+			subscribe: (listener: (event: unknown) => void) => () => void
+			dispose: (reason?: string) => Promise<void>
+		},
+		private readonly coreConfig: Record<string, unknown>,
+	) {}
 
 	async sendPrompt(text: string, _images?: string[]): Promise<void> {
 		this.running = true
 
-		const stubMessage = `[SDK Migration] Session factory not yet wired to @clinebot/core.\n\nTask received: "${text.slice(0, 200)}"`
-
-		// Emit events in the correct AgentEvent format that MessageTranslator expects:
-		// iteration_start → content_start(text) → content_end(text) → usage → iteration_end → done
-		this.emitEvent({ type: "iteration_start", iteration: 1 })
-
-		this.emitEvent({
-			type: "content_start",
-			contentType: "text" as const,
-			text: stubMessage,
-			accumulated: stubMessage,
+		// Subscribe to events before starting
+		this.unsubscribe = this.host.subscribe((event: unknown) => {
+			this.handleCoreEvent(event)
 		})
 
-		this.emitEvent({
-			type: "content_end",
-			contentType: "text" as const,
-			text: stubMessage,
-		})
-
-		this.emitEvent({
-			type: "usage",
-			inputTokens: 0,
-			outputTokens: 0,
-			totalInputTokens: 0,
-			totalOutputTokens: 0,
-			totalCost: 0,
-		})
-
-		this.emitEvent({ type: "iteration_end" })
-
-		this.emitEvent({
-			type: "done",
-			reason: "completed",
-			text: stubMessage,
-			iterations: 1,
-			usage: { inputTokens: 0, outputTokens: 0, totalCost: 0 },
-		})
-
-		this.running = false
+		try {
+			if (this.sessionId) {
+				// Follow-up prompt on existing session
+				await this.host.send({
+					sessionId: this.sessionId,
+					prompt: text,
+				})
+			} else {
+				// Initial prompt — start a new session
+				const result = await this.host.start({
+					config: this.coreConfig,
+					prompt: text,
+					interactive: true,
+				})
+				this.sessionId = result.sessionId
+				Logger.log(`[ClineCoreSession] Session started: ${this.sessionId}`)
+			}
+		} catch (error) {
+			Logger.log(`[ClineCoreSession] Error: ${error instanceof Error ? error.message : String(error)}`)
+			// Emit error event so the UI can show it
+			if (this.eventHandler) {
+				this.eventHandler({
+					type: "error",
+					error: error instanceof Error ? error : new Error(String(error)),
+					recoverable: false,
+					iteration: 0,
+				})
+			}
+		} finally {
+			this.running = false
+		}
 	}
 
-	async sendResponse(_text: string): Promise<void> {
-		// No-op for stub
+	async sendResponse(text: string): Promise<void> {
+		if (!this.sessionId) {
+			Logger.log("[ClineCoreSession] sendResponse called with no active session")
+			return
+		}
+		this.running = true
+		try {
+			await this.host.send({
+				sessionId: this.sessionId,
+				prompt: text,
+			})
+		} catch (error) {
+			Logger.log(`[ClineCoreSession] sendResponse error: ${error instanceof Error ? error.message : String(error)}`)
+		} finally {
+			this.running = false
+		}
 	}
 
 	async abort(): Promise<void> {
-		this.running = false
+		if (this.sessionId) {
+			try {
+				await this.host.abort(this.sessionId)
+			} catch (error) {
+				Logger.log(`[ClineCoreSession] abort error: ${error instanceof Error ? error.message : String(error)}`)
+			}
+		}
+		this.cleanup()
 	}
 
 	onEvent(handler: (event: AgentEvent) => void): void {
@@ -87,9 +176,41 @@ class StubSession implements SdkSession {
 		return this.running
 	}
 
-	private emitEvent(event: AgentEvent): void {
-		if (this.eventHandler) {
-			this.eventHandler(event)
+	private handleCoreEvent(event: unknown): void {
+		if (!this.eventHandler) return
+
+		// ClineCore emits CoreSessionEvent: { type: "agent_event", payload: { sessionId, event } }
+		const typed = event as {
+			type: string
+			payload?: { sessionId?: string; event?: AgentEvent; stream?: string; chunk?: string }
+		}
+
+		if (typed.type === "agent_event" && typed.payload?.event) {
+			// Only forward events for our session
+			if (!this.sessionId || typed.payload.sessionId === this.sessionId) {
+				this.eventHandler(typed.payload.event)
+			}
+			return
+		}
+
+		// Fallback: try JSON-encoded chunk stream (older SDK versions)
+		if (typed.type === "chunk" && typed.payload?.stream === "agent" && typeof typed.payload?.chunk === "string") {
+			if (!this.sessionId || typed.payload.sessionId === this.sessionId) {
+				try {
+					const parsed = JSON.parse(typed.payload.chunk) as AgentEvent
+					this.eventHandler(parsed)
+				} catch {
+					// Best-effort
+				}
+			}
+		}
+	}
+
+	private cleanup(): void {
+		this.running = false
+		if (this.unsubscribe) {
+			this.unsubscribe()
+			this.unsubscribe = undefined
 		}
 	}
 }
@@ -99,24 +220,79 @@ class StubSession implements SdkSession {
 // ---------------------------------------------------------------------------
 
 /**
- * Create a SessionFactory.
+ * Create a SessionFactory backed by ClineCore.
  *
- * Currently returns stub sessions. Will be replaced with ClineCore-backed
- * sessions once the ClineCore API integration is complete.
- *
- * ClineCore integration plan:
- * 1. createSessionHost({ sessionService, toolPolicies, ... })
- * 2. host.start({ cwd, prompt, ... }) to create sessions
- * 3. host.subscribe(sessionId, callback) for streaming events
- * 4. host.send(sessionId, prompt) for prompts
- * 5. host.abort(sessionId) for cancellation
+ * Creates a single ClineCore instance (session host) and returns a factory
+ * that creates ClineCoreSession instances on demand.
  */
-export function createClineSessionFactory(_options?: {
-	clineDir?: string
-}): SessionFactory {
-	Logger.log("[ClineSessionFactory] Creating stub session factory (ClineCore not yet wired)")
+export function createClineSessionFactory(options?: { clineDir?: string }): SessionFactory {
+	// We lazily initialize ClineCore to avoid import-time side effects
+	let hostPromise: Promise<InstanceType<typeof import("@clinebot/core").ClineCore>> | null = null
 
-	return async (_config) => {
-		return new StubSession()
+	async function getHost() {
+		if (!hostPromise) {
+			hostPromise = (async () => {
+				const { ClineCore } = await import("@clinebot/core")
+				Logger.log("[ClineSessionFactory] Creating ClineCore session host")
+				const host = await ClineCore.create({
+					backendMode: "local",
+					clientName: "cline-vscode-sdk",
+				})
+				Logger.log("[ClineSessionFactory] ClineCore session host created")
+				return host
+			})()
+		}
+		return hostPromise
+	}
+
+	return async (config) => {
+		const host = await getHost()
+
+		const provider = config.apiConfiguration?.apiProvider ?? "anthropic"
+		const modelId = config.apiConfiguration?.apiModelId ?? "claude-sonnet-4-5-20250929"
+		const apiKey = config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined
+		const cwd = config.cwd ?? process.cwd()
+		const mode = config.mode ?? "act"
+
+		Logger.log(
+			`[ClineSessionFactory] Creating session: provider=${provider}, model=${modelId}, cwd=${cwd}, mode=${mode}, hasKey=${!!apiKey}`,
+		)
+
+		const coreConfig: Record<string, unknown> = {
+			providerId: provider,
+			modelId,
+			apiKey: apiKey ?? "",
+			cwd,
+			mode,
+			enableTools: true,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+		}
+
+		// Pass through additional provider-specific config
+		const apiConfig = config.apiConfiguration as Record<string, unknown> | undefined
+		if (apiConfig) {
+			// Base URL overrides
+			if (apiConfig.openRouterBaseUrl) coreConfig.baseUrl = apiConfig.openRouterBaseUrl
+			if (apiConfig.openAiBaseUrl) coreConfig.baseUrl = apiConfig.openAiBaseUrl
+			if (apiConfig.ollamaBaseUrl) coreConfig.baseUrl = apiConfig.ollamaBaseUrl
+			if (apiConfig.liteLlmBaseUrl) coreConfig.baseUrl = apiConfig.liteLlmBaseUrl
+			if (apiConfig.lmStudioBaseUrl) coreConfig.baseUrl = apiConfig.lmStudioBaseUrl
+
+			// AWS-specific
+			if (provider === "bedrock") {
+				coreConfig.awsRegion = apiConfig.awsRegion
+				coreConfig.awsAccessKeyId = apiConfig.awsAccessKey
+				coreConfig.awsSecretAccessKey = apiConfig.awsSecretKey
+				coreConfig.awsSessionToken = apiConfig.awsSessionToken
+			}
+
+			// Thinking/reasoning
+			if (apiConfig.modelSupportsReasoning) {
+				coreConfig.thinking = true
+			}
+		}
+
+		return new ClineCoreSession(host as any, coreConfig)
 	}
 }
