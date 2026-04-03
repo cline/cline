@@ -1,0 +1,33 @@
+[
+	{
+		"id": "task-from-file-001",
+		"ts": 1700200000000,
+		"task": "Refactor the database layer",
+		"tokensIn": 25000,
+		"tokensOut": 15000,
+		"totalCost": 0.35,
+		"modelId": "claude-sonnet-4-20250514",
+		"cacheWrites": 100,
+		"cacheReads": 50
+	},
+	{
+		"id": "task-from-file-002",
+		"ts": 1700300000000,
+		"task": "Write API documentation",
+		"tokensIn": 8000,
+		"tokensOut": 4000,
+		"totalCost": 0.10,
+		"modelId": "gpt-4o",
+		"isFavorited": true,
+		"cwdOnTaskInitialization": "/home/user/project"
+	},
+	{
+		"id": "task-from-file-003",
+		"ts": 1700400000000,
+		"task": "Fix CI pipeline",
+		"tokensIn": 3000,
+		"tokensOut": 1000,
+		"totalCost": 0.03,
+		"modelId": "claude-sonnet-4-20250514"
+	}
+]
