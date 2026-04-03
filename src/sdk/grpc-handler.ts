@@ -32,6 +32,173 @@ import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
 // ---------------------------------------------------------------------------
+// Proto enum string → app string conversion for API providers
+// ---------------------------------------------------------------------------
+
+/**
+ * Maps proto-JSON enum string names (e.g., "OLLAMA") to application
+ * provider strings (e.g., "ollama"). Proto3 JSON encoding uses the
+ * enum value's NAME, not its number.
+ */
+const PROTO_PROVIDER_STRING_TO_APP: Record<string, string> = {
+	ANTHROPIC: "anthropic",
+	OPENROUTER: "openrouter",
+	BEDROCK: "bedrock",
+	VERTEX: "vertex",
+	OPENAI: "openai",
+	OLLAMA: "ollama",
+	LMSTUDIO: "lmstudio",
+	GEMINI: "gemini",
+	OPENAI_NATIVE: "openai-native",
+	REQUESTY: "requesty",
+	TOGETHER: "together",
+	DEEPSEEK: "deepseek",
+	QWEN: "qwen",
+	QWEN_CODE: "qwen-code",
+	DOUBAO: "doubao",
+	MISTRAL: "mistral",
+	VSCODE_LM: "vscode-lm",
+	CLINE: "cline",
+	LITELLM: "litellm",
+	MOONSHOT: "moonshot",
+	HUGGINGFACE: "huggingface",
+	NEBIUS: "nebius",
+	WANDB: "wandb",
+	FIREWORKS: "fireworks",
+	ASKSAGE: "asksage",
+	XAI: "xai",
+	SAMBANOVA: "sambanova",
+	CEREBRAS: "cerebras",
+	GROQ: "groq",
+	BASETEN: "baseten",
+	SAPAICORE: "sapaicore",
+	CLAUDE_CODE: "claude-code",
+	HUAWEI_CLOUD_MAAS: "huawei-cloud-maas",
+	VERCEL_AI_GATEWAY: "vercel-ai-gateway",
+	ZAI: "zai",
+	DIFY: "dify",
+	OCA: "oca",
+	AIHUBMIX: "aihubmix",
+	MINIMAX: "minimax",
+	HICAP: "hicap",
+	NOUSRESEARCH: "nousResearch",
+	OPENAI_CODEX: "openai-codex",
+}
+
+/**
+ * Maps proto numeric enum values to application provider strings.
+ * VSCode uses messageEncoding: "none", so proto objects pass through
+ * with raw numeric enum values (not JSON string names).
+ *
+ * Values from proto/cline/models.proto ApiProvider enum.
+ */
+const PROTO_PROVIDER_NUM_TO_APP: Record<number, string> = {
+	0: "anthropic",
+	1: "openrouter",
+	2: "bedrock",
+	3: "vertex",
+	4: "openai",
+	5: "ollama",
+	6: "lmstudio",
+	7: "gemini",
+	8: "openai-native",
+	9: "requesty",
+	10: "together",
+	11: "deepseek",
+	12: "qwen",
+	13: "doubao",
+	14: "mistral",
+	15: "vscode-lm",
+	16: "cline",
+	17: "litellm",
+	18: "nebius",
+	19: "fireworks",
+	20: "asksage",
+	21: "xai",
+	22: "sambanova",
+	23: "cerebras",
+	24: "groq",
+	25: "sapaicore",
+	26: "claude-code",
+	27: "moonshot",
+	28: "huggingface",
+	29: "huawei-cloud-maas",
+	30: "baseten",
+	31: "zai",
+	32: "vercel-ai-gateway",
+	33: "qwen-code",
+	34: "dify",
+	35: "oca",
+	36: "minimax",
+	37: "hicap",
+	38: "aihubmix",
+	39: "nousResearch",
+	40: "openai-codex",
+	41: "wandb",
+}
+
+/**
+ * Convert a value that might be a proto enum number (e.g., 5 for OLLAMA),
+ * a proto enum string (e.g., "OLLAMA"), or already an app string
+ * (e.g., "ollama") to the app string format.
+ */
+function normalizeProvider(value: unknown): string | undefined {
+	if (value === undefined || value === null) return undefined
+
+	// Handle numeric enum values (VSCode passes proto objects as-is)
+	if (typeof value === "number") {
+		return PROTO_PROVIDER_NUM_TO_APP[value] ?? String(value)
+	}
+
+	const str = String(value)
+
+	// Handle numeric strings (e.g., "16" from JSON stringification)
+	const num = Number(str)
+	if (!isNaN(num) && PROTO_PROVIDER_NUM_TO_APP[num] !== undefined) {
+		return PROTO_PROVIDER_NUM_TO_APP[num]
+	}
+
+	// Handle proto string names (e.g., "OLLAMA")
+	if (PROTO_PROVIDER_STRING_TO_APP[str]) {
+		return PROTO_PROVIDER_STRING_TO_APP[str]
+	}
+
+	// Already in app format (e.g., "ollama")
+	return str
+}
+
+/**
+ * Convert a proto-JSON-encoded ApiConfiguration to application format.
+ *
+ * The webview sends updateApiConfigurationProto with proto-JSON where:
+ * - Provider fields use proto enum names ("OLLAMA" not "ollama")
+ * - The config is wrapped in an "apiConfiguration" field
+ *
+ * This function handles both cases:
+ * - Wrapped: { apiConfiguration: { actModeApiProvider: "OLLAMA", ... } }
+ * - Unwrapped: { actModeApiProvider: "OLLAMA", ... }
+ */
+function convertProtoJsonToApiConfig(params: Record<string, unknown>): Partial<ApiConfiguration> {
+	// Unwrap if nested inside apiConfiguration
+	const raw = (params.apiConfiguration as Record<string, unknown>) ?? params
+	const config: Record<string, unknown> = { ...raw }
+
+	// Convert provider fields from proto enum format to app format
+	const providerFields = [
+		"planModeApiProvider",
+		"actModeApiProvider",
+		"apiProvider",
+	]
+	for (const field of providerFields) {
+		if (config[field] !== undefined) {
+			config[field] = normalizeProvider(config[field])
+		}
+	}
+
+	return config as Partial<ApiConfiguration>
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -431,7 +598,11 @@ export class GrpcHandler {
 	}
 
 	private async handleUpdateApiConfiguration(request: GrpcRequest): Promise<GrpcResponse> {
-		const config = (request.params ?? {}) as Partial<ApiConfiguration>
+		// The webview sends proto-JSON-encoded config with:
+		// 1. Config nested inside { apiConfiguration: { ... } }
+		// 2. Provider fields as proto enum strings ("OLLAMA" not "ollama")
+		// convertProtoJsonToApiConfig handles both unwrapping and conversion.
+		const config = convertProtoJsonToApiConfig(request.params ?? {})
 		await this.delegate.updateApiConfiguration(config)
 		return { data: {} }
 	}
