@@ -21,3 +21,18 @@ export type { LegacyGlobalState, LegacySecrets, LegacyStateReaderOptions } from 
 
 export { runProviderMigration, clearMigrationSentinel } from "./provider-migration"
 export type { ProviderMigrationOptions, ProviderMigrationResult } from "./provider-migration"
+
+export { MessageTranslator } from "./message-translator"
+export type { AgentEvent, MessageUpdate } from "./message-translator"
+
+export { buildExtensionState, REQUIRED_STATE_FIELDS } from "./state-builder"
+export type { StateBuilderInput } from "./state-builder"
+
+export { GrpcHandler } from "./grpc-handler"
+export type { GrpcHandlerDelegate, GrpcRequest, GrpcResponse } from "./grpc-handler"
+
+export { SdkController } from "./SdkController"
+export type { SdkSession, SessionFactory, SdkControllerOptions } from "./SdkController"
+
+export { activateSdkExtension, deactivateSdkExtension } from "./extension-sdk"
+export type { SdkExtensionContext, SdkExtensionOptions } from "./extension-sdk"
