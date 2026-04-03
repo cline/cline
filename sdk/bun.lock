@@ -318,7 +318,7 @@
     },
     "packages/agents": {
       "name": "@clinebot/agents",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "@clinebot/llms": "workspace:*",
         "zod": "^4.3.6",
@@ -329,7 +329,7 @@
     },
     "packages/core": {
       "name": "@clinebot/core",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "@clinebot/agents": "workspace:*",
         "@clinebot/llms": "workspace:*",
@@ -355,7 +355,7 @@
     },
     "packages/llms": {
       "name": "@clinebot/llms",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^4.0.89",
         "@ai-sdk/google-vertex": "^4.0.100",
@@ -384,7 +384,7 @@
     },
     "packages/rpc": {
       "name": "@clinebot/rpc",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "@clinebot/scheduler": "workspace:*",
         "@clinebot/shared": "workspace:*",
@@ -394,14 +394,14 @@
     },
     "packages/scheduler": {
       "name": "@clinebot/scheduler",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "@clinebot/shared": "workspace:*",
       },
     },
     "packages/shared": {
       "name": "@clinebot/shared",
-      "version": "0.0.27",
+      "version": "0.0.28",
       "dependencies": {
         "jsonrepair": "^3.13.2",
         "zod": "^4.3.6",
