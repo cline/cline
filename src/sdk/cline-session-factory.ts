@@ -31,9 +31,31 @@ function resolveApiKey(provider: string, config: ApiConfiguration): string | und
 	// The ApiConfiguration has all keys from Secrets as optional fields
 	const apiConfig = config as Record<string, unknown>
 
+	// Special case: the "cline" provider uses OAuth credentials stored as a
+	// JSON object under "cline:clineAccountId" (not a simple "clineApiKey").
+	// Extract the idToken from the OAuth credential object.
+	if (provider === "cline") {
+		const clineAccountRaw = apiConfig["cline:clineAccountId"]
+		if (typeof clineAccountRaw === "string") {
+			try {
+				const creds = JSON.parse(clineAccountRaw)
+				if (creds.idToken) {
+					return creds.idToken as string
+				}
+			} catch {
+				// Not valid JSON — treat as raw key
+				return clineAccountRaw
+			}
+		}
+		// Fallback to clineApiKey if available
+		if (typeof apiConfig.clineApiKey === "string") {
+			return apiConfig.clineApiKey as string
+		}
+		return undefined
+	}
+
 	const providerKeyMap: Record<string, string> = {
 		anthropic: "apiKey",
-		cline: "clineApiKey",
 		openrouter: "openRouterApiKey",
 		bedrock: "awsAccessKey", // Bedrock uses AWS credentials, not a simple key
 		openai: "openAiApiKey",
@@ -318,9 +340,7 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		// Resolve provider from mode-specific keys (actModeApiProvider / planModeApiProvider)
 		// The classic extension stores provider per-mode, not as a single "apiProvider" key.
 		const modePrefix = mode === "plan" ? "planMode" : "actMode"
-		const provider = (apiConfig?.[`${modePrefix}ApiProvider`] as string)
-			?? (apiConfig?.apiProvider as string)
-			?? "anthropic"
+		const provider = (apiConfig?.[`${modePrefix}ApiProvider`] as string) ?? (apiConfig?.apiProvider as string) ?? "anthropic"
 
 		// Resolve model ID from mode+provider specific keys.
 		// The classic extension stores model IDs per provider, e.g.:
@@ -333,12 +353,23 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 			`[ClineSessionFactory] Creating session: provider=${provider}, model=${modelId}, cwd=${cwd}, mode=${mode}, hasKey=${!!apiKey}`,
 		)
 
+		// CoreSessionConfig expects 'workspaceRoot' (not 'cwd') and requires 'systemPrompt'.
+		// Use getClineDefaultSystemPrompt() for the default prompt, or a minimal fallback.
+		let systemPrompt: string
+		try {
+			const core = await import("@clinebot/core")
+			systemPrompt = core.getClineDefaultSystemPrompt({ cwd, mode } as any)
+		} catch {
+			systemPrompt = `You are Cline, a highly skilled software engineer. Your working directory is: ${cwd}`
+		}
+
 		const coreConfig: Record<string, unknown> = {
 			providerId: provider,
 			modelId,
 			apiKey: apiKey ?? "",
 			cwd,
-			mode,
+			workspaceRoot: cwd,
+			systemPrompt,
 			enableTools: true,
 			enableSpawnAgent: false,
 			enableAgentTeams: false,
