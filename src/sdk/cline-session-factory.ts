@@ -264,29 +264,21 @@ class ClineCoreSession implements SdkSession {
 	private handleCoreEvent(event: unknown): void {
 		if (!this.eventHandler) return
 
-		// ClineCore emits CoreSessionEvent: { type: "agent_event", payload: { sessionId, event } }
+		// ClineCore emits CoreSessionEvent in two forms for the SAME data:
+		//   1. { type: "agent_event", payload: { sessionId, event } }  — structured
+		//   2. { type: "chunk", payload: { stream: "agent", chunk: "<JSON>" } } — JSON string
+		//
+		// We ONLY process the "agent_event" form.  Processing both would
+		// double-deliver every event, causing garbled/duplicated output.
 		const typed = event as {
 			type: string
-			payload?: { sessionId?: string; event?: AgentEvent; stream?: string; chunk?: string }
+			payload?: { sessionId?: string; event?: AgentEvent }
 		}
 
 		if (typed.type === "agent_event" && typed.payload?.event) {
 			// Only forward events for our session
 			if (!this.sessionId || typed.payload.sessionId === this.sessionId) {
 				this.eventHandler(typed.payload.event)
-			}
-			return
-		}
-
-		// Fallback: try JSON-encoded chunk stream (older SDK versions)
-		if (typed.type === "chunk" && typed.payload?.stream === "agent" && typeof typed.payload?.chunk === "string") {
-			if (!this.sessionId || typed.payload.sessionId === this.sessionId) {
-				try {
-					const parsed = JSON.parse(typed.payload.chunk) as AgentEvent
-					this.eventHandler(parsed)
-				} catch {
-					// Best-effort
-				}
 			}
 		}
 	}
