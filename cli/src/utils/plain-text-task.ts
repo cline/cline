@@ -59,9 +59,11 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 
 	const isViewTaskOnly = Boolean(options.taskId) && !prompt
 
-	// When resuming a task, we need to ignore completion_result messages that existed
-	// before we sent our new prompt. This timestamp marks the cutoff - only completion
-	// results AFTER this time should trigger task completion.
+	// When resuming a task, ignore completion/error messages that already existed
+	// before we sent a new prompt.
+	const shouldIgnoreHistory = Boolean(options.taskId && prompt)
+	let initialHistoryTs: Set<number> | null = shouldIgnoreHistory ? null : null
+	// Fallback cutoff for non-resume flows (used when not ignoring history)
 	const completionCutoffTs = Date.now()
 
 	const emitTaskStarted = () => {
@@ -95,15 +97,20 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 		processedMessages.set(ts, message.text ?? "")
 
 		// Check for completion (only on non-partial messages)
-		// When resuming a task, only consider completion_result messages that appeared
-		// AFTER we sent our resume message (ts > completionCutoffTs)
-		if (message.say === "completion_result" || message.ask === "completion_result") {
-			if (isViewTaskOnly || ts > completionCutoffTs) {
-				completionResolve()
-			}
-		} else if (message.say === "error" || message.ask === "api_req_failed") {
-			if (isViewTaskOnly || ts > completionCutoffTs) {
-				completionReject(message.text ?? "message.say error || message.ask api_req_failed")
+		// When resuming a task, only consider completion/error messages that are NOT
+		// part of the pre-resume history.
+		const isHistorical = shouldIgnoreHistory && initialHistoryTs ? initialHistoryTs.has(ts) : false
+		const shouldEvaluateCompletion =
+			!shouldIgnoreHistory || (initialHistoryTs ? !isHistorical : false)
+		if (shouldEvaluateCompletion) {
+			if (message.say === "completion_result" || message.ask === "completion_result") {
+				if (isViewTaskOnly || ts > completionCutoffTs) {
+					completionResolve()
+				}
+			} else if (message.say === "error" || message.ask === "api_req_failed") {
+				if (isViewTaskOnly || ts > completionCutoffTs) {
+					completionReject(message.text ?? "message.say error || message.ask api_req_failed")
+				}
 			}
 		}
 	}
@@ -138,6 +145,11 @@ export async function runPlainTextTask(options: PlainTextTaskOptions): Promise<b
 			// Load the existing task
 			await showTaskWithId(controller, StringRequest.create({ value: options.taskId }))
 			emitTaskStarted()
+
+			if (shouldIgnoreHistory && controller.task) {
+				const existingMessages = controller.task.messageStateHandler.getClineMessages()
+				initialHistoryTs = new Set(existingMessages.map((message) => message.ts || 0))
+			}
 
 			// If a prompt was provided, send it as a message to the resumed task
 			if (prompt && controller.task) {
