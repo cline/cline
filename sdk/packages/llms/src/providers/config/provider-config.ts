@@ -5,6 +5,7 @@
  * This replaces the per-provider config chaos with a single structure.
  */
 
+import type { BasicLogger, ExtensionContext } from "@clinebot/shared";
 import type { ProviderClient } from "../../models/types/model";
 import type { ModelInfo } from "../types/model-info";
 import {
@@ -246,11 +247,6 @@ export interface ProviderOptions {
 }
 
 /**
- * Provider-specific options that don't fit other categories
- */
-import type { BasicLogger } from "@clinebot/shared";
-
-/**
  * Runtime model catalog refresh options
  */
 export interface ModelCatalogConfig {
@@ -318,6 +314,13 @@ export interface ProviderConfig
 
 	/** Optional runtime logger for provider-level diagnostics */
 	logger?: BasicLogger;
+
+	/**
+	 * Ambient runtime context: user identity, client surface, workspace info,
+	 * logger, and telemetry service. Prefer reading logger and telemetry from
+	 * here when available; the top-level logger field is kept for compatibility.
+	 */
+	extensionContext?: ExtensionContext;
 
 	/** Codex CLI-specific options */
 	codex?: CodexConfig;

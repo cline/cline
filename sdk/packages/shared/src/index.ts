@@ -25,6 +25,13 @@ export type * from "./connectors/options";
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export type {
+	ClientContext,
+	ClientName,
+	ExtensionContext,
+	UserContext,
+	WorkspaceContext,
+} from "./context/extension-context";
+export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
 	AiSdkFormatterPart,
@@ -40,6 +47,7 @@ export {
 	MODELS_DEV_PROVIDER_KEY_MAP,
 	resolveProviderModelCatalogKeys,
 } from "./llms/model-id";
+export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
 export type {
 	Tool,
 	ToolApprovalRequest,
@@ -55,6 +63,7 @@ export { getDefaultShell, getShellArgs } from "./parse/shell";
 export { maskSecret, sanitizeFileName, truncateStr } from "./parse/string";
 export { formatHumanReadableDate } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
+export type { ClineSystemPromptOptions } from "./prompt/cline";
 export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {
 	formatFileContentBlock,

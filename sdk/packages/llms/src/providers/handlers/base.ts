@@ -4,6 +4,10 @@
  * Abstract base class that provides common functionality for all handlers.
  */
 
+import {
+	DEFAULT_REQUEST_HEADERS,
+	serializeAbortReason,
+} from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import type { ProviderClient } from "../../models/types/model";
 import type {
@@ -17,13 +21,6 @@ import type {
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import type { ApiStreamChunk } from "../types/stream";
-
-export const DEFAULT_REQUEST_HEADERS: Record<string, string> = {
-	"HTTP-Referer": "https://cline.bot",
-	"X-Title": "Cline",
-	"X-IS-MULTIROOT": "false",
-	"X-CLIENT-TYPE": "cline-sdk",
-};
 
 interface OpenAICompatibleProviderErrorShape {
 	status?: number;
@@ -53,12 +50,6 @@ function getControllerId(controller: AbortController): string {
 	return id;
 }
 
-function serializeAbortReason(reason: unknown): unknown {
-	return reason instanceof Error
-		? { name: reason.name, message: reason.message }
-		: reason;
-}
-
 /**
  * Base handler class with common functionality
  */
@@ -70,6 +61,15 @@ export abstract class BaseHandler implements ApiHandler {
 
 	constructor(config: ProviderConfig) {
 		this.config = config;
+	}
+
+	/**
+	 * Resolves the active logger: prefers extensionContext.logger so callers
+	 * only need to set one place, falls back to the top-level logger field for
+	 * backwards compatibility.
+	 */
+	protected get logger(): ProviderConfig["logger"] {
+		return this.config.extensionContext?.logger ?? this.config.logger;
 	}
 
 	abstract getMessages(systemPrompt: string, messages: Message[]): unknown;
@@ -159,7 +159,7 @@ export abstract class BaseHandler implements ApiHandler {
 		message: string,
 		metadata?: Record<string, unknown>,
 	): void {
-		this.config.logger?.[level]?.(message, {
+		this.logger?.[level]?.(message, {
 			providerId: this.config.providerId,
 			modelId: this.config.modelId,
 			...metadata,
@@ -283,8 +283,10 @@ export abstract class BaseHandler implements ApiHandler {
 	}
 
 	protected getRequestHeaders(): Record<string, string> {
+		const clientName = this.config.extensionContext?.client?.name;
 		return {
 			...DEFAULT_REQUEST_HEADERS,
+			...(clientName ? { "X-CLIENT-TYPE": clientName } : {}),
 			...(this.config.headers ?? {}),
 		};
 	}

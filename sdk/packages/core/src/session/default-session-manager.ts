@@ -296,6 +296,7 @@ export class DefaultSessionManager implements SessionManager {
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionGuard: runtime.completionGuard,
 			logger: runtime.logger ?? configWithProvider.logger,
+			extensionContext: configWithProvider.extensionContext,
 			onEvent: (event: AgentEvent) =>
 				this.onAgentEvent(sessionId, configWithProvider, event),
 		});

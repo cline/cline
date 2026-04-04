@@ -59,14 +59,13 @@ export function createHandlerFromConfig(
 		abortSignal: config.abortSignal,
 		logger: logger
 			? {
-					debug: (message, metadata) => {
-						logger.debug?.(message, metadata);
-					},
-					warn: (message, metadata) => {
-						logger.warn?.(message, metadata);
-					},
+					debug: (message, metadata) => logger.debug?.(message, metadata),
+					info: (message, metadata) => logger.info?.(message, metadata),
+					warn: (message, metadata) => logger.warn?.(message, metadata),
+					error: (message, metadata) => logger.error?.(message, metadata),
 				}
 			: undefined,
+		extensionContext: config.extensionContext,
 	};
 	return LlmsProviders.createHandler(normalizedProviderConfig);
 }

@@ -11,6 +11,7 @@ import type * as LlmsProviders from "@clinebot/llms/providers";
 import type {
 	AgentMode,
 	BasicLogger,
+	ExtensionContext,
 	ITelemetryService,
 	SessionExecutionConfig,
 	SessionPromptConfig,
@@ -67,6 +68,7 @@ export interface CoreSessionConfig
 	hookErrorMode?: HookErrorMode;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	extensionContext?: ExtensionContext;
 	extraTools?: Tool[];
 	pluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];

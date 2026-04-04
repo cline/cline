@@ -1,5 +1,6 @@
 import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
+import { basename } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
 import { setClineDir, setHomeDir } from "@clinebot/core";
 import { requestRpcServerShutdown } from "@clinebot/rpc";
@@ -651,6 +652,17 @@ export async function runCli(): Promise<void> {
 			enableTools: args.enableTools,
 			cwd,
 			workspaceRoot: resolveWorkspaceRoot(cwd),
+			extensionContext: {
+				client: { name: "cline-cli" },
+				workspace: {
+					rootPath: resolveWorkspaceRoot(cwd),
+					cwd,
+					workspaceName: basename(cwd),
+					ide: "Terminal Shell",
+					platform: process.platform,
+				},
+				logger: loggerAdapter.core,
+			},
 			teamName: args.enableAgentTeams
 				? args.teamName?.trim() || createTeamName()
 				: undefined,

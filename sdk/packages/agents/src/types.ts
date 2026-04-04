@@ -8,6 +8,7 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
 	type BasicLogger,
+	type ExtensionContext,
 	type ITelemetryService,
 	type Tool,
 	type ToolApprovalRequest,
@@ -940,6 +941,11 @@ export interface AgentConfig {
 	 * Optional Telemetry service for emitting structured events about agent execution to configured telemetry backends.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Ambient runtime context: user identity, client surface, workspace, logger,
+	 * and telemetry. Threaded through to ProviderConfig so handlers can access it.
+	 */
+	extensionContext?: ExtensionContext;
 
 	// -------------------------------------------------------------------------
 	// Completion Guard
@@ -1106,6 +1112,7 @@ export const AgentConfigSchema = z.object({
 		)
 		.optional(),
 	logger: z.custom<BasicLogger>().optional(),
+	extensionContext: z.custom<ExtensionContext>().optional(),
 
 	// Cancellation
 	abortSignal: z.custom<AbortSignal>().optional(),

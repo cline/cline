@@ -1,4 +1,5 @@
-import type { WorkspaceInfo } from "../index.browser";
+import type { WorkspaceContext } from "../context/extension-context";
+import type { WorkspaceInfo } from "../session/workspace";
 import {
 	DEFAULT_CLINE_SYSTEM_PROMPT,
 	YOLO_CLINE_SYSTEM_PROMPT,
@@ -7,17 +8,20 @@ import {
 const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
 
 export function processWorkspaceInfo(info: WorkspaceInfo): string {
-	const workspaceConfig = {
-		workspaces: {
-			[info.rootPath]: {
-				hint: info.hint,
-				associatedRemoteUrls: info.associatedRemoteUrls,
-				latestGitCommitHash: info.latestGitCommitHash,
-				latestGitBranchName: info.latestGitBranchName,
+	return JSON.stringify(
+		{
+			workspaces: {
+				[info.rootPath]: {
+					hint: info.hint,
+					associatedRemoteUrls: info.associatedRemoteUrls,
+					latestGitCommitHash: info.latestGitCommitHash,
+					latestGitBranchName: info.latestGitBranchName,
+				},
 			},
 		},
-	};
-	return JSON.stringify(workspaceConfig, null, 2);
+		null,
+		2,
+	);
 }
 
 function buildWorkspaceMetadata(
@@ -25,71 +29,79 @@ function buildWorkspaceMetadata(
 	workspaceName?: string,
 	metadata?: string,
 ): string {
-	if (metadata?.trim() && metadata.includes(WORKSPACE_CONFIGURATION_MARKER)) {
+	if (metadata?.trim()?.includes(WORKSPACE_CONFIGURATION_MARKER)) {
 		return metadata.trim();
 	}
-	return `\n${WORKSPACE_CONFIGURATION_MARKER}\n${
+	const body =
 		metadata ||
 		JSON.stringify(
 			{
 				workspaces: {
 					[rootPath]: {
-						hint: workspaceName || rootPath.split("/").slice(-1)[0] || rootPath, // Use the folder name as hint
+						hint: workspaceName || rootPath.split("/").at(-1) || rootPath,
 					},
 				},
 			},
 			null,
 			2,
-		)
-	}`;
+		);
+	return `\n${WORKSPACE_CONFIGURATION_MARKER}\n${body}`;
 }
 
-interface ClineSystemPromptOptions {
-	ide: string;
-	mode?: string;
-	platform?: string;
-	workspaceRoot: string;
-	workspaceName?: string;
-	metadata?: string;
-	rules?: string;
+/**
+ * Options for building the Cline system prompt.
+ *
+ * Extends WorkspaceContext so callers can spread an ExtensionContext.workspace
+ * directly. `workspaceRoot` is accepted as an alias for `rootPath` to support
+ * existing call sites that set it explicitly.
+ */
+export interface ClineSystemPromptOptions
+	extends Omit<WorkspaceContext, "rootPath"> {
+	/**
+	 * Workspace root path. Accepts either `rootPath` (from WorkspaceContext/WorkspaceInfo)
+	 * or `workspaceRoot` (legacy alias) — whichever is provided will be used.
+	 */
+	rootPath?: string;
+	/** Alias for rootPath — kept for backwards compatibility with existing call sites */
+	workspaceRoot?: string;
+	/** Per-request system prompt override */
 	overridePrompt?: string;
+	/** Provider ID — used to gate Cline-specific metadata injection */
 	providerId?: string;
 }
 
-export function buildClineSystemPrompt(options: ClineSystemPromptOptions) {
+export function buildClineSystemPrompt(
+	options: ClineSystemPromptOptions,
+): string {
 	const {
-		ide,
+		ide = "Terminal Shell",
 		mode,
 		platform = "unknown",
-		workspaceRoot,
 		workspaceName,
 		metadata,
 		rules,
 		overridePrompt,
 		providerId,
 	} = options;
+	const workspaceRoot = options.workspaceRoot ?? options.rootPath ?? "";
 	const isCline = providerId === "cline";
-	const defaultPrompt =
-		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
 
 	if (overridePrompt?.trim()) {
-		const trimmedOverride = overridePrompt.trim();
-		// overridePrompt is a raw string — {{CLINE_METADATA}} won't be present,
-		// so append workspace metadata directly when it's missing.
-		const workspaceMetadataBlock =
-			isCline && metadata?.trim()
-				? buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)
-				: null;
-		const needsMetadata =
-			workspaceMetadataBlock &&
-			!trimmedOverride.includes(WORKSPACE_CONFIGURATION_MARKER);
-		const finalPrompt = needsMetadata
-			? `${trimmedOverride}\n\n${workspaceMetadataBlock}`
-			: trimmedOverride;
-		return finalPrompt.trim();
+		const trimmed = overridePrompt.trim();
+		if (
+			isCline &&
+			metadata?.trim() &&
+			!trimmed.includes(WORKSPACE_CONFIGURATION_MARKER)
+		) {
+			return `${trimmed}\n\n${buildWorkspaceMetadata(workspaceRoot, workspaceName, metadata)}`.trim();
+		}
+		return trimmed;
 	}
 
-	return defaultPrompt
+	const basePrompt =
+		mode === "yolo" ? YOLO_CLINE_SYSTEM_PROMPT : DEFAULT_CLINE_SYSTEM_PROMPT;
+
+	return basePrompt
 		.replace("{{PLATFORM_NAME}}", platform)
 		.replace("{{CWD}}", workspaceRoot)
 		.replace("{{CURRENT_DATE}}", new Date().toLocaleDateString())

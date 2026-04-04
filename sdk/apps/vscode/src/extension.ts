@@ -119,6 +119,7 @@ type StartConfig = {
 	mode: "act" | "plan";
 	apiKey: string;
 	logger: BasicLogger;
+	extensionContext?: import("@clinebot/shared").ExtensionContext;
 };
 
 type ProviderListItem = {
@@ -523,6 +524,18 @@ class CoreChatWebviewController implements vscode.Disposable {
 			missionLogIntervalSteps: 3,
 			missionLogIntervalMs: 120000,
 			logger: this.logger,
+			extensionContext: {
+				client: { name: "cline-vscode", version },
+				workspace: {
+					rootPath: defaults.workspaceRoot,
+					cwd: defaults.cwd,
+					workspaceName: basename(defaults.cwd),
+					ide: "VS Code",
+					platform: os.platform(),
+				},
+				logger: this.logger,
+				telemetry: this.telemetry,
+			},
 		};
 
 		if (this.sessionId && this.startConfig) {
@@ -735,6 +748,16 @@ class CoreChatWebviewController implements vscode.Disposable {
 	}
 }
 
+/**
+ * Returns true if two StartConfigs represent the same session, meaning no
+ * restart is needed when the webview sends a new config.
+ *
+ * For extensionContext, only the identity fields (client name and user
+ * distinctId) are compared — logger and telemetry are object references that
+ * are never meaningfully different between two calls for the same user, and
+ * JSON.stringify is unsafe here because those objects contain functions and
+ * may have circular references.
+ */
 function areStartConfigsEqual(a: StartConfig, b: StartConfig): boolean {
 	return (
 		a.providerId === b.providerId &&
@@ -751,7 +774,10 @@ function areStartConfigsEqual(a: StartConfig, b: StartConfig): boolean {
 		a.missionLogIntervalSteps === b.missionLogIntervalSteps &&
 		a.missionLogIntervalMs === b.missionLogIntervalMs &&
 		a.mode === b.mode &&
-		a.apiKey === b.apiKey
+		a.apiKey === b.apiKey &&
+		a.extensionContext?.client?.name === b.extensionContext?.client?.name &&
+		a.extensionContext?.user?.distinctId ===
+			b.extensionContext?.user?.distinctId
 	);
 }
 

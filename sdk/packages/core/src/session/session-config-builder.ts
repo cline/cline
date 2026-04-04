@@ -95,6 +95,9 @@ export function buildResolvedProviderConfig(
 	if (config.knownModels) {
 		providerConfig.knownModels = config.knownModels;
 	}
+	if (config.extensionContext) {
+		providerConfig.extensionContext = config.extensionContext;
+	}
 	return providerConfig;
 }
 
