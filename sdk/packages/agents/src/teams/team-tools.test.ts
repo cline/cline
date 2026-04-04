@@ -326,15 +326,36 @@ describe("createAgentTeamsTools schema surface", () => {
 			throw new Error("Expected outcome tools to be defined");
 		}
 
-		const created: { outcomeId: string; status: string } =
-			await createOutcome.execute(
-				{ title: "Providers report" },
-				{
-					agentId: "lead",
-					conversationId: "conv-1",
-					iteration: 1,
-				},
+		const createdResult = await createOutcome.execute(
+			{ title: "Providers report" },
+			{
+				agentId: "lead",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+		expect(createdResult).toMatchObject({
+			outcomeId: expect.stringMatching(/^out_/),
+			status: "draft",
+		});
+		const isCreatedOutcome = (
+			value: unknown,
+		): value is { outcomeId: string; status: string } => {
+			if (typeof value !== "object" || value === null) {
+				return false;
+			}
+			const record = value as Record<string, unknown>;
+			return (
+				typeof record.outcomeId === "string" &&
+				typeof record.status === "string"
 			);
+		};
+		if (!isCreatedOutcome(createdResult)) {
+			throw new Error(
+				"Expected createOutcome result to include outcomeId and status",
+			);
+		}
+		const created = createdResult;
 
 		await expect(
 			attachFragment.execute(
@@ -411,16 +432,6 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			spawnTeammate,
 		} as unknown as AgentTeamsRuntime;
 
-		const workspaceMetadata = `# Workspace Configuration
-{
-  "workspaces": {
-    "/repo/app": {
-      "hint": "app",
-      "latestGitBranchName": "main"
-    }
-  }
-}`;
-
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
@@ -428,7 +439,6 @@ describe("createAgentTeamsTools runtime behavior", () => {
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
 				cwd: "/repo/app",
-				clineWorkspaceMetadata: workspaceMetadata,
 			}),
 		});
 		const spawnTool = tools.find((tool) => tool.name === "team_spawn_teammate");
@@ -449,7 +459,21 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(spawnTeammate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				config: expect.objectContaining({
-					systemPrompt: expect.stringContaining(workspaceMetadata),
+					systemPrompt: expect.stringContaining("# Workspace Configuration"),
+				}),
+			}),
+		);
+		expect(spawnTeammate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					systemPrompt: expect.stringContaining('"/repo/app"'),
+				}),
+			}),
+		);
+		expect(spawnTeammate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					systemPrompt: expect.stringContaining('"hint": "app"'),
 				}),
 			}),
 		);

@@ -5,19 +5,6 @@ import type { SessionRecord } from "../../types/sessions";
 import type { SessionRow } from "../session-service";
 import type { StoredMessageWithMetadata } from "./types";
 
-const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
-
-export function extractWorkspaceMetadataFromSystemPrompt(
-	systemPrompt: string,
-): string | undefined {
-	const markerIndex = systemPrompt.lastIndexOf(WORKSPACE_CONFIGURATION_MARKER);
-	if (markerIndex < 0) {
-		return undefined;
-	}
-	const metadata = systemPrompt.slice(markerIndex).trim();
-	return metadata.length > 0 ? metadata : undefined;
-}
-
 export function hasRuntimeHooks(hooks: AgentConfig["hooks"]): boolean {
 	if (!hooks) {
 		return false;

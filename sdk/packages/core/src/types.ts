@@ -1,6 +1,4 @@
-import type * as LlmsProviders from "@clinebot/llms/providers";
-import type { CoreSessionEvent } from "./types/events";
-
+export type { WorkspaceInfo, WorkspaceManifest } from "@clinebot/shared";
 export type {
 	AgentConfigWatcher,
 	AgentConfigWatcherEvent,
@@ -100,7 +98,6 @@ export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,
 } from "./session/workspace-manager";
-export type { WorkspaceManifest } from "./session/workspace-manifest";
 export type { SessionSource, SessionStatus } from "./types/common";
 export type {
 	CoreAgentMode,
@@ -117,16 +114,3 @@ export type {
 } from "./types/events";
 export type { SessionRecord, SessionRef } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
-export type { WorkspaceInfo } from "./types/workspace";
-
-// Backward-compat alias used by CLI persistence.
-/** @deprecated   */
-export interface StoredMessages {
-	version: 1;
-	updatedAt: string;
-	messages: LlmsProviders.MessageWithMetadata[];
-}
-
-// Backward-compat alias with previous event naming.
-/** @deprecated Use `CoreSessionEvent` instead. */
-export type SessionEvent = CoreSessionEvent;

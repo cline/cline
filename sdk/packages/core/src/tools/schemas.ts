@@ -269,6 +269,20 @@ export const AskQuestionInputSchema = z.object({
 		),
 });
 
+export const SubmitInputSchema = z.object({
+	summary: z
+		.string()
+		.min(10)
+		.describe(
+			"Summarization of the investigation, steps taken, and resolution status to submit at the end of the session. Before submitting, read the problem again along with any provided test's assertions carefully and confirm your fix produces the expected output.",
+		),
+	verified: z
+		.boolean()
+		.describe(
+			`Have you verified that the issue is resolved to the best of your knowledge, including updating and creating all the requested files and items? 'True' if you have completed the investigation and taken all necessary steps to resolve the issue.\n'False' if you have done all you can but cannot resolve the issue or if you are stuck and cannot proceed further. =\nIMPORTANT: You must run the specific failing test(s) mentioned in the issue or test patch and include the test output in your reasoning. If the test still fails after your fix, you must revise. Do NOT submit with 'true' unless the test output shows the test passing.`,
+		),
+});
+
 // =============================================================================
 // Type Definitions (derived from Zod schemas)
 // =============================================================================
@@ -325,3 +339,8 @@ export type SkillsInput = z.infer<typeof SkillsInputSchema>;
  * Input for the ask_followup_question tool
  */
 export type AskQuestionInput = z.infer<typeof AskQuestionInputSchema>;
+
+/**
+ * Input for the submit and exit tool
+ */
+export type SubmitInput = z.infer<typeof SubmitInputSchema>;

@@ -97,6 +97,7 @@ export async function buildSessionStartInput(input: {
 		explicitSystemPrompt: config.systemPrompt,
 		providerId,
 		rules: config.rules,
+		mode: config.autoApproveTools ? "yolo" : mode,
 	});
 	const logger = createCliLoggerAdapter({
 		runtime: "rpc-runtime",

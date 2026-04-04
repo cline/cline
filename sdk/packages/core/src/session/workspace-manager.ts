@@ -1,10 +1,12 @@
-import type { WorkspaceInfo } from "../types/workspace";
+import {
+	upsertWorkspaceInfo,
+	type WorkspaceInfo,
+	type WorkspaceManifest,
+	WorkspaceManifestSchema,
+} from "@clinebot/shared";
 import {
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
-	upsertWorkspaceInfo,
-	type WorkspaceManifest,
-	WorkspaceManifestSchema,
 } from "./workspace-manifest";
 
 export interface WorkspaceManagerEvent {

@@ -15,7 +15,6 @@ import {
 	type SkillConfig,
 	type UserInstructionConfigWatcher,
 } from "../agents";
-import { buildWorkspaceMetadata } from "../session/workspace-manifest";
 import { createLocalTeamStore } from "../storage/team-store";
 import {
 	createBuiltinTools,
@@ -41,8 +40,6 @@ type SkillsExecutorMetadataItem = {
 	disabled: boolean;
 };
 
-const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
-
 type SkillsExecutorWithMetadata = SkillsExecutor & {
 	configuredSkills?: SkillsExecutorMetadataItem[];
 };
@@ -56,12 +53,17 @@ function createBuiltinToolsList(
 	providerId: string,
 	mode: CoreAgentMode,
 	modelId: string,
+	toolPolicies: CoreSessionConfig["toolPolicies"],
 	toolRoutingRules: ToolRoutingRule[] | undefined,
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 ): Tool[] {
 	const preset =
-		mode === "plan" ? ToolPresets.readonly : ToolPresets.development;
+		mode === "plan"
+			? ToolPresets.readonly
+			: toolPolicies?.["*"]?.autoApprove === true
+				? ToolPresets.yolo
+				: ToolPresets.development;
 	const toolRoutingConfig = resolveToolRoutingConfig(
 		providerId,
 		modelId,
@@ -314,17 +316,6 @@ function shutdownTeamRuntime(
 	}
 }
 
-function extractWorkspaceMetadataFromSystemPrompt(
-	systemPrompt: string,
-): string | undefined {
-	const markerIndex = systemPrompt.lastIndexOf(WORKSPACE_CONFIGURATION_MARKER);
-	if (markerIndex < 0) {
-		return undefined;
-	}
-	const metadata = systemPrompt.slice(markerIndex).trim();
-	return metadata.length > 0 ? metadata : undefined;
-}
-
 function normalizeConfig(
 	config: CoreSessionConfig,
 ): Required<
@@ -417,6 +408,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.providerId,
 					normalized.mode,
 					config.modelId,
+					config.toolPolicies,
 					config.toolRoutingRules,
 					skillsExecutor,
 					defaultToolExecutors,
@@ -445,29 +437,13 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			providerConfig: config.providerConfig,
 			knownModels: config.knownModels,
 			thinking: config.thinking,
-			clineWorkspaceMetadata:
-				config.providerId === "cline"
-					? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
-					: undefined,
 			maxIterations: config.maxIterations,
 			hooks,
 			extensions: extensions ?? config.extensions,
 			logger: logger ?? config.logger,
 			telemetry: input.telemetry ?? config.telemetry,
+			workspaceMetadata: config.workspaceMetadata,
 		});
-		const runtimeMetadata = delegatedAgentConfigProvider.getRuntimeConfig();
-		if (
-			config.providerId === "cline" &&
-			!runtimeMetadata.clineWorkspaceMetadata
-		) {
-			buildWorkspaceMetadata(config.cwd ?? "").then((metadata) => {
-				const current = delegatedAgentConfigProvider.getRuntimeConfig();
-				if (current.clineWorkspaceMetadata) {
-					return;
-				}
-				Object.assign(current, { clineWorkspaceMetadata: metadata });
-			});
-		}
 		this.teamRuntimeRegistry.getOrCreate(registryKey, () => ({
 			delegatedAgentConfigProvider,
 		}));
@@ -543,6 +519,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.providerId,
 									normalized.mode,
 									config.modelId,
+									config.toolPolicies,
 									config.toolRoutingRules,
 									skillsExecutor,
 									defaultToolExecutors,

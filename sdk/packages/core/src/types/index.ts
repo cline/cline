@@ -21,4 +21,3 @@ export type {
 } from "./provider-settings";
 export type { SessionRecord, SessionRef } from "./sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./storage";
-export type { WorkspaceInfo } from "./workspace";

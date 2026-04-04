@@ -25,6 +25,7 @@ export const ToolPresets = {
 		enableEditor: false,
 		enableSkills: true,
 		enableAskQuestion: true,
+		enableSubmitAndExit: false,
 	},
 
 	/**
@@ -40,6 +41,7 @@ export const ToolPresets = {
 		enableEditor: false,
 		enableSkills: false,
 		enableAskQuestion: false,
+		enableSubmitAndExit: false,
 	},
 
 	/**
@@ -55,6 +57,7 @@ export const ToolPresets = {
 		enableEditor: true,
 		enableSkills: true,
 		enableAskQuestion: true,
+		enableSubmitAndExit: true,
 	},
 
 	/**
@@ -70,6 +73,7 @@ export const ToolPresets = {
 		enableEditor: false,
 		enableSkills: true,
 		enableAskQuestion: true,
+		enableSubmitAndExit: false,
 	},
 
 	/**
@@ -85,6 +89,7 @@ export const ToolPresets = {
 		enableEditor: false,
 		enableSkills: false,
 		enableAskQuestion: true,
+		enableSubmitAndExit: false,
 	},
 
 	/**
@@ -100,6 +105,7 @@ export const ToolPresets = {
 		enableEditor: true,
 		enableSkills: true,
 		enableAskQuestion: false,
+		enableSubmitAndExit: true,
 	},
 } as const satisfies Record<string, DefaultToolsConfig>;
 

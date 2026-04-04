@@ -1,38 +1,31 @@
-import { getClineDefaultSystemPrompt } from "@clinebot/agents";
+import { basename } from "node:path";
 import {
 	buildWorkspaceMetadata,
 	resolveRuntimeSlashCommandFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
-
-const WORKSPACE_CONFIGURATION_MARKER = "# Workspace Configuration";
+import { buildClineSystemPrompt } from "@clinebot/shared";
 
 export async function resolveSystemPrompt(input: {
 	cwd: string;
 	explicitSystemPrompt?: string;
 	providerId?: string;
 	rules?: string;
+	mode?: "act" | "plan" | "yolo";
 }): Promise<string> {
-	const shouldAppendWorkspaceMetadata = input.providerId === "cline";
-	const workspace = shouldAppendWorkspaceMetadata
-		? await buildWorkspaceMetadata(input.cwd)
-		: "";
-	const explicit = input.explicitSystemPrompt?.trim();
-	if (explicit) {
-		if (
-			shouldAppendWorkspaceMetadata &&
-			!explicit.includes(WORKSPACE_CONFIGURATION_MARKER)
-		) {
-			return `${explicit}\n\n${workspace}`;
-		}
-		return explicit;
-	}
-	return getClineDefaultSystemPrompt(
-		"Terminal Shell",
-		input.cwd,
-		shouldAppendWorkspaceMetadata ? workspace : "",
-		input.rules,
-	);
+	const metadata = await buildWorkspaceMetadata(input.cwd);
+	return buildClineSystemPrompt({
+		ide: "Terminal Shell",
+		workspaceRoot: input.cwd,
+		workspaceName: basename(input.cwd),
+		metadata,
+		rules: input.rules,
+		mode: input.mode,
+		providerId: input.providerId,
+		overridePrompt: input.explicitSystemPrompt,
+		platform:
+			(typeof process !== "undefined" && process?.platform) || "unknown",
+	});
 }
 
 export async function buildUserInputMessage(

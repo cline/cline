@@ -18,6 +18,7 @@ export {
 	createReadFilesTool,
 	createSearchTool,
 	createSkillsTool,
+	createSubmitAndExitTool,
 	createWebFetchTool,
 	createWindowsShellTool,
 } from "./definitions";
@@ -71,6 +72,8 @@ export {
 	SearchCodebaseInputSchema,
 	type SkillsInput,
 	SkillsInputSchema,
+	type SubmitInput,
+	SubmitInputSchema,
 	type WebFetchRequest,
 	WebFetchRequestSchema,
 } from "./schemas";
@@ -90,6 +93,7 @@ export type {
 	SkillsExecutorWithMetadata,
 	ToolExecutors,
 	ToolOperationResult,
+	VerifySubmitExecutor,
 	WebFetchExecutor,
 } from "./types";
 

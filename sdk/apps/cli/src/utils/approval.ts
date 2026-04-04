@@ -153,3 +153,11 @@ export async function askQuestionInTerminal(
 		);
 	});
 }
+
+export async function submitAndExitInTerminal(
+	summary: string,
+	verified: boolean,
+): Promise<string> {
+	const status = verified ? "verified" : "unverified";
+	return `Submission recorded (${status}): ${summary}`;
+}

@@ -51,15 +51,7 @@ await runBuild("browser", {
 
 if (shouldEmitTypes) {
 	const tsc = Bun.spawn(
-		[
-			"bun",
-			"tsc",
-			"--emitDeclarationOnly",
-			"--declarationMap",
-			"false",
-			"--sourceMap",
-			"false",
-		],
+		["bun", "tsc", "--emitDeclarationOnly", "--project", "tsconfig.build.json"],
 		{
 			stdout: "inherit",
 			stderr: "inherit",

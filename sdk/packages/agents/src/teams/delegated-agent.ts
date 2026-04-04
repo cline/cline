@@ -31,7 +31,7 @@ export type DelegatedAgentConnectionConfig = Pick<
 export interface DelegatedAgentRuntimeConfig
 	extends DelegatedAgentConnectionConfig {
 	cwd?: string;
-	clineWorkspaceMetadata?: string;
+	providerId: string;
 	clinePlatform?: string;
 	clineIdeName?: string;
 	maxIterations?: number;
@@ -39,6 +39,7 @@ export interface DelegatedAgentRuntimeConfig
 	extensions?: AgentExtension[];
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	workspaceMetadata?: string;
 }
 
 export interface DelegatedAgentConfigProvider {
@@ -66,6 +67,7 @@ export interface BuildDelegatedAgentConfigOptions {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 	role?: string;
+	cwd?: string;
 }
 
 export function createDelegatedAgentConfigProvider(

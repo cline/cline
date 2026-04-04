@@ -83,4 +83,5 @@ export interface CoreSessionConfig
 	 * skills are surfaced in tool metadata and invocable by name.
 	 */
 	skills?: string[];
+	workspaceMetadata?: string;
 }

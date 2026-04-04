@@ -164,6 +164,7 @@ function spawnTeamTeammate(
 			configProvider: options.teammateConfigProvider,
 			tools: teammateTools,
 			maxIterations: options.spec.maxIterations,
+			cwd: options.teammateConfigProvider.getRuntimeConfig().cwd,
 		}),
 	});
 }

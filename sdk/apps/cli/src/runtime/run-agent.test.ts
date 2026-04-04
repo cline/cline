@@ -37,6 +37,7 @@ vi.mock("@clinebot/core", () => ({
 vi.mock("../utils/approval", () => ({
 	askQuestionInTerminal: vi.fn(),
 	requestToolApproval: vi.fn(),
+	submitAndExitInTerminal: vi.fn(),
 }));
 
 vi.mock("../utils/events", () => ({

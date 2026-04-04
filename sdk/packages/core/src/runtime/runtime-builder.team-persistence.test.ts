@@ -236,9 +236,6 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			expect.objectContaining({
 				providerId: "cline",
 				cwd: "/repo/demo",
-				clineWorkspaceMetadata: expect.stringContaining(
-					"# Workspace Configuration",
-				),
 			}),
 		);
 	});

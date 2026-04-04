@@ -1,5 +1,5 @@
+import { buildClineSystemPrompt } from "@clinebot/shared";
 import type { DelegatedAgentRuntimeConfig } from "../teams";
-import { getClineDefaultSystemPrompt } from "./cline";
 
 export function buildTeammateSystemPrompt(
 	prompt: string,
@@ -10,13 +10,14 @@ export function buildTeammateSystemPrompt(
 		return trimmedPrompt;
 	}
 
-	return getClineDefaultSystemPrompt(
-		config.clineIdeName?.trim() || "Terminal Shell",
-		config.cwd?.trim() || "/",
-		config.clineWorkspaceMetadata,
-		`# Team Teammate Role\n${trimmedPrompt}`,
-		config.clinePlatform,
-	);
+	return buildClineSystemPrompt({
+		ide: config.clineIdeName?.trim() || "Terminal Shell",
+		workspaceRoot: config.cwd?.trim() || "/",
+		providerId: config.providerId,
+		rules: `# Team Teammate Role\n${trimmedPrompt}`,
+		platform: config.clinePlatform,
+		metadata: config.workspaceMetadata,
+	});
 }
 
 export function buildSubAgentSystemPrompt(
@@ -28,15 +29,13 @@ export function buildSubAgentSystemPrompt(
 	if (config.providerId.toLowerCase() !== "cline") {
 		return trimmedPrompt;
 	}
-	if (trimmedPrompt.includes("# Workspace Configuration")) {
-		return trimmedPrompt;
-	}
 
-	return getClineDefaultSystemPrompt(
-		"Terminal Shell",
-		config.cwd?.trim() || "/",
-		config.clineWorkspaceMetadata,
-		trimmedPrompt,
-		config.clinePlatform,
-	);
+	return buildClineSystemPrompt({
+		ide: "Terminal Shell",
+		workspaceRoot: config.cwd?.trim() || "/",
+		providerId: config.providerId,
+		overridePrompt: trimmedPrompt,
+		metadata: config.workspaceMetadata,
+		platform: config.clinePlatform,
+	});
 }

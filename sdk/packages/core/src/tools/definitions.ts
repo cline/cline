@@ -37,6 +37,8 @@ import {
 	SkillsInputSchema,
 	type StructuredCommandInput,
 	StructuredCommandsInputUnionSchema,
+	type SubmitInput,
+	SubmitInputSchema,
 } from "./schemas";
 import type {
 	ApplyPatchExecutor,
@@ -49,6 +51,7 @@ import type {
 	SearchExecutor,
 	SkillsExecutorWithMetadata,
 	ToolOperationResult,
+	VerifySubmitExecutor,
 	WebFetchExecutor,
 } from "./types";
 
@@ -603,6 +606,34 @@ export function createAskQuestionTool(
 	});
 }
 
+export function createSubmitAndExitTool(
+	executor: VerifySubmitExecutor,
+	config: Pick<DefaultToolsConfig, "submitTimeoutMs"> = {},
+): Tool<SubmitInput, string> {
+	const timeoutMs = config.submitTimeoutMs ?? 15000;
+
+	return createTool<SubmitInput, string>({
+		name: "submit_and_exit",
+		description:
+			"Submit the final answer and exit the conversation. " +
+			"For example, submit a summary of the investigation and confirm the issue is resolved. " +
+			"You should only submit once all necessary steps are completed. " +
+			"Provide a summary of the investigation and confirm the issue is resolved.",
+		inputSchema: zodToJsonSchema(SubmitInputSchema),
+		timeoutMs,
+		retryable: false,
+		maxRetries: 0,
+		execute: async (input, context) => {
+			const validatedInput = validateWithZod(SubmitInputSchema, input);
+			return withTimeout(
+				executor(validatedInput.summary, validatedInput.verified, context),
+				timeoutMs,
+				`submit_and_exit timed out after ${timeoutMs}ms`,
+			);
+		},
+	});
+}
+
 // =============================================================================
 // Default Tools Factory
 // =============================================================================
@@ -657,6 +688,7 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 		enableEditor = true,
 		enableSkills = true,
 		enableAskQuestion = true,
+		enableSubmitAndExit = false,
 		...config
 	} = options;
 
@@ -703,6 +735,9 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 	// Add ask_question tool if enabled and executor provided
 	if (enableAskQuestion && executors.askQuestion) {
 		tools.push(createAskQuestionTool(executors.askQuestion, config));
+	} else if (enableSubmitAndExit && executors.submit) {
+		// Add submit_and_exit tool if enabled and executor provided
+		tools.push(createSubmitAndExitTool(executors.submit, config));
 	}
 
 	return tools;

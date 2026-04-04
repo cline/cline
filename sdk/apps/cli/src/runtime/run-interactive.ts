@@ -8,7 +8,11 @@ import {
 import { render } from "ink";
 import React from "react";
 import { InteractiveTui } from "../tui/interactive-tui";
-import { askQuestionInTerminal, requestToolApproval } from "../utils/approval";
+import {
+	askQuestionInTerminal,
+	requestToolApproval,
+	submitAndExitInTerminal,
+} from "../utils/approval";
 import {
 	type ChatCommandState,
 	maybeHandleChatCommand,
@@ -85,6 +89,7 @@ export async function runInteractive(
 	const sessionManager = await createDefaultCliSessionManager({
 		defaultToolExecutors: {
 			askQuestion: askQuestionInTerminal,
+			submit: submitAndExitInTerminal,
 		},
 		logger: config.logger,
 		toolPolicies: config.toolPolicies,

@@ -89,7 +89,6 @@ import {
 	emitSessionCreationTelemetry,
 } from "./session-telemetry";
 import {
-	extractWorkspaceMetadataFromSystemPrompt,
 	toSessionRecord,
 	withLatestAssistantTurnMetadata,
 } from "./utils/helpers";
@@ -98,6 +97,7 @@ import {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,
 } from "./utils/usage";
+import { buildWorkspaceMetadata } from "./workspace-manifest";
 
 type SessionBackend =
 	| CoreSessionService
@@ -234,6 +234,7 @@ export class DefaultSessionManager implements SessionManager {
 				this.defaultTelemetry,
 				(e) => void this.handlePluginEvent(sessionId, e),
 			);
+		const workspaceMetadata = await buildWorkspaceMetadata(input.config.cwd);
 		const providerConfig = buildResolvedProviderConfig(
 			effectiveConfig,
 			this.providerSettingsManager,
@@ -242,6 +243,7 @@ export class DefaultSessionManager implements SessionManager {
 		const configWithProvider: CoreSessionConfig = {
 			...effectiveConfig,
 			providerConfig,
+			workspaceMetadata,
 		};
 
 		const runtime = this.runtimeBuilder.build({
@@ -1067,7 +1069,9 @@ export class DefaultSessionManager implements SessionManager {
 						cwd: config.cwd,
 						...(config.mode === "plan"
 							? ToolPresets.readonly
-							: ToolPresets.development),
+							: config.toolPolicies?.["*"]?.autoApprove === true
+								? ToolPresets.yolo
+								: ToolPresets.development),
 						executors: this.defaultToolExecutors,
 					})
 				: [];
@@ -1092,10 +1096,6 @@ export class DefaultSessionManager implements SessionManager {
 						providerConfig: config.providerConfig,
 						knownModels: config.knownModels,
 						thinking: config.thinking,
-						clineWorkspaceMetadata:
-							config.providerId === "cline"
-								? extractWorkspaceMetadataFromSystemPrompt(config.systemPrompt)
-								: undefined,
 						maxIterations: config.maxIterations,
 						hooks: config.hooks,
 						extensions: config.extensions,

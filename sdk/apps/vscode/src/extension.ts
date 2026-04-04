@@ -1,6 +1,5 @@
 import * as os from "node:os";
-import { join } from "node:path";
-import { getClineDefaultSystemPrompt } from "@clinebot/agents";
+import { basename, join } from "node:path";
 import {
 	type BasicLogger,
 	buildWorkspaceMetadata,
@@ -15,6 +14,7 @@ import {
 } from "@clinebot/core";
 import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
 import {
+	buildClineSystemPrompt,
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 } from "@clinebot/shared";
@@ -504,6 +504,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 			defaults.cwd,
 			providerId,
 			config?.systemPrompt,
+			config?.mode,
 		);
 		const startConfig: StartConfig = {
 			workspaceRoot: defaults.workspaceRoot,
@@ -674,26 +675,20 @@ class CoreChatWebviewController implements vscode.Disposable {
 		cwd: string,
 		providerId: string,
 		explicitSystemPrompt?: string,
+		mode: "act" | "plan" | "yolo" = "act",
 	): Promise<string> {
-		const shouldAppendWorkspaceMetadata = providerId === "cline";
-		const workspaceMetadata = shouldAppendWorkspaceMetadata
-			? await buildWorkspaceMetadata(cwd)
-			: "";
-		const explicit = explicitSystemPrompt?.trim();
-		if (explicit) {
-			if (
-				shouldAppendWorkspaceMetadata &&
-				!explicit.includes("# Workspace Configuration")
-			) {
-				return `${explicit}\n\n${workspaceMetadata}`;
-			}
-			return explicit;
-		}
-		return getClineDefaultSystemPrompt(
-			"VS Code",
-			cwd,
-			shouldAppendWorkspaceMetadata ? workspaceMetadata : "",
-		);
+		const metadata = await buildWorkspaceMetadata(cwd);
+		return buildClineSystemPrompt({
+			overridePrompt: explicitSystemPrompt,
+			ide: "VS Code",
+			mode,
+			workspaceRoot: cwd,
+			providerId,
+			workspaceName: basename(cwd),
+			metadata,
+			platform:
+				(typeof process !== "undefined" && process?.platform) || "unknown",
+		});
 	}
 
 	private async abortTurn(): Promise<void> {

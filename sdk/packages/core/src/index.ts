@@ -22,6 +22,7 @@ export type {
 	AgentMode,
 	BasicLogger,
 	ConnectorHookEvent,
+	emptyWorkspaceManifest,
 	HookSessionContext,
 	ITelemetryService,
 	RpcAddProviderActionRequest,
@@ -50,6 +51,10 @@ export type {
 	TelemetryProperties,
 	TelemetryValue,
 	ToolPolicy,
+	WorkspaceInfo,
+	WorkspaceInfoSchema,
+	WorkspaceManifest,
+	WorkspaceManifestSchema,
 } from "@clinebot/shared";
 export {
 	normalizeUserInput,
@@ -365,15 +370,10 @@ export type {
 	WorkspaceManagerEvent,
 } from "./session/workspace-manager";
 export { InMemoryWorkspaceManager } from "./session/workspace-manager";
-export type { WorkspaceManifest } from "./session/workspace-manifest";
 export {
 	buildWorkspaceMetadata,
-	emptyWorkspaceManifest,
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
-	upsertWorkspaceInfo,
-	WorkspaceInfoSchema,
-	WorkspaceManifestSchema,
 } from "./session/workspace-manifest";
 export {
 	type MigrateLegacyProviderSettingsOptions,
@@ -452,7 +452,7 @@ export {
 	ToolPresets,
 } from "./tools";
 // Compatibility barrel (legacy imports).
-export type { RuntimeEnvironment, SessionEvent, StoredMessages } from "./types";
+export type { RuntimeEnvironment } from "./types";
 export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
@@ -480,4 +480,3 @@ export {
 } from "./types/provider-settings";
 export type { SessionRecord, SessionRef } from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";
-export type { WorkspaceInfo } from "./types/workspace";

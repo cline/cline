@@ -500,11 +500,14 @@ export class AcpAgent implements Agent {
 
 	private async buildConfig(session: SessionState): Promise<Config> {
 		const cwd = session.cwd || process.cwd();
-		const systemPrompt = await resolveSystemPrompt({ cwd });
-
 		// Resolve credentials: env vars take precedence, then session provider.
 		const providerId = process.env.CLINE_PROVIDER ?? session.currentProviderId;
 		const apiKey = process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+		const systemPrompt = await resolveSystemPrompt({
+			cwd,
+			providerId,
+			mode: session.currentMode,
+		});
 
 		return {
 			providerId,

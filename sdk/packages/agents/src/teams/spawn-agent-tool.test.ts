@@ -200,7 +200,7 @@ describe("createSpawnAgentTool", () => {
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
 				cwd: "/repo/demo",
-				clineWorkspaceMetadata: workspaceMetadata,
+				workspaceMetadata,
 			}),
 			subAgentTools: [],
 		});
@@ -249,7 +249,7 @@ describe("createSpawnAgentTool", () => {
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",
 				cwd: "/repo/demo",
-				clineWorkspaceMetadata: "# Workspace Configuration\n{}",
+				workspaceMetadata: "# Workspace Configuration\n{}",
 			}),
 			subAgentTools: [],
 		});

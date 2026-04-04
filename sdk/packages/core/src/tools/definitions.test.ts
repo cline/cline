@@ -187,6 +187,82 @@ describe("default ask_question tool", () => {
 	});
 });
 
+describe("default submit_and_exit tool", () => {
+	it("is excluded by default even when executor is provided", () => {
+		const tools = createDefaultTools({
+			executors: {
+				submit: async () => "ok",
+			},
+		});
+		expect(tools.map((tool) => tool.name)).not.toContain("submit_and_exit");
+	});
+
+	it("is included only when enabled with a submit executor", () => {
+		const toolsWithoutExecutor = createDefaultTools({
+			executors: {},
+			enableSubmitAndExit: true,
+		});
+		expect(toolsWithoutExecutor.map((tool) => tool.name)).not.toContain(
+			"submit_and_exit",
+		);
+
+		const toolsWithExecutor = createDefaultTools({
+			executors: {
+				submit: async () => "ok",
+			},
+			enableSubmitAndExit: true,
+		});
+		expect(toolsWithExecutor.map((tool) => tool.name)).toContain(
+			"submit_and_exit",
+		);
+	});
+
+	it("validates and executes submit_and_exit input", async () => {
+		const execute = vi.fn(async () => "submitted");
+		const tools = createDefaultTools({
+			executors: {
+				submit: execute,
+			},
+			enableReadFiles: false,
+			enableSearch: false,
+			enableBash: false,
+			enableWebFetch: false,
+			enableEditor: false,
+			enableSkills: false,
+			enableAskQuestion: false,
+			enableSubmitAndExit: true,
+		});
+		const submitTool = tools.find((tool) => tool.name === "submit_and_exit");
+		expect(submitTool).toBeDefined();
+		if (!submitTool) {
+			throw new Error("Expected submit_and_exit tool to be defined.");
+		}
+
+		const result = await submitTool.execute(
+			{
+				summary: "Done and verified with the requested checks.",
+				verified: true,
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toBe("submitted");
+		expect(execute).toHaveBeenCalledWith(
+			"Done and verified with the requested checks.",
+			true,
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+});
+
 describe("default apply_patch tool", () => {
 	it("is included only when enabled with an applyPatch executor", () => {
 		const toolsWithoutExecutor = createDefaultTools({

@@ -94,6 +94,32 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("editor");
 	});
 
+	it("uses yolo preset when tools are auto-approved", () => {
+		const runtime = new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				toolPolicies: {
+					"*": { autoApprove: true },
+				},
+			},
+			defaultToolExecutors: {
+				submit: async () => "submitted",
+			},
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("ask_question");
+		expect(names).toContain("submit_and_exit");
+	});
+
 	it("uses apply_patch instead of editor for codex/gpt model IDs in act mode", () => {
 		const runtime = new DefaultRuntimeBuilder().build({
 			config: {

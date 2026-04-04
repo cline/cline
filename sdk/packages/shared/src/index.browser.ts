@@ -53,6 +53,7 @@ export { getDefaultShell, getShellArgs } from "./parse/shell";
 export { sanitizeFileName, truncateStr } from "./parse/string";
 export { formatHumanReadableDate } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
+export { buildClineSystemPrompt } from "./prompt/cline";
 export {
 	formatFileContentBlock,
 	formatUserInputBlock,
@@ -197,5 +198,6 @@ export type {
 	SessionWorkspaceConfig,
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
+export * from "./session/workspace";
 // VCR is Node-only (uses node:fs, node:path) — excluded from browser build
 export type { VcrRecording } from "./vcr";

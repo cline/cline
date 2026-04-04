@@ -5,7 +5,11 @@ import {
 	SessionSource,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
-import { askQuestionInTerminal, requestToolApproval } from "../utils/approval";
+import {
+	askQuestionInTerminal,
+	requestToolApproval,
+	submitAndExitInTerminal,
+} from "../utils/approval";
 import { handleEvent, handleTeamEvent } from "../utils/events";
 import { createRuntimeHooks } from "../utils/hooks";
 import {
@@ -142,7 +146,10 @@ export async function runAgent(
 		yolo: config.yolo,
 	});
 	const sessionManager = await createDefaultCliSessionManager({
-		defaultToolExecutors: { askQuestion: askQuestionInTerminal },
+		defaultToolExecutors: {
+			askQuestion: askQuestionInTerminal,
+			submit: submitAndExitInTerminal,
+		},
 		logger: config.logger,
 		toolPolicies: config.toolPolicies,
 		requestToolApproval,

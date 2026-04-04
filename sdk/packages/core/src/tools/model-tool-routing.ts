@@ -43,6 +43,7 @@ const TOOL_NAME_TO_FLAG: Record<
 		| "enableEditor"
 		| "enableSkills"
 		| "enableAskQuestion"
+		| "enableSubmitAndExit"
 	>
 > = {
 	read_files: "enableReadFiles",
@@ -53,6 +54,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	editor: "enableEditor",
 	skills: "enableSkills",
 	ask_question: "enableAskQuestion",
+	submit_and_exit: "enableSubmitAndExit",
 };
 
 export const DEFAULT_MODEL_TOOL_ROUTING_RULES: ToolRoutingRule[] = [

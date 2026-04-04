@@ -1,3 +1,9 @@
+export {
+	upsertWorkspaceInfo,
+	type WorkspaceInfo,
+	type WorkspaceManifest,
+	WorkspaceManifestSchema,
+} from "@clinebot/shared";
 export type {
 	ClineCore,
 	ClineCoreOptions,
@@ -33,13 +39,7 @@ export type {
 	WorkspaceManagerEvent,
 } from "./workspace-manager";
 export { InMemoryWorkspaceManager } from "./workspace-manager";
-export type { WorkspaceManifest } from "./workspace-manifest";
 export {
-	buildWorkspaceMetadata,
-	emptyWorkspaceManifest,
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
-	upsertWorkspaceInfo,
-	WorkspaceInfoSchema,
-	WorkspaceManifestSchema,
 } from "./workspace-manifest";

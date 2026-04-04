@@ -173,6 +173,20 @@ export interface SkillsExecutorWithMetadata {
 }
 
 /**
+ * Executor for verifying a user's response to a question
+ *
+ * @param summary - Summary of the solution ans steps taken
+ * @param verified - Boolean indicating if the solution has been verified
+ * @param context - Tool execution context
+ * @returns Executor-specific result payload
+ */
+export type VerifySubmitExecutor = (
+	summary: string,
+	verified: boolean,
+	context: ToolContext,
+) => Promise<string>;
+
+/**
  * Collection of all tool executors
  */
 export interface ToolExecutors {
@@ -192,6 +206,8 @@ export interface ToolExecutors {
 	skills?: SkillsExecutorWithMetadata;
 	/** Follow-up question implementation */
 	askQuestion?: AskQuestionExecutor;
+	/** Final submission implementation */
+	submit?: VerifySubmitExecutor;
 }
 
 // =============================================================================
@@ -209,7 +225,8 @@ export type DefaultToolName =
 	| "apply_patch"
 	| "editor"
 	| "skills"
-	| "ask_question";
+	| "ask_question"
+	| "submit_and_exit";
 
 /**
  * Configuration for enabling/disabling default tools
@@ -264,6 +281,12 @@ export interface DefaultToolsConfig {
 	enableAskQuestion?: boolean;
 
 	/**
+	 * Enable the submit_and_exit tool
+	 * @default false
+	 */
+	enableSubmitAndExit?: boolean;
+
+	/**
 	 * Current working directory for tools that need it
 	 */
 	cwd?: string;
@@ -315,6 +338,12 @@ export interface DefaultToolsConfig {
 	 * @default 15000
 	 */
 	askQuestionTimeoutMs?: number;
+
+	/**
+	 * Timeout for submit_and_exit operations in milliseconds
+	 * @default 15000
+	 */
+	submitTimeoutMs?: number;
 }
 
 /**
