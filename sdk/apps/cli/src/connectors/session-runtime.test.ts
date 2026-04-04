@@ -28,22 +28,16 @@ vi.mock("@clinebot/core", async () => {
 		},
 		CoreSessionService: class {},
 		SqliteSessionStore: class {},
+		LlmsModels: {
+			...actual.LlmsModels,
+			getProviderCollection: mockGetProviderCollection,
+		},
 	};
 });
 
 vi.mock("../runtime/prompt", () => ({
 	resolveSystemPrompt: mockResolveSystemPrompt,
 }));
-
-vi.mock("@clinebot/llms/models", async () => {
-	const actual = await vi.importActual<typeof import("@clinebot/llms/models")>(
-		"@clinebot/llms/models",
-	);
-	return {
-		...actual,
-		getProviderCollection: mockGetProviderCollection,
-	};
-});
 
 vi.mock("../utils/helpers", () => ({
 	resolveWorkspaceRoot: vi.fn((cwd: string) => cwd),

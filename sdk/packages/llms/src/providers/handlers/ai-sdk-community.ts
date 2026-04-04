@@ -106,7 +106,6 @@ export async function* emitAiSdkStream(
 	if (stream.fullStream) {
 		for await (const part of stream.fullStream) {
 			const partType = part.type;
-
 			if (partType === "text-delta") {
 				const text =
 					(part.textDelta as string | undefined) ??

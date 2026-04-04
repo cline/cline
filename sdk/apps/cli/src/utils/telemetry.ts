@@ -4,6 +4,7 @@ import {
 	type BasicLogger,
 	createClineTelemetryServiceConfig,
 	type ITelemetryService,
+	registerDisposable,
 } from "@clinebot/shared";
 import { getCliBuildInfo } from "./common";
 
@@ -38,13 +39,15 @@ export function getCliTelemetryService(
 			...config,
 			logger,
 		});
+		const dispose = async () => {
+			await Promise.allSettled([telemetry.dispose(), provider?.dispose()]);
+		};
 		telemetrySingleton = {
 			telemetry,
 			loggerAttached: Boolean(logger),
-			dispose: async () => {
-				await Promise.allSettled([telemetry.dispose(), provider?.dispose()]);
-			},
+			dispose,
 		};
+		registerDisposable(disposeCliTelemetryService);
 	}
 	if (
 		logger &&

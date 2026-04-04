@@ -6,3 +6,10 @@ export function truncateStr(str: string, maxLen: number): string {
 	if (str.length <= maxLen) return str;
 	return `${str.slice(0, maxLen - 1)}…`;
 }
+
+export function maskSecret(value: string): string {
+	if (value.length <= 8) {
+		return "****";
+	}
+	return `${value.slice(0, 4)}...${value.slice(-4)}`;
+}

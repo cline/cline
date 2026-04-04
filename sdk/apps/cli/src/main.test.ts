@@ -69,6 +69,10 @@ vi.mock("@clinebot/core", async () => {
 		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
 	return {
 		...actual,
+		LlmsProviders: {
+			...actual.LlmsProviders,
+			resolveProviderConfig: llmMocks.resolveProviderConfig,
+		},
 		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigWatcher: vi.fn(
 			() =>
@@ -90,15 +94,6 @@ vi.mock("@clinebot/core", async () => {
 	};
 });
 vi.mock("./commands/auth", () => authMocks);
-vi.mock("@clinebot/llms/providers", async () => {
-	const actual = await vi.importActual<
-		typeof import("@clinebot/llms/providers")
-	>("@clinebot/llms/providers");
-	return {
-		...actual,
-		resolveProviderConfig: llmMocks.resolveProviderConfig,
-	};
-});
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));

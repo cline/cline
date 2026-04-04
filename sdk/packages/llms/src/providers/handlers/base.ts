@@ -11,6 +11,7 @@ import type {
 	ApiStream,
 	ApiStreamUsageChunk,
 	HandlerModelInfo,
+	ModelCapability,
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
@@ -166,18 +167,59 @@ export abstract class BaseHandler implements ApiHandler {
 	}
 
 	protected supportsPromptCache(modelInfo?: ModelInfo): boolean {
+		const resolvedModelInfo = this.resolveModelInfo(modelInfo);
+		const pricing = resolvedModelInfo?.pricing;
+
+		return (
+			this.hasResolvedCapability("prompt-cache", resolvedModelInfo) ||
+			typeof pricing?.cacheRead === "number" ||
+			typeof pricing?.cacheWrite === "number"
+		);
+	}
+
+	protected resolveModelInfo(modelInfo?: ModelInfo): ModelInfo | undefined {
 		const resolvedModelInfo =
 			modelInfo ??
 			this.config.modelInfo ??
 			this.config.knownModels?.[this.config.modelId];
-		const pricing = resolvedModelInfo?.pricing;
+		if (!resolvedModelInfo) {
+			return undefined;
+		}
 
+		const capabilities = this.resolveModelCapabilities(resolvedModelInfo);
+		return capabilities
+			? { ...resolvedModelInfo, capabilities }
+			: resolvedModelInfo;
+	}
+
+	protected resolveModelCapabilities(
+		modelInfo?: Pick<ModelInfo, "capabilities">,
+	): ModelCapability[] | undefined {
+		const resolved = new Set(modelInfo?.capabilities ?? []);
+		for (const capability of this.getConfigCapabilityOverrides()) {
+			resolved.add(capability);
+		}
+		return resolved.size > 0 ? [...resolved] : undefined;
+	}
+
+	protected hasResolvedCapability(
+		capability: ModelCapability,
+		modelInfo?: Pick<ModelInfo, "capabilities">,
+	): boolean {
 		return (
-			resolvedModelInfo?.capabilities?.includes("prompt-cache") === true ||
-			this.config.capabilities?.includes("prompt-cache") === true ||
-			typeof pricing?.cacheRead === "number" ||
-			typeof pricing?.cacheWrite === "number"
+			this.resolveModelCapabilities(modelInfo)?.includes(capability) ?? false
 		);
+	}
+
+	protected getConfigCapabilityOverrides(): ModelCapability[] {
+		const allowedOverrides = new Set<ModelCapability>(["prompt-cache"]);
+		const overrides: ModelCapability[] = [];
+		for (const capability of this.config.capabilities ?? []) {
+			if (allowedOverrides.has(capability as ModelCapability)) {
+				overrides.push(capability as ModelCapability);
+			}
+		}
+		return overrides;
 	}
 
 	protected calculateCost(

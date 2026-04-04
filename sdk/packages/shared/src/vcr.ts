@@ -33,6 +33,7 @@
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
+import { registerDisposable } from "./dispose";
 
 // ── Types ───────────────────────────────────────────────────────────────
 
@@ -515,15 +516,7 @@ function startRecordingRequests(cassettePath: string, filter: string): void {
 		);
 	};
 
-	process.on("exit", saveRecordings);
-	process.on("SIGTERM", () => {
-		saveRecordings();
-		process.exit(0);
-	});
-	process.on("SIGINT", () => {
-		saveRecordings();
-		process.exit(0);
-	});
+	registerDisposable(saveRecordings);
 }
 
 // ── Playback mode ───────────────────────────────────────────────────────

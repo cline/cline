@@ -61,6 +61,18 @@ async function collectChunks(stream: AsyncIterable<ApiStreamChunk>) {
 }
 
 describe("OpenAIResponsesHandler", () => {
+	it("does not apply prompt-cache config overrides to fallback model info", () => {
+		const handler = new TestOpenAIResponsesHandler({
+			providerId: "openai-native",
+			modelId: "gpt-5.4",
+			apiKey: "test-key",
+			baseUrl: "https://example.com",
+			capabilities: ["prompt-cache"],
+		});
+
+		expect(handler.getModel().info.capabilities).toBeUndefined();
+	});
+
 	it("converts tool_use/tool_result message history into Responses input items", () => {
 		const handler = new TestOpenAIResponsesHandler({
 			providerId: "openai-native",

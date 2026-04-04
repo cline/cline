@@ -4,10 +4,10 @@ import type {
 } from "@clinebot/core";
 import {
 	CoreSessionService,
+	LlmsModels,
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@clinebot/core";
-import * as LlmsModels from "@clinebot/llms/models";
 import { RpcSessionClient } from "@clinebot/rpc";
 import type { Thread } from "chat";
 import {

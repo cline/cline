@@ -9,6 +9,7 @@ import {
 import { dirname, join } from "node:path";
 import type { BasicLogger, RpcChatRuntimeLoggerConfig } from "@clinebot/core";
 import { resolveClineDataDir } from "@clinebot/core";
+import { registerDisposable } from "@clinebot/shared";
 import pino, {
 	type DestinationStream,
 	type LevelWithSilent,
@@ -104,6 +105,10 @@ function getOrCreatePinoLogger(
 	const cached = loggerCache.get(key);
 	if (cached) {
 		return cached.logger;
+	}
+
+	if (loggerCache.size === 0) {
+		registerDisposable(shutdownCliLoggerAdapters);
 	}
 
 	const destination = createWritableDestination(config.destination, runtime);

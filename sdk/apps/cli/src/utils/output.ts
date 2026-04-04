@@ -1,4 +1,5 @@
 import { appendFileSync } from "node:fs";
+import { registerDisposable } from "@clinebot/shared";
 import { nowIso } from "./helpers";
 import type { ActiveCliSession, CliOutputMode } from "./types";
 
@@ -77,6 +78,12 @@ export function installStreamErrorGuards(): void {
 
 	process.stdout.on("error", onStdoutError);
 	process.stderr.on("error", onStderrError);
+
+	registerDisposable(() => {
+		process.stdout.off("error", onStdoutError);
+		process.stderr.off("error", onStderrError);
+		streamErrorGuardsBound = false;
+	});
 }
 
 // =============================================================================

@@ -23,6 +23,7 @@ import {
 import type {
 	ApiStream,
 	HandlerModelInfo,
+	ModelCapability,
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
@@ -227,12 +228,15 @@ export class OpenAIResponsesHandler extends BaseHandler {
 	}
 
 	protected getDefaultModelInfo(): ModelInfo {
-		// Responses API models don't support prompt caching
-		const capabilities = [].filter((c) => c !== "prompt-cache");
 		return {
 			id: this.config.modelId,
-			capabilities,
+			capabilities: this.resolveModelCapabilities(),
 		};
+	}
+
+	protected override getConfigCapabilityOverrides(): ModelCapability[] {
+		// Responses API does not support prompt-cache request shaping.
+		return [];
 	}
 
 	getMessages(
@@ -287,8 +291,10 @@ export class OpenAIResponsesHandler extends BaseHandler {
 		}
 
 		// Build reasoning config
-		const supportsReasoning =
-			modelInfo.capabilities?.includes("reasoning") ?? false;
+		const supportsReasoning = this.hasResolvedCapability(
+			"reasoning",
+			modelInfo,
+		);
 		const effectiveReasoningEffort =
 			this.config.reasoningEffort ??
 			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);

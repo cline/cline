@@ -3,6 +3,7 @@ import { homedir } from "node:os";
 import type { ToolPolicy } from "@clinebot/core";
 import { setClineDir, setHomeDir } from "@clinebot/core";
 import { requestRpcServerShutdown } from "@clinebot/rpc";
+import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
 import {
 	ensureOAuthProviderApiKey,
@@ -71,15 +72,13 @@ async function createProviderSettingsManager() {
 }
 
 async function loadCliRuntimeModules() {
-	const [coreServer, providers, prompt, runAgentModule] = await Promise.all([
+	const [coreServer, prompt, runAgentModule] = await Promise.all([
 		import("@clinebot/core"),
-		import("@clinebot/llms/providers"),
 		import("./runtime/prompt"),
 		import("./runtime/run-agent"),
 	]);
 	return {
 		coreServer,
-		providers,
 		resolveSystemPrompt: prompt.resolveSystemPrompt,
 		runAgent: runAgentModule.runAgent,
 	};
@@ -520,11 +519,11 @@ export async function runCli(): Promise<void> {
 	const providerSettingsManager = await createProviderSettingsManager();
 	const {
 		coreServer: {
+			LlmsProviders,
 			createTeamName,
 			createUserInstructionConfigWatcher,
 			loadRulesForSystemPromptFromWatcher,
 		},
-		providers,
 		resolveSystemPrompt,
 		runAgent,
 	} = await loadCliRuntimeModules();
@@ -543,7 +542,7 @@ export async function runCli(): Promise<void> {
 		watcherDisposed = true;
 		userInstructionWatcher.stop();
 	};
-	process.on("exit", stopUserInstructionWatcher);
+	registerDisposable(stopUserInstructionWatcher);
 	try {
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings();
@@ -582,14 +581,12 @@ export async function runCli(): Promise<void> {
 		let knownModels: Config["knownModels"];
 		if (args.liveModelCatalog) {
 			try {
-				const resolvedProviderConfig = await providers.resolveProviderConfig(
-					provider,
-					{
+				const resolvedProviderConfig =
+					await LlmsProviders.resolveProviderConfig(provider, {
 						loadLatestOnInit: true,
 						loadPrivateOnAuth: true,
 						failOnError: false,
-					},
-				);
+					});
 				knownModels = resolvedProviderConfig?.knownModels;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
@@ -725,6 +722,5 @@ export async function runCli(): Promise<void> {
 		return;
 	} finally {
 		stopUserInstructionWatcher();
-		process.off("exit", stopUserInstructionWatcher);
 	}
 }

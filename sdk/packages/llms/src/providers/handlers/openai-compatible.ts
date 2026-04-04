@@ -8,7 +8,6 @@ import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
 import type {
 	ApiStream,
 	HandlerModelInfo,
-	ModelCapability,
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
@@ -21,6 +20,7 @@ import {
 	numberOrZero,
 } from "./ai-sdk-community";
 import { BaseHandler } from "./base";
+import { debugLangfuse, ensureLangfuseTelemetry } from "./langfuse-telemetry";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;
 
@@ -129,14 +129,9 @@ export class OpenAICompatibleHandler extends BaseHandler {
 	}
 
 	protected getDefaultModelInfo(): ModelInfo {
-		const capabilities: ModelCapability[] = this.config.capabilities?.includes(
-			"prompt-cache",
-		)
-			? ["prompt-cache"]
-			: [];
 		return {
 			id: this.config.modelId,
-			capabilities,
+			capabilities: this.resolveModelCapabilities(),
 		};
 	}
 
@@ -167,12 +162,13 @@ export class OpenAICompatibleHandler extends BaseHandler {
 		const responseId = this.createResponseId();
 		const routingProviderId = resolveRoutingProviderId(this.config);
 
-		const modelSupportsReasoning =
-			modelInfo.capabilities?.includes("reasoning") ?? false;
+		const modelSupportsReasoning = this.hasResolvedCapability(
+			"reasoning",
+			modelInfo,
+		);
 		const supportsReasoningEffort =
-			modelInfo.capabilities?.includes("reasoning-effort") ||
-			modelInfo.capabilities?.includes("reasoning") ||
-			false;
+			this.hasResolvedCapability("reasoning-effort", modelInfo) ||
+			modelSupportsReasoning;
 		const effectiveReasoningEffort =
 			this.config.reasoningEffort ??
 			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);
@@ -194,6 +190,9 @@ export class OpenAICompatibleHandler extends BaseHandler {
 			Object.keys(providerSpecificOptions).length > 0
 				? { [providerOptionsKey]: providerSpecificOptions }
 				: undefined;
+		const langfuseTelemetryReady =
+			await ensureLangfuseTelemetry(routingProviderId);
+		debugLangfuse(`ready langfuse=${String(langfuseTelemetryReady)}`);
 
 		const stream = ai.streamText({
 			model: provider(modelId),
@@ -205,6 +204,9 @@ export class OpenAICompatibleHandler extends BaseHandler {
 				: (modelInfo.temperature ?? 0),
 			providerOptions: requestProviderOptions,
 			abortSignal: this.getAbortSignal(),
+			experimental_telemetry: {
+				isEnabled: true,
+			},
 		});
 
 		yield* emitAiSdkStream(stream, {

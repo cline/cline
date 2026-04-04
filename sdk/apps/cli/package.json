@@ -55,7 +55,6 @@
 	"devDependencies": {
 		"@clinebot/agents": "workspace:*",
 		"@clinebot/core": "workspace:*",
-		"@clinebot/llms": "workspace:*",
 		"@clinebot/rpc": "workspace:*",
 		"@clinebot/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",

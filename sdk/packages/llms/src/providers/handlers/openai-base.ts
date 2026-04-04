@@ -22,7 +22,6 @@ import {
 import type {
 	ApiStream,
 	HandlerModelInfo,
-	ModelCapability,
 	ModelInfo,
 	ProviderConfig,
 } from "../types";
@@ -122,14 +121,9 @@ export class OpenAIBaseHandler extends BaseHandler {
 	}
 
 	protected getDefaultModelInfo(): ModelInfo {
-		const capabilities: ModelCapability[] = this.config.capabilities?.includes(
-			"prompt-cache",
-		)
-			? ["prompt-cache"]
-			: [];
 		return {
 			id: this.config.modelId,
-			capabilities,
+			capabilities: this.resolveModelCapabilities(),
 		};
 	}
 
@@ -215,17 +209,18 @@ export class OpenAIBaseHandler extends BaseHandler {
 		}
 
 		// Add temperature if not a reasoning model
-		const modelSupportsReasoning =
-			modelInfo.capabilities?.includes("reasoning") ?? false;
+		const modelSupportsReasoning = this.hasResolvedCapability(
+			"reasoning",
+			modelInfo,
+		);
 		if (!modelSupportsReasoning) {
 			requestOptions.temperature = modelInfo.temperature ?? 0;
 		}
 
 		// Add reasoning effort for supported models
 		const supportsReasoningEffort =
-			modelInfo.capabilities?.includes("reasoning-effort") ||
-			modelInfo.capabilities?.includes("reasoning") ||
-			false;
+			this.hasResolvedCapability("reasoning-effort", modelInfo) ||
+			modelSupportsReasoning;
 		const effectiveReasoningEffort =
 			this.config.reasoningEffort ??
 			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);

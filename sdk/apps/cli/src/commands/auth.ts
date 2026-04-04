@@ -564,8 +564,8 @@ async function runInteractiveAuthTui(input: AuthCommandInput): Promise<number> {
 	const defaultProvider =
 		normalizeProviderId(
 			input.providerSettingsManager.getLastUsedProviderSettings()?.provider ??
-				"anthropic",
-		) || "anthropic";
+				"cline",
+		) || "cline";
 
 	const initialProviderIndex = Math.max(
 		0,

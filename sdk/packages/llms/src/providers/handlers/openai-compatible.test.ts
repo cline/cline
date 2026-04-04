@@ -12,12 +12,25 @@ const { streamTextSpy, providerSpy, createOpenAICompatibleSpy } = vi.hoisted(
 	},
 );
 
+const { ensureLangfuseTelemetrySpy } = vi.hoisted(() => ({
+	ensureLangfuseTelemetrySpy: vi.fn(async () => false),
+}));
+
+const { debugLangfuseSpy } = vi.hoisted(() => ({
+	debugLangfuseSpy: vi.fn(),
+}));
+
 vi.mock("ai", () => ({
 	streamText: streamTextSpy,
 }));
 
 vi.mock("@ai-sdk/openai-compatible", () => ({
 	createOpenAICompatible: createOpenAICompatibleSpy,
+}));
+
+vi.mock("./langfuse-telemetry", () => ({
+	debugLangfuse: debugLangfuseSpy,
+	ensureLangfuseTelemetry: ensureLangfuseTelemetrySpy,
 }));
 
 import { OpenAICompatibleHandler } from "./openai-compatible";
@@ -61,10 +74,62 @@ describe("OpenAICompatibleHandler", () => {
 		streamTextSpy.mockReset();
 		providerSpy.mockReset();
 		createOpenAICompatibleSpy.mockClear();
+		debugLangfuseSpy.mockReset();
+		ensureLangfuseTelemetrySpy.mockReset();
+		ensureLangfuseTelemetrySpy.mockResolvedValue(false);
 		providerSpy.mockReturnValue({ provider: "model" });
 		streamTextSpy.mockReturnValue({
 			fullStream: createAsyncIterable([{ type: "finish", usage: {} }]),
 		});
+	});
+
+	it("only applies allowed config capability overrides to fallback model info", () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "google/gemma-4-31b-it",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			capabilities: ["prompt-cache", "reasoning"],
+		});
+
+		expect(handler.getModel().info.capabilities).toEqual(["prompt-cache"]);
+	});
+
+	it("enables AI SDK telemetry when Langfuse is configured", async () => {
+		ensureLangfuseTelemetrySpy.mockResolvedValue(true);
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "google/gemma-4-31b-it",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		await drain(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			experimental_telemetry?: { isEnabled?: boolean };
+		};
+		expect(request.experimental_telemetry).toMatchObject({ isEnabled: true });
+	});
+
+	it("keeps AI SDK telemetry enabled without Langfuse", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "cline",
+			modelId: "google/gemma-4-31b-it",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		await drain(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			experimental_telemetry?: { isEnabled?: boolean };
+		};
+		expect(request.experimental_telemetry).toMatchObject({ isEnabled: true });
 	});
 
 	it("omits OpenRouter reasoning options when thinking is disabled", async () => {

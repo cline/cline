@@ -22,6 +22,8 @@ export {
 	ConnectorHookEventSchema,
 } from "./connectors/events";
 export type * from "./connectors/options";
+export type { Disposable } from "./dispose";
+export { disposeAll, registerDisposable } from "./dispose";
 export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
@@ -50,7 +52,7 @@ export { ToolCallRecordSchema, ToolContextSchema } from "./llms/tools";
 export type { BasicLogger } from "./logging/logger";
 export { parseJsonStream, safeJsonStringify } from "./parse/json";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
-export { sanitizeFileName, truncateStr } from "./parse/string";
+export { maskSecret, sanitizeFileName, truncateStr } from "./parse/string";
 export { formatHumanReadableDate } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
