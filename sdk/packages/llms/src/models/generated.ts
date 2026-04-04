@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1775176975314,
+	version: 1775273485152,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -1252,7 +1252,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1266,7 +1273,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6 (EU)",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1280,7 +1294,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6 (Global)",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1294,7 +1315,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6 (US)",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1364,7 +1392,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Magistral Small 1.2",
 				contextWindow: 128000,
 				maxTokens: 40000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.5,
 					output: 1.5,
@@ -1378,7 +1412,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 3 3B",
 				contextWindow: 256000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.1,
 					output: 0.1,
@@ -1392,7 +1426,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral Large 3",
 				contextWindow: 256000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.5,
 					output: 1.5,
@@ -1406,7 +1440,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 256000,
 				maxTokens: 12800,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.6,
 					output: 2.5,
@@ -1420,7 +1459,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1434,7 +1480,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5 (EU)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1448,7 +1501,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5 (Global)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1462,7 +1522,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5 (US)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -1490,7 +1557,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -1504,7 +1578,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5 (EU)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -1518,7 +1599,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5 (Global)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -1532,7 +1620,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5 (US)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -1560,7 +1655,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1574,7 +1676,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5 (EU)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1588,7 +1697,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5 (Global)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1602,7 +1718,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5 (US)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1616,7 +1739,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek-V3.1",
 				contextWindow: 163840,
 				maxTokens: 81920,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.58,
 					output: 1.68,
@@ -1630,7 +1758,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 235B A22B 2507",
 				contextWindow: 262144,
 				maxTokens: 131072,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.22,
 					output: 0.88,
@@ -1644,7 +1772,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 32B (dense)",
 				contextWindow: 16384,
 				maxTokens: 819,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -1658,7 +1791,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder 30B A3B Instruct",
 				contextWindow: 262144,
 				maxTokens: 131072,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -1672,7 +1805,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Coder 480B A35B Instruct",
 				contextWindow: 131072,
 				maxTokens: 65536,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.22,
 					output: 1.8,
@@ -1728,7 +1861,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google Gemma 3 27B Instruct",
 				contextWindow: 202752,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.12,
 					output: 0.2,
@@ -1742,7 +1875,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Voxtral Small 24B 2507",
 				contextWindow: 32000,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
 					output: 0.35,
@@ -2036,7 +2169,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 14B 3.0",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.2,
 					output: 0.2,
@@ -2050,7 +2183,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Ministral 3 8B",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
 					output: 0.15,
@@ -2064,7 +2197,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Voxtral Mini 3B 2507",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.04,
 					output: 0.04,
@@ -2078,7 +2211,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "NVIDIA Nemotron Nano 12B v2 VL BF16",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.2,
 					output: 0.6,
@@ -2092,7 +2225,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "NVIDIA Nemotron Nano 9B v2",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.06,
 					output: 0.23,
@@ -2106,7 +2239,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-120b",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -2120,7 +2253,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-20b",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.07,
 					output: 0.3,
@@ -2134,7 +2267,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT OSS Safeguard 120B",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -2148,7 +2281,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT OSS Safeguard 20B",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "structured_output", "temperature"],
 				pricing: {
 					input: 0.07,
 					output: 0.2,
@@ -2599,6 +2732,46 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		gemini: {
+			"gemma-4-26b": {
+				id: "gemma-4-26b",
+				name: "Gemma 4 26B",
+				contextWindow: 256000,
+				maxTokens: 8192,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-02",
+			},
+			"gemma-4-31b": {
+				id: "gemma-4-31b",
+				name: "Gemma 4 31B",
+				contextWindow: 256000,
+				maxTokens: 8192,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-02",
+			},
 			"gemini-3.1-flash-lite-preview": {
 				id: "gemini-3.1-flash-lite-preview",
 				name: "Gemini 3.1 Flash Lite Preview",
@@ -8785,7 +8958,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 0.4,
 					output: 2,
-					cacheRead: 0,
+					cacheRead: 0.08,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-03-18",
@@ -8804,7 +8977,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 1,
 					output: 3,
-					cacheRead: 0,
+					cacheRead: 0.2,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-03-18",
@@ -12251,6 +12424,76 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		"vercel-ai-gateway": {
+			"alibaba/qwen3.6-plus": {
+				id: "alibaba/qwen3.6-plus",
+				name: "Qwen 3.6 Plus",
+				contextWindow: 1000000,
+				maxTokens: 64000,
+				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.5,
+					output: 3,
+					cacheRead: 0.09999999999999999,
+					cacheWrite: 0.625,
+				},
+				releaseDate: "2026-04-02",
+			},
+			"google/gemma-4-26b-a4b-it": {
+				id: "google/gemma-4-26b-a4b-it",
+				name: "Gemma 4 26B A4B IT",
+				contextWindow: 262144,
+				maxTokens: 131072,
+				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.13,
+					output: 0.39999999999999997,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-02",
+			},
+			"google/gemma-4-31b-it": {
+				id: "google/gemma-4-31b-it",
+				name: "Gemma 4 31B IT",
+				contextWindow: 262144,
+				maxTokens: 131072,
+				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.14,
+					output: 0.39999999999999997,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-02",
+			},
+			"arcee-ai/trinity-large-thinking": {
+				id: "arcee-ai/trinity-large-thinking",
+				name: "Trinity Large Thinking",
+				contextWindow: 262100,
+				maxTokens: 80000,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.25,
+					output: 0.8999999999999999,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-01",
+			},
+			"zai/glm-5v-turbo": {
+				id: "zai/glm-5v-turbo",
+				name: "GLM 5V Turbo",
+				contextWindow: 200000,
+				maxTokens: 128000,
+				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 1.2,
+					output: 4,
+					cacheRead: 0.24,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-01",
+			},
 			"kwaipilot/kat-coder-pro-v2": {
 				id: "kwaipilot/kat-coder-pro-v2",
 				name: "Kat Coder Pro V2",
