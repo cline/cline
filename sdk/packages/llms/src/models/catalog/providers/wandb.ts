@@ -6,7 +6,7 @@ const WANDB_MODELS = getGeneratedModelsForProvider("wandb");
 export const WANDB_PROVIDER: ModelCollection = {
 	provider: {
 		id: "wandb",
-		name: "Wandb",
+		name: "W&B by CoreWeave",
 		description: "Weights & Biases",
 		protocol: "openai-chat",
 		baseUrl: "https://api.inference.wandb.ai/v1",
