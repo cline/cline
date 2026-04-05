@@ -113,7 +113,8 @@ describe("Retry Decorator", () => {
 			const setTimeoutSpy = sinon.spy(global, "setTimeout")
 			let callCount = 0
 			const fixedDate = new Date("2010-01-01T00:00:00.000Z")
-			const retryTimestamp = Math.floor(fixedDate.getTime() / 1000) + 0.01 // 10ms in the future
+			const clock = sinon.useFakeTimers({ now: fixedDate })
+			const retryTimestamp = Math.floor(fixedDate.getTime() / 1000) + 1 // 1s in the future
 			const baseDelay = 1000
 
 			class TestClass {
@@ -140,9 +141,10 @@ describe("Retry Decorator", () => {
 
 			setTimeoutSpy.calledOnce.should.be.true
 			const [_, delay] = setTimeoutSpy.getCall(0).args
-			delay?.should.equal(fixedDate.getTime())
+			delay?.should.equal(1000)
 
 			result.should.deepEqual(["success after retry"])
+			clock.restore()
 		})
 
 		it("should not retry when retry-after exceeds the stop threshold", async () => {
