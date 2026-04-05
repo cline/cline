@@ -145,6 +145,34 @@ describe("Retry Decorator", () => {
 			result.should.deepEqual(["success after retry"])
 		})
 
+		it("should not retry when retry-after exceeds the stop threshold", async () => {
+			const setTimeoutSpy = sinon.spy(global, "setTimeout")
+			let callCount = 0
+
+			class TestClass {
+				@withRetry({ maxRetries: 2, baseDelay: 10 })
+				async *failMethod() {
+					callCount++
+					const error: any = new Error("Rate limit exceeded")
+					error.status = 429
+					error.headers = { "retry-after": "3600" }
+					throw error
+				}
+			}
+
+			const test = new TestClass()
+			try {
+				for await (const _ of test.failMethod()) {
+					// Should not reach here
+				}
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.message.should.equal("Rate limit exceeded")
+				callCount.should.equal(1)
+				setTimeoutSpy.called.should.be.false
+			}
+		})
+
 		it("should use exponential backoff when no retry-after header", async () => {
 			const setTimeoutSpy = sinon.spy(global, "setTimeout")
 			let callCount = 0
