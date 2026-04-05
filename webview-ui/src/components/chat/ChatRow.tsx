@@ -527,6 +527,12 @@ export const ChatRowContent = memo(
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+										{tool.readLineStart != null && tool.readLineEnd != null ? (
+											<span className="opacity-80">
+												{" "}
+												({tool.readLineStart}-{tool.readLineEnd})
+											</span>
+										) : null}
 									</span>
 									<div className="grow" />
 									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
