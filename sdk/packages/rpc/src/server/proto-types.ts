@@ -14,6 +14,12 @@ import type { EnqueueSpawnRequestRequest__Output } from "../proto/generated/clin
 import type { EnqueueSpawnRequestResponse } from "../proto/generated/cline/rpc/v1/EnqueueSpawnRequestResponse";
 import type { EnsureSessionRequest__Output } from "../proto/generated/cline/rpc/v1/EnsureSessionRequest";
 import type { EnsureSessionResponse } from "../proto/generated/cline/rpc/v1/EnsureSessionResponse";
+import type { EnterpriseAuthenticateRequest__Output } from "../proto/generated/cline/rpc/v1/EnterpriseAuthenticateRequest";
+import type { EnterpriseAuthenticateResponse } from "../proto/generated/cline/rpc/v1/EnterpriseAuthenticateResponse";
+import type { EnterpriseStatusRequest__Output } from "../proto/generated/cline/rpc/v1/EnterpriseStatusRequest";
+import type { EnterpriseStatusResponse } from "../proto/generated/cline/rpc/v1/EnterpriseStatusResponse";
+import type { EnterpriseSyncRequest__Output } from "../proto/generated/cline/rpc/v1/EnterpriseSyncRequest";
+import type { EnterpriseSyncResponse } from "../proto/generated/cline/rpc/v1/EnterpriseSyncResponse";
 import type { GetActiveScheduledExecutionsRequest__Output } from "../proto/generated/cline/rpc/v1/GetActiveScheduledExecutionsRequest";
 import type { GetActiveScheduledExecutionsResponse } from "../proto/generated/cline/rpc/v1/GetActiveScheduledExecutionsResponse";
 import type { GetScheduleRequest__Output } from "../proto/generated/cline/rpc/v1/GetScheduleRequest";
@@ -92,6 +98,10 @@ export type StartRuntimeSessionRequest = StartRuntimeSessionRequest__Output;
 export type SendRuntimeSessionRequest = SendRuntimeSessionRequest__Output;
 export type StopRuntimeSessionRequest = StopRuntimeSessionRequest__Output;
 export type AbortRuntimeSessionRequest = AbortRuntimeSessionRequest__Output;
+export type EnterpriseAuthenticateRequest =
+	EnterpriseAuthenticateRequest__Output;
+export type EnterpriseSyncRequest = EnterpriseSyncRequest__Output;
+export type EnterpriseStatusRequest = EnterpriseStatusRequest__Output;
 export type RunProviderActionRequest = RunProviderActionRequest__Output;
 export type RunProviderOAuthLoginRequest = RunProviderOAuthLoginRequest__Output;
 export type CompleteTaskRequest = CompleteTaskRequest__Output;
@@ -123,6 +133,9 @@ export type {
 	DeleteScheduleResponse,
 	DeleteSessionResponse,
 	EnqueueSpawnRequestResponse,
+	EnterpriseAuthenticateResponse,
+	EnterpriseStatusResponse,
+	EnterpriseSyncResponse,
 	EnsureSessionResponse,
 	GetActiveScheduledExecutionsResponse,
 	GetScheduleResponse,

@@ -2,7 +2,7 @@ import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
 	WorkflowConfig,
-} from "../agents";
+} from "../extensions";
 
 export type RuntimeCommandKind = "skill" | "workflow";
 

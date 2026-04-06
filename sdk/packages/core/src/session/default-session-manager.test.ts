@@ -389,6 +389,150 @@ describe("DefaultSessionManager", () => {
 		expect(shutdown).toHaveBeenCalledTimes(1);
 	});
 
+	it("preserves manifest metadata updates and persists total cost", async () => {
+		const sessionId = "sess-history-meta";
+		let storedManifest: SessionManifest = {
+			...createManifest(sessionId),
+			metadata: {
+				checkpoint: {
+					latest: {
+						ref: "abc123",
+						createdAt: 1,
+						runCount: 1,
+					},
+					history: [
+						{
+							ref: "abc123",
+							createdAt: 1,
+							runCount: 1,
+						},
+					],
+				},
+			},
+		};
+		const createRootSessionWithArtifacts = vi.fn().mockResolvedValue({
+			manifestPath: "/tmp/manifest-history-meta.json",
+			transcriptPath: "/tmp/transcript-history-meta.log",
+			hookPath: "/tmp/hook-history-meta.log",
+			messagesPath: "/tmp/messages-history-meta.json",
+			manifest: { ...storedManifest },
+		});
+		const persistSessionMessages = vi.fn();
+		const updateSession = vi.fn().mockImplementation(async (input) => {
+			storedManifest = {
+				...storedManifest,
+				metadata: input.metadata,
+			};
+			return { updated: true };
+		});
+		const updateSessionStatus = vi.fn().mockResolvedValue({
+			updated: true,
+			endedAt: "2026-01-01T00:00:05.000Z",
+		});
+		const readSessionManifest = vi
+			.fn()
+			.mockImplementation(() => storedManifest);
+		const writeSessionManifest = vi
+			.fn()
+			.mockImplementation((_path, manifest) => {
+				storedManifest = manifest;
+			});
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts,
+			persistSessionMessages,
+			updateSession,
+			updateSessionStatus,
+			readSessionManifest,
+			writeSessionManifest,
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(
+				createResult({
+					usage: {
+						inputTokens: 3,
+						outputTokens: 4,
+						totalCost: 0.42,
+					},
+					messages: [
+						{ role: "user", content: [{ type: "text", text: "hello" }] },
+					],
+				}),
+			),
+			continue: vi.fn(),
+			abort: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			messages: [],
+		};
+
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			prompt: "hello",
+			interactive: false,
+		});
+
+		expect(updateSession).toHaveBeenCalledWith({
+			sessionId,
+			metadata: {
+				checkpoint: {
+					latest: {
+						ref: "abc123",
+						createdAt: 1,
+						runCount: 1,
+					},
+					history: [
+						{
+							ref: "abc123",
+							createdAt: 1,
+							runCount: 1,
+						},
+					],
+				},
+				totalCost: 0.42,
+			},
+		});
+		expect(writeSessionManifest).toHaveBeenCalledWith(
+			"/tmp/manifest-history-meta.json",
+			expect.objectContaining({
+				metadata: {
+					checkpoint: {
+						latest: {
+							ref: "abc123",
+							createdAt: 1,
+							runCount: 1,
+						},
+						history: [
+							{
+								ref: "abc123",
+								createdAt: 1,
+								runCount: 1,
+							},
+						],
+					},
+					totalCost: 0.42,
+				},
+				status: "completed",
+			}),
+		);
+	});
+
 	it("persists assistant message metadata for usage and model identity", async () => {
 		const sessionId = "sess-meta";
 		const manifest = createManifest(sessionId);

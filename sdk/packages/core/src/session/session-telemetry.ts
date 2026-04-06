@@ -2,7 +2,7 @@ import type { ITelemetryService } from "@clinebot/shared";
 import {
 	listHookConfigFiles,
 	resolveDocumentsHooksDirectoryPath,
-} from "../agents/hooks-config-loader";
+} from "../extensions/hooks-config-loader";
 import type { enrichPromptWithMentions } from "../input";
 import {
 	captureHookDiscovery,

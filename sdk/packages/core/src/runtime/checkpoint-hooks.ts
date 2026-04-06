@@ -9,6 +9,7 @@ export interface CheckpointEntry {
 	ref: string;
 	createdAt: number;
 	runCount: number;
+	kind?: "stash" | "commit";
 }
 
 export interface CheckpointMetadata {
@@ -116,7 +117,25 @@ export function createCheckpointHooks(
 			return undefined;
 		}
 		if (!ref) {
-			return undefined;
+			try {
+				const result = await runGit(options.cwd, ["rev-parse", "HEAD"]);
+				ref = result.stdout.trim();
+			} catch (error) {
+				warn(
+					options.logger,
+					`Checkpoint HEAD fallback failed: ${error instanceof Error ? error.message : String(error)}`,
+				);
+				return undefined;
+			}
+			if (!ref) {
+				return undefined;
+			}
+			return {
+				ref,
+				createdAt: Date.now(),
+				runCount,
+				kind: "commit",
+			};
 		}
 
 		try {
@@ -133,6 +152,7 @@ export function createCheckpointHooks(
 			ref,
 			createdAt: Date.now(),
 			runCount,
+			kind: "stash",
 		};
 	};
 

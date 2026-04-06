@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+	createRulesConfigDefinition,
+	createSkillsConfigDefinition,
 	createUserInstructionConfigWatcher,
+	createWorkflowsConfigDefinition,
 	parseRuleConfigFromMarkdown,
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,
@@ -58,6 +61,19 @@ describe("user instruction config loader", () => {
 		expect(resolveWorkflowsConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([join(workspacePath, ".clinerules", "workflows")]),
 		);
+	});
+
+	it("discovers managed plugin instruction roots from workspace .cline manifests", () => {
+		const workspacePath = "/repo/demo";
+		expect(
+			createSkillsConfigDefinition({ workspacePath }).directories,
+		).toContain(join(workspacePath, ".cline"));
+		expect(
+			createRulesConfigDefinition({ workspacePath }).directories,
+		).toContain(join(workspacePath, ".cline"));
+		expect(
+			createWorkflowsConfigDefinition({ workspacePath }).directories,
+		).toContain(join(workspacePath, ".cline"));
 	});
 
 	it("parses markdown frontmatter for skill, rule, and workflow configs", () => {
@@ -152,6 +168,75 @@ Escalation runbook`,
 			);
 		} finally {
 			unsubscribe();
+			watcher.stop();
+		}
+	});
+
+	it("loads enterprise-style managed rules, workflows, and skills through the default workspace watcher", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-managed-"),
+		);
+		tempRoots.push(tempRoot);
+
+		const pluginRoot = join(tempRoot, ".cline", "enterprise");
+		await mkdir(join(pluginRoot, "workflows"), { recursive: true });
+		await mkdir(join(pluginRoot, "skills", "security-review"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(pluginRoot, "managed.json"),
+			JSON.stringify({ source: "enterprise", version: "1", files: [] }),
+		);
+		await writeFile(
+			join(pluginRoot, "rules.md"),
+			`---
+name: enterprise-policy
+---
+Follow enterprise policy.`,
+		);
+		await writeFile(
+			join(pluginRoot, "workflows", "triage.md"),
+			`---
+name: triage
+---
+Follow the triage workflow.`,
+		);
+		await writeFile(
+			join(pluginRoot, "skills", "security-review", "SKILL.md"),
+			`---
+name: security-review
+---
+Use the security review checklist.`,
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { workspacePath: tempRoot },
+			rules: { workspacePath: tempRoot },
+			workflows: { workspacePath: tempRoot },
+		});
+
+		try {
+			await watcher.start();
+			const rules = watcher.getSnapshot("rule");
+			const workflows = watcher.getSnapshot("workflow");
+			const skills = watcher.getSnapshot("skill");
+
+			expect(
+				[...rules.values()].some((rule) =>
+					rule.item.instructions.includes("enterprise policy"),
+				),
+			).toBe(true);
+			expect(
+				[...workflows.values()].some((workflow) =>
+					workflow.item.instructions.includes("triage workflow"),
+				),
+			).toBe(true);
+			expect(
+				[...skills.values()].some((skill) =>
+					skill.item.instructions.includes("security review checklist"),
+				),
+			).toBe(true);
+		} finally {
 			watcher.stop();
 		}
 	});

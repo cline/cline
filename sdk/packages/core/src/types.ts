@@ -1,4 +1,16 @@
 export type { WorkspaceInfo, WorkspaceManifest } from "@clinebot/shared";
+export {
+	ClineCore,
+	type ClineCoreOptions,
+	type RpcOptions,
+} from "./ClineCore";
+export type {
+	ChatMessage,
+	ChatSessionConfig,
+	ChatSessionStatus,
+	ChatSummary,
+	ChatViewState,
+} from "./chat/chat-schema";
 export type {
 	AgentConfigWatcher,
 	AgentConfigWatcherEvent,
@@ -27,7 +39,7 @@ export type {
 	UserInstructionConfigWatcher,
 	UserInstructionConfigWatcherEvent,
 	WorkflowConfig,
-} from "./agents";
+} from "./extensions";
 export {
 	createAgentConfigDefinition,
 	createAgentConfigWatcher,
@@ -57,19 +69,7 @@ export {
 	toPartialAgentConfig,
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
-} from "./agents";
-export {
-	ClineCore,
-	type ClineCoreOptions,
-	type RpcOptions,
-} from "./ClineCore";
-export type {
-	ChatMessage,
-	ChatSessionConfig,
-	ChatSessionStatus,
-	ChatSummary,
-	ChatViewState,
-} from "./chat/chat-schema";
+} from "./extensions";
 export type {
 	SandboxCallOptions,
 	SubprocessSandboxOptions,

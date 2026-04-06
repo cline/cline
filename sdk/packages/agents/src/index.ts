@@ -22,6 +22,7 @@ export {
 	type AgentConfig,
 	AgentConfigSchema,
 	type AgentEvent,
+	type AgentExtension,
 	type AgentExtensionCommand,
 	type AgentHooks,
 	type AgentResult,

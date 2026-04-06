@@ -351,6 +351,15 @@
         "@clinebot/shared": "workspace:*",
       },
     },
+    "packages/enterprise": {
+      "name": "@clinebot/enterprise",
+      "version": "0.0.0",
+      "dependencies": {
+        "@clinebot/agents": "workspace:*",
+        "@clinebot/core": "workspace:*",
+        "@clinebot/shared": "workspace:*",
+      },
+    },
     "packages/llms": {
       "name": "@clinebot/llms",
       "version": "0.0.28",
@@ -623,6 +632,8 @@
     "@clinebot/core": ["@clinebot/core@workspace:packages/core"],
 
     "@clinebot/desktop": ["@clinebot/desktop@workspace:apps/desktop"],
+
+    "@clinebot/enterprise": ["@clinebot/enterprise@workspace:packages/enterprise"],
 
     "@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
 

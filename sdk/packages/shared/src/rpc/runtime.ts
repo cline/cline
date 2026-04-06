@@ -103,6 +103,55 @@ export interface RpcChatTurnResult {
 	toolCalls: RpcChatToolCallResult[];
 }
 
+export interface RpcEnterpriseContext {
+	projectId?: string;
+	workspaceId?: string;
+	organizationId?: string;
+}
+
+export interface RpcEnterpriseAuthenticateRequest extends RpcEnterpriseContext {
+	providerId: string;
+	workspacePath: string;
+	rootPath?: string;
+}
+
+export interface RpcEnterpriseAuthenticateResponse {
+	providerId: string;
+	authenticated: boolean;
+	roles: string[];
+	claims?: Record<string, unknown>;
+	metadata?: Record<string, unknown>;
+}
+
+export interface RpcEnterpriseSyncRequest extends RpcEnterpriseContext {
+	providerId: string;
+	workspacePath: string;
+	rootPath?: string;
+	useCachedBundle?: boolean;
+}
+
+export interface RpcEnterpriseSyncResponse {
+	providerId: string;
+	authenticated: boolean;
+	hasCachedBundle: boolean;
+	appliedConfigVersion?: string;
+	roles: string[];
+	hasTelemetryOverrides: boolean;
+	rulesCount: number;
+	workflowsCount: number;
+	skillsCount: number;
+	claims?: Record<string, unknown>;
+	metadata?: Record<string, unknown>;
+}
+
+export interface RpcEnterpriseStatusRequest {
+	providerId: string;
+	workspacePath: string;
+	rootPath?: string;
+}
+
+export type RpcEnterpriseStatusResponse = RpcEnterpriseSyncResponse;
+
 export interface RpcProviderModel {
 	id: string;
 	name: string;

@@ -81,6 +81,9 @@ for (const workspace of workspaces) {
 	try {
 		const raw = await readFile(pkgPath, "utf-8");
 		const pkg = JSON.parse(raw);
+		if (pkg.internal === true) {
+			continue;
+		}
 		const oldVersion = pkg.version;
 		pkg.version = version;
 

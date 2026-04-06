@@ -49,6 +49,13 @@ console.log(result.result?.text);
 await host.dispose();
 ```
 
+## Session Bootstrap
+
+`ClineCore.create(...)` also accepts `prepare(input)`.
+
+Use it when a host needs to prepare workspace-scoped runtime state before each
+session starts, then apply watcher/extensions/telemetry inputs generically.
+
 ## Main APIs
 
 ### Runtime and Sessions

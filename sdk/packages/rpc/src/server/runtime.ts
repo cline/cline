@@ -2,10 +2,17 @@ import { randomUUID } from "node:crypto";
 import type { SchedulerService } from "@clinebot/scheduler";
 import type {
 	RpcChatStartSessionRequest,
+	RpcEnterpriseAuthenticateRequest,
+	RpcEnterpriseSyncRequest,
 	RpcProviderActionRequest,
 } from "@clinebot/shared";
 import type * as grpc from "@grpc/grpc-js";
-import { fromProtoStruct, fromProtoValue, toProtoValue } from "../proto/serde";
+import {
+	fromProtoStruct,
+	fromProtoValue,
+	toProtoStruct,
+	toProtoValue,
+} from "../proto/serde";
 import type { RpcRuntimeHandlers, RpcSessionBackend } from "../types";
 import { RPC_PROTOCOL_VERSION } from "../version";
 import {
@@ -32,6 +39,12 @@ import type {
 	EnqueueSpawnRequestResponse,
 	EnsureSessionRequest,
 	EnsureSessionResponse,
+	EnterpriseAuthenticateRequest,
+	EnterpriseAuthenticateResponse,
+	EnterpriseStatusRequest,
+	EnterpriseStatusResponse,
+	EnterpriseSyncRequest,
+	EnterpriseSyncResponse,
 	GetActiveScheduledExecutionsRequest,
 	GetActiveScheduledExecutionsResponse,
 	GetScheduleRequest,
@@ -114,6 +127,28 @@ interface RegisteredClientState {
 	firstRegisteredAt: string;
 	lastRegisteredAt: string;
 	activationCount: number;
+}
+
+function toEnterpriseContext(
+	request: RpcEnterpriseAuthenticateRequest | RpcEnterpriseSyncRequest,
+): Pick<
+	RpcEnterpriseAuthenticateRequest,
+	"projectId" | "workspaceId" | "organizationId"
+> {
+	return {
+		projectId:
+			"projectId" in request && typeof request.projectId === "string"
+				? request.projectId
+				: undefined,
+		workspaceId:
+			"workspaceId" in request && typeof request.workspaceId === "string"
+				? request.workspaceId
+				: undefined,
+		organizationId:
+			"organizationId" in request && typeof request.organizationId === "string"
+				? request.organizationId
+				: undefined,
+	};
 }
 
 export class ClineGatewayRuntime {
@@ -739,6 +774,110 @@ export class ClineGatewayRuntime {
 		return {
 			provider: safeString(result.provider).trim(),
 			apiKey: safeString(result.accessToken),
+		};
+	}
+
+	public async enterpriseAuthenticate(
+		request: EnterpriseAuthenticateRequest,
+	): Promise<EnterpriseAuthenticateResponse> {
+		const handler = this.runtimeHandlers?.enterpriseAuthenticate;
+		if (!handler) {
+			throw new Error("enterprise authenticate handler is not configured");
+		}
+		const providerId = safeString(request.providerId).trim();
+		const workspacePath = safeString(request.workspacePath).trim();
+		if (!providerId || !workspacePath) {
+			throw new Error("providerId and workspacePath are required");
+		}
+		const result = await handler({
+			providerId,
+			workspacePath,
+			rootPath: safeString(request.rootPath).trim() || undefined,
+			...toEnterpriseContext({
+				providerId,
+				workspacePath,
+				rootPath: safeString(request.rootPath).trim() || undefined,
+				projectId: safeString(request.projectId).trim() || undefined,
+				workspaceId: safeString(request.workspaceId).trim() || undefined,
+				organizationId: safeString(request.organizationId).trim() || undefined,
+			}),
+		});
+		return {
+			providerId: safeString(result.providerId).trim(),
+			authenticated: result.authenticated === true,
+			roles: result.roles ?? [],
+			claims: toProtoStruct(result.claims),
+			metadata: toProtoStruct(result.metadata),
+		};
+	}
+
+	public async enterpriseSync(
+		request: EnterpriseSyncRequest,
+	): Promise<EnterpriseSyncResponse> {
+		const handler = this.runtimeHandlers?.enterpriseSync;
+		if (!handler) {
+			throw new Error("enterprise sync handler is not configured");
+		}
+		const providerId = safeString(request.providerId).trim();
+		const workspacePath = safeString(request.workspacePath).trim();
+		if (!providerId || !workspacePath) {
+			throw new Error("providerId and workspacePath are required");
+		}
+		const result = await handler({
+			providerId,
+			workspacePath,
+			rootPath: safeString(request.rootPath).trim() || undefined,
+			projectId: safeString(request.projectId).trim() || undefined,
+			workspaceId: safeString(request.workspaceId).trim() || undefined,
+			organizationId: safeString(request.organizationId).trim() || undefined,
+			useCachedBundle: request.hasUseCachedBundle
+				? request.useCachedBundle
+				: undefined,
+		});
+		return {
+			providerId: safeString(result.providerId).trim(),
+			authenticated: result.authenticated === true,
+			hasCachedBundle: result.hasCachedBundle === true,
+			appliedConfigVersion: result.appliedConfigVersion ?? "",
+			roles: result.roles ?? [],
+			hasTelemetryOverrides: result.hasTelemetryOverrides === true,
+			rulesCount: result.rulesCount,
+			workflowsCount: result.workflowsCount,
+			skillsCount: result.skillsCount,
+			claims: toProtoStruct(result.claims),
+			metadata: toProtoStruct(result.metadata),
+		};
+	}
+
+	public async enterpriseGetStatus(
+		request: EnterpriseStatusRequest,
+	): Promise<EnterpriseStatusResponse> {
+		const handler = this.runtimeHandlers?.enterpriseGetStatus;
+		if (!handler) {
+			throw new Error("enterprise status handler is not configured");
+		}
+		const providerId = safeString(request.providerId).trim();
+		const workspacePath = safeString(request.workspacePath).trim();
+		if (!providerId || !workspacePath) {
+			throw new Error("providerId and workspacePath are required");
+		}
+		const result = await handler({
+			providerId,
+			workspacePath,
+			rootPath: safeString(request.rootPath).trim() || undefined,
+		});
+		return {
+			providerId: safeString(result.providerId).trim(),
+			authenticated: result.authenticated === true,
+			hasCachedBundle: result.hasCachedBundle === true,
+			appliedConfigVersion: result.appliedConfigVersion ?? "",
+			roles: result.roles ?? [],
+			hasTelemetryOverrides: result.hasTelemetryOverrides === true,
+			rulesCount: result.rulesCount,
+			workflowsCount: result.workflowsCount,
+			skillsCount: result.skillsCount,
+			claims: toProtoStruct(result.claims),
+			metadata: toProtoStruct(result.metadata),
 		};
 	}
 

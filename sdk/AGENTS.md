@@ -1,25 +1,78 @@
 ---
-description: Onboarding + architecture guide for the Cline SDK.
+description: Onboarding + contributor guide for the Cline SDK workspace.
 globs: "*.ts,*.tsx,*.js,*.jsx,*.json,*.md"
 alwaysApply: true
 ---
 
 # Cline SDK Guide
 
-This repository is a WIP framework for building and orchestrating AI agents. Full refactors are encouraged as we iterate on the core foundation.
+This document is for developers working in this repository.
+
+Use it to get oriented quickly:
+
+- what each package owns
+- how the packages fit together
+- where to make changes
+- how to build, test, and publish safely
+
+This repo is a WIP framework for building and orchestrating AI agents. Full refactors are acceptable when they improve the architecture and all call sites are updated.
+
+## Start Here
+
+If you are new to the codebase:
+
+1. Read this file for contributor workflow and package ownership.
+2. Read [ARCHITECTURE.md](./ARCHITECTURE.md) for dependency direction and runtime flows.
+3. Use [DOC.md](./DOC.md) when you need detailed behavior or API reference.
+
+## Documentation Responsibilities
+
+Keep the four top-level docs focused on different audiences.
+
+- `README.md`: visitor-facing overview of the repository. Update this when the high-level repo story changes, when package/app inventory changes, or when the main “what is this repo?” explanation changes.
+- `AGENTS.md`: contributor onboarding and working guide. Update this when contributor workflow changes, package ownership changes, development/publishing rules change, or new contributors need different routing guidance.
+- `ARCHITECTURE.md`: design, dependency direction, boundaries, runtime flows, and integration patterns. Update this when the system design changes or when architectural constraints/seams change.
+- `DOC.md`: detailed API and behavior reference. Update this when exported package surfaces, integration entrypoints, lifecycle semantics, or runtime behavior changes.
+
+Practical rule:
+
+- if a change affects how a visitor understands the repo, update `README.md`
+- if a change affects how a contributor should work in the repo, update `AGENTS.md`
+- if a change affects how the system is designed, update `ARCHITECTURE.md`
+- if a change affects what code does or how an API behaves, update `DOC.md`
 
 ## Workspace Map
 
-- **Packages:**
-  - `@clinebot/shared`: Common types, paths, and helpers.
-  - `@clinebot/llms`: Provider schemas and model catalog.
-  - `@clinebot/scheduler`: Cron orchestration and task scheduling (SQLite-backed).
-  - `@clinebot/agents`: Stateless runtime loop, tools, and hooks.
-  - `@clinebot/rpc`: Control-plane APIs and chat bridge.
-  - `@clinebot/core`: Stateful orchestration, sessions, and storage.
-- **Apps:** `cli`, `code` (Next.js/Tauri), `desktop` (Next.js/Tauri), `vscode` (Extension).
+### Published SDK Packages
 
-## Architecture
+- `@clinebot/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, and reusable low-level runtime utilities
+- `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, and handler creation
+- `@clinebot/agents`: stateless agent loop, tool orchestration, hook/extension runtime, and event streaming
+- `@clinebot/scheduler`: scheduled execution, concurrency guards, and routine persistence
+- `@clinebot/rpc`: gRPC/control-plane layer for sessions, events, approvals, and schedules
+- `@clinebot/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, and telemetry integration
+
+### Internal Workspace Package
+
+- `@clinebot/enterprise`: internal-only enterprise integration layer. It composes with core from above and owns enterprise identity adapters, enterprise control-plane sync, managed instruction materialization, claims-to-role mapping, and enterprise telemetry bridging.
+
+Important:
+
+- `packages/enterprise` stays in the workspace for internal use.
+- It is intentionally excluded from the root SDK build/version/publish flows.
+- `@clinebot/core` must stay enterprise-agnostic.
+
+### Apps
+
+- `apps/cli`: CLI host and RPC server management
+- `apps/code`: Tauri + Next.js desktop app
+- `apps/desktop`: desktop board/task app
+- `apps/vscode`: VS Code extension
+- `apps/examples`: sample consumers and integration examples
+
+## Dependency Model
+
+Use this as the default mental model:
 
 ```mermaid
 flowchart TD
@@ -28,108 +81,138 @@ flowchart TD
   scheduler["@clinebot/scheduler"] --> rpc
   agents --> core
   rpc --> core
-  core --> apps["CLI / VSCode / Desktop"]
+  enterprise["@clinebot/enterprise"] --> agents & core & shared
+  core --> apps["CLI / Desktop / VS Code / Code App"]
 ```
+
+Rules:
+
+- `shared` stays low-level and reusable
+- `agents` stays stateless
+- `core` owns stateful orchestration
+- `rpc` owns transport/gateway concerns
+- `enterprise` may depend on `core`, but `core` must not depend on `enterprise`
 
 ## Runtime Flows
 
-### Core Execution
-1. **Host** builds a runtime via `@clinebot/core`.
-2. **Core** composes tools/policies and invokes `@clinebot/agents`.
-3. **Agents** use `@clinebot/llms` for model interactions.
-4. **Core** persists session state and artifacts (logs, messages).
+### Local Flow
 
-### Bootstrap & RPC
-- **CLI**: Direct CLI runs default to local in-process sessions. RPC-backed hosts still use `CLINE_RPC_ADDRESS` as a preferred base address, but sidecar bootstrap is owner-scoped rather than machine-global and now uses shared `@clinebot/core` ensure logic: startup paths take a lock under `~/.cline/data/locks/`, reuse a compatible owned sidecar when available, and otherwise start a fresh background RPC sidecar without requiring users to restart older listeners manually.
-- **UI Apps**: Use Tauri or Extension hosts to ensure a compatible RPC server and communicate via WebSocket or gRPC bridges.
-- **Connectors**: Background bridges (Telegram, WhatsApp, etc.) that map external threads to RPC sessions.
-- **Hooks**: Direct local CLI runs own one persistent `hook-worker` per CLI runtime; RPC-backed sessions share one persistent hook service owned by the RPC server process.
+1. A host app builds a runtime through `@clinebot/core`.
+2. `@clinebot/core` composes config, tools, watchers, hooks, and telemetry.
+3. `@clinebot/core` creates an `Agent` from `@clinebot/agents`.
+4. `@clinebot/agents` uses `@clinebot/llms` handlers for model execution.
+5. `@clinebot/core` persists session state and artifacts.
 
-## Core Features
+### RPC-Backed Flow
 
-- **Tool Approvals**: Hooks can return `review: true` to force host-side approval for specific calls (e.g., `git` commands).
-- **Model Routing**: Automatic tool selection (e.g., `apply_patch` vs `editor`) based on the active model and provider.
-- **OAuth**: Token refresh is managed centrally by `@clinebot/core`.
-- **Interactive Queueing**: Prompt queue and steer behavior are owned by `@clinebot/core`; app hosts should consume core queue events instead of duplicating pending-turn execution logic.
-- **Sub-agents**: `spawn_agent` automatically inherits workspace metadata and prompt context.
-- **Error Handling**: Immediate failure for non-recoverable errors; retries for transient failures.
+1. Host connects to or ensures an RPC runtime.
+2. `@clinebot/rpc` brokers session/task/event/approval APIs.
+3. `@clinebot/core` still owns shared session persistence behavior.
+4. `@clinebot/scheduler` is embedded behind RPC for routine execution.
 
-## Storage & Paths
+### Enterprise Flow
 
-All data is rooted at `~/.cline/data` (overridable via `CLINE_DATA_DIR`).
+1. Enterprise bootstrap code resolves identity via `@clinebot/enterprise`.
+2. Enterprise fetches a normalized control-plane bundle.
+3. Enterprise materializes managed rules/workflows/skills into workspace-local files.
+4. Enterprise optionally derives telemetry config/services.
+5. `@clinebot/core` consumes watcher/extension/telemetry inputs without enterprise-specific logic.
 
-- **`SqliteSessionStore`**: Session metadata and status.
-- **`ArtifactStore`**: Append-only logs, hooks, and message history.
-- **`ProviderSettingsManager`**: JSON-based provider configuration.
-- **Search Paths**: Configs are loaded from workspace roots (`.clinerules/`, `.cline/`) and global directories.
+## Change Routing
+
+When you make a change, route it to the package that owns the concern:
+
+- model/provider schemas or handler behavior: `@clinebot/llms`
+- stateless loop behavior, tool orchestration, streaming, hook/extension runtime: `@clinebot/agents`
+- session lifecycle, storage, config watching, default tool composition, plugin loading, telemetry integration: `@clinebot/core`
+- schedules and routine execution: `@clinebot/scheduler`
+- session gateway, approval routing, RPC server/client contracts: `@clinebot/rpc`
+- enterprise identity, control-plane sync, materialization, claims mapping, telemetry bridge: `@clinebot/enterprise`
+- host-specific UX or shell behavior: app package
 
 ## Development Workflow
 
 ### Essential Commands
-- `bun run build`: Build SDK and CLI.
-- `bun run dev`: Build SDK and CLI in development mode.
-- `bun run cli`: Run CLI interactively.
-- `bun run test`: Run the Vitest suite.
-- `bun run lint / format / fix`: Code quality and formatting.
+
+- `bun install`
+- `bun run build`
+- `bun run build:sdk`
+- `bun run test`
+- `bun run types`
+- `bun run lint`
+- `bun run fix`
+- `bun run cli`
+
+Direct package work:
+
+- `bun -F @clinebot/core build|test|typecheck`
+- `bun -F @clinebot/agents build|test|typecheck`
+- `bun -F @clinebot/enterprise build|test|typecheck`
 
 ### Rebuilding
-Changes to `packages/*` require a rebuild (`bun run build:sdk`). Direct CLI runs pick up rebuilt code immediately; RPC-backed hosts auto-replace their owner-scoped sidecar when the shared RPC runtime build changes. Today that build identity is keyed from `@clinebot/core` and `@clinebot/rpc` package versions, and hosts can extend it with a host-specific build key if needed. If you touch RPC bootstrap, preserve the startup lock and owner-scoped discovery behavior so multiple builds can coexist safely. Use `dev:*` scripts for automatic rebuilding during development.
 
-### Publishing SDK Packages
-- Source workspace manifests must keep real workspace dependencies declared so `bun install` and local builds resolve correctly.
-- Published runtime workspace packages stay in `dependencies`. Bundled internal workspace packages must live in `devDependencies` so they do not leak into packed manifests.
-- `bun scripts/version.ts <version>` updates all workspace package versions in place, refreshes generated models, formats the repo, and runs `bun run build` so the post-bump artifacts match the release version.
-- After bumping versions, regenerate `bun.lock` before any packing or publish verification. With Bun `1.3.10`, `bun pm pack` resolves `workspace:*` dependency versions from `bun.lock`, and an existing lockfile can keep stale workspace package versions even after the source `package.json` files were updated. The reliable fix is:
+Changes to published SDK packages require `bun run build:sdk`.
 
-```sh
-rm bun.lock
-bun install --lockfile-only
-```
+Internal-only packages such as `packages/enterprise` are excluded from the root SDK build/version/publish flows, so work on them directly with package-scoped commands when needed.
 
-- `bun scripts/check-publish.ts` packs the publishable packages with `bun pm pack`, verifies that packed internal runtime dependency versions match the release version, and installs the packed tarballs together in an isolated temp directory.
-- `bun publish` resolves published `workspace:*` dependencies to concrete versions when it packs the tarball.
-- Manual publish guide:
-  1. Run `bun run test` from the repo root.
-  2. Choose the release version like `0.0.22`.
-  3. Run `bun scripts/version.ts <version>` to update all workspace package versions and rebuild from the bumped versions.
-  4. Regenerate the Bun lockfile so packed `workspace:*` dependencies resolve to the new workspace versions:
-     `rm bun.lock && bun install --lockfile-only && bun run build`
-  5. Review the changed `package.json` files, regenerated `bun.lock`, and generated model artifacts before publishing.
-  6. Run `bun scripts/check-publish.ts` to verify the packed SDK tarballs are version-aligned and install together correctly.
-  7. If you want to inspect one package manually before publish, run `bun pm pack` in that package and inspect `package/package.json` from the generated tarball.
-  8. Makes sure you're signed in with `npm login`.
-  9. Publish in dependency order:
-     `cd packages/shared && bun publish`
-     `cd ../llms && bun publish`
-     `cd ../agents && bun publish`
-     `cd ../core && bun publish`
-     or `cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish`
-  10. If you are doing a tagged production release, create and push the corresponding git tags after publish.
-- CI publish flow in `.github/workflows/publish-sdk.yaml` follows the same order: build, version, `check:publish`, then publish `shared -> llms -> agents -> core`.
+Direct CLI runs pick up rebuilt packages immediately. RPC-backed hosts use shared runtime ensure logic and replace incompatible owned sidecars automatically when the RPC runtime build changes.
 
-#### Verification Steps
+### Testing
 
-To inspect the exact manifest Bun will publish for a package:
+Use root commands for cross-package confidence:
 
-```sh
-cd ./packages/core
-tmpdir=$(mktemp -d)
-bun pm pack --destination "$tmpdir" >/dev/null
-tar -xOf "$tmpdir"/*.tgz package/package.json | jq '.version, .dependencies'
-```
+- `bun run test`
+- `bun run types`
+- `bun run check`
 
-Use that output to confirm the package version and any published `@clinebot/*` runtime dependencies match the release version before running `bun publish`.
+Use package-scoped runs while iterating:
 
-To inspect the versions of the dependencies installed in another project:
-```sh
-bun pm ls @clinebot/core @clinebot/agents @clinebot/llms
-# or
-npm ls @clinebot/core @clinebot/agents @clinebot/llms
-```
+- `bun -F @clinebot/core test`
+- `bun -F @clinebot/agents test`
+- `bun -F @clinebot/enterprise test`
 
-### Change Routing
-- **Model/Provider schemas**: `@clinebot/llms`
-- **Scheduling/Cron**: `@clinebot/scheduler`
-- **Agent loop/tools**: `@clinebot/agents`
-- **Sessions/Storage/Lifecycle**: `@clinebot/core`
-- **RPC contracts**: `@clinebot/rpc`
+If you touch RPC/bootstrap/session flows, prefer both unit coverage and an end-to-end sanity check.
+
+## Publishing Rules
+
+Only the publishable SDK packages are part of the root release path.
+
+Published package order:
+
+1. `packages/shared`
+2. `packages/llms`
+3. `packages/agents`
+4. `packages/core`
+
+Notes:
+
+- `scripts/check-publish.ts` only checks non-internal packages
+- `scripts/version.ts` skips packages marked `internal: true`
+- internal workspace code must not leak into packed published artifacts
+
+If you add a new internal package, keep it out of root publish/version/build sweeps unless you explicitly intend to publish it.
+
+## Practical Guidance
+
+### Keep Boundaries Clean
+
+- don’t move stateful logic down into `agents`
+- don’t put app-specific behavior into `core` unless it is truly shared host behavior
+- don’t let enterprise concerns leak into published core APIs unless they are generic and reusable
+
+### Prefer Existing Seams
+
+Before adding a new subsystem, look for an existing seam:
+
+- watcher/config loader
+- runtime builder input
+- extension/hook system
+- storage adapter/service split
+- provider manifest/config resolution
+
+### Be Careful With Root Automation
+
+Root scripts are intentionally narrower than the full workspace now.
+
+- root SDK build/test/version/publish flows target the publishable SDK packages
+- internal packages can still be built/tested directly, but should not be swept into release automation by accident

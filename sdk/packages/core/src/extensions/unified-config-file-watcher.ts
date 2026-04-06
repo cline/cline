@@ -84,6 +84,13 @@ function isMissingDirectoryError(error: unknown): boolean {
 	return isErrnoException(error) && error.code === "ENOENT";
 }
 
+function isInaccessibleDirectoryError(error: unknown): boolean {
+	return (
+		isErrnoException(error) &&
+		(error.code === "EACCES" || error.code === "EPERM")
+	);
+}
+
 export class UnifiedConfigFileWatcher<
 	TType extends string = string,
 	TItem = unknown,
@@ -289,7 +296,10 @@ export class UnifiedConfigFileWatcher<
 					}
 				});
 			} catch (error) {
-				if (!isMissingDirectoryError(error)) {
+				if (
+					!isMissingDirectoryError(error) &&
+					!isInaccessibleDirectoryError(error)
+				) {
 					const types = desiredTypesByDirectory.get(directoryPath);
 					if (!types) {
 						continue;
@@ -474,7 +484,10 @@ export class UnifiedConfigFileWatcher<
 				}))
 				.sort((a, b) => a.fileName.localeCompare(b.fileName));
 		} catch (error) {
-			if (isMissingDirectoryError(error)) {
+			if (
+				isMissingDirectoryError(error) ||
+				isInaccessibleDirectoryError(error)
+			) {
 				return [];
 			}
 			throw error;

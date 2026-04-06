@@ -22,6 +22,12 @@ import type {
 	EnqueueSpawnRequestResponse,
 	EnsureSessionRequest,
 	EnsureSessionResponse,
+	EnterpriseAuthenticateRequest,
+	EnterpriseAuthenticateResponse,
+	EnterpriseStatusRequest,
+	EnterpriseStatusResponse,
+	EnterpriseSyncRequest,
+	EnterpriseSyncResponse,
 	GetActiveScheduledExecutionsRequest,
 	GetActiveScheduledExecutionsResponse,
 	GetScheduleRequest,
@@ -434,6 +440,63 @@ export async function startRpcServer(
 			) => {
 				void runtime
 					.runProviderOAuthLogin(call.request)
+					.then((result) => {
+						callback(null, result);
+					})
+					.catch((error) => {
+						callback(
+							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							null,
+						);
+					});
+			},
+			EnterpriseAuthenticate: (
+				call: grpc.ServerUnaryCall<
+					EnterpriseAuthenticateRequest,
+					EnterpriseAuthenticateResponse
+				>,
+				callback: grpc.sendUnaryData<EnterpriseAuthenticateResponse>,
+			) => {
+				void runtime
+					.enterpriseAuthenticate(call.request)
+					.then((result) => {
+						callback(null, result);
+					})
+					.catch((error) => {
+						callback(
+							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							null,
+						);
+					});
+			},
+			EnterpriseSync: (
+				call: grpc.ServerUnaryCall<
+					EnterpriseSyncRequest,
+					EnterpriseSyncResponse
+				>,
+				callback: grpc.sendUnaryData<EnterpriseSyncResponse>,
+			) => {
+				void runtime
+					.enterpriseSync(call.request)
+					.then((result) => {
+						callback(null, result);
+					})
+					.catch((error) => {
+						callback(
+							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							null,
+						);
+					});
+			},
+			EnterpriseGetStatus: (
+				call: grpc.ServerUnaryCall<
+					EnterpriseStatusRequest,
+					EnterpriseStatusResponse
+				>,
+				callback: grpc.sendUnaryData<EnterpriseStatusResponse>,
+			) => {
+				void runtime
+					.enterpriseGetStatus(call.request)
 					.then((result) => {
 						callback(null, result);
 					})

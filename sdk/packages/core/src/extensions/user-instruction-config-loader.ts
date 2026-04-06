@@ -1,4 +1,4 @@
-import { readdir, stat } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import {
 	RULES_CONFIG_DIRECTORY_NAME,
@@ -19,6 +19,7 @@ import {
 } from "./unified-config-file-watcher";
 
 const SKILL_FILE_NAME = "SKILL.md";
+const MANAGED_PLUGIN_MANIFEST_FILE_NAME = "managed.json";
 
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
 
@@ -97,8 +98,55 @@ function normalizeName(name: string): string {
 	return name.trim().toLowerCase();
 }
 
+function isIgnorableDirectoryError(error: unknown): boolean {
+	const nodeError = error as NodeJS.ErrnoException;
+	return (
+		nodeError?.code === "ENOENT" ||
+		nodeError?.code === "EACCES" ||
+		nodeError?.code === "EPERM"
+	);
+}
+
 function isMarkdownFile(fileName: string): boolean {
 	return MARKDOWN_EXTENSIONS.has(extname(fileName).toLowerCase());
+}
+
+async function discoverManagedPluginRoots(
+	clineDirectoryPath: string,
+): Promise<string[]> {
+	try {
+		const entries = await readdir(clineDirectoryPath, { withFileTypes: true });
+		const pluginRoots: string[] = [];
+		for (const entry of entries) {
+			if (!entry.isDirectory()) {
+				continue;
+			}
+			const pluginRoot = join(clineDirectoryPath, entry.name);
+			const manifestPath = join(pluginRoot, MANAGED_PLUGIN_MANIFEST_FILE_NAME);
+			try {
+				const content = await readFile(manifestPath, "utf8");
+				const parsed = JSON.parse(content) as unknown;
+				if (parsed && typeof parsed === "object") {
+					pluginRoots.push(pluginRoot);
+				}
+			} catch (error) {
+				if (isIgnorableDirectoryError(error)) {
+					continue;
+				}
+				const nodeError = error as NodeJS.ErrnoException;
+				if (nodeError?.name === "SyntaxError") {
+					continue;
+				}
+				throw error;
+			}
+		}
+		return pluginRoots.sort((a, b) => a.localeCompare(b));
+	} catch (error) {
+		if (isIgnorableDirectoryError(error)) {
+			return [];
+		}
+		throw error;
+	}
 }
 
 function parseMarkdownFrontmatter(
@@ -267,6 +315,16 @@ export function resolveWorkflowsConfigSearchPaths(
 async function discoverSkillFiles(
 	directoryPath: string,
 ): Promise<ReadonlyArray<UnifiedConfigFileCandidate>> {
+	if (basename(directoryPath) === ".cline") {
+		const pluginRoots = await discoverManagedPluginRoots(directoryPath);
+		const nestedCandidates = await Promise.all(
+			pluginRoots.map((pluginRoot) =>
+				discoverSkillFiles(join(pluginRoot, SKILLS_CONFIG_DIRECTORY_NAME)),
+			),
+		);
+		return nestedCandidates.flat();
+	}
+
 	try {
 		const entries = await readdir(directoryPath, { withFileTypes: true });
 		const candidates: UnifiedConfigFileCandidate[] = [];
@@ -289,8 +347,7 @@ async function discoverSkillFiles(
 		}
 		return candidates;
 	} catch (error) {
-		const nodeError = error as NodeJS.ErrnoException;
-		if (nodeError.code === "ENOENT") {
+		if (isIgnorableDirectoryError(error)) {
 			return [];
 		}
 		throw error;
@@ -300,6 +357,16 @@ async function discoverSkillFiles(
 async function discoverRulesLikeFiles(
 	directoryPath: string,
 ): Promise<ReadonlyArray<UnifiedConfigFileCandidate>> {
+	if (basename(directoryPath) === ".cline") {
+		const pluginRoots = await discoverManagedPluginRoots(directoryPath);
+		const nestedCandidates = await Promise.all(
+			pluginRoots.map((pluginRoot) =>
+				discoverRulesLikeFiles(join(pluginRoot, "rules.md")),
+			),
+		);
+		return nestedCandidates.flat();
+	}
+
 	try {
 		const entryStat = await stat(directoryPath);
 		if (entryStat.isFile()) {
@@ -312,8 +379,7 @@ async function discoverRulesLikeFiles(
 			];
 		}
 	} catch (error) {
-		const nodeError = error as NodeJS.ErrnoException;
-		if (nodeError.code !== "ENOENT") {
+		if (!isIgnorableDirectoryError(error)) {
 			throw error;
 		}
 	}
@@ -328,12 +394,28 @@ async function discoverRulesLikeFiles(
 				filePath: join(directoryPath, entry.name),
 			}));
 	} catch (error) {
-		const nodeError = error as NodeJS.ErrnoException;
-		if (nodeError.code === "ENOENT") {
+		if (isIgnorableDirectoryError(error)) {
 			return [];
 		}
 		throw error;
 	}
+}
+
+async function discoverManagedWorkflowFiles(
+	directoryPath: string,
+): Promise<ReadonlyArray<UnifiedConfigFileCandidate>> {
+	if (basename(directoryPath) === ".cline") {
+		const pluginRoots = await discoverManagedPluginRoots(directoryPath);
+		const nestedCandidates = await Promise.all(
+			pluginRoots.map((pluginRoot) =>
+				discoverRulesLikeFiles(
+					join(pluginRoot, WORKFLOWS_CONFIG_DIRECTORY_NAME),
+				),
+			),
+		);
+		return nestedCandidates.flat();
+	}
+	return discoverRulesLikeFiles(directoryPath);
 }
 
 export function createSkillsConfigDefinition(
@@ -342,10 +424,13 @@ export function createSkillsConfigDefinition(
 	const directories =
 		options?.directories ??
 		resolveSkillsConfigSearchPaths(options?.workspacePath);
+	const managedRoot = options?.workspacePath
+		? join(options.workspacePath, ".cline")
+		: undefined;
 
 	return {
 		type: "skill",
-		directories,
+		directories: managedRoot ? [...directories, managedRoot] : directories,
 		discoverFiles: discoverSkillFiles,
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
 		parseFile: (context) =>
@@ -363,10 +448,13 @@ export function createRulesConfigDefinition(
 	const directories =
 		options?.directories ??
 		resolveRulesConfigSearchPaths(options?.workspacePath);
+	const managedRoot = options?.workspacePath
+		? join(options.workspacePath, ".cline")
+		: undefined;
 
 	return {
 		type: "rule",
-		directories,
+		directories: managedRoot ? [...directories, managedRoot] : directories,
 		discoverFiles: discoverRulesLikeFiles,
 		includeFile: (fileName, filePath) =>
 			fileName === ".clinerules" ||
@@ -387,11 +475,14 @@ export function createWorkflowsConfigDefinition(
 	const directories =
 		options?.directories ??
 		resolveWorkflowsConfigSearchPaths(options?.workspacePath);
+	const managedRoot = options?.workspacePath
+		? join(options.workspacePath, ".cline")
+		: undefined;
 
 	return {
 		type: "workflow",
-		directories,
-		discoverFiles: discoverRulesLikeFiles,
+		directories: managedRoot ? [...directories, managedRoot] : directories,
+		discoverFiles: discoverManagedWorkflowFiles,
 		includeFile: (fileName) => isMarkdownFile(fileName),
 		parseFile: (context) =>
 			parseWorkflowConfigFromMarkdown(

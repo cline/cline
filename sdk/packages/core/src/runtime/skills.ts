@@ -1,4 +1,4 @@
-import type { UserInstructionConfigWatcher } from "../agents";
+import type { UserInstructionConfigWatcher } from "../extensions";
 import {
 	listAvailableRuntimeCommandsForKindFromWatcher,
 	resolveRuntimeSlashCommandFromWatcher,

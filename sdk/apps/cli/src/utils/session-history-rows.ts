@@ -102,6 +102,21 @@ function toHistoryListRow(
 	};
 }
 
+function extractSessionRecencyToken(sessionId: string): number {
+	const matches = sessionId.match(/\d{13,}/g);
+	if (!matches || matches.length === 0) {
+		return 0;
+	}
+	let best = 0;
+	for (const match of matches) {
+		const value = Number.parseInt(match, 10);
+		if (Number.isFinite(value) && value > best) {
+			best = value;
+		}
+	}
+	return best;
+}
+
 async function listManifestHistoryRows(
 	limit: number,
 ): Promise<HistoryListRow[]> {
@@ -109,27 +124,37 @@ async function listManifestHistoryRows(
 	const entries = await readdir(sessionsDir, { withFileTypes: true }).catch(
 		() => [],
 	);
+	const candidateEntries = entries
+		.filter((entry) => entry.isDirectory())
+		.map((entry) => ({
+			entry,
+			recency: extractSessionRecencyToken(entry.name.trim()),
+		}))
+		.sort(
+			(left, right) =>
+				right.recency - left.recency ||
+				right.entry.name.localeCompare(left.entry.name),
+		)
+		.slice(0, Math.max(1, limit));
 	const rows = await Promise.all(
-		entries
-			.filter((entry) => entry.isDirectory())
-			.map(async (entry) => {
-				const sessionId = entry.name.trim();
-				if (!sessionId) {
-					return undefined;
-				}
-				const manifestPath = join(sessionsDir, sessionId, `${sessionId}.json`);
-				const raw = await readFile(manifestPath, "utf8").catch(() => undefined);
-				if (!raw) {
-					return undefined;
-				}
-				let parsed: SessionManifestRecord;
-				try {
-					parsed = JSON.parse(raw) as SessionManifestRecord;
-				} catch {
-					return undefined;
-				}
-				return toHistoryListRow(parsed);
-			}),
+		candidateEntries.map(async ({ entry }) => {
+			const sessionId = entry.name.trim();
+			if (!sessionId) {
+				return undefined;
+			}
+			const manifestPath = join(sessionsDir, sessionId, `${sessionId}.json`);
+			const raw = await readFile(manifestPath, "utf8").catch(() => undefined);
+			if (!raw) {
+				return undefined;
+			}
+			let parsed: SessionManifestRecord;
+			try {
+				parsed = JSON.parse(raw) as SessionManifestRecord;
+			} catch {
+				return undefined;
+			}
+			return toHistoryListRow(parsed);
+		}),
 	);
 
 	return rows
@@ -142,6 +167,15 @@ export async function hydrateHistoryRows(
 	rows: HistoryListRow[],
 ): Promise<HistoryListRow[]> {
 	if (rows.length === 0) {
+		return rows;
+	}
+	const rowsNeedingHydration = rows.filter((row) => {
+		const hasTitle = Boolean(row.metadata?.title?.trim() || row.prompt?.trim());
+		const hasProvider = Boolean(row.provider?.trim());
+		const hasModel = Boolean(row.model?.trim());
+		return !(hasTitle && hasProvider && hasModel);
+	});
+	if (rowsNeedingHydration.length === 0) {
 		return rows;
 	}
 	const sessionManager = await createDefaultCliSessionManager();
@@ -158,7 +192,7 @@ export async function hydrateHistoryRows(
 					typeof knownCost === "number" &&
 					Number.isFinite(knownCost) &&
 					knownCost > 0;
-				if (hasTitle && hasProvider && hasModel && hasCost) {
+				if (hasTitle && hasProvider && hasModel) {
 					return row;
 				}
 				const messages = await sessionManager.readMessages(row.sessionId);
@@ -200,8 +234,16 @@ export async function listHistoryRows(limit = 200): Promise<HistoryListRow[]> {
 	const backendRows = (backendRowsRaw ?? [])
 		.map((row) => toHistoryListRow(row))
 		.filter((row): row is HistoryListRow => Boolean(row));
+	if (backendRows.length >= requestedLimit) {
+		const hydratedBackendRows = await hydrateHistoryRows(
+			backendRows.slice(0, requestedLimit),
+		);
+		if (hydratedBackendRows.length >= requestedLimit) {
+			return hydratedBackendRows;
+		}
+	}
 	const manifestRows = await listManifestHistoryRows(
-		Math.min(requestedLimit * 5, 2000),
+		Math.min(Math.max(requestedLimit * 2, 100), 500),
 	);
 	const merged = new Map<string, HistoryListRow>();
 	for (const row of [...backendRows, ...manifestRows]) {

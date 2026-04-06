@@ -68,7 +68,10 @@ import type {
 	StartSessionInput,
 	StartSessionResult,
 } from "./session-manager";
-import { SessionManifestSchema } from "./session-manifest";
+import {
+	type SessionManifest,
+	SessionManifestSchema,
+} from "./session-manifest";
 import type {
 	CoreSessionService,
 	RootSessionArtifacts,
@@ -257,10 +260,7 @@ export class DefaultSessionManager implements SessionManager {
 						| Record<string, unknown>
 						| undefined,
 				writeSessionMetadata: async (metadata) => {
-					await this.invoke<{ updated: boolean }>("updateSession", {
-						sessionId,
-						metadata,
-					});
+					await this.persistSessionMetadata(sessionId, () => metadata);
 				},
 			}),
 		]);
@@ -672,10 +672,15 @@ export class DefaultSessionManager implements SessionManager {
 				baselineMessages,
 			);
 			session.persistedMessages = persistedMessages;
-			this.usageBySession.set(
-				session.sessionId,
-				accumulateUsageTotals(usageBaseline, result.usage),
+			const accumulatedUsage = accumulateUsageTotals(
+				usageBaseline,
+				result.usage,
 			);
+			this.usageBySession.set(session.sessionId, accumulatedUsage);
+			await this.persistSessionMetadata(session.sessionId, (current) => ({
+				...(current ?? {}),
+				totalCost: accumulatedUsage.totalCost,
+			}));
 			await this.invoke<void>(
 				"persistSessionMessages",
 				session.sessionId,
@@ -766,6 +771,37 @@ export class DefaultSessionManager implements SessionManager {
 		})) as RootSessionArtifacts;
 	}
 
+	private async persistSessionMetadata(
+		sessionId: string,
+		resolveMetadata: (
+			current: Record<string, unknown> | undefined,
+		) => Record<string, unknown> | undefined,
+	): Promise<void> {
+		const session = this.sessions.get(sessionId);
+		const currentManifest =
+			(await this.invokeOptionalValue<SessionManifest>(
+				"readSessionManifest",
+				sessionId,
+			)) ?? session?.artifacts?.manifest;
+		const metadata = resolveMetadata(
+			currentManifest?.metadata as Record<string, unknown> | undefined,
+		);
+		if (!session?.artifacts) {
+			return;
+		}
+		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+			"updateSession",
+			{
+				sessionId,
+				metadata,
+			},
+		);
+		if (result?.updated === false) {
+			return;
+		}
+		session.artifacts.manifest.metadata = metadata;
+	}
+
 	private async finalizeSingleRun(
 		session: ActiveSession,
 		finishReason: AgentResult["finishReason"],
@@ -840,14 +876,19 @@ export class DefaultSessionManager implements SessionManager {
 			exitCode,
 		);
 		if (!result.updated) return;
-		session.artifacts.manifest.status = status;
-		session.artifacts.manifest.ended_at = result.endedAt ?? nowIso();
-		session.artifacts.manifest.exit_code =
-			typeof exitCode === "number" ? exitCode : null;
+		const latestManifest =
+			(await this.invokeOptionalValue<SessionManifest>(
+				"readSessionManifest",
+				session.sessionId,
+			)) ?? session.artifacts.manifest;
+		latestManifest.status = status;
+		latestManifest.ended_at = result.endedAt ?? nowIso();
+		latestManifest.exit_code = typeof exitCode === "number" ? exitCode : null;
+		session.artifacts.manifest = latestManifest;
 		await this.invoke<void>(
 			"writeSessionManifest",
 			session.artifacts.manifestPath,
-			session.artifacts.manifest,
+			latestManifest,
 		);
 		this.emitStatus(session.sessionId, status);
 	}

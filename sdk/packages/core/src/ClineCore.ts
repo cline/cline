@@ -9,6 +9,7 @@ import {
 	type SessionBackend,
 	type SessionHost,
 } from "./session/session-host";
+import type { StartSessionInput } from "./session/session-manager";
 import type { ToolExecutors } from "./tools";
 
 /** Advanced options for connecting to or spawning the Cline RPC server. */
@@ -87,6 +88,25 @@ export interface ClineCoreOptions {
 	 * @internal
 	 */
 	sessionService?: SessionBackend;
+	/**
+	 * Optional hook invoked before each session starts.
+	 * Use this to prepare workspace-scoped runtime state and then return an
+	 * adapter that mutates the `StartSessionInput` generically before core
+	 * builds the runtime.
+	 */
+	prepare?: (
+		input: StartSessionInput,
+	) =>
+		| Promise<StartSessionBootstrap | undefined>
+		| StartSessionBootstrap
+		| undefined;
+}
+
+export interface StartSessionBootstrap {
+	applyToStartSessionInput(
+		input: StartSessionInput,
+	): Promise<StartSessionInput> | StartSessionInput;
+	dispose?(): Promise<void> | void;
 }
 
 /**
@@ -103,27 +123,92 @@ export interface ClineCoreOptions {
 export class ClineCore implements SessionHost {
 	readonly clientName: string | undefined;
 	private readonly host: SessionHost;
+	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
+	private readonly activeSessionBootstraps = new Map<
+		string,
+		StartSessionBootstrap
+	>();
+	private readonly unsubscribeBootstrapCleanup: () => void;
 
-	private constructor(host: SessionHost, clientName: string | undefined) {
+	private constructor(
+		host: SessionHost,
+		clientName: string | undefined,
+		prepare: ClineCoreOptions["prepare"],
+	) {
 		this.clientName = clientName;
 		this.host = host;
+		this.prepare = prepare;
+		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
+			if (event.type !== "ended") {
+				return;
+			}
+			void this.disposeSessionBootstrap(event.payload.sessionId);
+		});
 	}
 
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
 		const host = await createSessionHost(options);
-		return new ClineCore(host, options.clientName);
+		return new ClineCore(host, options.clientName, options.prepare);
 	}
 
-	start: SessionHost["start"] = (...args) => this.host.start(...args);
+	private async disposeSessionBootstrap(sessionId: string): Promise<void> {
+		const bootstrap = this.activeSessionBootstraps.get(sessionId);
+		if (!bootstrap) {
+			return;
+		}
+		this.activeSessionBootstraps.delete(sessionId);
+		await Promise.resolve(bootstrap.dispose?.());
+	}
+
+	start: SessionHost["start"] = async (input) => {
+		const bootstrap = await this.prepare?.(input);
+		try {
+			const effectiveInput = bootstrap
+				? await bootstrap.applyToStartSessionInput(input)
+				: input;
+			const result = await this.host.start(effectiveInput);
+			if (bootstrap) {
+				const activeSession = await this.host.get(result.sessionId);
+				if (activeSession) {
+					this.activeSessionBootstraps.set(result.sessionId, bootstrap);
+				} else {
+					await Promise.resolve(bootstrap.dispose?.());
+				}
+			}
+			return result;
+		} catch (error) {
+			await Promise.resolve(bootstrap?.dispose?.());
+			throw error;
+		}
+	};
 	send: SessionHost["send"] = (...args) => this.host.send(...args);
 	getAccumulatedUsage: SessionHost["getAccumulatedUsage"] = (...args) =>
 		this.host.getAccumulatedUsage(...args);
 	abort: SessionHost["abort"] = (...args) => this.host.abort(...args);
-	stop: SessionHost["stop"] = (...args) => this.host.stop(...args);
-	dispose: SessionHost["dispose"] = (...args) => this.host.dispose(...args);
+	stop: SessionHost["stop"] = async (sessionId) => {
+		await this.host.stop(sessionId);
+		await this.disposeSessionBootstrap(sessionId);
+	};
+	dispose: SessionHost["dispose"] = async (...args) => {
+		try {
+			await this.host.dispose(...args);
+		} finally {
+			this.unsubscribeBootstrapCleanup();
+			const sessionIds = [...this.activeSessionBootstraps.keys()];
+			await Promise.allSettled(
+				sessionIds.map((sessionId) => this.disposeSessionBootstrap(sessionId)),
+			);
+		}
+	};
 	get: SessionHost["get"] = (...args) => this.host.get(...args);
 	list: SessionHost["list"] = (...args) => this.host.list(...args);
-	delete: SessionHost["delete"] = (...args) => this.host.delete(...args);
+	delete: SessionHost["delete"] = async (sessionId) => {
+		const deleted = await this.host.delete(sessionId);
+		if (deleted) {
+			await this.disposeSessionBootstrap(sessionId);
+		}
+		return deleted;
+	};
 	readMessages: SessionHost["readMessages"] = (...args) =>
 		this.host.readMessages(...args);
 	readTranscript: SessionHost["readTranscript"] = (...args) =>

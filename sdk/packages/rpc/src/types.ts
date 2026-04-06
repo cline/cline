@@ -47,6 +47,15 @@ export interface RpcRuntimeHandlers {
 		provider: string;
 		accessToken: string;
 	}>;
+	enterpriseAuthenticate?: (
+		request: import("@clinebot/shared").RpcEnterpriseAuthenticateRequest,
+	) => Promise<import("@clinebot/shared").RpcEnterpriseAuthenticateResponse>;
+	enterpriseSync?: (
+		request: import("@clinebot/shared").RpcEnterpriseSyncRequest,
+	) => Promise<import("@clinebot/shared").RpcEnterpriseSyncResponse>;
+	enterpriseGetStatus?: (
+		request: import("@clinebot/shared").RpcEnterpriseStatusRequest,
+	) => Promise<import("@clinebot/shared").RpcEnterpriseStatusResponse>;
 	dispose?: () => Promise<void>;
 }
 

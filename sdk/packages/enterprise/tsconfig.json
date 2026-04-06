@@ -1,0 +1,19 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"outDir": "./dist",
+		"rootDir": "../..",
+		"types": ["node"],
+		"lib": ["ES2022", "DOM"],
+		"paths": {
+			"@clinebot/agents": ["../../packages/agents/src/index.ts"],
+			"@clinebot/shared": ["../../packages/shared/src/index.ts"]
+		}
+	},
+	"include": [
+		"src/**/*",
+		"../../packages/agents/src/index.ts",
+		"../../packages/shared/src/index.ts"
+	],
+	"exclude": ["node_modules", "dist", "**/*.test.ts"]
+}

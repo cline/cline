@@ -174,6 +174,10 @@ export class UnifiedSessionPersistenceService {
 		this.writeManifestFile(manifestPath, manifest);
 	}
 
+	readSessionManifest(sessionId: string): SessionManifest | undefined {
+		return this.readManifestFile(sessionId).manifest;
+	}
+
 	private readManifestFile(sessionId: string): {
 		path: string;
 		manifest?: SessionManifest;

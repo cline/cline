@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import type { AgentHooks } from "@clinebot/agents";
 import type { BasicLogger, HookSessionContext } from "@clinebot/shared";
 import { ensureParentDir } from "@clinebot/shared/storage";
-import { listHookConfigFiles } from "../agents/hooks-config-loader";
+import { listHookConfigFiles } from "../extensions/hooks-config-loader";
 import type { HookEventName, HookEventPayload } from "../hooks";
 
 type HookContextBase = {

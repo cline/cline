@@ -21,6 +21,9 @@ service ClineGateway {
   rpc AbortRuntimeSession(AbortRuntimeSessionRequest) returns (AbortRuntimeSessionResponse);
   rpc RunProviderAction(RunProviderActionRequest) returns (RunProviderActionResponse);
   rpc RunProviderOAuthLogin(RunProviderOAuthLoginRequest) returns (RunProviderOAuthLoginResponse);
+  rpc EnterpriseAuthenticate(EnterpriseAuthenticateRequest) returns (EnterpriseAuthenticateResponse);
+  rpc EnterpriseSync(EnterpriseSyncRequest) returns (EnterpriseSyncResponse);
+  rpc EnterpriseGetStatus(EnterpriseStatusRequest) returns (EnterpriseStatusResponse);
   rpc StartTask(StartTaskRequest) returns (TaskResponse);
   rpc CompleteTask(CompleteTaskRequest) returns (TaskResponse);
   rpc PublishEvent(PublishEventRequest) returns (PublishEventResponse);
@@ -405,6 +408,68 @@ message RunProviderOAuthLoginRequest {
 message RunProviderOAuthLoginResponse {
   string provider = 1;
   string api_key = 2;
+}
+
+message EnterpriseAuthenticateRequest {
+  string provider_id = 1;
+  string workspace_path = 2;
+  string root_path = 3;
+  string project_id = 4;
+  string workspace_id = 5;
+  string organization_id = 6;
+}
+
+message EnterpriseAuthenticateResponse {
+  string provider_id = 1;
+  bool authenticated = 2;
+  repeated string roles = 3;
+  google.protobuf.Struct claims = 4;
+  google.protobuf.Struct metadata = 5;
+}
+
+message EnterpriseSyncRequest {
+  string provider_id = 1;
+  string workspace_path = 2;
+  string root_path = 3;
+  string project_id = 4;
+  string workspace_id = 5;
+  string organization_id = 6;
+  bool use_cached_bundle = 7;
+  bool has_use_cached_bundle = 8;
+}
+
+message EnterpriseSyncResponse {
+  string provider_id = 1;
+  bool authenticated = 2;
+  bool has_cached_bundle = 3;
+  string applied_config_version = 4;
+  repeated string roles = 5;
+  bool has_telemetry_overrides = 6;
+  int32 rules_count = 7;
+  int32 workflows_count = 8;
+  int32 skills_count = 9;
+  google.protobuf.Struct claims = 10;
+  google.protobuf.Struct metadata = 11;
+}
+
+message EnterpriseStatusRequest {
+  string provider_id = 1;
+  string workspace_path = 2;
+  string root_path = 3;
+}
+
+message EnterpriseStatusResponse {
+  string provider_id = 1;
+  bool authenticated = 2;
+  bool has_cached_bundle = 3;
+  string applied_config_version = 4;
+  repeated string roles = 5;
+  bool has_telemetry_overrides = 6;
+  int32 rules_count = 7;
+  int32 workflows_count = 8;
+  int32 skills_count = 9;
+  google.protobuf.Struct claims = 10;
+  google.protobuf.Struct metadata = 11;
 }
 
 message StartTaskRequest {

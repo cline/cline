@@ -65,18 +65,6 @@ describe("createCheckpointHooks", () => {
 			expect(first.latest.runCount).toBe(1);
 			expect(first.latest.ref).toMatch(/^[0-9a-f]{40}$/);
 
-			await hooks.onBeforeAgentStart?.({
-				agentId: "agent_1",
-				conversationId: "conv_1",
-				parentAgentId: null,
-				iteration: 2,
-				systemPrompt: "system",
-				messages: [],
-			});
-			expect((metadata?.checkpoint as CheckpointMetadata).history).toHaveLength(
-				1,
-			);
-
 			await writeFile(join(cwd, "note.txt"), "run-two\n", "utf8");
 			await hooks.onRunStart?.({
 				agentId: "agent_1",
@@ -99,6 +87,44 @@ describe("createCheckpointHooks", () => {
 			expect(
 				checkpoint.history.map((entry: CheckpointEntry) => entry.runCount),
 			).toEqual([1, 2]);
+			expect(checkpoint.latest.kind).toBe("stash");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("falls back to a commit checkpoint when the worktree is clean", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_clean",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await hooks.onRunStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				userMessage: "clean",
+			});
+			await hooks.onBeforeAgentStart?.({
+				agentId: "agent_1",
+				conversationId: "conv_1",
+				parentAgentId: null,
+				iteration: 1,
+				systemPrompt: "system",
+				messages: [],
+			});
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.history).toHaveLength(1);
+			expect(checkpoint.latest.kind).toBe("commit");
+			expect(checkpoint.latest.ref).toMatch(/^[0-9a-f]{40}$/);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}

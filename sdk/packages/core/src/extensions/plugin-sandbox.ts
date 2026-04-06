@@ -62,10 +62,13 @@ type SandboxedPluginDescriptor = {
  */
 function resolveBootstrap(): { file: string } | { script: string } {
 	const dir = dirname(fileURLToPath(import.meta.url));
-	// In dev, the bootstrap sits next to this file in src/agents/.
-	// In production, the main bundle is at dist/ but bootstrap is at dist/agents/.
+	// In dev, the bootstrap sits next to this file in src/extensions/.
+	// In production, the main bundle is at dist/ and the bootstrap is emitted
+	// under dist/extensions/. Keep the older dist/agents/ fallback for
+	// compatibility with previously built layouts.
 	const candidates = [
 		join(dir, "plugin-sandbox-bootstrap.js"),
+		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
 		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
 	];
 	for (const candidate of candidates) {

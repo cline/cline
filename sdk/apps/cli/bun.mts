@@ -48,11 +48,11 @@ if (result.logs.length > 0) {
 const rootDir = dirname(fileURLToPath(import.meta.url));
 const coreBootstrapPath = join(
 	rootDir,
-	"../../packages/core/dist/agents/plugin-sandbox-bootstrap.js",
+	"../../packages/core/dist/extensions/plugin-sandbox-bootstrap.js",
 );
 const cliBootstrapPath = join(
 	rootDir,
-	"./dist/agents/plugin-sandbox-bootstrap.js",
+	"./dist/extensions/plugin-sandbox-bootstrap.js",
 );
 mkdirSync(dirname(cliBootstrapPath), { recursive: true });
 copyFileSync(coreBootstrapPath, cliBootstrapPath);
