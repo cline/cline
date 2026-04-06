@@ -46,6 +46,36 @@ examine isolates and stacks; things of that nature.
 We are working on macOS, it is fine if this tool just works on macOS
 for now.
 
+## Caveats
+
+- **"Introducing Cline Kanban" promotion**: On fresh launches, a
+  full-screen promotional overlay ("Introducing Cline Kanban") may
+  appear in the sidebar webview. It obscures all other UI elements, so
+  screenshots will show only the promo and interactions with the chat
+  input, settings buttons, etc. will fail. You must dismiss it before
+  doing anything else. Use the debug harness to click the dismiss/close
+  button:
+  ```bash
+  curl localhost:19229/api -d '{
+    "method": "ui.locator",
+    "params": {"text": "Dismiss", "frame": "sidebar", "action": "click"}
+  }'
+  ```
+  Or close it via `web.evaluate`:
+  ```bash
+  curl localhost:19229/api -d '{
+    "method": "web.evaluate",
+    "params": {"expression": "document.querySelector('[data-testid=\"dismiss-announcement\"]')?.click() || document.querySelector(\"button\")?.click()"}
+  }'
+  ```
+  If the exact selector changes, take a screenshot first
+  (`ui.sidebar_screenshot`) to identify the current dismiss control.
+
+- **CDP disconnects after window reload**: If you use
+  `workbench.action.reloadWindow` (e.g., to pick up a rebuilt
+  webview), the extension host CDP connection drops. You must do a full
+  `shutdown` + relaunch of the debug harness to reconnect.
+
 ## References
 
 You can see the vscode source code in ~/clients/cline/vscode and
