@@ -458,8 +458,20 @@ class DebugHarness {
 		throw new Error(`Inspector not available on port ${port} after ${timeout}ms`)
 	}
 
-	private async findSidebar(): Promise<Frame | null> {
-		if (this.sidebarFrame && !this.sidebarFrame.isDetached()) return this.sidebarFrame
+	private async findSidebar(forceRefresh = false): Promise<Frame | null> {
+		// Validate cached reference - check both detached AND that it's still responsive
+		if (!forceRefresh && this.sidebarFrame && !this.sidebarFrame.isDetached()) {
+			try {
+				// Verify the frame is still alive by attempting a lightweight operation
+				await this.sidebarFrame.title()
+				return this.sidebarFrame
+			} catch {
+				// Frame reference is stale, clear and re-discover
+				this.sidebarFrame = null
+			}
+		}
+
+		this.sidebarFrame = null
 		if (!this.page) return null
 
 		const start = Date.now()
@@ -723,6 +735,32 @@ class DebugHarness {
 		})
 	}
 
+	/**
+	 * Send a postMessage to the extension host via the webview's exposed vsCodeApi.
+	 * The vsCodeApi is exposed on window.__clineVsCodeApi by platform.config.ts.
+	 * This works even though acquireVsCodeApi() can only be called once.
+	 */
+	async webPostMessage(params: { message: any }): Promise<any> {
+		const sidebar = await this.findSidebar()
+		if (!sidebar) throw new Error("Sidebar not found")
+		try {
+			const result = await sidebar.evaluate((msg: any) => {
+				const api = (window as any).__clineVsCodeApi
+				if (!api) {
+					throw new Error(
+						"window.__clineVsCodeApi not found. " +
+							"The webview may not have loaded yet, or the extension was built without the debug bridge.",
+					)
+				}
+				api.postMessage(msg)
+				return { sent: true }
+			}, params.message)
+			return result
+		} catch (e: any) {
+			return { error: e.message }
+		}
+	}
+
 	async webPause(): Promise<void> {
 		await this.getWebCdp().send("Debugger.pause")
 	}
@@ -836,6 +874,118 @@ class DebugHarness {
 		return { text }
 	}
 
+	/**
+	 * Set text in a React-controlled textarea using execCommand('insertText').
+	 * This fires real InputEvent/input events that React's onChange handler processes,
+	 * unlike Playwright's fill() or nativeInputValueSetter which bypass React's
+	 * synthetic event system and fail after the first task.
+	 *
+	 * Params:
+	 *   selector - CSS selector for the textarea (default: '[data-testid="chat-input"]')
+	 *   text     - Text to insert
+	 *   clear    - Whether to clear existing content first (default: true)
+	 *   submit   - Whether to press Enter after typing (default: false)
+	 */
+	async uiReactInput(params: { selector?: string; text: string; clear?: boolean; submit?: boolean }): Promise<any> {
+		const sidebar = await this.findSidebar()
+		if (!sidebar) throw new Error("Sidebar not found")
+
+		const selector = params.selector || '[data-testid="chat-input"]'
+		const clear = params.clear !== false
+		const text = params.text
+
+		const result = await sidebar.evaluate(
+			({ selector, text, clear }: { selector: string; text: string; clear: boolean }) => {
+				const el = document.querySelector(selector) as HTMLTextAreaElement | null
+				if (!el) throw new Error(`Element not found: ${selector}`)
+
+				// Focus the element
+				el.focus()
+
+				// Clear existing content if requested
+				if (clear && el.value.length > 0) {
+					// Select all text and delete it
+					el.setSelectionRange(0, el.value.length)
+					document.execCommand("delete", false)
+				}
+
+				// Insert new text using execCommand which fires proper InputEvents
+				// that React's synthetic event system handles correctly
+				document.execCommand("insertText", false, text)
+
+				return { value: el.value, length: el.value.length }
+			},
+			{ selector, text, clear },
+		)
+
+		// Optionally submit by pressing Enter
+		if (params.submit && this.page) {
+			// Brief pause to let React process the input event
+			await sleep(100)
+			await this.page.keyboard.press("Enter")
+		}
+
+		return { ...result, submitted: !!params.submit }
+	}
+
+	/**
+	 * Send a chat message by directly invoking the webview's gRPC client.
+	 * This completely bypasses the textarea, avoiding all React state issues.
+	 * Works reliably regardless of how many tasks have been completed.
+	 *
+	 * For new tasks (no active conversation), sends via TaskServiceClient.newTask().
+	 * For active conversations, sends via TaskServiceClient.askResponse().
+	 */
+	async uiSendMessage(params: {
+		text: string
+		images?: string[]
+		files?: string[]
+		responseType?: string
+	}): Promise<any> {
+		const sidebar = await this.findSidebar()
+		if (!sidebar) throw new Error("Sidebar not found")
+
+		return sidebar.evaluate(
+			({ text, images, files, responseType }: { text: string; images: string[]; files: string[]; responseType?: string }) => {
+				const api = (window as any).__clineVsCodeApi
+				if (!api) {
+					throw new Error("window.__clineVsCodeApi not found")
+				}
+
+				// Send as a gRPC request via postMessage, which the extension host
+				// processes through its ProtoBus handler. This is the same mechanism
+				// the webview uses internally.
+				if (responseType) {
+					// Responding to an ask (followup, resume, etc.)
+					api.postMessage({
+						type: "grpc_request",
+						service: "cline.TaskService",
+						method: "askResponse",
+						requestId: `debug-${Date.now()}`,
+						payload: { responseType, text, images, files },
+					})
+				} else {
+					// New task
+					api.postMessage({
+						type: "grpc_request",
+						service: "cline.TaskService",
+						method: "newTask",
+						requestId: `debug-${Date.now()}`,
+						payload: { text, images, files },
+					})
+				}
+
+				return { sent: true, method: responseType ? "askResponse" : "newTask" }
+			},
+			{
+				text: params.text,
+				images: params.images || [],
+				files: params.files || [],
+				responseType: params.responseType,
+			},
+		)
+	}
+
 	async uiLocator(params: {
 		role?: string
 		name?: string
@@ -845,40 +995,58 @@ class DebugHarness {
 		action?: "click" | "fill" | "text" | "visible" | "count"
 		value?: string
 	}): Promise<any> {
-		const target = await this.getTarget(params.frame)
-		let locator
-		if (params.testId) {
-			locator = target.getByTestId(params.testId)
-		} else if (params.role) {
-			locator = target.getByRole(params.role as any, params.name ? { name: params.name } : undefined)
-		} else if (params.text) {
-			locator = target.getByText(params.text)
-		} else {
-			throw new Error("Provide role, testId, or text")
+		// Retry with frame re-discovery on failure for sidebar targets
+		const maxRetries = params.frame === "sidebar" ? 2 : 1
+		let lastError: Error | null = null
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			try {
+				const forceRefresh = attempt > 0
+				const target = await this.getTarget(params.frame, forceRefresh)
+				let locator
+				if (params.testId) {
+					locator = target.getByTestId(params.testId)
+				} else if (params.role) {
+					locator = target.getByRole(params.role as any, params.name ? { name: params.name } : undefined)
+				} else if (params.text) {
+					locator = target.getByText(params.text)
+				} else {
+					throw new Error("Provide role, testId, or text")
+				}
+
+				switch (params.action) {
+					case "click":
+						await locator.click()
+						return { done: true }
+					case "fill":
+						await locator.fill(params.value || "")
+						return { done: true }
+					case "text":
+						return { text: await locator.textContent() }
+					case "visible":
+						return { visible: await locator.isVisible() }
+					case "count":
+						return { count: await locator.count() }
+					default:
+						return { visible: await locator.isVisible(), count: await locator.count() }
+				}
+			} catch (e: any) {
+				lastError = e
+				if (attempt < maxRetries - 1) {
+					log(`ui.locator attempt ${attempt + 1} failed (${e.message}), retrying with frame refresh...`)
+					this.sidebarFrame = null // Force re-discovery
+					await sleep(500)
+				}
+			}
 		}
 
-		switch (params.action) {
-			case "click":
-				await locator.click()
-				return { done: true }
-			case "fill":
-				await locator.fill(params.value || "")
-				return { done: true }
-			case "text":
-				return { text: await locator.textContent() }
-			case "visible":
-				return { visible: await locator.isVisible() }
-			case "count":
-				return { count: await locator.count() }
-			default:
-				return { visible: await locator.isVisible(), count: await locator.count() }
-		}
+		throw lastError || new Error("ui.locator failed")
 	}
 
-	private async getTarget(frame?: string): Promise<Page | Frame> {
+	private async getTarget(frame?: string, forceRefresh = false): Promise<Page | Frame> {
 		if (!this.page) throw new Error("VSCode not running")
 		if (frame === "sidebar") {
-			const sb = await this.findSidebar()
+			const sb = await this.findSidebar(forceRefresh)
 			if (!sb) throw new Error("Sidebar not found")
 			return sb
 		}
@@ -996,6 +1164,8 @@ class DebugHarness {
 				return this.webRemoveBreakpoint(params)
 			case "web.evaluate":
 				return this.webEvaluate(params)
+			case "web.post_message":
+				return this.webPostMessage(params)
 			case "web.pause":
 				return this.webPause()
 			case "web.resume":
@@ -1032,6 +1202,10 @@ class DebugHarness {
 				return this.uiGetText(params)
 			case "ui.locator":
 				return this.uiLocator(params)
+			case "ui.react_input":
+				return this.uiReactInput(params)
+			case "ui.send_message":
+				return this.uiSendMessage(params)
 
 			// Combined
 			case "wait_for_pause":

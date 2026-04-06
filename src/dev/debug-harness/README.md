@@ -82,13 +82,14 @@ Convenience endpoints:
 
 ### Webview Debugging (Chrome)
 
-Call `connect_webview` first after the sidebar is open.
+Call `connect_webview` first after the sidebar is open (only needed for breakpoints/stepping).
 
 | Method | Params | Description |
 |--------|--------|-------------|
 | `web.set_breakpoint` | `{url, line, column?, condition?}` | Set breakpoint by URL pattern |
 | `web.remove_breakpoint` | `{breakpointId}` | Remove a breakpoint |
 | `web.evaluate` | `{expression, callFrameId?}` | Evaluate in sidebar (Playwright) or at breakpoint (CDP) |
+| `web.post_message` | `{message}` | Send a postMessage to the extension host via exposed vsCodeApi |
 | `web.pause` | | Pause |
 | `web.resume` | | Resume |
 | `web.step_over/into/out` | | Stepping |
@@ -108,7 +109,9 @@ Call `connect_webview` first after the sidebar is open.
 | `ui.wait_for_selector` | `{selector, frame?, timeout?}` | Wait for element |
 | `ui.command_palette` | `{command}` | Open command palette and run command |
 | `ui.get_text` | `{selector, frame?}` | Get element text |
-| `ui.locator` | `{role?, name?, testId?, text?, frame?, action?, value?}` | Rich Playwright locator |
+| `ui.locator` | `{role?, name?, testId?, text?, frame?, action?, value?}` | Rich Playwright locator (auto-retries with frame refresh for sidebar) |
+| `ui.react_input` | `{text, selector?, clear?, submit?}` | Set React-controlled textarea value via `execCommand('insertText')` |
+| `ui.send_message` | `{text, images?, files?, responseType?}` | Send a chat message bypassing the textarea (via gRPC postMessage) |
 
 ### Combined
 
@@ -194,7 +197,49 @@ curl localhost:19229/api -d '{
 }'
 ```
 
-### 5. Find the right script for breakpoints
+### 5. Reliable textarea input (React-compatible)
+
+```bash
+# Use execCommand-based input that works reliably across multiple tasks
+curl localhost:19229/api -d '{
+  "method": "ui.react_input",
+  "params": {"text": "Hello from debug harness!", "submit": true}
+}'
+
+# Or set text without submitting
+curl localhost:19229/api -d '{
+  "method": "ui.react_input",
+  "params": {"text": "Draft message", "clear": true}
+}'
+```
+
+### 6. Send a message bypassing the textarea entirely
+
+```bash
+# Start a new task (no active conversation)
+curl localhost:19229/api -d '{
+  "method": "ui.send_message",
+  "params": {"text": "Say hello world"}
+}'
+
+# Respond to a followup/resume prompt
+curl localhost:19229/api -d '{
+  "method": "ui.send_message",
+  "params": {"text": "Yes, continue", "responseType": "yesButtonClicked"}
+}'
+```
+
+### 7. Send postMessage to extension host
+
+```bash
+# Send an arbitrary message to the extension via the webview's VS Code API
+curl localhost:19229/api -d '{
+  "method": "web.post_message",
+  "params": {"message": {"type": "grpc_request", "service": "cline.TaskService", "method": "clearTask", "requestId": "debug-1", "payload": {}}}
+}'
+```
+
+### 8. Find the right script for breakpoints
 
 ```bash
 # List scripts containing "extension"

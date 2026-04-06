@@ -27,8 +27,11 @@ All via `POST localhost:19229/api` with `{"method":"...", "params":{...}}`:
 - **`ext.resume`** / **`ext.step_over`** / **`ext.step_into`** — stepping
 - **`ext.call_stack`** — inspect when paused
 - **`web.evaluate`** `{expression}` — eval in webview
+- **`web.post_message`** `{message}` — send postMessage to extension host via exposed vsCodeApi
 - **`wait_for_pause`** `{timeout?}` — block until breakpoint hit
-- **`ui.locator`** `{role?, testId?, text?, action?, frame?}` — Playwright locator
+- **`ui.locator`** `{role?, testId?, text?, action?, frame?}` — Playwright locator (auto-retries on stale sidebar frame)
+- **`ui.react_input`** `{text, selector?, clear?, submit?}` — set React textarea value via `execCommand('insertText')`; works reliably across multiple tasks
+- **`ui.send_message`** `{text, images?, files?, responseType?}` — send chat message bypassing the textarea entirely (via gRPC postMessage)
 - **`ui.command_palette`** `{command}` — run VSCode command
 
 ## Caveats
