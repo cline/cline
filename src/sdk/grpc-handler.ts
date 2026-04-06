@@ -30,6 +30,7 @@ import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { getAvailableTerminalProfiles } from "../utils/shell"
 
 /** File search result */
 export interface FileSearchResult {
@@ -381,11 +382,14 @@ export class GrpcHandler {
 				case "getOrganizationCredits":
 					return this.handleGetOrganizationCredits()
 
+				// ---- Terminal profiles ----
+				case "getAvailableTerminalProfiles":
+					return this.handleGetAvailableTerminalProfiles()
+
 				// ---- Stubbed methods (return empty, log for debugging) ----
 			// These need real implementations. See CAVEATS.md for which
 			// bugs they cause. Search for "[grpc-handler] STUB:" in
 			// extension host console to see which are being called.
-				case "getAvailableTerminalProfiles":
 				case "updateTelemetrySetting":
 				case "captureOnboardingProgress":
 				case "setWelcomeViewCompleted":
@@ -775,5 +779,16 @@ export class GrpcHandler {
 	private handleGetOrganizationCredits(): GrpcResponse {
 		// Same as getUserCredits — no credit info on disk
 		return { data: { credits: undefined } }
+	}
+
+	// -----------------------------------------------------------------------
+	// Terminal profiles
+	// -----------------------------------------------------------------------
+
+	private handleGetAvailableTerminalProfiles(): GrpcResponse {
+		// Uses the same function as the VSCode controller — returns
+		// platform-specific shell profiles (Default, zsh, bash, etc.)
+		const profiles = getAvailableTerminalProfiles()
+		return { data: { profiles } }
 	}
 }
