@@ -176,6 +176,7 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		terminalOutputLineLimit: globalState?.terminalOutputLineLimit ?? 500,
 		maxConsecutiveMistakes: globalState?.maxConsecutiveMistakes ?? 3,
 		defaultTerminalProfile: globalState?.defaultTerminalProfile,
+		availableTerminalProfiles: [],
 		vscodeTerminalExecutionMode: globalState?.vscodeTerminalExecutionMode ?? "default",
 		customPrompt: globalState?.customPrompt,
 		mcpMarketplaceEnabled: globalState?.mcpMarketplaceEnabled,
