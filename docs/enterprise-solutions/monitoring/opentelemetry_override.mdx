@@ -1,0 +1,155 @@
+---
+title: "OpenTelemetry Environment Variables"
+sidebarTitle: "OpenTelemetry Override"
+description: "Configure OpenTelemetry using environment variables for advanced scenarios"
+---
+
+<Note>
+This is an **advanced configuration method**. Most users should use [Remote Configuration](/enterprise-solutions/monitoring/opentelemetry) via the dashboard instead.
+</Note>
+
+Environment variables provide an alternative way to configure OpenTelemetry, useful for self-hosted deployments, local development, CI/CD pipelines, or when you need to override organization settings.
+
+## When to Use
+
+- **Self-hosted deployments** without dashboard access
+- **Local development and testing** with your own collectors
+- **CI/CD pipelines** that need observability
+- **Override organization settings** with user-specific configuration
+
+<Warning>
+Environment variable configuration bypasses user telemetry settings and will export data regardless of individual preferences.
+</Warning>
+
+## Environment Variables
+
+### Core Configuration
+
+| Variable | Description | Values |
+|----------|-------------|--------|
+| `CLINE_OTEL_TELEMETRY_ENABLED` | Enable OpenTelemetry export | `"true"` or `"false"` |
+| `CLINE_OTEL_METRICS_EXPORTER` | Metrics exporters (comma-separated) | `"console"`, `"otlp"` |
+| `CLINE_OTEL_LOGS_EXPORTER` | Logs exporters (comma-separated) | `"console"`, `"otlp"` |
+
+### OTLP Configuration
+
+| Variable | Description | Values |
+|----------|-------------|--------|
+| `CLINE_OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP protocol | `"grpc"`, `"http/json"`, or `"http/protobuf"` |
+| `CLINE_OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint (applies to both metrics and logs) | URL with optional port |
+| `CLINE_OTEL_EXPORTER_OTLP_HEADERS` | Authentication headers (comma-separated `key=value` pairs) | `"key=value,key2=value2"` |
+| `CLINE_OTEL_EXPORTER_OTLP_INSECURE` | Disable TLS for gRPC (local development only) | `"true"` |
+
+### Advanced OTLP Configuration
+
+For separate metrics and logs endpoints:
+
+| Variable | Description |
+|----------|-------------|
+| `CLINE_OTEL_EXPORTER_OTLP_METRICS_PROTOCOL` | Metrics-specific protocol override |
+| `CLINE_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` | Metrics-specific endpoint |
+| `CLINE_OTEL_EXPORTER_OTLP_LOGS_PROTOCOL` | Logs-specific protocol override |
+| `CLINE_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT` | Logs-specific endpoint |
+
+### Export Tuning
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `CLINE_OTEL_METRIC_EXPORT_INTERVAL` | Milliseconds between metric exports | 60000 |
+| `CLINE_OTEL_LOG_BATCH_SIZE` | Maximum batch size for log records | 512 |
+| `CLINE_OTEL_LOG_BATCH_TIMEOUT` | Maximum time before exporting logs (ms) | 5000 |
+| `CLINE_OTEL_LOG_MAX_QUEUE_SIZE` | Maximum queue size for log records | 2048 |
+
+## Quick Start Examples
+
+### Datadog with gRPC
+
+```bash
+export CLINE_OTEL_TELEMETRY_ENABLED=true
+export CLINE_OTEL_METRICS_EXPORTER=otlp
+export CLINE_OTEL_LOGS_EXPORTER=otlp
+export CLINE_OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://api.datadoghq.com:4317
+export CLINE_OTEL_EXPORTER_OTLP_HEADERS="dd-api-key=YOUR_API_KEY"
+
+code .
+```
+
+<Note>
+The endpoint shown above is for Datadog's **US1 region**. If you're in a different region (EU, US3, US5, AP1, etc.), replace `api.datadoghq.com` with your region-specific hostname (e.g., `api.datadoghq.eu` for EU). See [Datadog's OTLP documentation](https://docs.datadoghq.com/opentelemetry/) for your region's endpoint.
+</Note>
+
+### New Relic with HTTP
+
+```bash
+export CLINE_OTEL_TELEMETRY_ENABLED=true
+export CLINE_OTEL_METRICS_EXPORTER=otlp
+export CLINE_OTEL_LOGS_EXPORTER=otlp
+export CLINE_OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4318
+export CLINE_OTEL_EXPORTER_OTLP_HEADERS="api-key=YOUR_LICENSE_KEY"
+
+code .
+```
+
+### Local Development (Insecure)
+
+```bash
+export CLINE_OTEL_TELEMETRY_ENABLED=true
+export CLINE_OTEL_METRICS_EXPORTER=otlp
+export CLINE_OTEL_LOGS_EXPORTER=otlp
+export CLINE_OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+export CLINE_OTEL_EXPORTER_OTLP_INSECURE=true
+
+code .
+```
+
+### Console Output (Testing)
+
+```bash
+export CLINE_OTEL_TELEMETRY_ENABLED=true
+export CLINE_OTEL_METRICS_EXPORTER=console
+export CLINE_OTEL_LOGS_EXPORTER=console
+
+code .
+```
+
+## Debugging
+
+Enable detailed OpenTelemetry diagnostic logging:
+
+```bash
+export TEL_DEBUG_DIAGNOSTICS=true
+code .
+```
+
+This outputs:
+- Configuration being used
+- Exporters being created
+- Connection attempts
+- Export successes/failures
+
+Check the VS Code Developer Tools Console (Help > Toggle Developer Tools) for diagnostic output.
+
+## Configuration Priority
+
+When multiple configuration methods are present, Cline uses this priority order:
+
+1. **Environment variables** (highest priority) - This method
+2. **Remote Configuration** - Dashboard settings
+3. **Default settings** - Built-in defaults
+
+Environment variable configuration will override dashboard settings.
+
+## See Also
+
+<CardGroup cols={2}>
+  <Card title="Dashboard Configuration" icon="globe" href="/enterprise-solutions/monitoring/opentelemetry">
+    Configure OpenTelemetry via the web dashboard
+  </Card>
+  
+  <Card title="Remote Configuration" icon="server" href="/enterprise-solutions/configuration/remote-configuration/overview">
+    Learn about Remote Configuration system
+  </Card>
+</CardGroup>
