@@ -33,12 +33,12 @@ Environment variable configuration bypasses user telemetry settings and will exp
 
 ### OTLP Configuration
 
-| Variable | Description |
-|----------|-------------|
+| Variable | Description | Values |
+|----------|-------------|--------|
 | `CLINE_OTEL_EXPORTER_OTLP_PROTOCOL` | OTLP protocol | `"grpc"`, `"http/json"`, or `"http/protobuf"` |
-| `CLINE_OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint (applies to both metrics and logs) |
-| `CLINE_OTEL_EXPORTER_OTLP_HEADERS` | Authentication headers (comma-separated `key=value` pairs) |
-| `CLINE_OTEL_EXPORTER_OTLP_INSECURE` | Disable TLS for gRPC | `"true"` for local development |
+| `CLINE_OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP collector endpoint (applies to both metrics and logs) | URL with optional port |
+| `CLINE_OTEL_EXPORTER_OTLP_HEADERS` | Authentication headers (comma-separated `key=value` pairs) | `"key=value,key2=value2"` |
+| `CLINE_OTEL_EXPORTER_OTLP_INSECURE` | Disable TLS for gRPC (local development only) | `"true"` |
 
 ### Advanced OTLP Configuration
 
@@ -75,6 +75,10 @@ export CLINE_OTEL_EXPORTER_OTLP_HEADERS="dd-api-key=YOUR_API_KEY"
 code .
 ```
 
+<Note>
+The endpoint shown above is for Datadog's **US1 region**. If you're in a different region (EU, US3, US5, AP1, etc.), replace `api.datadoghq.com` with your region-specific hostname (e.g., `api.datadoghq.eu` for EU). See [Datadog's OTLP documentation](https://docs.datadoghq.com/opentelemetry/) for your region's endpoint.
+</Note>
+
 ### New Relic with HTTP
 
 ```bash
@@ -82,7 +86,7 @@ export CLINE_OTEL_TELEMETRY_ENABLED=true
 export CLINE_OTEL_METRICS_EXPORTER=otlp
 export CLINE_OTEL_LOGS_EXPORTER=otlp
 export CLINE_OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
-export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net
+export CLINE_OTEL_EXPORTER_OTLP_ENDPOINT=https://otlp.nr-data.net:4318
 export CLINE_OTEL_EXPORTER_OTLP_HEADERS="api-key=YOUR_LICENSE_KEY"
 
 code .
