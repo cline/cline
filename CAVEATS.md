@@ -19,18 +19,30 @@ Tracking issues found during the migration from the legacy inference system to t
 
 ---
 
-## Open Issues
+### 2. 🟢 Task history not persisted after completion
+**File:** `src/sdk/SdkController.ts`  
+**Symptom:** After a task completes successfully, the task did NOT appear in the RECENT section when returning to the home screen.  
+**Root cause:** `newTask()` created a `currentTaskItem` but never pushed it to `this.taskHistory[]`. `clearTask()` discarded it without saving. No disk persistence implementation existed.  
+**Fix:** `SdkController` now persists tasks on three paths: (1) `done` event updates `currentTaskItem` with final usage and calls `persistCurrentTask()`, (2) `clearTask()` calls `persistCurrentTask()` before resetting, (3) `cancelTask()` persists the in-progress task. `LegacyStateReader` gained `saveTaskHistory()`, `saveUiMessages()`, and `deleteTaskDirectory()` methods for disk I/O.
 
-### 2. 🔴 Task history not persisted after completion
-**File:** `src/sdk/SdkController.ts` lines 180, 244–250  
-**Symptom:** After a task completes successfully (e.g. "Say hello" → "Hello" with $0.0072 cost), the task does NOT appear in the RECENT section when returning to the home screen. No new task directories are created under `~/.cline/data/tasks/`.  
-**Root cause:** `newTask()` creates a `currentTaskItem` (line 180) but never pushes it to `this.taskHistory[]`. `clearTask()` (line 244) sets `currentTaskItem = undefined` without saving it. There is no disk persistence implementation — no writes to `taskHistory.json` or individual task directories.  
-**Impact:** All task history from the new SDK system is lost on every session. The RECENT section only shows tasks from the old legacy system.
-
-### 3. 🔴 Task resumption not implemented
-**File:** `src/sdk/SdkController.ts` line 280  
+### 3. 🟢 Task resumption not implemented
+**File:** `src/sdk/SdkController.ts`  
 **Symptom:** Cannot resume a previous task from history.  
-**Root cause:** Line 280 has `// TODO: Load task from history and restore messages`. The `resumeTask()` method is a no-op stub.
+**Fix:** `showTaskWithId()` now finds the task in history, loads saved UI messages via `legacyState.readUiMessages()`, restores them into the translator, and sets `currentTaskItem`. The task view renders with full message history.
+
+### 6. 🟢 Settings persistence is best-effort / incomplete
+**File:** `src/sdk/SdkController.ts`  
+**Symptom:** `updateSettings()` was a no-op stub with a TODO comment.  
+**Fix:** `updateSettings()` now persists settings to `globalState.json` via `legacyState.saveApiConfiguration()`. `updateAutoApprovalSettings()` also persists via the same mechanism.
+
+### 7. 🟢 Completed task not appearing in RECENT section
+**Where:** Home screen → RECENT section  
+**Symptom:** After completing a task and clicking "New Task", the completed task did not appear in the RECENT history list.  
+**Fix:** Resolved by issue #2 fix — tasks are now persisted to `taskHistory` on completion, so they appear in RECENT.
+
+---
+
+## Open Issues
 
 ### 4. 🟡 Input text not cleared immediately on send
 **Where:** Webview chat input  
@@ -42,15 +54,41 @@ Tracking issues found during the migration from the legacy inference system to t
 **Symptom:** An `api_req_started` partial message fires with `{"tokensIn":0,"tokensOut":0,"cost":0}` before real counts arrive, causing a brief flash of "0 tokens" in the UI.  
 **Expected:** Either don't show token counts until real data arrives, or suppress the initial zero-state.
 
-### 6. 🟡 Settings persistence is best-effort / incomplete
-**File:** `src/sdk/SdkController.ts` line 319  
-**Symptom:** Comment says `// Store settings updates (would persist to disk in production)`. Settings changes made during a session may not persist reliably.  
-**Impact:** Changes to auto-approve settings, model selection, etc. from the webview may not survive across sessions.
+### 8. 🔴 Top bar buttons are non-functional
+**Where:** Header bar — accounts, settings, new chat, history buttons  
+**Symptom:** Clicking any of the top bar buttons (accounts icon, settings gear, new chat +, task history) does nothing. No navigation occurs, no panels open.  
+**Root cause:** gRPC stub. The webview subscribes to `subscribeToSettingsButtonClicked`, `subscribeToHistoryButtonClicked`, `subscribeToChatButtonClicked`, `subscribeToAccountButtonClicked` — these are event streams pushed from the extension host when VSCode title bar buttons are clicked. The grpc-handler returns empty `{ data: {} }` for all of them, so no callback is ever fired and the webview never navigates.  
+**Expected:** Each button should navigate to its respective view (account settings, settings panel, new chat, task history list).
 
-### 7. 🟡 Completed task not appearing in RECENT section
-**Where:** Home screen → RECENT section  
-**Symptom:** After completing a task and clicking "New Task", the completed task does not appear in the RECENT history list. Only tasks from the legacy system appear.  
-**Root cause:** Directly related to issue #2 — task history isn't being persisted, so the RECENT section has no new items to show.
+### 9. 🔴 @ mentions / autocomplete not working
+**Where:** Chat input textarea  
+**Symptom:** Typing `@` in the chat input does not trigger any autocomplete dropdown. No filename suggestions, no context items offered.  
+**Root cause:** gRPC stub. The `@` autocomplete calls `FileServiceClient.searchFiles()` to get matching file paths. The grpc-handler stubs `searchFiles` → `{ data: {} }`, so no results are returned and the dropdown never appears.  
+**Expected:** `@` should open a dropdown showing workspace files, folders, and other context items that can be attached to the message.
+
+### 10. 🔴 Add files/images button (+) does nothing
+**Where:** Bottom bar, "+" button next to chat input  
+**Symptom:** Clicking the "+" button to add files and images produces no response — no file picker, no dropdown, no action.  
+**Root cause:** gRPC stub. The button calls `FileServiceClient.selectFiles()` which opens a native file picker dialog. Stubbed → silent no-op.  
+**Expected:** Should open a file picker or context menu for attaching files/images to the message.
+
+### 11. 🔴 Cannot switch from Plan mode back to Act mode
+**Where:** Bottom bar Plan/Act toggle  
+**Symptom:** Clicking "Plan" successfully switches to Plan mode. However, clicking "Act" after that does NOT switch back to Act mode. The user is stuck in Plan mode.  
+**Root cause:** The grpc-handler has a real `togglePlanActModeProto` implementation, so this is likely a bug in the mode value conversion (proto enum → string), or the state push back to webview doesn't include the updated mode. Check `[grpc-handler] STUB:` logs to confirm it's not a different method.  
+**Expected:** The Plan/Act toggle should work bidirectionally.
+
+### 12. 🟡 "Manage cline rules and workflows" still mentions workflows
+**Where:** Settings or context menu  
+**Symptom:** The option text still says "Manage cline rules and workflows" even though workflows were removed in Phase 0 cleanup.  
+**Root cause:** Webview UI text — not a gRPC issue. Needs a string change in a React component.  
+**Expected:** Should say "Manage cline rules" (or similar) with no mention of workflows.
+
+### 13. 🔴 Terminal settings navigates to blank/stuck webview
+**Where:** Model settings panel → "Terminal settings" link  
+**Symptom:** Opening model settings (by clicking the model name in the bottom bar), then clicking "Terminal settings" navigates to a blank webview. The user is stuck — no back button, no way to return to the main view.  
+**Root cause:** Likely gRPC stub. The settings view navigates to a Terminal Settings sub-view that calls `getAvailableTerminalProfiles` and `updateTerminalConnectionTimeout` — both stubbed. The blank page may also be a missing React route/component. May make sense to remove "Terminal settings" entirely if there are no terminal settings in SDK mode.  
+**Expected:** Either remove the option or make it work. Must never leave the user stuck on a blank page.
 
 ---
 

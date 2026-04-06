@@ -19,7 +19,7 @@ import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
 import type { LegacyStateReader, ClineAuthCredentials } from "./legacy-state-reader"
-import { MessageTranslator, type AgentEvent } from "./message-translator"
+import { MessageTranslator, type AgentEvent, type AgentUsageEvent, type AgentDoneEvent } from "./message-translator"
 import { buildExtensionState, type StateBuilderInput } from "./state-builder"
 import { GrpcHandler, type GrpcHandlerDelegate } from "./grpc-handler"
 import type { UserInfo } from "@shared/UserInfo"
@@ -184,6 +184,7 @@ export class SdkController implements GrpcHandlerDelegate {
 			tokensIn: 0,
 			tokensOut: 0,
 			totalCost: 0,
+			cwdOnTaskInitialization: this.cwd,
 		}
 
 		// Add initial "task" message
@@ -242,6 +243,9 @@ export class SdkController implements GrpcHandlerDelegate {
 	}
 
 	async clearTask(): Promise<void> {
+		// Persist the current task before clearing (if there is one)
+		this.persistCurrentTask()
+
 		if (this.currentSession) {
 			await this.currentSession.abort()
 		}
@@ -267,6 +271,10 @@ export class SdkController implements GrpcHandlerDelegate {
 		}
 		this.translator.getMessages().push(resumeMsg)
 		this.grpcHandler.pushPartialMessage(resumeMsg)
+
+		// Persist the task in its current state (can be resumed later)
+		this.persistCurrentTask()
+
 		this.pushStateUpdate()
 	}
 
@@ -276,16 +284,70 @@ export class SdkController implements GrpcHandlerDelegate {
 		return this.taskHistory.slice(start, end)
 	}
 
-	async showTaskWithId(_id: string): Promise<void> {
-		// TODO: Load task from history and restore messages
+	async showTaskWithId(id: string): Promise<void> {
+		// Find the task in history
+		const item = this.taskHistory.find((t) => t.id === id)
+		if (!item) {
+			return
+		}
+
+		// Load saved messages from disk
+		let messages: ClineMessage[] = []
+		if (this.legacyState) {
+			try {
+				const raw = this.legacyState.readUiMessages(id)
+				messages = raw as ClineMessage[]
+			} catch {
+				// If messages can't be loaded, show the task with no messages
+			}
+		}
+
+		// Reset current state and restore the task
+		this.translator.reset()
+		this.currentSession = undefined
+		this.isTaskRunning = false
+
+		// Restore task item and messages
+		this.currentTaskItem = { ...item }
+
+		// Push loaded messages into the translator
+		const translatorMessages = this.translator.getMessages()
+		for (const msg of messages) {
+			translatorMessages.push(msg)
+		}
+
+		this.pushStateUpdate()
 	}
 
 	async deleteTasksWithIds(ids: string[]): Promise<void> {
 		if (ids.length === 0) {
+			// Delete all — also delete task directories from disk
+			if (this.legacyState) {
+				for (const item of this.taskHistory) {
+					try {
+						this.legacyState.deleteTaskDirectory(item.id)
+					} catch {
+						// Best-effort
+					}
+				}
+			}
 			this.taskHistory = []
 		} else {
+			// Delete specific tasks and their directories
+			if (this.legacyState) {
+				for (const id of ids) {
+					try {
+						this.legacyState.deleteTaskDirectory(id)
+					} catch {
+						// Best-effort
+					}
+				}
+			}
 			this.taskHistory = this.taskHistory.filter((item) => !ids.includes(item.id))
 		}
+
+		// Persist updated task history
+		this.persistTaskHistory()
 		this.pushStateUpdate()
 	}
 
@@ -316,11 +378,41 @@ export class SdkController implements GrpcHandlerDelegate {
 	}
 
 	async updateSettings(settings: Record<string, unknown>): Promise<void> {
-		// Store settings updates (would persist to disk in production)
+		// Persist settings to globalState.json via legacyState
+		if (this.legacyState) {
+			try {
+				// Settings come as key-value pairs that map to globalState keys
+				// Filter to only persist known ApiConfiguration keys
+				const apiConfigUpdates: Partial<ApiConfiguration> = {}
+				let hasApiConfig = false
+
+				for (const [key, value] of Object.entries(settings)) {
+					// Treat any setting key as a potential globalState key
+					(apiConfigUpdates as Record<string, unknown>)[key] = value
+					hasApiConfig = true
+				}
+
+				if (hasApiConfig) {
+					this.legacyState.saveApiConfiguration(apiConfigUpdates)
+				}
+			} catch {
+				// Best-effort persistence
+			}
+		}
 		this.pushStateUpdate()
 	}
 
 	async updateAutoApprovalSettings(settings: Record<string, unknown>): Promise<void> {
+		// Persist auto-approval settings to globalState.json
+		if (this.legacyState) {
+			try {
+				this.legacyState.saveApiConfiguration(
+					{ autoApprovalSettings: settings } as unknown as Partial<ApiConfiguration>,
+				)
+			} catch {
+				// Best-effort persistence
+			}
+		}
 		this.pushStateUpdate()
 	}
 
@@ -331,6 +423,16 @@ export class SdkController implements GrpcHandlerDelegate {
 	/** Process an SDK event and push updates to webview */
 	handleSessionEvent(event: AgentEvent): void {
 		const update = this.translator.processEvent(event)
+
+		// Update currentTaskItem with usage data
+		if (event.type === "usage") {
+			this.updateTaskItemUsage(event as AgentUsageEvent)
+		}
+
+		// On task completion, persist the task
+		if (event.type === "done") {
+			this.handleTaskDone(event as AgentDoneEvent)
+		}
 
 		// Push partial message updates for added/modified messages
 		const messages = this.translator.getMessages()
@@ -345,6 +447,95 @@ export class SdkController implements GrpcHandlerDelegate {
 		// Push full state update if anything changed
 		if (update.added.length > 0 || update.modified.length > 0) {
 			this.pushStateUpdate()
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Task persistence
+	// -----------------------------------------------------------------------
+
+	/** Update the current task item with usage data from a usage event */
+	private updateTaskItemUsage(event: AgentUsageEvent): void {
+		if (!this.currentTaskItem) return
+
+		this.currentTaskItem.tokensIn = event.totalInputTokens
+		this.currentTaskItem.tokensOut = event.totalOutputTokens
+		if (event.totalCost !== undefined) {
+			this.currentTaskItem.totalCost = event.totalCost
+		}
+		if (event.cacheWriteTokens !== undefined) {
+			this.currentTaskItem.cacheWrites = event.cacheWriteTokens
+		}
+		if (event.cacheReadTokens !== undefined) {
+			this.currentTaskItem.cacheReads = event.cacheReadTokens
+		}
+	}
+
+	/** Handle task completion — update final usage and persist */
+	private handleTaskDone(event: AgentDoneEvent): void {
+		if (!this.currentTaskItem) return
+
+		// Update with final usage from the done event
+		if (event.usage) {
+			this.currentTaskItem.tokensIn = event.usage.inputTokens
+			this.currentTaskItem.tokensOut = event.usage.outputTokens
+			if (event.usage.totalCost !== undefined) {
+				this.currentTaskItem.totalCost = event.usage.totalCost
+			}
+			if (event.usage.cacheWriteTokens !== undefined) {
+				this.currentTaskItem.cacheWrites = event.usage.cacheWriteTokens
+			}
+			if (event.usage.cacheReadTokens !== undefined) {
+				this.currentTaskItem.cacheReads = event.usage.cacheReadTokens
+			}
+		}
+
+		this.isTaskRunning = false
+		this.persistCurrentTask()
+	}
+
+	/**
+	 * Persist the current task: add to history, save messages to disk,
+	 * and write the updated task history file.
+	 */
+	private persistCurrentTask(): void {
+		if (!this.currentTaskItem) return
+
+		const taskId = this.currentTaskItem.id
+
+		// Add or update in task history
+		const existingIndex = this.taskHistory.findIndex((t) => t.id === taskId)
+		if (existingIndex >= 0) {
+			this.taskHistory[existingIndex] = { ...this.currentTaskItem }
+		} else {
+			this.taskHistory.unshift({ ...this.currentTaskItem })
+		}
+
+		// Save to disk
+		if (this.legacyState) {
+			try {
+				// Save task history
+				this.persistTaskHistory()
+
+				// Save UI messages for this task
+				const messages = this.translator.getMessages()
+				if (messages.length > 0) {
+					this.legacyState.saveUiMessages(taskId, messages)
+				}
+			} catch {
+				// Best-effort persistence — don't crash
+			}
+		}
+	}
+
+	/** Persist the task history array to disk */
+	private persistTaskHistory(): void {
+		if (!this.legacyState) return
+
+		try {
+			this.legacyState.saveTaskHistory(this.taskHistory)
+		} catch {
+			// Best-effort persistence
 		}
 	}
 
