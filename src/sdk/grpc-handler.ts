@@ -31,6 +31,13 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
+/** File search result */
+export interface FileSearchResult {
+	path: string
+	type: string
+	label?: string
+}
+
 // ---------------------------------------------------------------------------
 // Proto enum string → app string conversion for API providers
 // ---------------------------------------------------------------------------
@@ -261,20 +268,35 @@ export interface GrpcHandlerDelegate {
 
 	/** Get Cline auth credentials (for auth status) */
 	getClineAuthInfo?(): { idToken: string; userInfo: { id: string; email: string; displayName: string; organizations?: Array<{ active: boolean; organizationId: string; name: string; memberId: string; roles?: string[] }> } } | null
+
+	/** Search workspace files (for @ mentions) */
+	searchFiles?(query: string, type?: string, limit?: number): Promise<FileSearchResult[]>
+
+	/** Open a file picker dialog (platform-specific) */
+	selectFiles?(allowImages: boolean): Promise<{ images: string[]; files: string[] }>
 }
 
 // ---------------------------------------------------------------------------
 // GrpcHandler
 // ---------------------------------------------------------------------------
 
+/** Navigation callback type (fired by handlers that need to trigger view navigation) */
+export type NavigateCallback = (view: string, opts?: { tab?: string; targetSection?: string }) => void
+
 export class GrpcHandler {
 	private delegate: GrpcHandlerDelegate
 	private stateSubscriptions = new Map<string, SubscriptionCallback>()
 	private partialMessageSubscriptions = new Map<string, SubscriptionCallback>()
 	private nextSubscriptionId = 0
+	private onNavigateCallback?: NavigateCallback
 
 	constructor(delegate: GrpcHandlerDelegate) {
 		this.delegate = delegate
+	}
+
+	/** Set a callback for navigation events (used by the bridge to send typed messages) */
+	setOnNavigate(callback: NavigateCallback): void {
+		this.onNavigateCallback = callback
 	}
 
 	/**
@@ -325,8 +347,19 @@ export class GrpcHandler {
 				case "updateApiConfiguration":
 					return await this.handleUpdateApiConfiguration(request)
 
-				case "togglePlanActModeProto":
-					return await this.handleTogglePlanActMode(request)
+			case "togglePlanActModeProto":
+				return await this.handleTogglePlanActMode(request)
+
+				// ---- File operations ----
+				case "searchFiles":
+					return await this.handleSearchFiles(request)
+
+				case "selectFiles":
+					return await this.handleSelectFiles(request)
+
+				// ---- Navigation ----
+				case "scrollToSettings":
+					return this.handleScrollToSettings(request)
 
 				case "updateSettings":
 					return await this.handleUpdateSettings(request)
@@ -396,8 +429,6 @@ export class GrpcHandler {
 				case "openUrl":
 				case "openWalkthrough":
 				case "copyToClipboard":
-				case "selectFiles":
-				case "searchFiles":
 				case "searchCommits":
 				case "getRelativePaths":
 				case "ifFileExistsRelativePath":
@@ -459,7 +490,6 @@ export class GrpcHandler {
 				case "mergeWorktree":
 				case "createWorktreeInclude":
 				case "trackWorktreeViewOpened":
-				case "scrollToSettings":
 				case "openInBrowser":
 				case "checkIsImageUrl":
 				case "fetchOpenGraphData":
@@ -627,9 +657,57 @@ export class GrpcHandler {
 	}
 
 	private async handleTogglePlanActMode(request: GrpcRequest): Promise<GrpcResponse> {
-		const mode = (request.params?.mode as Mode) ?? "act"
+		const rawMode = request.params?.mode
+		// Convert proto enum: 0/"PLAN" → "plan", 1/"ACT" → "act"
+		let mode: Mode
+		if (rawMode === 0 || rawMode === "PLAN") {
+			mode = "plan"
+		} else if (rawMode === 1 || rawMode === "ACT") {
+			mode = "act"
+		} else if (rawMode === "plan" || rawMode === "act") {
+			mode = rawMode
+		} else {
+			mode = "act"
+		}
 		await this.delegate.togglePlanActMode(mode)
 		return { data: {} }
+	}
+
+	private async handleSearchFiles(request: GrpcRequest): Promise<GrpcResponse> {
+		const query = (request.params?.query as string) ?? ""
+		const limit = request.params?.limit as number | undefined
+		const mentionsRequestId = request.params?.mentionsRequestId as string | undefined
+		// Convert proto enum for selectedType: 0 = FILE, 1 = FOLDER
+		const rawType = request.params?.selectedType
+		let type: string | undefined
+		if (rawType === 0 || rawType === "FILE") {
+			type = "file"
+		} else if (rawType === 1 || rawType === "FOLDER") {
+			type = "folder"
+		}
+
+		if (this.delegate.searchFiles) {
+			const results = await this.delegate.searchFiles(query, type, limit)
+			return { data: { results, mentionsRequestId } }
+		}
+		return { data: { results: [], mentionsRequestId } }
+	}
+
+	private async handleSelectFiles(request: GrpcRequest): Promise<GrpcResponse> {
+		const allowImages = (request.params?.value as boolean) ?? false
+		if (this.delegate.selectFiles) {
+			const result = await this.delegate.selectFiles(allowImages)
+			// Webview expects StringArrays: values1 = image data URLs, values2 = file paths
+			return { data: { values1: result.images, values2: result.files } }
+		}
+		return { data: { values1: [], values2: [] } }
+	}
+
+	private handleScrollToSettings(request: GrpcRequest): GrpcResponse {
+		const section = (request.params?.value as string) ?? ""
+		// Fire navigate callback to send a typed navigate message to the webview
+		this.onNavigateCallback?.("settings", { targetSection: section })
+		return { data: { key: "scrollToSettings", value: section } }
 	}
 
 	private async handleUpdateSettings(request: GrpcRequest): Promise<GrpcResponse> {
