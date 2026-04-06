@@ -40,6 +40,41 @@ Tracking issues found during the migration from the legacy inference system to t
 **Symptom:** After completing a task and clicking "New Task", the completed task did not appear in the RECENT history list.  
 **Fix:** Resolved by issue #2 fix — tasks are now persisted to `taskHistory` on completion, so they appear in RECENT.
 
+### 8. 🟢 Top bar buttons are non-functional
+**Where:** Header bar — accounts, settings, new chat, history buttons  
+**Symptom:** Clicking any of the top bar buttons (accounts icon, settings gear, new chat +, task history) does nothing. No navigation occurs, no panels open.  
+**Root cause:** gRPC stub. The webview subscribes to `subscribeToSettingsButtonClicked`, etc. — these are event streams pushed from the extension host when VSCode title bar buttons are clicked.  
+**Fix:** Extension.ts button commands now send typed `navigate` messages via `WebviewGrpcBridge.navigate()`, bypassing gRPC streaming subscriptions. Plus button also calls `clearSdkTask()` to reset the SDK session.
+
+### 9. 🟢 @ mentions / autocomplete not working
+**Where:** Chat input textarea  
+**Symptom:** Typing `@` in the chat input does not trigger any autocomplete dropdown. No filename suggestions, no context items offered.  
+**Root cause:** gRPC stub. The `@` autocomplete calls `FileServiceClient.searchFiles()` to get matching file paths.  
+**Fix:** Implemented `searchFiles` handler in grpc-handler.ts that delegates to `SdkController.searchFiles()`, which does a real filesystem walk of the workspace directory (max depth 8, skips node_modules/.git/etc). Returns results with `mentionsRequestId` for proper request correlation.
+
+### 10. 🟢 Add files/images button (+) does nothing
+**Where:** Bottom bar, "+" button next to chat input  
+**Symptom:** Clicking the "+" button to add files and images produces no response — no file picker, no dropdown, no action.  
+**Root cause:** gRPC stub. The button calls `FileServiceClient.selectFiles()` which opens a native file picker dialog.  
+**Fix:** Implemented `selectFiles` handler that returns `StringArrays` format (`values1` = image data URLs, `values2` = file paths). VscodeWebviewProvider callback reads image files as base64 data URLs and returns relative paths for non-images.
+
+### 11. 🟢 Cannot switch from Plan mode back to Act mode
+**Where:** Bottom bar Plan/Act toggle  
+**Symptom:** Clicking "Plan" successfully switches to Plan mode. However, clicking "Act" after that does NOT switch back to Act mode.  
+**Root cause:** Proto enum conversion bug — the webview sends numeric enum values (0=PLAN, 1=ACT) but the handler expected string values.  
+**Fix:** `handleTogglePlanActMode` now converts proto enum values: `0/"PLAN" → "plan"`, `1/"ACT" → "act"`, with fallback for already-converted string values.
+
+### 12. 🟢 "Manage cline rules and workflows" still mentions workflows
+**Where:** ClineRulesToggleModal tooltip and aria-label  
+**Symptom:** The tooltip and aria-label still said "Manage Cline Rules & Workflows".  
+**Fix:** Updated tooltip to "Manage Cline Rules" and aria-label to "Show/Hide Cline Rules". Also simplified chat placeholder text to remove "workflows" mention.
+
+### 13. 🟢 Terminal settings navigates to blank/stuck webview
+**Where:** Model settings panel → "Terminal settings" link  
+**Symptom:** Opening terminal settings navigates to a blank webview. The user is stuck.  
+**Root cause:** Missing `availableTerminalProfiles` in state-builder.ts — the TerminalSettingsSection component calls `.map()` on it, crashing React when it's `undefined`. Also, `scrollToSettings` handler now fires a typed `navigate` callback.  
+**Fix:** Added `availableTerminalProfiles: []` to state-builder.ts output. The `scrollToSettings` handler fires `navigate("settings", { targetSection })` via the bridge.
+
 ---
 
 ## Open Issues
@@ -53,42 +88,6 @@ Tracking issues found during the migration from the legacy inference system to t
 **Where:** Message stream / ChatRow rendering  
 **Symptom:** An `api_req_started` partial message fires with `{"tokensIn":0,"tokensOut":0,"cost":0}` before real counts arrive, causing a brief flash of "0 tokens" in the UI.  
 **Expected:** Either don't show token counts until real data arrives, or suppress the initial zero-state.
-
-### 8. 🔴 Top bar buttons are non-functional
-**Where:** Header bar — accounts, settings, new chat, history buttons  
-**Symptom:** Clicking any of the top bar buttons (accounts icon, settings gear, new chat +, task history) does nothing. No navigation occurs, no panels open.  
-**Root cause:** gRPC stub. The webview subscribes to `subscribeToSettingsButtonClicked`, `subscribeToHistoryButtonClicked`, `subscribeToChatButtonClicked`, `subscribeToAccountButtonClicked` — these are event streams pushed from the extension host when VSCode title bar buttons are clicked. The grpc-handler returns empty `{ data: {} }` for all of them, so no callback is ever fired and the webview never navigates.  
-**Expected:** Each button should navigate to its respective view (account settings, settings panel, new chat, task history list).
-
-### 9. 🔴 @ mentions / autocomplete not working
-**Where:** Chat input textarea  
-**Symptom:** Typing `@` in the chat input does not trigger any autocomplete dropdown. No filename suggestions, no context items offered.  
-**Root cause:** gRPC stub. The `@` autocomplete calls `FileServiceClient.searchFiles()` to get matching file paths. The grpc-handler stubs `searchFiles` → `{ data: {} }`, so no results are returned and the dropdown never appears.  
-**Expected:** `@` should open a dropdown showing workspace files, folders, and other context items that can be attached to the message.
-
-### 10. 🔴 Add files/images button (+) does nothing
-**Where:** Bottom bar, "+" button next to chat input  
-**Symptom:** Clicking the "+" button to add files and images produces no response — no file picker, no dropdown, no action.  
-**Root cause:** gRPC stub. The button calls `FileServiceClient.selectFiles()` which opens a native file picker dialog. Stubbed → silent no-op.  
-**Expected:** Should open a file picker or context menu for attaching files/images to the message.
-
-### 11. 🔴 Cannot switch from Plan mode back to Act mode
-**Where:** Bottom bar Plan/Act toggle  
-**Symptom:** Clicking "Plan" successfully switches to Plan mode. However, clicking "Act" after that does NOT switch back to Act mode. The user is stuck in Plan mode.  
-**Root cause:** The grpc-handler has a real `togglePlanActModeProto` implementation, so this is likely a bug in the mode value conversion (proto enum → string), or the state push back to webview doesn't include the updated mode. Check `[grpc-handler] STUB:` logs to confirm it's not a different method.  
-**Expected:** The Plan/Act toggle should work bidirectionally.
-
-### 12. 🟡 "Manage cline rules and workflows" still mentions workflows
-**Where:** Settings or context menu  
-**Symptom:** The option text still says "Manage cline rules and workflows" even though workflows were removed in Phase 0 cleanup.  
-**Root cause:** Webview UI text — not a gRPC issue. Needs a string change in a React component.  
-**Expected:** Should say "Manage cline rules" (or similar) with no mention of workflows.
-
-### 13. 🔴 Terminal settings navigates to blank/stuck webview
-**Where:** Model settings panel → "Terminal settings" link  
-**Symptom:** Opening model settings (by clicking the model name in the bottom bar), then clicking "Terminal settings" navigates to a blank webview. The user is stuck — no back button, no way to return to the main view.  
-**Root cause:** Likely gRPC stub. The settings view navigates to a Terminal Settings sub-view that calls `getAvailableTerminalProfiles` and `updateTerminalConnectionTimeout` — both stubbed. The blank page may also be a missing React route/component. May make sense to remove "Terminal settings" entirely if there are no terminal settings in SDK mode.  
-**Expected:** Either remove the option or make it work. Must never leave the user stuck on a blank page.
 
 ---
 
