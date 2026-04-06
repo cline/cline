@@ -213,6 +213,16 @@ export class ClineApiServerMock {
 						return sendApiResponse(currentUser)
 					}
 
+					if (endpoint === "/users/me/featurebase-token" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						return sendApiResponse({
+							featurebaseJwt: `mock-featurebase-jwt-${currentUser.id}`,
+						})
+					}
+
 					if (endpoint === "/users/{userId}/balance" && method === "GET") {
 						const { userId } = params
 						const balance: BalanceResponse = {

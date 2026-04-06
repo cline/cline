@@ -40,8 +40,14 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 	}
 
 	switch (tool.tool) {
-		case "readFile":
-			return tool.path ? `Reading ${cleanedPath}...` : null
+		case "readFile": {
+			if (!tool.path) {
+				return null
+			}
+			const lineHint =
+				tool.readLineStart != null && tool.readLineEnd != null ? ` (lines ${tool.readLineStart}-${tool.readLineEnd})` : ""
+			return `Reading ${cleanedPath}${lineHint}...`
+		}
 		case "listFilesTopLevel":
 		case "listFilesRecursive":
 			return tool.path ? `Exploring ${cleanedPath}/...` : null
@@ -144,7 +150,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
 		return [...dedupedCompleted, ...activeTools]
 	}, [completedTools, activeTools])
 
-	const summary = getToolGroupSummary(filteredMessages)
+	const summary = getToolGroupSummaryFromParsedTools(completedTools.map((item) => item.parsedTool))
 
 	const handleOpenFile = useCallback((filePath: string) => {
 		FileServiceClient.openFileRelativePath(StringRequest.create({ value: filePath })).catch((err) =>
@@ -234,7 +240,7 @@ export const ToolGroupRenderer = memo(({ messages, allMessages, isLastGroup }: T
  * Build tool items WITHOUT reasoning.
  * Reasoning should not be displayed in file lists - only file/folder content.
  */
-function buildToolsWithReasoning(messages: ClineMessage[]): ToolWithReasoning[] {
+export function buildToolsWithReasoning(messages: ClineMessage[]): ToolWithReasoning[] {
 	const result: ToolWithReasoning[] = []
 
 	for (const msg of messages) {
@@ -245,6 +251,23 @@ function buildToolsWithReasoning(messages: ClineMessage[]): ToolWithReasoning[] 
 
 		if (isLowStakesTool(msg)) {
 			const parsedTool = parseToolSafe(msg.text)
+			const previous = result.at(-1)
+			const supersedesPreviousReadAsk =
+				parsedTool.tool === "readFile" &&
+				parsedTool.path &&
+				msg.say === "tool" &&
+				previous?.tool.ask === "tool" &&
+				previous.parsedTool.tool === "readFile" &&
+				previous.parsedTool.path === parsedTool.path
+
+			if (supersedesPreviousReadAsk) {
+				result[result.length - 1] = {
+					tool: msg,
+					parsedTool,
+					reasoning: undefined,
+				}
+				continue
+			}
 			result.push({
 				tool: msg,
 				parsedTool,
@@ -276,8 +299,16 @@ function getToolDisplayInfo(tool: ClineSayTool) {
 	const folderPath = filePath + "/"
 
 	switch (tool.tool) {
-		case "readFile":
-			return { icon, path: filePath, label: "read" }
+		case "readFile": {
+			const lineNote =
+				tool.readLineStart != null && tool.readLineEnd != null ? `lines ${tool.readLineStart}-${tool.readLineEnd}` : null
+			return {
+				icon,
+				path: filePath,
+				label: "read",
+				displayText: lineNote ? `${cleanPathPrefix(filePath)} · ${lineNote}` : undefined,
+			}
+		}
 		case "listFilesTopLevel":
 			return { icon, path: folderPath, label: "listed" }
 		case "listFilesRecursive":
@@ -319,15 +350,10 @@ function formatSearchDisplay(regex: string, path: string, filePattern?: string):
 /**
  * Get summary label for a tool group - shows what's been added to context.
  */
-function getToolGroupSummary(messages: ClineMessage[]): string {
+export function getToolGroupSummaryFromParsedTools(tools: ClineSayTool[]): string {
 	const counts = { read: 0, list: 0, search: 0, def: 0 }
 
-	for (const msg of messages) {
-		if (!isLowStakesTool(msg)) {
-			continue
-		}
-
-		const tool = parseToolSafe(msg.text)
+	for (const tool of tools) {
 		switch (tool.tool) {
 			case "readFile":
 				counts.read++
