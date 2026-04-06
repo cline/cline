@@ -53,6 +53,27 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 	}
 
 	/**
+	 * Navigate the webview to a specific view (for SDK mode).
+	 * Used by extension.ts button commands to trigger navigation
+	 * via typed messages that bypass gRPC streaming subscriptions.
+	 */
+	public navigate(view: string, opts?: { tab?: string; targetSection?: string }): void {
+		if (this.bridge) {
+			this.bridge.navigate(view, opts)
+		}
+	}
+
+	/**
+	 * Clear the current task via the SDK bridge.
+	 * Called by extension.ts Plus button to reset the SDK session.
+	 */
+	public async clearSdkTask(): Promise<void> {
+		if (this.sdkController) {
+			await this.sdkController.clearTask()
+		}
+	}
+
+	/**
 	 * Initializes and sets up the webview when it's first created.
 	 *
 	 * @param webviewView - The sidebar webview view instance to be resolved
@@ -166,6 +187,51 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			// Wire push callbacks so SdkController state changes reach the webview
 			this.sdkController.onPushState((state) => this.bridge!.pushState(state))
 			this.sdkController.onPushPartialMessage((msg) => this.bridge!.pushPartialMessage(msg))
+
+			// Wire platform-specific file picker
+			// Returns { images: dataURL[], files: relativePath[] } matching proto StringArrays (values1/values2)
+			this.sdkController.selectFilesCallback = async (allowImages: boolean) => {
+				const imageExtensions = ["png", "jpg", "jpeg", "gif", "webp", "svg"]
+				const filters: Record<string, string[]> = allowImages
+					? { "All Files": ["*"], Images: imageExtensions }
+					: { "All Files": ["*"] }
+				const uris = await vscode.window.showOpenDialog({
+					canSelectMany: true,
+					canSelectFiles: true,
+					canSelectFolders: false,
+					filters,
+				})
+				if (!uris) return { images: [], files: [] }
+				const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+				const images: string[] = []
+				const files: string[] = []
+				for (const uri of uris) {
+					const ext = uri.fsPath.split(".").pop()?.toLowerCase() ?? ""
+					if (allowImages && imageExtensions.includes(ext)) {
+						// Read image as data URL
+						try {
+							const fileData = await vscode.workspace.fs.readFile(uri)
+							const mimeType = ext === "svg" ? "image/svg+xml"
+								: ext === "jpg" ? "image/jpeg"
+								: `image/${ext}`
+							const base64 = Buffer.from(fileData).toString("base64")
+							images.push(`data:${mimeType};base64,${base64}`)
+						} catch {
+							// Fall back to file path if read fails
+							const relPath = workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
+								? uri.fsPath.substring(workspaceRoot.length + 1)
+								: uri.fsPath
+							files.push(relPath)
+						}
+					} else {
+						const relPath = workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
+							? uri.fsPath.substring(workspaceRoot.length + 1)
+							: uri.fsPath
+						files.push(relPath)
+					}
+				}
+				return { images, files }
+			}
 
 			// Expose debug hooks for testing
 			;(globalThis as any).__sdkBridge = this.bridge

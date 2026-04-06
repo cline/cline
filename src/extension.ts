@@ -126,17 +126,22 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	context.subscriptions.push(
 		vscode.commands.registerCommand(commands.PlusButton, async () => {
+			// Clear via SDK bridge (resets SdkController session + pushes state)
+			await webview.clearSdkTask()
+			// Also clear via classic controller for backward compatibility
 			const sidebarInstance = WebviewProvider.getInstance()
 			await sidebarInstance.controller.clearTask()
 			await sidebarInstance.controller.postStateToWebview()
 			await sendChatButtonClickedEvent()
+			// Send typed navigate message for SDK bridge
+			webview.navigate("chat")
 		}),
 	)
-	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => sendMcpButtonClickedEvent()))
-	context.subscriptions.push(vscode.commands.registerCommand(commands.SettingsButton, () => sendSettingsButtonClickedEvent()))
-	context.subscriptions.push(vscode.commands.registerCommand(commands.HistoryButton, () => sendHistoryButtonClickedEvent()))
-	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
-	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.McpButton, () => { sendMcpButtonClickedEvent(); webview.navigate("mcp") }))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.SettingsButton, () => { sendSettingsButtonClickedEvent(); webview.navigate("settings") }))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.HistoryButton, () => { sendHistoryButtonClickedEvent(); webview.navigate("history") }))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => { sendAccountButtonClickedEvent(); webview.navigate("account") }))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => { sendWorktreesButtonClickedEvent(); webview.navigate("worktrees") }))
 
 	/*
 	We use the text document content provider API to show the left side for diff view by creating a

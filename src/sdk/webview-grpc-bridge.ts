@@ -63,6 +63,10 @@ export class WebviewGrpcBridge {
 	constructor(delegate: GrpcHandlerDelegate, postMessage: PostMessageFn) {
 		this.grpcHandler = new GrpcHandler(delegate)
 		this.postMessage = postMessage
+
+		// Wire up navigation callback so gRPC handlers can trigger
+		// typed navigate messages (e.g., scrollToSettings)
+		this.grpcHandler.setOnNavigate((view, opts) => this.navigate(view, opts))
 	}
 
 	/** Set an optional inbound handler for typed messages */
@@ -213,6 +217,24 @@ export class WebviewGrpcBridge {
 
 		// Also send as typed message
 		this.postMessage({ type: "partialMessage", message })
+	}
+
+	// -----------------------------------------------------------------------
+	// Navigation (called externally or by gRPC handlers via callback)
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Send a typed navigate message to the webview.
+	 * This triggers the webview's navigation listeners (used by top-bar
+	 * buttons and scrollToSettings).
+	 */
+	navigate(view: string, opts?: { tab?: string; targetSection?: string }): void {
+		this.postMessage({
+			type: "navigate",
+			view,
+			tab: opts?.tab,
+			targetSection: opts?.targetSection,
+		})
 	}
 
 	// -----------------------------------------------------------------------

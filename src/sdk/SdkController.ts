@@ -13,6 +13,8 @@
  * This replaces the classic Controller for SDK-powered sessions.
  */
 
+import * as fs from "fs"
+import * as path from "path"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { ApiConfiguration } from "@shared/api"
@@ -21,7 +23,7 @@ import type { Mode } from "@shared/storage/types"
 import type { LegacyStateReader, ClineAuthCredentials } from "./legacy-state-reader"
 import { MessageTranslator, type AgentEvent, type AgentUsageEvent, type AgentDoneEvent } from "./message-translator"
 import { buildExtensionState, type StateBuilderInput } from "./state-builder"
-import { GrpcHandler, type GrpcHandlerDelegate } from "./grpc-handler"
+import { GrpcHandler, type GrpcHandlerDelegate, type FileSearchResult } from "./grpc-handler"
 import type { UserInfo } from "@shared/UserInfo"
 
 // ---------------------------------------------------------------------------
@@ -537,6 +539,70 @@ export class SdkController implements GrpcHandlerDelegate {
 		} catch {
 			// Best-effort persistence
 		}
+	}
+
+	// -----------------------------------------------------------------------
+	// File search (for @ mentions in chat)
+	// -----------------------------------------------------------------------
+
+	/** Injectable callback for platform-specific file picker */
+	selectFilesCallback?: (allowImages: boolean) => Promise<{ images: string[]; files: string[] }>
+
+	async searchFiles(query: string, type?: string, limit?: number): Promise<FileSearchResult[]> {
+		const maxResults = limit ?? 200
+		const results: FileSearchResult[] = []
+		const queryLower = query.toLowerCase()
+
+		// Skip directories that are typically not useful
+		const SKIP_DIRS = new Set([
+			"node_modules", ".git", "__pycache__", ".venv", "venv",
+			".next", ".nuxt", "dist", "build", "out", ".cache",
+			"coverage", ".nyc_output", ".tox", ".eggs",
+		])
+
+		const walk = (dir: string, prefix: string, depth: number) => {
+			if (results.length >= maxResults || depth > 8) return
+			let entries: fs.Dirent[]
+			try {
+				entries = fs.readdirSync(dir, { withFileTypes: true })
+			} catch {
+				return // Skip unreadable directories
+			}
+			for (const entry of entries) {
+				if (results.length >= maxResults) break
+				if (entry.name.startsWith(".") || SKIP_DIRS.has(entry.name)) continue
+
+				const relPath = prefix ? `${prefix}/${entry.name}` : entry.name
+				const isDir = entry.isDirectory()
+				const entryType = isDir ? "folder" : "file"
+
+				// Apply type filter
+				if (type === "file" && isDir) {
+					// Still recurse into directories to find files
+				} else if (type === "folder" && !isDir) {
+					// Skip files when looking for folders only
+				} else {
+					// Match against query (empty query returns all)
+					if (!query || relPath.toLowerCase().includes(queryLower)) {
+						results.push({ path: relPath, type: entryType, label: entry.name })
+					}
+				}
+
+				if (isDir) {
+					walk(path.join(dir, entry.name), relPath, depth + 1)
+				}
+			}
+		}
+
+		walk(this.cwd, "", 0)
+		return results
+	}
+
+	async selectFiles(allowImages: boolean): Promise<{ images: string[]; files: string[] }> {
+		if (this.selectFilesCallback) {
+			return this.selectFilesCallback(allowImages)
+		}
+		return { images: [], files: [] }
 	}
 
 	// -----------------------------------------------------------------------
