@@ -18,10 +18,11 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import type { ApiConfiguration } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 
-import type { LegacyStateReader } from "./legacy-state-reader"
+import type { LegacyStateReader, ClineAuthCredentials } from "./legacy-state-reader"
 import { MessageTranslator, type AgentEvent } from "./message-translator"
 import { buildExtensionState, type StateBuilderInput } from "./state-builder"
 import { GrpcHandler, type GrpcHandlerDelegate } from "./grpc-handler"
+import type { UserInfo } from "@shared/UserInfo"
 
 // ---------------------------------------------------------------------------
 // Session interface — what the SDK session looks like to us
@@ -136,6 +137,19 @@ export class SdkController implements GrpcHandlerDelegate {
 	// -----------------------------------------------------------------------
 
 	getState(): ExtensionState {
+		// Build userInfo from Cline auth credentials on disk
+		let userInfo: UserInfo | undefined
+		if (this.legacyState && typeof this.legacyState.readClineAuthInfo === "function") {
+			const authInfo = this.legacyState.readClineAuthInfo()
+			if (authInfo?.userInfo) {
+				userInfo = {
+					displayName: authInfo.userInfo.displayName || authInfo.userInfo.email,
+					email: authInfo.userInfo.email,
+					plan: undefined,
+				}
+			}
+		}
+
 		const input: StateBuilderInput = {
 			legacyState: this.legacyState,
 			version: this.version,
@@ -144,8 +158,17 @@ export class SdkController implements GrpcHandlerDelegate {
 			taskHistory: this.taskHistory,
 			mode: this.mode,
 			apiConfiguration: this.apiConfiguration,
+			userInfo,
 		}
 		return buildExtensionState(input)
+	}
+
+	/** Get the Cline auth credentials from disk (for use by grpc-handler) */
+	getClineAuthInfo(): ClineAuthCredentials | null {
+		if (this.legacyState && typeof this.legacyState.readClineAuthInfo === "function") {
+			return this.legacyState.readClineAuthInfo()
+		}
+		return null
 	}
 
 	async newTask(text: string, images?: string[]): Promise<void> {
