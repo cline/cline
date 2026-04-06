@@ -784,3 +784,25 @@ export async function updateSession(
 ): Promise<{ updated: boolean }> {
 	return (await getCoreSessions()).updateSession({ sessionId, ...updates });
 }
+
+export async function getSessionRow(
+	sessionId: string,
+): Promise<unknown | undefined> {
+	const target = sessionId.trim();
+	if (!target) {
+		return undefined;
+	}
+	const rows = await (await getCoreSessions()).listSessions(5000);
+	return rows.find((row) => {
+		const candidate =
+			row && typeof row === "object" && "sessionId" in row
+				? String((row as { sessionId?: unknown }).sessionId ?? "")
+				: "";
+		return candidate === target;
+	});
+}
+
+export async function getLatestSessionRow(): Promise<unknown | undefined> {
+	const rows = await (await getCoreSessions()).listSessions(1);
+	return rows[0];
+}

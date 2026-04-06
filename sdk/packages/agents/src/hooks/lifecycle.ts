@@ -184,6 +184,13 @@ export function registerLifecycleHandlers(
 			handle: (event) => hooks.onTurnStart?.(event.payload as never),
 		});
 	}
+	if (hooks?.onBeforeAgentStart) {
+		register({
+			name: "hooks.onBeforeAgentStart",
+			stage: "before_agent_start",
+			handle: (event) => hooks.onBeforeAgentStart?.(event.payload as never),
+		});
+	}
 	if (hooks?.onTurnEnd) {
 		register({
 			name: "hooks.onTurnEnd",

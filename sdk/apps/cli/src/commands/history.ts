@@ -23,6 +23,51 @@ function formatHistoryTitle(
 	return truncateStr(normalized.replace(/\s+/g, " "), 40);
 }
 
+function formatCheckpointSummary(row: HistoryListRow): string {
+	const checkpoint = row.metadata?.checkpoint;
+	const count = checkpoint?.history?.length ?? 0;
+	const latestRun = checkpoint?.latest?.runCount;
+	if (count <= 0) {
+		return "";
+	}
+	if (typeof latestRun === "number" && Number.isFinite(latestRun)) {
+		return ` - checkpoints:${count} latest-run:${latestRun}`;
+	}
+	return ` - checkpoints:${count}`;
+}
+
+function formatCheckpointBadge(row: HistoryListRow): string | undefined {
+	const checkpoint = row.metadata?.checkpoint;
+	const count = checkpoint?.history?.length ?? 0;
+	const latestRun = checkpoint?.latest?.runCount;
+	if (count <= 0) {
+		return undefined;
+	}
+	if (typeof latestRun === "number" && Number.isFinite(latestRun)) {
+		return `CP ${count} R${latestRun}`;
+	}
+	return `CP ${count}`;
+}
+
+function formatCheckpointDetail(row: HistoryListRow): string | undefined {
+	const checkpoint = row.metadata?.checkpoint;
+	const count = checkpoint?.history?.length ?? 0;
+	const latest = checkpoint?.latest;
+	if (count <= 0 || !latest?.ref) {
+		return undefined;
+	}
+	const shortRef = truncateStr(latest.ref, 12);
+	const created =
+		typeof latest.createdAt === "number" && Number.isFinite(latest.createdAt)
+			? formatHumanReadableDate(new Date(latest.createdAt).toISOString())
+			: "unknown";
+	const latestRun =
+		typeof latest.runCount === "number" && Number.isFinite(latest.runCount)
+			? ` run ${latest.runCount}`
+			: "";
+	return `Checkpoint ${shortRef}${latestRun} created ${created}. ${count} total. Restore with: clite checkpoint restore latest --session-id ${row.sessionId}`;
+}
+
 export function formatHistoryListLine(row: HistoryListRow): string {
 	// const sessionId = truncateStr(row.sessionId.trim() || "(unknown-session)", 28);
 	const title = formatHistoryTitle(row.metadata?.title, row.prompt);
@@ -34,7 +79,7 @@ export function formatHistoryListLine(row: HistoryListRow): string {
 	);
 	const model = truncateStr(row.model?.trim() || "(unknown-model)", 28);
 	const date = formatHumanReadableDate(row.startedAt);
-	return `${date} - ${cost} - ${provider}:${model} - ${title} `;
+	return `${date} - ${cost} - ${provider}:${model} - ${title}${formatCheckpointSummary(row)} `;
 }
 
 type HistoryIo = {
@@ -137,6 +182,10 @@ interface HistoryListViewProps {
 function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const pageSize = Math.max(1, (process.stdout.rows ?? 24) / 4); // Leave room for header and footer
+	const selectedRow = rows[selectedIndex];
+	const checkpointDetail = selectedRow
+		? formatCheckpointDetail(selectedRow)
+		: undefined;
 
 	const visibleWindow = useMemo(() => {
 		const start = Math.max(0, selectedIndex - Math.floor(pageSize / 2));
@@ -179,6 +228,7 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 				.map((row, index) => {
 					const absoluteIndex = visibleWindow.startIndex + index;
 					const isSelected = absoluteIndex === selectedIndex;
+					const checkpointBadge = formatCheckpointBadge(row);
 					return React.createElement(
 						Text,
 						{
@@ -187,9 +237,26 @@ function HistoryListView({ rows, onSelect, onExit }: HistoryListViewProps) {
 							inverse: isSelected,
 						},
 						`${isSelected ? "❯" : " "} ${formatHistoryListLine(row)}`,
+						checkpointBadge
+							? React.createElement(
+									Text,
+									{
+										color: isSelected ? "yellow" : "gray",
+										inverse: false,
+									},
+									`[${checkpointBadge}]`,
+								)
+							: undefined,
 					);
 				}),
 		),
+		checkpointDetail
+			? React.createElement(
+					Text,
+					{ color: "gray", dimColor: true },
+					`\n${checkpointDetail}`,
+				)
+			: undefined,
 		rows.length > pageSize &&
 			React.createElement(
 				Text,
@@ -243,4 +310,4 @@ export async function runHistoryList(input: {
 	});
 }
 
-export { runHistoryDelete, runHistoryUpdate };
+export { formatCheckpointDetail, runHistoryDelete, runHistoryUpdate };

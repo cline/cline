@@ -264,6 +264,10 @@ export {
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./providers/local-provider-service";
+export type {
+	CheckpointEntry,
+	CheckpointMetadata,
+} from "./runtime/checkpoint-hooks";
 export type { AvailableRuntimeCommand } from "./runtime/commands";
 export {
 	listAvailableRuntimeCommandsFromWatcher,

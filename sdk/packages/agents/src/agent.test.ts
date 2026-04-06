@@ -1461,6 +1461,39 @@ describe("Agent", () => {
 		expect(onRunEnd).toHaveBeenCalledTimes(1);
 	});
 
+	it("dispatches before-agent-start hooks before the model turn", async () => {
+		const { Agent } = await import("./agent.js");
+		const handler = makeHandler([
+			[
+				{ type: "text", id: "r1", text: "done" },
+				{ type: "usage", id: "r1", inputTokens: 1, outputTokens: 1 },
+				{ type: "done", id: "r1", success: true },
+			],
+		]);
+		createHandlerMock.mockReturnValue(handler);
+
+		const onBeforeAgentStart = vi.fn(() => undefined);
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "hooks",
+			tools: [],
+			hooks: {
+				onBeforeAgentStart,
+			},
+		});
+
+		await agent.run("hello");
+
+		expect(onBeforeAgentStart).toHaveBeenCalledTimes(1);
+		expect(onBeforeAgentStart).toHaveBeenCalledWith(
+			expect.objectContaining({
+				iteration: 1,
+				systemPrompt: "hooks",
+			}),
+		);
+	});
+
 	it("rejects overlapping runs on the same agent instance", async () => {
 		const { Agent } = await import("./agent.js");
 		let releaseFirstTurn!: () => void;

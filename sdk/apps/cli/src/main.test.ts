@@ -43,6 +43,11 @@ const historyMocks = vi.hoisted(() => ({
 	runHistoryDelete: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
 }));
+const checkpointMocks = vi.hoisted(() => ({
+	runCheckpointStatus: vi.fn(async () => 0),
+	runCheckpointList: vi.fn(async () => 0),
+	runCheckpointRestore: vi.fn(async () => 0),
+}));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
 		core: undefined,
@@ -98,6 +103,7 @@ vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));
 vi.mock("./commands/history", () => historyMocks);
+vi.mock("./commands/checkpoint", () => checkpointMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 
 describe("runCli lightweight command dispatch", () => {
@@ -116,6 +122,20 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runInteractiveImports = 0;
 
 		process.argv = ["bun", "src/index.ts", "history", "--json"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("does not load runtime modules for checkpoint status json listing", async () => {
+		mockState.runAgentImports = 0;
+		mockState.runInteractiveImports = 0;
+
+		process.argv = ["bun", "src/index.ts", "checkpoint", "--json", "status"];
 
 		const { runCli } = await import("./main");
 

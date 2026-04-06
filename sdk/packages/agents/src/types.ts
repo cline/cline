@@ -313,6 +313,10 @@ export interface AgentHookScheduleContext {
 	triggeredAt?: string;
 }
 
+/**
+ * Fired exactly once for the lifetime of an agent conversation, before the
+ * first run starts. This is the right place for session-scoped setup.
+ */
 export interface AgentHookSessionStartContext {
 	agentId: string;
 	conversationId: string;
@@ -320,6 +324,10 @@ export interface AgentHookSessionStartContext {
 	schedule?: AgentHookScheduleContext;
 }
 
+/**
+ * Fired once per `run()` / `continue()` invocation after user input has been
+ * accepted and before the loop enters its first iteration.
+ */
 export interface AgentHookRunEndContext {
 	agentId: string;
 	conversationId: string;
@@ -327,6 +335,10 @@ export interface AgentHookRunEndContext {
 	result: AgentResult;
 }
 
+/**
+ * Fired at the top of every loop iteration, before any turn-level prompt or
+ * model preparation occurs.
+ */
 export interface AgentHookIterationStartContext {
 	agentId: string;
 	conversationId: string;
@@ -348,6 +360,23 @@ export interface AgentHookTurnStartContext {
 	conversationId: string;
 	parentAgentId: string | null;
 	iteration: number;
+	messages: LlmsProviders.Message[];
+}
+
+/**
+ * Fired immediately before the model call for an iteration.
+ *
+ * Compared with `onIterationStart`, this hook runs later: after turn-start
+ * processing and with the exact message list that will be sent to the model.
+ * It can still influence the upcoming turn by replacing the system prompt,
+ * appending messages, or cancelling the run.
+ */
+export interface AgentHookBeforeAgentStartContext {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	systemPrompt: string;
 	messages: LlmsProviders.Message[];
 }
 
@@ -651,13 +680,26 @@ export interface AgentExtensionRegistry {
  * Lifecycle hooks for observing or influencing agent execution.
  */
 export interface AgentHooks {
+	/**
+	 * Runs once when the conversation/session is first initialized.
+	 */
 	onSessionStart?: (
 		ctx: AgentHookSessionStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
+	/**
+	 * Runs once per user-submitted run or continuation, before the first
+	 * iteration starts.
+	 */
 	onRunStart?: (
 		ctx: AgentHookRunStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
 	onRunEnd?: (ctx: AgentHookRunEndContext) => void | Promise<void>;
+	/**
+	 * Runs at the start of every loop iteration.
+	 *
+	 * Use this for iteration-scoped bookkeeping or guards that should happen
+	 * before turn construction begins.
+	 */
 	onIterationStart?: (
 		ctx: AgentHookIterationStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
@@ -665,9 +707,27 @@ export interface AgentHooks {
 	onTurnStart?: (
 		ctx: AgentHookTurnStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
+	/**
+	 * Runs immediately before the model call for an iteration.
+	 *
+	 * This is the last hook that can shape the upcoming turn. It can replace the
+	 * system prompt, append messages, or cancel before the provider request is made.
+	 */
+	onBeforeAgentStart?: (
+		ctx: AgentHookBeforeAgentStartContext,
+	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
 	onTurnEnd?: (
 		ctx: AgentHookTurnEndContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
+	/**
+	 * Runs when a turn encounters an error that will stop forward progress for the
+	 * current run.
+	 *
+	 * This hook is dispatched on non-recoverable turn failures and also when a
+	 * recoverable turn failure exhausts the mistake-limit path and the run is about
+	 * to stop. It is intended for "this run is stopping because of this error"
+	 * semantics.
+	 */
 	onStopError?: (
 		ctx: AgentHookStopErrorContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
@@ -680,6 +740,14 @@ export interface AgentHooks {
 	onSessionShutdown?: (
 		ctx: AgentHookSessionShutdownContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
+	/**
+	 * Runs when an error escapes the main agent loop and the run fails with the
+	 * final `finishReason = "error"`.
+	 *
+	 * Unlike `onStopError`, this is not part of the recoverable turn-error path;
+	 * it represents a top-level loop failure after the agent has already concluded
+	 * that execution errored out.
+	 */
 	onError?: (ctx: AgentHookErrorContext) => void | Promise<void>;
 }
 

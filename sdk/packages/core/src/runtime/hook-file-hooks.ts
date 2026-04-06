@@ -845,12 +845,15 @@ export function mergeAgentHooks(
 	}
 
 	return {
+		onSessionStart: mergeHookFunction(activeLayers, "onSessionStart"),
 		onRunStart: mergeHookFunction(activeLayers, "onRunStart"),
 		onRunEnd: mergeHookFunction(activeLayers, "onRunEnd"),
 		onIterationStart: mergeHookFunction(activeLayers, "onIterationStart"),
 		onIterationEnd: mergeHookFunction(activeLayers, "onIterationEnd"),
 		onTurnStart: mergeHookFunction(activeLayers, "onTurnStart"),
+		onBeforeAgentStart: mergeHookFunction(activeLayers, "onBeforeAgentStart"),
 		onTurnEnd: mergeHookFunction(activeLayers, "onTurnEnd"),
+		onStopError: mergeHookFunction(activeLayers, "onStopError"),
 		onToolCallStart: mergeHookFunction(activeLayers, "onToolCallStart"),
 		onToolCallEnd: mergeHookFunction(activeLayers, "onToolCallEnd"),
 		onSessionShutdown: mergeHookFunction(activeLayers, "onSessionShutdown"),

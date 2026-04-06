@@ -17,6 +17,18 @@ export type HistoryListRow = {
 	metadata?: {
 		title?: string;
 		totalCost?: number;
+		checkpoint?: {
+			latest?: {
+				ref?: string;
+				createdAt?: number;
+				runCount?: number;
+			};
+			history?: Array<{
+				ref?: string;
+				createdAt?: number;
+				runCount?: number;
+			}>;
+		};
 	};
 };
 
@@ -31,6 +43,18 @@ type HistoryListRowInput = {
 	metadata?: {
 		title?: string;
 		totalCost?: number;
+		checkpoint?: {
+			latest?: {
+				ref?: string;
+				createdAt?: number;
+				runCount?: number;
+			};
+			history?: Array<{
+				ref?: string;
+				createdAt?: number;
+				runCount?: number;
+			}>;
+		};
 	};
 };
 
@@ -45,6 +69,18 @@ type SessionManifestRecord = {
 	metadata?: {
 		title?: string;
 		totalCost?: number;
+		checkpoint?: {
+			latest?: {
+				ref?: string;
+				createdAt?: number;
+				runCount?: number;
+			};
+			history?: Array<{
+				ref?: string;
+				createdAt?: number;
+				runCount?: number;
+			}>;
+		};
 	};
 };
 

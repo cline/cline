@@ -28,6 +28,7 @@ const {
 vi.mock("node:child_process", () => ({
 	spawn: mockSpawn,
 	spawnSync: vi.fn(),
+	execFile: vi.fn(),
 }));
 
 vi.mock("node:net", () => ({

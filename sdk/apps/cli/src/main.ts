@@ -302,6 +302,71 @@ export async function runCli(): Promise<void> {
 			);
 		});
 
+	const checkpointCmd = program
+		.command("checkpoint")
+		.description("Inspect or restore session checkpoints")
+		.option("--json", "Output as JSON")
+		.option("--session-id <id>", "Session ID to inspect")
+		.option("--config <dir>", "configuration directory");
+
+	const checkpointStatusCmd = checkpointCmd
+		.command("status")
+		.description("Show the latest checkpoint for a session")
+		.option("--session-id <id>", "Session ID to inspect")
+		.action(async () => {
+			const opts = checkpointStatusCmd.opts();
+			const outputMode =
+				program.opts().json || checkpointCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			const { runCheckpointStatus } = await import("./commands/checkpoint");
+			ctx.exitCode = await runCheckpointStatus({
+				sessionId: opts.sessionId ?? checkpointCmd.opts().sessionId,
+				outputMode,
+				io,
+			});
+		});
+
+	const checkpointListCmd = checkpointCmd
+		.command("list")
+		.description("List checkpoints for a session")
+		.option("--session-id <id>", "Session ID to inspect")
+		.action(async () => {
+			const opts = checkpointListCmd.opts();
+			const outputMode =
+				program.opts().json || checkpointCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			const { runCheckpointList } = await import("./commands/checkpoint");
+			ctx.exitCode = await runCheckpointList({
+				sessionId: opts.sessionId ?? checkpointCmd.opts().sessionId,
+				outputMode,
+				io,
+			});
+		});
+
+	const checkpointRestoreCmd = checkpointCmd
+		.command("restore")
+		.description("Restore a checkpoint into the current working tree")
+		.argument("[selector]", 'Checkpoint selector: "latest" or 1-based index')
+		.option("--session-id <id>", "Session ID to inspect")
+		.option("-y, --yes", "Skip confirmation prompt")
+		.action(async (selector: string | undefined) => {
+			const opts = checkpointRestoreCmd.opts();
+			const outputMode =
+				program.opts().json || checkpointCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			const { runCheckpointRestore } = await import("./commands/checkpoint");
+			ctx.exitCode = await runCheckpointRestore({
+				sessionId: opts.sessionId ?? checkpointCmd.opts().sessionId,
+				selector,
+				yes: opts.yes === true,
+				outputMode,
+				io,
+			});
+		});
+
 	program
 		.command("hook")
 		.description("Handle a hook payload from stdin")

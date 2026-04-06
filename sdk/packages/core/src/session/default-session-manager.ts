@@ -23,6 +23,8 @@ import {
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { enrichPromptWithMentions } from "../input";
+import { createCheckpointHooks } from "../runtime/checkpoint-hooks";
+import { mergeAgentHooks } from "../runtime/hook-file-hooks";
 import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type { RuntimeBuilder } from "../runtime/session-runtime";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -245,10 +247,28 @@ export class DefaultSessionManager implements SessionManager {
 			providerConfig,
 			workspaceMetadata,
 		};
+		configWithProvider.hooks = mergeAgentHooks([
+			effectiveConfig.hooks,
+			createCheckpointHooks({
+				cwd: configWithProvider.cwd,
+				sessionId,
+				logger: configWithProvider.logger,
+				readSessionMetadata: async () =>
+					(await this.get(sessionId))?.metadata as
+						| Record<string, unknown>
+						| undefined,
+				writeSessionMetadata: async (metadata) => {
+					await this.invoke<{ updated: boolean }>("updateSession", {
+						sessionId,
+						metadata,
+					});
+				},
+			}),
+		]);
 
 		const runtime = this.runtimeBuilder.build({
 			config: configWithProvider,
-			hooks: effectiveConfig.hooks,
+			hooks: configWithProvider.hooks,
 			extensions: effectiveConfig.extensions,
 			logger: configWithProvider.logger,
 			telemetry: configWithProvider.telemetry,
@@ -284,7 +304,7 @@ export class DefaultSessionManager implements SessionManager {
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
 			tools,
-			hooks: effectiveConfig.hooks,
+			hooks: configWithProvider.hooks,
 			extensions: effectiveConfig.extensions,
 			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: input.initialMessages,

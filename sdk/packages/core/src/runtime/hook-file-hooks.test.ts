@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { createHookConfigFileHooks } from "./hook-file-hooks";
+import { createHookConfigFileHooks, mergeAgentHooks } from "./hook-file-hooks";
 
 async function waitForFile(
 	filePath: string,
@@ -233,5 +233,44 @@ describe("createHookConfigFileHooks", () => {
 		} finally {
 			await rm(workspace, { recursive: true, force: true });
 		}
+	});
+
+	it("merges before-agent-start controls across hook layers", async () => {
+		const hooks = mergeAgentHooks([
+			{
+				onBeforeAgentStart: async () => ({
+					systemPrompt: "system-a",
+				}),
+			},
+			{
+				onBeforeAgentStart: async () => ({
+					appendMessages: [
+						{
+							role: "user",
+							content: [{ type: "text", text: "ctx-a" }],
+						},
+					],
+				}),
+			},
+		]);
+
+		const control = await hooks?.onBeforeAgentStart?.({
+			agentId: "agent_1",
+			conversationId: "conv_1",
+			parentAgentId: null,
+			iteration: 1,
+			systemPrompt: "base",
+			messages: [],
+		});
+
+		expect(control).toMatchObject({
+			systemPrompt: "system-a",
+			appendMessages: [
+				{
+					role: "user",
+					content: [{ type: "text", text: "ctx-a" }],
+				},
+			],
+		});
 	});
 });
