@@ -123,6 +123,21 @@ Replace gRPC-over-postMessage with typed JSON messages. The typed
 message infrastructure is in place; the remaining work is to cut
 over from gRPC and delete the proto code.
 
+**Key architectural detail:** The webview has ~228 gRPC `ServiceClient`
+call sites across ~40 components. These all flow through `grpc-handler.ts`
+(`src/sdk/grpc-handler.ts`), which acts as a compatibility shim:
+
+```
+Webview → ServiceClient.method() → postMessage → grpc-handler.ts → SdkController → SDK
+```
+
+The grpc-handler currently has **~15 real implementations** (newTask,
+askResponse, clearTask, getTaskHistory, updateApiConfiguration, etc.)
+and **~130 stubbed methods** that return `{ data: {} }` — silent no-ops.
+Most open bugs (issues #8–#13 in CAVEATS.md) are caused by these stubs.
+The stubbed methods now log `[grpc-handler] STUB: <method>` to help
+identify which calls need real implementations.
+
 **Done:**
 - Typed message protocol (`src/shared/WebviewMessages.ts`)
 - WebviewBridge (`src/sdk/webview-bridge.ts`)
@@ -131,6 +146,9 @@ over from gRPC and delete the proto code.
 - Dual-listen pattern in `ExtensionStateContext.tsx`
 
 **Remaining:**
+- Wire up stubbed gRPC methods in `grpc-handler.ts` (see CAVEATS.md
+  for priority list; use `[grpc-handler] STUB:` log to find which
+  methods each feature needs)
 - Remove gRPC subscriptions from webview (use typed messages only)
 - Delete `proto/cline/*.proto`, `src/shared/proto-conversions/`,
   `src/generated/`

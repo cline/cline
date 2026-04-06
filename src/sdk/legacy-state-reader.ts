@@ -420,6 +420,44 @@ export class LegacyStateReader {
 	}
 
 	// -----------------------------------------------------------------------
+	// Task history persistence
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Save task history to the canonical location
+	 * (~/.cline/data/state/taskHistory.json).
+	 */
+	saveTaskHistory(items: HistoryItem[]): void {
+		const stateDir = path.join(this.dataDir, "state")
+		const filePath = path.join(stateDir, "taskHistory.json")
+		this.writeJsonFile(filePath, items)
+	}
+
+	/**
+	 * Save UI messages (ClineMessage[]) for a task.
+	 * Creates the task directory if needed.
+	 */
+	saveUiMessages(taskId: string, messages: unknown[]): void {
+		const taskDir = path.join(this.dataDir, "tasks", taskId)
+		const filePath = path.join(taskDir, "ui_messages.json")
+		this.writeJsonFile(filePath, messages)
+	}
+
+	/**
+	 * Delete a task directory and all its contents.
+	 */
+	deleteTaskDirectory(taskId: string): void {
+		const taskDir = path.join(this.dataDir, "tasks", taskId)
+		try {
+			if (fs.existsSync(taskDir)) {
+				fs.rmSync(taskDir, { recursive: true, force: true })
+			}
+		} catch (err) {
+			console.error(`[LegacyStateReader] Failed to delete task directory ${taskDir}:`, err)
+		}
+	}
+
+	// -----------------------------------------------------------------------
 	// Cline auth credentials
 	// -----------------------------------------------------------------------
 

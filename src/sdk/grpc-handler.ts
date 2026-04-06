@@ -348,7 +348,10 @@ export class GrpcHandler {
 				case "getOrganizationCredits":
 					return this.handleGetOrganizationCredits()
 
-				// ---- Non-critical methods (return empty) ----
+				// ---- Stubbed methods (return empty, log for debugging) ----
+			// These need real implementations. See CAVEATS.md for which
+			// bugs they cause. Search for "[grpc-handler] STUB:" in
+			// extension host console to see which are being called.
 				case "getAvailableTerminalProfiles":
 				case "updateTelemetrySetting":
 				case "captureOnboardingProgress":
@@ -478,10 +481,12 @@ export class GrpcHandler {
 				case "cancelBackgroundCommand":
 				case "toggleTaskFavorite":
 				case "getProcessInfo":
+					console.warn(`[grpc-handler] STUB: ${request.method}`, request.params ? Object.keys(request.params) : [])
 					return { data: {} }
 
 				default:
 					// Unknown method — return empty response (not error)
+					console.warn(`[grpc-handler] UNKNOWN: ${request.method}`, request.params ? Object.keys(request.params) : [])
 					return { data: {} }
 			}
 		} catch (err) {
