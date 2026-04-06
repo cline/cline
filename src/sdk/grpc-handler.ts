@@ -258,6 +258,9 @@ export interface GrpcHandlerDelegate {
 
 	/** Update auto-approval settings */
 	updateAutoApprovalSettings(settings: Record<string, unknown>): Promise<void>
+
+	/** Get Cline auth credentials (for auth status) */
+	getClineAuthInfo?(): { idToken: string; userInfo: { id: string; email: string; displayName: string; organizations?: Array<{ active: boolean; organizationId: string; name: string; memberId: string; roles?: string[] }> } } | null
 }
 
 // ---------------------------------------------------------------------------
@@ -334,6 +337,16 @@ export class GrpcHandler {
 				// ---- Initialization ----
 				case "initializeWebview":
 					return this.handleInitializeWebview()
+
+				// ---- Auth methods (return real data from disk credentials) ----
+				case "subscribeToAuthStatusUpdate":
+					return this.handleSubscribeToAuthStatusUpdate()
+				case "getUserOrganizations":
+					return this.handleGetUserOrganizations()
+				case "getUserCredits":
+					return this.handleGetUserCredits()
+				case "getOrganizationCredits":
+					return this.handleGetOrganizationCredits()
 
 				// ---- Non-critical methods (return empty) ----
 				case "getAvailableTerminalProfiles":
@@ -425,10 +438,6 @@ export class GrpcHandler {
 				case "ocaAccountLoginClicked":
 				case "ocaAccountLogoutClicked":
 				case "ocaSubscribeToAuthStatusUpdate":
-				case "subscribeToAuthStatusUpdate":
-				case "getUserOrganizations":
-				case "getOrganizationCredits":
-				case "getUserCredits":
 				case "setUserOrganization":
 				case "getRedirectUrl":
 				case "getBrowserConnectionInfo":
@@ -633,5 +642,55 @@ export class GrpcHandler {
 		const state = this.delegate.getState()
 		this.pushState(state)
 		return { data: {} }
+	}
+
+	// -----------------------------------------------------------------------
+	// Auth handlers — return real data from on-disk credentials
+	// -----------------------------------------------------------------------
+
+	private handleSubscribeToAuthStatusUpdate(): GrpcResponse {
+		const authInfo = this.delegate.getClineAuthInfo?.()
+		if (authInfo?.userInfo) {
+			// Return auth state matching the proto AuthState shape
+			return {
+				data: {
+					user: {
+						uid: authInfo.userInfo.id,
+						displayName: authInfo.userInfo.displayName,
+						email: authInfo.userInfo.email,
+					},
+				},
+			}
+		}
+		// Not authenticated
+		return { data: {} }
+	}
+
+	private handleGetUserOrganizations(): GrpcResponse {
+		const authInfo = this.delegate.getClineAuthInfo?.()
+		if (authInfo?.userInfo?.organizations) {
+			return {
+				data: {
+					organizations: authInfo.userInfo.organizations.map((org) => ({
+						organizationId: org.organizationId,
+						name: org.name,
+						active: org.active,
+						memberId: org.memberId,
+					})),
+				},
+			}
+		}
+		return { data: { organizations: [] } }
+	}
+
+	private handleGetUserCredits(): GrpcResponse {
+		// We don't have credit info on disk — return a placeholder
+		// The webview will show "Credits: —" which is acceptable
+		return { data: { credits: undefined } }
+	}
+
+	private handleGetOrganizationCredits(): GrpcResponse {
+		// Same as getUserCredits — no credit info on disk
+		return { data: { credits: undefined } }
 	}
 }

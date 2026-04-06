@@ -33,23 +33,28 @@ function resolveApiKey(provider: string, config: ApiConfiguration): string | und
 
 	// Special case: the "cline" provider uses OAuth credentials stored as a
 	// JSON object under "cline:clineAccountId" (not a simple "clineApiKey").
-	// Extract the idToken from the OAuth credential object.
+	// Extract the idToken from the OAuth credential object and add the
+	// "workos:" prefix that the Cline API expects.
 	if (provider === "cline") {
 		const clineAccountRaw = apiConfig["cline:clineAccountId"]
 		if (typeof clineAccountRaw === "string") {
 			try {
 				const creds = JSON.parse(clineAccountRaw)
 				if (creds.idToken) {
-					return creds.idToken as string
+					const token = creds.idToken as string
+					// The Cline API requires the "workos:" prefix on the auth token
+					return token.startsWith("workos:") ? token : `workos:${token}`
 				}
 			} catch {
 				// Not valid JSON — treat as raw key
-				return clineAccountRaw
+				const raw = clineAccountRaw
+				return raw.startsWith("workos:") ? raw : `workos:${raw}`
 			}
 		}
 		// Fallback to clineApiKey if available
 		if (typeof apiConfig.clineApiKey === "string") {
-			return apiConfig.clineApiKey as string
+			const key = apiConfig.clineApiKey as string
+			return key.startsWith("workos:") ? key : `workos:${key}`
 		}
 		return undefined
 	}
@@ -379,12 +384,20 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 			coreConfig.apiKey = apiKey
 		}
 
+		// Cline provider: set the correct API base URL
+		// The Cline API is OpenAI-compatible at https://api.cline.bot/api/v1
+		if (provider === "cline") {
+			coreConfig.baseUrl = "https://api.cline.bot/api/v1"
+		}
+
 		// Pass through additional provider-specific config
 		if (apiConfig) {
-			// Base URL overrides
-			if (apiConfig.openRouterBaseUrl) coreConfig.baseUrl = apiConfig.openRouterBaseUrl
-			if (apiConfig.openAiBaseUrl) coreConfig.baseUrl = apiConfig.openAiBaseUrl
-			if (apiConfig.liteLlmBaseUrl) coreConfig.baseUrl = apiConfig.liteLlmBaseUrl
+			// Base URL overrides — only apply to their respective providers
+			// to avoid clobbering provider-specific URLs (e.g. Cline API)
+			if (provider === "openrouter" && apiConfig.openRouterBaseUrl) coreConfig.baseUrl = apiConfig.openRouterBaseUrl
+			if ((provider === "openai" || provider === "openai-native") && apiConfig.openAiBaseUrl)
+				coreConfig.baseUrl = apiConfig.openAiBaseUrl
+			if (provider === "litellm" && apiConfig.liteLlmBaseUrl) coreConfig.baseUrl = apiConfig.liteLlmBaseUrl
 
 			// Ollama: ClineCore uses the OpenAI-compatible provider which sends
 			// requests to {baseUrl}/chat/completions.  Ollama's OpenAI-compat

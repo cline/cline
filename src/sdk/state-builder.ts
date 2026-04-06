@@ -26,6 +26,7 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
 import type { Mode } from "@shared/storage/types"
 import type { LegacyStateReader } from "./legacy-state-reader"
+import type { ClineAuthCredentials } from "./legacy-state-reader"
 
 // ---------------------------------------------------------------------------
 // Default values for ExtensionState fields

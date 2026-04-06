@@ -82,6 +82,31 @@ export interface LegacyGlobalState {
 /** A map of secret key → value. */
 export type LegacySecrets = Partial<Record<SecretKey, string>>
 
+/** Cline OAuth credential object stored in secrets.json under cline:clineAccountId */
+export interface ClineAuthCredentials {
+	idToken: string
+	refreshToken?: string
+	expiresAt?: number
+	provider: string
+	startedAt?: number
+	userInfo: {
+		id: string
+		email: string
+		displayName: string
+		organizations?: Array<{
+			active: boolean
+			memberId: string
+			name: string
+			organizationId: string
+			roles?: string[]
+		}>
+		createdAt?: string
+		updatedAt?: string
+		appBaseUrl?: string
+		subject?: string
+	}
+}
+
 /** Options for constructing a LegacyStateReader. */
 export interface LegacyStateReaderOptions {
 	/** Override the data directory. Defaults to ~/.cline/data */
@@ -392,6 +417,28 @@ export class LegacyStateReader {
 		const gs = this.readGlobalState() as Record<string, unknown>
 		gs.mode = mode
 		this.writeJsonFile(gsPath, gs)
+	}
+
+	// -----------------------------------------------------------------------
+	// Cline auth credentials
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Read Cline OAuth credentials from secrets.json.
+	 * Returns the parsed credential object, or null if not found/invalid.
+	 */
+	readClineAuthInfo(): ClineAuthCredentials | null {
+		const secrets = this.readSecrets()
+		const raw = secrets["cline:clineAccountId" as SecretKey]
+		if (!raw || typeof raw !== "string") return null
+
+		try {
+			const parsed = JSON.parse(raw)
+			if (!parsed.idToken) return null
+			return parsed as ClineAuthCredentials
+		} catch {
+			return null
+		}
 	}
 
 	// -----------------------------------------------------------------------
