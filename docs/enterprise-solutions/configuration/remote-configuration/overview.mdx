@@ -1,11 +1,11 @@
 ---
-title: "SaaS Provider Configuration"
+title: "Enterprise Provider Configuration"
 sidebarTitle: "Overview"
 description: "Configure inference providers through the Cline hosted admin console for centralized organization management"
 ---
 
 
-SaaS Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
+Remote Provider Configuration allows administrators to centrally configure inference providers for their entire organization through the Cline hosted admin console. This approach ensures consistent provider access, security policies, and cost management across all team members without requiring individual developer setup or infrastructure deployment.
 
 ## How Remote Configuration Works
 
@@ -35,11 +35,17 @@ Cline supports remote configuration for the following inference providers:
 
 | Provider | Use Case | Configuration | Member Setup |
 |----------|----------|---------------|--------------|
-| **Cline** | Organizations using Cline's native provider with centralized API key management | API provider selection, model access | No individual API keys needed - fully managed by organization |
-| **Amazon Bedrock** | Organizations using AWS infrastructure | Region selection, VPC endpoints, cross-region inference, prompt caching | AWS credential configuration in VS Code |
-| **LiteLLM** | Organizations requiring multi-model access through a unified proxy | Proxy endpoint, authentication, model routing | API key or endpoint configuration in VS Code (or centralized with Master Key) |
-| **Google Vertex AI** | Organizations using Google Cloud Platform | Project ID, region selection, model access | Service account or credential configuration in VS Code |
+| **Cline** | Organizations using Cline's native provider with centralized API key management | API provider selection, model access | No individual API keys needed — fully managed by organization |
+| **Amazon Bedrock** | Organizations using AWS infrastructure | Region selection, VPC endpoints, cross-region inference, global inference, prompt caching | AWS credential configuration (API key, CLI profile, or credential chain) |
+| **Google Vertex AI** | Organizations using Google Cloud Platform | Project ID, region selection, model access | Google Cloud credential configuration (service account, SDK, or ADC) |
+| **Azure Foundry** | Organizations using Azure OpenAI or Azure AI services | Base URL, Azure API version, Azure identity authentication, custom headers | API key configuration in the extension |
+| **Anthropic** | Organizations using the Anthropic API directly | Optional custom base URL for proxy deployments, model access | API key configuration in the extension |
+| **OpenAI Compatible** | Organizations using any OpenAI-compatible endpoint (self-hosted, vLLM, custom proxies) | Base URL, custom headers, model access | API key configuration in the extension |
+| **LiteLLM** | Organizations requiring multi-model access through a unified proxy | Proxy endpoint, authentication, model routing | API key or endpoint configuration (or centralized with Master Key) |
 
+<Note>
+**Azure Foundry** uses the OpenAI Compatible provider configuration with Azure-specific settings (API version, Azure identity authentication). See the [OpenAI Compatible admin configuration](/enterprise-solutions/configuration/remote-configuration/openai-compatible/admin-configuration) for setup instructions.
+</Note>
 
 ## Configuration Process
 
@@ -55,7 +61,7 @@ Provider configuration is automatically distributed to all organization members 
 </Step>
 
 <Step title="Member Credential Setup">
-Team members add their individual credentials (API keys, AWS profiles, etc.) to connect to the configured provider.
+Team members add their individual credentials (API keys, AWS profiles, etc.) to connect to the configured provider. For some providers like Cline and LiteLLM (with Master Key), no individual credentials are needed.
 </Step>
 
 <Step title="Immediate Access">
@@ -92,11 +98,17 @@ Select your provider below to begin the configuration process:
     AWS-based AI models with enterprise security and compliance features.
   </Card>
   
+  <Card title="Google Vertex AI" icon="google" href="/enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration">
+    Google Cloud's AI platform with Gemini models and regional control.
+  </Card>
+
+  <Card title="OpenAI Compatible" icon="plug" href="/enterprise-solutions/configuration/remote-configuration/openai-compatible/admin-configuration">
+    Any OpenAI-compatible endpoint, including Azure Foundry.
+  </Card>
+
+  <Card title="Anthropic" icon="robot" href="/enterprise-solutions/configuration/remote-configuration/anthropic/admin-configuration">
+
   <Card title="LiteLLM" icon="layer-group" href="/enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration">
     Unified proxy for accessing 100+ AI models through a single interface.
-  </Card>
-  
-  <Card title="Google Vertex AI" icon="google" href="/enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration">
-    Google Cloud's AI platform with advanced ML capabilities and global infrastructure.
   </Card>
 </CardGroup>
