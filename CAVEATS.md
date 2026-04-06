@@ -70,10 +70,11 @@ Tracking issues found during the migration from the legacy inference system to t
 **Fix:** Updated tooltip to "Manage Cline Rules" and aria-label to "Show/Hide Cline Rules". Also simplified chat placeholder text to remove "workflows" mention.
 
 ### 13. 🟢 Terminal settings navigates to blank/stuck webview
-**Where:** Model settings panel → "Terminal settings" link  
-**Symptom:** Opening terminal settings navigates to a blank webview. The user is stuck.  
-**Root cause:** Missing `availableTerminalProfiles` in state-builder.ts — the TerminalSettingsSection component calls `.map()` on it, crashing React when it's `undefined`. Also, `scrollToSettings` handler now fires a typed `navigate` callback.  
-**Fix:** Added `availableTerminalProfiles: []` to state-builder.ts output. The `scrollToSettings` handler fires `navigate("settings", { targetSection })` via the bridge.
+**Where:** Settings → Terminal tab  
+**Symptom:** Opening terminal settings causes React to crash, leaving a blank webview.  
+**Root cause:** `getAvailableTerminalProfiles` was a gRPC stub returning `{data:{}}`. The webview called `setAvailableTerminalProfiles(response.profiles)` where `response.profiles` was `undefined`, overwriting the default `[]`. Then `TerminalSettingsSection` called `profilesToShow.map()` on `undefined`, crashing React.  
+**Fix:** Implemented real `handleGetAvailableTerminalProfiles()` handler in grpc-handler.ts that calls `getAvailableTerminalProfiles()` from `utils/shell.ts`, returning platform-specific profiles (Default, zsh, bash on macOS). Also added `availableTerminalProfiles: []` to state-builder.ts as a safety net, and wired `scrollToSettings` to fire `navigate("settings", { targetSection })` via the bridge.  
+**Verified:** Debug harness confirmed handler returns `{data:{profiles:[{id:"default",...},{id:"zsh",...},{id:"bash",...}]}}`, Settings → Terminal tab renders "Default Terminal Profile" dropdown with all 3 options, shell integration timeout, and terminal reuse settings.
 
 ---
 
