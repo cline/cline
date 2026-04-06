@@ -1,0 +1,138 @@
+---
+title: "Configure OpenAI Compatible Provider (Admin)"
+sidebarTitle: "Configure OpenAI Compatible (Admin)"
+description: "This guide explains how administrators configure an OpenAI-compatible endpoint as the organization-wide LLM provider for Cline."
+---
+
+
+As an administrator, you can add an OpenAI-compatible endpoint as the organization-wide LLM provider for all Cline users through the hosted admin console. This covers any provider that exposes an OpenAI-compatible API, including Azure Foundry (Azure OpenAI), self-hosted inference engines (vLLM, TGI), and other compatible services.
+
+## Before You Begin
+
+To get started with setting up an OpenAI-compatible provider for your organization, you'll need a few items in place.
+
+**Administrator access to the Cline Admin console**  
+You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Cline Settings** in the admin console at [app.cline.bot](https://app.cline.bot), you have the right access level.
+
+**An OpenAI-compatible API endpoint**  
+You need a running endpoint that implements the OpenAI chat completions API. This could be:
+- Azure Foundry (Azure OpenAI Service)
+- A self-hosted inference engine (vLLM, text-generation-inference, etc.)
+- Any third-party service with an OpenAI-compatible API
+
+<Note>
+If you're using Azure Foundry, you'll need your Azure OpenAI endpoint URL and optionally the API version. Work with your Azure administrator to ensure the endpoint is provisioned and accessible.
+</Note>
+
+**Endpoint URL and authentication details**  
+You'll need the base URL of your endpoint and any required authentication headers.
+
+## Configuration Steps
+
+<Steps>
+<Step title="Access Cline Settings">
+Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. Go to **Settings → Cline Settings**.
+
+<Info>
+You should see the provider configuration options if you have the correct admin access level.
+</Info>
+</Step>
+
+<Step title="Enable Remote Provider Configuration">
+Toggle on **Enable settings** to reveal the remote provider configuration options. This allows you to enforce provider settings across your organization.
+</Step>
+
+<Step title="Select OpenAI Compatible as the API Provider">
+Open the **API Provider** dropdown menu and select **OpenAI Compatible**. This will open the configuration panel where you'll configure all your organization-wide settings.
+</Step>
+
+<Step title="Configure OpenAI Compatible Settings">
+The configuration panel includes settings that control how the provider works for your organization:
+
+<AccordionGroup>
+<Accordion title="Base URL (required)">
+Enter the base URL of your OpenAI-compatible endpoint. Examples:
+
+- **Azure Foundry**: `https://your-resource.openai.azure.com`
+- **Self-hosted vLLM**: `https://inference.yourcompany.com/v1`
+- **Other compatible services**: The provider's API base URL
+
+<Tip>
+Use HTTPS endpoints in production for security. Ensure the URL is accessible from your team's development environments.
+</Tip>
+</Accordion>
+
+<Accordion title="Custom Headers (optional)">
+Add custom HTTP headers that will be included with every API request. This is useful for:
+
+- Custom authentication schemes beyond API keys
+- Routing headers for internal load balancers
+- Organization or tenant identifiers required by your endpoint
+
+Headers are configured as key-value pairs.
+</Accordion>
+
+<Accordion title="Azure API Version (optional — Azure Foundry only)">
+If you're using Azure Foundry (Azure OpenAI), specify the API version string. For example: `2024-02-15-preview` or `2024-06-01`.
+
+This field is only needed for Azure OpenAI deployments. Leave it empty for non-Azure endpoints.
+
+<Note>
+Check the [Azure OpenAI API version documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/reference) for available versions.
+</Note>
+</Accordion>
+
+<Accordion title="Azure Identity Authentication (optional — Azure Foundry only)">
+Enable this to use Azure Active Directory (Entra ID) token-based authentication instead of API keys. When enabled, members authenticate using their Azure AD credentials rather than a static API key.
+
+This field is only relevant for Azure Foundry deployments.
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Save Configuration">
+After configuring your settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
+
+Once saved, all organization members signed into the Cline extension will automatically use the OpenAI Compatible provider with your configured settings. They won't be able to select other providers or switch to their personal Cline accounts.
+
+<Warning>
+Members can't switch to personal Cline accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
+</Warning>
+</Step>
+</Steps>
+
+## Azure Foundry Configuration
+
+For organizations using Azure Foundry (Azure OpenAI Service), use the following configuration:
+
+1. **Base URL**: Your Azure OpenAI endpoint (e.g., `https://your-resource.openai.azure.com`)
+2. **Azure API Version**: The API version to use (e.g., `2024-06-01`)
+3. **Azure Identity Authentication**: Enable if your organization uses Azure AD for authentication instead of API keys
+
+## Verification
+
+To verify the configuration:
+
+1. Check that the provider shows as "OpenAI Compatible" in the Enabled provider field
+2. Confirm the settings persist after refreshing the page
+3. Test with a member account to ensure they see only the OpenAI Compatible provider
+4. Verify that configured models are available in the model dropdown
+
+## Troubleshooting
+
+**Members don't see the configured provider**  
+Ensure you clicked Save after closing the configuration panel. Verify the member account belongs to the correct organization.
+
+**Connection errors to the endpoint**  
+Verify the Base URL is correct and accessible from your team's development environments. Check that any firewalls or security groups allow access from developer IP addresses.
+
+**Azure authentication failures**  
+If using Azure Identity Authentication, verify that members' Azure AD accounts have the appropriate role assignments on the Azure OpenAI resource. If using API keys, verify the key is correctly entered by the member.
+
+**Configuration changes don't persist**  
+Make sure to click the Save button on the main settings page, not just close the configuration panel.
+
+**Need to change endpoint or settings later**  
+You can update these settings at any time. Changes take effect immediately for all organization members.
+
+For Azure Foundry, consult the [Azure OpenAI Service documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/). For other OpenAI-compatible endpoints, refer to your provider's documentation.
