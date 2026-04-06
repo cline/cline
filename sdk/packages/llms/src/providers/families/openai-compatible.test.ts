@@ -28,7 +28,7 @@ vi.mock("@ai-sdk/openai-compatible", () => ({
 	createOpenAICompatible: createOpenAICompatibleSpy,
 }));
 
-vi.mock("./langfuse-telemetry", () => ({
+vi.mock("../runtime/langfuse-telemetry", () => ({
 	debugLangfuse: debugLangfuseSpy,
 	ensureLangfuseTelemetry: ensureLangfuseTelemetrySpy,
 }));

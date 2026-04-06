@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { OPENAI_CODEX_PROVIDER } from "../../models";
-import { CodexHandler } from "./community-sdk";
+import { CodexHandler } from "./community";
 
 const streamTextSpy = vi.fn();
 const codexCliSpy = vi.fn((modelId: string) => ({ modelId }));

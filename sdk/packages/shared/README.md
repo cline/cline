@@ -3,7 +3,7 @@
 Package-level docs are centralized:
 
 - Overview: [`packages/README.md`](../README.md)
-- Architecture and interactions: [`ARCHITECTURE.md`](/Users/beatrix/dev/clinee/sdk-wip/ARCHITECTURE.md)
+- Architecture and interactions: [`ARCHITECTURE.md`](./ARCHITECTURE.md)
 
 `@clinebot/shared` owns shared cross-package primitives (session common types/utilities).
 

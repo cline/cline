@@ -1,4 +1,4 @@
-import * as LlmsProviders from "@clinebot/llms/providers";
+import * as LlmsProviders from "@clinebot/llms";
 import { z } from "zod";
 
 export type ProviderConfig = LlmsProviders.ProviderConfig;

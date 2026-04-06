@@ -4,7 +4,7 @@ import type {
 } from "@clinebot/core";
 import {
 	CoreSessionService,
-	LlmsModels,
+	Llms,
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@clinebot/core";
@@ -36,7 +36,7 @@ async function resolveProviderApiKeyFromEnv(
 	provider: string,
 ): Promise<string | undefined> {
 	const envKeys =
-		(await LlmsModels.getProviderCollection(provider))?.provider?.env ?? [];
+		(await Llms.getProviderCollection(provider))?.provider?.env ?? [];
 	for (const envKey of envKeys) {
 		const value = process.env[envKey]?.trim();
 		if (value) {

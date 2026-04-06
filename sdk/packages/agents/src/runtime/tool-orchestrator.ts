@@ -1,4 +1,4 @@
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import type { AuthorizationResult } from "../tools/execution";
 import {
 	executeToolsInParallel,

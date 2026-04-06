@@ -23,8 +23,7 @@ import type {
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk";
 import {
 	type AgentEvent,
-	LlmsModels,
-	type LlmsProviders,
+	Llms,
 	ProviderSettingsManager,
 	SessionSource,
 } from "@clinebot/core";
@@ -72,7 +71,7 @@ interface SessionState {
 	/** Unsubscribe function for the agent event listener. */
 	unsubscribe?: () => void;
 	/** Messages to inject into the next session manager for conversation continuity. */
-	pendingInitialMessages?: LlmsProviders.Message[];
+	pendingInitialMessages?: Llms.Message[];
 }
 
 export class AcpAgent implements Agent {
@@ -143,7 +142,7 @@ export class AcpAgent implements Agent {
 			currentModelId: defaultModelId,
 		});
 
-		const providerModels = await LlmsModels.getModelsForProvider(providerId);
+		const providerModels = await Llms.getModelsForProvider(providerId);
 		const availableModels = Object.entries(providerModels).map(
 			([modelId, info]) => ({
 				modelId,
@@ -324,7 +323,7 @@ export class AcpAgent implements Agent {
 				await this.teardownSessionManager(session);
 
 				// If current model doesn't exist in new provider, reset to first available
-				const providerModels = await LlmsModels.getModelsForProvider(value);
+				const providerModels = await Llms.getModelsForProvider(value);
 				const modelIds = Object.keys(providerModels);
 				if (!modelIds.includes(session.currentModelId) && modelIds.length > 0) {
 					session.currentModelId = modelIds[0]!;
@@ -541,7 +540,7 @@ async function buildProviderConfigOption(
 ): Promise<SessionConfigOption> {
 	const options = await Promise.all(
 		ACP_AUTH_METHODS.map(async (m) => {
-			const provider = await LlmsModels.getProvider(m.id);
+			const provider = await Llms.getProvider(m.id);
 			return {
 				value: m.id,
 				name: provider?.name ?? m.id,
@@ -606,7 +605,7 @@ async function buildAllConfigOptions(
 ): Promise<SessionConfigOption[]> {
 	const [providerOption, providerModels] = await Promise.all([
 		buildProviderConfigOption(session.currentProviderId),
-		LlmsModels.getModelsForProvider(session.currentProviderId),
+		Llms.getModelsForProvider(session.currentProviderId),
 	]);
 	return [
 		providerOption,

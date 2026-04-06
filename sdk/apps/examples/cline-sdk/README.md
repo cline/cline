@@ -26,6 +26,7 @@ All examples are fully type-safe, tested, and ready to run with `bun run <filena
 **Production deployment?** See:
 - [09-sessions.ts](./09-sessions.ts) - Session management
 - [13-full-control.ts](./13-full-control.ts) - Complete control
+- [14-agentic-loop.ts](./14-agentic-loop.ts) - Custom orchestration loop
 
 ### All Examples
 
@@ -44,6 +45,7 @@ All examples are fully type-safe, tested, and ready to run with `bun run <filena
 | [11-teams.ts](./11-teams.ts) | Advanced | Multi-agent teams with planning and execution modes |
 | [12-custom-executors.ts](./12-custom-executors.ts) | Advanced | Override built-in tool executors (bash) with custom logic |
 | [13-full-control.ts](./13-full-control.ts) | Advanced | Full example combining tools, hooks, extensions, and custom executors |
+| [14-agentic-loop.ts](./14-agentic-loop.ts) | Advanced | Build a custom agent loop on top of lower-level runtime primitives |
 
 ## 🚀 Quick Start
 
@@ -62,7 +64,7 @@ Using these SDK packages in your own app (npm/pnpm/yarn):
 npm add @clinebot/core
 ```
 
-Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally need lower-level control than the `@clinebot/core` API. If you need RPC client/server helpers, import them from `@clinebot/rpc` directly. `@clinebot/core` is now the transport-agnostic session/runtime package.
+Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally need lower-level control than the `@clinebot/core` API. For most app code, prefer importing RPC/session helpers from `@clinebot/core`, which is the app-facing transport-agnostic runtime package.
 
 > **Note:** `createSessionHost` works without the CLI app installed. It runs local in-process sessions and falls back to a local SQLite backend when RPC is unavailable. Use `CLINE_BACKEND_MODE=local` to force local mode explicitly.
 
@@ -78,9 +80,9 @@ CLINE_BACKEND_MODE=local bun run 13-full-control.ts
 The Cline SDK is organized into focused packages:
 
 - **`@clinebot/core`** - Recommended starting point. Session management, storage, runtime orchestration, and re-exported SDK conveniences
-- **`@clinebot/rpc`** - Optional remote-session helpers (`RpcSessionClient`, `getRpcServerHealth`, etc.)
+- **`@clinebot/rpc`** - Transport/control-plane package used by hosts and lower-level integrations
 - **`@clinebot/agents`** - Advanced agent runtime loop, tools, hooks, teams
-- **`@clinebot/llms`** - Advanced model catalog, provider settings, handlers
+- **`@clinebot/llms`** - Advanced model catalog, provider settings/config, and provider runtime APIs through a single root entrypoint
 - Most app/example code should start from `@clinebot/core` and only reach for lower-level packages when needed.
 
 ### Session Flow
@@ -438,7 +440,7 @@ const agent = new Agent({
 ## 📚 Additional Resources
 
 - **Package Docs**: [`packages/README.md`](../../../packages/README.md)
-- **Architecture**: [`AGENTS.md`](../../../AGENTS.md)
+- **Architecture**: [`ARCHITECTURE.md`](../../../ARCHITECTURE.md)
 - **CLI Examples**: [`apps/cli`](../../cli)
 - **API Reference**: Package-specific READMEs in [`packages/`](../../../packages)
 

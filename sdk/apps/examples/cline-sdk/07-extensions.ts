@@ -1,10 +1,10 @@
 /**
  * 07-extensions.ts
  *
- * Learn how to extend agent capabilities with plugins.
+ * Learn how to extend agent capabilities with extensions.
  *
  * This example shows how to:
- * - Create agent extensions/plugins
+ * - Create agent extensions
  * - Add custom capabilities
  * - Integrate external services
  * - Implement middleware patterns

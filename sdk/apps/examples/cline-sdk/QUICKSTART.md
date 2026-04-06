@@ -89,6 +89,7 @@ bun run all:advanced
 11. `11-teams.ts` - Multi-agent coordination
 12. `12-custom-executors.ts` - Custom tool executors
 13. `13-full-control.ts` - Production-ready setup
+14. `14-agentic-loop.ts` - Build your own orchestration loop
 
 ## Common Issues
 
@@ -122,7 +123,7 @@ bun run build
 ## Getting Help
 
 - **SDK Documentation**: [`packages/README.md`](../../../packages/README.md)
-- **Architecture Guide**: [`AGENTS.md`](../../../AGENTS.md)
+- **Architecture Guide**: [`ARCHITECTURE.md`](../../../ARCHITECTURE.md)
 - **CLI Reference**: [`apps/cli/DOC.md`](../../cli/DOC.md)
 
 ## Example Use Cases
@@ -141,4 +142,4 @@ After learning the basics, try building:
 
 See the `examples/` and `apps/` directories for real life and more complex examples beyond the basic SDK examples.
 
-Happy coding! 🚀
+Happy coding!

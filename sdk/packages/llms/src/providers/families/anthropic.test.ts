@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AnthropicHandler } from "./anthropic-base";
+import { AnthropicHandler } from "./anthropic";
 
 describe("AnthropicHandler prompt cache detection", () => {
 	it("enables prompt caching when model pricing includes cache pricing", () => {

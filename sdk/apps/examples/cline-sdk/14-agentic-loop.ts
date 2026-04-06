@@ -6,6 +6,9 @@
  *   - Custom tools (calculator, datetime)
  *   - Spawning child agents with focused system prompts
  *   - Streaming events
+ *
+ * Unlike the earlier examples, this one drops to the lower-level
+ * @clinebot/agents API and pulls in spawn-agent plumbing from @clinebot/core.
  */
 
 import { Agent, type AgentEvent } from "@clinebot/agents";

@@ -1,7 +1,7 @@
-import type { ApiStream } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
-import { retryStream } from "../utils/retry";
-import { BaseHandler } from "./base";
+import type { ApiStream } from "../../types";
+import type { Message, ToolDefinition } from "../../types/messages";
+import { retryStream } from "../../utils/retry";
+import { BaseHandler } from "./base-handler";
 
 type JsonRecord = Record<string, unknown>;
 

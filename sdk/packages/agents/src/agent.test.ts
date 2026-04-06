@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import { createTool } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AgentExtension, Tool } from "./types";
@@ -35,7 +35,7 @@ const toProviderConfigMock = vi.fn((settings: unknown) => {
 	};
 });
 
-vi.mock("@clinebot/llms/providers", () => ({
+vi.mock("@clinebot/llms", () => ({
 	createHandler: (config: unknown) => createHandlerMock(config),
 	toProviderConfig: (settings: unknown) => toProviderConfigMock(settings),
 }));

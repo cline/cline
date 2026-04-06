@@ -1,7 +1,7 @@
 import type {
 	AgentMode,
 	CoreSessionConfig,
-	LlmsProviders,
+	Llms,
 	RpcChatRuntimeLoggerConfig,
 	SessionLineage,
 	SessionManifest,
@@ -11,12 +11,12 @@ import type {
 export type CliOutputMode = "text" | "json";
 export type CliAgentMode = AgentMode;
 export type CliReasoningEffort = NonNullable<
-	NonNullable<LlmsProviders.ProviderSettings["reasoning"]>["effort"]
+	NonNullable<Llms.ProviderSettings["reasoning"]>["effort"]
 >;
 
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	apiKey: string;
-	knownModels?: Record<string, LlmsProviders.ModelInfo>;
+	knownModels?: Record<string, Llms.ModelInfo>;
 	loggerConfig?: RpcChatRuntimeLoggerConfig;
 	verbose: boolean;
 	timeoutSeconds?: number;
@@ -45,7 +45,7 @@ export interface ActiveCliSession {
 export interface StoredApiMessages {
 	version: 1;
 	updated_at: string;
-	messages: LlmsProviders.Message[];
+	messages: Llms.Message[];
 }
 
 export interface SessionDbRow {

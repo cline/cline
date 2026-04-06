@@ -28,8 +28,8 @@ vi.mock("@clinebot/core", async () => {
 		},
 		CoreSessionService: class {},
 		SqliteSessionStore: class {},
-		LlmsModels: {
-			...actual.LlmsModels,
+		Llms: {
+			...actual.Llms,
 			getProviderCollection: mockGetProviderCollection,
 		},
 	};

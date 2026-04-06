@@ -9,7 +9,7 @@ import {
 	serializeAbortReason,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
-import type { ProviderClient } from "../../models/types";
+import type { ProviderClient } from "../../../models/types";
 import type {
 	ApiHandler,
 	ApiStream,
@@ -18,9 +18,9 @@ import type {
 	ModelCapability,
 	ModelInfo,
 	ProviderConfig,
-} from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
-import type { ApiStreamChunk } from "../types/stream";
+} from "../../types";
+import type { Message, ToolDefinition } from "../../types/messages";
+import type { ApiStreamChunk } from "../../types/stream";
 
 interface OpenAICompatibleProviderErrorShape {
 	status?: number;

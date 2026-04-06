@@ -1,5 +1,5 @@
 import type { AgentResult } from "@clinebot/agents";
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
 import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";

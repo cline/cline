@@ -5,8 +5,8 @@ vi.mock("@clinebot/core", async () => {
 		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
 	return {
 		...actual,
-		LlmsProviders: {
-			...actual.LlmsProviders,
+		Llms: {
+			...actual.Llms,
 			normalizeProviderId: vi.fn((provider: string) => provider),
 		},
 		setHomeDir: vi.fn(),

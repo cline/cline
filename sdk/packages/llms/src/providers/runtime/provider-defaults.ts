@@ -21,12 +21,9 @@ import type {
 	ProviderConfig,
 } from "../types/index";
 import {
-	buildOpenAICompatibleProviderDefaults,
-	buildProviderClientMap,
-	type OpenAICompatibleProviderDefaults,
-} from "./openai-compatible";
-
-export { buildProviderClientMap };
+	getBuiltInProviderManifest,
+	getOpenAICompatibleProviderManifests,
+} from "./builtin-manifests";
 
 /**
  * Provider defaults for OpenAI-compatible providers
@@ -40,6 +37,30 @@ export interface ProviderDefaults {
 	knownModels?: Record<string, ModelInfo>;
 	/** Capabilities this provider supports */
 	capabilities?: ProviderCapability[];
+}
+
+function toRuntimeCapabilities(
+	capabilities: readonly (
+		| "reasoning"
+		| "prompt-cache"
+		| "tools"
+		| "oauth"
+		| "temperature"
+		| "files"
+	)[] = [],
+): ProviderCapability[] | undefined {
+	const next = capabilities.flatMap((capability) => {
+		switch (capability) {
+			case "reasoning":
+			case "prompt-cache":
+			case "tools":
+			case "oauth":
+				return [capability satisfies ProviderCapability];
+			default:
+				return [];
+		}
+	});
+	return next.length > 0 ? next : undefined;
 }
 
 export const DEFAULT_MODELS_CATALOG_URL = "https://models.dev/api.json";
@@ -500,18 +521,15 @@ export function clearPrivateModelsCatalogCache(): void {
 }
 
 function toRuntimeProviderDefaults(
-	defaults: Record<string, OpenAICompatibleProviderDefaults>,
+	manifests: ReturnType<typeof getOpenAICompatibleProviderManifests>,
 ): Record<string, ProviderDefaults> {
 	return Object.fromEntries(
-		Object.entries(defaults).map(([providerId, providerDefaults]) => [
+		Object.entries(manifests).map(([providerId, manifest]) => [
 			providerId,
 			{
-				baseUrl: providerDefaults.baseUrl,
-				modelId: providerDefaults.modelId,
-				knownModels: providerDefaults.knownModels,
-				capabilities: providerDefaults.capabilities as
-					| ProviderCapability[]
-					| undefined,
+				baseUrl: manifest.baseUrl,
+				modelId: manifest.modelId,
+				capabilities: toRuntimeCapabilities(manifest.capabilities),
 			},
 		]),
 	);
@@ -523,7 +541,7 @@ function toRuntimeProviderDefaults(
  * Model data is sourced from @clinebot/models to maintain a single source of truth.
  */
 export const OPENAI_COMPATIBLE_PROVIDERS: Record<string, ProviderDefaults> =
-	toRuntimeProviderDefaults(buildOpenAICompatibleProviderDefaults());
+	toRuntimeProviderDefaults(getOpenAICompatibleProviderManifests());
 
 /**
  * Get provider configuration by ID
@@ -531,7 +549,17 @@ export const OPENAI_COMPATIBLE_PROVIDERS: Record<string, ProviderDefaults> =
 export function getProviderConfig(
 	providerId: string,
 ): ProviderDefaults | undefined {
-	return OPENAI_COMPATIBLE_PROVIDERS[providerId];
+	const manifest = getBuiltInProviderManifest(providerId);
+	if (!manifest || !manifest.baseUrl) {
+		return undefined;
+	}
+
+	return {
+		baseUrl: manifest.baseUrl,
+		modelId: manifest.modelId,
+		knownModels: manifest.knownModels,
+		capabilities: toRuntimeCapabilities(manifest.capabilities),
+	};
 }
 
 /**
@@ -580,5 +608,5 @@ export async function resolveProviderConfig(
  * Check if a provider is OpenAI-compatible
  */
 export function isOpenAICompatibleProvider(providerId: string): boolean {
-	return providerId in OPENAI_COMPATIBLE_PROVIDERS;
+	return OPENAI_COMPATIBLE_PROVIDERS[providerId] !== undefined;
 }

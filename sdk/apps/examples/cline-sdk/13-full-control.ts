@@ -7,6 +7,9 @@
  * - custom extensions
  * - custom default tool executors
  *
+ * This stays on the app-facing @clinebot/core API while still exercising most
+ * of the runtime customization points you are likely to need in production.
+ *
  * Run: bun run 13-full-control.ts
  */
 

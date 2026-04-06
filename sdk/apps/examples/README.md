@@ -6,11 +6,11 @@ Learn how to build with the Cline SDK through practical, runnable examples.
 
 ### [`cline-sdk/`](./cline-sdk)
 
-**13 step-by-step examples** covering everything from basic agent sessions to advanced multi-agent systems:
+**14 step-by-step examples** covering everything from basic agent sessions to advanced multi-agent systems:
 
 - **Beginner** (01-04): Minimal sessions, model selection, system prompts, tool policies
 - **Intermediate** (05-09): Custom tools, hooks, extensions, context files, session management
-- **Advanced** (10-13): Spawn agents, teams, custom executors, full control
+- **Advanced** (10-14): Spawn agents, teams, custom executors, full control, agentic loops
 
 👉 [View all cline-sdk examples →](./cline-sdk/README.md)
 
@@ -86,7 +86,7 @@ To use the SDK in your own Node app (outside this monorepo), start with the simp
 npm add @clinebot/core
 ```
 
-Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally want lower-level control. For RPC client helpers, import from `@clinebot/core` (re-exported there), not `@clinebot/rpc`.
+Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally want lower-level control. For RPC client helpers, prefer importing from `@clinebot/core` when you want the app-facing SDK surface.
 
 ## 📚 Learning Path
 
@@ -102,11 +102,12 @@ Add `@clinebot/agents` or `@clinebot/llms` only if you intentionally want lower-
 **Going to production?**
 - Session management: [`cline-sdk/09-sessions.ts`](./cline-sdk/09-sessions.ts)
 - Full control: [`cline-sdk/13-full-control.ts`](./cline-sdk/13-full-control.ts)
+- Agentic loop: [`cline-sdk/14-agentic-loop.ts`](./cline-sdk/14-agentic-loop.ts)
 
 ## 📖 Documentation
 
 - [Cline SDK README](../../packages/README.md)
-- [Architecture Guide](../../AGENTS.md)
+- [Architecture Guide](../../ARCHITECTURE.md)
 - [Individual Package Docs](../../packages/)
 
 ## 🛠️ Requirements

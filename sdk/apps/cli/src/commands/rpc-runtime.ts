@@ -3,7 +3,7 @@ import {
 	CoreSessionService,
 	createPersistentSubprocessHooks,
 	DefaultSessionManager,
-	type LlmsProviders,
+	type Llms,
 	type PersistentSubprocessHookControl,
 	SqliteSessionStore,
 } from "@clinebot/core";
@@ -360,9 +360,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 			const startedConfig = await buildSessionStartInput({
 				config,
 				sessionId,
-				initialMessages: config.initialMessages as
-					| LlmsProviders.Message[]
-					| undefined,
+				initialMessages: config.initialMessages as Llms.Message[] | undefined,
 				hooks: hookService.hooks,
 			});
 			startedConfig.sessionInput.requestToolApproval =
@@ -444,7 +442,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					config: request.config,
 					sessionId,
 					initialMessages: request.messages as unknown as
-						| LlmsProviders.Message[]
+						| Llms.Message[]
 						| undefined,
 					hooks: hookService.hooks,
 				});

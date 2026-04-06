@@ -6,8 +6,8 @@ import {
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
-import { BaseHandler } from "./base";
 import { createBedrockClient } from "./bedrock-client";
+import { BaseHandler } from "./shared/base-handler";
 
 const CLAUDE_SONNET_1M_SUFFIX = ":1m";
 

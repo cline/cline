@@ -11,7 +11,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@clinebot/agents";
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import {
 	createSessionId,
 	type ITelemetryService,

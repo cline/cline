@@ -1,7 +1,7 @@
 import {
 	type AgentEvent,
 	type AgentResult,
-	type LlmsProviders,
+	type Llms,
 	prewarmFileIndex,
 	SessionSource,
 	type UserInstructionConfigWatcher,
@@ -125,7 +125,7 @@ export async function runAgent(
 	userInstructionWatcher?: UserInstructionConfigWatcher,
 	options?: {
 		clineApiBaseUrl?: string;
-		clineProviderSettings?: LlmsProviders.ProviderSettings;
+		clineProviderSettings?: Llms.ProviderSettings;
 	},
 ): Promise<void> {
 	if (config.verbose) {

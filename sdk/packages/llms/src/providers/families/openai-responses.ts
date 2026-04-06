@@ -34,7 +34,7 @@ import type {
 	ToolUseContent,
 } from "../types/messages";
 import { retryStream } from "../utils/retry";
-import { BaseHandler } from "./base";
+import { BaseHandler } from "./shared/base-handler";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;
 

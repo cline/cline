@@ -1,4 +1,4 @@
-import * as models from "@clinebot/llms/models";
+import * as Llms from "@clinebot/llms";
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-static";
@@ -67,7 +67,7 @@ function uniqueSorted(values: string[]): string[] {
 }
 
 function getCatalogModels(providerId: string): Record<string, unknown> {
-	return models.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models ?? {};
+	return Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models ?? {};
 }
 
 async function getLiveProviderModels(): Promise<

@@ -5,7 +5,7 @@ const geminiConstructorSpy = vi.fn();
 const geminiGetMessagesSpy = vi.fn();
 const geminiCreateMessageSpy = vi.fn();
 
-vi.mock("./gemini-base", () => {
+vi.mock("./gemini", () => {
 	return {
 		GeminiHandler: class {
 			constructor(config: unknown) {

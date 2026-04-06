@@ -9,7 +9,7 @@ For contributor workflow/setup details, see [`AGENTS.md`](AGENTS.md).
 Packages (SDK layers, bottom-up):
 
 - `packages/shared` (`@clinebot/shared`): cross-package primitives and reusable runtime infrastructure (types, paths, helpers, DB access, Zod schemas, RPC constants, tool creation, hook engine/contracts, extension registry/contracts).
-- `packages/llms` (`@clinebot/llms`): LLM provider abstraction, model catalog, handler creation. Supports 20+ providers (OpenAI, Anthropic, Google, AWS Bedrock, Mistral, etc.).
+- `packages/llms` (`@clinebot/llms`): LLM provider runtime and catalog layer. Owns provider settings/config parsing, provider/model registry access, built-in provider manifests, and protocol-family model handlers (OpenAI-compatible, Anthropic, Gemini, Vertex, Bedrock, community SDK, etc.).
 - `packages/scheduler` (`@clinebot/scheduler`): cron-based scheduled execution service with persistence, concurrency guards, and bounded autonomous routine polling. Internal to RPC.
 - `packages/agents` (`@clinebot/agents`): stateless agent loop/runtime implementation. Owns the iteration loop, model turn processing, tool execution orchestration, and agent-facing hook/extension callback typing.
 - `packages/rpc` (`@clinebot/rpc`): gRPC transport/control-plane (session CRUD, tasks, events, approvals, schedule management). Internal to host apps.
@@ -56,9 +56,10 @@ flowchart LR
 
 Import boundary rules:
 
-- Node runtime hosts use explicit subpath imports: `@clinebot/llms/node`, `@clinebot/agents/node`, `@clinebot/rpc/node`, `@clinebot/core/node`.
-- Browser/frontend modules use: `@clinebot/llms/browser`, `@clinebot/shared/browser`.
+- `@clinebot/llms` now exposes one repo-facing root API plus a narrow browser entrypoint. Internal code should import from `@clinebot/llms`, not legacy subpaths such as `@clinebot/llms/models`, `@clinebot/llms/providers`, `@clinebot/llms/runtime`, or `@clinebot/llms/node`.
+- Browser/frontend modules use `@clinebot/llms/browser` and `@clinebot/shared/browser` only when they need browser-safe exports.
 - Shared contracts (types, schemas) import from bare package names: `@clinebot/core`, `@clinebot/shared`.
+- `@clinebot/core` re-exports `@clinebot/llms` as `Llms` only. It no longer exposes separate `LlmsModels` and `LlmsProviders` namespaces.
 
 ## Runtime Flows
 
@@ -66,7 +67,7 @@ Import boundary rules:
 
 1. Host (`cli` / desktop app runner) builds runtime through `@clinebot/core`.
 2. `@clinebot/core` composes tools/policies via `DefaultRuntimeBuilder` and creates an `Agent` from `@clinebot/agents`.
-3. `@clinebot/agents` uses `@clinebot/llms` handlers for model calls.
+3. `@clinebot/agents` uses `@clinebot/llms` provider handlers for model calls.
 4. `@clinebot/core` persists session artifacts and state via `DefaultSessionManager`.
 
 ### RPC-backed flow
@@ -109,6 +110,45 @@ Reusable contracts and infrastructure live below the loop:
 - `@clinebot/core`: team runtime, spawn/team tools, MCP bridge, subprocess hook hosts, default prompts, plugin discovery/loading, persistence, trust/sandbox policy
 
 Stateful concerns belong in `@clinebot/core`.
+
+## LLM Layer (`@clinebot/llms`)
+
+`@clinebot/llms` is now organized around protocol families plus declarative built-in manifests, rather than provider-id-specific handler sprawl.
+
+### Public shape
+
+- Root entrypoint: `@clinebot/llms`
+- Browser-safe entrypoint: `@clinebot/llms/browser`
+- No public repo usage of `@clinebot/llms/models`, `@clinebot/llms/providers`, or `@clinebot/llms/runtime`
+
+The root entrypoint exports:
+
+- model catalog and registry helpers such as `getModelsForProvider`, `getProviderCollection`, `registerProvider`
+- provider config/settings helpers such as `ProviderSettingsSchema`, `toProviderConfig`, `resolveProviderConfig`
+- runtime handler APIs such as `createHandler`, `createHandlerAsync`
+- the remaining llms runtime SDK exports, while they still exist internally
+
+### Internal organization
+
+Provider execution is split by wire protocol family, not by provider id:
+
+- `providers/families/openai-compatible.ts`
+- `providers/families/openai-chat.ts`
+- `providers/families/openai-responses.ts`
+- `providers/families/anthropic.ts`
+- `providers/families/gemini.ts`
+- `providers/families/vertex.ts`
+- `providers/families/bedrock.ts`
+- `providers/families/community.ts`
+- explicit special cases such as `asksage.ts`
+
+Declarative built-in provider metadata lives in `providers/runtime/builtin-manifests.ts`. That manifest layer drives:
+
+- provider-family selection
+- provider defaults
+- auth/env-key lookup
+
+This keeps provider-specific differences in data where possible and reserves separate implementation modules for genuinely different protocols.
 
 ### Runtime layers
 
@@ -216,6 +256,8 @@ Extensions follow a deterministic lifecycle: resolve -> validate -> setup -> act
 3. Assembles tools and optional team runtime
 4. Creates `Agent` with the composed config
 
+`@clinebot/core` is the app-facing aggregator. For llms functionality it exposes a single namespace, `Llms`, which is a straight re-export of `@clinebot/llms`. App code should not expect separate `LlmsModels` or `LlmsProviders` namespaces.
+
 ### Input preparation
 
 `DefaultSessionManager` prepares each user turn before handing it to the agent:
@@ -256,7 +298,7 @@ Core refreshes tokens pre-turn, persists refreshed credentials, and performs sin
 
 ## CLI (`@clinebot/cli`)
 
-The executable shell around the runtime stack. Parses CLI input, composes runtime via `@clinebot/core/node`, executes agent loops via `@clinebot/agents/node`, resolves providers via `@clinebot/llms/node`, and optionally runs the RPC gateway via `@clinebot/rpc/node`.
+The executable shell around the runtime stack. Parses CLI input, composes runtime via `@clinebot/core`, executes agent loops through core session services, resolves providers through `@clinebot/core` and `@clinebot/llms`, and optionally runs the RPC gateway via `@clinebot/rpc`.
 
 Checkpoint-related user surfaces now live here as well:
 

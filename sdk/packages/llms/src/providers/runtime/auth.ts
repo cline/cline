@@ -1,5 +1,5 @@
-import { MODEL_COLLECTION_LIST } from "../../models/provider-catalog";
 import { BUILT_IN_PROVIDER, normalizeProviderId } from "../config/provider-ids";
+import { getBuiltInProviderEnvKeys } from "./builtin-manifests";
 
 const DEFAULT_FALLBACK_PROVIDER_IDS = [
 	BUILT_IN_PROVIDER.CLINE,
@@ -15,12 +15,11 @@ function dedupe(values: readonly string[]): string[] {
 
 function buildProviderEnvKeys(): Record<string, readonly string[]> {
 	const envKeysByProvider: Record<string, readonly string[]> = {};
-
-	for (const value of MODEL_COLLECTION_LIST) {
-		const providerId = value.provider.id;
-		envKeysByProvider[providerId] = dedupe(value.provider.env ?? []);
+	for (const providerId of Object.values(BUILT_IN_PROVIDER)) {
+		envKeysByProvider[providerId] = dedupe(
+			getBuiltInProviderEnvKeys(providerId),
+		);
 	}
-
 	return envKeysByProvider;
 }
 

@@ -1,7 +1,7 @@
 import {
 	ClineAccountService,
 	getFileIndex,
-	type LlmsProviders,
+	type Llms,
 	listAvailableRuntimeCommandsFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
@@ -96,7 +96,7 @@ export async function searchWorkspaceFilesForMention(input: {
 export async function resolveClineWelcomeLine(input: {
 	config: Config;
 	clineApiBaseUrl?: string;
-	clineProviderSettings?: LlmsProviders.ProviderSettings;
+	clineProviderSettings?: Llms.ProviderSettings;
 }): Promise<string | undefined> {
 	if (input.config.providerId !== "cline") {
 		return undefined;

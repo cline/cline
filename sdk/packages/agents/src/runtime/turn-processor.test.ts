@@ -1,4 +1,4 @@
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import { describe, expect, it } from "vitest";
 import { MessageBuilder } from "../context/message-builder";
 import { TurnProcessor } from "./turn-processor";

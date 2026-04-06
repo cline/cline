@@ -4,7 +4,7 @@ Cline CLI built with Cline SDK.
 
 Streams output in real time and includes built-in tools, sub-agent spawning, and team runtime support by default.
 
-Detailed CLI command/feature reference is centralized in [`DOC.md`](/Users/beatrix/dev/clinee/sdk-wip/DOC.md).
+Detailed CLI command/feature reference is centralized in [`DOC.md`](./DOC.md).
 
 
 ## Requirements

@@ -10,15 +10,14 @@
  * - Log agent behavior
  * - Implement custom analytics
  *
- * Hook stages:
- * - pre_config: Before agent configuration
- * - post_config: After agent configuration
- * - pre_prompt: Before processing user prompt
- * - post_prompt: After processing prompt
- * - pre_tool_call: Before each tool execution
- * - post_tool_call: After each tool execution
- * - pre_response: Before agent response
- * - post_response: After agent response
+ * Common lifecycle hooks in the current runtime include:
+ * - onRunStart / onRunEnd
+ * - onIterationStart / onIterationEnd
+ * - onToolCallStart / onToolCallEnd
+ * - onError
+ *
+ * Lower-level hook contracts live in the agent runtime, but most app code
+ * should configure them through the @clinebot/core session API.
  *
  * Prerequisites:
  * - Set ANTHROPIC_API_KEY environment variable
@@ -118,7 +117,7 @@ async function demoLoggingHook() {
 			enableSpawnAgent: false,
 			enableAgentTeams: false,
 
-			// Add hooks to configuration
+			// Configure lifecycle hooks through the core session config
 			hooks: loggingHooks,
 
 			systemPrompt: "You are a helpful assistant.",

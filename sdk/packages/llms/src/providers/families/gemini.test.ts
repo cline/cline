@@ -23,7 +23,7 @@ vi.mock("@google/genai", () => {
 	};
 });
 
-import { GeminiHandler } from "./gemini-base";
+import { GeminiHandler } from "./gemini";
 
 function createAsyncIterable<T>(items: T[]): AsyncIterable<T> {
 	return {

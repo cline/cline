@@ -4,7 +4,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import { normalizeUserInput, resolveRootSessionId } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import { z } from "zod";

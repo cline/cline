@@ -26,7 +26,7 @@ import {
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
-import { BaseHandler } from "./base";
+import { BaseHandler } from "./shared/base-handler";
 
 const DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const THINKING_DEBUG_ENV = "CLINE_DEBUG_THINKING";

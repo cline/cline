@@ -5,8 +5,7 @@ import {
 	buildWorkspaceMetadata,
 	ClineCore,
 	type ITelemetryService,
-	LlmsModels as llmModels,
-	LlmsProviders as llmProviders,
+	Llms,
 	ProviderSettingsManager,
 	type RpcProviderModel,
 	type SessionHost,
@@ -24,6 +23,9 @@ import type {
 	WebviewInboundMessage,
 	WebviewOutboundMessage,
 } from "./webview-protocol";
+
+const llmModels = Llms;
+const llmProviders = Llms;
 
 export function activate(context: vscode.ExtensionContext): void {
 	const outputChannel = vscode.window.createOutputChannel("Cline");

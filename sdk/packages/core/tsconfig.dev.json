@@ -9,7 +9,6 @@
 			"@clinebot/agents": ["../agents/src/index.ts"],
 			"@clinebot/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
 			"@clinebot/llms": ["../llms/src/index.ts"],
-			"@clinebot/llms/*": ["../llms/src/*", "../llms/src/*/index.ts"],
 			"@clinebot/rpc": ["../rpc/src/index.ts"],
 			"@clinebot/rpc/*": ["../rpc/src/*", "../rpc/src/*/index.ts"],
 			"@clinebot/shared": ["../shared/src/index.ts"],

@@ -1,4 +1,4 @@
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import { parseJsonStream } from "@clinebot/shared";
 import type { MessageBuilder } from "../context/message-builder";
 import { toToolDefinitions } from "../tools/definitions";

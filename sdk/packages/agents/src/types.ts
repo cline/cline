@@ -5,7 +5,7 @@
  * for agent configuration, tools, events, and results.
  */
 
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import {
 	type AgentExtensionApi,
 	type BasicLogger,

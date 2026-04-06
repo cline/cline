@@ -17,37 +17,10 @@
 			"import": "./dist/index.js",
 			"types": "./dist/index.d.ts"
 		},
-		"./node": {
-			"development": "./src/index.ts",
-			"import": "./dist/index.js",
-			"types": "./dist/index.d.ts"
-		},
 		"./browser": {
 			"development": "./src/index.browser.ts",
 			"import": "./dist/index.browser.js",
 			"types": "./dist/index.browser.d.ts"
-		},
-		"./models": {
-			"browser": "./dist/models.browser.js",
-			"react-server": "./dist/models.browser.js",
-			"development": "./src/models.ts",
-			"import": "./dist/models.js",
-			"types": "./dist/models.d.ts"
-		},
-		"./providers": {
-			"development": "./src/providers.ts",
-			"import": "./dist/providers.js",
-			"types": "./dist/providers.d.ts"
-		},
-		"./providers/browser": {
-			"development": "./src/providers.browser.ts",
-			"import": "./dist/providers.browser.js",
-			"types": "./dist/providers.browser.d.ts"
-		},
-		"./runtime": {
-			"development": "./src/runtime.ts",
-			"import": "./dist/runtime.js",
-			"types": "./dist/runtime.d.ts"
 		}
 	},
 	"files": [

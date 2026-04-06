@@ -41,14 +41,14 @@ Desktop transport envelope:
 
 ## Key Files
 
-- [`src-tauri/src/main.rs`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
-- [`host/index.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/host/index.ts) - persistent Bun desktop backend
-- [`scripts/chat-runtime-bridge.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/scripts/chat-runtime-bridge.ts) - persistent RPC runtime bridge
-- [`scripts/routine-schedules.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/scripts/routine-schedules.ts) - RPC scheduler action bridge for Settings > Routine
-- [`lib/desktop-client.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/lib/desktop-client.ts) - typed desktop websocket client
-- [`hooks/use-chat-session.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
-- [`lib/chat-schema.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/lib/chat-schema.ts) - chat message schema used by the UI
-- [`components/views/settings/routine-view.tsx`](/Users/beatrix/dev/clinee/sdk-wip/apps/code/components/views/settings/routine-view.tsx) - Routine schedules UI
+- [`src-tauri/src/main.rs`](./apps/code/src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
+- [`host/index.ts`](./apps/code/host/index.ts) - persistent Bun desktop backend
+- [`scripts/chat-runtime-bridge.ts`](./apps/code/scripts/chat-runtime-bridge.ts) - persistent RPC runtime bridge
+- [`scripts/routine-schedules.ts`](./apps/code/scripts/routine-schedules.ts) - RPC scheduler action bridge for Settings > Routine
+- [`lib/desktop-client.ts`](./apps/code/lib/desktop-client.ts) - typed desktop websocket client
+- [`hooks/use-chat-session.ts`](./apps/code/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
+- [`lib/chat-schema.ts`](./apps/code/lib/chat-schema.ts) - chat message schema used by the UI
+- [`components/views/settings/routine-view.tsx`](./apps/code/components/views/settings/routine-view.tsx) - Routine schedules UI
 
 ## Data + Storage
 

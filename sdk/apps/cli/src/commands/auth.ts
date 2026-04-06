@@ -3,7 +3,7 @@ import {
 	createOAuthClientCallbacks,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
-	LlmsProviders,
+	Llms,
 	listLocalProviders,
 	type ProviderSettingsManager,
 	saveLocalProviderSettings,
@@ -113,7 +113,7 @@ async function getCoreOAuthApi(): Promise<CoreOAuthApi> {
 }
 
 export function normalizeProviderId(providerId: string): string {
-	return LlmsProviders.normalizeProviderId(providerId.trim());
+	return Llms.normalizeProviderId(providerId.trim());
 }
 
 export function normalizeAuthProviderId(providerId: string): string {
@@ -144,7 +144,7 @@ export function toProviderApiKey(
 
 export function getPersistedProviderApiKey(
 	providerId: string,
-	settings?: LlmsProviders.ProviderSettings,
+	settings?: Llms.ProviderSettings,
 ): string | undefined {
 	// OAuth access token takes priority (most recent credential)
 	const accessToken = settings?.auth?.accessToken?.trim();
@@ -279,11 +279,11 @@ function saveQuickAuthProviderSettings(input: {
 	const existing = input.providerSettingsManager.getProviderSettings(
 		input.providerId,
 	);
-	const nextSettings: LlmsProviders.ProviderSettings = {
+	const nextSettings: Llms.ProviderSettings = {
 		...(existing ?? {
-			provider: input.providerId as LlmsProviders.ProviderSettings["provider"],
+			provider: input.providerId as Llms.ProviderSettings["provider"],
 		}),
-		provider: input.providerId as LlmsProviders.ProviderSettings["provider"],
+		provider: input.providerId as Llms.ProviderSettings["provider"],
 		apiKey: input.apikey,
 		model: input.modelid,
 	};
@@ -338,7 +338,7 @@ function createOAuthCallbacks(io: AuthIo): {
 
 async function loginWithOAuthProvider(
 	providerId: string,
-	existing: LlmsProviders.ProviderSettings | undefined,
+	existing: Llms.ProviderSettings | undefined,
 	io: AuthIo,
 ): Promise<OAuthCredentials> {
 	const oauthApi = await getCoreOAuthApi();
@@ -371,21 +371,21 @@ async function loginWithOAuthProvider(
 export function saveOAuthProviderSettings(
 	providerSettingsManager: ProviderSettingsManager,
 	providerId: string,
-	existing: LlmsProviders.ProviderSettings | undefined,
+	existing: Llms.ProviderSettings | undefined,
 	credentials: OAuthCredentials,
-): LlmsProviders.ProviderSettings {
+): Llms.ProviderSettings {
 	const auth = {
 		...(existing?.auth ?? {}),
 		accessToken: toProviderApiKey(providerId, credentials),
 		refreshToken: credentials.refresh,
 		accountId: credentials.accountId,
-	} as LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number };
+	} as Llms.ProviderSettings["auth"] & { expiresAt?: number };
 	auth.expiresAt = credentials.expires;
-	const merged: LlmsProviders.ProviderSettings = {
+	const merged: Llms.ProviderSettings = {
 		...(existing ?? {
-			provider: providerId as LlmsProviders.ProviderSettings["provider"],
+			provider: providerId as Llms.ProviderSettings["provider"],
 		}),
-		provider: providerId as LlmsProviders.ProviderSettings["provider"],
+		provider: providerId as Llms.ProviderSettings["provider"],
 		auth,
 	};
 	providerSettingsManager.saveProviderSettings(merged, {
@@ -397,12 +397,12 @@ export function saveOAuthProviderSettings(
 export async function ensureOAuthProviderApiKey(input: {
 	providerId: string;
 	currentApiKey?: string;
-	existingSettings?: LlmsProviders.ProviderSettings;
+	existingSettings?: Llms.ProviderSettings;
 	providerSettingsManager: ProviderSettingsManager;
 	io: AuthIo;
 }): Promise<{
 	apiKey?: string;
-	selectedProviderSettings?: LlmsProviders.ProviderSettings;
+	selectedProviderSettings?: Llms.ProviderSettings;
 }> {
 	if (input.currentApiKey || !isOAuthProvider(input.providerId)) {
 		return {

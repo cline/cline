@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
-import * as LlmsModels from "@clinebot/llms/models";
+import * as LlmsModels from "@clinebot/llms";
 import type { RpcProviderCapability, RpcProviderModel } from "@clinebot/shared";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 

@@ -1,7 +1,7 @@
-import type { LlmsProviders } from "@clinebot/core";
+import type { Llms } from "@clinebot/core";
 import { normalizeUserInput } from "@clinebot/core";
 
-type StoredSessionMessage = LlmsProviders.Message & {
+type StoredSessionMessage = Llms.Message & {
 	metrics?: {
 		cost?: number;
 	};
@@ -19,9 +19,7 @@ export type SessionPreviewMessage = {
 	text: string;
 };
 
-function extractTextFromContent(
-	content: LlmsProviders.Message["content"],
-): string {
+function extractTextFromContent(content: Llms.Message["content"]): string {
 	if (typeof content === "string") {
 		return content.trim();
 	}
@@ -53,9 +51,7 @@ function truncateText(text: string, limit: number): string {
 	return `${text.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
 }
 
-function getTextMessages(
-	messages: LlmsProviders.Message[],
-): SessionPreviewMessage[] {
+function getTextMessages(messages: Llms.Message[]): SessionPreviewMessage[] {
 	const out: SessionPreviewMessage[] = [];
 	for (const raw of messages) {
 		if (raw.role !== "user" && raw.role !== "assistant") {
@@ -74,7 +70,7 @@ function getTextMessages(
 }
 
 export function inferTitleFromMessages(
-	messages: LlmsProviders.Message[],
+	messages: Llms.Message[],
 ): string | undefined {
 	const textMessages = getTextMessages(messages);
 	for (const role of ["user", "assistant"] as const) {
@@ -90,9 +86,7 @@ export function inferTitleFromMessages(
 	return undefined;
 }
 
-export function summarizeCostFromMessages(
-	messages: LlmsProviders.Message[],
-): number {
+export function summarizeCostFromMessages(messages: Llms.Message[]): number {
 	let total = 0;
 	for (const message of messages as StoredSessionMessage[]) {
 		const maybeCost = message.metrics?.cost;
@@ -103,9 +97,7 @@ export function summarizeCostFromMessages(
 	return total;
 }
 
-export function inferProviderAndModelFromMessages(
-	messages: LlmsProviders.Message[],
-): {
+export function inferProviderAndModelFromMessages(messages: Llms.Message[]): {
 	provider?: string;
 	model?: string;
 } {
@@ -129,7 +121,7 @@ export function inferProviderAndModelFromMessages(
 }
 
 export function getLastSessionPreviewMessages(
-	messages: LlmsProviders.Message[],
+	messages: Llms.Message[],
 	limit = 2,
 ): SessionPreviewMessage[] {
 	const textMessages = getTextMessages(messages);

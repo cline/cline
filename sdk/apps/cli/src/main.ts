@@ -585,7 +585,7 @@ export async function runCli(): Promise<void> {
 	const providerSettingsManager = await createProviderSettingsManager();
 	const {
 		coreServer: {
-			LlmsProviders,
+			Llms,
 			createTeamName,
 			createUserInstructionConfigWatcher,
 			loadRulesForSystemPromptFromWatcher,
@@ -647,12 +647,14 @@ export async function runCli(): Promise<void> {
 		let knownModels: Config["knownModels"];
 		if (args.liveModelCatalog) {
 			try {
-				const resolvedProviderConfig =
-					await LlmsProviders.resolveProviderConfig(provider, {
+				const resolvedProviderConfig = await Llms.resolveProviderConfig(
+					provider,
+					{
 						loadLatestOnInit: true,
 						loadPrivateOnAuth: true,
 						failOnError: false,
-					});
+					},
+				);
 				knownModels = resolvedProviderConfig?.knownModels;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);

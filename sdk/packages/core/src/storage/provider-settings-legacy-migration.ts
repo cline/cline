@@ -1,7 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import * as LlmsModels from "@clinebot/llms/models";
-import * as LlmsProviders from "@clinebot/llms/providers";
+import * as LlmsModels from "@clinebot/llms";
+import * as LlmsProviders from "@clinebot/llms";
 import { resolveClineDataDir } from "@clinebot/shared/storage";
 import type { ProviderSettings } from "../types/provider-settings";
 import { emptyStoredProviderSettings } from "../types/provider-settings";

@@ -15,8 +15,7 @@ export {
 	ContributionRegistry,
 	createContributionRegistry,
 } from "@clinebot/agents";
-export * as LlmsModels from "@clinebot/llms/models";
-export * as LlmsProviders from "@clinebot/llms/providers";
+export * as Llms from "@clinebot/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
 	AgentMode,

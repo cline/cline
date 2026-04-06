@@ -6,7 +6,7 @@ import {
 	MistralHandler,
 	OpenCodeHandler,
 	SapAiCoreHandler,
-} from "./community-sdk";
+} from "./community";
 
 const streamTextSpy = vi.fn();
 const claudeCodeSpy = vi.fn((modelId: string) => ({ modelId }));

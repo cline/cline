@@ -2,7 +2,7 @@
 
 This document is the single detailed API and behavior reference for this repository.
 
-For architecture and runtime flow details, see [`ARCHITECTURE.md`](/Users/beatrix/dev/clinee/sdk-wip/ARCHITECTURE.md).
+For architecture and runtime flow details, see [`ARCHITECTURE.md`](./ARCHITECTURE.md).
 
 ## `@clinebot/agents`
 

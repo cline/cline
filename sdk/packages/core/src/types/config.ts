@@ -5,7 +5,7 @@ import type {
 	ConsecutiveMistakeLimitDecision,
 	HookErrorMode,
 } from "@clinebot/agents";
-import type * as LlmsProviders from "@clinebot/llms/providers";
+import type * as LlmsProviders from "@clinebot/llms";
 import type {
 	AgentMode,
 	BasicLogger,

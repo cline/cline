@@ -1,4 +1,4 @@
-import type { ApiStream } from "../types";
+import type { ApiStream } from "../../types";
 
 type AiSdkStreamPart = {
 	type?: string;

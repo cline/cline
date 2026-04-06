@@ -22,7 +22,7 @@ import {
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { RetriableError, retryStream } from "../utils/retry";
-import { BaseHandler } from "./base";
+import { BaseHandler } from "./shared/base-handler";
 
 const DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const DEFAULT_MAX_OUTPUT_TOKENS = 128_000;

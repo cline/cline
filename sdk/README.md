@@ -2,9 +2,9 @@
 
 This repository contains the SDK packages that power Cline agent runtimes.
 
-Contributor onboarding guidance is in [`AGENTS.md`](/Users/beatrix/dev/clinee/sdk-wip/AGENTS.md).
-Repository architecture guidance is in [`ARCHITECTURE.md`](/Users/beatrix/dev/clinee/sdk-wip/ARCHITECTURE.md).
-Detailed API/behavior reference is in [`DOC.md`](/Users/beatrix/dev/clinee/sdk-wip/DOC.md).
+Contributor onboarding guidance is in [`AGENTS.md`](./AGENTS.md).
+Repository architecture guidance is in [`ARCHITECTURE.md`](./ARCHITECTURE.md).
+Detailed API/behavior reference is in [`DOC.md`](./DOC.md).
 
 ## Prerequisites
 
@@ -476,7 +476,7 @@ console.log(result.text)
 
 ## Navigation Tips
 
-- Start with [`AGENTS.md`](/Users/beatrix/dev/clinee/sdk-wip/AGENTS.md), [`ARCHITECTURE.md`](/Users/beatrix/dev/clinee/sdk-wip/ARCHITECTURE.md), and [`DOC.md`](/Users/beatrix/dev/clinee/sdk-wip/DOC.md), then read package `README.md` files.
+- Start with [`AGENTS.md`](./AGENTS.md), [`ARCHITECTURE.md`](./ARCHITECTURE.md), and [`DOC.md`](./DOC.md), then read package `README.md` files.
 - Follow imports from `apps/cli/src/index.ts` and `apps/desktop/src-tauri/src/main.rs` to understand package boundaries.
 - Prefer `src/` for implementation and `dist/` only for built output verification.
 - Start debugging integration behavior from `apps/cli/src/index.ts`, then drill into `packages/core/src/runtime`, `packages/agents/src/agent.ts`, and `packages/llms/src/sdk.ts`.

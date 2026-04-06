@@ -10,8 +10,8 @@
  * - SAP AI Core (`sapaicore`)
  */
 
-import type { EmitAiSdkStreamOptions } from "./ai-sdk-community";
-import { AiSdkProviderHandler } from "./ai-sdk-provider-base";
+import { AiSdkProviderHandler } from "./shared/ai-sdk-provider-handler";
+import type { EmitAiSdkStreamOptions } from "./shared/ai-sdk-stream";
 
 let zodCompatPatched = false;
 

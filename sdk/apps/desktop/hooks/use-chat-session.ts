@@ -1,6 +1,6 @@
 "use client";
 
-import * as models from "@clinebot/llms/models";
+import * as Llms from "@clinebot/llms";
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -65,7 +65,7 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	cwd: "",
 	provider: "cline",
 	model:
-		models.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline?.provider.defaultModelId ??
+		Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline?.provider.defaultModelId ??
 		"anthropic/claude-sonnet-4.6",
 	apiKey: "",
 	systemPrompt: undefined,

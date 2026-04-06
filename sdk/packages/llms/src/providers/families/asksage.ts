@@ -2,7 +2,7 @@ import { resolveApiKeyForProvider } from "../runtime/auth";
 import type { ApiStream, HandlerModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type { ContentBlock, Message } from "../types/messages";
-import { FetchBaseHandler } from "./fetch-base";
+import { FetchBaseHandler } from "./shared/fetch-handler-base";
 
 export const DEFAULT_ASKSAGE_BASE_URL = "https://api.asksage.ai/server";
 const DEFAULT_ASKSAGE_MODEL_ID = "gpt-4o";

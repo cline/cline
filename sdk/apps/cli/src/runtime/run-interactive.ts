@@ -1,6 +1,6 @@
 import {
 	type AgentEvent,
-	type LlmsProviders,
+	type Llms,
 	prewarmFileIndex,
 	SessionSource,
 	type UserInstructionConfigWatcher,
@@ -48,7 +48,7 @@ export async function runInteractive(
 	resumeSessionId?: string,
 	options?: {
 		clineApiBaseUrl?: string;
-		clineProviderSettings?: LlmsProviders.ProviderSettings;
+		clineProviderSettings?: Llms.ProviderSettings;
 		initialView?: "chat" | "config";
 	},
 ): Promise<void> {

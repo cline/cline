@@ -6,7 +6,7 @@ import type {
 	AgentEvent,
 	AgentResult,
 	BasicLogger,
-	LlmsProviders,
+	Llms,
 	RpcChatMessage,
 	RpcChatRunTurnRequest,
 	RpcChatRuntimeLoggerConfig,
@@ -57,7 +57,7 @@ export interface CliSessionManager {
 		source?: import("@clinebot/core").SessionSource;
 		prompt?: string;
 		interactive?: boolean;
-		initialMessages?: LlmsProviders.Message[];
+		initialMessages?: Llms.Message[];
 		userImages?: string[];
 		userFiles?: string[];
 		userInstructionWatcher?: import("@clinebot/core").UserInstructionConfigWatcher;
@@ -86,7 +86,7 @@ export interface CliSessionManager {
 	getAccumulatedUsage(
 		sessionId: string,
 	): Promise<SessionAccumulatedUsage | undefined>;
-	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readMessages(sessionId: string): Promise<Llms.Message[]>;
 	abort(sessionId: string, reason?: unknown): Promise<void>;
 	stop(sessionId: string): Promise<void>;
 	dispose(reason?: string): Promise<void>;
@@ -700,7 +700,7 @@ function createRpcRuntimeCliSessionManager(
 					: Array.isArray((parsed as { messages?: unknown[] }).messages)
 						? (parsed as { messages: unknown[] }).messages
 						: [];
-				return messages as LlmsProviders.Message[];
+				return messages as Llms.Message[];
 			} catch {
 				return [];
 			}

@@ -51,9 +51,9 @@ describe("runDoctorCommand", () => {
 				return {
 					status: 0,
 					stdout: [
-						"50174 /Users/beatrix/.bun/bin/bun /Users/beatrix/dev/clinee/sdk-wip/apps/cli/src/index.ts rpc start --address 127.0.0.1:4317",
-						"50181 /Users/beatrix/.bun/bin/bun /Users/beatrix/dev/clinee/sdk-wip/apps/cli/src/index.ts hook-worker",
-						"50190 /Users/beatrix/.bun/bin/bun /Users/beatrix/dev/clinee/sdk-wip/apps/cli/src/index.ts hey",
+						"50174 /Users/example/.bun/bin/bun /Users/example/dev/sdk/apps/cli/src/index.ts rpc start --address 127.0.0.1:4317",
+						"50181 /Users/example/.bun/bin/bun /Users/example/dev/sdk/apps/cli/src/index.ts hook-worker",
+						"50190 /Users/example/.bun/bin/bun /Users/example/dev/sdk/apps/cli/src/index.ts hey",
 					].join("\n"),
 				};
 			}

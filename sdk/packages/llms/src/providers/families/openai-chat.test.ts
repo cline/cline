@@ -33,7 +33,7 @@ vi.mock("openai", () => {
 	};
 });
 
-import { OpenAIBaseHandler } from "./openai-base";
+import { OpenAIBaseHandler } from "./openai-chat";
 
 function createAsyncIterable<T>(items: T[]): AsyncIterable<T> {
 	return {

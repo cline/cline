@@ -5,7 +5,7 @@
  * and API timeout utilities for the Agent class.
  */
 
-import * as LlmsProviders from "@clinebot/llms/providers";
+import * as LlmsProviders from "@clinebot/llms";
 import type { AgentConfig, BasicLogger } from "../types";
 
 // =============================================================================

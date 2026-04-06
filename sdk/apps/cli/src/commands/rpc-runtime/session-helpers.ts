@@ -4,7 +4,7 @@ import { basename, join } from "node:path";
 import {
 	type AgentHooks,
 	type DefaultSessionManager,
-	LlmsProviders,
+	Llms,
 	type RpcChatMessage,
 	type RpcChatRunTurnRequest,
 	type RpcChatRuntimeConfigBase,
@@ -82,7 +82,7 @@ function resolveToolPolicies(
 export async function buildSessionStartInput(input: {
 	config: RpcChatStartSessionRequest;
 	sessionId?: string;
-	initialMessages?: LlmsProviders.Message[];
+	initialMessages?: Llms.Message[];
 	hooks?: AgentHooks;
 }): Promise<{
 	mode: "act" | "plan";
@@ -91,7 +91,7 @@ export async function buildSessionStartInput(input: {
 	const { config } = input;
 	const mode = resolveMode(config);
 	const cwd = resolveSessionCwd(config);
-	const providerId = LlmsProviders.normalizeProviderId(config.provider);
+	const providerId = Llms.normalizeProviderId(config.provider);
 	const systemPrompt = await resolveSystemPrompt({
 		cwd,
 		explicitSystemPrompt: config.systemPrompt,
@@ -189,7 +189,7 @@ export function parseSendPayload(
 	};
 }
 
-function toRpcMessages(messages: LlmsProviders.Message[]): RpcChatMessage[] {
+function toRpcMessages(messages: Llms.Message[]): RpcChatMessage[] {
 	return messages as unknown as RpcChatMessage[];
 }
 
@@ -202,7 +202,7 @@ export function toRpcTurnResult(result: {
 	};
 	iterations: number;
 	finishReason: string;
-	messages: LlmsProviders.Message[];
+	messages: Llms.Message[];
 	toolCalls: Array<{
 		name: string;
 		input: unknown;

@@ -1,10 +1,10 @@
 "use client";
 
-import * as LlmsModels from "@clinebot/llms/models";
 import type {
 	CustomProviderConfig,
 	ProviderSelectionConfig,
-} from "@clinebot/llms/runtime";
+} from "@clinebot/llms";
+import * as Llms from "@clinebot/llms";
 import {
 	AlertCircle,
 	Braces,
@@ -85,7 +85,7 @@ interface TestResult {
 }
 
 type CatalogProviderCapability = NonNullable<
-	(typeof LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID)[string]["provider"]["capabilities"]
+	(typeof Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID)[string]["provider"]["capabilities"]
 >[number];
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ const BUILT_IN_PROVIDERS: BuiltInProviderPreset[] = [
 	...CORE_PROVIDER_IDS.map((id) => {
 		const label = BUILT_IN_PROVIDER_LABELS[id] ?? titleCaseProviderId(id);
 
-		const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
+		const collection = Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
 		if (collection) {
 			return presetFromCollection(
 				id,
@@ -1263,7 +1263,7 @@ function generateConfigCode(providers: ProviderConfig[]): string {
 			return lines.join("\n");
 		});
 
-	return `import { createLlmsSdk, defineLlmsConfig } from "@clinebot/llms/runtime"
+	return `import { createLlmsSdk, defineLlmsConfig } from "@clinebot/llms"
 
 const config = defineLlmsConfig({
   providers: [

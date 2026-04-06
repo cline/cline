@@ -11,10 +11,10 @@
 - Runs chat through RPC runtime methods (`startRuntimeSession`, `sendRuntimeSession`, `abortRuntimeSession`).
 - Streams chat runtime events over one persistent websocket envelope (`chat_event` / `chat_response`).
 - Reuses runtime chat helpers via `@clinebot/core` re-exports for desktop/code bridge scripts:
-  - [`packages/rpc/src/runtime-chat-client.ts`](/Users/beatrix/dev/clinee/sdk-wip/packages/rpc/src/runtime-chat-client.ts)
-  - [`packages/rpc/src/runtime-chat-command-bridge.ts`](/Users/beatrix/dev/clinee/sdk-wip/packages/rpc/src/runtime-chat-command-bridge.ts)
-  - [`packages/rpc/src/runtime-chat-stream-bridge.ts`](/Users/beatrix/dev/clinee/sdk-wip/packages/rpc/src/runtime-chat-stream-bridge.ts)
-  - [`apps/desktop/scripts/chat-runtime-bridge.ts`](/Users/beatrix/dev/clinee/sdk-wip/apps/desktop/scripts/chat-runtime-bridge.ts)
+  - [`packages/rpc/src/runtime-chat-client.ts`](./packages/rpc/src/runtime-chat-client.ts)
+  - [`packages/rpc/src/runtime-chat-command-bridge.ts`](./packages/rpc/src/runtime-chat-command-bridge.ts)
+  - [`packages/rpc/src/runtime-chat-stream-bridge.ts`](./packages/rpc/src/runtime-chat-stream-bridge.ts)
+  - [`apps/desktop/scripts/chat-runtime-bridge.ts`](./apps/desktop/scripts/chat-runtime-bridge.ts)
 - Auto-discovers sessions started directly from CLI (outside Desktop).
 - Auto-discovery includes full persisted session history from the shared sessions backend (not only sessions with saved prompt/messages).
 - Auto-discovery derives card titles from persisted prompts, and falls back to the first user message in session messages when prompt is missing.

@@ -12,7 +12,7 @@ It supports:
 
 Code entrypoint:
 
-- [apps/examples/slack-bot/src/index.ts](/Users/beatrix/dev/clinee/sdk-wip/apps/examples/slack-bot/src/index.ts)
+- [src/index.ts](./apps/examples/slack-bot/src/index.ts)
 
 ## 1. Install Dependencies
 

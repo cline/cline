@@ -74,8 +74,8 @@ vi.mock("@clinebot/core", async () => {
 		await vi.importActual<typeof import("@clinebot/core")>("@clinebot/core");
 	return {
 		...actual,
-		LlmsProviders: {
-			...actual.LlmsProviders,
+		Llms: {
+			...actual.Llms,
 			resolveProviderConfig: llmMocks.resolveProviderConfig,
 		},
 		createTeamName: vi.fn(() => "team-test"),

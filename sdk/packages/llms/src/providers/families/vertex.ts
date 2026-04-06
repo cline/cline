@@ -18,14 +18,14 @@ import {
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
+import { GeminiHandler } from "./gemini";
+import { resolveHandlerModel } from "./shared/ai-sdk-provider-handler";
 import {
 	emitAiSdkStream,
 	loadAiSdkModule,
 	numberOrZero,
-} from "./ai-sdk-community";
-import { resolveHandlerModel } from "./ai-sdk-provider-base";
-import { BaseHandler } from "./base";
-import { GeminiHandler } from "./gemini-base";
+} from "./shared/ai-sdk-stream";
+import { BaseHandler } from "./shared/base-handler";
 
 const DEFAULT_VERTEX_REGION = "us-central1";
 

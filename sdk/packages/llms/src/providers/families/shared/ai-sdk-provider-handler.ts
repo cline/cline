@@ -1,14 +1,14 @@
-import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
-import type { ApiStream, HandlerModelInfo, ProviderConfig } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
-import { retryStream } from "../utils/retry";
+import { toAiSdkMessages } from "../../transform/ai-sdk-community-format";
+import type { ApiStream, HandlerModelInfo, ProviderConfig } from "../../types";
+import type { Message, ToolDefinition } from "../../types/messages";
+import { retryStream } from "../../utils/retry";
 import {
 	type EmitAiSdkStreamOptions,
 	emitAiSdkStream,
 	type LoadAiSdkOptions,
 	loadAiSdkModule,
-} from "./ai-sdk-community";
-import { BaseHandler } from "./base";
+} from "./ai-sdk-stream";
+import { BaseHandler } from "./base-handler";
 
 type AiSdkCommunityProvider = (
 	modelId: string,

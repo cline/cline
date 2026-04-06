@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ApiStream, ProviderConfig } from "../types/index";
-import { BaseHandler } from "./base";
+import { BaseHandler } from "./base-handler";
 
 class TestHandler extends BaseHandler {
 	getMessages(): unknown {

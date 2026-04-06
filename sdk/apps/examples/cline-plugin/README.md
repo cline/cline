@@ -5,7 +5,7 @@ Shows how to author a reusable plugin module that works in both the SDK and the 
 - **Register tools** — give the agent new capabilities it can invoke
 - **Hook into the lifecycle** — observe or influence execution at key points
 
-Code entrypoint: [apps/examples/cline-plugin/index.ts](/Users/beatrix/dev/cline-packages/apps/examples/cline-plugin/index.ts)
+Code entrypoint: [apps/examples/cline-plugin/index.ts](./apps/examples/cline-plugin/index.ts)
 
 ## Use It With The CLI
 

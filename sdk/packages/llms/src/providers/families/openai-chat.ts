@@ -24,7 +24,7 @@ import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
-import { BaseHandler } from "./base";
+import { BaseHandler } from "./shared/base-handler";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;
 

@@ -4,6 +4,10 @@ import {
 	getMissingApiKeyError,
 	resolveApiKeyForProvider,
 } from "../runtime/auth";
+import {
+	debugLangfuse,
+	ensureLangfuseTelemetry,
+} from "../runtime/langfuse-telemetry";
 import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
 import type { ApiStream, HandlerModelInfo, ModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
@@ -13,9 +17,8 @@ import {
 	emitAiSdkStream,
 	loadAiSdkModule,
 	numberOrZero,
-} from "./ai-sdk-community";
-import { BaseHandler } from "./base";
-import { debugLangfuse, ensureLangfuseTelemetry } from "./langfuse-telemetry";
+} from "./shared/ai-sdk-stream";
+import { BaseHandler } from "./shared/base-handler";
 
 const DEFAULT_REASONING_EFFORT = "medium" as const;
 
