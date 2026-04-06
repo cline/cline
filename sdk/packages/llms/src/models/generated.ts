@@ -8,13 +8,13 @@
  * - ./scripts/generate-models-dev.ts
  */
 
-import type { ModelInfo } from "./types/index";
+import type { ModelInfo } from "./types";
 
 export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1775273485152,
+	version: 1775504094929,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -2507,7 +2507,7 @@ export const GENERATED_PROVIDER_MODELS: {
 			"deepseek-chat": {
 				id: "deepseek-chat",
 				name: "DeepSeek Chat",
-				contextWindow: 128000,
+				contextWindow: 131072,
 				maxTokens: 8192,
 				capabilities: ["tools", "temperature"],
 				pricing: {
@@ -2732,8 +2732,8 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		gemini: {
-			"gemma-4-26b": {
-				id: "gemma-4-26b",
+			"gemma-4-26b-it": {
+				id: "gemma-4-26b-it",
 				name: "Gemma 4 26B",
 				contextWindow: 256000,
 				maxTokens: 8192,
@@ -2752,8 +2752,8 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-04-02",
 			},
-			"gemma-4-31b": {
-				id: "gemma-4-31b",
+			"gemma-4-31b-it": {
+				id: "gemma-4-31b-it",
 				name: "Gemma 4 31B",
 				contextWindow: 256000,
 				maxTokens: 8192,
@@ -8655,7 +8655,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o3",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -8683,7 +8689,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -8697,7 +8709,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -8753,7 +8771,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o1",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+				],
 				pricing: {
 					input: 15,
 					output: 60,
@@ -8795,7 +8819,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o mini",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -8837,7 +8867,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -8890,6 +8926,46 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"google/gemma-4-26b-a4b-it": {
+				id: "google/gemma-4-26b-a4b-it",
+				name: "Gemma 4 26B A4B",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0.13,
+					output: 0.4,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-03",
+			},
+			"google/gemma-4-31b-it": {
+				id: "google/gemma-4-31b-it",
+				name: "Gemma 4 31B",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0.14,
+					output: 0.4,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-02",
+			},
 			"qwen/qwen3.6-plus:free": {
 				id: "qwen/qwen3.6-plus:free",
 				name: "Qwen3.6 Plus (free)",
@@ -8910,24 +8986,19 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-04-02",
 			},
-			"qwen/qwen3.6-plus-preview:free": {
-				id: "qwen/qwen3.6-plus-preview:free",
-				name: "Qwen3.6 Plus Preview (free)",
-				contextWindow: 1000000,
-				maxTokens: 65536,
-				capabilities: [
-					"tools",
-					"reasoning",
-					"structured_output",
-					"temperature",
-				],
+			"arcee-ai/trinity-large-thinking": {
+				id: "arcee-ai/trinity-large-thinking",
+				name: "Trinity Large Thinking",
+				contextWindow: 262144,
+				maxTokens: 80000,
+				capabilities: ["tools", "reasoning", "temperature"],
 				pricing: {
-					input: 0,
-					output: 0,
+					input: 0.22,
+					output: 0.85,
 					cacheRead: 0,
 					cacheWrite: 0,
 				},
-				releaseDate: "2026-03-30",
+				releaseDate: "2026-04-01",
 			},
 			"minimax/minimax-m2.7": {
 				id: "minimax/minimax-m2.7",
@@ -12282,20 +12353,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-12-05",
 			},
-			"zai-org/GLM-4.6": {
-				id: "zai-org/GLM-4.6",
-				name: "GLM 4.6",
-				contextWindow: 200000,
-				maxTokens: 10000,
-				capabilities: ["tools", "temperature"],
-				pricing: {
-					input: 0.6,
-					output: 2.2,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-09-30",
-			},
 			"deepseek-ai/DeepSeek-V3-1": {
 				id: "deepseek-ai/DeepSeek-V3-1",
 				name: "DeepSeek V3.1",
@@ -12338,34 +12395,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-07-25",
 			},
-			"Qwen/Qwen3-Next-80B-A3B-Instruct": {
-				id: "Qwen/Qwen3-Next-80B-A3B-Instruct",
-				name: "Qwen3-Next-80B-A3B-Instruct",
-				contextWindow: 262144,
-				maxTokens: 13107,
-				capabilities: ["tools", "temperature"],
-				pricing: {
-					input: 0.15,
-					output: 1.5,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-07-25",
-			},
-			"zai-org/GLM-4.7": {
-				id: "zai-org/GLM-4.7",
-				name: "GLM-4.7",
-				contextWindow: 200000,
-				maxTokens: 10000,
-				capabilities: ["tools", "reasoning", "temperature"],
-				pricing: {
-					input: 0.45,
-					output: 2,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-07-25",
-			},
 			"Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8": {
 				id: "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
 				name: "Qwen3 Coder 480B A35B Instruct",
@@ -12379,20 +12408,6 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-07-23",
-			},
-			"moonshotai/Kimi-K2-Instruct": {
-				id: "moonshotai/Kimi-K2-Instruct",
-				name: "Kimi K2 Instruct",
-				contextWindow: 131072,
-				maxTokens: 6553,
-				capabilities: ["tools", "temperature"],
-				pricing: {
-					input: 1,
-					output: 3,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-07-14",
 			},
 			"deepseek-ai/DeepSeek-V3": {
 				id: "deepseek-ai/DeepSeek-V3",
@@ -13941,7 +13956,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o3",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -13983,7 +14004,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -13997,7 +14024,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -14485,7 +14518,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o1",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+				],
 				pricing: {
 					input: 15,
 					output: 60,
@@ -14723,7 +14762,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o mini",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -14793,7 +14838,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"structured_output",
+					"temperature",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,

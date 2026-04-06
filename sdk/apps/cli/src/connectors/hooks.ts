@@ -1,4 +1,4 @@
-import { runSubprocessEvent } from "@clinebot/agents";
+import { runSubprocessEvent } from "@clinebot/core";
 import type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,

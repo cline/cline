@@ -1,4 +1,4 @@
-import type { AgentEvent, TeamEvent } from "@clinebot/agents";
+import type { AgentEvent, TeamEvent } from "@clinebot/core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { handleEvent, handleTeamEvent } from "./events";
 import { setCurrentOutputMode } from "./output";

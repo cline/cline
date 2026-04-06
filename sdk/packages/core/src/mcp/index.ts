@@ -12,6 +12,16 @@ export {
 } from "./config-loader";
 export { InMemoryMcpManager } from "./manager";
 export type {
+	CreateDisabledMcpToolPoliciesOptions,
+	CreateDisabledMcpToolPolicyOptions,
+} from "./policies";
+export {
+	createDisabledMcpToolPolicies,
+	createDisabledMcpToolPolicy,
+} from "./policies";
+export { createMcpTools } from "./tools";
+export type {
+	CreateMcpToolsOptions,
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
@@ -23,4 +33,9 @@ export type {
 	McpSseTransportConfig,
 	McpStdioTransportConfig,
 	McpStreamableHttpTransportConfig,
+	McpToolCallRequest,
+	McpToolCallResult,
+	McpToolDescriptor,
+	McpToolNameTransform,
+	McpToolProvider,
 } from "./types";

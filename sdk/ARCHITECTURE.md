@@ -8,10 +8,10 @@ For contributor workflow/setup details, see [`AGENTS.md`](AGENTS.md).
 
 Packages (SDK layers, bottom-up):
 
-- `packages/shared` (`@clinebot/shared`): cross-package primitives (types, paths, helpers, DB access, Zod schemas, RPC constants).
+- `packages/shared` (`@clinebot/shared`): cross-package primitives and reusable runtime infrastructure (types, paths, helpers, DB access, Zod schemas, RPC constants, tool creation, hook engine/contracts, extension registry/contracts).
 - `packages/llms` (`@clinebot/llms`): LLM provider abstraction, model catalog, handler creation. Supports 20+ providers (OpenAI, Anthropic, Google, AWS Bedrock, Mistral, etc.).
 - `packages/scheduler` (`@clinebot/scheduler`): cron-based scheduled execution service with persistence, concurrency guards, and bounded autonomous routine polling. Internal to RPC.
-- `packages/agents` (`@clinebot/agents`): stateless agent runtime loop, tool framework, hook engine, extension contributions, in-memory team orchestration.
+- `packages/agents` (`@clinebot/agents`): stateless agent loop/runtime implementation. Owns the iteration loop, model turn processing, tool execution orchestration, and agent-facing hook/extension callback typing.
 - `packages/rpc` (`@clinebot/rpc`): gRPC transport/control-plane (session CRUD, tasks, events, approvals, schedule management). Internal to host apps.
 - `packages/core` (`@clinebot/core`): stateful orchestration layer binding everything together: runtime composition, session management, storage, config watchers, plugin loading, telemetry.
 
@@ -99,14 +99,16 @@ Core emits `pending_prompts` snapshots on queue changes and `pending_prompt_subm
 Stateless runtime layer providing:
 
 - Agent loop execution (`Agent`, `createAgent`)
-- Tool framework (`createTool`, `createAskQuestionTool`, tool definitions)
-- Hook dispatch and policies (`HookEngine`)
-- Extension contribution registration (`ContributionRegistry`)
-- In-memory team orchestration (`AgentTeamsRuntime`, spawn tools)
-- System prompt generation (`getClineDefaultSystemPrompt`)
-- MCP bridge
+- In-memory conversation and turn processing
+- Runtime-internal tool execution/formatting/registry helpers
+- Agent-facing lifecycle hook and extension callback types
 
-Stateful concerns (plugin discovery/loading, trust/sandbox policy, persistence) belong in `@clinebot/core`.
+Reusable contracts and infrastructure live below the loop:
+
+- `@clinebot/shared`: `createTool(...)`, hook engine/contracts, extension manifest/registry infrastructure
+- `@clinebot/core`: team runtime, spawn/team tools, MCP bridge, subprocess hook hosts, default prompts, plugin discovery/loading, persistence, trust/sandbox policy
+
+Stateful concerns belong in `@clinebot/core`.
 
 ### Runtime layers
 
@@ -118,11 +120,11 @@ flowchart TD
   Agent --> LifecycleOrchestrator["LifecycleOrchestrator"]
   Agent --> TurnProcessor["TurnProcessor"]
   Agent --> ToolOrchestrator["ToolOrchestrator"]
-  Agent --> Registry["ContributionRegistry"]
-  Agent --> Hooks["HookEngine"]
+  Agent --> Registry["ContributionRegistry (from shared)"]
+  Agent --> Hooks["HookEngine (from shared)"]
   ToolOrchestrator --> Tools["Tool Registry + Dispatcher"]
   Registry --> Contributions["Tools / Commands / Shortcuts / Flags / Renderers / Providers"]
-  Hooks --> Lifecycle["Lifecycle + Runtime Event Handlers"]
+  Hooks --> Lifecycle["Agent-specific hook binding"]
   Bus --> Lifecycle
 ```
 
@@ -164,7 +166,21 @@ Tool-call arguments are buffered from stream chunks and finalized at end-of-turn
 2. `run_start`
 3. Per iteration: `iteration_start` -> `turn_start` -> `before_agent_start` -> `tool_call_before`/`tool_call_after` -> `turn_end` -> `iteration_end`
 4. `run_end`
-5. Additional: `error`, `session_shutdown`, `runtime_event`
+5. Additional: `stop_error`, `error`, `session_shutdown`, `runtime_event`
+
+Ownership split:
+
+- `@clinebot/shared` owns generic hook contracts and the reusable `HookEngine`
+- `@clinebot/agents` owns agent-specific lifecycle payload typing and the runtime hook-binding layer in `runtime/hook-registry.ts`
+- `@clinebot/core` owns subprocess/persistent/file-backed hook hosts and hook file loading/merging
+
+Key lifecycle distinctions:
+
+- `run_start`: once per `run()` / `continue()` invocation, before the first iteration
+- `iteration_start`: once per loop iteration, before turn construction
+- `before_agent_start`: once per iteration, immediately before the model call; last chance to replace `systemPrompt`, append messages, or cancel
+- `stop_error`: dispatched when a turn-level error causes forward progress to stop for that run path
+- `error`: dispatched only when an error escapes the main agent loop and the run fails with final `finishReason = "error"`
 
 Dispatch behavior:
 
@@ -176,7 +192,8 @@ Dispatch behavior:
 
 Extensions follow a deterministic lifecycle: resolve -> validate -> setup -> activate -> run. No dynamic registration during `run`.
 
-- `@clinebot/agents`: validates manifests, registers contributions via `setup(api)`, registers hook handlers
+- `@clinebot/shared`: owns extension manifest/contracts plus `ContributionRegistry`
+- `@clinebot/agents`: supplies agent-specific extension callback typing and registers validated hook handlers into the shared hook engine
 - `@clinebot/core`: discovers modules from disk, loads/instantiates them, applies trust/sandbox policy, persists state
 
 `ContributionRegistry` collects tools, commands, shortcuts, flags, renderers, and providers into one normalized snapshot.
@@ -207,6 +224,20 @@ Extensions follow a deterministic lifecycle: resolve -> validate -> setup -> act
 2. File indexer provides cached workspace file lists (15s cache, 10min eviction for idle workspaces)
 3. Validated paths are converted to absolute attachments for the turn
 
+### Checkpoints
+
+Core now creates git-backed checkpoints for root sessions during the agent loop.
+
+- Checkpoint creation is implemented as a core-owned runtime hook layered onto the session's effective hook set.
+- The hook runs once per root-agent `run()` / `continue()` invocation on the first `before_agent_start` stage of that run.
+- Placement is intentional: it snapshots the working tree immediately before the first model turn can create new edits or tool side effects.
+- Subagents do not create checkpoints.
+- Checkpoints are stored in session metadata under `metadata.checkpoint` with:
+  - `latest`
+  - `history[]`
+  - per-entry fields: `ref`, `createdAt`, `runCount`
+- Snapshotting uses git stash object refs so restore applies through normal git mechanics rather than a custom file-level rollback path.
+
 ### Runtime command resolution
 
 Skills and workflows from workspace instructions are resolved in `packages/core/src/runtime/commands.ts`:
@@ -226,6 +257,11 @@ Core refreshes tokens pre-turn, persists refreshed credentials, and performs sin
 ## CLI (`@clinebot/cli`)
 
 The executable shell around the runtime stack. Parses CLI input, composes runtime via `@clinebot/core/node`, executes agent loops via `@clinebot/agents/node`, resolves providers via `@clinebot/llms/node`, and optionally runs the RPC gateway via `@clinebot/rpc/node`.
+
+Checkpoint-related user surfaces now live here as well:
+
+- `clite checkpoint status|list|restore` resolves checkpoint metadata from persisted session records and restores via `git stash apply <ref>`
+- `clite history` surfaces checkpoint metadata in both JSON output and the interactive TUI (row badge + selected-row detail panel)
 
 ### Runtime startup
 
@@ -310,7 +346,7 @@ Sidecar reuse/replacement is owner-scoped. The shared ensure path records discov
 
 ## Team Runtime
 
-### In-memory orchestration (`@clinebot/agents`)
+### In-memory orchestration (`@clinebot/core`)
 
 Provides tasks, mailbox, mission log, async run scheduler, outcome fragments, and finalization gates.
 

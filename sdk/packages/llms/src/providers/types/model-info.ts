@@ -10,12 +10,12 @@ import type {
 	ModelInfo,
 	ModelPricing,
 	ThinkingConfig,
-} from "../../models/types/model";
-import { ApiFormat } from "../../models/types/model";
+} from "../../models/types";
+import { ApiFormat } from "../../models/types";
 
 export type { ModelCapability, ModelInfo, ModelPricing, ThinkingConfig };
 export { ApiFormat };
-export type { ApiFormat as ApiFormatType } from "../../models/types/model";
+export type { ApiFormat as ApiFormatType } from "../../models/types";
 
 // =============================================================================
 // Helper Functions

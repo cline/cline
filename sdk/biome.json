@@ -47,6 +47,12 @@
 									"@clinebot/agents/*",
 									"@clinebot/core/*",
 									"@clinebot/shared/*",
+									"**/llms/src/**",
+									"**/agents/src/**",
+									"**/core/src/**",
+									"**/shared/src/**",
+									"**/rpc/src/**",
+									"**/scheduler/src/**",
 									"!@clinebot/llms/node",
 									"!@clinebot/llms/browser",
 									"!@clinebot/llms/runtime",
@@ -61,7 +67,7 @@
 									"!@clinebot/shared/storage",
 									"!@clinebot/shared/db"
 								],
-								"message": "Cross-workspace deep imports are forbidden unless they are declared package entry points. Import from exported package entry points instead."
+								"message": "Use package entrypoints for cross-package imports. Do not import from another package's internal files."
 							}
 						]
 					}

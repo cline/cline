@@ -1,9 +1,9 @@
 import { getEventListeners } from "node:events";
+import { createTool } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 import type { PendingToolCall, Tool, ToolContext } from "../types";
 import {
-	createTool,
 	createToolRegistry,
 	executeTool,
 	executeToolsInParallel,

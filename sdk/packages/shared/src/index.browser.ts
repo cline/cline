@@ -30,6 +30,40 @@ export type {
 	WorkspaceContext,
 } from "./context/extension-context";
 export type {
+	AgentExtensionApi,
+	AgentExtensionCapability,
+	AgentExtensionCommand,
+	AgentExtensionFlag,
+	AgentExtensionHookStage,
+	AgentExtensionMessageRenderer,
+	AgentExtensionProvider,
+	AgentExtensionRegistry,
+	AgentExtensionShortcut,
+	ContributionRegistryExtension,
+	ContributionRegistryOptions,
+	PluginManifest,
+} from "./extensions/contribution-registry";
+export {
+	ContributionRegistry,
+	createContributionRegistry,
+} from "./extensions/contribution-registry";
+export type {
+	HookControl,
+	HookDispatchResult,
+	HookEventEnvelope,
+	HookHandlerResult,
+	HookPolicies,
+	HookStage,
+	HookStagePolicy,
+	HookStagePolicyInput,
+} from "./hooks/contracts";
+export {
+	type HookDispatchInput,
+	HookEngine,
+	type HookEngineOptions,
+	type HookHandler,
+} from "./hooks/engine";
+export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
 	AiSdkFormatterPart,
@@ -208,5 +242,6 @@ export type {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export { createTool } from "./tools/create";
 // VCR is Node-only (uses node:fs, node:path) — excluded from browser build
 export type { VcrRecording } from "./vcr";

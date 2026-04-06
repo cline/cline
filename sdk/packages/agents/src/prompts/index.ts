@@ -1,1 +1,0 @@
-export { getClineDefaultSystemPrompt } from "./cline";

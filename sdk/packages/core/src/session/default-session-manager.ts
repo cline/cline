@@ -7,8 +7,6 @@ import {
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
-	createSpawnAgentTool,
-	type TeamEvent,
 	type Tool,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
@@ -28,6 +26,7 @@ import { mergeAgentHooks } from "../runtime/hook-file-hooks";
 import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type { RuntimeBuilder } from "../runtime/session-runtime";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import { createSpawnAgentTool, type TeamEvent } from "../team";
 import {
 	captureAgentCreated,
 	captureAgentTeamCreated,

@@ -3,9 +3,11 @@ import type {
 	HookEventPayload,
 	PersistentSubprocessHooksOptions,
 	RunHookResult,
-} from "@clinebot/agents";
-import { createPersistentSubprocessHooks } from "@clinebot/agents";
-import type { HookSessionContext } from "@clinebot/core";
+} from "@clinebot/core";
+import {
+	createPersistentSubprocessHooks,
+	type HookSessionContext,
+} from "@clinebot/core";
 import { formatHookDispatchOutput } from "../commands/hook";
 import { logSpawnedProcess } from "../logging/process";
 import { closeInlineStreamIfNeeded } from "./events";

@@ -1,5 +1,5 @@
 {
-	"extends": "../../../tsconfig.json",
+	"extends": "../../tsconfig.apps.json",
 	"compilerOptions": {
 		"outDir": "./dist",
 		"rootDir": "../../..",
@@ -13,37 +13,7 @@
 		"strict": true,
 		"resolveJsonModule": true,
 		"allowSyntheticDefaultImports": true,
-		"forceConsistentCasingInFileNames": true,
-		"paths": {
-			"@clinebot/core": ["../../../packages/core/src/index.ts"],
-			"@clinebot/core/*": [
-				"../../../packages/core/src/*",
-				"../../../packages/core/src/*/index.ts"
-			],
-			"@clinebot/agents": ["../../../packages/agents/src/index.ts"],
-			"@clinebot/agents/*": [
-				"../../../packages/agents/src/*",
-				"../../../packages/agents/src/*/index.ts"
-			],
-			"@clinebot/llms": ["../../../packages/llms/src/index.ts"],
-			"@clinebot/llms/models": ["../../../packages/llms/src/models.ts"],
-			"@clinebot/llms/providers": ["../../../packages/llms/src/providers.ts"],
-			"@clinebot/llms/runtime": ["../../../packages/llms/src/runtime.ts"],
-			"@clinebot/llms/*": [
-				"../../../packages/llms/src/*",
-				"../../../packages/llms/src/*/index.ts"
-			],
-			"@clinebot/rpc": ["../../../packages/rpc/src/index.ts"],
-			"@clinebot/rpc/*": [
-				"../../../packages/rpc/src/*",
-				"../../../packages/rpc/src/*/index.ts"
-			],
-			"@clinebot/shared": ["../../../packages/shared/src/index.ts"],
-			"@clinebot/shared/*": [
-				"../../../packages/shared/src/*",
-				"../../../packages/shared/src/*/index.ts"
-			]
-		}
+		"forceConsistentCasingInFileNames": true
 	},
 	"include": ["*.ts"],
 	"exclude": ["node_modules", "dist"]

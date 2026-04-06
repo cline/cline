@@ -4,16 +4,16 @@
  * Core contracts, shared state utilities, and Node runtime services.
  */
 
+export type {
+	AgentConfig,
+	AgentEvent,
+	AgentExtensionCommand,
+	AgentHooks,
+	AgentResult,
+} from "@clinebot/agents";
 export {
-	type AgentConfig,
-	type CreateMcpToolsOptions,
-	createMcpTools,
-	createTool,
-	getClineDefaultSystemPrompt,
-	type Tool,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-	type ToolContext,
+	ContributionRegistry,
+	createContributionRegistry,
 } from "@clinebot/agents";
 export * as LlmsModels from "@clinebot/llms/models";
 export * as LlmsProviders from "@clinebot/llms/providers";
@@ -50,6 +50,10 @@ export type {
 	TelemetryPrimitive,
 	TelemetryProperties,
 	TelemetryValue,
+	Tool,
+	ToolApprovalRequest,
+	ToolApprovalResult,
+	ToolContext,
 	ToolPolicy,
 	WorkspaceInfo,
 	WorkspaceInfoSchema,
@@ -57,6 +61,7 @@ export type {
 	WorkspaceManifestSchema,
 } from "@clinebot/shared";
 export {
+	createTool,
 	normalizeUserInput,
 	RPC_TEAM_LIFECYCLE_EVENT_TYPE,
 	RPC_TEAM_PROGRESS_EVENT_TYPE,
@@ -217,6 +222,27 @@ export {
 	ChatSummarySchema,
 	ChatViewStateSchema,
 } from "./chat/chat-schema";
+export {
+	createPersistentSubprocessHooks,
+	createSubprocessHooks,
+	type HookEventName,
+	HookEventNameSchema,
+	type HookEventPayload,
+	HookEventPayloadSchema,
+	PersistentHookClient,
+	type PersistentHookClientOptions,
+	type PersistentSubprocessHookControl,
+	type PersistentSubprocessHooksOptions,
+	parseHookEventPayload,
+	type RunHookOptions,
+	type RunHookResult,
+	type RunSubprocessEventOptions,
+	type RunSubprocessEventResult,
+	runHook,
+	runSubprocessEvent,
+	type SubprocessHookControl,
+	type SubprocessHooksOptions,
+} from "./hooks";
 export type {
 	FastFileIndexOptions,
 	MentionEnricherOptions,
@@ -228,6 +254,12 @@ export {
 	prewarmFileIndex,
 } from "./input";
 export {
+	type CreateDisabledMcpToolPoliciesOptions,
+	type CreateDisabledMcpToolPolicyOptions,
+	type CreateMcpToolsOptions,
+	createDisabledMcpToolPolicies,
+	createDisabledMcpToolPolicy,
+	createMcpTools,
 	hasMcpSettingsFile,
 	InMemoryMcpManager,
 	type LoadMcpSettingsOptions,
@@ -244,11 +276,17 @@ export {
 	type McpSseTransportConfig,
 	type McpStdioTransportConfig,
 	type McpStreamableHttpTransportConfig,
+	type McpToolCallRequest,
+	type McpToolCallResult,
+	type McpToolDescriptor,
+	type McpToolNameTransform,
+	type McpToolProvider,
 	type RegisterMcpServersFromSettingsOptions,
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 } from "./mcp";
+export { getClineDefaultSystemPrompt } from "./prompt/default-system";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
@@ -391,7 +429,47 @@ export {
 	type SqliteTeamStoreOptions,
 } from "./storage/team-store";
 export {
+	type AgentTask,
+	AgentTeam,
+	AgentTeamsRuntime,
+	type AgentTeamsRuntimeOptions,
+	type BootstrapAgentTeamsOptions,
+	type BootstrapAgentTeamsResult,
+	bootstrapAgentTeams,
+	buildDelegatedAgentConfig,
 	buildTeamProgressSummary,
+	type CreateAgentTeamsToolsOptions,
+	createAgentTeamsTools,
+	createDelegatedAgent,
+	createDelegatedAgentConfigProvider,
+	createSpawnAgentTool,
+	type DelegatedAgentConfigProvider,
+	type DelegatedAgentConnectionConfig,
+	type DelegatedAgentKind,
+	type DelegatedAgentRuntimeConfig,
+	type MissionLogEntry,
+	type MissionLogKind,
+	type SubAgentEndContext,
+	type SubAgentStartContext,
+	type TaskResult,
+	type TeamEvent,
+	type TeamMailboxMessage,
+	type TeamMemberConfig,
+	type TeamMemberSnapshot,
+	TeamMessageType,
+	type TeammateLifecycleSpec,
+	type TeamOutcome,
+	type TeamOutcomeFragment,
+	type TeamOutcomeFragmentStatus,
+	type TeamOutcomeStatus,
+	type TeamRunRecord,
+	type TeamRunStatus,
+	type TeamRuntimeSnapshot,
+	type TeamRuntimeState,
+	type TeamTask,
+	type TeamTaskStatus,
+	type TeamTeammateRuntimeConfig,
+	type TeamTeammateSpec,
 	toTeamProgressLifecycleEvent,
 } from "./team";
 export type {

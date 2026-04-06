@@ -1,6 +1,6 @@
 import { mkdir, readFile, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/agents";
+import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
 
 export type DesktopToolApprovalOptions = {
 	approvalDir?: string;

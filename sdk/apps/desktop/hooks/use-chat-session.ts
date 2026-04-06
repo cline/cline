@@ -64,7 +64,9 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	workspaceRoot: "",
 	cwd: "",
 	provider: "cline",
-	model: models.CLINE_DEFAULT_MODEL,
+	model:
+		models.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline?.provider.defaultModelId ??
+		"anthropic/claude-sonnet-4.6",
 	apiKey: "",
 	systemPrompt: undefined,
 	maxIterations: undefined,

@@ -4,7 +4,7 @@
  * Type definitions for executors, configuration, and results.
  */
 
-import type { ToolContext } from "@clinebot/agents";
+import type { ToolContext } from "@clinebot/shared";
 import type {
 	ApplyPatchInput,
 	EditFileInput,

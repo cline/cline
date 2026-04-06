@@ -1,8 +1,4 @@
-import type {
-	TeamEvent,
-	TeamRuntimeState,
-	TeamTeammateSpec,
-} from "@clinebot/agents";
+import type { TeamEvent, TeamRuntimeState, TeamTeammateSpec } from "../team";
 import type { SessionStatus } from "./common";
 import type { SessionRecord } from "./sessions";
 

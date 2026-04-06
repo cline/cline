@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/agents";
+import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
 import { truncate } from "./helpers";
 import { c, getActiveCliSession, write } from "./output";
 

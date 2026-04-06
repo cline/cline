@@ -75,8 +75,6 @@ interface ProviderConfig {
 	>;
 }
 
-type CatalogProviderCapability = LlmsModels.ProviderCapability;
-
 interface TestResult {
 	providerId: string;
 	modelId: string;
@@ -85,6 +83,10 @@ interface TestResult {
 	timestamp: number;
 	configSnapshot?: string;
 }
+
+type CatalogProviderCapability = NonNullable<
+	(typeof LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID)[string]["provider"]["capabilities"]
+>[number];
 
 // ─── Constants ──────────────────────────────────────────────────────────────
 
@@ -221,26 +223,7 @@ const BUILT_IN_PROVIDERS: BuiltInProviderPreset[] = [
 	...CORE_PROVIDER_IDS.map((id) => {
 		const label = BUILT_IN_PROVIDER_LABELS[id] ?? titleCaseProviderId(id);
 
-		const collectionById: Record<
-			string,
-			{
-				provider: {
-					defaultModelId: string;
-					baseUrl?: string;
-					capabilities?: CatalogProviderCapability[];
-				};
-				models: Record<string, unknown>;
-			}
-		> = {
-			anthropic: LlmsModels.ANTHROPIC_PROVIDER,
-			bedrock: LlmsModels.BEDROCK_PROVIDER,
-			gemini: LlmsModels.GEMINI_PROVIDER,
-			vertex: LlmsModels.VERTEX_PROVIDER,
-			cline: LlmsModels.CLINE_PROVIDER,
-			"claude-code": LlmsModels.CLAUDE_CODE_PROVIDER,
-		};
-
-		const collection = collectionById[id];
+		const collection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
 		if (collection) {
 			return presetFromCollection(
 				id,

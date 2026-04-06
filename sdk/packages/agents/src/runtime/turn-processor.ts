@@ -1,7 +1,7 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { parseJsonStream } from "@clinebot/shared";
-import type { MessageBuilder } from "../message-builder";
-import { toToolDefinitions } from "../tools/index";
+import type { MessageBuilder } from "../context/message-builder";
+import { toToolDefinitions } from "../tools/definitions";
 import type {
 	AgentEvent,
 	PendingToolCall,

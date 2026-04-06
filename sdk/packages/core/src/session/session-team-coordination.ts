@@ -1,5 +1,6 @@
-import type { AgentResult, TeamEvent } from "@clinebot/agents";
+import type { AgentResult } from "@clinebot/agents";
 import { formatUserInputBlock } from "@clinebot/shared";
+import type { TeamEvent } from "../team";
 import {
 	buildTeamProgressSummary,
 	toTeamProgressLifecycleEvent,

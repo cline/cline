@@ -1,255 +1,27 @@
-/**
- * @clinebot/providers
- *
- * SDK-like package for creating and managing LLM provider handlers.
- *
- * This package provides a unified interface for interacting with various LLM providers.
- * It standardizes configuration, message formats, and streaming responses.
- *
- * ## Quick Start
- *
- * ```typescript
- * import { createHandler, type ProviderConfig } from "@clinebot/providers"
- *
- * const config: ProviderConfig = {
- *   providerId: "anthropic",
- *   apiKey: process.env.ANTHROPIC_API_KEY,
- *   modelId: "claude-sonnet-4-20250514",
- * }
- *
- * const handler = createHandler(config)
- * const stream = handler.createMessage("You are a helpful assistant.", messages)
- *
- * for await (const chunk of stream) {
- *   if (chunk.type === "text") {
- *     process.stdout.write(chunk.text)
- *   }
- * }
- * ```
- *
- * ## Supported Providers
- *
- * - **anthropic**: Anthropic's Claude models
- * - **claude-code**: Claude Code local subscription provider
- * - **gemini**: Google's Gemini models (including Vertex AI)
- * - **openai**: OpenAI's GPT models
- * - **openai-compat**: Any OpenAI-compatible API (DeepSeek, xAI, Together, etc.)
- *
- * @module
- */
-
-// =============================================================================
-// Types
-// =============================================================================
-
 export {
-	ApiFormat,
-	// Handler types
+	OPENAI_COMPATIBLE_PROVIDERS,
+	type ProviderDefaults,
+	resolveProviderConfig,
+} from "./runtime/provider-defaults";
+export { registerAsyncHandler, registerHandler } from "./runtime/registry";
+export {
 	type ApiHandler,
-	// Stream types
-	type ApiStream,
-	type ApiStreamChunk,
-	type ApiStreamReasoningChunk,
-	type ApiStreamTextChunk,
-	type ApiStreamToolCall,
-	type ApiStreamToolCallsChunk,
-	type ApiStreamUsageChunk,
-	type AuthConfig,
-	type AuthSettings,
-	AuthSettingsSchema,
-	type AwsConfig,
-	type AwsSettings,
-	AwsSettingsSchema,
-	type AzureConfig,
-	type AzureSettings,
-	AzureSettingsSchema,
 	type BuiltInProviderId,
-	type CloudConfig,
-	type ContentBlock,
-	createConfig,
-	createProviderConfig,
-	type EndpointConfig,
-	type FileContent,
-	type GcpConfig,
-	type GcpSettings,
-	GcpSettingsSchema,
-	getModelPricing,
 	type HandlerFactory,
-	type HandlerModelInfo,
-	hasCapability,
-	hasModelCapability,
-	type ImageContent,
 	type LazyHandlerFactory,
-	// Message types
-	type Message,
-	type MessageRole,
-	type MessageWithMetadata,
-	type ModelCapability,
-	type ModelCatalogConfig,
-	type ModelCatalogSettings,
-	ModelCatalogSettingsSchema,
-	type ModelConfig,
-	// Model types
-	type ModelInfo,
-	type ModelPricing,
-	type ModelWithId,
-	type OcaConfig,
-	type OcaSettings,
-	OcaSettingsSchema,
-	type OpenAICompatibleModelInfo,
+	normalizeProviderId,
 	type ProviderCapability,
-	type ProviderCategory,
 	type ProviderConfig,
-	type ProviderDefaultsConfig,
-	// Config types
 	type ProviderId,
-	// Settings types and functions (Zod-based validation)
-	ProviderIdSchema,
-	type ProviderOptions,
-	type ProviderSettings,
-	ProviderSettingsSchema,
-	type ProviderSpecificConfig,
-	parseSettings,
-	type ReasoningConfig,
-	type ReasoningSettings,
-	ReasoningSettingsSchema,
-	type RedactedThinkingContent,
-	type RegionConfig,
-	type SapConfig,
-	type SapSettings,
-	SapSettingsSchema,
-	type SimpleProviderConfig,
-	type SingleCompletionHandler,
-	safeCreateProviderConfig,
-	safeParseSettings,
-	supportsPromptCache,
-	supportsReasoning,
-	type TextContent,
-	type ThinkingConfig,
-	type ThinkingContent,
-	type TokenConfig,
-	type ToolDefinition,
-	type ToolResultContent,
-	type ToolUseContent,
-	toProviderConfig,
+	resolveRoutingProviderId,
 } from "./types";
 
-// =============================================================================
-// Handlers
-// =============================================================================
-
-export {
-	// Provider-specific handlers
-	AnthropicHandler,
-	AskSageHandler,
-	// Base classes (for extension)
-	BaseHandler,
-	ClaudeCodeHandler,
-	CodexHandler,
-	clearLiveModelsCatalogCache,
-	clearPrivateModelsCatalogCache,
-	// Custom handler registry
-	clearRegistry,
-	createAnthropicHandler,
-	createAskSageHandler,
-	createClaudeCodeHandler,
-	createCodexHandler,
-	createDifyHandler,
-	createGeminiHandler,
-	createMistralHandler,
-	createOpenAICompatibleHandler,
-	createOpenAIHandler,
-	createOpenAIResponsesHandler,
-	createOpenCodeHandler,
-	createR1Handler,
-	createSapAiCoreHandler,
-	createVertexHandler,
-	DEFAULT_MODELS_CATALOG_URL,
-	DifyHandler,
-	GeminiHandler,
-	getLiveModelsCatalog,
-	getMissingApiKeyError,
-	getProviderConfig,
-	getRegisteredHandler,
-	getRegisteredHandlerAsync,
-	getRegisteredProviderIds,
-	hasRegisteredHandler,
-	isOpenAICompatibleProvider,
-	isRegisteredHandlerAsync,
-	MistralHandler,
-	normalizeProviderId,
-	// Provider configs
-	OPENAI_COMPATIBLE_PROVIDERS,
-	// OpenAI Chat Completions API handler
-	OpenAIBaseHandler,
-	OpenAICompatibleHandler,
-	// OpenAI Responses API handler
-	OpenAIResponsesHandler,
-	OpenCodeHandler,
-	// R1-based handlers (DeepSeek Reasoner, etc.)
-	R1BaseHandler,
-	registerAsyncHandler,
-	registerHandler,
-	resolveProviderConfig,
-	SapAiCoreHandler,
-	unregisterHandler,
-	// Vertex AI handler
-	VertexHandler,
-} from "./handlers";
-
-// =============================================================================
-// Transform utilities
-// =============================================================================
-
-export {
-	convertToAnthropicMessages,
-	convertToGeminiMessages,
-	convertToOpenAIMessages,
-	convertToolsToAnthropic,
-	convertToolsToGemini,
-	convertToolsToOpenAI,
-	// R1 format (DeepSeek Reasoner, etc.)
-	convertToR1Messages,
-	getOpenAIToolParams,
-	type R1Message,
-} from "./transform";
-
-// =============================================================================
-// Utilities
-// =============================================================================
-
-export {
-	type AssistantContentBlock,
-	type AssistantRedactedThinkingBlock,
-	type AssistantTextBlock,
-	type AssistantThinkingBlock,
-	type AssistantToolUseBlock,
-	calculateRetryDelay,
-	isRetriableError,
-	type ProcessedResponse,
-	type ReasoningDetailParam,
-	RetriableError,
-	type RetryOptions,
-	retryAsync,
-	retryStream,
-	// Stream processor
-	StreamResponseProcessor,
-	sleep,
-	ToolCallProcessor,
-	type UsageInfo,
-} from "./utils";
-
-import { CLINE_PROVIDER } from "../models";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
-} from "../models/catalog/providers/oca";
-
-// =============================================================================
-// Main Factory Function
-// =============================================================================
-
-import type { ProviderClient } from "../models/types/model";
+	MODEL_COLLECTION_LIST,
+} from "../models/provider-catalog";
+import type { ProviderClient } from "../models/types";
 import { AnthropicHandler } from "./handlers/anthropic-base";
 import { AskSageHandler } from "./handlers/asksage";
 import { BedrockHandler } from "./handlers/bedrock-base";
@@ -345,25 +117,17 @@ function mergeProviderDefaults(
 	};
 }
 
-type HandlerFactory = (config: ProviderConfig) => ApiHandler;
+type InternalHandlerFactory = (config: ProviderConfig) => ApiHandler;
 
-/**
- * Lazy-initialized map of provider ID → ProviderClient derived from the model catalog.
- * Used to dispatch handler creation based on the catalog's declared client type.
- */
-let _providerClientMap: Record<string, ProviderClient> | undefined;
+let providerClientMap: Record<string, ProviderClient> | undefined;
 function getProviderClientMap(): Record<string, ProviderClient> {
-	if (!_providerClientMap) {
-		_providerClientMap = buildProviderClientMap();
+	if (!providerClientMap) {
+		providerClientMap = buildProviderClientMap();
 	}
-	return _providerClientMap;
+	return providerClientMap;
 }
 
-/**
- * Handlers for providers that share a client type but require a specific handler class.
- * Takes precedence over CLIENT_HANDLER_FACTORIES.
- */
-const PROVIDER_HANDLER_OVERRIDES: Record<string, HandlerFactory> = {
+const PROVIDER_HANDLER_OVERRIDES: Record<string, InternalHandlerFactory> = {
 	[BUILT_IN_PROVIDER.CLAUDE_CODE]: (config) => new ClaudeCodeHandler(config),
 	[BUILT_IN_PROVIDER.OPENAI_CODEX]: (config) => new CodexHandler(config),
 	[BUILT_IN_PROVIDER.OPENCODE]: (config) => new OpenCodeHandler(config),
@@ -374,13 +138,8 @@ const PROVIDER_HANDLER_OVERRIDES: Record<string, HandlerFactory> = {
 	[BUILT_IN_PROVIDER.OCA]: (config) => createOcaHandler(config),
 };
 
-/**
- * Handler factories keyed by the catalog's ProviderClient value.
- * Dispatched after PROVIDER_HANDLER_OVERRIDES when no override is found.
- * Defaults to OpenAIBaseHandler for unknown or openai-compatible clients.
- */
 const CLIENT_HANDLER_FACTORIES: Partial<
-	Record<ProviderClient, HandlerFactory>
+	Record<ProviderClient, InternalHandlerFactory>
 > = {
 	anthropic: (config) => new AnthropicHandler(config),
 	gemini: (config) => new GeminiHandler(config),
@@ -395,13 +154,11 @@ const CLIENT_HANDLER_FACTORIES: Partial<
 function createBuiltInHandler(config: ProviderConfig): ApiHandler | undefined {
 	const routingProviderId = resolveRoutingProviderId(config);
 
-	// Provider-specific overrides take precedence
 	const override = PROVIDER_HANDLER_OVERRIDES[routingProviderId];
 	if (override) {
 		return override(config);
 	}
 
-	// Dispatch by client type declared in the model catalog
 	const clientType = getProviderClientMap()[routingProviderId];
 	if (clientType) {
 		const factory = CLIENT_HANDLER_FACTORIES[clientType];
@@ -413,34 +170,11 @@ function createBuiltInHandler(config: ProviderConfig): ApiHandler | undefined {
 	return undefined;
 }
 
-/**
- * Create an API handler for the specified provider
- *
- * This is the main entry point for creating handlers. It automatically
- * selects the appropriate handler class based on the provider ID.
- *
- * Custom handlers registered via `registerHandler()` take precedence over
- * built-in handlers.
- *
- * @param config - Provider configuration
- * @returns An API handler instance
- * @throws Error if the provider has an async handler - use `createHandlerAsync()` instead
- *
- * @example
- * ```typescript
- * const handler = createHandler({
- *   providerId: "anthropic",
- *   apiKey: "sk-...",
- *   modelId: "claude-sonnet-4-20250514",
- * })
- * ```
- */
 export function createHandler(config: ProviderConfig): ApiHandler {
 	const normalizedConfig = withNormalizedProviderId(config);
 	const { providerId } = normalizedConfig;
 	const routingProviderId = resolveRoutingProviderId(normalizedConfig);
 
-	// Check custom registry first (allows overriding built-in handlers)
 	if (hasRegisteredHandler(providerId)) {
 		if (isRegisteredHandlerAsync(providerId)) {
 			throw new Error(
@@ -461,7 +195,6 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 		return builtInHandler;
 	}
 
-	// Check if it's an OpenAI-compatible provider
 	if (isOpenAICompatibleProvider(routingProviderId)) {
 		if (
 			normalizedConfig.modelCatalog?.loadLatestOnInit ||
@@ -482,7 +215,6 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 		);
 	}
 
-	// Fall back to OpenAI-compatible with custom base URL
 	return normalizedConfig.baseUrl
 		? new OpenAICompatibleHandler({ ...normalizedConfig, routingProviderId })
 		: new OpenAIResponsesHandler({
@@ -492,30 +224,6 @@ export function createHandler(config: ProviderConfig): ApiHandler {
 			});
 }
 
-/**
- * Create an API handler asynchronously
- *
- * Use this when you have handlers registered with `registerAsyncHandler()`.
- * This function works with both sync and async registered handlers.
- *
- * @param config - Provider configuration
- * @returns Promise resolving to an API handler instance
- *
- * @example
- * ```typescript
- * // Register an async handler for lazy loading
- * registerAsyncHandler("my-provider", async (config) => {
- *   const { MyHandler } = await import("./my-handler")
- *   return new MyHandler(config)
- * })
- *
- * // Use createHandlerAsync to get the handler
- * const handler = await createHandlerAsync({
- *   providerId: "my-provider",
- *   modelId: "my-model",
- * })
- * ```
- */
 export async function createHandlerAsync(
 	config: ProviderConfig,
 ): Promise<ApiHandler> {
@@ -523,7 +231,6 @@ export async function createHandlerAsync(
 	const { providerId } = normalizedConfig;
 	const routingProviderId = resolveRoutingProviderId(normalizedConfig);
 
-	// Check custom registry first (allows overriding built-in handlers)
 	if (hasRegisteredHandler(providerId)) {
 		const handler = await getRegisteredHandlerAsync(
 			providerId,
@@ -552,35 +259,19 @@ export async function createHandlerAsync(
 		}
 	}
 
-	// Fall back to sync handler creation for built-in providers
 	return createHandler(normalizedConfig);
 }
 
-/**
- * List of all built-in provider IDs
- */
 export const BUILT_IN_PROVIDERS: ProviderId[] = [
-	...new Set<ProviderId>([
-		CLINE_PROVIDER.provider.id,
-		BUILT_IN_PROVIDER.ANTHROPIC,
-		BUILT_IN_PROVIDER.ASKSAGE,
-		BUILT_IN_PROVIDER.BEDROCK,
-		BUILT_IN_PROVIDER.CLAUDE_CODE,
-		BUILT_IN_PROVIDER.OPENCODE,
-		BUILT_IN_PROVIDER.MISTRAL,
-		BUILT_IN_PROVIDER.DIFY,
-		BUILT_IN_PROVIDER.OPENAI_NATIVE,
-		BUILT_IN_PROVIDER.GEMINI,
-		BUILT_IN_PROVIDER.VERTEX,
-		...(Object.keys(OPENAI_COMPATIBLE_PROVIDERS) as ProviderId[]),
-	]),
+	...new Set<ProviderId>(
+		MODEL_COLLECTION_LIST.map(
+			(collection) => collection.provider.id as ProviderId,
+		),
+	),
 ];
 
 const BUILT_IN_PROVIDER_SET = new Set<string>(BUILT_IN_PROVIDERS);
 
-/**
- * Check if a provider ID is supported (built-in or registered)
- */
 export function isProviderSupported(providerId: string): boolean {
 	const normalizedProviderId = normalizeProviderId(providerId);
 	return (

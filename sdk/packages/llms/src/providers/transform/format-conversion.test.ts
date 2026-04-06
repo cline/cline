@@ -2,13 +2,11 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "../types/messages";
 import {
 	convertToAnthropicMessages,
-	convertToGeminiMessages,
-	convertToOpenAIMessages,
 	convertToolsToAnthropic,
-	convertToolsToGemini,
-	convertToolsToOpenAI,
-	convertToR1Messages,
-} from "./index";
+} from "./anthropic-format";
+import { convertToGeminiMessages, convertToolsToGemini } from "./gemini-format";
+import { convertToOpenAIMessages, convertToolsToOpenAI } from "./openai-format";
+import { convertToR1Messages } from "./r1-format";
 
 describe("format conversion", () => {
 	it("converts file content blocks to text for user and tool_result payloads", () => {

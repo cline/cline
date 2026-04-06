@@ -1,5 +1,9 @@
-import type { HookDispatchInput, HookEngine } from "../hooks/index";
-import type { AgentEvent, AgentHookControl, HookStage } from "../types";
+import type {
+	HookDispatchInput,
+	HookEngine,
+	HookStage,
+} from "@clinebot/shared";
+import type { AgentEvent, AgentHookControl } from "../types";
 import type { AgentRuntimeBus } from "./agent-runtime-bus";
 
 export interface LifecycleOrchestratorOptions {
@@ -57,7 +61,7 @@ export class LifecycleOrchestrator {
 		if (dispatchResult.control?.context) {
 			this.onHookContext?.(source, dispatchResult.control.context);
 		}
-		return dispatchResult.control;
+		return dispatchResult.control as AgentHookControl | undefined;
 	}
 
 	dispatchRuntimeEvent(event: AgentEvent): void {

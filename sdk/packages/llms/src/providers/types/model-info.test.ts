@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ModelInfo } from "../../models/types/model";
+import type { ModelInfo } from "../../models/types";
 import {
 	getModelPricing,
 	hasModelCapability,

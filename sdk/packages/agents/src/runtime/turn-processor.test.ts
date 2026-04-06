@@ -1,6 +1,6 @@
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { describe, expect, it } from "vitest";
-import { MessageBuilder } from "../message-builder";
+import { MessageBuilder } from "../context/message-builder";
 import { TurnProcessor } from "./turn-processor";
 
 async function* streamChunks(

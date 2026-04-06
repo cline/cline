@@ -1,11 +1,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import { basename, extname, join } from "node:path";
-import type { HookEventName } from "@clinebot/agents";
 import {
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	resolveDocumentsHooksDirectoryPath,
 	resolveHooksConfigSearchPaths as resolveHooksConfigSearchPathsFromShared,
 } from "@clinebot/shared/storage";
+import type { HookEventName } from "../hooks";
 
 export { HOOKS_CONFIG_DIRECTORY_NAME, resolveDocumentsHooksDirectoryPath };
 

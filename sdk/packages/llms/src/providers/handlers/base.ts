@@ -9,7 +9,7 @@ import {
 	serializeAbortReason,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
-import type { ProviderClient } from "../../models/types/model";
+import type { ProviderClient } from "../../models/types";
 import type {
 	ApiHandler,
 	ApiStream,

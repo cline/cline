@@ -1,10 +1,38 @@
-import type {
-	McpToolCallRequest,
-	McpToolCallResult,
-	McpToolDescriptor,
-	McpToolProvider,
-	ToolContext,
-} from "@clinebot/agents";
+import type { ToolContext } from "@clinebot/shared";
+
+export interface McpToolDescriptor {
+	name: string;
+	description?: string;
+	inputSchema: Record<string, unknown>;
+}
+
+export interface McpToolCallRequest {
+	serverName: string;
+	toolName: string;
+	arguments?: Record<string, unknown>;
+	context?: ToolContext;
+}
+
+export type McpToolCallResult = unknown;
+
+export interface McpToolProvider {
+	listTools(serverName: string): Promise<readonly McpToolDescriptor[]>;
+	callTool(request: McpToolCallRequest): Promise<McpToolCallResult>;
+}
+
+export type McpToolNameTransform = (input: {
+	serverName: string;
+	toolName: string;
+}) => string;
+
+export interface CreateMcpToolsOptions {
+	serverName: string;
+	provider: McpToolProvider;
+	nameTransform?: McpToolNameTransform;
+	timeoutMs?: number;
+	retryable?: boolean;
+	maxRetries?: number;
+}
 
 export type McpConnectionStatus = "disconnected" | "connecting" | "connected";
 

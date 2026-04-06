@@ -296,7 +296,7 @@ Start with:
 - `ARCHITECTURE.md` (`Agents Runtime` section)
 - `packages/agents/src/agent.ts`
 - `packages/agents/src/tools/`
-- `packages/agents/src/teams/`
+- `packages/core/src/team/`
 
 Development notes:
 

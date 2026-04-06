@@ -2,7 +2,6 @@ import { convertToolsToAnthropic } from "../transform/anthropic-format";
 import {
 	type ApiStream,
 	type HandlerModelInfo,
-	type ProviderConfig,
 	supportsModelThinking,
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
@@ -261,10 +260,6 @@ export class BedrockHandler extends BaseHandler {
 
 		yield { type: "done", success: true, id: responseId };
 	}
-}
-
-export function createBedrockHandler(config: ProviderConfig): BedrockHandler {
-	return new BedrockHandler(config);
 }
 
 function numberOrZero(value: unknown): number {

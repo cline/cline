@@ -7,10 +7,9 @@ bringing in session storage, RPC transport, or host-specific default tools.
 ## What You Get
 
 - `Agent` / `createAgent` for running and continuing agent conversations
-- `createTool` for defining strongly typed tools
-- `AgentHooks` and hook helpers for lifecycle interception
+- `AgentHooks` for lifecycle interception
 - event streaming via `onEvent` and `agent.subscribeEvents(...)`
-- sub-agent, team, and MCP bridge primitives for advanced runtimes
+- sub-agent and team primitives for advanced runtimes
 
 ## What This Package Does Not Include
 
@@ -26,13 +25,14 @@ environments where you want to supply your own tools and runtime policy.
 ## Installation
 
 ```bash
-npm install @clinebot/agents @clinebot/llms zod
+npm install @clinebot/agents @clinebot/shared @clinebot/llms zod
 ```
 
 ## Quick Start
 
 ```ts
-import { Agent, createTool } from "@clinebot/agents";
+import { Agent } from "@clinebot/agents";
+import { createTool } from "@clinebot/shared";
 import { z } from "zod";
 
 const getWeather = createTool({
@@ -66,12 +66,12 @@ console.log(result.text);
 
 ### Tools
 
-Use `createTool(...)` to define tools with either JSON Schema or Zod input
-schemas. The agent exposes the tool to the model and calls your `execute(...)`
-handler with validated input plus a `ToolContext`.
+Use `createTool(...)` from `@clinebot/shared` to define tools with either JSON
+Schema or Zod input schemas. The agent exposes the tool to the model and calls
+your `execute(...)` handler with validated input plus a `ToolContext`.
 
 ```ts
-import { createTool } from "@clinebot/agents";
+import { createTool } from "@clinebot/shared";
 import { z } from "zod";
 
 const summarize = createTool({
@@ -108,34 +108,38 @@ iteration boundaries, completion, and errors.
 turn start, tool call start/end, and run completion. This is the right place for
 policy checks, telemetry, or injecting additional context.
 
-If you need subprocess-backed hooks, use the Node entrypoint:
+If you need subprocess-backed hooks, use `@clinebot/core`:
 
 ```ts
-import { createSubprocessHooks } from "@clinebot/agents/node";
+import { createSubprocessHooks } from "@clinebot/core";
 ```
 
 ### Teams and Spawn
 
-For multi-agent workflows, the package exports:
+For multi-agent workflows, use `@clinebot/core`:
 
-- `createSpawnAgentTool(...)`
-- `AgentTeamsRuntime`
-- `createAgentTeamsTools(...)`
-- `bootstrapAgentTeams(...)`
+```ts
+import {
+	createSpawnAgentTool,
+	AgentTeamsRuntime,
+	createAgentTeamsTools,
+	bootstrapAgentTeams,
+} from "@clinebot/core";
+```
 
-These helpers provide in-memory coordination primitives for delegated runs,
+These helpers provide coordination primitives for delegated runs,
 mailboxes, task management, and outcome convergence.
 
 ## Entry Points
 
 - `@clinebot/agents`: main package entrypoint
-- `@clinebot/agents/node`: Node-only exports such as subprocess hook helpers
 - `@clinebot/agents/browser`: browser-safe bundle
 
 ## Related Packages
 
 - `@clinebot/llms`: provider settings, model catalogs, and handler creation
-- `@clinebot/core`: stateful runtime assembly, storage, and default tools
+- `@clinebot/core`: stateful runtime assembly, storage, default tools, subprocess hooks, and MCP integration
+- `@clinebot/shared`: shared tool contracts and `createTool(...)`
 - `@clinebot/rpc`: remote runtime/session transport
 
 ## More Examples

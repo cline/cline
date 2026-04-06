@@ -2,7 +2,7 @@
 
 import { MODELS_DEV_PROVIDER_KEY_MAP } from "@clinebot/shared";
 import { fetchModelsDevProviderModels } from "../../src/models/models-dev-catalog";
-import type { ModelInfo } from "../../src/models/types/index";
+import type { ModelInfo } from "../../src/models/types";
 
 function sortObjectByKey<T>(
 	input: Record<string, T>,

@@ -9,5 +9,13 @@
 		"rootDir": "./src",
 		"incremental": false
 	},
-	"include": ["src/index.ts", "src/index.browser.ts", "src/providers.ts"]
+	"include": [
+		"src/index.ts",
+		"src/index.browser.ts",
+		"src/models.ts",
+		"src/models.browser.ts",
+		"src/providers.ts",
+		"src/providers.browser.ts",
+		"src/runtime.ts"
+	]
 }

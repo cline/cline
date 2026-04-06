@@ -1,8 +1,18 @@
+import { zodToJsonSchema } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TeamTaskInputSchema } from "../../../../agents/src/teams/schema";
-import { zodToJsonSchema } from "../../../../shared/src/parse/zod";
+import { z } from "zod";
 import type { Message } from "../types/messages";
 import type { ApiStreamChunk } from "../types/stream";
+
+const TeamTaskInputSchema = z.object({
+	task: z.string(),
+	details: z
+		.object({
+			priority: z.enum(["low", "high"]).optional(),
+			notes: z.string().optional(),
+		})
+		.optional(),
+});
 
 const responsesCreateSpy = vi.fn();
 
@@ -348,6 +358,6 @@ describe("OpenAIResponsesHandler", () => {
 		expect(request.tools?.[0]).not.toHaveProperty("strict");
 		expect(
 			(request.tools?.[0]?.parameters as { required?: string[] }).required,
-		).toEqual(["action"]);
+		).toEqual(["task"]);
 	});
 });

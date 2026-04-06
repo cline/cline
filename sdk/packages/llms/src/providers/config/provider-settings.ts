@@ -7,11 +7,11 @@
 
 import { resolveProviderModelCatalogKeys } from "@clinebot/shared";
 import { z } from "zod";
+import { getGeneratedModelsForProvider } from "../../models/generated-access";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
-} from "../../models/catalog/providers/oca";
-import { getGeneratedModelsForProvider } from "../../models/generated-access";
+} from "../../models/provider-catalog";
 import type {
 	ProviderCapability,
 	ProviderConfig,

@@ -4,8 +4,12 @@
  * Factory functions for creating the default tools.
  */
 
-import { createTool, type Tool } from "@clinebot/agents";
-import { validateWithZod, zodToJsonSchema } from "@clinebot/shared";
+import {
+	createTool,
+	type Tool,
+	validateWithZod,
+	zodToJsonSchema,
+} from "@clinebot/shared";
 import {
 	formatError,
 	formatReadFileQuery,

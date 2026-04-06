@@ -18,7 +18,6 @@ import {
 import {
 	type ApiStream,
 	type HandlerModelInfo,
-	type ProviderConfig,
 	supportsModelThinking,
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
@@ -306,11 +305,4 @@ export class GeminiHandler extends BaseHandler {
 			cacheReadTokens,
 		);
 	}
-}
-
-/**
- * Create a Gemini handler
- */
-export function createGeminiHandler(config: ProviderConfig): GeminiHandler {
-	return new GeminiHandler(config);
 }

@@ -1,8 +1,8 @@
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
-import type { AgentHooks } from "@clinebot/agents";
 import {
+	type AgentHooks,
 	type DefaultSessionManager,
 	LlmsProviders,
 	type RpcChatMessage,

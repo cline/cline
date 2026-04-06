@@ -2,8 +2,8 @@ import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms/providers";
+import { createTool } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createTool } from "./tools/create";
 import type { AgentExtension, Tool } from "./types";
 
 type FakeChunk = Record<string, unknown>;

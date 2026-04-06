@@ -5,6 +5,11 @@
  */
 
 import type * as LlmsProviders from "@clinebot/llms/providers";
+import {
+	type ContributionRegistry,
+	createContributionRegistry,
+	HookEngine,
+} from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import {
 	buildFailedToolCallFeedback,
@@ -15,19 +20,15 @@ import {
 	recordMistake,
 } from "./api/error-handling";
 import {
-	type ContributionRegistry,
-	createContributionRegistry,
-} from "./extensions";
-import { HookEngine, registerLifecycleHandlers } from "./hooks/index";
-import {
 	checkRepeatedToolCall,
 	createLoopDetectionState,
 	resetLoopDetectionState,
 	toolCallSignature,
-} from "./loop-detection";
-import { MessageBuilder } from "./message-builder";
+} from "./context/loop-detection";
+import { MessageBuilder } from "./context/message-builder";
 import { createAgentRuntimeBus } from "./runtime/agent-runtime-bus";
 import { ConversationStore } from "./runtime/conversation-store";
+import { registerLifecycleHandlers } from "./runtime/hook-registry";
 import { LifecycleOrchestrator } from "./runtime/lifecycle-orchestrator";
 import { ToolOrchestrator } from "./runtime/tool-orchestrator";
 import { TurnProcessor } from "./runtime/turn-processor";
@@ -36,6 +37,7 @@ import type {
 	AgentConfig,
 	AgentEvent,
 	AgentExecutionConfig,
+	AgentExtension,
 	AgentExtensionRegistry,
 	AgentFinishReason,
 	AgentResult,
@@ -85,7 +87,11 @@ export class Agent {
 	private handler: LlmsProviders.ApiHandler;
 	private toolRegistry: Map<string, Tool>;
 	private abortController: AbortController | null = null;
-	private contributionRegistry: ContributionRegistry;
+	private contributionRegistry: ContributionRegistry<
+		AgentExtension,
+		Tool,
+		LlmsProviders.Message
+	>;
 	private readonly hookEngine: HookEngine;
 	private messageBuilder: MessageBuilder;
 	private readonly logger?: BasicLogger;

@@ -7,9 +7,14 @@
 
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import {
+	type AgentExtensionApi,
 	type BasicLogger,
+	type ContributionRegistryExtension,
 	type ExtensionContext,
+	type HookControl,
+	type HookPolicies,
 	type ITelemetryService,
+	type PluginManifest,
 	type Tool,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
@@ -20,7 +25,24 @@ import {
 import { z } from "zod";
 
 export type {
+	AgentExtensionApi,
+	AgentExtensionCapability,
+	AgentExtensionCommand,
+	AgentExtensionFlag,
+	AgentExtensionHookStage,
+	AgentExtensionMessageRenderer,
+	AgentExtensionProvider,
+	AgentExtensionShortcut,
 	BasicLogger,
+	ContributionRegistryExtension,
+	ExtensionContext,
+	HookControl,
+	HookDispatchResult,
+	HookEventEnvelope,
+	HookPolicies,
+	HookStage,
+	HookStagePolicy,
+	HookStagePolicyInput,
 	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -255,37 +277,9 @@ export type HookErrorMode = "ignore" | "throw";
 /**
  * Common controls supported by lifecycle hooks.
  */
-export interface AgentHookControl {
-	/**
-	 * Cancel the active run after this hook.
-	 * When true, finishReason becomes "aborted".
-	 */
-	cancel?: boolean;
-	/**
-	 * Request explicit approval before executing the active tool call.
-	 * Only applied for `onToolCallStart`.
-	 */
-	review?: boolean;
-	/**
-	 * Optional context appended to the conversation as a user text block.
-	 */
-	context?: string;
-	/**
-	 * Optional replacement input for the active tool call.
-	 * Only applied for `onToolCallStart`.
-	 */
-	overrideInput?: unknown;
-	/**
-	 * Optional replacement system prompt.
-	 * Primarily used by before-agent-start hook stages.
-	 */
-	systemPrompt?: string;
-	/**
-	 * Optional messages to append before model turn execution.
-	 * Primarily used by before-agent-start hook stages.
-	 */
+export type AgentHookControl = Omit<HookControl, "appendMessages"> & {
 	appendMessages?: LlmsProviders.Message[];
-}
+};
 
 export interface AgentHookRunStartContext {
 	/**
@@ -430,110 +424,9 @@ export interface AgentHookSessionShutdownContext {
 	reason?: string;
 }
 
-export type HookStage =
-	| "input"
-	| "runtime_event"
-	| "session_start"
-	| "run_start"
-	| "iteration_start"
-	| "turn_start"
-	| "before_agent_start"
-	| "tool_call_before"
-	| "tool_call_after"
-	| "turn_end"
-	| "stop_error"
-	| "iteration_end"
-	| "run_end"
-	| "session_shutdown"
-	| "error";
-
-export type HookMode = "blocking" | "async";
-export type HookFailureMode = "fail_open" | "fail_closed";
-
-export interface HookStagePolicy {
-	mode: HookMode;
-	timeoutMs: number;
-	retries: number;
-	retryDelayMs: number;
-	failureMode: HookFailureMode;
-	maxConcurrency: number;
-	queueLimit: number;
-}
-
-export type HookStagePolicyInput = Partial<HookStagePolicy>;
-
-export interface HookPolicies {
-	defaultPolicy?: HookStagePolicyInput;
-	stages?: Partial<Record<HookStage, HookStagePolicyInput>>;
-	handlers?: Record<string, HookStagePolicyInput>;
-}
-
-export interface HookEventEnvelope<TPayload = unknown> {
-	eventId: string;
-	stage: HookStage;
-	createdAt: Date;
-	sequence: number;
-	runId: string;
-	agentId: string;
-	conversationId: string;
-	parentAgentId: string | null;
-	iteration?: number;
-	parentEventId?: string;
-	payload: TPayload;
-}
-
-export type HookAttemptStatus = "ok" | "timeout" | "error" | "skipped";
-
-export interface HookHandlerResult {
-	handlerName: string;
-	stage: HookStage;
-	status: HookAttemptStatus;
-	attempts: number;
-	durationMs: number;
-	error?: Error;
-	control?: AgentHookControl;
-}
-
-export interface HookDispatchResult {
-	event: HookEventEnvelope;
-	queued: boolean;
-	dropped: boolean;
-	control?: AgentHookControl;
-	results: HookHandlerResult[];
-}
-
 // =============================================================================
 // Extensions
 // =============================================================================
-
-export interface AgentExtensionCommand {
-	name: string;
-	description?: string;
-	handler?: (input: string) => Promise<string> | string;
-}
-
-export interface AgentExtensionShortcut {
-	name: string;
-	value: string;
-	description?: string;
-}
-
-export interface AgentExtensionFlag {
-	name: string;
-	description?: string;
-	defaultValue?: boolean | string | number;
-}
-
-export interface AgentExtensionMessageRenderer {
-	name: string;
-	render: (message: LlmsProviders.Message) => string;
-}
-
-export interface AgentExtensionProvider {
-	name: string;
-	description?: string;
-	metadata?: Record<string, unknown>;
-}
 
 export interface AgentExtensionRuntimeEventContext {
 	agentId: string;
@@ -573,56 +466,20 @@ export interface AgentExtensionBeforeAgentStartContext {
 	messages: LlmsProviders.Message[];
 }
 
-export interface AgentExtensionBeforeAgentStartControl
-	extends AgentHookControl {
+export type AgentExtensionBeforeAgentStartControl = Omit<
+	AgentHookControl,
+	"appendMessages"
+> & {
 	systemPrompt?: string;
 	appendMessages?: LlmsProviders.Message[];
-}
+};
 
-export interface AgentExtensionApi {
-	registerTool: (tool: Tool) => void;
-	registerCommand: (command: AgentExtensionCommand) => void;
-	registerShortcut: (shortcut: AgentExtensionShortcut) => void;
-	registerFlag: (flag: AgentExtensionFlag) => void;
-	registerMessageRenderer: (renderer: AgentExtensionMessageRenderer) => void;
-	registerProvider: (provider: AgentExtensionProvider) => void;
-}
-
-export type AgentExtensionCapability =
-	| "hooks"
-	| "tools"
-	| "commands"
-	| "shortcuts"
-	| "flags"
-	| "message_renderers"
-	| "providers";
-
-export type AgentExtensionHookStage =
-	| "input"
-	| "runtime_event"
-	| "session_start"
-	| "run_start"
-	| "iteration_start"
-	| "turn_start"
-	| "before_agent_start"
-	| "tool_call_before"
-	| "tool_call_after"
-	| "turn_end"
-	| "stop_error"
-	| "iteration_end"
-	| "run_end"
-	| "session_shutdown"
-	| "error";
-
-export interface PluginManifest {
-	capabilities: AgentExtensionCapability[];
-	hookStages?: AgentExtensionHookStage[];
-}
-
-export interface AgentExtension {
+export interface AgentExtension extends ContributionRegistryExtension<Tool> {
 	name: string;
 	manifest: PluginManifest;
-	setup?: (api: AgentExtensionApi) => void | Promise<void>;
+	setup?: (
+		api: AgentExtensionApi<Tool, LlmsProviders.Message>,
+	) => void | Promise<void>;
 	onSessionStart?: (
 		ctx: AgentExtensionSessionStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
@@ -667,14 +524,11 @@ export interface AgentExtension {
 	onError?: (ctx: AgentHookErrorContext) => void | Promise<void>;
 }
 
-export interface AgentExtensionRegistry {
-	tools: Tool[];
-	commands: AgentExtensionCommand[];
-	shortcuts: AgentExtensionShortcut[];
-	flags: AgentExtensionFlag[];
-	messageRenderers: AgentExtensionMessageRenderer[];
-	providers: AgentExtensionProvider[];
-}
+export type AgentExtensionRegistry =
+	import("@clinebot/shared").AgentExtensionRegistry<
+		Tool,
+		LlmsProviders.Message
+	>;
 
 /**
  * Lifecycle hooks for observing or influencing agent execution.

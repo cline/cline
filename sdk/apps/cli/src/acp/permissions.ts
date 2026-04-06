@@ -5,7 +5,7 @@ import type {
 	RequestPermissionRequest,
 	ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/agents";
+import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
 import { buildToolTitle, mapToolKind } from "./tool-utils";
 
 // ---------------------------------------------------------------------------

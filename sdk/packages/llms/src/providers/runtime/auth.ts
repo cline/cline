@@ -1,5 +1,4 @@
-import * as modelProviderExports from "../../models/catalog/providers/index";
-import type { ModelCollection } from "../../models/types/index";
+import { MODEL_COLLECTION_LIST } from "../../models/provider-catalog";
 import { BUILT_IN_PROVIDER, normalizeProviderId } from "../config/provider-ids";
 
 const DEFAULT_FALLBACK_PROVIDER_IDS = [
@@ -10,18 +9,6 @@ const DEFAULT_FALLBACK_PROVIDER_IDS = [
 	BUILT_IN_PROVIDER.OPENROUTER,
 ] as const;
 
-function isModelCollection(value: unknown): value is ModelCollection {
-	if (!value || typeof value !== "object") {
-		return false;
-	}
-
-	const maybeCollection = value as Partial<ModelCollection>;
-	return (
-		typeof maybeCollection.provider === "object" &&
-		typeof maybeCollection.models === "object"
-	);
-}
-
 function dedupe(values: readonly string[]): string[] {
 	return [...new Set(values)];
 }
@@ -29,11 +16,7 @@ function dedupe(values: readonly string[]): string[] {
 function buildProviderEnvKeys(): Record<string, readonly string[]> {
 	const envKeysByProvider: Record<string, readonly string[]> = {};
 
-	for (const value of Object.values(modelProviderExports)) {
-		if (!isModelCollection(value)) {
-			continue;
-		}
-
+	for (const value of MODEL_COLLECTION_LIST) {
 		const providerId = value.provider.id;
 		envKeysByProvider[providerId] = dedupe(value.provider.env ?? []);
 	}

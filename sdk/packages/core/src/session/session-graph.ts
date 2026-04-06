@@ -1,5 +1,5 @@
-import type { HookEventPayload } from "@clinebot/agents";
 import { nanoid } from "nanoid";
+import type { HookEventPayload } from "../hooks";
 import type { SessionStatus } from "../types/common";
 
 export function sanitizeSessionToken(value: string): string {

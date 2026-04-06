@@ -22,8 +22,6 @@ export {
 	ConnectorHookEventSchema,
 } from "./connectors/events";
 export type * from "./connectors/options";
-export type { Disposable } from "./dispose";
-export { disposeAll, registerDisposable } from "./dispose";
 export type {
 	ClientContext,
 	ClientName,
@@ -31,6 +29,42 @@ export type {
 	UserContext,
 	WorkspaceContext,
 } from "./context/extension-context";
+export type { Disposable } from "./dispose";
+export { disposeAll, registerDisposable } from "./dispose";
+export type {
+	AgentExtensionApi,
+	AgentExtensionCapability,
+	AgentExtensionCommand,
+	AgentExtensionFlag,
+	AgentExtensionHookStage,
+	AgentExtensionMessageRenderer,
+	AgentExtensionProvider,
+	AgentExtensionRegistry,
+	AgentExtensionShortcut,
+	ContributionRegistryExtension,
+	ContributionRegistryOptions,
+	PluginManifest,
+} from "./extensions/contribution-registry";
+export {
+	ContributionRegistry,
+	createContributionRegistry,
+} from "./extensions/contribution-registry";
+export type {
+	HookControl,
+	HookDispatchResult,
+	HookEventEnvelope,
+	HookHandlerResult,
+	HookPolicies,
+	HookStage,
+	HookStagePolicy,
+	HookStagePolicyInput,
+} from "./hooks/contracts";
+export {
+	type HookDispatchInput,
+	HookEngine,
+	type HookEngineOptions,
+	type HookHandler,
+} from "./hooks/engine";
 export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
@@ -210,5 +244,6 @@ export type {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export { createTool } from "./tools/create";
 export type { VcrRecording } from "./vcr";
 export { initVcr } from "./vcr";

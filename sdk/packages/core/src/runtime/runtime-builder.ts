@@ -1,13 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import {
-	AgentTeamsRuntime,
-	bootstrapAgentTeams,
-	createDelegatedAgentConfigProvider,
-	type TeamEvent,
-	type TeamTeammateSpec,
-	type Tool,
-} from "@clinebot/agents";
+import type { Tool } from "@clinebot/shared";
 import { resolveSkillsConfigSearchPaths } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import {
@@ -16,6 +9,13 @@ import {
 	type UserInstructionConfigWatcher,
 } from "../agents";
 import { createLocalTeamStore } from "../storage/team-store";
+import {
+	AgentTeamsRuntime,
+	bootstrapAgentTeams,
+	createDelegatedAgentConfigProvider,
+	type TeamEvent,
+	type TeamTeammateSpec,
+} from "../team";
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,

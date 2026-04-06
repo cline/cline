@@ -1,7 +1,4 @@
-import type {
-	AgentTeamsRuntime,
-	DelegatedAgentConfigProvider,
-} from "@clinebot/agents";
+import type { AgentTeamsRuntime, DelegatedAgentConfigProvider } from "../team";
 
 export interface TeamRuntimeRegistryEntry {
 	runtime?: AgentTeamsRuntime;

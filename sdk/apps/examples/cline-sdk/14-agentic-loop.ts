@@ -8,7 +8,8 @@
  *   - Streaming events
  */
 
-import { Agent, type AgentEvent, createSpawnAgentTool } from "@clinebot/agents";
+import { Agent, type AgentEvent } from "@clinebot/agents";
+import { createSpawnAgentTool } from "@clinebot/core";
 
 const API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
 const MODEL = "claude-sonnet-4-20250514";

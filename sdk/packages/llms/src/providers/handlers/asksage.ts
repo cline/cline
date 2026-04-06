@@ -1,5 +1,5 @@
 import { resolveApiKeyForProvider } from "../runtime/auth";
-import type { ApiStream, HandlerModelInfo, ProviderConfig } from "../types";
+import type { ApiStream, HandlerModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type { ContentBlock, Message } from "../types/messages";
 import { FetchBaseHandler } from "./fetch-base";
@@ -133,8 +133,4 @@ export class AskSageHandler extends FetchBaseHandler {
 			.join("")
 			.trim();
 	}
-}
-
-export function createAskSageHandler(config: ProviderConfig): AskSageHandler {
-	return new AskSageHandler(config);
 }

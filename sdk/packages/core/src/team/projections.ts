@@ -1,13 +1,13 @@
 import type {
+	TeamProgressLifecycleEvent,
+	TeamProgressSummary,
+} from "@clinebot/shared";
+import type {
 	TeamEvent,
 	TeamOutcome,
 	TeamOutcomeFragment,
 	TeamRuntimeState,
-} from "@clinebot/agents";
-import type {
-	TeamProgressLifecycleEvent,
-	TeamProgressSummary,
-} from "@clinebot/shared";
+} from "./runtime";
 
 function toIsoNow(): string {
 	return new Date().toISOString();

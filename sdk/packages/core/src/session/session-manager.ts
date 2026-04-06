@@ -1,5 +1,6 @@
 import type { AgentResult } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms/providers";
+import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
 import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
@@ -19,8 +20,8 @@ export interface StartSessionInput {
 	defaultToolExecutors?: Partial<import("../tools").ToolExecutors>;
 	toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
 	requestToolApproval?: (
-		request: import("@clinebot/agents").ToolApprovalRequest,
-	) => Promise<import("@clinebot/agents").ToolApprovalResult>;
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult>;
 }
 
 export interface StartSessionResult {

@@ -2,12 +2,9 @@ import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, resolve } from "node:path";
 import type {
+	AgentConfig,
 	AgentEvent,
 	AgentResult,
-	ToolApprovalRequest,
-	ToolApprovalResult,
-} from "@clinebot/agents";
-import type {
 	BasicLogger,
 	LlmsProviders,
 	RpcChatMessage,
@@ -16,6 +13,8 @@ import type {
 	RpcChatStartSessionArtifacts,
 	RpcChatStartSessionRequest,
 	RpcChatTurnResult,
+	ToolApprovalRequest,
+	ToolApprovalResult,
 } from "@clinebot/core";
 import {
 	accumulateUsageTotals,
@@ -64,10 +63,10 @@ export interface CliSessionManager {
 		userInstructionWatcher?: import("@clinebot/core").UserInstructionConfigWatcher;
 		onTeamRestored?: () => void;
 		defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
-		toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
+		toolPolicies?: AgentConfig["toolPolicies"];
 		requestToolApproval?: (
-			request: import("@clinebot/agents").ToolApprovalRequest,
-		) => Promise<import("@clinebot/agents").ToolApprovalResult>;
+			request: ToolApprovalRequest,
+		) => Promise<ToolApprovalResult>;
 	}): Promise<{
 		sessionId: string;
 		manifest: SessionManifest;
@@ -137,7 +136,7 @@ export async function getCoreSessionBackend(): Promise<SessionBackend> {
 
 export async function createDefaultCliSessionManager(options?: {
 	defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
-	toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
+	toolPolicies?: AgentConfig["toolPolicies"];
 	logger?: BasicLogger;
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
@@ -437,7 +436,7 @@ function createRpcRuntimeCliSessionManager(
 	options:
 		| {
 				defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
-				toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
+				toolPolicies?: AgentConfig["toolPolicies"];
 				requestToolApproval?: (
 					request: ToolApprovalRequest,
 				) => Promise<ToolApprovalResult>;

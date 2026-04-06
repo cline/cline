@@ -19,12 +19,7 @@ import {
 	convertToOpenAIMessages,
 	getOpenAIToolParams,
 } from "../transform/openai-format";
-import type {
-	ApiStream,
-	HandlerModelInfo,
-	ModelInfo,
-	ProviderConfig,
-} from "../types";
+import type { ApiStream, HandlerModelInfo, ModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
@@ -385,11 +380,4 @@ export class OpenAIBaseHandler extends BaseHandler {
 			};
 		}
 	}
-}
-
-/**
- * Create an OpenAI-compatible handler
- */
-export function createOpenAIHandler(config: ProviderConfig): OpenAIBaseHandler {
-	return new OpenAIBaseHandler(config);
 }

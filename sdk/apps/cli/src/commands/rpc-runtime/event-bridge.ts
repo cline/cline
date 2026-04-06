@@ -1,9 +1,9 @@
 import type {
 	AgentEvent,
+	DefaultSessionManager,
 	ToolApprovalRequest,
 	ToolApprovalResult,
-} from "@clinebot/agents";
-import type { DefaultSessionManager } from "@clinebot/core";
+} from "@clinebot/core";
 import {
 	RPC_TEAM_LIFECYCLE_EVENT_TYPE,
 	RPC_TEAM_PROGRESS_EVENT_TYPE,

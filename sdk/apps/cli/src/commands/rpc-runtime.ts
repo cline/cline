@@ -1,12 +1,10 @@
-import type {
-	AgentHooks,
-	PersistentSubprocessHookControl,
-} from "@clinebot/agents";
-import { createPersistentSubprocessHooks } from "@clinebot/agents";
 import {
+	type AgentHooks,
 	CoreSessionService,
+	createPersistentSubprocessHooks,
 	DefaultSessionManager,
 	type LlmsProviders,
+	type PersistentSubprocessHookControl,
 	SqliteSessionStore,
 } from "@clinebot/core";
 import { type RpcRuntimeHandlers, RpcSessionClient } from "@clinebot/rpc";

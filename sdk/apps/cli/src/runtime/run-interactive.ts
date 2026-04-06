@@ -1,5 +1,5 @@
-import type { AgentEvent } from "@clinebot/agents";
 import {
+	type AgentEvent,
 	type LlmsProviders,
 	prewarmFileIndex,
 	SessionSource,

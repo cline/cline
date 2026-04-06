@@ -4,8 +4,6 @@ import type {
 	ConsecutiveMistakeLimitContext,
 	ConsecutiveMistakeLimitDecision,
 	HookErrorMode,
-	TeamEvent,
-	Tool,
 } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import type {
@@ -16,7 +14,9 @@ import type {
 	SessionExecutionConfig,
 	SessionPromptConfig,
 	SessionWorkspaceConfig,
+	Tool,
 } from "@clinebot/shared";
+import type { TeamEvent } from "../team";
 import type { ToolRoutingRule } from "../tools/model-tool-routing";
 
 export type CoreAgentMode = AgentMode;

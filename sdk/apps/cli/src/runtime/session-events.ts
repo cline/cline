@@ -1,6 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { AgentEvent, TeamEvent } from "@clinebot/agents";
-import type { CoreSessionEvent } from "@clinebot/core";
+import type { AgentEvent, CoreSessionEvent, TeamEvent } from "@clinebot/core";
 
 export const getUIEventEmitter = () =>
 	new EventEmitter() as InteractiveEventBridge;

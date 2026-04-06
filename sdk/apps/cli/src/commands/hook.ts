@@ -1,5 +1,5 @@
 import { createInterface } from "node:readline";
-import type { HookEventPayload, RunHookResult } from "@clinebot/agents";
+import type { HookEventPayload, RunHookResult } from "@clinebot/core";
 import {
 	appendHookAudit,
 	parseCliHookPayload,

@@ -5,12 +5,7 @@ import {
 	resolveApiKeyForProvider,
 } from "../runtime/auth";
 import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
-import type {
-	ApiStream,
-	HandlerModelInfo,
-	ModelInfo,
-	ProviderConfig,
-} from "../types";
+import type { ApiStream, HandlerModelInfo, ModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
@@ -238,10 +233,4 @@ export class OpenAICompatibleHandler extends BaseHandler {
 			}),
 		});
 	}
-}
-
-export function createOpenAICompatibleHandler(
-	config: ProviderConfig,
-): OpenAICompatibleHandler {
-	return new OpenAICompatibleHandler(config);
 }

@@ -1,25 +1,9 @@
 {
+	"extends": "../tsconfig.apps.json",
 	"compilerOptions": {
 		"target": "ES2022",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"paths": {
-			"@clinebot/agents": ["../../packages/agents/src/index.ts"],
-			"@clinebot/agents/node": ["../../packages/agents/src/index.node.ts"],
-			"@clinebot/agents/browser": [
-				"../../packages/agents/src/index.browser.ts"
-			],
-			"@clinebot/core": ["../../packages/core/src/index.ts"],
-			"@clinebot/core/telemetry": [
-				"../../packages/core/src/telemetry/index.ts"
-			],
-			"@clinebot/rpc": ["../../packages/rpc/src/index.ts"],
-			"@clinebot/shared": ["../../packages/shared/src/index.ts"],
-			"@clinebot/shared/storage": [
-				"../../packages/shared/src/storage/index.ts"
-			],
-			"@clinebot/shared/db": ["../../packages/shared/src/db/index.ts"]
-		},
 		"lib": ["ES2022"],
 		"strict": true,
 		"esModuleInterop": true,

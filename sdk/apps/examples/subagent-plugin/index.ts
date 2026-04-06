@@ -7,13 +7,9 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import {
-	type AgentConfig,
-	createTool,
-	type Tool,
-	type ToolContext,
-} from "@clinebot/agents";
+import type { AgentConfig, Tool, ToolContext } from "@clinebot/agents";
 import { ClineCore } from "@clinebot/core";
+import { createTool } from "@clinebot/shared";
 import {
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,

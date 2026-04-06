@@ -1,7 +1,6 @@
-import type { McpToolDescriptor } from "@clinebot/agents";
 import { describe, expect, it, vi } from "vitest";
 import { InMemoryMcpManager } from "./manager";
-import type { McpServerClient } from "./types";
+import type { McpServerClient, McpToolDescriptor } from "./types";
 
 function createClient(overrides?: Partial<McpServerClient>): McpServerClient {
 	return {

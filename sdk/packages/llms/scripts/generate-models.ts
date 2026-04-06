@@ -3,8 +3,7 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ModelInfo } from "../src/models/types/index";
-import { generateProviderLoaders } from "./generate-provider-loaders";
+import type { ModelInfo } from "../src/models/types";
 import { loadModelsDevProviderModels } from "./models/generate-models-dev";
 
 const OUTPUT_FILE = "src/models/generated.ts";
@@ -36,8 +35,6 @@ function normalizeValue(value: unknown): unknown {
 }
 
 async function generate(): Promise<void> {
-	await generateProviderLoaders();
-
 	const __filename = fileURLToPath(import.meta.url);
 	const __dirname = dirname(__filename);
 	const root = join(__dirname, "..");
@@ -79,7 +76,7 @@ async function generate(): Promise<void> {
  * - ./scripts/generate-models-dev.ts
  */
 
-import type { ModelInfo } from "./types/index"
+import type { ModelInfo } from "./types"
 
 export const GENERATED_PROVIDER_MODELS: {
   version: number

@@ -10,7 +10,6 @@
  * - SAP AI Core (`sapaicore`)
  */
 
-import type { ProviderConfig } from "../types";
 import type { EmitAiSdkStreamOptions } from "./ai-sdk-community";
 import { AiSdkProviderHandler } from "./ai-sdk-provider-base";
 
@@ -360,32 +359,4 @@ export class DifyHandler extends AiSdkProviderHandler {
 	protected getStreamErrorMessage(): string {
 		return "Dify stream failed";
 	}
-}
-
-export function createCodexHandler(config: ProviderConfig): CodexHandler {
-	return new CodexHandler(config);
-}
-
-export function createClaudeCodeHandler(
-	config: ProviderConfig,
-): ClaudeCodeHandler {
-	return new ClaudeCodeHandler(config);
-}
-
-export function createOpenCodeHandler(config: ProviderConfig): OpenCodeHandler {
-	return new OpenCodeHandler(config);
-}
-
-export function createSapAiCoreHandler(
-	config: ProviderConfig,
-): SapAiCoreHandler {
-	return new SapAiCoreHandler(config);
-}
-
-export function createMistralHandler(config: ProviderConfig): MistralHandler {
-	return new MistralHandler(config);
-}
-
-export function createDifyHandler(config: ProviderConfig): DifyHandler {
-	return new DifyHandler(config);
 }

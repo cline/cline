@@ -1,11 +1,5 @@
 import type { ApiStream } from "../types";
 
-export type {
-	AiSdkMessage,
-	AiSdkMessagePart,
-} from "../transform/ai-sdk-community-format";
-export { toAiSdkMessages } from "../transform/ai-sdk-community-format";
-
 type AiSdkStreamPart = {
 	type?: string;
 	[key: string]: unknown;

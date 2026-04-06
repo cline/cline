@@ -42,7 +42,6 @@
         "zod": "^4.1.11",
       },
       "devDependencies": {
-        "@clinebot/agents": "workspace:*",
         "@clinebot/core": "workspace:*",
         "@clinebot/rpc": "workspace:*",
         "@clinebot/shared": "workspace:*",

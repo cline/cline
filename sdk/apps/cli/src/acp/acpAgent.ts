@@ -21,8 +21,8 @@ import type {
 	StopReason,
 } from "@agentclientprotocol/sdk";
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk";
-import type { AgentEvent } from "@clinebot/agents";
 import {
+	type AgentEvent,
 	LlmsModels,
 	type LlmsProviders,
 	ProviderSettingsManager,

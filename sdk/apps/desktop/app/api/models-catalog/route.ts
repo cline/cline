@@ -66,6 +66,10 @@ function uniqueSorted(values: string[]): string[] {
 	return Array.from(new Set(values)).sort((a, b) => a.localeCompare(b));
 }
 
+function getCatalogModels(providerId: string): Record<string, unknown> {
+	return models.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId]?.models ?? {};
+}
+
 async function getLiveProviderModels(): Promise<
 	Record<string, Record<string, unknown>>
 > {
@@ -110,45 +114,45 @@ async function getLiveProviderModels(): Promise<
 export async function GET() {
 	const providerModels: Record<string, string[]> = {
 		cline: uniqueSorted([
-			...toModelIds(models.CLINE_MODELS),
+			...toModelIds(getCatalogModels("cline")),
 			...FALLBACK_PROVIDER_MODELS.cline,
 		]),
 		anthropic: uniqueSorted([
-			...toModelIds(models.ANTHROPIC_MODELS),
+			...toModelIds(getCatalogModels("anthropic")),
 			...FALLBACK_PROVIDER_MODELS.anthropic,
 		]),
 		openai: uniqueSorted([
-			...toModelIds(models.OPENAI_MODELS),
+			...toModelIds(getCatalogModels("openai-native")),
 			...FALLBACK_PROVIDER_MODELS.openai,
 		]),
 		openrouter: uniqueSorted([
-			...toModelIds(models.OPENROUTER_MODELS),
+			...toModelIds(getCatalogModels("openrouter")),
 			...FALLBACK_PROVIDER_MODELS.openrouter,
 		]),
 		gemini: uniqueSorted([
-			...toModelIds(models.GEMINI_MODELS),
+			...toModelIds(getCatalogModels("gemini")),
 			...FALLBACK_PROVIDER_MODELS.gemini,
 		]),
 	};
 	const providerReasoningModels: Record<string, string[]> = {
 		cline: uniqueSorted([
-			...toReasoningModelIds(models.CLINE_MODELS),
+			...toReasoningModelIds(getCatalogModels("cline")),
 			...FALLBACK_PROVIDER_REASONING_MODELS.cline,
 		]),
 		anthropic: uniqueSorted([
-			...toReasoningModelIds(models.ANTHROPIC_MODELS),
+			...toReasoningModelIds(getCatalogModels("anthropic")),
 			...FALLBACK_PROVIDER_REASONING_MODELS.anthropic,
 		]),
 		openai: uniqueSorted([
-			...toReasoningModelIds(models.OPENAI_MODELS),
+			...toReasoningModelIds(getCatalogModels("openai-native")),
 			...FALLBACK_PROVIDER_REASONING_MODELS.openai,
 		]),
 		openrouter: uniqueSorted([
-			...toReasoningModelIds(models.OPENROUTER_MODELS),
+			...toReasoningModelIds(getCatalogModels("openrouter")),
 			...FALLBACK_PROVIDER_REASONING_MODELS.openrouter,
 		]),
 		gemini: uniqueSorted([
-			...toReasoningModelIds(models.GEMINI_MODELS),
+			...toReasoningModelIds(getCatalogModels("gemini")),
 			...FALLBACK_PROVIDER_REASONING_MODELS.gemini,
 		]),
 	};

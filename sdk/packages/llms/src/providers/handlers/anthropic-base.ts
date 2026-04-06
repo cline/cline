@@ -21,7 +21,6 @@ import {
 import {
 	type ApiStream,
 	type HandlerModelInfo,
-	type ProviderConfig,
 	resolveRoutingProviderId,
 	supportsModelThinking,
 } from "../types";
@@ -382,13 +381,4 @@ export class AnthropicHandler extends BaseHandler {
 			}
 		}
 	}
-}
-
-/**
- * Create an Anthropic handler
- */
-export function createAnthropicHandler(
-	config: ProviderConfig,
-): AnthropicHandler {
-	return new AnthropicHandler(config);
 }

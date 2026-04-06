@@ -1,1 +1,46 @@
-export * from "./providers/public";
+export {
+	BUILT_IN_PROVIDERS,
+	createHandler,
+	createHandlerAsync,
+	isProviderSupported,
+} from "./providers/index";
+
+export {
+	OPENAI_COMPATIBLE_PROVIDERS,
+	type ProviderDefaults,
+	resolveProviderConfig,
+} from "./providers/runtime/provider-defaults";
+
+export {
+	type ApiHandler,
+	type ApiStreamChunk,
+	type ContentBlock,
+	type FileContent,
+	getModelPricing,
+	type HandlerFactory,
+	type HandlerModelInfo,
+	hasModelCapability,
+	type ImageContent,
+	type LazyHandlerFactory,
+	type Message,
+	type MessageRole,
+	type MessageWithMetadata,
+	type ModelCapability,
+	type ModelInfo,
+	type ModelPricing,
+	normalizeProviderId,
+	type ProviderCapability,
+	type ProviderConfig,
+	type ProviderId,
+	type ProviderSettings,
+	ProviderSettingsSchema,
+	parseSettings,
+	type RedactedThinkingContent,
+	supportsModelThinking,
+	type TextContent,
+	type ThinkingContent,
+	type ToolDefinition,
+	type ToolResultContent,
+	type ToolUseContent,
+	toProviderConfig,
+} from "./providers/types/index";

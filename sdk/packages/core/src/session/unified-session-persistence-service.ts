@@ -4,15 +4,12 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import type {
-	HookEventPayload,
-	SubAgentEndContext,
-	SubAgentStartContext,
-} from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms/providers";
 import { normalizeUserInput, resolveRootSessionId } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import type { HookEventPayload } from "../hooks";
+import type { SubAgentEndContext, SubAgentStartContext } from "../team";
 import { SessionSource, type SessionStatus } from "../types/common";
 import { nowIso, SessionArtifacts, unlinkIfExists } from "./session-artifacts";
 import {

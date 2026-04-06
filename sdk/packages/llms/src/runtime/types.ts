@@ -3,7 +3,7 @@ import type {
 	ProviderCapability as ModelProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
-} from "../models/types/index";
+} from "../models/types";
 import type {
 	ApiHandler,
 	BuiltInProviderId,

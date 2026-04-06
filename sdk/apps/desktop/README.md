@@ -28,7 +28,7 @@
 Desktop should use explicit runtime imports:
 
 - Frontend/browser modules: `@clinebot/llms/browser`
-- Node runtime modules (CLI/Tauri/scripts): `@clinebot/llms/node`, `@clinebot/agents/node`, `@clinebot/core/node`, `@clinebot/rpc`
+- Node runtime modules (CLI/Tauri/scripts): `@clinebot/llms/node`, `@clinebot/core/node`, `@clinebot/rpc`
 
 ## Scripts
 

@@ -1,4 +1,5 @@
-import type { AgentEvent, HookStage } from "../types";
+import type { HookStage } from "@clinebot/shared";
+import type { AgentEvent } from "../types";
 
 export interface LifecycleBusEvent<TPayload = unknown> {
 	stage: HookStage;

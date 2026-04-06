@@ -1,9 +1,9 @@
+import type { AgentConfig } from "@clinebot/agents";
 import type {
-	AgentConfig,
+	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
-} from "@clinebot/agents";
-import type { ITelemetryService } from "@clinebot/shared";
+} from "@clinebot/shared";
 import {
 	createSessionHost,
 	type SessionBackend,

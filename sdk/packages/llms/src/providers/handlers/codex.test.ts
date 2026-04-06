@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { OPENAI_CODEX_PROVIDER } from "../../models/catalog/providers/openai-codex";
+import { OPENAI_CODEX_PROVIDER } from "../../models";
 import { CodexHandler } from "./community-sdk";
 
 const streamTextSpy = vi.fn();

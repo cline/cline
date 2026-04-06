@@ -1,5 +1,5 @@
 import { basename } from "node:path";
-import type { AgentEvent, TeamEvent } from "@clinebot/agents";
+import type { AgentEvent, TeamEvent } from "@clinebot/core";
 import { Box, Text, useInput } from "ink";
 import React, {
 	useCallback,

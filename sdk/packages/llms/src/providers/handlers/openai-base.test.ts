@@ -1,7 +1,17 @@
+import { zodToJsonSchema } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TeamTaskInputSchema } from "../../../../agents/src/teams/schema";
-import { zodToJsonSchema } from "../../../../shared/src/parse/zod";
+import { z } from "zod";
 import type { ApiStreamChunk } from "../types/stream";
+
+const TeamTaskInputSchema = z.object({
+	task: z.string(),
+	details: z
+		.object({
+			priority: z.enum(["low", "high"]).optional(),
+			notes: z.string().optional(),
+		})
+		.optional(),
+});
 
 const chatCompletionsCreateSpy = vi.fn();
 

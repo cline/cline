@@ -25,7 +25,6 @@ import type {
 	HandlerModelInfo,
 	ModelCapability,
 	ModelInfo,
-	ProviderConfig,
 } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type {
@@ -633,13 +632,4 @@ export class OpenAIResponsesHandler extends BaseHandler {
 
 		return undefined;
 	}
-}
-
-/**
- * Create an OpenAI Responses API handler
- */
-export function createOpenAIResponsesHandler(
-	config: ProviderConfig,
-): OpenAIResponsesHandler {
-	return new OpenAIResponsesHandler(config);
 }

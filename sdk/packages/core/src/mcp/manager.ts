@@ -1,15 +1,13 @@
 import type {
-	McpToolCallRequest,
-	McpToolCallResult,
-	McpToolDescriptor,
-} from "@clinebot/agents";
-import type {
 	McpConnectionStatus,
 	McpManager,
 	McpManagerOptions,
 	McpServerClient,
 	McpServerRegistration,
 	McpServerSnapshot,
+	McpToolCallRequest,
+	McpToolCallResult,
+	McpToolDescriptor,
 } from "./types";
 
 const DEFAULT_TOOLS_CACHE_TTL_MS = 5000;

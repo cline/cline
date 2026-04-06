@@ -101,7 +101,7 @@ export type {
 // Convenience: Create Tools with Built-in Executors
 // =============================================================================
 
-import type { Tool } from "@clinebot/agents";
+import type { Tool } from "@clinebot/shared";
 import { createDefaultTools } from "./definitions";
 import {
 	createDefaultExecutors,

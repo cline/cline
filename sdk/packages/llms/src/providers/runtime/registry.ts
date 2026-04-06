@@ -94,16 +94,6 @@ export function registerAsyncHandler(
 }
 
 /**
- * Unregister a custom handler
- *
- * @param providerId - The provider ID to unregister
- * @returns true if a handler was removed, false if none existed
- */
-export function unregisterHandler(providerId: string): boolean {
-	return customHandlerRegistry.delete(providerId);
-}
-
-/**
  * Check if a custom handler is registered for a provider ID
  *
  * @param providerId - The provider ID to check
@@ -168,18 +158,4 @@ export async function getRegisteredHandlerAsync(
 export function isRegisteredHandlerAsync(providerId: string): boolean {
 	const entry = customHandlerRegistry.get(providerId);
 	return entry?.isAsync ?? false;
-}
-
-/**
- * Get all registered provider IDs
- */
-export function getRegisteredProviderIds(): string[] {
-	return Array.from(customHandlerRegistry.keys());
-}
-
-/**
- * Clear all registered handlers (mainly for testing)
- */
-export function clearRegistry(): void {
-	customHandlerRegistry.clear();
 }

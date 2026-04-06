@@ -15,7 +15,6 @@ import {
 	type ApiStream,
 	type HandlerModelInfo,
 	hasModelCapability,
-	type ProviderConfig,
 } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
@@ -293,11 +292,4 @@ export class VertexHandler extends BaseHandler {
 			},
 		});
 	}
-}
-
-/**
- * Create a Vertex handler
- */
-export function createVertexHandler(config: ProviderConfig): VertexHandler {
-	return new VertexHandler(config);
 }
