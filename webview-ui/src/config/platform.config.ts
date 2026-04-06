@@ -54,6 +54,14 @@ declare global {
 // Initialize the vscode API if available
 const vsCodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : null
 
+// Expose vscode API on window for debug harness access.
+// This allows web.evaluate and web.post_message to communicate with the
+// extension host without needing to call acquireVsCodeApi() again (which
+// throws because it can only be called once).
+if (vsCodeApi) {
+	;(window as any).__clineVsCodeApi = vsCodeApi
+}
+
 // Implementations for post message handling
 const postMessageStrategies: Record<string, PostMessageFunction> = {
 	vscode: (message: any) => {

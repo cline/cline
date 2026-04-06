@@ -76,7 +76,11 @@ Each with a dismiss (X) button per-card.
 ### Model Selector
 Bottom bar correctly shows `cline:anthropic/claud...` (truncated) with Plan/Act toggle. Act mode is the default.
 
-### Debug Harness Limitations
-- Programmatic textarea input (via `nativeInputValueSetter` or Playwright `fill`/`type`) doesn't reliably trigger React state updates in the webview iframe after the first task. This is a **testing limitation** of the debug harness, not a product bug. The first task works because the React component is in its initial mount state; subsequent attempts may fail because React reconciliation doesn't detect the programmatic changes.
-- The `web.evaluate` context can't access the VS Code API (`acquireVsCodeApi` already called).
-- The `ui.locator` Playwright actions don't reliably target elements inside the webview iframe even with `frame: "sidebar"`.
+### Debug Harness Limitations (Fixed)
+All three limitations below have been addressed:
+
+- ~~Programmatic textarea input doesn't reliably trigger React state updates after the first task.~~ **Fixed**: Two new commands added:
+  - `ui.react_input` — Uses `document.execCommand('insertText')` which fires real InputEvents that React's onChange handler processes correctly, even after multiple tasks.
+  - `ui.send_message` — Bypasses the textarea entirely by sending gRPC requests via `postMessage` directly to the extension host.
+- ~~The `web.evaluate` context can't access the VS Code API.~~ **Fixed**: The webview now exposes the VS Code API as `window.__clineVsCodeApi`, and a new `web.post_message` command lets the harness send arbitrary messages to the extension host through it.
+- ~~The `ui.locator` Playwright actions don't reliably target elements inside the webview iframe.~~ **Fixed**: `findSidebar()` now validates cached frame references (checking for both detached and stale frames), `getTarget()` accepts a `forceRefresh` flag, and `ui.locator` automatically retries with frame re-discovery when targeting sidebar elements.
