@@ -791,6 +791,379 @@ Special caution:
 
 ---
 
+## Prioritized next ten lowest-hanging migration chunks
+
+This section ranks the **simplest remaining migration chunks** that still materially advance the removal plan.
+
+These are ordered to optimize for:
+
+1. visible product improvement,
+2. low cross-cutting risk,
+3. small reviewable commits,
+4. usefulness to the teammate continuing the migration.
+
+The intended workflow is:
+
+- pick the next highest-ranked chunk that is not blocked,
+- implement only that chunk,
+- verify it thoroughly,
+- commit and push it,
+- then reassess before starting the next one.
+
+### Ranked backlog summary
+
+| Rank | Migration chunk | Why it is low-hanging | Main files | Expected result | Verification class |
+|---|---|---|---|---|---|
+| 1 | Render task-progress checklist even when legacy Focus Chain is off | UI-only read-path change, no schema migration required | `webview-ui/src/components/chat/ChatView.tsx` | Checklist appears whenever actual checklist content exists | Medium |
+| 2 | Render task header checklist based on checklist content rather than legacy toggle | Small UI condition cleanup adjacent to rank 1 | `webview-ui/src/components/chat/task-header/TaskHeader.tsx` | Task header shows checklist independent of legacy toggle | Medium |
+| 3 | Rename `FocusChain` task-header component to generic checklist naming | Mechanical component rename after behavior is decoupled | `webview-ui/src/components/chat/task-header/FocusChain.tsx`, `TaskHeader.tsx`, stories/tests | UI terminology matches product direction | Low |
+| 4 | Rename shared Focus Chain checklist parsing helpers to generic checklist/task-progress helpers | Mechanical shared-utility rename with limited import fan-out | `src/shared/focus-chain-utils.ts`, checklist renderer/task-header imports | Shared utility names match generic checklist behavior | Low |
+| 5 | Always update in-memory checklist state when `task_progress` is present | Small runtime behavior change with clear call sites | `src/core/task/ToolExecutor.ts`, `src/core/task/tools/handlers/AttemptCompletionHandler.ts` | Checklist state updates no longer depend on legacy Focus Chain enablement | Medium |
+| 6 | Remove `FocusChainManager` from task bootstrap path | Existing manager is already a stub; wiring can be simplified after rank 5 | `src/core/task/index.ts`, `src/core/task/focus-chain/index.ts` | Task startup no longer instantiates/stores FocusChain-specific manager state | Medium |
+| 7 | Hide legacy Focus Chain setting from active settings UI | Product-surface cleanup once UI/runtime no longer depend on the toggle | `webview-ui/src/components/settings/sections/FeatureSettingsSection.tsx`, related tests | Users no longer see Focus Chain as an active feature toggle | Medium |
+| 8 | Stop honoring Focus Chain setting writes in state update handlers | Small controller cleanup once setting is hidden | `src/core/controller/state/updateSettings.ts`, `updateSettingsCli.ts` | Legacy setting becomes compatibility-only rather than active control flow | Medium |
+| 9 | Remove unused legacy prompt-family files or strip their Focus Chain-gated task_progress text | Static evidence suggests these files may be unreferenced; needs one more reference audit | `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`, `src/core/prompts/system-prompt-legacy/families/local-models/compact-system-prompt.ts` | Legacy prompt surface no longer carries stale Focus Chain gating | Investigate first / Medium |
+| 10 | Retire `/reportbug` compatibility plumbing end-to-end | Product surfaces are already gone, remaining code surface is relatively contained | `src/core/controller/slash/reportBug.ts`, `src/sdk/grpc-handler.ts`, `src/shared/WebviewMessages.ts`, `src/shared/tools.ts`, feedback/report-bug handlers/tests | Removed slash command is gone from runtime compatibility plumbing | Medium |
+
+### 1. Render task-progress checklist even when legacy Focus Chain is off
+
+**Why this is first:** This is the smallest user-visible runtime migration chunk. It changes only the webview read path and avoids persistence or protocol churn.
+
+**Goal:** Show checklist content whenever actual task-progress data exists, even if `focusChainSettings.enabled` is false.
+
+**In scope:**
+
+- `webview-ui/src/components/chat/ChatView.tsx`
+
+**Out of scope:**
+
+- renaming state fields,
+- removing the Focus Chain setting,
+- changing task runtime write paths.
+
+**Implementation checklist**
+
+- [ ] Identify the memoized calculation of `lastProgressMessageText`
+- [ ] Remove the early return that short-circuits checklist display when `focusChainSettings.enabled` is false
+- [ ] Preserve the current precedence order: `currentFocusChainChecklist` first, latest progress-bearing message second
+- [ ] Ensure the fallback path still returns `undefined` when no checklist content exists
+- [ ] Avoid changing any unrelated message grouping or rendering behavior
+
+**Verification checklist**
+
+- [ ] Run focused webview Biome/type checks on `ChatView.tsx`
+- [ ] Verify the checklist still appears when Focus Chain is enabled
+- [ ] Verify the checklist now also appears when Focus Chain is disabled but `task_progress` content exists
+- [ ] Verify no checklist appears when there is no checklist content at all
+- [ ] Capture a debug-harness screenshot for the teammate if the UI is touched significantly
+
+**Suggested commit boundary:** `Render task progress checklist without focus chain gating`
+
+### 2. Render task header checklist based on checklist content rather than legacy toggle
+
+**Why this is second:** It completes the UI read-path decoupling started in rank 1 with another small, reviewable conditional change.
+
+**Goal:** Make the task header render the checklist because content exists, not because the legacy feature flag is enabled.
+
+**In scope:**
+
+- `webview-ui/src/components/chat/task-header/TaskHeader.tsx`
+- any directly adjacent task-header prop plumbing needed for the render condition
+
+**Out of scope:**
+
+- component renaming,
+- checklist parsing changes,
+- settings or persistence updates.
+
+**Implementation checklist**
+
+- [ ] Inspect the existing `focusChainSettings.enabled` guard around `<FocusChain />`
+- [ ] Replace the render condition with content-based logic (`lastProgressMessageText` and/or placeholder policy)
+- [ ] Keep the checkpoint error and other header sections unchanged
+- [ ] Confirm that the task header still collapses/expands normally
+
+**Verification checklist**
+
+- [ ] Run focused webview Biome/type checks on `TaskHeader.tsx`
+- [ ] Verify checklist appears in the header when content exists and Focus Chain is disabled
+- [ ] Verify no blank checklist card renders when there is no checklist content
+- [ ] Verify checkpoint error rendering is unaffected
+
+**Suggested commit boundary:** `Render task header checklist based on task progress content`
+
+### 3. Rename `FocusChain` task-header component to generic checklist naming
+
+**Why this is third:** Once behavior is decoupled from the legacy flag, the remaining component name mismatch becomes a mechanical cleanup.
+
+**Goal:** Rename the visible task-header checklist component to match generic task-progress terminology.
+
+**In scope:**
+
+- `webview-ui/src/components/chat/task-header/FocusChain.tsx`
+- `webview-ui/src/components/chat/task-header/TaskHeader.tsx`
+- `webview-ui/src/components/chat/task-header/TaskHeader.stories.tsx`
+
+**Out of scope:**
+
+- shared state field renames,
+- utility renames outside the task header,
+- settings/runtime changes.
+
+**Implementation checklist**
+
+- [ ] Rename the component file to a neutral name such as `TaskProgressChecklist.tsx`
+- [ ] Rename the exported component and props to generic checklist/task-progress terminology
+- [ ] Update all task-header imports and story references
+- [ ] Adjust story descriptions so they no longer call the component “FocusChain”
+- [ ] Keep rendered markup and behavior identical
+
+**Verification checklist**
+
+- [ ] Run focused webview Biome/type checks on the renamed files
+- [ ] Verify Storybook/task-header stories still compile if applicable
+- [ ] Search for remaining task-header imports of `FocusChain`
+
+**Suggested commit boundary:** `Rename task header focus chain component`
+
+### 4. Rename shared Focus Chain checklist parsing helpers to generic checklist/task-progress helpers
+
+**Why this is fourth:** The shared parsing helpers are already effectively generic, so this is a low-risk name-alignment slice.
+
+**Goal:** Rename shared checklist helpers so they no longer imply a removed product feature.
+
+**In scope:**
+
+- `src/shared/focus-chain-utils.ts`
+- imports in task-header/checklist-rendering components
+
+**Out of scope:**
+
+- changing the parsing regex behavior,
+- touching runtime state fields,
+- removing compatibility exports unless all call sites are updated safely.
+
+**Implementation checklist**
+
+- [ ] Choose a neutral helper name/module path, e.g. `task-progress-utils.ts` or `checklist-utils.ts`
+- [ ] Rename exported helpers to generic names where helpful
+- [ ] Update all imports in webview/shared consumers
+- [ ] Keep behavior byte-for-byte equivalent where possible
+- [ ] Optionally preserve temporary re-exports only if needed for a staged rollout
+
+**Verification checklist**
+
+- [ ] Run focused Biome/type checks on renamed shared/webview files
+- [ ] Search for remaining imports from `focus-chain-utils`
+- [ ] Verify checklist parsing/rendering still matches current behavior
+
+**Suggested commit boundary:** `Rename shared checklist parsing helpers`
+
+### 5. Always update in-memory checklist state when `task_progress` is present
+
+**Why this is fifth:** This is the smallest backend/runtime behavior change that makes generic task-progress state real instead of UI-inferred only.
+
+**Goal:** Update task-progress state whenever a tool returns `task_progress`, regardless of `focusChainSettings.enabled`.
+
+**In scope:**
+
+- `src/core/task/ToolExecutor.ts`
+- `src/core/task/tools/handlers/AttemptCompletionHandler.ts`
+
+**Out of scope:**
+
+- persisted field renames,
+- Task bootstrapping changes,
+- settings removal.
+
+**Implementation checklist**
+
+- [ ] Find every `config.focusChainSettings.enabled` guard around `updateFCListFromToolResponse`
+- [ ] Remove the guard so updates run whenever `task_progress` is present and the block is final/non-partial
+- [ ] Keep existing partial-stream safeguards intact
+- [ ] Confirm attempt-completion still updates before the user sees the final result where intended
+- [ ] Add/update focused tests if the handler path already has unit coverage
+
+**Verification checklist**
+
+- [ ] Run focused unit tests for tool handler/update paths
+- [ ] Run focused Biome/type checks on touched runtime files
+- [ ] Verify that tasks with `task_progress` update checklist state even when Focus Chain is disabled
+
+**Suggested commit boundary:** `Update task progress state without focus chain gating`
+
+### 6. Remove `FocusChainManager` from task bootstrap path
+
+**Why this is sixth:** The manager is already a stub, so once rank 5 lands we can simplify the remaining bootstrap/callback wiring.
+
+**Goal:** Stop constructing and threading a FocusChain-specific manager through task startup.
+
+**In scope:**
+
+- `src/core/task/index.ts`
+- `src/core/task/focus-chain/index.ts`
+
+**Out of scope:**
+
+- state field renames,
+- UI renames,
+- setting removal.
+
+**Implementation checklist**
+
+- [ ] Identify where `FocusChainManager` is instantiated and stored on `Task`
+- [ ] Replace the manager callback plumbing with a generic task-progress updater or direct no-op where appropriate
+- [ ] Remove dead setup/dispose/checkIncompleteProgress scaffolding if nothing still calls it meaningfully
+- [ ] Keep task startup ordering, checkpoint startup, and hook initialization unchanged
+- [ ] Decide whether the stub file should remain as a compatibility shim or be deleted in the same slice
+
+**Verification checklist**
+
+- [ ] Run focused task/runtime unit tests if present
+- [ ] Run focused Biome/type checks on `Task` and adjacent files
+- [ ] Verify task startup still works and no runtime accesses expect `this.FocusChainManager`
+
+**Suggested commit boundary:** `Remove focus chain manager bootstrap wiring`
+
+### 7. Hide legacy Focus Chain setting from active settings UI
+
+**Why this is seventh:** After the UI and runtime stop depending on the toggle, hiding it becomes a straightforward product-surface cleanup.
+
+**Goal:** Remove the legacy setting from active user-facing settings UI while preserving compatibility in stored state.
+
+**In scope:**
+
+- `webview-ui/src/components/settings/sections/FeatureSettingsSection.tsx`
+- `webview-ui/src/components/settings/sections/FeatureSettingsSection.spec.tsx`
+
+**Out of scope:**
+
+- removing the stored key,
+- controller-side write handling,
+- telemetry or migrations.
+
+**Implementation checklist**
+
+- [ ] Remove or hide the feature card/toggle for Focus Chain from the settings UI
+- [ ] Remove the interval slider tied to the toggle if it becomes unreachable
+- [ ] Update tests/specs to match the new UI
+- [ ] Ensure other feature settings still render in stable order
+
+**Verification checklist**
+
+- [ ] Run focused webview/spec checks for the feature settings section
+- [ ] Verify the setting no longer appears in the UI
+- [ ] Verify no console/runtime errors occur from missing rendered controls
+
+**Suggested commit boundary:** `Hide legacy focus chain setting from settings UI`
+
+### 8. Stop honoring Focus Chain setting writes in state update handlers
+
+**Why this is eighth:** Once the UI no longer exposes the setting, controller-side write handling can be downgraded to compatibility mode.
+
+**Goal:** Make incoming Focus Chain setting writes no longer alter active behavior or emit fresh product telemetry.
+
+**In scope:**
+
+- `src/core/controller/state/updateSettings.ts`
+- `src/core/controller/state/updateSettingsCli.ts`
+
+**Out of scope:**
+
+- deleting the persisted key,
+- historical migration logic,
+- ExtensionState schema removal.
+
+**Implementation checklist**
+
+- [ ] Decide whether incoming `focusChainSettings` should be ignored, normalized, or retained without behavioral effect
+- [ ] Remove active-behavior branching/telemetry emission tied solely to the legacy toggle
+- [ ] Keep backward compatibility for old persisted state reads if still needed
+- [ ] Add comments clarifying that the key is compatibility-only until final schema cleanup
+
+**Verification checklist**
+
+- [ ] Run focused controller/state tests or add targeted coverage if missing
+- [ ] Run focused Biome/type checks on the two handler files
+- [ ] Verify no user-facing behavior changes when old state includes `focusChainSettings`
+
+**Suggested commit boundary:** `Downgrade focus chain setting writes to compatibility mode`
+
+### 9. Remove unused legacy prompt-family files or strip their Focus Chain-gated task_progress text
+
+**Why this is ninth:** Static search currently suggests these legacy prompt-family files may be unreferenced, but that needs one deliberate proof step before deletion.
+
+**Goal:** Either delete unreferenced legacy prompt files or, if they are still reachable, remove their stale Focus Chain gating in one focused slice.
+
+**In scope:**
+
+- `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`
+- `src/core/prompts/system-prompt-legacy/families/local-models/compact-system-prompt.ts`
+
+**Out of scope:**
+
+- current prompt registry/runtime prompt generation,
+- generic prompt component rewrites outside these files.
+
+**Implementation checklist**
+
+- [ ] Prove whether each file is reachable through imports, registry wiring, or dynamic loading
+- [ ] If unreachable, delete the files and any dead exports/comments associated with them
+- [ ] If reachable, remove stale `focusChainSettings.enabled` gating around generic `task_progress` guidance
+- [ ] Add or update focused tests only if these files are still in active use
+
+**Verification checklist**
+
+- [ ] Search for remaining references/imports after the change
+- [ ] Run focused prompt tests or registry tests if these files remain live
+- [ ] Ensure no build/test path expects deleted exports
+
+**Suggested commit boundary:** `Retire unused legacy prompt families` or `Decouple legacy prompt families from focus chain gating`
+
+### 10. Retire `/reportbug` compatibility plumbing end-to-end
+
+**Why this is tenth:** User-facing surfaces are already gone, and the remaining runtime surface is relatively contained compared with workflows or checkpoints.
+
+**Goal:** Remove the remaining compat plumbing for `/reportbug` after confirming no active product surface depends on it.
+
+**In scope:**
+
+- `src/core/controller/slash/reportBug.ts`
+- `src/sdk/grpc-handler.ts`
+- `src/shared/WebviewMessages.ts`
+- `src/shared/tools.ts`
+- report-bug tool handler/tests and any compatibility-only ask mapping
+
+**Out of scope:**
+
+- generic user feedback collection,
+- GitHub issue guidance in prompt/help text unless directly required.
+
+**Implementation checklist**
+
+- [ ] Inventory the remaining runtime call path from slash-command/tool schema to handler execution
+- [ ] Confirm there is no active UI or docs surface that can still trigger `/reportbug`
+- [ ] Remove the controller/tool/compat wiring in one slice
+- [ ] Update or delete tests that still encode report-bug runtime behavior
+- [ ] Preserve generic feedback/help behavior that is not specific to `/reportbug`
+
+**Verification checklist**
+
+- [ ] Search for remaining `reportBug` / `report_bug` references after the slice
+- [ ] Run focused slash-command / prompt / handler tests
+- [ ] Verify removed command no longer appears and no dead runtime path remains
+
+**Suggested commit boundary:** `Remove reportbug compatibility plumbing`
+
+### How to use this ranked list
+
+- Start with ranks **1–2** as the next teammate-facing migration chunk if the goal is maximum progress with minimum risk.
+- Treat ranks **3–6** as the next staircase once checklist rendering and updates are decoupled.
+- Treat ranks **7–8** as cleanup that becomes safe only after the runtime no longer depends on the legacy setting.
+- Treat ranks **9–10** as opportunistic follow-ons that should be revalidated immediately before implementation.
+
+---
+
 ## Detailed step-by-step execution template for each cleanup slice
 
 Use the following sequence for every slice.
