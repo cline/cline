@@ -21,6 +21,8 @@ export interface ContextPipelinePrepareTurnInput {
 	parentAgentId: string | null;
 	iteration: number;
 	messages: CoreCompactionContext["messages"];
+	apiMessages: CoreCompactionContext["messages"];
+	abortSignal: AbortSignal;
 	systemPrompt: string;
 	tools: unknown[];
 	model: CoreCompactionContext["model"];
@@ -133,7 +135,7 @@ export function createContextCompactionPrepareTurn(
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 
 	return async (context) => {
-		const inputTokens = context.messages.reduce(
+		const inputTokens = context.apiMessages.reduce(
 			(total: number, message) => total + estimateMessageTokens(message),
 			0,
 		);
@@ -189,7 +191,10 @@ export function createContextCompactionPrepareTurn(
 
 		return await runBuiltinStrategy({
 			context: compactionContext,
-			providerConfig,
+			providerConfig: {
+				...providerConfig,
+				abortSignal: context.abortSignal,
+			},
 			compaction: userCompaction,
 			estimateMessageTokens,
 			logger: config.logger,

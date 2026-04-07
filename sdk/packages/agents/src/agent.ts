@@ -608,22 +608,61 @@ export class Agent {
 					);
 				}
 				const model = this.handler.getModel();
-				const preparedTurn = await this.config.prepareTurn?.({
-					agentId: this.agentId,
-					conversationId: this.conversationStore.getConversationId(),
-					parentAgentId: this.parentAgentId,
-					iteration,
-					messages: this.conversationStore.getMessages(),
-					systemPrompt: turnSystemPrompt,
-					tools: this.config.tools,
-					model: {
-						id: model.id,
-						provider: this.config.providerId,
-						info: model.info,
-					},
-					emitStatusNotice: (message, metadata) =>
-						this.emitStatusNotice(message, metadata),
-				});
+				const apiTimeoutSignal = createApiTimeoutSignal(
+					this.config.apiTimeoutMs,
+				);
+				observeAbortSignal(apiTimeoutSignal, "api_timeout", runId, signalCtx);
+				const turnAbortSignal = mergeAbortSignals(
+					abortSignal,
+					apiTimeoutSignal,
+				);
+				const apiMessages = this.messageBuilder.buildForApi(
+					this.conversationStore.getMessages(),
+				);
+				let preparedTurn:
+					| Awaited<ReturnType<NonNullable<AgentConfig["prepareTurn"]>>>
+					| undefined;
+				try {
+					preparedTurn = await this.config.prepareTurn?.({
+						agentId: this.agentId,
+						conversationId: this.conversationStore.getConversationId(),
+						parentAgentId: this.parentAgentId,
+						iteration,
+						messages: this.conversationStore.getMessages(),
+						apiMessages,
+						abortSignal: turnAbortSignal,
+						systemPrompt: turnSystemPrompt,
+						tools: this.config.tools,
+						model: {
+							id: model.id,
+							provider: this.config.providerId,
+							info: model.info,
+						},
+						emitStatusNotice: (message, metadata) =>
+							this.emitStatusNotice(message, metadata),
+					});
+				} catch (error) {
+					const outcome = await this.handleApiRuntimeError(
+						error,
+						iteration,
+						abortSignal,
+						apiTimeoutSignal,
+						mistakeDeps,
+						() => consecutiveMistakes,
+						(value) => {
+							consecutiveMistakes = value;
+						},
+					);
+					if (outcome === "aborted") {
+						finishReason = "aborted";
+						break;
+					}
+					if (outcome === "continue") {
+						continue;
+					}
+					finishReason = "mistake_limit";
+					break;
+				}
 				if (preparedTurn?.messages) {
 					this.conversationStore.replaceMessages(preparedTurn.messages);
 				}
@@ -638,14 +677,6 @@ export class Agent {
 							ReturnType<TurnProcessor["processTurn"]>
 					  >["assistantMessage"]
 					| undefined;
-				const apiTimeoutSignal = createApiTimeoutSignal(
-					this.config.apiTimeoutMs,
-				);
-				observeAbortSignal(apiTimeoutSignal, "api_timeout", runId, signalCtx);
-				const turnAbortSignal = mergeAbortSignals(
-					abortSignal,
-					apiTimeoutSignal,
-				);
 				(
 					this.handler as LlmsProviders.ApiHandler & {
 						setAbortSignal?: (signal: AbortSignal | undefined) => void;
@@ -659,64 +690,24 @@ export class Agent {
 						turnAbortSignal,
 					));
 				} catch (error) {
-					if (abortSignal.aborted) {
+					const outcome = await this.handleApiRuntimeError(
+						error,
+						iteration,
+						abortSignal,
+						apiTimeoutSignal,
+						mistakeDeps,
+						() => consecutiveMistakes,
+						(value) => {
+							consecutiveMistakes = value;
+						},
+					);
+					if (outcome === "aborted") {
 						finishReason = "aborted";
 						break;
 					}
-					const errorObj =
-						apiTimeoutSignal?.aborted === true
-							? new Error(
-									`API request timed out after ${this.config.apiTimeoutMs}ms`,
-								)
-							: error instanceof Error
-								? error
-								: new Error(String(error));
-					const message = errorObj.message;
-					if (isNonRecoverableApiError(errorObj)) {
-						await this.lifecycle.dispatch("hook.stop_error", {
-							stage: "stop_error",
-							iteration,
-							payload: {
-								agentId: this.agentId,
-								conversationId: this.conversationStore.getConversationId(),
-								parentAgentId: this.parentAgentId,
-								iteration,
-								error: errorObj,
-							},
-						});
-						throw errorObj;
-					}
-					this.appendRecoveryNotice(
-						`The previous turn failed with an API/runtime error: ${message}. Retry and continue from the latest state.`,
-						"api_error",
-					);
-					const mistakeOutcome = await recordMistake(
-						{
-							iteration,
-							reason: "api_error",
-							details: message,
-							consecutiveMistakes: () => consecutiveMistakes,
-							setConsecutiveMistakes: (value: number) => {
-								consecutiveMistakes = value;
-							},
-						},
-						mistakeDeps,
-					);
-					if (mistakeOutcome.action === "continue") {
+					if (outcome === "continue") {
 						continue;
 					}
-					this.appendStopNotice(mistakeOutcome.message);
-					await this.lifecycle.dispatch("hook.stop_error", {
-						stage: "stop_error",
-						iteration,
-						payload: {
-							agentId: this.agentId,
-							conversationId: this.conversationStore.getConversationId(),
-							parentAgentId: this.parentAgentId,
-							iteration,
-							error: errorObj,
-						},
-					});
 					finishReason = "mistake_limit";
 					break;
 				}
@@ -1189,6 +1180,86 @@ export class Agent {
 			recoverable: this.config.hookErrorMode !== "throw",
 			iteration: 0,
 		});
+	}
+
+	private normalizeApiRuntimeError(
+		error: unknown,
+		apiTimeoutSignal?: AbortSignal,
+	): Error {
+		if (
+			apiTimeoutSignal?.aborted === true ||
+			(error instanceof Error && error.name === "TimeoutError") ||
+			(typeof DOMException !== "undefined" &&
+				error instanceof DOMException &&
+				error.name === "TimeoutError")
+		) {
+			return new Error(
+				`API request timed out after ${this.config.apiTimeoutMs}ms`,
+			);
+		}
+		return error instanceof Error ? error : new Error(String(error));
+	}
+
+	private async handleApiRuntimeError(
+		error: unknown,
+		iteration: number,
+		abortSignal: AbortSignal,
+		apiTimeoutSignal: AbortSignal | undefined,
+		mistakeDeps: MistakeTrackingDeps,
+		getConsecutiveMistakes: () => number,
+		setConsecutiveMistakes: (value: number) => void,
+	): Promise<"continue" | "stop" | "aborted"> {
+		if (abortSignal.aborted) {
+			return "aborted";
+		}
+
+		const errorObj = this.normalizeApiRuntimeError(error, apiTimeoutSignal);
+		const message = errorObj.message;
+		if (isNonRecoverableApiError(errorObj)) {
+			await this.lifecycle.dispatch("hook.stop_error", {
+				stage: "stop_error",
+				iteration,
+				payload: {
+					agentId: this.agentId,
+					conversationId: this.conversationStore.getConversationId(),
+					parentAgentId: this.parentAgentId,
+					iteration,
+					error: errorObj,
+				},
+			});
+			throw errorObj;
+		}
+
+		this.appendRecoveryNotice(
+			`The previous turn failed with an API/runtime error: ${message}. Retry and continue from the latest state.`,
+			"api_error",
+		);
+		const mistakeOutcome = await recordMistake(
+			{
+				iteration,
+				reason: "api_error",
+				details: message,
+				consecutiveMistakes: getConsecutiveMistakes,
+				setConsecutiveMistakes,
+			},
+			mistakeDeps,
+		);
+		if (mistakeOutcome.action === "continue") {
+			return "continue";
+		}
+		this.appendStopNotice(mistakeOutcome.message);
+		await this.lifecycle.dispatch("hook.stop_error", {
+			stage: "stop_error",
+			iteration,
+			payload: {
+				agentId: this.agentId,
+				conversationId: this.conversationStore.getConversationId(),
+				parentAgentId: this.parentAgentId,
+				iteration,
+				error: errorObj,
+			},
+		});
+		return "stop";
 	}
 
 	private resolveToolPolicy(toolName: string): ToolPolicy {

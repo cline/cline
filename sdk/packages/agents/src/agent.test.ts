@@ -777,6 +777,49 @@ describe("Agent", () => {
 		expect(handler.setAbortSignal).toHaveBeenCalled();
 	});
 
+	it("handles prepareTurn timeout failures as recoverable runtime errors", async () => {
+		const { Agent } = await import("./agent.js");
+		const handler = makeHandler([]);
+		handler.getModel = vi.fn(() => ({
+			id: "mock-model",
+			info: {},
+		}));
+		createHandlerMock.mockReturnValue(handler);
+
+		const prepareTurn = vi.fn(
+			async ({ abortSignal }: { abortSignal: AbortSignal }) => {
+				await new Promise<void>((resolve) => {
+					if (abortSignal.aborted) {
+						resolve();
+						return;
+					}
+					abortSignal.addEventListener("abort", () => resolve(), {
+						once: true,
+					});
+				});
+				throw abortSignal.reason;
+			},
+		);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "Handle stalled prepareTurn",
+			tools: [],
+			prepareTurn: prepareTurn as never,
+			apiTimeoutMs: 10,
+			execution: { maxConsecutiveMistakes: 1 },
+		});
+
+		const result = await agent.run("retry");
+
+		expect(result.finishReason).toBe("mistake_limit");
+		expect(prepareTurn).toHaveBeenCalled();
+		expect(JSON.stringify(result.messages)).toContain(
+			"API request timed out after 10ms",
+		);
+	});
+
 	it("executes tool calls and applies tool policy approval", async () => {
 		const { Agent } = await import("./agent.js");
 		const mathTool: Tool<{ a: number; b: number }, { total: number }> =

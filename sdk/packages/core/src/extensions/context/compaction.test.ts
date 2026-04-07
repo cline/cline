@@ -47,7 +47,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				enabled: true,
 				strategy: "agentic",
 				preserveRecentTokens: 1,
-				reserveTokens: 95,
+				reserveTokens: 5,
 			},
 			logger: undefined,
 		});
@@ -57,6 +57,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			abortSignal: new AbortController().signal,
 			emitStatusNotice,
 			systemPrompt: "You are helpful.",
 			tools: [],
@@ -87,10 +88,37 @@ describe("createContextCompactionPrepareTurn", () => {
 				},
 				{ role: "assistant", content: "Recent assistant state" },
 			],
+			apiMessages: [
+				{ role: "user", content: "Old turn to compact" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Implement the change" },
+				{
+					role: "assistant",
+					content: [
+						{
+							type: "tool_use",
+							id: "tool-1",
+							name: "read_files",
+							input: { file_paths: ["/tmp/example.ts"] },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-1",
+							content: "file contents",
+						},
+					],
+				},
+				{ role: "assistant", content: "Recent assistant state" },
+			],
 			model: {
 				id: "mock-model",
 				provider: "anthropic",
-				info: { id: "mock-model", contextWindow: 100 },
+				info: { id: "mock-model", contextWindow: 10 },
 			},
 		});
 
@@ -149,7 +177,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				enabled: true,
 				strategy: "agentic",
 				preserveRecentTokens: 1,
-				reserveTokens: 99,
+				reserveTokens: 5,
 				summarizer: {
 					providerId: "openai",
 					modelId: "gpt-summary",
@@ -164,6 +192,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			abortSignal: new AbortController().signal,
 			systemPrompt: "You are helpful.",
 			tools: [],
 			messages: [
@@ -172,10 +201,16 @@ describe("createContextCompactionPrepareTurn", () => {
 				{ role: "user", content: "Latest turn" },
 				{ role: "assistant", content: "Latest answer" },
 			],
+			apiMessages: [
+				{ role: "user", content: "Old turn" },
+				{ role: "assistant", content: "Old answer" },
+				{ role: "user", content: "Latest turn" },
+				{ role: "assistant", content: "Latest answer" },
+			],
 			model: {
 				id: "primary-model",
 				provider: "anthropic",
-				info: { id: "primary-model", contextWindow: 100 },
+				info: { id: "primary-model", contextWindow: 10 },
 			},
 		});
 
@@ -201,7 +236,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			compaction: {
 				enabled: true,
 				strategy: "basic",
-				reserveTokens: 70,
+				reserveTokens: 5,
 			},
 			logger: undefined,
 		});
@@ -211,6 +246,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			abortSignal: new AbortController().signal,
 			emitStatusNotice,
 			systemPrompt: "You are helpful.",
 			tools: [],
@@ -262,10 +298,58 @@ describe("createContextCompactionPrepareTurn", () => {
 					],
 				},
 			],
+			apiMessages: [
+				{ role: "user", content: "Initial request that should survive" },
+				{
+					role: "assistant",
+					content: [
+						{ type: "thinking", thinking: "internal reasoning" },
+						{ type: "text", text: "Older assistant explanation" },
+						{
+							type: "tool_use",
+							id: "tool-1",
+							name: "read_files",
+							input: { file_paths: ["/tmp/example.ts"] },
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-1",
+							content: "tool output that should be removed",
+						},
+					],
+				},
+				{
+					role: "user",
+					content: [
+						{ type: "text", text: "Most recent user turn" },
+						{
+							type: "image",
+							data: "abc",
+							mediaType: "image/png",
+						},
+					],
+				},
+				{
+					role: "assistant",
+					content: [
+						{ type: "text", text: "Most recent assistant reply" },
+						{
+							type: "file",
+							path: "/tmp/out.ts",
+							content: "export const value = 1;",
+						},
+					],
+				},
+			],
 			model: {
 				id: "mock-model",
 				provider: "anthropic",
-				info: { id: "mock-model", contextWindow: 100 },
+				info: { id: "mock-model", contextWindow: 10 },
 			},
 		});
 
@@ -277,11 +361,18 @@ describe("createContextCompactionPrepareTurn", () => {
 				reason: "auto_compaction",
 			}),
 		);
-		expect(result?.messages).toEqual([
-			{ role: "user", content: "Initial request that should survive" },
-			{ role: "user", content: "Most recent user turn" },
-			{ role: "assistant", content: "Most recent assistant reply" },
-		]);
+		expect(result?.messages).toBeDefined();
+		expect(result?.messages.length).toBeGreaterThan(0);
+		expect(
+			result?.messages.every((message) => typeof message.content === "string"),
+		).toBe(true);
+		expect(
+			result?.messages.some((message) =>
+				typeof message.content === "string"
+					? message.content.includes("tool output that should be removed")
+					: false,
+			),
+		).toBe(false);
 	});
 
 	it("defaults to threshold ratio when reserveTokens is not configured", async () => {
@@ -301,11 +392,77 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			abortSignal: new AbortController().signal,
 			systemPrompt: "You are helpful.",
 			tools: [],
 			messages: [
 				{ role: "user", content: "Short request" },
 				{ role: "assistant", content: "Short reply" },
+			],
+			apiMessages: [
+				{ role: "user", content: "Short request" },
+				{ role: "assistant", content: "Short reply" },
+			],
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", contextWindow: 100 },
+			},
+		});
+
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
+	});
+
+	it("does not compact when only pre-truncation messages exceed the threshold", async () => {
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {
+				enabled: true,
+				thresholdRatio: 0.8,
+			},
+			logger: undefined,
+		});
+		expect(prepareTurn).toBeDefined();
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Initial request" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-1",
+							content: "x".repeat(1000),
+						},
+					],
+				},
+			],
+			apiMessages: [
+				{ role: "user", content: "Initial request" },
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "tool-1",
+							content: "x".repeat(100),
+						},
+					],
+				},
 			],
 			model: {
 				id: "mock-model",

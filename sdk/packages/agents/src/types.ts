@@ -672,6 +672,8 @@ export interface AgentPrepareTurnContext {
 	parentAgentId: string | null;
 	iteration: number;
 	messages: MessageWithMetadata[];
+	apiMessages: MessageWithMetadata[];
+	abortSignal: AbortSignal;
 	systemPrompt: string;
 	tools: Tool[];
 	model: {
