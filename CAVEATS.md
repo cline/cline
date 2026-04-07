@@ -101,10 +101,11 @@ Tracking issues found during the migration from the legacy inference system to t
 **Expected:** Connected MCP servers should expose their tools to the agent, and the agent should be able to invoke them.  
 **Investigation:** `@clinebot/core` has full MCP support (`InMemoryMcpManager`, `registerMcpServersFromSettingsFile`, `resolveMcpServerRegistrations`). The issue is that `ClineCoreSession` in `cline-session-factory.ts` doesn't pass MCP configuration through `coreConfig` when calling `host.start()`. The MCP settings file exists at `~/.cline/data/settings/cline_mcp_settings.json` and `SdkController.getMcpServers()` already reads it for the UI, but the session factory never wires MCP servers into the ClineCore session. The fix requires: (1) reading MCP server registrations via `resolveMcpServerRegistrations()` or passing the settings file path in `coreConfig`, (2) creating/passing an `InMemoryMcpManager` to ClineCore, or (3) ensuring ClineCore auto-discovers MCP settings from the default path. This is a deep architectural change that can't be verified via the debug harness (requires actual agent task execution).
 
-### 16. 🟡 Cline Rules popup still has a "Workflows" tab
+### 16. 🟢 Cline Rules popup still has a "Workflows" tab
 **Where:** Scales-of-justice icon → Cline Rules modal  
 **Symptom:** The "Manage Cline Rules" popup contains a "Workflows" tab. Issue #12 fixed the tooltip text, but the tab itself still exists inside the modal.  
-**Expected:** The "Workflows" tab should be removed entirely since workflows are no longer a feature.
+**Root cause:** The `ClineRulesToggleModal` component had a full "Workflows" tab with toggle lists for global, local, and remote workflows, plus a description section. Workflows are no longer a feature.  
+**Fix:** Removed the Workflows tab button, workflows description text, workflows content section (remote/global/local workflow toggle lists), and the remote workflows banner condition from `ClineRulesToggleModal.tsx`. The `currentView` state type was narrowed from `"rules" | "workflows" | "hooks" | "skills"` to `"rules" | "hooks" | "skills"`. Workflow-related state/functions were left in place since they're used by other components (slash commands).
 
 ### 17. 🟢 Account pane shows "Sign up with Cline" despite being logged in
 **Where:** Account panel / pane  
