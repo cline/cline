@@ -80,6 +80,7 @@ Owns the stateless runtime loop:
 - tool orchestration
 - runtime event emission
 - hook/extension execution
+- context-limit detection and compaction trigger dispatch
 - in-memory team/runtime primitives
 
 Design rule:
@@ -121,6 +122,7 @@ Owns stateful orchestration:
 - config watching/loading
 - default host tool assembly
 - plugin discovery/loading
+- default context compaction policy
 - telemetry integration
 
 Design rule:
@@ -234,6 +236,25 @@ Extensibility is split deliberately:
 Design implication:
 
 - additive runtime behavior should usually enter through these extension points instead of bespoke special-case host code.
+
+### 5. Context Compaction
+
+Context compaction is split across `agents` and `core` on purpose.
+
+- `@clinebot/agents` owns the generic runtime seam:
+  - detect when context usage crosses the configured threshold
+  - dispatch `context_limit_reached`
+  - allow hook/extension handlers to replace message history
+- `@clinebot/core` owns the default fallback behavior:
+  - inject a default compaction policy for root sessions
+  - choose between built-in `agentic` and `basic` strategies
+  - keep strategy-specific implementation out of `MessageBuilder`
+
+Design implications:
+
+- compaction is a first-class lifecycle concern, not a prompt-formatting concern
+- plugin authors should customize compaction through `onContextLimitReached`
+- delegated/subagent flows should inherit compaction behavior through extensions, not through a separate delegated compaction config surface
 
 ## Architectural Constraints
 

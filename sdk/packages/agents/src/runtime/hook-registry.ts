@@ -62,6 +62,13 @@ const EXTENSION_STAGE_HANDLERS: Record<
 				| AgentHookControl
 				| undefined,
 	},
+	context_limit_reached: {
+		name: "onContextLimitReached",
+		handler: (extension, event) =>
+			extension.onContextLimitReached?.(event.payload as never) as
+				| AgentHookControl
+				| undefined,
+	},
 	tool_call_before: {
 		name: "onToolCall",
 		handler: (extension, event) =>
@@ -182,6 +189,13 @@ export function registerLifecycleHandlers(
 			name: "hooks.onBeforeAgentStart",
 			stage: "before_agent_start",
 			handle: (event) => hooks.onBeforeAgentStart?.(event.payload as never),
+		});
+	}
+	if (hooks?.onContextLimitReached) {
+		register({
+			name: "hooks.onContextLimitReached",
+			stage: "context_limit_reached",
+			handle: (event) => hooks.onContextLimitReached?.(event.payload as never),
 		});
 	}
 	if (hooks?.onTurnEnd) {

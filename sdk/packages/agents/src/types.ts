@@ -278,7 +278,16 @@ export type HookErrorMode = "ignore" | "throw";
  * Common controls supported by lifecycle hooks.
  */
 export type AgentHookControl = Omit<HookControl, "appendMessages"> & {
+	/**
+	 * Optional messages appended to history.
+	 * Primarily used by before-agent-start hook stages.
+	 */
 	appendMessages?: LlmsProviders.Message[];
+	/**
+	 * Optional replacement message history.
+	 * Primarily used by context-limit-reached compaction hooks.
+	 */
+	replaceMessages?: LlmsProviders.Message[];
 };
 
 export interface AgentHookRunStartContext {
@@ -424,6 +433,9 @@ export interface AgentHookSessionShutdownContext {
 	reason?: string;
 }
 
+export interface AgentHookContextLimitReachedContext
+	extends AgentCompactionContext {}
+
 // =============================================================================
 // Extensions
 // =============================================================================
@@ -501,6 +513,9 @@ export interface AgentExtension extends ContributionRegistryExtension<Tool> {
 		| undefined
 		| AgentExtensionBeforeAgentStartControl
 		| Promise<undefined | AgentExtensionBeforeAgentStartControl>;
+	onContextLimitReached?: (
+		ctx: AgentHookContextLimitReachedContext,
+	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
 	onToolCall?: (
 		ctx: AgentHookToolCallStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
@@ -569,6 +584,9 @@ export interface AgentHooks {
 	 */
 	onBeforeAgentStart?: (
 		ctx: AgentHookBeforeAgentStartContext,
+	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
+	onContextLimitReached?: (
+		ctx: AgentHookContextLimitReachedContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
 	onTurnEnd?: (
 		ctx: AgentHookTurnEndContext,
@@ -654,6 +672,95 @@ export const AgentUsageSchema = z.object({
 	cacheWriteTokens: z.number().optional(),
 	totalCost: z.number().optional(),
 });
+
+export interface AgentCompactionContext {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	messages: MessageWithMetadata[];
+	model: {
+		id: string;
+		provider: string;
+		info?: LlmsProviders.ModelInfo;
+	};
+	usage: {
+		inputTokens: number;
+		outputTokens: number;
+		totalTokens: number;
+		cacheReadTokens?: number;
+		cacheWriteTokens?: number;
+		cost?: number;
+	};
+	totalUsage: AgentUsage;
+	contextWindowTokens: number;
+	triggerTokens: number;
+	thresholdRatio: number;
+	utilizationRatio: number;
+}
+
+export interface AgentCompactionResult {
+	messages: MessageWithMetadata[];
+}
+
+export interface AgentCompactionSummarizerConfig {
+	providerId: string;
+	modelId: string;
+	apiKey?: string;
+	baseUrl?: string;
+	headers?: Record<string, string>;
+	knownModels?: Record<string, LlmsProviders.ModelInfo>;
+	providerConfig?: LlmsProviders.ProviderConfig;
+	maxOutputTokens?: number;
+}
+
+export type AgentCompactionStrategy = "basic" | "agentic";
+
+export interface AgentCompactionConfig {
+	/**
+	 * Enable or disable automatic compaction.
+	 * @default true
+	 */
+	enabled?: boolean;
+	/**
+	 * Compaction strategy.
+	 * - `basic`: drop older assistant/tool-heavy context without calling a model
+	 * - `agentic`: summarize older context with a dedicated summarizer model
+	 * @default "agentic"
+	 */
+	strategy?: AgentCompactionStrategy;
+	/**
+	 * Share of the context window that must be reached before compaction runs.
+	 * @default 0.8
+	 */
+	thresholdRatio?: number;
+	/**
+	 * Tokens reserved for the model response. When provided, the compaction
+	 * trigger becomes `inputTokens > contextWindowTokens - reserveTokens`.
+	 */
+	reserveTokens?: number;
+	/**
+	 * Approximate recent-context budget to preserve unsummarized. This is consumed
+	 * by higher-level compaction implementations when choosing the cut point.
+	 */
+	preserveRecentTokens?: number;
+	/**
+	 * Optional explicit context window override when model metadata does not
+	 * expose one.
+	 */
+	contextWindowTokens?: number;
+	/**
+	 * Optional override for the model used to generate compaction summaries.
+	 * When omitted, the active session model is reused.
+	 */
+	summarizer?: AgentCompactionSummarizerConfig;
+	compact?: (
+		context: AgentCompactionContext,
+	) =>
+		| Promise<AgentCompactionResult | undefined>
+		| AgentCompactionResult
+		| undefined;
+}
 
 // =============================================================================
 // Agent Result
@@ -934,7 +1041,6 @@ export const AgentConfigSchema = z.object({
 				.optional(),
 		})
 		.optional(),
-
 	// Reasoning Settings
 	reasoningEffort: ReasoningEffortSchema.optional(),
 	thinkingBudgetTokens: z.number().positive().optional(),

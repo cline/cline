@@ -523,6 +523,7 @@ export { CORE_BUILD_VERSION } from "./version";
 export async function loadOpenTelemetryAdapter() {
 	return import("./telemetry/index.js");
 }
+export { createDefaultAgentCompaction } from "./compaction/default-compaction";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,

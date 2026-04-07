@@ -106,6 +106,59 @@ describe("createSpawnAgentTool", () => {
 				extensions,
 			}),
 		);
+		expect(agentConstructorSpy).toHaveBeenCalledWith(
+			expect.not.objectContaining({
+				compaction: expect.anything(),
+			}),
+		);
+	});
+
+	it("passes context-limit-reached extension hooks through delegated config", async () => {
+		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
+		runMock.mockResolvedValue({
+			text: "sub-agent result",
+			iterations: 1,
+			finishReason: "completed",
+			usage: { inputTokens: 1, outputTokens: 1 },
+		});
+
+		const extensions = [
+			{
+				name: "compaction-ext",
+				manifest: {
+					capabilities: ["hooks"],
+					hookStages: ["context_limit_reached"],
+				},
+				onContextLimitReached: vi.fn(),
+			} as AgentExtension,
+		];
+
+		const tool = createSpawnAgentTool({
+			configProvider: createDelegatedAgentConfigProvider({
+				providerId: "anthropic",
+				modelId: "mock-model",
+				extensions,
+			}),
+			subAgentTools: [],
+		});
+
+		await tool.execute(
+			{
+				systemPrompt: "You are focused",
+				task: "Do delegated work",
+			},
+			{
+				agentId: "parent-1",
+				conversationId: "conv-parent",
+				iteration: 3,
+			},
+		);
+
+		expect(agentConstructorSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				extensions,
+			}),
+		);
 	});
 
 	it("propagates sub-agent errors and still reports onSubAgentEnd", async () => {

@@ -34,6 +34,10 @@ export class ConversationStore {
 		this.messages.push(...messages);
 	}
 
+	replaceMessages(messages: MessageWithMetadata[]): void {
+		this.messages = [...messages];
+	}
+
 	resetForRun(): void {
 		this.messages = [];
 		this.conversationId = createConversationId();

@@ -4,6 +4,7 @@ import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import {
 	Agent,
+	type AgentCompactionConfig,
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
@@ -20,6 +21,7 @@ import {
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
+import { createDefaultAgentCompaction } from "../compaction/default-compaction";
 import { enrichPromptWithMentions } from "../input";
 import { createCheckpointHooks } from "../runtime/checkpoint-hooks";
 import { mergeAgentHooks } from "../runtime/hook-file-hooks";
@@ -288,7 +290,7 @@ export class DefaultSessionManager implements SessionManager {
 
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
 
-		const agent = this.createAgentInstance({
+		const agentConfig = {
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,
 			apiKey: providerConfig.apiKey,
@@ -302,6 +304,7 @@ export class DefaultSessionManager implements SessionManager {
 			systemPrompt: configWithProvider.systemPrompt,
 			maxIterations: configWithProvider.maxIterations,
 			execution: configWithProvider.execution,
+			compaction: createDefaultAgentCompaction(configWithProvider),
 			tools,
 			hooks: configWithProvider.hooks,
 			extensions: effectiveConfig.extensions,
@@ -318,7 +321,8 @@ export class DefaultSessionManager implements SessionManager {
 			extensionContext: configWithProvider.extensionContext,
 			onEvent: (event: AgentEvent) =>
 				this.onAgentEvent(sessionId, configWithProvider, event),
-		});
+		} as AgentConfig & { compaction?: AgentCompactionConfig };
+		const agent = this.createAgentInstance(agentConfig);
 		const rootAgentIdentity = buildTelemetryAgentIdentity({
 			agentId: this.readAgentId(agent),
 			conversationId: this.readAgentConversationId(agent),

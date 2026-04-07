@@ -73,6 +73,24 @@ Behavior notes:
 Use extensions for additive runtime surface.
 Use hooks for lifecycle interception and policy.
 
+### Context Limit Handling
+
+The agent runtime includes a context-limit lifecycle stage:
+
+- `context_limit_reached`
+
+Behavior:
+
+- the agent measures turn usage against the active context window
+- when the threshold is crossed, it dispatches `context_limit_reached`
+- hook or extension handlers may return `replaceMessages` to rewrite history before the next model turn
+- if no handler replaces history, higher-level runtimes may supply a fallback compaction policy
+
+Important API note:
+
+- custom compaction is exposed through hooks/extensions, not through a public `AgentConfig.compaction` field
+- `onContextLimitReached(ctx)` is the supported plugin surface for custom compaction logic
+
 ## `@clinebot/scheduler`
 
 Primary role: scheduled execution and bounded autonomous routines.
@@ -128,6 +146,7 @@ Core composes the runtime from:
 - tools
 - hooks
 - extensions
+- default context compaction policy
 - user instruction watcher
 - telemetry
 
@@ -141,6 +160,26 @@ Core owns:
 - pending prompt queueing
 - team/session persistence
 - checkpoint hooks
+- default context compaction injection for root sessions
+
+### Context Compaction
+
+Core provides a built-in default compaction policy for root sessions.
+
+Behavior:
+
+- core injects a default compaction policy when constructing the root agent
+- the default policy supports two built-in strategies:
+  - `agentic`: summarize older history with a model and roll summaries forward
+  - `basic`: compact locally without calling a model
+- extensions still run first through `onContextLimitReached`
+- plugin-provided history replacement takes precedence over the core fallback
+
+Integration rule:
+
+- if a host or plugin needs custom compaction behavior, prefer an extension hook
+- do not rely on a public `AgentConfig.compaction` field
+- delegated and spawned agents inherit extension-based compaction behavior through their `extensions`
 
 ### Session Bootstrap
 

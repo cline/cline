@@ -94,6 +94,20 @@ describe("plugin-sandbox", () => {
 			"utf8",
 		);
 
+		await writeFile(
+			join(dir, "plugin-compaction.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-compaction',",
+				"  manifest: { capabilities: ['hooks'], hookStages: ['context_limit_reached'] },",
+				"  onContextLimitReached() {",
+				"    return { replaceMessages: [{ role: 'user', content: 'compacted from sandbox' }] };",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
 		const localDepDir = join(dir, "node_modules", "sandbox-local-dep");
 		await mkdir(localDepDir, { recursive: true });
 		await writeFile(
@@ -155,6 +169,7 @@ describe("plugin-sandbox", () => {
 				join(dir, "plugin.mjs"),
 				join(dir, "plugin-events.mjs"),
 				join(dir, "plugin-ts.ts"),
+				join(dir, "plugin-compaction.mjs"),
 				join(dir, "plugin-dep.ts"),
 				join(dir, "plugin-sdk.ts"),
 			],
@@ -280,6 +295,47 @@ describe("plugin-sandbox", () => {
 			iteration: 1,
 		} as ToolContext);
 		expect(result).toEqual({ echoed: "ok" });
+	});
+
+	it("supports context-limit-reached hook bindings in the sandbox", async () => {
+		const extension = sharedExtensions.get("sandbox-compaction");
+		type AgentExtensionContextLimitReachedContext = Parameters<
+			NonNullable<
+				NonNullable<AgentConfig["extensions"]>[number]["onContextLimitReached"]
+			>
+		>[0];
+		const control = await extension?.onContextLimitReached?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 2,
+			messages: [{ role: "user", content: "hello" }],
+			model: {
+				id: "mock-model",
+				provider: "mock-provider",
+				info: {
+					id: "mock-model",
+					contextWindow: 100,
+				},
+			},
+			usage: {
+				inputTokens: 90,
+				outputTokens: 10,
+				totalTokens: 100,
+			},
+			totalUsage: {
+				inputTokens: 120,
+				outputTokens: 20,
+			},
+			contextWindowTokens: 100,
+			triggerTokens: 80,
+			thresholdRatio: 0.8,
+			utilizationRatio: 0.9,
+		} satisfies AgentExtensionContextLimitReachedContext);
+
+		expect(control).toEqual({
+			replaceMessages: [{ role: "user", content: "compacted from sandbox" }],
+		});
 	});
 
 	it("resolves plugin-local dependencies in the sandbox process", async () => {

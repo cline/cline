@@ -1,4 +1,5 @@
 import type {
+	AgentCompactionConfig,
 	AgentConfig,
 	AgentHooks,
 	ConsecutiveMistakeLimitContext,
@@ -73,6 +74,7 @@ export interface CoreSessionConfig
 	pluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
+	compaction?: AgentCompactionConfig;
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

@@ -2,6 +2,7 @@ import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentConfig, Tool } from "@clinebot/agents";
+import type { HookStage } from "@clinebot/shared";
 import { SubprocessSandbox } from "../runtime/sandbox/subprocess-sandbox";
 
 export interface PluginSandboxOptions {
@@ -15,16 +16,6 @@ export interface PluginSandboxOptions {
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
-type HookStage =
-	| "input"
-	| "runtime_event"
-	| "session_start"
-	| "before_agent_start"
-	| "tool_call_before"
-	| "tool_call_after"
-	| "turn_end"
-	| "session_shutdown"
-	| "error";
 
 type SandboxedContributionDescriptor = {
 	id: string;
@@ -108,6 +99,11 @@ const HOOK_BINDINGS: Array<{
 		stage: "before_agent_start",
 		extensionKey: "onBeforeAgentStart",
 		sandboxHookName: "onBeforeAgentStart",
+	},
+	{
+		stage: "context_limit_reached",
+		extensionKey: "onContextLimitReached",
+		sandboxHookName: "onContextLimitReached",
 	},
 	{
 		stage: "tool_call_before",

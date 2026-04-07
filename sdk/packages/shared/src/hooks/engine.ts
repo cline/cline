@@ -122,6 +122,15 @@ const STAGE_DEFAULTS: Record<HookStage, HookStagePolicy> = {
 		maxConcurrency: 1,
 		queueLimit: 200,
 	},
+	context_limit_reached: {
+		mode: "blocking",
+		timeoutMs: 4000,
+		retries: 1,
+		retryDelayMs: 150,
+		failureMode: "fail_open",
+		maxConcurrency: 1,
+		queueLimit: 100,
+	},
 	tool_call_before: {
 		mode: "blocking",
 		timeoutMs: 4000,
@@ -208,6 +217,9 @@ function mergeControl(
 		...(Array.isArray(base?.appendMessages) ? base.appendMessages : []),
 		...(Array.isArray(next?.appendMessages) ? next.appendMessages : []),
 	];
+	const replaceMessages = Object.hasOwn(next ?? {}, "replaceMessages")
+		? next?.replaceMessages
+		: base?.replaceMessages;
 
 	const merged: HookControl = {
 		cancel: !!(base?.cancel || next?.cancel),
@@ -229,6 +241,9 @@ function mergeControl(
 	}
 	if (appendMessages.length > 0) {
 		merged.appendMessages = appendMessages;
+	}
+	if (Array.isArray(replaceMessages)) {
+		merged.replaceMessages = replaceMessages;
 	}
 	return merged;
 }

@@ -1418,11 +1418,16 @@ describe("Agent", () => {
 				{ type: "done", id: "r1", success: true },
 			],
 		]);
+		handler.getModel = vi.fn(() => ({
+			id: "mock-model",
+			info: { contextWindow: 2 },
+		}));
 		createHandlerMock.mockReturnValue(handler);
 
 		const onRunStart = vi.fn(() => undefined);
 		const onIterationStart = vi.fn(() => undefined);
 		const onTurnStart = vi.fn(() => undefined);
+		const onContextLimitReached = vi.fn(() => undefined);
 		const onIterationEnd = vi.fn(async () => undefined);
 		const onRunEnd = vi.fn(async () => undefined);
 		const extension: AgentExtension = {
@@ -1433,6 +1438,7 @@ describe("Agent", () => {
 					"run_start",
 					"iteration_start",
 					"turn_start",
+					"context_limit_reached",
 					"iteration_end",
 					"run_end",
 				],
@@ -1440,6 +1446,7 @@ describe("Agent", () => {
 			onRunStart,
 			onIterationStart,
 			onTurnStart,
+			onContextLimitReached,
 			onIterationEnd,
 			onRunEnd,
 		};
@@ -1457,6 +1464,7 @@ describe("Agent", () => {
 		expect(onRunStart).toHaveBeenCalledTimes(1);
 		expect(onIterationStart).toHaveBeenCalledTimes(1);
 		expect(onTurnStart).toHaveBeenCalledTimes(1);
+		expect(onContextLimitReached).toHaveBeenCalledTimes(1);
 		expect(onIterationEnd).toHaveBeenCalledTimes(1);
 		expect(onRunEnd).toHaveBeenCalledTimes(1);
 	});
@@ -1660,6 +1668,148 @@ describe("Agent", () => {
 		const result = await agent.run("go");
 		expect(result.finishReason).toBe("mistake_limit");
 		expect(result.toolCalls).toHaveLength(5);
+	});
+
+	it("runs configured compaction when turn usage crosses the context threshold", async () => {
+		const { Agent } = await import("./agent.js");
+		const echoTool = createTool({
+			name: "echo",
+			description: "Echo input",
+			inputSchema: {
+				type: "object",
+				properties: { msg: { type: "string" } },
+				required: ["msg"],
+			},
+			execute: async ({ msg }: { msg: string }) => ({ msg }),
+		}) as Tool;
+		const compact = vi.fn(async () => ({
+			messages: [
+				{
+					role: "user" as const,
+					content: "compacted history",
+				},
+			],
+		}));
+		const turns: FakeChunk[][] = [
+			[
+				{
+					type: "tool_calls",
+					id: "r1",
+					tool_call: {
+						call_id: "call_r1",
+						function: { name: "echo", arguments: '{"msg":"hi"}' },
+					},
+				},
+				{ type: "usage", id: "r1", inputTokens: 70, outputTokens: 15 },
+				{ type: "done", id: "r1", success: true },
+			],
+			[
+				{ type: "text", id: "r2", text: "done" },
+				{ type: "usage", id: "r2", inputTokens: 10, outputTokens: 5 },
+				{ type: "done", id: "r2", success: true },
+			],
+		];
+		let index = 0;
+		const handler: FakeHandler = {
+			createMessage: vi.fn((_systemPrompt, _messages) => {
+				const chunks = turns[index] ?? [];
+				index += 1;
+				return streamChunks(chunks);
+			}),
+			getModel: vi.fn(() => ({
+				id: "mock-model",
+				info: { contextWindow: 100 },
+			})),
+			getMessages: vi.fn(),
+		};
+		createHandlerMock.mockReturnValue(handler);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "You are helpful.",
+			tools: [echoTool],
+			compaction: { compact },
+		} as never);
+
+		const result = await agent.run("Say hello");
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		expect(compact).toHaveBeenCalledWith(
+			expect.objectContaining({
+				iteration: 1,
+				contextWindowTokens: 100,
+				triggerTokens: 80,
+				thresholdRatio: 0.8,
+				utilizationRatio: 0.85,
+				usage: expect.objectContaining({
+					inputTokens: 70,
+					outputTokens: 15,
+					totalTokens: 85,
+				}),
+			}),
+		);
+		expect(handler.createMessage).toHaveBeenCalledTimes(2);
+		expect(handler.createMessage.mock.calls[1]?.[1]).toEqual([
+			{ role: "user", content: "compacted history" },
+		]);
+		expect(result.messages).toEqual([
+			{ role: "user", content: "compacted history" },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "done", signature: undefined }],
+			},
+		]);
+	});
+
+	it("prefers extension onContextLimitReached over config compaction", async () => {
+		const { Agent } = await import("./agent.js");
+		const configCompact = vi.fn(async () => ({
+			messages: [{ role: "user" as const, content: "config compacted" }],
+		}));
+		const onContextLimitReached = vi.fn(() => ({
+			replaceMessages: [
+				{ role: "user" as const, content: "extension compacted" },
+			],
+		}));
+		const handler = makeHandler([
+			[
+				{ type: "text", id: "r1", text: "done" },
+				{ type: "usage", id: "r1", inputTokens: 70, outputTokens: 15 },
+				{ type: "done", id: "r1", success: true },
+			],
+		]);
+		handler.getModel = vi.fn(() => ({
+			id: "mock-model",
+			info: { contextWindow: 100 },
+		}));
+		createHandlerMock.mockReturnValue(handler);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "You are helpful.",
+			tools: [],
+			compaction: { compact: configCompact },
+			extensions: [
+				{
+					name: "compaction-extension",
+					manifest: {
+						capabilities: ["hooks"],
+						hookStages: ["context_limit_reached"],
+					},
+					onContextLimitReached,
+				},
+			],
+		} as never);
+
+		const result = await agent.run("hello");
+
+		expect(onContextLimitReached).toHaveBeenCalledTimes(1);
+		expect(configCompact).not.toHaveBeenCalled();
+		expect(result.messages).toEqual([
+			{ role: "user", content: "extension compacted" },
+		]);
 	});
 
 	it("detects repeated identical tool calls within a batched iteration even when another tool runs last", async () => {

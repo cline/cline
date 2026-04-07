@@ -1602,6 +1602,69 @@ describe("DefaultSessionManager", () => {
 		);
 	});
 
+	it("injects default compaction config into the agent constructor", async () => {
+		const sessionId = "sess-compaction";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-compaction.json",
+				transcriptPath: "/tmp/transcript-compaction.log",
+				hookPath: "/tmp/hook-compaction.log",
+				messagesPath: "/tmp/messages-compaction.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const run = vi.fn().mockResolvedValue(createResult());
+		const createAgent = vi.fn().mockReturnValue({
+			run,
+			continue: vi.fn(),
+			abort: vi.fn(),
+			restore: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			messages: [],
+		});
+		const compact = vi.fn();
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.start({
+			config: createConfig({
+				sessionId,
+				compaction: {
+					strategy: "basic",
+					compact,
+				},
+			}),
+			interactive: true,
+		});
+		await manager.send({ sessionId, prompt: "test" });
+
+		expect(createAgent).toHaveBeenCalledWith(
+			expect.objectContaining({
+				compaction: expect.objectContaining({
+					strategy: "basic",
+					compact,
+				}),
+			}),
+		);
+	});
+
 	it("formats prompt in core and merges explicit + mention user files", async () => {
 		const tempCwd = mkdtempSync(join(tmpdir(), "core-session-format-"));
 		try {

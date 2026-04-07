@@ -100,8 +100,37 @@ await host.start({
 | `tool_call_before`  | `onToolCall`          | before a tool executes             |
 | `tool_call_after`   | `onToolResult`        | after a tool executes              |
 | `before_agent_start`| `onBeforeAgentStart`  | to override system prompt/messages |
+| `context_limit_reached` | `onContextLimitReached` | when the agent crosses its context threshold |
 | `session_start`     | `onSessionStart`      | when a session begins              |
 | `session_shutdown`  | `onSessionShutdown`   | when a session ends                |
 | `input`             | `onInput`             | when the user sends input          |
 | `runtime_event`     | `onRuntimeEvent`      | on every agent event               |
 | `error`             | `onError`             | when an unhandled error occurs     |
+
+## Custom compaction in plugins
+
+If a plugin needs custom context compaction, implement it as a hook:
+
+```ts
+const plugin: Plugin = {
+  name: "my-plugin",
+  manifest: {
+    capabilities: ["hooks"],
+    hookStages: ["context_limit_reached"],
+  },
+  onContextLimitReached(ctx) {
+    return {
+      replaceMessages: [
+        { role: "user", content: "Compacted history goes here" },
+      ],
+    };
+  },
+};
+```
+
+Notes:
+
+- plugin compaction runs through the lifecycle hook system
+- `onContextLimitReached` runs before core's default fallback compaction
+- returning `replaceMessages` lets the plugin fully replace the retained history
+- custom compaction is not configured through a public `AgentConfig.compaction` field
