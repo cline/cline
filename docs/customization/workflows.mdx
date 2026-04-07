@@ -1,10 +1,14 @@
 ---
-title: "Workflows"
-sidebarTitle: "Workflows"
-description: "Automate repetitive tasks with Markdown-based workflow files."
+title: "Legacy Workflows"
+sidebarTitle: "Legacy Workflows"
+description: "Use Markdown workflow files only when you need legacy slash-command compatibility while migrating to skills."
 ---
 
-Workflows are Markdown files that define a series of steps to guide Cline through repetitive or complex tasks. Type `/` followed by the workflow's filename to invoke it (e.g., `/deploy.md`).
+Workflows are a legacy compatibility feature for file-based slash commands like `/deploy.md`. If you're starting fresh, use [Skills](/customization/skills) instead. Skills are the preferred product direction for reusable guidance because they load on demand, support bundled resources cleanly, and align with the rest of the SDK migration.
+
+<Warning>
+For new reusable automations, create a [skill](/customization/skills) instead of a workflow. Keep workflows only when you still rely on existing `/name.md` commands or need a compatibility bridge while migrating older setups.
+</Warning>
 
 Deploying, setting up a new project, running through a release checklist: these tasks often require remembering a dozen steps, running commands in the right order, and updating files manually. Mess up one step and you're debugging for an hour. Workflows turn those multi-step processes into one command. Type `/release.md` and Cline handles the version bump, runs tests, updates the changelog, commits, tags, and pushes. You just review and approve.
 
@@ -50,18 +54,18 @@ Steps can be written at different levels of detail:
 </Steps>
 
 <Tip>
-**Create workflows from completed tasks.** After finishing something you'll need to repeat, tell Cline: "Create a workflow for the process I just completed." Cline analyzes the conversation, identifies the steps, and generates the workflow file. Your accumulated context becomes reusable automation.
+**Prefer skills for new reusable guidance.** After finishing something you'll need to repeat, ask Cline whether it should become a skill or a legacy workflow. Choose a workflow only if you specifically want a `/file.md` command for backward compatibility.
 </Tip>
 
 ### Invoking Workflows
 
-Type `/` in the chat input to see available workflows. Cline shows autocomplete suggestions as you type, so `/rel` would match `release-prep.md`. Select a workflow and press Enter to start it.
+Type `/` in the chat input to see available legacy workflows. Cline shows autocomplete suggestions as you type, so `/rel` would match `release-prep.md`. Select a workflow and press Enter to start it.
 
 Cline executes each step in sequence, pausing for your approval when needed. You can stop a workflow at any point by rejecting a step.
 
 ### Toggling Workflows
 
-Every workflow has a toggle to enable or disable it. This lets you control which workflows appear in the `/` menu without deleting the file.
+Every workflow has a toggle to enable or disable it. This lets you control which legacy workflows appear in the `/` menu without deleting the file.
 
 ## Where Workflows Live
 
@@ -80,6 +84,16 @@ Workflows can be stored in two locations: your project workspace or globally on 
 | Linux/WSL | `~/Documents/Cline/Workflows` |
 
 Workspace workflows take precedence when names match global workflows. See [Storage Locations](/customization/overview#storage-locations) for more guidance.
+
+## When Workflows Still Make Sense
+
+Use a workflow when all of the following are true:
+
+- you already have people depending on a file-based slash command,
+- the process is still easiest to express as a linear `/name.md` script,
+- and you are not ready to migrate that reusable guidance into a skill yet.
+
+If you mainly need reusable expertise, richer instructions, or bundled docs/scripts, use [Skills](/customization/skills) instead.
 
 ## What Workflows Can Use
 
@@ -157,13 +171,15 @@ Include the changelog as the release body.
 
 **Start simple.** Write natural language steps first. Only add XML tool calls when you need guaranteed behavior.
 
+**Prefer skills for new systems.** If the reusable logic is evolving into a broader capability rather than a single `/file.md` routine, move it into a skill instead of expanding the workflow indefinitely.
+
 **Be specific about decisions.** If a step requires user input, make that explicit: "Ask whether to deploy to production or staging."
 
 **Include failure handling.** Tell Cline what to do when something goes wrong: "If tests fail, show the failures and stop the workflow."
 
 **Keep workflows focused.** A `deploy.md` should deploy. A `setup-db.md` should set up the database. Split complex processes into multiple workflows that can be run independently.
 
-**Version control your workflows.** Store workflows in `.clinerules/workflows/` and commit them. Your team can share, review, and improve them together.
+**Version control your workflows.** Store workflows in `.clinerules/workflows/` and commit them. Your team can share, review, and improve them together while you migrate long-lived patterns toward skills.
 
 <Warning>
 Workflows execute with your permissions. Review workflows before running them, especially those from external sources.
