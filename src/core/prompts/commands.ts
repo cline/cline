@@ -72,20 +72,16 @@ Parameters:
   4. Relevant Files and Code: If applicable, enumerate specific files and code sections examined, modified, or created for the task continuation. Pay special attention to the most recent messages and changes.
   5. Problem Solving: Document problems solved thus far and any ongoing troubleshooting efforts.
   6. Pending Tasks and Next Steps: Outline all pending tasks that you have explicitly been asked to work on, as well as list the next steps you will take for all outstanding work, if applicable. Include code snippets where they add clarity. For any next steps, include direct quotes from the most recent conversation showing exactly what task you were working on and where you left off. This should be verbatim to ensure there's no information loss in context between tasks.
-${
-	focusChainSettings?.enabled
-		? `- task_progress: (required) The current state of the task_progress list, with completed items marked. Important information on this parameter is as follows:
+${`- task_progress: (optional, but required if a task_progress list is already in use) The current state of the task_progress list, with completed items marked. Important information on this parameter is as follows:
   1. XML schema matches that of prior task_progress lists.
   2. All items are retained, with the exact same desciptive content as in prior occurences.
   3. All completed items are marked as completed.
-  4. The only compenent of this list that can be changed is the completion state of invidiual items in the list`
-		: ""
-}
+  4. The only compenent of this list that can be changed is the completion state of invidiual items in the list`}
 
 Usage:
 <condense>
 <context>Your detailed summary</context>
-${focusChainSettings?.enabled ? `<task_progress>task_progress list here</task_progress>` : ""}
+<task_progress>task_progress list here (include only if one already exists)</task_progress>
 </condense>
 
 Example:
@@ -119,16 +115,12 @@ Example:
   - [Task 2 details & next steps]
   - [...]
 </context>
-${
-	focusChainSettings?.enabled
-		? `<task_progress>
+${`<task_progress>
 - [x] Set up project structure
 - [x] Install dependencies
 - [ ] Create components
 - [ ] Test application
-</task_progress>`
-		: ""
-}
+</task_progress>`}
 </condense>
 
 </explicit_instructions>\n
@@ -191,7 +183,6 @@ Example:
 Below is the user's input when they indicated that they wanted to create a new Cline rule file.
 </explicit_instructions>\n
 `
-
 
 export const explainChangesToolResponse = () =>
 	`<explicit_instructions type="explain_changes">
@@ -270,4 +261,3 @@ Use the generate_explanation tool with:
 Below is the user's input describing what changes they want explained. If no input is provided, default to analyzing uncommitted changes in the working directory (may or may not be staged).
 </explicit_instructions>\n
 `
-

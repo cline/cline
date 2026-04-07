@@ -2,7 +2,7 @@ import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { TemplateEngine } from "../templates/TemplateEngine"
 import type { SystemPromptContext } from "../types"
-import { mockProviderInfo } from "./integration.test"
+import { mockProviderInfo } from "./test-helpers"
 
 describe("TemplateEngine", () => {
 	let templateEngine: TemplateEngine

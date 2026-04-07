@@ -25,6 +25,7 @@ import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
 import { getSystemPrompt } from "../index"
 import type { SystemPromptContext } from "../types"
+import { mockProviderInfo } from "./test-helpers"
 
 // ============================================================================
 // Configuration
@@ -110,12 +111,6 @@ async function assertSnapshot(name: string, content: string): Promise<void> {
 // ============================================================================
 // Test Context Helpers
 // ============================================================================
-
-export const mockProviderInfo = {
-	providerId: "test",
-	model: { id: "fast", info: { supportsPromptCache: false } },
-	mode: "act" as const,
-}
 
 const makeProviderInfo = (modelId: string, providerId = "test") => ({
 	providerId: modelId.includes("ollama") ? "ollama" : providerId,
@@ -308,7 +303,7 @@ describe("Prompt System Integration Tests", () => {
 		const featureTests = [
 			{ name: "browser-specific content when browser is enabled", context: { supportsBrowserUse: true }, check: "browser" },
 			{ name: "MCP content when MCP servers are present", context: {}, check: "MCP" },
-			{ name: "TODO content when focus chain is enabled", context: {}, check: "TODO" },
+			{ name: "task progress content in the default prompt", context: {}, check: "UPDATING TASK PROGRESS" },
 			{ name: "user instructions when provided", context: {}, check: "USER'S CUSTOM INSTRUCTIONS" },
 		]
 
@@ -319,6 +314,18 @@ describe("Prompt System Integration Tests", () => {
 				})
 			})
 		}
+
+		it("should include task progress guidance even when focus chain is disabled", async function () {
+			await runPromptTest(
+				this,
+				{ ...baseContext, focusChainSettings: { enabled: false, remindClineInterval: 0 } },
+				"default",
+				async ({ systemPrompt }) => {
+					expect(systemPrompt).to.include("UPDATING TASK PROGRESS")
+					expect(systemPrompt).to.include("task_progress")
+				},
+			)
+		})
 	})
 
 	describe("Error Handling", () => {

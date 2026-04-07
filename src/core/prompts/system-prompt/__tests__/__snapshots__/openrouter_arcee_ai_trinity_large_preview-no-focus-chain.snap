@@ -27,6 +27,9 @@ For example:
 
 <read_file>
 <path>src/main.js</path>
+<task_progress>
+Checklist here (optional)
+</task_progress>
 </read_file>
 
 Always adhere to this format for the tool use to ensure proper parsing and execution.
@@ -244,6 +247,12 @@ Usage:
 <execute_command>
 <command>npm run dev</command>
 <requires_approval>false</requires_approval>
+<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Run command to start server
+- [ ] Test application
+</task_progress>
 </execute_command>
 
 ## Example 2: Requesting to create a new file
@@ -266,6 +275,12 @@ Usage:
   "version": "1.0.0"
 }
 </content>
+<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Create components
+- [ ] Test application
+</task_progress>
 </write_to_file>
 
 ## Example 3: Creating a new task
@@ -332,6 +347,12 @@ return (
   <div>
 +++++++ REPLACE
 </diff>
+<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Create components
+- [ ] Test application
+</task_progress>
 </replace_in_file>
 
 ## Example 5: Requesting to use an MCP tool
@@ -384,6 +405,34 @@ It is crucial to proceed step-by-step, waiting for the user's message after each
 4. Ensure that each action builds correctly on the previous ones.
 
 By waiting for and carefully considering the user's response after each tool use, you can react accordingly and make informed decisions about how to proceed with the task. This iterative process helps ensure the overall success and accuracy of your work.
+
+====
+
+UPDATING TASK PROGRESS
+
+You can track and communicate your progress on the overall task using the task_progress parameter supported by every tool call. Using task_progress ensures you remain on task, and stay focused on completing the user's objective. This parameter can be used in any mode, and with any tool call.
+
+- When switching from PLAN MODE to ACT MODE, you must create a comprehensive todo list for the task using the task_progress parameter
+- Todo list updates should be done silently using the task_progress parameter - do not announce these updates to the user
+- Use standard Markdown checklist format: "- [ ]" for incomplete items and "- [x]" for completed items
+- Keep items focused on meaningful progress milestones rather than minor technical details. The checklist should not be so granular that minor implementation details clutter the progress tracking.
+- For simple tasks, short checklists with even a single item are acceptable. For complex tasks, avoid making the checklist too long or verbose.
+- If you are creating this checklist for the first time, and the tool use completes the first step in the checklist, make sure to mark it as completed in your task_progress parameter.
+- Provide the whole checklist of steps you intend to complete in the task, and keep the checkboxes updated as you make progress. It's okay to rewrite this checklist as needed if it becomes invalid due to scope changes or new information.
+- If a checklist is being used, be sure to update it any time a step has been completed.
+- The system will automatically include todo list context in your prompts when appropriate - these reminders are important.
+
+Example:
+<execute_command>
+<command>npm install react</command>
+<requires_approval>false</requires_approval>
+<task_progress>
+- [x] Set up project structure
+- [x] Install dependencies
+- [ ] Create components
+- [ ] Test application
+</task_progress>
+</execute_command>
 
 ====
 

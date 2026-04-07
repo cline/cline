@@ -6,7 +6,7 @@ import { ClineToolSet } from "../registry/ClineToolSet"
 import { PromptRegistry } from "../registry/PromptRegistry"
 import { new_task_variants } from "../tools/new_task"
 import type { SystemPromptContext } from "../types"
-import { mockProviderInfo } from "./integration.test"
+import { mockProviderInfo } from "./test-helpers"
 
 const baseContext: SystemPromptContext = {
 	cwd: "/test/project",
