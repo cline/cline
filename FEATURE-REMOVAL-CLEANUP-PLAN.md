@@ -462,6 +462,7 @@ It should answer, at any time:
 | focus chain file-open affordance in task header | webview UI / product surface | Remove the stale “open/edit focus chain file” affordance now that the backend file-open path is a removed-feature stub | `webview-ui/src/components/chat/task-header/FocusChain.tsx`, `webview-ui/src/components/chat/task-header/TaskHeader.tsx`, `src/core/controller/file/openFocusChainFile.ts`, focus-chain inventory search on 2026-04-07 | Green | Green | Green | Green | Passive checklist display in the task header without dead file-open actions | Green | none | task header UI only | Low | Low | Hide now, retain internals | Low | Run focused webview Biome checks and avoid changing checklist rendering or task-progress parsing behavior | Cline | Verified | The task header no longer exposes the dead file-open/edit affordance, and focused webview checks confirmed there are no remaining `openFocusChainFile` calls from the webview while checklist rendering stays intact | Continue triaging deeper Focus Chain remnants |
 | dead focus chain telemetry hooks | telemetry / runtime cleanup | Remove uncalled Focus Chain progress/list telemetry methods and event constants while retaining the still-used enable/disable toggle telemetry | `src/services/telemetry/TelemetryService.ts`, focus-chain telemetry inventory on 2026-04-07 | Green | Green | Green | Green | Retain only the live Focus Chain toggle telemetry path while removing orphaned progress/list telemetry | Green | none | telemetry implementation only | Low | Low | Delete now | Low | Search for remaining callers of the removed telemetry methods/constants and run focused TypeScript/Biome checks | Cline | Verified | Focus Chain progress/list telemetry methods and event constants were removed, focused Biome checks pass, and there are no remaining source callers for the deleted hooks while the toggle telemetry path remains intact | Continue triaging other Focus Chain remnants |
 | openFocusChainFile proto/gRPC remnant | proto / generated bridge / controller stub | Remove the obsolete Focus Chain file-open RPC and generated compatibility wiring now that no webview/runtime callers remain | `proto/cline/file.proto`, `src/shared/WebviewMessages.ts`, `src/sdk/grpc-handler.ts`, `webview-ui/src/services/grpc-client.ts`, generated protobus/proto artifacts, `src/core/controller/file/openFocusChainFile.ts` | Green | Green | Green | Green | No replacement needed; the task header now shows checklist state without a file-open action | Green | generated clients/service types only | proto/gRPC compatibility layer | Medium | Medium | Delete now | Medium | Remove the RPC from source definitions, regenerate generated artifacts, verify no source callers remain, and keep other FileService RPCs intact | Cline | Verified | The source RPC, controller stub, generated protobus/proto client wiring, and compatibility-layer references were removed; regeneration succeeded and no `openFocusChainFile` references remain in source TypeScript or proto files | Reassess the remaining Focus Chain/runtime remnants and mark any further proto/gRPC deletions that still depend on broader cutover work |
+| generic task-progress checklist UI/runtime decoupling (ranks 1-6) | webview UI / shared helpers / runtime state | Make checklist rendering and task-progress state updates work independently of the legacy Focus Chain toggle, then remove the dead `FocusChainManager` bootstrap stub | `webview-ui/src/components/chat/ChatView.tsx`, `webview-ui/src/components/chat/task-header/TaskHeader.tsx`, `webview-ui/src/components/chat/task-header/TaskProgressChecklist.tsx`, `webview-ui/src/components/common/ChecklistRenderer.tsx`, `cli/src/components/FocusChain.tsx`, `src/shared/checklist-utils.ts`, `src/core/task/ToolExecutor.ts`, `src/core/task/tools/handlers/AttemptCompletionHandler.ts`, `src/core/task/index.ts`, focused Biome check + `webview-ui`/`cli` typecheck on 2026-04-07 | Green | Green | Green | Yellow | Generic task-progress checklist experience that no longer depends on legacy Focus Chain-specific UI/runtime wiring | Green | focused UI/runtime checks only; branch-wide root `tsc` still blocked elsewhere | plan doc plus any future user-facing checklist wording | Medium | Medium | Delete now | Medium | Run focused Biome checks on touched UI/runtime files plus `webview-ui` and `cli` typechecks; note unrelated branch-wide root `tsc` blockers separately | Cline | Verified | Checklist rendering now uses actual checklist content regardless of the legacy toggle, shared parsing helpers were renamed to generic checklist terminology, task-progress state updates no longer depend on `focusChainSettings.enabled`, and the dead `FocusChainManager` bootstrap stub was removed; focused checks pass while unrelated root TypeScript blockers remain in the branch | Move to rank 7: hide the legacy Focus Chain setting from the active settings UI |
 | prompt constant naming still tied to focus chain | prompt implementation / maintainability | Rename residual internal `FOCUS_CHAIN_*` prompt constant names to `TASK_PROGRESS_*` now that the emitted behavior is generic task-progress guidance | `src/core/prompts/system-prompt/components/tool_use/tools.ts`, `src/core/prompts/system-prompt/components/tool_use/examples.ts` | Green | Green | Green | Green | Internal prompt code terminology that matches the current task_progress product direction | Green | none | prompt implementation internals only | Low | Low | Delete now | Low | Run focused Biome checks on the touched prompt files and keep emitted prompt text unchanged | Cline | Verified | Internal tool-use prompt identifiers now use `TASK_PROGRESS_*` naming, focused Biome checks pass, and the emitted prompt content remains unchanged | Reassess whether the remaining Focus Chain/runtime surfaces are cutover-dependent |
 | tool spec docstrings still tied to focus chain gating | prompt implementation / maintainability | Remove stale `focusChainSettings.enabled` examples from live tool-spec docstrings where `task_progress` is already unconditionally supported by the tool definitions | `src/core/prompts/system-prompt/tools/plan_mode_respond.ts`, `src/core/prompts/system-prompt/tools/use_mcp_tool.ts`, `src/core/prompts/system-prompt/tools/write_to_file.ts` | Green | Green | Green | Green | Tool-spec documentation that matches the current generic task_progress behavior | Green | none | prompt implementation docstrings only | Low | Low | Delete now | Low | Run focused Biome checks on the touched tool-spec files and keep the actual tool schemas unchanged | Cline | Verified | The live tool-spec docstrings now describe `task_progress` unconditionally, focused Biome checks pass, and the actual tool schemas were left unchanged | Mark the remaining Focus Chain runtime/settings surfaces as cutover-dependent unless a narrower safe slice emerges |
 | remaining focus chain runtime/settings/state surfaces | runtime / persistence / UI state | Preserve the still-wired Focus Chain state/settings/task plumbing until a broader cutover removes the feature end-to-end | `src/core/task/index.ts`, `src/core/task/TaskState.ts`, `src/core/task/ToolExecutor.ts`, `src/core/controller/state/updateSettings.ts`, `src/core/controller/state/updateSettingsCli.ts`, `src/shared/ExtensionMessage.ts`, `src/shared/storage/state-keys.ts`, `src/sdk/state-builder.ts`, `webview-ui/src/context/ExtensionStateContext.tsx`, `webview-ui/src/components/chat/ChatView.tsx`, `webview-ui/src/components/chat/task-header/TaskHeader.tsx`, focus-chain runtime inventory on 2026-04-07 | Yellow | Red | Yellow | Red | Eventual task_progress/checklist experience without legacy Focus Chain-specific state/settings plumbing | Yellow | multiple prompt/task/runtime tests would need coordinated updates | runtime state, settings, webview state hydration | Medium | High | Blocked on cutover | High | Do not delete piecemeal; wait for a coordinated runtime/state cutover with persistence, UI, and task-flow verification | Cline | Blocked | Remaining Focus Chain references are concentrated in live task execution, persisted settings/state, extension/webview state shape, and checklist rendering paths, so further deletion would be a cross-cutting runtime migration rather than a safe cleanup slice | Leave these paths in place for now and revisit after the broader runtime/state cutover is ready |
@@ -843,18 +844,18 @@ The intended workflow is:
 
 **Implementation checklist**
 
-- [ ] Identify the memoized calculation of `lastProgressMessageText`
-- [ ] Remove the early return that short-circuits checklist display when `focusChainSettings.enabled` is false
-- [ ] Preserve the current precedence order: `currentFocusChainChecklist` first, latest progress-bearing message second
-- [ ] Ensure the fallback path still returns `undefined` when no checklist content exists
-- [ ] Avoid changing any unrelated message grouping or rendering behavior
+- [x] Identify the memoized calculation of `lastProgressMessageText`
+- [x] Remove the early return that short-circuits checklist display when `focusChainSettings.enabled` is false
+- [x] Preserve the current precedence order: `currentFocusChainChecklist` first, latest progress-bearing message second
+- [x] Ensure the fallback path still returns `undefined` when no checklist content exists
+- [x] Avoid changing any unrelated message grouping or rendering behavior
 
 **Verification checklist**
 
-- [ ] Run focused webview Biome/type checks on `ChatView.tsx`
-- [ ] Verify the checklist still appears when Focus Chain is enabled
-- [ ] Verify the checklist now also appears when Focus Chain is disabled but `task_progress` content exists
-- [ ] Verify no checklist appears when there is no checklist content at all
+- [x] Run focused webview Biome/type checks on `ChatView.tsx`
+- [x] Verify the checklist still appears when Focus Chain is enabled
+- [x] Verify the checklist now also appears when Focus Chain is disabled but `task_progress` content exists
+- [x] Verify no checklist appears when there is no checklist content at all
 - [ ] Capture a debug-harness screenshot for the teammate if the UI is touched significantly
 
 **Suggested commit boundary:** `Render task progress checklist without focus chain gating`
@@ -878,17 +879,17 @@ The intended workflow is:
 
 **Implementation checklist**
 
-- [ ] Inspect the existing `focusChainSettings.enabled` guard around `<FocusChain />`
-- [ ] Replace the render condition with content-based logic (`lastProgressMessageText` and/or placeholder policy)
-- [ ] Keep the checkpoint error and other header sections unchanged
-- [ ] Confirm that the task header still collapses/expands normally
+- [x] Inspect the existing `focusChainSettings.enabled` guard around `<FocusChain />`
+- [x] Replace the render condition with content-based logic (`lastProgressMessageText` and/or placeholder policy)
+- [x] Keep the checkpoint error and other header sections unchanged
+- [x] Confirm that the task header still collapses/expands normally
 
 **Verification checklist**
 
-- [ ] Run focused webview Biome/type checks on `TaskHeader.tsx`
-- [ ] Verify checklist appears in the header when content exists and Focus Chain is disabled
-- [ ] Verify no blank checklist card renders when there is no checklist content
-- [ ] Verify checkpoint error rendering is unaffected
+- [x] Run focused webview Biome/type checks on `TaskHeader.tsx`
+- [x] Verify checklist appears in the header when content exists and Focus Chain is disabled
+- [x] Verify no blank checklist card renders when there is no checklist content
+- [x] Verify checkpoint error rendering is unaffected
 
 **Suggested commit boundary:** `Render task header checklist based on task progress content`
 
@@ -912,17 +913,17 @@ The intended workflow is:
 
 **Implementation checklist**
 
-- [ ] Rename the component file to a neutral name such as `TaskProgressChecklist.tsx`
-- [ ] Rename the exported component and props to generic checklist/task-progress terminology
-- [ ] Update all task-header imports and story references
-- [ ] Adjust story descriptions so they no longer call the component “FocusChain”
-- [ ] Keep rendered markup and behavior identical
+- [x] Rename the component file to a neutral name such as `TaskProgressChecklist.tsx`
+- [x] Rename the exported component and props to generic checklist/task-progress terminology
+- [x] Update all task-header imports and story references
+- [x] Adjust story descriptions so they no longer call the component “FocusChain”
+- [x] Keep rendered markup and behavior identical
 
 **Verification checklist**
 
-- [ ] Run focused webview Biome/type checks on the renamed files
-- [ ] Verify Storybook/task-header stories still compile if applicable
-- [ ] Search for remaining task-header imports of `FocusChain`
+- [x] Run focused webview Biome/type checks on the renamed files
+- [x] Verify Storybook/task-header stories still compile if applicable
+- [x] Search for remaining task-header imports of `FocusChain`
 
 **Suggested commit boundary:** `Rename task header focus chain component`
 
@@ -945,17 +946,17 @@ The intended workflow is:
 
 **Implementation checklist**
 
-- [ ] Choose a neutral helper name/module path, e.g. `task-progress-utils.ts` or `checklist-utils.ts`
-- [ ] Rename exported helpers to generic names where helpful
-- [ ] Update all imports in webview/shared consumers
-- [ ] Keep behavior byte-for-byte equivalent where possible
-- [ ] Optionally preserve temporary re-exports only if needed for a staged rollout
+- [x] Choose a neutral helper name/module path, e.g. `task-progress-utils.ts` or `checklist-utils.ts`
+- [x] Rename exported helpers to generic names where helpful
+- [x] Update all imports in webview/shared consumers
+- [x] Keep behavior byte-for-byte equivalent where possible
+- [x] Optionally preserve temporary re-exports only if needed for a staged rollout
 
 **Verification checklist**
 
-- [ ] Run focused Biome/type checks on renamed shared/webview files
-- [ ] Search for remaining imports from `focus-chain-utils`
-- [ ] Verify checklist parsing/rendering still matches current behavior
+- [x] Run focused Biome/type checks on renamed shared/webview files
+- [x] Search for remaining imports from `focus-chain-utils`
+- [x] Verify checklist parsing/rendering still matches current behavior
 
 **Suggested commit boundary:** `Rename shared checklist parsing helpers`
 
@@ -978,17 +979,17 @@ The intended workflow is:
 
 **Implementation checklist**
 
-- [ ] Find every `config.focusChainSettings.enabled` guard around `updateFCListFromToolResponse`
-- [ ] Remove the guard so updates run whenever `task_progress` is present and the block is final/non-partial
-- [ ] Keep existing partial-stream safeguards intact
-- [ ] Confirm attempt-completion still updates before the user sees the final result where intended
-- [ ] Add/update focused tests if the handler path already has unit coverage
+- [x] Find every `config.focusChainSettings.enabled` guard around `updateFCListFromToolResponse`
+- [x] Remove the guard so updates run whenever `task_progress` is present and the block is final/non-partial
+- [x] Keep existing partial-stream safeguards intact
+- [x] Confirm attempt-completion still updates before the user sees the final result where intended
+- [x] Add/update focused tests if the handler path already has unit coverage
 
 **Verification checklist**
 
-- [ ] Run focused unit tests for tool handler/update paths
-- [ ] Run focused Biome/type checks on touched runtime files
-- [ ] Verify that tasks with `task_progress` update checklist state even when Focus Chain is disabled
+- [x] Run focused unit tests for tool handler/update paths
+- [x] Run focused Biome/type checks on touched runtime files
+- [x] Verify that tasks with `task_progress` update checklist state even when Focus Chain is disabled
 
 **Suggested commit boundary:** `Update task progress state without focus chain gating`
 
@@ -1011,17 +1012,17 @@ The intended workflow is:
 
 **Implementation checklist**
 
-- [ ] Identify where `FocusChainManager` is instantiated and stored on `Task`
-- [ ] Replace the manager callback plumbing with a generic task-progress updater or direct no-op where appropriate
-- [ ] Remove dead setup/dispose/checkIncompleteProgress scaffolding if nothing still calls it meaningfully
-- [ ] Keep task startup ordering, checkpoint startup, and hook initialization unchanged
-- [ ] Decide whether the stub file should remain as a compatibility shim or be deleted in the same slice
+- [x] Identify where `FocusChainManager` is instantiated and stored on `Task`
+- [x] Replace the manager callback plumbing with a generic task-progress updater or direct no-op where appropriate
+- [x] Remove dead setup/dispose/checkIncompleteProgress scaffolding if nothing still calls it meaningfully
+- [x] Keep task startup ordering, checkpoint startup, and hook initialization unchanged
+- [x] Decide whether the stub file should remain as a compatibility shim or be deleted in the same slice
 
 **Verification checklist**
 
-- [ ] Run focused task/runtime unit tests if present
-- [ ] Run focused Biome/type checks on `Task` and adjacent files
-- [ ] Verify task startup still works and no runtime accesses expect `this.FocusChainManager`
+- [x] Run focused task/runtime unit tests if present
+- [x] Run focused Biome/type checks on `Task` and adjacent files
+- [x] Verify task startup still works and no runtime accesses expect `this.FocusChainManager`
 
 **Suggested commit boundary:** `Remove focus chain manager bootstrap wiring`
 

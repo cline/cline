@@ -161,8 +161,8 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				await config.callbacks.saveCheckpoint(true)
 			}
 
-			// Attempt completion is a special tool where we want to update the focus chain list before the user provides response
-			if (!block.partial && config.focusChainSettings.enabled) {
+			// Attempt completion is a special tool where we want to update the task-progress checklist before the user provides response
+			if (!block.partial) {
 				await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 			}
 
@@ -211,7 +211,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 			await config.callbacks.say("command_output", "")
 		}
 
-		if (!block.partial && config.focusChainSettings.enabled) {
+		if (!block.partial) {
 			await config.callbacks.updateFCListFromToolResponse(block.params.task_progress)
 		}
 

@@ -347,7 +347,7 @@ export const WithProgressMessage: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "TaskHeader with progress checklist displayed in FocusChain component.",
+				story: "TaskHeader with progress checklist displayed in the task progress checklist component.",
 			},
 		},
 	},
