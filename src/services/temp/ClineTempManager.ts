@@ -32,10 +32,11 @@ class ClineTempManagerImpl {
 	private cleanupIntervalId: NodeJS.Timeout | null = null
 
 	constructor() {
-		// Uses system temp directory with a dedicated "cline-{username}" subdirectory when possible, if not possible, default to "cline":
-		// macOS: /var/folders/xx/.../T/cline-{username}
-		// Windows: C:\Users\{user}\AppData\Local\Temp\cline-{username}
-		// Linux: /tmp/cline-{username}
+		// Uses system temp directory with a dedicated "cline" subdirectory when possible.
+		// Falls back to "cline-{username}" only when shared directory has permission issues.
+		// macOS: /var/folders/xx/.../T/cline (or cline-{username})
+		// Windows: C:\Users\{user}\AppData\Local\Temp\cline (or cline-{username})
+		// Linux: /tmp/cline (or cline-{username})
 		const baseTempDir = os.tmpdir()
 		let currentUserName
 		try {
@@ -43,13 +44,23 @@ class ClineTempManagerImpl {
 		} catch {
 			currentUserName = ""
 		}
-		const clineTempDir = path.join(baseTempDir, `cline${currentUserName}`)
+
+		// First try shared directory
+		const sharedTempDir = path.join(baseTempDir, "cline")
+		const userTempDir = path.join(baseTempDir, `cline${currentUserName}`)
 
 		try {
-			fs.mkdirSync(clineTempDir, { recursive: true })
-			this.tempDir = clineTempDir
+			fs.mkdirSync(sharedTempDir, { recursive: true })
+			this.tempDir = sharedTempDir
 		} catch {
-			this.tempDir = baseTempDir
+			// If shared directory fails, try user-specific directory
+			try {
+				fs.mkdirSync(userTempDir, { recursive: true })
+				this.tempDir = userTempDir
+			} catch {
+				// If both fail, fall back to base temp directory
+				this.tempDir = baseTempDir
+			}
 		}
 	}
 
