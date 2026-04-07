@@ -992,6 +992,7 @@ export class GrpcHandler {
 						name: org.name,
 						active: org.active,
 						memberId: org.memberId,
+						roles: org.roles ?? [],
 					})),
 				},
 			}

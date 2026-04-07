@@ -53,5 +53,5 @@ export function convertProtoUsageTransactions(protoTransactions: ProtoUsageTrans
 }
 
 export const isAdminOrOwner = (activeOrg: UserOrganization): boolean => {
-	return activeOrg.roles.findIndex((role) => role === "admin" || role === "owner") > -1
+	return (activeOrg.roles ?? []).findIndex((role) => role === "admin" || role === "owner") > -1
 }
