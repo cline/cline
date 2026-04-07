@@ -13,12 +13,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		cliCompatible: true,
 	},
 	{
-		name: "deep-planning",
-		description: "Create a comprehensive implementation plan before coding",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
 		name: "smol",
 		description: "Condenses your current context window",
 		section: "default",
@@ -27,12 +21,6 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "newrule",
 		description: "Create a new Cline rule based on your conversation",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "reportbug",
-		description: "Create a Github issue with Cline",
 		section: "default",
 		cliCompatible: true,
 	},

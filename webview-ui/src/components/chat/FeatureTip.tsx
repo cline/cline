@@ -41,7 +41,7 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Cline can browse websites — ask it to test your local dev server in the browser.",
 	},
 	{
-		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
+		text: "Use /newtask to start a fresh task while keeping the important context from your current conversation.",
 	},
 	{
 		text: 'You can disable these tips in Settings → Features → "Feature Tips".',
