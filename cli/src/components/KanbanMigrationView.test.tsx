@@ -8,11 +8,11 @@ describe("KanbanMigrationView", () => {
 		const onSelect = vi.fn()
 		const { lastFrame } = render(createElement(KanbanMigrationView, { isRawModeSupported: true, onSelect }))
 
-		expect(lastFrame()).toContain("Cline is moving out of the terminal. Introducing Cline Kanban.")
+		expect(lastFrame()).toContain("Introducing Cline Kanban!")
 		expect(lastFrame()).toContain("Open the new experience")
 		expect(lastFrame()).toContain("Launch Cline Kanban and start there by default.")
 		expect(lastFrame()).toContain("cline --tui")
-		expect(lastFrame()).toContain("Close and rerun with cline --tui if you want the old CLI.")
+		expect(lastFrame()).toContain("You can always run cline --tui for the terminal experience.")
 		expect(lastFrame()).toContain("Exit")
 	})
 
