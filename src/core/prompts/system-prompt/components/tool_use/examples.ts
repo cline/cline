@@ -1,7 +1,7 @@
 import { TemplateEngine } from "../../templates/TemplateEngine"
 import type { PromptVariant, SystemPromptContext } from "../../types"
 
-const FOCUS_CHAIN_EXAMPLE_BASH = `<task_progress>
+const TASK_PROGRESS_EXAMPLE_BASH = `<task_progress>
 - [x] Set up project structure
 - [x] Install dependencies
 - [ ] Run command to start server
@@ -9,7 +9,7 @@ const FOCUS_CHAIN_EXAMPLE_BASH = `<task_progress>
 </task_progress>
 `
 
-const FOCUS_CHAIN_EXAMPLE_NEW_FILE = `<task_progress>
+const TASK_PROGRESS_EXAMPLE_NEW_FILE = `<task_progress>
 - [x] Set up project structure
 - [x] Install dependencies
 - [ ] Create components
@@ -17,7 +17,7 @@ const FOCUS_CHAIN_EXAMPLE_NEW_FILE = `<task_progress>
 </task_progress>
 `
 
-const FOCUS_CHAIN_EXAMPLE_EDIT = `<task_progress>
+const TASK_PROGRESS_EXAMPLE_EDIT = `<task_progress>
 - [x] Set up project structure
 - [x] Install dependencies
 - [ ] Create components
@@ -32,7 +32,7 @@ const TOOL_USE_EXAMPLES_TEMPLATE_TEXT = `# Tool Use Examples
 <execute_command>
 <command>npm run dev</command>
 <requires_approval>false</requires_approval>
-{{FOCUS_CHAIN_EXAMPLE_BASH}}</execute_command>
+{{TASK_PROGRESS_EXAMPLE_BASH}}</execute_command>
 
 ## Example 2: Requesting to create a new file
 
@@ -54,7 +54,7 @@ const TOOL_USE_EXAMPLES_TEMPLATE_TEXT = `# Tool Use Examples
   "version": "1.0.0"
 }
 </content>
-{{FOCUS_CHAIN_EXAMPLE_NEW_FILE}}</write_to_file>
+{{TASK_PROGRESS_EXAMPLE_NEW_FILE}}</write_to_file>
 
 ## Example 3: Creating a new task
 
@@ -120,7 +120,7 @@ return (
   <div>
 +++++++ REPLACE
 </diff>
-{{FOCUS_CHAIN_EXAMPLE_EDIT}}</replace_in_file>
+{{TASK_PROGRESS_EXAMPLE_EDIT}}</replace_in_file>
 
 
 ## Example 5: Requesting to use an MCP tool
@@ -155,8 +155,8 @@ return (
 
 export async function getToolUseExamplesSection(_variant: PromptVariant, context: SystemPromptContext): Promise<string> {
 	return new TemplateEngine().resolve(TOOL_USE_EXAMPLES_TEMPLATE_TEXT, context, {
-		FOCUS_CHAIN_EXAMPLE_BASH,
-		FOCUS_CHAIN_EXAMPLE_NEW_FILE,
-		FOCUS_CHAIN_EXAMPLE_EDIT,
+		TASK_PROGRESS_EXAMPLE_BASH,
+		TASK_PROGRESS_EXAMPLE_NEW_FILE,
+		TASK_PROGRESS_EXAMPLE_EDIT,
 	})
 }
