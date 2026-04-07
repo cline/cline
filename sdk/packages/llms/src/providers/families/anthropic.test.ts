@@ -33,8 +33,18 @@ async function drain(stream: AsyncIterable<unknown>) {
 	}
 }
 
+async function collect(stream: AsyncIterable<unknown>) {
+	const chunks: unknown[] = [];
+	for await (const chunk of stream) {
+		chunks.push(chunk);
+	}
+	return chunks;
+}
+
 describe("AnthropicHandler", () => {
-	it("enables prompt caching when model pricing includes cache pricing", () => {
+	it("uses top-level automatic prompt caching when model pricing includes cache pricing", async () => {
+		anthropicCreateSpy.mockResolvedValueOnce(createAsyncIterable([]));
+
 		const handler = new AnthropicHandler({
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",
@@ -50,14 +60,29 @@ describe("AnthropicHandler", () => {
 			},
 		});
 
-		const messages = handler.getMessages("system", [
-			{ role: "user", content: "Tell me about this repo" },
-		]);
-		const userTextBlock = messages[0]?.content?.[0] as
-			| { cache_control?: { type: string } }
-			| undefined;
+		await drain(
+			handler.createMessage("system", [
+				{ role: "user", content: "Tell me about this repo" },
+			]),
+		);
 
-		expect(userTextBlock?.cache_control).toEqual({ type: "ephemeral" });
+		const request = anthropicCreateSpy.mock.calls[0]?.[0] as {
+			cache_control?: { type: string };
+			system?: Array<{ cache_control?: { type: string }; text?: string }>;
+			messages?: Array<{
+				content?: Array<{ cache_control?: { type: string }; text?: string }>;
+			}>;
+		};
+
+		expect(request.cache_control).toEqual({ type: "ephemeral" });
+		expect(request.system).toEqual([{ type: "text", text: "system" }]);
+		expect(
+			request.messages?.flatMap((message) => message.content ?? []),
+		).not.toContainEqual(
+			expect.objectContaining({
+				cache_control: { type: "ephemeral" },
+			}),
+		);
 	});
 
 	it("derives thinking budget from reasoning effort", async () => {
@@ -90,5 +115,63 @@ describe("AnthropicHandler", () => {
 			type: "enabled",
 			budget_tokens: 8000,
 		});
+	});
+
+	it("updates cache usage metrics from message_delta events", async () => {
+		anthropicCreateSpy.mockResolvedValueOnce(
+			createAsyncIterable([
+				{
+					type: "message_start",
+					message: {
+						usage: {
+							input_tokens: 3,
+							output_tokens: 3,
+							cache_creation_input_tokens: 0,
+							cache_read_input_tokens: 0,
+						},
+					},
+				},
+				{
+					type: "message_delta",
+					delta: { stop_reason: "end_turn" },
+					usage: {
+						input_tokens: 3,
+						output_tokens: 6,
+						cache_creation_input_tokens: 100,
+						cache_read_input_tokens: 200,
+					},
+				},
+				{ type: "message_stop" },
+			]),
+		);
+
+		const handler = new AnthropicHandler({
+			providerId: "anthropic",
+			modelId: "claude-opus-4-6",
+			apiKey: "test-key",
+			modelInfo: {
+				id: "claude-opus-4-6",
+				pricing: {
+					input: 15,
+					output: 75,
+					cacheRead: 1.5,
+					cacheWrite: 18.75,
+				},
+			},
+		});
+
+		const chunks = await collect(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				inputTokens: 3,
+				outputTokens: 6,
+				cacheWriteTokens: 100,
+				cacheReadTokens: 200,
+			}),
+		);
 	});
 });

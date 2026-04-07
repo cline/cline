@@ -367,7 +367,7 @@ describe("OpenAICompatibleHandler", () => {
 		expect(assistantParts[0]?.args).toBeUndefined();
 	});
 
-	it("applies Anthropic prompt cache markers to the last user text part", async () => {
+	it("applies Anthropic prompt cache markers and automatic caching to OpenRouter requests", async () => {
 		const handler = new OpenAICompatibleHandler({
 			providerId: "openrouter",
 			modelId: "anthropic/claude-sonnet-4.6",
@@ -393,6 +393,7 @@ describe("OpenAICompatibleHandler", () => {
 		);
 
 		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
 			messages?: Array<{
 				role?: string;
 				content?: Array<Record<string, unknown>> | string;
@@ -402,6 +403,11 @@ describe("OpenAICompatibleHandler", () => {
 		const firstUserMessage = request.messages?.[1];
 		const lastUserMessage = request.messages?.[3];
 
+		expect(request.providerOptions).toEqual({
+			openrouter: {
+				cache_control: { type: "ephemeral" },
+			},
+		});
 		expect(systemMessage?.content).toBe("system prompt");
 		expect(firstUserMessage?.content).toBe("first prompt");
 		expect(lastUserMessage?.content).toMatchObject([
@@ -413,6 +419,40 @@ describe("OpenAICompatibleHandler", () => {
 				},
 			},
 		]);
+	});
+
+	it("applies Anthropic automatic caching to Cline requests", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			modelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				pricing: {
+					input: 3,
+					output: 15,
+					cacheRead: 0.3,
+					cacheWrite: 3.75,
+				},
+			},
+		});
+
+		await drain(
+			handler.createMessage("system prompt", [
+				{ role: "user", content: "hello" },
+			]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+
+		expect(request.providerOptions).toEqual({
+			cline: {
+				cache_control: { type: "ephemeral" },
+			},
+		});
 	});
 
 	it("does not add explicit cache markers for non-Anthropic models", async () => {
@@ -457,6 +497,85 @@ describe("OpenAICompatibleHandler", () => {
 						prompt_tokens_details: {
 							cached_tokens: 900,
 							cache_write_tokens: 80,
+						},
+					},
+				},
+			]),
+		});
+
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		const chunks = await collect(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				inputTokens: 1000,
+				outputTokens: 50,
+				cacheReadTokens: 900,
+				cacheWriteTokens: 80,
+			}),
+		);
+	});
+
+	it("reads cache write tokens from raw AI SDK usage payloads", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: createAsyncIterable([
+				{
+					type: "finish",
+					usage: {
+						inputTokens: 1000,
+						outputTokens: 50,
+						raw: {
+							prompt_tokens_details: {
+								cached_tokens: 900,
+								cache_write_tokens: 80,
+							},
+						},
+					},
+				},
+			]),
+		});
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		const chunks = await collect(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				inputTokens: 1000,
+				outputTokens: 50,
+				cacheReadTokens: 900,
+				cacheWriteTokens: 80,
+			}),
+		);
+	});
+
+	it("reads cache token details from AI SDK v6 usage fields", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: createAsyncIterable([
+				{
+					type: "finish",
+					usage: {
+						inputTokens: 1000,
+						outputTokens: 50,
+						inputTokenDetails: {
+							cacheReadTokens: 900,
+							cacheWriteTokens: 80,
 						},
 					},
 				},

@@ -48,12 +48,15 @@ const EXPLICIT_FAMILY_BY_PROVIDER_ID: Partial<
 > = {
 	asksage: "asksage",
 	"claude-code": "claude-code",
+	cline: "openai-base",
 	dify: "dify",
 	mistral: "mistral",
 	oca: "oca",
 	"openai-codex": "openai-codex",
 	opencode: "opencode",
+	openrouter: "openai-base",
 	sapaicore: "sapaicore",
+	"vercel-ai-gateway": "openai-base",
 };
 
 function resolveProviderFamily(input: {

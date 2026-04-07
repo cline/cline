@@ -126,10 +126,9 @@ export class AnthropicHandler extends BaseHandler {
 		_systemPrompt: string,
 		messages: Message[],
 	): Anthropic.MessageParam[] {
-		const supportsPromptCache = this.supportsPromptCache(this.getModel().info);
 		return convertToAnthropicMessages(
 			messages,
-			supportsPromptCache,
+			false,
 		) as Anthropic.MessageParam[];
 	}
 
@@ -191,8 +190,8 @@ export class AnthropicHandler extends BaseHandler {
 		const requestOptions = { signal: abortSignal };
 
 		// Create the request
-		// Use top-level automatic caching so the entire prefix (system +
-		// messages) is cached and the breakpoint advances each turn.
+		// Use Anthropic's top-level automatic caching so the entire prefix
+		// advances each turn without manual per-block breakpoints.
 		const createParams: Record<string, unknown> &
 			Anthropic.MessageCreateParamsStreaming = {
 			model: model.id,
@@ -201,20 +200,19 @@ export class AnthropicHandler extends BaseHandler {
 				: undefined,
 			max_tokens: maxTokens,
 			temperature: reasoningOn ? undefined : 0,
-			system: [
-				supportsPromptCache
-					? {
-							text: systemPrompt,
-							type: "text",
-							cache_control: { type: "ephemeral" },
-						}
-					: { text: systemPrompt, type: "text" },
-			],
+			system: [{ text: systemPrompt, type: "text" }],
 			messages: anthropicMessages as Anthropic.MessageParam[],
 			stream: true,
 			tools: anthropicTools,
 			tool_choice: nativeToolsOn && !reasoningOn ? { type: "auto" } : undefined,
 		};
+		if (supportsPromptCache) {
+			(
+				createParams as Anthropic.MessageCreateParamsStreaming & {
+					cache_control?: { type: "ephemeral" };
+				}
+			).cache_control = { type: "ephemeral" };
+		}
 
 		const stream = await client.messages.create(
 			createParams as Anthropic.MessageCreateParamsStreaming,
@@ -285,10 +283,8 @@ export class AnthropicHandler extends BaseHandler {
 				const usage = chunk.message.usage;
 				usageSnapshot.inputTokens = usage.input_tokens || 0;
 				usageSnapshot.outputTokens = usage.output_tokens || 0;
-				usageSnapshot.cacheWriteTokens =
-					(usage as any).cache_creation_input_tokens || 0;
-				usageSnapshot.cacheReadTokens =
-					(usage as any).cache_read_input_tokens || 0;
+				usageSnapshot.cacheWriteTokens = usage.cache_creation_input_tokens || 0;
+				usageSnapshot.cacheReadTokens = usage.cache_read_input_tokens || 0;
 				yield {
 					type: "usage",
 					inputTokens: usageSnapshot.inputTokens,
@@ -307,8 +303,15 @@ export class AnthropicHandler extends BaseHandler {
 			}
 
 			case "message_delta": {
+				usageSnapshot.inputTokens =
+					chunk.usage.input_tokens ?? usageSnapshot.inputTokens;
 				usageSnapshot.outputTokens =
-					chunk.usage.output_tokens || usageSnapshot.outputTokens;
+					chunk.usage.output_tokens ?? usageSnapshot.outputTokens;
+				usageSnapshot.cacheWriteTokens =
+					chunk.usage.cache_creation_input_tokens ??
+					usageSnapshot.cacheWriteTokens;
+				usageSnapshot.cacheReadTokens =
+					chunk.usage.cache_read_input_tokens ?? usageSnapshot.cacheReadTokens;
 				yield {
 					type: "usage",
 					inputTokens: usageSnapshot.inputTokens,

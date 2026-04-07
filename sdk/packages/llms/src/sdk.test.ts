@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ModelInfo } from "./models";
 import { BUILT_IN_PROVIDER } from "./providers/config/provider-ids";
-import { OpenAICompatibleHandler } from "./providers/families/openai-compatible";
+import { OpenAIBaseHandler } from "./providers/families/openai-chat";
 import { OpenAIResponsesHandler } from "./providers/families/openai-responses";
 import { createLlmsSdk } from "./sdk";
 
@@ -40,7 +40,7 @@ describe("llms runtime registry", () => {
 
 		const handler = sdk.createHandler({ providerId: "acme-openrouter" });
 
-		expect(handler).toBeInstanceOf(OpenAICompatibleHandler);
+		expect(handler).toBeInstanceOf(OpenAIBaseHandler);
 		expect(sdk.isProviderConfigured("acme-openrouter")).toBe(true);
 		expect(sdk.isModelConfigured("acme-openrouter", "acme-chat-1")).toBe(true);
 	});

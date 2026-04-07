@@ -3,7 +3,6 @@ import {
 	resolveEffectiveReasoningEffort,
 	resolveReasoningBudgetFromRatio,
 } from "@clinebot/shared";
-import z from "zod";
 import {
 	getMissingApiKeyError,
 	resolveApiKeyForProvider,
@@ -13,6 +12,7 @@ import {
 	ensureLangfuseTelemetry,
 } from "../runtime/langfuse-telemetry";
 import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
+import { normalizeToolInputSchemaToZod } from "../transform/tool-schema";
 import type { ApiStream, HandlerModelInfo, ModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
 import type { Message, ToolDefinition } from "../types/messages";
@@ -23,15 +23,15 @@ import {
 	numberOrZero,
 } from "./shared/ai-sdk-stream";
 import { BaseHandler } from "./shared/base-handler";
+import {
+	isAnthropicModelId,
+	shouldUseAnthropicAutomaticPromptCache,
+} from "./shared/openai-compatible-routing";
 
 type OpenAICompatibleProvider = (
 	modelId: string,
 	settings?: Record<string, unknown>,
 ) => unknown;
-
-function isAnthropicModelId(modelId: string): boolean {
-	return modelId.toLowerCase().startsWith("anthropic/");
-}
 
 function resolveAnthropicOpenRouterReasoningBudget(options: {
 	modelId?: string;
@@ -184,24 +184,42 @@ function resolveCacheUsageMetrics(usage: Record<string, unknown>): Pick<
 	const usageWithCache = usage as typeof usage & {
 		cachedInputTokens?: unknown;
 		cacheWriteTokens?: unknown;
+		inputTokenDetails?: {
+			cacheReadTokens?: unknown;
+			cacheWriteTokens?: unknown;
+		};
 		prompt_tokens_details?: {
 			cached_tokens?: unknown;
 			cache_write_tokens?: unknown;
 		};
 		cache_creation_input_tokens?: unknown;
 		cache_read_input_tokens?: unknown;
+		raw?: {
+			prompt_tokens_details?: {
+				cached_tokens?: unknown;
+				cache_write_tokens?: unknown;
+			};
+			cache_creation_input_tokens?: unknown;
+			cache_read_input_tokens?: unknown;
+		};
 	};
 
 	return {
 		cacheReadTokens: numberOrZero(
 			usageWithCache.cachedInputTokens ??
+				usageWithCache.inputTokenDetails?.cacheReadTokens ??
 				usageWithCache.prompt_tokens_details?.cached_tokens ??
-				usageWithCache.cache_read_input_tokens,
+				usageWithCache.cache_read_input_tokens ??
+				usageWithCache.raw?.prompt_tokens_details?.cached_tokens ??
+				usageWithCache.raw?.cache_read_input_tokens,
 		),
 		cacheWriteTokens: numberOrZero(
 			usageWithCache.cacheWriteTokens ??
+				usageWithCache.inputTokenDetails?.cacheWriteTokens ??
 				usageWithCache.prompt_tokens_details?.cache_write_tokens ??
-				usageWithCache.cache_creation_input_tokens,
+				usageWithCache.cache_creation_input_tokens ??
+				usageWithCache.raw?.prompt_tokens_details?.cache_write_tokens ??
+				usageWithCache.raw?.cache_creation_input_tokens,
 		),
 	};
 }
@@ -218,7 +236,7 @@ function toAiSdkTools(
 			tool.name,
 			{
 				description: tool.description,
-				inputSchema: z.fromJSONSchema(tool.inputSchema),
+				inputSchema: normalizeToolInputSchemaToZod(tool.inputSchema),
 			},
 		]),
 	);
@@ -337,19 +355,33 @@ export class OpenAICompatibleHandler extends BaseHandler {
 				providerSpecificOptions.reasoning = reasoning;
 			}
 		}
-		const requestProviderOptions =
-			Object.keys(providerSpecificOptions).length > 0
-				? { [providerOptionsKey]: providerSpecificOptions }
-				: undefined;
 		const langfuseTelemetryReady =
 			await ensureLangfuseTelemetry(routingProviderId);
 		debugLangfuse(`ready langfuse=${String(langfuseTelemetryReady)}`);
 
 		const supportsPromptCache = this.supportsPromptCache(modelInfo);
-		const aiMessages =
-			supportsPromptCache && isAnthropicModelId(modelId)
-				? buildCachedAiSdkMessages(systemPrompt, messages, routingProviderId)
-				: this.getMessages(systemPrompt, messages);
+		const shouldUseAnthropicPromptCache =
+			supportsPromptCache && isAnthropicModelId(modelId);
+		if (
+			shouldUseAnthropicPromptCache &&
+			shouldUseAnthropicAutomaticPromptCache({
+				modelId,
+				providerId: routingProviderId,
+				supportsPromptCache,
+			})
+		) {
+			// Built-in OpenRouter/Cline/Vercel traffic now routes through
+			// OpenAIBaseHandler, but direct OpenAICompatibleHandler instantiation
+			// still needs the Anthropic cache-control shape for those gateways.
+			providerSpecificOptions.cache_control = { type: "ephemeral" };
+		}
+		const requestProviderOptions =
+			Object.keys(providerSpecificOptions).length > 0
+				? { [providerOptionsKey]: providerSpecificOptions }
+				: undefined;
+		const aiMessages = shouldUseAnthropicPromptCache
+			? buildCachedAiSdkMessages(systemPrompt, messages, routingProviderId)
+			: this.getMessages(systemPrompt, messages);
 
 		const stream = ai.streamText({
 			model: provider(modelId),

@@ -8,7 +8,8 @@
 		"access": "restricted"
 	},
 	"bin": {
-		"clite": "dist/index.js"
+		"clite": "dist/index.js",
+		"cline": "dist/index.js"
 	},
 	"main": "dist/index.js",
 	"exports": {
@@ -19,13 +20,14 @@
 	],
 	"scripts": {
 		"build": "rm -rf dist && bun run bun.mts",
-		"build:binary": "bun build --compile ./src/index.ts --compile --outfile ./dist/cline",
+		"build:binary": "bun build --compile ./src/index.ts --compile --outfile ./dist/cline && cp ./dist/cline ./dist/clite",
 		"build:tgz": "bun run build && bun pm pack --destination ./dist",
 		"dev": "bun --conditions=development ./src/index.ts",
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts",
+		"test:live": "vitest run --config vitest.live.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
 		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",
 		"test:watch": "vitest --config vitest.config.ts",
