@@ -684,7 +684,6 @@ export class GrpcHandler {
 				case "testOtelConnection":
 				case "testPromptUploading":
 				case "condense":
-				case "reportBug":
 				case "taskFeedback":
 				case "taskCompletionViewChanges":
 				case "explainChanges":
