@@ -197,6 +197,16 @@ export class WebviewGrpcBridge {
 				break
 			}
 
+			case "subscribeToAuthStatusUpdate": {
+				// Push initial auth state from disk
+				const authReq: GrpcRequest = { method: "subscribeToAuthStatusUpdate", params: {} }
+				const authResult = await this.grpcHandler.handleRequest(authReq)
+				if (authResult.data) {
+					this.sendStreamingResponse(requestId, authResult.data)
+				}
+				break
+			}
+
 			default: {
 				// For other streaming subscriptions (models, navigation,
 				// etc.) the SDK adapter will push real data via typed messages.
