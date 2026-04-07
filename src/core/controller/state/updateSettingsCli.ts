@@ -177,19 +177,13 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 			// Update focus chain settings (requires telemetry on state change)
 			if (focusChainSettings !== undefined) {
 				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
-				const wasEnabled = currentSettings?.enabled ?? false
-				const isEnabled = focusChainSettings.enabled
 
-				const newFocusChainSettings = {
-					enabled: isEnabled,
-					remindClineInterval: focusChainSettings.remindClineInterval,
-				}
-				controller.stateManager.setGlobalState("focusChainSettings", newFocusChainSettings)
-
-				// Capture telemetry when setting changes
-				if (wasEnabled !== isEnabled) {
-					telemetryService.captureFocusChainToggle(isEnabled)
-				}
+				// Legacy compatibility only: keep the stored value shape intact without letting
+				// incoming writes toggle active Focus Chain behavior or generate new telemetry.
+				controller.stateManager.setGlobalState("focusChainSettings", {
+					enabled: currentSettings?.enabled ?? false,
+					remindClineInterval: currentSettings?.remindClineInterval ?? focusChainSettings.remindClineInterval,
+				})
 			}
 
 			// Update browser settings (requires careful merging to avoid protobuf defaults)
