@@ -98,22 +98,24 @@ Tracking issues found during the migration from the legacy inference system to t
 ### 15. 🔴 MCP tools are missing / not visible to the agent
 **Where:** Agent tool execution  
 **Symptom:** MCP tools that should be available to the agent are not discovered or listed. The agent cannot see or use any MCP-provided tools during task execution.  
-**Expected:** Connected MCP servers should expose their tools to the agent, and the agent should be able to invoke them.
+**Expected:** Connected MCP servers should expose their tools to the agent, and the agent should be able to invoke them.  
+**Investigation:** `@clinebot/core` has full MCP support (`InMemoryMcpManager`, `registerMcpServersFromSettingsFile`, `resolveMcpServerRegistrations`). The issue is that `ClineCoreSession` in `cline-session-factory.ts` doesn't pass MCP configuration through `coreConfig` when calling `host.start()`. The MCP settings file exists at `~/.cline/data/settings/cline_mcp_settings.json` and `SdkController.getMcpServers()` already reads it for the UI, but the session factory never wires MCP servers into the ClineCore session. The fix requires: (1) reading MCP server registrations via `resolveMcpServerRegistrations()` or passing the settings file path in `coreConfig`, (2) creating/passing an `InMemoryMcpManager` to ClineCore, or (3) ensuring ClineCore auto-discovers MCP settings from the default path. This is a deep architectural change that can't be verified via the debug harness (requires actual agent task execution).
 
 ### 16. 🟡 Cline Rules popup still has a "Workflows" tab
 **Where:** Scales-of-justice icon → Cline Rules modal  
 **Symptom:** The "Manage Cline Rules" popup contains a "Workflows" tab. Issue #12 fixed the tooltip text, but the tab itself still exists inside the modal.  
 **Expected:** The "Workflows" tab should be removed entirely since workflows are no longer a feature.
 
-### 17. 🔴 Account pane shows "Sign up with Cline" despite being logged in
+### 17. 🟢 Account pane shows "Sign up with Cline" despite being logged in
 **Where:** Account panel / pane  
 **Symptom:** Even when the user is already authenticated and logged in, the account pane still displays "Sign up with Cline" and other sign-up prompts as if the user were not authenticated.  
-**Expected:** Should show the logged-in user's account details, usage, plan info, etc.
+**Root cause:** `subscribeToAuthStatusUpdate` is a streaming subscription. The bridge's `handleStreamingRequest()` fell into the `default` no-op case, so auth state was never pushed to the webview. The `ClineAuthProvider` never received a user object, causing `AccountWelcomeView` to render instead of `ClineAccountView`. Additionally, `getUserOrganizations` didn't include `roles`, causing `isAdminOrOwner()` to crash on `roles.findIndex()`.  
+**Fix:** Added explicit `subscribeToAuthStatusUpdate` case in `handleStreamingRequest()` that reads auth credentials from disk and pushes them. Added `roles` to org data and null safety in `isAdminOrOwner()`.
 
-### 18. 🔴 "Sign up with Cline" button does nothing
+### 18. 🟢 "Sign up with Cline" button does nothing (moot)
 **Where:** Account pane → Sign up button  
 **Symptom:** Clicking the "Sign up with Cline" button produces no response — no browser opens, no auth flow starts, no feedback is given.  
-**Expected:** Should initiate the Cline account sign-up / OAuth flow.
+**Fix:** Resolved by #17 — the sign-up button is no longer shown when the user is already authenticated.
 
 ### 19. 🟡 Terminal settings still shows "Terminal Execution Mode" option
 **Where:** Settings → Terminal  
@@ -136,10 +138,11 @@ Tracking issues found during the migration from the legacy inference system to t
 **Root cause:** `updateSettings()` was writing raw `settings` to `globalState.json` instead of merging individual known keys. The `planActSeparateModels` key was not being read from the persisted state back into `buildExtensionState()`.  
 **Fix:** `updateSettings()` now iterates known settings keys and writes each one individually. `buildExtensionState()` reads `planActSeparateModels` from `globalState`. State round-trip works correctly.
 
-### 23. 🔴 MCP settings gear icon opens blank webview
-**Where:** MCP settings popup → gear icon  
-**Symptom:** Opening the MCP settings popup and clicking the gear (configuration) icon results in a completely blank webview. No settings, no content rendered.  
-**Expected:** Should display MCP server configuration options.
+### 23. 🟢 MCP settings Configure tab crashes React
+**Where:** MCP Servers → Configure tab  
+**Symptom:** Clicking the "Configure" tab in MCP Servers crashes the entire React app, leaving a blank sidebar.  
+**Root cause:** `refreshMcpMarketplace` gRPC stub returns `{}`, which replaces the default `{ items: [] }` state. When `getMcpServerDisplayName()` in `webview-ui/src/utils/mcp.ts` calls `mcpMarketplaceCatalog.items.find(...)`, `items` is `undefined` and crashes.  
+**Fix:** Added optional chaining (`?.items?.find`) in `getMcpServerDisplayName()` to handle undefined catalog/items.
 
 ### 24. 🟢 History tab is empty and search does nothing
 **Where:** History tab (task history list)  
