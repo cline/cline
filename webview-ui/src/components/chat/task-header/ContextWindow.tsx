@@ -134,7 +134,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		}
 	}, [isOpened])
 
-	if (!tokenData) {
+	if (!tokenData || tokenData.used === 0) {
 		return null
 	}
 
