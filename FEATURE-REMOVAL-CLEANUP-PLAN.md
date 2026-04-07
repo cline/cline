@@ -445,6 +445,13 @@ It should answer, at any time:
 - Update the row again after implementation.
 - Do not rely on memory or scattered notes.
 
+### Working cleanup ledger
+
+| Candidate | Category | Target outcome | Evidence | User-visible surface | Runtime dependency | Bridge dependency | Persistence coupling | Replacement path | Replacement readiness | Tests affected | Docs affected | Parallel-work coupling | Risk | Decision | Verification class | Verification plan | Owner | Status | Last findings | Next step |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| `/deep-planning` | docs / slash commands | Remove command and replace docs guidance with Plan mode | `src/shared/slashCommands.ts`, `docs/core-workflows/using-commands.mdx`, `docs/core-workflows/plan-and-act.mdx`, `docs/docs.json`, doc searches on 2026-04-07, verification artifact `feature-removal-verify-slice-1-final/summary.md` | Green | Green | Green | Green | Plan mode + written implementation plans | Green | `src/test/slash-commands.test.ts` | `docs/core-workflows/using-commands.mdx`, `docs/core-workflows/plan-and-act.mdx`, `docs/contributing/documentation-guide.mdx`, `docs/features/focus-chain.mdx`, `docs/features/memory-bank.mdx`, `docs/getting-started/your-first-project.mdx`, `docs/docs.json` | Low | Low | Delete now | Low | Search for remaining references, run slash-command test, refresh prompt snapshots, note branch-wide typecheck blockers | Cline | Verified | Command removed from user-facing slash command surfaces, docs retargeted to Plan mode, and prompt snapshots refreshed successfully | Move to the next Tier 1 cleanup slice |
+| `/reportbug` product surface | docs / tips / prompts / slash commands | Hide the command from user-facing surfaces while retaining compatibility internals for now | `src/shared/slashCommands.ts`, `src/core/controller/slash/reportBug.ts`, `src/sdk/grpc-handler.ts`, `src/shared/WebviewMessages.ts`, `webview-ui/src/components/chat/FeatureTip.tsx`, `cli/src/components/FeatureTip.tsx`, prompt template searches on 2026-04-07, verification artifact `feature-removal-verify-slice-1-final/summary.md` | Green | Yellow | Yellow | Green | GitHub issues + existing internal feedback/reporting plumbing | Yellow | `src/test/slash-commands.test.ts` | tips, docs, prompt templates | Low | Medium | Hide now, retain internals | Medium | Search for remaining user-facing references, run slash-command test, refresh prompt snapshots, note branch-wide typecheck blockers | Cline | Verified | User-facing slash-command exposure, tips, and prompt guidance were removed; compatibility handlers remain intentionally in place for now | Revisit runtime/plumbing cleanup after bridge cutover work advances |
+
 ### Recommended ledger columns
 
 | Column | Meaning |
@@ -526,8 +533,8 @@ This section describes the actual working process developers should follow.
 
 ### Phase 0 — Set up the cleanup workstream
 
-- [ ] Create or choose a home for the cleanup ledger.
-- [ ] Seed the ledger with the first known candidates.
+- [x] Create or choose a home for the cleanup ledger.
+- [x] Seed the ledger with the first known candidates.
 - [ ] Align with the teammate doing migration work on which boundaries are actively moving.
 - [ ] Confirm who owns docs cleanup vs code cleanup vs bridge cleanup.
 - [ ] Agree on review expectations for risky deletions.
@@ -1055,8 +1062,8 @@ These are good starting points.
 
 ### Candidate group 1 — Command and product-surface cleanup
 
-- [ ] `/deep-planning`
-- [ ] `/reportbug`
+- [x] `/deep-planning`
+- [x] `/reportbug`
 - [ ] workflows references in user-facing product surfaces
 
 Likely files:
@@ -1144,8 +1151,8 @@ This cleanup effort is complete when:
 
 ### Setup
 
-- [ ] Create the cleanup ledger
-- [ ] Seed ledger with known candidate groups
+- [x] Create the cleanup ledger
+- [x] Seed ledger with known candidate groups
 - [ ] Align with teammate on active migration boundaries
 - [ ] Decide owners per stream
 
@@ -1161,14 +1168,14 @@ This cleanup effort is complete when:
 
 ### Execution
 
-- [ ] Complete Tier 1 product-surface/doc cleanup slices
+- [x] Complete Tier 1 product-surface/doc cleanup slices
 - [ ] Complete Tier 2 UI affordance cleanup slices
 - [ ] Complete Tier 3 compatibility simplification slices when ready
 - [ ] Complete Tier 4 runtime/test deletion slices when safe
 
 ### Verification
 
-- [ ] Maintain per-slice verification plans
+- [x] Maintain per-slice verification plans
 - [ ] Use `npm run check-types` as needed
 - [ ] Use `npm run lint` as needed
 - [ ] Use `npm run test:sdk` for SDK-adjacent and high-risk slices
@@ -1177,8 +1184,8 @@ This cleanup effort is complete when:
 
 ### Closure
 
-- [ ] Update ledger to reflect final outcomes
-- [ ] Record remaining blocked items
+- [x] Update ledger to reflect final outcomes
+- [x] Record remaining blocked items
 - [ ] Summarize what is still waiting on migration cutover
 
 ---

@@ -1,10 +1,10 @@
 ---
 title: "Using Commands"
 sidebarTitle: "Using Commands"
-description: "Built-in slash commands to manage context, plan implementations, and create reusable workflows."
+description: "Built-in slash commands to manage context and keep work moving."
 ---
 
-Cline provides slash commands in chat that help you manage your conversation and plan complex implementations.
+Cline provides slash commands in chat that help you manage your conversation and keep momentum while you work.
 
 <Tip>
 **New to slash commands?** Watch our [quick video walkthrough](https://youtu.be/MxS5Jerpf-o) to see these commands in action.
@@ -19,9 +19,7 @@ Type `/` in the chat input to see available slash commands:
 | `/newtask` | Start fresh task with distilled context from current conversation |
 | `/smol` | Compress conversation history while preserving essential context |
 | `/newrule` | Create a rule file to teach Cline your preferences |
-| `/deep-planning` | Investigate codebase, plan thoroughly, then create implementation task |
 | `/explain-changes` | Generate AI explanations for any git diff (VS Code only) |
-| `/reportbug` | Report a bug with diagnostic info |
 
 ### /newtask
 
@@ -41,16 +39,7 @@ Use `/smol` when you're deep into a debugging session or brainstorming and need 
 
 Use `/newrule` when you find yourself repeating the same instructions across tasks. For more about rules, see [Cline Rules](/customization/cline-rules).
 
-### /deep-planning
-
-Transform Cline into a meticulous architect who investigates your codebase, asks clarifying questions, and creates a comprehensive implementation plan before writing any code. Deep planning follows a four-step process:
-
-1. **Silent Investigation** - Cline explores your codebase structure and patterns
-2. **Discussion** - Targeted questions about requirements and approach
-3. **Plan Creation** - Generates `implementation_plan.md` with detailed specifications
-4. **Task Creation** - Creates a new task with trackable implementation steps
-
-Use `/deep-planning` for features touching multiple parts of your codebase, architectural changes, or complex integrations. For detailed documentation, see [Deep Planning](/features/deep-planning).
+For larger tasks, switch to [Plan & Act mode](/core-workflows/plan-and-act) and ask Cline to investigate the codebase, write down an implementation plan, and capture a todo list before you return to Act mode.
 
 ### /explain-changes
 
@@ -61,12 +50,6 @@ This command is only available in VS Code.
 `/explain-changes` generates AI-powered explanations for any git diff. You can explain the last commit, uncommitted work, staged changes, specific commits, branches, PRs, or any range of changes.
 
 Use `/explain-changes` when reviewing code, onboarding to a new codebase, or understanding what changed. For the full list of use cases and examples, see [Explain Changes Command](#explain-changes).
-
-### /reportbug
-
-`/reportbug` collects diagnostic information and helps you report issues with Cline. It gathers relevant context like your configuration, recent errors, and system details to make bug reports more useful for the development team.
-
-Use `/reportbug` when you encounter unexpected behavior, crashes, or bugs you want to report.
 
 ## Custom Workflows
 
