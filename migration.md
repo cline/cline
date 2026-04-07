@@ -153,6 +153,40 @@ identify which calls need real implementations.
 - Delete `proto/cline/*.proto`, `src/shared/proto-conversions/`,
   `src/generated/`
 - Remove proto build steps from `package.json`
+- Simplify/remove obsolete settings UI (see below)
+
+#### Terminal Settings — Radical Simplification Needed
+
+The SDK uses **background terminal execution** (`backgroundExec`)
+instead of the VSCode integrated terminal. The entire terminal
+settings page (`webview-ui/src/components/settings/sections/TerminalSettingsSection.tsx`)
+is built around integrated terminal concerns that no longer apply:
+
+| Current Setting | Status | Reason |
+|----------------|--------|--------|
+| Default Terminal Profile dropdown | **Remove** | Background exec doesn't use VSCode terminal profiles; the SDK runs commands via `child_process` |
+| Shell integration timeout | **Remove** | Shell integration is a VSCode terminal feature; background exec doesn't use it |
+| Enable aggressive terminal reuse | **Remove** | Terminal window reuse is a VSCode terminal concept |
+| Terminal Execution Mode (VSCode/Background) | **Remove** | There's only one mode now — background exec |
+| Terminal Output Line Limit slider | **Keep** | Still relevant for controlling how much output is captured/displayed |
+| Terminal troubleshooting links | **Remove** | Links to VSCode terminal troubleshooting docs |
+
+**Action:** Replace `TerminalSettingsSection` with a minimal section
+containing only the output line limit slider (and any future
+background-exec-specific settings like working directory, env vars,
+etc.). The `getAvailableTerminalProfiles` gRPC handler, the
+`TerminalProfile` proto messages, and `src/utils/shell.ts` terminal
+profile detection can all be deleted.
+
+Related files to remove/simplify:
+- `webview-ui/src/components/settings/sections/TerminalSettingsSection.tsx`
+- `src/utils/shell.ts` (terminal profile functions)
+- `src/core/controller/state/getAvailableTerminalProfiles.ts`
+- `proto/cline/state.proto` → `TerminalProfile`, `TerminalProfiles` messages
+- `src/sdk/grpc-handler.ts` → `handleGetAvailableTerminalProfiles()`
+- State keys: `defaultTerminalProfile`, `terminalReuseEnabled`,
+  `shellIntegrationTimeout`, `vscodeTerminalExecutionMode`,
+  `availableTerminalProfiles`
 
 ### Phase 3: Delete Classic Core
 
@@ -196,6 +230,7 @@ Phase 2 — Webview Simplification (current)
   [x] WebviewBridge + tests
   [x] InboundMessageHandler + tests
   [x] Dual-listen pattern in ExtensionStateContext
+  [ ] Simplify TerminalSettingsSection (remove integrated terminal settings, keep output limit)
   [ ] Remove gRPC subscriptions from webview
   [ ] Delete proto/cline/*.proto, proto-conversions, generated code
   [ ] Remove proto build steps from package.json
