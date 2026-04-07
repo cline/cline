@@ -11,10 +11,6 @@ When the user directly asks about Cline (eg 'can Cline do...', 'does Cline have.
   - Example: https://docs.cline.bot/features/auto-approve`
 
 export async function getFeedbackSection(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
-	if (!context.focusChainSettings?.enabled) {
-		return undefined
-	}
-
 	const template = variant.componentOverrides?.[SystemPromptSection.FEEDBACK]?.template || FEEDBACK_TEMPLATE_TEXT
 
 	return new TemplateEngine().resolve(template, context, {})

@@ -304,6 +304,7 @@ describe("Prompt System Integration Tests", () => {
 			{ name: "browser-specific content when browser is enabled", context: { supportsBrowserUse: true }, check: "browser" },
 			{ name: "MCP content when MCP servers are present", context: {}, check: "MCP" },
 			{ name: "task progress content in the default prompt", context: {}, check: "UPDATING TASK PROGRESS" },
+			{ name: "feedback guidance in the default prompt", context: {}, check: "github issue" },
 			{ name: "user instructions when provided", context: {}, check: "USER'S CUSTOM INSTRUCTIONS" },
 		]
 
@@ -323,6 +324,18 @@ describe("Prompt System Integration Tests", () => {
 				async ({ systemPrompt }) => {
 					expect(systemPrompt).to.include("UPDATING TASK PROGRESS")
 					expect(systemPrompt).to.include("task_progress")
+				},
+			)
+		})
+
+		it("should include feedback guidance even when focus chain is disabled", async function () {
+			await runPromptTest(
+				this,
+				{ ...baseContext, focusChainSettings: { enabled: false, remindClineInterval: 0 } },
+				"default",
+				async ({ systemPrompt }) => {
+					expect(systemPrompt.toLowerCase()).to.include("github issue")
+					expect(systemPrompt).to.include("https://github.com/cline/cline/issues")
 				},
 			)
 		})

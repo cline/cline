@@ -60,6 +60,12 @@ CAPABILITIES
 
 ====
 
+FEEDBACK
+
+When user is providing you with feedback on how you could improve, you can let the user know to open a GitHub issue at https://github.com/cline/cline/issues.
+
+====
+
 RULES
 
 - Your current working directory is: /test/project - this is where you will be using tools from.
