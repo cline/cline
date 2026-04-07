@@ -69,17 +69,6 @@ Tracking issues found during the migration from the legacy inference system to t
 **Symptom:** The tooltip and aria-label still said "Manage Cline Rules & Workflows".  
 **Fix:** Updated tooltip to "Manage Cline Rules" and aria-label to "Show/Hide Cline Rules". Also simplified chat placeholder text to remove "workflows" mention.
 
-### 13. 🟢 Terminal settings navigates to blank/stuck webview
-**Where:** Settings → Terminal tab  
-**Symptom:** Opening terminal settings causes React to crash, leaving a blank webview.  
-**Root cause:** `getAvailableTerminalProfiles` was a gRPC stub returning `{data:{}}`. The webview called `setAvailableTerminalProfiles(response.profiles)` where `response.profiles` was `undefined`, overwriting the default `[]`. Then `TerminalSettingsSection` called `profilesToShow.map()` on `undefined`, crashing React.  
-**Fix:** Implemented real `handleGetAvailableTerminalProfiles()` handler in grpc-handler.ts that calls `getAvailableTerminalProfiles()` from `utils/shell.ts`, returning platform-specific profiles (Default, zsh, bash on macOS). Also added `availableTerminalProfiles: []` to state-builder.ts as a safety net, and wired `scrollToSettings` to fire `navigate("settings", { targetSection })` via the bridge.  
-**Verified:** Debug harness confirmed handler returns `{data:{profiles:[{id:"default",...},{id:"zsh",...},{id:"bash",...}]}}`, Settings → Terminal tab renders "Default Terminal Profile" dropdown with all 3 options, shell integration timeout, and terminal reuse settings.
-
----
-
-## Open Issues
-
 ### 4. 🟢 Input text not cleared immediately on send
 **Where:** Webview chat input  
 **Symptom:** After typing a message and pressing send/enter, the text remains visible in the input field briefly before clearing. Creates a feeling of lag.  
@@ -98,67 +87,72 @@ Tracking issues found during the migration from the legacy inference system to t
 **Root cause:** `DeleteTaskButton.tsx` unconditionally rendered `(size: ${taskSize ? formatSize(taskSize) : "--"})`, showing "--" when `taskSize` is undefined.  
 **Fix:** Changed to conditionally include size: `taskSize ? \`Delete Task (${formatSize(taskSize)})\` : "Delete Task"`. The tooltip now shows just "Delete Task" when size is unavailable, or "Delete Task (12.4 KB)" when it is.
 
+### 13. 🟢 Terminal settings navigates to blank/stuck webview
+**Where:** Settings → Terminal tab  
+**Symptom:** Opening terminal settings causes React to crash, leaving a blank webview.  
+**Root cause:** `getAvailableTerminalProfiles` was a gRPC stub returning `{data:{}}`. The webview called `setAvailableTerminalProfiles(response.profiles)` where `response.profiles` was `undefined`, overwriting the default `[]`. Then `TerminalSettingsSection` called `profilesToShow.map()` on `undefined`, crashing React.  
+**Fix:** Implemented real `handleGetAvailableTerminalProfiles()` handler in grpc-handler.ts that calls `getAvailableTerminalProfiles()` from `utils/shell.ts`, returning platform-specific profiles (Default, zsh, bash on macOS). Also added `availableTerminalProfiles: []` to state-builder.ts as a safety net, and wired `scrollToSettings` to fire `navigate("settings", { targetSection })` via the bridge.  
+**Verified:** Debug harness confirmed handler returns `{data:{profiles:[{id:"default",...},{id:"zsh",...},{id:"bash",...}]}}`, Settings → Terminal tab renders "Default Terminal Profile" dropdown with all 3 options, shell integration timeout, and terminal reuse settings.
+
+### 16. 🟢 Cline Rules popup still has a "Workflows" tab
+**Where:** Scales-of-justice icon → Cline Rules modal  
+**Symptom:** The "Manage Cline Rules" popup contains a "Workflows" tab. Issue #12 fixed the tooltip text, but the tab itself still exists inside the modal.  
+**Root cause:** The `ClineRulesToggleModal` component had a full "Workflows" tab with toggle lists for global, local, and remote workflows, plus a description section. Workflows are no longer a feature.  
+**Fix:** Removed the Workflows tab button, workflows description text, workflows content section (remote/global/local workflow toggle lists), and the remote workflows banner condition from `ClineRulesToggleModal.tsx`. The `currentView` state type was narrowed from `"rules" | "workflows" | "hooks" | "skills"` to `"rules" | "hooks" | "skills"`.
+
+### 17. 🟢 Account pane shows "Sign up with Cline" despite being logged in
+**Where:** Account panel / pane  
+**Symptom:** Even when the user is already authenticated and logged in, the account pane still displays "Sign up with Cline" and other sign-up prompts as if the user were not authenticated.  
+**Root cause:** `subscribeToAuthStatusUpdate` is a streaming subscription. The bridge's `handleStreamingRequest()` fell into the `default` no-op case, so auth state was never pushed to the webview.  
+**Fix:** Added explicit `subscribeToAuthStatusUpdate` case in `handleStreamingRequest()` that reads auth credentials from disk and pushes them. Added `roles` to org data and null safety in `isAdminOrOwner()`.
+
+### 18. 🟢 "Sign up with Cline" button does nothing (moot)
+**Where:** Account pane → Sign up button  
+**Fix:** Resolved by #17 — the sign-up button is no longer shown when the user is already authenticated.
+
+### 19. 🟢 Terminal settings still shows "Terminal Execution Mode" option
+**Where:** Settings → Terminal  
+**Fix:** Removed the Terminal Execution Mode dropdown, its handler, and unused imports from `TerminalSettingsSection.tsx`.
+
+### 20. 🟢 Cline provider model type-ahead search does not work
+**Where:** Settings → Model selector (Cline provider)  
+**Root cause:** `refreshClineModelsRpc` was a gRPC stub returning `{}`. The webview never received any model data.  
+**Fix:** Implemented `handleRefreshClineModels()` in grpc-handler.ts that reads from disk cache first, then falls back to fetching from the Cline API using `globalThis.fetch`. Converts API response to `ModelInfo` records and returns in protobuf format.
+
+### 21. 🟢 Cline provider recommends possibly outdated model
+**Where:** Settings → Model selector (Cline provider)  
+**Fix:** Updated fallback recommendation text in `ClineModelPicker.tsx` from `anthropic/claude-sonnet-4.5` to `anthropic/claude-sonnet-4.6`.
+
+### 22. 🟢 "Use different models for Plan and Act" checkbox immediately unchecks
+**Where:** Settings → Model configuration  
+**Root cause:** `updateSettings()` was writing raw settings instead of merging individual known keys.  
+**Fix:** `updateSettings()` now iterates known settings keys and writes each one individually. `buildExtensionState()` reads `planActSeparateModels` from `globalState`.
+
+### 23. 🟢 MCP settings Configure tab crashes React
+**Where:** MCP Servers → Configure tab  
+**Root cause:** `refreshMcpMarketplace` stub returns `{}`, replacing the default `{ items: [] }` state, causing `items.find()` to crash.  
+**Fix:** Added optional chaining (`?.items?.find`) in `getMcpServerDisplayName()`.
+
+### 24. 🟢 History tab is empty and search does nothing
+**Where:** History tab (task history list)  
+**Root cause:** `handleGetTaskHistory()` returned `{ data: { history } }` but webview reads `response.tasks`.  
+**Fix:** Changed return to `{ data: { tasks, totalCount } }`. Implemented server-side filtering/sorting.
+
+### 25. 🟢 Auto-approve options immediately uncheck when toggled
+**Where:** Auto-approve options flyout  
+**Root cause:** Same as #22 — `updateAutoApprovalSettings()` was not persisting properly.  
+**Fix:** Fixed alongside #22.
+
+---
+
+## Open Issues
+
 ### 15. 🔴 MCP tools are missing / not visible to the agent
 **Where:** Agent tool execution  
 **Symptom:** MCP tools that should be available to the agent are not discovered or listed. The agent cannot see or use any MCP-provided tools during task execution.  
 **Expected:** Connected MCP servers should expose their tools to the agent, and the agent should be able to invoke them.  
 **Investigation:** `@clinebot/core` has full MCP support (`InMemoryMcpManager`, `registerMcpServersFromSettingsFile`, `resolveMcpServerRegistrations`). The issue is that `ClineCoreSession` in `cline-session-factory.ts` doesn't pass MCP configuration through `coreConfig` when calling `host.start()`. The MCP settings file exists at `~/.cline/data/settings/cline_mcp_settings.json` and `SdkController.getMcpServers()` already reads it for the UI, but the session factory never wires MCP servers into the ClineCore session. The fix requires: (1) reading MCP server registrations via `resolveMcpServerRegistrations()` or passing the settings file path in `coreConfig`, (2) creating/passing an `InMemoryMcpManager` to ClineCore, or (3) ensuring ClineCore auto-discovers MCP settings from the default path. This is a deep architectural change that can't be verified via the debug harness (requires actual agent task execution).
 
-### 16. 🟢 Cline Rules popup still has a "Workflows" tab
-**Where:** Scales-of-justice icon → Cline Rules modal  
-**Symptom:** The "Manage Cline Rules" popup contains a "Workflows" tab. Issue #12 fixed the tooltip text, but the tab itself still exists inside the modal.  
-**Root cause:** The `ClineRulesToggleModal` component had a full "Workflows" tab with toggle lists for global, local, and remote workflows, plus a description section. Workflows are no longer a feature.  
-**Fix:** Removed the Workflows tab button, workflows description text, workflows content section (remote/global/local workflow toggle lists), and the remote workflows banner condition from `ClineRulesToggleModal.tsx`. The `currentView` state type was narrowed from `"rules" | "workflows" | "hooks" | "skills"` to `"rules" | "hooks" | "skills"`. Workflow-related state/functions were left in place since they're used by other components (slash commands).
-
-### 17. 🟢 Account pane shows "Sign up with Cline" despite being logged in
-**Where:** Account panel / pane  
-**Symptom:** Even when the user is already authenticated and logged in, the account pane still displays "Sign up with Cline" and other sign-up prompts as if the user were not authenticated.  
-**Root cause:** `subscribeToAuthStatusUpdate` is a streaming subscription. The bridge's `handleStreamingRequest()` fell into the `default` no-op case, so auth state was never pushed to the webview. The `ClineAuthProvider` never received a user object, causing `AccountWelcomeView` to render instead of `ClineAccountView`. Additionally, `getUserOrganizations` didn't include `roles`, causing `isAdminOrOwner()` to crash on `roles.findIndex()`.  
-**Fix:** Added explicit `subscribeToAuthStatusUpdate` case in `handleStreamingRequest()` that reads auth credentials from disk and pushes them. Added `roles` to org data and null safety in `isAdminOrOwner()`.
-
-### 18. 🟢 "Sign up with Cline" button does nothing (moot)
-**Where:** Account pane → Sign up button  
-**Symptom:** Clicking the "Sign up with Cline" button produces no response — no browser opens, no auth flow starts, no feedback is given.  
-**Fix:** Resolved by #17 — the sign-up button is no longer shown when the user is already authenticated.
-
-### 19. 🟢 Terminal settings still shows "Terminal Execution Mode" option
-**Where:** Settings → Terminal  
-**Symptom:** The Terminal settings section still displays a "Terminal Execution Mode" dropdown (VS Code Terminal / Background Exec). Only background terminal execution should be supported.  
-**Fix:** Removed the Terminal Execution Mode dropdown, its handler (`handleExecutionModeChange`), and unused imports (`PlatformType`, `usePlatform`) from `TerminalSettingsSection.tsx`. Terminal section now shows: Default Terminal Profile, Shell integration timeout, Enable aggressive terminal reuse, and Terminal output limit.
-
-### 20. 🟡 Cline provider model type-ahead search does not work
-**Where:** Settings → Model selector (Cline provider)  
-**Symptom:** When using the Cline provider, only "Recommended" and "Free" model categories are selectable. The type-ahead / search input for filtering models does not function — typing produces no results.  
-**Expected:** The model search field should filter the full model list as the user types.
-
-### 21. 🟡 Cline provider recommends possibly outdated model
-**Where:** Settings → Model selector (Cline provider)  
-**Symptom:** The Cline provider recommends `anthropic/claude-sonnet-4.5`, but this model is likely superseded by `claude-sonnet-4.6` which is already promoted elsewhere in the UI (e.g., feature carousel).  
-**Expected:** Recommended model should be updated to the latest available (e.g., `anthropic/claude-sonnet-4.6`).
-
-### 22. 🟢 "Use different models for Plan and Act" checkbox immediately unchecks
-**Where:** Settings → Model configuration  
-**Symptom:** Checking the "Use different models for Plan and Act modes" checkbox causes it to immediately uncheck itself. The setting cannot be enabled.  
-**Root cause:** `updateSettings()` was writing raw `settings` to `globalState.json` instead of merging individual known keys. The `planActSeparateModels` key was not being read from the persisted state back into `buildExtensionState()`.  
-**Fix:** `updateSettings()` now iterates known settings keys and writes each one individually. `buildExtensionState()` reads `planActSeparateModels` from `globalState`. State round-trip works correctly.
-
-### 23. 🟢 MCP settings Configure tab crashes React
-**Where:** MCP Servers → Configure tab  
-**Symptom:** Clicking the "Configure" tab in MCP Servers crashes the entire React app, leaving a blank sidebar.  
-**Root cause:** `refreshMcpMarketplace` gRPC stub returns `{}`, which replaces the default `{ items: [] }` state. When `getMcpServerDisplayName()` in `webview-ui/src/utils/mcp.ts` calls `mcpMarketplaceCatalog.items.find(...)`, `items` is `undefined` and crashes.  
-**Fix:** Added optional chaining (`?.items?.find`) in `getMcpServerDisplayName()` to handle undefined catalog/items.
-
-### 24. 🟢 History tab is empty and search does nothing
-**Where:** History tab (task history list)  
-**Symptom:** The history tab shows no tasks despite tasks having been completed. The fuzzy search input accepts text but produces no results and no feedback.  
-**Root cause:** `handleGetTaskHistory()` in grpc-handler.ts returned `{ data: { history } }` but the webview's HistoryView reads `response.tasks` (matching proto `TaskHistoryArray.tasks`). Key name mismatch caused empty results.  
-**Fix:** Changed return to `{ data: { tasks, totalCount } }`. Also implemented server-side filtering/sorting for `favoritesOnly`, `searchQuery`, `sortBy`, and `currentWorkspaceOnly` params.
-
-### 25. 🟢 Auto-approve options immediately uncheck when toggled
-**Where:** Auto-approve options flyout  
-**Symptom:** Clicking any auto-approve option (e.g., "Edit all files", "Use the browser", and likely all others) causes the checkbox to immediately uncheck itself. The setting cannot be enabled.  
-**Root cause:** Same as #22 — `updateAutoApprovalSettings()` was not persisting the settings properly.  
-**Fix:** Fixed alongside #22. `updateAutoApprovalSettings()` now writes to `globalState.json` and pushes state update.
 
 ---
 
