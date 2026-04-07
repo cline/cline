@@ -175,13 +175,13 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		terminalReuseEnabled: globalState?.terminalReuseEnabled,
 		terminalOutputLineLimit: globalState?.terminalOutputLineLimit ?? 500,
 		maxConsecutiveMistakes: globalState?.maxConsecutiveMistakes ?? 3,
-		defaultTerminalProfile: globalState?.defaultTerminalProfile,
+		defaultTerminalProfile: (globalState?.defaultTerminalProfile as string | undefined),
 		availableTerminalProfiles: [],
-		vscodeTerminalExecutionMode: globalState?.vscodeTerminalExecutionMode ?? "default",
-		customPrompt: globalState?.customPrompt,
-		mcpMarketplaceEnabled: globalState?.mcpMarketplaceEnabled,
+		vscodeTerminalExecutionMode: (globalState?.vscodeTerminalExecutionMode as string | undefined) ?? "default",
+		customPrompt: (globalState?.customPrompt as "compact" | undefined),
+		mcpMarketplaceEnabled: (globalState?.mcpMarketplaceEnabled as boolean | undefined),
 		mcpDisplayMode: (globalState?.mcpDisplayMode as McpDisplayMode) ?? "expanded",
-		mcpResponsesCollapsed: globalState?.mcpResponsesCollapsed,
+		mcpResponsesCollapsed: (globalState?.mcpResponsesCollapsed as boolean | undefined),
 
 		// User
 		userInfo: input.userInfo,
@@ -209,9 +209,9 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		workspaceRoots: [],
 		primaryRootIndex: 0,
 		isMultiRootWorkspace: false,
-		multiRootSetting: { user: undefined, featureFlag: true },
-		clineWebToolsEnabled: { user: undefined, featureFlag: true },
-		worktreesEnabled: { user: undefined, featureFlag: true },
+		multiRootSetting: { user: false, featureFlag: true },
+		clineWebToolsEnabled: { user: false, featureFlag: true },
+		worktreesEnabled: { user: false, featureFlag: true },
 
 		// Banners
 		lastDismissedInfoBannerVersion: (globalState?.lastDismissedInfoBannerVersion as number) ?? 0,
@@ -222,19 +222,19 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		welcomeBanners: [],
 
 		// Hooks
-		hooksEnabled: globalState?.hooksEnabled ?? false,
+		hooksEnabled: (globalState?.hooksEnabled as boolean | undefined) ?? false,
 
 		// Remote config
 		remoteConfigSettings: undefined,
 
 		// Feature flags
-		nativeToolCallSetting: globalState?.nativeToolCallEnabled ?? undefined,
-		enableParallelToolCalling: globalState?.enableParallelToolCalling ?? undefined,
-		backgroundEditEnabled: globalState?.backgroundEditEnabled ?? undefined,
-		optOutOfRemoteConfig: globalState?.optOutOfRemoteConfig ?? undefined,
-		doubleCheckCompletionEnabled: globalState?.doubleCheckCompletionEnabled ?? undefined,
-		lazyTeammateModeEnabled: globalState?.lazyTeammateModeEnabled ?? undefined,
-		showFeatureTips: globalState?.showFeatureTips ?? undefined,
+		nativeToolCallSetting: (globalState?.nativeToolCallEnabled as boolean | undefined) ?? undefined,
+		enableParallelToolCalling: (globalState?.enableParallelToolCalling as boolean | undefined) ?? undefined,
+		backgroundEditEnabled: (globalState?.backgroundEditEnabled as boolean | undefined) ?? undefined,
+		optOutOfRemoteConfig: (globalState?.optOutOfRemoteConfig as boolean | undefined) ?? undefined,
+		doubleCheckCompletionEnabled: (globalState?.doubleCheckCompletionEnabled as boolean | undefined) ?? undefined,
+		lazyTeammateModeEnabled: (globalState?.lazyTeammateModeEnabled as boolean | undefined) ?? undefined,
+		showFeatureTips: (globalState?.showFeatureTips as boolean | undefined) ?? undefined,
 		openAiCodexIsAuthenticated: false,
 
 		// Background command
