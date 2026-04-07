@@ -26,9 +26,10 @@
  * doesn't error out.
  */
 
+import type { ApiConfiguration } from "@shared/api"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import type { ApiConfiguration } from "@shared/api"
+import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
 import { getAvailableTerminalProfiles } from "../utils/shell"
 
@@ -162,7 +163,7 @@ function normalizeProvider(value: unknown): string | undefined {
 
 	// Handle numeric strings (e.g., "16" from JSON stringification)
 	const num = Number(str)
-	if (!isNaN(num) && PROTO_PROVIDER_NUM_TO_APP[num] !== undefined) {
+	if (!Number.isNaN(num) && PROTO_PROVIDER_NUM_TO_APP[num] !== undefined) {
 		return PROTO_PROVIDER_NUM_TO_APP[num]
 	}
 
@@ -192,11 +193,7 @@ function convertProtoJsonToApiConfig(params: Record<string, unknown>): Partial<A
 	const config: Record<string, unknown> = { ...raw }
 
 	// Convert provider fields from proto enum format to app format
-	const providerFields = [
-		"planModeApiProvider",
-		"actModeApiProvider",
-		"apiProvider",
-	]
+	const providerFields = ["planModeApiProvider", "actModeApiProvider", "apiProvider"]
 	for (const field of providerFields) {
 		if (config[field] !== undefined) {
 			config[field] = normalizeProvider(config[field])
@@ -268,7 +265,15 @@ export interface GrpcHandlerDelegate {
 	updateAutoApprovalSettings(settings: Record<string, unknown>): Promise<void>
 
 	/** Get Cline auth credentials (for auth status) */
-	getClineAuthInfo?(): { idToken: string; userInfo: { id: string; email: string; displayName: string; organizations?: Array<{ active: boolean; organizationId: string; name: string; memberId: string; roles?: string[] }> } } | null
+	getClineAuthInfo?(): {
+		idToken: string
+		userInfo: {
+			id: string
+			email: string
+			displayName: string
+			organizations?: Array<{ active: boolean; organizationId: string; name: string; memberId: string; roles?: string[] }>
+		}
+	} | null
 
 	/** Search workspace files (for @ mentions) */
 	searchFiles?(query: string, type?: string, limit?: number): Promise<FileSearchResult[]>
@@ -324,6 +329,9 @@ export interface GrpcHandlerDelegate {
 
 	/** Check if a URL points to an image */
 	checkIsImageUrl?(url: string): Promise<boolean>
+
+	/** Get the current working directory (for workspace filtering) */
+	cwd?: string
 
 	// -----------------------------------------------------------------------
 	// Model discovery
@@ -462,8 +470,8 @@ export class GrpcHandler {
 				case "updateApiConfiguration":
 					return await this.handleUpdateApiConfiguration(request)
 
-			case "togglePlanActModeProto":
-				return await this.handleTogglePlanActMode(request)
+				case "togglePlanActModeProto":
+					return await this.handleTogglePlanActMode(request)
 
 				// ---- File operations ----
 				case "searchFiles":
@@ -678,12 +686,12 @@ export class GrpcHandler {
 				case "explainChanges":
 				case "cancelBackgroundCommand":
 				case "getProcessInfo":
-					console.warn(`[grpc-handler] STUB: ${request.method}`, request.params ? Object.keys(request.params) : [])
+					Logger.log(`[grpc-handler] STUB: ${request.method}`, request.params ? Object.keys(request.params) : [])
 					return { data: {} }
 
 				default:
 					// Unknown method — return empty response (not error)
-					console.warn(`[grpc-handler] UNKNOWN: ${request.method}`, request.params ? Object.keys(request.params) : [])
+					Logger.log(`[grpc-handler] UNKNOWN: ${request.method}`, request.params ? Object.keys(request.params) : [])
 					return { data: {} }
 			}
 		} catch (err) {
@@ -790,10 +798,68 @@ export class GrpcHandler {
 	}
 
 	private handleGetTaskHistory(request: GrpcRequest): GrpcResponse {
-		const offset = request.params?.offset as number | undefined
-		const limit = request.params?.limit as number | undefined
-		const history = this.delegate.getTaskHistory(offset, limit)
-		return { data: { history } }
+		// Get all task history from the delegate
+		let history = this.delegate.getTaskHistory()
+
+		// Apply filters from GetTaskHistoryRequest
+		const favoritesOnly = request.params?.favoritesOnly as boolean | undefined
+		const searchQuery = request.params?.searchQuery as string | undefined
+		const sortBy = request.params?.sortBy as string | undefined
+		const currentWorkspaceOnly = request.params?.currentWorkspaceOnly as boolean | undefined
+
+		if (favoritesOnly) {
+			history = history.filter((item) => item.isFavorited)
+		}
+
+		if (currentWorkspaceOnly) {
+			// Filter by current workspace (compare cwdOnTaskInitialization)
+			const cwd = this.delegate.cwd
+			if (cwd) {
+				history = history.filter((item) => item.cwdOnTaskInitialization === cwd)
+			}
+		}
+
+		if (searchQuery?.trim()) {
+			const q = searchQuery.toLowerCase()
+			history = history.filter((item) => item.task?.toLowerCase().includes(q) || item.id?.toLowerCase().includes(q))
+		}
+
+		// Sort
+		switch (sortBy) {
+			case "oldest":
+				history = [...history].sort((a, b) => a.ts - b.ts)
+				break
+			case "mostExpensive":
+				history = [...history].sort((a, b) => (b.totalCost ?? 0) - (a.totalCost ?? 0))
+				break
+			case "mostTokens":
+				history = [...history].sort(
+					(a, b) => (b.tokensIn ?? 0) + (b.tokensOut ?? 0) - ((a.tokensIn ?? 0) + (a.tokensOut ?? 0)),
+				)
+				break
+			default:
+				history = [...history].sort((a, b) => b.ts - a.ts)
+				break
+		}
+
+		const totalCount = history.length
+
+		// Map HistoryItem → TaskItem proto shape
+		const tasks = history.map((item) => ({
+			id: item.id,
+			task: item.task,
+			ts: item.ts,
+			isFavorited: item.isFavorited ?? false,
+			size: 0, // Size calculated on demand, not per-item here
+			totalCost: item.totalCost ?? 0,
+			tokensIn: item.tokensIn ?? 0,
+			tokensOut: item.tokensOut ?? 0,
+			cacheWrites: item.cacheWrites ?? 0,
+			cacheReads: item.cacheReads ?? 0,
+			modelId: "",
+		}))
+
+		return { data: { tasks, totalCount } }
 	}
 
 	private async handleShowTaskWithId(request: GrpcRequest): Promise<GrpcResponse> {
