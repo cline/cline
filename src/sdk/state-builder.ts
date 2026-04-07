@@ -147,12 +147,12 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		terminalReuseEnabled: globalState?.terminalReuseEnabled as boolean | undefined,
 		terminalOutputLineLimit: (globalState?.terminalOutputLineLimit as number | undefined) ?? 500,
 		maxConsecutiveMistakes: (globalState?.maxConsecutiveMistakes as number | undefined) ?? 3,
-		defaultTerminalProfile: globalState?.defaultTerminalProfile as string | undefined,
+		defaultTerminalProfile: (globalState?.defaultTerminalProfile as string | undefined),
 		vscodeTerminalExecutionMode: (globalState?.vscodeTerminalExecutionMode as string | undefined) ?? "default",
-		customPrompt: globalState?.customPrompt as "compact" | undefined,
-		mcpMarketplaceEnabled: globalState?.mcpMarketplaceEnabled as boolean | undefined,
+		customPrompt: (globalState?.customPrompt as "compact" | undefined),
+		mcpMarketplaceEnabled: (globalState?.mcpMarketplaceEnabled as boolean | undefined),
 		mcpDisplayMode: (globalState?.mcpDisplayMode as McpDisplayMode) ?? "expanded",
-		mcpResponsesCollapsed: globalState?.mcpResponsesCollapsed as boolean | undefined,
+		mcpResponsesCollapsed: (globalState?.mcpResponsesCollapsed as boolean | undefined),
 
 		// User
 		userInfo: input.userInfo,
