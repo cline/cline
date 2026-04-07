@@ -43,17 +43,13 @@ Your summary should include the following sections:
                      Only list files you know will for sure be necessary, rather than speculating. The file paths must be relative to the current working directory ${CWD}.${MULTI_ROOT_HINT}
 10. You should pay special attention to the most recent user message, as it indicates the user's most recent intent.
 
-${
-	focusChainSettings?.enabled
-		? `Updating task progress:
-There is an optional task_progress parameter which you should use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. If no task_progress list was included in the previous context, you should NOT create a new task_progress list - do not return a new task_progress list if one does not already exist.`
-		: ""
-}
+${`Updating task progress:
+There is an optional task_progress parameter which you should use to provide an updated checklist to keep the user informed of the latest state of the progress for this task. You should always return the most up to date version of the checklist if there is already an existing checklist. If no task_progress list was included in the previous context, you should NOT create a new task_progress list - do not return a new task_progress list if one does not already exist.`}
 
 Usage:
 <summarize_task>
 <context>Your detailed summary</context>
-${focusChainSettings?.enabled ? `<task_progress>task_progress list here</task_progress>` : ""}
+<task_progress>task_progress list here (include only if one already exists)</task_progress>
 </summarize_task>
 
 Here's an example of how your output should be structured:
@@ -92,16 +88,12 @@ Here's an example of how your output should be structured:
    - [file path 1]
    - [file path 2]
 </context>
-${
-	focusChainSettings?.enabled
-		? `<task_progress>
+${`<task_progress>
 - [x] Completed task example
 - [x] Completed task example
 - [ ] Remaining task example
 - [ ] Remaining task example
-</task_progress>`
-		: ""
-}
+</task_progress>`}
 </summarize_task>
 </example>
 

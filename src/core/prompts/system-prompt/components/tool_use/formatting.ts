@@ -5,11 +5,9 @@ export async function getToolUseFormattingSection(_variant: PromptVariant, conte
 	// Return the placeholder that will be replaced with actual tools
 	const template = TOOL_USE_FORMATTING_TEMPLATE_TEXT
 
-	const focusChainEnabled = context.focusChainSettings?.enabled
-
 	const templateEngine = new TemplateEngine()
 	return templateEngine.resolve(template, context, {
-		FOCUS_CHATIN_FORMATTING: focusChainEnabled ? FOCUS_CHATIN_FORMATTING_TEMPLATE : "",
+		FOCUS_CHATIN_FORMATTING: FOCUS_CHATIN_FORMATTING_TEMPLATE,
 	})
 }
 

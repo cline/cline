@@ -6,7 +6,7 @@ import { PromptBuilder } from "../registry/PromptBuilder"
 import { SystemPromptSection } from "../templates/placeholders"
 import type { ComponentRegistry, PromptVariant, SystemPromptContext } from "../types"
 import { createVariant } from "../variants/variant-builder"
-import { mockProviderInfo } from "./integration.test"
+import { mockProviderInfo } from "./test-helpers"
 
 describe("PromptBuilder", () => {
 	const mockContext: SystemPromptContext = {

@@ -64,10 +64,6 @@ You can track and communicate your progress on the overall task using the task_p
 - The task_progress parameter MUST be included as a separate parameter in the tool, it should NOT be included inside other content or argument blocks.`
 
 export async function getUpdatingTaskProgress(variant: PromptVariant, context: SystemPromptContext): Promise<string | undefined> {
-	if (!context.focusChainSettings?.enabled) {
-		return undefined
-	}
-
 	// Check for component override first
 	if (variant.componentOverrides?.[SystemPromptSection.TASK_PROGRESS]?.template) {
 		const template = variant.componentOverrides[SystemPromptSection.TASK_PROGRESS].template
