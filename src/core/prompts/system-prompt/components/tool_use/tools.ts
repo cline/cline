@@ -17,8 +17,8 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 	const multiRootHint = context.isMultiRootEnabled ? MULTI_ROOT_HINT : ""
 	return new TemplateEngine().resolve(template, context, {
 		TASK_PROGRESS,
-		FOCUS_CHAIN_ATTEMPT,
-		FOCUS_CHAIN_USAGE,
+		TASK_PROGRESS_ATTEMPT,
+		TASK_PROGRESS_USAGE,
 		BROWSER_VIEWPORT_WIDTH: context.browserSettings?.viewport?.width || 0,
 		BROWSER_VIEWPORT_HEIGHT: context.browserSettings?.viewport?.height || 0,
 		CWD: context.cwd,
@@ -26,10 +26,10 @@ export async function getToolUseToolsSection(variant: PromptVariant, context: Sy
 	})
 }
 
-// Focus chain related constants
+// task_progress related constants
 const TASK_PROGRESS = `- task_progress: (optional) A checklist showing task progress after this tool use is completed. (See 'Updating Task Progress' section for more details)`
-const FOCUS_CHAIN_ATTEMPT = `If you were using task_progress to update the task progress, you must include the completed list in the result as well.`
-const FOCUS_CHAIN_USAGE = `<task_progress>
+const TASK_PROGRESS_ATTEMPT = `If you were using task_progress to update the task progress, you must include the completed list in the result as well.`
+const TASK_PROGRESS_USAGE = `<task_progress>
 Checklist here (optional)
 </task_progress>
 `
