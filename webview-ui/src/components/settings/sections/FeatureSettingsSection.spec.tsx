@@ -75,4 +75,11 @@ describe("FeatureSettingsSection", () => {
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("showFeatureTips", true)
 	})
+
+	it("does not render the legacy Focus Chain setting", () => {
+		render(<FeatureSettingsSection renderSectionHeader={() => null} />)
+
+		expect(screen.queryByText("Legacy Focus Chain")).toBeNull()
+		expect(screen.queryByText("Reminder Interval (1-10)")).toBeNull()
+	})
 })

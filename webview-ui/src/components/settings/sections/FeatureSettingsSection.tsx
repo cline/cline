@@ -6,7 +6,6 @@ import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
-import SettingsSlider from "../SettingsSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
 // Reusable checkbox component for feature settings
@@ -67,14 +66,6 @@ const agentFeatures: FeatureToggle[] = [
 		description: "Automatically compress conversation history.",
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
-	},
-	{
-		id: "focus-chain",
-		label: "Legacy Focus Chain",
-		description: "Use the older persistent checklist mode for long-running tasks.",
-		stateKey: "focusChainEnabled",
-		settingKey: "focusChainSettings",
-		nestedKey: "enabled",
 	},
 ]
 
@@ -219,7 +210,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		clineWebToolsEnabled,
 		worktreesEnabled,
-		focusChainSettings,
 		remoteConfigSettings,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
@@ -228,13 +218,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		lazyTeammateModeEnabled,
 		showFeatureTips,
 	} = useExtensionState()
-
-	const handleFocusChainIntervalChange = useCallback(
-		(value: number) => {
-			updateSetting("focusChainSettings", { ...focusChainSettings, remindClineInterval: value })
-		},
-		[focusChainSettings],
-	)
 
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
@@ -245,7 +228,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		strictPlanModeEnabled,
 		hooksEnabled,
 		nativeToolCallSetting,
-		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
 		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
@@ -265,19 +247,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 	// Handler for feature toggle changes, supports nested settings like focusChainSettings
 	const handleFeatureChange = useCallback(
-		(feature: FeatureToggle, checked: boolean) => {
-			if (feature.nestedKey) {
-				// For nested settings, spread the existing value and set the nested key
-				let currentValue = {}
-				if (feature.settingKey === "focusChainSettings") {
-					currentValue = focusChainSettings ?? {}
-				}
-				updateSetting(feature.settingKey, { ...currentValue, [feature.nestedKey]: checked })
-			} else {
-				updateSetting(feature.settingKey, checked)
-			}
-		},
-		[focusChainSettings],
+		(feature: FeatureToggle, checked: boolean) => updateSetting(feature.settingKey, checked),
+		[],
 	)
 
 	return (
@@ -299,23 +270,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 										isVisible={featureVisibility[feature.stateKey] ?? true}
 										key={feature.id}
 										label={feature.label}
-										onChange={(checked) =>
-											feature.nestedKey === "enabled"
-												? handleFeatureChange(feature, checked)
-												: updateSetting(feature.settingKey, checked)
-										}
+										onChange={(checked) => handleFeatureChange(feature, checked)}
 									/>
-									{feature.id === "focus-chain" && featureState[feature.stateKey] && (
-										<SettingsSlider
-											label="Reminder Interval (1-10)"
-											max={10}
-											min={1}
-											onChange={handleFocusChainIntervalChange}
-											step={1}
-											value={focusChainSettings?.remindClineInterval || 6}
-											valueWidth="w-6"
-										/>
-									)}
 								</div>
 							))}
 						</div>
