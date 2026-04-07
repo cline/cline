@@ -54,6 +54,37 @@ async function collectChunks(stream: AsyncIterable<ApiStreamChunk>) {
 }
 
 describe("OpenAIBaseHandler", () => {
+	it("derives OpenRouter Anthropic reasoning max_tokens from effort", async () => {
+		chatCompletionsCreateSpy.mockResolvedValueOnce(createAsyncIterable([]));
+
+		const handler = new OpenAIBaseHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com",
+			thinking: true,
+			reasoningEffort: "high",
+			maxOutputTokens: 10000,
+		});
+
+		await collectChunks(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = chatCompletionsCreateSpy.mock.calls[0]?.[0] as {
+			reasoning?: {
+				enabled?: boolean;
+				effort?: string;
+				max_tokens?: number;
+			};
+		};
+		expect(request.reasoning).toEqual({
+			enabled: true,
+			effort: "high",
+			max_tokens: 8000,
+		});
+	});
+
 	it("forwards team_task optional-field schemas with strict=true on chat-completions requests", async () => {
 		chatCompletionsCreateSpy.mockResolvedValueOnce(createAsyncIterable([]));
 

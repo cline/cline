@@ -512,6 +512,7 @@ function createRpcRuntimeCliSessionManager(
 						: undefined,
 			};
 			let streamedText = "";
+			let streamedReasoning = "";
 			const stopStreaming = client.streamEvents(
 				{
 					clientId: `cli-runtime-${process.pid}`,
@@ -570,6 +571,23 @@ function createRpcRuntimeCliSessionManager(
 									type: "content_start",
 									contentType: "text",
 									text: resolved.delta,
+								});
+							}
+							return;
+						}
+						if (event.eventType === "runtime.chat.reasoning_delta") {
+							const resolved = resolveTextDelta(payload, streamedReasoning);
+							streamedReasoning = resolved.nextText;
+							const redacted =
+								typeof payload.redacted === "boolean"
+									? payload.redacted
+									: undefined;
+							if (resolved.delta || redacted) {
+								emit(input.sessionId, {
+									type: "content_start",
+									contentType: "reasoning",
+									reasoning: resolved.delta,
+									redacted,
 								});
 							}
 							return;
@@ -664,6 +682,13 @@ function createRpcRuntimeCliSessionManager(
 				emit(input.sessionId, {
 					type: "content_end",
 					contentType: "text",
+				});
+			}
+			if (streamedReasoning) {
+				emit(input.sessionId, {
+					type: "content_end",
+					contentType: "reasoning",
+					reasoning: streamedReasoning,
 				});
 			}
 			const agentResult = toAgentResult(result, config);

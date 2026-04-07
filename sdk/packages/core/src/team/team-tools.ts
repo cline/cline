@@ -123,6 +123,9 @@ export interface CreateAgentTeamsToolsOptions {
 	teammateConfigProvider: DelegatedAgentConfigProvider;
 	createBaseTools?: () => Tool[];
 	allowSpawn?: boolean;
+	includeSpawnTool?: boolean;
+	includeManagementTools?: boolean;
+	onLeadToolsUnlocked?: (tools: Tool[]) => void;
 }
 
 export interface BootstrapAgentTeamsOptions {
@@ -132,6 +135,9 @@ export interface BootstrapAgentTeamsOptions {
 	leadAgentId?: string;
 	restoredTeammates?: TeamTeammateSpec[];
 	restoredFromPersistence?: boolean;
+	includeLeadSpawnTool?: boolean;
+	includeLeadManagementTools?: boolean;
+	onLeadToolsUnlocked?: (tools: Tool[]) => void;
 }
 
 export interface BootstrapAgentTeamsResult {
@@ -185,6 +191,9 @@ export function bootstrapAgentTeams(
 		teammateConfigProvider: options.teammateConfigProvider,
 		createBaseTools: options.createBaseTools,
 		allowSpawn: true,
+		includeSpawnTool: options.includeLeadSpawnTool,
+		includeManagementTools: options.includeLeadManagementTools,
+		onLeadToolsUnlocked: options.onLeadToolsUnlocked,
 	});
 
 	const restoredTeammates: string[] = [];
@@ -213,40 +222,56 @@ export function createAgentTeamsTools(
 	options: CreateAgentTeamsToolsOptions,
 ): Tool[] {
 	const allowSpawn = options.allowSpawn ?? true;
+	const includeSpawnTool = options.includeSpawnTool ?? true;
+	const includeManagementTools = options.includeManagementTools ?? true;
 	const tools: Tool[] = [];
 
-	tools.push(
-		createTool<TeamSpawnTeammateInput, { agentId: string; status: string }>({
-			name: "team_spawn_teammate",
-			description: "Spawn a teammate with a required agentId and rolePrompt.",
-			inputSchema: zodToJsonSchema(TeamSpawnTeammateInputSchema),
-			execute: async (input) => {
-				const validatedInput = validateWithZod(
-					TeamSpawnTeammateInputSchema,
-					input,
-				);
-				if (options.runtime.getMemberRole(options.requesterId) !== "lead") {
-					throw new Error("Only the lead agent can manage teammates.");
-				}
-				if (!allowSpawn) {
-					throw new Error("Spawning teammates is disabled in this context.");
-				}
-				const spec: TeamTeammateSpec = {
-					agentId: validatedInput.agentId,
-					rolePrompt: validatedInput.rolePrompt,
-					maxIterations: validatedInput.maxIterations,
-				};
-				spawnTeamTeammate({
-					runtime: options.runtime,
-					requesterId: options.requesterId,
-					teammateConfigProvider: options.teammateConfigProvider,
-					createBaseTools: options.createBaseTools,
-					spec,
-				});
-				return { agentId: validatedInput.agentId, status: "spawned" };
-			},
-		}) as Tool,
-	);
+	if (includeSpawnTool) {
+		tools.push(
+			createTool<TeamSpawnTeammateInput, { agentId: string; status: string }>({
+				name: "team_spawn_teammate",
+				description: "Spawn a teammate with a required agentId and rolePrompt.",
+				inputSchema: zodToJsonSchema(TeamSpawnTeammateInputSchema),
+				execute: async (input) => {
+					const validatedInput = validateWithZod(
+						TeamSpawnTeammateInputSchema,
+						input,
+					);
+					if (options.runtime.getMemberRole(options.requesterId) !== "lead") {
+						throw new Error("Only the lead agent can manage teammates.");
+					}
+					if (!allowSpawn) {
+						throw new Error("Spawning teammates is disabled in this context.");
+					}
+					const spec: TeamTeammateSpec = {
+						agentId: validatedInput.agentId,
+						rolePrompt: validatedInput.rolePrompt,
+						maxIterations: validatedInput.maxIterations,
+					};
+					spawnTeamTeammate({
+						runtime: options.runtime,
+						requesterId: options.requesterId,
+						teammateConfigProvider: options.teammateConfigProvider,
+						createBaseTools: options.createBaseTools,
+						spec,
+					});
+					options.onLeadToolsUnlocked?.(
+						createAgentTeamsTools({
+							...options,
+							includeSpawnTool: false,
+							includeManagementTools: true,
+							onLeadToolsUnlocked: undefined,
+						}),
+					);
+					return { agentId: validatedInput.agentId, status: "spawned" };
+				},
+			}) as Tool,
+		);
+	}
+
+	if (!includeManagementTools) {
+		return tools;
+	}
 
 	tools.push(
 		createTool<TeamShutdownTeammateInput, { agentId: string; status: string }>({

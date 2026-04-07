@@ -121,6 +121,9 @@ export async function buildSessionStartInput(input: {
 				workspaceRoot: config.workspaceRoot,
 				systemPrompt,
 				maxIterations: config.maxIterations,
+				compaction: {
+					enabled: true,
+				},
 				enableTools: config.enableTools,
 				enableSpawnAgent: config.enableSpawn,
 				enableAgentTeams: config.enableTeams,

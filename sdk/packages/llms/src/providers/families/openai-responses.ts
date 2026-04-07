@@ -11,6 +11,7 @@
  * - Supports reasoning with encrypted content
  */
 
+import { resolveEffectiveReasoningEffort } from "@clinebot/shared";
 import OpenAI from "openai";
 import {
 	getMissingApiKeyError,
@@ -35,8 +36,6 @@ import type {
 } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { BaseHandler } from "./shared/base-handler";
-
-const DEFAULT_REASONING_EFFORT = "medium" as const;
 
 /**
  * Convert tool definitions to Responses API format
@@ -294,9 +293,10 @@ export class OpenAIResponsesHandler extends BaseHandler {
 			"reasoning",
 			modelInfo,
 		);
-		const effectiveReasoningEffort =
-			this.config.reasoningEffort ??
-			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);
+		const effectiveReasoningEffort = resolveEffectiveReasoningEffort(
+			this.config.reasoningEffort,
+			this.config.thinking,
+		);
 		const reasoningConfig =
 			supportsReasoning && effectiveReasoningEffort
 				? {

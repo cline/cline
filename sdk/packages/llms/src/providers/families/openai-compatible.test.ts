@@ -158,6 +158,74 @@ describe("OpenAICompatibleHandler", () => {
 		expect(request.providerOptions).toBeUndefined();
 	});
 
+	it("sends raw reasoning config for cline-compatible gateways", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			thinking: true,
+			reasoningEffort: "high",
+			maxOutputTokens: 10000,
+		});
+
+		await drain(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+		expect(request.providerOptions).toMatchObject({
+			cline: {
+				reasoning: {
+					enabled: true,
+					effort: "high",
+					max_tokens: 8000,
+				},
+			},
+		});
+		expect(request.providerOptions).not.toMatchObject({
+			cline: { reasoningEffort: "high" },
+		});
+	});
+
+	it("sends raw reasoning config for general openai-compatible providers", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "deepseek",
+			modelId: "deepseek-chat",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			thinking: true,
+			reasoningEffort: "high",
+			maxOutputTokens: 10000,
+			modelInfo: {
+				id: "deepseek-chat",
+				capabilities: ["reasoning"],
+				maxTokens: 10000,
+			},
+		});
+
+		await drain(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+		expect(request.providerOptions).toMatchObject({
+			deepseek: {
+				reasoning: {
+					enabled: true,
+					effort: "high",
+				},
+			},
+		});
+		expect(request.providerOptions).not.toMatchObject({
+			deepseek: { reasoningEffort: "high" },
+		});
+	});
+
 	it("sends function tools with object inputSchema", async () => {
 		const handler = new OpenAICompatibleHandler({
 			providerId: "openrouter",
@@ -394,5 +462,34 @@ describe("OpenAICompatibleHandler", () => {
 				cacheWriteTokens: 80,
 			}),
 		);
+	});
+
+	it("derives OpenRouter Anthropic reasoning max_tokens from effort", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			thinking: true,
+			reasoningEffort: "high",
+			maxOutputTokens: 10000,
+		});
+
+		await drain(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+		expect(request.providerOptions).toMatchObject({
+			openrouter: {
+				reasoning: {
+					enabled: true,
+					effort: "high",
+					max_tokens: 8000,
+				},
+			},
+		});
 	});
 });

@@ -696,6 +696,9 @@ export async function runCli(): Promise<void> {
 			execution: {
 				maxConsecutiveMistakes: args.maxConsecutiveMistakes ?? 3,
 			},
+			compaction: {
+				enabled: true,
+			},
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,

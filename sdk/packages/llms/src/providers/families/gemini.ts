@@ -5,6 +5,7 @@
  * Supports Vertex AI, thinking/reasoning, and native tool calling.
  */
 
+import { resolveReasoningBudgetFromRatio } from "@clinebot/shared";
 import {
 	FunctionCallingConfigMode,
 	type GenerateContentConfig,
@@ -24,9 +25,9 @@ import type { Message, ToolDefinition } from "../types/messages";
 import { RetriableError, retryStream } from "../utils/retry";
 import { BaseHandler } from "./shared/base-handler";
 
-const DEFAULT_THINKING_BUDGET_TOKENS = 1024;
 const DEFAULT_MAX_OUTPUT_TOKENS = 128_000;
 const GEMINI_3_FLASH_MAX_OUTPUT_TOKENS = 8192;
+const DEFAULT_GEMINI_MAX_THINKING_BUDGET = 24_576;
 
 function isGemini3Model(modelId: string): boolean {
 	const normalized = modelId.toLowerCase();
@@ -40,6 +41,37 @@ function isGemini3FlashModel(modelId: string): boolean {
 		normalized.includes("flash") &&
 		!normalized.includes("lite")
 	);
+}
+
+function resolveGeminiThinkingBudget(options: {
+	explicitBudgetTokens?: number;
+	effort?: string;
+	maxBudget: number;
+}) {
+	if (typeof options.explicitBudgetTokens === "number") {
+		if (options.explicitBudgetTokens < 0) {
+			return options.explicitBudgetTokens;
+		}
+
+		return Math.min(
+			Math.max(0, options.explicitBudgetTokens),
+			options.maxBudget,
+		);
+	}
+
+	if (!options.effort) {
+		return undefined;
+	}
+
+	if (options.effort === "none") {
+		return 0;
+	}
+
+	return resolveReasoningBudgetFromRatio({
+		effort: options.effort,
+		maxBudget: options.maxBudget,
+		minimumBudget: 1,
+	});
 }
 
 /**
@@ -122,20 +154,14 @@ export class GeminiHandler extends BaseHandler {
 			this.config.thinking === true ||
 			typeof this.config.thinkingBudgetTokens === "number" ||
 			typeof this.config.reasoningEffort === "string";
-		let thinkingBudget = 0;
+		let thinkingBudget: number | undefined;
 		let thinkingLevel: ThinkingLevel | undefined;
 		const usesThinkingLevel =
 			info.thinkingConfig?.thinkingLevel != null || isGemini3Model(modelId);
+		const maxThinkingBudget =
+			info.thinkingConfig?.maxBudget ?? DEFAULT_GEMINI_MAX_THINKING_BUDGET;
 
 		if (thinkingSupported && thinkingRequested) {
-			const requestedBudget =
-				this.config.thinkingBudgetTokens ??
-				(thinkingRequested ? DEFAULT_THINKING_BUDGET_TOKENS : 0);
-			thinkingBudget = Math.min(
-				Math.max(0, requestedBudget),
-				info.thinkingConfig?.maxBudget ?? 24576,
-			);
-
 			if (usesThinkingLevel) {
 				const level = this.config.reasoningEffort;
 				if (level === "high" || level === "xhigh") {
@@ -144,9 +170,15 @@ export class GeminiHandler extends BaseHandler {
 					thinkingLevel = ThinkingLevel.MEDIUM;
 				} else if (level === "low") {
 					thinkingLevel = ThinkingLevel.LOW;
-				} else if (this.config.thinking) {
-					thinkingLevel = ThinkingLevel.MEDIUM;
+				} else if (level === "minimal" || level === "none") {
+					thinkingLevel = "MINIMAL" as ThinkingLevel;
 				}
+			} else {
+				thinkingBudget = resolveGeminiThinkingBudget({
+					explicitBudgetTokens: this.config.thinkingBudgetTokens,
+					effort: this.config.reasoningEffort,
+					maxBudget: maxThinkingBudget,
+				});
 			}
 		}
 
@@ -167,11 +199,7 @@ export class GeminiHandler extends BaseHandler {
 		};
 
 		// Add thinking config only when explicitly requested and supported.
-		if (
-			thinkingSupported &&
-			thinkingRequested &&
-			(usesThinkingLevel || thinkingBudget > 0)
-		) {
+		if (thinkingSupported && thinkingRequested) {
 			requestConfig.thinkingConfig = {
 				thinkingBudget: usesThinkingLevel ? undefined : thinkingBudget,
 				thinkingLevel,

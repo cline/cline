@@ -196,6 +196,9 @@ function convertContentBlock(
 
 		case "thinking": {
 			const thinkingBlock = block as ThinkingContent;
+			if (!thinkingBlock.thinking || !thinkingBlock.signature) {
+				return null;
+			}
 			return {
 				type: "thinking",
 				thinking: thinkingBlock.thinking,

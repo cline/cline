@@ -73,4 +73,42 @@ describe("ai sdk community format conversion", () => {
 			],
 		});
 	});
+
+	it("preserves assistant thinking blocks as reasoning parts before tool calls", () => {
+		const messages: Message[] = [
+			{ role: "user", content: "weather?" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "Need weather data before answering.",
+					},
+					{
+						type: "tool_use",
+						id: "call_1",
+						name: "get_weather",
+						input: { city: "Boston" },
+					},
+				],
+			},
+		];
+
+		const converted = toAiSdkMessages("system", messages);
+		expect(converted[2]).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "reasoning",
+					text: "Need weather data before answering.",
+				},
+				{
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "get_weather",
+					input: { city: "Boston" },
+				},
+			],
+		});
+	});
 });

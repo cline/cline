@@ -359,6 +359,24 @@ export class Agent {
 		return this.runState === "idle";
 	}
 
+	addTools(tools: Tool[]): void {
+		if (tools.length === 0) {
+			return;
+		}
+		const mergedTools = [...this.config.tools];
+		const existingNames = new Set(mergedTools.map((tool) => tool.name));
+		for (const tool of tools) {
+			if (existingNames.has(tool.name)) {
+				continue;
+			}
+			mergedTools.push(tool);
+			existingNames.add(tool.name);
+		}
+		validateTools(mergedTools);
+		this.config.tools = mergedTools;
+		this.toolRegistry = createToolRegistry(mergedTools);
+	}
+
 	updateConnection(
 		overrides: Partial<
 			Pick<

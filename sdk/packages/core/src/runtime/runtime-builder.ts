@@ -487,6 +487,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			restoredTeammateSpecs.map((spec) => [spec.agentId, spec] as const),
 		);
 		const registryKey = config.sessionId || effectiveTeamName;
+		let leadAgentInstance:
+			| {
+					addTools: (tools: Tool[]) => void;
+			  }
+			| undefined;
+		let pendingLeadTeamTools: Tool[] = [];
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,
 			modelId: config.modelId,
@@ -572,6 +578,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					leadAgentId: "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
 					restoredTeammates: restoredTeammateSpecs,
+					includeLeadSpawnTool: true,
+					includeLeadManagementTools: restoredTeammateSpecs.length > 0,
+					onLeadToolsUnlocked: (teamTools) => {
+						pendingLeadTeamTools = teamTools;
+						leadAgentInstance?.addTools(teamTools);
+					},
 					createBaseTools: normalized.enableTools
 						? () =>
 								createBuiltinToolsList(
@@ -655,6 +667,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				this.teamRuntimeRegistry.get(registryKey)
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			completionGuard,
+			registerLeadAgent: (agent) => {
+				leadAgentInstance = agent;
+				if (pendingLeadTeamTools.length > 0) {
+					agent.addTools(pendingLeadTeamTools);
+				}
+			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeRegistry.delete(registryKey);

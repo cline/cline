@@ -37,6 +37,11 @@ export function toAiSdkMessages(
 					continue;
 				}
 
+				if (block.type === "thinking") {
+					parts.push({ type: "reasoning", text: block.thinking });
+					continue;
+				}
+
 				if (block.type === "file") {
 					parts.push({
 						type: "text",

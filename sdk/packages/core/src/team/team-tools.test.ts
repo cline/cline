@@ -122,6 +122,48 @@ describe("createAgentTeamsTools schema surface", () => {
 		).rejects.toThrow("Unrecognized key");
 	});
 
+	it("can expose only the spawn tool until the first teammate is created", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		const onLeadToolsUnlocked = vi.fn();
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+			includeSpawnTool: true,
+			includeManagementTools: false,
+			onLeadToolsUnlocked,
+		});
+
+		expect(tools.map((tool) => tool.name)).toEqual(["team_spawn_teammate"]);
+
+		const spawn = tools[0];
+		await expect(
+			spawn?.execute(
+				{
+					agentId: "writer",
+					rolePrompt: "Write concise summaries",
+				},
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).resolves.toEqual({
+			agentId: "writer",
+			status: "spawned",
+		});
+
+		expect(onLeadToolsUnlocked).toHaveBeenCalledTimes(1);
+		const unlockedTools = onLeadToolsUnlocked.mock.calls[0]?.[0] as
+			| Array<{ name: string }>
+			| undefined;
+		expect(unlockedTools?.some((tool) => tool.name === "team_task")).toBe(true);
+		expect(
+			unlockedTools?.some((tool) => tool.name === "team_spawn_teammate"),
+		).toBe(false);
+	});
+
 	it("rejects non-object payloads for task tools", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({

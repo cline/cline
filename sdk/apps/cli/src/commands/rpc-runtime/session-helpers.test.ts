@@ -54,6 +54,9 @@ describe("buildSessionStartInput", () => {
 
 		expect(built.sessionInput.config.sessionId).toBe("session-123");
 		expect(built.sessionInput.config.maxIterations).toBeUndefined();
+		expect(built.sessionInput.config.compaction).toEqual({
+			enabled: true,
+		});
 		expect(built.sessionInput.config.hooks).toBe(hooks);
 	});
 });

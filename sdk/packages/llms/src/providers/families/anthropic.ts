@@ -11,6 +11,10 @@ import type {
 	RawMessageStreamEvent,
 } from "@anthropic-ai/sdk/resources";
 import {
+	resolveReasoningBudgetFromRatio,
+	resolveReasoningEffortRatio,
+} from "@clinebot/shared";
+import {
 	getMissingApiKeyError,
 	resolveApiKeyForProvider,
 } from "../runtime/auth";
@@ -38,6 +42,47 @@ function isThinkingDebugEnabled(): boolean {
 	}
 	const normalized = raw.trim().toLowerCase();
 	return normalized === "1" || normalized === "true" || normalized === "yes";
+}
+
+function resolveAnthropicThinkingBudget(options: {
+	explicitBudgetTokens?: number;
+	effort?: string;
+	maxTokens?: number;
+	thinkingEnabled?: boolean;
+}) {
+	if (
+		typeof options.explicitBudgetTokens === "number" &&
+		options.explicitBudgetTokens > 0
+	) {
+		return options.explicitBudgetTokens;
+	}
+
+	if (options.thinkingEnabled !== true) {
+		return 0;
+	}
+
+	const effort = options.effort ?? "medium";
+	if (effort === "none") {
+		return 0;
+	}
+
+	const maxTokens = options.maxTokens ?? 128_000;
+	const maxBudget = Math.min(maxTokens - 1, 128_000);
+	const ratio = resolveReasoningEffortRatio(effort, {
+		fallbackEffort: "medium",
+	});
+	if (ratio === 0) {
+		return 0;
+	}
+	return (
+		resolveReasoningBudgetFromRatio({
+			effort,
+			maxBudget,
+			scaleTokens: maxTokens,
+			minimumBudget: DEFAULT_THINKING_BUDGET_TOKENS,
+			fallbackEffort: "medium",
+		}) ?? 0
+	);
 }
 
 /**
@@ -107,11 +152,16 @@ export class AnthropicHandler extends BaseHandler {
 		const model = this.getModel();
 		const abortSignal = this.getAbortSignal();
 		const responseId = this.createResponseId();
+		const maxTokens =
+			model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000;
 
 		const thinkingSupported = supportsModelThinking(model.info);
-		const requestedBudget =
-			this.config.thinkingBudgetTokens ??
-			(this.config.thinking ? DEFAULT_THINKING_BUDGET_TOKENS : 0);
+		const requestedBudget = resolveAnthropicThinkingBudget({
+			explicitBudgetTokens: this.config.thinkingBudgetTokens,
+			effort: this.config.reasoningEffort,
+			maxTokens,
+			thinkingEnabled: this.config.thinking,
+		});
 		const budgetTokens =
 			thinkingSupported && requestedBudget > 0 ? requestedBudget : 0;
 		const nativeToolsOn = tools && tools.length > 0;
@@ -149,8 +199,7 @@ export class AnthropicHandler extends BaseHandler {
 			thinking: reasoningOn
 				? { type: "enabled", budget_tokens: budgetTokens }
 				: undefined,
-			max_tokens:
-				model.info.maxTokens ?? this.config.maxOutputTokens ?? 128_000,
+			max_tokens: maxTokens,
 			temperature: reasoningOn ? undefined : 0,
 			system: [
 				supportsPromptCache

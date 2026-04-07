@@ -339,6 +339,52 @@ describe("format conversion", () => {
 		expect(anthropic[1].content[0].signature).toBe("anthropic-sig");
 	});
 
+	it("omits invalid anthropic thinking blocks during replay", () => {
+		const messages: Message[] = [
+			{ role: "user", content: "hello" },
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "thinking",
+						thinking: "",
+						signature: "anthropic-sig",
+					},
+					{
+						type: "thinking",
+						thinking: "missing signature",
+					},
+					{
+						type: "redacted_thinking",
+						data: "encrypted",
+					},
+					{
+						type: "tool_use",
+						id: "call_1",
+						name: "run_commands",
+						input: { commands: ["pwd"] },
+					},
+				],
+			},
+		];
+
+		const anthropic = convertToAnthropicMessages(messages) as any[];
+		expect(anthropic[1].content).toEqual([
+			{
+				type: "redacted_thinking",
+				data: "encrypted",
+			},
+			{
+				type: "tool_use",
+				id: "call_1",
+				name: "run_commands",
+				input: {
+					commands: ["pwd"],
+				},
+			},
+		]);
+	});
+
 	it("applies anthropic cache markers to the last two user messages", () => {
 		const messages: Message[] = [
 			{ role: "user", content: "first prompt" },

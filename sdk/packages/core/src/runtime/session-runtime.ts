@@ -1,4 +1,9 @@
-import type { AgentConfig, AgentHooks, AgentResult } from "@clinebot/agents";
+import type {
+	Agent,
+	AgentConfig,
+	AgentHooks,
+	AgentResult,
+} from "@clinebot/agents";
 import type { BasicLogger, ITelemetryService, Tool } from "@clinebot/shared";
 import type { UserInstructionConfigWatcher } from "../extensions/config";
 import type {
@@ -18,6 +23,7 @@ export interface BuiltRuntime {
 	teamRestoredFromPersistence?: boolean;
 	delegatedAgentConfigProvider?: DelegatedAgentConfigProvider;
 	completionGuard?: () => string | undefined;
+	registerLeadAgent?: (agent: Agent) => void;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 

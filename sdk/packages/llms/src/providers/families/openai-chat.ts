@@ -9,6 +9,10 @@
  * - Azure OpenAI
  */
 
+import {
+	resolveEffectiveReasoningEffort,
+	resolveReasoningBudgetFromRatio,
+} from "@clinebot/shared";
 import OpenAI from "openai";
 import type { ChatCompletionChunk } from "openai/resources/chat/completions";
 import {
@@ -26,12 +30,45 @@ import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
 import { BaseHandler } from "./shared/base-handler";
 
-const DEFAULT_REASONING_EFFORT = "medium" as const;
+function resolveAnthropicOpenRouterReasoningBudget(options: {
+	modelId?: string;
+	effort?: string;
+	maxTokens?: number;
+	explicitBudgetTokens?: number;
+}) {
+	if (
+		typeof options.explicitBudgetTokens === "number" &&
+		options.explicitBudgetTokens > 0
+	) {
+		return options.explicitBudgetTokens;
+	}
+
+	if (
+		!options.modelId ||
+		!options.modelId.toLowerCase().startsWith("anthropic/") ||
+		!options.effort ||
+		options.effort === "none" ||
+		typeof options.maxTokens !== "number" ||
+		options.maxTokens <= 1024
+	) {
+		return undefined;
+	}
+
+	const maxBudget = Math.min(options.maxTokens - 1, 128000);
+	return resolveReasoningBudgetFromRatio({
+		effort: options.effort,
+		maxBudget,
+		scaleTokens: options.maxTokens,
+		minimumBudget: 1024,
+	});
+}
 
 function buildOpenRouterReasoningConfig(options: {
+	modelId?: string;
 	thinking?: boolean;
 	effort?: string;
 	budgetTokens?: number;
+	maxTokens?: number;
 }) {
 	const reasoning: {
 		enabled?: boolean;
@@ -45,8 +82,14 @@ function buildOpenRouterReasoningConfig(options: {
 	if (options.effort) {
 		reasoning.effort = options.effort;
 	}
-	if (typeof options.budgetTokens === "number" && options.budgetTokens > 0) {
-		reasoning.max_tokens = options.budgetTokens;
+	const budgetTokens = resolveAnthropicOpenRouterReasoningBudget({
+		modelId: options.modelId,
+		effort: options.effort,
+		maxTokens: options.maxTokens,
+		explicitBudgetTokens: options.budgetTokens,
+	});
+	if (typeof budgetTokens === "number" && budgetTokens > 0) {
+		reasoning.max_tokens = budgetTokens;
 	}
 
 	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
@@ -205,14 +248,17 @@ export class OpenAIBaseHandler extends BaseHandler {
 		const supportsReasoningEffort =
 			this.hasResolvedCapability("reasoning-effort", modelInfo) ||
 			modelSupportsReasoning;
-		const effectiveReasoningEffort =
-			this.config.reasoningEffort ??
-			(this.config.thinking ? DEFAULT_REASONING_EFFORT : undefined);
+		const effectiveReasoningEffort = resolveEffectiveReasoningEffort(
+			this.config.reasoningEffort,
+			this.config.thinking,
+		);
 		if (routingProviderId === "openrouter") {
 			const reasoning = buildOpenRouterReasoningConfig({
+				modelId,
 				thinking: this.config.thinking,
 				effort: effectiveReasoningEffort,
 				budgetTokens: this.config.thinkingBudgetTokens,
+				maxTokens,
 			});
 			if (reasoning) {
 				(

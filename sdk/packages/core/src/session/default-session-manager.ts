@@ -344,6 +344,7 @@ export class DefaultSessionManager implements SessionManager {
 				this.onAgentEvent(sessionId, configWithProvider, event),
 		} as AgentConfig;
 		const agent = this.createAgentInstance(agentConfig);
+		runtime.registerLeadAgent?.(agent);
 		const rootAgentIdentity = buildTelemetryAgentIdentity({
 			agentId: this.readAgentId(agent),
 			conversationId: this.readAgentConversationId(agent),

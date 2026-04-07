@@ -376,4 +376,52 @@ describe("TurnProcessor", () => {
 			signature: undefined,
 		});
 	});
+
+	it("preserves interleaved thinking and text block order in assistant content", async () => {
+		const processor = createProcessor([
+			{
+				type: "text",
+				id: "r1",
+				text: "Plan:\n1. Inspect the repo.\n",
+			},
+			{
+				type: "reasoning",
+				id: "r1",
+				reasoning: "Need to locate the llms package first.",
+			},
+			{
+				type: "text",
+				id: "r1",
+				text: "2. Read the providers package.\n",
+			},
+			{ type: "done", id: "r1", success: true },
+		]);
+
+		const { assistantMessage } = await processor.processTurn(
+			[],
+			"system",
+			[],
+			new AbortController().signal,
+		);
+
+		expect(assistantMessage?.content).toEqual([
+			{
+				type: "text",
+				text: "Plan:\n1. Inspect the repo.\n",
+				signature: undefined,
+			},
+			{
+				type: "thinking",
+				thinking: "Need to locate the llms package first.",
+				signature: undefined,
+				details: undefined,
+				summary: undefined,
+			},
+			{
+				type: "text",
+				text: "2. Read the providers package.\n",
+				signature: undefined,
+			},
+		]);
+	});
 });

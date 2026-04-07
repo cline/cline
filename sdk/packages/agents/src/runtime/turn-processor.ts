@@ -44,9 +44,7 @@ export class TurnProcessor {
 		);
 
 		let text = "";
-		let textSignature: string | undefined;
 		let reasoning = "";
-		let reasoningSignature: string | undefined;
 		const reasoningDetails: unknown[] = [];
 		const redactedReasoningBlocks: string[] = [];
 		const usage = {
@@ -58,6 +56,7 @@ export class TurnProcessor {
 		};
 		let truncated = false;
 		let responseId: string | undefined;
+		const assistantContent: LlmsProviders.ContentBlock[] = [];
 
 		const pendingToolCallsMap = new Map<
 			string,
@@ -75,9 +74,11 @@ export class TurnProcessor {
 			switch (chunk.type) {
 				case "text":
 					text += chunk.text;
-					if (chunk.signature) {
-						textSignature = chunk.signature;
-					}
+					this.appendAssistantTextBlock(
+						assistantContent,
+						chunk.text,
+						chunk.signature,
+					);
 					this.emit({
 						type: "content_start",
 						contentType: "text",
@@ -87,9 +88,6 @@ export class TurnProcessor {
 					break;
 				case "reasoning":
 					reasoning += chunk.reasoning;
-					if (chunk.signature) {
-						reasoningSignature = chunk.signature;
-					}
 					if (chunk.details) {
 						if (Array.isArray(chunk.details)) {
 							reasoningDetails.push(...chunk.details);
@@ -99,6 +97,18 @@ export class TurnProcessor {
 					}
 					if (chunk.redacted_data) {
 						redactedReasoningBlocks.push(chunk.redacted_data);
+					}
+					this.appendAssistantThinkingBlock(
+						assistantContent,
+						chunk.reasoning,
+						chunk.signature,
+						chunk.details,
+					);
+					if (chunk.redacted_data) {
+						assistantContent.push({
+							type: "redacted_thinking",
+							data: chunk.redacted_data,
+						});
 					}
 					this.emit({
 						type: "content_start",
@@ -143,7 +153,6 @@ export class TurnProcessor {
 
 		const toolCalls = this.finalizePendingToolCalls(pendingToolCallsMap);
 		const invalidToolCalls = this.collectInvalidToolCalls(pendingToolCallsMap);
-		const assistantContent: LlmsProviders.ContentBlock[] = [];
 
 		if (text) {
 			this.emit({
@@ -158,21 +167,6 @@ export class TurnProcessor {
 				contentType: "reasoning",
 				reasoning,
 			});
-			assistantContent.push({
-				type: "thinking",
-				thinking: reasoning,
-				signature: reasoningSignature,
-				details: reasoningDetails.length > 0 ? reasoningDetails : undefined,
-			});
-			for (const redactedData of redactedReasoningBlocks) {
-				assistantContent.push({
-					type: "redacted_thinking",
-					data: redactedData,
-				});
-			}
-		}
-		if (text) {
-			assistantContent.push({ type: "text", text, signature: textSignature });
 		}
 		for (const call of toolCalls) {
 			assistantContent.push({
@@ -212,6 +206,51 @@ export class TurnProcessor {
 			},
 			assistantMessage,
 		};
+	}
+
+	private appendAssistantTextBlock(
+		content: LlmsProviders.ContentBlock[],
+		text: string,
+		signature?: string,
+	): void {
+		const last = content.at(-1);
+		if (last?.type === "text" && last.signature === signature) {
+			last.text += text;
+			return;
+		}
+
+		content.push({ type: "text", text, signature });
+	}
+
+	private appendAssistantThinkingBlock(
+		content: LlmsProviders.ContentBlock[],
+		reasoning: string,
+		signature: string | undefined,
+		details: unknown,
+	): void {
+		const normalizedDetails =
+			details === undefined
+				? undefined
+				: Array.isArray(details)
+					? details
+					: [details];
+		const last = content.at(-1);
+		if (last?.type === "thinking" && last.signature === signature) {
+			last.thinking += reasoning;
+			if (normalizedDetails?.length) {
+				last.details = [...(last.details ?? []), ...normalizedDetails];
+				last.summary = last.details;
+			}
+			return;
+		}
+
+		content.push({
+			type: "thinking",
+			thinking: reasoning,
+			signature,
+			details: normalizedDetails,
+			summary: normalizedDetails,
+		});
 	}
 
 	private processToolCallChunk(

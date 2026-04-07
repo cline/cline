@@ -5,6 +5,8 @@ type AiSdkStreamPart = {
 	[key: string]: unknown;
 };
 
+type ProviderMetadataRecord = Record<string, unknown>;
+
 type AiSdkUsage = {
 	inputTokens?: unknown;
 	outputTokens?: unknown;
@@ -73,6 +75,64 @@ export function numberOrZero(value: unknown): number {
 	return typeof value === "number" && Number.isFinite(value) ? value : 0;
 }
 
+function findNestedField(
+	value: unknown,
+	fieldName: string,
+	depth = 0,
+): unknown {
+	if (depth > 4 || !value || typeof value !== "object") {
+		return undefined;
+	}
+
+	const record = value as Record<string, unknown>;
+	if (fieldName in record) {
+		return record[fieldName];
+	}
+
+	for (const nested of Object.values(record)) {
+		const resolved = findNestedField(nested, fieldName, depth + 1);
+		if (resolved !== undefined) {
+			return resolved;
+		}
+	}
+
+	return undefined;
+}
+
+function extractReasoningMetadata(part: AiSdkStreamPart): {
+	details?: unknown;
+	signature?: string;
+	redactedData?: string;
+} {
+	const providerMetadata =
+		(part.providerMetadata as ProviderMetadataRecord | undefined) ??
+		(part.providerOptions as ProviderMetadataRecord | undefined);
+
+	const details =
+		part.reasoning_details ??
+		part.reasoningDetails ??
+		part.details ??
+		findNestedField(providerMetadata, "reasoning_details") ??
+		findNestedField(providerMetadata, "reasoningDetails") ??
+		findNestedField(providerMetadata, "details");
+
+	const signatureCandidate =
+		part.signature ?? findNestedField(providerMetadata, "signature");
+	const redactedCandidate =
+		part.redacted_data ??
+		part.redactedData ??
+		findNestedField(providerMetadata, "redactedData") ??
+		findNestedField(providerMetadata, "redacted_data");
+
+	return {
+		details,
+		signature:
+			typeof signatureCandidate === "string" ? signatureCandidate : undefined,
+		redactedData:
+			typeof redactedCandidate === "string" ? redactedCandidate : undefined,
+	};
+}
+
 function defaultResolveUsageMetrics(usage: AiSdkUsage): AiSdkUsageMetrics {
 	return {
 		inputTokens: numberOrZero(usage.inputTokens),
@@ -115,10 +175,24 @@ export async function* emitAiSdkStream(
 			if (partType && reasoningTypes.has(partType)) {
 				const reasoning =
 					(part.textDelta as string | undefined) ??
+					(part.delta as string | undefined) ??
 					(part.reasoning as string | undefined) ??
 					(part.text as string | undefined);
-				if (reasoning) {
-					yield { type: "reasoning", reasoning, id: responseId };
+				const metadata = extractReasoningMetadata(part);
+				if (
+					reasoning ||
+					metadata.details !== undefined ||
+					metadata.signature !== undefined ||
+					metadata.redactedData !== undefined
+				) {
+					yield {
+						type: "reasoning",
+						reasoning: reasoning ?? "",
+						details: metadata.details,
+						signature: metadata.signature,
+						redacted_data: metadata.redactedData,
+						id: responseId,
+					};
 				}
 				continue;
 			}

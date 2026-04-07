@@ -79,6 +79,13 @@ export {
 	MODELS_DEV_PROVIDER_KEY_MAP,
 	resolveProviderModelCatalogKeys,
 } from "./llms/model-id";
+export {
+	DEFAULT_REASONING_EFFORT,
+	REASONING_EFFORT_RATIOS,
+	resolveEffectiveReasoningEffort,
+	resolveReasoningBudgetFromRatio,
+	resolveReasoningEffortRatio,
+} from "./llms/reasoning-effort";
 export { DEFAULT_REQUEST_HEADERS, serializeAbortReason } from "./llms/requests";
 export type {
 	Tool,

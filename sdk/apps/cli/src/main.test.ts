@@ -236,8 +236,35 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
 			"hello",
 			expect.objectContaining({
+				compaction: {
+					enabled: true,
+				},
 				thinking: true,
 				reasoningEffort: "medium",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("enables compaction by default for prompt runs", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello",
+			expect.objectContaining({
+				compaction: {
+					enabled: true,
+				},
 			}),
 			expect.anything(),
 		);

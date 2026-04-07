@@ -291,7 +291,44 @@ describe("GeminiHandler", () => {
 		};
 		expect(request.config?.thinkingConfig).toMatchObject({
 			includeThoughts: true,
-			thinkingBudget: 1024,
+		});
+		expect(request.config?.thinkingConfig?.thinkingBudget).toBeUndefined();
+		expect(request.config?.thinkingConfig?.thinkingLevel).toBeUndefined();
+	});
+
+	it("maps reasoning effort to a thinking budget for budget-based Gemini models", async () => {
+		generateContentStreamSpy.mockResolvedValue(createAsyncIterable([]));
+
+		const handler = new GeminiHandler({
+			providerId: "gemini",
+			modelId: "gemini-flash-latest",
+			apiKey: "test-key",
+			reasoningEffort: "high",
+			modelInfo: {
+				id: "gemini-flash-latest",
+				contextWindow: 1_000_000,
+				maxTokens: 65536,
+				temperature: 1,
+				capabilities: ["reasoning"],
+			},
+		});
+
+		await collectChunks(
+			handler.createMessage("System", [{ role: "user", content: "go" }]),
+		);
+
+		const request = generateContentStreamSpy.mock.calls[0]?.[0] as {
+			config?: {
+				thinkingConfig?: {
+					includeThoughts?: boolean;
+					thinkingBudget?: number;
+					thinkingLevel?: string;
+				};
+			};
+		};
+		expect(request.config?.thinkingConfig).toMatchObject({
+			includeThoughts: true,
+			thinkingBudget: 19660,
 		});
 		expect(request.config?.thinkingConfig?.thinkingLevel).toBeUndefined();
 	});
