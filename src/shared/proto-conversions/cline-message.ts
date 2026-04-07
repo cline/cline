@@ -24,7 +24,6 @@ function convertClineAskToProtoEnum(ask: AppClineAsk | undefined): ClineAsk | un
 		new_task: ClineAsk.NEW_TASK,
 		condense: ClineAsk.CONDENSE,
 		summarize_task: ClineAsk.SUMMARIZE_TASK,
-		report_bug: ClineAsk.REPORT_BUG,
 		use_subagents: ClineAsk.USE_SUBAGENTS,
 	}
 
@@ -40,7 +39,7 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		return undefined
 	}
 
-	const mapping: Record<Exclude<ClineAsk, ClineAsk.UNRECOGNIZED>, AppClineAsk> = {
+	const mapping: Partial<Record<Exclude<ClineAsk, ClineAsk.UNRECOGNIZED>, AppClineAsk>> = {
 		[ClineAsk.FOLLOWUP]: "followup",
 		[ClineAsk.PLAN_MODE_RESPOND]: "plan_mode_respond",
 		[ClineAsk.ACT_MODE_RESPOND]: "act_mode_respond",
@@ -57,7 +56,6 @@ function convertProtoEnumToClineAsk(ask: ClineAsk): AppClineAsk | undefined {
 		[ClineAsk.NEW_TASK]: "new_task",
 		[ClineAsk.CONDENSE]: "condense",
 		[ClineAsk.SUMMARIZE_TASK]: "summarize_task",
-		[ClineAsk.REPORT_BUG]: "report_bug",
 		[ClineAsk.USE_SUBAGENTS]: "use_subagents",
 	}
 

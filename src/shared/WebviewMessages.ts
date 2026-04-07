@@ -328,7 +328,7 @@ export interface CheckpointOpMessage {
 /** Slash commands — replaces SlashServiceClient RPCs */
 export interface SlashCommandMessage {
 	type: "slashCommand"
-	command: "condense" | "reportBug"
+	command: "condense"
 	requestId?: string
 	value?: string
 }
