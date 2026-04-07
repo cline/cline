@@ -416,4 +416,48 @@ describe("GeminiHandler", () => {
 		});
 		expect(request.config?.thinkingConfig?.thinkingBudget).toBeUndefined();
 	});
+
+	it("calculates cost from inclusive prompt tokens without double-charging cached content", async () => {
+		generateContentStreamSpy.mockResolvedValue(
+			createAsyncIterable([
+				{
+					usageMetadata: {
+						promptTokenCount: 100,
+						candidatesTokenCount: 40,
+						cachedContentTokenCount: 25,
+					},
+				},
+			]),
+		);
+
+		const handler = new GeminiHandler({
+			providerId: "gemini",
+			modelId: "gemini-2.5-flash",
+			apiKey: "test-key",
+			modelInfo: {
+				id: "gemini-2.5-flash",
+				contextWindow: 1_000_000,
+				maxTokens: 8192,
+				pricing: {
+					input: 1,
+					output: 2,
+					cacheRead: 0.5,
+				},
+			},
+		});
+
+		const chunks = await collectChunks(
+			handler.createMessage("System", [{ role: "user", content: "go" }]),
+		);
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				inputTokens: 100,
+				outputTokens: 40,
+				cacheReadTokens: 25,
+				totalCost: expect.closeTo(0.0001675, 10),
+			}),
+		);
+	});
 });

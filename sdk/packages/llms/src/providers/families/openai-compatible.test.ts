@@ -232,6 +232,17 @@ describe("OpenAICompatibleHandler", () => {
 			modelId: "anthropic/claude-sonnet-4.6",
 			apiKey: "test-key",
 			baseUrl: "https://example.com/v1",
+			knownModels: {
+				"anthropic/claude-sonnet-4.6": {
+					id: "anthropic/claude-sonnet-4.6",
+					pricing: {
+						input: 1,
+						output: 2,
+						cacheRead: 0.5,
+						cacheWrite: 1.25,
+					},
+				},
+			},
 		});
 
 		await drain(
@@ -275,6 +286,17 @@ describe("OpenAICompatibleHandler", () => {
 			modelId: "anthropic/claude-sonnet-4.6",
 			apiKey: "test-key",
 			baseUrl: "https://example.com/v1",
+			knownModels: {
+				"anthropic/claude-sonnet-4.6": {
+					id: "anthropic/claude-sonnet-4.6",
+					pricing: {
+						input: 1,
+						output: 2,
+						cacheRead: 0.5,
+						cacheWrite: 1.25,
+					},
+				},
+			},
 		});
 
 		await drain(

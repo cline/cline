@@ -372,7 +372,7 @@ export class OpenAICompatibleHandler extends BaseHandler {
 				cacheReadTokens,
 				cacheWriteTokens,
 			) =>
-				this.calculateCost(
+				this.calculateCostFromInclusiveInput(
 					inputTokens,
 					outputTokens,
 					cacheReadTokens,

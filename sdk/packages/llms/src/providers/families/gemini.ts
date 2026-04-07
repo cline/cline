@@ -327,7 +327,7 @@ export class GeminiHandler extends BaseHandler {
 		thoughtsTokenCount: number,
 		cacheReadTokens: number,
 	): number | undefined {
-		return this.calculateCost(
+		return this.calculateCostFromInclusiveInput(
 			inputTokens,
 			outputTokens + thoughtsTokenCount,
 			cacheReadTokens,

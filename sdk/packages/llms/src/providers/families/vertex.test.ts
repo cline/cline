@@ -1,9 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../types/messages";
 
+const { streamTextSpy, createVertexAnthropicSpy, vertexProviderSpy } =
+	vi.hoisted(() => {
+		const provider = vi.fn();
+		return {
+			streamTextSpy: vi.fn(),
+			createVertexAnthropicSpy: vi.fn(() => provider),
+			vertexProviderSpy: provider,
+		};
+	});
+
 const geminiConstructorSpy = vi.fn();
 const geminiGetMessagesSpy = vi.fn();
 const geminiCreateMessageSpy = vi.fn();
+
+vi.mock("ai", () => ({
+	streamText: streamTextSpy,
+}));
+
+vi.mock("@ai-sdk/google-vertex/anthropic", () => ({
+	createVertexAnthropic: createVertexAnthropicSpy,
+}));
 
 vi.mock("./gemini", () => {
 	return {
@@ -44,6 +62,10 @@ import { VertexHandler } from "./vertex";
 describe("VertexHandler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vertexProviderSpy.mockReturnValue({ provider: "vertex-model" });
+		streamTextSpy.mockReturnValue({
+			fullStream: createAsyncIterable([{ type: "finish", usage: {} }]),
+		});
 	});
 
 	it("routes Gemini models through GeminiHandler with Vertex config defaults", () => {
@@ -121,4 +143,69 @@ describe("VertexHandler", () => {
 		]);
 		await expect(stream.next()).rejects.toThrow("gcp.region");
 	});
+
+	it("prices Claude cache usage from inclusive input tokens", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: createAsyncIterable([
+				{
+					type: "finish",
+					usage: {
+						inputTokens: 1000,
+						outputTokens: 50,
+						cachedInputTokens: 900,
+					},
+					providerMetadata: {
+						anthropic: {
+							cacheCreationInputTokens: 80,
+						},
+					},
+				},
+			]),
+		});
+
+		const handler = new VertexHandler({
+			providerId: "vertex",
+			modelId: "claude-sonnet-4-5",
+			gcp: { projectId: "my-project", region: "us-east5" },
+			modelInfo: {
+				id: "claude-sonnet-4-5",
+				contextWindow: 1_000_000,
+				maxTokens: 8192,
+				pricing: {
+					input: 1,
+					output: 2,
+					cacheRead: 0.5,
+					cacheWrite: 1.25,
+				},
+			},
+		});
+
+		const chunks = [];
+		for await (const chunk of handler.createMessage("System", [
+			{ role: "user", content: "Hello" },
+		])) {
+			chunks.push(chunk);
+		}
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				inputTokens: 1000,
+				outputTokens: 50,
+				cacheReadTokens: 900,
+				cacheWriteTokens: 80,
+				totalCost: expect.closeTo(0.00067, 10),
+			}),
+		);
+	});
 });
+
+function createAsyncIterable<T>(items: T[]): AsyncIterable<T> {
+	return {
+		async *[Symbol.asyncIterator]() {
+			for (const item of items) {
+				yield item;
+			}
+		},
+	};
+}
