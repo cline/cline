@@ -13,18 +13,18 @@
  * This replaces the classic Controller for SDK-powered sessions.
  */
 
-import * as fs from "fs"
-import * as path from "path"
+import type { ApiConfiguration } from "@shared/api"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
-import type { ApiConfiguration } from "@shared/api"
+import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
-
-import type { LegacyStateReader, ClineAuthCredentials } from "./legacy-state-reader"
-import { MessageTranslator, type AgentEvent, type AgentUsageEvent, type AgentDoneEvent } from "./message-translator"
-import { buildExtensionState, type StateBuilderInput } from "./state-builder"
-import { GrpcHandler, type GrpcHandlerDelegate, type FileSearchResult, type McpServerProto } from "./grpc-handler"
 import type { UserInfo } from "@shared/UserInfo"
+import * as fs from "fs"
+import * as path from "path"
+import { type FileSearchResult, GrpcHandler, type GrpcHandlerDelegate, type McpServerProto } from "./grpc-handler"
+import type { ClineAuthCredentials, LegacyStateReader } from "./legacy-state-reader"
+import { type AgentDoneEvent, type AgentEvent, type AgentUsageEvent, MessageTranslator } from "./message-translator"
+import { buildExtensionState, type StateBuilderInput } from "./state-builder"
 
 // ---------------------------------------------------------------------------
 // Session interface — what the SDK session looks like to us
@@ -48,11 +48,7 @@ export interface SdkSession {
 }
 
 /** Factory to create SDK sessions */
-export type SessionFactory = (config: {
-	apiConfiguration?: ApiConfiguration
-	mode?: Mode
-	cwd?: string
-}) => Promise<SdkSession>
+export type SessionFactory = (config: { apiConfiguration?: ApiConfiguration; mode?: Mode; cwd?: string }) => Promise<SdkSession>
 
 // ---------------------------------------------------------------------------
 // SdkController
@@ -94,7 +90,6 @@ export class SdkController implements GrpcHandlerDelegate {
 	private cwd: string
 	private taskHistory: HistoryItem[]
 	private currentTaskItem?: HistoryItem
-	private isTaskRunning = false
 	private legacyState?: LegacyStateReader
 
 	/** External push callbacks (registered by WebviewGrpcBridge) */
@@ -176,7 +171,6 @@ export class SdkController implements GrpcHandlerDelegate {
 	async newTask(text: string, images?: string[]): Promise<void> {
 		// Reset translator for new task
 		this.translator.reset()
-		this.isTaskRunning = true
 
 		// Create task history item
 		this.currentTaskItem = {
@@ -217,7 +211,7 @@ export class SdkController implements GrpcHandlerDelegate {
 		}
 	}
 
-	async askResponse(response: string, text?: string, images?: string[]): Promise<void> {
+	async askResponse(_response: string, text?: string, images?: string[]): Promise<void> {
 		// Add user feedback message if there's text
 		if (text) {
 			const feedbackMessage: ClineMessage = {
@@ -252,7 +246,6 @@ export class SdkController implements GrpcHandlerDelegate {
 			await this.currentSession.abort()
 		}
 		this.currentSession = undefined
-		this.isTaskRunning = false
 		this.currentTaskItem = undefined
 		this.translator.reset()
 		this.pushStateUpdate()
@@ -262,7 +255,6 @@ export class SdkController implements GrpcHandlerDelegate {
 		if (this.currentSession) {
 			await this.currentSession.abort()
 		}
-		this.isTaskRunning = false
 
 		// Add resume_task ask so the webview shows the input for resuming
 		const resumeMsg: ClineMessage = {
@@ -307,7 +299,6 @@ export class SdkController implements GrpcHandlerDelegate {
 		// Reset current state and restore the task
 		this.translator.reset()
 		this.currentSession = undefined
-		this.isTaskRunning = false
 
 		// Restore task item and messages
 		this.currentTaskItem = { ...item }
@@ -380,18 +371,25 @@ export class SdkController implements GrpcHandlerDelegate {
 	}
 
 	async updateSettings(settings: Record<string, unknown>): Promise<void> {
-		// Persist settings to globalState.json via legacyState
+		// Settings come as key-value pairs that map to globalState keys.
+		// Some keys are API handler settings (persisted via saveApiConfiguration),
+		// while others are user settings (persisted directly to globalState.json).
+		// We need to handle both types.
 		if (this.legacyState) {
 			try {
-				// Settings come as key-value pairs that map to globalState keys
-				// Filter to only persist known ApiConfiguration keys
 				const apiConfigUpdates: Partial<ApiConfiguration> = {}
 				let hasApiConfig = false
 
 				for (const [key, value] of Object.entries(settings)) {
-					// Treat any setting key as a potential globalState key
-					(apiConfigUpdates as Record<string, unknown>)[key] = value
+					// Try saving via saveApiConfiguration first (handles API keys + secrets)
+					;(apiConfigUpdates as Record<string, unknown>)[key] = value
 					hasApiConfig = true
+
+					// Also write directly to globalState.json for user settings
+					// (saveApiConfiguration only writes ApiHandlerSettingsKeys/SecretKeys,
+					// so USER_SETTINGS_FIELDS like planActSeparateModelsSetting would be
+					// silently dropped without this direct write)
+					this.writeGlobalStateKey(key, value)
 				}
 
 				if (hasApiConfig) {
@@ -405,16 +403,11 @@ export class SdkController implements GrpcHandlerDelegate {
 	}
 
 	async updateAutoApprovalSettings(settings: Record<string, unknown>): Promise<void> {
-		// Persist auto-approval settings to globalState.json
-		if (this.legacyState) {
-			try {
-				this.legacyState.saveApiConfiguration(
-					{ autoApprovalSettings: settings } as unknown as Partial<ApiConfiguration>,
-				)
-			} catch {
-				// Best-effort persistence
-			}
-		}
+		// Write auto-approval settings directly to globalState.json.
+		// This cannot use saveApiConfiguration() because autoApprovalSettings
+		// is a USER_SETTINGS_FIELD, not an API_HANDLER_SETTINGS_FIELD, so
+		// saveApiConfiguration() silently drops it.
+		this.writeGlobalStateKey("autoApprovalSettings", settings)
 		this.pushStateUpdate()
 	}
 
@@ -492,7 +485,6 @@ export class SdkController implements GrpcHandlerDelegate {
 			}
 		}
 
-		this.isTaskRunning = false
 		this.persistCurrentTask()
 	}
 
@@ -555,9 +547,21 @@ export class SdkController implements GrpcHandlerDelegate {
 
 		// Skip directories that are typically not useful
 		const SKIP_DIRS = new Set([
-			"node_modules", ".git", "__pycache__", ".venv", "venv",
-			".next", ".nuxt", "dist", "build", "out", ".cache",
-			"coverage", ".nyc_output", ".tox", ".eggs",
+			"node_modules",
+			".git",
+			"__pycache__",
+			".venv",
+			"venv",
+			".next",
+			".nuxt",
+			"dist",
+			"build",
+			"out",
+			".cache",
+			"coverage",
+			".nyc_output",
+			".tox",
+			".eggs",
 		])
 
 		const walk = (dir: string, prefix: string, depth: number) => {
@@ -648,7 +652,7 @@ export class SdkController implements GrpcHandlerDelegate {
 			fs.writeFileSync(tmpPath, JSON.stringify(gs, null, "\t"), "utf-8")
 			fs.renameSync(tmpPath, gsPath)
 		} catch (err) {
-			console.error(`[SdkController] Failed to write globalState key "${key}":`, err)
+			Logger.error(`[SdkController] Failed to write globalState key "${key}":`, err)
 		}
 
 		// Push state update so the webview reflects the change
@@ -872,7 +876,7 @@ export class SdkController implements GrpcHandlerDelegate {
 			const DEFAULT_TIMEOUT = 60
 
 			return Object.entries(mcpServersMap).map(([name, configObj]) => {
-				const config = configObj as Record<string, unknown> ?? {}
+				const config = (configObj as Record<string, unknown>) ?? {}
 				const disabled = (config.disabled as boolean) ?? false
 				const timeout = (config.timeout as number) ?? DEFAULT_TIMEOUT
 
@@ -891,7 +895,7 @@ export class SdkController implements GrpcHandlerDelegate {
 				}
 			})
 		} catch (err) {
-			console.error("[SdkController] Failed to read MCP settings:", err)
+			Logger.error("[SdkController] Failed to read MCP settings:", err)
 			return []
 		}
 	}
