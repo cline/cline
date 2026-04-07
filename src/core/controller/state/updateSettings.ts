@@ -193,22 +193,14 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 
 		// Update focus chain settings
 		if (request.focusChainSettings !== undefined) {
-			{
-				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
-				const wasEnabled = currentSettings?.enabled ?? false
-				const isEnabled = request.focusChainSettings.enabled
+			const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
 
-				const focusChainSettings = {
-					enabled: isEnabled,
-					remindClineInterval: request.focusChainSettings.remindClineInterval,
-				}
-				controller.stateManager.setGlobalState("focusChainSettings", focusChainSettings)
-
-				// Capture telemetry when setting changes
-				if (wasEnabled !== isEnabled) {
-					telemetryService.captureFocusChainToggle(isEnabled)
-				}
-			}
+			// Legacy compatibility only: preserve the stored shape without allowing new writes
+			// to re-activate Focus Chain behavior or emit fresh telemetry.
+			controller.stateManager.setGlobalState("focusChainSettings", {
+				enabled: currentSettings?.enabled ?? false,
+				remindClineInterval: currentSettings?.remindClineInterval ?? request.focusChainSettings.remindClineInterval,
+			})
 		}
 
 		// Update custom prompt choice
