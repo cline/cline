@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type { Tool } from "@clinebot/agents";
 import { describe, expect, it } from "vitest";
 import { TelemetryService } from "../telemetry/TelemetryService";
+import type { CoreSessionConfig } from "../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
 
 function makeSpawnTool(): Tool {
@@ -94,7 +95,31 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("editor");
 	});
 
-	it("uses yolo preset when tools are auto-approved", () => {
+	it("uses yolo preset only when yolo mode is explicit", () => {
+		const runtime = new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+				yolo: true,
+			},
+			defaultToolExecutors: {
+				submit: async () => "submitted",
+			},
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("ask_question");
+		expect(names).toContain("submit_and_exit");
+	});
+
+	it("does not infer yolo preset from auto-approval alone", () => {
 		const runtime = new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "anthropic",
@@ -112,12 +137,31 @@ describe("DefaultRuntimeBuilder", () => {
 			},
 			defaultToolExecutors: {
 				submit: async () => "submitted",
+				askQuestion: async () => "question",
 			},
 		});
 
 		const names = runtime.tools.map((tool) => tool.name);
-		expect(names).not.toContain("ask_question");
-		expect(names).toContain("submit_and_exit");
+		expect(names).toContain("ask_question");
+		expect(names).not.toContain("submit_and_exit");
+	});
+
+	it("uses yolo preset runtime defaults for spawn and teams", () => {
+		const runtime = new DefaultRuntimeBuilder().build({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "key",
+				systemPrompt: "test",
+				cwd: process.cwd(),
+				mode: "act",
+				enableTools: false,
+				yolo: true,
+			} as CoreSessionConfig,
+			createSpawnTool: makeSpawnTool,
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("spawn_agent");
 	});
 
 	it("uses apply_patch instead of editor for codex/gpt model IDs in act mode", () => {

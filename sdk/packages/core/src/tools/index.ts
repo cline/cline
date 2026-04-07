@@ -48,6 +48,7 @@ export {
 export {
 	createDefaultToolsWithPreset,
 	createToolPoliciesWithPreset,
+	resolveToolPresetName,
 	type ToolPolicyPresetName,
 	type ToolPresetName,
 	ToolPresets,

@@ -254,7 +254,11 @@ export function buildMistakeLimitStopMessage(input: {
 	iteration: number;
 	consecutiveMistakes: number;
 	maxConsecutiveMistakes: number;
-	reason: "api_error" | "invalid_tool_call" | "tool_execution_failed";
+	reason:
+		| "api_error"
+		| "invalid_tool_call"
+		| "completion_without_submit"
+		| "tool_execution_failed";
 	details?: string;
 	stopReason?: string;
 }): string {

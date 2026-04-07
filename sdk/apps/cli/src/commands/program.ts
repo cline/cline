@@ -113,6 +113,8 @@ export function createProgram(): Command {
 
 export function commanderToParsedArgs(program: Command): ParsedArgs {
 	const opts = program.opts();
+	const spawnValueSource = program.getOptionValueSource("spawn");
+	const teamsValueSource = program.getOptionValueSource("teams");
 
 	const result: ParsedArgs = {
 		verbose: !!opts.verbose,
@@ -137,6 +139,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	// --enable-spawn overrides --spawn/--no-spawn
 	if (opts.enableSpawn) {
 		result.enableSpawnAgent = true;
+	}
+
+	if (opts.yolo) {
+		if (!opts.enableSpawn && spawnValueSource === "default") {
+			result.enableSpawnAgent = false;
+		}
+		if (teamsValueSource === "default") {
+			result.enableAgentTeams = false;
+		}
 	}
 
 	// Approval: last-wins semantics

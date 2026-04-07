@@ -19,6 +19,7 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutor,
 	type ToolExecutors,
@@ -52,18 +53,13 @@ function createBuiltinToolsList(
 	cwd: string,
 	providerId: string,
 	mode: CoreAgentMode,
+	yolo: boolean | undefined,
 	modelId: string,
-	toolPolicies: CoreSessionConfig["toolPolicies"],
 	toolRoutingRules: ToolRoutingRule[] | undefined,
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 ): Tool[] {
-	const preset =
-		mode === "plan"
-			? ToolPresets.readonly
-			: toolPolicies?.["*"]?.autoApprove === true
-				? ToolPresets.yolo
-				: ToolPresets.development;
+	const preset = ToolPresets[resolveToolPresetName({ mode, yolo })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
 		providerId,
 		modelId,
@@ -325,17 +321,28 @@ function normalizeConfig(
 		| "enableTools"
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
+		| "yolo"
 		| "missionLogIntervalSteps"
 		| "missionLogIntervalMs"
 		| "sessionId"
 	>
 > {
+	const preset =
+		ToolPresets[
+			resolveToolPresetName({
+				mode: config.mode,
+				yolo: config.yolo,
+			})
+		];
 	return {
 		sessionId: config.sessionId || "",
 		mode: config.mode === "plan" ? "plan" : "act",
 		enableTools: config.enableTools !== false,
-		enableSpawnAgent: config.enableSpawnAgent !== false,
-		enableAgentTeams: config.enableAgentTeams !== false,
+		enableSpawnAgent:
+			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
+		enableAgentTeams:
+			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
+		yolo: config.yolo === true,
 		missionLogIntervalSteps:
 			typeof config.missionLogIntervalSteps === "number" &&
 			Number.isFinite(config.missionLogIntervalSteps)
@@ -407,8 +414,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.cwd,
 					config.providerId,
 					normalized.mode,
+					normalized.yolo,
 					config.modelId,
-					config.toolPolicies,
 					config.toolRoutingRules,
 					skillsExecutor,
 					defaultToolExecutors,
@@ -518,8 +525,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.cwd,
 									config.providerId,
 									normalized.mode,
+									normalized.yolo,
 									config.modelId,
-									config.toolPolicies,
 									config.toolRoutingRules,
 									skillsExecutor,
 									defaultToolExecutors,

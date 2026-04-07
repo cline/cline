@@ -1,5 +1,5 @@
 import { fstatSync } from "node:fs";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("node:fs", async () => {
 	const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
@@ -107,6 +107,31 @@ vi.mock("./commands/checkpoint", () => checkpointMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 
 describe("runCli lightweight command dispatch", () => {
+	afterEach(() => {
+		process.exitCode = undefined;
+	});
+
+	beforeEach(() => {
+		process.exitCode = undefined;
+		historyMocks.runHistoryList.mockReset();
+		historyMocks.runHistoryList.mockResolvedValue(0);
+		historyMocks.runHistoryDelete.mockReset();
+		historyMocks.runHistoryDelete.mockResolvedValue(0);
+		historyMocks.runHistoryUpdate.mockReset();
+		historyMocks.runHistoryUpdate.mockResolvedValue(0);
+		checkpointMocks.runCheckpointStatus.mockReset();
+		checkpointMocks.runCheckpointStatus.mockResolvedValue(0);
+		checkpointMocks.runCheckpointList.mockReset();
+		checkpointMocks.runCheckpointList.mockResolvedValue(0);
+		checkpointMocks.runCheckpointRestore.mockReset();
+		checkpointMocks.runCheckpointRestore.mockResolvedValue(0);
+		runtimeMocks.runAgent.mockReset();
+		runtimeMocks.runAgent.mockImplementation(async () => {
+			mockState.runAgentCalls += 1;
+		});
+		runtimeMocks.runInteractive.mockReset();
+	});
+
 	afterEach(() => {
 		process.argv = [...originalArgv];
 		Object.defineProperty(process.stdin, "isTTY", {

@@ -183,9 +183,19 @@ describe("parseArgs", () => {
 	it("supports yolo and auto-approve-all aliases for tool auto-approval", () => {
 		const parsedYolo = parseArgs(["--yolo"]);
 		expect(parsedYolo.defaultToolAutoApprove).toBe(true);
+		expect(parsedYolo.enableSpawnAgent).toBe(false);
+		expect(parsedYolo.enableAgentTeams).toBe(false);
 
 		const parsedAutoApproveAll = parseArgs(["--auto-approve-all"]);
 		expect(parsedAutoApproveAll.defaultToolAutoApprove).toBe(true);
+		expect(parsedAutoApproveAll.enableSpawnAgent).toBe(true);
+		expect(parsedAutoApproveAll.enableAgentTeams).toBe(true);
+	});
+
+	it("preserves explicit spawn and team opt-ins in yolo mode", () => {
+		const parsed = parseArgs(["--yolo", "--spawn", "--teams"]);
+		expect(parsed.enableSpawnAgent).toBe(true);
+		expect(parsed.enableAgentTeams).toBe(true);
 	});
 
 	it("parses timeout and validates invalid values", () => {

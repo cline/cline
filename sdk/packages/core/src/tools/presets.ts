@@ -9,6 +9,11 @@ import { ALL_DEFAULT_TOOL_NAMES } from "./constants";
 import { createDefaultTools } from "./definitions";
 import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types";
 
+export interface ToolPresetConfig extends DefaultToolsConfig {
+	enableSpawnAgent?: boolean;
+	enableAgentTeams?: boolean;
+}
+
 /**
  * Preset configurations for common use cases
  */
@@ -26,6 +31,8 @@ export const ToolPresets = {
 		enableSkills: true,
 		enableAskQuestion: true,
 		enableSubmitAndExit: false,
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 	},
 
 	/**
@@ -42,6 +49,8 @@ export const ToolPresets = {
 		enableSkills: false,
 		enableAskQuestion: false,
 		enableSubmitAndExit: false,
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 	},
 
 	/**
@@ -58,6 +67,8 @@ export const ToolPresets = {
 		enableSkills: true,
 		enableAskQuestion: true,
 		enableSubmitAndExit: true,
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 	},
 
 	/**
@@ -74,6 +85,8 @@ export const ToolPresets = {
 		enableSkills: true,
 		enableAskQuestion: true,
 		enableSubmitAndExit: false,
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
 	},
 
 	/**
@@ -90,6 +103,8 @@ export const ToolPresets = {
 		enableSkills: false,
 		enableAskQuestion: true,
 		enableSubmitAndExit: false,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
 	},
 
 	/**
@@ -106,13 +121,25 @@ export const ToolPresets = {
 		enableSkills: true,
 		enableAskQuestion: false,
 		enableSubmitAndExit: true,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
 	},
-} as const satisfies Record<string, DefaultToolsConfig>;
+} as const satisfies Record<string, ToolPresetConfig>;
 
 /**
  * Type for preset names
  */
 export type ToolPresetName = keyof typeof ToolPresets;
+
+export function resolveToolPresetName(options: {
+	mode?: "act" | "plan";
+	yolo?: boolean;
+}): ToolPresetName {
+	if (options.mode === "plan") {
+		return "readonly";
+	}
+	return options.yolo === true ? "yolo" : "development";
+}
 
 /**
  * Tool policy preset names
@@ -167,8 +194,13 @@ export function createDefaultToolsWithPreset(
 		Partial<DefaultToolsConfig>,
 ): Tool[] {
 	const preset = ToolPresets[presetName];
+	const {
+		enableSpawnAgent: _enableSpawnAgent,
+		enableAgentTeams: _enableAgentTeams,
+		...toolConfig
+	} = preset;
 	return createDefaultTools({
-		...preset,
+		...toolConfig,
 		...options,
 	});
 }

@@ -44,6 +44,7 @@ export interface CoreRuntimeFeatures {
 	enableTools: boolean;
 	enableSpawnAgent: boolean;
 	enableAgentTeams: boolean;
+	yolo?: boolean;
 }
 
 export interface CoreCompactionContext {

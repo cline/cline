@@ -662,6 +662,72 @@ describe("Agent", () => {
 		expect(result.text).toBe("Recovered");
 	});
 
+	it("requires submit_and_exit before allowing no-tool completion", async () => {
+		const { Agent } = await import("./agent.js");
+		const submitTool = createTool({
+			name: "submit_and_exit",
+			description: "Submit final answer and exit",
+			inputSchema: {
+				type: "object",
+				properties: {
+					summary: { type: "string" },
+					verified: { type: "boolean" },
+				},
+				required: ["summary", "verified"],
+			},
+			execute: async () => "submitted",
+		}) as Tool;
+		const handler = makeHandler([
+			[
+				{ type: "text", id: "r1", text: "   " },
+				{ type: "usage", id: "r1", inputTokens: 2, outputTokens: 1 },
+				{ type: "done", id: "r1", success: true },
+			],
+			[
+				{
+					type: "tool_calls",
+					id: "r2",
+					tool_call: {
+						call_id: "call_submit",
+						function: {
+							name: "submit_and_exit",
+							arguments: JSON.stringify({
+								summary: "Done and verified",
+								verified: true,
+							}),
+						},
+					},
+				},
+				{ type: "usage", id: "r2", inputTokens: 2, outputTokens: 2 },
+				{ type: "done", id: "r2", success: true },
+			],
+			[
+				{ type: "usage", id: "r3", inputTokens: 1, outputTokens: 1 },
+				{ type: "done", id: "r3", success: true },
+			],
+		]);
+		createHandlerMock.mockReturnValue(handler);
+
+		const agent = new Agent({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			systemPrompt: "Finish via submit_and_exit",
+			tools: [submitTool],
+			execution: { maxConsecutiveMistakes: 2 },
+		});
+
+		const result = await agent.run("complete the task");
+
+		expect(result.finishReason).toBe("completed");
+		expect(handler.createMessage).toHaveBeenCalledTimes(3);
+		expect(result.toolCalls).toHaveLength(1);
+		expect(result.toolCalls[0]?.name).toBe("submit_and_exit");
+		const secondCallMessages = handler.createMessage.mock.calls[1]?.[1];
+		expect(JSON.stringify(secondCallMessages)).toContain(
+			"must call submit_and_exit instead of ending with plain text",
+		);
+	});
+
 	it("fails stalled provider turns when apiTimeoutMs is reached", async () => {
 		const { Agent } = await import("./agent.js");
 		let activeAbortSignal: AbortSignal | undefined;

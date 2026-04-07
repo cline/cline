@@ -37,7 +37,12 @@ import {
 	captureTaskCompleted,
 } from "../telemetry/core-events";
 import { resolveCoreDistinctId } from "../telemetry/distinct-id";
-import { createBuiltinTools, type ToolExecutors, ToolPresets } from "../tools";
+import {
+	createBuiltinTools,
+	resolveToolPresetName,
+	type ToolExecutors,
+	ToolPresets,
+} from "../tools";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
@@ -1131,11 +1136,12 @@ export class DefaultSessionManager implements SessionManager {
 			const tools: Tool[] = config.enableTools
 				? createBuiltinTools({
 						cwd: config.cwd,
-						...(config.mode === "plan"
-							? ToolPresets.readonly
-							: config.toolPolicies?.["*"]?.autoApprove === true
-								? ToolPresets.yolo
-								: ToolPresets.development),
+						...ToolPresets[
+							resolveToolPresetName({
+								mode: config.mode,
+								yolo: config.yolo,
+							})
+						],
 						executors: this.defaultToolExecutors,
 					})
 				: [];

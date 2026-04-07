@@ -77,6 +77,8 @@ function isKnownNoticeReason(
 
 const DEFAULT_REMINDER_TEXT =
 	"REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools.";
+const SUBMIT_AND_EXIT_REQUIRED_TEXT =
+	"Your previous turn ended with a plain-text response while the submit_and_exit tool is available. If the task is complete, you must call submit_and_exit instead of ending with plain text. If the task is not complete, continue working until it is, then use submit_and_exit.";
 
 export class Agent {
 	private config: Omit<
@@ -452,6 +454,7 @@ export class Agent {
 			cacheWriteTokens: 0,
 			totalCost: undefined,
 		};
+		let submitAndExitCompleted = false;
 		let consecutiveMistakes = 0;
 		const mistakeDeps: MistakeTrackingDeps = {
 			agentId: this.agentId,
@@ -790,6 +793,14 @@ export class Agent {
 				}
 
 				if (turn.toolCalls.length === 0) {
+					if (this.requiresSubmitAndExit(submitAndExitCompleted)) {
+						this.appendRecoveryNotice(
+							SUBMIT_AND_EXIT_REQUIRED_TEXT,
+							"completion_without_submit",
+						);
+						continue;
+					}
+
 					consecutiveMistakes = 0;
 					// Check completion guard before allowing the loop to end.
 					// If the guard returns a nudge string, inject it and continue.
@@ -907,6 +918,14 @@ export class Agent {
 				const successfulToolCalls = toolResults.filter(
 					(record) => !record.error,
 				).length;
+				if (
+					!submitAndExitCompleted &&
+					toolResults.some(
+						(record) => record.name === "submit_and_exit" && !record.error,
+					)
+				) {
+					submitAndExitCompleted = true;
+				}
 				const failedToolCalls = toolResults.length - successfulToolCalls;
 				if (successfulToolCalls > 0 && !loopEscalation) {
 					consecutiveMistakes = 0;
@@ -1272,7 +1291,11 @@ export class Agent {
 
 	private appendRecoveryNotice(
 		message: string,
-		reason: "api_error" | "invalid_tool_call" | "tool_execution_failed",
+		reason:
+			| "api_error"
+			| "invalid_tool_call"
+			| "completion_without_submit"
+			| "tool_execution_failed",
 	): void {
 		const text = message.trim();
 		if (!text) {
@@ -1321,6 +1344,10 @@ export class Agent {
 			reason: "mistake_limit",
 			metadata: { ...metadata },
 		});
+	}
+
+	private requiresSubmitAndExit(submitAndExitCompleted: boolean): boolean {
+		return this.toolRegistry.has("submit_and_exit") && !submitAndExitCompleted;
 	}
 
 	private emitStatusNotice(

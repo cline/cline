@@ -114,7 +114,8 @@ clite -u --timings "Explain quantum computing"
 clite --max-consecutive-mistakes 5 "Fix failing tests"
 # Common with auto-approve/yolo-style runs
 clite --auto-approve-all --max-consecutive-mistakes 5 "Refactor this package"
-# Alias
+# Explicit yolo also enables submit_and_exit and disables spawn/team tools by default
+# Re-enable them explicitly with --spawn and/or --teams when needed
 clite --yolo --max-consecutive-mistakes 5 "Refactor this package"
 
 # Stream structured NDJSON output
@@ -308,6 +309,7 @@ RPC runtime note:
 | `--no-spawn` | Disable `spawn_agent` |
 | `--no-teams` | Disable team tools/runtime |
 | `--auto-approve-all` | Skip tool approval prompts |
+| `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default unless `--spawn` / `--teams` are also passed |
 | `--require-tool-approval` | Require approval for every tool call |
 | `--tool-enable <name>` | Explicitly enable one tool |
 | `--tool-disable <name>` | Explicitly disable one tool |

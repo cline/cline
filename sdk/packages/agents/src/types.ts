@@ -175,6 +175,7 @@ export interface AgentNoticeEvent extends AgentEventMetadata {
 	reason?:
 		| "api_error"
 		| "invalid_tool_call"
+		| "completion_without_submit"
 		| "tool_execution_failed"
 		| "mistake_limit"
 		| "auto_compaction";
