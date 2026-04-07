@@ -1,10 +1,24 @@
 ---
-title: "Memory Bank"
-sidebarTitle: "Memory Bank"
-description: "A structured documentation system that helps Cline maintain context across sessions."
+title: "Legacy Memory Bank"
+sidebarTitle: "Legacy Memory Bank"
+description: "A legacy documentation methodology for users who still want to maintain manual cross-session context outside Cline's core product direction."
 ---
 
-Memory Bank is a documentation methodology that transforms Cline from a stateless assistant into a persistent development partner. Through structured markdown files, Cline can "remember" your project details across sessions.
+Memory Bank is a legacy documentation methodology for users who want to maintain structured project context across sessions in plain markdown files. It is no longer a core product direction for Cline, but the pattern can still be useful if you explicitly want to manage persistent context by hand.
+
+<Warning>
+For new projects, prefer Cline's built-in context tools such as [Plan & Act mode](/core-workflows/plan-and-act), [`/newtask`](/core-workflows/using-commands#newtask), [`/smol`](/core-workflows/using-commands#smol), and [Cline Rules](/customization/cline-rules). Use Memory Bank only if you intentionally want a manual, file-based context system.
+</Warning>
+
+## When to Use It
+
+Use Memory Bank only when all of the following are true:
+
+- you want a manual documentation layer outside the core product workflow,
+- you are comfortable maintaining extra markdown files yourself,
+- and built-in task/context tools are not enough for your process.
+
+If you mainly want better planning, resumability, and context management inside Cline itself, start with [Plan & Act mode](/core-workflows/plan-and-act), [Task Management](/core-workflows/task-management), and [Cline Rules](/customization/cline-rules) instead.
 
 ## Quick Setup
 
@@ -51,7 +65,7 @@ These work alongside Cline's built-in [slash commands](/core-workflows/using-com
 
 ## Working with Plan & Act Modes
 
-Memory Bank pairs naturally with [Plan & Act mode](/core-workflows/plan-and-act):
+Memory Bank can still pair with [Plan & Act mode](/core-workflows/plan-and-act):
 
 - **Plan mode**: Start here when resuming a project. Ask Cline to read the Memory Bank, review the current state, and discuss strategy before making changes.
 - **Act mode**: Switch to Act mode once you have a plan. Cline retains everything from the planning session and can implement changes.
