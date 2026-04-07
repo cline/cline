@@ -6,9 +6,11 @@ import {
 	ChevronDown,
 	ChevronRight,
 	Clock3,
+	Copy,
 	FileEdit,
 	FileSearch,
 	Loader2,
+	RotateCcw,
 	Search,
 	ShieldAlert,
 	Terminal,
@@ -22,6 +24,7 @@ import {
 	useState,
 } from "react";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import type { ChatMessage, ChatSessionStatus } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
@@ -41,6 +44,7 @@ type ChatMessagesProps = {
 	pendingToolApprovals: ToolApprovalRequestItem[];
 	onApproveToolApproval: (requestId: string) => void | Promise<void>;
 	onRejectToolApproval: (requestId: string) => void | Promise<void>;
+	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
 	onStartChat?: (prompt: string) => void;
 };
 
@@ -73,6 +77,7 @@ function ChatMessagesImpl({
 	pendingToolApprovals,
 	onApproveToolApproval,
 	onRejectToolApproval,
+	onRestoreCheckpoint,
 	onStartChat,
 }: ChatMessagesProps) {
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -91,6 +96,13 @@ function ChatMessagesImpl({
 	const [toolApprovalErrors, setToolApprovalErrors] = useState<
 		Record<string, string>
 	>({});
+	const [checkpointActions, setCheckpointActions] = useState<
+		Record<string, "undoing">
+	>({});
+	const [checkpointErrors, setCheckpointErrors] = useState<
+		Record<string, string>
+	>({});
+	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 
@@ -200,6 +212,61 @@ function ChatMessagesImpl({
 		[],
 	);
 
+	const handleCopyMessage = useCallback(
+		async (messageId: string, text: string) => {
+			try {
+				await navigator.clipboard.writeText(text);
+				setCopiedMessageId(messageId);
+				window.setTimeout(() => {
+					setCopiedMessageId((current) =>
+						current === messageId ? null : current,
+					);
+				}, 1600);
+			} catch {
+				toast({
+					variant: "destructive",
+					title: "Copy failed",
+					description: "The message could not be copied to the clipboard.",
+				});
+			}
+		},
+		[],
+	);
+
+	const handleRestoreCheckpoint = useCallback(
+		async (messageId: string, runCount: number) => {
+			if (!onRestoreCheckpoint) {
+				return;
+			}
+			setCheckpointActions((prev) => ({ ...prev, [messageId]: "undoing" }));
+			setCheckpointErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(onRestoreCheckpoint(runCount));
+			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "Could not restore checkpoint.";
+				setCheckpointErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setCheckpointActions((prev) => {
+					if (!prev[messageId]) {
+						return prev;
+					}
+					const next = { ...prev };
+					delete next[messageId];
+					return next;
+				});
+			}
+		},
+		[onRestoreCheckpoint],
+	);
+
 	return (
 		<div className="relative h-full min-h-0 min-w-0">
 			<div
@@ -242,6 +309,22 @@ function ChatMessagesImpl({
 									isStreaming={streamingMessageId === message.id}
 									key={message.id}
 									message={message}
+									onCopyRawText={() =>
+										void handleCopyMessage(message.id, message.content)
+									}
+									onRestoreCheckpoint={(runCount) =>
+										void handleRestoreCheckpoint(message.id, runCount)
+									}
+									restoreDisabled={
+										!onRestoreCheckpoint ||
+										status === "starting" ||
+										status === "running" ||
+										status === "stopping" ||
+										isSessionSwitching
+									}
+									restoreError={checkpointErrors[message.id]}
+									restorePending={checkpointActions[message.id] === "undoing"}
+									wasCopied={copiedMessageId === message.id}
 								/>
 							))}
 						</div>
@@ -425,12 +508,25 @@ function ToolApprovalPanel({
 function MessageBubble({
 	message,
 	isStreaming = false,
+	onCopyRawText,
+	onRestoreCheckpoint,
+	restoreDisabled = false,
+	restorePending = false,
+	restoreError,
+	wasCopied = false,
 }: {
 	message: ChatMessage;
 	isStreaming?: boolean;
+	onCopyRawText?: () => void;
+	onRestoreCheckpoint?: (runCount: number) => void;
+	restoreDisabled?: boolean;
+	restorePending?: boolean;
+	restoreError?: string;
+	wasCopied?: boolean;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
+	const checkpoint = message.meta?.checkpoint;
 
 	if (message.role === "tool") {
 		return <ToolMessageBlock message={message} />;
@@ -478,6 +574,42 @@ function MessageBubble({
 						/>
 					</>
 				)}
+				{isUser && checkpoint ? (
+					<div className="space-y-2 pt-1">
+						<div className="flex items-center justify-end gap-2">
+							<Button
+								className="h-7 px-2 text-xs"
+								onClick={onCopyRawText}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								<Copy className="h-3.5 w-3.5" />
+								{wasCopied ? "Copied" : "Copy"}
+							</Button>
+							<Button
+								className="h-7 px-2 text-xs"
+								disabled={restoreDisabled || restorePending}
+								onClick={() => onRestoreCheckpoint?.(checkpoint.runCount)}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								{restorePending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<RotateCcw className="h-3.5 w-3.5" />
+								)}
+								Undo
+							</Button>
+						</div>
+						{restoreError ? (
+							<div className="text-right text-xs text-destructive">
+								{restoreError}
+							</div>
+						) : null}
+					</div>
+				) : null}
 			</div>
 		</div>
 	);

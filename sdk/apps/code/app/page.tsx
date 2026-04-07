@@ -211,6 +211,7 @@ function ChatThreadPane({
 		steerPromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
+		restoreCheckpoint,
 		reset,
 		abort,
 		hydrateSession,
@@ -721,6 +722,9 @@ function ChatThreadPane({
 							error={error}
 							messages={messages}
 							model={config.model}
+							onRestoreCheckpoint={(runCount) =>
+								void restoreCheckpoint(runCount)
+							}
 							pendingToolApprovals={pendingToolApprovals}
 							provider={config.provider}
 							sessionId={sessionId}

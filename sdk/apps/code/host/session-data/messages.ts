@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import {
+	readSessionManifest,
 	sharedSessionMessagesPath,
 	sharedSessionMessagesWritePath,
 } from "../paths";
@@ -222,6 +223,54 @@ function normalizeRole(role: unknown): string {
 	}
 }
 
+type StoredCheckpointEntry = {
+	ref: string;
+	createdAt: number;
+	runCount: number;
+	kind?: "stash" | "commit";
+};
+
+function readCheckpointEntriesByRunCount(
+	sessionId: string,
+): Map<number, StoredCheckpointEntry> {
+	const metadata = readSessionManifest(sessionId)?.metadata;
+	if (!metadata || typeof metadata !== "object") {
+		return new Map();
+	}
+	const checkpoint = (metadata as JsonRecord).checkpoint;
+	if (!checkpoint || typeof checkpoint !== "object") {
+		return new Map();
+	}
+	const history = (checkpoint as JsonRecord).history;
+	if (!Array.isArray(history)) {
+		return new Map();
+	}
+	const entries = new Map<number, StoredCheckpointEntry>();
+	for (const item of history) {
+		if (!item || typeof item !== "object") {
+			continue;
+		}
+		const entry = item as JsonRecord;
+		if (
+			typeof entry.ref !== "string" ||
+			typeof entry.createdAt !== "number" ||
+			typeof entry.runCount !== "number"
+		) {
+			continue;
+		}
+		entries.set(entry.runCount, {
+			ref: entry.ref,
+			createdAt: entry.createdAt,
+			runCount: entry.runCount,
+			kind:
+				entry.kind === "stash" || entry.kind === "commit"
+					? entry.kind
+					: undefined,
+		});
+	}
+	return entries;
+}
+
 export async function readSessionMessages(
 	ctx: HostContext,
 	sessionId: string,
@@ -236,8 +285,10 @@ export async function readSessionMessages(
 	const start = Math.max(0, messages.length - max);
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
+	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let nextCreatedAt = baseTs;
+	let userRunCount = 0;
 
 	for (let idx = start; idx < messages.length; idx += 1) {
 		const rawMessage = messages[idx];
@@ -254,6 +305,19 @@ export async function readSessionMessages(
 			normalizeRole(message.role),
 			readMessageMetadata(message),
 		);
+		const metadata = readMessageMetadata(message);
+		const isRecoveryNotice =
+			typeof metadata?.kind === "string" && metadata.kind === "recovery_notice";
+		if (role === "user" && !isRecoveryNotice) {
+			userRunCount += 1;
+			const checkpoint = checkpointsByRunCount.get(userRunCount);
+			if (checkpoint) {
+				textMeta = {
+					...(textMeta ?? {}),
+					checkpoint,
+				};
+			}
+		}
 		const messageIdBase =
 			(typeof message.id === "string" && message.id.trim()) ||
 			`history_message_${idx}`;

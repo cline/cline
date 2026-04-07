@@ -63,6 +63,14 @@ export const ChatMessageSchema = z.object({
 			totalCost: z.number().nonnegative().optional(),
 			providerId: z.string().optional(),
 			modelId: z.string().optional(),
+			checkpoint: z
+				.object({
+					ref: z.string(),
+					createdAt: z.number().int().nonnegative(),
+					runCount: z.number().int().positive(),
+					kind: z.enum(["stash", "commit"]).optional(),
+				})
+				.optional(),
 		})
 		.optional(),
 });

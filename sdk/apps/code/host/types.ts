@@ -35,11 +35,13 @@ export type ChatSessionCommandRequest = {
 		| "stop"
 		| "abort"
 		| "reset"
+		| "restore_checkpoint"
 		| "pending_prompts"
 		| "steer_prompt";
 	sessionId?: string;
 	prompt?: string;
 	promptId?: string;
+	checkpointRunCount?: number;
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;

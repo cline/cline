@@ -1019,6 +1019,70 @@ export function useChatSession() {
 		[respondToolApproval],
 	);
 
+	const restoreCheckpoint = useCallback(
+		async (checkpointRunCount: number) => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId) {
+				throw new Error("No active session to restore");
+			}
+			if (BUSY_STATUSES.has(status)) {
+				throw new Error("Wait for the current turn to finish before undoing");
+			}
+
+			clearAbortFallbackTimeout();
+			setError(null);
+			setIsHydratingSession(false);
+			activeAssistantMessageIdRef.current = null;
+			setActiveAssistantMessageId(null);
+			setPendingToolApprovals([]);
+			setPromptsInQueue([]);
+			clearLiveToolRefs();
+
+			const payload = (await postSession({
+				action: "restore_checkpoint",
+				sessionId: activeSessionId,
+				checkpointRunCount,
+				config,
+			})) as {
+				sessionId?: string;
+				messages?: ChatMessage[];
+			};
+			const nextSessionId =
+				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+			if (!nextSessionId) {
+				throw new Error("Checkpoint restore did not return a new session id");
+			}
+
+			const nextMessages = Array.isArray(payload.messages)
+				? (payload.messages as ChatMessage[])
+				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: nextSessionId,
+						maxMessages: MAX_MESSAGES,
+					});
+
+			setSessionId(nextSessionId);
+			activeSessionIdRef.current = nextSessionId;
+			setMessages(nextMessages);
+			setRawTranscript(
+				nextMessages.map((message) => message.content).join("\n\n"),
+			);
+			setStatus(nextMessages.length > 0 ? "completed" : "idle");
+			resetCounters();
+			void refreshSessionDiffSummary(nextSessionId);
+			void refreshPromptsInQueue(nextSessionId);
+		},
+		[
+			clearAbortFallbackTimeout,
+			clearLiveToolRefs,
+			config,
+			postSession,
+			refreshPromptsInQueue,
+			refreshSessionDiffSummary,
+			resetCounters,
+			status,
+		],
+	);
+
 	const abort = useCallback(async () => {
 		if (!sessionId) return;
 		abortedRef.current = true;
@@ -1222,6 +1286,7 @@ export function useChatSession() {
 		steerPromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
+		restoreCheckpoint,
 		abort,
 		stop: abort,
 		reset,

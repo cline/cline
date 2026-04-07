@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { execFile as execFileCallback, spawn } from "node:child_process";
 import {
 	existsSync,
 	mkdirSync,
@@ -10,8 +10,10 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
+import { promisify } from "node:util";
 import { setHomeDir, setHomeDirIfUnset } from "@clinebot/core";
 import {
+	sharedSessionDataDir,
 	toolApprovalDecisionPath,
 	toolApprovalDir,
 	toolApprovalRequestPrefix,
@@ -23,6 +25,7 @@ import {
 	persistSessionMessages,
 	persistUsageInMessages,
 	readPersistedChatMessages,
+	readSessionMessages,
 	readSessionMetadataTitle,
 } from "./session-data";
 import { nowMs, sendEvent } from "./state";
@@ -110,6 +113,134 @@ function resolveChatRuntimeBridgeScriptPath(ctx: HostContext): string | null {
 		}
 	}
 	return null;
+}
+
+const execFile = promisify(execFileCallback);
+
+type CheckpointEntry = {
+	ref: string;
+	createdAt: number;
+	runCount: number;
+	kind?: "stash" | "commit";
+};
+
+function readCheckpointHistory(sessionId: string): CheckpointEntry[] {
+	const manifestPath = join(
+		sharedSessionDataDir(),
+		sessionId,
+		`${sessionId}.json`,
+	);
+	if (!existsSync(manifestPath)) {
+		return [];
+	}
+	try {
+		const manifest = JSON.parse(
+			readFileSync(manifestPath, "utf8"),
+		) as JsonRecord;
+		const metadata =
+			manifest.metadata && typeof manifest.metadata === "object"
+				? (manifest.metadata as JsonRecord)
+				: undefined;
+		const checkpoint =
+			metadata?.checkpoint && typeof metadata.checkpoint === "object"
+				? (metadata.checkpoint as JsonRecord)
+				: undefined;
+		const history = checkpoint?.history;
+		if (!Array.isArray(history)) {
+			return [];
+		}
+		return history
+			.filter(
+				(entry): entry is JsonRecord => !!entry && typeof entry === "object",
+			)
+			.map((entry) => {
+				const kind: CheckpointEntry["kind"] =
+					entry.kind === "stash" || entry.kind === "commit"
+						? entry.kind
+						: undefined;
+				return {
+					ref: String(entry.ref ?? "").trim(),
+					createdAt: Number(entry.createdAt ?? 0),
+					runCount: Number(entry.runCount ?? 0),
+					kind,
+				};
+			})
+			.filter(
+				(entry) =>
+					entry.ref.length > 0 &&
+					Number.isFinite(entry.createdAt) &&
+					entry.createdAt >= 0 &&
+					Number.isInteger(entry.runCount) &&
+					entry.runCount > 0,
+			);
+	} catch {
+		return [];
+	}
+}
+
+function trimMessagesToCheckpoint(
+	messages: unknown[],
+	checkpointRunCount: number,
+): unknown[] {
+	let userRunCount = 0;
+	for (let index = 0; index < messages.length; index += 1) {
+		const rawMessage = messages[index];
+		if (!rawMessage || typeof rawMessage !== "object") {
+			continue;
+		}
+		const message = rawMessage as JsonRecord;
+		if (message.role !== "user") {
+			continue;
+		}
+		const metadata =
+			message.metadata && typeof message.metadata === "object"
+				? (message.metadata as JsonRecord)
+				: undefined;
+		if (metadata?.kind === "recovery_notice") {
+			continue;
+		}
+		userRunCount += 1;
+		if (userRunCount === checkpointRunCount) {
+			return messages.slice(0, index + 1);
+		}
+	}
+	throw new Error(
+		`Could not find the user message for checkpoint run ${checkpointRunCount}`,
+	);
+}
+
+async function applyCheckpointToWorktree(
+	cwd: string,
+	checkpoint: CheckpointEntry,
+): Promise<void> {
+	const repoCheck = await execFile(
+		"git",
+		["-C", cwd, "rev-parse", "--is-inside-work-tree"],
+		{ windowsHide: true },
+	);
+	if (repoCheck.stdout.trim() !== "true") {
+		throw new Error(`${cwd} is not a git repository`);
+	}
+
+	// Restore should replace the current worktree state and leave the index
+	// unstaged, not rehydrate staged entries from the checkpoint.
+	await execFile("git", ["-C", cwd, "reset", "--hard"], {
+		windowsHide: true,
+	});
+	await execFile("git", ["-C", cwd, "clean", "-fd"], {
+		windowsHide: true,
+	});
+
+	if (checkpoint.kind === "commit") {
+		await execFile("git", ["-C", cwd, "reset", "--hard", checkpoint.ref], {
+			windowsHide: true,
+		});
+		return;
+	}
+
+	await execFile("git", ["-C", cwd, "stash", "apply", checkpoint.ref], {
+		windowsHide: true,
+	});
 }
 
 // ---------------------------------------------------------------------------
@@ -692,6 +823,96 @@ async function handleReset(
 	return { sessionId: request.sessionId, ok: true };
 }
 
+async function handleRestoreCheckpoint(
+	ctx: HostContext,
+	request: ChatSessionCommandRequest,
+) {
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) {
+		throw new Error("sessionId is required");
+	}
+	const checkpointRunCount = request.checkpointRunCount;
+	if (
+		typeof checkpointRunCount !== "number" ||
+		!Number.isInteger(checkpointRunCount) ||
+		checkpointRunCount < 1
+	) {
+		throw new Error("checkpointRunCount must be a positive integer");
+	}
+	const selectedRunCount: number = checkpointRunCount;
+	if (!request.config || typeof request.config !== "object") {
+		throw new Error("config is required to restore a checkpoint");
+	}
+
+	const sourceMessages =
+		readPersistedChatMessages(sourceSessionId) ??
+		ctx.liveSessions.get(sourceSessionId)?.messages;
+	if (!sourceMessages || sourceMessages.length === 0) {
+		throw new Error(`No messages found for session ${sourceSessionId}`);
+	}
+
+	const checkpoint = readCheckpointHistory(sourceSessionId).find(
+		(entry) => entry.runCount === selectedRunCount,
+	);
+	if (!checkpoint) {
+		throw new Error(
+			`No checkpoint found for run ${selectedRunCount} in session ${sourceSessionId}`,
+		);
+	}
+
+	const cwd =
+		typeof request.config.cwd === "string" && request.config.cwd.trim()
+			? request.config.cwd.trim()
+			: typeof request.config.workspaceRoot === "string" &&
+					request.config.workspaceRoot.trim()
+				? request.config.workspaceRoot.trim()
+				: "";
+	if (!cwd) {
+		throw new Error("config.cwd or config.workspaceRoot is required");
+	}
+
+	const restoredMessages = trimMessagesToCheckpoint(
+		sourceMessages,
+		selectedRunCount,
+	);
+	await applyCheckpointToWorktree(cwd, checkpoint);
+
+	const response = (await runBridgeCommand(ctx, {
+		action: "start",
+		config: {
+			...request.config,
+			initialMessages: restoredMessages,
+		},
+	})) as { sessionId?: string };
+	const sessionId = response.sessionId?.trim();
+	if (!sessionId) {
+		throw new Error("chat runtime bridge start response missing session id");
+	}
+
+	await runBridgeCommand(ctx, {
+		action: "set_sessions",
+		sessionIds: [sessionId],
+	});
+	ctx.liveSessions.delete(sourceSessionId);
+
+	const nextSession = createLiveSession(request.config, {
+		messages: restoredMessages,
+		prompt: derivePromptFromMessages(restoredMessages),
+		title: readSessionMetadataTitle(sourceSessionId),
+		status: "idle",
+	});
+	ctx.liveSessions.set(sessionId, nextSession);
+	persistSessionMessages(sessionId, restoredMessages);
+	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+
+	return {
+		sessionId,
+		messages: await readSessionMessages(ctx, sessionId, 800),
+		restoredCheckpoint: checkpoint,
+	};
+}
+
 async function handlePendingPrompts(
 	ctx: HostContext,
 	request: ChatSessionCommandRequest,
@@ -743,6 +964,7 @@ const ACTION_HANDLERS: Record<
 	stop: handleStop,
 	abort: handleAbort,
 	reset: handleReset,
+	restore_checkpoint: handleRestoreCheckpoint,
 	pending_prompts: handlePendingPrompts,
 	steer_prompt: handleSteerPrompt,
 };
