@@ -9,14 +9,12 @@
  * messages coexist. The webview accepts whichever arrives.
  */
 
-import type { ClineMessage, ExtensionState } from "./ExtensionMessage"
-import type { HistoryItem } from "./HistoryItem"
-import type { ApiConfiguration, ModelInfo } from "./api"
 import type { AutoApprovalSettings } from "./AutoApprovalSettings"
+import type { ApiConfiguration, ModelInfo } from "./api"
 import type { BrowserSettings } from "./BrowserSettings"
+import type { ClineMessage, ExtensionState } from "./ExtensionMessage"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "./mcp"
 import type { Mode } from "./storage/types"
-import type { ClineRulesToggles } from "./cline-rules"
 
 // ---------------------------------------------------------------------------
 // Extension → Webview (Outbound) Messages
@@ -232,7 +230,6 @@ export interface FileOpMessage {
 		| "getRelativePaths"
 		| "ifFileExists"
 		| "openDiskConversationHistory"
-		| "openFocusChainFile"
 	requestId?: string
 	value?: string
 	params?: Record<string, unknown>
@@ -432,10 +429,26 @@ export type WebviewInbound =
 
 /** Type guard to check if a message is a typed webview message */
 export function isTypedWebviewMessage(msg: unknown): msg is WebviewOutbound {
-	return typeof msg === "object" && msg !== null && "type" in msg && typeof (msg as any).type === "string" && (msg as any).type !== "grpc_request" && (msg as any).type !== "grpc_response" && (msg as any).type !== "grpc_request_cancel"
+	return (
+		typeof msg === "object" &&
+		msg !== null &&
+		"type" in msg &&
+		typeof (msg as any).type === "string" &&
+		(msg as any).type !== "grpc_request" &&
+		(msg as any).type !== "grpc_response" &&
+		(msg as any).type !== "grpc_request_cancel"
+	)
 }
 
 /** Type guard to check if a message is an inbound typed message */
 export function isTypedInboundMessage(msg: unknown): msg is WebviewInbound {
-	return typeof msg === "object" && msg !== null && "type" in msg && typeof (msg as any).type === "string" && (msg as any).type !== "grpc_request" && (msg as any).type !== "grpc_response" && (msg as any).type !== "grpc_request_cancel"
+	return (
+		typeof msg === "object" &&
+		msg !== null &&
+		"type" in msg &&
+		typeof (msg as any).type === "string" &&
+		(msg as any).type !== "grpc_request" &&
+		(msg as any).type !== "grpc_response" &&
+		(msg as any).type !== "grpc_request_cancel"
+	)
 }

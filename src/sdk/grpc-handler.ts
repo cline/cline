@@ -623,7 +623,6 @@ export class GrpcHandler {
 				case "searchCommits":
 				case "ifFileExistsRelativePath":
 				case "openDiskConversationHistory":
-				case "openFocusChainFile":
 				case "createRuleFile":
 				case "deleteRuleFile":
 				case "toggleClineRule":
