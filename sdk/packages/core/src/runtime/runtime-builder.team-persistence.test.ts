@@ -109,7 +109,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		const onTeamRestored = vi.fn();
 
-		new DefaultRuntimeBuilder().build({
+		await new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
@@ -194,7 +194,7 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 		const { DefaultRuntimeBuilder } = await import("./runtime-builder");
 		bootstrapAgentTeamsMock.mockClear();
 
-		new DefaultRuntimeBuilder().build({
+		await new DefaultRuntimeBuilder().build({
 			config: {
 				providerId: "cline",
 				modelId: "anthropic/claude-sonnet-4.6",

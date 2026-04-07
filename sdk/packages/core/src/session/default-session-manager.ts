@@ -288,7 +288,7 @@ export class DefaultSessionManager implements SessionManager {
 			}),
 		]);
 
-		const runtime = this.runtimeBuilder.build({
+		const runtime = await this.runtimeBuilder.build({
 			config: configWithProvider,
 			hooks: configWithProvider.hooks,
 			extensions: effectiveConfig.extensions,

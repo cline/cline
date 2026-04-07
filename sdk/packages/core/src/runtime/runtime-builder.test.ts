@@ -16,19 +16,26 @@ function makeSpawnTool(): Tool {
 	};
 }
 
+function makeBaseConfig(
+	overrides: Partial<CoreSessionConfig> = {},
+): CoreSessionConfig {
+	return {
+		providerId: "anthropic",
+		modelId: "claude-sonnet-4-6",
+		apiKey: "key",
+		systemPrompt: "test",
+		cwd: process.cwd(),
+		enableTools: true,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
+		...overrides,
+	};
+}
+
 describe("DefaultRuntimeBuilder", () => {
-	it("includes builtin tools when enabled", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+	it("includes builtin tools when enabled", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
 		});
 
 		const names = runtime.tools.map((tool) => tool.name);
@@ -36,79 +43,48 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("spawn_agent");
 	});
 
-	it("forwards runtime logger for downstream agent creation", () => {
+	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			info: () => {},
 		};
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				enableTools: false,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				logger,
-			},
+			}),
 		});
 
 		expect(runtime.logger).toBe(logger);
 	});
 
-	it("forwards telemetry for downstream runtime consumers", () => {
+	it("forwards telemetry for downstream runtime consumers", async () => {
 		const telemetry = new TelemetryService();
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				enableTools: false,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				telemetry,
-			},
+			}),
 		});
 
 		expect(runtime.telemetry).toBe(telemetry);
 	});
 
-	it("uses readonly preset in plan mode", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("uses readonly preset in plan mode", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				mode: "plan",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+			}),
 		});
 
-		const names = runtime.tools.map((tool) => tool.name);
-		expect(names).not.toContain("editor");
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("editor");
 	});
 
-	it("uses yolo preset only when yolo mode is explicit", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("uses yolo preset only when yolo mode is explicit", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				mode: "act",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				yolo: true,
-			},
+			}),
 			defaultToolExecutors: {
 				submit: async () => "submitted",
 			},
@@ -119,22 +95,14 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).toContain("submit_and_exit");
 	});
 
-	it("does not infer yolo preset from auto-approval alone", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("does not infer yolo preset from auto-approval alone", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				mode: "act",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				toolPolicies: {
 					"*": { autoApprove: true },
 				},
-			},
+			}),
 			defaultToolExecutors: {
 				submit: async () => "submitted",
 				askQuestion: async () => "question",
@@ -146,17 +114,13 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("submit_and_exit");
 	});
 
-	it("uses yolo preset runtime defaults for spawn and teams", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
+	it("uses yolo preset runtime defaults for spawn and teams", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
 			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
-				mode: "act",
-				enableTools: false,
-				yolo: true,
+				...makeBaseConfig({
+					enableTools: false,
+					yolo: true,
+				}),
 			} as CoreSessionConfig,
 			createSpawnTool: makeSpawnTool,
 		});
@@ -164,19 +128,13 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("spawn_agent");
 	});
 
-	it("uses apply_patch instead of editor for codex/gpt model IDs in act mode", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
+	it("uses apply_patch instead of editor for codex/gpt model IDs in act mode", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				providerId: "openai",
 				modelId: "openai/gpt-5.4",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
 				mode: "act",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+			}),
 		});
 
 		const names = runtime.tools.map((tool) => tool.name);
@@ -184,19 +142,11 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("editor");
 	});
 
-	it("keeps editor for non-codex/non-gpt model IDs in act mode", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("keeps editor for non-codex/non-gpt model IDs in act mode", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				mode: "act",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+			}),
 		});
 
 		const names = runtime.tools.map((tool) => tool.name);
@@ -204,18 +154,10 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("apply_patch");
 	});
 
-	it("applies custom tool routing rules from session config", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("applies custom tool routing rules from session config", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				mode: "act",
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				toolRoutingRules: [
 					{
 						mode: "act",
@@ -225,7 +167,7 @@ describe("DefaultRuntimeBuilder", () => {
 						disableTools: ["editor"],
 					},
 				],
-			},
+			}),
 		});
 
 		const names = runtime.tools.map((tool) => tool.name);
@@ -233,59 +175,157 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("editor");
 	});
 
-	it("omits builtin tools when disabled", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("omits builtin tools when disabled", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				enableTools: false,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+			}),
 		});
 
 		expect(runtime.tools).toEqual([]);
 	});
 
-	it("adds spawn tool when enabled", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("adds spawn tool when enabled", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				enableTools: false,
 				enableSpawnAgent: true,
-				enableAgentTeams: false,
-			},
+			}),
 			createSpawnTool: makeSpawnTool,
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).toContain("spawn_agent");
 	});
 
-	it("provides a shutdown helper", () => {
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd: process.cwd(),
+	it("provides a shutdown helper", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				enableTools: false,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+			}),
 		});
 
-		expect(() => runtime.shutdown("test")).not.toThrow();
+		await expect(runtime.shutdown("test")).resolves.toBeUndefined();
 	});
 
-	it("includes skills tool when workspace skills are available", () => {
+	it("includes MCP tools from configured servers", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-"));
+		const serverPath = join(tempRoot, "mock-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) {
+  const body = JSON.stringify(payload);
+  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "mock", version: "1.0.0" } } });
+    return;
+  }
+  if (message.method === "tools/list") {
+    write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: { value: { type: "string" } }, required: [] } }] } });
+    return;
+  }
+  if (message.method === "tools/call") {
+    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\r\\n\\r\\n");
+    if (separator < 0) break;
+    const header = buffer.slice(0, separator);
+    const match = header.match(/Content-Length:\\s*(\\d+)/i);
+    if (!match) throw new Error("missing content length");
+    const length = Number(match[1]);
+    const start = separator + 4;
+    const end = start + length;
+    if (buffer.length < end) break;
+    const body = buffer.slice(start, end);
+    buffer = buffer.slice(end);
+    const message = JSON.parse(body);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						mock: {
+							command: process.execPath,
+							args: [serverPath],
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			expect(runtime.tools.map((tool) => tool.name)).toContain("mock__echo");
+			await runtime.shutdown("test");
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
+	it("rejects malformed MCP server responses without crashing", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-bad-"));
+		const serverPath = join(tempRoot, "malformed-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`process.stdin.once("data", () => {
+  process.stdout.write("Content-Length: 2\\r\\n\\r\\n{]");
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						broken: {
+							command: process.execPath,
+							args: [serverPath],
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			await expect(
+				new DefaultRuntimeBuilder().build({
+					config: makeBaseConfig(),
+				}),
+			).rejects.toThrow(/Invalid MCP response/);
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
+	it("includes skills tool when workspace skills are available", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "runtime-builder-skills-"));
 		const skillDir = join(cwd, ".cline", "skills", "commit");
 		mkdirSync(skillDir, { recursive: true });
@@ -299,24 +339,15 @@ Use conventional commits.`,
 			"utf8",
 		);
 
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd,
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).toContain("skills");
-		runtime.shutdown("test");
+		await runtime.shutdown("test");
 	});
 
-	it("allows tool routing rules to disable skills even when skills exist", () => {
+	it("allows tool routing rules to disable skills even when skills exist", async () => {
 		const cwd = mkdtempSync(
 			join(tmpdir(), "runtime-builder-skills-routing-disabled-"),
 		);
@@ -332,16 +363,11 @@ Use conventional commits.`,
 			"utf8",
 		);
 
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				providerId: "openrouter",
 				modelId: "google/gemini-3-flash-preview",
-				apiKey: "key",
-				systemPrompt: "test",
 				cwd,
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				toolRoutingRules: [
 					{
 						mode: "act",
@@ -350,11 +376,11 @@ Use conventional commits.`,
 						disableTools: ["skills"],
 					},
 				],
-			},
+			}),
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("skills");
-		runtime.shutdown("test");
+		await runtime.shutdown("test");
 	});
 
 	it("marks configured but disabled skills in executor metadata", async () => {
@@ -381,17 +407,8 @@ Disabled skill.`,
 			"utf8",
 		);
 
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
-				cwd,
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
-			},
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({ cwd }),
 		});
 
 		const skillsTool = runtime.tools.find((tool) => tool.name === "skills");
@@ -410,7 +427,7 @@ Disabled skill.`,
 		);
 		expect(disabledResult).toContain("configured but disabled");
 
-		runtime.shutdown("test");
+		await runtime.shutdown("test");
 	});
 
 	it("scopes skills tool to session-configured skills", async () => {
@@ -436,18 +453,11 @@ Review skill.`,
 			"utf8",
 		);
 
-		const runtime = new DefaultRuntimeBuilder().build({
-			config: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-6",
-				apiKey: "key",
-				systemPrompt: "test",
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
 				cwd,
-				enableTools: true,
-				enableSpawnAgent: false,
-				enableAgentTeams: false,
 				skills: ["commit"],
-			},
+			}),
 		});
 
 		const skillsTool = runtime.tools.find((tool) => tool.name === "skills");
@@ -477,6 +487,6 @@ Review skill.`,
 		expect(blocked).toContain('Skill "review" not found.');
 		expect(blocked).toContain("Available skills: commit");
 
-		runtime.shutdown("test");
+		await runtime.shutdown("test");
 	});
 });

@@ -47,9 +47,12 @@ function legacyBuildRuntimeEnvironment(
 
 function normalizeParityToolNames(toolNames: string[]): string[] {
 	// Skills are discovered from user/workspace config and can appear in tests
-	// depending on the machine state. They are intentionally excluded from
-	// strict legacy parity checks.
-	return toolNames.filter((toolName) => toolName !== "skills");
+	// depending on the machine state. MCP tools may also be configured outside
+	// the test workspace. They are intentionally excluded from strict legacy
+	// parity checks.
+	return toolNames.filter(
+		(toolName) => toolName !== "skills" && !toolName.includes("__"),
+	);
 }
 
 function makeEmptyWorkspaceCwd(): string {
@@ -66,7 +69,7 @@ function makeSpawnTool(): Tool {
 }
 
 describe("runtime tool parity", () => {
-	it("matches legacy tool list when tools+spawn are enabled", () => {
+	it("matches legacy tool list when tools+spawn are enabled", async () => {
 		const config: LegacyConfig = {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",
@@ -83,17 +86,16 @@ describe("runtime tool parity", () => {
 				(tool) => tool.name,
 			),
 		);
-		const actual = new DefaultRuntimeBuilder()
-			.build({
-				config,
-				createSpawnTool,
-			})
-			.tools.map((tool) => tool.name);
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config,
+			createSpawnTool,
+		});
+		const actual = runtime.tools.map((tool) => tool.name);
 
 		expect(normalizeParityToolNames(actual)).toEqual(expected);
 	});
 
-	it("matches legacy tool list when only spawn is enabled", () => {
+	it("matches legacy tool list when only spawn is enabled", async () => {
 		const config: LegacyConfig = {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",
@@ -110,17 +112,16 @@ describe("runtime tool parity", () => {
 				(tool) => tool.name,
 			),
 		);
-		const actual = new DefaultRuntimeBuilder()
-			.build({
-				config,
-				createSpawnTool,
-			})
-			.tools.map((tool) => tool.name);
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config,
+			createSpawnTool,
+		});
+		const actual = runtime.tools.map((tool) => tool.name);
 
 		expect(normalizeParityToolNames(actual)).toEqual(expected);
 	});
 
-	it("matches legacy tool list when tools+spawn are disabled", () => {
+	it("matches legacy tool list when tools+spawn are disabled", async () => {
 		const config: LegacyConfig = {
 			providerId: "anthropic",
 			modelId: "claude-sonnet-4-6",
@@ -134,9 +135,8 @@ describe("runtime tool parity", () => {
 		const expected = normalizeParityToolNames(
 			legacyBuildRuntimeEnvironment(config).map((tool) => tool.name),
 		);
-		const actual = new DefaultRuntimeBuilder()
-			.build({ config })
-			.tools.map((tool) => tool.name);
+		const runtime = await new DefaultRuntimeBuilder().build({ config });
+		const actual = runtime.tools.map((tool) => tool.name);
 
 		expect(normalizeParityToolNames(actual)).toEqual(expected);
 	});

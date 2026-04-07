@@ -239,6 +239,7 @@ export {
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
 	type CreateMcpToolsOptions,
+	createDefaultMcpServerClientFactory,
 	createDisabledMcpToolPolicies,
 	createDisabledMcpToolPolicy,
 	createMcpTools,

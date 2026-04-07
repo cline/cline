@@ -1,3 +1,4 @@
+export { createDefaultMcpServerClientFactory } from "./client";
 export type {
 	LoadMcpSettingsOptions,
 	McpSettingsFile,

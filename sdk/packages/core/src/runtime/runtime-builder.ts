@@ -8,6 +8,14 @@ import {
 	type SkillConfig,
 	type UserInstructionConfigWatcher,
 } from "../extensions/config";
+import {
+	createDefaultMcpServerClientFactory,
+	createMcpTools,
+	hasMcpSettingsFile,
+	InMemoryMcpManager,
+	registerMcpServersFromSettingsFile,
+	resolveDefaultMcpSettingsPath,
+} from "../extensions/mcp";
 import { createLocalTeamStore } from "../storage/team-store";
 import {
 	AgentTeamsRuntime,
@@ -182,6 +190,47 @@ function hasSkillsFiles(workspacePath: string): boolean {
 	}
 
 	return false;
+}
+
+async function loadConfiguredMcpTools(): Promise<{
+	tools: Tool[];
+	shutdown?: () => Promise<void>;
+}> {
+	const settingsPath = resolveDefaultMcpSettingsPath();
+	if (!hasMcpSettingsFile({ filePath: settingsPath })) {
+		return { tools: [] };
+	}
+
+	const manager = new InMemoryMcpManager({
+		clientFactory: createDefaultMcpServerClientFactory(),
+	});
+	const registrations = await registerMcpServersFromSettingsFile(manager, {
+		filePath: settingsPath,
+	});
+
+	try {
+		const tools = (
+			await Promise.all(
+				registrations
+					.filter((registration) => registration.disabled !== true)
+					.map((registration) =>
+						createMcpTools({
+							serverName: registration.name,
+							provider: manager,
+						}),
+					),
+			)
+		).flat();
+		return {
+			tools,
+			shutdown: async () => {
+				await manager.dispose();
+			},
+		};
+	} catch (error) {
+		await manager.dispose().catch(() => {});
+		throw error;
+	}
 }
 
 function resolveSkillRecord(
@@ -359,7 +408,7 @@ function normalizeConfig(
 export class DefaultRuntimeBuilder implements RuntimeBuilder {
 	private readonly teamRuntimeRegistry = new TeamRuntimeRegistry();
 
-	build(input: RuntimeBuilderInput): RuntimeEnvironment {
+	async build(input: RuntimeBuilderInput): Promise<RuntimeEnvironment> {
 		const {
 			config,
 			hooks,
@@ -380,6 +429,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		let userInstructionWatcher = sharedUserInstructionWatcher;
 		let watcherReady = Promise.resolve();
 		let skillsExecutor: SkillsExecutorWithMetadata | undefined;
+		let mcpShutdown: (() => Promise<void>) | undefined;
 
 		if (
 			!userInstructionWatcher &&
@@ -421,6 +471,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					defaultToolExecutors,
 				),
 			);
+			const mcpRuntime = await loadConfiguredMcpTools();
+			tools.push(...mcpRuntime.tools);
+			mcpShutdown = mcpRuntime.shutdown;
 		}
 
 		let teamRuntime: AgentTeamsRuntime | undefined;
@@ -602,9 +655,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				this.teamRuntimeRegistry.get(registryKey)
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			completionGuard,
-			shutdown: (reason: string) => {
+			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeRegistry.delete(registryKey);
+				await mcpShutdown?.();
 				if (!watcherProvided) {
 					userInstructionWatcher?.stop();
 				}

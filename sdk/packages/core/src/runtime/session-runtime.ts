@@ -35,7 +35,7 @@ export interface RuntimeBuilderInput {
 }
 
 export interface RuntimeBuilder {
-	build(input: RuntimeBuilderInput): BuiltRuntime;
+	build(input: RuntimeBuilderInput): Promise<BuiltRuntime> | BuiltRuntime;
 }
 
 export interface SessionRuntime {
