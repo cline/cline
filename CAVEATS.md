@@ -86,10 +86,11 @@ Tracking issues found during the migration from the legacy inference system to t
 **Root cause:** In `useMessageHandlers.ts`, `setInputValue("")` was called AFTER `await TaskServiceClient.newTask(...)` or `await TaskServiceClient.askResponse(...)` completed. The network round-trip caused visible delay before the input cleared.  
 **Fix:** Moved `setInputValue("")`, `setActiveQuote(null)`, `setSelectedImages([])`, `setSelectedFiles([])` to execute immediately when `hasContent` is true, before any async gRPC calls. React schedules a re-render synchronously, clearing the input before the network round-trip.
 
-### 5. 🟡 api_req_started fires with zeroed token counts
+### 5. 🟢 api_req_started fires with zeroed token counts
 **Where:** Message stream / ChatRow rendering  
-**Symptom:** An `api_req_started` partial message fires with `{"tokensIn":0,"tokensOut":0,"cost":0}` before real counts arrive, causing a brief flash of "0 tokens" in the UI.  
-**Expected:** Either don't show token counts until real data arrives, or suppress the initial zero-state.
+**Symptom:** An `api_req_started` partial message fires with `{"tokensIn":0,"tokensOut":0,"cost":0}` before real counts arrive, causing a brief flash of "0 / 200.0k" in the token usage bar.  
+**Root cause:** `ContextWindow.tsx` rendered the token bar whenever `tokenData` existed (i.e., when `contextWindow > 0`), regardless of whether `lastApiReqTotalTokens` was 0.  
+**Fix:** Added `tokenData.used === 0` guard to the null-return check in `ContextWindow.tsx`. The token bar now only renders when real (non-zero) token data is available.
 
 ### 14. 🟡 "Delete chat" button shows placeholder size
 **Where:** Task history → delete button tooltip / label  
