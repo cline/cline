@@ -130,27 +130,28 @@ Tracking issues found during the migration from the legacy inference system to t
 **Symptom:** The Cline provider recommends `anthropic/claude-sonnet-4.5`, but this model is likely superseded by `claude-sonnet-4.6` which is already promoted elsewhere in the UI (e.g., feature carousel).  
 **Expected:** Recommended model should be updated to the latest available (e.g., `anthropic/claude-sonnet-4.6`).
 
-### 22. 🔴 "Use different models for Plan and Act" checkbox immediately unchecks
+### 22. 🟢 "Use different models for Plan and Act" checkbox immediately unchecks
 **Where:** Settings → Model configuration  
 **Symptom:** Checking the "Use different models for Plan and Act modes" checkbox causes it to immediately uncheck itself. The setting cannot be enabled.  
-**Root cause (likely):** The state update round-trips through proto serialization or a settings update handler that resets the value.  
-**Expected:** Checkbox should stay checked and enable separate model pickers for Plan and Act modes.
+**Root cause:** `updateSettings()` was writing raw `settings` to `globalState.json` instead of merging individual known keys. The `planActSeparateModels` key was not being read from the persisted state back into `buildExtensionState()`.  
+**Fix:** `updateSettings()` now iterates known settings keys and writes each one individually. `buildExtensionState()` reads `planActSeparateModels` from `globalState`. State round-trip works correctly.
 
 ### 23. 🔴 MCP settings gear icon opens blank webview
 **Where:** MCP settings popup → gear icon  
 **Symptom:** Opening the MCP settings popup and clicking the gear (configuration) icon results in a completely blank webview. No settings, no content rendered.  
 **Expected:** Should display MCP server configuration options.
 
-### 24. 🔴 History tab is empty and search does nothing
+### 24. 🟢 History tab is empty and search does nothing
 **Where:** History tab (task history list)  
 **Symptom:** The history tab shows no tasks despite tasks having been completed. The fuzzy search input accepts text but produces no results and no feedback.  
-**Expected:** Should list all completed/persisted tasks with working search/filter.
+**Root cause:** `handleGetTaskHistory()` in grpc-handler.ts returned `{ data: { history } }` but the webview's HistoryView reads `response.tasks` (matching proto `TaskHistoryArray.tasks`). Key name mismatch caused empty results.  
+**Fix:** Changed return to `{ data: { tasks, totalCount } }`. Also implemented server-side filtering/sorting for `favoritesOnly`, `searchQuery`, `sortBy`, and `currentWorkspaceOnly` params.
 
-### 25. 🔴 Auto-approve options immediately uncheck when toggled
+### 25. 🟢 Auto-approve options immediately uncheck when toggled
 **Where:** Auto-approve options flyout  
 **Symptom:** Clicking any auto-approve option (e.g., "Edit all files", "Use the browser", and likely all others) causes the checkbox to immediately uncheck itself. The setting cannot be enabled.  
-**Root cause (likely):** Similar to issue #22 — the settings update handler or proto round-trip resets the value before it can persist.  
-**Expected:** Toggling an auto-approve option should persist the change and keep the checkbox in its new state.
+**Root cause:** Same as #22 — `updateAutoApprovalSettings()` was not persisting the settings properly.  
+**Fix:** Fixed alongside #22. `updateAutoApprovalSettings()` now writes to `globalState.json` and pushes state update.
 
 ---
 
