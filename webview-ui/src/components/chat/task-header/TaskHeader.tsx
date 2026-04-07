@@ -226,7 +226,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 			{/* Display Focus Chain To-Do List */}
 			{focusChainSettings.enabled && (
 				<FocusChain
-					currentTaskItemId={currentTaskItem?.id}
 					lastProgressMessageText={lastProgressMessageText}
 					showPlaceholderWhenEmpty={showFocusChainPlaceholder}
 				/>

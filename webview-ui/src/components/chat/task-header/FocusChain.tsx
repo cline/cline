@@ -1,11 +1,9 @@
 import { cn } from "@heroui/react"
 import { isCompletedFocusChainItem, isFocusChainItem } from "@shared/focus-chain-utils"
-import { StringRequest } from "@shared/proto/cline/common"
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react"
 import React, { memo, useCallback, useMemo, useState } from "react"
 import ChecklistRenderer from "@/components/common/ChecklistRenderer"
 import LightMarkdown from "@/components/common/LightMarkdown"
-import { FileServiceClient } from "@/services/grpc-client"
 
 // Optimized interface with readonly properties to prevent accidental mutations
 interface TodoInfo {
@@ -18,7 +16,6 @@ interface TodoInfo {
 
 interface FocusChainProps {
 	readonly lastProgressMessageText?: string
-	readonly currentTaskItemId?: string
 	readonly showPlaceholderWhenEmpty?: boolean
 }
 
@@ -26,7 +23,6 @@ interface FocusChainProps {
 const COMPLETED_MESSAGE = "All tasks have been completed!"
 const TODO_LIST_LABEL = "To-Do list"
 const NEW_STEPS_MESSAGE = "New steps will be generated if you continue the task"
-const CLICK_TO_EDIT_TITLE = "Click to edit to-do list in file"
 
 // Optimized header component with minimal re-renders
 const ToDoListHeader = memo<{
@@ -158,7 +154,7 @@ const parseCurrentTodoInfo = (text: string): TodoInfo | null => {
 
 // Main component with aggressive optimization
 export const FocusChain: React.FC<FocusChainProps> = memo(
-	({ currentTaskItemId, lastProgressMessageText, showPlaceholderWhenEmpty }) => {
+	({ lastProgressMessageText, showPlaceholderWhenEmpty }) => {
 		const [isExpanded, setIsExpanded] = useState(false)
 
 		// Parse todo info with caching
@@ -169,17 +165,6 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 
 		// Static callbacks that don't change
 		const handleToggle = useCallback(() => setIsExpanded((prev) => !prev), [])
-
-		const handleEditClick = useCallback(
-			(e: React.MouseEvent) => {
-				e.preventDefault()
-				e.stopPropagation()
-				if (currentTaskItemId) {
-					FileServiceClient.openFocusChainFile(StringRequest.create({ value: currentTaskItemId }))
-				}
-			},
-			[currentTaskItemId],
-		)
 
 		// Early return for no content
 		if (!todoInfo) {
@@ -217,11 +202,10 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 						handleToggle()
 					}
 				}}
-				tabIndex={0}
-				title={CLICK_TO_EDIT_TITLE}>
+				tabIndex={0}>
 				<ToDoListHeader isExpanded={isExpanded} todoInfo={todoInfo} />
 				{isExpanded && (
-					<div className="mx-1 pb-2 px-1 relative" onClick={handleEditClick}>
+					<div className="mx-1 pb-2 px-1 relative">
 						<ChecklistRenderer text={lastProgressMessageText!} />
 						{isCompleted && (
 							<div className="mt-2 text-xs font-semibold text-muted-foreground">{NEW_STEPS_MESSAGE}</div>
@@ -235,7 +219,6 @@ export const FocusChain: React.FC<FocusChainProps> = memo(
 		// Custom comparison for better performance
 		return (
 			prevProps.lastProgressMessageText === nextProps.lastProgressMessageText &&
-			prevProps.currentTaskItemId === nextProps.currentTaskItemId &&
 			prevProps.showPlaceholderWhenEmpty === nextProps.showPlaceholderWhenEmpty
 		)
 	},
