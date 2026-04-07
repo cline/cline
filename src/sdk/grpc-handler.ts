@@ -26,11 +26,13 @@
  * doesn't error out.
  */
 
-import type { ApiConfiguration } from "@shared/api"
+import type { ApiConfiguration, ModelInfo } from "@shared/api"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
+import { readClineModelsFromCache } from "../core/controller/models/refreshClineModels"
+import { toProtobufModels } from "../shared/proto-conversions/models/typeConversion"
 import { getAvailableTerminalProfiles } from "../utils/shell"
 
 /** File search result */
@@ -584,6 +586,10 @@ export class GrpcHandler {
 				case "getLatestMcpServers":
 					return this.handleGetLatestMcpServers()
 
+				// ---- Model discovery (Cline provider) ----
+				case "refreshClineModelsRpc":
+					return await this.handleRefreshClineModels()
+
 				// ---- Stubbed methods (return empty, log for debugging) ----
 				// These still need real implementations for full feature parity.
 				// Search for "[grpc-handler] STUB:" in console to find active calls.
@@ -591,7 +597,6 @@ export class GrpcHandler {
 				case "refreshLiteLlmModelsRpc":
 				case "refreshBasetenModelsRpc":
 				case "refreshVercelAiGatewayModelsRpc":
-				case "refreshClineModelsRpc":
 				case "refreshGroqModelsRpc":
 				case "refreshRequestyModels":
 				case "refreshHuggingFaceModels":
@@ -1282,6 +1287,79 @@ export class GrpcHandler {
 			return { data: { values: models } }
 		}
 		return { data: { values: [] } }
+	}
+
+	// -----------------------------------------------------------------------
+	// Cline model discovery handler
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Fetch Cline models from the API and return in protobuf format.
+	 * Tries disk cache first, falls back to API call.
+	 * Returns: OpenRouterCompatibleModelInfo { models: Record<string, OpenRouterModelInfo> }
+	 */
+	private async handleRefreshClineModels(): Promise<GrpcResponse> {
+		try {
+			// Try disk cache first (fast, no network)
+			const cached = await readClineModelsFromCache()
+			if (cached && Object.keys(cached).length > 0) {
+				return { data: { models: toProtobufModels(cached) } }
+			}
+
+			// No cache — fetch from Cline API directly
+			const apiBaseUrl = "https://api.cline.bot"
+			const response = await globalThis.fetch(`${apiBaseUrl}/api/v1/ai/cline/models`)
+			if (!response.ok) {
+				throw new Error(`Cline models API returned ${response.status}`)
+			}
+			const json = (await response.json()) as {
+				data?: Array<{
+					id: string
+					context_length?: number
+					top_provider?: { max_completion_tokens?: number }
+					pricing?: { prompt?: string; completion?: string }
+					architecture?: { modality?: string | string[] }
+					supported_parameters?: string[]
+				}>
+			}
+			if (!Array.isArray(json?.data)) {
+				throw new Error("Invalid response from Cline models API")
+			}
+
+			// Convert raw API response to ModelInfo records
+			const models: Record<string, ModelInfo> = {}
+			for (const raw of json.data) {
+				const parsePrice = (p: unknown) => {
+					if (p === undefined || p === null || p === "") return undefined
+					const n = Number.parseFloat(String(p))
+					return Number.isNaN(n) ? undefined : n * 1_000_000
+				}
+				const modality = raw.architecture?.modality
+				const supportsImages = Array.isArray(modality)
+					? modality.includes("image")
+					: typeof modality === "string" && modality.includes("image")
+				const supportThinking = raw.supported_parameters?.some(
+					(p: string) => p === "include_reasoning" || p === "reasoning",
+				)
+				models[raw.id] = {
+					maxTokens: raw.top_provider?.max_completion_tokens ?? 0,
+					contextWindow: raw.context_length ?? 0,
+					supportsImages,
+					supportsPromptCache: false,
+					inputPrice: parsePrice(raw.pricing?.prompt) ?? 0,
+					outputPrice: parsePrice(raw.pricing?.completion) ?? 0,
+					thinkingConfig: supportThinking ? { maxBudget: 16000 } : undefined,
+				}
+			}
+
+			if (Object.keys(models).length > 0) {
+				return { data: { models: toProtobufModels(models) } }
+			}
+		} catch (err) {
+			Logger.log("[grpc-handler] Failed to refresh Cline models:", err instanceof Error ? err.message : String(err))
+		}
+		// Return empty models — the webview will use fallback model list
+		return { data: { models: {} } }
 	}
 
 	// -----------------------------------------------------------------------
