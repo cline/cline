@@ -143,7 +143,7 @@ export class WebviewBridge {
 	}
 
 	/** Push available terminal profiles */
-	pushTerminalProfiles(profiles: Array<{ name: string; [key: string]: unknown }>): void {
+	pushTerminalProfiles(profiles: Array<{ id: string; name: string; path?: string; description?: string }>): void {
 		this.postMessage({
 			type: "terminalProfiles",
 			profiles,
