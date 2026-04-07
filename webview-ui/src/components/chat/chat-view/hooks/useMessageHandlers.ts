@@ -42,6 +42,13 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 
 			if (hasContent) {
 				console.log("[ChatView] handleSendMessage - Sending message:", messageToSend)
+
+				// Clear input immediately for responsive UX (before async gRPC calls)
+				setInputValue("")
+				setActiveQuote(null)
+				setSelectedImages([])
+				setSelectedFiles([])
+
 				let messageSent = false
 
 				if (messages.length === 0) {
@@ -116,13 +123,9 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					}
 				}
 
-				// Only clear input and disable UI if message was actually sent
+				// Disable UI if message was actually sent
 				if (messageSent) {
-					setInputValue("")
-					setActiveQuote(null)
 					setSendingDisabled(true)
-					setSelectedImages([])
-					setSelectedFiles([])
 					setEnableButtons(false)
 
 					// Reset auto-scroll

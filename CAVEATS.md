@@ -80,10 +80,11 @@ Tracking issues found during the migration from the legacy inference system to t
 
 ## Open Issues
 
-### 4. 🟡 Input text not cleared immediately on send
+### 4. 🟢 Input text not cleared immediately on send
 **Where:** Webview chat input  
 **Symptom:** After typing a message and pressing send/enter, the text remains visible in the input field briefly before clearing. Creates a feeling of lag.  
-**Expected:** Input should clear immediately on send, before the API request starts.
+**Root cause:** In `useMessageHandlers.ts`, `setInputValue("")` was called AFTER `await TaskServiceClient.newTask(...)` or `await TaskServiceClient.askResponse(...)` completed. The network round-trip caused visible delay before the input cleared.  
+**Fix:** Moved `setInputValue("")`, `setActiveQuote(null)`, `setSelectedImages([])`, `setSelectedFiles([])` to execute immediately when `hasContent` is true, before any async gRPC calls. React schedules a re-render synchronously, clearing the input before the network round-trip.
 
 ### 5. 🟡 api_req_started fires with zeroed token counts
 **Where:** Message stream / ChatRow rendering  
