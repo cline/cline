@@ -1,10 +1,14 @@
 ---
-title: "Focus Chain"
-sidebarTitle: "Focus Chain"
-description: "Automatic todo list management with real-time progress tracking for long-running tasks."
+title: "Legacy Focus Chain"
+sidebarTitle: "Legacy Focus Chain"
+description: "A legacy todo-tracking feature kept for compatibility while Cline shifts toward built-in task_progress checklists and Plan & Act workflows."
 ---
 
-Focus Chain is automatic todo list management with real-time progress tracking. It helps Cline work on longer tasks by maintaining a visible checklist that persists across context window resets.
+Focus Chain is a legacy todo-tracking feature that maintains a visible checklist across long-running tasks. It is still available in this branch, but it is no longer the primary product direction for task planning and progress tracking.
+
+<Warning>
+For new work, prefer [Plan & Act mode](/core-workflows/plan-and-act), built-in `task_progress` checklists, and Cline's standard task-management flow. Use Focus Chain only if you explicitly want the older persistent checklist behavior.
+</Warning>
 
 <Frame>
 	<img
@@ -15,7 +19,7 @@ Focus Chain is automatic todo list management with real-time progress tracking. 
 
 ## When to Use It
 
-Focus Chain works best for:
+Focus Chain still works best for:
 - Multi-step implementations (building a feature end-to-end)
 - Tasks that might span multiple context windows
 - Work where you want visibility into Cline's plan
@@ -23,7 +27,7 @@ Focus Chain works best for:
 For quick, single-step requests, Focus Chain adds overhead without much benefit.
 
 <Tip>
-Focus Chain pairs well with [Plan & Act mode](/core-workflows/plan-and-act). Use Plan mode to create a detailed implementation plan, then let Focus Chain track progress as you execute it.
+If you still use Focus Chain, pair it with [Plan & Act mode](/core-workflows/plan-and-act). For most users, the simpler path is to let Plan mode define the work and rely on built-in task-progress tracking during execution.
 </Tip>
 
 ## Enabling Focus Chain
