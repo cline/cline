@@ -118,7 +118,7 @@ export function createContextCompactionPrepareTurn(
 	  ) => Promise<ContextPipelinePrepareTurnResult | undefined>)
 	| undefined {
 	const userCompaction = config.compaction;
-	if (userCompaction?.enabled === false) {
+	if (userCompaction?.enabled !== true) {
 		return undefined;
 	}
 
@@ -129,7 +129,7 @@ export function createContextCompactionPrepareTurn(
 			modelId: config.modelId,
 		} as LlmsProviders.ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
-	const strategy = userCompaction?.strategy ?? "agentic";
+	const strategy = userCompaction?.strategy ?? "basic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];
 
 	return async (context) => {

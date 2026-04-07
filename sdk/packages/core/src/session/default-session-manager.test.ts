@@ -1743,6 +1743,7 @@ describe("DefaultSessionManager", () => {
 			config: createConfig({
 				sessionId,
 				compaction: {
+					enabled: true,
 					strategy: "basic",
 					compact,
 				},

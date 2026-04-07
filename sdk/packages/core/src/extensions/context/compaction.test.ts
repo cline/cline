@@ -44,6 +44,8 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
+				enabled: true,
+				strategy: "agentic",
 				preserveRecentTokens: 1,
 				reserveTokens: 95,
 			},
@@ -144,6 +146,8 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelId: "primary-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
+				enabled: true,
+				strategy: "agentic",
 				preserveRecentTokens: 1,
 				reserveTokens: 99,
 				summarizer: {
@@ -195,6 +199,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
+				enabled: true,
 				strategy: "basic",
 				reserveTokens: 70,
 			},
@@ -287,7 +292,7 @@ describe("createContextCompactionPrepareTurn", () => {
 				providerId: "anthropic",
 				modelId: "mock-model",
 			} as LlmsProviders.ProviderConfig,
-			compaction: {},
+			compaction: { enabled: true },
 			logger: undefined,
 		});
 
