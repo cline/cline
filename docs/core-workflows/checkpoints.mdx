@@ -1,20 +1,20 @@
 ---
 title: "Checkpoints"
 sidebarTitle: "Checkpoints"
-description: "Roll back code changes while keeping your conversation. Experiment freely."
+description: "Restore recent task changes while keeping your conversation context."
 ---
 
-Checkpoints let you undo code changes without losing your conversation. Every time Cline modifies a file or runs a command, it saves a snapshot of your project files. You can restore to any checkpoint, keeping the context you've built while reverting the code.
+Checkpoints let you undo code changes without losing your conversation. When checkpoints are enabled, Cline saves internal restore points for your project files so you can compare and roll back recent task changes while preserving the context you've built.
 
-This changes how you work with Cline. Instead of carefully reviewing every change before approving, you can let Cline move fast and roll back if something goes wrong. The cost of a mistake drops to nearly zero.
+This changes how you work with Cline. Instead of carefully reviewing every change before approving, you can let Cline move faster and roll back if something goes wrong.
 
 <Tip>
-Checkpoints are enabled by default. See [Enable or Disable Checkpoints](#enable-or-disable-checkpoints) if you need to turn them off.
+Checkpoints are available in the current product while the existing rollback system remains enabled. See [Enable or Disable Checkpoints](#enable-or-disable-checkpoints) if you need to turn them off.
 </Tip>
 
 ## How It Works
 
-Cline maintains a shadow Git repository separate from your project's actual Git history. After each tool use (file edits, commands, etc.), Cline commits the current state of your files to this shadow repo. Your main Git repository stays untouched.
+Cline currently powers checkpoints with internal Git-backed snapshots that stay separate from your project's visible Git history. After each tool use (file edits, commands, etc.), Cline records the current file state so the UI can offer compare and restore actions without rewriting your normal Git commits.
 
 This means:
 
@@ -22,6 +22,10 @@ This means:
 - Checkpoints capture everything, including files not tracked by Git
 - You can restore to any point in a task without affecting commits you've made
 - Checkpoints persist across editor sessions
+
+<Note>
+The current checkpoint implementation is a compatibility layer during an active migration. The compare/restore experience remains the user-facing contract, but the underlying storage mechanism may evolve.
+</Note>
 
 Each checkpoint captures the complete file state at that moment. If Cline edits three files in sequence, you get three checkpoints and can restore to any of them independently.
 
