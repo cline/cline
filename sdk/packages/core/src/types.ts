@@ -12,6 +12,18 @@ export type {
 	ChatViewState,
 } from "./chat/chat-schema";
 export type {
+	LoadAgentPluginFromPathOptions,
+	ResolveAgentPluginPathsOptions,
+} from "./extensions";
+export {
+	discoverPluginModulePaths,
+	loadAgentPluginFromPath,
+	loadAgentPluginsFromPaths,
+	resolveAgentPluginPaths,
+	resolveAndLoadAgentPlugins,
+	resolvePluginConfigSearchPaths,
+} from "./extensions";
+export type {
 	AgentConfigWatcher,
 	AgentConfigWatcherEvent,
 	AgentYamlConfig,
@@ -22,10 +34,8 @@ export type {
 	CreateSkillsConfigDefinitionOptions,
 	CreateUserInstructionConfigWatcherOptions,
 	CreateWorkflowsConfigDefinitionOptions,
-	LoadAgentPluginFromPathOptions,
 	ParseMarkdownFrontmatterResult,
 	ParseYamlFrontmatterResult,
-	ResolveAgentPluginPathsOptions,
 	RuleConfig,
 	SkillConfig,
 	UnifiedConfigDefinition,
@@ -39,7 +49,7 @@ export type {
 	UserInstructionConfigWatcher,
 	UserInstructionConfigWatcherEvent,
 	WorkflowConfig,
-} from "./extensions";
+} from "./extensions/config";
 export {
 	createAgentConfigDefinition,
 	createAgentConfigWatcher,
@@ -47,21 +57,15 @@ export {
 	createSkillsConfigDefinition,
 	createUserInstructionConfigWatcher,
 	createWorkflowsConfigDefinition,
-	discoverPluginModulePaths,
-	loadAgentPluginFromPath,
-	loadAgentPluginsFromPaths,
 	parseAgentConfigFromYaml,
 	parsePartialAgentConfigFromYaml,
 	parseRuleConfigFromMarkdown,
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveAgentPluginPaths,
 	resolveAgentTools,
-	resolveAndLoadAgentPlugins,
 	resolveDocumentsRulesDirectoryPath,
 	resolveDocumentsWorkflowsDirectoryPath,
-	resolvePluginConfigSearchPaths,
 	resolveRulesConfigSearchPaths,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
@@ -69,18 +73,18 @@ export {
 	toPartialAgentConfig,
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
-} from "./extensions";
-export type {
-	SandboxCallOptions,
-	SubprocessSandboxOptions,
-} from "./runtime/sandbox/subprocess-sandbox";
-export { SubprocessSandbox } from "./runtime/sandbox/subprocess-sandbox";
+} from "./extensions/config";
 export type {
 	BuiltRuntime as RuntimeEnvironment,
 	RuntimeBuilder,
 	RuntimeBuilderInput,
 	SessionRuntime,
 } from "./runtime/session-runtime";
+export type {
+	SandboxCallOptions,
+	SubprocessSandboxOptions,
+} from "./runtime/subprocess-sandbox";
+export { SubprocessSandbox } from "./runtime/subprocess-sandbox";
 export type { SessionHost } from "./session/session-host";
 export type {
 	SendSessionInput,

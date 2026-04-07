@@ -1,11 +1,11 @@
-import type {
-	AgentCompactionContext,
-	AgentCompactionResult,
-	AgentCompactionSummarizerConfig,
-} from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
 import { createHandler } from "@clinebot/llms";
 import type { BasicLogger } from "@clinebot/shared";
+import type {
+	CoreCompactionContext,
+	CoreCompactionResult,
+	CoreCompactionSummarizerConfig,
+} from "../../types/config";
 import {
 	buildSummaryMessage,
 	buildSummaryRequest,
@@ -17,7 +17,7 @@ import {
 	getCompactionSummaryMetadata,
 	resolveSummarizerConfig,
 	serializeConversation,
-} from "./shared";
+} from "./compaction-shared";
 
 async function generateSummary(options: {
 	providerConfig: LlmsProviders.ProviderConfig;
@@ -47,13 +47,13 @@ async function generateSummary(options: {
 }
 
 export async function runAgenticCompaction(options: {
-	context: AgentCompactionContext;
+	context: CoreCompactionContext;
 	providerConfig: LlmsProviders.ProviderConfig;
-	summarizer?: AgentCompactionSummarizerConfig;
+	summarizer?: CoreCompactionSummarizerConfig;
 	preserveRecentTokens: number;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
-}): Promise<AgentCompactionResult | undefined> {
+}): Promise<CoreCompactionResult | undefined> {
 	const messages = options.context.messages;
 	if (messages.length < 2) {
 		return undefined;
@@ -102,12 +102,16 @@ export async function runAgenticCompaction(options: {
 	}
 
 	const summary = ensureFilesSection(rawSummary, fileOps);
+	const tokensBefore = messages.reduce(
+		(total, message) => total + options.estimateMessageTokens(message),
+		0,
+	);
 	return {
 		messages: [
 			buildSummaryMessage({
 				summary,
 				fileOps,
-				tokensBefore: options.context.usage.inputTokens,
+				tokensBefore,
 			}),
 			...messages.slice(cutIndex),
 		],

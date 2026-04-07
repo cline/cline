@@ -1,4 +1,7 @@
-import type { RuleConfig, UserInstructionConfigWatcher } from "../extensions";
+import type {
+	RuleConfig,
+	UserInstructionConfigWatcher,
+} from "../extensions/config";
 
 export function isRuleEnabled(rule: RuleConfig): boolean {
 	return rule.disabled !== true;

@@ -1,6 +1,6 @@
 import type * as LlmsProviders from "@clinebot/llms";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createDefaultAgentCompaction } from "./default-compaction";
+import { createContextCompactionPrepareTurn } from "./compaction";
 
 type FakeChunk = Record<string, unknown>;
 
@@ -16,7 +16,7 @@ async function* streamChunks(chunks: FakeChunk[]): AsyncGenerator<FakeChunk> {
 	}
 }
 
-describe("createDefaultAgentCompaction", () => {
+describe("createContextCompactionPrepareTurn", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 	});
@@ -35,7 +35,7 @@ describe("createDefaultAgentCompaction", () => {
 			),
 		});
 
-		const compaction = createDefaultAgentCompaction({
+		const prepareTurn = createContextCompactionPrepareTurn({
 			providerId: "anthropic",
 			modelId: "mock-model",
 			providerConfig: {
@@ -44,16 +44,18 @@ describe("createDefaultAgentCompaction", () => {
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
 				preserveRecentTokens: 1,
-				reserveTokens: 5,
+				reserveTokens: 95,
 			},
 			logger: undefined,
 		});
 
-		const result = await compaction?.compact?.({
+		const result = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			systemPrompt: "You are helpful.",
+			tools: [],
 			messages: [
 				{ role: "user", content: "Old turn to compact" },
 				{ role: "assistant", content: "Old answer" },
@@ -86,19 +88,6 @@ describe("createDefaultAgentCompaction", () => {
 				provider: "anthropic",
 				info: { id: "mock-model", contextWindow: 100 },
 			},
-			usage: {
-				inputTokens: 90,
-				outputTokens: 10,
-				totalTokens: 100,
-			},
-			totalUsage: {
-				inputTokens: 90,
-				outputTokens: 10,
-			},
-			contextWindowTokens: 100,
-			triggerTokens: 95,
-			thresholdRatio: 0.95,
-			utilizationRatio: 0.9,
 		});
 
 		expect(createHandlerMock).toHaveBeenCalledTimes(1);
@@ -111,21 +100,15 @@ describe("createDefaultAgentCompaction", () => {
 					readFiles: [],
 					modifiedFiles: [],
 				},
-				tokensBefore: 90,
 			}),
 		});
 		expect(typeof result?.messages[0]?.content).toBe("string");
 		const summaryContent = result?.messages[0]?.content as string;
 		expect(summaryContent).toContain("Context summary:");
 		expect(summaryContent).toContain("## Files");
-		expect(summaryContent).toContain("Read:");
-		expect(summaryContent).toContain("- none");
 		expect(result?.messages[1]).toEqual({
 			role: "user",
 			content: "Implement the change",
-		});
-		expect(result?.messages[2]).toMatchObject({
-			role: "assistant",
 		});
 		expect(result?.messages[4]).toEqual({
 			role: "assistant",
@@ -143,7 +126,7 @@ describe("createDefaultAgentCompaction", () => {
 			),
 		});
 
-		const compaction = createDefaultAgentCompaction({
+		const prepareTurn = createContextCompactionPrepareTurn({
 			providerId: "anthropic",
 			modelId: "primary-model",
 			providerConfig: {
@@ -152,6 +135,7 @@ describe("createDefaultAgentCompaction", () => {
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
 				preserveRecentTokens: 1,
+				reserveTokens: 99,
 				summarizer: {
 					providerId: "openai",
 					modelId: "gpt-summary",
@@ -161,11 +145,13 @@ describe("createDefaultAgentCompaction", () => {
 			logger: undefined,
 		});
 
-		await compaction?.compact?.({
+		await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			systemPrompt: "You are helpful.",
+			tools: [],
 			messages: [
 				{ role: "user", content: "Old turn" },
 				{ role: "assistant", content: "Old answer" },
@@ -177,19 +163,6 @@ describe("createDefaultAgentCompaction", () => {
 				provider: "anthropic",
 				info: { id: "primary-model", contextWindow: 100 },
 			},
-			usage: {
-				inputTokens: 90,
-				outputTokens: 10,
-				totalTokens: 100,
-			},
-			totalUsage: {
-				inputTokens: 90,
-				outputTokens: 10,
-			},
-			contextWindowTokens: 100,
-			triggerTokens: 95,
-			thresholdRatio: 0.95,
-			utilizationRatio: 0.9,
 		});
 
 		expect(createHandlerMock).toHaveBeenCalledWith(
@@ -203,7 +176,7 @@ describe("createDefaultAgentCompaction", () => {
 	});
 
 	it("uses basic compaction without calling the summarizer", async () => {
-		const compaction = createDefaultAgentCompaction({
+		const prepareTurn = createContextCompactionPrepareTurn({
 			providerId: "anthropic",
 			modelId: "mock-model",
 			providerConfig: {
@@ -212,16 +185,18 @@ describe("createDefaultAgentCompaction", () => {
 			} as LlmsProviders.ProviderConfig,
 			compaction: {
 				strategy: "basic",
-				reserveTokens: 10,
+				reserveTokens: 70,
 			},
 			logger: undefined,
 		});
 
-		const result = await compaction?.compact?.({
+		const result = await prepareTurn?.({
 			agentId: "agent-1",
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			systemPrompt: "You are helpful.",
+			tools: [],
 			messages: [
 				{ role: "user", content: "Initial request that should survive" },
 				{
@@ -275,19 +250,6 @@ describe("createDefaultAgentCompaction", () => {
 				provider: "anthropic",
 				info: { id: "mock-model", contextWindow: 100 },
 			},
-			usage: {
-				inputTokens: 90,
-				outputTokens: 10,
-				totalTokens: 100,
-			},
-			totalUsage: {
-				inputTokens: 90,
-				outputTokens: 10,
-			},
-			contextWindowTokens: 100,
-			triggerTokens: 30,
-			thresholdRatio: 0.3,
-			utilizationRatio: 0.9,
 		});
 
 		expect(createHandlerMock).not.toHaveBeenCalled();
@@ -296,5 +258,39 @@ describe("createDefaultAgentCompaction", () => {
 			{ role: "user", content: "Most recent user turn" },
 			{ role: "assistant", content: "Most recent assistant reply" },
 		]);
+	});
+
+	it("defaults to threshold ratio when reserveTokens is not configured", async () => {
+		const prepareTurn = createContextCompactionPrepareTurn({
+			providerId: "anthropic",
+			modelId: "mock-model",
+			providerConfig: {
+				providerId: "anthropic",
+				modelId: "mock-model",
+			} as LlmsProviders.ProviderConfig,
+			compaction: {},
+			logger: undefined,
+		});
+
+		const result = await prepareTurn?.({
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			parentAgentId: null,
+			iteration: 1,
+			systemPrompt: "You are helpful.",
+			tools: [],
+			messages: [
+				{ role: "user", content: "Short request" },
+				{ role: "assistant", content: "Short reply" },
+			],
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", contextWindow: 100 },
+			},
+		});
+
+		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(result).toBeUndefined();
 	});
 });

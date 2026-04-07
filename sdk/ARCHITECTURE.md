@@ -80,7 +80,7 @@ Owns the stateless runtime loop:
 - tool orchestration
 - runtime event emission
 - hook/extension execution
-- context-limit detection and compaction trigger dispatch
+- turn preparation before provider calls
 - in-memory team/runtime primitives
 
 Design rule:
@@ -119,7 +119,7 @@ Owns stateful orchestration:
 - runtime composition
 - session lifecycle
 - storage and persistence
-- config watching/loading
+- config watching/loading and watcher projections
 - default host tool assembly
 - plugin discovery/loading
 - default context compaction policy
@@ -193,6 +193,7 @@ Core uses file-based discovery and watchers for:
 Design implication:
 
 - new instruction sources should usually materialize into files and reuse watcher-based loading instead of inventing parallel in-memory execution paths.
+- in `packages/core`, config-facing discovery, parsing, watching, and slash-command projection live under `src/extensions/config`
 
 ### 2. Runtime Builder Inputs
 
@@ -239,22 +240,34 @@ Design implication:
 
 ### 5. Context Compaction
 
-Context compaction is split across `agents` and `core` on purpose.
+Context compaction is owned by `core`.
 
-- `@clinebot/agents` owns the generic runtime seam:
-  - detect when context usage crosses the configured threshold
-  - dispatch `context_limit_reached`
-  - allow hook/extension handlers to replace message history
-- `@clinebot/core` owns the default fallback behavior:
-  - inject a default compaction policy for root sessions
-  - choose between built-in `agentic` and `basic` strategies
-  - keep strategy-specific implementation out of `MessageBuilder`
+- `@clinebot/agents` owns the generic turn-preparation seam:
+  - run normal lifecycle hooks
+  - allow hosts to rewrite message history or system prompt before the provider call
+- `@clinebot/core` owns compaction policy:
+  - inject a prepare-turn pipeline for root sessions
+  - choose between built-in strategies through a registry map
+  - keep compaction logic out of the low-level agent message builder
 
 Design implications:
 
-- compaction is a first-class lifecycle concern, not a prompt-formatting concern
-- plugin authors should customize compaction through `onContextLimitReached`
-- delegated/subagent flows should inherit compaction behavior through extensions, not through a separate delegated compaction config surface
+- compaction is a context-pipeline concern owned by `core`
+- `agents` stays focused on the stateless loop and provider/tool orchestration
+- delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
+
+### 6. Extension Layering Inside Core
+
+`packages/core/src/extensions` is split by concern:
+
+- `extensions/config`: config loaders, parsers, watchers, and watcher projections such as runtime slash-command expansion
+- `extensions/plugin`: runtime plugin discovery, loading, and sandboxing
+- `extensions/context`: core-owned context/message pipeline concerns such as compaction
+
+Design implications:
+
+- avoid mixing config discovery code into runtime/plugin code
+- avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
 
 ## Architectural Constraints
 

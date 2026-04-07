@@ -1,6 +1,3 @@
-import { existsSync } from "node:fs";
-import { builtinModules, createRequire } from "node:module";
-import { dirname, resolve } from "node:path";
 /**
  * Bootstrap script for the plugin sandbox subprocess.
  *
@@ -9,12 +6,11 @@ import { dirname, resolve } from "node:path";
  * imports plugin modules, wiring up their contributions (tools, commands,
  * shortcuts, flags, renderers, providers) and lifecycle hooks.
  *
- * Because it executes in a separate process it must be self-contained — no
- * imports from the rest of the codebase are allowed.
+ * Because it executes in a separate process it must stay bundle-safe and only
+ * depend on local helpers that can be inlined into the sandbox build.
  */
 
-import { fileURLToPath } from "node:url";
-import createJiti from "jiti";
+import { importPluginModule } from "./plugin-module-import";
 
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
@@ -134,11 +130,6 @@ function assertValidPluginModule(
 
 let pluginCounter = 0;
 const pluginState = new Map<string, PluginState>();
-const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
-const WORKSPACE_ALIASES = collectWorkspaceAliases(MODULE_DIR);
-const BUILTIN_MODULES = new Set(
-	builtinModules.flatMap((id) => [id, id.replace(/^node:/, "")]),
-);
 
 // ---------------------------------------------------------------------------
 // IPC helpers
@@ -187,64 +178,6 @@ function getPlugin(pluginId: string): PluginState {
 		throw new Error(`Unknown sandbox plugin id: ${pluginId}`);
 	}
 	return state;
-}
-
-function collectWorkspaceAliases(startDir: string): Record<string, string> {
-	const root = resolve(startDir, "..", "..", "..", "..");
-	const aliases: Record<string, string> = {};
-	const candidates: Record<string, string> = {
-		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
-		"@clinebot/core": resolve(root, "packages/core/src/index.ts"),
-		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
-		"@clinebot/rpc": resolve(root, "packages/rpc/src/index.ts"),
-		"@clinebot/scheduler": resolve(root, "packages/scheduler/src/index.ts"),
-		"@clinebot/shared": resolve(root, "packages/shared/src/index.ts"),
-		"@clinebot/shared/storage": resolve(
-			root,
-			"packages/shared/src/storage/index.ts",
-		),
-		"@clinebot/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
-	};
-	for (const [key, value] of Object.entries(candidates)) {
-		if (existsSync(value)) {
-			aliases[key] = value;
-		}
-	}
-	return aliases;
-}
-
-function collectPluginImportAliases(
-	pluginPath: string,
-): Record<string, string> {
-	const pluginRequire = createRequire(pluginPath);
-	const aliases: Record<string, string> = {};
-	for (const [specifier, sourcePath] of Object.entries(WORKSPACE_ALIASES)) {
-		try {
-			pluginRequire.resolve(specifier);
-			continue;
-		} catch {
-			// Use the workspace source only when the plugin package does not provide
-			// its own installed SDK dependency.
-		}
-		aliases[specifier] = sourcePath;
-	}
-	return aliases;
-}
-
-async function importPluginModule(
-	pluginPath: string,
-): Promise<Record<string, unknown>> {
-	const aliases = collectPluginImportAliases(pluginPath);
-	const jiti = createJiti(pluginPath, {
-		alias: aliases,
-		cache: false,
-		requireCache: false,
-		esmResolve: true,
-		interopDefault: false,
-		nativeModules: [...BUILTIN_MODULES],
-		transformModules: Object.keys(aliases),
-	});
-	return (await jiti.import(pluginPath, {})) as Record<string, unknown>;
 }
 
 // ---------------------------------------------------------------------------

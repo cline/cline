@@ -2,11 +2,11 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { createUserInstructionConfigWatcher } from "../extensions";
 import {
 	listAvailableRuntimeCommandsFromWatcher,
 	resolveRuntimeSlashCommandFromWatcher,
-} from "./commands";
+} from "./runtime-commands";
+import { createUserInstructionConfigWatcher } from "./user-instruction-config-loader";
 
 describe("runtime command registry", () => {
 	const tempRoots: string[] = [];
@@ -61,7 +61,7 @@ Run the release workflow.`,
 		}
 	});
 
-	it("expands skill and workflow slash commands with workflow precedence", async () => {
+	it("expands slash commands with workflow precedence and ignores disabled entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
 		const skillDir = join(tempRoot, "skills", "ship");
@@ -75,6 +75,14 @@ Run the release workflow.`,
 name: ship
 ---
 Run the ship workflow.`,
+		);
+		await writeFile(
+			join(workflowsDir, "disabled.md"),
+			`---
+name: disabled
+disabled: true
+---
+Do not run this workflow.`,
 		);
 
 		const watcher = createUserInstructionConfigWatcher({
@@ -91,6 +99,15 @@ Run the ship workflow.`,
 			expect(resolveRuntimeSlashCommandFromWatcher("/ship now", watcher)).toBe(
 				"Run the ship workflow. now",
 			);
+			expect(resolveRuntimeSlashCommandFromWatcher("/disabled", watcher)).toBe(
+				"/disabled",
+			);
+			expect(resolveRuntimeSlashCommandFromWatcher("/missing", watcher)).toBe(
+				"/missing",
+			);
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("please run /ship", watcher),
+			).toBe("please run /ship");
 		} finally {
 			watcher.stop();
 		}

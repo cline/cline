@@ -100,29 +100,31 @@ await host.start({
 | `tool_call_before`  | `onToolCall`          | before a tool executes             |
 | `tool_call_after`   | `onToolResult`        | after a tool executes              |
 | `before_agent_start`| `onBeforeAgentStart`  | to override system prompt/messages |
-| `context_limit_reached` | `onContextLimitReached` | when the agent crosses its context threshold |
 | `session_start`     | `onSessionStart`      | when a session begins              |
 | `session_shutdown`  | `onSessionShutdown`   | when a session ends                |
 | `input`             | `onInput`             | when the user sends input          |
 | `runtime_event`     | `onRuntimeEvent`      | on every agent event               |
 | `error`             | `onError`             | when an unhandled error occurs     |
 
-## Custom compaction in plugins
+## Context rewriting vs compaction
 
-If a plugin needs custom context compaction, implement it as a hook:
+Plugins do not own context compaction.
+
+Compaction is a core-owned context-pipeline concern that runs through turn preparation before the model call. If a plugin needs to influence the prompt or retained history, use the normal hook surface for prompt/message rewriting rather than a compaction-specific hook.
+
+Example:
 
 ```ts
 const plugin: Plugin = {
   name: "my-plugin",
   manifest: {
     capabilities: ["hooks"],
-    hookStages: ["context_limit_reached"],
+    hookStages: ["before_agent_start"],
   },
-  onContextLimitReached(ctx) {
+  onBeforeAgentStart() {
     return {
-      replaceMessages: [
-        { role: "user", content: "Compacted history goes here" },
-      ],
+      systemPrompt:
+        "You are a helpful assistant. Prefer concise weather summaries.",
     };
   },
 };
@@ -130,7 +132,6 @@ const plugin: Plugin = {
 
 Notes:
 
-- plugin compaction runs through the lifecycle hook system
-- `onContextLimitReached` runs before core's default fallback compaction
-- returning `replaceMessages` lets the plugin fully replace the retained history
-- custom compaction is not configured through a public `AgentConfig.compaction` field
+- plugins can still influence prompt construction through supported hook stages
+- default compaction strategy selection lives in `@clinebot/core`
+- custom compaction should be implemented in the host/core layer, not as a plugin lifecycle hook

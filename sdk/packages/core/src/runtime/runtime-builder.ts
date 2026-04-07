@@ -7,7 +7,7 @@ import {
 	createUserInstructionConfigWatcher,
 	type SkillConfig,
 	type UserInstructionConfigWatcher,
-} from "../extensions";
+} from "../extensions/config";
 import { createLocalTeamStore } from "../storage/team-store";
 import {
 	AgentTeamsRuntime,

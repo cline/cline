@@ -77,7 +77,6 @@ export interface ContributionRegistryExtension<TTool = Tool> {
 	onIterationStart?: unknown;
 	onTurnStart?: unknown;
 	onBeforeAgentStart?: unknown;
-	onContextLimitReached?: unknown;
 	onToolCall?: unknown;
 	onToolResult?: unknown;
 	onAgentEnd?: unknown;
@@ -126,7 +125,6 @@ const ALLOWED_HOOK_STAGES = new Set<AgentExtensionHookStage>([
 	"iteration_start",
 	"turn_start",
 	"before_agent_start",
-	"context_limit_reached",
 	"tool_call_before",
 	"tool_call_after",
 	"turn_end",
@@ -148,7 +146,6 @@ const STAGE_TO_HANDLER: Record<
 		| "onIterationStart"
 		| "onTurnStart"
 		| "onBeforeAgentStart"
-		| "onContextLimitReached"
 		| "onToolCall"
 		| "onToolResult"
 		| "onAgentEnd"
@@ -166,7 +163,6 @@ const STAGE_TO_HANDLER: Record<
 	iteration_start: "onIterationStart",
 	turn_start: "onTurnStart",
 	before_agent_start: "onBeforeAgentStart",
-	context_limit_reached: "onContextLimitReached",
 	tool_call_before: "onToolCall",
 	tool_call_after: "onToolResult",
 	turn_end: "onAgentEnd",
@@ -195,7 +191,6 @@ function hasHookHandlers(
 		typeof extension.onIterationStart === "function" ||
 		typeof extension.onTurnStart === "function" ||
 		typeof extension.onBeforeAgentStart === "function" ||
-		typeof extension.onContextLimitReached === "function" ||
 		typeof extension.onToolCall === "function" ||
 		typeof extension.onToolResult === "function" ||
 		typeof extension.onAgentEnd === "function" ||

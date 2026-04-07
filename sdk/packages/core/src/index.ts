@@ -162,9 +162,22 @@ export {
 	ChatViewStateSchema,
 } from "./chat/chat-schema";
 export type {
+	LoadAgentPluginFromPathOptions,
+	ResolveAgentPluginPathsOptions,
+} from "./extensions";
+export {
+	discoverPluginModulePaths,
+	loadAgentPluginFromPath,
+	loadAgentPluginsFromPaths,
+	resolveAgentPluginPaths,
+	resolveAndLoadAgentPlugins,
+	resolvePluginConfigSearchPaths,
+} from "./extensions";
+export type {
 	AgentConfigWatcher,
 	AgentConfigWatcherEvent,
 	AgentYamlConfig,
+	AvailableRuntimeCommand,
 	BuildAgentConfigOverridesOptions,
 	CreateAgentConfigWatcherOptions,
 	CreateInstructionWatcherOptions,
@@ -173,10 +186,8 @@ export type {
 	CreateUserInstructionConfigWatcherOptions,
 	CreateWorkflowsConfigDefinitionOptions,
 	HookConfigFileEntry,
-	LoadAgentPluginFromPathOptions,
 	ParseMarkdownFrontmatterResult,
 	ParseYamlFrontmatterResult,
-	ResolveAgentPluginPathsOptions,
 	RuleConfig,
 	SkillConfig,
 	UnifiedConfigDefinition,
@@ -190,7 +201,7 @@ export type {
 	UserInstructionConfigWatcher,
 	UserInstructionConfigWatcherEvent,
 	WorkflowConfig,
-} from "./extensions";
+} from "./extensions/config";
 export {
 	createAgentConfigDefinition,
 	createAgentConfigWatcher,
@@ -198,28 +209,24 @@ export {
 	createSkillsConfigDefinition,
 	createUserInstructionConfigWatcher,
 	createWorkflowsConfigDefinition,
-	discoverPluginModulePaths,
 	HOOK_CONFIG_FILE_EVENT_MAP,
 	HOOKS_CONFIG_DIRECTORY_NAME,
 	HookConfigFileName,
+	listAvailableRuntimeCommandsFromWatcher,
 	listHookConfigFiles,
-	loadAgentPluginFromPath,
-	loadAgentPluginsFromPaths,
 	parseAgentConfigFromYaml,
 	parsePartialAgentConfigFromYaml,
 	parseRuleConfigFromMarkdown,
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveAgentPluginPaths,
 	resolveAgentTools,
-	resolveAndLoadAgentPlugins,
 	resolveDocumentsHooksDirectoryPath,
 	resolveDocumentsRulesDirectoryPath,
 	resolveDocumentsWorkflowsDirectoryPath,
 	resolveHooksConfigSearchPaths,
-	resolvePluginConfigSearchPaths,
 	resolveRulesConfigSearchPaths,
+	resolveRuntimeSlashCommandFromWatcher,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	SKILLS_CONFIG_DIRECTORY_NAME,
@@ -227,38 +234,7 @@ export {
 	toPartialAgentConfig,
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
-} from "./extensions";
-export {
-	createPersistentSubprocessHooks,
-	createSubprocessHooks,
-	type HookEventName,
-	HookEventNameSchema,
-	type HookEventPayload,
-	HookEventPayloadSchema,
-	PersistentHookClient,
-	type PersistentHookClientOptions,
-	type PersistentSubprocessHookControl,
-	type PersistentSubprocessHooksOptions,
-	parseHookEventPayload,
-	type RunHookOptions,
-	type RunHookResult,
-	type RunSubprocessEventOptions,
-	type RunSubprocessEventResult,
-	runHook,
-	runSubprocessEvent,
-	type SubprocessHookControl,
-	type SubprocessHooksOptions,
-} from "./hooks";
-export type {
-	FastFileIndexOptions,
-	MentionEnricherOptions,
-	MentionEnrichmentResult,
-} from "./input";
-export {
-	enrichPromptWithMentions,
-	getFileIndex,
-	prewarmFileIndex,
-} from "./input";
+} from "./extensions/config";
 export {
 	type CreateDisabledMcpToolPoliciesOptions,
 	type CreateDisabledMcpToolPolicyOptions,
@@ -291,7 +267,38 @@ export {
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
-} from "./mcp";
+} from "./extensions/mcp";
+export {
+	createPersistentSubprocessHooks,
+	createSubprocessHooks,
+	type HookEventName,
+	HookEventNameSchema,
+	type HookEventPayload,
+	HookEventPayloadSchema,
+	PersistentHookClient,
+	type PersistentHookClientOptions,
+	type PersistentSubprocessHookControl,
+	type PersistentSubprocessHooksOptions,
+	parseHookEventPayload,
+	type RunHookOptions,
+	type RunHookResult,
+	type RunSubprocessEventOptions,
+	type RunSubprocessEventResult,
+	runHook,
+	runSubprocessEvent,
+	type SubprocessHookControl,
+	type SubprocessHooksOptions,
+} from "./hooks";
+export type {
+	FastFileIndexOptions,
+	MentionEnricherOptions,
+	MentionEnrichmentResult,
+} from "./input";
+export {
+	enrichPromptWithMentions,
+	getFileIndex,
+	prewarmFileIndex,
+} from "./input";
 export { getClineDefaultSystemPrompt } from "./prompt/default-system";
 export {
 	addLocalProvider,
@@ -312,11 +319,6 @@ export type {
 	CheckpointEntry,
 	CheckpointMetadata,
 } from "./runtime/checkpoint-hooks";
-export type { AvailableRuntimeCommand } from "./runtime/commands";
-export {
-	listAvailableRuntimeCommandsFromWatcher,
-	resolveRuntimeSlashCommandFromWatcher,
-} from "./runtime/commands";
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
@@ -327,31 +329,21 @@ export {
 	createTeamName,
 	DefaultRuntimeBuilder,
 } from "./runtime/runtime-builder";
-export {
-	type SandboxCallOptions,
-	SubprocessSandbox,
-	type SubprocessSandboxOptions,
-} from "./runtime/sandbox/subprocess-sandbox";
 export type {
 	BuiltRuntime,
 	RuntimeBuilder,
 	RuntimeBuilderInput,
 	SessionRuntime,
 } from "./runtime/session-runtime";
-export type { AvailableSkill } from "./runtime/skills";
 export {
-	listAvailableSkillsFromWatcher,
-	resolveSkillsSlashCommandFromWatcher,
-} from "./runtime/skills";
+	type SandboxCallOptions,
+	SubprocessSandbox,
+	type SubprocessSandboxOptions,
+} from "./runtime/subprocess-sandbox";
 export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tool-approval";
-export type { AvailableWorkflow } from "./runtime/workflows";
-export {
-	listAvailableWorkflowsFromWatcher,
-	resolveWorkflowSlashCommandFromWatcher,
-} from "./runtime/workflows";
 export { DefaultSessionManager } from "./session/default-session-manager";
 export {
 	clearRpcDiscoveryIfAddressMatches,
@@ -523,7 +515,7 @@ export { CORE_BUILD_VERSION } from "./version";
 export async function loadOpenTelemetryAdapter() {
 	return import("./telemetry/index.js");
 }
-export { createDefaultAgentCompaction } from "./compaction/default-compaction";
+export { createContextCompactionPrepareTurn } from "./extensions/context/compaction";
 export {
 	TelemetryService,
 	type TelemetryServiceOptions,
@@ -553,6 +545,11 @@ export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
 	CoreAgentMode,
+	CoreCompactionConfig,
+	CoreCompactionContext,
+	CoreCompactionResult,
+	CoreCompactionStrategy,
+	CoreCompactionSummarizerConfig,
 	CoreModelConfig,
 	CoreRuntimeFeatures,
 	CoreSessionConfig,

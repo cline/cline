@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentConfig, Tool } from "@clinebot/agents";
 import type { HookStage } from "@clinebot/shared";
-import { SubprocessSandbox } from "../runtime/sandbox/subprocess-sandbox";
+import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
 
 export interface PluginSandboxOptions {
 	pluginPaths: string[];
@@ -99,11 +99,6 @@ const HOOK_BINDINGS: Array<{
 		stage: "before_agent_start",
 		extensionKey: "onBeforeAgentStart",
 		sandboxHookName: "onBeforeAgentStart",
-	},
-	{
-		stage: "context_limit_reached",
-		extensionKey: "onContextLimitReached",
-		sandboxHookName: "onContextLimitReached",
 	},
 	{
 		stage: "tool_call_before",

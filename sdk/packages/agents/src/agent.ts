@@ -34,7 +34,6 @@ import { ToolOrchestrator } from "./runtime/tool-orchestrator";
 import { TurnProcessor } from "./runtime/turn-processor";
 import { createToolRegistry, validateTools } from "./tools/index";
 import type {
-	AgentCompactionConfig,
 	AgentConfig,
 	AgentEvent,
 	AgentExecutionConfig,
@@ -46,7 +45,6 @@ import type {
 	BasicLogger,
 	LoopDetectionConfig,
 	PendingToolCall,
-	ProcessedTurn,
 	Tool,
 	ToolApprovalResult,
 	ToolCallRecord,
@@ -65,24 +63,17 @@ import {
 const DEFAULT_REMINDER_TEXT =
 	"REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools.";
 
-type AgentRuntimeConfig = AgentConfig & {
-	compaction?: AgentCompactionConfig;
-};
-
 export class Agent {
-	private config: Required<
-		Pick<
-			AgentConfig,
-			| "providerId"
-			| "modelId"
-			| "systemPrompt"
-			| "tools"
-			| "maxParallelToolCalls"
-			| "apiTimeoutMs"
-			| "hookErrorMode"
-		>
+	private config: Omit<
+		AgentConfig,
+		"maxParallelToolCalls" | "apiTimeoutMs" | "hookErrorMode"
 	> &
-		AgentRuntimeConfig;
+		Required<
+			Pick<
+				AgentConfig,
+				"maxParallelToolCalls" | "apiTimeoutMs" | "hookErrorMode"
+			>
+		>;
 	private readonly executionConfig: Required<
 		Pick<
 			AgentExecutionConfig,
@@ -111,10 +102,9 @@ export class Agent {
 	private readonly toolOrchestrator: ToolOrchestrator;
 	private readonly agentId: string;
 	private readonly parentAgentId: string | null;
-	private lastCompactionTriggerTokens = 0;
 
 	constructor(config: AgentConfig) {
-		const runtimeConfig = config as AgentRuntimeConfig;
+		const runtimeConfig = config;
 		this.config = {
 			...runtimeConfig,
 			maxIterations: runtimeConfig.maxIterations,
@@ -399,7 +389,6 @@ export class Agent {
 			);
 		}
 		this.runState = "running";
-		this.lastCompactionTriggerTokens = 0;
 		const startedAt = new Date();
 		const runId = `run_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
 		this.activeRunId = runId;
@@ -587,6 +576,11 @@ export class Agent {
 					finishReason = "aborted";
 					break;
 				}
+				if (beforeAgentStartControl?.replaceMessages) {
+					this.conversationStore.replaceMessages(
+						beforeAgentStartControl.replaceMessages,
+					);
+				}
 				if (
 					beforeAgentStartControl?.appendMessages &&
 					beforeAgentStartControl.appendMessages.length > 0
@@ -595,6 +589,28 @@ export class Agent {
 						beforeAgentStartControl.appendMessages,
 					);
 				}
+				const model = this.handler.getModel();
+				const preparedTurn = await this.config.prepareTurn?.({
+					agentId: this.agentId,
+					conversationId: this.conversationStore.getConversationId(),
+					parentAgentId: this.parentAgentId,
+					iteration,
+					messages: this.conversationStore.getMessages(),
+					systemPrompt: turnSystemPrompt,
+					tools: this.config.tools,
+					model: {
+						id: model.id,
+						provider: this.config.providerId,
+						info: model.info,
+					},
+				});
+				if (preparedTurn?.messages) {
+					this.conversationStore.replaceMessages(preparedTurn.messages);
+				}
+				const preparedSystemPrompt =
+					typeof preparedTurn?.systemPrompt === "string"
+						? preparedTurn.systemPrompt
+						: turnSystemPrompt;
 
 				let turn: Awaited<ReturnType<TurnProcessor["processTurn"]>>["turn"];
 				let assistantMessage:
@@ -618,7 +634,7 @@ export class Agent {
 				try {
 					({ turn, assistantMessage } = await this.turnProcessor.processTurn(
 						this.conversationStore.getMessages(),
-						turnSystemPrompt,
+						preparedSystemPrompt,
 						this.config.tools,
 						turnAbortSignal,
 					));
@@ -735,7 +751,6 @@ export class Agent {
 					this.conversationStore.appendMessage(
 						buildInvalidToolResultMessage(turn.invalidToolCalls),
 					);
-					await this.maybeCompactHistory(iteration, turn, totalUsage);
 					this.appendRecoveryNotice(feedback, "invalid_tool_call");
 					const mistakeOutcome = await recordMistake(
 						{
@@ -759,7 +774,6 @@ export class Agent {
 
 				if (turn.toolCalls.length === 0) {
 					consecutiveMistakes = 0;
-					await this.maybeCompactHistory(iteration, turn, totalUsage);
 					// Check completion guard before allowing the loop to end.
 					// If the guard returns a nudge string, inject it and continue.
 					const guardNudge = this.config.completionGuard?.();
@@ -824,7 +838,6 @@ export class Agent {
 						text: this.executionConfig.reminderText,
 					}),
 				);
-				await this.maybeCompactHistory(iteration, turn, totalUsage);
 				// --- Loop detection ---
 				let loopEscalation = false;
 				let stopForLoopDetection = false;
@@ -1023,107 +1036,6 @@ export class Agent {
 		});
 		await this.lifecycle.shutdown();
 		return result;
-	}
-
-	private async maybeCompactHistory(
-		iteration: number,
-		turn: ProcessedTurn,
-		totalUsage: AgentUsage,
-	): Promise<void> {
-		const compaction = this.config.compaction ?? {};
-		if (compaction.enabled === false) {
-			return;
-		}
-
-		const model = this.handler.getModel();
-		const contextWindowTokens =
-			compaction.contextWindowTokens ?? model.info.contextWindow;
-		if (
-			typeof contextWindowTokens !== "number" ||
-			!Number.isFinite(contextWindowTokens) ||
-			contextWindowTokens <= 0
-		) {
-			return;
-		}
-
-		const totalTokens = turn.usage.inputTokens + turn.usage.outputTokens;
-		let thresholdRatio: number;
-		let triggerTokens: number;
-		let utilizationValue: number;
-		if (typeof compaction.reserveTokens === "number") {
-			const reserveTokens = Math.max(0, compaction.reserveTokens);
-			triggerTokens = Math.max(0, contextWindowTokens - reserveTokens);
-			thresholdRatio =
-				contextWindowTokens > 0 ? triggerTokens / contextWindowTokens : 0;
-			utilizationValue = turn.usage.inputTokens;
-		} else {
-			thresholdRatio = compaction.thresholdRatio ?? 0.8;
-			if (
-				!Number.isFinite(thresholdRatio) ||
-				thresholdRatio <= 0 ||
-				thresholdRatio > 1
-			) {
-				return;
-			}
-			triggerTokens = contextWindowTokens * thresholdRatio;
-			utilizationValue = totalTokens;
-		}
-		if (
-			utilizationValue < triggerTokens ||
-			utilizationValue <= this.lastCompactionTriggerTokens
-		) {
-			return;
-		}
-
-		this.lastCompactionTriggerTokens = utilizationValue;
-		const context = {
-			agentId: this.agentId,
-			conversationId: this.conversationStore.getConversationId(),
-			parentAgentId: this.parentAgentId,
-			iteration,
-			messages: this.conversationStore.getMessages(),
-			model: {
-				id: model.id,
-				provider: this.config.providerId,
-				info: model.info,
-			},
-			usage: {
-				inputTokens: turn.usage.inputTokens,
-				outputTokens: turn.usage.outputTokens,
-				totalTokens,
-				cacheReadTokens: turn.usage.cacheReadTokens,
-				cacheWriteTokens: turn.usage.cacheWriteTokens,
-				cost: turn.usage.cost,
-			},
-			totalUsage: { ...totalUsage },
-			contextWindowTokens,
-			triggerTokens,
-			thresholdRatio,
-			utilizationRatio: utilizationValue / contextWindowTokens,
-		};
-		try {
-			const hookControl = await this.lifecycle.dispatch(
-				"hook.context_limit_reached",
-				{
-					stage: "context_limit_reached",
-					iteration,
-					payload: context,
-				},
-			);
-			if (hookControl?.cancel) {
-				return;
-			}
-			if (hookControl?.replaceMessages) {
-				this.conversationStore.replaceMessages(hookControl.replaceMessages);
-				return;
-			}
-			const result = await compaction.compact?.(context);
-			if (result?.messages) {
-				this.conversationStore.replaceMessages(result.messages);
-			}
-		} catch (error) {
-			this.reportRecoverableError(error);
-		}
 	}
 
 	private async ensureExtensionsInitialized(): Promise<void> {

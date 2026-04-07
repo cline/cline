@@ -98,7 +98,7 @@ Rules:
 ### Local Flow
 
 1. A host app builds a runtime through `@clinebot/core`.
-2. `@clinebot/core` composes config, tools, watchers, hooks, and telemetry.
+2. `@clinebot/core` composes config, tools, watchers, hooks, telemetry, and the core-owned context pipeline.
 3. `@clinebot/core` creates an `Agent` from `@clinebot/agents`.
 4. `@clinebot/agents` uses `@clinebot/llms` handlers for model execution.
 5. `@clinebot/core` persists session state and artifacts.
@@ -205,10 +205,21 @@ If you add a new internal package, keep it out of root publish/version/build swe
 Before adding a new subsystem, look for an existing seam:
 
 - watcher/config loader
+- `packages/core/src/extensions/config` for config-facing parsing, watching, and watcher projection
+- `packages/core/src/extensions/plugin` for runtime plugin loading/sandboxing
+- `packages/core/src/extensions/context` for core-owned message/context pipeline behavior
 - runtime builder input
 - extension/hook system
 - storage adapter/service split
 - provider manifest/config resolution
+
+### Refactor Standard
+
+When refactoring within this repo:
+
+- prefer direct architectural cleanup over compatibility shims
+- move code to the layer that actually owns the concern and update all call sites
+- if a helper is just projecting watcher state, keep it with the config layer instead of creating thin runtime wrappers
 
 ### Be Careful With Root Automation
 

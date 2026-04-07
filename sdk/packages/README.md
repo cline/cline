@@ -15,6 +15,7 @@ This directory is the single documentation source for package-level responsibili
 | `@clinebot/agents` | Stateless agent runtime loop (tools, hooks, extensions, teams, streaming) | `@clinebot/core`, apps | `@clinebot/llms`, `@clinebot/shared` |
 | `@clinebot/rpc` | gRPC session/task/event/tool-approval/schedule gateway (server + client) | `@clinebot/core`, apps | `@clinebot/scheduler`, `@clinebot/shared` |
 | `@clinebot/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, shared persistence service with local+RPC adapters) | CLI/Desktop apps | `@clinebot/agents`, `@clinebot/llms`, `@clinebot/rpc`, `@clinebot/shared` |
+| `@clinebot/enterprise` | Enterprise composition layer (identity resolution, remote control plane sync, policy materialization, telemetry configuration) | Apps with enterprise/org management | `@clinebot/agents`, `@clinebot/shared` |
 
 ## How Packages Work Together
 
@@ -24,6 +25,7 @@ This directory is the single documentation source for package-level responsibili
 4. `@clinebot/scheduler` orchestrates cron-driven runtime execution with bounded concurrency and timeout limits.
 5. `@clinebot/rpc` exposes cross-process/session orchestration APIs when runtime and control-plane need decoupling.
 6. `@clinebot/shared` provides the shared contracts and path/session primitives used across the stack.
+7. `@clinebot/enterprise` sits on top of `@clinebot/core` and `@clinebot/agents` to sync identity, fetch remote config bundles, materialize managed instructions to disk, and register the result as an `AgentExtension`.
 
 ## Practical Boundary Rules
 
@@ -33,6 +35,7 @@ This directory is the single documentation source for package-level responsibili
 - Put scheduled execution and schedule persistence in `@clinebot/scheduler`.
 - Put network session routing and approval/event transport in `@clinebot/rpc`.
 - Put cross-package utility types and path/session constants in `@clinebot/shared`.
+- Put identity resolution, control plane sync, policy materialization, and enterprise telemetry in `@clinebot/enterprise`.
 
 ## Runtime Entry Points
 

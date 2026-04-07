@@ -1,85 +1,12 @@
-export type {
-	AgentConfigWatcher,
-	AgentConfigWatcherEvent,
-	AgentYamlConfig,
-	BuildAgentConfigOverridesOptions,
-	CreateAgentConfigWatcherOptions,
-	ParseYamlFrontmatterResult,
-	PartialAgentConfigOverrides,
-} from "./agent-config-loader";
-export {
-	AGENT_CONFIG_DIRECTORY_NAME,
-	createAgentConfigDefinition,
-	createAgentConfigWatcher,
-	parseAgentConfigFromYaml,
-	parsePartialAgentConfigFromYaml,
-	readAgentConfigsFromDisk,
-	resolveAgentConfigSearchPaths,
-	resolveAgentsConfigDirPath,
-	resolveAgentTools,
-	resolveDocumentsAgentConfigDirectoryPath,
-	toPartialAgentConfig,
-} from "./agent-config-loader";
-export {
-	HOOK_CONFIG_FILE_EVENT_MAP,
-	HOOKS_CONFIG_DIRECTORY_NAME,
-	type HookConfigFileEntry,
-	HookConfigFileName,
-	listHookConfigFiles,
-	resolveDocumentsHooksDirectoryPath,
-	resolveHooksConfigSearchPaths,
-	toHookConfigFileName,
-} from "./hooks-config-loader";
-export type { ResolveAgentPluginPathsOptions } from "./plugin-config-loader";
+export type { ResolveAgentPluginPathsOptions } from "./plugin/plugin-config-loader";
 export {
 	discoverPluginModulePaths,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
-} from "./plugin-config-loader";
-export type { LoadAgentPluginFromPathOptions } from "./plugin-loader";
+} from "./plugin/plugin-config-loader";
+export type { LoadAgentPluginFromPathOptions } from "./plugin/plugin-loader";
 export {
 	loadAgentPluginFromPath,
 	loadAgentPluginsFromPaths,
-} from "./plugin-loader";
-export type {
-	UnifiedConfigDefinition,
-	UnifiedConfigFileCandidate,
-	UnifiedConfigFileContext,
-	UnifiedConfigRecord,
-	UnifiedConfigWatcherEvent,
-	UnifiedConfigWatcherOptions,
-} from "./unified-config-file-watcher";
-export { UnifiedConfigFileWatcher } from "./unified-config-file-watcher";
-export type {
-	CreateInstructionWatcherOptions,
-	CreateRulesConfigDefinitionOptions,
-	CreateSkillsConfigDefinitionOptions,
-	CreateUserInstructionConfigWatcherOptions,
-	CreateWorkflowsConfigDefinitionOptions,
-	ParseMarkdownFrontmatterResult,
-	RuleConfig,
-	SkillConfig,
-	UserInstructionConfig,
-	UserInstructionConfigType,
-	UserInstructionConfigWatcher,
-	UserInstructionConfigWatcherEvent,
-	WorkflowConfig,
-} from "./user-instruction-config-loader";
-export {
-	createRulesConfigDefinition,
-	createSkillsConfigDefinition,
-	createUserInstructionConfigWatcher,
-	createWorkflowsConfigDefinition,
-	parseRuleConfigFromMarkdown,
-	parseSkillConfigFromMarkdown,
-	parseWorkflowConfigFromMarkdown,
-	RULES_CONFIG_DIRECTORY_NAME,
-	resolveDocumentsRulesDirectoryPath,
-	resolveDocumentsWorkflowsDirectoryPath,
-	resolveRulesConfigSearchPaths,
-	resolveSkillsConfigSearchPaths,
-	resolveWorkflowsConfigSearchPaths,
-	SKILLS_CONFIG_DIRECTORY_NAME,
-	WORKFLOWS_CONFIG_DIRECTORY_NAME,
-} from "./user-instruction-config-loader";
+} from "./plugin/plugin-loader";

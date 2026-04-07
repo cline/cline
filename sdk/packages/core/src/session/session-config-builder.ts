@@ -1,5 +1,5 @@
 import type { ITelemetryService } from "@clinebot/shared";
-import { resolveAndLoadAgentPlugins } from "../extensions/plugin-config-loader";
+import { resolveAndLoadAgentPlugins } from "../extensions/plugin/plugin-config-loader";
 import {
 	createHookAuditHooks,
 	createHookConfigFileHooks,

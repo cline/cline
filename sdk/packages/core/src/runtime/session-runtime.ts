@@ -1,6 +1,6 @@
 import type { AgentConfig, AgentHooks, AgentResult } from "@clinebot/agents";
 import type { BasicLogger, ITelemetryService, Tool } from "@clinebot/shared";
-import type { UserInstructionConfigWatcher } from "../extensions";
+import type { UserInstructionConfigWatcher } from "../extensions/config";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,

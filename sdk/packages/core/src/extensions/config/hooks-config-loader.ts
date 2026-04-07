@@ -5,7 +5,7 @@ import {
 	resolveDocumentsHooksDirectoryPath,
 	resolveHooksConfigSearchPaths as resolveHooksConfigSearchPathsFromShared,
 } from "@clinebot/shared/storage";
-import type { HookEventName } from "../hooks";
+import type { HookEventName } from "../../hooks";
 
 export { HOOKS_CONFIG_DIRECTORY_NAME, resolveDocumentsHooksDirectoryPath };
 

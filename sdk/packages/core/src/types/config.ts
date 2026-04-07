@@ -1,10 +1,10 @@
 import type {
-	AgentCompactionConfig,
 	AgentConfig,
 	AgentHooks,
 	ConsecutiveMistakeLimitContext,
 	ConsecutiveMistakeLimitDecision,
 	HookErrorMode,
+	MessageWithMetadata,
 } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
 import type {
@@ -46,6 +46,56 @@ export interface CoreRuntimeFeatures {
 	enableAgentTeams: boolean;
 }
 
+export interface CoreCompactionContext {
+	agentId: string;
+	conversationId: string;
+	parentAgentId: string | null;
+	iteration: number;
+	messages: MessageWithMetadata[];
+	model: {
+		id: string;
+		provider: string;
+		info?: LlmsProviders.ModelInfo;
+	};
+	contextWindowTokens: number;
+	triggerTokens: number;
+	thresholdRatio: number;
+	utilizationRatio: number;
+}
+
+export interface CoreCompactionResult {
+	messages: MessageWithMetadata[];
+}
+
+export interface CoreCompactionSummarizerConfig {
+	providerId: string;
+	modelId: string;
+	apiKey?: string;
+	baseUrl?: string;
+	headers?: Record<string, string>;
+	knownModels?: Record<string, LlmsProviders.ModelInfo>;
+	providerConfig?: LlmsProviders.ProviderConfig;
+	maxOutputTokens?: number;
+}
+
+export type CoreCompactionStrategy = "basic" | "agentic";
+
+export interface CoreCompactionConfig {
+	enabled?: boolean;
+	strategy?: CoreCompactionStrategy;
+	thresholdRatio?: number;
+	reserveTokens?: number;
+	preserveRecentTokens?: number;
+	contextWindowTokens?: number;
+	summarizer?: CoreCompactionSummarizerConfig;
+	compact?: (
+		context: CoreCompactionContext,
+	) =>
+		| Promise<CoreCompactionResult | undefined>
+		| CoreCompactionResult
+		| undefined;
+}
+
 export interface CoreSessionConfig
 	extends CoreModelConfig,
 		CoreRuntimeFeatures,
@@ -74,7 +124,7 @@ export interface CoreSessionConfig
 	pluginPaths?: string[];
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
-	compaction?: AgentCompactionConfig;
+	compaction?: CoreCompactionConfig;
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

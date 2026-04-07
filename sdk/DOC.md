@@ -73,23 +73,15 @@ Behavior notes:
 Use extensions for additive runtime surface.
 Use hooks for lifecycle interception and policy.
 
-### Context Limit Handling
+### Turn Preparation
 
-The agent runtime includes a context-limit lifecycle stage:
-
-- `context_limit_reached`
+The agent runtime exposes a turn-preparation seam before each model call.
 
 Behavior:
 
-- the agent measures turn usage against the active context window
-- when the threshold is crossed, it dispatches `context_limit_reached`
-- hook or extension handlers may return `replaceMessages` to rewrite history before the next model turn
-- if no handler replaces history, higher-level runtimes may supply a fallback compaction policy
-
-Important API note:
-
-- custom compaction is exposed through hooks/extensions, not through a public `AgentConfig.compaction` field
-- `onContextLimitReached(ctx)` is the supported plugin surface for custom compaction logic
+- `before_agent_start` hooks/extensions still run before the provider request
+- hosts may also supply `prepareTurn` to rewrite message history or the system prompt before the turn is sent
+- this is the primary seam for host-owned context pipelines such as compaction
 
 ## `@clinebot/scheduler`
 
@@ -134,6 +126,7 @@ Important exported areas:
 - session host/session manager types
 - runtime builder
 - config watchers/loaders
+- config-side watcher projection helpers
 - default tools and tool routing
 - provider settings management
 - telemetry factories
@@ -149,6 +142,12 @@ Core composes the runtime from:
 - default context compaction policy
 - user instruction watcher
 - telemetry
+
+Core’s internal extension layer is split by concern:
+
+- `extensions/config`: watchers, parsers, config loaders, and slash-command projection helpers
+- `extensions/plugin`: plugin loading and sandbox runtime
+- `extensions/context`: context pipeline behavior such as compaction
 
 ### Session Behavior
 
@@ -168,18 +167,27 @@ Core provides a built-in default compaction policy for root sessions.
 
 Behavior:
 
-- core injects a default compaction policy when constructing the root agent
-- the default policy supports two built-in strategies:
+- core owns context compaction through its turn-preparation pipeline
+- the default core pipeline supports two built-in strategies:
   - `agentic`: summarize older history with a model and roll summaries forward
   - `basic`: compact locally without calling a model
-- extensions still run first through `onContextLimitReached`
-- plugin-provided history replacement takes precedence over the core fallback
+- built-in strategy dispatch is registry-based, so adding a new strategy is a file plus one registry entry
+- compaction runs before the model request, not as an agent lifecycle hook after usage is recorded
 
 Integration rule:
 
-- if a host or plugin needs custom compaction behavior, prefer an extension hook
+- if a host needs custom compaction behavior, prefer a core-owned prepare-turn pipeline
 - do not rely on a public `AgentConfig.compaction` field
-- delegated and spawned agents inherit extension-based compaction behavior through their `extensions`
+
+### Watcher Projections
+
+Core exposes watcher-derived runtime helpers from the config layer rather than from `runtime/` wrappers.
+
+Behavior:
+
+- slash-command expansion for skills and workflows is provided by the generic runtime-command projection in `extensions/config`
+- there are no separate `runtime/skills.ts` or `runtime/workflows.ts` wrapper layers
+- rules formatting remains a runtime concern because it feeds prompt assembly
 
 ### Session Bootstrap
 

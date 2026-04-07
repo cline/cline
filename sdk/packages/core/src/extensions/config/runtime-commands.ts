@@ -2,7 +2,7 @@ import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
 	WorkflowConfig,
-} from "../extensions";
+} from "./user-instruction-config-loader";
 
 export type RuntimeCommandKind = "skill" | "workflow";
 
@@ -73,11 +73,4 @@ export function resolveRuntimeSlashCommandFromWatcher(
 		(command) => command.name === name,
 	);
 	return matched ? `${matched.instructions}${remainder}` : input;
-}
-
-export function listAvailableRuntimeCommandsForKindFromWatcher(
-	watcher: UserInstructionConfigWatcher,
-	kind: RuntimeCommandKind,
-): AvailableRuntimeCommand[] {
-	return listCommandsForKind(watcher, kind);
 }

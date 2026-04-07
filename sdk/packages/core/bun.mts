@@ -26,7 +26,7 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	// SubprocessSandbox and must be emitted as a standalone file with no
 	// external dependencies.
 	{
-		entrypoints: ["./src/extensions/plugin-sandbox-bootstrap.ts"],
+		entrypoints: ["./src/extensions/plugin/plugin-sandbox-bootstrap.ts"],
 		outdir: "./dist/extensions",
 		target: "node",
 		format: "esm",

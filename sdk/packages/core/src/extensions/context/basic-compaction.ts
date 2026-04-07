@@ -1,9 +1,9 @@
-import type {
-	AgentCompactionContext,
-	AgentCompactionResult,
-} from "@clinebot/agents";
-import type * as LlmsProviders from "@clinebot/llms";
+import type { MessageWithMetadata } from "@clinebot/agents";
 import type { BasicLogger } from "@clinebot/shared";
+import type {
+	CoreCompactionContext,
+	CoreCompactionResult,
+} from "../../types/config";
 import {
 	type EstimateMessageTokens,
 	findFirstUserMessageIndex,
@@ -12,11 +12,11 @@ import {
 	isCompactionSummaryMessage,
 	MIN_TRUNCATED_MESSAGE_TOKENS,
 	truncateText,
-} from "./shared";
+} from "./compaction-shared";
 
 interface BasicCompactionCandidate {
 	index: number;
-	message: LlmsProviders.MessageWithMetadata;
+	message: MessageWithMetadata;
 	estimatedTokens: number;
 	isFirstUser: boolean;
 	isLastUser: boolean;
@@ -24,8 +24,8 @@ interface BasicCompactionCandidate {
 }
 
 function sanitizeMessageForBasic(
-	message: LlmsProviders.MessageWithMetadata,
-): LlmsProviders.MessageWithMetadata | undefined {
+	message: MessageWithMetadata,
+): MessageWithMetadata | undefined {
 	if (isCompactionSummaryMessage(message)) {
 		return undefined;
 	}
@@ -48,7 +48,7 @@ function sanitizeMessageForBasic(
 }
 
 function getTotalTokens(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 	estimateMessageTokens: EstimateMessageTokens,
 ): number {
 	return messages.reduce(
@@ -58,9 +58,9 @@ function getTotalTokens(
 }
 
 function truncateMessageToTokens(
-	message: LlmsProviders.MessageWithMetadata,
+	message: MessageWithMetadata,
 	maxTokens: number,
-): LlmsProviders.MessageWithMetadata {
+): MessageWithMetadata {
 	const content = typeof message.content === "string" ? message.content : "";
 	const safeMaxTokens = Math.max(1, maxTokens);
 	const targetChars = Math.max(16, safeMaxTokens * 4);
@@ -72,7 +72,7 @@ function truncateMessageToTokens(
 }
 
 function buildBasicCandidates(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 	estimateMessageTokens: EstimateMessageTokens,
 ): BasicCompactionCandidate[] {
 	const firstUserIndex = findFirstUserMessageIndex(messages);
@@ -99,7 +99,7 @@ function buildBasicCandidates(
 function updateCandidate(
 	candidates: BasicCompactionCandidate[],
 	index: number,
-	message: LlmsProviders.MessageWithMetadata,
+	message: MessageWithMetadata,
 	estimateMessageTokens: EstimateMessageTokens,
 ): void {
 	const candidate = candidates[index];
@@ -196,20 +196,23 @@ function trimCandidatesToBudget(
 }
 
 function haveMessagesChanged(
-	original: LlmsProviders.MessageWithMetadata[],
-	next: LlmsProviders.MessageWithMetadata[],
+	original: MessageWithMetadata[],
+	next: MessageWithMetadata[],
 ): boolean {
 	return JSON.stringify(original) !== JSON.stringify(next);
 }
 
 export function runBasicCompaction(options: {
-	context: AgentCompactionContext;
+	context: CoreCompactionContext;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger?: BasicLogger;
-}): AgentCompactionResult | undefined {
+}): CoreCompactionResult | undefined {
 	const targetTokens = Math.max(
 		1,
-		Math.min(options.context.triggerTokens, options.context.usage.inputTokens),
+		Math.min(
+			options.context.triggerTokens,
+			options.context.contextWindowTokens,
+		),
 	);
 	const candidates = buildBasicCandidates(
 		options.context.messages,
@@ -226,7 +229,6 @@ export function runBasicCompaction(options: {
 		targetTokens,
 		options.estimateMessageTokens,
 	);
-
 	removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
@@ -236,7 +238,6 @@ export function runBasicCompaction(options: {
 		targetTokens,
 		options.estimateMessageTokens,
 	);
-
 	removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>
@@ -244,7 +245,6 @@ export function runBasicCompaction(options: {
 		targetTokens,
 		options.estimateMessageTokens,
 	);
-
 	removeCandidatesByPredicate(
 		candidates,
 		(candidate) =>

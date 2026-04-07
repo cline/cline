@@ -108,12 +108,12 @@ describe("createSpawnAgentTool", () => {
 		);
 		expect(agentConstructorSpy).toHaveBeenCalledWith(
 			expect.not.objectContaining({
-				compaction: expect.anything(),
+				prepareTurn: expect.anything(),
 			}),
 		);
 	});
 
-	it("passes context-limit-reached extension hooks through delegated config", async () => {
+	it("passes extension hooks through delegated config", async () => {
 		const { createSpawnAgentTool } = await import("./spawn-agent-tool.js");
 		runMock.mockResolvedValue({
 			text: "sub-agent result",
@@ -124,12 +124,12 @@ describe("createSpawnAgentTool", () => {
 
 		const extensions = [
 			{
-				name: "compaction-ext",
+				name: "before-start-ext",
 				manifest: {
 					capabilities: ["hooks"],
-					hookStages: ["context_limit_reached"],
+					hookStages: ["before_agent_start"],
 				},
-				onContextLimitReached: vi.fn(),
+				onBeforeAgentStart: vi.fn(),
 			} as AgentExtension,
 		];
 

@@ -15,7 +15,7 @@ export interface StartSessionInput {
 	initialMessages?: LlmsProviders.Message[];
 	userImages?: string[];
 	userFiles?: string[];
-	userInstructionWatcher?: import("../extensions").UserInstructionConfigWatcher;
+	userInstructionWatcher?: import("../extensions/config").UserInstructionConfigWatcher;
 	onTeamRestored?: () => void;
 	defaultToolExecutors?: Partial<import("../tools").ToolExecutors>;
 	toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];

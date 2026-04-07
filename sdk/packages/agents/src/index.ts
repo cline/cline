@@ -19,17 +19,14 @@ export { Agent, createAgent } from "./agent";
 // =============================================================================
 
 export {
-	type AgentCompactionConfig,
-	type AgentCompactionContext,
-	type AgentCompactionResult,
-	type AgentCompactionStrategy,
-	type AgentCompactionSummarizerConfig,
 	type AgentConfig,
 	AgentConfigSchema,
 	type AgentEvent,
 	type AgentExtension,
 	type AgentExtensionCommand,
 	type AgentHooks,
+	type AgentPrepareTurnContext,
+	type AgentPrepareTurnResult,
 	type AgentResult,
 	AgentResultSchema,
 	type AgentUsage,

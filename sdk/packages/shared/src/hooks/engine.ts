@@ -122,15 +122,6 @@ const STAGE_DEFAULTS: Record<HookStage, HookStagePolicy> = {
 		maxConcurrency: 1,
 		queueLimit: 200,
 	},
-	context_limit_reached: {
-		mode: "blocking",
-		timeoutMs: 4000,
-		retries: 1,
-		retryDelayMs: 150,
-		failureMode: "fail_open",
-		maxConcurrency: 1,
-		queueLimit: 100,
-	},
 	tool_call_before: {
 		mode: "blocking",
 		timeoutMs: 4000,

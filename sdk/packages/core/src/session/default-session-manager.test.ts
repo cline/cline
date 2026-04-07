@@ -1602,7 +1602,7 @@ describe("DefaultSessionManager", () => {
 		);
 	});
 
-	it("injects default compaction config into the agent constructor", async () => {
+	it("injects a core-owned compaction prepareTurn callback into the agent constructor", async () => {
 		const sessionId = "sess-compaction";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
@@ -1657,10 +1657,7 @@ describe("DefaultSessionManager", () => {
 
 		expect(createAgent).toHaveBeenCalledWith(
 			expect.objectContaining({
-				compaction: expect.objectContaining({
-					strategy: "basic",
-					compact,
-				}),
+				prepareTurn: expect.any(Function),
 			}),
 		);
 	});

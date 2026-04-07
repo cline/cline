@@ -3,7 +3,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import type { AgentHooks } from "@clinebot/agents";
 import type { BasicLogger, HookSessionContext } from "@clinebot/shared";
 import { ensureParentDir } from "@clinebot/shared/storage";
-import { listHookConfigFiles } from "../extensions/hooks-config-loader";
+import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
 import type { HookEventName, HookEventPayload } from "../hooks";
 
 type HookContextBase = {
@@ -412,9 +412,10 @@ function createHookCommandMap(workspacePath: string): HookCommandMap {
 		if (!file.hookEventName) {
 			continue;
 		}
-		const existing = map[file.hookEventName] ?? [];
+		const hookEventName = file.hookEventName;
+		const existing = map[hookEventName] ?? [];
 		existing.push(inferHookCommand(file.path));
-		map[file.hookEventName] = existing;
+		map[hookEventName] = existing;
 	}
 	return map;
 }

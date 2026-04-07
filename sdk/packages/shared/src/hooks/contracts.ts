@@ -6,7 +6,6 @@ export type HookStage =
 	| "iteration_start"
 	| "turn_start"
 	| "before_agent_start"
-	| "context_limit_reached"
 	| "tool_call_before"
 	| "tool_call_after"
 	| "turn_end"

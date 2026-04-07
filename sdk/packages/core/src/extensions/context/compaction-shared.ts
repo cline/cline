@@ -1,6 +1,12 @@
-import type { AgentCompactionSummarizerConfig } from "@clinebot/agents";
+import type { MessageWithMetadata } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
+import type {
+	CoreCompactionContext,
+	CoreCompactionSummarizerConfig,
+} from "../../types/config";
 
+export const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
+export const DEFAULT_THRESHOLD_RATIO = 0.8;
 export const DEFAULT_RESERVE_TOKENS = 16_384;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
 export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
@@ -21,9 +27,7 @@ export interface CompactionSummaryMetadata {
 	generatedAt: number;
 }
 
-export type EstimateMessageTokens = (
-	message: LlmsProviders.MessageWithMetadata,
-) => number;
+export type EstimateMessageTokens = (message: MessageWithMetadata) => number;
 
 export function estimateTokens(text: string): number {
 	return Math.max(1, Math.ceil(text.length / 4));
@@ -64,9 +68,7 @@ export function formatToolInput(input: Record<string, unknown>): string {
 		.join(", ");
 }
 
-export function serializeMessage(
-	message: LlmsProviders.MessageWithMetadata,
-): string {
+export function serializeMessage(message: MessageWithMetadata): string {
 	if (typeof message.content === "string") {
 		return `[${message.role === "user" ? "User" : "Bot"}]: ${message.content}`;
 	}
@@ -107,9 +109,7 @@ export function serializeMessage(
 	return lines.join("\n");
 }
 
-export function serializeConversation(
-	messages: LlmsProviders.MessageWithMetadata[],
-): string {
+export function serializeConversation(messages: MessageWithMetadata[]): string {
 	return messages.map(serializeMessage).join("\n\n").trim();
 }
 
@@ -128,7 +128,7 @@ export function createTokenEstimator(): EstimateMessageTokens {
 }
 
 export function isCompactionSummaryMessage(
-	message: LlmsProviders.MessageWithMetadata,
+	message: MessageWithMetadata,
 ): boolean {
 	return (
 		(message.metadata as { kind?: string } | undefined)?.kind ===
@@ -137,7 +137,7 @@ export function isCompactionSummaryMessage(
 }
 
 export function getCompactionSummaryMetadata(
-	message: LlmsProviders.MessageWithMetadata,
+	message: MessageWithMetadata,
 ): CompactionSummaryMetadata | undefined {
 	if (!isCompactionSummaryMessage(message)) {
 		return undefined;
@@ -170,7 +170,7 @@ export function getCompactionSummaryMetadata(
 }
 
 export function isToolResultOnlyUserMessage(
-	message: LlmsProviders.MessageWithMetadata,
+	message: MessageWithMetadata,
 ): boolean {
 	if (message.role !== "user" || !Array.isArray(message.content)) {
 		return false;
@@ -181,9 +181,7 @@ export function isToolResultOnlyUserMessage(
 	);
 }
 
-export function isTurnStartMessage(
-	message: LlmsProviders.MessageWithMetadata,
-): boolean {
+export function isTurnStartMessage(message: MessageWithMetadata): boolean {
 	return (
 		message.role === "user" &&
 		!isToolResultOnlyUserMessage(message) &&
@@ -192,7 +190,7 @@ export function isTurnStartMessage(
 }
 
 export function findFirstUserMessageIndex(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 ): number {
 	for (let index = 0; index < messages.length; index += 1) {
 		if (isTurnStartMessage(messages[index])) {
@@ -203,7 +201,7 @@ export function findFirstUserMessageIndex(
 }
 
 export function findLastTurnStartIndex(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 ): number {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		if (isTurnStartMessage(messages[index])) {
@@ -214,7 +212,7 @@ export function findLastTurnStartIndex(
 }
 
 export function findLastAssistantIndex(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 ): number {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		if (messages[index].role === "assistant") {
@@ -225,7 +223,7 @@ export function findLastAssistantIndex(
 }
 
 export function findLatestSummaryIndex(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 ): number {
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
 		if (isCompactionSummaryMessage(messages[index])) {
@@ -236,7 +234,7 @@ export function findLatestSummaryIndex(
 }
 
 export function findCutIndex(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 	preserveRecentTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
 ): number {
@@ -309,7 +307,7 @@ export function mergeUnique(base: string[], next: Iterable<string>): string[] {
 }
 
 export function extractFileOps(
-	messages: LlmsProviders.MessageWithMetadata[],
+	messages: MessageWithMetadata[],
 ): FileOperationSummary {
 	let readFiles: string[] = [];
 	let modifiedFiles: string[] = [];
@@ -407,7 +405,7 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 
 export function resolveSummarizerConfig(options: {
 	activeProviderConfig: LlmsProviders.ProviderConfig;
-	summarizer?: AgentCompactionSummarizerConfig;
+	summarizer?: CoreCompactionSummarizerConfig;
 }): LlmsProviders.ProviderConfig {
 	const summarizer = options.summarizer;
 	if (!summarizer) {
@@ -439,7 +437,7 @@ export function buildSummaryMessage(options: {
 	summary: string;
 	fileOps: FileOperationSummary;
 	tokensBefore: number;
-}): LlmsProviders.MessageWithMetadata {
+}): MessageWithMetadata {
 	return {
 		role: "user",
 		content: `Context summary:\n\n${options.summary}`,
@@ -451,4 +449,10 @@ export function buildSummaryMessage(options: {
 			generatedAt: Date.now(),
 		} satisfies CompactionSummaryMetadata,
 	};
+}
+
+export function getContextWindowTokens(
+	context: Pick<CoreCompactionContext, "contextWindowTokens">,
+): number {
+	return context.contextWindowTokens;
 }
