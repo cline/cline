@@ -90,6 +90,68 @@ Tracking issues found during the migration from the legacy inference system to t
 **Symptom:** An `api_req_started` partial message fires with `{"tokensIn":0,"tokensOut":0,"cost":0}` before real counts arrive, causing a brief flash of "0 tokens" in the UI.  
 **Expected:** Either don't show token counts until real data arrives, or suppress the initial zero-state.
 
+### 14. 🟡 "Delete chat" button shows placeholder size
+**Where:** Task history → delete button tooltip / label  
+**Symptom:** The "Delete chat" button displays `(size: --)` instead of the actual disk size of the conversation data.  
+**Expected:** Should show the real size (e.g., `(size: 12.4 KB)`) or omit the size entirely if unavailable.
+
+### 15. 🔴 MCP tools are missing / not visible to the agent
+**Where:** Agent tool execution  
+**Symptom:** MCP tools that should be available to the agent are not discovered or listed. The agent cannot see or use any MCP-provided tools during task execution.  
+**Expected:** Connected MCP servers should expose their tools to the agent, and the agent should be able to invoke them.
+
+### 16. 🟡 Cline Rules popup still has a "Workflows" tab
+**Where:** Scales-of-justice icon → Cline Rules modal  
+**Symptom:** The "Manage Cline Rules" popup contains a "Workflows" tab. Issue #12 fixed the tooltip text, but the tab itself still exists inside the modal.  
+**Expected:** The "Workflows" tab should be removed entirely since workflows are no longer a feature.
+
+### 17. 🔴 Account pane shows "Sign up with Cline" despite being logged in
+**Where:** Account panel / pane  
+**Symptom:** Even when the user is already authenticated and logged in, the account pane still displays "Sign up with Cline" and other sign-up prompts as if the user were not authenticated.  
+**Expected:** Should show the logged-in user's account details, usage, plan info, etc.
+
+### 18. 🔴 "Sign up with Cline" button does nothing
+**Where:** Account pane → Sign up button  
+**Symptom:** Clicking the "Sign up with Cline" button produces no response — no browser opens, no auth flow starts, no feedback is given.  
+**Expected:** Should initiate the Cline account sign-up / OAuth flow.
+
+### 19. 🟡 Terminal settings still shows "Terminal Execution Mode" option
+**Where:** Settings → Terminal  
+**Symptom:** The Terminal settings section still displays a "Terminal Execution Mode" option. This is legacy — only background terminal execution should be supported now.  
+**Expected:** Remove the Terminal Execution Mode selector. Background terminals should be the only mode.
+
+### 20. 🟡 Cline provider model type-ahead search does not work
+**Where:** Settings → Model selector (Cline provider)  
+**Symptom:** When using the Cline provider, only "Recommended" and "Free" model categories are selectable. The type-ahead / search input for filtering models does not function — typing produces no results.  
+**Expected:** The model search field should filter the full model list as the user types.
+
+### 21. 🟡 Cline provider recommends possibly outdated model
+**Where:** Settings → Model selector (Cline provider)  
+**Symptom:** The Cline provider recommends `anthropic/claude-sonnet-4.5`, but this model is likely superseded by `claude-sonnet-4.6` which is already promoted elsewhere in the UI (e.g., feature carousel).  
+**Expected:** Recommended model should be updated to the latest available (e.g., `anthropic/claude-sonnet-4.6`).
+
+### 22. 🔴 "Use different models for Plan and Act" checkbox immediately unchecks
+**Where:** Settings → Model configuration  
+**Symptom:** Checking the "Use different models for Plan and Act modes" checkbox causes it to immediately uncheck itself. The setting cannot be enabled.  
+**Root cause (likely):** The state update round-trips through proto serialization or a settings update handler that resets the value.  
+**Expected:** Checkbox should stay checked and enable separate model pickers for Plan and Act modes.
+
+### 23. 🔴 MCP settings gear icon opens blank webview
+**Where:** MCP settings popup → gear icon  
+**Symptom:** Opening the MCP settings popup and clicking the gear (configuration) icon results in a completely blank webview. No settings, no content rendered.  
+**Expected:** Should display MCP server configuration options.
+
+### 24. 🔴 History tab is empty and search does nothing
+**Where:** History tab (task history list)  
+**Symptom:** The history tab shows no tasks despite tasks having been completed. The fuzzy search input accepts text but produces no results and no feedback.  
+**Expected:** Should list all completed/persisted tasks with working search/filter.
+
+### 25. 🔴 Auto-approve options immediately uncheck when toggled
+**Where:** Auto-approve options flyout  
+**Symptom:** Clicking any auto-approve option (e.g., "Edit all files", "Use the browser", and likely all others) causes the checkbox to immediately uncheck itself. The setting cannot be enabled.  
+**Root cause (likely):** Similar to issue #22 — the settings update handler or proto round-trip resets the value before it can persist.  
+**Expected:** Toggling an auto-approve option should persist the change and keep the checkbox in its new state.
+
 ---
 
 ## Observations (not bugs, just notes)

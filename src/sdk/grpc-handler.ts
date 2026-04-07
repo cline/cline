@@ -275,6 +275,120 @@ export interface GrpcHandlerDelegate {
 
 	/** Open a file picker dialog (platform-specific) */
 	selectFiles?(allowImages: boolean): Promise<{ images: string[]; files: string[] }>
+
+	// -----------------------------------------------------------------------
+	// State persistence (read/write globalState.json keys)
+	// -----------------------------------------------------------------------
+
+	/** Read a value from persistent global state */
+	readGlobalStateKey?(key: string): unknown
+
+	/** Write a value to persistent global state and push state update */
+	writeGlobalStateKey?(key: string, value: unknown): void
+
+	// -----------------------------------------------------------------------
+	// Task operations
+	// -----------------------------------------------------------------------
+
+	/** Toggle favorite flag on a task history item */
+	toggleTaskFavorite?(taskId: string, isFavorite: boolean): Promise<void>
+
+	/** Get total size of task storage in bytes */
+	getTotalTasksSize?(): Promise<number>
+
+	/** Export a task by ID (platform-specific: opens save dialog or returns data) */
+	exportTaskWithId?(taskId: string): Promise<void>
+
+	// -----------------------------------------------------------------------
+	// Platform operations (injected by host — VSCode, CLI, etc.)
+	// -----------------------------------------------------------------------
+
+	/** Open a URL in the default browser */
+	openUrl?(url: string): Promise<void>
+
+	/** Open a file in the editor */
+	openFile?(filePath: string): Promise<void>
+
+	/** Copy text to clipboard */
+	copyToClipboard?(text: string): Promise<void>
+
+	/** Open MCP settings file */
+	openMcpSettings?(): Promise<void>
+
+	// -----------------------------------------------------------------------
+	// Data queries
+	// -----------------------------------------------------------------------
+
+	/** Convert absolute/URI paths to workspace-relative paths */
+	getRelativePaths?(uris: string[]): Promise<string[]>
+
+	/** Check if a URL points to an image */
+	checkIsImageUrl?(url: string): Promise<boolean>
+
+	// -----------------------------------------------------------------------
+	// Model discovery
+	// -----------------------------------------------------------------------
+
+	/** Fetch available models from a local Ollama endpoint */
+	getOllamaModels?(endpoint: string): Promise<string[]>
+
+	/** Fetch available models from a local LM Studio endpoint */
+	getLmStudioModels?(endpoint: string): Promise<string[]>
+
+	// -----------------------------------------------------------------------
+	// MCP servers
+	// -----------------------------------------------------------------------
+
+	/** Read MCP servers from settings file and return proto-shaped objects */
+	getMcpServers?(): McpServerProto[]
+}
+
+/**
+ * Proto-shaped McpServer object.
+ * Matches the shape expected by convertProtoMcpServersToMcpServers in the webview.
+ * Status enum: 0=disconnected, 1=connected, 2=connecting
+ */
+export interface McpServerProto {
+	name: string
+	config: string
+	status: number
+	error: string
+	tools: McpToolProto[]
+	resources: McpResourceProto[]
+	resourceTemplates: McpResourceTemplateProto[]
+	prompts: McpPromptProto[]
+	disabled: boolean
+	timeout: number
+	oauthRequired?: boolean
+	oauthAuthStatus?: string
+}
+
+export interface McpToolProto {
+	name: string
+	description?: string
+	inputSchema?: string
+	autoApprove?: boolean
+}
+
+export interface McpResourceProto {
+	uri: string
+	name: string
+	mimeType?: string
+	description?: string
+}
+
+export interface McpResourceTemplateProto {
+	uriTemplate: string
+	name: string
+	mimeType?: string
+	description?: string
+}
+
+export interface McpPromptProto {
+	name: string
+	title?: string
+	description?: string
+	arguments: { name: string; description?: string; required?: boolean }[]
 }
 
 // ---------------------------------------------------------------------------
@@ -386,15 +500,85 @@ export class GrpcHandler {
 				case "getAvailableTerminalProfiles":
 					return this.handleGetAvailableTerminalProfiles()
 
-				// ---- Stubbed methods (return empty, log for debugging) ----
-			// These need real implementations. See CAVEATS.md for which
-			// bugs they cause. Search for "[grpc-handler] STUB:" in
-			// extension host console to see which are being called.
+				// ---- State persistence (globalState.json writes) ----
 				case "updateTelemetrySetting":
-				case "captureOnboardingProgress":
+					return this.handleUpdateTelemetrySetting(request)
+
 				case "setWelcomeViewCompleted":
-				case "resetState":
+					return this.handleSetWelcomeViewCompleted(request)
+
+				case "onDidShowAnnouncement":
+					return this.handleOnDidShowAnnouncement()
+
 				case "toggleFavoriteModel":
+					return this.handleToggleFavoriteModel(request)
+
+				case "dismissBanner":
+					return this.handleDismissBanner(request)
+
+				case "updateInfoBannerVersion":
+					return this.handleUpdateBannerVersion(request, "lastDismissedInfoBannerVersion")
+
+				case "updateModelBannerVersion":
+					return this.handleUpdateBannerVersion(request, "lastDismissedModelBannerVersion")
+
+				case "updateCliBannerVersion":
+					return this.handleUpdateBannerVersion(request, "lastDismissedCliBannerVersion")
+
+				case "resetState":
+					return await this.handleResetState(request)
+
+				case "toggleTaskFavorite":
+					return await this.handleToggleTaskFavorite(request)
+
+				case "captureOnboardingProgress":
+					// Telemetry event — safe no-op in SDK mode
+					return { data: {} }
+
+				// ---- Platform operations ----
+				case "openUrl":
+				case "openInBrowser":
+					return await this.handleOpenUrl(request)
+
+				case "openFile":
+				case "openFileRelativePath":
+				case "openImage":
+				case "openMention":
+					return await this.handleOpenFile(request)
+
+				case "copyToClipboard":
+					return await this.handleCopyToClipboard(request)
+
+				case "openMcpSettings":
+					return await this.handleOpenMcpSettings()
+
+				// ---- Data queries ----
+				case "getRelativePaths":
+					return await this.handleGetRelativePaths(request)
+
+				case "checkIsImageUrl":
+					return await this.handleCheckIsImageUrl(request)
+
+				case "getTotalTasksSize":
+					return await this.handleGetTotalTasksSize()
+
+				case "exportTaskWithId":
+					return await this.handleExportTaskWithId(request)
+
+				// ---- Model discovery (local servers) ----
+				case "getOllamaModels":
+					return await this.handleGetOllamaModels(request)
+
+				case "getLmStudioModels":
+					return await this.handleGetLmStudioModels(request)
+
+				// ---- MCP servers ----
+				case "getLatestMcpServers":
+					return this.handleGetLatestMcpServers()
+
+				// ---- Stubbed methods (return empty, log for debugging) ----
+				// These still need real implementations for full feature parity.
+				// Search for "[grpc-handler] STUB:" in console to find active calls.
 				case "refreshOpenRouterModelsRpc":
 				case "refreshLiteLlmModelsRpc":
 				case "refreshBasetenModelsRpc":
@@ -405,13 +589,10 @@ export class GrpcHandler {
 				case "refreshHuggingFaceModels":
 				case "refreshHicapModels":
 				case "refreshOcaModels":
-				case "getOllamaModels":
-				case "getLmStudioModels":
 				case "getVsCodeLmModels":
 				case "getSapAiCoreModels":
 				case "getAihubmixModels":
 				case "refreshOpenAiModels":
-				case "getLatestMcpServers":
 				case "subscribeToMcpServers":
 				case "subscribeToMcpButtonClicked":
 				case "subscribeToHistoryButtonClicked":
@@ -425,16 +606,8 @@ export class GrpcHandler {
 				case "subscribeToRelinquishControl":
 				case "subscribeToShowWebview":
 				case "subscribeToAddToInput":
-				case "onDidShowAnnouncement":
-				case "openFile":
-				case "openFileRelativePath":
-				case "openImage":
-				case "openMention":
-				case "openUrl":
 				case "openWalkthrough":
-				case "copyToClipboard":
 				case "searchCommits":
-				case "getRelativePaths":
 				case "ifFileExistsRelativePath":
 				case "openDiskConversationHistory":
 				case "openFocusChainFile":
@@ -456,7 +629,6 @@ export class GrpcHandler {
 				case "refreshSkills":
 				case "checkpointRestore":
 				case "checkpointDiff":
-				case "openMcpSettings":
 				case "restartMcpServer":
 				case "deleteMcpServer":
 				case "toggleToolAutoApprove":
@@ -494,13 +666,7 @@ export class GrpcHandler {
 				case "mergeWorktree":
 				case "createWorktreeInclude":
 				case "trackWorktreeViewOpened":
-				case "openInBrowser":
-				case "checkIsImageUrl":
 				case "fetchOpenGraphData":
-				case "dismissBanner":
-				case "updateInfoBannerVersion":
-				case "updateModelBannerVersion":
-				case "updateCliBannerVersion":
 				case "installClineCli":
 				case "refreshRemoteConfig":
 				case "testOtelConnection":
@@ -510,10 +676,7 @@ export class GrpcHandler {
 				case "taskFeedback":
 				case "taskCompletionViewChanges":
 				case "explainChanges":
-				case "exportTaskWithId":
-				case "getTotalTasksSize":
 				case "cancelBackgroundCommand":
-				case "toggleTaskFavorite":
 				case "getProcessInfo":
 					console.warn(`[grpc-handler] STUB: ${request.method}`, request.params ? Object.keys(request.params) : [])
 					return { data: {} }
@@ -790,5 +953,284 @@ export class GrpcHandler {
 		// platform-specific shell profiles (Default, zsh, bash, etc.)
 		const profiles = getAvailableTerminalProfiles()
 		return { data: { profiles } }
+	}
+
+	// -----------------------------------------------------------------------
+	// State persistence handlers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Persist telemetry setting to globalState.json.
+	 * Webview sends: TelemetrySettingRequest { setting: "enabled" | "disabled" | "unset" }
+	 */
+	private handleUpdateTelemetrySetting(request: GrpcRequest): GrpcResponse {
+		const setting = (request.params?.setting as string) ?? "unset"
+		this.delegate.writeGlobalStateKey?.("telemetrySetting", setting)
+		return { data: {} }
+	}
+
+	/**
+	 * Mark the welcome/onboarding view as completed.
+	 * Webview sends: BooleanRequest { value: true }
+	 */
+	private handleSetWelcomeViewCompleted(request: GrpcRequest): GrpcResponse {
+		const value = (request.params?.value as boolean) ?? true
+		this.delegate.writeGlobalStateKey?.("welcomeViewCompleted", value)
+		if (value) {
+			this.delegate.writeGlobalStateKey?.("isNewUser", false)
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Mark the current announcement as shown.
+	 * Prevents the announcement modal from re-appearing.
+	 */
+	private handleOnDidShowAnnouncement(): GrpcResponse {
+		// Set shouldShowAnnouncement to false in state
+		this.delegate.writeGlobalStateKey?.("shouldShowAnnouncement", false)
+		return { data: {} }
+	}
+
+	/**
+	 * Toggle a model ID in the favorites list.
+	 * Webview sends: StringRequest { value: "model-id" }
+	 */
+	private handleToggleFavoriteModel(request: GrpcRequest): GrpcResponse {
+		const modelId = (request.params?.value as string) ?? ""
+		if (!modelId) return { data: {} }
+
+		const currentFavorites = (this.delegate.readGlobalStateKey?.("favoritedModelIds") as string[]) ?? []
+		const idx = currentFavorites.indexOf(modelId)
+		let newFavorites: string[]
+		if (idx >= 0) {
+			// Remove from favorites
+			newFavorites = currentFavorites.filter((id) => id !== modelId)
+		} else {
+			// Add to favorites
+			newFavorites = [...currentFavorites, modelId]
+		}
+		this.delegate.writeGlobalStateKey?.("favoritedModelIds", newFavorites)
+		return { data: {} }
+	}
+
+	/**
+	 * Dismiss a banner by ID. Adds the banner ID to the dismissed set.
+	 * Webview sends: StringRequest { value: "banner-id" }
+	 */
+	private handleDismissBanner(request: GrpcRequest): GrpcResponse {
+		const bannerId = (request.params?.value as string) ?? ""
+		if (!bannerId) return { data: {} }
+
+		const dismissed = (this.delegate.readGlobalStateKey?.("dismissedBanners") as string[]) ?? []
+		if (!dismissed.includes(bannerId)) {
+			this.delegate.writeGlobalStateKey?.("dismissedBanners", [...dismissed, bannerId])
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Update a banner version (info/model/cli).
+	 * Persists the version number so the banner is not shown again.
+	 */
+	private handleUpdateBannerVersion(request: GrpcRequest, key: string): GrpcResponse {
+		const version = (request.params?.value as number) ?? 0
+		this.delegate.writeGlobalStateKey?.(key, version)
+		return { data: {} }
+	}
+
+	/**
+	 * Reset state (clear settings and optionally start fresh).
+	 * Webview sends: ResetStateRequest { global: boolean }
+	 */
+	private async handleResetState(request: GrpcRequest): Promise<GrpcResponse> {
+		// The webview sends { global: true } to reset global state
+		// For SDK mode, we clear key settings but preserve task history
+		const resetGlobal = (request.params?.global as boolean) ?? false
+		if (resetGlobal) {
+			// Clear provider-specific settings
+			this.delegate.writeGlobalStateKey?.("apiProvider", undefined)
+			this.delegate.writeGlobalStateKey?.("apiModelId", undefined)
+			this.delegate.writeGlobalStateKey?.("actModeApiProvider", undefined)
+			this.delegate.writeGlobalStateKey?.("planModeApiProvider", undefined)
+			this.delegate.writeGlobalStateKey?.("customInstructions", undefined)
+			this.delegate.writeGlobalStateKey?.("favoritedModelIds", [])
+			this.delegate.writeGlobalStateKey?.("dismissedBanners", [])
+			this.delegate.writeGlobalStateKey?.("welcomeViewCompleted", false)
+			this.delegate.writeGlobalStateKey?.("isNewUser", true)
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Toggle the favorite flag on a task history item.
+	 * Webview sends: TaskFavoriteRequest { id: "task-id", isFavorite: boolean }
+	 */
+	private async handleToggleTaskFavorite(request: GrpcRequest): Promise<GrpcResponse> {
+		const taskId = (request.params?.id as string) ?? ""
+		const isFavorite = (request.params?.isFavorite as boolean) ?? false
+		if (taskId && this.delegate.toggleTaskFavorite) {
+			await this.delegate.toggleTaskFavorite(taskId, isFavorite)
+		}
+		return { data: {} }
+	}
+
+	// -----------------------------------------------------------------------
+	// Platform operation handlers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Open a URL in the default browser.
+	 * Webview sends: StringRequest { value: "https://..." }
+	 */
+	private async handleOpenUrl(request: GrpcRequest): Promise<GrpcResponse> {
+		const url = (request.params?.value as string) ?? ""
+		if (url && this.delegate.openUrl) {
+			await this.delegate.openUrl(url)
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Open a file in the editor. Handles openFile, openFileRelativePath,
+	 * openImage, and openMention — all take StringRequest { value: path }.
+	 */
+	private async handleOpenFile(request: GrpcRequest): Promise<GrpcResponse> {
+		const filePath = (request.params?.value as string) ?? ""
+		if (filePath && this.delegate.openFile) {
+			await this.delegate.openFile(filePath)
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Copy text to the system clipboard.
+	 * Webview sends: StringRequest { value: "text to copy" }
+	 */
+	private async handleCopyToClipboard(request: GrpcRequest): Promise<GrpcResponse> {
+		const text = (request.params?.value as string) ?? ""
+		if (this.delegate.copyToClipboard) {
+			await this.delegate.copyToClipboard(text)
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Open the MCP settings file in the editor.
+	 */
+	private async handleOpenMcpSettings(): Promise<GrpcResponse> {
+		if (this.delegate.openMcpSettings) {
+			await this.delegate.openMcpSettings()
+		}
+		return { data: {} }
+	}
+
+	// -----------------------------------------------------------------------
+	// Data query handlers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Convert absolute/URI paths to workspace-relative paths.
+	 * Webview sends: RelativePathsRequest { uris: string[] }
+	 * Returns: RelativePaths { paths: string[] }
+	 */
+	private async handleGetRelativePaths(request: GrpcRequest): Promise<GrpcResponse> {
+		const uris = (request.params?.uris as string[]) ?? []
+		if (this.delegate.getRelativePaths) {
+			const paths = await this.delegate.getRelativePaths(uris)
+			return { data: { paths } }
+		}
+		// Fallback: return the URIs as-is (best effort)
+		return { data: { paths: uris } }
+	}
+
+	/**
+	 * Check if a URL points to an image.
+	 * Webview sends: StringRequest { value: "https://..." }
+	 * Returns: IsImageUrl { isImage: boolean }
+	 */
+	private async handleCheckIsImageUrl(request: GrpcRequest): Promise<GrpcResponse> {
+		const url = (request.params?.value as string) ?? ""
+		if (this.delegate.checkIsImageUrl) {
+			const isImage = await this.delegate.checkIsImageUrl(url)
+			return { data: { isImage } }
+		}
+		// Fallback: check by extension
+		const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"]
+		const isImage = imageExtensions.some((ext) => url.toLowerCase().endsWith(ext))
+		return { data: { isImage } }
+	}
+
+	/**
+	 * Get the total disk size of all task storage.
+	 * Returns: Int64 { value: number } (bytes)
+	 */
+	private async handleGetTotalTasksSize(): Promise<GrpcResponse> {
+		if (this.delegate.getTotalTasksSize) {
+			const size = await this.delegate.getTotalTasksSize()
+			return { data: { value: size } }
+		}
+		return { data: { value: 0 } }
+	}
+
+	/**
+	 * Export a task by ID (e.g., save to file).
+	 * Webview sends: StringRequest { value: "task-id" }
+	 */
+	private async handleExportTaskWithId(request: GrpcRequest): Promise<GrpcResponse> {
+		const taskId = (request.params?.value as string) ?? ""
+		if (taskId && this.delegate.exportTaskWithId) {
+			await this.delegate.exportTaskWithId(taskId)
+		}
+		return { data: {} }
+	}
+
+	// -----------------------------------------------------------------------
+	// Model discovery handlers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Fetch available models from a local Ollama server.
+	 * Webview sends: StringRequest { value: "http://localhost:11434" }
+	 * Returns: StringArray { values: string[] }
+	 */
+	private async handleGetOllamaModels(request: GrpcRequest): Promise<GrpcResponse> {
+		const endpoint = (request.params?.value as string) ?? "http://localhost:11434"
+		if (this.delegate.getOllamaModels) {
+			const models = await this.delegate.getOllamaModels(endpoint)
+			return { data: { values: models } }
+		}
+		return { data: { values: [] } }
+	}
+
+	/**
+	 * Fetch available models from a local LM Studio server.
+	 * Webview sends: StringRequest { value: "http://localhost:1234" }
+	 * Returns: StringArray { values: string[] }
+	 */
+	private async handleGetLmStudioModels(request: GrpcRequest): Promise<GrpcResponse> {
+		const endpoint = (request.params?.value as string) ?? "http://localhost:1234"
+		if (this.delegate.getLmStudioModels) {
+			const models = await this.delegate.getLmStudioModels(endpoint)
+			return { data: { values: models } }
+		}
+		return { data: { values: [] } }
+	}
+
+	// -----------------------------------------------------------------------
+	// MCP servers handler
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Read MCP servers from disk and return in proto-compatible format.
+	 * The webview's convertProtoMcpServersToMcpServers expects { mcpServers: [...] }
+	 * where each server has proto-shaped fields (status as numeric enum, etc.)
+	 */
+	private handleGetLatestMcpServers(): GrpcResponse {
+		if (this.delegate.getMcpServers) {
+			const mcpServers = this.delegate.getMcpServers()
+			return { data: { mcpServers } }
+		}
+		return { data: { mcpServers: [] } }
 	}
 }

@@ -23,7 +23,7 @@ import type { Mode } from "@shared/storage/types"
 import type { LegacyStateReader, ClineAuthCredentials } from "./legacy-state-reader"
 import { MessageTranslator, type AgentEvent, type AgentUsageEvent, type AgentDoneEvent } from "./message-translator"
 import { buildExtensionState, type StateBuilderInput } from "./state-builder"
-import { GrpcHandler, type GrpcHandlerDelegate, type FileSearchResult } from "./grpc-handler"
+import { GrpcHandler, type GrpcHandlerDelegate, type FileSearchResult, type McpServerProto } from "./grpc-handler"
 import type { UserInfo } from "@shared/UserInfo"
 
 // ---------------------------------------------------------------------------
@@ -606,6 +606,297 @@ export class SdkController implements GrpcHandlerDelegate {
 	}
 
 	// -----------------------------------------------------------------------
+	// State persistence (globalState.json read/write)
+	// -----------------------------------------------------------------------
+
+	/** Read a value from persistent global state */
+	readGlobalStateKey(key: string): unknown {
+		if (!this.legacyState) return undefined
+		const gs = this.legacyState.readGlobalState()
+		return (gs as Record<string, unknown>)[key]
+	}
+
+	/**
+	 * Write a value to persistent global state and push state update.
+	 * Writes the key to globalState.json and triggers a webview state push.
+	 */
+	writeGlobalStateKey(key: string, value: unknown): void {
+		if (!this.legacyState) return
+
+		const gsPath = path.join(this.legacyState.dataDir, "globalState.json")
+		let gs: Record<string, unknown>
+		try {
+			const raw = fs.readFileSync(gsPath, "utf-8")
+			gs = JSON.parse(raw)
+		} catch {
+			gs = {}
+		}
+
+		if (value === undefined) {
+			delete gs[key]
+		} else {
+			gs[key] = value
+		}
+
+		// Atomic write
+		try {
+			const dir = path.dirname(gsPath)
+			if (!fs.existsSync(dir)) {
+				fs.mkdirSync(dir, { recursive: true })
+			}
+			const tmpPath = `${gsPath}.tmp.${process.pid}`
+			fs.writeFileSync(tmpPath, JSON.stringify(gs, null, "\t"), "utf-8")
+			fs.renameSync(tmpPath, gsPath)
+		} catch (err) {
+			console.error(`[SdkController] Failed to write globalState key "${key}":`, err)
+		}
+
+		// Push state update so the webview reflects the change
+		this.pushStateUpdate()
+	}
+
+	// -----------------------------------------------------------------------
+	// Task operations
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Toggle the favorite flag on a task history item.
+	 * Persists the change to disk and pushes state update.
+	 */
+	async toggleTaskFavorite(taskId: string, isFavorite: boolean): Promise<void> {
+		const item = this.taskHistory.find((t) => t.id === taskId)
+		if (item) {
+			item.isFavorited = isFavorite
+			this.persistTaskHistory()
+			this.pushStateUpdate()
+		}
+	}
+
+	/**
+	 * Get the total disk size of all task storage in bytes.
+	 * Recursively sums file sizes under ~/.cline/data/tasks/.
+	 */
+	async getTotalTasksSize(): Promise<number> {
+		if (!this.legacyState) return 0
+		const tasksDir = path.join(this.legacyState.dataDir, "tasks")
+		return this.getDirectorySize(tasksDir)
+	}
+
+	/**
+	 * Export a task by ID. Platform-specific (save dialog) is handled
+	 * by the exportTaskCallback if set.
+	 */
+	async exportTaskWithId(taskId: string): Promise<void> {
+		if (this.exportTaskCallback) {
+			const item = this.taskHistory.find((t) => t.id === taskId)
+			if (!item) return
+
+			// Load messages
+			let messages: unknown[] = []
+			if (this.legacyState) {
+				try {
+					messages = this.legacyState.readUiMessages(taskId)
+				} catch {
+					// Best-effort
+				}
+			}
+
+			await this.exportTaskCallback(taskId, item, messages)
+		}
+	}
+
+	/** Injectable callback for platform-specific task export */
+	exportTaskCallback?: (taskId: string, item: HistoryItem, messages: unknown[]) => Promise<void>
+
+	// -----------------------------------------------------------------------
+	// Platform operations (injectable callbacks)
+	// -----------------------------------------------------------------------
+
+	/** Injectable callback for opening URLs */
+	openUrlCallback?: (url: string) => Promise<void>
+
+	/** Injectable callback for opening files in the editor */
+	openFileCallback?: (filePath: string) => Promise<void>
+
+	/** Injectable callback for copying text to clipboard */
+	copyToClipboardCallback?: (text: string) => Promise<void>
+
+	/** Injectable callback for opening MCP settings */
+	openMcpSettingsCallback?: () => Promise<void>
+
+	async openUrl(url: string): Promise<void> {
+		if (this.openUrlCallback) {
+			await this.openUrlCallback(url)
+		}
+	}
+
+	async openFile(filePath: string): Promise<void> {
+		if (this.openFileCallback) {
+			await this.openFileCallback(filePath)
+		}
+	}
+
+	async copyToClipboard(text: string): Promise<void> {
+		if (this.copyToClipboardCallback) {
+			await this.copyToClipboardCallback(text)
+		}
+	}
+
+	async openMcpSettings(): Promise<void> {
+		if (this.openMcpSettingsCallback) {
+			await this.openMcpSettingsCallback()
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Data queries
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Convert absolute/URI paths to workspace-relative paths.
+	 */
+	async getRelativePaths(uris: string[]): Promise<string[]> {
+		return uris.map((uri) => {
+			// Handle file:// URIs
+			let filePath = uri
+			if (filePath.startsWith("file://")) {
+				filePath = decodeURIComponent(filePath.replace("file://", ""))
+			}
+
+			// Make relative to cwd
+			if (filePath.startsWith(this.cwd)) {
+				const rel = filePath.substring(this.cwd.length)
+				// Remove leading separator
+				return rel.startsWith("/") || rel.startsWith("\\") ? rel.substring(1) : rel
+			}
+			return filePath
+		})
+	}
+
+	/**
+	 * Check if a URL points to an image by making a HEAD request.
+	 */
+	async checkIsImageUrl(url: string): Promise<boolean> {
+		// Quick check by extension first
+		const imageExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg", ".bmp", ".ico"]
+		if (imageExtensions.some((ext) => url.toLowerCase().endsWith(ext))) {
+			return true
+		}
+
+		// Try HEAD request for content-type (with timeout)
+		try {
+			const controller = new AbortController()
+			const timeout = setTimeout(() => controller.abort(), 3000)
+			const response = await globalThis.fetch(url, {
+				method: "HEAD",
+				signal: controller.signal,
+			})
+			clearTimeout(timeout)
+			const contentType = response.headers.get("content-type") ?? ""
+			return contentType.startsWith("image/")
+		} catch {
+			return false
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// Model discovery
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Fetch available models from a local Ollama endpoint.
+	 * Ollama API: GET /api/tags → { models: [{ name: "...", ... }] }
+	 */
+	async getOllamaModels(endpoint: string): Promise<string[]> {
+		try {
+			const baseUrl = endpoint.replace(/\/+$/, "")
+			const controller = new AbortController()
+			const timeout = setTimeout(() => controller.abort(), 5000)
+			const response = await globalThis.fetch(`${baseUrl}/api/tags`, {
+				signal: controller.signal,
+			})
+			clearTimeout(timeout)
+			if (!response.ok) return []
+			const data = (await response.json()) as { models?: Array<{ name: string }> }
+			return (data.models ?? []).map((m) => m.name)
+		} catch {
+			return []
+		}
+	}
+
+	/**
+	 * Fetch available models from a local LM Studio endpoint.
+	 * LM Studio API (OpenAI-compatible): GET /v1/models → { data: [{ id: "..." }] }
+	 */
+	async getLmStudioModels(endpoint: string): Promise<string[]> {
+		try {
+			const baseUrl = endpoint.replace(/\/+$/, "")
+			const controller = new AbortController()
+			const timeout = setTimeout(() => controller.abort(), 5000)
+			const response = await globalThis.fetch(`${baseUrl}/v1/models`, {
+				signal: controller.signal,
+			})
+			clearTimeout(timeout)
+			if (!response.ok) return []
+			const data = (await response.json()) as { data?: Array<{ id: string }> }
+			return (data.data ?? []).map((m) => m.id)
+		} catch {
+			return []
+		}
+	}
+
+	// -----------------------------------------------------------------------
+	// MCP servers
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Read MCP servers from ~/.cline/data/settings/cline_mcp_settings.json
+	 * and return them in proto-compatible format for the webview.
+	 *
+	 * The settings file format is:
+	 * { "mcpServers": { "name": { "command": "...", "args": [...], "disabled": bool, ... } } }
+	 *
+	 * We convert each entry to a McpServerProto with status=0 (disconnected)
+	 * since we're not actually running MCP servers in SDK mode.
+	 */
+	getMcpServers(): McpServerProto[] {
+		if (!this.legacyState) return []
+
+		try {
+			const settings = this.legacyState.readMcpSettings()
+			if (!settings) return []
+
+			const mcpServersMap = (settings as Record<string, unknown>).mcpServers as Record<string, unknown> | undefined
+			if (!mcpServersMap || typeof mcpServersMap !== "object") return []
+
+			const DEFAULT_TIMEOUT = 60
+
+			return Object.entries(mcpServersMap).map(([name, configObj]) => {
+				const config = configObj as Record<string, unknown> ?? {}
+				const disabled = (config.disabled as boolean) ?? false
+				const timeout = (config.timeout as number) ?? DEFAULT_TIMEOUT
+
+				return {
+					name,
+					config: JSON.stringify(configObj),
+					// Proto McpServerStatus: 0=DISCONNECTED, 1=CONNECTED, 2=CONNECTING
+					status: 0,
+					error: "",
+					tools: [],
+					resources: [],
+					resourceTemplates: [],
+					prompts: [],
+					disabled,
+					timeout,
+				}
+			})
+		} catch (err) {
+			console.error("[SdkController] Failed to read MCP settings:", err)
+			return []
+		}
+	}
+
+	// -----------------------------------------------------------------------
 	// Helpers
 	// -----------------------------------------------------------------------
 
@@ -613,5 +904,32 @@ export class SdkController implements GrpcHandlerDelegate {
 		const state = this.getState()
 		this.grpcHandler.pushState(state)
 		this.onPushStateCallback?.(state)
+	}
+
+	/**
+	 * Recursively calculate the total size of a directory in bytes.
+	 * Returns 0 if the directory doesn't exist or can't be read.
+	 */
+	private getDirectorySize(dirPath: string): number {
+		try {
+			if (!fs.existsSync(dirPath)) return 0
+			let totalSize = 0
+			const entries = fs.readdirSync(dirPath, { withFileTypes: true })
+			for (const entry of entries) {
+				const entryPath = path.join(dirPath, entry.name)
+				if (entry.isDirectory()) {
+					totalSize += this.getDirectorySize(entryPath)
+				} else if (entry.isFile()) {
+					try {
+						totalSize += fs.statSync(entryPath).size
+					} catch {
+						// Skip files we can't stat
+					}
+				}
+			}
+			return totalSize
+		} catch {
+			return 0
+		}
 	}
 }

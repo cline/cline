@@ -58,6 +58,7 @@ export class WebviewGrpcBridge {
 	// Track streaming subscriptions by request_id
 	private stateSubscriptionRequestId?: string
 	private partialMessageSubscriptionRequestId?: string
+	private mcpServersSubscriptionRequestId?: string
 	private sequenceCounters = new Map<string, number>()
 
 	constructor(delegate: GrpcHandlerDelegate, postMessage: PostMessageFn) {
@@ -183,8 +184,21 @@ export class WebviewGrpcBridge {
 				break
 			}
 
+			case "subscribeToMcpServers": {
+				this.mcpServersSubscriptionRequestId = requestId
+				this.sequenceCounters.set(requestId, 0)
+
+				// Push initial MCP servers from disk
+				const mcpReq: GrpcRequest = { method: "getLatestMcpServers", params: {} }
+				const mcpResult = await this.grpcHandler.handleRequest(mcpReq)
+				if (mcpResult.data) {
+					this.sendStreamingResponse(requestId, mcpResult.data)
+				}
+				break
+			}
+
 			default: {
-				// For other streaming subscriptions (MCP, models, navigation,
+				// For other streaming subscriptions (models, navigation,
 				// etc.) the SDK adapter will push real data via typed messages.
 				// No gRPC response needed.
 				break
