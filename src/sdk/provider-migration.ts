@@ -75,8 +75,7 @@ interface SentinelData {
  */
 export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMigrationResult {
 	const { dataDir } = opts
-	const providersFilePath =
-		opts.providersFilePath ?? path.join(dataDir, "settings", "providers.json")
+	const providersFilePath = opts.providersFilePath ?? path.join(dataDir, "settings", "providers.json")
 
 	try {
 		// Check sentinel — if already migrated, construct manager WITHOUT dataDir
@@ -108,7 +107,7 @@ export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMi
 		// Read back the result to populate our sentinel
 		const stored = manager.read()
 		const providerIds = Object.keys(stored.providers || {})
-		const lastUsed = stored.lastUsedProviderId ?? undefined
+		const lastUsed = stored.lastUsedProvider ?? undefined
 
 		// Write sentinel on success
 		writeSentinel(dataDir, {

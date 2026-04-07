@@ -26,20 +26,19 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
-import { onMessage } from "../services/typed-client"
 import type {
-	StateMessage,
-	PartialMessage,
-	NavigateMessage,
-	McpServersMessage,
-	McpMarketplaceMessage,
-	ModelsMessage,
-	RelinquishControlMessage,
 	AddToInputMessage,
-	ShowWebviewMessage,
+	McpMarketplaceMessage,
+	McpServersMessage,
+	ModelsMessage,
+	NavigateMessage,
+	PartialMessage,
+	RelinquishControlMessage,
+	StateMessage,
 	TerminalProfilesMessage,
 } from "../../../src/shared/WebviewMessages"
+import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import { onMessage } from "../services/typed-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -843,9 +842,7 @@ export const ExtensionStateContextProvider: React.FC<{
 						setVercelAiGatewayModels(msg.models)
 						break
 					case "cline":
-						setClineModels((prev) =>
-							Object.keys(msg.models).length > 0 ? msg.models : (prev ?? null),
-						)
+						setClineModels((prev) => (Object.keys(msg.models).length > 0 ? msg.models : (prev ?? null)))
 						break
 				}
 			}),
@@ -877,7 +874,15 @@ export const ExtensionStateContextProvider: React.FC<{
 				unsub()
 			}
 		}
-	}, [navigateToMcp, navigateToSettings, navigateToHistory, navigateToAccount, navigateToWorktrees, navigateToChat, showWelcome])
+	}, [
+		navigateToMcp,
+		navigateToSettings,
+		navigateToHistory,
+		navigateToAccount,
+		navigateToWorktrees,
+		navigateToChat,
+		showWelcome,
+	])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))

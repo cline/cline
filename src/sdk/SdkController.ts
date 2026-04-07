@@ -87,7 +87,7 @@ export class SdkController implements GrpcHandlerDelegate {
 	private version: string
 	private apiConfiguration?: ApiConfiguration
 	private mode: Mode
-	private cwd: string
+	readonly cwd: string
 	private taskHistory: HistoryItem[]
 	private currentTaskItem?: HistoryItem
 	private legacyState?: LegacyStateReader
@@ -142,7 +142,6 @@ export class SdkController implements GrpcHandlerDelegate {
 				userInfo = {
 					displayName: authInfo.userInfo.displayName || authInfo.userInfo.email,
 					email: authInfo.userInfo.email,
-					plan: undefined,
 				}
 			}
 		}

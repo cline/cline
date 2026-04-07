@@ -9,35 +9,36 @@
  * false otherwise (allowing fallback to the gRPC compat layer).
  */
 
+import { Logger } from "@shared/services/Logger"
 import type {
-	WebviewInbound,
-	ReadyMessage,
-	NewTaskMessage,
-	AskResponseMessage,
-	CancelTaskMessage,
-	ClearTaskMessage,
-	ShowTaskMessage,
-	DeleteTasksMessage,
-	GetTaskHistoryMessage,
-	UpdateApiConfigMessage,
-	ToggleModeMessage,
-	UpdateSettingsMessage,
-	UpdateAutoApprovalMessage,
-	UpdateTelemetryMessage,
-	ToggleFavoriteModelMessage,
-	RefreshModelsMessage,
-	FileOpMessage,
-	RuleOpMessage,
-	McpOpMessage,
 	AccountOpMessage,
-	WorktreeOpMessage,
-	CheckpointOpMessage,
-	SlashCommandMessage,
-	WebOpMessage,
+	AskResponseMessage,
 	BrowserOpMessage,
-	UiOpMessage,
+	CancelTaskMessage,
+	CheckpointOpMessage,
+	ClearTaskMessage,
+	DeleteTasksMessage,
+	FileOpMessage,
+	GetTaskHistoryMessage,
+	McpOpMessage,
+	NewTaskMessage,
+	ReadyMessage,
+	RefreshModelsMessage,
+	RuleOpMessage,
+	ShowTaskMessage,
+	SlashCommandMessage,
 	StateOpMessage,
 	TaskOpMessage,
+	ToggleFavoriteModelMessage,
+	ToggleModeMessage,
+	UiOpMessage,
+	UpdateApiConfigMessage,
+	UpdateAutoApprovalMessage,
+	UpdateSettingsMessage,
+	UpdateTelemetryMessage,
+	WebOpMessage,
+	WebviewInbound,
+	WorktreeOpMessage,
 } from "../shared/WebviewMessages"
 import type { WebviewBridge } from "./webview-bridge"
 
@@ -141,7 +142,7 @@ export class InboundMessageHandler {
 			}
 		} catch (error) {
 			const errorMsg = error instanceof Error ? error.message : String(error)
-			console.error(`Error handling typed message "${message.type}":`, errorMsg)
+			Logger.error(`Error handling typed message "${message.type}":`, errorMsg)
 
 			// If the message has a requestId, send an error response
 			if ("requestId" in message && (message as any).requestId) {
@@ -267,7 +268,19 @@ export class InboundMessageHandler {
 	}
 
 	private async handleGenericOp(
-		msg: FileOpMessage | RuleOpMessage | McpOpMessage | AccountOpMessage | WorktreeOpMessage | CheckpointOpMessage | SlashCommandMessage | WebOpMessage | BrowserOpMessage | UiOpMessage | StateOpMessage | TaskOpMessage,
+		msg:
+			| FileOpMessage
+			| RuleOpMessage
+			| McpOpMessage
+			| AccountOpMessage
+			| WorktreeOpMessage
+			| CheckpointOpMessage
+			| SlashCommandMessage
+			| WebOpMessage
+			| BrowserOpMessage
+			| UiOpMessage
+			| StateOpMessage
+			| TaskOpMessage,
 	): Promise<boolean> {
 		if (this.controller.handleGenericOp) {
 			const op = "op" in msg ? msg.op : "command" in msg ? msg.command : "unknown"

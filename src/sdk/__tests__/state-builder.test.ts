@@ -1,9 +1,9 @@
-import { describe, expect, it } from "vitest"
-import { buildExtensionState, REQUIRED_STATE_FIELDS } from "../state-builder"
-import type { StateBuilderInput } from "../state-builder"
+import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
+import { describe, expect, it } from "vitest"
 import type { LegacyStateReader } from "../legacy-state-reader"
+import { buildExtensionState, REQUIRED_STATE_FIELDS } from "../state-builder"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -15,9 +15,7 @@ function mockLegacyState(globalState: Record<string, unknown> = {}): LegacyState
 		readGlobalState: () => globalState,
 		readSecrets: () => ({}),
 		readTaskHistory: () => [],
-		readTaskMessages: () => [],
-		readTaskApiConversation: () => [],
-		getDataDir: () => "/tmp/fake-cline-data",
+		readAutoApprovalSettings: () => DEFAULT_AUTO_APPROVAL_SETTINGS,
 	} as unknown as LegacyStateReader
 }
 
@@ -66,10 +64,10 @@ describe("buildExtensionState", () => {
 			const state = buildExtensionState()
 
 			expect(state.autoApprovalSettings).toBeDefined()
-			expect(state.autoApprovalSettings.enabled).toBe(false)
-			expect(state.autoApprovalSettings.actions.readFiles).toBe(false)
+			expect(state.autoApprovalSettings.enabled).toBe(true)
+			expect(state.autoApprovalSettings.actions.readFiles).toBe(true)
 			expect(state.autoApprovalSettings.actions.editFiles).toBe(false)
-			expect(state.autoApprovalSettings.actions.executeCommands).toBe(false)
+			expect(state.autoApprovalSettings.actions.executeAllCommands).toBe(false)
 			expect(state.autoApprovalSettings.maxRequests).toBe(20)
 		})
 
@@ -77,9 +75,9 @@ describe("buildExtensionState", () => {
 			const state = buildExtensionState()
 
 			expect(state.browserSettings).toBeDefined()
-			expect(state.browserSettings.headless).toBe(true)
 			expect(state.browserSettings.viewport.width).toBe(900)
 			expect(state.browserSettings.viewport.height).toBe(600)
+			expect(state.browserSettings.disableToolUse).toBe(true)
 		})
 
 		it("has correct default terminal settings", () => {
@@ -129,14 +127,13 @@ describe("buildExtensionState", () => {
 						actions: {
 							readFiles: true,
 							editFiles: false,
-							executeCommands: true,
+							executeAllCommands: true,
 							useBrowser: false,
 							useMcp: false,
 						},
-						notifications: { sound: true, tts: false },
 						maxRequests: 50,
 						enableNotifications: true,
-						favorites: {},
+						favorites: [],
 						version: 1,
 					},
 				}),
@@ -144,15 +141,12 @@ describe("buildExtensionState", () => {
 
 			expect(state.autoApprovalSettings.enabled).toBe(true)
 			expect(state.autoApprovalSettings.actions.readFiles).toBe(true)
-			expect(state.autoApprovalSettings.actions.executeCommands).toBe(true)
+			expect(state.autoApprovalSettings.actions.executeAllCommands).toBe(true)
 			expect(state.autoApprovalSettings.maxRequests).toBe(50)
 		})
 
 		it("reads task history from legacy state", () => {
-			const items = [
-				makeHistoryItem({ ts: 1000, task: "First task" }),
-				makeHistoryItem({ ts: 2000, task: "Second task" }),
-			]
+			const items = [makeHistoryItem({ ts: 1000, task: "First task" }), makeHistoryItem({ ts: 2000, task: "Second task" })]
 
 			const state = buildExtensionState({
 				legacyState: mockLegacyState({ taskHistory: items }),
@@ -241,9 +235,7 @@ describe("buildExtensionState", () => {
 		})
 
 		it("limits to 100 items", () => {
-			const items = Array.from({ length: 150 }, (_, i) =>
-				makeHistoryItem({ ts: i + 1, task: `Task ${i}` }),
-			)
+			const items = Array.from({ length: 150 }, (_, i) => makeHistoryItem({ ts: i + 1, task: `Task ${i}` }))
 
 			const state = buildExtensionState({ taskHistory: items })
 
@@ -269,28 +261,28 @@ describe("buildExtensionState", () => {
 	describe("with API configuration", () => {
 		it("uses provided apiConfiguration", () => {
 			const config = {
-				apiProvider: "anthropic" as const,
-				apiModelId: "claude-sonnet-4-20250514",
+				actModeApiProvider: "anthropic" as const,
+				actModeApiModelId: "claude-sonnet-4-20250514",
 			}
 
 			const state = buildExtensionState({ apiConfiguration: config })
 
 			expect(state.apiConfiguration).toBeDefined()
-			expect(state.apiConfiguration?.apiProvider).toBe("anthropic")
-			expect(state.apiConfiguration?.apiModelId).toBe("claude-sonnet-4-20250514")
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("anthropic")
+			expect(state.apiConfiguration?.actModeApiModelId).toBe("claude-sonnet-4-20250514")
 		})
 
 		it("falls back to legacy state apiConfiguration", () => {
 			const state = buildExtensionState({
 				legacyState: mockLegacyState({
 					apiConfiguration: {
-						apiProvider: "openrouter",
-						apiModelId: "some-model",
+						actModeApiProvider: "openrouter",
+						actModeApiModelId: "some-model",
 					},
 				}),
 			})
 
-			expect(state.apiConfiguration?.apiProvider).toBe("openrouter")
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("openrouter")
 		})
 	})
 
@@ -414,15 +406,15 @@ describe("Interface Contract", () => {
 			mode: "act",
 			version: "3.5.0",
 			apiConfiguration: {
-				apiProvider: "anthropic" as const,
-				apiModelId: "claude-sonnet-4-20250514",
+				actModeApiProvider: "anthropic" as const,
+				actModeApiModelId: "claude-sonnet-4-20250514",
 			},
 		})
 
 		expect(state.currentTaskItem).toBeDefined()
 		expect(state.currentTaskItem!.id).toBe("active-task")
 		expect(state.clineMessages).toHaveLength(3)
-		expect(state.apiConfiguration?.apiProvider).toBe("anthropic")
+		expect(state.apiConfiguration?.actModeApiProvider).toBe("anthropic")
 	})
 
 	it("settings round-trip: legacy state → ExtensionState preserves values", () => {

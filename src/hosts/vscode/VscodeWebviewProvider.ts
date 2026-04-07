@@ -1,16 +1,15 @@
 import { sendShowWebviewEvent } from "@core/controller/ui/subscribeToShowWebview"
 import { WebviewProvider } from "@core/webview"
 import * as vscode from "vscode"
-import { handleGrpcRequest, handleGrpcRequestCancel } from "@/core/controller/grpc-handler"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { createClineSessionFactory } from "@/sdk/cline-session-factory"
+import { LegacyStateReader } from "@/sdk/legacy-state-reader"
+import { SdkController } from "@/sdk/SdkController"
+import { WebviewGrpcBridge } from "@/sdk/webview-grpc-bridge"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { WebviewMessage } from "@/shared/WebviewMessage"
-import { WebviewGrpcBridge } from "@/sdk/webview-grpc-bridge"
-import { SdkController } from "@/sdk/SdkController"
-import { LegacyStateReader } from "@/sdk/legacy-state-reader"
-import { createClineSessionFactory } from "@/sdk/cline-session-factory"
 
 /*
 https://github.com/microsoft/vscode-webview-ui-toolkit-samples/blob/main/default/weather-webview/src/providers/WeatherViewProvider.ts
@@ -181,7 +180,8 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 				sessionFactory,
 			})
 
-			const postMessage = (msg: any) => this.webview?.webview.postMessage(msg)
+			const postMessage = (msg: any) =>
+				Promise.resolve(this.webview?.webview.postMessage(msg) as boolean | PromiseLike<boolean> | undefined)
 			this.bridge = new WebviewGrpcBridge(this.sdkController, postMessage)
 
 			// Wire push callbacks so SdkController state changes reach the webview

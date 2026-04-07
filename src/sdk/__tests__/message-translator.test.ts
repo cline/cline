@@ -1,18 +1,17 @@
-import { describe, expect, it, beforeEach } from "vitest"
+import type { ClineApiReqInfo, ClineAskQuestion, ClineSayTool } from "@shared/ExtensionMessage"
+import { beforeEach, describe, expect, it } from "vitest"
 import {
-	MessageTranslator,
-	type AgentEvent,
-	type AgentContentStartEvent,
 	type AgentContentEndEvent,
+	type AgentContentStartEvent,
 	type AgentContentUpdateEvent,
-	type AgentIterationStartEvent,
-	type AgentIterationEndEvent,
-	type AgentUsageEvent,
 	type AgentDoneEvent,
 	type AgentErrorEvent,
+	type AgentIterationEndEvent,
+	type AgentIterationStartEvent,
 	type AgentNoticeEvent,
+	type AgentUsageEvent,
+	MessageTranslator,
 } from "../message-translator"
-import type { ClineApiReqInfo, ClineAskQuestion, ClineSayTool } from "@shared/ExtensionMessage"
 
 describe("MessageTranslator", () => {
 	let translator: MessageTranslator

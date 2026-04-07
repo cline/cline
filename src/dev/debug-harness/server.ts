@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+
 /**
  * Debug Harness Server
  *
@@ -23,14 +24,14 @@
  *   curl localhost:19229/api -d '{"method":"ext.set_breakpoint","params":{"file":"src/extension.ts","line":42}}'
  */
 
-import http from "node:http"
-import path from "node:path"
+import { type ExecSyncOptions, execSync } from "node:child_process"
 import fs from "node:fs"
+import http from "node:http"
 import os from "node:os"
+import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { execSync, type ExecSyncOptions } from "node:child_process"
-import { _electron, type ElectronApplication, type Page, type Frame, type CDPSession } from "playwright"
 import { downloadAndUnzipVSCode, SilentReporter } from "@vscode/test-electron"
+import { _electron, type CDPSession, type ElectronApplication, type Frame, type Page } from "playwright"
 import WebSocket from "ws"
 
 const __script_dir = typeof __dirname !== "undefined" ? __dirname : path.dirname(fileURLToPath(import.meta.url))
@@ -45,7 +46,7 @@ function getArg(name: string): string | undefined {
 	return idx >= 0 && idx + 1 < args.length ? args[idx + 1] : undefined
 }
 
-const PORT = parseInt(getArg("--port") || "19229", 10)
+const PORT = Number.parseInt(getArg("--port") || "19229", 10)
 const EXT_INSPECT_PORT = 9230
 const PROJECT_ROOT = path.resolve(__script_dir, "..", "..", "..")
 const SCREENSHOT_DIR = path.join(os.tmpdir(), "cline-debug")
@@ -114,7 +115,7 @@ function resolveSourceMapPosition(
 		srcLine = 0,
 		srcCol = 0
 	let bestMatch: { line: number; column: number } | null = null
-	let bestDist = Infinity
+	let bestDist = Number.POSITIVE_INFINITY
 
 	for (let genLine = 0; genLine < lines.length; genLine++) {
 		genCol = 0
@@ -191,7 +192,7 @@ class CdpClient {
 				this.ws = ws
 				resolve()
 			})
-			ws.on("error", (e) => {
+			ws.on("error", (e: Error) => {
 				if (!this.ws) reject(e)
 			})
 			ws.on("close", () => {
@@ -448,7 +449,7 @@ class DebugHarness {
 		while (Date.now() - start < timeout) {
 			try {
 				const res = await fetch(`http://127.0.0.1:${port}/json`)
-				const targets: any[] = await res.json() as any[]
+				const targets: any[] = (await res.json()) as any[]
 				for (const t of targets) {
 					if (t.webSocketDebuggerUrl) return t.webSocketDebuggerUrl
 				}
@@ -710,8 +711,7 @@ class DebugHarness {
 			if (sidebar) {
 				try {
 					const result = await sidebar.evaluate((expr: string) => {
-						// eslint-disable-next-line no-eval
-						return eval(expr)
+						return Function(`return (${expr})`)()
 					}, params.expression)
 					return { result: { type: typeof result, value: result } }
 				} catch (e: any) {
@@ -936,17 +936,22 @@ class DebugHarness {
 	 * For new tasks (no active conversation), sends via TaskServiceClient.newTask().
 	 * For active conversations, sends via TaskServiceClient.askResponse().
 	 */
-	async uiSendMessage(params: {
-		text: string
-		images?: string[]
-		files?: string[]
-		responseType?: string
-	}): Promise<any> {
+	async uiSendMessage(params: { text: string; images?: string[]; files?: string[]; responseType?: string }): Promise<any> {
 		const sidebar = await this.findSidebar()
 		if (!sidebar) throw new Error("Sidebar not found")
 
 		return sidebar.evaluate(
-			({ text, images, files, responseType }: { text: string; images: string[]; files: string[]; responseType?: string }) => {
+			({
+				text,
+				images,
+				files,
+				responseType,
+			}: {
+				text: string
+				images: string[]
+				files: string[]
+				responseType?: string
+			}) => {
 				const api = (window as any).__clineVsCodeApi
 				if (!api) {
 					throw new Error("window.__clineVsCodeApi not found")
@@ -1335,7 +1340,7 @@ server.listen(PORT, "127.0.0.1", () => {
 				skipBuild: SKIP_BUILD,
 			})
 			.then((r) => log("Auto-launch complete:", r))
-			.catch((e) => log("Auto-launch failed:", e.message))
+			.catch((e: Error) => log("Auto-launch failed:", e.message))
 	}
 })
 

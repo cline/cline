@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeEach, vi } from "vitest"
-import { SdkController, type SdkSession } from "../SdkController"
-import type { AgentEvent } from "../message-translator"
-import type { ExtensionState, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
+import { describe, expect, it, vi } from "vitest"
+import type { AgentEvent } from "../message-translator"
+import { SdkController, type SdkSession } from "../SdkController"
 
 // ---------------------------------------------------------------------------
 // Mock session
@@ -44,7 +44,7 @@ function createMockLegacyState() {
 		readSecrets: vi.fn(() => ({})),
 		buildApiConfiguration: vi.fn(() => ({})),
 		readTaskHistory: vi.fn(() => []),
-		readUiMessages: vi.fn(() => []),
+		readUiMessages: vi.fn((): unknown[] => []),
 		readAutoApprovalSettings: vi.fn(() => ({})),
 		readClineAuthInfo: vi.fn(() => null),
 	}
@@ -66,13 +66,13 @@ describe("SdkController", () => {
 			const ctrl = new SdkController({
 				version: "3.5.0",
 				mode: "act",
-				apiConfiguration: { apiProvider: "anthropic" as const },
+				apiConfiguration: { actModeApiProvider: "anthropic" as const },
 			})
 
 			const state = ctrl.getState()
 			expect(state.version).toBe("3.5.0")
 			expect(state.mode).toBe("act")
-			expect(state.apiConfiguration?.apiProvider).toBe("anthropic")
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("anthropic")
 			expect(state.clineMessages).toEqual([])
 			expect(state.taskHistory).toEqual([])
 		})
@@ -138,13 +138,13 @@ describe("SdkController", () => {
 			const ctrl = new SdkController({
 				version: "3.5.0",
 				sessionFactory: factory,
-				apiConfiguration: { apiProvider: "anthropic" as const },
+				apiConfiguration: { actModeApiProvider: "anthropic" as const },
 			})
 
 			await ctrl.newTask("Build a web app", ["image.png"])
 
 			expect(factory).toHaveBeenCalledWith({
-				apiConfiguration: { apiProvider: "anthropic" },
+				apiConfiguration: { actModeApiProvider: "anthropic" },
 				mode: "act",
 				cwd: expect.any(String),
 			})
@@ -286,9 +286,7 @@ describe("SdkController", () => {
 
 	describe("task history management", () => {
 		it("returns task history with offset/limit", () => {
-			const history = Array.from({ length: 10 }, (_, i) =>
-				makeHistoryItem({ ts: i + 1, task: `Task ${i}` }),
-			)
+			const history = Array.from({ length: 10 }, (_, i) => makeHistoryItem({ ts: i + 1, task: `Task ${i}` }))
 			const ctrl = new SdkController({ taskHistory: history })
 
 			expect(ctrl.getTaskHistory()).toHaveLength(10)
@@ -312,10 +310,7 @@ describe("SdkController", () => {
 		})
 
 		it("deleteTasksWithIds([]) clears all history", async () => {
-			const history = [
-				makeHistoryItem({ id: "a" }),
-				makeHistoryItem({ id: "b" }),
-			]
+			const history = [makeHistoryItem({ id: "a" }), makeHistoryItem({ id: "b" })]
 			const ctrl = new SdkController({ taskHistory: history })
 
 			await ctrl.deleteTasksWithIds([])
@@ -329,13 +324,13 @@ describe("SdkController", () => {
 			const ctrl = new SdkController()
 
 			await ctrl.updateApiConfiguration({
-				apiProvider: "openrouter" as const,
-				apiModelId: "some-model",
+				actModeApiProvider: "openrouter" as const,
+				actModeApiModelId: "some-model",
 			})
 
 			const state = ctrl.getState()
-			expect(state.apiConfiguration?.apiProvider).toBe("openrouter")
-			expect(state.apiConfiguration?.apiModelId).toBe("some-model")
+			expect(state.apiConfiguration?.actModeApiProvider).toBe("openrouter")
+			expect(state.apiConfiguration?.actModeApiModelId).toBe("some-model")
 		})
 
 		it("togglePlanActMode updates mode", async () => {
@@ -353,7 +348,7 @@ describe("SdkController", () => {
 			await handler.handleRequest({ method: "subscribeToState", params: { callback } })
 			callback.mockClear()
 
-			await ctrl.updateApiConfiguration({ apiProvider: "anthropic" as const })
+			await ctrl.updateApiConfiguration({ actModeApiProvider: "anthropic" as const })
 
 			expect(callback).toHaveBeenCalled()
 		})
@@ -490,7 +485,7 @@ describe("SdkController", () => {
 			const ctrl = new SdkController({
 				version: "3.5.0",
 				sessionFactory: factory,
-				apiConfiguration: { apiProvider: "anthropic" as const },
+				apiConfiguration: { actModeApiProvider: "anthropic" as const },
 			})
 
 			// Subscribe to updates
@@ -675,9 +670,7 @@ describe("SdkController", () => {
 			const mockLegacyState = createMockLegacyState()
 			mockLegacyState.readUiMessages.mockReturnValue(savedMessages)
 
-			const history = [
-				makeHistoryItem({ id: "task_resume_1", task: "Build it", tokensIn: 500, tokensOut: 200 }),
-			]
+			const history = [makeHistoryItem({ id: "task_resume_1", task: "Build it", tokensIn: 500, tokensOut: 200 })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
@@ -711,9 +704,7 @@ describe("SdkController", () => {
 			const mockLegacyState = createMockLegacyState()
 			mockLegacyState.readUiMessages.mockReturnValue([])
 
-			const history = [
-				makeHistoryItem({ id: "task_no_msgs", task: "Old task" }),
-			]
+			const history = [makeHistoryItem({ id: "task_no_msgs", task: "Old task" })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
@@ -732,11 +723,7 @@ describe("SdkController", () => {
 	describe("deleteTasksWithIds disk persistence", () => {
 		it("deletes task directories from disk", async () => {
 			const mockLegacyState = createMockLegacyState()
-			const history = [
-				makeHistoryItem({ id: "del_a" }),
-				makeHistoryItem({ id: "del_b" }),
-				makeHistoryItem({ id: "del_c" }),
-			]
+			const history = [makeHistoryItem({ id: "del_a" }), makeHistoryItem({ id: "del_b" }), makeHistoryItem({ id: "del_c" })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
@@ -753,10 +740,7 @@ describe("SdkController", () => {
 
 		it("deletes all task directories when ids is empty", async () => {
 			const mockLegacyState = createMockLegacyState()
-			const history = [
-				makeHistoryItem({ id: "all_a" }),
-				makeHistoryItem({ id: "all_b" }),
-			]
+			const history = [makeHistoryItem({ id: "all_a" }), makeHistoryItem({ id: "all_b" })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
