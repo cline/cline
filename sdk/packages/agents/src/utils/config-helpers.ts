@@ -85,25 +85,31 @@ export function serializeAbortReason(reason: unknown): unknown {
 	return reason;
 }
 
+export type ApiTimeoutHandle = {
+	signal: AbortSignal;
+	/** Cancel the timeout early (e.g. once the turn completes successfully). */
+	cancel: () => void;
+};
+
 export function createApiTimeoutSignal(
 	timeoutMs: number,
-): AbortSignal | undefined {
+): ApiTimeoutHandle | undefined {
 	if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
 		return undefined;
 	}
 
-	const abortSignalCtor = AbortSignal as unknown as {
-		timeout?: (milliseconds: number) => AbortSignal;
-	};
-	if (abortSignalCtor.timeout) {
-		return abortSignalCtor.timeout(timeoutMs);
-	}
-
 	const controller = new AbortController();
-	setTimeout(() => {
+	const timer = setTimeout(() => {
 		controller.abort(new Error(`API request timed out after ${timeoutMs}ms`));
 	}, timeoutMs);
-	return controller.signal;
+	// Unref so the timer doesn't block process exit if it's still pending.
+	if (typeof (timer as NodeJS.Timeout).unref === "function") {
+		(timer as NodeJS.Timeout).unref();
+	}
+	return {
+		signal: controller.signal,
+		cancel: () => clearTimeout(timer),
+	};
 }
 
 export function mergeAbortSignals(

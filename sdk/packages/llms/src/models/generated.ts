@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1775504094929,
+	version: 1775554797563,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -22,7 +22,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -36,7 +43,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6 Think",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -106,7 +120,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6",
 				contextWindow: 200000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -120,7 +141,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6 Think",
 				contextWindow: 200000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -148,7 +176,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 3,
@@ -168,6 +202,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -210,7 +245,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Coding-GLM-4.7",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.27,
 					output: 1.1,
@@ -238,7 +273,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.7",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.27,
 					output: 1.1,
@@ -252,7 +287,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -308,7 +343,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -322,7 +363,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3 Pro Preview",
 				contextWindow: 1000000,
 				maxTokens: 65000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 12,
@@ -336,7 +383,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3 Pro Preview Search",
 				contextWindow: 1000000,
 				maxTokens: 65000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 12,
@@ -350,7 +403,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -364,7 +423,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -378,7 +443,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Codex Mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -392,7 +463,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1-Codex-Max",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -406,7 +483,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.1,
 					output: 5.5,
@@ -420,7 +504,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3.3,
 					output: 16.5,
@@ -448,7 +539,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash",
 				contextWindow: 1000000,
 				maxTokens: 65000,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.075,
 					output: 0.3,
@@ -462,7 +553,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Pro",
 				contextWindow: 2000000,
 				maxTokens: 65000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 5,
@@ -476,7 +573,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 20,
@@ -490,7 +593,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -504,7 +607,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5-Mini",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.5,
 					output: 6,
@@ -518,7 +627,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5-Nano",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.5,
 					output: 2,
@@ -532,7 +641,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5-Pro",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 7,
 					output: 28,
@@ -560,7 +675,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 16.5,
 					output: 82.5,
@@ -616,7 +738,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -630,7 +752,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -644,7 +766,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 nano",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -658,7 +780,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -674,7 +796,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -688,7 +817,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -702,7 +838,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5 (latest)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -716,7 +859,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -730,7 +880,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5 (latest)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -744,7 +901,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -758,7 +922,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5 (latest)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -772,7 +943,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -786,7 +964,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1 (latest)",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -800,7 +985,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -814,7 +1006,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4 (latest)",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -828,7 +1027,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -842,7 +1048,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4 (latest)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -856,7 +1069,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -870,7 +1090,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.7",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -884,7 +1111,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -898,7 +1131,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3.5 (latest)",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -912,7 +1151,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.5 v2",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -926,7 +1171,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -940,7 +1191,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 1.25,
@@ -954,7 +1211,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -968,7 +1231,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 3",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -1154,7 +1423,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1168,7 +1444,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6 (EU)",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1182,7 +1465,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6 (Global)",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1210,7 +1500,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6 (US)",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1259,6 +1556,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1280,6 +1578,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1301,6 +1600,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1322,6 +1622,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1466,6 +1767,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1487,6 +1789,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1508,6 +1811,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1529,6 +1833,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -1564,6 +1869,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -1585,6 +1891,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -1606,6 +1913,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -1627,6 +1935,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -1662,6 +1971,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -1683,6 +1993,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -1704,6 +2015,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -1725,6 +2037,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -1833,7 +2146,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -1847,7 +2167,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1 (US)",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -1889,7 +2216,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -1903,7 +2237,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1917,7 +2258,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4 (EU)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1931,7 +2279,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4 (Global)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -1945,7 +2300,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4 (US)",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -1959,7 +2321,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4 (US)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -2043,7 +2412,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.7",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -2085,7 +2460,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nova Lite",
 				contextWindow: 300000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
 					output: 0.24,
@@ -2099,7 +2474,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nova Micro",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.035,
 					output: 0.14,
@@ -2127,7 +2502,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nova Pro",
 				contextWindow: 300000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.8,
 					output: 3.2,
@@ -2295,7 +2670,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -2309,7 +2690,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.5 v2",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -2421,7 +2808,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -2509,7 +2902,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek Chat",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.28,
 					output: 0.42,
@@ -2523,7 +2916,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek Reasoner",
 				contextWindow: 128000,
 				maxTokens: 64000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.28,
 					output: 0.42,
@@ -2539,7 +2932,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5",
 				contextWindow: 196608,
 				maxTokens: 9830,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -2553,7 +2946,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 5",
 				contextWindow: 202752,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1,
 					output: 3.2,
@@ -2567,7 +2960,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 256000,
 				maxTokens: 12800,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 3,
@@ -2595,7 +2994,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.1",
 				contextWindow: 200000,
 				maxTokens: 10000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -2609,7 +3008,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.7",
 				contextWindow: 198000,
 				maxTokens: 9900,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -2623,7 +3022,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.2",
 				contextWindow: 160000,
 				maxTokens: 8000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.56,
 					output: 1.68,
@@ -2637,7 +3036,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 256000,
 				maxTokens: 12800,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.5,
@@ -2784,6 +3183,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.25,
@@ -2805,6 +3205,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -2826,6 +3227,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -2847,6 +3249,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.5,
@@ -2868,6 +3271,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -2889,6 +3293,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -2910,6 +3315,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -2931,6 +3337,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -2952,6 +3359,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -2987,6 +3395,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -3001,7 +3410,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash Lite Preview 06-17",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -3036,6 +3452,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -3057,6 +3474,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.15,
@@ -3078,6 +3496,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -3092,7 +3511,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash Preview 04-17",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -3113,6 +3539,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -3134,6 +3561,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -3168,6 +3596,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -3202,7 +3631,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 1.5 Flash-8B",
 				contextWindow: 1000000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.0375,
 					output: 0.15,
@@ -3216,7 +3645,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 1.5 Flash",
 				contextWindow: 1000000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.075,
 					output: 0.3,
@@ -3230,7 +3659,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 1.5 Pro",
 				contextWindow: 1000000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 5,
@@ -3340,7 +3769,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Safety GPT OSS 20B",
 				contextWindow: 131072,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.075,
 					output: 0.3,
@@ -3398,7 +3827,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -3412,7 +3841,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-5",
 				contextWindow: 202752,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1,
 					output: 3.2,
@@ -3454,7 +3883,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi-K2.5",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 3,
@@ -3482,7 +3917,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.7",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -3524,7 +3959,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi-K2-Thinking",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.5,
@@ -3988,7 +4423,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Inception: Mercury 2",
 				contextWindow: 128000,
 				maxTokens: 50000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 0.75,
@@ -4058,7 +4493,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax: MiniMax M2.5",
 				contextWindow: 196608,
 				maxTokens: 9830,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 1.2,
@@ -4100,7 +4535,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Opus 4.6",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -4114,7 +4555,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 Coder Next",
 				contextWindow: 262144,
 				maxTokens: 65536,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.12,
 					output: 0.75,
@@ -4142,7 +4583,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "StepFun: Step 3.5 Flash",
 				contextWindow: 256000,
 				maxTokens: 12800,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -4226,7 +4667,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.7 Flash",
 				contextWindow: 202752,
 				maxTokens: 40551,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
 					output: 0.4,
@@ -4240,7 +4681,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.2-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -4296,7 +4737,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax: MiniMax M2.1",
 				contextWindow: 196608,
 				maxTokens: 39322,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.27,
 					output: 0.95,
@@ -4310,7 +4751,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.7",
 				contextWindow: 202752,
 				maxTokens: 65535,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.38,
 					output: 1.98,
@@ -4324,7 +4765,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 3 Flash Preview",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.5,
 					output: 3,
@@ -4366,7 +4814,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Xiaomi: MiMo-V2-Flash",
 				contextWindow: 262144,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.09,
 					output: 0.29,
@@ -4380,7 +4828,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.2",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -4394,7 +4842,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.2 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools"],
+				capabilities: ["images", "files", "tools", "prompt-cache"],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -4492,7 +4940,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek: DeepSeek V3.2",
 				contextWindow: 163840,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.26,
 					output: 0.38,
@@ -4520,7 +4968,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -4534,7 +4989,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 4.1 Fast",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -4548,7 +5009,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 3 Pro Preview",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 12,
@@ -4562,7 +5030,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.1",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -4576,7 +5044,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.1 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools"],
+				capabilities: ["images", "files", "tools", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -4590,7 +5058,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.1-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -4604,7 +5072,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.1-Codex-Max",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -4618,7 +5086,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5.1-Codex-Mini",
 				contextWindow: 400000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -4632,7 +5100,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MoonshotAI: Kimi K2 Thinking",
 				contextWindow: 131072,
 				maxTokens: 65535,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.47,
 					output: 2,
@@ -4660,7 +5128,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: gpt-oss-safeguard-20b",
 				contextWindow: 131072,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.075,
 					output: 0.3,
@@ -4674,7 +5142,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax: MiniMax M2",
 				contextWindow: 196608,
 				maxTokens: 9830,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.255,
 					output: 1,
@@ -4716,7 +5184,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -4814,7 +5288,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kwaipilot: KAT-Coder-Pro V1",
 				contextWindow: 256000,
 				maxTokens: 128000,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.207,
 					output: 0.828,
@@ -4828,7 +5302,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.6",
 				contextWindow: 204800,
 				maxTokens: 10240,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.39,
 					output: 1.9,
@@ -4856,7 +5330,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Sonnet 4.5",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -4870,7 +5351,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.5 Flash Lite Preview 09-2025",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -4898,7 +5386,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 VL 235B A22B Instruct",
 				contextWindow: 262144,
 				maxTokens: 52429,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.88,
@@ -4912,7 +5400,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek: DeepSeek V3.1 Terminus",
 				contextWindow: 163840,
 				maxTokens: 32768,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.21,
 					output: 0.79,
@@ -4940,7 +5428,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5 Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -4954,7 +5442,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral: Devstral 2 2512",
 				contextWindow: 262144,
 				maxTokens: 65536,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.4,
 					output: 2,
@@ -5024,7 +5512,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MoonshotAI: Kimi K2 0905",
 				contextWindow: 131072,
 				maxTokens: 26215,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.4,
 					output: 2,
@@ -5038,7 +5526,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 Max",
 				contextWindow: 262144,
 				maxTokens: 32768,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.2,
 					output: 6,
@@ -5066,7 +5554,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Meituan: LongCat Flash Chat",
 				contextWindow: 131072,
 				maxTokens: 6553,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.8,
@@ -5150,7 +5638,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok Code Fast 1",
 				contextWindow: 256000,
 				maxTokens: 10000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 1.5,
@@ -5178,7 +5666,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 4 Fast",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -5234,7 +5728,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.5V",
 				contextWindow: 65536,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 1.8,
@@ -5262,7 +5762,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -5276,7 +5776,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5 Mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -5290,7 +5790,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-5 Nano",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 0.05,
 					output: 0.4,
@@ -5304,7 +5804,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Opus 4.1",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -5374,7 +5881,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 30B A3B Instruct 2507",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.09,
 					output: 0.3,
@@ -5402,7 +5909,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.5",
 				contextWindow: 131072,
 				maxTokens: 98304,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -5416,7 +5923,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Z.ai: GLM 4.5 Air",
 				contextWindow: 131072,
 				maxTokens: 98304,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.13,
 					output: 0.85,
@@ -5458,7 +5965,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 Coder 480B A35B",
 				contextWindow: 262144,
 				maxTokens: 52429,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.22,
 					output: 1,
@@ -5472,7 +5979,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 Coder Flash",
 				contextWindow: 1000000,
 				maxTokens: 65536,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.195,
 					output: 0.975,
@@ -5486,7 +5993,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.5 Flash",
 				contextWindow: 1048576,
 				maxTokens: 65535,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.3,
 					output: 2.5,
@@ -5528,7 +6042,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 4",
 				contextWindow: 256000,
 				maxTokens: 51200,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -5542,7 +6062,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "TNG: DeepSeek R1T2 Chimera",
 				contextWindow: 163840,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 0.85,
@@ -5570,7 +6090,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 Coder Plus",
 				contextWindow: 1000000,
 				maxTokens: 65536,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.65,
 					output: 3.25,
@@ -5626,7 +6146,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mistral: Mistral Small 3.2 24B",
 				contextWindow: 131072,
 				maxTokens: 6553,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
 					output: 0.18,
@@ -5640,7 +6160,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.5 Flash Lite",
 				contextWindow: 1048576,
 				maxTokens: 65535,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -5668,7 +6195,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.5 Pro Preview 06-05",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -5682,7 +6216,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek: R1 0528",
 				contextWindow: 163840,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.45,
 					output: 2.15,
@@ -5696,7 +6230,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -5710,7 +6251,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -5766,7 +6314,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.5 Pro Preview 05-06",
 				contextWindow: 1048576,
 				maxTokens: 65535,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -5794,7 +6349,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o3",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -5822,7 +6377,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o4 Mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -5836,7 +6391,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -5850,7 +6411,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4.1 Mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -5864,7 +6431,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4.1 Nano",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -5906,7 +6479,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 14B",
 				contextWindow: 40960,
 				maxTokens: 2048,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
 					output: 0.24,
@@ -5934,7 +6507,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 30B A3B",
 				contextWindow: 40960,
 				maxTokens: 2048,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.08,
 					output: 0.28,
@@ -5948,7 +6521,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 8B",
 				contextWindow: 40960,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.05,
 					output: 0.4,
@@ -5962,7 +6535,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek: DeepSeek V3 0324",
 				contextWindow: 163840,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.77,
@@ -5976,7 +6549,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.5 Pro",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -6004,7 +6584,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemma 3 27B",
 				contextWindow: 128000,
 				maxTokens: 65536,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.03,
 					output: 0.11,
@@ -6032,7 +6612,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude 3.7 Sonnet",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -6046,7 +6633,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude 3.7 Sonnet (thinking)",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -6074,7 +6668,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 3",
 				contextWindow: 131072,
 				maxTokens: 26215,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -6088,7 +6682,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 3 Beta",
 				contextWindow: 131072,
 				maxTokens: 26215,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -6102,7 +6696,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 3 Mini",
 				contextWindow: 131072,
 				maxTokens: 26215,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 0.5,
@@ -6116,7 +6710,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "xAI: Grok 3 Mini Beta",
 				contextWindow: 131072,
 				maxTokens: 26215,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 0.5,
@@ -6130,7 +6724,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o3 Mini High",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["files", "tools"],
+				capabilities: ["files", "tools", "prompt-cache"],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -6186,7 +6780,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o3 Mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["files", "tools"],
+				capabilities: ["files", "tools", "prompt-cache"],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -6200,7 +6794,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Google: Gemini 2.0 Flash",
 				contextWindow: 1048576,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -6256,7 +6856,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o1",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools"],
+				capabilities: ["images", "files", "tools", "prompt-cache"],
 				pricing: {
 					input: 15,
 					output: 60,
@@ -6298,7 +6898,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek: DeepSeek V3",
 				contextWindow: 163840,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.32,
 					output: 0.89,
@@ -6326,7 +6926,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 235B A22B",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.455,
 					output: 1.82,
@@ -6340,7 +6940,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen3 32B",
 				contextWindow: 40960,
 				maxTokens: 2048,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.08,
 					output: 0.24,
@@ -6368,7 +6968,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4o (2024-11-20)",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -6438,7 +7044,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen-Turbo",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.0325,
 					output: 0.13,
@@ -6452,7 +7058,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude 3.5 Haiku",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -6578,7 +7184,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4o (2024-08-06)",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -6648,7 +7260,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4o-mini",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -6704,7 +7322,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o3 Deep Research",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 10,
 					output: 40,
@@ -6718,7 +7343,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: o4 Mini Deep Research",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -6760,7 +7392,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "OpenAI: GPT-4o",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -6844,7 +7482,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen-Max ",
 				contextWindow: 32768,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.04,
 					output: 4.16,
@@ -6858,7 +7496,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Anthropic: Claude 3 Haiku",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 1.25,
@@ -6900,7 +7538,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen: Qwen-Plus",
 				contextWindow: 1000000,
 				maxTokens: 32768,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.4,
 					output: 1.2,
@@ -7072,7 +7710,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.7",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -7086,7 +7724,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.7-highspeed",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.4,
@@ -7100,7 +7738,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5-highspeed",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.4,
@@ -7114,7 +7752,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -7158,7 +7796,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2.5",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 3,
@@ -7172,7 +7816,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.5,
@@ -7186,7 +7830,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking Turbo",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.15,
 					output: 8,
@@ -7200,7 +7844,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 0905",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.5,
@@ -7214,7 +7858,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Turbo",
 				contextWindow: 262144,
 				maxTokens: 13107,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2.4,
 					output: 10,
@@ -7228,7 +7872,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 0711",
 				contextWindow: 131072,
 				maxTokens: 16384,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.5,
@@ -7268,6 +7912,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -7287,6 +7932,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -7306,6 +7952,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -7325,6 +7972,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.13,
@@ -7339,7 +7987,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3-30B-A3B-Instruct-2507",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -7358,6 +8011,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -7372,7 +8026,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3-32B",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -7386,7 +8045,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3-32B (Fast)",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 0.6,
@@ -7400,7 +8064,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3-Coder-30B-A3B-Instruct",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -7419,6 +8088,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.15,
@@ -7433,7 +8103,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "INTELLECT-3",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 1.1,
@@ -7452,6 +8127,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -7466,7 +8142,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemma-3-27b-it",
 				contextWindow: 110000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -7480,7 +8162,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemma-3-27b-it (Fast)",
 				contextWindow: 110000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 0.6,
@@ -7499,6 +8187,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.8,
@@ -7513,7 +8202,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.7 (FP8)",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.4,
 					output: 2,
@@ -7532,6 +8226,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.15,
@@ -7546,7 +8241,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-20b",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.05,
 					output: 0.2,
@@ -7560,7 +8260,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi-K2-Instruct",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.5,
 					output: 2.4,
@@ -7579,6 +8285,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.6,
@@ -7599,6 +8306,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.5,
@@ -7619,6 +8327,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.5,
@@ -7633,7 +8342,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama-3.3-70B-Instruct",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.13,
 					output: 0.4,
@@ -7647,7 +8361,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama-3.3-70B-Instruct (Fast)",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 0.75,
@@ -7661,7 +8380,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.5",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -7675,7 +8399,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.5-Air",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 1.2,
@@ -7689,7 +8418,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron-3-Nano-30B-A3B",
 				contextWindow: 32000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.06,
 					output: 0.24,
@@ -7745,7 +8479,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek-V3-0324",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.5,
 					output: 1.5,
@@ -7759,7 +8498,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek-V3-0324 (Fast)",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.75,
 					output: 2.25,
@@ -7773,7 +8517,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nemotron-Nano-V2-12b",
 				contextWindow: 32000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.07,
 					output: 0.2,
@@ -7787,7 +8536,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen2.5-VL-72B-Instruct",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 0.75,
@@ -7801,7 +8556,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Llama-3.1-Nemotron-Ultra-253B-v1",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 1.8,
@@ -7829,7 +8589,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen2.5-Coder-7B (Fast)",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.03,
 					output: 0.09,
@@ -7843,7 +8608,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Meta-Llama-3.1-8B-Instruct",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.02,
 					output: 0.06,
@@ -7857,7 +8627,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Meta-Llama-3.1-8B-Instruct (Fast)",
 				contextWindow: 128000,
 				maxTokens: 4096,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.03,
 					output: 0.09,
@@ -8309,7 +9084,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.4 mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.75,
 					output: 4.5,
@@ -8323,7 +9104,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.4 nano",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 1.25,
@@ -8343,6 +9130,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2.5,
@@ -8371,7 +9159,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.3 Chat (latest)",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -8391,6 +9185,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -8411,6 +9206,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -8425,7 +9221,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -8439,7 +9241,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -8459,6 +9267,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -8487,7 +9296,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -8501,7 +9316,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -8515,7 +9336,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -8529,7 +9356,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Codex Max",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -8543,7 +9376,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Codex mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -8571,7 +9410,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -8585,7 +9430,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -8599,7 +9450,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -8613,7 +9470,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Nano",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.05,
 					output: 0.4,
@@ -8641,7 +9504,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Codex Mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["tools", "reasoning"],
+				capabilities: ["tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.5,
 					output: 6,
@@ -8661,6 +9524,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -8675,7 +9539,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o4-mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -8695,6 +9565,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -8715,6 +9586,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.4,
@@ -8729,7 +9601,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 nano",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -8757,7 +9635,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o3-mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["tools", "reasoning", "structured_output"],
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -8777,6 +9660,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 15,
@@ -8791,7 +9675,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o (2024-11-20)",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -8805,7 +9695,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o (2024-08-06)",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2.5,
 					output: 10,
@@ -8825,6 +9721,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.15,
@@ -8839,7 +9736,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o3-deep-research",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 10,
 					output: 40,
@@ -8853,7 +9750,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o4-mini-deep-research",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -8873,6 +9770,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2.5,
@@ -9005,7 +9903,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.7",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -9025,6 +9923,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.4,
@@ -9044,6 +9943,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -9065,6 +9965,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 7.5e-7,
@@ -9085,6 +9986,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2e-7,
@@ -9118,6 +10020,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.2,
@@ -9132,7 +10035,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Beta",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -9180,6 +10089,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2.5,
@@ -9194,7 +10104,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.4 Pro",
 				contextWindow: 1050000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 30,
 					output: 180,
@@ -9213,6 +10123,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.25,
@@ -9234,6 +10145,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.25,
@@ -9254,6 +10166,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -9316,6 +10229,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -9375,6 +10289,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -9394,6 +10309,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -9415,6 +10331,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -9449,7 +10366,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Step 3.5 Flash",
 				contextWindow: 256000,
 				maxTokens: 12800,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -9511,6 +10428,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.6,
@@ -9550,6 +10468,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -9588,6 +10507,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.6,
@@ -9609,6 +10529,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.5,
@@ -9647,6 +10568,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -9661,7 +10583,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -9675,7 +10603,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -9748,6 +10682,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -9768,6 +10703,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.2,
@@ -9809,6 +10745,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -9829,6 +10766,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -9849,6 +10787,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -9869,6 +10808,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.1,
@@ -9889,6 +10829,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.25,
@@ -9908,6 +10849,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.6,
@@ -9955,6 +10897,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.28,
@@ -9976,6 +10919,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1,
@@ -9997,6 +10941,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -10030,6 +10975,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.6,
@@ -10049,6 +10995,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.6,
@@ -10070,6 +11017,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -10091,6 +11039,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -10112,6 +11061,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -10170,6 +11120,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -10311,6 +11262,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.2,
@@ -10383,6 +11335,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.2,
@@ -10512,6 +11465,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 15,
@@ -10792,6 +11746,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -10867,6 +11822,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -10881,7 +11837,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mercury",
 				contextWindow: 128000,
 				maxTokens: 32000,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 0.75,
@@ -10916,6 +11877,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -10951,6 +11913,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -10965,7 +11928,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -10979,7 +11949,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11028,6 +12005,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -11042,7 +12020,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mercury Coder",
 				contextWindow: 128000,
 				maxTokens: 32000,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 0.75,
@@ -11095,6 +12078,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.1,
@@ -11109,7 +12093,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -11123,7 +12113,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 Mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -11144,6 +12140,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -11200,7 +12197,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.7",
 				contextWindow: 200000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -11214,7 +12218,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "structured_output", "temperature"],
+				capabilities: [
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11228,7 +12237,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Beta",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11247,6 +12256,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -11261,7 +12271,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini Beta",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 0.5,
@@ -11314,6 +12324,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -11342,7 +12353,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -11356,7 +12373,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o-mini",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -11378,6 +12401,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2.5,
@@ -11392,7 +12416,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.4 Pro",
 				contextWindow: 1050000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 30,
 					output: 180,
@@ -11412,6 +12436,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -11432,6 +12457,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 3,
@@ -11453,6 +12479,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -11473,6 +12500,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.75,
@@ -11487,7 +12515,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3 Flash",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.5,
 					output: 3,
@@ -11501,7 +12536,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -11515,7 +12556,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -11543,7 +12590,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -11557,7 +12611,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3 Pro",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 12,
@@ -11577,6 +12638,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -11597,6 +12659,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -11617,6 +12680,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -11637,6 +12701,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.1,
@@ -11657,6 +12722,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.25,
@@ -11671,7 +12737,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 62000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -11692,6 +12765,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 5,
@@ -11720,7 +12794,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11734,7 +12815,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4 Fast",
 				contextWindow: 2000000,
 				maxTokens: 64000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -11754,6 +12835,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -11768,7 +12850,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4",
 				contextWindow: 256000,
 				maxTokens: 64000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11782,7 +12870,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -11796,7 +12884,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Mini",
 				contextWindow: 128000,
 				maxTokens: 32000,
-				capabilities: ["images", "tools", "reasoning"],
+				capabilities: ["images", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -11810,7 +12898,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Nano",
 				contextWindow: 16000,
 				maxTokens: 4000,
-				capabilities: ["tools", "reasoning"],
+				capabilities: ["tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 0.05,
 					output: 0.4,
@@ -11824,7 +12912,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -11838,7 +12933,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.3,
 					output: 2.5,
@@ -11852,7 +12954,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Pro",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -11866,7 +12975,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -11880,7 +12996,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11894,7 +13017,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o4 Mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -11908,7 +13037,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -11922,7 +13051,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 Mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -11936,7 +13065,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.7",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11950,7 +13086,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4o Mini",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.15,
 					output: 0.6,
@@ -11966,7 +13102,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4.6-sonnet",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -11980,7 +13123,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4.6-opus",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -11994,7 +13144,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4.5-opus",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -12008,7 +13165,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4.5-haiku",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -12022,7 +13186,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4.5-sonnet",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -12036,7 +13207,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-5",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -12050,7 +13227,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-5-mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -12064,7 +13247,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-5-nano",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.05,
 					output: 0.4,
@@ -12085,6 +13274,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -12099,7 +13289,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4-opus",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -12113,7 +13310,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-4-sonnet",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -12127,7 +13331,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-4.1",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 8,
@@ -12141,7 +13351,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-4.1-mini",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.4,
 					output: 1.6,
@@ -12162,6 +13378,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -12183,6 +13400,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -12197,7 +13415,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-3.7-sonnet",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -12211,7 +13436,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-3.5-sonnet",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -12225,7 +13456,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-3-haiku",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 1.25,
@@ -12239,7 +13476,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-3-sonnet",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -12253,7 +13496,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "anthropic--claude-3-opus",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -12283,7 +13532,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax-M2.5",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -12444,7 +13693,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen 3.6 Plus",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.5,
 					output: 3,
@@ -12500,7 +13756,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 5V Turbo",
 				contextWindow: 200000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.2,
 					output: 4,
@@ -12514,7 +13777,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kat Coder Pro V2",
 				contextWindow: 256000,
 				maxTokens: 12800,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -12528,7 +13791,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Minimax M2.7",
 				contextWindow: 204800,
 				maxTokens: 131000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -12542,7 +13812,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.7 High Speed",
 				contextWindow: 204800,
 				maxTokens: 131100,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.6,
 					output: 2.4,
@@ -12556,7 +13832,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiMo V2 Pro",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1,
 					output: 3,
@@ -12570,7 +13846,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT 5.4 Mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.75,
 					output: 4.5,
@@ -12584,7 +13867,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT 5.4 Nano",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.19999999999999998,
 					output: 1.25,
@@ -12612,7 +13902,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 5 Turbo",
 				contextWindow: 202800,
 				maxTokens: 131100,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.2,
 					output: 4,
@@ -12640,7 +13930,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Multi Agent Beta",
 				contextWindow: 2000000,
 				maxTokens: 100000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -12654,7 +13944,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Beta Non-Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -12668,7 +13964,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Beta Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -12682,7 +13985,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Multi-Agent",
 				contextWindow: 2000000,
 				maxTokens: 100000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -12696,7 +13999,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Non-Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -12710,7 +14019,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -12724,7 +14040,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT 5.4",
 				contextWindow: 1050000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2.5,
 					output: 15,
@@ -12752,7 +14075,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3.1 Flash Lite Preview",
 				contextWindow: 1000000,
 				maxTokens: 65000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 1.5,
@@ -12766,7 +14096,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.3 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -12780,7 +14117,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen 3.5 Flash",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -12794,7 +14138,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Mercury 2",
 				contextWindow: 128000,
 				maxTokens: 6400,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 0.75,
@@ -12808,7 +14152,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT 5.3 Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -12822,7 +14173,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3.1 Pro Preview",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 12,
@@ -12836,7 +14194,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -12850,7 +14215,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen 3.5 Plus",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.4,
 					output: 2.4,
@@ -12864,7 +14236,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.5",
 				contextWindow: 204800,
 				maxTokens: 131000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -12878,7 +14250,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.5 High Speed",
 				contextWindow: 0,
 				maxTokens: 0,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.4,
@@ -12892,7 +14264,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-5",
 				contextWindow: 202800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1,
 					output: 3.2,
@@ -12906,7 +14278,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -12934,7 +14313,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.7",
 				contextWindow: 202752,
 				maxTokens: 120000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.43,
 					output: 1.75,
@@ -12948,7 +14327,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3 Flash",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.5,
 					output: 3,
@@ -12990,7 +14376,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "DeepSeek V3.2 Thinking",
 				contextWindow: 128000,
 				maxTokens: 64000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.28,
 					output: 0.42,
@@ -13004,7 +14390,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -13032,7 +14425,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -13046,7 +14446,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 3 Pro Preview",
 				contextWindow: 1000000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 12,
@@ -13060,7 +14467,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking",
 				contextWindow: 216144,
 				maxTokens: 10807,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.47,
 					output: 2,
@@ -13074,7 +14481,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Kimi K2 Thinking Turbo",
 				contextWindow: 262114,
 				maxTokens: 13105,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.15,
 					output: 8,
@@ -13088,7 +14495,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2",
 				contextWindow: 262114,
 				maxTokens: 13105,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.27,
 					output: 1.15,
@@ -13102,7 +14509,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.1",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 1.2,
@@ -13116,7 +14523,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiniMax M2.1 Lightning",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 2.4,
@@ -13130,7 +14537,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -13144,7 +14558,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Seed 1.8",
 				contextWindow: 256000,
 				maxTokens: 64000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -13172,7 +14592,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.6V",
 				contextWindow: 128000,
 				maxTokens: 24000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.3,
 					output: 0.9,
@@ -13200,7 +14627,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -13228,7 +14662,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash Lite Preview 09-25",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -13242,7 +14683,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash Preview 09-25",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.3,
 					output: 2.5,
@@ -13298,7 +14746,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen3 Max Preview",
 				contextWindow: 262144,
 				maxTokens: 32768,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.2,
 					output: 6,
@@ -13340,7 +14788,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4 Fast (Non-Reasoning)",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -13354,7 +14802,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13410,7 +14864,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Seed 1.6",
 				contextWindow: 256000,
 				maxTokens: 32000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -13438,7 +14892,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok Code Fast 1",
 				contextWindow: 256000,
 				maxTokens: 10000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 1.5,
@@ -13494,7 +14948,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13508,7 +14968,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13522,7 +14989,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -13536,7 +15009,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5 Nano",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.05,
 					output: 0.4,
@@ -13564,7 +15043,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1-Codex",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13578,7 +15064,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT 5.1 Codex Max",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13592,7 +15085,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Instant",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13606,7 +15106,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT 5.1 Thinking",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 1.25,
 					output: 10,
@@ -13620,7 +15120,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -13634,7 +15141,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.2 Chat",
 				contextWindow: 128000,
 				maxTokens: 16384,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.75,
 					output: 14,
@@ -13746,7 +15260,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4",
 				contextWindow: 256000,
 				maxTokens: 64000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -13760,7 +15274,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4 Fast Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 256000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -13774,7 +15288,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.1 Fast Non-Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -13788,7 +15302,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.1 Fast Reasoning",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -13802,7 +15316,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Gemini 2.5 Flash Lite",
 				contextWindow: 1048576,
 				maxTokens: 65536,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -13830,7 +15351,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -13844,7 +15372,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -13858,7 +15393,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -13886,7 +15428,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Codex Mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.5,
 					output: 6,
@@ -13900,7 +15449,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-5.1 Codex mini",
 				contextWindow: 400000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 2,
@@ -13962,6 +15518,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -13990,7 +15547,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o4-mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "tools", "reasoning", "structured_output"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -14010,6 +15573,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2,
@@ -14030,6 +15594,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.4,
@@ -14044,7 +15609,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GPT-4.1 nano",
 				contextWindow: 1047576,
 				maxTokens: 32768,
-				capabilities: ["images", "tools", "structured_output", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.1,
 					output: 0.4,
@@ -14191,6 +15762,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.3,
@@ -14212,6 +15784,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.25,
@@ -14282,7 +15855,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.7",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -14324,7 +15904,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -14338,7 +15918,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Fast",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -14352,7 +15932,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 0.5,
@@ -14366,7 +15946,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini Fast",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 4,
@@ -14394,7 +15974,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Qwen 3 Max Thinking",
 				contextWindow: 256000,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1.2,
 					output: 6,
@@ -14422,7 +16002,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM 4.7 FlashX",
 				contextWindow: 200000,
 				maxTokens: 128000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
 					output: 0.4,
@@ -14450,7 +16030,12 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o3-mini",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["tools", "reasoning", "structured_output"],
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.1,
 					output: 4.4,
@@ -14470,6 +16055,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.1,
@@ -14524,6 +16110,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"reasoning",
 					"structured_output",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 15,
@@ -14538,7 +16125,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nova Lite",
 				contextWindow: 300000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.06,
 					output: 0.24,
@@ -14552,7 +16139,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nova Micro",
 				contextWindow: 128000,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.035,
 					output: 0.14,
@@ -14566,7 +16153,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Nova Pro",
 				contextWindow: 300000,
 				maxTokens: 8192,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.8,
 					output: 3.2,
@@ -14594,7 +16181,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "gpt-oss-safeguard-20b",
 				contextWindow: 131072,
 				maxTokens: 65536,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.08,
 					output: 0.3,
@@ -14622,7 +16209,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -14636,7 +16229,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.5 v2",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -14720,7 +16319,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2 Vision",
 				contextWindow: 8192,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -14768,6 +16367,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 0.15,
@@ -14796,7 +16396,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "o3-deep-research",
 				contextWindow: 200000,
 				maxTokens: 100000,
-				capabilities: ["images", "files", "tools", "reasoning"],
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
 				pricing: {
 					input: 10,
 					output: 40,
@@ -14844,6 +16444,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"tools",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 2.5,
@@ -14872,7 +16473,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.25,
 					output: 1.25,
@@ -14886,7 +16493,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 3",
 				contextWindow: 200000,
 				maxTokens: 4096,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -14916,7 +16529,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.6",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -14930,7 +16550,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.6",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -14944,7 +16571,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -14958,7 +16592,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1,
 					output: 5,
@@ -14972,7 +16613,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4.5",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -14986,7 +16634,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4.1",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -15000,7 +16655,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Opus 4",
 				contextWindow: 200000,
 				maxTokens: 32000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 15,
 					output: 75,
@@ -15014,7 +16676,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 4",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -15028,7 +16697,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.7",
 				contextWindow: 200000,
 				maxTokens: 64000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -15042,7 +16718,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Haiku 3.5",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.8,
 					output: 4,
@@ -15056,7 +16738,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Claude Sonnet 3.5 v2",
 				contextWindow: 200000,
 				maxTokens: 8192,
-				capabilities: ["images", "files", "tools", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -15344,7 +17032,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 (Non-Reasoning)",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -15358,7 +17046,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.20 (Reasoning)",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 2,
 					output: 6,
@@ -15372,7 +17066,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.1 Fast",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -15386,7 +17086,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4.1 Fast (Non-Reasoning)",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -15400,7 +17100,13 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4 Fast",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -15414,7 +17120,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4 Fast (Non-Reasoning)",
 				contextWindow: 2000000,
 				maxTokens: 30000,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 0.5,
@@ -15428,7 +17134,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok Code Fast 1",
 				contextWindow: 256000,
 				maxTokens: 10000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 1.5,
@@ -15442,7 +17148,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 4",
 				contextWindow: 256000,
 				maxTokens: 64000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -15456,7 +17162,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -15470,7 +17176,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Fast",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -15484,7 +17190,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Fast Latest",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 5,
 					output: 25,
@@ -15498,7 +17204,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Latest",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 3,
 					output: 15,
@@ -15512,7 +17218,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 0.5,
@@ -15526,7 +17232,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini Fast",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 4,
@@ -15540,7 +17246,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini Fast Latest",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 4,
@@ -15554,7 +17260,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 3 Mini Latest",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.3,
 					output: 0.5,
@@ -15568,7 +17274,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2 (1212)",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -15582,7 +17288,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok Beta",
 				contextWindow: 131072,
 				maxTokens: 4096,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 5,
 					output: 15,
@@ -15596,7 +17302,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok Vision Beta",
 				contextWindow: 8192,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 5,
 					output: 15,
@@ -15610,7 +17316,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -15624,7 +17330,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2 Latest",
 				contextWindow: 131072,
 				maxTokens: 8192,
-				capabilities: ["tools", "temperature"],
+				capabilities: ["tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -15638,7 +17344,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2 Vision",
 				contextWindow: 8192,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -15652,7 +17358,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2 Vision (1212)",
 				contextWindow: 8192,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -15666,7 +17372,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "Grok 2 Vision Latest",
 				contextWindow: 8192,
 				maxTokens: 4096,
-				capabilities: ["images", "tools", "temperature"],
+				capabilities: ["images", "tools", "temperature", "prompt-cache"],
 				pricing: {
 					input: 2,
 					output: 10,
@@ -15682,7 +17388,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiMo-V2-Omni",
 				contextWindow: 256000,
 				maxTokens: 128000,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 0.4,
 					output: 2,
@@ -15696,7 +17409,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiMo-V2-Pro",
 				contextWindow: 1000000,
 				maxTokens: 128000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1,
 					output: 3,
@@ -15710,7 +17423,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "MiMo-V2-Flash",
 				contextWindow: 256000,
 				maxTokens: 64000,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.1,
 					output: 0.3,
@@ -15726,7 +17439,14 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "glm-5v-turbo",
 				contextWindow: 200000,
 				maxTokens: 131072,
-				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
 				pricing: {
 					input: 1.2,
 					output: 4,
@@ -15745,6 +17465,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					"reasoning",
 					"structured_output",
 					"temperature",
+					"prompt-cache",
 				],
 				pricing: {
 					input: 1.2,
@@ -15759,7 +17480,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-5",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 1,
 					output: 3.2,
@@ -15787,7 +17508,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.7-FlashX",
 				contextWindow: 200000,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.07,
 					output: 0.4,
@@ -15801,7 +17522,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.7",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -15829,7 +17550,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.6",
 				contextWindow: 204800,
 				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -15857,7 +17578,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.5",
 				contextWindow: 131072,
 				maxTokens: 98304,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.6,
 					output: 2.2,
@@ -15871,7 +17592,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				name: "GLM-4.5-Air",
 				contextWindow: 131072,
 				maxTokens: 98304,
-				capabilities: ["tools", "reasoning", "temperature"],
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
 				pricing: {
 					input: 0.2,
 					output: 1.1,

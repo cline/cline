@@ -186,17 +186,6 @@ export class OpenAIBaseHandler extends BaseHandler {
 			}),
 		};
 
-		// Add top-level cache_control for OpenRouter with Anthropic models.
-		// This enables automatic caching where the cache breakpoint advances
-		// as the conversation grows, rather than relying on explicit per-block
-		// breakpoints which are limited to 4.
-		if (
-			routingProviderId === "openrouter" &&
-			modelId.startsWith("anthropic/")
-		) {
-			requestOptions.cache_control = { type: "ephemeral" };
-		}
-
 		// Add max tokens if configured
 		const maxTokens = modelInfo.maxTokens ?? this.config.maxOutputTokens;
 		if (maxTokens) {

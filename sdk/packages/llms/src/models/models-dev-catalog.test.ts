@@ -66,6 +66,7 @@ describe("models-dev-catalog", () => {
 						"reasoning",
 						"structured_output",
 						"temperature",
+						"prompt-cache",
 					],
 					pricing: {
 						input: 1,

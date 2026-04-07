@@ -156,10 +156,16 @@ async function fetchWithTimeout(
 	init: RequestInit,
 	timeoutMs = DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
 ): Promise<Response> {
-	return fetch(input, {
-		...init,
-		signal: AbortSignal.timeout(timeoutMs),
-	});
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), timeoutMs);
+	try {
+		return await fetch(input, {
+			...init,
+			signal: controller.signal,
+		});
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 function includeCapability(

@@ -38,11 +38,9 @@ export function hasLangfuseTelemetryConfig(): boolean {
 }
 
 export async function ensureLangfuseTelemetry(
-	providerId: string,
+	_providerId: string,
 ): Promise<boolean> {
-	// Currently Cline provider only when enabled
-	if (!hasLangfuseTelemetryConfig() || providerId !== "cline") {
-		debugLangfuse(`config missing or provider ${providerId} not cline`);
+	if (!hasLangfuseTelemetryConfig()) {
 		return false;
 	}
 

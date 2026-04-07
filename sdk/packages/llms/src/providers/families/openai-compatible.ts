@@ -57,6 +57,109 @@ function toProviderOptionsKey(providerId: string): string {
 	);
 }
 
+function isAnthropicModelId(modelId: string): boolean {
+	return modelId.toLowerCase().startsWith("anthropic/");
+}
+
+function createPromptCacheProviderOptions(providerId: string) {
+	return {
+		[providerId]: {
+			cache_control: { type: "ephemeral" },
+		},
+	};
+}
+
+function applyPromptCacheToLastTextPart(
+	message: Record<string, unknown> | undefined,
+	providerId: string,
+): void {
+	if (!message) {
+		return;
+	}
+
+	const content = message.content;
+	if (typeof content === "string") {
+		message.content = [
+			{
+				type: "text",
+				text: content,
+				providerOptions: createPromptCacheProviderOptions(providerId),
+			},
+		];
+		return;
+	}
+
+	if (!Array.isArray(content)) {
+		return;
+	}
+
+	for (let i = content.length - 1; i >= 0; i--) {
+		const part = content[i];
+		if (
+			part &&
+			typeof part === "object" &&
+			(part as { type?: unknown }).type === "text"
+		) {
+			content[i] = {
+				...(part as Record<string, unknown>),
+				providerOptions: createPromptCacheProviderOptions(providerId),
+			};
+			return;
+		}
+	}
+}
+
+function buildCachedAiSdkMessages(
+	systemPrompt: string,
+	messages: Message[],
+	routingProviderId: string,
+) {
+	const aiMessages = toAiSdkMessages(systemPrompt, messages, {
+		assistantToolCallArgKey: "input",
+	}) as Array<Record<string, unknown>>;
+
+	for (let i = aiMessages.length - 1; i >= 0; i--) {
+		if (aiMessages[i]?.role === "user") {
+			applyPromptCacheToLastTextPart(aiMessages[i], routingProviderId);
+			break;
+		}
+	}
+
+	return aiMessages;
+}
+
+function resolveCacheUsageMetrics(usage: Record<string, unknown>): Pick<
+	{
+		cacheReadTokens: number;
+		cacheWriteTokens: number;
+	},
+	"cacheReadTokens" | "cacheWriteTokens"
+> {
+	const usageWithCache = usage as typeof usage & {
+		cachedInputTokens?: unknown;
+		cacheWriteTokens?: unknown;
+		prompt_tokens_details?: {
+			cached_tokens?: unknown;
+			cache_write_tokens?: unknown;
+		};
+		cache_creation_input_tokens?: unknown;
+		cache_read_input_tokens?: unknown;
+	};
+
+	return {
+		cacheReadTokens: numberOrZero(
+			usageWithCache.cachedInputTokens ??
+				usageWithCache.prompt_tokens_details?.cached_tokens ??
+				usageWithCache.cache_read_input_tokens,
+		),
+		cacheWriteTokens: numberOrZero(
+			usageWithCache.cacheWriteTokens ??
+				usageWithCache.prompt_tokens_details?.cache_write_tokens ??
+				usageWithCache.cache_creation_input_tokens,
+		),
+	};
+}
+
 function toAiSdkTools(
 	tools: ToolDefinition[] | undefined,
 ): Record<string, unknown> | undefined {
@@ -192,9 +295,15 @@ export class OpenAICompatibleHandler extends BaseHandler {
 			await ensureLangfuseTelemetry(routingProviderId);
 		debugLangfuse(`ready langfuse=${String(langfuseTelemetryReady)}`);
 
+		const supportsPromptCache = this.supportsPromptCache(modelInfo);
+		const aiMessages =
+			supportsPromptCache && isAnthropicModelId(modelId)
+				? buildCachedAiSdkMessages(systemPrompt, messages, routingProviderId)
+				: this.getMessages(systemPrompt, messages);
+
 		const stream = ai.streamText({
 			model: provider(modelId),
-			messages: this.getMessages(systemPrompt, messages),
+			messages: aiMessages,
 			tools: toAiSdkTools(tools),
 			maxTokens: modelInfo.maxTokens ?? this.config.maxOutputTokens,
 			temperature: modelSupportsReasoning
@@ -232,7 +341,7 @@ export class OpenAICompatibleHandler extends BaseHandler {
 				thoughtsTokenCount: numberOrZero(
 					usage.reasoningTokens ?? usage.thoughtsTokenCount,
 				),
-				cacheReadTokens: numberOrZero(usage.cachedInputTokens),
+				...resolveCacheUsageMetrics(usage as Record<string, unknown>),
 			}),
 		});
 	}

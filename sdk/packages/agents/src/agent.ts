@@ -126,7 +126,7 @@ export class Agent {
 			...runtimeConfig,
 			maxIterations: runtimeConfig.maxIterations,
 			maxParallelToolCalls: runtimeConfig.maxParallelToolCalls ?? 8,
-			apiTimeoutMs: runtimeConfig.apiTimeoutMs ?? 120000,
+			apiTimeoutMs: runtimeConfig.apiTimeoutMs ?? 180000,
 			maxTokensPerTurn: runtimeConfig.maxTokensPerTurn,
 			hookErrorMode: runtimeConfig.hookErrorMode ?? "ignore",
 			extensions: runtimeConfig.extensions ?? [],
@@ -608,13 +608,13 @@ export class Agent {
 					);
 				}
 				const model = this.handler.getModel();
-				const apiTimeoutSignal = createApiTimeoutSignal(
-					this.config.apiTimeoutMs,
-				);
-				observeAbortSignal(apiTimeoutSignal, "api_timeout", runId, signalCtx);
+				// Create a fresh timeout handle per turn; cancel it when the turn
+				// ends so the timer never outlives the operation it guards.
+				let apiTimeout = createApiTimeoutSignal(this.config.apiTimeoutMs);
+				observeAbortSignal(apiTimeout?.signal, "api_timeout", runId, signalCtx);
 				const turnAbortSignal = mergeAbortSignals(
 					abortSignal,
-					apiTimeoutSignal,
+					apiTimeout?.signal,
 				);
 				const apiMessages = this.messageBuilder.buildForApi(
 					this.conversationStore.getMessages(),
@@ -642,11 +642,14 @@ export class Agent {
 							this.emitStatusNotice(message, metadata),
 					});
 				} catch (error) {
+					const timedOut = apiTimeout;
+					apiTimeout?.cancel();
+					apiTimeout = undefined;
 					const outcome = await this.handleApiRuntimeError(
 						error,
 						iteration,
 						abortSignal,
-						apiTimeoutSignal,
+						timedOut,
 						mistakeDeps,
 						() => consecutiveMistakes,
 						(value) => {
@@ -690,11 +693,14 @@ export class Agent {
 						turnAbortSignal,
 					));
 				} catch (error) {
+					const timedOut = apiTimeout;
+					apiTimeout?.cancel();
+					apiTimeout = undefined;
 					const outcome = await this.handleApiRuntimeError(
 						error,
 						iteration,
 						abortSignal,
-						apiTimeoutSignal,
+						timedOut,
 						mistakeDeps,
 						() => consecutiveMistakes,
 						(value) => {
@@ -711,6 +717,8 @@ export class Agent {
 					finishReason = "mistake_limit";
 					break;
 				}
+				apiTimeout?.cancel();
+				apiTimeout = undefined;
 				if (assistantMessage) {
 					this.conversationStore.appendMessage(assistantMessage);
 				}
@@ -1184,10 +1192,10 @@ export class Agent {
 
 	private normalizeApiRuntimeError(
 		error: unknown,
-		apiTimeoutSignal?: AbortSignal,
+		apiTimeout?: ReturnType<typeof createApiTimeoutSignal>,
 	): Error {
 		if (
-			apiTimeoutSignal?.aborted === true ||
+			apiTimeout?.signal.aborted === true ||
 			(error instanceof Error && error.name === "TimeoutError") ||
 			(typeof DOMException !== "undefined" &&
 				error instanceof DOMException &&
@@ -1204,7 +1212,7 @@ export class Agent {
 		error: unknown,
 		iteration: number,
 		abortSignal: AbortSignal,
-		apiTimeoutSignal: AbortSignal | undefined,
+		apiTimeout: ReturnType<typeof createApiTimeoutSignal>,
 		mistakeDeps: MistakeTrackingDeps,
 		getConsecutiveMistakes: () => number,
 		setConsecutiveMistakes: (value: number) => void,
@@ -1213,8 +1221,14 @@ export class Agent {
 			return "aborted";
 		}
 
-		const errorObj = this.normalizeApiRuntimeError(error, apiTimeoutSignal);
+		const errorObj = this.normalizeApiRuntimeError(error, apiTimeout);
 		const message = errorObj.message;
+		this.log("warn", "API runtime error", {
+			agentId: this.agentId,
+			conversationId: this.conversationStore.getConversationId(),
+			iteration,
+			error: errorObj,
+		});
 		if (isNonRecoverableApiError(errorObj)) {
 			await this.lifecycle.dispatch("hook.stop_error", {
 				stage: "stop_error",
@@ -1455,7 +1469,7 @@ export class Agent {
 			return;
 		}
 		try {
-			if (level === "error") {
+			if (level === "error" || level === "warn") {
 				const errorMeta =
 					metadata?.error instanceof Error
 						? {

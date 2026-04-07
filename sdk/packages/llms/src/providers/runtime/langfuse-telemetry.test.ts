@@ -70,8 +70,8 @@ describe("langfuse telemetry", () => {
 		resetLangfuseTelemetryForTests();
 	});
 
-	it("does not poison the readiness cache for non-cline providers", async () => {
-		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(false);
+	it("enables telemetry for non-cline providers when langfuse config is available", async () => {
+		await expect(ensureLangfuseTelemetry("openrouter")).resolves.toBe(true);
 		await expect(ensureLangfuseTelemetry("cline")).resolves.toBe(true);
 
 		expect(registerDisposableSpy).toHaveBeenCalledTimes(1);

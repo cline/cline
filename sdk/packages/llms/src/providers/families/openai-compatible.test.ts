@@ -51,6 +51,14 @@ async function drain(stream: AsyncIterable<unknown>) {
 	}
 }
 
+async function collect<T>(stream: AsyncIterable<T>): Promise<T[]> {
+	const chunks: T[] = [];
+	for await (const chunk of stream) {
+		chunks.push(chunk);
+	}
+	return chunks;
+}
+
 function toJsonSchema(inputSchema: unknown): unknown {
 	const maybeWrapped = inputSchema as { jsonSchema?: unknown };
 	if (typeof maybeWrapped?.jsonSchema === "function") {
@@ -268,5 +276,123 @@ describe("OpenAICompatibleHandler", () => {
 			input: { files: ["/tmp/a.md"] },
 		});
 		expect(assistantParts[0]?.args).toBeUndefined();
+	});
+
+	it("applies Anthropic prompt cache markers to the last user text part", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			modelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				pricing: {
+					input: 3,
+					output: 15,
+					cacheRead: 0.3,
+					cacheWrite: 3.75,
+				},
+			},
+		});
+
+		await drain(
+			handler.createMessage("system prompt", [
+				{ role: "user", content: "first prompt" },
+				{ role: "assistant", content: "working" },
+				{ role: "user", content: "second prompt" },
+			]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			messages?: Array<{
+				role?: string;
+				content?: Array<Record<string, unknown>> | string;
+			}>;
+		};
+		const systemMessage = request.messages?.[0];
+		const firstUserMessage = request.messages?.[1];
+		const lastUserMessage = request.messages?.[3];
+
+		expect(systemMessage?.content).toBe("system prompt");
+		expect(firstUserMessage?.content).toBe("first prompt");
+		expect(lastUserMessage?.content).toMatchObject([
+			{
+				type: "text",
+				text: "second prompt",
+				providerOptions: {
+					openrouter: { cache_control: { type: "ephemeral" } },
+				},
+			},
+		]);
+	});
+
+	it("does not add explicit cache markers for non-Anthropic models", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "google/gemma-4-31b-it",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			modelInfo: {
+				id: "google/gemma-4-31b-it",
+				capabilities: ["prompt-cache"],
+			},
+		});
+
+		await drain(
+			handler.createMessage("system prompt", [
+				{ role: "user", content: "hello" },
+			]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			messages?: Array<{
+				role?: string;
+				content?: Array<Record<string, unknown>> | string;
+			}>;
+		};
+		const systemMessage = request.messages?.[0];
+		const userMessage = request.messages?.[1];
+
+		expect(systemMessage?.content).toBe("system prompt");
+		expect(userMessage?.content).toBe("hello");
+	});
+
+	it("reads cache token metrics from OpenRouter-style usage fields", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: createAsyncIterable([
+				{
+					type: "finish",
+					usage: {
+						inputTokens: 1000,
+						outputTokens: 50,
+						prompt_tokens_details: {
+							cached_tokens: 900,
+							cache_write_tokens: 80,
+						},
+					},
+				},
+			]),
+		});
+
+		const handler = new OpenAICompatibleHandler({
+			providerId: "openrouter",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+		});
+
+		const chunks = await collect(
+			handler.createMessage("system", [{ role: "user", content: "hi" }]),
+		);
+
+		expect(chunks).toContainEqual(
+			expect.objectContaining({
+				type: "usage",
+				inputTokens: 1000,
+				outputTokens: 50,
+				cacheReadTokens: 900,
+				cacheWriteTokens: 80,
+			}),
+		);
 	});
 });
