@@ -1,6 +1,6 @@
 /**
  * Interactive config view component for displaying and editing configuration values
- * Supports tabs for Settings, Rules, Workflows, Hooks, and Skills
+ * Supports tabs for Settings, Rules, legacy Workflows, Hooks, and Skills
  */
 
 import {
@@ -515,7 +515,10 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				if (workflowEntries.length === 0) {
 					return (
 						<Box>
-							<Text color="gray">No workflows configured. Add workflow files to enable this feature.</Text>
+							<Text color="gray">
+								No legacy workflows configured. Add workflow files only if you still need `/file.md`
+								compatibility.
+							</Text>
 						</Box>
 					)
 				}
@@ -531,7 +534,11 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 								<React.Fragment key={`${entry.source}-${entry.path}`}>
 									{showHeader && (
 										<SectionHeader
-											title={entry.source === "global" ? "Global Workflows:" : "Workspace Workflows:"}
+											title={
+												entry.source === "global"
+													? "Global Legacy Workflows:"
+													: "Workspace Legacy Workflows:"
+											}
 										/>
 									)}
 									<ToggleRow entry={entry} isSelected={actualIndex === selectedIndex} />
