@@ -157,6 +157,15 @@ Tracking issues found during the migration from the legacy inference system to t
 
 ---
 
+### 26. 🟢 Clicking history items does not open them
+**Where:** History tab → clicking any task item; also RECENT section on home screen  
+**Symptom:** History items display correctly in the History view, but clicking on them does nothing — the view stays on the History tab instead of navigating to the chat view with the loaded task.  
+**Root cause:** `handleShowTaskWithId()` in `grpc-handler.ts` called `this.delegate.showTaskWithId(id)` to load the task data and push state, but never fired `this.onNavigateCallback?.("chat")` to tell the webview to navigate from the History view to the Chat view.  
+**Fix:** Added `this.onNavigateCallback?.("chat")` after `showTaskWithId()` completes in `grpc-handler.ts`. This sends a typed `navigate` message to the webview, which triggers `navigateToChat()` — hiding the History view and revealing the Chat view with the loaded task.  
+**Verified:** Debug harness confirmed clicking items in both the History tab and RECENT section on the home screen now navigates to the chat view with full message history loaded.
+
+---
+
 ## Observations (not bugs, just notes)
 
 ### UI Rendering — Task Completion View

@@ -868,6 +868,8 @@ export class GrpcHandler {
 	private async handleShowTaskWithId(request: GrpcRequest): Promise<GrpcResponse> {
 		const id = (request.params?.value as string) ?? ""
 		await this.delegate.showTaskWithId(id)
+		// Navigate to chat view so the webview hides history/other overlays
+		this.onNavigateCallback?.("chat")
 		return { data: {} }
 	}
 
