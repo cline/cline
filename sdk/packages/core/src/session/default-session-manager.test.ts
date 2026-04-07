@@ -314,6 +314,102 @@ describe("DefaultSessionManager", () => {
 		expect(started.manifest.source).toBe("kanban");
 	});
 
+	it("reuses the persisted team name when resuming a session", async () => {
+		const sessionId = "sess-team-resume";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				transcriptPath: "/tmp/transcript.log",
+				hookPath: "/tmp/hook.log",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([
+				{
+					sessionId,
+					source: SessionSource.CLI,
+					pid: process.pid,
+					startedAt: "2026-01-01T00:00:00.000Z",
+					endedAt: null,
+					exitCode: null,
+					status: "running",
+					statusLock: 0,
+					interactive: true,
+					provider: "mock-provider",
+					model: "mock-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					teamName: "persisted-team",
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: true,
+					parentSessionId: null,
+					parentAgentId: null,
+					agentId: null,
+					conversationId: null,
+					isSubagent: false,
+					prompt: null,
+					metadata: null,
+					transcriptPath: "/tmp/transcript.log",
+					hookPath: "/tmp/hook.log",
+					messagesPath: "/tmp/messages.json",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+				},
+			]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: {
+					getTeamId: vi.fn().mockReturnValue("team_persisted-team"),
+					getTeamName: vi.fn().mockReturnValue("persisted-team"),
+				},
+				teamRestoredFromPersistence: true,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId, teamName: undefined }),
+		});
+
+		expect(runtimeBuilder.build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					sessionId,
+					teamName: "persisted-team",
+				}),
+			}),
+		);
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+	});
+
 	it("runs a non-interactive prompt and persists messages/status", async () => {
 		const sessionId = "sess-1";
 		const manifest = createManifest(sessionId);

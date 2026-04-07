@@ -197,6 +197,21 @@ export class DefaultSessionManager implements SessionManager {
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
+		const resumedRow = requestedSessionId
+			? await this.getRow(sessionId)
+			: undefined;
+		const startInput: StartSessionInput =
+			resumedRow &&
+			!input.config.teamName?.trim() &&
+			resumedRow.teamName?.trim()
+				? {
+						...input,
+						config: {
+							...input.config,
+							teamName: resumedRow.teamName,
+						},
+					}
+				: input;
 		this.usageBySession.set(sessionId, createInitialAccumulatedUsage());
 
 		const sessionsDir =
@@ -224,27 +239,29 @@ export class DefaultSessionManager implements SessionManager {
 			started_at: startedAt,
 			status: "running",
 			interactive: input.interactive === true,
-			provider: input.config.providerId,
-			model: input.config.modelId,
-			cwd: input.config.cwd,
+			provider: startInput.config.providerId,
+			model: startInput.config.modelId,
+			cwd: startInput.config.cwd,
 			workspace_root: workspacePath,
-			team_name: input.config.teamName,
-			enable_tools: input.config.enableTools,
-			enable_spawn: input.config.enableSpawnAgent,
-			enable_teams: input.config.enableAgentTeams,
-			prompt: input.prompt?.trim() || undefined,
+			team_name: startInput.config.teamName,
+			enable_tools: startInput.config.enableTools,
+			enable_spawn: startInput.config.enableSpawnAgent,
+			enable_teams: startInput.config.enableAgentTeams,
+			prompt: startInput.prompt?.trim() || undefined,
 			messages_path: messagesPath,
 		});
 
 		const { config: effectiveConfig, pluginSandboxShutdown } =
 			await buildEffectiveConfig(
-				input,
+				startInput,
 				hookPath,
 				sessionId,
 				this.defaultTelemetry,
 				(e) => void this.handlePluginEvent(sessionId, e),
 			);
-		const workspaceMetadata = await buildWorkspaceMetadata(input.config.cwd);
+		const workspaceMetadata = await buildWorkspaceMetadata(
+			startInput.config.cwd,
+		);
 		const providerConfig = buildResolvedProviderConfig(
 			effectiveConfig,
 			this.providerSettingsManager,
@@ -371,7 +388,7 @@ export class DefaultSessionManager implements SessionManager {
 			started: false,
 			aborting: false,
 			interactive: input.interactive === true,
-			persistedMessages: input.initialMessages,
+			persistedMessages: startInput.initialMessages,
 			activeTeamRunIds: new Set<string>(),
 			pendingTeamRunUpdates: [],
 			teamRunWaiters: [],
@@ -384,11 +401,11 @@ export class DefaultSessionManager implements SessionManager {
 
 		let result: AgentResult | undefined;
 		try {
-			if (input.prompt?.trim()) {
+			if (startInput.prompt?.trim()) {
 				result = await this.runTurn(active, {
-					prompt: input.prompt,
-					userImages: input.userImages,
-					userFiles: input.userFiles,
+					prompt: startInput.prompt,
+					userImages: startInput.userImages,
+					userFiles: startInput.userFiles,
 				});
 				if (!active.interactive) {
 					await this.finalizeSingleRun(active, result.finishReason);
