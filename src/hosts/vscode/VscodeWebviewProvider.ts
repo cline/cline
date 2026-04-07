@@ -211,26 +211,82 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 						// Read image as data URL
 						try {
 							const fileData = await vscode.workspace.fs.readFile(uri)
-							const mimeType = ext === "svg" ? "image/svg+xml"
-								: ext === "jpg" ? "image/jpeg"
-								: `image/${ext}`
+							const mimeType = ext === "svg" ? "image/svg+xml" : ext === "jpg" ? "image/jpeg" : `image/${ext}`
 							const base64 = Buffer.from(fileData).toString("base64")
 							images.push(`data:${mimeType};base64,${base64}`)
 						} catch {
 							// Fall back to file path if read fails
-							const relPath = workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
-								? uri.fsPath.substring(workspaceRoot.length + 1)
-								: uri.fsPath
+							const relPath =
+								workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
+									? uri.fsPath.substring(workspaceRoot.length + 1)
+									: uri.fsPath
 							files.push(relPath)
 						}
 					} else {
-						const relPath = workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
-							? uri.fsPath.substring(workspaceRoot.length + 1)
-							: uri.fsPath
+						const relPath =
+							workspaceRoot && uri.fsPath.startsWith(workspaceRoot)
+								? uri.fsPath.substring(workspaceRoot.length + 1)
+								: uri.fsPath
 						files.push(relPath)
 					}
 				}
 				return { images, files }
+			}
+
+			// Wire platform-specific callbacks for URL, file, clipboard operations
+			this.sdkController.openUrlCallback = async (url: string) => {
+				await vscode.env.openExternal(vscode.Uri.parse(url))
+			}
+
+			this.sdkController.openFileCallback = async (filePath: string) => {
+				try {
+					// Try as absolute path first
+					let uri: vscode.Uri
+					if (filePath.startsWith("/") || filePath.match(/^[a-zA-Z]:\\/)) {
+						uri = vscode.Uri.file(filePath)
+					} else {
+						// Treat as relative to workspace
+						const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+						if (workspaceRoot) {
+							const absolutePath = require("path").join(workspaceRoot, filePath)
+							uri = vscode.Uri.file(absolutePath)
+						} else {
+							uri = vscode.Uri.file(filePath)
+						}
+					}
+					const doc = await vscode.workspace.openTextDocument(uri)
+					await vscode.window.showTextDocument(doc, { preview: false })
+				} catch (err) {
+					Logger.error("[VscodeWebviewProvider] Failed to open file:", err)
+				}
+			}
+
+			this.sdkController.copyToClipboardCallback = async (text: string) => {
+				await vscode.env.clipboard.writeText(text)
+			}
+
+			this.sdkController.openMcpSettingsCallback = async () => {
+				const os = require("os")
+				const path = require("path")
+				const settingsPath = path.join(os.homedir(), ".cline", "data", "settings", "cline_mcp_settings.json")
+				try {
+					const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(settingsPath))
+					await vscode.window.showTextDocument(doc, { preview: false })
+				} catch (err) {
+					Logger.error("[VscodeWebviewProvider] Failed to open MCP settings:", err)
+				}
+			}
+
+			this.sdkController.exportTaskCallback = async (taskId: string, item: any, messages: unknown[]) => {
+				const uri = await vscode.window.showSaveDialog({
+					defaultUri: vscode.Uri.file(`cline-task-${taskId}.json`),
+					filters: { JSON: ["json"] },
+				})
+				if (uri) {
+					const exportData = { task: item, messages }
+					const content = JSON.stringify(exportData, null, 2)
+					await vscode.workspace.fs.writeFile(uri, Buffer.from(content, "utf-8"))
+				}
 			}
 
 			// Expose debug hooks for testing
