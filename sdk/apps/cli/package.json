@@ -8,8 +8,7 @@
 		"access": "restricted"
 	},
 	"bin": {
-		"clite": "dist/index.js",
-		"cline": "dist/index.js"
+		"clite": "dist/index.js"
 	},
 	"main": "dist/index.js",
 	"exports": {
@@ -20,7 +19,7 @@
 	],
 	"scripts": {
 		"build": "rm -rf dist && bun run bun.mts",
-		"build:binary": "bun build --compile ./src/index.ts --compile --outfile ./dist/cline && cp ./dist/cline ./dist/clite",
+		"build:binary": "bun build --compile ./src/index.ts --compile --outfile ./dist/cline",
 		"build:tgz": "bun run build && bun pm pack --destination ./dist",
 		"dev": "bun --conditions=development ./src/index.ts",
 		"clean": "rm -rf dist node_modules",
