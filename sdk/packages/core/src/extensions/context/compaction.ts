@@ -24,6 +24,10 @@ export interface ContextPipelinePrepareTurnInput {
 	systemPrompt: string;
 	tools: unknown[];
 	model: CoreCompactionContext["model"];
+	emitStatusNotice?: (
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => void;
 }
 
 export interface ContextPipelinePrepareTurnResult {
@@ -170,6 +174,14 @@ export function createContextCompactionPrepareTurn(
 			utilizationRatio:
 				contextWindowTokens > 0 ? inputTokens / contextWindowTokens : 0,
 		};
+
+		context.emitStatusNotice?.("auto-compacting", {
+			kind: "auto_compaction",
+			reason: "auto_compaction",
+			iteration: context.iteration,
+			triggerTokens: triggerState.triggerTokens,
+			contextWindowTokens,
+		});
 
 		if (userCompaction?.compact) {
 			return await userCompaction.compact(compactionContext);

@@ -22,6 +22,7 @@ describe("createContextCompactionPrepareTurn", () => {
 	});
 
 	it("summarizes older messages and keeps recent messages", async () => {
+		const emitStatusNotice = vi.fn();
 		createHandlerMock.mockReturnValue({
 			createMessage: vi.fn(() =>
 				streamChunks([
@@ -54,6 +55,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			emitStatusNotice,
 			systemPrompt: "You are helpful.",
 			tools: [],
 			messages: [
@@ -91,6 +93,14 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		expect(createHandlerMock).toHaveBeenCalledTimes(1);
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"auto-compacting",
+			expect.objectContaining({
+				kind: "auto_compaction",
+				reason: "auto_compaction",
+				iteration: 1,
+			}),
+		);
 		expect(result?.messages).toHaveLength(5);
 		expect(result?.messages[0]).toMatchObject({
 			role: "user",
@@ -176,6 +186,7 @@ describe("createContextCompactionPrepareTurn", () => {
 	});
 
 	it("uses basic compaction without calling the summarizer", async () => {
+		const emitStatusNotice = vi.fn();
 		const prepareTurn = createContextCompactionPrepareTurn({
 			providerId: "anthropic",
 			modelId: "mock-model",
@@ -195,6 +206,7 @@ describe("createContextCompactionPrepareTurn", () => {
 			conversationId: "conv-1",
 			parentAgentId: null,
 			iteration: 1,
+			emitStatusNotice,
 			systemPrompt: "You are helpful.",
 			tools: [],
 			messages: [
@@ -253,6 +265,13 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 
 		expect(createHandlerMock).not.toHaveBeenCalled();
+		expect(emitStatusNotice).toHaveBeenCalledWith(
+			"auto-compacting",
+			expect.objectContaining({
+				kind: "auto_compaction",
+				reason: "auto_compaction",
+			}),
+		);
 		expect(result?.messages).toEqual([
 			{ role: "user", content: "Initial request that should survive" },
 			{ role: "user", content: "Most recent user turn" },

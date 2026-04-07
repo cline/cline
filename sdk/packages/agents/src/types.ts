@@ -169,14 +169,15 @@ export interface AgentUsageEvent extends AgentEventMetadata {
 
 export interface AgentNoticeEvent extends AgentEventMetadata {
 	type: "notice";
-	noticeType: "recovery" | "stop";
+	noticeType: "recovery" | "stop" | "status";
 	message: string;
 	displayRole?: "system" | "status";
 	reason?:
 		| "api_error"
 		| "invalid_tool_call"
 		| "tool_execution_failed"
-		| "mistake_limit";
+		| "mistake_limit"
+		| "auto_compaction";
 	metadata?: Record<string, unknown>;
 }
 
@@ -677,6 +678,10 @@ export interface AgentPrepareTurnContext {
 		provider: string;
 		info?: LlmsProviders.ModelInfo;
 	};
+	emitStatusNotice?: (
+		message: string,
+		metadata?: Record<string, unknown>,
+	) => void;
 }
 
 export interface AgentPrepareTurnResult {

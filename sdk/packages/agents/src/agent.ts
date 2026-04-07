@@ -40,6 +40,7 @@ import type {
 	AgentExtension,
 	AgentExtensionRegistry,
 	AgentFinishReason,
+	AgentNoticeEvent,
 	AgentResult,
 	AgentUsage,
 	BasicLogger,
@@ -59,6 +60,20 @@ import {
 	observeAbortSignal,
 	serializeAbortReason,
 } from "./utils/config-helpers";
+
+const KNOWN_NOTICE_REASONS = new Set<AgentNoticeEvent["reason"]>([
+	"api_error",
+	"invalid_tool_call",
+	"tool_execution_failed",
+	"mistake_limit",
+	"auto_compaction",
+]);
+
+function isKnownNoticeReason(
+	value: unknown,
+): value is NonNullable<AgentNoticeEvent["reason"]> {
+	return KNOWN_NOTICE_REASONS.has(value as AgentNoticeEvent["reason"]);
+}
 
 const DEFAULT_REMINDER_TEXT =
 	"REMINDER: If you have gathered enough information to answer the user's question, please provide your final answer now without using any more tools.";
@@ -603,6 +618,8 @@ export class Agent {
 						provider: this.config.providerId,
 						info: model.info,
 					},
+					emitStatusNotice: (message, metadata) =>
+						this.emitStatusNotice(message, metadata),
 				});
 				if (preparedTurn?.messages) {
 					this.conversationStore.replaceMessages(preparedTurn.messages);
@@ -1303,6 +1320,30 @@ export class Agent {
 			displayRole: "status",
 			reason: "mistake_limit",
 			metadata: { ...metadata },
+		});
+	}
+
+	private emitStatusNotice(
+		message: string,
+		metadata?: Record<string, unknown>,
+	): void {
+		const text = message.trim();
+		if (!text) {
+			return;
+		}
+		const eventMetadata = {
+			...(metadata ?? {}),
+			displayRole: "status",
+		};
+		this.emit({
+			type: "notice",
+			noticeType: "status",
+			message: text,
+			displayRole: "status",
+			reason: isKnownNoticeReason(metadata?.reason)
+				? metadata.reason
+				: undefined,
+			metadata: eventMetadata,
 		});
 	}
 

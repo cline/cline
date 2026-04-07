@@ -20,6 +20,7 @@ import type {
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../runtime/session-events";
+import { resolveStatusNoticeLabel } from "../utils/events";
 import { formatToolInput, formatToolOutput, truncate } from "../utils/helpers";
 import { c, formatUsd } from "../utils/output";
 import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
@@ -622,6 +623,13 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					appendLine(`${c.red}error:${c.reset} ${event.error.message}`);
 					break;
 				case "notice":
+					if (event.displayRole === "status") {
+						closeInlineStream();
+						const label = resolveStatusNoticeLabel(event);
+						if (label) {
+							appendLine(`${c.dim}[status]${c.reset} ${label}`);
+						}
+					}
 					break;
 			}
 		},

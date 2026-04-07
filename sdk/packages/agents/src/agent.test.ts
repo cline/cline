@@ -1729,6 +1729,7 @@ describe("Agent", () => {
 		expect(prepareTurn).toHaveBeenNthCalledWith(
 			1,
 			expect.objectContaining({
+				emitStatusNotice: expect.any(Function),
 				iteration: 1,
 				systemPrompt: "You are helpful.",
 				model: expect.objectContaining({

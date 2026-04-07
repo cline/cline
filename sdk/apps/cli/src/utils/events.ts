@@ -19,6 +19,18 @@ let inlineStreamHasOutput = false;
 let shouldPrefixNextTextWithBlankLine = false;
 const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 
+export function resolveStatusNoticeLabel(
+	event: AgentEvent,
+): string | undefined {
+	if (event.type !== "notice" || event.displayRole !== "status") {
+		return undefined;
+	}
+	if (event.reason === "auto_compaction") {
+		return "auto-compacting";
+	}
+	return event.message.trim() || undefined;
+}
+
 export function closeInlineStreamIfNeeded(): void {
 	if (!inlineStreamHasOutput) {
 		return;
@@ -141,6 +153,13 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 			writeErr(event.error.message);
 			break;
 		case "notice":
+			if (event.displayRole === "status") {
+				closeInlineStreamIfNeeded();
+				const label = resolveStatusNoticeLabel(event);
+				if (label) {
+					write(`\n${c.dim}[status]${c.reset} ${label}\n`);
+				}
+			}
 			break;
 	}
 }
