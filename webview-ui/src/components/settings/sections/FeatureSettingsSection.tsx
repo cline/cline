@@ -70,8 +70,8 @@ const agentFeatures: FeatureToggle[] = [
 	},
 	{
 		id: "focus-chain",
-		label: "Focus Chain",
-		description: "Maintain context focus across interactions",
+		label: "Legacy Focus Chain",
+		description: "Use the older persistent checklist mode for long-running tasks.",
 		stateKey: "focusChainEnabled",
 		settingKey: "focusChainSettings",
 		nestedKey: "enabled",

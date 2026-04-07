@@ -28,7 +28,7 @@ const UseCustomPromptCheckbox: React.FC<CustomPromptCheckboxProps> = ({ provider
 				A system prompt optimized for smaller context window (e.g. 8k or less).
 				<div className="text-error flex align-middle">
 					<i className="codicon codicon-x" />
-					Does not support Mcp and Focus Chain
+					Does not support Mcp and Legacy Focus Chain
 				</div>
 			</div>
 		</div>
