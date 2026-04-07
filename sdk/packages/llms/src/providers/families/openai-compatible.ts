@@ -73,6 +73,8 @@ function buildGatewayReasoningConfig(options: {
 	budgetTokens?: number;
 	maxTokens?: number;
 }) {
+	const anthropicModel =
+		!!options.modelId && isAnthropicModelId(options.modelId);
 	const reasoning: {
 		enabled?: boolean;
 		effort?: string;
@@ -82,9 +84,6 @@ function buildGatewayReasoningConfig(options: {
 	if (options.thinking === true) {
 		reasoning.enabled = true;
 	}
-	if (options.effort) {
-		reasoning.effort = options.effort;
-	}
 	const budgetTokens = resolveAnthropicOpenRouterReasoningBudget({
 		modelId: options.modelId,
 		effort: options.effort,
@@ -93,6 +92,10 @@ function buildGatewayReasoningConfig(options: {
 	});
 	if (typeof budgetTokens === "number" && budgetTokens > 0) {
 		reasoning.max_tokens = budgetTokens;
+	} else if (options.effort) {
+		reasoning.effort = options.effort;
+	} else if (anthropicModel && options.budgetTokens === 0) {
+		reasoning.max_tokens = 0;
 	}
 
 	return Object.keys(reasoning).length > 0 ? reasoning : undefined;

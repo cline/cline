@@ -180,7 +180,6 @@ describe("OpenAICompatibleHandler", () => {
 			cline: {
 				reasoning: {
 					enabled: true,
-					effort: "high",
 					max_tokens: 8000,
 				},
 			},
@@ -508,7 +507,6 @@ describe("OpenAICompatibleHandler", () => {
 			openrouter: {
 				reasoning: {
 					enabled: true,
-					effort: "high",
 					max_tokens: 8000,
 				},
 			},

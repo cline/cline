@@ -80,7 +80,6 @@ describe("OpenAIBaseHandler", () => {
 		};
 		expect(request.reasoning).toEqual({
 			enabled: true,
-			effort: "high",
 			max_tokens: 8000,
 		});
 	});

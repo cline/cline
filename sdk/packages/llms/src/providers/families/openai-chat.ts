@@ -70,6 +70,8 @@ function buildOpenRouterReasoningConfig(options: {
 	budgetTokens?: number;
 	maxTokens?: number;
 }) {
+	const anthropicModel =
+		!!options.modelId && options.modelId.toLowerCase().startsWith("anthropic/");
 	const reasoning: {
 		enabled?: boolean;
 		effort?: string;
@@ -79,9 +81,6 @@ function buildOpenRouterReasoningConfig(options: {
 	if (options.thinking === true) {
 		reasoning.enabled = true;
 	}
-	if (options.effort) {
-		reasoning.effort = options.effort;
-	}
 	const budgetTokens = resolveAnthropicOpenRouterReasoningBudget({
 		modelId: options.modelId,
 		effort: options.effort,
@@ -90,6 +89,10 @@ function buildOpenRouterReasoningConfig(options: {
 	});
 	if (typeof budgetTokens === "number" && budgetTokens > 0) {
 		reasoning.max_tokens = budgetTokens;
+	} else if (options.effort) {
+		reasoning.effort = options.effort;
+	} else if (anthropicModel && options.budgetTokens === 0) {
+		reasoning.max_tokens = 0;
 	}
 
 	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
