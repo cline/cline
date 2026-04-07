@@ -1,5 +1,3 @@
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
@@ -8,6 +6,8 @@ import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import type { CommandExecutionOptions } from "@integrations/terminal"
+import { BrowserSession } from "@services/browser/BrowserSession"
+import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { McpHub } from "@services/mcp/McpHub"
 import { ClineAsk, ClineSay } from "@shared/ExtensionMessage"
 import { ClineContent } from "@shared/messages/content"
@@ -652,7 +652,7 @@ export class ToolExecutor {
 		}
 
 		// Handle focus chain updates
-		if (!block.partial && this.stateManager.getGlobalSettingsKey("focusChainSettings").enabled) {
+		if (!block.partial) {
 			await this.updateFCListFromToolResponse(block.params.task_progress)
 		}
 	}

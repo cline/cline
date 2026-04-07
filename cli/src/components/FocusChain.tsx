@@ -3,7 +3,7 @@
  * Displays a progress-tracked checklist of tasks
  */
 
-import { isCompletedFocusChainItem, isFocusChainItem, parseFocusChainItem } from "@shared/focus-chain-utils"
+import { isChecklistItem, isCompletedChecklistItem, parseChecklistItem } from "@shared/checklist-utils"
 import { Box, Text } from "ink"
 import React, { useMemo } from "react"
 
@@ -41,8 +41,8 @@ function parseCurrentTodoInfo(text: string): TodoInfo | null {
 	const lines = text.split("\n")
 	for (const rawLine of lines) {
 		const line = rawLine.trim()
-		if (isFocusChainItem(line)) {
-			const isCompleted = isCompletedFocusChainItem(line)
+		if (isChecklistItem(line)) {
+			const isCompleted = isCompletedChecklistItem(line)
 
 			if (isCompleted) {
 				completedCount++
@@ -80,7 +80,7 @@ function parseTodoItems(text: string): TodoItem[] {
 
 	for (const rawLine of lines) {
 		const line = rawLine.trim()
-		const parsed = parseFocusChainItem(line)
+		const parsed = parseChecklistItem(line)
 		if (parsed) {
 			items.push(parsed)
 		}
@@ -115,7 +115,7 @@ const Header: React.FC<{
 	const isCompleted = completedCount === totalCount
 
 	const displayText = isCompleted ? "All tasks completed!" : currentTodo?.text || "To-Do list"
-	const truncatedText = displayText.length > 50 ? displayText.substring(0, 47) + "..." : displayText
+	const truncatedText = displayText.length > 50 ? `${displayText.substring(0, 47)}...` : displayText
 
 	return (
 		<Box flexDirection="row" gap={1}>
@@ -136,8 +136,8 @@ const ExpandedList: React.FC<{
 }> = ({ items, isCompleted }) => {
 	return (
 		<Box flexDirection="column" marginLeft={2} marginTop={1}>
-			{items.map((item, index) => (
-				<Box key={index}>
+			{items.map((item) => (
+				<Box key={`${item.text}-${item.checked ? "done" : "todo"}`}>
 					<Text color={item.checked ? "green" : "gray"}>{item.checked ? "✓" : "○"} </Text>
 					<Text color={item.checked ? "green" : undefined} dimColor={item.checked}>
 						{item.text}

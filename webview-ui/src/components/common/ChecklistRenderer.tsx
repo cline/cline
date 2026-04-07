@@ -1,5 +1,5 @@
 import { cn } from "@heroui/react"
-import { parseFocusChainItem } from "@shared/focus-chain-utils"
+import { parseChecklistItem } from "@shared/checklist-utils"
 import { CheckIcon, CircleIcon } from "lucide-react"
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import LightMarkdown from "./LightMarkdown"
@@ -25,7 +25,7 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 
 		for (const line of lines) {
 			const trimmedLine = line.trim()
-			const parsed = parseFocusChainItem(trimmedLine)
+			const parsed = parseChecklistItem(trimmedLine)
 			if (parsed) {
 				items.push({ checked: parsed.checked, text: parsed.text })
 			}
@@ -37,7 +37,7 @@ const ChecklistRenderer: React.FC<ChecklistRendererProps> = ({ text }) => {
 	const items = parseChecklistItems(text)
 
 	// Handle user scroll detection
-	// This prevents jumpy scrolling when the task is streaming and users are viewing the focus chain list
+	// This prevents jumpy scrolling when the task is streaming and users are viewing the checklist
 	const handleScroll = useCallback(() => {
 		setIsUserScrolling(true)
 		if (scrollTimeoutRef.current) {

@@ -86,6 +86,10 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		textAreaRef,
 	} = chatState
 
+	const focusInput = useCallback(() => {
+		textAreaRef.current?.focus()
+	}, [textAreaRef])
+
 	useEffect(() => {
 		const handleCopy = async (e: ClipboardEvent) => {
 			const targetElement = e.target as HTMLElement | null
@@ -190,12 +194,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					value: selectedModelInfo.supportsImages,
 				}),
 			)
-			if (
-				response &&
-				response.values1 &&
-				response.values2 &&
-				(response.values1.length > 0 || response.values2.length > 0)
-			) {
+			if (response?.values1 && response.values2 && (response.values1.length > 0 || response.values2.length > 0)) {
 				const currentTotal = selectedImages.length + selectedFiles.length
 				const availableSlots = MAX_IMAGES_AND_FILES_PER_MESSAGE - currentTotal
 
@@ -216,7 +215,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		} catch (error) {
 			console.error("Error selecting images & files:", error)
 		}
-	}, [selectedModelInfo.supportsImages])
+	}, [selectedFiles.length, selectedImages.length, selectedModelInfo.supportsImages, setSelectedFiles, setSelectedImages])
 
 	const shouldDisableFilesAndImages = selectedImages.length + selectedFiles.length >= MAX_IMAGES_AND_FILES_PER_MESSAGE
 
@@ -228,7 +227,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 				onResponse: (event) => {
 					// Only focus if not hidden and preserveEditorFocus is false
 					if (!isHidden && !event.preserveEditorFocus) {
-						textAreaRef.current?.focus()
+						focusInput()
 					}
 				},
 				onError: (error) => {
@@ -241,7 +240,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		)
 
 		return cleanup
-	}, [isHidden])
+	}, [focusInput, isHidden])
 
 	// Set up addToInput subscription
 	useEffect(() => {
@@ -252,7 +251,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					if (event.value) {
 						setInputValue((prevValue) => {
 							const newText = event.value
-							const newTextWithNewline = newText + "\n"
+							const newTextWithNewline = `${newText}\n`
 							return prevValue ? `${prevValue}\n${newTextWithNewline}` : newTextWithNewline
 						})
 						// Add scroll to bottom after state update
@@ -275,42 +274,38 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		)
 
 		return cleanup
-	}, [])
+	}, [setInputValue, textAreaRef])
 
 	useMount(() => {
 		// NOTE: the vscode window needs to be focused for this to work
-		textAreaRef.current?.focus()
+		focusInput()
 	})
 
 	useEffect(() => {
 		const timer = setTimeout(() => {
 			if (!isHidden && !sendingDisabled && !enableButtons) {
-				textAreaRef.current?.focus()
+				focusInput()
 			}
 		}, 50)
 		return () => {
 			clearTimeout(timer)
 		}
-	}, [isHidden, sendingDisabled, enableButtons])
+	}, [enableButtons, focusInput, isHidden, sendingDisabled])
 
 	const visibleMessages = useMemo(() => {
 		return filterVisibleMessages(modifiedMessages)
 	}, [modifiedMessages])
 
 	const lastProgressMessageText = useMemo(() => {
-		if (!focusChainSettings.enabled) {
-			return undefined
-		}
-
-		// First check if we have a current focus chain list from the extension state
+		// First check if we have a current checklist from the extension state
 		if (currentFocusChainChecklist) {
 			return currentFocusChainChecklist
 		}
 
-		// Fall back to the last task_progress message if no state focus chain list
+		// Fall back to the last task_progress message if no in-memory checklist exists
 		const lastProgressMessage = [...modifiedMessages].reverse().find((message) => message.say === "task_progress")
 		return lastProgressMessage?.text
-	}, [focusChainSettings.enabled, modifiedMessages, currentFocusChainChecklist])
+	}, [modifiedMessages, currentFocusChainChecklist])
 
 	const showFocusChainPlaceholder = useMemo(() => {
 		// Show placeholder whenever focus chain is enabled and no checklist exists yet.

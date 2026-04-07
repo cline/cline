@@ -1,9 +1,3 @@
-import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
-import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
-import { ICheckpointManager } from "@integrations/checkpoints/types"
-import { BrowserSession } from "@services/browser/BrowserSession"
-import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
-import { FocusChainManager } from "./focus-chain"
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"
 import { ApiHandler, ApiProviderInfo, buildApiHandler } from "@core/api"
 import { ApiStream } from "@core/api/transform/stream"
@@ -46,11 +40,15 @@ import {
 import { releaseTaskLock } from "@core/task/TaskLockUtils"
 import { isMultiRootEnabled } from "@core/workspace/multi-root-utils"
 import { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { buildCheckpointManager, shouldUseMultiRoot } from "@integrations/checkpoints/factory"
+import { ensureCheckpointInitialized } from "@integrations/checkpoints/initializer"
+import { ICheckpointManager } from "@integrations/checkpoints/types"
 import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import { formatContentBlockToMarkdown } from "@integrations/misc/export-markdown"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
 import { ITerminalManager } from "@integrations/terminal/types"
+import { BrowserSession } from "@services/browser/BrowserSession"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
 import { featureFlagsService } from "@services/feature-flags"
 import { listFiles } from "@services/glob/list-files"
@@ -112,6 +110,7 @@ import { Session } from "@/shared/services/Session"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
+import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
@@ -241,9 +240,6 @@ export class Task {
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
 	private environmentContextTracker: EnvironmentContextTracker
-
-	// Focus Chain
-	private FocusChainManager?: FocusChainManager
 
 	// Callbacks
 	private updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
@@ -384,20 +380,6 @@ export class Task {
 		this.modelContextTracker = new ModelContextTracker(this.taskId)
 		this.environmentContextTracker = new EnvironmentContextTracker(this.taskId)
 
-		// Initialize focus chain manager only if enabled
-		const focusChainSettings = this.stateManager.getGlobalSettingsKey("focusChainSettings")
-		if (focusChainSettings.enabled) {
-			this.FocusChainManager = new FocusChainManager({
-				taskId: this.taskId,
-				taskState: this.taskState,
-				mode: this.stateManager.getGlobalSettingsKey("mode"),
-				stateManager: this.stateManager,
-				postStateToWebview: this.postStateToWebview,
-				say: this.say.bind(this),
-				focusChainSettings: focusChainSettings,
-			})
-		}
-
 		// Check for multiroot workspace and warn about checkpoints
 		const isMultiRootWorkspace = this.workspaceManager && this.workspaceManager.getRoots().length > 1
 		const checkpointsEnabled = this.stateManager.getGlobalSettingsKey("enableCheckpointsSetting")
@@ -499,13 +481,6 @@ export class Task {
 		// from Controller.initTask() AFTER the task instance is fully assigned.
 		// This prevents race conditions where hooks run before controller.task is ready.
 
-		// Set up focus chain file watcher (async, runs in background) only if focus chain is enabled
-		if (this.FocusChainManager) {
-			this.FocusChainManager.setupFocusChainFileWatcher().catch((error) => {
-				Logger.error(`[Task ${this.taskId}] Failed to setup focus chain file watcher:`, error)
-			})
-		}
-
 		// initialize telemetry
 
 		// Extract domain of the provider endpoint if using OpenAI Compatible provider
@@ -603,7 +578,7 @@ export class Task {
 			this.executeCommandTool.bind(this),
 			this.cancelBackgroundCommand.bind(this),
 			() => this.checkpointManager?.doesLatestTaskCompletionHaveNewChanges() ?? Promise.resolve(false),
-			this.FocusChainManager?.updateFCListFromToolResponse.bind(this.FocusChainManager) || (async () => {}),
+			this.updateTaskProgressChecklist.bind(this),
 			this.switchToActModeCallback.bind(this),
 			this.cancelTask,
 			// Atomic hook state helpers for ToolExecutor
@@ -635,6 +610,13 @@ export class Task {
 
 	private async flushAssistantPresentationOrThrow() {
 		await this.presentationScheduler.flushNow()
+	}
+
+	private async updateTaskProgressChecklist(taskProgress?: string): Promise<void> {
+		this.taskState.currentFocusChainChecklist = taskProgress?.trim() ? taskProgress : null
+		this.taskState.apiRequestsSinceLastTodoUpdate = 0
+		this.taskState.todoListWasUpdatedByUser = false
+		await this.postStateToWebview()
 	}
 
 	private getPresentationPriorityForChunk(args: {
@@ -1624,19 +1606,6 @@ export class Task {
 				Logger.error("Failed to post state after setting abort flag", error)
 			}
 
-			// PHASE 6: Check for incomplete progress
-			if (this.FocusChainManager) {
-				// Extract current model and provider for telemetry
-				const apiConfig = this.stateManager.getApiConfiguration()
-				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
-				const currentProvider = (
-					currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
-				) as string
-				const currentModelId = this.api.getModel().id
-
-				this.FocusChainManager.checkIncompleteProgressOnCompletion(currentModelId, currentProvider)
-			}
-
 			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
 			this.urlContentFetcher.closeBrowser()
@@ -1648,9 +1617,6 @@ export class Task {
 			await this.diffViewProvider.revertChanges()
 			// Clear the notification callback when task is aborted
 			this.mcpHub.clearNotificationCallback()
-			if (this.FocusChainManager) {
-				this.FocusChainManager.dispose()
-			}
 			await this.presentationScheduler.dispose()
 		} finally {
 			// Release task folder lock
@@ -3418,20 +3384,6 @@ export class Task {
 		const clinerulesError = needsClinerulesFileCheck
 			? await ensureLocalClineDirExists(this.cwd, GlobalFileNames.clineRules)
 			: false
-
-		// Add focus chain instructions if needed
-		if (!useCompactPrompt && this.FocusChainManager?.shouldIncludeFocusChainInstructions()) {
-			const focusChainInstructions = this.FocusChainManager.generateFocusChainInstructions()
-			if (focusChainInstructions.trim()) {
-				processedUserContent.push({
-					type: "text",
-					text: focusChainInstructions,
-				})
-
-				this.taskState.apiRequestsSinceLastTodoUpdate = 0
-				this.taskState.todoListWasUpdatedByUser = false
-			}
-		}
 
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
