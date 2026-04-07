@@ -92,10 +92,11 @@ Tracking issues found during the migration from the legacy inference system to t
 **Root cause:** `ContextWindow.tsx` rendered the token bar whenever `tokenData` existed (i.e., when `contextWindow > 0`), regardless of whether `lastApiReqTotalTokens` was 0.  
 **Fix:** Added `tokenData.used === 0` guard to the null-return check in `ContextWindow.tsx`. The token bar now only renders when real (non-zero) token data is available.
 
-### 14. 🟡 "Delete chat" button shows placeholder size
+### 14. 🟢 "Delete chat" button shows placeholder size
 **Where:** Task history → delete button tooltip / label  
-**Symptom:** The "Delete chat" button displays `(size: --)` instead of the actual disk size of the conversation data.  
-**Expected:** Should show the real size (e.g., `(size: 12.4 KB)`) or omit the size entirely if unavailable.
+**Symptom:** The "Delete chat" button tooltip displays `Delete Task (size: --)` when task size data is unavailable.  
+**Root cause:** `DeleteTaskButton.tsx` unconditionally rendered `(size: ${taskSize ? formatSize(taskSize) : "--"})`, showing "--" when `taskSize` is undefined.  
+**Fix:** Changed to conditionally include size: `taskSize ? \`Delete Task (${formatSize(taskSize)})\` : "Delete Task"`. The tooltip now shows just "Delete Task" when size is unavailable, or "Delete Task (12.4 KB)" when it is.
 
 ### 15. 🔴 MCP tools are missing / not visible to the agent
 **Where:** Agent tool execution  
