@@ -145,13 +145,14 @@ Tracking issues found during the migration from the legacy inference system to t
 
 ---
 
-## Open Issues
-
-### 15. 🔴 MCP tools are missing / not visible to the agent
+### 15. 🟢 MCP tools are missing / not visible to the agent
 **Where:** Agent tool execution  
 **Symptom:** MCP tools that should be available to the agent are not discovered or listed. The agent cannot see or use any MCP-provided tools during task execution.  
-**Expected:** Connected MCP servers should expose their tools to the agent, and the agent should be able to invoke them.  
-**Investigation:** `@clinebot/core` has full MCP support (`InMemoryMcpManager`, `registerMcpServersFromSettingsFile`, `resolveMcpServerRegistrations`). The issue is that `ClineCoreSession` in `cline-session-factory.ts` doesn't pass MCP configuration through `coreConfig` when calling `host.start()`. The MCP settings file exists at `~/.cline/data/settings/cline_mcp_settings.json` and `SdkController.getMcpServers()` already reads it for the UI, but the session factory never wires MCP servers into the ClineCore session. The fix requires: (1) reading MCP server registrations via `resolveMcpServerRegistrations()` or passing the settings file path in `coreConfig`, (2) creating/passing an `InMemoryMcpManager` to ClineCore, or (3) ensuring ClineCore auto-discovers MCP settings from the default path. This is a deep architectural change that can't be verified via the debug harness (requires actual agent task execution).
+**Root cause:** `ClineCoreSession` in `cline-session-factory.ts` didn't pass MCP configuration through `coreConfig` when calling `host.start()`. The MCP settings file existed at `~/.cline/data/settings/cline_mcp_settings.json` but the session factory never wired MCP servers into the ClineCore session.  
+**Fix:** Added `getOrCreateMcpManager()` to `cline-session-factory.ts` that reads MCP server registrations via `resolveMcpServerRegistrations()`, creates an `InMemoryMcpManager` with a client factory using `@modelcontextprotocol/sdk` (supporting stdio, streamableHttp, and SSE transports), connects to all non-disabled servers, generates `Tool[]` via `createMcpTools()`, and passes them as `extraTools` in `coreConfig`. The MCP manager is cached across sessions (servers are long-lived processes). Connection has a 30s timeout to avoid blocking session start. Individual server connection failures are logged but don't prevent other servers or the session from starting.  
+**Verified:** Debug harness confirmed agent lists `kamibiki__kb_search`, `kamibiki__kb_status`, `kamibiki__kb_index` from the kamibiki MCP server, and successfully invoked `kamibiki__kb_status` returning real indexing data (6 repos, 1M+ embeddings).
+
+## Open Issues
 
 
 ---
@@ -177,6 +178,13 @@ Each with a dismiss (X) button per-card.
 
 ### Model Selector
 Bottom bar correctly shows `cline:anthropic/claud...` (truncated) with Plan/Act toggle. Act mode is the default.
+
+### Debug Harness: `ui.send_message` and `ui.react_input(submit:true)` Don't Start Tasks
+Both `ui.send_message` (gRPC postMessage) and `ui.react_input` with `submit:true` report success but don't actually start a new task—the webview stays on the home screen. The workaround is to use `ui.react_input` (without submit) to set the text, then dispatch a KeyboardEvent via `web.evaluate`:
+```
+curl -s localhost:19229/api -d '{"method":"ui.react_input","params":{"text":"your message","clear":true}}'
+curl -s localhost:19229/api -d '{"method":"web.evaluate","params":{"expression":"(() => { const ta = document.querySelector(\"textarea\"); ta.focus(); ta.dispatchEvent(new KeyboardEvent(\"keydown\",{key:\"Enter\",code:\"Enter\",keyCode:13,which:13,bubbles:true})); return \"ok\"; })()"}}'
+```
 
 ### Debug Harness Limitations (Fixed)
 All three limitations below have been addressed:

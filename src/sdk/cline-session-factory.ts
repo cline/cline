@@ -19,6 +19,131 @@ import type { AgentEvent } from "./message-translator"
 import type { SdkSession, SessionFactory } from "./SdkController"
 
 // ---------------------------------------------------------------------------
+// MCP tool loading — connects to configured MCP servers and produces
+// Tool[] that can be passed as `extraTools` to ClineCore sessions.
+// ---------------------------------------------------------------------------
+
+/**
+ * Cached MCP manager + tools.  Shared across sessions so MCP servers
+ * stay connected between tasks (they're long-lived processes).
+ */
+let mcpManagerPromise: Promise<{
+	manager: InstanceType<typeof import("@clinebot/core").InMemoryMcpManager>
+	tools: Awaited<ReturnType<typeof import("@clinebot/core").createMcpTools>>[]
+}> | null = null
+
+async function getOrCreateMcpManager() {
+	if (mcpManagerPromise) return mcpManagerPromise
+
+	mcpManagerPromise = (async () => {
+		const { InMemoryMcpManager, hasMcpSettingsFile, resolveMcpServerRegistrations, createMcpTools } = await import(
+			"@clinebot/core"
+		)
+
+		if (!hasMcpSettingsFile()) {
+			Logger.log("[MCP] No MCP settings file found — skipping")
+			return { manager: null as any, tools: [] }
+		}
+
+		const registrations = resolveMcpServerRegistrations()
+		if (registrations.length === 0) {
+			Logger.log("[MCP] No MCP servers configured — skipping")
+			return { manager: null as any, tools: [] }
+		}
+
+		Logger.log(`[MCP] Found ${registrations.length} server registration(s)`)
+
+		// Build the client factory using @modelcontextprotocol/sdk
+		const { Client } = await import("@modelcontextprotocol/sdk/client/index.js")
+
+		const clientFactory = async (
+			reg: import("@clinebot/core").McpServerRegistration,
+		): Promise<import("@clinebot/core").McpServerClient> => {
+			const client = new Client({ name: "cline-sdk", version: "1.0.0" })
+			let transport: import("@modelcontextprotocol/sdk/shared/transport.js").Transport
+
+			if (reg.transport.type === "stdio") {
+				const { StdioClientTransport } = await import("@modelcontextprotocol/sdk/client/stdio.js")
+				transport = new StdioClientTransport({
+					command: reg.transport.command,
+					args: reg.transport.args,
+					env: reg.transport.env ? ({ ...process.env, ...reg.transport.env } as Record<string, string>) : undefined,
+				})
+			} else if (reg.transport.type === "streamableHttp") {
+				const { StreamableHTTPClientTransport } = await import("@modelcontextprotocol/sdk/client/streamableHttp.js")
+				transport = new StreamableHTTPClientTransport(new URL(reg.transport.url), {
+					requestInit: reg.transport.headers ? { headers: reg.transport.headers } : undefined,
+				})
+			} else if (reg.transport.type === "sse") {
+				const { SSEClientTransport } = await import("@modelcontextprotocol/sdk/client/sse.js")
+				transport = new SSEClientTransport(new URL(reg.transport.url), {
+					requestInit: reg.transport.headers ? { headers: reg.transport.headers } : undefined,
+				})
+			} else {
+				throw new Error(`Unsupported MCP transport type: ${(reg.transport as any).type}`)
+			}
+
+			return {
+				async connect() {
+					await client.connect(transport)
+				},
+				async disconnect() {
+					await client.close()
+				},
+				async listTools() {
+					const result = await client.listTools()
+					return result.tools.map((t) => ({
+						name: t.name,
+						description: t.description,
+						inputSchema: t.inputSchema as Record<string, unknown>,
+					}))
+				},
+				async callTool(request) {
+					const result = await client.callTool({
+						name: request.name,
+						arguments: request.arguments,
+					})
+					return result
+				},
+			}
+		}
+
+		const manager = new InMemoryMcpManager({ clientFactory })
+
+		// Register + connect all non-disabled servers
+		const tools: Awaited<ReturnType<typeof createMcpTools>>[] = []
+		for (const reg of registrations) {
+			if (reg.disabled) {
+				Logger.log(`[MCP] Skipping disabled server: ${reg.name}`)
+				continue
+			}
+			try {
+				await manager.registerServer(reg)
+				await manager.connectServer(reg.name)
+				const serverTools = await createMcpTools({
+					serverName: reg.name,
+					provider: manager,
+				})
+				tools.push(...serverTools)
+				Logger.log(`[MCP] Connected to '${reg.name}' — ${serverTools.length} tool(s)`)
+			} catch (error) {
+				Logger.log(`[MCP] Failed to connect '${reg.name}': ${error instanceof Error ? error.message : String(error)}`)
+			}
+		}
+
+		Logger.log(`[MCP] Total MCP tools loaded: ${tools.length}`)
+		return { manager, tools }
+	})()
+
+	// If loading fails, clear the cache so next attempt retries
+	mcpManagerPromise.catch(() => {
+		mcpManagerPromise = null
+	})
+
+	return mcpManagerPromise
+}
+
+// ---------------------------------------------------------------------------
 // Provider → API key resolution
 // ---------------------------------------------------------------------------
 
@@ -385,6 +510,28 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		// Only set apiKey if the provider actually uses one
 		if (apiKey) {
 			coreConfig.apiKey = apiKey
+		}
+
+		// Load MCP tools from configured MCP servers (with timeout to avoid blocking session start)
+		try {
+			const MCP_LOAD_TIMEOUT_MS = 30_000
+			const mcpResult = await Promise.race([
+				getOrCreateMcpManager(),
+				new Promise<{ manager: any; tools: [] }>((resolve) =>
+					setTimeout(() => {
+						Logger.log("[ClineSessionFactory] MCP tool loading timed out — starting session without MCP tools")
+						resolve({ manager: null, tools: [] })
+					}, MCP_LOAD_TIMEOUT_MS),
+				),
+			])
+			if (mcpResult.tools.length > 0) {
+				coreConfig.extraTools = mcpResult.tools
+				Logger.log(`[ClineSessionFactory] Passing ${mcpResult.tools.length} MCP tool(s) as extraTools`)
+			}
+		} catch (error) {
+			Logger.log(
+				`[ClineSessionFactory] MCP tool loading failed (non-fatal): ${error instanceof Error ? error.message : String(error)}`,
+			)
 		}
 
 		// Cline provider: set the correct API base URL
