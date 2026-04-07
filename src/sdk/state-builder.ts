@@ -10,58 +10,26 @@
  * distributes it to all React components.
  */
 
-import type {
-	ClineMessage,
-	ExtensionState,
-	Platform,
-} from "@shared/ExtensionMessage"
-import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
-import type { BrowserSettings } from "@shared/BrowserSettings"
-import type { FocusChainSettings } from "@shared/FocusChainSettings"
-import type { HistoryItem } from "@shared/HistoryItem"
+import { type AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ApiConfiguration } from "@shared/api"
+import { type BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import type { ClineRulesToggles } from "@shared/cline-rules"
+import type { ClineMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
+import { DEFAULT_FOCUS_CHAIN_SETTINGS, type FocusChainSettings } from "@shared/FocusChainSettings"
+import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpDisplayMode } from "@shared/McpDisplayMode"
+import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
-import type { Mode } from "@shared/storage/types"
 import type { LegacyStateReader } from "./legacy-state-reader"
-import type { ClineAuthCredentials } from "./legacy-state-reader"
 
 // ---------------------------------------------------------------------------
 // Default values for ExtensionState fields
 // ---------------------------------------------------------------------------
 
-const DEFAULT_AUTO_APPROVAL: AutoApprovalSettings = {
-	enabled: false,
-	actions: {
-		readFiles: false,
-		editFiles: false,
-		executeCommands: false,
-		useBrowser: false,
-		useMcp: false,
-	},
-	notifications: {
-		sound: false,
-		tts: false,
-	},
-	maxRequests: 20,
-	enableNotifications: false,
-	favorites: {},
-	version: 0,
-}
-
-const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
-	headless: true,
-	viewport: {
-		width: 900,
-		height: 600,
-	},
-}
-
-const DEFAULT_FOCUS_CHAIN_SETTINGS: FocusChainSettings = {
-	enabled: false,
-}
+const DEFAULT_AUTO_APPROVAL: AutoApprovalSettings = DEFAULT_AUTO_APPROVAL_SETTINGS
+const DEFAULT_BROWSER: BrowserSettings = DEFAULT_BROWSER_SETTINGS
+const DEFAULT_FOCUS_CHAIN: FocusChainSettings = DEFAULT_FOCUS_CHAIN_SETTINGS
 
 // ---------------------------------------------------------------------------
 // StateBuilderInput — what the state builder needs
@@ -119,11 +87,9 @@ export interface StateBuilderInput {
 export function buildExtensionState(input: StateBuilderInput = {}): ExtensionState {
 	const legacyState = input.legacyState
 	const globalState = legacyState?.readGlobalState()
-	const autoApproval = globalState?.autoApprovalSettings
 
-	// Merge auto-approval from legacy state with defaults
-	const autoApprovalSettings: AutoApprovalSettings = autoApproval
-		? { ...DEFAULT_AUTO_APPROVAL, ...autoApproval }
+	const autoApprovalSettings: AutoApprovalSettings = legacyState?.readAutoApprovalSettings
+		? legacyState.readAutoApprovalSettings()
 		: DEFAULT_AUTO_APPROVAL
 
 	// Process task history: filter valid items, sort by ts desc, limit to 100
@@ -142,12 +108,12 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		distinctId: input.distinctId ?? "",
 		platform: input.platform ?? (typeof process !== "undefined" ? (process.platform as Platform) : "unknown"),
 		environment: undefined,
-		isNewUser: globalState?.isNewUser ?? true,
-		welcomeViewCompleted: globalState?.welcomeViewCompleted ?? false,
+		isNewUser: (globalState?.isNewUser as boolean | undefined) ?? true,
+		welcomeViewCompleted: (globalState?.welcomeViewCompleted as boolean | undefined) ?? false,
 		onboardingModels: undefined,
 
 		// API / Provider
-		apiConfiguration: input.apiConfiguration ?? globalState?.apiConfiguration,
+		apiConfiguration: input.apiConfiguration ?? (globalState?.apiConfiguration as ApiConfiguration | undefined),
 
 		// Session state
 		clineMessages,
@@ -160,28 +126,33 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 
 		// Settings
 		autoApprovalSettings,
-		browserSettings: globalState?.browserSettings ?? DEFAULT_BROWSER_SETTINGS,
-		focusChainSettings: globalState?.focusChainSettings ?? DEFAULT_FOCUS_CHAIN_SETTINGS,
-		preferredLanguage: globalState?.preferredLanguage,
+		browserSettings: {
+			...DEFAULT_BROWSER,
+			...((globalState?.browserSettings as Partial<BrowserSettings> | undefined) ?? {}),
+		},
+		focusChainSettings: {
+			...DEFAULT_FOCUS_CHAIN,
+			...((globalState?.focusChainSettings as Partial<FocusChainSettings> | undefined) ?? {}),
+		},
+		preferredLanguage: globalState?.preferredLanguage as string | undefined,
 		mode: input.mode ?? globalState?.mode ?? "act",
-		strictPlanModeEnabled: globalState?.strictPlanModeEnabled,
-		yoloModeToggled: globalState?.yoloModeToggled,
-		useAutoCondense: globalState?.useAutoCondense,
-		subagentsEnabled: globalState?.subagentsEnabled,
-		planActSeparateModelsSetting: globalState?.planActSeparateModelsSetting ?? false,
-		enableCheckpointsSetting: globalState?.enableCheckpointsSetting ?? true,
+		strictPlanModeEnabled: globalState?.strictPlanModeEnabled as boolean | undefined,
+		yoloModeToggled: globalState?.yoloModeToggled as boolean | undefined,
+		useAutoCondense: globalState?.useAutoCondense as boolean | undefined,
+		subagentsEnabled: globalState?.subagentsEnabled as boolean | undefined,
+		planActSeparateModelsSetting: (globalState?.planActSeparateModelsSetting as boolean | undefined) ?? false,
+		enableCheckpointsSetting: (globalState?.enableCheckpointsSetting as boolean | undefined) ?? true,
 		telemetrySetting: (globalState?.telemetrySetting as TelemetrySetting) ?? "unset",
-		shellIntegrationTimeout: globalState?.shellIntegrationTimeout ?? 15000,
-		terminalReuseEnabled: globalState?.terminalReuseEnabled,
-		terminalOutputLineLimit: globalState?.terminalOutputLineLimit ?? 500,
-		maxConsecutiveMistakes: globalState?.maxConsecutiveMistakes ?? 3,
-		defaultTerminalProfile: (globalState?.defaultTerminalProfile as string | undefined),
-		availableTerminalProfiles: [],
+		shellIntegrationTimeout: (globalState?.shellIntegrationTimeout as number | undefined) ?? 15000,
+		terminalReuseEnabled: globalState?.terminalReuseEnabled as boolean | undefined,
+		terminalOutputLineLimit: (globalState?.terminalOutputLineLimit as number | undefined) ?? 500,
+		maxConsecutiveMistakes: (globalState?.maxConsecutiveMistakes as number | undefined) ?? 3,
+		defaultTerminalProfile: globalState?.defaultTerminalProfile as string | undefined,
 		vscodeTerminalExecutionMode: (globalState?.vscodeTerminalExecutionMode as string | undefined) ?? "default",
-		customPrompt: (globalState?.customPrompt as "compact" | undefined),
-		mcpMarketplaceEnabled: (globalState?.mcpMarketplaceEnabled as boolean | undefined),
+		customPrompt: globalState?.customPrompt as "compact" | undefined,
+		mcpMarketplaceEnabled: globalState?.mcpMarketplaceEnabled as boolean | undefined,
 		mcpDisplayMode: (globalState?.mcpDisplayMode as McpDisplayMode) ?? "expanded",
-		mcpResponsesCollapsed: (globalState?.mcpResponsesCollapsed as boolean | undefined),
+		mcpResponsesCollapsed: globalState?.mcpResponsesCollapsed as boolean | undefined,
 
 		// User
 		userInfo: input.userInfo,
@@ -203,7 +174,7 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		localSkillsToggles: {},
 
 		// Model favorites
-		favoritedModelIds: (globalState?.favoritedModelIds as string[]) ?? [],
+		favoritedModelIds: (globalState?.favoritedModelIds as string[] | undefined) ?? [],
 
 		// Workspace
 		workspaceRoots: [],

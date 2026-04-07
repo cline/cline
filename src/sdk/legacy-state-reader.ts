@@ -19,14 +19,14 @@
 
 import * as fs from "node:fs"
 import * as path from "node:path"
-
-import type { HistoryItem } from "@shared/HistoryItem"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
-import type { Mode } from "@shared/storage/types"
+import type { ApiConfiguration } from "@shared/api"
+import type { HistoryItem } from "@shared/HistoryItem"
+import { Logger } from "@shared/services/Logger"
 import type { SecretKey } from "@shared/storage/state-keys"
 import { ApiHandlerSettingsKeys, SecretKeys } from "@shared/storage/state-keys"
-import type { ApiConfiguration } from "@shared/api"
+import type { Mode } from "@shared/storage/types"
 
 // ---------------------------------------------------------------------------
 // Types
@@ -126,8 +126,7 @@ export class LegacyStateReader {
 		if (opts.dataDir) {
 			this.dataDir = opts.dataDir
 		} else {
-			const clineDir =
-				opts.clineDir || process.env.CLINE_DIR || path.join(require("os").homedir(), ".cline")
+			const clineDir = opts.clineDir || process.env.CLINE_DIR || path.join(require("os").homedir(), ".cline")
 			this.dataDir = path.join(clineDir, "data")
 		}
 	}
@@ -453,7 +452,7 @@ export class LegacyStateReader {
 				fs.rmSync(taskDir, { recursive: true, force: true })
 			}
 		} catch (err) {
-			console.error(`[LegacyStateReader] Failed to delete task directory ${taskDir}:`, err)
+			Logger.error(`[LegacyStateReader] Failed to delete task directory ${taskDir}:`, err)
 		}
 	}
 
@@ -526,7 +525,7 @@ export class LegacyStateReader {
 			fs.renameSync(tmpPath, filePath)
 		} catch (err) {
 			// Best-effort — don't crash on write failure
-			console.error(`[LegacyStateReader] Failed to write ${filePath}:`, err)
+			Logger.error(`[LegacyStateReader] Failed to write ${filePath}:`, err)
 		}
 	}
 }

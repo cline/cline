@@ -22,7 +22,7 @@ describe("SDK Foundation", () => {
 	})
 
 	it("can import SDK adapter index", async () => {
-		const sdk = await import("@sdk/index")
+		const sdk = await import("../index")
 		expect(sdk).toBeDefined()
 	})
 })

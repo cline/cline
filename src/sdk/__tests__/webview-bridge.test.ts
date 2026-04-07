@@ -1,6 +1,6 @@
-import { describe, it, expect, vi } from "vitest"
-import { WebviewBridge } from "../webview-bridge"
+import { describe, expect, it, vi } from "vitest"
 import type { WebviewOutbound } from "../../shared/WebviewMessages"
+import { WebviewBridge } from "../webview-bridge"
 
 describe("WebviewBridge", () => {
 	function createBridge() {
@@ -173,7 +173,10 @@ describe("WebviewBridge", () => {
 	describe("pushTerminalProfiles", () => {
 		it("sends terminalProfiles message", () => {
 			const { bridge, messages } = createBridge()
-			const profiles = [{ name: "bash" }, { name: "zsh" }]
+			const profiles = [
+				{ id: "bash", name: "bash" },
+				{ id: "zsh", name: "zsh" },
+			]
 
 			bridge.pushTerminalProfiles(profiles)
 

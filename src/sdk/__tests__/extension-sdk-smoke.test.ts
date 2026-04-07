@@ -8,10 +8,9 @@
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest"
-import { activateSdkExtension, deactivateSdkExtension, type SdkExtensionContext } from "../extension-sdk"
 import type { ExtensionState } from "@shared/ExtensionMessage"
-import type { AgentEvent } from "../message-translator"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { activateSdkExtension, deactivateSdkExtension, type SdkExtensionContext } from "../extension-sdk"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -23,29 +22,38 @@ let ctx: SdkExtensionContext | undefined
 function createTestDataDir(): string {
 	const dir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-sdk-smoke-"))
 	// Create expected file structure
-	fs.writeFileSync(path.join(dir, "globalState.json"), JSON.stringify({
-		mode: "act",
-		isNewUser: false,
-		welcomeViewCompleted: true,
-		telemetrySetting: "enabled",
-		apiProvider: "anthropic",
-		apiModelId: "claude-sonnet-4-20250514",
-	}))
-	fs.writeFileSync(path.join(dir, "secrets.json"), JSON.stringify({
-		apiKey: "sk-test-key-123",
-	}))
+	fs.writeFileSync(
+		path.join(dir, "globalState.json"),
+		JSON.stringify({
+			mode: "act",
+			isNewUser: false,
+			welcomeViewCompleted: true,
+			telemetrySetting: "enabled",
+			apiProvider: "anthropic",
+			apiModelId: "claude-sonnet-4-20250514",
+		}),
+	)
+	fs.writeFileSync(
+		path.join(dir, "secrets.json"),
+		JSON.stringify({
+			apiKey: "sk-test-key-123",
+		}),
+	)
 	const stateDir = path.join(dir, "state")
 	fs.mkdirSync(stateDir, { recursive: true })
-	fs.writeFileSync(path.join(stateDir, "taskHistory.json"), JSON.stringify([
-		{
-			id: "task_1",
-			ts: Date.now() - 1000,
-			task: "Previous task",
-			tokensIn: 100,
-			tokensOut: 50,
-			totalCost: 0.001,
-		},
-	]))
+	fs.writeFileSync(
+		path.join(stateDir, "taskHistory.json"),
+		JSON.stringify([
+			{
+				id: "task_1",
+				ts: Date.now() - 1000,
+				task: "Previous task",
+				tokensIn: 100,
+				tokensOut: 50,
+				totalCost: 0.001,
+			},
+		]),
+	)
 	return dir
 }
 
@@ -189,12 +197,12 @@ describe("SDK Extension Smoke Test", () => {
 		// Update API config
 		await handler.handleRequest({
 			method: "updateApiConfigurationProto",
-			params: { apiProvider: "openrouter", apiModelId: "gpt-4o" },
+			params: { actModeApiProvider: "openrouter", actModeApiModelId: "gpt-4o" },
 		})
 
 		const state = (await handler.handleRequest({ method: "getLatestState" })).data as ExtensionState
-		expect(state.apiConfiguration?.apiProvider).toBe("openrouter")
-		expect(state.apiConfiguration?.apiModelId).toBe("gpt-4o")
+		expect(state.apiConfiguration?.actModeApiProvider).toBe("openrouter")
+		expect(state.apiConfiguration?.actModeApiModelId).toBe("gpt-4o")
 	})
 
 	it("handles mode toggle via gRPC", async () => {

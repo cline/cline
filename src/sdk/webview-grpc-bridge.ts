@@ -14,14 +14,15 @@
  */
 
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
-import type { GrpcHandlerDelegate } from "./grpc-handler"
-import { GrpcHandler, type GrpcRequest, type GrpcResponse } from "./grpc-handler"
+import { Logger } from "@shared/services/Logger"
 import { isTypedInboundMessage } from "@shared/WebviewMessages"
-import { InboundMessageHandler, type InboundController } from "./inbound-handler"
+import type { GrpcHandlerDelegate } from "./grpc-handler"
+import { GrpcHandler, type GrpcRequest } from "./grpc-handler"
+import { InboundMessageHandler } from "./inbound-handler"
 
 const DEBUG = true
 function log(...args: any[]) {
-	if (DEBUG) console.log("[SDK-Bridge]", ...args)
+	if (DEBUG) Logger.log("[SDK-Bridge]", ...args)
 }
 
 // ---------------------------------------------------------------------------
@@ -120,11 +121,7 @@ export class WebviewGrpcBridge {
 	/**
 	 * Handle a unary (request/response) gRPC request.
 	 */
-	private async handleUnaryRequest(
-		method: string,
-		message: any,
-		requestId: string,
-	): Promise<void> {
+	private async handleUnaryRequest(method: string, message: any, requestId: string): Promise<void> {
 		const grpcReq: GrpcRequest = {
 			method,
 			params: message ?? {},
@@ -160,11 +157,7 @@ export class WebviewGrpcBridge {
 	 * proto-encode, we use typed messages (which the webview's dual-listen
 	 * pattern picks up) for the critical state/message paths.
 	 */
-	private async handleStreamingRequest(
-		method: string,
-		message: any,
-		requestId: string,
-	): Promise<void> {
+	private async handleStreamingRequest(method: string, message: any, requestId: string): Promise<void> {
 		switch (method) {
 			case "subscribeToState": {
 				this.stateSubscriptionRequestId = requestId
@@ -233,10 +226,7 @@ export class WebviewGrpcBridge {
 	/** Push partial message update to the webview */
 	pushPartialMessage(message: ClineMessage): void {
 		if (this.partialMessageSubscriptionRequestId) {
-			this.sendStreamingResponse(
-				this.partialMessageSubscriptionRequestId,
-				message,
-			)
+			this.sendStreamingResponse(this.partialMessageSubscriptionRequestId, message)
 		}
 
 		// Also send as typed message
@@ -265,10 +255,7 @@ export class WebviewGrpcBridge {
 	// Helpers
 	// -----------------------------------------------------------------------
 
-	private async sendStreamingResponse(
-		requestId: string,
-		data: any,
-	): Promise<void> {
+	private async sendStreamingResponse(requestId: string, data: any): Promise<void> {
 		const seq = (this.sequenceCounters.get(requestId) ?? 0) + 1
 		this.sequenceCounters.set(requestId, seq)
 

@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeEach, vi } from "vitest"
-import { GrpcHandler, type GrpcHandlerDelegate, type GrpcRequest, type SubscriptionCallback } from "../grpc-handler"
-import { buildExtensionState } from "../state-builder"
-import type { ExtensionState, ClineMessage } from "@shared/ExtensionMessage"
+import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
+import { beforeEach, describe, expect, it, vi } from "vitest"
+import { GrpcHandler, type GrpcHandlerDelegate } from "../grpc-handler"
+import { buildExtensionState } from "../state-builder"
 
 // ---------------------------------------------------------------------------
 // Mock delegate

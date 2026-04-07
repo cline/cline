@@ -162,6 +162,20 @@ function resolveModelId(
 	return undefined
 }
 
+type CoreSessionHostLike = {
+	start: (input: {
+		config: Record<string, unknown>
+		prompt?: string
+		interactive?: boolean
+		userImages?: string[]
+	}) => Promise<{ sessionId: string; result?: { text?: string } }>
+	send: (input: { sessionId: string; prompt: string }) => Promise<unknown>
+	abort: (sessionId: string, reason?: unknown) => Promise<void>
+	stop: (sessionId: string) => Promise<void>
+	subscribe: (listener: (event: unknown) => void) => () => void
+	dispose: (reason?: string) => Promise<void>
+}
+
 // ---------------------------------------------------------------------------
 // ClineCoreSession — real session backed by ClineCore
 // ---------------------------------------------------------------------------
@@ -173,18 +187,7 @@ class ClineCoreSession implements SdkSession {
 	private unsubscribe?: () => void
 
 	constructor(
-		private readonly host: {
-			start: (input: {
-				config: Record<string, unknown>
-				prompt?: string
-				interactive?: boolean
-			}) => Promise<{ sessionId: string; result?: { text?: string } }>
-			send: (input: { sessionId: string; prompt: string }) => Promise<unknown>
-			abort: (sessionId: string) => Promise<void>
-			stop: (sessionId: string) => Promise<void>
-			subscribe: (listener: (event: unknown) => void) => () => void
-			dispose: (reason?: string) => Promise<void>
-		},
+		private readonly host: CoreSessionHostLike,
 		private readonly coreConfig: Record<string, unknown>,
 	) {}
 
@@ -308,18 +311,18 @@ class ClineCoreSession implements SdkSession {
  * that creates ClineCoreSession instances on demand.
  */
 export function createClineSessionFactory(options?: { clineDir?: string }): SessionFactory {
-	// We lazily initialize ClineCore to avoid import-time side effects
-	let hostPromise: Promise<InstanceType<typeof import("@clinebot/core").ClineCore>> | null = null
+	// We lazily initialize the session host to avoid import-time side effects
+	let hostPromise: Promise<CoreSessionHostLike> | null = null
 
 	async function getHost() {
 		if (!hostPromise) {
 			hostPromise = (async () => {
-				const { ClineCore } = await import("@clinebot/core")
+				const { createSessionHost } = await import("@clinebot/core")
 				Logger.log("[ClineSessionFactory] Creating ClineCore session host")
-				const host = await ClineCore.create({
+				const host = (await createSessionHost({
 					backendMode: "local",
 					clientName: "cline-vscode-sdk",
-				})
+				})) as unknown as CoreSessionHostLike
 				Logger.log("[ClineSessionFactory] ClineCore session host created")
 				return host
 			})()
@@ -349,7 +352,7 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		// for these so the Zod schema doesn't reject the config.
 		const NO_KEY_PROVIDERS = new Set(["ollama", "lmstudio", "claude-code", "vscode-lm"])
 		const apiKey = NO_KEY_PROVIDERS.has(provider)
-			? (config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined) ?? provider
+			? ((config.apiConfiguration ? resolveApiKey(provider, config.apiConfiguration) : undefined) ?? provider)
 			: config.apiConfiguration
 				? resolveApiKey(provider, config.apiConfiguration)
 				: undefined
@@ -363,7 +366,7 @@ export function createClineSessionFactory(options?: { clineDir?: string }): Sess
 		let systemPrompt: string
 		try {
 			const core = await import("@clinebot/core")
-			systemPrompt = core.getClineDefaultSystemPrompt({ cwd, mode } as any)
+			systemPrompt = core.getClineDefaultSystemPrompt("VSCode", cwd)
 		} catch {
 			systemPrompt = `You are Cline, a highly skilled software engineer. Your working directory is: ${cwd}`
 		}
