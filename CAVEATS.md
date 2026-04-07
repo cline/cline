@@ -118,10 +118,10 @@ Tracking issues found during the migration from the legacy inference system to t
 **Symptom:** Clicking the "Sign up with Cline" button produces no response — no browser opens, no auth flow starts, no feedback is given.  
 **Fix:** Resolved by #17 — the sign-up button is no longer shown when the user is already authenticated.
 
-### 19. 🟡 Terminal settings still shows "Terminal Execution Mode" option
+### 19. 🟢 Terminal settings still shows "Terminal Execution Mode" option
 **Where:** Settings → Terminal  
-**Symptom:** The Terminal settings section still displays a "Terminal Execution Mode" option. This is legacy — only background terminal execution should be supported now.  
-**Expected:** Remove the Terminal Execution Mode selector. Background terminals should be the only mode.
+**Symptom:** The Terminal settings section still displays a "Terminal Execution Mode" dropdown (VS Code Terminal / Background Exec). Only background terminal execution should be supported.  
+**Fix:** Removed the Terminal Execution Mode dropdown, its handler (`handleExecutionModeChange`), and unused imports (`PlatformType`, `usePlatform`) from `TerminalSettingsSection.tsx`. Terminal section now shows: Default Terminal Profile, Shell integration timeout, Enable aggressive terminal reuse, and Terminal output limit.
 
 ### 20. 🟡 Cline provider model type-ahead search does not work
 **Where:** Settings → Model selector (Cline provider)  
