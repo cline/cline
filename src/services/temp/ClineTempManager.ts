@@ -32,12 +32,18 @@ class ClineTempManagerImpl {
 	private cleanupIntervalId: NodeJS.Timeout | null = null
 
 	constructor() {
-		// Uses system temp directory with a dedicated "cline-{username}" subdirectory when possible:
+		// Uses system temp directory with a dedicated "cline-{username}" subdirectory when possible, if not possible, default to "cline":
 		// macOS: /var/folders/xx/.../T/cline-{username}
 		// Windows: C:\Users\{user}\AppData\Local\Temp\cline-{username}
 		// Linux: /tmp/cline-{username}
 		const baseTempDir = os.tmpdir()
-		const clineTempDir = path.join(baseTempDir, `cline-${os.userInfo().username}`)
+		let currentUserName
+		try {
+			currentUserName = `-${os.userInfo().username}`
+		} catch {
+			currentUserName = ""
+		}
+		const clineTempDir = path.join(baseTempDir, `cline${currentUserName}`)
 
 		try {
 			fs.mkdirSync(clineTempDir, { recursive: true })
