@@ -50,6 +50,25 @@ const coreFile = path.join(distDir, clineCoreFile)
 
 const childProcesses: ChildProcess[] = []
 
+function getStandalonePlatformName(): string {
+	const platform = os.platform()
+	const arch = os.arch()
+
+	if (platform === "darwin" && (arch === "x64" || arch === "arm64")) {
+		return `darwin-${arch}`
+	}
+
+	if (platform === "linux" && (arch === "x64" || arch === "arm64")) {
+		return `linux-${arch}`
+	}
+
+	if (platform === "win32" && (arch === "x64" || arch === "arm64")) {
+		return `win-${arch}`
+	}
+
+	throw new Error(`Unsupported standalone platform for smoke test: ${platform} ${arch}`)
+}
+
 async function main(): Promise<void> {
 	console.log("Starting Simple Cline gRPC Server...")
 	console.log(`Project Root: ${projectRoot}`)
@@ -81,6 +100,7 @@ async function main(): Promise<void> {
 	const extensionsDir = path.join(distDir, "vsce-extension")
 	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
+	const platformName = getStandalonePlatformName()
 
 	console.log("Starting HostBridge test server...")
 	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
@@ -114,6 +134,9 @@ async function main(): Promise<void> {
 	}
 
 	const covDir = path.join(projectRoot, `coverage/coverage-core-${PROTOBUS_PORT}`)
+	const packagedNodeModulesDir = path.join(extensionsDir, "node_modules")
+	const packagedNativeNodeModulesDir = path.join(extensionsDir, "binaries", platformName, "node_modules")
+	const nodePath = [packagedNativeNodeModulesDir, packagedNodeModulesDir].join(path.delimiter)
 
 	const baseArgs = ["--enable-source-maps", path.join(distDir, "cline-core.js")]
 
@@ -125,7 +148,7 @@ async function main(): Promise<void> {
 		cwd: projectRoot,
 		env: {
 			...process.env,
-			NODE_PATH: "./node_modules",
+			NODE_PATH: nodePath,
 			DEV_WORKSPACE_FOLDER: WORKSPACE_DIR,
 			PROTOBUS_ADDRESS: `127.0.0.1:${PROTOBUS_PORT}`,
 			HOST_BRIDGE_ADDRESS: `localhost:${HOSTBRIDGE_PORT}`,

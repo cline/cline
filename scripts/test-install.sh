@@ -20,12 +20,12 @@ echo ""
 # Test 2: Check for required functions
 echo "Test 2: Required Functions Check"
 required_functions=(
-    "detect_platform"
     "print_message"
-    "error_exit"
-    "command_exists"
     "check_prerequisites"
-    "get_download_url"
+    "check_rate_limit"
+    "show_rate_limit_error"
+    "get_release_info"
+    "check_existing_installation"
     "install_cline"
     "configure_path"
     "verify_installation"
@@ -48,7 +48,8 @@ echo "Test 3: Required Variables Check"
 required_vars=(
     "INSTALL_DIR"
     "GITHUB_REPO"
-    "RELEASE_TAG"
+    "requested_version"
+    "FORCE_INSTALL"
 )
 
 for var in "${required_vars[@]}"; do
@@ -63,20 +64,38 @@ echo ""
 
 # Test 4: Check for platform support
 echo "Test 4: Platform Support Check"
-platforms=("darwin-x64" "darwin-arm64" "linux-x64")
-for platform in "${platforms[@]}"; do
-    if grep -q "$platform" scripts/install.sh; then
-        echo "  ✅ PASS: Platform '$platform' supported"
-    else
-        echo "  ❌ FAIL: Platform '$platform' not found"
-        exit 1
-    fi
-done
+if grep -q 'darwin)' scripts/install.sh && grep -q 'linux)' scripts/install.sh; then
+    echo "  ✅ PASS: Supported operating systems are defined"
+else
+    echo "  ❌ FAIL: Supported operating systems not found"
+    exit 1
+fi
+
+if grep -q '"x86_64"' scripts/install.sh && grep -q 'arch="x64"' scripts/install.sh; then
+    echo "  ✅ PASS: x86_64 is normalized to x64"
+else
+    echo "  ❌ FAIL: x86_64 normalization not found"
+    exit 1
+fi
+
+if grep -q '"aarch64"' scripts/install.sh && grep -q 'arch="arm64"' scripts/install.sh; then
+    echo "  ✅ PASS: aarch64 is normalized to arm64"
+else
+    echo "  ❌ FAIL: aarch64 normalization not found"
+    exit 1
+fi
+
+if grep -q 'platform="darwin-\$arch"' scripts/install.sh && grep -q 'platform="linux-\$arch"' scripts/install.sh; then
+    echo "  ✅ PASS: Platform strings are constructed for macOS and Linux"
+else
+    echo "  ❌ FAIL: Platform string construction not found"
+    exit 1
+fi
 echo ""
 
 # Test 5: Check for error handling
 echo "Test 5: Error Handling Check"
-if grep -q "error_exit" scripts/install.sh && grep -q "set -e" scripts/install.sh; then
+if grep -q "print_error()" scripts/install.sh && grep -q "set -euo pipefail" scripts/install.sh; then
     echo "  ✅ PASS: Error handling present"
 else
     echo "  ❌ FAIL: Error handling missing"
@@ -86,7 +105,7 @@ echo ""
 
 # Test 6: Check for PATH configuration
 echo "Test 6: PATH Configuration Check"
-if grep -q "export PATH=" scripts/install.sh; then
+if grep -q "export PATH=" scripts/install.sh || grep -q "fish_add_path" scripts/install.sh; then
     echo "  ✅ PASS: PATH configuration present"
 else
     echo "  ❌ FAIL: PATH configuration missing"

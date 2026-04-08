@@ -688,10 +688,13 @@ Run these at minimum:
 - [x] `npm run lint`
 - [x] `npm run test:webview`
 - [x] `npm run test:unit`
+- [x] `npm run cli:test`
+- [x] `npm run cli:build`
+- [x] `npm run test:install`
 
 If the migration touches extension/runtime behavior deeply, also run:
 
-- [ ] `npm run test:integration`
+- [x] `npm run test:integration` *(smoke launch only; currently reports `0 passing`)*
 
 If there are changes in standalone/runtime packaging behavior, consider:
 
@@ -699,9 +702,11 @@ If there are changes in standalone/runtime packaging behavior, consider:
 
 ### Verification status
 
-Automated verification so far includes regenerated proto artifacts, repo-wide typechecking, lint, the full unit suite, a successful webview test run after fixing the `totalTasksSize` regression uncovered during broader verification, and a successful `compile-standalone` build/package pass (with only a non-fatal `better-sqlite3` Node engine warning under Node 25).
+Automated verification so far includes regenerated proto artifacts, repo-wide typechecking, lint, the full unit suite, CLI unit/build coverage, a repaired install-script smoke test, a successful built-CLI help invocation, a successful webview test run after fixing the `totalTasksSize` regression uncovered during broader verification, and a successful `compile-standalone` build/package pass (with only a non-fatal `better-sqlite3` Node engine warning under Node 25).
 
 The current `npm run test:integration` command also exits successfully, but it presently reports `0 passing`, so it should be treated as an extension-host smoke launch rather than meaningful behavioral coverage for this migration.
+
+Separately, the standalone core smoke launcher (`scripts/test-standalone-core-api-server.ts`) now starts the packaged core plus mock HostBridge successfully when pointed at the packaged standalone runtime dependencies, giving lightweight external-host startup coverage without requiring a full editor client.
 
 ## Manual verification scenarios
 
