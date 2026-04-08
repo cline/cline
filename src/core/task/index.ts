@@ -139,10 +139,8 @@ type TaskParams = {
 	postStateToWebview: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
-	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
-	defaultTerminalProfile: string
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -275,10 +273,8 @@ export class Task {
 			postStateToWebview,
 			reinitExistingTaskFromId,
 			cancelTask,
-			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
-			defaultTerminalProfile,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -315,10 +311,8 @@ export class Task {
 
 		this.terminalManager = HostProvider.get().createTerminalManager()
 		Logger.info(`[Task ${taskId}] Using unified terminal manager for command execution`)
-		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
-		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher()
 		this.browserSession = new BrowserSession(stateManager)

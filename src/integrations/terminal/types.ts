@@ -29,27 +29,19 @@ export interface TerminalProcessEvents {
 
 /**
  * Interface for terminal process implementations.
- * The standalone runtime implements this interface directly, and the event shape
- * still preserves a small amount of compatibility with the removed VS Code path.
+ * The standalone runtime implements this interface directly.
  *
  * Events emitted:
  * - 'line': Emitted for each line of output
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
- * - 'no_shell_integration': Emitted when shell integration is not available (VSCode only)
  */
 export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 	/**
 	 * Whether the process is actively outputting (used to stall API requests)
 	 */
 	isHot: boolean
-
-	/**
-	 * Whether to wait for shell integration before running commands.
-	 * VSCode processes may need to wait, standalone processes don't.
-	 */
-	waitForShellIntegration: boolean
 
 	/**
 	 * Continue execution without waiting for completion.
@@ -113,7 +105,7 @@ export interface ITerminal {
 	name: string
 	/** Promise that resolves to the process ID */
 	processId: Promise<number | undefined>
-	/** Shell integration information (if available) */
+	/** Terminal cwd metadata exposed to helper integrations. */
 	shellIntegration?: {
 		cwd?: { fsPath: string }
 		executeCommand?: (command: string) => {
@@ -203,12 +195,6 @@ export interface ITerminalManager {
 	disposeAll(): void
 
 	/**
-	 * Set the timeout for waiting for shell integration.
-	 * @param timeout Timeout in milliseconds
-	 */
-	setShellIntegrationTimeout(timeout: number): void
-
-	/**
 	 * Enable or disable terminal reuse.
 	 * @param enabled Whether to enable terminal reuse
 	 */
@@ -219,12 +205,6 @@ export interface ITerminalManager {
 	 * @param limit Maximum number of lines
 	 */
 	setTerminalOutputLineLimit(limit: number): void
-
-	/**
-	 * Set the default terminal profile.
-	 * @param profile The profile identifier
-	 */
-	setDefaultTerminalProfile(profile: string): void
 
 	/**
 	 * Process output lines, potentially truncating if over limit.

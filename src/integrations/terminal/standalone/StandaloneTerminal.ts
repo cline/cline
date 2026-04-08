@@ -41,7 +41,7 @@ export class StandaloneTerminal implements ITerminal {
 	/** Process ID of the active process */
 	_processId: number | null = null
 
-	/** Mock shell integration for compatibility */
+	/** Minimal terminal metadata used by helper integrations. */
 	shellIntegration: {
 		cwd: { fsPath: string }
 		executeCommand: (command: string) => {
@@ -58,7 +58,7 @@ export class StandaloneTerminal implements ITerminal {
 		this._cwd = options.cwd || process.cwd()
 		this._shellPath = options.shellPath
 
-		// Mock shell integration for compatibility
+		// Provide minimal shell integration metadata for helper consumers.
 		this.shellIntegration = {
 			cwd: { fsPath: this._cwd },
 			executeCommand: (_command: string) => {
@@ -80,7 +80,7 @@ export class StandaloneTerminal implements ITerminal {
 	 * @param text The text to send
 	 * @param addNewLine Whether to add a newline (default: true)
 	 */
-	sendText(text: string, addNewLine: boolean = true): void {
+	sendText(text: string, addNewLine = true): void {
 		Logger.log(`[StandaloneTerminal] sendText: ${text}`)
 
 		// If we have an active process, send input to it

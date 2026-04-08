@@ -288,7 +288,7 @@ describe("State Keys Type Safety", () => {
 			const testCases: Array<{ key: GlobalStateAndSettingsKey; expectedType: string }> = [
 				{ key: "autoApprovalSettings", expectedType: "object" },
 				{ key: "browserSettings", expectedType: "object" },
-				{ key: "shellIntegrationTimeout", expectedType: "number" },
+				{ key: "terminalOutputLineLimit", expectedType: "number" },
 				{ key: "preferredLanguage", expectedType: "string" },
 				{ key: "yoloModeToggled", expectedType: "boolean" },
 				{ key: "autoApproveAllToggled", expectedType: "boolean" },
@@ -402,7 +402,7 @@ describe("State Keys Type Safety", () => {
 		it("should export usable Settings type", () => {
 			const partialSettings: Partial<Settings> = {
 				preferredLanguage: "English",
-				shellIntegrationTimeout: 5000,
+				terminalOutputLineLimit: 500,
 			}
 			expect(partialSettings.preferredLanguage).to.equal("English")
 		})

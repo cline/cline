@@ -45,9 +45,8 @@ export class CommandExecutor {
 			this.terminalManager = new StandaloneTerminalManager()
 			Logger.warn("[CommandExecutor] Received non-standalone terminal manager; falling back to StandaloneTerminalManager")
 
-			if ("shellIntegrationTimeout" in config.terminalManager) {
+			if ("terminalReuseEnabled" in (config.terminalManager as any)) {
 				const tm = config.terminalManager as any
-				this.terminalManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout || 4000)
 				this.terminalManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
 				this.terminalManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
 			}

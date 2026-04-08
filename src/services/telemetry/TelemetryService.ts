@@ -45,7 +45,6 @@ export type TerminalOutputMethod = VscodeOutputMethod | StandaloneOutputMethod
  */
 export enum TerminalOutputFailureReason {
 	TIMEOUT = "timeout",
-	NO_SHELL_INTEGRATION = "no_shell_integration",
 	CLIPBOARD_FAILED = "clipboard_failed",
 }
 
@@ -1700,21 +1699,6 @@ export class TelemetryService {
 				method,
 				// Only include exitCode for standalone terminals when it's a meaningful value
 				...(terminalType === "standalone" && exitCode !== undefined && exitCode !== null && { exitCode }),
-			},
-		})
-	}
-
-	/**
-	 * Records when terminal output capture fails
-	 * @param reason The reason for failure
-	 * @param terminalType The type of terminal (defaults to "vscode" for backward compatibility)
-	 */
-	public captureTerminalOutputFailure(reason: TerminalOutputFailureReason, terminalType: TerminalType = "vscode") {
-		this.capture({
-			event: TelemetryService.EVENTS.TASK.TERMINAL_OUTPUT_FAILURE,
-			properties: {
-				reason,
-				terminalType,
 			},
 		})
 	}

@@ -14,7 +14,6 @@ import type {
 
 class FakeTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
 	isHot = false
-	waitForShellIntegration = false
 	private readonly promise: Promise<void>
 	private resolvePromise!: () => void
 	private rejectPromise!: (error: Error) => void

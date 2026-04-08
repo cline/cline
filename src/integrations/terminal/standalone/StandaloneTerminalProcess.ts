@@ -34,12 +34,8 @@ import type { ITerminal, ITerminalProcess, TerminalCompletionDetails, TerminalPr
  * - 'completed': Emitted when the process completes
  * - 'continue': Emitted when continue() is called
  * - 'error': Emitted on process errors
- * - 'no_shell_integration': Emitted for compatibility (never actually emitted in standalone)
  */
 export class StandaloneTerminalProcess extends EventEmitter<TerminalProcessEvents> implements ITerminalProcess {
-	/** We don't need to wait since we control the process directly */
-	waitForShellIntegration = false
-
 	/** Whether we're actively listening for output */
 	isListening = true
 

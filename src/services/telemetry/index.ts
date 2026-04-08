@@ -18,7 +18,6 @@ export type {
 // Export the enums and types for terminal telemetry
 export {
 	TerminalHangStage,
-	TerminalOutputFailureReason,
 	TerminalUserInterventionAction,
 } from "./TelemetryService"
 

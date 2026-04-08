@@ -51,6 +51,7 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 - [x] Remove IDE-terminal-specific execution classes and tests
 - [x] Remove terminal mode state, controller plumbing, and prompt context references
 - [x] Remove shell-integration-specific warnings, suggestions, and obsolete UI toggle surface
+- [x] Remove obsolete shell/profile settings from state, UI, controller, and proto surface
 - [ ] Update docs, stories, and developer references
 - [ ] Run full verification and complete release-readiness checks
 
@@ -442,6 +443,10 @@ Goal: delete warnings and concepts that only existed because the IDE path depend
 - [ ] Remove UI warning cards and suggestion CTA logic from chat rendering
 - [ ] Remove telemetry paths that only describe shell-integration failure states for command execution
 
+### Phase 6 status
+
+Completed by deleting the now-unused shell-integration warning/suggestion UI flows earlier in the migration, then following through by removing the remaining dead no-shell failure telemetry surface and the obsolete `waitForShellIntegration` compatibility field while retaining only the minimal terminal metadata still used by helper integrations.
+
 ### Important files
 
 - `src/integrations/terminal/types.ts`
@@ -490,8 +495,8 @@ Goal: clean up remaining settings whose meaning came from the IDE runtime.
 
 ## Option A (recommended): remove both settings
 
-- [ ] Remove `shellIntegrationTimeout` from state, UI, and controller logic
-- [ ] Remove `defaultTerminalProfile` from state, UI, and controller logic
+- [x] Remove `shellIntegrationTimeout` from state, UI, and controller logic
+- [x] Remove `defaultTerminalProfile` from state, UI, and controller logic
 
 This is the simplest and clearest end-state.
 
@@ -506,6 +511,10 @@ This option is more work and should be taken only if the team explicitly wants t
 ### Recommendation
 
 Prefer **Option A** unless preserving profile selection is an explicit product requirement.
+
+### Phase 8 status
+
+Completed by removing `shellIntegrationTimeout` and `defaultTerminalProfile` from the shared state schema, controller/task wiring, terminal settings UI, shell/profile helper RPCs, and protobuf request/state definitions, then regenerating the derived ProtoBus artifacts and validating the repo still typechecks.
 
 ---
 
