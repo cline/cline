@@ -1,7 +1,12 @@
+import fs from "fs/promises"
+import path from "path"
+import { ensureHooksDirectoryExists, getDocumentsPath } from "@/core/storage/disk"
 import { WebviewProvider } from "@/core/webview"
 import { Logger } from "@/shared/services/Logger"
+import { getLgWebhookHookScripts } from "./lgWebhookHooks"
 
 export const TASK_URI_PATH = "/task"
+export const LG_TASK_URI_PATH = "/lg-task"
 
 /**
  * Shared URI handler that processes both VSCode URI events and HTTP server callbacks
@@ -92,6 +97,22 @@ export class SharedUriHandler {
 					Logger.warn("SharedUriHandler: Missing prompt parameter for task creation")
 					return false
 				}
+				case LG_TASK_URI_PATH: {
+					const promptFile = query.get("prompt-file")
+					const webhookUrl = query.get("webhook-url")
+					const webhookToken = query.get("webhook-token")
+
+					if (!promptFile || !webhookUrl || !webhookToken) {
+						Logger.warn("SharedUriHandler: Missing required parameters for LG task creation")
+						return false
+					}
+
+					const prompt = await fs.readFile(promptFile, "utf-8")
+					await SharedUriHandler.writeLgWebhookConfig(webhookUrl, webhookToken)
+					await SharedUriHandler.writeLgWebhookHooks()
+					await visibleWebview.controller.handleTaskCreation(prompt)
+					return true
+				}
 				// Match /mcp-auth/callback/{hash}
 				case path.match(/^\/mcp-auth\/callback\/[^/]+$/)?.input: {
 					const serverHash = path.split("/").pop()
@@ -122,6 +143,40 @@ export class SharedUriHandler {
 		} catch (error) {
 			Logger.error("SharedUriHandler: Error processing URI:", error)
 			return false
+		}
+	}
+
+	private static async writeLgWebhookConfig(webhookUrl: string, webhookToken: string): Promise<void> {
+		const documentsPath = await getDocumentsPath()
+		const clineDir = path.join(documentsPath, "Cline")
+		const configPath = path.join(clineDir, "webhook_config.json")
+
+		await fs.mkdir(clineDir, { recursive: true })
+		await fs.writeFile(
+			configPath,
+			JSON.stringify(
+				{
+					webhook_url: webhookUrl,
+					webhook_token: webhookToken,
+					created_at: new Date().toISOString(),
+				},
+				null,
+				2,
+			),
+			"utf-8",
+		)
+	}
+
+	private static async writeLgWebhookHooks(): Promise<void> {
+		const hooksDir = await ensureHooksDirectoryExists()
+		const hooks = getLgWebhookHookScripts()
+
+		for (const hook of hooks) {
+			const hookPath = path.join(hooksDir, hook.fileName)
+			await fs.writeFile(hookPath, hook.content, "utf-8")
+			if (hook.mode !== undefined) {
+				await fs.chmod(hookPath, hook.mode)
+			}
 		}
 	}
 }
