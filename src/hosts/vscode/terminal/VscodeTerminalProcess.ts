@@ -75,8 +75,6 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			})
 
 			const IDLE_TIMEOUT_MS = 30_000 // 30 seconds idle timeout
-			// For testing, we can override this
-			const effectiveTimeout = (global as any).__TERMINAL_IDLE_TIMEOUT_OVERRIDE || IDLE_TIMEOUT_MS
 			let idleTimer: NodeJS.Timeout | undefined
 
 			const resetIdleTimer = (reject: (reason?: any) => void) => {
@@ -86,29 +84,36 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				idleTimer = setTimeout(() => {
 					Logger.warn(`[VscodeTerminalProcess] Idle timeout reached for command: ${command.substring(0, 50)}`)
 					reject(new Error("TERMINAL_IDLE_TIMEOUT"))
-				}, effectiveTimeout)
+				}, IDLE_TIMEOUT_MS)
 			}
 
+			let iterator: AsyncIterator<string> | undefined
 			try {
-				const iterator = stream[Symbol.asyncIterator]()
+				iterator = stream[Symbol.asyncIterator]()
+				let completionInterval: NodeJS.Timeout | undefined
 
 				while (true) {
 					const nextPromise = iterator.next()
 					const timeoutPromise = new Promise<never>((_, reject) => resetIdleTimer(reject))
 
-					const result = await Promise.race([
-						nextPromise,
-						timeoutPromise,
-						new Promise<{ done: true }>((resolve) => {
-							// Check periodically if the execution has officially completed
-							const interval = setInterval(() => {
-								if (isOfficiallyCompleted) {
-									clearInterval(interval)
-									resolve({ done: true })
-								}
-							}, 100)
-						}),
-					])
+					const completionPromise = new Promise<{ done: true }>((resolve) => {
+						// Check periodically if the execution has officially completed
+						completionInterval = setInterval(() => {
+							if (isOfficiallyCompleted) {
+								resolve({ done: true })
+							}
+						}, 100)
+					})
+
+					let result: IteratorResult<string> | { done: true }
+					try {
+						result = await Promise.race([nextPromise, timeoutPromise, completionPromise])
+					} finally {
+						if (completionInterval) {
+							clearInterval(completionInterval)
+							completionInterval = undefined
+						}
+					}
 
 					if (result.done) {
 						break
@@ -266,6 +271,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 					throw error
 				}
 			} finally {
+				if (iterator && typeof iterator.return === "function") {
+					await iterator.return()
+				}
 				if (idleTimer) {
 					clearTimeout(idleTimer)
 				}

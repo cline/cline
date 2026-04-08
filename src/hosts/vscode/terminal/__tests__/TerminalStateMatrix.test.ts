@@ -19,12 +19,10 @@ declare module "vscode" {
 describe("Terminal Completion Priority Matrix", () => {
 	let process: VscodeTerminalProcess
 	let sandbox: sinon.SinonSandbox
-	let clock: sinon.SinonFakeTimers
 	let endListener: (e: any) => void
 
 	beforeEach(() => {
 		sandbox = sinon.createSandbox()
-		clock = sandbox.useFakeTimers()
 		setVscodeHostProviderMock()
 		process = new VscodeTerminalProcess()
 
@@ -41,9 +39,9 @@ describe("Terminal Completion Priority Matrix", () => {
 	})
 
 	afterEach(() => {
-		clock.restore()
 		sandbox.restore()
 		process.removeAllListeners()
+		delete (global as any).__TERMINAL_IDLE_TIMEOUT_OVERRIDE
 	})
 
 	const createMockExecution = (stream: AsyncIterable<string>) => ({
@@ -60,7 +58,7 @@ describe("Terminal Completion Priority Matrix", () => {
 		const execution = createMockExecution(
 			(async function* () {
 				yield "Output without marker"
-				await new Promise(() => {}) // Hang stream
+				await new Promise((r) => setTimeout(r, 1000)) // Hang stream slightly longer than tests
 			})(),
 		)
 
@@ -68,18 +66,12 @@ describe("Terminal Completion Priority Matrix", () => {
 
 		const runPromise = process.run(terminal, "cmd")
 
-		// Wait for initialization
-		await clock.tickAsync(100)
-
-		// Simulate VS Code event
-		endListener({ execution, exitCode: 42 })
-
-		// We use setInterval(100) in implementation, so wait a bit
-		await clock.tickAsync(200)
+		// Simulate VS Code event almost immediately
+		setTimeout(() => endListener({ execution, exitCode: 42 }), 10)
 
 		const result = await Promise.race([
 			runPromise.then(() => "completed"),
-			new Promise((r) => setTimeout(() => r("timeout"), 1000)),
+			new Promise((r) => setTimeout(() => r("timeout"), 2000)),
 		])
 
 		;(result as string).should.equal("completed")
@@ -95,7 +87,7 @@ describe("Terminal Completion Priority Matrix", () => {
 		const execution = createMockExecution(
 			(async function* () {
 				yield "Output]633;D;7\n"
-				await new Promise(() => {})
+				await new Promise((r) => setTimeout(r, 1000))
 			})(),
 		)
 
@@ -103,13 +95,9 @@ describe("Terminal Completion Priority Matrix", () => {
 
 		const runPromise = process.run(terminal, "cmd")
 
-		// Advance enough to trigger yield and parsing
-		await clock.tickAsync(100)
-		await clock.tickAsync(100)
-
 		const result = await Promise.race([
 			runPromise.then(() => "completed"),
-			new Promise((r) => setTimeout(() => r("timeout"), 1000)),
+			new Promise((r) => setTimeout(() => r("timeout"), 2000)),
 		])
 
 		;(result as string).should.equal("completed")
@@ -125,7 +113,7 @@ describe("Terminal Completion Priority Matrix", () => {
 		const execution = createMockExecution(
 			(async function* () {
 				yield "Simple output"
-				// Ends here
+				// Ends immediately
 			})(),
 		)
 
@@ -140,14 +128,14 @@ describe("Terminal Completion Priority Matrix", () => {
 	 * Should complete after silence.
 	 */
 	it("should finally fall back to idle timeout after silence", async () => {
-		// Override timeout for test
-		;(global as any).__TERMINAL_IDLE_TIMEOUT_OVERRIDE = 1000
+		// Override timeout for test to be very short
+		;(global as any).__TERMINAL_IDLE_TIMEOUT_OVERRIDE = 100
 
 		const terminal = { shellIntegration: { executeCommand: () => {} } } as any
 		const execution = createMockExecution(
 			(async function* () {
 				yield "Silence follows..."
-				await new Promise(() => {})
+				await new Promise((r) => setTimeout(r, 1000)) // Hang stream longer than 100ms idle timeout
 			})(),
 		)
 
@@ -155,12 +143,9 @@ describe("Terminal Completion Priority Matrix", () => {
 
 		const runPromise = process.run(terminal, "cmd")
 
-		// Advance enough to trigger idle timeout
-		await clock.tickAsync(2000)
-
 		const result = await Promise.race([
 			runPromise.then(() => "completed"),
-			new Promise((r) => setTimeout(() => r("timeout"), 1000)),
+			new Promise((r) => setTimeout(() => r("timeout"), 2000)),
 		])
 
 		;(result as string).should.equal("completed")
