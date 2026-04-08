@@ -9,8 +9,8 @@
  * - Timeout handling
  * - Result formatting
  *
- * The actual process spawning/management is handled by the TerminalProcess
- * implementations (VscodeTerminalProcess, StandaloneTerminalProcess).
+ * The actual process spawning/management is handled by the concrete terminal
+ * process implementation behind the unified runtime.
  */
 
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"

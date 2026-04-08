@@ -48,7 +48,7 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 - [ ] Confirm product decisions for shell/profile behavior and settings removal
 - [x] Prove that VS Code can execute all commands through `StandaloneTerminalManager`
 - [x] Simplify core task/runtime selection so command execution no longer branches by terminal mode
-- [ ] Remove IDE-terminal-specific execution classes and tests
+- [x] Remove IDE-terminal-specific execution classes and tests
 - [ ] Remove terminal mode state, UI, controller plumbing, and prompt context references
 - [ ] Remove shell-integration-specific warnings, suggestions, and dead settings
 - [ ] Update docs, stories, and developer references
@@ -373,11 +373,15 @@ Even after Phase 2, `CommandExecutor` can still contain mental overhead from the
 
 Goal: delete the execution implementation that is no longer used.
 
-- [ ] Delete `src/hosts/vscode/terminal/VscodeTerminalManager.ts`
-- [ ] Delete `src/hosts/vscode/terminal/VscodeTerminalProcess.ts`
-- [ ] Delete `src/hosts/vscode/terminal/VscodeTerminalRegistry.ts`
+- [x] Delete `src/hosts/vscode/terminal/VscodeTerminalManager.ts`
+- [x] Delete `src/hosts/vscode/terminal/VscodeTerminalProcess.ts`
+- [x] Delete `src/hosts/vscode/terminal/VscodeTerminalRegistry.ts`
 - [ ] Delete `src/hosts/vscode/terminal/get-latest-output.ts` if no longer referenced
-- [ ] Delete or update tests tied only to the removed runtime, especially `src/hosts/vscode/terminal/VscodeTerminalProcess.test.ts`
+- [x] Delete or update tests tied only to the removed runtime, especially `src/hosts/vscode/terminal/VscodeTerminalProcess.test.ts`
+
+### Phase 4 status
+
+Completed by removing the obsolete VS Code command-execution classes and their dedicated integration test, while intentionally retaining `get-latest-output.ts` because it is still used by terminal mention/helper flows outside the main command runtime. A repo-wide reference scan for `VscodeTerminalManager`, `VscodeTerminalProcess`, and `VscodeTerminalRegistry` now returns zero live TypeScript references, and `npm run check-types` still passes.
 
 ### Keep vs remove guidance
 
