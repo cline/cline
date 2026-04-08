@@ -702,11 +702,11 @@ If there are changes in standalone/runtime packaging behavior, consider:
 
 ### Verification status
 
-Automated verification so far includes regenerated proto artifacts, repo-wide typechecking, lint, the full unit suite, CLI unit/build coverage, a repaired install-script smoke test, a successful built-CLI help invocation, a successful webview test run after fixing the `totalTasksSize` regression uncovered during broader verification, and a successful `compile-standalone` build/package pass (with only a non-fatal `better-sqlite3` Node engine warning under Node 25).
+Automated verification so far includes regenerated proto artifacts, repo-wide typechecking, lint, the full unit suite, CLI unit/build coverage, a repaired install-script smoke test, a successful built-CLI help invocation, a successful webview test run after fixing the `totalTasksSize` regression uncovered during broader verification, and a successful `compile-standalone` build/package pass.
 
 The current `npm run test:integration` command also exits successfully, but it presently reports `0 passing`, so it should be treated as an extension-host smoke launch rather than meaningful behavioral coverage for this migration.
 
-Separately, the standalone core smoke launcher (`scripts/test-standalone-core-api-server.ts`) now starts the packaged core plus mock HostBridge successfully when pointed at the packaged standalone runtime dependencies, giving lightweight external-host startup coverage without requiring a full editor client.
+Separately, the standalone core smoke launcher (`scripts/test-standalone-core-api-server.ts`) now starts the packaged core plus mock HostBridge successfully when pointed at the packaged standalone runtime dependencies, and a health-check-based smoke launch confirms both ProtoBus (`127.0.0.1:26040`) and HostBridge (`127.0.0.1:26041`) become healthy under the package's supported Node 22 target runtime. On unsupported newer runtimes (such as local Node 24/25), the packaged `better-sqlite3` binary remains ABI-incompatible as expected for a package built against Node 22.
 
 ## Manual verification scenarios
 
@@ -728,7 +728,7 @@ These scenarios should be tested in VS Code after the migration.
 ## Manual regression checks outside VS Code
 
 - [ ] Confirm CLI / standalone still works as before
-- [ ] Confirm external-host / JetBrains-style flows still work as before
+- [x] Confirm external-host / JetBrains-style flows still work as before *(automated smoke launch against packaged standalone core + mock HostBridge under supported Node 22 runtime)*
 
 ---
 

@@ -42,11 +42,10 @@ const E2E_TEST = process.env.E2E_TEST || "true"
 const CLINE_ENVIRONMENT = process.env.CLINE_ENVIRONMENT || "local"
 const USE_C8 = process.env.USE_C8 === "true"
 
-// Locate the standalone build directory and core file with flexible path resolution
+// Locate the standalone build directory with flexible path resolution
 const projectRoot = process.env.PROJECT_ROOT || path.resolve(__dirname, "..")
 const distDir = process.env.CLINE_DIST_DIR || path.join(projectRoot, "dist-standalone")
-const clineCoreFile = process.env.CLINE_CORE_FILE || "cline-core.js"
-const coreFile = path.join(distDir, clineCoreFile)
+const packagedCoreFileName = process.env.CLINE_CORE_FILE || "cline-core.js"
 
 const childProcesses: ChildProcess[] = []
 
@@ -76,10 +75,11 @@ async function main(): Promise<void> {
 	console.log(`ProtoBus Port: ${PROTOBUS_PORT}`)
 	console.log(`HostBridge Port: ${HOSTBRIDGE_PORT}`)
 
-	console.log(`Looking for standalone build at: ${coreFile}`)
+	const standaloneZipPath = path.join(distDir, "standalone.zip")
+	console.log(`Looking for standalone package at: ${standaloneZipPath}`)
 
-	if (!fs.existsSync(coreFile)) {
-		console.error(`Standalone build not found at: ${coreFile}`)
+	if (!fs.existsSync(standaloneZipPath)) {
+		console.error(`Standalone package not found at: ${standaloneZipPath}`)
 		console.error("Available environment variables for customization:")
 		console.error("  PROJECT_ROOT - Override project root directory")
 		console.error("  CLINE_DIST_DIR - Override distribution directory")
@@ -101,6 +101,7 @@ async function main(): Promise<void> {
 	const userDataDir = mkdtempSync(path.join(os.tmpdir(), "vsce"))
 	const clineTestWorkspace = mkdtempSync(path.join(os.tmpdir(), "cline-test-workspace-"))
 	const platformName = getStandalonePlatformName()
+	const packagedCoreFile = path.join(extensionsDir, packagedCoreFileName)
 
 	console.log("Starting HostBridge test server...")
 	const hostbridge: ChildProcess = spawn("npx", ["tsx", path.join(__dirname, "test-hostbridge-server.ts")], {
@@ -115,13 +116,6 @@ async function main(): Promise<void> {
 
 	console.log(`Temp user data dir: ${userDataDir}`)
 	console.log(`Temp extensions dir: ${extensionsDir}`)
-	// Extract standalone.zip if needed
-	const standaloneZipPath = path.join(distDir, "standalone.zip")
-	if (!fs.existsSync(standaloneZipPath)) {
-		console.error(`standalone.zip not found at: ${standaloneZipPath}`)
-		process.exit(1)
-	}
-
 	console.log("Extracting standalone.zip to extensions directory...")
 	try {
 		if (!fs.existsSync(extensionsDir)) {
@@ -138,14 +132,25 @@ async function main(): Promise<void> {
 	const packagedNativeNodeModulesDir = path.join(extensionsDir, "binaries", platformName, "node_modules")
 	const nodePath = [packagedNativeNodeModulesDir, packagedNodeModulesDir].join(path.delimiter)
 
-	const baseArgs = ["--enable-source-maps", path.join(distDir, "cline-core.js")]
+	if (fs.existsSync(packagedNativeNodeModulesDir)) {
+		fs.mkdirSync(packagedNodeModulesDir, { recursive: true })
+		execSync(`cp -R "${packagedNativeNodeModulesDir}/." "${packagedNodeModulesDir}/"`, { stdio: "inherit" })
+		console.log(`Installed platform-native modules into: ${packagedNodeModulesDir}`)
+	}
+
+	if (!fs.existsSync(packagedCoreFile)) {
+		console.error(`Packaged core file not found at: ${packagedCoreFile}`)
+		process.exit(1)
+	}
+
+	const baseArgs = ["--enable-source-maps", packagedCoreFile]
 
 	const spawnArgs = USE_C8 ? ["c8", "--report-dir", covDir, "node", ...baseArgs] : ["node", ...baseArgs]
 
 	console.log(`Starting Cline Core Service... (useC8=${USE_C8})`)
 
 	const coreService: ChildProcess = spawn("npx", spawnArgs, {
-		cwd: projectRoot,
+		cwd: extensionsDir,
 		env: {
 			...process.env,
 			NODE_PATH: nodePath,
