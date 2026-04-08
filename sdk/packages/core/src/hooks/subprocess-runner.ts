@@ -1,4 +1,8 @@
 import { spawn } from "node:child_process";
+import {
+	augmentNodeCommandForDebug,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 
 export interface RunSubprocessEventOptions {
 	command: string[];
@@ -107,7 +111,10 @@ export async function runSubprocessEvent(
 	payload: unknown,
 	options: RunSubprocessEventOptions,
 ): Promise<RunSubprocessEventResult | undefined> {
-	const command = options.command;
+	const command = augmentNodeCommandForDebug(options.command, {
+		env: options.env,
+		debugRole: "hook-worker",
+	});
 	if (!Array.isArray(command) || command.length === 0) {
 		throw new Error("runSubprocessEvent requires a non-empty command");
 	}
@@ -115,7 +122,7 @@ export async function runSubprocessEvent(
 	const detached = !!options.detached;
 	const child = spawn(command[0], command.slice(1), {
 		cwd: options.cwd,
-		env: options.env,
+		env: withResolvedClineBuildEnv(options.env),
 		stdio: detached ? ["pipe", "ignore", "ignore"] : ["pipe", "pipe", "pipe"],
 		detached,
 	});

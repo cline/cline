@@ -36,6 +36,8 @@ describe("spawnDetachedConnector", () => {
 		).toEqual({
 			launcher: "/Users/test/.bun/bin/bun",
 			childArgs: [
+				"--inspect=127.0.0.1:9233",
+				"--enable-source-maps",
 				"--conditions=development",
 				resolve(repoRoot, "apps/cli/src/index.ts"),
 				"connect",
@@ -44,6 +46,34 @@ describe("spawnDetachedConnector", () => {
 				"ClineAdapterBot",
 				"-k",
 				"token-123",
+				"-i",
+			],
+		});
+	});
+
+	it("uses the connector debug port for development node launches", () => {
+		const connectorsDir = dirname(fileURLToPath(import.meta.url));
+		const repoRoot = resolve(connectorsDir, "../../../../");
+		expect(
+			__test__.buildDetachedConnectorCommand(
+				["connect", "telegram"],
+				["-m", "ClineAdapterBot"],
+				"/usr/local/bin/node",
+				"./apps/cli/src/index.ts",
+				[],
+				repoRoot,
+				{ CLINE_BUILD_ENV: "development" },
+			),
+		).toEqual({
+			launcher: "/usr/local/bin/node",
+			childArgs: [
+				"--inspect=127.0.0.1:9233",
+				"--enable-source-maps",
+				resolve(repoRoot, "apps/cli/src/index.ts"),
+				"connect",
+				"telegram",
+				"-m",
+				"ClineAdapterBot",
 				"-i",
 			],
 		});

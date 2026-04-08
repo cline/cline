@@ -24,11 +24,16 @@ Important exported areas:
 - hook contracts and `HookEngine`
 - extension contracts and `ContributionRegistry`
 - telemetry config contracts
+- runtime build env helpers for debug-aware subprocess launches
 
 Behavior notes:
 
 - shared contracts should be reusable by multiple higher layers
 - path/search helpers define the default config discovery locations used elsewhere in the stack
+- `resolveClineBuildEnv(...)` prefers `CLINE_BUILD_ENV`, falls back to `NODE_ENV`, and also treats `--conditions=development` as a development build
+- SDK-owned `node` subprocess launches add stable role-based inspector endpoints plus `--enable-source-maps` in development builds unless those flags are already present
+- Top-level Bun hosts still need Bun inspector flags separately; for example launch `apps/cli/src/index.ts` directly with `bun --inspect-brk=6499 ...` for the CLI process, while spawned SDK-owned Node children use the role-based ports
+- The VS Code launch config uses `"type": "bun"` (requires `oven.bun-vscode`) so the Bun debug adapter handles source maps natively; attach configs use `ws://` URLs with `localRoot`/`remoteRoot` pointing to `${workspaceFolder}` so breakpoints resolve correctly in workspace packages such as `packages/core`
 
 ## `@clinebot/llms`
 

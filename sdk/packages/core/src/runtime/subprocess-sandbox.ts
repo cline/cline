@@ -1,4 +1,8 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import {
+	augmentNodeCommandForDebug,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 
 interface SandboxCallMessage {
 	type: "call";
@@ -66,8 +70,13 @@ export class SubprocessSandbox {
 			? [this.options.bootstrapFile]
 			: ["-e", this.options.bootstrapScript ?? ""];
 
-		const child = spawn(process.execPath, args, {
+		const command = augmentNodeCommandForDebug([process.execPath, ...args], {
+			debugRole:
+				this.options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",
+		});
+		const child = spawn(command[0] ?? process.execPath, command.slice(1), {
 			stdio: ["ignore", "ignore", "ignore", "ipc"],
+			env: withResolvedClineBuildEnv(process.env),
 		});
 		this.process = child;
 		child.on("message", (message) => {

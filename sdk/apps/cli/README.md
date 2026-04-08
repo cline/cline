@@ -439,6 +439,9 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 - `CLINE_SANDBOX_DATA_DIR` - Override sandbox state directory
 - `CLINE_TEAM_DATA_DIR` - Override team persistence directory
 - `CLINE_RPC_ADDRESS` - Address used by `clite rpc start` (default `127.0.0.1:4317`)
+- `CLINE_BUILD_ENV` - Runtime build mode for SDK-owned subprocess launches (`development` adds role-based `node --inspect=127.0.0.1:<port> --enable-source-maps`; falls back to `NODE_ENV` or `--conditions=development`)
+- `CLINE_DEBUG_HOST` - Override the host used for development inspector listeners (default `127.0.0.1`)
+- `CLINE_DEBUG_PORT_BASE` - Override the base inspector port for development child processes (default `9230`)
 - `CLINE_TOOL_APPROVAL_MODE` - Approval mode (`desktop` uses file IPC; unset uses terminal prompt)
 - `CLINE_TOOL_APPROVAL_DIR` - Directory for desktop approval request/decision files
 - `CLINE_LOG_ENABLED` - Set to `0`/`false` to disable runtime file logging
@@ -452,6 +455,21 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 `--key` takes precedence over environment variables.
 
 For OAuth providers (`cline`, `openai-codex`, `oca`), authenticate explicitly with `clite auth <provider>`. Normal command startup does not auto-launch OAuth.
+
+## Debugging
+
+- `CLINE_BUILD_ENV=development` enables stable debugger ports for SDK-owned spawned Node subprocesses.
+- Default child-process ports are: RPC `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`.
+- Those ports do not apply to the top-level CLI when it is running under Bun. To debug the Bun CLI process itself, launch the real CLI entrypoint under Bun with an inspector port such as:
+
+```bash
+cd apps/cli
+CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./src/index.ts "hey"
+```
+
+- The workspace includes [.vscode/launch.json](./.vscode/launch.json) with a single `Launch CLI Debugger` compound entry for VS Code. It launches `apps/cli/src/index.ts` directly under Bun in development mode and attaches the common SDK child-process debuggers.
+- The launch config uses `"type": "bun"` (requires the [`oven.bun-vscode`](https://marketplace.visualstudio.com/items?itemName=oven.bun-vscode) extension). Using `type: node` will not work — breakpoints in the CLI and workspace packages like `packages/core` will be silently ignored.
+- Attach configs use `"url": "ws://127.0.0.1:<port>"` with `localRoot`/`remoteRoot` both set to `${workspaceFolder}`. This lets the Bun debug adapter resolve source maps for files loaded through workspace symlinks (e.g. `node_modules/@clinebot/core` → `packages/core/src/...`), so breakpoints set in `packages/core` hit correctly.
 
 ## Logging Adapter
 

@@ -23,7 +23,10 @@ import {
 	startRpcServer,
 	stopRpcServer,
 } from "@clinebot/rpc";
-import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
+import {
+	CLINE_DEFAULT_RPC_ADDRESS,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 import { Command } from "commander";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
@@ -99,7 +102,7 @@ function spawnRpcStartDetached(address: string, owner: RpcOwnerContext): void {
 		detached: true,
 		stdio: "ignore",
 		env: {
-			...process.env,
+			...withResolvedClineBuildEnv(process.env),
 			[RPC_STARTUP_LOCK_BYPASS_ENV]: "1",
 			[RPC_OWNER_ID_ENV]: owner.ownerId,
 			[RPC_BUILD_ID_ENV]: owner.buildId,

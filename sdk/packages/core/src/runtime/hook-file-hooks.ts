@@ -1,7 +1,12 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import type { AgentHooks } from "@clinebot/agents";
-import type { BasicLogger, HookSessionContext } from "@clinebot/shared";
+import {
+	augmentNodeCommandForDebug,
+	type BasicLogger,
+	type HookSessionContext,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 import { ensureParentDir } from "@clinebot/shared/storage";
 import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
 import type { HookEventName, HookEventPayload } from "../hooks";
@@ -261,9 +266,13 @@ async function runHookCommand(
 	if (options.command.length === 0) {
 		throw new Error("runHookCommand requires non-empty command");
 	}
-	const child = spawn(options.command[0], options.command.slice(1), {
-		cwd: options.cwd,
+	const command = augmentNodeCommandForDebug(options.command, {
 		env: options.env,
+		debugRole: "hook-worker",
+	});
+	const child = spawn(command[0], command.slice(1), {
+		cwd: options.cwd,
+		env: withResolvedClineBuildEnv(options.env),
 		stdio: options.detached
 			? ["pipe", "ignore", "ignore"]
 			: ["pipe", "pipe", "pipe"],
@@ -383,7 +392,9 @@ function inferHookCommand(path: string): string[] {
 		lowered.endsWith(".mjs") ||
 		lowered.endsWith(".cjs")
 	) {
-		return ["node", path];
+		return augmentNodeCommandForDebug(["node", path], {
+			debugRole: "hook-worker",
+		});
 	}
 	if (
 		lowered.endsWith(".ts") ||
@@ -434,7 +445,7 @@ async function runBlockingHookCommands(options: {
 			const result = await runHookCommand(options.payload, {
 				command,
 				cwd: options.cwd,
-				env: process.env,
+				env: withResolvedClineBuildEnv(process.env),
 				detached: false,
 				timeoutMs: options.timeoutMs,
 			});
@@ -472,7 +483,7 @@ function runAsyncHookCommands(options: {
 		void runHookCommand(options.payload, {
 			command,
 			cwd: options.cwd,
-			env: process.env,
+			env: withResolvedClineBuildEnv(process.env),
 			detached: true,
 		}).catch((error) => {
 			logHookError(

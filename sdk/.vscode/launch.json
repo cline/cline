@@ -1,0 +1,85 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Launch Bun CLI (Prompt)",
+			"type": "bun",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/apps/cli",
+			"runtime": "bun",
+			"runtimeArgs": ["--conditions=development"],
+			"program": "${workspaceFolder}/apps/cli/src/index.ts",
+			"args": ["${input:cliPrompt}"],
+			"env": {
+				"CLINE_BUILD_ENV": "development"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach RPC Runtime (9230)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9230",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Hook Worker (9231)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9231",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Plugin Sandbox (9232)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9232",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
+			"name": "Attach Connector Child (9233)",
+			"type": "bun",
+			"request": "attach",
+			"url": "ws://127.0.0.1:9233",
+			"localRoot": "${workspaceFolder}",
+			"remoteRoot": "${workspaceFolder}",
+			"presentation": {
+				"hidden": true
+			}
+		}
+	],
+	"compounds": [
+		{
+			"name": "Launch CLI Debugger",
+			"configurations": [
+				"Launch Bun CLI (Prompt)",
+				"Attach RPC Runtime (9230)",
+				"Attach Hook Worker (9231)",
+				"Attach Plugin Sandbox (9232)",
+				"Attach Connector Child (9233)"
+			]
+		}
+	],
+	"inputs": [
+		{
+			"id": "cliPrompt",
+			"type": "promptString",
+			"description": "Prompt to send to the CLI",
+			"default": "hey"
+		}
+	]
+}

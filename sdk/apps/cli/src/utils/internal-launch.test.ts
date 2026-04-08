@@ -30,6 +30,8 @@ describe("internal launch helpers", () => {
 		expect(spec).toEqual({
 			launcher: "/Users/test/.bun/bin/bun",
 			childArgsPrefix: [
+				"--inspect=127.0.0.1:9239",
+				"--enable-source-maps",
 				"--conditions=development",
 				resolve(repoRoot, "apps/cli/src/index.ts"),
 			],
@@ -49,6 +51,28 @@ describe("internal launch helpers", () => {
 		expect(command).toEqual({
 			launcher: "/tmp/cline",
 			childArgs: ["hook-worker"],
+		});
+	});
+
+	it("adds node debug flags for development node launches", () => {
+		const utilsDir = dirname(fileURLToPath(import.meta.url));
+		const repoRoot = resolve(utilsDir, "../../../../");
+		const command = buildCliSubcommandCommand("hook-worker", [], {
+			execPath: "/usr/local/bin/node",
+			argv: ["node", "./apps/cli/src/index.ts"],
+			execArgv: [],
+			cwd: repoRoot,
+			env: { CLINE_BUILD_ENV: "development" },
+		});
+
+		expect(command).toEqual({
+			launcher: "/usr/local/bin/node",
+			childArgs: [
+				"--inspect=127.0.0.1:9231",
+				"--enable-source-maps",
+				resolve(repoRoot, "apps/cli/src/index.ts"),
+				"hook-worker",
+			],
 		});
 	});
 

@@ -218,6 +218,19 @@ export {
 	RPC_TEAM_PROGRESS_EVENT_TYPE,
 } from "./rpc/team-progress";
 export type {
+	ClineBuildEnv,
+	ClineDebugRole,
+	ResolveClineBuildEnvOptions,
+} from "./runtime/build-env";
+export {
+	augmentNodeCommandForDebug,
+	CLINE_BUILD_ENV_ENV,
+	CLINE_DEBUG_HOST_ENV,
+	CLINE_DEBUG_PORT_BASE_ENV,
+	resolveClineBuildEnv,
+	withResolvedClineBuildEnv,
+} from "./runtime/build-env";
+export type {
 	ITelemetryService,
 	OpenTelemetryClientConfig,
 	TelemetryArray,

@@ -157,6 +157,16 @@ Internal-only packages such as `packages/enterprise` are excluded from the root 
 
 Direct CLI runs pick up rebuilt packages immediately. RPC-backed hosts use shared runtime ensure logic and replace incompatible owned sidecars automatically when the RPC runtime build changes.
 
+Debug build behavior:
+
+- SDK-owned `node` subprocesses treat `CLINE_BUILD_ENV=development` as a debug build and add a stable inspector endpoint plus `--enable-source-maps` unless those flags are already present.
+- Default inspector ports are role-based: RPC `127.0.0.1:9230`, hook worker `127.0.0.1:9231`, plugin sandbox `127.0.0.1:9232`, connector child `127.0.0.1:9233`, fallback sandbox `127.0.0.1:9234`.
+- Override the listener host with `CLINE_DEBUG_HOST` and the base port with `CLINE_DEBUG_PORT_BASE`.
+- If `CLINE_BUILD_ENV` is unset, build mode falls back to `NODE_ENV`, then to Bun `--conditions=development`.
+- When you launch SDK flows with Bun in development, prefer keeping that build env signal intact so spawned RPC, hook, and connector child processes remain debuggable.
+- For the top-level CLI process itself, launch the actual CLI entrypoint under Bun, for example `cd apps/cli && CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./src/index.ts "hey"`; the role-based ports above are for spawned Node subprocesses, not the main Bun process.
+- The workspace includes a VS Code launch config with a single `Launch CLI Debugger` entry that launches `apps/cli/src/index.ts` directly under Bun and attaches the common child-process debugger targets. The launch config uses `"type": "bun"` (requires the `oven.bun-vscode` extension) so breakpoints work across workspace packages including `packages/core`; the attach configs use `ws://` URLs with `localRoot`/`remoteRoot` set to `${workspaceFolder}` for correct source map resolution.
+
 ### Testing
 
 Use root commands for cross-package confidence:

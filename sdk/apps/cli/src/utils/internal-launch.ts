@@ -1,5 +1,10 @@
 import { existsSync } from "node:fs";
 import { isAbsolute, resolve as resolvePath } from "node:path";
+import {
+	augmentNodeCommandForDebug,
+	type ClineDebugRole,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 
 export const CLINE_INTERNAL_ROLE_ENV = "CLINE_INTERNAL_ROLE";
 export const CLINE_INTERNAL_DEPTH_ENV = "CLINE_INTERNAL_DEPTH";
@@ -11,6 +16,8 @@ export interface ResolveCliLaunchSpecOptions {
 	argv?: string[];
 	execArgv?: string[];
 	cwd?: string;
+	env?: NodeJS.ProcessEnv;
+	debugRole?: ClineDebugRole;
 }
 
 export interface CliLaunchSpec {
@@ -38,6 +45,8 @@ export function resolveCliLaunchSpec(
 	const argv = options.argv ?? process.argv;
 	const execArgv = options.execArgv ?? process.execArgv;
 	const cwd = options.cwd ?? process.cwd();
+	const env = options.env ?? process.env;
+	const debugRole = options.debugRole;
 	if (!execPath) {
 		return undefined;
 	}
@@ -47,20 +56,26 @@ export function resolveCliLaunchSpec(
 		const conditionsArg = execArgv.find((arg) =>
 			arg.startsWith("--conditions="),
 		);
+		const command = augmentNodeCommandForDebug(
+			[execPath, ...(conditionsArg ? [conditionsArg] : []), resolvedEntry],
+			{ env, execArgv, debugRole },
+		);
 		return {
-			launcher: execPath,
-			childArgsPrefix: [
-				...(conditionsArg ? [conditionsArg] : []),
-				resolvedEntry,
-			],
+			launcher: command[0] ?? execPath,
+			childArgsPrefix: command.slice(1),
 			identityPath: resolvedEntry,
 			mode: "source",
 		};
 	}
 
+	const command = augmentNodeCommandForDebug([execPath], {
+		env,
+		execArgv,
+		debugRole,
+	});
 	return {
-		launcher: execPath,
-		childArgsPrefix: [],
+		launcher: command[0] ?? execPath,
+		childArgsPrefix: command.slice(1),
 		identityPath: execPath,
 		mode: "compiled",
 	};
@@ -71,7 +86,14 @@ export function buildCliSubcommandCommand(
 	args: string[] = [],
 	options: ResolveCliLaunchSpecOptions = {},
 ): { launcher: string; childArgs: string[] } | undefined {
-	const spec = resolveCliLaunchSpec(options);
+	const debugRole =
+		options.debugRole ??
+		(subcommand === "rpc"
+			? "rpc"
+			: subcommand === "hook" || subcommand === "hook-worker"
+				? "hook-worker"
+				: undefined);
+	const spec = resolveCliLaunchSpec({ ...options, debugRole });
 	if (!spec) {
 		return undefined;
 	}
@@ -85,13 +107,14 @@ export function buildInternalCliEnv(
 	role: CliInternalRole,
 	env: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
+	const nextEnv = withResolvedClineBuildEnv(env);
 	const currentDepth = Number.parseInt(
-		env[CLINE_INTERNAL_DEPTH_ENV] ?? "0",
+		nextEnv[CLINE_INTERNAL_DEPTH_ENV] ?? "0",
 		10,
 	);
 	const nextDepth = Number.isFinite(currentDepth) ? currentDepth + 1 : 1;
 	return {
-		...env,
+		...nextEnv,
 		[CLINE_INTERNAL_ROLE_ENV]: role,
 		[CLINE_INTERNAL_DEPTH_ENV]: String(nextDepth),
 	};

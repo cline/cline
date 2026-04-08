@@ -111,8 +111,8 @@ describe("ClineAccountService", () => {
 
 		const config = await service.fetchRemoteConfig();
 		expect(config).toEqual(remoteConfigPayload);
-		expect(config!.organizations).toHaveLength(2);
-		expect(config!.organizations![0]).toEqual({
+		expect(config?.organizations).toHaveLength(2);
+		expect(config?.organizations?.[0]).toEqual({
 			organizationId: "org-1",
 			name: "Acme Corp",
 		});
@@ -123,9 +123,7 @@ describe("ClineAccountService", () => {
 			organizationId: "org-fallback",
 			value: '{"model":"claude-4"}',
 			enabled: true,
-			organizations: [
-				{ organizationId: "org-fallback", name: "Fallback Org" },
-			],
+			organizations: [{ organizationId: "org-fallback", name: "Fallback Org" }],
 		};
 
 		const fetchImpl = vi.fn(async () => {
@@ -142,9 +140,9 @@ describe("ClineAccountService", () => {
 		});
 
 		const config = await service.fetchRemoteConfig();
-		expect(config!.organizationId).toBe("org-fallback");
-		expect(config!.organizations).toHaveLength(1);
-		expect(config!.organizations![0]).toEqual({
+		expect(config?.organizationId).toBe("org-fallback");
+		expect(config?.organizations).toHaveLength(1);
+		expect(config?.organizations?.[0]).toEqual({
 			organizationId: "org-fallback",
 			name: "Fallback Org",
 		});
@@ -152,10 +150,10 @@ describe("ClineAccountService", () => {
 
 	it("returns null when no org has remote config (data: null)", async () => {
 		const fetchImpl = vi.fn(async () => {
-			return new Response(
-				JSON.stringify({ success: true, data: null }),
-				{ status: 200, headers: { "Content-Type": "application/json" } },
-			);
+			return new Response(JSON.stringify({ success: true, data: null }), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
 		});
 
 		const service = new ClineAccountService({

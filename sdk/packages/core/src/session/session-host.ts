@@ -2,6 +2,10 @@ import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
+import {
+	augmentNodeCommandForDebug,
+	withResolvedClineBuildEnv,
+} from "@clinebot/shared";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
 import type { ClineCoreOptions } from "../ClineCore";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
@@ -58,20 +62,24 @@ function startRpcServerInBackground(address: string): void {
 	const conditionsArg = process.execArgv.find((arg) =>
 		arg.startsWith("--conditions="),
 	);
-	const args = [
-		...(conditionsArg ? [conditionsArg] : []),
-		entry,
-		"rpc",
-		"start",
-		"--address",
-		address,
-	];
+	const command = augmentNodeCommandForDebug(
+		[
+			launcher,
+			...(conditionsArg ? [conditionsArg] : []),
+			entry,
+			"rpc",
+			"start",
+			"--address",
+			address,
+		],
+		{ debugRole: "rpc" },
+	);
 
-	const child = spawn(launcher, args, {
+	const child = spawn(command[0] ?? launcher, command.slice(1), {
 		detached: true,
 		stdio: "ignore",
 		env: {
-			...process.env,
+			...withResolvedClineBuildEnv(process.env),
 			CLINE_NO_INTERACTIVE: "1",
 		},
 		cwd: process.cwd(),

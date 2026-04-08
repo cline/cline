@@ -11,6 +11,7 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ensureParentDir, resolveClineDataDir } from "@clinebot/core";
 import type { RpcSessionClient, RpcSessionRow } from "@clinebot/rpc";
+import { withResolvedClineBuildEnv } from "@clinebot/shared";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
 import { resolveCliLaunchSpec } from "../utils/internal-launch";
@@ -103,12 +104,15 @@ function buildDetachedConnectorCommand(
 	entryArg = process.argv[1],
 	execArgv = process.execArgv,
 	cwd = process.cwd(),
+	env = process.env,
 ): { launcher: string; childArgs: string[] } | undefined {
 	const spec = resolveCliLaunchSpec({
 		execPath,
 		argv: [process.argv[0] || "node", entryArg ?? ""],
 		execArgv,
 		cwd,
+		env,
+		debugRole: "connector",
 	});
 	if (!spec) {
 		return undefined;
@@ -188,7 +192,7 @@ export function spawnDetachedConnector(
 					? "ignore"
 					: ["ignore", detachedLogFd, detachedLogFd],
 			env: {
-				...process.env,
+				...withResolvedClineBuildEnv(process.env),
 				[childEnvKey]: "1",
 			},
 		});
