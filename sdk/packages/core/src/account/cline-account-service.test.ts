@@ -82,6 +82,92 @@ describe("ClineAccountService", () => {
 		expect(transactions).toEqual([{ id: "tx-1" }]);
 	});
 
+	it("fetches remote config with organizations list", async () => {
+		const remoteConfigPayload = {
+			organizationId: "org-1",
+			value: '{"model":"claude-4"}',
+			enabled: true,
+			organizations: [
+				{ organizationId: "org-1", name: "Acme Corp" },
+				{ organizationId: "org-2", name: "Beta Inc" },
+			],
+		};
+
+		const fetchImpl = vi.fn(async (input: unknown) => {
+			expect(String(input)).toBe(
+				"https://api.cline.bot/api/v1/users/me/remote-config",
+			);
+			return new Response(
+				JSON.stringify({ success: true, data: remoteConfigPayload }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const config = await service.fetchRemoteConfig();
+		expect(config).toEqual(remoteConfigPayload);
+		expect(config!.organizations).toHaveLength(2);
+		expect(config!.organizations![0]).toEqual({
+			organizationId: "org-1",
+			name: "Acme Corp",
+		});
+	});
+
+	it("fetches remote config with fallback org selected", async () => {
+		const remoteConfigPayload = {
+			organizationId: "org-fallback",
+			value: '{"model":"claude-4"}',
+			enabled: true,
+			organizations: [
+				{ organizationId: "org-fallback", name: "Fallback Org" },
+			],
+		};
+
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({ success: true, data: remoteConfigPayload }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const config = await service.fetchRemoteConfig();
+		expect(config!.organizationId).toBe("org-fallback");
+		expect(config!.organizations).toHaveLength(1);
+		expect(config!.organizations![0]).toEqual({
+			organizationId: "org-fallback",
+			name: "Fallback Org",
+		});
+	});
+
+	it("returns null when no org has remote config (data: null)", async () => {
+		const fetchImpl = vi.fn(async () => {
+			return new Response(
+				JSON.stringify({ success: true, data: null }),
+				{ status: 200, headers: { "Content-Type": "application/json" } },
+			);
+		});
+
+		const service = new ClineAccountService({
+			apiBaseUrl: "https://api.cline.bot",
+			getAuthToken: async () => "workos:token-123",
+			fetchImpl: fetchImpl as unknown as typeof fetch,
+		});
+
+		const config = await service.fetchRemoteConfig();
+		expect(config).toBeNull();
+	});
+
 	it("switchAccount sends null org id for personal account", async () => {
 		const fetchImpl = vi.fn(async (_input: unknown, init?: RequestInit) => {
 			expect(init?.method).toBe("PUT");

@@ -16,10 +16,16 @@ export interface ClineAccountUser {
 	organizations: ClineAccountOrganization[];
 }
 
+export interface UserRemoteConfigOrganization {
+	organizationId: string;
+	name: string;
+}
+
 export interface UserRemoteConfigResponse {
 	organizationId: string;
 	value: string;
 	enabled: boolean;
+	organizations?: UserRemoteConfigOrganization[];
 }
 
 export interface ClineAccountBalance {

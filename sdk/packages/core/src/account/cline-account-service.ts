@@ -66,8 +66,8 @@ export class ClineAccountService {
 		return this.request<ClineAccountUser>("/api/v1/users/me");
 	}
 
-	public async fetchRemoteConfig(): Promise<UserRemoteConfigResponse> {
-		return this.request<UserRemoteConfigResponse>(
+	public async fetchRemoteConfig(): Promise<UserRemoteConfigResponse | null> {
+		return this.request<UserRemoteConfigResponse | null>(
 			"/api/v1/users/me/remote-config",
 		);
 	}

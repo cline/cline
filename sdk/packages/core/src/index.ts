@@ -91,6 +91,7 @@ export {
 	isRpcClineAccountActionRequest,
 	RpcClineAccountService,
 	type RpcProviderActionExecutor,
+	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
 } from "./account";
 export {

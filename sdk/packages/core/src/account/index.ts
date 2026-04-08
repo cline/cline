@@ -19,5 +19,6 @@ export type {
 	ClineAccountUser,
 	ClineOrganization,
 	FeaturebaseTokenResponse,
+	UserRemoteConfigOrganization,
 	UserRemoteConfigResponse,
 } from "./types";
