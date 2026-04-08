@@ -29,7 +29,7 @@ import type { SdkSession, SessionFactory } from "./SdkController"
  */
 let mcpManagerPromise: Promise<{
 	manager: InstanceType<typeof import("@clinebot/core").InMemoryMcpManager>
-	tools: Awaited<ReturnType<typeof import("@clinebot/core").createMcpTools>>[]
+	tools: Awaited<ReturnType<typeof import("@clinebot/core").createMcpTools>>
 }> | null = null
 
 async function getOrCreateMcpManager() {
@@ -111,7 +111,7 @@ async function getOrCreateMcpManager() {
 		const manager = new InMemoryMcpManager({ clientFactory })
 
 		// Register + connect all non-disabled servers
-		const tools: Awaited<ReturnType<typeof createMcpTools>>[] = []
+		const tools: Awaited<ReturnType<typeof createMcpTools>> = []
 		for (const reg of registrations) {
 			if (reg.disabled) {
 				Logger.log(`[MCP] Skipping disabled server: ${reg.name}`)
