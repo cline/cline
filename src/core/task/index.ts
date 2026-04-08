@@ -88,7 +88,6 @@ import {
 	CommandExecutor,
 	CommandExecutorCallbacks,
 	FullCommandExecutorConfig,
-	StandaloneTerminalManager,
 } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
 import { telemetryService } from "@/services/telemetry"
@@ -317,20 +316,16 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
-		// Determine terminal execution mode and create appropriate terminal manager
-		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-
-		// When backgroundExec mode is selected, use StandaloneTerminalManager for hidden execution
-		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
-		if (this.terminalExecutionMode === "backgroundExec") {
-			// Import StandaloneTerminalManager for background execution
-			this.terminalManager = new StandaloneTerminalManager()
-			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
-		} else {
-			// Use the host-provided terminal manager (VSCode terminal in VSCode environment)
-			this.terminalManager = HostProvider.get().createTerminalManager()
-			Logger.info(`[Task ${taskId}] Using HostProvider terminal manager for vscodeTerminal mode`)
+		const requestedTerminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
+		this.terminalExecutionMode = "backgroundExec"
+		if (requestedTerminalExecutionMode !== this.terminalExecutionMode) {
+			Logger.info(
+				`[Task ${taskId}] Overriding requested terminal mode '${requestedTerminalExecutionMode}' with unified background runtime`,
+			)
 		}
+
+		this.terminalManager = HostProvider.get().createTerminalManager()
+		Logger.info(`[Task ${taskId}] Using unified terminal manager for command execution`)
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
@@ -525,7 +520,6 @@ export class Task {
 		// Initialize command executor with config and callbacks
 		const commandExecutorConfig: FullCommandExecutorConfig = {
 			cwd: this.cwd,
-			terminalExecutionMode: this.terminalExecutionMode,
 			terminalManager: this.terminalManager,
 			taskId: this.taskId,
 			ulid: this.ulid,

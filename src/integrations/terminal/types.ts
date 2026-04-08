@@ -282,17 +282,6 @@ export interface BackgroundCommand {
 // =============================================================================
 
 /**
- * Tracker for shell integration warnings to determine when to show background terminal suggestion.
- * Used internally by CommandExecutor to track warning frequency.
- */
-export interface ShellIntegrationWarningTracker {
-	/** Timestamps of recent shell integration warnings */
-	timestamps: number[]
-	/** Timestamp when the suggestion was last shown */
-	lastSuggestionShown?: number
-}
-
-/**
  * Represents an active background command that can be cancelled
  * @deprecated Use BackgroundCommand instead
  */
@@ -346,8 +335,8 @@ export interface CommandExecutorCallbacks {
  */
 export interface CommandExecutionOptions {
 	/**
-	 * Force command execution in standalone/background terminal mode for this command.
-	 * This is useful for subagent runs and headless-style execution flows.
+	 * Deprecated compatibility flag from the dual-runtime implementation.
+	 * Commands now always execute through the standalone/background runtime.
 	 */
 	useBackgroundExecution?: boolean
 	/**
@@ -367,9 +356,7 @@ export interface CommandExecutorConfig {
 	taskId: string
 	/** Unique task identifier */
 	ulid: string
-	/** Terminal execution mode */
-	terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-	/** The primary terminal manager (VSCode or Standalone) */
+	/** The unified terminal manager used for command execution */
 	terminalManager: ITerminalManager
 }
 

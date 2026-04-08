@@ -47,7 +47,7 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 
 - [ ] Confirm product decisions for shell/profile behavior and settings removal
 - [x] Prove that VS Code can execute all commands through `StandaloneTerminalManager`
-- [ ] Simplify core task/runtime selection so command execution no longer branches by terminal mode
+- [x] Simplify core task/runtime selection so command execution no longer branches by terminal mode
 - [ ] Remove IDE-terminal-specific execution classes and tests
 - [ ] Remove terminal mode state, UI, controller plumbing, and prompt context references
 - [ ] Remove shell-integration-specific warnings, suggestions, and dead settings
@@ -326,11 +326,15 @@ This is the safest proving move. It lets the team validate real behavior with mi
 
 Goal: remove the core branching logic that selects one terminal manager or the other.
 
-- [ ] Update `src/core/task/index.ts`
+- [x] Update `src/core/task/index.ts`
   - remove the `if (this.terminalExecutionMode === "backgroundExec") ... else ...` runtime split
   - always create/use the unified terminal manager for command execution
-- [ ] Decide whether to keep `terminalExecutionMode` temporarily as a compatibility field or remove it immediately
-- [ ] Ensure the task still applies relevant settings to the unified manager
+- [x] Decide whether to keep `terminalExecutionMode` temporarily as a compatibility field or remove it immediately
+- [x] Ensure the task still applies relevant settings to the unified manager
+
+### Phase 2 status
+
+Completed by making `Task` always construct its command runtime from the unified host-provided standalone terminal manager while temporarily preserving the `terminalExecutionMode` field as a compatibility value for later prompt/context cleanup. Runtime settings like reuse, output limits, shell timeout, and terminal profile still flow into the unified manager.
 
 ### Human explanation
 
@@ -346,14 +350,18 @@ If `defaultTerminalProfile` and `shellIntegrationTimeout` remain in the code at 
 
 Goal: remove dual-manager logic and shell-integration suggestion logic from the shared executor.
 
-- [ ] Update `src/integrations/terminal/CommandExecutor.ts`
+- [x] Update `src/integrations/terminal/CommandExecutor.ts`
   - remove `terminalExecutionMode` branching
   - remove `terminalManager` vs `standaloneManager` split
   - make command execution use one manager consistently
-- [ ] Remove `shouldShowBackgroundTerminalSuggestion()` and related warning-tracking state
-- [ ] Decide whether `useBackgroundExecution` should be removed from `CommandExecutionOptions`
+- [x] Remove `shouldShowBackgroundTerminalSuggestion()` and related warning-tracking state
+- [x] Decide whether `useBackgroundExecution` should be removed from `CommandExecutionOptions`
   - recommended: keep temporarily if needed for API stability, but make it a no-op
   - cleanest end-state: remove it once all callers no longer need it
+
+### Phase 3 status
+
+Completed by collapsing `CommandExecutor` onto a single `StandaloneTerminalManager` path, keeping `useBackgroundExecution` only as a documented no-op compatibility flag, and validating the updated runtime wiring with `npm run check-types`.
 
 ### Why this phase matters
 
