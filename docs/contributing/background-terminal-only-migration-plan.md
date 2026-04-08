@@ -45,7 +45,7 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 
 ## Overall Progress Checklist
 
-- [ ] Confirm product decisions for shell/profile behavior and settings removal
+- [x] Confirm product decisions for shell/profile behavior and settings removal
 - [x] Prove that VS Code can execute all commands through `StandaloneTerminalManager`
 - [x] Simplify core task/runtime selection so command execution no longer branches by terminal mode
 - [x] Remove IDE-terminal-specific execution classes and tests
@@ -701,6 +701,8 @@ If there are changes in standalone/runtime packaging behavior, consider:
 
 Automated verification so far includes regenerated proto artifacts, repo-wide typechecking, lint, the full unit suite, a successful webview test run after fixing the `totalTasksSize` regression uncovered during broader verification, and a successful `compile-standalone` build/package pass (with only a non-fatal `better-sqlite3` Node engine warning under Node 25).
 
+The current `npm run test:integration` command also exits successfully, but it presently reports `0 passing`, so it should be treated as an extension-host smoke launch rather than meaningful behavioral coverage for this migration.
+
 ## Manual verification scenarios
 
 These scenarios should be tested in VS Code after the migration.
@@ -729,12 +731,12 @@ These scenarios should be tested in VS Code after the migration.
 
 This migration is complete when all of the following are true:
 
-- [ ] VS Code command execution uses only the standalone/background runtime
-- [ ] There is no longer a product-level toggle between IDE and background execution
-- [ ] IDE execution classes have been removed from the codebase
-- [ ] Shell-integration warning/suggestion flows are gone or unreachable
-- [ ] User-facing docs no longer describe Background Exec as an optional workaround
-- [ ] Tests, stories, and generated files are updated
+- [x] VS Code command execution uses only the standalone/background runtime
+- [x] There is no longer a product-level toggle between IDE and background execution
+- [x] IDE execution classes have been removed from the codebase
+- [x] Shell-integration warning/suggestion flows are gone or unreachable
+- [x] User-facing docs no longer describe Background Exec as an optional workaround
+- [x] Tests, stories, and generated files are updated
 - [ ] The team has verified cancellation, timeout handling, and background logging end-to-end
 
 ---
