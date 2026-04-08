@@ -149,8 +149,8 @@ Quantization reduces model precision to fit on consumer hardware:
 ### Common Issues & Solutions
 
 **"Shell integration unavailable"**
-- Switch to bash in Cline Settings → Terminal → Default Terminal Profile
-- Resolves 90% of terminal integration problems
+- Disable aggressive terminal reuse in Cline Settings → Terminal if commands appear to reuse stale shell state
+- Keep your shell startup files lightweight so local-model commands start quickly and predictably
 
 **"No connection could be made"**
 - Verify server is running (LM Studio or Ollama)

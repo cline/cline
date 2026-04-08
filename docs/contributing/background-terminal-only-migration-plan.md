@@ -52,7 +52,7 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 - [x] Remove terminal mode state, controller plumbing, and prompt context references
 - [x] Remove shell-integration-specific warnings, suggestions, and obsolete UI toggle surface
 - [x] Remove obsolete shell/profile settings from state, UI, controller, and proto surface
-- [ ] Update docs, stories, and developer references
+- [x] Update docs, stories, and developer references
 - [ ] Run full verification and complete release-readiness checks
 
 ---
@@ -559,10 +559,14 @@ If the migration changes `src/shared/storage/state-keys.ts`, make sure the deriv
 
 Goal: ensure all docs tell the truth about the new product behavior.
 
-- [ ] Update troubleshooting docs that currently tell users to switch to Background Exec
-- [ ] Remove references to mode switching from docs and stories
-- [ ] Update any internal architecture notes that still describe dual runtime behavior
-- [ ] Keep this plan document updated as implementation decisions change
+- [x] Update troubleshooting docs that currently tell users to switch to Background Exec
+- [x] Remove references to mode switching from docs and stories
+- [x] Update any internal architecture notes that still describe dual runtime behavior
+- [x] Keep this plan document updated as implementation decisions change
+
+### Phase 10 status
+
+Completed for the currently known terminal docs/reference surface by rewriting the quick-fix guidance away from the removed execution-mode/profile/timeout settings, updating developer documentation examples to reference terminal reuse instead, cleaning stale source comments that still described dual terminal runtimes, and keeping this migration plan in sync with the implementation status.
 
 Likely docs to update:
 
@@ -679,11 +683,11 @@ Run a repo-wide search and remove or rewrite all hits. This migration should end
 
 Run these at minimum:
 
-- [ ] `npm run protos`
-- [ ] `npm run check-types`
-- [ ] `npm run lint`
-- [ ] `npm run test:webview`
-- [ ] `npm run test:unit`
+- [x] `npm run protos`
+- [x] `npm run check-types`
+- [x] `npm run lint`
+- [x] `npm run test:webview`
+- [x] `npm run test:unit`
 
 If the migration touches extension/runtime behavior deeply, also run:
 
@@ -691,7 +695,11 @@ If the migration touches extension/runtime behavior deeply, also run:
 
 If there are changes in standalone/runtime packaging behavior, consider:
 
-- [ ] `npm run compile-standalone`
+- [x] `npm run compile-standalone`
+
+### Verification status
+
+Automated verification so far includes regenerated proto artifacts, repo-wide typechecking, lint, the full unit suite, a successful webview test run after fixing the `totalTasksSize` regression uncovered during broader verification, and a successful `compile-standalone` build/package pass (with only a non-fatal `better-sqlite3` Node engine warning under Node 25).
 
 ## Manual verification scenarios
 

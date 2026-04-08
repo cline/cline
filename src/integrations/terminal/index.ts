@@ -2,7 +2,7 @@
  * Shared terminal module for both VSCode and Standalone environments.
  *
  * This module provides terminal management functionality that works across:
- * - VSCode Extension (using VSCode's terminal API or background execution)
+ * - VSCode Extension (using the unified standalone/background runtime)
  * - CLI (using StandaloneTerminalManager)
  * - JetBrains (using StandaloneTerminalManager via cline-core)
  *
