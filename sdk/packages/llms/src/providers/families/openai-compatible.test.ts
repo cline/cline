@@ -367,7 +367,7 @@ describe("OpenAICompatibleHandler", () => {
 		expect(assistantParts[0]?.args).toBeUndefined();
 	});
 
-	it("applies Anthropic prompt cache markers to the last user text part", async () => {
+	it("applies Anthropic prompt cache markers and automatic caching to OpenRouter requests", async () => {
 		const handler = new OpenAICompatibleHandler({
 			providerId: "openrouter",
 			modelId: "anthropic/claude-sonnet-4.6",
@@ -393,6 +393,7 @@ describe("OpenAICompatibleHandler", () => {
 		);
 
 		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
 			messages?: Array<{
 				role?: string;
 				content?: Array<Record<string, unknown>> | string;
@@ -402,6 +403,11 @@ describe("OpenAICompatibleHandler", () => {
 		const firstUserMessage = request.messages?.[1];
 		const lastUserMessage = request.messages?.[3];
 
+		expect(request.providerOptions).toEqual({
+			openrouter: {
+				cache_control: { type: "ephemeral" },
+			},
+		});
 		expect(systemMessage?.content).toBe("system prompt");
 		expect(firstUserMessage?.content).toBe("first prompt");
 		expect(lastUserMessage?.content).toMatchObject([
@@ -415,7 +421,75 @@ describe("OpenAICompatibleHandler", () => {
 		]);
 	});
 
-	it("does not add explicit cache markers for non-Anthropic models", async () => {
+	it("applies Anthropic automatic caching to Cline requests", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			modelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				pricing: {
+					input: 3,
+					output: 15,
+					cacheRead: 0.3,
+					cacheWrite: 3.75,
+				},
+			},
+		});
+
+		await drain(
+			handler.createMessage("system prompt", [
+				{ role: "user", content: "hello" },
+			]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+
+		expect(request.providerOptions).toEqual({
+			cline: {
+				cache_control: { type: "ephemeral" },
+			},
+		});
+	});
+
+	it("applies Anthropic automatic caching to Vercel AI Gateway requests", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "vercel-ai-gateway",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			modelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				pricing: {
+					input: 3,
+					output: 15,
+					cacheRead: 0.3,
+					cacheWrite: 3.75,
+				},
+			},
+		});
+
+		await drain(
+			handler.createMessage("system prompt", [
+				{ role: "user", content: "hello" },
+			]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+		};
+
+		expect(request.providerOptions).toEqual({
+			vercelAiGateway: {
+				cache_control: { type: "ephemeral" },
+			},
+		});
+	});
+
+	it("does not apply Anthropic cache markers or automatic caching for non-Anthropic models", async () => {
 		const handler = new OpenAICompatibleHandler({
 			providerId: "openrouter",
 			modelId: "google/gemma-4-31b-it",
@@ -434,6 +508,7 @@ describe("OpenAICompatibleHandler", () => {
 		);
 
 		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
 			messages?: Array<{
 				role?: string;
 				content?: Array<Record<string, unknown>> | string;
@@ -444,6 +519,51 @@ describe("OpenAICompatibleHandler", () => {
 
 		expect(systemMessage?.content).toBe("system prompt");
 		expect(userMessage?.content).toBe("hello");
+		expect(request.providerOptions).toBeUndefined();
+	});
+
+	it("keeps Anthropic message cache markers but skips automatic provider caching for non-remapped providers", async () => {
+		const handler = new OpenAICompatibleHandler({
+			providerId: "deepseek",
+			modelId: "anthropic/claude-sonnet-4.6",
+			apiKey: "test-key",
+			baseUrl: "https://example.com/v1",
+			modelInfo: {
+				id: "anthropic/claude-sonnet-4.6",
+				pricing: {
+					input: 3,
+					output: 15,
+					cacheRead: 0.3,
+					cacheWrite: 3.75,
+				},
+			},
+		});
+
+		await drain(
+			handler.createMessage("system prompt", [
+				{ role: "user", content: "hello" },
+			]),
+		);
+
+		const request = streamTextSpy.mock.calls[0]?.[0] as {
+			providerOptions?: Record<string, unknown>;
+			messages?: Array<{
+				role?: string;
+				content?: Array<Record<string, unknown>> | string;
+			}>;
+		};
+		const userMessage = request.messages?.[1];
+
+		expect(request.providerOptions).toBeUndefined();
+		expect(userMessage?.content).toMatchObject([
+			{
+				type: "text",
+				text: "hello",
+				providerOptions: {
+					deepseek: { cache_control: { type: "ephemeral" } },
+				},
+			},
+		]);
 	});
 
 	it("reads cache token metrics from OpenRouter-style usage fields", async () => {

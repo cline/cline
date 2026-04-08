@@ -23,15 +23,15 @@ import {
 	numberOrZero,
 } from "./shared/ai-sdk-stream";
 import { BaseHandler } from "./shared/base-handler";
+import {
+	isAnthropicModelId,
+	shouldUseAnthropicAutomaticPromptCache,
+} from "./shared/openai-compatible-routing";
 
 type OpenAICompatibleProvider = (
 	modelId: string,
 	settings?: Record<string, unknown>,
 ) => unknown;
-
-function isAnthropicModelId(modelId: string): boolean {
-	return modelId.toLowerCase().startsWith("anthropic/");
-}
 
 function resolveAnthropicOpenRouterReasoningBudget(options: {
 	modelId?: string;
@@ -109,6 +109,9 @@ function toProviderOptionsKey(providerId: string): string {
 
 function createPromptCacheProviderOptions(providerId: string) {
 	return {
+		openaiCompatible: {
+			cache_control: { type: "ephemeral" },
+		},
 		[providerId]: {
 			cache_control: { type: "ephemeral" },
 		},
@@ -337,6 +340,18 @@ export class OpenAICompatibleHandler extends BaseHandler {
 				providerSpecificOptions.reasoning = reasoning;
 			}
 		}
+		const supportsPromptCache = this.supportsPromptCache(modelInfo);
+		const shouldUseAnthropicPromptCache =
+			supportsPromptCache && isAnthropicModelId(modelId);
+		if (
+			shouldUseAnthropicAutomaticPromptCache({
+				modelId,
+				providerId: routingProviderId,
+				supportsPromptCache,
+			})
+		) {
+			providerSpecificOptions.cache_control = { type: "ephemeral" };
+		}
 		const requestProviderOptions =
 			Object.keys(providerSpecificOptions).length > 0
 				? { [providerOptionsKey]: providerSpecificOptions }
@@ -345,11 +360,9 @@ export class OpenAICompatibleHandler extends BaseHandler {
 			await ensureLangfuseTelemetry(routingProviderId);
 		debugLangfuse(`ready langfuse=${String(langfuseTelemetryReady)}`);
 
-		const supportsPromptCache = this.supportsPromptCache(modelInfo);
-		const aiMessages =
-			supportsPromptCache && isAnthropicModelId(modelId)
-				? buildCachedAiSdkMessages(systemPrompt, messages, routingProviderId)
-				: this.getMessages(systemPrompt, messages);
+		const aiMessages = shouldUseAnthropicPromptCache
+			? buildCachedAiSdkMessages(systemPrompt, messages, routingProviderId)
+			: this.getMessages(systemPrompt, messages);
 
 		const stream = ai.streamText({
 			model: provider(modelId),
