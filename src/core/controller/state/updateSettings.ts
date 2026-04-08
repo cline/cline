@@ -121,13 +121,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
 		}
 
-		if (request.vscodeTerminalExecutionMode !== undefined && request.vscodeTerminalExecutionMode !== "") {
-			controller.stateManager.setGlobalState(
-				"vscodeTerminalExecutionMode",
-				request.vscodeTerminalExecutionMode === "backgroundExec" ? "backgroundExec" : "vscodeTerminal",
-			)
-		}
-
 		// Update max consecutive mistakes
 		if (request.maxConsecutiveMistakes !== undefined) {
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))

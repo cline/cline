@@ -51,8 +51,6 @@ function createConfig(options?: {
 		cwd: "/tmp",
 		mode: "act",
 		strictPlanModeEnabled: false,
-		yoloModeToggled: false,
-		vscodeTerminalExecutionMode: "backgroundExec",
 		enableParallelToolCalling: true,
 		context: {},
 		taskState,

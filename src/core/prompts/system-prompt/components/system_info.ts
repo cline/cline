@@ -16,20 +16,14 @@ Home Directory: {{homeDir}}
 
 /**
  * Get the shell that will actually be used for command execution.
- * When using background exec mode, commands run in the system default shell
- * (cmd.exe on Windows, /bin/bash on Unix), not the VS Code configured shell.
+ * Commands now always run through the unified background runtime.
  */
-function getEffectiveShell(context: SystemPromptContext): string {
-	if (context.terminalExecutionMode === "backgroundExec") {
-		// Background exec uses the system default shell, not VS Code config
-		if (process.platform === "win32") {
-			return process.env.COMSPEC || "cmd.exe"
-		} else {
-			return process.env.SHELL || "/bin/bash"
-		}
+function getEffectiveShell(_context: SystemPromptContext): string {
+	if (process.platform === "win32") {
+		return process.env.COMSPEC || "cmd.exe"
 	}
-	// VS Code terminal mode (or undefined) uses the VS Code configured shell
-	return getShell()
+
+	return process.env.SHELL || getShell() || "/bin/bash"
 }
 
 export async function getSystemEnv(context: SystemPromptContext, isTesting = false) {

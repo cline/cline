@@ -49,7 +49,7 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 - [x] Prove that VS Code can execute all commands through `StandaloneTerminalManager`
 - [x] Simplify core task/runtime selection so command execution no longer branches by terminal mode
 - [x] Remove IDE-terminal-specific execution classes and tests
-- [ ] Remove terminal mode state, controller plumbing, and prompt context references
+- [x] Remove terminal mode state, controller plumbing, and prompt context references
 - [x] Remove shell-integration-specific warnings, suggestions, and obsolete UI toggle surface
 - [ ] Update docs, stories, and developer references
 - [ ] Run full verification and complete release-readiness checks
@@ -298,7 +298,7 @@ Goal: change the runtime in practice before deleting all the old plumbing.
 
 ### Phase 1 status
 
-Completed by switching the VS Code host-provider terminal factory to `StandaloneTerminalManager` and validating the repo still typechecks with `npm run check-types`. The legacy `vscodeTerminalExecutionMode` state remains in place temporarily, but VS Code now resolves its task runtime through the standalone terminal manager path.
+Completed by switching the VS Code host-provider terminal factory to `StandaloneTerminalManager` and validating that the repo still typechecks while the legacy terminal-mode state remained temporarily in place during the migration.
 
 ### Why this phase matters
 
@@ -334,7 +334,7 @@ Goal: remove the core branching logic that selects one terminal manager or the o
 
 ### Phase 2 status
 
-Completed by making `Task` always construct its command runtime from the unified host-provided standalone terminal manager while temporarily preserving the `terminalExecutionMode` field as a compatibility value for later prompt/context cleanup. Runtime settings like reuse, output limits, shell timeout, and terminal profile still flow into the unified manager.
+Completed by making `Task` always construct its command runtime from the unified host-provided standalone terminal manager. The later backend cleanup also removed the temporary `terminalExecutionMode` compatibility field, so the task no longer carries any runtime-mode concept at all.
 
 ### Human explanation
 
@@ -402,18 +402,22 @@ Before deleting each file, search for all references and verify that the only re
 
 Goal: remove the concept of switching between execution modes from state and runtime configuration.
 
-- [ ] Remove `vscodeTerminalExecutionMode` from `src/shared/storage/state-keys.ts`
-- [ ] Remove it from `src/shared/ExtensionMessage.ts`
-- [ ] Remove reads/writes in `src/core/controller/index.ts`
-- [ ] Remove update handling in `src/core/controller/state/updateSettings.ts`
-- [ ] Delete `src/core/controller/ui/setTerminalExecutionMode.ts`
-- [ ] Remove it from task/tool config files:
+- [x] Remove `vscodeTerminalExecutionMode` from `src/shared/storage/state-keys.ts`
+- [x] Remove it from `src/shared/ExtensionMessage.ts`
+- [x] Remove reads/writes in `src/core/controller/index.ts`
+- [x] Remove update handling in `src/core/controller/state/updateSettings.ts`
+- [x] Delete `src/core/controller/ui/setTerminalExecutionMode.ts`
+- [x] Remove it from task/tool config files:
   - `src/core/task/ToolExecutor.ts`
   - `src/core/task/tools/types/TaskConfig.ts`
   - `src/core/task/tools/utils/ToolConstants.ts`
-- [ ] Remove prompt-context references:
+- [x] Remove prompt-context references:
   - `src/core/prompts/system-prompt/types.ts`
   - `src/core/prompts/system-prompt/components/system_info.ts`
+
+### Phase 5 status
+
+Completed by deleting `vscodeTerminalExecutionMode` across the state schema, extension/webview message model, controller update paths, task/tool config plumbing, and system-prompt context generation, while also removing the obsolete `setTerminalExecutionMode` controller RPC surface.
 
 ### Important behavior change to reflect
 
@@ -422,10 +426,9 @@ The system prompt currently tells the model which shell will be used depending o
 ### Additional code to revisit
 
 - `src/core/task/tools/handlers/ExecuteCommandToolHandler.ts`
-  - currently uses `config.vscodeTerminalExecutionMode === "backgroundExec"` in timeout logic
-  - replace that with logic that reflects the new always-managed runtime
+  - updated to use the always-managed runtime timeout behavior directly
 - `src/core/task/tools/subagent/SubagentRunner.ts`
-  - remove explicit background-mode assumptions that were only there to opt into the special mode
+  - explicit background-mode assumptions were removed with the shared task-config cleanup
 
 ---
 
@@ -458,18 +461,22 @@ If the product no longer uses the fragile shell-integration-based runtime, then 
 
 Goal: make the UI match the new architecture.
 
-- [ ] Remove the terminal execution mode dropdown from `webview-ui/src/components/settings/sections/TerminalSettingsSection.tsx`
-- [ ] Remove default state for `vscodeTerminalExecutionMode` from `webview-ui/src/context/ExtensionStateContext.tsx`
-- [ ] Simplify `webview-ui/src/components/chat/CommandOutputRow.tsx`
+- [x] Remove the terminal execution mode dropdown from `webview-ui/src/components/settings/sections/TerminalSettingsSection.tsx`
+- [x] Remove default state for `vscodeTerminalExecutionMode` from `webview-ui/src/context/ExtensionStateContext.tsx`
+- [x] Simplify `webview-ui/src/components/chat/CommandOutputRow.tsx`
   - remove `isBackgroundExec` branching
   - remove the alert telling users to switch modes
   - treat commands as cancelable according to the unified runtime
-- [ ] Simplify `webview-ui/src/components/chat/ChatRow.tsx`
+- [x] Simplify `webview-ui/src/components/chat/ChatRow.tsx`
   - remove references to the old mode
   - remove suggestion UI that flips modes
-- [ ] Update Storybook stories in `webview-ui/src/App.stories.tsx`
+- [x] Update Storybook stories in `webview-ui/src/App.stories.tsx`
   - remove mode-specific warning stories that should no longer exist
   - fix the stale `"integrated"` story value while touching this area
+
+### Phase 7 status
+
+Completed by removing the terminal-mode selector/default state from the webview, deleting command/chat warning branches that only existed for the old execution split, and updating Storybook coverage so the UI no longer teaches users that dual runtime modes still exist.
 
 ### Why this phase matters
 
@@ -506,14 +513,18 @@ Prefer **Option A** unless preserving profile selection is an explicit product r
 
 Goal: remove dead API/schema surface cleanly.
 
-- [ ] Remove `setTerminalExecutionMode` from `proto/cline/ui.proto`
-- [ ] Remove `vscodeTerminalExecutionMode` from the state schema source of truth
-- [ ] Regenerate protobuf and generated TypeScript artifacts
-- [ ] Remove any generated references from:
+- [x] Remove `setTerminalExecutionMode` from `proto/cline/ui.proto`
+- [x] Remove `vscodeTerminalExecutionMode` from the state schema source of truth
+- [x] Regenerate protobuf and generated TypeScript artifacts
+- [x] Remove any generated references from:
   - `src/shared/proto/cline/ui.ts`
   - `src/shared/proto/cline/state.ts`
   - `src/generated/grpc-js/cline/*.ts`
   - `src/generated/nice-grpc/cline/*.ts`
+
+### Phase 9 status
+
+Completed by deleting the obsolete mode-toggle RPC and message enum surface from the proto/schema definitions, regenerating the ProtoBus and host bridge outputs with `npm run protos`, and validating that the stale generated imports/methods disappeared cleanly.
 
 ### Regeneration commands
 

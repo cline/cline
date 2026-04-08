@@ -113,12 +113,8 @@ export class ExecuteCommandToolHandler implements IFullyManagedTool {
 
 		config.taskState.consecutiveMistakeCount = 0
 
-		// Handling of timeout while in yolo mode or background exec mode
-		timeoutSeconds = resolveCommandTimeoutSeconds(
-			command,
-			timeoutParam,
-			config.yoloModeToggled || config.vscodeTerminalExecutionMode === "backgroundExec",
-		)
+		// The unified terminal runtime always supports managed command timeouts.
+		timeoutSeconds = resolveCommandTimeoutSeconds(command, timeoutParam, true)
 
 		// Pre-process command for certain models
 		if (config.api.getModel().id.includes("gemini")) {

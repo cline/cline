@@ -25,7 +25,6 @@ export interface TerminalProcessEvents {
 	continue: []
 	completed: [details?: TerminalCompletionDetails]
 	error: [error: Error]
-	no_shell_integration: []
 }
 
 /**
@@ -153,8 +152,6 @@ export type TerminalProcessResultPromise = Promise<void> &
 		on(event: "continue", listener: () => void): TerminalProcessResultPromise
 		/** Listen for error events */
 		on(event: "error", listener: (error: Error) => void): TerminalProcessResultPromise
-		/** Listen for no shell integration event */
-		on(event: "no_shell_integration", listener: () => void): TerminalProcessResultPromise
 		/** Listen once for any event */
 		once(event: string, listener: (...args: any[]) => void): TerminalProcessResultPromise
 	}
@@ -377,8 +374,6 @@ export interface OrchestrationOptions {
 	timeoutSeconds?: number
 	/** Callback to track output lines for background command tracking */
 	onOutputLine?: (line: string) => void
-	/** Whether to show shell integration warning with suggestion */
-	showShellIntegrationSuggestion?: boolean
 	/**
 	 * Callback invoked when user clicks "Proceed While Running".
 	 * Used to start background command tracking in the terminal manager.

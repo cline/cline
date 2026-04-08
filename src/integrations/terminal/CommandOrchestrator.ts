@@ -58,7 +58,6 @@ export async function orchestrateCommandExecution(
 	const {
 		timeoutSeconds,
 		onOutputLine,
-		showShellIntegrationSuggestion,
 		onProceedWhileRunning,
 		terminalType = "vscode",
 		suppressUserInteraction = false,
@@ -409,14 +408,6 @@ export async function orchestrateCommandExecution(
 				chunkTimer = null
 			}
 			await flushBuffer(true)
-		}
-	})
-
-	process.once("no_shell_integration", async () => {
-		if (showShellIntegrationSuggestion) {
-			await say("shell_integration_warning_with_suggestion")
-		} else {
-			await say("shell_integration_warning")
 		}
 	})
 

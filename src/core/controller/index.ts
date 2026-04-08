@@ -248,7 +248,6 @@ export class Controller {
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
-		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const terminalOutputLineLimit = this.stateManager.getGlobalSettingsKey("terminalOutputLineLimit")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
@@ -314,7 +313,6 @@ export class Controller {
 			terminalReuseEnabled: terminalReuseEnabled ?? true,
 			terminalOutputLineLimit: terminalOutputLineLimit ?? 500,
 			defaultTerminalProfile: defaultTerminalProfile ?? "default",
-			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager: this.stateManager,
 			workspaceManager: this.workspaceManager,
@@ -871,7 +869,6 @@ export class Controller {
 		const remoteWorkflowToggles = this.stateManager.getGlobalStateKey("remoteWorkflowToggles")
 		const shellIntegrationTimeout = this.stateManager.getGlobalSettingsKey("shellIntegrationTimeout")
 		const terminalReuseEnabled = this.stateManager.getGlobalStateKey("terminalReuseEnabled")
-		const vscodeTerminalExecutionMode = this.stateManager.getGlobalStateKey("vscodeTerminalExecutionMode")
 		const defaultTerminalProfile = this.stateManager.getGlobalSettingsKey("defaultTerminalProfile")
 		const isNewUser = this.stateManager.getGlobalStateKey("isNewUser")
 		// Can be undefined but is set to either true or false by the migration that runs on extension launch in extension.ts
@@ -958,7 +955,6 @@ export class Controller {
 			remoteWorkflowToggles: remoteWorkflowToggles,
 			shellIntegrationTimeout,
 			terminalReuseEnabled,
-			vscodeTerminalExecutionMode: vscodeTerminalExecutionMode,
 			defaultTerminalProfile,
 			isNewUser,
 			welcomeViewCompleted,

@@ -143,7 +143,6 @@ type TaskParams = {
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
 	defaultTerminalProfile: string
-	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -234,8 +233,6 @@ export class Task {
 	private useNativeToolCalls = false
 	private streamHandler: StreamResponseHandler
 
-	private terminalExecutionMode: "vscodeTerminal" | "backgroundExec"
-
 	// Metadata tracking
 	private fileContextTracker: FileContextTracker
 	private modelContextTracker: ModelContextTracker
@@ -282,7 +279,6 @@ export class Task {
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
 			defaultTerminalProfile,
-			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -316,13 +312,6 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
-		const requestedTerminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-		this.terminalExecutionMode = "backgroundExec"
-		if (requestedTerminalExecutionMode !== this.terminalExecutionMode) {
-			Logger.info(
-				`[Task ${taskId}] Overriding requested terminal mode '${requestedTerminalExecutionMode}' with unified background runtime`,
-			)
-		}
 
 		this.terminalManager = HostProvider.get().createTerminalManager()
 		Logger.info(`[Task ${taskId}] Using unified terminal manager for command execution`)
@@ -586,7 +575,6 @@ export class Task {
 			cwd,
 			this.taskId,
 			this.ulid,
-			this.terminalExecutionMode,
 			this.workspaceManager,
 			isMultiRootEnabled(this.stateManager),
 			this.say.bind(this),
@@ -1983,7 +1971,6 @@ export class Task {
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
-			terminalExecutionMode: this.terminalExecutionMode,
 		}
 
 		// Notify user if any conditional rules were applied for this request
