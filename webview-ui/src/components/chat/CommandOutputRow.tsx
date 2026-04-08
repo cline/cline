@@ -112,7 +112,6 @@ export const CommandOutputRow = memo(
 		isCommandExecuting = false,
 		isCommandPending = false,
 		isCommandCompleted = false,
-		isBackgroundExec = false, // vscodeTerminalExecutionMode === "backgroundExec"
 		onCancelCommand,
 		icon,
 		title,
@@ -123,7 +122,6 @@ export const CommandOutputRow = memo(
 		isCommandExecuting?: boolean
 		isCommandPending?: boolean
 		isCommandCompleted?: boolean
-		isBackgroundExec?: boolean
 		onCancelCommand?: () => void
 		icon?: JSX.Element | null
 		title?: JSX.Element | null
@@ -163,8 +161,7 @@ export const CommandOutputRow = memo(
 
 		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
 		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
-		const showCancelButton =
-			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
+		const showCancelButton = (isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function"
 
 		const commandHeader = (
 			<div className="flex items-center gap-2.5 mb-3">
@@ -203,18 +200,11 @@ export const CommandOutputRow = memo(
 									<Button
 										onClick={(e) => {
 											e.stopPropagation()
-											if (isBackgroundExec) {
-												onCancelCommand?.()
-											} else {
-												// For regular terminal mode, show a message
-												alert(
-													"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-												)
-											}
+											onCancelCommand?.()
 										}}
 										size="sm"
 										variant="secondary">
-										{isBackgroundExec ? "cancel" : "stop"}
+										cancel
 									</Button>
 								)}
 							</div>

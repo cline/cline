@@ -49,8 +49,8 @@ The main tradeoff is that commands would no longer execute through VS Code's int
 - [x] Prove that VS Code can execute all commands through `StandaloneTerminalManager`
 - [x] Simplify core task/runtime selection so command execution no longer branches by terminal mode
 - [x] Remove IDE-terminal-specific execution classes and tests
-- [ ] Remove terminal mode state, UI, controller plumbing, and prompt context references
-- [ ] Remove shell-integration-specific warnings, suggestions, and dead settings
+- [ ] Remove terminal mode state, controller plumbing, and prompt context references
+- [x] Remove shell-integration-specific warnings, suggestions, and obsolete UI toggle surface
 - [ ] Update docs, stories, and developer references
 - [ ] Run full verification and complete release-readiness checks
 
