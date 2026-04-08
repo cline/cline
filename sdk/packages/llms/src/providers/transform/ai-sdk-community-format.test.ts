@@ -1,5 +1,5 @@
+import type { Message } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import type { Message } from "../types/messages";
 import { toAiSdkMessages } from "./ai-sdk-community-format";
 
 describe("ai sdk community format conversion", () => {

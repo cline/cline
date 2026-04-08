@@ -1,4 +1,5 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import {
 	resolveEffectiveReasoningEffort,
 	resolveReasoningBudgetFromRatio,
@@ -15,7 +16,6 @@ import {
 import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
 import type { ApiStream, HandlerModelInfo, ModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import {
 	emitAiSdkStream,

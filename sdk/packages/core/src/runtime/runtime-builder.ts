@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { Tool } from "@clinebot/shared";
+import type { TeamTeammateSpec, Tool } from "@clinebot/shared";
 import { resolveSkillsConfigSearchPaths } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import {
@@ -22,7 +22,6 @@ import {
 	bootstrapAgentTeams,
 	createDelegatedAgentConfigProvider,
 	type TeamEvent,
-	type TeamTeammateSpec,
 } from "../team";
 import {
 	createBuiltinTools,
@@ -573,13 +572,14 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 				teamToolsRegistered = true;
 
-				const teamBootstrap = bootstrapAgentTeams({
+				const factory = input.teamToolsFactory ?? bootstrapAgentTeams;
+				const teamBootstrap = factory({
 					runtime: teamRuntime,
 					leadAgentId: "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
 					restoredTeammates: restoredTeammateSpecs,
 					includeLeadSpawnTool: true,
-					includeLeadManagementTools: restoredTeammateSpecs.length > 0,
+					includeLeadManagementTools: true,
 					onLeadToolsUnlocked: (teamTools) => {
 						pendingLeadTeamTools = teamTools;
 						leadAgentInstance?.addTools(teamTools);

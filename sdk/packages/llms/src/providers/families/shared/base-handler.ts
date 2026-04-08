@@ -4,6 +4,7 @@
  * Abstract base class that provides common functionality for all handlers.
  */
 
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import {
 	DEFAULT_REQUEST_HEADERS,
 	serializeAbortReason,
@@ -19,7 +20,6 @@ import type {
 	ModelInfo,
 	ProviderConfig,
 } from "../../types";
-import type { Message, ToolDefinition } from "../../types/messages";
 import type { ApiStreamChunk } from "../../types/stream";
 
 interface OpenAICompatibleProviderErrorShape {

@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { AgentConfig } from "@clinebot/agents";
+import type { AgentConfig } from "@clinebot/shared";
 import { importPluginModule } from "./plugin-module-import";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];

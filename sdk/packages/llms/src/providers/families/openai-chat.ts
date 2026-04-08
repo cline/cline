@@ -9,6 +9,7 @@
  * - Azure OpenAI
  */
 
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import {
 	resolveEffectiveReasoningEffort,
 	resolveReasoningBudgetFromRatio,
@@ -25,7 +26,6 @@ import {
 } from "../transform/openai-format";
 import type { ApiStream, HandlerModelInfo, ModelInfo } from "../types";
 import { resolveRoutingProviderId } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
 import { BaseHandler } from "./shared/base-handler";

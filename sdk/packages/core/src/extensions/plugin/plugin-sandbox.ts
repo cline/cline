@@ -1,8 +1,7 @@
 import { existsSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentConfig, Tool } from "@clinebot/agents";
-import type { HookStage } from "@clinebot/shared";
+import type { AgentConfig, HookStage, Tool } from "@clinebot/shared";
 import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
 
 export interface PluginSandboxOptions {

@@ -1,9 +1,9 @@
-import type { AgentExtension } from "@clinebot/agents";
 import type {
 	CreateOpenTelemetryTelemetryServiceOptions,
 	StartSessionInput,
 } from "@clinebot/core";
 import type {
+	AgentExtension,
 	BasicLogger,
 	ITelemetryService,
 	OpenTelemetryClientConfig,

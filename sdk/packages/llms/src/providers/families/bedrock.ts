@@ -1,10 +1,10 @@
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import { convertToolsToAnthropic } from "../transform/anthropic-format";
 import {
 	type ApiStream,
 	type HandlerModelInfo,
 	supportsModelThinking,
 } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { createBedrockClient } from "./bedrock-client";
 import { BaseHandler } from "./shared/base-handler";

@@ -8,8 +8,6 @@
  * 3. No temperature parameter for reasoner models
  */
 
-import { formatFileContentBlock } from "@clinebot/shared";
-import type OpenAI from "openai";
 import type {
 	ContentBlock,
 	FileContent,
@@ -19,7 +17,9 @@ import type {
 	ThinkingContent,
 	ToolResultContent,
 	ToolUseContent,
-} from "../types/messages";
+} from "@clinebot/shared";
+import { formatFileContentBlock } from "@clinebot/shared";
+import type OpenAI from "openai";
 import {
 	normalizeToolUseInput,
 	serializeToolResultContent,

@@ -15,8 +15,9 @@ import type { AgentConfig, BasicLogger } from "../types";
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, LlmsProviders.ModelInfo> | undefined {
-	if (config.providerConfig?.knownModels) {
-		return config.providerConfig.knownModels;
+	const pc = config.providerConfig as LlmsProviders.ProviderConfig | undefined;
+	if (pc?.knownModels) {
+		return pc.knownModels;
 	}
 	if (config.knownModels) {
 		return config.knownModels;
@@ -40,10 +41,9 @@ export function createHandlerFromConfig(
 	config: AgentConfig,
 	logger: BasicLogger | undefined,
 ): LlmsProviders.ApiHandler {
+	const pc = config.providerConfig as LlmsProviders.ProviderConfig | undefined;
 	const baseProviderConfig =
-		config.providerConfig?.providerId === config.providerId
-			? config.providerConfig
-			: undefined;
+		pc?.providerId === config.providerId ? pc : undefined;
 	const normalizedProviderConfig: LlmsProviders.ProviderConfig = {
 		...(baseProviderConfig ?? {}),
 		providerId: config.providerId,

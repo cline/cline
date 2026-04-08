@@ -1,12 +1,10 @@
-import {
-	Agent,
-	type AgentConfig,
-	type AgentEvent,
-	type AgentHooks,
-	type BasicLogger,
-	type HookErrorMode,
-} from "@clinebot/agents";
+import { Agent } from "@clinebot/agents";
 import type {
+	AgentConfig,
+	AgentEvent,
+	AgentHooks,
+	BasicLogger,
+	HookErrorMode,
 	ITelemetryService,
 	Tool,
 	ToolApprovalRequest,

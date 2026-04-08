@@ -1,4 +1,4 @@
-import type { AgentConfig } from "@clinebot/agents";
+import type { AgentConfig } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createDelegatedAgentConfigProvider } from "./delegated-agent";
 

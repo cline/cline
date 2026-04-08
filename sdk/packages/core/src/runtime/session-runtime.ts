@@ -1,10 +1,13 @@
+import type { Agent } from "@clinebot/agents";
 import type {
-	Agent,
 	AgentConfig,
 	AgentHooks,
 	AgentResult,
-} from "@clinebot/agents";
-import type { BasicLogger, ITelemetryService, Tool } from "@clinebot/shared";
+	BasicLogger,
+	ITelemetryService,
+	TeamTeammateSpec,
+	Tool,
+} from "@clinebot/shared";
 import type { UserInstructionConfigWatcher } from "../extensions/config";
 import type {
 	AgentTeamsRuntime,
@@ -27,6 +30,28 @@ export interface BuiltRuntime {
 	shutdown: (reason: string) => Promise<void> | void;
 }
 
+export interface TeamToolsFactoryOptions {
+	runtime: AgentTeamsRuntime;
+	teammateConfigProvider: DelegatedAgentConfigProvider;
+	createBaseTools?: () => Tool[];
+	leadAgentId?: string;
+	restoredTeammates?: TeamTeammateSpec[];
+	restoredFromPersistence?: boolean;
+	includeLeadSpawnTool?: boolean;
+	includeLeadManagementTools?: boolean;
+	onLeadToolsUnlocked?: (tools: Tool[]) => void;
+}
+
+export interface TeamToolsFactoryResult {
+	tools: Tool[];
+	restoredFromPersistence: boolean;
+	restoredTeammates: string[];
+}
+
+export type TeamToolsFactory = (
+	options: TeamToolsFactoryOptions,
+) => TeamToolsFactoryResult;
+
 export interface RuntimeBuilderInput {
 	config: CoreSessionConfig;
 	hooks?: AgentHooks;
@@ -38,6 +63,7 @@ export interface RuntimeBuilderInput {
 	defaultToolExecutors?: Partial<ToolExecutors>;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
+	teamToolsFactory?: TeamToolsFactory;
 }
 
 export interface RuntimeBuilder {

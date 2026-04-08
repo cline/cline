@@ -11,6 +11,12 @@
  * - Supports reasoning with encrypted content
  */
 
+import type {
+	ContentBlock,
+	Message,
+	ToolDefinition,
+	ToolUseContent,
+} from "@clinebot/shared";
 import { resolveEffectiveReasoningEffort } from "@clinebot/shared";
 import OpenAI from "openai";
 import {
@@ -28,12 +34,6 @@ import type {
 	ModelInfo,
 } from "../types";
 import { resolveRoutingProviderId } from "../types";
-import type {
-	ContentBlock,
-	Message,
-	ToolDefinition,
-	ToolUseContent,
-} from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { BaseHandler } from "./shared/base-handler";
 

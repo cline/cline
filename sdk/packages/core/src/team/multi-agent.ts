@@ -4,91 +4,84 @@
  * Utilities for orchestrating multiple agents working together.
  */
 
+import { type Agent, createAgent } from "@clinebot/agents";
 import {
-	type Agent,
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
-	createAgent,
-} from "@clinebot/agents";
-import { sanitizeFileName } from "@clinebot/shared";
+	type AppendMissionLogInput,
+	type AttachTeamOutcomeFragmentInput,
+	type CreateTeamOutcomeInput,
+	type CreateTeamTaskInput,
+	type MissionLogEntry,
+	type ReviewTeamOutcomeFragmentInput,
+	type RouteToTeammateOptions,
+	sanitizeFileName,
+	type TeamMailboxMessage,
+	type TeamMemberSnapshot,
+	TeamMessageType,
+	type TeammateLifecycleSpec,
+	type TeamOutcome,
+	type TeamOutcomeFragment,
+	type TeamOutcomeStatus,
+	type TeamRunRecord,
+	type TeamRunStatus,
+	type TeamRuntimeSnapshot,
+	type TeamRuntimeState,
+	type TeamTask,
+	type TeamTaskListItem,
+	type TeamTaskStatus,
+} from "@clinebot/shared";
 import { nanoid } from "nanoid";
 
+// Re-export shared types for backward compatibility
+export {
+	type AppendMissionLogInput,
+	type AttachTeamOutcomeFragmentInput,
+	type CreateTeamOutcomeInput,
+	type CreateTeamTaskInput,
+	type MissionLogEntry,
+	type MissionLogKind,
+	type ReviewTeamOutcomeFragmentInput,
+	type RouteToTeammateOptions,
+	type TeamMailboxMessage,
+	type TeamMemberSnapshot,
+	TeamMessageType,
+	type TeammateLifecycleSpec,
+	type TeamOutcome,
+	type TeamOutcomeFragment,
+	type TeamOutcomeFragmentStatus,
+	type TeamOutcomeStatus,
+	type TeamRunRecord,
+	type TeamRunStatus,
+	type TeamRuntimeSnapshot,
+	type TeamRuntimeState,
+	type TeamTask,
+	type TeamTaskListItem,
+	type TeamTaskStatus,
+} from "@clinebot/shared";
+
 // =============================================================================
-// Types
+// Types that depend on @clinebot/agents (cannot live in shared)
 // =============================================================================
 
-/**
- * Configuration for a team member agent
- */
 export interface TeamMemberConfig extends AgentConfig {
-	/** Optional role description for this agent */
 	role?: string;
 }
 
-/**
- * Task to execute on a specific agent
- */
 export interface AgentTask {
-	/** ID of the agent to run the task */
 	agentId: string;
-	/** Message to send to the agent */
 	message: string;
-	/** Optional metadata for the task */
 	metadata?: Record<string, unknown>;
 }
 
-/**
- * Result from a task execution
- */
 export interface TaskResult {
-	/** ID of the agent that executed the task */
 	agentId: string;
-	/** The agent result */
 	result: AgentResult;
-	/** Any error that occurred */
 	error?: Error;
-	/** Task metadata */
 	metadata?: Record<string, unknown>;
 }
 
-export enum TeamMessageType {
-	TaskStart = "task_start",
-	TaskEnd = "task_end",
-	AgentEvent = "agent_event",
-	TeammateSpawned = "teammate_spawned",
-	TeammateShutdown = "teammate_shutdown",
-	TeamTaskUpdated = "team_task_updated",
-	TeamMessage = "team_message",
-	TeamMissionLog = "team_mission_log",
-	TeamTaskCompleted = "team_task_completed",
-	RunStarted = "run_started",
-	RunQueued = "run_queued",
-	RunProgress = "run_progress",
-	RunCompleted = "run_completed",
-	RunFailed = "run_failed",
-	RunCancelled = "run_cancelled",
-	RunInterrupted = "run_interrupted",
-	OutcomeCreated = "outcome_created",
-	OutcomeFragmentAttached = "outcome_fragment_attached",
-	OutcomeFragmentReviewed = "outcome_fragment_reviewed",
-	OutcomeFinalized = "outcome_finalized",
-}
-
-export interface TeammateLifecycleSpec {
-	rolePrompt: string;
-	modelId?: string;
-	maxIterations?: number;
-	runtimeAgentId?: string;
-	conversationId?: string;
-	parentAgentId?: string | null;
-}
-
-const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
-
-/**
- * Event emitted during team execution
- */
 export type TeamEvent =
 	| { type: TeamMessageType.TaskStart; agentId: string; message: string }
 	| {
@@ -131,33 +124,26 @@ export type TeamEvent =
 	  }
 	| { type: TeamMessageType.OutcomeFinalized; outcome: TeamOutcome };
 
+export interface AgentTeamsRuntimeOptions {
+	teamName: string;
+	leadAgentId?: string;
+	missionLogIntervalSteps?: number;
+	missionLogIntervalMs?: number;
+	maxConcurrentRuns?: number;
+	onTeamEvent?: (event: TeamEvent) => void;
+}
+
+export interface SpawnTeammateOptions {
+	agentId: string;
+	config: TeamMemberConfig;
+}
+
 // =============================================================================
 // AgentTeam
 // =============================================================================
 
-/**
- * A team of agents that can work together
- *
- * @example
- * ```typescript
- * const team = createAgentTeam({
- *   coder: {
- *     providerId: "anthropic",
- *     modelId: "claude-sonnet-4-20250514",
- *     systemPrompt: "You are a coding expert.",
- *     tools: [readFile, writeFile],
- *   },
- *   reviewer: {
- *     providerId: "openai",
- *     modelId: "gpt-4o",
- *     systemPrompt: "You are a code reviewer.",
- *     tools: [readFile],
- *   }
- * })
- *
- * const result = await team.routeTo("coder", "Write a function")
- * ```
- */
+const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+
 export class AgentTeam {
 	private agents: Map<string, Agent> = new Map();
 	private configs: Map<string, TeamMemberConfig> = new Map();
@@ -176,18 +162,11 @@ export class AgentTeam {
 		}
 	}
 
-	/**
-	 * Add an agent to the team
-	 *
-	 * @param id - Unique identifier for the agent
-	 * @param config - Agent configuration
-	 */
 	addAgent(id: string, config: TeamMemberConfig): void {
 		if (this.agents.has(id)) {
 			throw new Error(`Agent with id "${id}" already exists in the team`);
 		}
 
-		// Wrap onEvent to emit team events
 		const wrappedConfig: AgentConfig = {
 			...config,
 			onEvent: (event: AgentEvent) => {
@@ -205,42 +184,23 @@ export class AgentTeam {
 		this.configs.set(id, config);
 	}
 
-	/**
-	 * Remove an agent from the team
-	 */
 	removeAgent(id: string): boolean {
 		this.configs.delete(id);
 		return this.agents.delete(id);
 	}
 
-	/**
-	 * Get an agent by ID
-	 */
 	getAgent(id: string): Agent | undefined {
 		return this.agents.get(id);
 	}
 
-	/**
-	 * Get all agent IDs in the team
-	 */
 	getAgentIds(): string[] {
 		return Array.from(this.agents.keys());
 	}
 
-	/**
-	 * Get the number of agents in the team
-	 */
 	get size(): number {
 		return this.agents.size;
 	}
 
-	/**
-	 * Route a message to a specific agent
-	 *
-	 * @param agentId - ID of the agent to send the message to
-	 * @param message - The message to send
-	 * @returns The agent result
-	 */
 	async routeTo(agentId: string, message: string): Promise<AgentResult> {
 		const agent = this.agents.get(agentId);
 		if (!agent) {
@@ -265,13 +225,6 @@ export class AgentTeam {
 		}
 	}
 
-	/**
-	 * Continue a conversation with a specific agent
-	 *
-	 * @param agentId - ID of the agent to continue with
-	 * @param message - The message to send
-	 * @returns The agent result
-	 */
 	async continueTo(agentId: string, message: string): Promise<AgentResult> {
 		const agent = this.agents.get(agentId);
 		if (!agent) {
@@ -296,20 +249,6 @@ export class AgentTeam {
 		}
 	}
 
-	/**
-	 * Run multiple tasks in parallel across different agents
-	 *
-	 * @param tasks - Array of tasks to execute
-	 * @returns Array of task results in the same order
-	 *
-	 * @example
-	 * ```typescript
-	 * const results = await team.runParallel([
-	 *   { agentId: "coder", message: "Implement feature X" },
-	 *   { agentId: "reviewer", message: "Review the code" },
-	 * ])
-	 * ```
-	 */
 	async runParallel(tasks: AgentTask[]): Promise<TaskResult[]> {
 		const executions = tasks.map(async (task): Promise<TaskResult> => {
 			const agent = this.agents.get(task.agentId);
@@ -360,15 +299,6 @@ export class AgentTeam {
 		return Promise.all(executions);
 	}
 
-	/**
-	 * Run tasks sequentially across agents
-	 *
-	 * Tasks are executed in order, and the result of each task is available
-	 * to the next task via the context parameter.
-	 *
-	 * @param tasks - Array of tasks to execute in order
-	 * @returns Array of task results in the same order
-	 */
 	async runSequential(tasks: AgentTask[]): Promise<TaskResult[]> {
 		const results: TaskResult[] = [];
 
@@ -422,28 +352,6 @@ export class AgentTeam {
 		return results;
 	}
 
-	/**
-	 * Run a pipeline of agents where output from one becomes input to the next
-	 *
-	 * @param pipeline - Array of agent IDs in pipeline order
-	 * @param initialMessage - The starting message
-	 * @param messageTransformer - Optional function to transform output to input
-	 * @returns Array of all results from the pipeline
-	 *
-	 * @example
-	 * ```typescript
-	 * const results = await team.runPipeline(
-	 *   ["planner", "coder", "reviewer"],
-	 *   "Create a REST API for user management",
-	 *   (prevResult, agentId) => {
-	 *     if (agentId === "coder") {
-	 *       return `Implement this plan:\n${prevResult.text}`
-	 *     }
-	 *     return `Review this code:\n${prevResult.text}`
-	 *   }
-	 * )
-	 * ```
-	 */
 	async runPipeline(
 		pipeline: string[],
 		initialMessage: string,
@@ -463,7 +371,7 @@ export class AgentTeam {
 					result: undefined as unknown as AgentResult,
 					error: new Error(`Agent "${agentId}" not found in team`),
 				});
-				break; // Pipeline stops on missing agent
+				break;
 			}
 
 			this.emitEvent({
@@ -477,7 +385,6 @@ export class AgentTeam {
 				this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
 				results.push({ agentId, result });
 
-				// Transform for next agent if not the last one
 				const nextIndex = pipeline.indexOf(agentId) + 1;
 				if (nextIndex < pipeline.length) {
 					const nextAgentId = pipeline[nextIndex];
@@ -498,25 +405,19 @@ export class AgentTeam {
 					result: undefined as unknown as AgentResult,
 					error: err,
 				});
-				break; // Pipeline stops on error
+				break;
 			}
 		}
 
 		return results;
 	}
 
-	/**
-	 * Abort all running agents
-	 */
 	abortAll(): void {
 		for (const agent of this.agents.values()) {
 			agent.abort(new Error("Agent team abortAll requested"));
 		}
 	}
 
-	/**
-	 * Clear all agents from the team
-	 */
 	clear(): void {
 		this.abortAll();
 		this.agents.clear();
@@ -536,31 +437,6 @@ export class AgentTeam {
 // Factory Functions
 // =============================================================================
 
-/**
- * Create a new agent team
- *
- * @param configs - Map of agent ID to configuration
- * @param onTeamEvent - Optional callback for team events
- * @returns A new AgentTeam instance
- *
- * @example
- * ```typescript
- * const team = createAgentTeam({
- *   coder: {
- *     providerId: "anthropic",
- *     modelId: "claude-sonnet-4-20250514",
- *     systemPrompt: "You are a coding expert.",
- *     tools: [readFile, writeFile],
- *   },
- *   reviewer: {
- *     providerId: "anthropic",
- *     modelId: "claude-sonnet-4-20250514",
- *     systemPrompt: "You are a code reviewer.",
- *     tools: [readFile],
- *   }
- * })
- * ```
- */
 export function createAgentTeam(
 	configs: Record<string, TeamMemberConfig>,
 	onTeamEvent?: (event: TeamEvent) => void,
@@ -568,33 +444,6 @@ export function createAgentTeam(
 	return new AgentTeam(configs, onTeamEvent);
 }
 
-// =============================================================================
-// Specialized Teams
-// =============================================================================
-
-/**
- * Create a simple two-agent team with a worker and reviewer
- *
- * @example
- * ```typescript
- * const team = createWorkerReviewerTeam({
- *   worker: {
- *     providerId: "anthropic",
- *     modelId: "claude-sonnet-4-20250514",
- *     systemPrompt: "You are a coding expert.",
- *     tools: [...],
- *   },
- *   reviewer: {
- *     providerId: "anthropic",
- *     modelId: "claude-sonnet-4-20250514",
- *     systemPrompt: "You review code for issues.",
- *     tools: [...],
- *   }
- * })
- *
- * const result = await team.doAndReview("Implement feature X")
- * ```
- */
 export function createWorkerReviewerTeam(configs: {
 	worker: TeamMemberConfig;
 	reviewer: TeamMemberConfig;
@@ -608,7 +457,6 @@ export function createWorkerReviewerTeam(configs: {
 		reviewer: configs.reviewer,
 	});
 
-	// Add specialized method
 	const enhanced = team as AgentTeam & {
 		doAndReview: (
 			message: string,
@@ -631,214 +479,11 @@ export function createWorkerReviewerTeam(configs: {
 // Agent Teams Runtime (lead + teammate collaboration)
 // =============================================================================
 
-export type TeamTaskStatus =
-	| "pending"
-	| "in_progress"
-	| "blocked"
-	| "completed";
-
-export interface TeamTask {
-	id: string;
-	title: string;
-	description: string;
-	status: TeamTaskStatus;
-	createdAt: Date;
-	updatedAt: Date;
-	createdBy: string;
-	assignee?: string;
-	dependsOn: string[];
-	summary?: string;
-}
-
-export interface TeamTaskListItem extends TeamTask {
-	isReady: boolean;
-	blockedBy: string[];
-}
-
-export type MissionLogKind =
-	| "progress"
-	| "handoff"
-	| "blocked"
-	| "decision"
-	| "done"
-	| "error";
-
-export interface MissionLogEntry {
-	id: string;
-	ts: Date;
-	teamId: string;
-	agentId: string;
-	taskId?: string;
-	kind: MissionLogKind;
-	summary: string;
-	evidence?: string[];
-	nextAction?: string;
-}
-
-export interface TeamMailboxMessage {
-	id: string;
-	teamId: string;
-	fromAgentId: string;
-	toAgentId: string;
-	subject: string;
-	body: string;
-	taskId?: string;
-	sentAt: Date;
-	readAt?: Date;
-}
-
-export interface TeamMemberSnapshot {
-	agentId: string;
-	role: "lead" | "teammate";
-	description?: string;
-	status: "idle" | "running" | "stopped";
-}
-
 interface TeamMemberState extends TeamMemberSnapshot {
 	agent?: Agent;
 	runningCount: number;
 	lastMissionStep: number;
 	lastMissionAt: number;
-}
-
-export interface TeamRuntimeSnapshot {
-	teamId: string;
-	teamName: string;
-	members: TeamMemberSnapshot[];
-	taskCounts: Record<TeamTaskStatus, number>;
-	unreadMessages: number;
-	missionLogEntries: number;
-	activeRuns: number;
-	queuedRuns: number;
-	outcomeCounts: Record<TeamOutcomeStatus, number>;
-}
-
-export interface TeamRuntimeState {
-	teamId: string;
-	teamName: string;
-	members: TeamMemberSnapshot[];
-	tasks: TeamTask[];
-	mailbox: TeamMailboxMessage[];
-	missionLog: MissionLogEntry[];
-	runs: TeamRunRecord[];
-	outcomes: TeamOutcome[];
-	outcomeFragments: TeamOutcomeFragment[];
-}
-
-export interface AgentTeamsRuntimeOptions {
-	teamName: string;
-	leadAgentId?: string;
-	missionLogIntervalSteps?: number;
-	missionLogIntervalMs?: number;
-	maxConcurrentRuns?: number;
-	onTeamEvent?: (event: TeamEvent) => void;
-}
-
-export interface SpawnTeammateOptions {
-	agentId: string;
-	config: TeamMemberConfig;
-}
-
-export interface RouteToTeammateOptions {
-	taskId?: string;
-	fromAgentId?: string;
-	continueConversation?: boolean;
-}
-
-export type TeamRunStatus =
-	| "queued"
-	| "running"
-	| "completed"
-	| "failed"
-	| "cancelled"
-	| "interrupted";
-
-export interface TeamRunRecord {
-	id: string;
-	agentId: string;
-	taskId?: string;
-	status: TeamRunStatus;
-	message: string;
-	priority: number;
-	retryCount: number;
-	maxRetries: number;
-	nextAttemptAt?: Date;
-	continueConversation?: boolean;
-	startedAt: Date;
-	endedAt?: Date;
-	leaseOwner?: string;
-	heartbeatAt?: Date;
-	lastProgressAt?: Date;
-	lastProgressMessage?: string;
-	currentActivity?: string;
-	result?: AgentResult;
-	error?: string;
-}
-
-export type TeamOutcomeStatus = "draft" | "in_review" | "finalized";
-
-export interface TeamOutcome {
-	id: string;
-	teamId: string;
-	title: string;
-	status: TeamOutcomeStatus;
-	requiredSections: string[];
-	createdBy: string;
-	createdAt: Date;
-	finalizedAt?: Date;
-}
-
-export type TeamOutcomeFragmentStatus = "draft" | "reviewed" | "rejected";
-
-export interface TeamOutcomeFragment {
-	id: string;
-	teamId: string;
-	outcomeId: string;
-	section: string;
-	sourceAgentId: string;
-	sourceRunId?: string;
-	content: string;
-	status: TeamOutcomeFragmentStatus;
-	reviewedBy?: string;
-	reviewedAt?: Date;
-	createdAt: Date;
-}
-
-export interface AppendMissionLogInput {
-	agentId: string;
-	taskId?: string;
-	kind: MissionLogKind;
-	summary: string;
-	evidence?: string[];
-	nextAction?: string;
-}
-
-export interface CreateTeamTaskInput {
-	title: string;
-	description: string;
-	createdBy: string;
-	dependsOn?: string[];
-	assignee?: string;
-}
-
-export interface CreateTeamOutcomeInput {
-	title: string;
-	requiredSections: string[];
-	createdBy: string;
-}
-
-export interface AttachTeamOutcomeFragmentInput {
-	outcomeId: string;
-	section: string;
-	sourceAgentId: string;
-	sourceRunId?: string;
-	content: string;
-}
-
-export interface ReviewTeamOutcomeFragmentInput {
-	fragmentId: string;
-	reviewedBy: string;
-	approved: boolean;
 }
 
 export class AgentTeamsRuntime {
@@ -856,7 +501,8 @@ export class AgentTeamsRuntime {
 	private runCounter = 0;
 	private outcomeCounter = 0;
 	private outcomeFragmentCounter = 0;
-	private readonly runs: Map<string, TeamRunRecord> = new Map();
+	private readonly runs: Map<string, TeamRunRecord & { result?: AgentResult }> =
+		new Map();
 	private readonly runQueue: string[] = [];
 	private readonly outcomes: Map<string, TeamOutcome> = new Map();
 	private readonly outcomeFragments: Map<string, TeamOutcomeFragment> =
@@ -1064,7 +710,9 @@ export class AgentTeamsRuntime {
 
 		this.runs.clear();
 		for (const run of state.runs ?? []) {
-			this.runs.set(run.id, { ...run });
+			this.runs.set(run.id, { ...run } as TeamRunRecord & {
+				result?: AgentResult;
+			});
 		}
 		this.runQueue.length = 0;
 		this.runQueue.push(
@@ -1083,7 +731,6 @@ export class AgentTeamsRuntime {
 			this.outcomeFragments.set(fragment.id, { ...fragment });
 		}
 
-		// Keep lead member from current runtime, restore teammate placeholders.
 		const leadMembers = Array.from(this.members.values()).filter(
 			(member) => member.role === "lead",
 		);
@@ -1228,10 +875,6 @@ export class AgentTeamsRuntime {
 		this.emitEvent({ type: TeamMessageType.TeammateShutdown, agentId, reason });
 	}
 
-	/**
-	 * Update connection overrides (e.g. refreshed API key) on all active
-	 * teammate agents so they stay in sync with the lead agent's credentials.
-	 */
 	updateTeammateConnections(
 		overrides: Partial<Pick<AgentConfig, "apiKey" | "baseUrl" | "headers">>,
 	): void {
@@ -1390,7 +1033,7 @@ export class AgentTeamsRuntime {
 		},
 	): TeamRunRecord {
 		const runId = `run_${String(++this.runCounter).padStart(5, "0")}`;
-		const record: TeamRunRecord = {
+		const record: TeamRunRecord & { result?: AgentResult } = {
 			id: runId,
 			agentId,
 			taskId: options?.taskId,
@@ -1455,7 +1098,9 @@ export class AgentTeamsRuntime {
 		return count;
 	}
 
-	private async executeQueuedRun(run: TeamRunRecord): Promise<void> {
+	private async executeQueuedRun(
+		run: TeamRunRecord & { result?: AgentResult },
+	): Promise<void> {
 		run.status = "running";
 		run.startedAt = new Date();
 		run.heartbeatAt = new Date();

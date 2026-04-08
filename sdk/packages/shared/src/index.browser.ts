@@ -1,3 +1,4 @@
+export * from "./agents";
 export type { OAuthProviderId } from "./auth/constants";
 export {
 	AUTH_ERROR_PATTERNS,
@@ -74,11 +75,39 @@ export {
 	formatMessagesForAiSdk,
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
+export type {
+	ContentBlock,
+	FileContent,
+	ImageContent,
+	Message,
+	MessageRole,
+	MessageWithMetadata,
+	RedactedThinkingContent,
+	TextContent,
+	ThinkingContent,
+	ToolDefinition,
+	ToolResultContent,
+	ToolUseContent,
+} from "./llms/messages";
 export {
 	MODELS_DEV_PROVIDER_KEY_ENTRIES,
 	MODELS_DEV_PROVIDER_KEY_MAP,
 	resolveProviderModelCatalogKeys,
 } from "./llms/model-id";
+export {
+	ApiFormat,
+	ApiFormatSchema,
+	type ModelCapability,
+	ModelCapabilitySchema,
+	type ModelInfo,
+	ModelInfoSchema,
+	type ModelPricing,
+	ModelPricingSchema,
+	type ModelStatus,
+	ModelStatusSchema,
+	type ThinkingConfig,
+	ThinkingConfigSchema,
+} from "./llms/model-info";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,
@@ -255,6 +284,7 @@ export type {
 } from "./session/runtime-config";
 export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
+export * from "./team";
 export { createTool } from "./tools/create";
 // VCR is Node-only (uses node:fs, node:path) — excluded from browser build
 export type { VcrRecording } from "./vcr";

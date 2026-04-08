@@ -1,20 +1,6 @@
+import type { AgentResult } from "@clinebot/agents";
 import {
 	createTool,
-	type Tool,
-	validateWithZod,
-	zodToJsonSchema,
-} from "@clinebot/shared";
-import {
-	buildDelegatedAgentConfig,
-	type DelegatedAgentConfigProvider,
-	type DelegatedAgentRuntimeConfig,
-} from "./delegated-agent";
-import type {
-	AgentTeamsRuntime,
-	TeamRunRecord,
-	TeamRuntimeState,
-} from "./multi-agent";
-import {
 	TEAM_AWAIT_TIMEOUT_MS,
 	TEAM_RUN_MESSAGE_PREVIEW_LIMIT,
 	TEAM_RUN_TEXT_PREVIEW_LIMIT,
@@ -44,10 +30,12 @@ import {
 	TeamReadMailboxInputSchema,
 	type TeamReviewOutcomeFragmentInput,
 	TeamReviewOutcomeFragmentInputSchema,
+	type TeamRunRecord,
 	type TeamRunResultSummary,
 	type TeamRunTaskInput,
 	TeamRunTaskInputSchema,
 	type TeamRunToolSummary,
+	type TeamRuntimeState,
 	type TeamSendMessageInput,
 	TeamSendMessageInputSchema,
 	type TeamShutdownTeammateInput,
@@ -60,7 +48,16 @@ import {
 	TeamTaskInputSchema,
 	type TeamTaskToolResult,
 	type TeamTeammateSpec,
-} from "./schema";
+	type Tool,
+	validateWithZod,
+	zodToJsonSchema,
+} from "@clinebot/shared";
+import {
+	buildDelegatedAgentConfig,
+	type DelegatedAgentConfigProvider,
+	type DelegatedAgentRuntimeConfig,
+} from "./delegated-agent";
+import type { AgentTeamsRuntime } from "./multi-agent";
 
 function truncateText(value: string, maxLength: number): string {
 	const normalized = value.replace(/\s+/g, " ").trim();
@@ -73,20 +70,21 @@ function truncateText(value: string, maxLength: number): string {
 function summarizeRunResult(
 	run: TeamRunRecord,
 ): TeamRunResultSummary | undefined {
-	if (!run.result) {
+	const result = run.result as AgentResult | undefined;
+	if (!result) {
 		return undefined;
 	}
 	return {
-		textPreview: truncateText(run.result.text, TEAM_RUN_TEXT_PREVIEW_LIMIT),
-		iterations: run.result.iterations,
-		finishReason: run.result.finishReason,
-		durationMs: run.result.durationMs,
+		textPreview: truncateText(result.text, TEAM_RUN_TEXT_PREVIEW_LIMIT),
+		iterations: result.iterations,
+		finishReason: result.finishReason,
+		durationMs: result.durationMs,
 		usage: {
-			inputTokens: run.result.usage.inputTokens,
-			outputTokens: run.result.usage.outputTokens,
-			cacheReadTokens: run.result.usage.cacheReadTokens,
-			cacheWriteTokens: run.result.usage.cacheWriteTokens,
-			totalCost: run.result.usage.totalCost,
+			inputTokens: result.usage.inputTokens,
+			outputTokens: result.usage.outputTokens,
+			cacheReadTokens: result.usage.cacheReadTokens,
+			cacheWriteTokens: result.usage.cacheWriteTokens,
+			totalCost: result.usage.totalCost,
 		},
 	};
 }
@@ -255,14 +253,16 @@ export function createAgentTeamsTools(
 						createBaseTools: options.createBaseTools,
 						spec,
 					});
-					options.onLeadToolsUnlocked?.(
-						createAgentTeamsTools({
-							...options,
-							includeSpawnTool: false,
-							includeManagementTools: true,
-							onLeadToolsUnlocked: undefined,
-						}),
-					);
+					if (!includeManagementTools) {
+						options.onLeadToolsUnlocked?.(
+							createAgentTeamsTools({
+								...options,
+								includeSpawnTool: false,
+								includeManagementTools: true,
+								onLeadToolsUnlocked: undefined,
+							}),
+						);
+					}
 					return { agentId: validatedInput.agentId, status: "spawned" };
 				},
 			}) as Tool,

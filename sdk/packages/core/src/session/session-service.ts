@@ -8,9 +8,10 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
+import type { TeamTeammateSpec } from "@clinebot/shared";
 import { resolveTeamDataDir } from "@clinebot/shared/storage";
 import type { SqliteSessionStore } from "../storage/sqlite-session-store";
-import type { AgentTeamsRuntime, TeamEvent, TeamTeammateSpec } from "../team";
+import type { AgentTeamsRuntime, TeamEvent } from "../team";
 import type { SessionSource, SessionStatus } from "../types/common";
 import { nowIso } from "./session-artifacts";
 import type { SessionManifest } from "./session-manifest";

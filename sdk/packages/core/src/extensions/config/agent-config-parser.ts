@@ -1,4 +1,4 @@
-import type { AgentConfig, Tool } from "@clinebot/agents";
+import type { AgentConfig, Tool } from "@clinebot/shared";
 import YAML from "yaml";
 import { z } from "zod";
 import { ALL_DEFAULT_TOOL_NAMES, type DefaultToolName } from "../../tools";

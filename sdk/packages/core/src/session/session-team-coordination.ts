@@ -1,5 +1,4 @@
-import type { AgentResult } from "@clinebot/agents";
-import { formatUserInputBlock } from "@clinebot/shared";
+import { type AgentResult, formatUserInputBlock } from "@clinebot/shared";
 import type { TeamEvent } from "../team";
 import {
 	buildTeamProgressSummary,
@@ -37,7 +36,8 @@ export function trackTeamRunState(
 				taskId: event.run.taskId,
 				status: event.type.replace("run_", "") as TeamRunUpdate["status"],
 				error: runError,
-				iterations: event.run.result?.iterations,
+				iterations: (event.run.result as { iterations?: number } | undefined)
+					?.iterations,
 			});
 			notifyTeamRunWaiters(session);
 			break;

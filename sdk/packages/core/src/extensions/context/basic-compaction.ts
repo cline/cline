@@ -1,5 +1,4 @@
-import type { MessageWithMetadata } from "@clinebot/agents";
-import type { BasicLogger } from "@clinebot/shared";
+import type { BasicLogger, MessageWithMetadata } from "@clinebot/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionResult,

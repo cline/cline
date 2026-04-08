@@ -1,6 +1,6 @@
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import { toAiSdkMessages } from "../../transform/ai-sdk-community-format";
 import type { ApiStream, HandlerModelInfo, ProviderConfig } from "../../types";
-import type { Message, ToolDefinition } from "../../types/messages";
 import { retryStream } from "../../utils/retry";
 import {
 	type EmitAiSdkStreamOptions,

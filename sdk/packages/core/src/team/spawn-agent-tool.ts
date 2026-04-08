@@ -2,16 +2,14 @@
  * Reusable spawn_agent tool for delegating tasks to sub-agents.
  */
 
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentHooks,
-	AgentResult,
-	BasicLogger,
-	HookErrorMode,
-} from "@clinebot/agents";
 import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentHooks,
+	type AgentResult,
+	type BasicLogger,
 	createTool,
+	type HookErrorMode,
 	type ITelemetryService,
 	type Tool,
 	type ToolApprovalRequest,

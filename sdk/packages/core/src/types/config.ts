@@ -1,17 +1,15 @@
+import type * as LlmsProviders from "@clinebot/llms";
 import type {
 	AgentConfig,
 	AgentHooks,
-	ConsecutiveMistakeLimitContext,
-	ConsecutiveMistakeLimitDecision,
-	HookErrorMode,
-	MessageWithMetadata,
-} from "@clinebot/agents";
-import type * as LlmsProviders from "@clinebot/llms";
-import type {
 	AgentMode,
 	BasicLogger,
+	ConsecutiveMistakeLimitContext,
+	ConsecutiveMistakeLimitDecision,
 	ExtensionContext,
+	HookErrorMode,
 	ITelemetryService,
+	MessageWithMetadata,
 	SessionExecutionConfig,
 	SessionPromptConfig,
 	SessionWorkspaceConfig,

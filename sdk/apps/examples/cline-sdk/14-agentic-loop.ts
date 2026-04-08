@@ -12,7 +12,10 @@
  */
 
 import { Agent, type AgentEvent } from "@clinebot/agents";
-import { createSpawnAgentTool } from "@clinebot/core";
+import {
+	createDelegatedAgentConfigProvider,
+	createSpawnAgentTool,
+} from "@clinebot/core";
 
 const API_KEY = process.env.ANTHROPIC_API_KEY ?? "";
 const MODEL = "claude-sonnet-4-20250514";
@@ -132,9 +135,11 @@ async function main(): Promise<void> {
 	// The spawn_agent tool lets the LLM create child agents on the fly.
 	// Child agents get a focused system prompt but no spawn tool (prevents recursion).
 	const spawnTool = createSpawnAgentTool({
-		providerId: PROVIDER,
-		modelId: MODEL,
-		apiKey: API_KEY,
+		configProvider: createDelegatedAgentConfigProvider({
+			providerId: PROVIDER,
+			modelId: MODEL,
+			apiKey: API_KEY,
+		}),
 		defaultMaxIterations: 5,
 	});
 

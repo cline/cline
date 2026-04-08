@@ -1,5 +1,5 @@
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import type { ApiStream } from "../../types";
-import type { Message, ToolDefinition } from "../../types/messages";
 import { retryStream } from "../../utils/retry";
 import { BaseHandler } from "./base-handler";
 

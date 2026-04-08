@@ -5,6 +5,7 @@
  * Supports Vertex AI, thinking/reasoning, and native tool calling.
  */
 
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import { resolveReasoningBudgetFromRatio } from "@clinebot/shared";
 import {
 	FunctionCallingConfigMode,
@@ -21,7 +22,6 @@ import {
 	type HandlerModelInfo,
 	supportsModelThinking,
 } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
 import { RetriableError, retryStream } from "../utils/retry";
 import { BaseHandler } from "./shared/base-handler";
 

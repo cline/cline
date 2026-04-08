@@ -1,5 +1,11 @@
+/**
+ * Team tool schemas.
+ *
+ * Zod schemas, constants, and schema-derived types for the team tool surface.
+ */
+
 import { z } from "zod";
-import type { TeamRunRecord, TeamTaskListItem } from "./multi-agent";
+import type { TeamRunStatus, TeamTaskListItem } from "./types";
 
 export const DEFAULT_OUTCOME_REQUIRED_SECTIONS = [
 	"current_state",
@@ -10,18 +16,18 @@ export const TEAM_AWAIT_TIMEOUT_MS = 60 * 60 * 1000;
 export const TEAM_RUN_MESSAGE_PREVIEW_LIMIT = 240;
 export const TEAM_RUN_TEXT_PREVIEW_LIMIT = 400;
 
-function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
-	return z.preprocess(
-		(value) => (value === null ? undefined : value),
-		schema.optional(),
-	);
-}
-
 export interface TeamTeammateSpec {
 	agentId: string;
 	rolePrompt: string;
 	modelId?: string;
 	maxIterations?: number;
+}
+
+function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
+	return z.preprocess(
+		(value) => (value === null ? undefined : value),
+		schema.optional(),
+	);
 }
 
 export const TeamSpawnTeammateInputSchema = z
@@ -280,7 +286,7 @@ export interface TeamRunToolSummary {
 	id: string;
 	agentId: string;
 	taskId?: string;
-	status: TeamRunRecord["status"];
+	status: TeamRunStatus;
 	messagePreview: string;
 	priority: number;
 	retryCount: number;

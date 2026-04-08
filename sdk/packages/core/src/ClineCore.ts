@@ -1,9 +1,10 @@
-import type { AgentConfig } from "@clinebot/agents";
 import type {
+	AgentConfig,
 	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
+import type { TeamToolsFactory } from "./runtime/session-runtime";
 import {
 	createSessionHost,
 	type SessionBackend,
@@ -89,6 +90,15 @@ export interface ClineCoreOptions {
 	 */
 	sessionService?: SessionBackend;
 	/**
+	 * Factory that creates team management tools for the multi-agent team system.
+	 * When provided, team tools are registered whenever `enableAgentTeams` is `true`
+	 * on a session config.
+	 *
+	 * Consumers that depend on `@clinebot/enterprise` can pass
+	 * `bootstrapAgentTeams` here directly.
+	 */
+	teamToolsFactory?: TeamToolsFactory;
+	/**
 	 * Optional hook invoked before each session starts.
 	 * Use this to prepare workspace-scoped runtime state and then return an
 	 * adapter that mutates the `StartSessionInput` generically before core
@@ -124,6 +134,7 @@ export class ClineCore implements SessionHost {
 	readonly clientName: string | undefined;
 	private readonly host: SessionHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
+	private readonly teamToolsFactory: TeamToolsFactory | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
 		StartSessionBootstrap
@@ -134,10 +145,12 @@ export class ClineCore implements SessionHost {
 		host: SessionHost,
 		clientName: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
+		teamToolsFactory: TeamToolsFactory | undefined,
 	) {
 		this.clientName = clientName;
 		this.host = host;
 		this.prepare = prepare;
+		this.teamToolsFactory = teamToolsFactory;
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -148,7 +161,12 @@ export class ClineCore implements SessionHost {
 
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
 		const host = await createSessionHost(options);
-		return new ClineCore(host, options.clientName, options.prepare);
+		return new ClineCore(
+			host,
+			options.clientName,
+			options.prepare,
+			options.teamToolsFactory,
+		);
 	}
 
 	private async disposeSessionBootstrap(sessionId: string): Promise<void> {
@@ -161,11 +179,14 @@ export class ClineCore implements SessionHost {
 	}
 
 	start: SessionHost["start"] = async (input) => {
-		const bootstrap = await this.prepare?.(input);
+		const inputWithFactory: StartSessionInput = this.teamToolsFactory
+			? { teamToolsFactory: this.teamToolsFactory, ...input }
+			: input;
+		const bootstrap = await this.prepare?.(inputWithFactory);
 		try {
 			const effectiveInput = bootstrap
-				? await bootstrap.applyToStartSessionInput(input)
-				: input;
+				? await bootstrap.applyToStartSessionInput(inputWithFactory)
+				: inputWithFactory;
 			const result = await this.host.start(effectiveInput);
 			if (bootstrap) {
 				const activeSession = await this.host.get(result.sessionId);

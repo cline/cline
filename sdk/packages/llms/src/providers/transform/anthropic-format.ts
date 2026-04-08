@@ -5,18 +5,18 @@
  */
 
 import type { Anthropic } from "@anthropic-ai/sdk";
-import { formatFileContentBlock } from "@clinebot/shared";
-import type {
-	ContentBlock,
-	FileContent,
-	ImageContent,
-	Message,
-	RedactedThinkingContent,
-	TextContent,
-	ThinkingContent,
-	ToolResultContent,
-	ToolUseContent,
-} from "../types/messages";
+import {
+	type ContentBlock,
+	type FileContent,
+	formatFileContentBlock,
+	type ImageContent,
+	type Message,
+	type RedactedThinkingContent,
+	type TextContent,
+	type ThinkingContent,
+	type ToolResultContent,
+	type ToolUseContent,
+} from "@clinebot/shared";
 import { normalizeToolUseInput } from "./content-format";
 
 type AnthropicMessage = Anthropic.MessageParam;

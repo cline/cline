@@ -1,7 +1,7 @@
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentConfig, Tool, ToolContext } from "@clinebot/agents";
+import type { AgentConfig, Tool, ToolContext } from "@clinebot/shared";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 

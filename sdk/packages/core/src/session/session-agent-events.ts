@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@clinebot/agents";
+import type { AgentEvent } from "@clinebot/shared";
 import {
 	captureConversationTurnEvent,
 	captureDiffEditFailure,

@@ -1,6 +1,9 @@
-import type { AgentResult } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
-import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
+import type {
+	AgentResult,
+	ToolApprovalRequest,
+	ToolApprovalResult,
+} from "@clinebot/shared";
 import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
@@ -18,10 +21,11 @@ export interface StartSessionInput {
 	userInstructionWatcher?: import("../extensions/config").UserInstructionConfigWatcher;
 	onTeamRestored?: () => void;
 	defaultToolExecutors?: Partial<import("../tools").ToolExecutors>;
-	toolPolicies?: import("@clinebot/agents").AgentConfig["toolPolicies"];
+	toolPolicies?: import("@clinebot/shared").AgentConfig["toolPolicies"];
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
+	teamToolsFactory?: import("../runtime/session-runtime").TeamToolsFactory;
 }
 
 export interface StartSessionResult {

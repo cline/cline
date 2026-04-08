@@ -1,5 +1,5 @@
+import type { Message } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import type { Message } from "../types/messages";
 import {
 	convertToAnthropicMessages,
 	convertToolsToAnthropic,

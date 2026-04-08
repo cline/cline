@@ -1,7 +1,7 @@
+import type { Message } from "@clinebot/shared";
 import { zodToJsonSchema } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
-import type { Message } from "../types/messages";
 import type { ApiStreamChunk } from "../types/stream";
 
 const TeamTaskInputSchema = z.object({

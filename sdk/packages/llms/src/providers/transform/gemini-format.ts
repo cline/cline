@@ -4,8 +4,6 @@
  * Converts our unified Message format to Google Gemini's Content format.
  */
 
-import { formatFileContentBlock, parseJsonStream } from "@clinebot/shared";
-import type { Content, FunctionDeclaration, Part } from "@google/genai";
 import type {
 	ContentBlock,
 	FileContent,
@@ -15,7 +13,9 @@ import type {
 	ThinkingContent,
 	ToolResultContent,
 	ToolUseContent,
-} from "../types/messages";
+} from "@clinebot/shared";
+import { formatFileContentBlock, parseJsonStream } from "@clinebot/shared";
+import type { Content, FunctionDeclaration, Part } from "@google/genai";
 import {
 	normalizeToolUseInput,
 	serializeToolResultContent,

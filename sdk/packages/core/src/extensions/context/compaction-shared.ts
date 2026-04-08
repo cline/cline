@@ -1,5 +1,5 @@
-import type { MessageWithMetadata } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
+import type { MessageWithMetadata } from "@clinebot/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionSummarizerConfig,

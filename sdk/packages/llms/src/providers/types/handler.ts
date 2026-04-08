@@ -4,7 +4,7 @@
  * Core interfaces that all provider handlers must implement.
  */
 
-import type { Message, ToolDefinition } from "./messages";
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import type { ModelInfo } from "./model-info";
 import type { ApiStream, ApiStreamUsageChunk } from "./stream";
 

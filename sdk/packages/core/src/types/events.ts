@@ -60,7 +60,7 @@ export type CoreSessionEvent =
 			type: "agent_event";
 			payload: {
 				sessionId: string;
-				event: import("@clinebot/agents").AgentEvent;
+				event: import("@clinebot/shared").AgentEvent;
 			};
 	  }
 	| { type: "team_progress"; payload: SessionTeamProgressEvent }

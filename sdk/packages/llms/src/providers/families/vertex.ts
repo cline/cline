@@ -6,6 +6,7 @@
  * - Claude models -> AI SDK Google Vertex Anthropic provider
  */
 
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import { toAiSdkMessages } from "../transform/ai-sdk-community-format";
 import {
 	convertToAnthropicMessages,
@@ -16,7 +17,6 @@ import {
 	type HandlerModelInfo,
 	hasModelCapability,
 } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { GeminiHandler } from "./gemini";
 import { resolveHandlerModel } from "./shared/ai-sdk-provider-handler";

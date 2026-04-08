@@ -2,21 +2,19 @@ import { existsSync, readFileSync } from "node:fs";
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
+import { Agent } from "@clinebot/agents";
+import type * as LlmsProviders from "@clinebot/llms";
 import {
-	Agent,
 	type AgentConfig,
 	type AgentEvent,
 	type AgentResult,
-	type Tool,
-	type ToolApprovalRequest,
-	type ToolApprovalResult,
-} from "@clinebot/agents";
-import type * as LlmsProviders from "@clinebot/llms";
-import {
 	createSessionId,
 	type ITelemetryService,
 	isLikelyAuthError,
 	normalizeUserInput,
+	type Tool,
+	type ToolApprovalRequest,
+	type ToolApprovalResult,
 } from "@clinebot/shared";
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
@@ -304,6 +302,7 @@ export class DefaultSessionManager implements SessionManager {
 			userInstructionWatcher: input.userInstructionWatcher,
 			defaultToolExecutors:
 				input.defaultToolExecutors ?? this.defaultToolExecutors,
+			teamToolsFactory: input.teamToolsFactory,
 		});
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
 			configWithProvider.teamName = runtime.teamRuntime.getTeamName();

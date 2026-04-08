@@ -1,5 +1,5 @@
+import type { Message } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { Message } from "../types/messages";
 
 const { streamTextSpy, createVertexAnthropicSpy, vertexProviderSpy } =
 	vi.hoisted(() => {

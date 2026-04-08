@@ -1,8 +1,9 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
+import type { TeamRuntimeState, TeamTeammateSpec } from "@clinebot/shared";
 import { loadSqliteDb, nowIso, type SqliteDb } from "@clinebot/shared/db";
 import { resolveTeamDataDir } from "@clinebot/shared/storage";
-import type { TeamEvent, TeamRuntimeState, TeamTeammateSpec } from "../team";
+import type { TeamEvent } from "../team";
 import type { TeamStore } from "../types/storage";
 
 function defaultTeamDir(): string {

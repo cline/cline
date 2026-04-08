@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import type { AgentConfig } from "@clinebot/agents";
+import type { AgentConfig } from "@clinebot/shared";
 import {
 	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
 	resolveConfiguredPluginModulePaths,

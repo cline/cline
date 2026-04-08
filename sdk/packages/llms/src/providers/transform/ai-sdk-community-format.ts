@@ -1,3 +1,4 @@
+import type { Message } from "@clinebot/shared";
 import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
@@ -6,7 +7,6 @@ import {
 	formatFileContentBlock,
 	formatMessagesForAiSdk,
 } from "@clinebot/shared";
-import type { Message } from "../types/messages";
 import {
 	normalizeToolUseInput,
 	serializeToolResultContent,

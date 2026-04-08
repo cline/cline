@@ -10,6 +10,7 @@ import type {
 	Tool as AnthropicTool,
 	RawMessageStreamEvent,
 } from "@anthropic-ai/sdk/resources";
+import type { Message, ToolDefinition } from "@clinebot/shared";
 import {
 	resolveReasoningBudgetFromRatio,
 	resolveReasoningEffortRatio,
@@ -28,7 +29,6 @@ import {
 	resolveRoutingProviderId,
 	supportsModelThinking,
 } from "../types";
-import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { BaseHandler } from "./shared/base-handler";
 

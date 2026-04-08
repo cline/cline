@@ -4,6 +4,21 @@
  * Re-exports all types from the types module.
  */
 
+// Message types (canonical home: @clinebot/shared)
+export type {
+	ContentBlock,
+	FileContent,
+	ImageContent,
+	Message,
+	MessageRole,
+	MessageWithMetadata,
+	RedactedThinkingContent,
+	TextContent,
+	ThinkingContent,
+	ToolDefinition,
+	ToolResultContent,
+	ToolUseContent,
+} from "@clinebot/shared";
 // Configuration types
 export {
 	type AuthConfig,
@@ -79,21 +94,6 @@ export type {
 	LazyHandlerFactory,
 	SingleCompletionHandler,
 } from "./handler";
-// Message types
-export type {
-	ContentBlock,
-	FileContent,
-	ImageContent,
-	Message,
-	MessageRole,
-	MessageWithMetadata,
-	RedactedThinkingContent,
-	TextContent,
-	ThinkingContent,
-	ToolDefinition,
-	ToolResultContent,
-	ToolUseContent,
-} from "./messages";
 // Model information types
 export {
 	ApiFormat,

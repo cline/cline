@@ -1,5 +1,5 @@
+import type { ToolDefinition } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { ToolDefinition } from "../types/messages";
 import type { ApiStreamChunk } from "../types/stream";
 
 const generateContentStreamSpy = vi.fn();
