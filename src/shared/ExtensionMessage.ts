@@ -108,7 +108,6 @@ export interface ExtensionState {
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
-	lazyTeammateModeEnabled?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
