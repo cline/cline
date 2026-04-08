@@ -610,7 +610,8 @@
 		"serialize-javascript": ">=7.0.3",
 		"mocha": {
 			"diff": ">=8.0.3"
-		}
+		},
+		"brace-expansion@<=2.0.3": "2.0.3"
 	},
 	"c8": {
 		"reporter": [
