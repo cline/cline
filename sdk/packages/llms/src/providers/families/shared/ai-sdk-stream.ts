@@ -13,10 +13,6 @@ type AiSdkUsage = {
 	reasoningTokens?: unknown;
 	thoughtsTokenCount?: unknown;
 	cachedInputTokens?: unknown;
-	inputTokenDetails?: {
-		cacheReadTokens?: unknown;
-		cacheWriteTokens?: unknown;
-	};
 };
 
 export type AiSdkStream = {

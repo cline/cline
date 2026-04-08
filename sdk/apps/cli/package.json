@@ -26,7 +26,6 @@
 		"typecheck": "tsc --noEmit",
 		"test": "bun run test:unit",
 		"test:unit": "vitest run --config vitest.config.ts",
-		"test:live": "vitest run --config vitest.live.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
 		"test:e2e:interactive": "vitest run --config vitest.interactive.e2e.config.ts",
 		"test:watch": "vitest --config vitest.config.ts",

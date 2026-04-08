@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getProviderEnvKeys, resolveApiKeyForProvider } from "./auth";
+import { resolveApiKeyForProvider } from "./auth";
 
 describe("resolveApiKeyForProvider", () => {
 	it("returns noop for lmstudio when no key is provided", () => {
@@ -15,15 +15,5 @@ describe("resolveApiKeyForProvider", () => {
 	it("does not apply lmstudio fallback to zai", () => {
 		const apiKey = resolveApiKeyForProvider("zai", undefined, {});
 		expect(apiKey).toBeUndefined();
-	});
-
-	it("accepts VERCEL_API_KEY for vercel-ai-gateway", () => {
-		expect(getProviderEnvKeys("vercel-ai-gateway")).toContain("VERCEL_API_KEY");
-
-		const apiKey = resolveApiKeyForProvider("vercel-ai-gateway", undefined, {
-			VERCEL_API_KEY: "vercel-key",
-		});
-
-		expect(apiKey).toBe("vercel-key");
 	});
 });

@@ -20,7 +20,6 @@ import {
 	normalizeToolUseInput,
 	serializeToolResultContent,
 } from "./content-format";
-import { normalizeToolInputSchema } from "./tool-schema";
 
 type OpenAIMessage = OpenAI.Chat.ChatCompletionMessageParam;
 type OpenAIContentPart = OpenAI.Chat.ChatCompletionContentPart;
@@ -224,7 +223,7 @@ function convertUserMessage(
  */
 export function convertToolsToOpenAI(
 	tools: Array<{ name: string; description: string; inputSchema: unknown }>,
-	options?: { normalizeInputSchemas?: boolean; strict?: boolean },
+	options?: { strict?: boolean },
 ): OpenAI.Chat.ChatCompletionTool[] {
 	const strict = options?.strict ?? true;
 	return tools.map((tool) => ({
@@ -232,9 +231,7 @@ export function convertToolsToOpenAI(
 		function: {
 			name: tool.name,
 			description: tool.description,
-			parameters: (options?.normalizeInputSchemas
-				? normalizeToolInputSchema(tool.inputSchema)
-				: tool.inputSchema) as OpenAI.FunctionParameters,
+			parameters: tool.inputSchema as OpenAI.FunctionParameters,
 			strict,
 		},
 	}));
@@ -245,7 +242,7 @@ export function convertToolsToOpenAI(
  */
 export function getOpenAIToolParams(
 	tools?: Array<{ name: string; description: string; inputSchema: unknown }>,
-	options?: { normalizeInputSchemas?: boolean; strict?: boolean },
+	options?: { strict?: boolean },
 ): {
 	tools?: OpenAI.Chat.ChatCompletionTool[];
 	tool_choice?: OpenAI.Chat.ChatCompletionToolChoiceOption;

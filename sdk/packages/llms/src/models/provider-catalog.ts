@@ -527,7 +527,7 @@ const PROVIDER_SPECS: ProviderSpec[] = [
 		baseUrl: "https://ai-gateway.vercel.sh/v1",
 		capabilities: ["reasoning"],
 		defaultModelId: "alibaba/qwen3.6-plus",
-		env: ["AI_GATEWAY_API_KEY", "VERCEL_API_KEY"],
+		env: ["AI_GATEWAY_API_KEY"],
 		sourceProviderId: "vercel-ai-gateway",
 	},
 	{

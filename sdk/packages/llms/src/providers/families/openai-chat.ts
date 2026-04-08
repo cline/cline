@@ -29,10 +29,6 @@ import type { Message, ToolDefinition } from "../types/messages";
 import { retryStream } from "../utils/retry";
 import { ToolCallProcessor } from "../utils/tool-processor";
 import { BaseHandler } from "./shared/base-handler";
-import {
-	isRemappedOpenAICompatibleProvider,
-	shouldUseAnthropicAutomaticPromptCache,
-} from "./shared/openai-compatible-routing";
 
 function resolveAnthropicOpenRouterReasoningBudget(options: {
 	modelId?: string;
@@ -66,6 +62,7 @@ function resolveAnthropicOpenRouterReasoningBudget(options: {
 		minimumBudget: 1024,
 	});
 }
+
 function buildOpenRouterReasoningConfig(options: {
 	modelId?: string;
 	thinking?: boolean;
@@ -176,13 +173,8 @@ export class OpenAIBaseHandler extends BaseHandler {
 		messages: Message[],
 	): OpenAI.Chat.ChatCompletionMessageParam[] {
 		const model = this.getModel();
-		const shouldUseAnthropicPromptCache =
-			shouldUseAnthropicAutomaticPromptCache({
-				modelId: model.id,
-				providerId: resolveRoutingProviderId(this.config),
-				supportsPromptCache: this.supportsPromptCache(model.info),
-			});
-		const systemMessage = shouldUseAnthropicPromptCache
+		const supportsPromptCache = this.supportsPromptCache(model.info);
+		const systemMessage = supportsPromptCache
 			? ({
 					role: "system",
 					content: [
@@ -197,7 +189,7 @@ export class OpenAIBaseHandler extends BaseHandler {
 
 		return [
 			systemMessage,
-			...convertToOpenAIMessages(messages, shouldUseAnthropicPromptCache),
+			...convertToOpenAIMessages(messages, supportsPromptCache),
 		];
 	}
 
@@ -236,8 +228,6 @@ export class OpenAIBaseHandler extends BaseHandler {
 			stream_options: { include_usage: true },
 			...getOpenAIToolParams(tools, {
 				// OpenRouter can reject strict function schemas on some routed models.
-				normalizeInputSchemas:
-					isRemappedOpenAICompatibleProvider(routingProviderId),
 				strict: routingProviderId !== "openrouter",
 			}),
 		};
@@ -286,20 +276,6 @@ export class OpenAIBaseHandler extends BaseHandler {
 					reasoning_effort?: string;
 				}
 			).reasoning_effort = effectiveReasoningEffort;
-		}
-
-		if (
-			shouldUseAnthropicAutomaticPromptCache({
-				modelId,
-				providerId: routingProviderId,
-				supportsPromptCache: this.supportsPromptCache(modelInfo),
-			})
-		) {
-			(
-				requestOptions as OpenAI.ChatCompletionCreateParamsStreaming & {
-					cache_control?: { type: "ephemeral" };
-				}
-			).cache_control = { type: "ephemeral" };
 		}
 
 		const requestHeaders = this.getRequestHeaders();
