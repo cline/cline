@@ -17,7 +17,6 @@ import { LoadMcpDocumentationHandler } from "./handlers/LoadMcpDocumentationHand
 import { NewTaskHandler } from "./handlers/NewTaskHandler"
 import { PlanModeRespondHandler } from "./handlers/PlanModeRespondHandler"
 import { ReadFileToolHandler } from "./handlers/ReadFileToolHandler"
-import { ReportBugHandler } from "./handlers/ReportBugHandler"
 import { SearchFilesToolHandler } from "./handlers/SearchFilesToolHandler"
 import { UseSubagentsToolHandler } from "./handlers/SubagentToolHandler"
 import { SummarizeTaskHandler } from "./handlers/SummarizeTaskHandler"
@@ -99,7 +98,6 @@ export class ToolExecutorCoordinator {
 		[ClineDefaultTool.WEB_SEARCH]: (_v: ToolValidator) => new WebSearchToolHandler(),
 		[ClineDefaultTool.CONDENSE]: (_v: ToolValidator) => new CondenseHandler(),
 		[ClineDefaultTool.SUMMARIZE_TASK]: (_v: ToolValidator) => new SummarizeTaskHandler(_v),
-		[ClineDefaultTool.REPORT_BUG]: (_v: ToolValidator) => new ReportBugHandler(),
 		[ClineDefaultTool.NEW_RULE]: (v: ToolValidator) =>
 			new SharedToolHandler(ClineDefaultTool.NEW_RULE, new WriteToFileToolHandler(v)),
 		[ClineDefaultTool.APPLY_PATCH]: (_v: ToolValidator) => new ApplyPatchHandler(_v),

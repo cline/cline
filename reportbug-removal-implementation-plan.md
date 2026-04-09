@@ -4,7 +4,7 @@
 
  - [x] Phase 0: Confirm scope and compatibility strategy
  - [x] Phase 1: Remove `/reportbug` as a user-facing product surface
- - [ ] Phase 2: Remove internal `report_bug` tool/message/proto plumbing
+- [x] Phase 2: Remove internal `report_bug` tool/message/proto plumbing
  - [ ] Phase 3: Remove stale docs, prompts, stories, eval fixtures, and tests
  - [ ] Phase 4: Regenerate generated artifacts and prompt snapshots
  - [ ] Phase 5: Run verification, fix regressions, and complete final audit
@@ -437,19 +437,19 @@
 
  ### 2A. Remove tool-level plumbing
 
- - [ ] Remove `REPORT_BUG = "report_bug"` from `src/shared/tools.ts`
- - [ ] Remove `ReportBugHandler` registration from `src/core/task/tools/ToolExecutorCoordinator.ts`
- - [ ] Delete `src/core/task/tools/handlers/ReportBugHandler.ts`
+ - [x] Remove `REPORT_BUG = "report_bug"` from `src/shared/tools.ts`
+ - [x] Remove `ReportBugHandler` registration from `src/core/task/tools/ToolExecutorCoordinator.ts`
+ - [x] Delete `src/core/task/tools/handlers/ReportBugHandler.ts`
 
  Optional follow-up:
 
  - [ ] If `createAndOpenGitHubIssue()` is now unused, remove its import site and delete `src/utils/github-url-utils.ts`
- - [ ] If the utility is worth keeping for future reuse, leave it in place but ensure it has no dead comments or reportbug-specific references elsewhere.
+ - [x] If the utility is worth keeping for future reuse, leave it in place but ensure it has no dead comments or reportbug-specific references elsewhere.
 
  ### 2B. Remove the ask/message type from app-layer types
 
- - [ ] Remove `"report_bug"` from `ClineAsk` in `src/shared/ExtensionMessage.ts`
- - [ ] Remove `report_bug` mapping entries from `src/shared/proto-conversions/cline-message.ts`
+ - [x] Remove `"report_bug"` from `ClineAsk` in `src/shared/ExtensionMessage.ts`
+ - [x] Remove `report_bug` mapping entries from `src/shared/proto-conversions/cline-message.ts`
 
  Why:
 
@@ -464,10 +464,10 @@
 
  Steps:
 
- - [ ] Remove active use of `REPORT_BUG` from `proto/cline/ui.proto`
- - [ ] Preserve protobuf compatibility safely (do **not** renumber later enum members)
- - [ ] Reserve the old enum number/name if that matches project protobuf conventions
- - [ ] Run `npm run protos`
+ - [x] Remove active use of `REPORT_BUG` from `proto/cline/ui.proto`
+ - [x] Preserve protobuf compatibility safely (do **not** renumber later enum members)
+ - [x] Reserve the old enum number/name if that matches project protobuf conventions
+ - [x] Run `npm run protos`
 
  Plain-language warning:
 
@@ -484,10 +484,10 @@
 
  Steps:
 
- - [ ] Remove `rpc reportBug(StringRequest) returns (Empty);` from `proto/cline/slash.proto`
- - [ ] Delete `src/core/controller/slash/reportBug.ts`
- - [ ] Remove any controller/service registration that wires this RPC in
- - [ ] Run `npm run protos`
+ - [x] Remove `rpc reportBug(StringRequest) returns (Empty);` from `proto/cline/slash.proto`
+ - [x] Delete `src/core/controller/slash/reportBug.ts`
+ - [x] Remove any controller/service registration that wires this RPC in
+ - [x] Run `npm run protos`
 
  ### 2E. Remove webview-specific `report_bug` UI behavior
 
@@ -502,14 +502,14 @@
 
  Steps:
 
- - [ ] Delete `ReportBugPreview.tsx`
- - [ ] Remove the `case "report_bug"` renderer branch from `ChatRow.tsx`
- - [ ] Remove the `report_bug` handling in `useMessageHandlers.ts`
+ - [x] Delete `ReportBugPreview.tsx`
+ - [x] Remove the `case "report_bug"` renderer branch from `ChatRow.tsx`
+ - [x] Remove the `report_bug` handling in `useMessageHandlers.ts`
    - both the `askResponse` path and the `SlashServiceClient.reportBug(...)` utility path
- - [ ] Remove the `report_bug` button config from `buttonConfig.ts`
- - [ ] Update `getButtonConfig()` so it no longer returns a config for `report_bug`
- - [ ] Update `buttonConfig.test.ts`
- - [ ] Remove/update any webview story using `report_bug`
+ - [x] Remove the `report_bug` button config from `buttonConfig.ts`
+ - [x] Update `getButtonConfig()` so it no longer returns a config for `report_bug`
+ - [x] Update `buttonConfig.test.ts`
+ - [x] Remove/update any webview story using `report_bug`
 
  Why:
 
@@ -525,8 +525,8 @@
 
  Steps:
 
- - [ ] Remove the `ask === "report_bug"` render branch from `ChatMessage.tsx`
- - [ ] Remove or simplify any translator handling that references `report_bug`
+ - [x] Remove the `ask === "report_bug"` render branch from `ChatMessage.tsx`
+ - [x] Remove or simplify any translator handling that references `report_bug`
  - [ ] Remove the `/reportbug` feature tip text
 
  ---
@@ -721,34 +721,34 @@
 
  ## B. Tool execution layer
 
- - [ ] `src/shared/tools.ts`
- - [ ] `src/core/task/tools/ToolExecutorCoordinator.ts`
- - [ ] `src/core/task/tools/handlers/ReportBugHandler.ts`
- - [ ] `src/utils/github-url-utils.ts` (delete only if unused)
+ - [x] `src/shared/tools.ts`
+ - [x] `src/core/task/tools/ToolExecutorCoordinator.ts`
+ - [x] `src/core/task/tools/handlers/ReportBugHandler.ts`
+ - [x] `src/utils/github-url-utils.ts` (retained; still used by `openUrl` flow)
 
  ## C. Controller/proto layer
 
- - [ ] `proto/cline/ui.proto`
- - [ ] `proto/cline/slash.proto`
- - [ ] `src/core/controller/slash/reportBug.ts`
- - [ ] `src/shared/ExtensionMessage.ts`
- - [ ] `src/shared/proto-conversions/cline-message.ts`
- - [ ] regenerated files under `src/generated/` and `src/shared/proto/`
+ - [x] `proto/cline/ui.proto`
+ - [x] `proto/cline/slash.proto`
+ - [x] `src/core/controller/slash/reportBug.ts`
+ - [x] `src/shared/ExtensionMessage.ts`
+ - [x] `src/shared/proto-conversions/cline-message.ts`
+ - [x] regenerated files under `src/generated/` and `src/shared/proto/`
 
  ## D. Webview layer
 
- - [ ] `webview-ui/src/components/chat/ReportBugPreview.tsx`
- - [ ] `webview-ui/src/components/chat/ChatRow.tsx`
- - [ ] `webview-ui/src/components/chat/chat-view/hooks/useMessageHandlers.ts`
- - [ ] `webview-ui/src/components/chat/chat-view/shared/buttonConfig.ts`
- - [ ] `webview-ui/src/components/chat/chat-view/shared/buttonConfig.test.ts`
- - [ ] `webview-ui/src/App.stories.tsx`
+ - [x] `webview-ui/src/components/chat/ReportBugPreview.tsx`
+ - [x] `webview-ui/src/components/chat/ChatRow.tsx`
+ - [x] `webview-ui/src/components/chat/chat-view/hooks/useMessageHandlers.ts`
+ - [x] `webview-ui/src/components/chat/chat-view/shared/buttonConfig.ts`
+ - [x] `webview-ui/src/components/chat/chat-view/shared/buttonConfig.test.ts`
+ - [x] `webview-ui/src/App.stories.tsx`
  - [x] `webview-ui/src/components/chat/FeatureTip.tsx`
 
  ## E. CLI layer
 
- - [ ] `cli/src/components/ChatMessage.tsx`
- - [ ] `cli/src/agent/messageTranslator.ts`
+ - [x] `cli/src/components/ChatMessage.tsx`
+ - [x] `cli/src/agent/messageTranslator.ts`
  - [x] `cli/src/components/FeatureTip.tsx`
 
  ## F. Prompt/docs/reference layer
@@ -773,10 +773,10 @@
  - [x] `/reportbug` no longer appears in slash command metadata or autocomplete
  - [x] typing `/reportbug` no longer triggers any built-in behavior
  - [x] the model is no longer instructed to recommend `/reportbug`
- - [ ] no app-layer `report_bug` ask/tool/proto paths remain (if Phase 2 is complete)
- - [ ] no stale webview or CLI rendering branches remain
- - [ ] no stale slash-service RPC remains
- - [ ] generated protobuf files are up to date
+- [x] no app-layer `report_bug` ask/tool/proto paths remain (if Phase 2 is complete)
+- [x] no stale webview or CLI rendering branches remain
+- [x] no stale slash-service RPC remains
+- [x] generated protobuf files are up to date
  - [ ] prompt snapshots are regenerated and passing
  - [ ] typecheck, lint, unit tests, and CLI tests pass
  - [ ] grep audit confirms no unintended `/reportbug`, `report_bug`, or `REPORT_BUG` references remain
