@@ -23,7 +23,6 @@ export const toolUseNames = [
 	"attempt_completion",
 	"new_task",
 	"condense",
-	"report_bug",
 	"new_rule",
 	"web_fetch",
 ] as const

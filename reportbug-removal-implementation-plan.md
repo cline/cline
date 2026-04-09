@@ -4,10 +4,10 @@
 
  - [x] Phase 0: Confirm scope and compatibility strategy
  - [x] Phase 1: Remove `/reportbug` as a user-facing product surface
-- [x] Phase 2: Remove internal `report_bug` tool/message/proto plumbing
- - [ ] Phase 3: Remove stale docs, prompts, stories, eval fixtures, and tests
- - [ ] Phase 4: Regenerate generated artifacts and prompt snapshots
- - [ ] Phase 5: Run verification, fix regressions, and complete final audit
+ - [x] Phase 2: Remove internal `report_bug` tool/message/proto plumbing
+ - [x] Phase 3: Remove stale docs, prompts, stories, eval fixtures, and tests
+ - [x] Phase 4: Regenerate generated artifacts and prompt snapshots
+ - [x] Phase 5: Run verification, fix regressions, and complete final audit
 
  ---
 
@@ -527,7 +527,7 @@
 
  - [x] Remove the `ask === "report_bug"` render branch from `ChatMessage.tsx`
  - [x] Remove or simplify any translator handling that references `report_bug`
- - [ ] Remove the `/reportbug` feature tip text
+ - [x] Remove the `/reportbug` feature tip text
 
  ---
 
@@ -535,7 +535,7 @@
 
  ### Prompt snapshots
 
- - [ ] Update/remove stale prompt snapshots under `src/core/prompts/system-prompt/__tests__/__snapshots__/`
+ - [x] Update/remove stale prompt snapshots under `src/core/prompts/system-prompt/__tests__/__snapshots__/`
 
  Use:
 
@@ -543,13 +543,13 @@
 
  ### Generated protobuf files
 
- - [ ] Regenerate after proto edits using `npm run protos`
- - [ ] Review changes under `src/generated/` and `src/shared/proto/`
+ - [x] Regenerate after proto edits using `npm run protos`
+ - [x] Review changes under `src/generated/` and `src/shared/proto/`
 
  ### Eval and benchmark fixtures
 
- - [ ] Remove/update `report_bug` references in eval fixtures and parsing fixtures
- - [ ] Re-run any relevant benchmark or fixture validation if this repository expects it
+ - [x] Remove/update `report_bug` references in eval fixtures and parsing fixtures
+ - [x] Re-run any relevant benchmark or fixture validation if this repository expects it
 
  ### Audit command
 
@@ -759,7 +759,7 @@
  - [x] `src/core/prompts/system-prompt/variants/native-gpt-5-1/overrides.ts`
  - [x] `src/core/prompts/system-prompt/variants/native-next-gen/template.ts`
  - [x] `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`
- - [ ] affected prompt snapshot files
+ - [x] affected prompt snapshot files
  - [x] `docs/core-workflows/using-commands.mdx`
  - [x] `docs/getting-started/your-first-project.mdx`
  - [x] eval fixtures and parsing fixtures mentioning `/reportbug` or `report_bug`
@@ -777,9 +777,9 @@
 - [x] no stale webview or CLI rendering branches remain
 - [x] no stale slash-service RPC remains
 - [x] generated protobuf files are up to date
- - [ ] prompt snapshots are regenerated and passing
- - [ ] typecheck, lint, unit tests, and CLI tests pass
- - [ ] grep audit confirms no unintended `/reportbug`, `report_bug`, or `REPORT_BUG` references remain
+ - [x] prompt snapshots are regenerated and passing
+ - [x] typecheck, lint, unit tests, and CLI tests pass
+ - [x] grep audit confirms only intentional references remain in this plan document and the reserved protobuf slot
 
  ---
 
