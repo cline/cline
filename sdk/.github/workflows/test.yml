@@ -47,8 +47,6 @@ jobs:
             matrix:
                 include:
                     - os: ubuntu-latest
-                      node-version: "20.x"
-                    - os: ubuntu-latest
                       node-version: "24.x"
                     - os: windows-latest
                       node-version: "24.x"
