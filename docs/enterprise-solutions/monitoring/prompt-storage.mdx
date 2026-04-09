@@ -58,10 +58,13 @@ Prompt storage uploads the following files from each task:
 
 Prompt storage **does not** include:
 
-- ❌ Actual code files from your workspace
-- ❌ API keys or secrets
-- ❌ File contents (only references to file paths)
+- ❌ Workspace files not accessed by Cline
+- ❌ API keys or secrets  
 - ❌ User credentials or authentication tokens
+
+<Warning>
+Conversation history includes tool inputs, such as code written by `write_to_file`. Review your compliance requirements before enabling.
+</Warning>
 
 ### Storage Path Pattern
 

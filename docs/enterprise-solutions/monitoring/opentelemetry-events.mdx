@@ -114,9 +114,9 @@ Core events tracking task lifecycle, conversation turns, tool usage, and executi
 
 | Event | Description | Key Attributes |
 |-------|-------------|----------------|
-| `task.created` | New task/conversation started | task_id, mode, model_id, provider |
+| `task.created` | New task/conversation started | task_id, mode, model, provider |
 | `task.restarted` | Existing task restarted/reopened | task_id, time_since_last_message |
-| `task.completed` | Task completed | task_id, duration_ms, model_id, provider, tokens_total |
+| `task.completed` | Task completed | task_id, duration_ms, model, provider, tokens_total |
 | `task.feedback` | User feedback on task | task_id, feedback_type (thumbs_up/thumbs_down) |
 | `task.historical_loaded` | Historical task loaded from storage | task_id, age_days |
 | `task.retry_clicked` | User clicked retry on a failed action/request | task_id, action_type |
@@ -436,6 +436,10 @@ Token events provide detailed cost and usage information:
 
 ## Using Events for Analytics
 
+<Note>
+SQL syntax shown is illustrative. Attribute access varies by platform (e.g., `JSON_EXTRACT(attributes, '$.model')` in BigQuery, `attributes['model']` in ClickHouse).
+</Note>
+
 ### Query Patterns
 
 **Most used tools:**
@@ -452,12 +456,12 @@ LIMIT 10
 **Average task duration by model:**
 ```sql
 SELECT 
-  attributes.model_id,
+  attributes.model,
   AVG(attributes.duration_ms) as avg_duration_ms,
   COUNT(*) as task_count
 FROM otel_logs
 WHERE event = 'task.completed'
-GROUP BY attributes.model_id
+GROUP BY attributes.model
 ```
 
 **Token usage by provider:**
