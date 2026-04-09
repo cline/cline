@@ -46,9 +46,6 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Cline can browse websites — ask it to test your local dev server in the browser.",
 	},
 	{
-		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
-	},
-	{
 		text: "Try 'npm i -g cline' to manage tasks on a Kankan board — orchestrate coding agents across worktrees.",
 	},
 	{

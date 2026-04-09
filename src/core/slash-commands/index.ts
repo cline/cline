@@ -11,7 +11,6 @@ import {
 	explainChangesToolResponse,
 	newRuleToolResponse,
 	newTaskToolResponse,
-	reportBugToolResponse,
 } from "../prompts/commands"
 import { StateManager } from "../storage/StateManager"
 
@@ -49,7 +48,7 @@ export async function parseSlashCommands(
 	providerInfo?: ApiProviderInfo,
 	mcpPromptFetcher?: McpPromptFetcher,
 ): Promise<{ processedText: string; needsClinerulesFileCheck: boolean }> {
-	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "reportbug", "deep-planning", "explain-changes"]
+	const SUPPORTED_DEFAULT_COMMANDS = ["newtask", "smol", "compact", "newrule", "deep-planning", "explain-changes"]
 
 	// Determine if the current provider/model/setting actually uses native tool calling
 	const willUseNativeTools = isNativeToolCallingConfig(providerInfo!, enableNativeToolCalls || false)
@@ -59,7 +58,6 @@ export async function parseSlashCommands(
 		smol: condenseToolResponse(focusChainSettings),
 		compact: condenseToolResponse(focusChainSettings),
 		newrule: newRuleToolResponse(),
-		reportbug: reportBugToolResponse(),
 		"deep-planning": deepPlanningToolResponse(focusChainSettings, providerInfo, willUseNativeTools),
 		"explain-changes": explainChangesToolResponse(),
 	}

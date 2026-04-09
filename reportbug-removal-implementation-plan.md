@@ -2,8 +2,8 @@
 
  ## Status
 
- - [ ] Phase 0: Confirm scope and compatibility strategy
- - [ ] Phase 1: Remove `/reportbug` as a user-facing product surface
+ - [x] Phase 0: Confirm scope and compatibility strategy
+ - [x] Phase 1: Remove `/reportbug` as a user-facing product surface
  - [ ] Phase 2: Remove internal `report_bug` tool/message/proto plumbing
  - [ ] Phase 3: Remove stale docs, prompts, stories, eval fixtures, and tests
  - [ ] Phase 4: Regenerate generated artifacts and prompt snapshots
@@ -324,9 +324,9 @@
 
  ## Phase 0 — Confirm the removal policy
 
- - [ ] Decide whether removal is a **single release with compatibility fallback** or a **true multi-release phased removal**.
- - [ ] Decide how much legacy task-history compatibility is required.
- - [ ] Decide whether `src/utils/github-url-utils.ts` should be deleted or retained for future reuse.
+ - [x] Decide whether removal is a **single release with compatibility fallback** or a **true multi-release phased removal**.
+ - [x] Decide how much legacy task-history compatibility is required.
+ - [x] Decide whether `src/utils/github-url-utils.ts` should be deleted or retained for future reuse.
 
  ### Recommendation
 
@@ -349,7 +349,7 @@
 
  #### Slash-command registration
 
- - [ ] Remove `/reportbug` from `src/shared/slashCommands.ts`
+ - [x] Remove `/reportbug` from `src/shared/slashCommands.ts`
 
  Why:
 
@@ -358,9 +358,9 @@
 
  #### Slash-command parsing
 
- - [ ] Remove `"reportbug"` from `SUPPORTED_DEFAULT_COMMANDS` in `src/core/slash-commands/index.ts`
- - [ ] Remove the `reportbug: reportBugToolResponse()` replacement entry from `src/core/slash-commands/index.ts`
- - [ ] Remove the `reportBugToolResponse` import from `src/core/slash-commands/index.ts`
+ - [x] Remove `"reportbug"` from `SUPPORTED_DEFAULT_COMMANDS` in `src/core/slash-commands/index.ts`
+ - [x] Remove the `reportbug: reportBugToolResponse()` replacement entry from `src/core/slash-commands/index.ts`
+ - [x] Remove the `reportBugToolResponse` import from `src/core/slash-commands/index.ts`
 
  Why:
 
@@ -368,7 +368,7 @@
 
  #### Slash-command prompt helper
 
- - [ ] Remove `reportBugToolResponse()` from `src/core/prompts/commands.ts` if no longer needed anywhere
+ - [x] Remove `reportBugToolResponse()` from `src/core/prompts/commands.ts` if no longer needed anywhere
 
  Why:
 
@@ -376,7 +376,7 @@
 
  #### Continuation/compaction behavior
 
- - [ ] Remove `/reportbug` from the special-command sentence in `src/core/prompts/contextManagement.ts`
+ - [x] Remove `/reportbug` from the special-command sentence in `src/core/prompts/contextManagement.ts`
 
  Why:
 
@@ -384,10 +384,10 @@
 
  #### User-facing docs and tips
 
- - [ ] Remove `/reportbug` from `docs/core-workflows/using-commands.mdx`
- - [ ] Remove `/reportbug` from `docs/getting-started/your-first-project.mdx`
- - [ ] Remove the feature tip reference from `webview-ui/src/components/chat/FeatureTip.tsx`
- - [ ] Remove the feature tip reference from `cli/src/components/FeatureTip.tsx`
+ - [x] Remove `/reportbug` from `docs/core-workflows/using-commands.mdx`
+ - [x] Remove `/reportbug` from `docs/getting-started/your-first-project.mdx`
+ - [x] Remove the feature tip reference from `webview-ui/src/components/chat/FeatureTip.tsx`
+ - [x] Remove the feature tip reference from `cli/src/components/FeatureTip.tsx`
 
  Why:
 
@@ -395,13 +395,13 @@
 
  #### Prompt text that recommends `/reportbug`
 
- - [ ] Remove/update `src/core/prompts/system-prompt/components/feedback.ts`
- - [ ] Remove/update prompt variant overrides/templates that explicitly mention `/reportbug`
+ - [x] Remove/update `src/core/prompts/system-prompt/components/feedback.ts`
+ - [x] Remove/update prompt variant overrides/templates that explicitly mention `/reportbug`
    - `src/core/prompts/system-prompt/variants/gemini-3/overrides.ts`
    - `src/core/prompts/system-prompt/variants/native-gpt-5/template.ts`
    - `src/core/prompts/system-prompt/variants/native-gpt-5-1/overrides.ts`
    - `src/core/prompts/system-prompt/variants/native-next-gen/template.ts`
- - [ ] Remove/update legacy prompt text in `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`
+ - [x] Remove/update legacy prompt text in `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`
 
  Why:
 
@@ -409,10 +409,14 @@
 
  #### Tests and fixtures tied to command existence
 
- - [ ] Audit and update any tests or fixtures that assume `/reportbug` exists
- - [ ] Re-run slash-command tests under `src/core/slash-commands/__tests__/`
- - [ ] Remove or update eval/prompt fixtures that mention `/reportbug`
+ - [x] Audit and update any tests or fixtures that assume `/reportbug` exists
+ - [x] Re-run slash-command tests under `src/core/slash-commands/__tests__/`
+ - [x] Remove or update eval/prompt fixtures that mention `/reportbug`
    - e.g. `evals/benchmarks/tool-precision/replace-in-file/prompts/claude4SystemPrompt-06-06-25.ts`
+
+  Verification note:
+
+  - The targeted `npx cross-env TS_NODE_PROJECT=./tsconfig.unit-test.json mocha --config .mocharc.json src/core/slash-commands/__tests__/index.test.ts` run confirmed the slash-command tests passed, while the broader prompt integration suite reported expected snapshot mismatches from the feedback-text change. Snapshot updates are deferred to Phase 4.
 
  ### Phase 1 completion check
 
@@ -709,11 +713,11 @@
 
  ## A. Slash-command layer
 
- - [ ] `src/shared/slashCommands.ts`
- - [ ] `src/core/slash-commands/index.ts`
- - [ ] `src/core/prompts/commands.ts`
- - [ ] `src/core/prompts/contextManagement.ts`
- - [ ] `src/core/slash-commands/__tests__/index.test.ts` (if command expectations exist or need adding)
+ - [x] `src/shared/slashCommands.ts`
+ - [x] `src/core/slash-commands/index.ts`
+ - [x] `src/core/prompts/commands.ts`
+ - [x] `src/core/prompts/contextManagement.ts`
+ - [x] `src/core/slash-commands/__tests__/index.test.ts` (if command expectations exist or need adding)
 
  ## B. Tool execution layer
 
@@ -739,26 +743,26 @@
  - [ ] `webview-ui/src/components/chat/chat-view/shared/buttonConfig.ts`
  - [ ] `webview-ui/src/components/chat/chat-view/shared/buttonConfig.test.ts`
  - [ ] `webview-ui/src/App.stories.tsx`
- - [ ] `webview-ui/src/components/chat/FeatureTip.tsx`
+ - [x] `webview-ui/src/components/chat/FeatureTip.tsx`
 
  ## E. CLI layer
 
  - [ ] `cli/src/components/ChatMessage.tsx`
  - [ ] `cli/src/agent/messageTranslator.ts`
- - [ ] `cli/src/components/FeatureTip.tsx`
+ - [x] `cli/src/components/FeatureTip.tsx`
 
  ## F. Prompt/docs/reference layer
 
- - [ ] `src/core/prompts/system-prompt/components/feedback.ts`
- - [ ] `src/core/prompts/system-prompt/variants/gemini-3/overrides.ts`
- - [ ] `src/core/prompts/system-prompt/variants/native-gpt-5/template.ts`
- - [ ] `src/core/prompts/system-prompt/variants/native-gpt-5-1/overrides.ts`
- - [ ] `src/core/prompts/system-prompt/variants/native-next-gen/template.ts`
- - [ ] `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`
+ - [x] `src/core/prompts/system-prompt/components/feedback.ts`
+ - [x] `src/core/prompts/system-prompt/variants/gemini-3/overrides.ts`
+ - [x] `src/core/prompts/system-prompt/variants/native-gpt-5/template.ts`
+ - [x] `src/core/prompts/system-prompt/variants/native-gpt-5-1/overrides.ts`
+ - [x] `src/core/prompts/system-prompt/variants/native-next-gen/template.ts`
+ - [x] `src/core/prompts/system-prompt-legacy/families/next-gen-models/gpt-5.ts`
  - [ ] affected prompt snapshot files
- - [ ] `docs/core-workflows/using-commands.mdx`
- - [ ] `docs/getting-started/your-first-project.mdx`
- - [ ] eval fixtures and parsing fixtures mentioning `/reportbug` or `report_bug`
+ - [x] `docs/core-workflows/using-commands.mdx`
+ - [x] `docs/getting-started/your-first-project.mdx`
+ - [x] eval fixtures and parsing fixtures mentioning `/reportbug` or `report_bug`
 
  ---
 
@@ -766,9 +770,9 @@
 
  The removal is complete when all of the following are true:
 
- - [ ] `/reportbug` no longer appears in slash command metadata or autocomplete
- - [ ] typing `/reportbug` no longer triggers any built-in behavior
- - [ ] the model is no longer instructed to recommend `/reportbug`
+ - [x] `/reportbug` no longer appears in slash command metadata or autocomplete
+ - [x] typing `/reportbug` no longer triggers any built-in behavior
+ - [x] the model is no longer instructed to recommend `/reportbug`
  - [ ] no app-layer `report_bug` ask/tool/proto paths remain (if Phase 2 is complete)
  - [ ] no stale webview or CLI rendering branches remain
  - [ ] no stale slash-service RPC remains
