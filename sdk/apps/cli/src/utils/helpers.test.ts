@@ -8,6 +8,7 @@ import {
 	formatToolInput,
 	formatToolOutput,
 	isCliHookPayload,
+	normalizeAutoApproveArgs,
 	parseArgs,
 } from "./helpers";
 
@@ -58,19 +59,16 @@ describe("parseArgs", () => {
 		});
 	});
 
-	it("parses prompt, runtime flags, and per-tool approval settings", () => {
+	it("parses prompt, runtime flags, and global approval settings", () => {
 		const parsed = parseArgs([
 			"--verbose",
 			"--no-tools",
 			"--no-spawn",
 			"--no-teams",
-			"--require-tool-approval",
+			"--autoapprove",
+			"false",
 			"--tool-enable",
 			"read_files",
-			"--tool-require-approval",
-			"read_files",
-			"--tool-autoapprove",
-			"run_commands",
 			"--cwd",
 			"/tmp/work",
 			"--team-name",
@@ -119,8 +117,7 @@ describe("parseArgs", () => {
 		expect(parsed.key).toBe("abc123");
 		expect(parsed.sandbox).toBe(false);
 		expect(parsed.toolPolicies).toEqual({
-			read_files: { enabled: true, autoApprove: false },
-			run_commands: { autoApprove: true },
+			read_files: { enabled: true },
 		});
 	});
 
@@ -135,18 +132,34 @@ describe("parseArgs", () => {
 		expect(parsed.sandboxDir).toBe("./.tmp-cline");
 	});
 
-	it("ignores empty tool names for tool-policy flags", () => {
-		const parsed = parseArgs([
-			"--tool-enable",
-			"",
-			"--tool-disable",
-			"",
-			"--tool-autoapprove",
-			"",
-			"--tool-require-approval",
-			"",
-		]);
+	it("ignores empty tool names for enable/disable policy flags", () => {
+		const parsed = parseArgs(["--tool-enable", "", "--tool-disable", ""]);
 		expect(parsed.toolPolicies).toEqual({});
+	});
+
+	it("parses --autoapprove false as global approval-off", () => {
+		const parsed = parseArgs([
+			"--autoapprove",
+			"false",
+			"tell me about this repo",
+		]);
+		expect(parsed.defaultToolAutoApprove).toBe(false);
+		expect(parsed.toolPolicies).toEqual({});
+		expect(parsed.prompt).toBe("tell me about this repo");
+	});
+
+	it("treats bare --autoapprove as true", () => {
+		expect(
+			normalizeAutoApproveArgs(["--autoapprove", "Audit the repo"]),
+		).toEqual(["--autoapprove", "true", "Audit the repo"]);
+		const parsed = parseArgs(["--autoapprove", "Audit the repo"]);
+		expect(parsed.defaultToolAutoApprove).toBe(true);
+		expect(parsed.prompt).toBe("Audit the repo");
+	});
+
+	it("records invalid --autoapprove values", () => {
+		const parsed = parseArgs(["--autoapprove=maybe"]);
+		expect(parsed.invalidAutoApprove).toBe("maybe");
 	});
 
 	it("supports json output flags and validates explicit output modes", () => {

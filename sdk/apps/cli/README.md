@@ -94,11 +94,9 @@ clite -i "Let's work on this together. First, analyze the current state and sugg
 # Disable defaults tools, spawn(subagent), teams explicitly
 clite --no-tools --no-spawn --no-teams "Answer from general knowledge only"
 # Require approval before each tool call
-clite --require-tool-approval "Inspect and modify this repository"
-# Require approval only for command execution
-clite --tool-require-approval run_commands "Fix failing tests"
-# Require approval for editor only
-clite --tool-require-approval editor "Refactor src/index.ts for readability"
+clite --autoapprove false "Inspect and modify this repository"
+# Explicitly enable auto-approval for all tools
+clite --autoapprove true "Refactor src/index.ts for readability"
 
 # Pipe input
 cat file.txt | clite "Summarize this"
@@ -309,12 +307,10 @@ RPC runtime note:
 | `--no-spawn` | Disable `spawn_agent` |
 | `--no-teams` | Disable team tools/runtime |
 | `--auto-approve-all` | Skip tool approval prompts |
+| `--autoapprove [true\|false]` | Set tool auto-approval for all tools |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default unless `--spawn` / `--teams` are also passed |
-| `--require-tool-approval` | Require approval for every tool call |
 | `--tool-enable <name>` | Explicitly enable one tool |
 | `--tool-disable <name>` | Explicitly disable one tool |
-| `--tool-autoapprove <name>` | Always approve one tool |
-| `--tool-require-approval <name>` | Always require approval for one tool |
 | `--team-name <name>` | Override the runtime team state name |
 | `--mission-step-interval <n>` | Mission log update cadence in meaningful steps |
 | `--mission-time-interval-ms <ms>` | Mission log update cadence in milliseconds |
@@ -380,17 +376,14 @@ clite list mcp --json
 
 ## Tool Approval
 
-Tool calls are auto-approved by default. Use approval flags to enforce review per tool call.
+Tool calls are auto-approved by default. Use `--autoapprove false` to require review before tool execution.
 
 ```bash
 # Require approval for all tools
-clite --require-tool-approval "Inspect and modify this repository"
+clite --autoapprove false "Inspect and modify this repository"
 
-# Require approval for editor only
-clite --tool-require-approval editor "Update the changelog and README"
-
-# Require approval for all tools, but allow reads without prompts
-clite --require-tool-approval --tool-autoapprove read_files "Audit the current workspace"
+# Explicitly keep approvals disabled for this run
+clite --autoapprove true "Audit the current workspace"
 ```
 
 When approval is required, the CLI prompts in TTY mode:

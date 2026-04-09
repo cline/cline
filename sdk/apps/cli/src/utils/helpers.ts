@@ -375,10 +375,37 @@ export function parseCliHookPayload(
 	return parseHookEventPayload(value);
 }
 
+function isBooleanLikeAutoApproveValue(value: string | undefined): boolean {
+	if (!value) {
+		return false;
+	}
+	const normalized = value.trim().toLowerCase();
+	return normalized === "true" || normalized === "false";
+}
+
+export function normalizeAutoApproveArgs(args: string[]): string[] {
+	const normalized: string[] = [];
+	for (let index = 0; index < args.length; index += 1) {
+		const token = args[index];
+		if (token === "--autoapprove") {
+			const nextToken = args[index + 1];
+			if (isBooleanLikeAutoApproveValue(nextToken)) {
+				normalized.push(token, nextToken);
+				index += 1;
+				continue;
+			}
+			normalized.push(token, "true");
+			continue;
+		}
+		normalized.push(token);
+	}
+	return normalized;
+}
+
 export function parseArgs(args: string[]): ParsedArgs {
 	const program = createProgram();
 	try {
-		program.parse(args, { from: "user" });
+		program.parse(normalizeAutoApproveArgs(args), { from: "user" });
 	} catch (_: unknown) {
 		// exitOverride throws CommanderError on --help / --version; commander
 		// handles output directly, and we treat the thrown error as a signal

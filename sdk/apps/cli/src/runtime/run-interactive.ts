@@ -41,6 +41,10 @@ import {
 	subscribeToAgentEvents,
 	subscribeToPendingPromptEvents,
 } from "./session-events";
+import {
+	applyInteractiveAutoApproveOverride,
+	cloneToolPolicies,
+} from "./tool-policies";
 
 export async function runInteractive(
 	config: Config,
@@ -85,6 +89,16 @@ export async function runInteractive(
 	const enableChatCommands = process.env.CLINE_ENABLE_CHAT_COMMANDS === "1";
 	const autoApproveAllRef = {
 		current: config.toolPolicies["*"]?.autoApprove !== false,
+	};
+	const baselineToolPolicies = cloneToolPolicies(config.toolPolicies);
+	const setInteractiveAutoApprove = (enabled: boolean) => {
+		autoApproveAllRef.current = enabled;
+		config.defaultToolAutoApprove = enabled;
+		applyInteractiveAutoApproveOverride({
+			targetPolicies: config.toolPolicies,
+			baselinePolicies: baselineToolPolicies,
+			enabled,
+		});
 	};
 	const sessionManager = await createDefaultCliSessionManager({
 		defaultToolExecutors: {
@@ -408,7 +422,7 @@ export async function runInteractive(
 								chatCommandState.autoApproveTools = next.autoApproveTools;
 								chatCommandState.cwd = next.cwd;
 								chatCommandState.workspaceRoot = next.workspaceRoot;
-								autoApproveAllRef.current = next.autoApproveTools;
+								setInteractiveAutoApprove(next.autoApproveTools);
 							},
 							reply: async (text) => {
 								commandOutput = text;
@@ -484,7 +498,7 @@ export async function runInteractive(
 				// Interactive TUI handles turn-scoped error rendering.
 			},
 			onAutoApproveChange: (enabled) => {
-				autoApproveAllRef.current = enabled;
+				setInteractiveAutoApprove(enabled);
 			},
 		}),
 		{ exitOnCtrlC: false },

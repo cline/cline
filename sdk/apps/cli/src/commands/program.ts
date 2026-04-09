@@ -11,6 +11,15 @@ function collect(value: string, previous: string[]): string[] {
 	return previous.concat(value);
 }
 
+function normalizeAutoApproveValue(
+	value: string | boolean | undefined,
+): string {
+	if (value === undefined || value === true) {
+		return "true";
+	}
+	return String(value);
+}
+
 /**
  * Add the shared root-level options to any command.
  */
@@ -24,6 +33,11 @@ export function addRootOptions(cmd: Command): Command {
 		.option(
 			"--auto-approve-all",
 			"Enable auto-approve all actions while keeping interactive mode",
+		)
+		.option(
+			"--autoapprove [value]",
+			"Set tool auto-approval for all tools (`true` or `false`)",
+			normalizeAutoApproveValue,
 		)
 		.option("--config <dir>", "Configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
@@ -57,7 +71,6 @@ export function addRootOptions(cmd: Command): Command {
 			"Reasoning effort: none|low|medium|high|xhigh",
 		)
 		.option("--refresh-models", "Refresh provider model catalog for this run")
-		.option("--require-tool-approval", "Require approval for every tool call")
 		.option("--sandbox", "Use isolated local state instead of ~/.cline")
 		.option(
 			"--sandbox-dir <dir>",
@@ -76,15 +89,8 @@ export function addRootOptions(cmd: Command): Command {
 			"Optional timeout in seconds (applies only when provided)",
 		)
 		.option("--timings", "Show timing details")
-		.option("--tool-autoapprove <name>", "Always approve one tool", collect, [])
 		.option("--tool-disable <name>", "Explicitly disable one tool", collect, [])
 		.option("--tool-enable <name>", "Explicitly enable one tool", collect, [])
-		.option(
-			"--tool-require-approval <name>",
-			"Always require approval for one tool",
-			collect,
-			[],
-		)
 		.option("--tools", undefined, true)
 		.option("--no-tools", "Disable tools")
 		.option("-u, --usage", "Show token usage and estimated cost")
@@ -151,9 +157,15 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	}
 
 	// Approval: last-wins semantics
-	// Default is true; --require-tool-approval sets false; --auto-approve-all / --yolo sets true
-	if (opts.requireToolApproval) {
-		result.defaultToolAutoApprove = false;
+	if (opts.autoapprove !== undefined) {
+		const raw = String(opts.autoapprove).trim().toLowerCase();
+		if (raw === "true") {
+			result.defaultToolAutoApprove = true;
+		} else if (raw === "false") {
+			result.defaultToolAutoApprove = false;
+		} else if (raw) {
+			result.invalidAutoApprove = raw;
+		}
 	}
 	if (opts.autoApproveAll || opts.yolo) {
 		result.defaultToolAutoApprove = true;
@@ -230,8 +242,6 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	// Tool policies
 	const toolEnable: string[] = opts.toolEnable ?? [];
 	const toolDisable: string[] = opts.toolDisable ?? [];
-	const toolAutoapprove: string[] = opts.toolAutoapprove ?? [];
-	const toolRequireApproval: string[] = opts.toolRequireApproval ?? [];
 
 	for (const name of toolEnable) {
 		const trimmed = name.trim();
@@ -248,24 +258,6 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 			result.toolPolicies[trimmed] = {
 				...(result.toolPolicies[trimmed] ?? {}),
 				enabled: false,
-			};
-		}
-	}
-	for (const name of toolAutoapprove) {
-		const trimmed = name.trim();
-		if (trimmed) {
-			result.toolPolicies[trimmed] = {
-				...(result.toolPolicies[trimmed] ?? {}),
-				autoApprove: true,
-			};
-		}
-	}
-	for (const name of toolRequireApproval) {
-		const trimmed = name.trim();
-		if (trimmed) {
-			result.toolPolicies[trimmed] = {
-				...(result.toolPolicies[trimmed] ?? {}),
-				autoApprove: false,
 			};
 		}
 	}

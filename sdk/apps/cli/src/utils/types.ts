@@ -86,6 +86,7 @@ export interface ParsedArgs {
 	reasoningEffort?: CliReasoningEffort;
 	liveModelCatalog: boolean;
 	invalidReasoningEffort?: string;
+	invalidAutoApprove?: string;
 	sandbox: boolean;
 	sandboxDir?: string;
 	configDir?: string;

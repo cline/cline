@@ -34,6 +34,7 @@ import { createScheduleCommand } from "./commands/schedule";
 import { createCliLoggerAdapter } from "./logging/adapter";
 import {
 	configureSandboxEnvironment,
+	normalizeAutoApproveArgs,
 	resolveWorkspaceRoot,
 } from "./utils/helpers";
 import { getInternalLaunchViolation } from "./utils/internal-launch";
@@ -115,7 +116,7 @@ export async function runCli(): Promise<void> {
 	setHomeDir(homedir());
 
 	let launchConfigView = false;
-	const normalizedArgs = cliArgs;
+	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 	const internalLaunchViolation = getInternalLaunchViolation(normalizedArgs);
 	if (internalLaunchViolation) {
 		writeErr(internalLaunchViolation);
@@ -422,7 +423,9 @@ export async function runCli(): Promise<void> {
 			const rootParser = createProgram();
 			rootParser.action(() => {});
 			try {
-				await rootParser.parseAsync(taskCmd.args, { from: "user" });
+				await rootParser.parseAsync(normalizeAutoApproveArgs(taskCmd.args), {
+					from: "user",
+				});
 			} catch (err) {
 				if (err instanceof CommanderError) {
 					throw err;
@@ -529,6 +532,13 @@ export async function runCli(): Promise<void> {
 	if (args.invalidReasoningEffort) {
 		writeErr(
 			`invalid reasoning effort "${args.invalidReasoningEffort}" (expected "none", "low", "medium", "high", or "xhigh")`,
+		);
+		process.exitCode = 1;
+		return;
+	}
+	if (args.invalidAutoApprove) {
+		writeErr(
+			`invalid autoapprove value "${args.invalidAutoApprove}" (expected "true" or "false")`,
 		);
 		process.exitCode = 1;
 		return;

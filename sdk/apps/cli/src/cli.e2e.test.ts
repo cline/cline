@@ -121,7 +121,7 @@ describe("cli e2e", () => {
 		expect(result.status).toBe(0);
 		expect(asText(result.stderr)).toBe("");
 		expect(asText(result.stdout)).toContain("Usage:");
-		expect(asText(result.stdout)).toContain("--tool-require-approval");
+		expect(asText(result.stdout)).toContain("--autoapprove [value]");
 		expect(asText(result.stdout)).toContain("--auto-approve-all");
 		expect(asText(result.stdout)).toContain("-T, --taskId <id>");
 		expect(asText(result.stdout)).toContain("--sandbox");
