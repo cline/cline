@@ -4,11 +4,10 @@ import { afterEach, beforeEach, describe, it } from "mocha"
 import os from "os"
 import path from "path"
 import * as sinon from "sinon"
-import * as disk from "@/core/storage/disk"
 import { WebviewProvider } from "@/core/webview"
+import * as webhookHooks from "@/services/lg-cns-integration/webhook-hooks"
 import { Logger } from "@/shared/services/Logger"
 import { ErrorService } from "../error"
-import * as lgWebhookHooks from "./lgWebhookHooks"
 import { SharedUriHandler } from "./SharedUriHandler"
 
 describe("SharedUriHandler", () => {
@@ -120,18 +119,10 @@ describe("SharedUriHandler", () => {
 				const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "lg-task-uri-"))
 				try {
 					const promptFilePath = path.join(tempDir, "lg-spec.md")
-					const documentsPath = path.join(tempDir, "Documents")
-					const hooksDir = path.join(documentsPath, "Cline", "Hooks")
-					await fs.mkdir(hooksDir, { recursive: true })
 					await fs.writeFile(promptFilePath, "Implement user registration flow", "utf-8")
 
-					sandbox.stub(disk, "getDocumentsPath").resolves(documentsPath)
-					sandbox.stub(disk, "ensureHooksDirectoryExists").resolves(hooksDir)
-					sandbox.stub(lgWebhookHooks, "getLgWebhookHookScripts").returns([
-						{ fileName: "TaskStart", content: "taskstart", mode: 0o755 },
-						{ fileName: "PostToolUse", content: "posttooluse" },
-						{ fileName: "TaskComplete", content: "taskcomplete" },
-					])
+					const writeConfigStub = sandbox.stub(webhookHooks, "writeLgWebhookConfig").resolves()
+					const writeHooksStub = sandbox.stub(webhookHooks, "writeLgWebhookHooks").resolves()
 
 					const result = await SharedUriHandler.handleUri(
 						`vscode://cline.cline/lg-task?prompt-file=${encodeURIComponent(
@@ -145,32 +136,24 @@ describe("SharedUriHandler", () => {
 					expect(taskPrompt).to.contain(promptFilePath)
 					expect(taskPrompt).to.contain("Implement user registration flow")
 					expect(taskPrompt).to.contain("re-read")
-
-					const configJson = JSON.parse(
-						await fs.readFile(path.join(documentsPath, "Cline", "webhook_config.json"), "utf-8"),
-					)
-					expect(configJson.webhook_url).to.equal(webhookUrl)
-					expect(configJson.webhook_token).to.equal(webhookToken)
-					expect(configJson.created_at).to.be.a("string")
-
-					expect(await fs.readFile(path.join(hooksDir, "TaskStart"), "utf-8")).to.equal("taskstart")
-					expect(await fs.readFile(path.join(hooksDir, "PostToolUse"), "utf-8")).to.equal("posttooluse")
-					expect(await fs.readFile(path.join(hooksDir, "TaskComplete"), "utf-8")).to.equal("taskcomplete")
-
-					const taskStartStats = await fs.stat(path.join(hooksDir, "TaskStart"))
-					expect(taskStartStats.mode & 0o111).to.not.equal(0)
+					sinon.assert.calledOnceWithExactly(writeConfigStub, webhookUrl, webhookToken)
+					sinon.assert.calledOnce(writeHooksStub)
 				} finally {
 					await fs.rm(tempDir, { recursive: true, force: true })
 				}
 			})
 
 			it("should return false when LG task parameters are missing", async () => {
+				const writeConfigStub = sandbox.stub(webhookHooks, "writeLgWebhookConfig").resolves()
+				const writeHooksStub = sandbox.stub(webhookHooks, "writeLgWebhookHooks").resolves()
 				const result = await SharedUriHandler.handleUri(
 					"vscode://cline.cline/lg-task?prompt-file=%2Ftmp%2Fspec.md&webhook-url=https%3A%2F%2Fexample.com",
 				)
 
 				expect(result).to.be.false
 				expect(handleTaskCreationStub.called).to.be.false
+				expect(writeConfigStub.called).to.be.false
+				expect(writeHooksStub.called).to.be.false
 			})
 		})
 

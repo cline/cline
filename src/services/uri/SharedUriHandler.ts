@@ -1,9 +1,7 @@
 import fs from "fs/promises"
-import path from "path"
-import { ensureHooksDirectoryExists, getDocumentsPath } from "@/core/storage/disk"
 import { WebviewProvider } from "@/core/webview"
+import { writeLgWebhookConfig, writeLgWebhookHooks } from "@/services/lg-cns-integration/webhook-hooks"
 import { Logger } from "@/shared/services/Logger"
-import { getLgWebhookHookScripts } from "./lgWebhookHooks"
 
 export const TASK_URI_PATH = "/task"
 export const LG_TASK_URI_PATH = "/lg-task"
@@ -117,8 +115,8 @@ export class SharedUriHandler {
 						"",
 						specContents,
 					].join("\n")
-					await SharedUriHandler.writeLgWebhookConfig(webhookUrl, webhookToken)
-					await SharedUriHandler.writeLgWebhookHooks()
+					await writeLgWebhookConfig(webhookUrl, webhookToken)
+					await writeLgWebhookHooks()
 					await visibleWebview.controller.handleTaskCreation(prompt)
 					return true
 				}
@@ -152,40 +150,6 @@ export class SharedUriHandler {
 		} catch (error) {
 			Logger.error("SharedUriHandler: Error processing URI:", error)
 			return false
-		}
-	}
-
-	private static async writeLgWebhookConfig(webhookUrl: string, webhookToken: string): Promise<void> {
-		const documentsPath = await getDocumentsPath()
-		const clineDir = path.join(documentsPath, "Cline")
-		const configPath = path.join(clineDir, "webhook_config.json")
-
-		await fs.mkdir(clineDir, { recursive: true })
-		await fs.writeFile(
-			configPath,
-			JSON.stringify(
-				{
-					webhook_url: webhookUrl,
-					webhook_token: webhookToken,
-					created_at: new Date().toISOString(),
-				},
-				null,
-				2,
-			),
-			"utf-8",
-		)
-	}
-
-	private static async writeLgWebhookHooks(): Promise<void> {
-		const hooksDir = await ensureHooksDirectoryExists()
-		const hooks = getLgWebhookHookScripts()
-
-		for (const hook of hooks) {
-			const hookPath = path.join(hooksDir, hook.fileName)
-			await fs.writeFile(hookPath, hook.content, "utf-8")
-			if (hook.mode !== undefined) {
-				await fs.chmod(hookPath, hook.mode)
-			}
 		}
 	}
 }
