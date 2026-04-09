@@ -1,5 +1,21 @@
 # Changelog
 
+## [3.77.0]
+
+### Added
+
+- Add "Lazy Teammate Mode" experimental toggle
+- `read_file` tool now supports chunked reading for targeted file access
+
+### Fixed
+
+- Exclude `new_task` tool from system prompt in yolo/headless mode
+- Fix Kanban demo video formatting
+
+### Changed
+
+- Polish `Notification` hook functionality
+
 ## [3.76.0]
 
 ### Added

@@ -1898,7 +1898,16 @@ export class Task {
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalRules = await getGlobalClineRules(globalClineRulesFilePath, globalToggles, { evaluationContext })
-		const globalClineRulesFileInstructions = globalRules.instructions
+		let globalClineRulesFileInstructions = globalRules.instructions
+
+		// Inject Lazy Teammate Mode rules if enabled
+		const lazyTeammateModeEnabled = this.stateManager.getGlobalSettingsKey("lazyTeammateModeEnabled")
+		if (lazyTeammateModeEnabled) {
+			const { LAZY_TEAMMATE_RULES } = await import("@/core/context/instructions/lazy-teammate-rules")
+			globalClineRulesFileInstructions = globalClineRulesFileInstructions
+				? `${globalClineRulesFileInstructions}\n\n${LAZY_TEAMMATE_RULES}`
+				: LAZY_TEAMMATE_RULES
+		}
 
 		const localRules = await getLocalClineRules(this.cwd, localToggles, { evaluationContext })
 		const localClineRulesFileInstructions = localRules.instructions
