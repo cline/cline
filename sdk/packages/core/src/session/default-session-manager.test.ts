@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -126,10 +127,30 @@ function createConfig(
 	};
 }
 
+function createGitRepo(cwd: string): void {
+	execFileSync("git", ["-C", cwd, "init"], { stdio: "pipe" });
+	execFileSync("git", ["-C", cwd, "config", "user.name", "Codex Test"], {
+		stdio: "pipe",
+	});
+	execFileSync(
+		"git",
+		["-C", cwd, "config", "user.email", "codex@example.com"],
+		{
+			stdio: "pipe",
+		},
+	);
+	writeFileSync(join(cwd, "note.txt"), "base\n", "utf8");
+	execFileSync("git", ["-C", cwd, "add", "note.txt"], { stdio: "pipe" });
+	execFileSync("git", ["-C", cwd, "commit", "-m", "initial"], {
+		stdio: "pipe",
+	});
+}
+
 describe("DefaultSessionManager", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
 		CLINE_DIR: process.env.CLINE_DIR,
+		CLINE_CHECKPOINT: process.env.CLINE_CHECKPOINT,
 	};
 	let isolatedHomeDir = "";
 
@@ -137,6 +158,7 @@ describe("DefaultSessionManager", () => {
 		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
 		process.env.HOME = isolatedHomeDir;
 		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		delete process.env.CLINE_CHECKPOINT;
 		setHomeDir(isolatedHomeDir);
 		setClineDir(process.env.CLINE_DIR);
 	});
@@ -144,6 +166,7 @@ describe("DefaultSessionManager", () => {
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
 		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		process.env.CLINE_CHECKPOINT = envSnapshot.CLINE_CHECKPOINT;
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
@@ -627,6 +650,191 @@ describe("DefaultSessionManager", () => {
 				status: "completed",
 			}),
 		);
+	});
+
+	it("does not install checkpoint hooks unless CLINE_CHECKPOINT=true", async () => {
+		const sessionId = "sess-checkpoint-default-off";
+		const manifest = createManifest(sessionId);
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-checkpoint-default-off.json",
+				transcriptPath: "/tmp/transcript-checkpoint-default-off.log",
+				hookPath: "/tmp/hook-checkpoint-default-off.log",
+				messagesPath: "/tmp/messages-checkpoint-default-off.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSession,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([
+				{
+					sessionId,
+					provider: "mock-provider",
+					model: "mock-model",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+					status: "running",
+					metadata: undefined,
+				},
+			]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockImplementation(() => {
+				return {
+					tools: [],
+					shutdown: vi.fn(),
+				};
+			}),
+		};
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: (config) =>
+				({
+					run: vi.fn().mockImplementation(async () => {
+						await config.hooks?.onRunStart?.({
+							agentId: "agent_1",
+							conversationId: "conv_1",
+							parentAgentId: null,
+							userMessage: "hello",
+						});
+						await config.hooks?.onBeforeAgentStart?.({
+							agentId: "agent_1",
+							conversationId: "conv_1",
+							parentAgentId: null,
+							iteration: 1,
+							systemPrompt: "system",
+							messages: [],
+						});
+						return createResult();
+					}),
+					continue: vi.fn(),
+					abort: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			prompt: "hello",
+			interactive: false,
+		});
+		expect(updateSession).toHaveBeenCalledTimes(1);
+		expect(updateSession).toHaveBeenLastCalledWith({
+			sessionId,
+			metadata: {
+				totalCost: 0,
+			},
+		});
+	});
+
+	it("installs checkpoint hooks when CLINE_CHECKPOINT=true", async () => {
+		process.env.CLINE_CHECKPOINT = "true";
+
+		const sessionId = "sess-checkpoint-env-on";
+		const repoCwd = mkdtempSync(join(isolatedHomeDir, "checkpoint-repo-"));
+		createGitRepo(repoCwd);
+		const manifest = createManifest(sessionId);
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-checkpoint-env-on.json",
+				transcriptPath: "/tmp/transcript-checkpoint-env-on.log",
+				hookPath: "/tmp/hook-checkpoint-env-on.log",
+				messagesPath: "/tmp/messages-checkpoint-env-on.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSession,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([
+				{
+					sessionId,
+					provider: "mock-provider",
+					model: "mock-model",
+					cwd: repoCwd,
+					workspaceRoot: repoCwd,
+					createdAt: "2026-01-01T00:00:00.000Z",
+					updatedAt: "2026-01-01T00:00:00.000Z",
+					status: "running",
+					metadata: undefined,
+				},
+			]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockImplementation(() => {
+				return {
+					tools: [],
+					shutdown: vi.fn(),
+				};
+			}),
+		};
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: (config) =>
+				({
+					run: vi.fn().mockImplementation(async () => {
+						await config.hooks?.onRunStart?.({
+							agentId: "agent_1",
+							conversationId: "conv_1",
+							parentAgentId: null,
+							userMessage: "hello",
+						});
+						await config.hooks?.onBeforeAgentStart?.({
+							agentId: "agent_1",
+							conversationId: "conv_1",
+							parentAgentId: null,
+							iteration: 1,
+							systemPrompt: "system",
+							messages: [],
+						});
+						return createResult();
+					}),
+					continue: vi.fn(),
+					abort: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId, cwd: repoCwd }),
+			prompt: "hello",
+			interactive: false,
+		});
+		expect(updateSession).toHaveBeenCalledTimes(2);
+		expect(updateSession).toHaveBeenNthCalledWith(1, {
+			sessionId,
+			metadata: expect.objectContaining({
+				checkpoint: expect.objectContaining({
+					latest: expect.objectContaining({
+						ref: expect.stringMatching(/^[0-9a-f]{40}$/),
+						runCount: 1,
+					}),
+				}),
+			}),
+		});
+		expect(updateSession).toHaveBeenNthCalledWith(2, {
+			sessionId,
+			metadata: expect.objectContaining({
+				totalCost: 0,
+			}),
+		});
 	});
 
 	it("persists assistant message metadata for usage and model identity", async () => {

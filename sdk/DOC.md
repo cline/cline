@@ -163,7 +163,7 @@ Core owns:
 - transcript and hook artifact persistence
 - pending prompt queueing
 - team/session persistence
-- checkpoint hooks
+- checkpoint hooks when `CLINE_CHECKPOINT=true`
 - default context compaction injection for root sessions
 
 ### Context Compaction
