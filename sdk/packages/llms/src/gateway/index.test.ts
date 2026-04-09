@@ -205,6 +205,7 @@ describe("sdk-gateway", () => {
 			toolName: "lookup",
 			input: { term: "sdk" },
 			inputText: '{"term":"sdk"}',
+			metadata: undefined,
 		});
 		expect(events).toContainEqual({
 			type: "usage",
@@ -216,6 +217,62 @@ describe("sdk-gateway", () => {
 			}),
 		});
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("passes user file blocks through as text content", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: [
+					{
+						id: "user_1",
+						role: "user",
+						content: [
+							{ type: "text", text: "Check the file." },
+							{
+								type: "file",
+								path: "/workspace/AGENTS.md",
+								content: "rules go here",
+							},
+						],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					{
+						role: "user",
+						content: [
+							{ type: "text", text: "Check the file." },
+							{
+								type: "text",
+								text: '<file_content path="/workspace/AGENTS.md">\nrules go here\n</file_content>',
+							},
+						],
+					},
+				],
+			}),
+		);
 	});
 
 	it("reads Anthropic cache usage from provider metadata", async () => {

@@ -386,13 +386,36 @@ async function discoverRulesLikeFiles(
 
 	try {
 		const entries = await readdir(directoryPath, { withFileTypes: true });
-		return entries
+		const candidates = entries
 			.filter((entry) => entry.isFile() && isMarkdownFile(entry.name))
 			.map((entry) => ({
 				directoryPath,
 				fileName: entry.name,
 				filePath: join(directoryPath, entry.name),
 			}));
+
+		// Special case: if this is a workspace root directory, also check for AGENTS.md
+		const agentsPath = join(directoryPath, "AGENTS.md");
+		try {
+			const agentsStat = await stat(agentsPath);
+			if (agentsStat.isFile()) {
+				// Check if AGENTS.md is not already in the candidates
+				const alreadyIncluded = candidates.some(
+					(c) => c.fileName === "AGENTS.md",
+				);
+				if (!alreadyIncluded) {
+					candidates.push({
+						directoryPath,
+						fileName: "AGENTS.md",
+						filePath: agentsPath,
+					});
+				}
+			}
+		} catch {
+			// AGENTS.md doesn't exist or is not accessible, which is fine
+		}
+
+		return candidates;
 	} catch (error) {
 		if (isIgnorableDirectoryError(error)) {
 			return [];

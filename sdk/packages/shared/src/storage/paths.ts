@@ -8,7 +8,10 @@ import {
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
+const DEPRECATED_CONFIG_DIR = ".clinerules";
+const CLINE_CONFIG_DIR = ".cline";
 export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
+
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
 export const SKILLS_CONFIG_DIRECTORY_NAME = "skills";
 export const RULES_CONFIG_DIRECTORY_NAME = "rules";
@@ -98,6 +101,10 @@ export function resolveDocumentsClineDirectoryPath(): string {
 	return join(HOME_DIR, "Documents", "Cline");
 }
 
+export function resolveDocumentsExtensionsPath(subpath: string): string {
+	return join(resolveDocumentsClineDirectoryPath(), subpath);
+}
+
 export function resolveDocumentsAgentConfigDirectoryPath(): string {
 	return join(resolveDocumentsClineDirectoryPath(), "Agents");
 }
@@ -115,7 +122,7 @@ export function resolveDocumentsWorkflowsDirectoryPath(): string {
 }
 
 export function resolveDocumentsPluginsDirectoryPath(): string {
-	return join(HOME_DIR, "Documents", "Plugins");
+	return join(resolveDocumentsClineDirectoryPath(), "Plugins");
 }
 
 export function resolveClineDataDir(): string {
@@ -176,11 +183,10 @@ function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 		return [];
 	}
 	return [
-		join(workspacePath, ".clinerules", SKILLS_CONFIG_DIRECTORY_NAME),
-		join(workspacePath, ".cline", SKILLS_CONFIG_DIRECTORY_NAME),
-		join(workspacePath, ".claude", SKILLS_CONFIG_DIRECTORY_NAME),
-		join(workspacePath, ".agents", SKILLS_CONFIG_DIRECTORY_NAME),
-	];
+		DEPRECATED_CONFIG_DIR,
+		CLINE_CONFIG_DIR,
+		AGENT_CONFIG_DIRECTORY_NAME,
+	].map((dir) => join(workspacePath, dir, SKILLS_CONFIG_DIRECTORY_NAME));
 }
 
 export function resolveAgentsConfigDirPath(): string {
@@ -197,12 +203,17 @@ export function resolveAgentConfigSearchPaths(): string[] {
 export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
-	return dedupePaths([
-		workspacePath
-			? join(workspacePath, ".clinerules", HOOKS_CONFIG_DIRECTORY_NAME)
-			: "",
+	const hooks = [
 		resolveDocumentsHooksDirectoryPath(),
-	]);
+		join(resolveClineDataDir(), HOOKS_CONFIG_DIRECTORY_NAME),
+	];
+	if (workspacePath) {
+		hooks.push(
+			join(workspacePath, DEPRECATED_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
+			join(workspacePath, CLINE_CONFIG_DIR, HOOKS_CONFIG_DIRECTORY_NAME),
+		);
+	}
+	return dedupePaths(hooks);
 }
 
 export function resolveSkillsConfigSearchPaths(
@@ -210,18 +221,24 @@ export function resolveSkillsConfigSearchPaths(
 ): string[] {
 	return dedupePaths([
 		...getWorkspaceSkillDirectories(workspacePath),
-		join(resolveClineDataDir(), "settings", SKILLS_CONFIG_DIRECTORY_NAME),
 		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
-		join(HOME_DIR, ".agents", SKILLS_CONFIG_DIRECTORY_NAME),
+		join(HOME_DIR, AGENT_CONFIG_DIRECTORY_NAME, SKILLS_CONFIG_DIRECTORY_NAME),
 	]);
 }
 
 export function resolveRulesConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
+	const wsPaths = workspacePath
+		? [".clinerules", ".cline"].map((prefix) =>
+				join(workspacePath, prefix, RULES_CONFIG_DIRECTORY_NAME),
+			)
+		: [];
+	const workspaceRoot = workspacePath ? [workspacePath] : [];
 	return dedupePaths([
-		workspacePath ? join(workspacePath, ".clinerules") : "",
-		join(resolveClineDataDir(), "settings", RULES_CONFIG_DIRECTORY_NAME),
+		...workspaceRoot,
+		...wsPaths,
+		join(resolveClineDataDir(), RULES_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsRulesDirectoryPath(),
 	]);
 }
@@ -230,8 +247,10 @@ export function resolveWorkflowsConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	return dedupePaths([
-		workspacePath ? join(workspacePath, ".clinerules", "workflows") : "",
-		join(resolveClineDataDir(), "settings", WORKFLOWS_CONFIG_DIRECTORY_NAME),
+		workspacePath
+			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
+			: "",
+		join(resolveClineDataDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsWorkflowsDirectoryPath(),
 	]);
 }

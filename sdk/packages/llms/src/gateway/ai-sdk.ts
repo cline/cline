@@ -363,6 +363,15 @@ function toAiSdkMessages(
 				continue;
 			}
 
+			if (part.type === "file") {
+				content.push({
+					type: "file",
+					path: part.path,
+					content: part.content,
+				});
+				continue;
+			}
+
 			if (part.type === "tool-call") {
 				const thoughtSignature =
 					part.metadata?.thoughtSignature ?? part.metadata?.thought_signature;
@@ -714,7 +723,58 @@ function normalizeUsage(
 	};
 }
 
+/**
+ * Suppress unhandled rejections from AI SDK stream promises (usage, finishReason, etc.)
+ * that reject with NoOutputGeneratedError when the stream encounters an error.
+ */
+function suppressDanglingStreamPromises(
+	stream: AiSdkStreamResult | undefined,
+): void {
+	if (!stream) return;
+	const noop = () => {};
+	if (
+		stream.usage &&
+		typeof (stream.usage as Promise<unknown>).catch === "function"
+	) {
+		(stream.usage as Promise<unknown>).catch(noop);
+	}
+	if (
+		stream.text &&
+		typeof (stream.text as Promise<unknown>).catch === "function"
+	) {
+		(stream.text as Promise<unknown>).catch(noop);
+	}
+	// Suppress any other promise-valued properties the AI SDK may expose.
+	for (const key of Object.keys(stream)) {
+		const val = (stream as Record<string, unknown>)[key];
+		if (
+			val &&
+			typeof val === "object" &&
+			typeof (val as Promise<unknown>).catch === "function"
+		) {
+			(val as Promise<unknown>).catch(noop);
+		}
+	}
+}
+
 function extractErrorMessage(error: unknown): string {
+	if (error instanceof Error) {
+		if (
+			error.name === "AI_MissingToolResultsError" ||
+			error.message.includes("Tool result is missing for tool call")
+		) {
+			return "A previous turn left an unfinished tool call in the conversation history. The runtime will need to resume from a repaired history state before sending more user content.";
+		}
+		if (
+			error.name === "AI_NoOutputGeneratedError" ||
+			error.message.includes(
+				"No output generated. Check the stream for errors.",
+			)
+		) {
+			return "The model stream ended without producing output. This usually means an earlier tool-call or prompt-formatting error interrupted the turn.";
+		}
+	}
+
 	if (
 		error &&
 		typeof error === "object" &&
@@ -726,23 +786,30 @@ function extractErrorMessage(error: unknown): string {
 			responseBody?: unknown;
 			message?: unknown;
 		};
+		const statusCode =
+			typeof apiError.statusCode === "number" ? apiError.statusCode : undefined;
 		if (typeof apiError.responseBody === "string") {
 			try {
 				const parsed = JSON.parse(apiError.responseBody) as {
 					error?: { message?: string } | string;
 				};
-				if (typeof parsed.error === "string") {
-					return parsed.error;
-				}
-				if (typeof parsed.error?.message === "string") {
-					return parsed.error.message;
+				const msg =
+					typeof parsed.error === "string"
+						? parsed.error
+						: typeof parsed.error?.message === "string"
+							? parsed.error.message
+							: undefined;
+				if (msg) {
+					return statusCode ? `${statusCode} ${msg}` : msg;
 				}
 			} catch {
 				// Fall through to other representations.
 			}
 		}
 		if (typeof apiError.message === "string" && apiError.message.trim()) {
-			return apiError.message;
+			return statusCode
+				? `${statusCode} ${apiError.message}`
+				: apiError.message;
 		}
 	}
 
@@ -837,6 +904,8 @@ async function* emitAiSdkEvents(
 			if (part.type === "tool-call") {
 				sawToolCalls = true;
 				const input = (part.input ?? part.args ?? {}) as unknown;
+				const inputText =
+					typeof input === "string" ? input : JSON.stringify(input);
 				yield {
 					type: "tool-call-delta",
 					toolCallId:
@@ -848,7 +917,7 @@ async function* emitAiSdkEvents(
 						(part.name as string | undefined) ??
 						"tool",
 					input: typeof input === "string" ? undefined : input,
-					inputText: typeof input === "string" ? input : JSON.stringify(input),
+					inputText,
 					metadata: extractGoogleThoughtMetadata(part),
 				};
 				continue;
@@ -958,12 +1027,13 @@ async function createProviderModule(
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
+			let stream: AiSdkStreamResult | undefined;
 			try {
 				const provider = await createProviderModule(kind, config, context);
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const stream = streamText({
+				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: (shouldUseAnthropicPromptCache(request, context)
 						? buildCachedAiSdkMessages(request, context, request.systemPrompt)
@@ -976,10 +1046,16 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						isEnabled: langfuse,
 					},
 					providerOptions: toAiSdkProviderOptions(request, context) as never,
+					// Suppress the AI SDK's default console.error on stream errors;
+					// we surface errors through the finish event instead.
+					onError: () => {},
 				}) as unknown as AiSdkStreamResult;
 
 				yield* emitAiSdkEvents(stream, context.model.metadata?.pricing);
 			} catch (error) {
+				// Suppress unhandled rejections from dangling AI SDK promises
+				// (e.g. usage, finishReason) that reject when the stream errors.
+				suppressDanglingStreamPromises(stream);
 				yield {
 					type: "finish",
 					reason: "error",

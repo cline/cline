@@ -1,3 +1,5 @@
+import { formatFileContentBlock } from "../prompt/format";
+
 export type AiSdkFormatterMessageRole = "user" | "assistant" | "tool";
 
 export type AiSdkFormatterPart =
@@ -14,6 +16,11 @@ export type AiSdkFormatterPart =
 			type: "image";
 			image: string | Uint8Array | ArrayBuffer | URL;
 			mediaType?: string;
+	  }
+	| {
+			type: "file";
+			path: string;
+			content: string;
 	  }
 	| {
 			type: "tool-call";
@@ -109,6 +116,12 @@ export function formatMessagesForAiSdk(
 						type: "image",
 						image: part.image,
 						mediaType: part.mediaType,
+					});
+					break;
+				case "file":
+					messageParts.push({
+						type: "text",
+						text: formatFileContentBlock(part.path, part.content),
 					});
 					break;
 				case "tool-call":

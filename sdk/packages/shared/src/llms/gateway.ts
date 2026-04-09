@@ -28,6 +28,11 @@ export type AgentMessagePart =
 			mediaType?: string;
 	  }
 	| {
+			type: "file";
+			path: string;
+			content: string;
+	  }
+	| {
 			type: "tool-call";
 			toolCallId: string;
 			toolName: string;

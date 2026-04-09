@@ -51,12 +51,11 @@ describe("user instruction config loader", () => {
 			expect.arrayContaining([
 				join(workspacePath, ".clinerules", "skills"),
 				join(workspacePath, ".cline", "skills"),
-				join(workspacePath, ".claude", "skills"),
-				join(workspacePath, ".agents", "skills"),
+				join(workspacePath, "agents", "skills"),
 			]),
 		);
 		expect(resolveRulesConfigSearchPaths(workspacePath)).toEqual(
-			expect.arrayContaining([join(workspacePath, ".clinerules")]),
+			expect.arrayContaining([join(workspacePath, ".clinerules", "rules")]),
 		);
 		expect(resolveWorkflowsConfigSearchPaths(workspacePath)).toEqual(
 			expect.arrayContaining([join(workspacePath, ".clinerules", "workflows")]),

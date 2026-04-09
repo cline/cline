@@ -1,24 +1,59 @@
 import { jsonrepair } from "jsonrepair";
 
-function tryParseJson(text: string): unknown {
-	return JSON.parse(text);
+const BARE_OBJECT_RE = /^\{\s*"([A-Za-z0-9_.$-]+)"\s*:\s*([\s\S]+?)\s*\}$/;
+/**
+ * Attempt to repair `{"key": some unquoted value}` by wrapping the value in quotes.
+ * Returns undefined when the input doesn't match or the value is already a JSON token.
+ */
+function repairBareObjectValue(
+	text: string,
+): Record<string, string> | undefined {
+	const match = text.match(BARE_OBJECT_RE);
+	if (!match) return undefined;
+
+	const [, key, rawValue] = match;
+	const value = rawValue.trim();
+	if (!value) return undefined;
+
+	// Skip values that are already valid JSON tokens
+	const ch = value[0];
+	if (
+		ch === '"' ||
+		ch === "{" ||
+		ch === "[" ||
+		value === "true" ||
+		value === "false" ||
+		value === "null" ||
+		Number.isFinite(Number(value))
+	) {
+		return undefined;
+	}
+
+	return JSON.parse(`{"${key}":${JSON.stringify(value)}}`);
 }
+
+/** Parse strategies applied in order — first success wins. */
+const strategies: Array<(text: string) => unknown> = [
+	(text) => JSON.parse(text),
+	(text) => JSON.parse(jsonrepair(text)),
+	repairBareObjectValue,
+];
 
 export function parseJsonStream(input: unknown): unknown {
 	if (typeof input !== "string") return input;
 
 	const text = input.trimStart();
-	if (!(text.startsWith("{") || text.startsWith("["))) return input;
+	if (text[0] !== "{" && text[0] !== "[") return input;
 
-	try {
-		return tryParseJson(text);
-	} catch {
+	for (const strategy of strategies) {
 		try {
-			return tryParseJson(jsonrepair(text));
+			const result = strategy(text);
+			if (result !== undefined) return result;
 		} catch {
-			return input;
+			// strategy failed — try next
 		}
 	}
+	return input;
 }
 
 export function safeJsonStringify(input: unknown): string {
