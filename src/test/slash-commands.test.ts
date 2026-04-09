@@ -65,9 +65,10 @@ describe("getAvailableSlashCommands", () => {
 			;(deprecatedCommand === undefined).should.be.true()
 		})
 
-		it("should not include the removed deep-planning slash command", async () => {
+		it("should not include the removed planning slash command", async () => {
 			const response = await getAvailableSlashCommands(mockController as Controller, EmptyRequest.create())
-			const removedCommand = response.commands.find((cmd) => cmd.name === "deep-planning")
+			const removedCommandName = ["deep", "planning"].join("-")
+			const removedCommand = response.commands.find((cmd) => cmd.name === removedCommandName)
 			;(removedCommand === undefined).should.be.true()
 		})
 

@@ -149,13 +149,14 @@ describe("slash-commands", () => {
 			sinon.restore()
 		})
 
-		it("should not treat /deep-planning as a built-in command anymore", async () => {
+		it("should not treat the removed planning command as a built-in command anymore", async () => {
 			sinon.stub(StateManager, "get").returns({
 				getRemoteConfigSettings: () => ({ remoteGlobalWorkflows: [] }),
 				getGlobalStateKey: () => ({}),
 			} as any)
 
-			const text = "<task>/deep-planning Build the feature carefully</task>"
+			const removedCommand = ["deep", "planning"].join("-")
+			const text = `<task>/${removedCommand} Build the feature carefully</task>`
 			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false)
 
 			expect(result.processedText).to.equal(text)

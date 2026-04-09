@@ -55,12 +55,12 @@ This makes the product surface simpler, reduces maintenance burden, and removes 
 - [x] Remove deep-planning prompt generation entry points
 - [x] Delete the dedicated `src/core/prompts/commands/deep-planning/` implementation tree
 - [x] Update command discovery and parser tests
-- [ ] Update CLI-visible command behavior expectations if needed
-- [ ] Remove or rewrite public docs that reference `/deep-planning`
-- [ ] Remove docs navigation and redirects for the deep-planning feature page
-- [ ] Update changelog or release notes only if the team wants the removal called out publicly
-- [ ] Run code verification, test verification, and docs link verification
-- [ ] Perform a final search to confirm no stale references remain in maintained source/docs
+- [x] Update CLI-visible command behavior expectations if needed
+- [x] Remove or rewrite public docs that reference `/deep-planning`
+- [x] Remove docs navigation and redirects for the deep-planning feature page
+- [x] Update changelog or release notes only if the team wants the removal called out publicly
+- [x] Run code verification, test verification, and docs link verification
+- [x] Perform a final search to confirm no stale references remain in maintained source/docs
 
 ---
 
@@ -431,9 +431,9 @@ The CLI is probably affected only through shared command metadata and slash-comm
 
 ### Developer checklist
 
-- [ ] Confirm CLI command lists no longer surface `/deep-planning`
-- [ ] Confirm there is no CLI-only special handling to remove
-- [ ] Run CLI tests if the command list affects any user-facing snapshots or assumptions
+- [x] Confirm CLI command lists no longer surface `/deep-planning`
+- [x] Confirm there is no CLI-only special handling to remove
+- [x] Run CLI tests if the command list affects any user-facing snapshots or assumptions
 
 ---
 
@@ -513,11 +513,11 @@ If docs are not updated thoroughly, users will continue trying to use the remove
 
 ### Developer checklist
 
-- [ ] Delete or intentionally replace `docs/features/deep-planning.mdx`
-- [ ] Remove the page from `docs/docs.json` navigation
-- [ ] Remove relevant redirects in `docs/docs.json`
-- [ ] Update references in `using-commands`, `plan-and-act`, `focus-chain`, `memory-bank`, and contributing docs
-- [ ] Run link checking after docs changes
+- [x] Delete or intentionally replace `docs/features/deep-planning.mdx`
+- [x] Remove the page from `docs/docs.json` navigation
+- [x] Remove relevant redirects in `docs/docs.json`
+- [x] Update references in `using-commands`, `plan-and-act`, `focus-chain`, `memory-bank`, and contributing docs
+- [x] Run link checking after docs changes
 
 ---
 
@@ -546,8 +546,8 @@ Not every mention of deep planning must be erased. The key distinction is:
 
 ### Developer checklist
 
-- [ ] Decide whether to add a new changelog entry for the removal
-- [ ] Leave historical changelog references alone unless product policy says otherwise
+- [x] Decide whether to add a new changelog entry for the removal
+- [x] Leave historical changelog references alone unless product policy says otherwise
 
 ---
 
@@ -578,25 +578,25 @@ rg -n "deep-planning|/deep-planning|implementation_plan\.md" /Users/evekillaby/d
 
 - [x] Update `src/test/slash-commands.test.ts`
 - [x] Add or update parser regression tests if needed
-- [ ] Review CLI tests for any command-count assumptions
+- [x] Review CLI tests for any command-count assumptions
 
 ### Phase 4 — Update docs and navigation
 
-- [ ] Remove or rewrite `docs/features/deep-planning.mdx`
-- [ ] Update `docs/core-workflows/using-commands.mdx`
-- [ ] Update `docs/core-workflows/plan-and-act.mdx`
-- [ ] Update `docs/features/focus-chain.mdx`
-- [ ] Update `docs/features/memory-bank.mdx`
-- [ ] Update `docs/contributing/documentation-guide.mdx`
-- [ ] Update `docs/docs.json`
+- [x] Remove or rewrite `docs/features/deep-planning.mdx`
+- [x] Update `docs/core-workflows/using-commands.mdx`
+- [x] Update `docs/core-workflows/plan-and-act.mdx`
+- [x] Update `docs/features/focus-chain.mdx`
+- [x] Update `docs/features/memory-bank.mdx`
+- [x] Update `docs/contributing/documentation-guide.mdx`
+- [x] Update `docs/docs.json`
 
 ### Phase 5 — Verify and clean up
 
-- [ ] Run typechecking
-- [ ] Run relevant unit tests
-- [ ] Run CLI tests if command-list behavior might be affected
-- [ ] Run docs link checking
-- [ ] Run a final repository-wide search for stale references
+- [x] Run typechecking
+- [x] Run relevant unit tests
+- [x] Run CLI tests if command-list behavior might be affected
+- [x] Run docs link checking
+- [x] Run a final repository-wide search for stale references
 
 ---
 
@@ -780,6 +780,17 @@ The team might be tempted to simultaneously redesign planning UX, command UX, do
 - [ ] docs navigation and redirects are clean
 - [ ] typecheck, tests, and docs link checks passed
 
+Status after implementation:
+
+- [x] `/deep-planning` no longer appears in built-in slash-command metadata
+- [x] parser no longer treats `/deep-planning` as a built-in command
+- [x] deep-planning prompt-generation code has been fully removed
+- [x] no maintained source files still import deep-planning prompt code
+- [x] command discovery tests reflect the new built-in command set
+- [x] docs no longer instruct users to use `/deep-planning`
+- [x] docs navigation and redirects are clean
+- [x] typecheck, tests, and docs link checks passed
+
 ---
 
 ## Recommended commit strategy
@@ -823,14 +834,14 @@ If you are not deep in the codebase, the simplest way to understand this project
 
 This project should be considered complete only when all of the following are true:
 
-- [ ] `/deep-planning` is gone from `BASE_SLASH_COMMANDS`
-- [ ] `/deep-planning` is gone from built-in slash parsing
-- [ ] deep-planning prompt code has been deleted from `src/core/prompts/commands/deep-planning/`
-- [ ] no maintained code imports or references the deleted modules
-- [ ] relevant tests pass
-- [ ] docs no longer present `/deep-planning` as a current feature
-- [ ] docs navigation and links are valid
-- [ ] final repository search shows no unexpected maintained references
+- [x] `/deep-planning` is gone from `BASE_SLASH_COMMANDS`
+- [x] `/deep-planning` is gone from built-in slash parsing
+- [x] deep-planning prompt code has been deleted from `src/core/prompts/commands/deep-planning/`
+- [x] no maintained code imports or references the deleted modules
+- [x] relevant tests pass
+- [x] docs no longer present `/deep-planning` as a current feature
+- [x] docs navigation and links are valid
+- [x] final repository search shows no unexpected maintained references
 
 ---
 

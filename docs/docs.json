@@ -131,7 +131,6 @@
 							"features/subagents",
 							"features/background-edit",
 							"features/jupyter-notebooks",
-							"features/deep-planning",
 							"features/web-tools",
 							"features/worktrees"
 						]
@@ -646,10 +645,6 @@
 		{
 			"source": "/troubleshooting/terminal-integration-guide",
 			"destination": "/troubleshooting/terminal-quick-fixes"
-		},
-		{
-			"source": "/features/slash-commands/deep-planning",
-			"destination": "/features/deep-planning"
 		},
 		{
 			"source": "/features/slash-commands/smol",
