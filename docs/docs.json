@@ -647,6 +647,14 @@
 			"destination": "/troubleshooting/terminal-quick-fixes"
 		},
 		{
+			"source": "/features/deep-planning",
+			"destination": "/core-workflows/plan-and-act"
+		},
+		{
+			"source": "/features/slash-commands/deep-planning",
+			"destination": "/core-workflows/plan-and-act"
+		},
+		{
 			"source": "/features/slash-commands/smol",
 			"destination": "/core-workflows/using-commands#smol"
 		},

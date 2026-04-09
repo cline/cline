@@ -155,7 +155,7 @@ describe("slash-commands", () => {
 				getGlobalStateKey: () => ({}),
 			} as any)
 
-			const removedCommand = ["deep", "planning"].join("-")
+			const removedCommand = "deep-planning" // previously a built-in command, removed in this PR
 			const text = `<task>/${removedCommand} Build the feature carefully</task>`
 			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false)
 
