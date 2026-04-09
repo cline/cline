@@ -489,20 +489,20 @@ Make workflow commands disappear from command lists, validation, autocomplete, a
 
 ### Work
 
-- [ ] In `getAvailableSlashCommands.ts`, remove all logic that appends local/global/remote workflows.
-- [ ] Ensure only supported built-in commands (and any intended remaining categories such as MCP prompt commands if applicable to that path) remain.
-- [ ] In `webview-ui/src/utils/slash-commands.ts`, remove:
+- [x] In `getAvailableSlashCommands.ts`, remove all logic that appends local/global/remote workflows.
+- [x] Ensure only supported built-in commands (and any intended remaining categories such as MCP prompt commands if applicable to that path) remain.
+- [x] In `webview-ui/src/utils/slash-commands.ts`, remove:
   - `getWorkflowCommands()`
   - workflow toggle parameters from helper signatures
   - remote workflow parameter usage
   - workflow command merging logic
-- [ ] Update `getMatchingSlashCommands()` and `validateSlashCommand()` to work without workflow inputs.
-- [ ] In `ChatTextArea.tsx`, remove workflow toggle and remote workflow arguments passed to slash-command helper functions.
-- [ ] In `SlashCommandMenu.tsx`, remove:
+- [x] Update `getMatchingSlashCommands()` and `validateSlashCommand()` to work without workflow inputs.
+- [x] In `ChatTextArea.tsx`, remove workflow toggle and remote workflow arguments passed to slash-command helper functions.
+- [x] In `SlashCommandMenu.tsx`, remove:
   - workflow-related props
   - “Workflow Commands” section rendering
-- [ ] Verify built-in slash command selection still works.
-- [ ] Verify MCP prompt slash command suggestions still work.
+- [x] Verify built-in slash command selection still works.
+- [x] Verify MCP prompt slash command suggestions still work.
 
 ### Why this phase matters
 
@@ -895,8 +895,8 @@ Possible mapping guidance:
 - [ ] Remove workflow state from `ExtensionStateContext`
 - [ ] Stop posting workflow fields from controller to webview
 - [ ] Remove Workflows tab from `ClineRulesToggleModal.tsx`
-- [ ] Remove workflow section from `SlashCommandMenu.tsx`
-- [ ] Remove workflow inputs from `ChatTextArea.tsx`
+- [x] Remove workflow section from `SlashCommandMenu.tsx`
+- [x] Remove workflow inputs from `ChatTextArea.tsx`
 
 ## F. CLI UI
 
@@ -914,10 +914,10 @@ Possible mapping guidance:
 
 ## H. Tests
 
-- [ ] Delete workflow-specific unit tests
-- [ ] Update parser tests
+- [x] Delete workflow-specific unit tests
+- [x] Update parser tests
 - [ ] Update remote-config schema tests
-- [ ] Add “workflows no longer execute” regression coverage
+- [x] Add “workflows no longer execute” regression coverage
 
 ## I. Docs and release notes
 

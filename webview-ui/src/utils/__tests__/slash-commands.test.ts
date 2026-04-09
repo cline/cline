@@ -151,26 +151,31 @@ describe("slash-commands", () => {
 		]
 
 		it("should include MCP commands in results when no query", () => {
-			const result = getMatchingSlashCommands("", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("", mcpServers)
 			const mcpCommands = result.filter((cmd) => cmd.section === "mcp")
 			expect(mcpCommands).toHaveLength(2)
 		})
 
 		it("should filter MCP commands by query prefix", () => {
-			const result = getMatchingSlashCommands("mcp:test", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("mcp:test", mcpServers)
 			const mcpCommands = result.filter((cmd) => cmd.section === "mcp")
 			expect(mcpCommands).toHaveLength(2)
 		})
 
 		it("should filter to specific MCP prompt", () => {
-			const result = getMatchingSlashCommands("mcp:test-server:sum", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("mcp:test-server:sum", mcpServers)
 			expect(result).toHaveLength(1)
 			expect(result[0].name).toBe("mcp:test-server:summarize")
 		})
 
 		it("should return empty for non-matching MCP query", () => {
-			const result = getMatchingSlashCommands("mcp:nonexistent", {}, {}, undefined, undefined, mcpServers)
+			const result = getMatchingSlashCommands("mcp:nonexistent", mcpServers)
 			expect(result).toHaveLength(0)
+		})
+
+		it("should not treat workflow-like filenames as available commands", () => {
+			const result = getMatchingSlashCommands("release", mcpServers)
+			expect(result.some((cmd) => cmd.name === "release.md")).toBe(false)
 		})
 	})
 
@@ -183,22 +188,27 @@ describe("slash-commands", () => {
 		]
 
 		it("should return full for exact MCP command match", () => {
-			const result = validateSlashCommand("mcp:server:prompt", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:server:prompt", mcpServers)
 			expect(result).toBe("full")
 		})
 
 		it("should return partial for partial MCP command match", () => {
-			const result = validateSlashCommand("mcp:server:pro", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:server:pro", mcpServers)
 			expect(result).toBe("partial")
 		})
 
 		it("should return partial for server prefix only", () => {
-			const result = validateSlashCommand("mcp:serv", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:serv", mcpServers)
 			expect(result).toBe("partial")
 		})
 
 		it("should return null for non-matching MCP command", () => {
-			const result = validateSlashCommand("mcp:unknown:cmd", {}, {}, undefined, undefined, mcpServers)
+			const result = validateSlashCommand("mcp:unknown:cmd", mcpServers)
+			expect(result).toBe(null)
+		})
+
+		it("should return null for workflow-like filenames", () => {
+			const result = validateSlashCommand("release.md", mcpServers)
 			expect(result).toBe(null)
 		})
 	})
