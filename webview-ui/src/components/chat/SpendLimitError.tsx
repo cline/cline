@@ -37,6 +37,9 @@ interface SpendLimitErrorProps {
 }
 
 const SpendLimitError: React.FC<SpendLimitErrorProps> = ({ message, budgetPeriod, limitUsd, spentUsd, resetsAt }) => {
+	const displayMessage =
+		limitUsd != null && budgetPeriod ? `$${limitUsd.toFixed(2)} ${budgetPeriod} limit has been reached.` : message
+
 	const [buttonState, setButtonState] = useState<RequestButtonState>(() => {
 		try {
 			const ts = localStorage.getItem(COOLDOWN_KEY)
@@ -84,13 +87,15 @@ const SpendLimitError: React.FC<SpendLimitErrorProps> = ({ message, budgetPeriod
 	const resetsAtFormatted = formatResetsAt(resetsAt)
 
 	return (
-		<div className="p-2 border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)">
-			<div className="mb-3 font-azeret-mono">
-				<div className="text-error mb-2">{message}</div>
+		<div className="border-none rounded-md mb-2 bg-(--vscode-textBlockQuote-background)" style={{ padding: "10px 12px" }}>
+			<div className="mb-3">
+				<div className="text-error mb-2" style={{ fontSize: "calc(var(--vscode-font-size) + 2px)" }}>
+					{displayMessage}
+				</div>
 
 				<div className="mb-3">
 					{spentUsd != null && limitUsd != null && (
-						<div className="text-foreground">
+						<div className="text-foreground" style={{ fontSize: "var(--vscode-font-size)", lineHeight: 1.3 }}>
 							{periodLabel ? `${periodLabel} usage` : "Usage"}:{" "}
 							<span className="font-bold">
 								${spentUsd.toFixed(2)} / ${limitUsd.toFixed(2)}
@@ -99,12 +104,12 @@ const SpendLimitError: React.FC<SpendLimitErrorProps> = ({ message, budgetPeriod
 					)}
 
 					{resetsAtFormatted && (
-						<div className="text-foreground mt-1">
+						<div className="text-foreground" style={{ fontSize: "var(--vscode-font-size)", lineHeight: 1.3 }}>
 							Resets: <span className="font-bold">{resetsAtFormatted}</span>
 						</div>
 					)}
 
-					<div className="text-(--vscode-descriptionForeground) mt-2 text-xs">
+					<div className="text-(--vscode-descriptionForeground) mt-2 text-xs inline-flex items-center">
 						<span className="codicon codicon-organization mr-1" />
 						Limits set by your organization.
 					</div>
