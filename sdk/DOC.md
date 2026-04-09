@@ -37,7 +37,7 @@ Behavior notes:
 
 ## `@clinebot/llms`
 
-Primary role: provider/model runtime layer.
+Primary role: provider/model runtime layer built around an internal gateway registry.
 
 Important exported areas:
 
@@ -45,10 +45,11 @@ Important exported areas:
 - model catalog helpers
 - handler creation
 - provider manifests and runtime registry
+- shared gateway/provider contracts re-exported from `@clinebot/shared`
 
 Behavior notes:
 
-- provider execution is organized around protocol families, not just provider ids
+- provider execution is organized around a gateway registry plus AI SDK-backed protocol families, not just provider ids
 - app and runtime code should use the package root exports rather than deep internal imports
 
 ## `@clinebot/agents`

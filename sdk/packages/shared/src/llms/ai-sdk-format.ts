@@ -8,6 +8,7 @@ export type AiSdkFormatterPart =
 	| {
 			type: "reasoning";
 			text: string;
+			providerOptions?: Record<string, Record<string, unknown>>;
 	  }
 	| {
 			type: "image";
@@ -19,6 +20,7 @@ export type AiSdkFormatterPart =
 			toolCallId: string;
 			toolName: string;
 			input: unknown;
+			providerOptions?: Record<string, Record<string, unknown>>;
 	  }
 	| {
 			type: "tool-result";
@@ -86,17 +88,24 @@ export function formatMessagesForAiSdk(
 			continue;
 		}
 
-		const parts: AiSdkMessagePart[] = [];
+		const messageParts: AiSdkMessagePart[] = [];
+		const toolResultParts: AiSdkMessagePart[] = [];
 		for (const part of message.content) {
 			switch (part.type) {
 				case "text":
-					parts.push({ type: "text", text: part.text });
+					messageParts.push({ type: "text", text: part.text });
 					break;
 				case "reasoning":
-					parts.push({ type: "reasoning", text: part.text });
+					messageParts.push({
+						type: "reasoning",
+						text: part.text,
+						...(part.providerOptions
+							? { providerOptions: part.providerOptions }
+							: {}),
+					});
 					break;
 				case "image":
-					parts.push({
+					messageParts.push({
 						type: "image",
 						image: part.image,
 						mediaType: part.mediaType,
@@ -104,16 +113,19 @@ export function formatMessagesForAiSdk(
 					break;
 				case "tool-call":
 					if (message.role === "assistant") {
-						parts.push({
+						messageParts.push({
 							type: "tool-call",
 							toolCallId: part.toolCallId,
 							toolName: part.toolName,
 							[toolCallArgKey]: part.input,
+							...(part.providerOptions
+								? { providerOptions: part.providerOptions }
+								: {}),
 						});
 					}
 					break;
 				case "tool-result":
-					parts.push({
+					toolResultParts.push({
 						type: "tool-result",
 						toolCallId: part.toolCallId,
 						toolName: part.toolName,
@@ -123,8 +135,11 @@ export function formatMessagesForAiSdk(
 			}
 		}
 
-		if (parts.length > 0) {
-			result.push({ role: message.role, content: parts });
+		if (messageParts.length > 0) {
+			result.push({ role: message.role, content: messageParts });
+		}
+		if (toolResultParts.length > 0) {
+			result.push({ role: "tool", content: toolResultParts });
 		}
 	}
 

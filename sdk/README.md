@@ -5,7 +5,7 @@ This repository contains the packages and host apps that power Cline agent runti
 It is a Bun workspace centered around a small stack of reusable packages:
 
 - `@clinebot/shared`: shared contracts, schemas, path helpers, and runtime utilities
-- `@clinebot/llms`: model catalogs, provider schemas, and handler creation
+- `@clinebot/llms`: model catalogs, shared provider contracts, and AI SDK-backed handler creation
 - `@clinebot/agents`: stateless agent loop, tools, hooks, and extension primitives
 - `@clinebot/scheduler`: scheduled execution and concurrency control
 - `@clinebot/rpc`: cross-process runtime gateway
@@ -39,7 +39,7 @@ Use the docs by question type:
 ### Packages
 
 - `packages/shared`: cross-package building blocks
-- `packages/llms`: provider/model runtime layer
+- `packages/llms`: AI SDK-backed provider/model runtime layer
 - `packages/agents`: stateless execution layer
 - `packages/scheduler`: scheduled runtime execution
 - `packages/rpc`: transport and control-plane layer

@@ -922,6 +922,27 @@ describe("listLocalProviders", () => {
 		).toBe(true);
 	});
 
+	it("uses the same built-in model list for cline as vercel-ai-gateway", async () => {
+		manager.saveProviderSettings(
+			{
+				provider: "cline",
+				apiKey: "test-key",
+				baseUrl: "https://api.cline.bot/api/v1",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+			{ setLastUsed: false },
+		);
+
+		const { providers } = await listLocalProviders(manager);
+		const cline = providers.find((provider) => provider.id === "cline");
+		const gateway = providers.find(
+			(provider) => provider.id === "vercel-ai-gateway",
+		);
+
+		expect(cline?.modelList?.length).toBeGreaterThan(0);
+		expect(cline?.modelList).toEqual(gateway?.modelList);
+	});
+
 	it("does not eagerly fetch LiteLLM private models while listing providers", async () => {
 		manager.saveProviderSettings(
 			{
@@ -950,7 +971,7 @@ describe("listLocalProviders", () => {
 		const litellm = providers.find((provider) => provider.id === "litellm");
 
 		expect(fetchMock).not.toHaveBeenCalled();
-		expect(litellm?.modelList).toEqual([]);
+		expect(litellm?.modelList?.length).toBeGreaterThan(0);
 		expect(
 			litellm?.modelList?.some((model) => model.id === "team/private-model"),
 		).toBe(false);

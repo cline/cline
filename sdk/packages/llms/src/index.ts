@@ -1,6 +1,8 @@
-export { defineLlmsConfig, loadLlmsConfigFromFile } from "./config";
+export type * from "./gateway";
+export { createGateway, DefaultGateway } from "./gateway";
 export type {
 	ModelCollection,
+	ModelInfo,
 	ModelInfo as CatalogModelInfo,
 	ProviderCapability as CatalogProviderCapability,
 	ProviderInfo,
@@ -13,9 +15,7 @@ export {
 	getProviderCollection,
 	getProviderIds,
 	hasProvider,
-	MODEL_COLLECTION_LIST,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
-	OPENAI_CODEX_PROVIDER,
 	registerModel,
 	registerProvider,
 	resetRegistry,
@@ -26,19 +26,13 @@ export type {
 	ApiStreamChunk,
 	ContentBlock,
 	FileContent,
-	HandlerFactory,
 	HandlerModelInfo,
 	ImageContent,
-	LazyHandlerFactory,
 	Message,
 	MessageRole,
 	MessageWithMetadata,
-	ModelCapability,
-	ModelInfo,
-	ModelPricing,
 	ProviderCapability,
 	ProviderConfig,
-	ProviderDefaults,
 	ProviderId,
 	ProviderSettings,
 	RedactedThinkingContent,
@@ -49,20 +43,15 @@ export type {
 	ToolUseContent,
 } from "./providers";
 export {
-	BUILT_IN_PROVIDERS,
 	createHandler,
 	createHandlerAsync,
-	getModelPricing,
-	hasModelCapability,
-	isProviderSupported,
 	normalizeProviderId,
-	OPENAI_COMPATIBLE_PROVIDERS,
 	ProviderSettingsSchema,
 	parseSettings,
 	resolveProviderConfig,
-	supportsModelThinking,
 	toProviderConfig,
 } from "./providers";
-export { disposeLangfuseTelemetry } from "./providers/runtime/langfuse-telemetry";
+export { defineLlmsConfig, loadLlmsConfigFromFile } from "./runtime/config";
+export { disposeLangfuseTelemetry } from "./runtime/langfuse-telemetry";
 export { createLlmsSdk, DefaultLlmsSdk } from "./runtime/registry";
 export type * from "./runtime/types";

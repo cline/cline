@@ -77,6 +77,7 @@ export {
 	formatMessagesForAiSdk,
 	toAiSdkToolResultOutput,
 } from "./llms/ai-sdk-format";
+export type * from "./llms/gateway";
 export type {
 	ContentBlock,
 	FileContent,

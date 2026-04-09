@@ -46,7 +46,7 @@ Practical rule:
 ### Published SDK Packages
 
 - `@clinebot/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, and reusable low-level runtime utilities
-- `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, and handler creation
+- `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, shared gateway contracts, and handler creation
 - `@clinebot/agents`: stateless agent loop, tool orchestration, hook/extension runtime, and event streaming
 - `@clinebot/scheduler`: scheduled execution, concurrency guards, and routine persistence
 - `@clinebot/rpc`: gRPC/control-plane layer for sessions, events, approvals, and schedules

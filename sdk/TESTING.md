@@ -41,35 +41,6 @@ This file tracks the test strategy and implementation progress for `@clinebot/cl
 - Add tests that verify all `exports` entrypoints in `packages/core/package.json` load expected symbols.
 - Status: `pending`
 
-## Progress Log
-
-- 2026-03-05: Created this plan and started Phase 1.
-- 2026-03-05: Completed Phase 1.
-  - Added `packages/core/vitest.e2e.config.ts`.
-  - Updated `packages/core/package.json` scripts to split `test:unit` and `test:e2e`.
-  - Added `packages/core/src/session/default-session-manager.e2e.test.ts` covering start/send/list/read/stop/delete lifecycle with real artifact files.
-  - Updated `packages/core/vitest.config.ts` to exclude `*.e2e.test.ts` from unit runs.
-  - Updated `packages/core/README.md` with unit/e2e/full test commands.
-- 2026-03-05: Started Phase 2.
-  - Added CLI e2e cases for:
-    - JSON mode constraints (`--json` without prompt/stdin, `--json --interactive`)
-    - invalid `list` target handling
-    - invalid `rpc` subcommand handling
-    - missing `auth` provider handling
-    - invalid `--mode` handling
-  - Hardened CLI e2e harness:
-    - increased `spawnSync` `maxBuffer` to reduce truncated stdout parsing failures
-    - reduced `sessions list`/`history` limits in e2e to avoid oversized payloads
-    - made sessions-list parsing tolerant of mixed/stdout-prefixed JSON output
-    - made hook-audit assertion tolerate current log-path behavior fallback
-    - added a shared isolated env factory in CLI e2e tests to mock workspace/runtime context (`HOME`, `CLINE_DATA_DIR`, `CLINE_SESSION_DATA_DIR`, `CLINE_TEAM_DATA_DIR`, provider/hook paths)
-  - Targeted CLI e2e validation for the new/updated cases is passing.
-- 2026-03-05: Added `@clinebot/llms` live provider smoke test.
-  - Added `packages/llms/src/live-providers.test.ts`.
-  - Test reads configured providers from a JSON file (`providers.json` style or direct provider-settings array).
-  - Test sends a minimal prompt to each provider and reports all providers that returned errors.
-  - Test is gated behind `LLMS_LIVE_TESTS=1` and `LLMS_LIVE_PROVIDERS_PATH=...` to keep default runs deterministic.
-
 ## Current Validation Snapshot
 
 - `bun -F @clinebot/core test:e2e`: passing.

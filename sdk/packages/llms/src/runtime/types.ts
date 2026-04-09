@@ -1,17 +1,18 @@
-import type { ModelCollection, ModelInfo, ProviderInfo } from "../models/index";
 import type {
+	ModelCollection,
+	ModelInfo,
 	ProviderCapability as ModelProviderCapability,
 	ProviderClient,
+	ProviderInfo,
 	ProviderProtocol,
-} from "../models/types";
+} from "../model/types";
+import type { HandlerFactory, LazyHandlerFactory } from "../provider/handler";
+import type { BuiltInProviderId } from "../provider/ids";
 import type {
 	ApiHandler,
-	BuiltInProviderId,
-	HandlerFactory,
-	LazyHandlerFactory,
 	ProviderCapability,
 	ProviderConfig,
-} from "../providers/index";
+} from "../providers";
 
 export type ProviderConfigDefaults = Omit<
 	ProviderConfig,

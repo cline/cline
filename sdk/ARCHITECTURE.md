@@ -65,8 +65,9 @@ Owns model/provider runtime concerns:
 
 - provider settings/config resolution
 - model catalogs and manifests
-- handler creation
-- protocol-family execution code
+- shared gateway-style provider contracts
+- handler creation via an internal gateway registry
+- AI SDK-backed provider execution code
 
 Design rule:
 

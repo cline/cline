@@ -252,7 +252,6 @@ export type HookEventPayload =
 	| AgentErrorHookPayload
 	| SessionShutdownHookPayload;
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const HookEventPayloadSchema: z.ZodType<any> = z
 	.object({
 		clineVersion: z.string(),

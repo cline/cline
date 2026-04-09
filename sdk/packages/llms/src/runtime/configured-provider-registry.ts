@@ -1,8 +1,8 @@
 import type {
 	ProviderCapability as ModelProviderCapability,
 	ProviderInfo,
-} from "../models/types";
-import type { ProviderConfig } from "../providers/index";
+} from "../model/types";
+import type { ProviderConfig } from "../providers";
 import type {
 	BuiltInProviderSummary,
 	CreateHandlerInput,

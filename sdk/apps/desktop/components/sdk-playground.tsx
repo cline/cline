@@ -3,8 +3,8 @@
 import type {
 	CustomProviderConfig,
 	ProviderSelectionConfig,
-} from "@clinebot/llms";
-import * as Llms from "@clinebot/llms";
+} from "@clinebot/llms/browser";
+import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@clinebot/llms/browser";
 import {
 	AlertCircle,
 	Braces,
@@ -85,7 +85,7 @@ interface TestResult {
 }
 
 type CatalogProviderCapability = NonNullable<
-	(typeof Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID)[string]["provider"]["capabilities"]
+	(typeof MODEL_COLLECTIONS_BY_PROVIDER_ID)[string]["provider"]["capabilities"]
 >[number];
 
 // ─── Constants ──────────────────────────────────────────────────────────────
@@ -223,7 +223,7 @@ const BUILT_IN_PROVIDERS: BuiltInProviderPreset[] = [
 	...CORE_PROVIDER_IDS.map((id) => {
 		const label = BUILT_IN_PROVIDER_LABELS[id] ?? titleCaseProviderId(id);
 
-		const collection = Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
+		const collection = MODEL_COLLECTIONS_BY_PROVIDER_ID[id];
 		if (collection) {
 			return presetFromCollection(
 				id,

@@ -3,10 +3,10 @@
 import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ModelInfo } from "../src/models/types";
+import type { ModelInfo } from "../src/model/types";
 import { loadModelsDevProviderModels } from "./models/generate-models-dev";
 
-const OUTPUT_FILE = "src/models/generated.ts";
+const OUTPUT_FILE = "src/model/catalog.generated.ts";
 
 function sortObjectByKey<T>(
 	input: Record<string, T>,
@@ -76,7 +76,7 @@ async function generate(): Promise<void> {
  * - ./scripts/generate-models-dev.ts
  */
 
-import type { ModelInfo } from "./types"
+import type { ModelInfo } from "./types";
 
 export const GENERATED_PROVIDER_MODELS: {
   version: number
@@ -92,7 +92,9 @@ export const GENERATED_PROVIDER_MODELS: {
 		const nextProviders = normalizeValue(sortedProviders);
 		let existingProviders: unknown | undefined;
 		try {
-			const existingModule = (await import("../src/models/generated.js")) as {
+			const existingModule = (await import(
+				"../src/model/catalog.generated.js"
+			)) as {
 				GENERATED_PROVIDER_MODELS?: {
 					providers?: Record<string, Record<string, ModelInfo>>;
 				};

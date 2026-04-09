@@ -1,14 +1,15 @@
 # [experimental] @clinebot/llms
 
 `@clinebot/llms` is the model and provider layer for the Cline SDK. It gives
-you typed provider settings, model catalogs, and handler creation for supported
-LLM backends.
+you typed provider settings, model catalogs, shared gateway contracts, and
+AI SDK-backed handler creation for supported LLM backends.
 
 ## What You Get
 
 - `@clinebot/llms/runtime` for declarative config and runtime registry creation
 - `@clinebot/llms/providers` for handler creation and provider settings/types
 - `@clinebot/llms/models` for model catalogs and query helpers
+- `@clinebot/llms` root exports for the gateway registry and shared llm contracts
 
 ## Installation
 
@@ -19,20 +20,17 @@ npm install @clinebot/llms zod
 ## Quick Start
 
 ```ts
-import * as LlmsProviders from "@clinebot/llms/providers";
+import * as LlmsProviders from "@clinebot/llms";
 
 const handler = LlmsProviders.createHandler({
-	provider: "anthropic",
+	providerId: "anthropic",
 	apiKey: process.env.ANTHROPIC_API_KEY ?? "",
-	model: "claude-sonnet-4-6",
+	modelId: "claude-sonnet-4-6",
 });
 
-const stream = handler.createMessage({
-	systemPrompt: "You are a concise assistant.",
-	messages: [{ role: "user", content: [{ type: "text", text: "Say hello." }] }],
-});
-
-for await (const chunk of stream) {
+for await (const chunk of handler.createMessage("You are a concise assistant.", [
+	{ role: "user", content: [{ type: "text", text: "Say hello." }] },
+])) {
 	console.log(chunk);
 }
 ```
@@ -62,6 +60,10 @@ Use `@clinebot/llms/providers` for:
 - `ProviderSettings` and `ProviderSettingsSchema`
 - `ProviderConfig`
 - `Message` and `ApiStreamChunk`
+
+Built-in providers are routed through the internal gateway registry and backed by
+AI SDK provider implementations. Shared gateway contracts are exported from both
+`@clinebot/llms` and `@clinebot/shared`.
 
 ### Models
 

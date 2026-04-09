@@ -77,6 +77,7 @@ export const ModelInfoSchema = z.object({
 	replacedBy: z.string().optional(),
 	releaseDate: z.string().optional(),
 	deprecationDate: z.string().optional(),
+	family: z.string().optional(),
 });
 
 export type ModelInfo = z.infer<typeof ModelInfoSchema>;

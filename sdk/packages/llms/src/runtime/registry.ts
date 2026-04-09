@@ -3,15 +3,17 @@ import {
 	hasProvider,
 	registerModel as registerModelInCatalog,
 	registerProvider as registerProviderInCatalog,
-} from "../models/index";
-import { BUILT_IN_PROVIDER_IDS } from "../providers/config/provider-ids";
+} from "../gateway/model-registry";
+import {
+	registerAsyncHandler,
+	registerHandler,
+} from "../provider/factory-registry";
+import { BUILT_IN_PROVIDER_IDS } from "../provider/ids";
 import {
 	type ApiHandler,
 	createHandler as createProviderHandler,
 	createHandlerAsync as createProviderHandlerAsync,
-	registerAsyncHandler,
-	registerHandler,
-} from "../providers/index";
+} from "../providers";
 import {
 	ConfiguredProviderRegistry,
 	toBuiltInProviderSummary,

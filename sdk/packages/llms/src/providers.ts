@@ -1,46 +1,97 @@
-export {
-	BUILT_IN_PROVIDERS,
-	createHandler,
-	createHandlerAsync,
-	isProviderSupported,
-} from "./providers/index";
-
-export {
-	OPENAI_COMPATIBLE_PROVIDERS,
-	type ProviderDefaults,
-	resolveProviderConfig,
-} from "./providers/runtime/provider-defaults";
-
+export { resolveProviderConfig } from "./provider/defaults";
 export {
 	type ApiHandler,
-	type ApiStreamChunk,
-	type ContentBlock,
-	type FileContent,
-	getModelPricing,
-	type HandlerFactory,
-	type HandlerModelInfo,
-	hasModelCapability,
-	type ImageContent,
-	type LazyHandlerFactory,
-	type Message,
-	type MessageRole,
-	type MessageWithMetadata,
-	type ModelCapability,
-	type ModelInfo,
-	type ModelPricing,
 	normalizeProviderId,
 	type ProviderCapability,
 	type ProviderConfig,
 	type ProviderId,
+} from "./provider/types";
+
+import {
+	createGatewayApiHandler,
+	createGatewayApiHandlerAsync,
+} from "./gateway/compat";
+import {
+	getRegisteredHandler,
+	getRegisteredHandlerAsync,
+	hasRegisteredHandler,
+	isRegisteredHandlerAsync,
+} from "./provider/factory-registry";
+import {
+	type ApiHandler,
+	normalizeProviderId,
+	type ProviderConfig,
+} from "./provider/types";
+
+export {
+	type ApiStreamChunk,
+	type ContentBlock,
+	type FileContent,
+	type HandlerModelInfo,
+	type ImageContent,
+	type Message,
+	type MessageRole,
+	type MessageWithMetadata,
 	type ProviderSettings,
 	ProviderSettingsSchema,
 	parseSettings,
 	type RedactedThinkingContent,
-	supportsModelThinking,
 	type TextContent,
 	type ThinkingContent,
 	type ToolDefinition,
 	type ToolResultContent,
 	type ToolUseContent,
 	toProviderConfig,
-} from "./providers/types/index";
+} from "./provider/types";
+
+function withNormalizedProviderId(config: ProviderConfig): ProviderConfig {
+	const providerId = normalizeProviderId(config.providerId);
+	const routingProviderId = config.routingProviderId
+		? normalizeProviderId(config.routingProviderId)
+		: undefined;
+	if (
+		providerId === config.providerId &&
+		routingProviderId === config.routingProviderId
+	) {
+		return config;
+	}
+	return { ...config, providerId, routingProviderId };
+}
+
+export function createHandler(config: ProviderConfig): ApiHandler {
+	const normalizedConfig = withNormalizedProviderId(config);
+	const { providerId } = normalizedConfig;
+
+	if (hasRegisteredHandler(providerId)) {
+		if (isRegisteredHandlerAsync(providerId)) {
+			throw new Error(
+				`Handler for "${providerId}" is registered as async. Use createHandlerAsync() instead.`,
+			);
+		}
+		const handler = getRegisteredHandler(providerId, normalizedConfig);
+		if (handler) {
+			return handler;
+		}
+	}
+
+	return createGatewayApiHandler(normalizedConfig);
+}
+
+export async function createHandlerAsync(
+	config: ProviderConfig,
+): Promise<ApiHandler> {
+	const normalizedConfig = withNormalizedProviderId(config);
+	const { providerId } = normalizedConfig;
+
+	if (hasRegisteredHandler(providerId)) {
+		const handler = await getRegisteredHandlerAsync(
+			providerId,
+			normalizedConfig,
+		);
+		if (handler) {
+			return handler;
+		}
+	}
+
+	return createGatewayApiHandlerAsync(normalizedConfig);
+}
