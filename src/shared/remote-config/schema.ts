@@ -221,7 +221,7 @@ export const RemoteConfigSchema = z.object({
 
 	enterpriseTelemetry: EnterpriseTelemetrySchema.optional(),
 
-	// Rules & Workflows
+	// Rules
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
 })
 

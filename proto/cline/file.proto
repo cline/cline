@@ -99,6 +99,8 @@ message RefreshedRules {
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
   ClineRulesToggles local_agents_rules_toggles = 5;
+  reserved 6; // was local_workflow_toggles (workflows removed)
+  reserved 7; // was global_workflow_toggles (workflows removed)
 }
 
 // Request to toggle a Windsurf rule
