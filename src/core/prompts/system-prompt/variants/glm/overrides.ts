@@ -137,7 +137,9 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 <response>Your response here</response>
 <needs_more_exploration>true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)</needs_more_exploration>
 <task_progress>Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)</task_progress>
-</plan_mode_respond>
+</plan_mode_respond>${
+		context.subagentsEnabled && !context.isSubagentRun
+			? `
 
 **use_subagents** — Run up to 5 focused in-process subagents in parallel for broad exploration. Each subagent gets its own prompt and returns a comprehensive research result. Use this when reading many files would consume the main agent's context window. Using a single subagent is also valid for light discovery work.
 Params: prompt_1 (required), prompt_2, prompt_3, prompt_4, prompt_5 (all optional).
@@ -146,6 +148,8 @@ Params: prompt_1 (required), prompt_2, prompt_3, prompt_4, prompt_5 (all optiona
 <prompt_1>First subagent task description here.</prompt_1>
 <prompt_2>Optional second subagent task here.</prompt_2>
 </use_subagents>`
+			: ""
+	}`
 }
 
 const GLM_OBJECTIVE_TEMPLATE = `OBJECTIVE
