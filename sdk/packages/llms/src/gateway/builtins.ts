@@ -568,7 +568,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		defaultModelId: "claude-sonnet-4-6",
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		modelsProviderId: "anthropic",
-		defaults: { baseUrl: "https://api.anthropic.com" },
+		defaults: { baseUrl: "https://api.anthropic.com/v1" },
 	},
 	{
 		id: "claude-code",
@@ -589,7 +589,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		defaultModelId: "gemma-4-26b",
 		apiKeyEnv: ["GOOGLE_GENERATIVE_AI_API_KEY", "GEMINI_API_KEY"],
 		modelsProviderId: "gemini",
-		defaults: { baseUrl: "https://generativelanguage.googleapis.com" },
+		defaults: { baseUrl: "https://generativelanguage.googleapis.com/v1beta" },
 	},
 	{
 		id: "vertex",

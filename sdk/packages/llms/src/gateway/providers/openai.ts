@@ -13,7 +13,6 @@ export async function createOpenAIProviderModule(
 	const apiKey = await resolveApiKey(config);
 	const provider = createOpenAI({
 		apiKey,
-		baseURL: config.baseUrl,
 		headers: config.headers,
 		fetch: config.fetch,
 		name: context.provider.id,

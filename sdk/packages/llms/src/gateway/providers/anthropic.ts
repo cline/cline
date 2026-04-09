@@ -13,7 +13,6 @@ export async function createAnthropicProviderModule(
 	const apiKey = await resolveApiKey(config);
 	const provider = createAnthropic({
 		apiKey,
-		baseURL: config.baseUrl,
 		headers: config.headers,
 		fetch: config.fetch,
 		name: context.provider.id,
