@@ -43,7 +43,7 @@ export async function deleteRuleFile(controller: Controller, request: RuleFileRe
 
 	const fileName = getWorkspaceBasename(request.rulePath, "Controller.deleteRuleFile")
 
-	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
+	const fileTypeName = "rule"
 
 	const message = `${fileTypeName} file "${fileName}" deleted successfully`
 	HostProvider.window.showMessage({

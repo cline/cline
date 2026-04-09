@@ -240,7 +240,6 @@ message Settings {
   optional string lm_studio_model_id = 127;
   optional AutoApprovalSettings auto_approval_settings = 128;
   optional string global_cline_rules_toggles = 129;
-  optional string global_workflow_toggles = 130;
   optional string global_skills_toggles = 131;
   optional BrowserSettings browser_settings = 132;
   optional string telemetry_setting = 133;

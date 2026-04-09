@@ -142,7 +142,6 @@ import {
 	filterCommands,
 	getStandaloneSlashCommandToExecute,
 	insertSlashCommand,
-	sortCommandsWorkflowsFirst,
 } from "../utils/slash-commands"
 import { waitFor } from "../utils/timeout"
 import { isFileEditTool, parseToolFromMessage } from "../utils/tools"
@@ -626,7 +625,7 @@ export const ChatView: React.FC<ChatViewProps> = ({
 				// fetch completes. This avoids a race that can make the quit command tests
 				// flaky on slower Windows CI runners.
 				const cliOnlyCommands = createCliOnlySlashCommands()
-				setAvailableCommands([...cliOnlyCommands, ...sortCommandsWorkflowsFirst(cliCommands)])
+				setAvailableCommands([...cliOnlyCommands, ...cliCommands])
 			} catch {
 				// Keep CLI-only commands available even if backend command loading fails.
 			}

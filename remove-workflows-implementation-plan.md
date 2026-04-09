@@ -526,17 +526,17 @@ Eliminate workflow-specific persistent state and directory synchronization.
 
 ### Work
 
-- [ ] Delete `src/core/context/instructions/user-instructions/workflows.ts` if nothing else depends on it.
-- [ ] Remove `ensureWorkflowsDirectoryExists()` from `src/core/storage/disk.ts`.
-- [ ] Remove `GlobalFileNames.workflows` from `disk.ts` if no other feature needs it.
-- [ ] Remove workflow-related state keys from `src/shared/storage/state-keys.ts`:
+- [x] Delete `src/core/context/instructions/user-instructions/workflows.ts` if nothing else depends on it.
+- [x] Remove `ensureWorkflowsDirectoryExists()` from `src/core/storage/disk.ts`.
+- [x] Remove `GlobalFileNames.workflows` from `disk.ts` if no other feature needs it.
+- [x] Remove workflow-related state keys from `src/shared/storage/state-keys.ts`:
   - `workflowToggles`
   - `globalWorkflowToggles`
   - `remoteWorkflowToggles`
   - `remoteGlobalWorkflows`
-- [ ] Remove any inclusion of those keys in local/global/remote state unions or helper arrays.
-- [ ] Check generated state/proto code implications and regenerate anything required by project scripts.
-- [ ] Remove workflow state from any defaults, setters, getters, caches, or serialization code.
+- [x] Remove any inclusion of those keys in local/global/remote state unions or helper arrays.
+- [x] Check generated state/proto code implications and regenerate anything required by project scripts.
+- [x] Remove workflow state from any defaults, setters, getters, caches, or serialization code.
 
 ### Compatibility decision
 
@@ -587,17 +587,17 @@ Preserve rule management while deleting workflow-specific branches from shared h
 
 ### Work
 
-- [ ] In `createRuleFile.ts`, remove the `request.type === "workflow"` branch.
+- [x] In `createRuleFile.ts`, remove the `request.type === "workflow"` branch.
 - [ ] Decide whether `RuleFileRequest.type` remains generic for other rule families or should be narrowed.
-- [ ] In `rule-helpers.ts`, remove workflow-specific creation logic:
+- [x] In `rule-helpers.ts`, remove workflow-specific creation logic:
   - global workflow directory path creation
   - local `.clinerules/workflows` path creation
   - any `default-workflows.md` conversion behavior
-- [ ] In `rule-helpers.ts`, remove workflow-specific deletion logic:
+- [x] In `rule-helpers.ts`, remove workflow-specific deletion logic:
   - deleting entries from `globalWorkflowToggles`
   - deleting entries from `workflowToggles`
-- [ ] In `deleteRuleFile.ts`, remove messaging and branching that treats workflow as a valid file type.
-- [ ] Search for any remaining callers using `type: "workflow"` and remove or refactor them.
+- [x] In `deleteRuleFile.ts`, remove messaging and branching that treats workflow as a valid file type.
+- [x] Search for any remaining callers using `type: "workflow"` and remove or refactor them.
 
 ### Why this phase matters
 
@@ -625,13 +625,13 @@ Shrink the application contract so workflows are no longer part of the extension
 
 ### Work
 
-- [ ] Remove `toggleWorkflow` RPC from `proto/cline/file.proto`.
-- [ ] Remove `ToggleWorkflowRequest` message.
-- [ ] Remove workflow fields from `RefreshedRules`.
-- [ ] Regenerate protobuf code / bindings using the project’s normal proto generation flow.
-- [ ] Delete `src/core/controller/file/toggleWorkflow.ts`.
-- [ ] Update `refreshRules.ts` so it no longer refreshes or returns workflow toggles.
-- [ ] Update any generated TS imports in webview / CLI / core that referenced removed proto fields or requests.
+- [x] Remove `toggleWorkflow` RPC from `proto/cline/file.proto`.
+- [x] Remove `ToggleWorkflowRequest` message.
+- [x] Remove workflow fields from `RefreshedRules`.
+- [x] Regenerate protobuf code / bindings using the project’s normal proto generation flow.
+- [x] Delete `src/core/controller/file/toggleWorkflow.ts`.
+- [x] Update `refreshRules.ts` so it no longer refreshes or returns workflow toggles.
+- [x] Update any generated TS imports in webview / CLI / core that referenced removed proto fields or requests.
 
 ### Important note
 
@@ -656,18 +656,18 @@ Remove all workflow-specific controls from the extension UI while keeping rules/
 
 ### Work
 
-- [ ] In `ClineRulesToggleModal.tsx`, remove the Workflows tab completely.
-- [ ] Remove workflow refresh handling from modal open.
-- [ ] Remove local/global/remote workflow lists.
-- [ ] Remove workflow toggle handlers.
-- [ ] Remove remote workflow rendering and open behavior.
-- [ ] Update tab labels / descriptions / empty states so the UI still reads naturally without workflows.
-- [ ] In `ExtensionStateContext.tsx`, remove workflow state fields, setters, and defaults.
-- [ ] In `src/shared/ExtensionMessage.ts`, remove workflow-related fields from `ExtensionState`.
-- [ ] In `src/core/controller/index.ts`, stop posting workflow state to the webview.
-- [ ] Verify rules tab still works.
-- [ ] Verify hooks and skills tabs still work.
-- [ ] Verify the slash-command menu still behaves correctly after workflow section removal.
+- [x] In `ClineRulesToggleModal.tsx`, remove the Workflows tab completely.
+- [x] Remove workflow refresh handling from modal open.
+- [x] Remove local/global/remote workflow lists.
+- [x] Remove workflow toggle handlers.
+- [x] Remove remote workflow rendering and open behavior.
+- [x] Update tab labels / descriptions / empty states so the UI still reads naturally without workflows.
+- [x] In `ExtensionStateContext.tsx`, remove workflow state fields, setters, and defaults.
+- [x] In `src/shared/ExtensionMessage.ts`, remove workflow-related fields from `ExtensionState`.
+- [x] In `src/core/controller/index.ts`, stop posting workflow state to the webview.
+- [x] Verify rules tab still works.
+- [x] Verify hooks and skills tabs still work.
+- [x] Verify the slash-command menu still behaves correctly after workflow section removal.
 
 ### Why this phase matters
 
@@ -690,12 +690,12 @@ Keep CLI config functional while removing its workflow concepts.
 
 ### Work
 
-- [ ] Remove workflow props from CLI component interfaces.
-- [ ] Remove workflow entries / workflow tab / workflow toggle rendering from `ConfigView.tsx`.
-- [ ] Remove `onToggleWorkflow` plumbing.
-- [ ] Remove dynamic import and handler for `toggleWorkflow` from `ConfigViewWrapper.tsx`.
-- [ ] Remove workflow default state from `cli/workspaceState.json`.
-- [ ] Verify rules, hooks, and skills remain navigable and editable in the CLI.
+- [x] Remove workflow props from CLI component interfaces.
+- [x] Remove workflow entries / workflow tab / workflow toggle rendering from `ConfigView.tsx`.
+- [x] Remove `onToggleWorkflow` plumbing.
+- [x] Remove dynamic import and handler for `toggleWorkflow` from `ConfigViewWrapper.tsx`.
+- [x] Remove workflow default state from `cli/workspaceState.json`.
+- [x] Verify rules, hooks, and skills remain navigable and editable in the CLI.
 
 ### Why this phase matters
 
@@ -718,11 +718,11 @@ Ensure enterprise remote config cannot define workflows anymore.
 
 ### Work
 
-- [ ] Remove `globalWorkflows` from the remote config schema.
-- [ ] Remove `remoteGlobalWorkflows` mapping and transform logic.
-- [ ] Remove synchronization of `remoteWorkflowToggles`.
-- [ ] Remove remote workflow opening support from `openFile.ts` while keeping remote rule support.
-- [ ] Ensure `remote://rule/...` still works if remote rules remain.
+- [x] Remove `globalWorkflows` from the remote config schema.
+- [x] Remove `remoteGlobalWorkflows` mapping and transform logic.
+- [x] Remove synchronization of `remoteWorkflowToggles`.
+- [x] Remove remote workflow opening support from `openFile.ts` while keeping remote rule support.
+- [x] Ensure `remote://rule/...` still works if remote rules remain.
 - [ ] Decide compatibility strategy for older server payloads.
 
 ### Compatibility options
@@ -868,55 +868,55 @@ Possible mapping guidance:
 
 ## B. State and storage
 
-- [ ] Remove workflow state keys from `src/shared/storage/state-keys.ts`
-- [ ] Remove workflow path constants from `src/core/storage/disk.ts`
-- [ ] Remove workflow refresh module and imports
+- [x] Remove workflow state keys from `src/shared/storage/state-keys.ts`
+- [x] Remove workflow path constants from `src/core/storage/disk.ts`
+- [x] Remove workflow refresh module and imports
 - [ ] Decide whether to add explicit cleanup migration
 
 ## C. Shared file-management paths
 
-- [ ] Remove workflow creation logic from `rule-helpers.ts`
-- [ ] Remove workflow deletion logic from `rule-helpers.ts`
-- [ ] Remove `workflow` branches from `createRuleFile.ts`
-- [ ] Remove `workflow` branches from `deleteRuleFile.ts`
+- [x] Remove workflow creation logic from `rule-helpers.ts`
+- [x] Remove workflow deletion logic from `rule-helpers.ts`
+- [x] Remove `workflow` branches from `createRuleFile.ts`
+- [x] Remove `workflow` branches from `deleteRuleFile.ts`
 
 ## D. RPC / proto / controller
 
-- [ ] Remove workflow RPC from `proto/cline/file.proto`
-- [ ] Remove `ToggleWorkflowRequest`
-- [ ] Remove workflow fields from `RefreshedRules`
-- [ ] Regenerate proto outputs
-- [ ] Delete `src/core/controller/file/toggleWorkflow.ts`
-- [ ] Update imports and clients broken by proto changes
+- [x] Remove workflow RPC from `proto/cline/file.proto`
+- [x] Remove `ToggleWorkflowRequest`
+- [x] Remove workflow fields from `RefreshedRules`
+- [x] Regenerate proto outputs
+- [x] Delete `src/core/controller/file/toggleWorkflow.ts`
+- [x] Update imports and clients broken by proto changes
 
 ## E. Webview UI
 
-- [ ] Remove workflow state from `ExtensionState`
-- [ ] Remove workflow state from `ExtensionStateContext`
-- [ ] Stop posting workflow fields from controller to webview
-- [ ] Remove Workflows tab from `ClineRulesToggleModal.tsx`
+- [x] Remove workflow state from `ExtensionState`
+- [x] Remove workflow state from `ExtensionStateContext`
+- [x] Stop posting workflow fields from controller to webview
+- [x] Remove Workflows tab from `ClineRulesToggleModal.tsx`
 - [x] Remove workflow section from `SlashCommandMenu.tsx`
 - [x] Remove workflow inputs from `ChatTextArea.tsx`
 
 ## F. CLI UI
 
-- [ ] Remove workflow props from CLI app components
-- [ ] Remove workflow tab/view from CLI config
-- [ ] Remove workflow toggle handler in CLI wrapper
-- [ ] Remove workflow defaults from CLI workspace state
+- [x] Remove workflow props from CLI app components
+- [x] Remove workflow tab/view from CLI config
+- [x] Remove workflow toggle handler in CLI wrapper
+- [x] Remove workflow defaults from CLI workspace state
 
 ## G. Remote config
 
-- [ ] Remove `globalWorkflows` from schema
-- [ ] Remove transform/state sync for remote workflows
-- [ ] Remove remote workflow open-file support
+- [x] Remove `globalWorkflows` from schema
+- [x] Remove transform/state sync for remote workflows
+- [x] Remove remote workflow open-file support
 - [ ] Confirm rollout compatibility with API server
 
 ## H. Tests
 
 - [x] Delete workflow-specific unit tests
 - [x] Update parser tests
-- [ ] Update remote-config schema tests
+- [x] Update remote-config schema tests
 - [x] Add “workflows no longer execute” regression coverage
 
 ## I. Docs and release notes
@@ -1013,7 +1013,7 @@ Use the project’s existing scripts where possible.
 
 Run:
 
-- [ ] `npm run check-types`
+- [x] `npm run check-types`
 - [ ] `npm run lint`
 - [ ] `npm run compile`
 - [ ] `npm test`
@@ -1022,9 +1022,9 @@ Run:
 
 Run if needed while iterating:
 
-- [ ] `cd webview-ui && npm test`
-- [ ] `cd cli && npm run typecheck`
-- [ ] `cd cli && npm run test:run`
+- [x] `cd webview-ui && npm test`
+- [x] `cd cli && npm run typecheck`
+- [x] `cd cli && npm run test:run`
 
 ### Manual product verification
 
@@ -1051,13 +1051,13 @@ Run if needed while iterating:
 
 #### UI
 
-- [ ] no Workflows tab appears in the webview rules modal
+- [x] no Workflows tab appears in the webview rules modal
 - [ ] no workflow section appears in slash-command autocomplete
-- [ ] no workflow controls appear in CLI config
+- [x] no workflow controls appear in CLI config
 
 #### Remote config
 
-- [ ] remote rules still work
+- [x] remote rules still work
 - [ ] remote workflow payloads are either ignored safely or no longer accepted, per chosen rollout plan
 
 ---
@@ -1067,12 +1067,12 @@ Run if needed while iterating:
 The removal is complete when all of the following are true:
 
 - [ ] no user-defined markdown file can be invoked as a slash command
-- [ ] no workflow-specific state keys are required by runtime code
-- [ ] no workflow UI remains in webview or CLI
-- [ ] no workflow-specific RPC or proto messages remain
-- [ ] remote config cannot activate workflows anymore
+- [x] no workflow-specific state keys are required by runtime code
+- [x] no workflow UI remains in webview or CLI
+- [x] no workflow-specific RPC or proto messages remain
+- [x] remote config cannot activate workflows anymore
 - [ ] docs no longer describe workflows as a feature
-- [ ] tests and compile output are green
+- [x] tests and compile output are green
 - [ ] rules, skills, hooks, built-in slash commands, and MCP prompt slash commands still work
 
 ---

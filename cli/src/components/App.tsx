@@ -68,10 +68,6 @@ interface AppProps {
 	localWindsurfRulesToggles?: Record<string, boolean>
 	localAgentsRulesToggles?: Record<string, boolean>
 	onToggleRule?: (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => void
-	// Workflow toggles
-	globalWorkflowToggles?: Record<string, boolean>
-	localWorkflowToggles?: Record<string, boolean>
-	onToggleWorkflow?: (isGlobal: boolean, workflowPath: string, enabled: boolean) => void
 	// Hooks
 	hooksEnabled?: boolean
 	globalHooks?: HookInfo[]
@@ -123,10 +119,6 @@ const InternalApp: React.FC<AppProps> = ({
 	localWindsurfRulesToggles,
 	localAgentsRulesToggles,
 	onToggleRule,
-	// Workflows
-	globalWorkflowToggles,
-	localWorkflowToggles,
-	onToggleWorkflow,
 	// Hooks
 	hooksEnabled,
 	globalHooks,
@@ -225,18 +217,15 @@ const InternalApp: React.FC<AppProps> = ({
 					globalHooks={globalHooks}
 					globalSkills={globalSkills}
 					globalState={globalState}
-					globalWorkflowToggles={globalWorkflowToggles}
 					hooksEnabled={hooksEnabled}
 					localAgentsRulesToggles={localAgentsRulesToggles}
 					localClineRulesToggles={localClineRulesToggles}
 					localCursorRulesToggles={localCursorRulesToggles}
 					localSkills={localSkills}
 					localWindsurfRulesToggles={localWindsurfRulesToggles}
-					localWorkflowToggles={localWorkflowToggles}
 					onToggleHook={onToggleHook}
 					onToggleRule={onToggleRule}
 					onToggleSkill={onToggleSkill}
-					onToggleWorkflow={onToggleWorkflow}
 					skillsEnabled={skillsEnabled}
 					workspaceHooks={workspaceHooks}
 					workspaceState={workspaceState}

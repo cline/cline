@@ -217,12 +217,9 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.remoteConfiguredProviders = providers
 	}
 
-	// Map global rules and workflows
+	// Map global rules
 	if (remoteConfig.globalRules !== undefined) {
 		transformed.remoteGlobalRules = remoteConfig.globalRules
-	}
-	if (remoteConfig.globalWorkflows !== undefined) {
-		transformed.remoteGlobalWorkflows = remoteConfig.globalWorkflows
 	}
 
 	if (remoteConfig.enterpriseTelemetry?.promptUploading) {
@@ -279,7 +276,6 @@ export function clearRemoteConfig() {
 		telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
-		stateManager.setGlobalState("remoteWorkflowToggles", {})
 
 		// clear secrets
 		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
@@ -315,13 +311,10 @@ export async function applyRemoteConfig(
 
 	// Synchronize toggle state
 	const currentRuleToggles = stateManager.getGlobalStateKey("remoteRulesToggles") || {}
-	const currentWorkflowToggles = stateManager.getGlobalStateKey("remoteWorkflowToggles") || {}
 
 	const syncedRuleToggles = synchronizeRemoteRuleToggles(remoteConfig.globalRules || [], currentRuleToggles)
-	const syncedWorkflowToggles = synchronizeRemoteRuleToggles(remoteConfig.globalWorkflows || [], currentWorkflowToggles)
 
 	stateManager.setGlobalState("remoteRulesToggles", syncedRuleToggles)
-	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
 
 	// Clear existing remote config cache
 	stateManager.clearRemoteConfig()

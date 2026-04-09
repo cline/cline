@@ -63,10 +63,6 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	const [localWindsurfRulesToggles, setLocalWindsurfRulesToggles] = useState<Record<string, boolean>>({})
 	const [localAgentsRulesToggles, setLocalAgentsRulesToggles] = useState<Record<string, boolean>>({})
 
-	// Workflow state
-	const [globalWorkflowToggles, setGlobalWorkflowToggles] = useState<Record<string, boolean>>({})
-	const [localWorkflowToggles, setLocalWorkflowToggles] = useState<Record<string, boolean>>({})
-
 	// Hooks state
 	const [globalHooks, setGlobalHooks] = useState<HookInfo[]>([])
 	const [workspaceHooksState, setWorkspaceHooksState] = useState<WorkspaceHooks[]>([])
@@ -88,8 +84,6 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 			setLocalCursorRulesToggles(rulesData.localCursorRulesToggles?.toggles || {})
 			setLocalWindsurfRulesToggles(rulesData.localWindsurfRulesToggles?.toggles || {})
 			setLocalAgentsRulesToggles(rulesData.localAgentsRulesToggles?.toggles || {})
-			setGlobalWorkflowToggles(rulesData.globalWorkflowToggles?.toggles || {})
-			setLocalWorkflowToggles(rulesData.localWorkflowToggles?.toggles || {})
 
 			if (hooksEnabled) {
 				const hooksData = await refreshHooks(controller, {})
@@ -146,23 +140,6 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 		[controller],
 	)
 
-	const handleToggleWorkflow = useCallback(
-		async (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
-			const { toggleWorkflow } = await import("@/core/controller/file/toggleWorkflow")
-			const scope = isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL
-
-			// Optimistic update
-			if (isGlobal) {
-				setGlobalWorkflowToggles((prev) => ({ ...prev, [workflowPath]: enabled }))
-			} else {
-				setLocalWorkflowToggles((prev) => ({ ...prev, [workflowPath]: enabled }))
-			}
-
-			await toggleWorkflow(controller, { metadata: undefined, workflowPath, enabled, scope })
-		},
-		[controller],
-	)
-
 	const handleToggleHook = useCallback(
 		async (isGlobal: boolean, hookName: string, enabled: boolean, workspaceName?: string) => {
 			const { toggleHook } = await import("@/core/controller/file/toggleHook")
@@ -206,7 +183,7 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 	)
 
 	const handleOpenFolder = useCallback(
-		async (folderType: "rules" | "workflows" | "hooks" | "skills", isGlobal: boolean) => {
+		async (folderType: "rules" | "hooks" | "skills", isGlobal: boolean) => {
 			let folderPath: string
 
 			if (isGlobal) {
@@ -220,7 +197,7 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 				if (!primaryWorkspace) {
 					return
 				}
-				// Local rules/workflows/hooks/skills are in .clinerules or .cline
+				// Local rules/hooks/skills are in .clinerules or .cline
 				const subFolder = folderType === "rules" ? "rules" : folderType
 				folderPath = path.join(primaryWorkspace, ".clinerules", subFolder)
 			}
@@ -277,19 +254,16 @@ export const ConfigViewWrapper: React.FC<ConfigViewWrapperProps> = ({
 				globalHooks={globalHooks}
 				globalSkills={globalSkills}
 				globalState={globalStateLocal}
-				globalWorkflowToggles={globalWorkflowToggles}
 				hooksEnabled={hooksEnabled}
 				localAgentsRulesToggles={localAgentsRulesToggles}
 				localClineRulesToggles={localClineRulesToggles}
 				localCursorRulesToggles={localCursorRulesToggles}
 				localSkills={localSkills}
 				localWindsurfRulesToggles={localWindsurfRulesToggles}
-				localWorkflowToggles={localWorkflowToggles}
 				onOpenFolder={handleOpenFolder}
 				onToggleHook={handleToggleHook}
 				onToggleRule={handleToggleRule}
 				onToggleSkill={handleToggleSkill}
-				onToggleWorkflow={handleToggleWorkflow}
 				onUpdateGlobal={handleUpdateGlobal}
 				onUpdateWorkspace={handleUpdateWorkspace}
 				skillsEnabled={skillsEnabled}

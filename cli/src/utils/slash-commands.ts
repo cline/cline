@@ -58,13 +58,6 @@ export function getVisibleWindow<T>(items: T[], selectedIndex: number, maxVisibl
 }
 
 /**
- * Sort commands with workflows (custom section) first, then default commands.
- */
-export function sortCommandsWorkflowsFirst(commands: SlashCommandInfo[]): SlashCommandInfo[] {
-	return [...commands.filter((cmd) => cmd.section === "custom"), ...commands.filter((cmd) => cmd.section !== "custom")]
-}
-
-/**
  * Extract slash command query from input text.
  * Returns info about whether we're in slash mode and what the query is.
  * Takes cursor position to only examine text before cursor (matching webview behavior).
