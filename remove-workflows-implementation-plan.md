@@ -414,8 +414,8 @@ Why it matters:
 
 ## Phase 0: Prep and safety checks
 
-- [ ] Create a dedicated branch for workflow removal work.
-- [ ] Capture a fresh repo-wide search snapshot for workflow references.
+- [x] Create a dedicated branch for workflow removal work.
+- [x] Capture a fresh repo-wide search snapshot for workflow references.
 - [ ] Confirm product decision on remote-config compatibility strategy:
   - ignore legacy `globalWorkflows` silently, or
   - reject it at schema level.
@@ -449,20 +449,20 @@ Make it impossible for a user-defined workflow markdown file to execute as a sla
 
 ### Work
 
-- [ ] In `src/core/slash-commands/index.ts`, remove workflow-related types:
+- [x] In `src/core/slash-commands/index.ts`, remove workflow-related types:
   - `FileBasedWorkflow`
   - `RemoteWorkflow`
   - `Workflow`
-- [ ] Remove workflow collection logic for:
+- [x] Remove workflow collection logic for:
   - local workflow toggles
   - global workflow toggles
   - remote workflow config
-- [ ] Remove the matching branch that reads workflow file contents and injects them into `<explicit_instructions type="...">...`.
-- [ ] Keep built-in slash command behavior intact.
-- [ ] Keep MCP prompt slash commands intact.
-- [ ] Simplify `parseSlashCommands()` signature if workflow toggle arguments are no longer needed.
-- [ ] Update all `parseSlashCommands()` call sites accordingly.
-- [ ] In `src/core/task/index.ts`, remove the workflow toggle refresh and any workflow arguments passed into parsing.
+- [x] Remove the matching branch that reads workflow file contents and injects them into `<explicit_instructions type="...">...`.
+- [x] Keep built-in slash command behavior intact.
+- [x] Keep MCP prompt slash commands intact.
+- [x] Simplify `parseSlashCommands()` signature if workflow toggle arguments are no longer needed.
+- [x] Update all `parseSlashCommands()` call sites accordingly.
+- [x] In `src/core/task/index.ts`, remove the workflow toggle refresh and any workflow arguments passed into parsing.
 
 ### Why this phase matters
 
@@ -860,11 +860,11 @@ Possible mapping guidance:
 
 ## A. Core runtime and parser
 
-- [ ] Remove workflow branches from `src/core/slash-commands/index.ts`
-- [ ] Simplify `parseSlashCommands()` inputs
-- [ ] Update parser call sites
-- [ ] Verify built-ins still transform prompts correctly
-- [ ] Verify MCP prompts still transform prompts correctly
+- [x] Remove workflow branches from `src/core/slash-commands/index.ts`
+- [x] Simplify `parseSlashCommands()` inputs
+- [x] Update parser call sites
+- [x] Verify built-ins still transform prompts correctly
+- [x] Verify MCP prompts still transform prompts correctly
 
 ## B. State and storage
 

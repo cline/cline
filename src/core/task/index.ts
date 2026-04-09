@@ -110,7 +110,6 @@ import { Session } from "@/shared/services/Session"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
 import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
-import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
@@ -3323,7 +3322,6 @@ export class Task {
 		const useNativeToolCalls = this.stateManager.getGlobalStateKey("nativeToolCallEnabled")
 		const providerInfo = this.getCurrentProviderInfo()
 		const cwd = this.cwd
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(this.controller, cwd)
 
 		const hasUserContentTag = (text: string): boolean => {
 			return USER_CONTENT_TAGS.some((tag) => text.includes(tag))
@@ -3349,8 +3347,6 @@ export class Task {
 
 			const { processedText, needsClinerulesFileCheck: needsCheck } = await parseSlashCommands(
 				parsedText,
-				localWorkflowToggles,
-				globalWorkflowToggles,
 				ulid,
 				focusChainSettings,
 				useNativeToolCalls,
