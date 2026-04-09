@@ -1,10 +1,48 @@
-export type LgHookScript = {
+import fs from "fs/promises"
+import path from "path"
+import { ensureHooksDirectoryExists, getDocumentsPath } from "@/core/storage/disk"
+
+type LgHookScript = {
 	fileName: string
 	content: string
 	mode?: number
 }
 
-export function getLgWebhookHookScripts(): LgHookScript[] {
+export async function writeLgWebhookConfig(webhookUrl: string, webhookToken: string): Promise<void> {
+	const documentsPath = await getDocumentsPath()
+	const clineDir = path.join(documentsPath, "Cline")
+	const configPath = path.join(clineDir, "webhook_config.json")
+
+	await fs.mkdir(clineDir, { recursive: true })
+	await fs.writeFile(
+		configPath,
+		JSON.stringify(
+			{
+				webhook_url: webhookUrl,
+				webhook_token: webhookToken,
+				created_at: new Date().toISOString(),
+			},
+			null,
+			2,
+		),
+		"utf-8",
+	)
+}
+
+export async function writeLgWebhookHooks(): Promise<void> {
+	const hooksDir = await ensureHooksDirectoryExists()
+	const hooks = getLgWebhookHookScripts()
+
+	for (const hook of hooks) {
+		const hookPath = path.join(hooksDir, hook.fileName)
+		await fs.writeFile(hookPath, hook.content, "utf-8")
+		if (hook.mode !== undefined) {
+			await fs.chmod(hookPath, hook.mode)
+		}
+	}
+}
+
+function getLgWebhookHookScripts(): LgHookScript[] {
 	if (process.platform === "win32") {
 		return [
 			{ fileName: "TaskStart.ps1", content: TASK_START_POWERSHELL },
