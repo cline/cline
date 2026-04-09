@@ -91,7 +91,6 @@
 							"customization/overview",
 							"customization/cline-rules",
 							"customization/skills",
-							"customization/workflows",
 							"customization/hooks",
 							"customization/clineignore"
 						]
@@ -566,18 +565,6 @@
 		{
 			"source": "/features/slash-commands/new-task",
 			"destination": "/core-workflows/using-commands"
-		},
-		{
-			"source": "/features/slash-commands/workflows/index",
-			"destination": "/customization/workflows"
-		},
-		{
-			"source": "/features/slash-commands/workflows/quickstart",
-			"destination": "/customization/workflows"
-		},
-		{
-			"source": "/features/slash-commands/workflows/best-practices",
-			"destination": "/customization/workflows"
 		},
 		{
 			"source": "/exploring-clines-tools/cline-tools-guide",

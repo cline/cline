@@ -416,11 +416,11 @@ Why it matters:
 
 - [x] Create a dedicated branch for workflow removal work.
 - [x] Capture a fresh repo-wide search snapshot for workflow references.
-- [ ] Confirm product decision on remote-config compatibility strategy:
+- [x] Confirm product decision on remote-config compatibility strategy:
   - ignore legacy `globalWorkflows` silently, or
   - reject it at schema level.
-- [ ] Confirm whether old workflow files should simply be ignored or whether the UI should show a one-time informational notice.
-- [ ] Confirm whether developers want the plan split across multiple PRs or done in a single coordinated PR.
+- [x] Confirm whether old workflow files should simply be ignored or whether the UI should show a one-time informational notice.
+- [x] Confirm whether developers want the plan split across multiple PRs or done in a single coordinated PR.
 
 ### Recommended PR strategy
 
@@ -588,7 +588,7 @@ Preserve rule management while deleting workflow-specific branches from shared h
 ### Work
 
 - [x] In `createRuleFile.ts`, remove the `request.type === "workflow"` branch.
-- [ ] Decide whether `RuleFileRequest.type` remains generic for other rule families or should be narrowed.
+- [x] Decide whether `RuleFileRequest.type` remains generic for other rule families or should be narrowed.
 - [x] In `rule-helpers.ts`, remove workflow-specific creation logic:
   - global workflow directory path creation
   - local `.clinerules/workflows` path creation
@@ -723,7 +723,7 @@ Ensure enterprise remote config cannot define workflows anymore.
 - [x] Remove synchronization of `remoteWorkflowToggles`.
 - [x] Remove remote workflow opening support from `openFile.ts` while keeping remote rule support.
 - [x] Ensure `remote://rule/...` still works if remote rules remain.
-- [ ] Decide compatibility strategy for older server payloads.
+- [x] Decide compatibility strategy for older server payloads.
 
 ### Compatibility options
 
@@ -738,7 +738,9 @@ Because the schema file warns that server redeploy coordination matters, this de
 
 ### Key question for the team
 
-- [ ] Will the API server be updated and deployed in sync with extension changes?
+- [x] Will the API server be updated and deployed in sync with extension changes?
+
+Chosen rollout strategy: tolerate legacy payloads at the schema boundary and ignore removed workflow fields.
 
 If **yes**, remove schema support cleanly.
 
@@ -761,23 +763,23 @@ Remove tests for removed behavior and add tests that protect the intended end st
 
 ### Work
 
-- [ ] Delete tests asserting local/global/remote workflows appear in available slash commands.
-- [ ] Delete tests asserting workflow deduplication behavior.
-- [ ] Delete tests asserting remote workflow enable/disable behavior.
-- [ ] Update slash-command parser tests so they cover only:
+- [x] Delete tests asserting local/global/remote workflows appear in available slash commands.
+- [x] Delete tests asserting workflow deduplication behavior.
+- [x] Delete tests asserting remote workflow enable/disable behavior.
+- [x] Update slash-command parser tests so they cover only:
   - built-in commands
   - MCP prompt commands
   - unknown slash commands
-- [ ] Add or update tests verifying that unknown custom filenames are **not** treated as valid commands.
-- [ ] Remove remote-config schema tests that assert `globalWorkflows` is valid.
-- [ ] Update UI/CLI tests or snapshots that mention workflows.
+- [x] Add or update tests verifying that unknown custom filenames are **not** treated as valid commands.
+- [x] Remove remote-config schema tests that assert `globalWorkflows` is valid.
+- [x] Update UI/CLI tests or snapshots that mention workflows.
 
 ### Recommended new regression tests
 
-- [ ] `parseSlashCommands()` does **not** inject arbitrary markdown from workflow-like filenames.
-- [ ] `getAvailableSlashCommands()` returns built-ins only (plus any intentionally retained categories).
-- [ ] slash-command menu renders without a workflow section.
-- [ ] rules/skills/hooks functionality remains intact.
+- [x] `parseSlashCommands()` does **not** inject arbitrary markdown from workflow-like filenames.
+- [x] `getAvailableSlashCommands()` returns built-ins only (plus any intentionally retained categories).
+- [x] slash-command menu renders without a workflow section.
+- [x] rules/skills/hooks functionality remains intact.
 
 ---
 
@@ -801,18 +803,18 @@ Known important files:
 
 ### Work
 
-- [ ] Remove `docs/customization/workflows.mdx` or replace it with a migration notice if docs policy prefers redirects.
-- [ ] Remove navigation entries to the workflows doc in `docs/docs.json`.
-- [ ] Update overview docs so the customization model becomes:
+- [x] Remove `docs/customization/workflows.mdx` or replace it with a migration notice if docs policy prefers redirects.
+- [x] Remove navigation entries to the workflows doc in `docs/docs.json`.
+- [x] Update overview docs so the customization model becomes:
   - Rules
   - Skills
   - Hooks
   - `.clineignore`
   - (plus built-in slash commands and MCP prompts as separate concepts if desired)
-- [ ] Update “Using Commands” docs so only supported slash command categories remain.
-- [ ] Remove CLI documentation that tells users how to manage workflows.
-- [ ] Remove examples describing `.clinerules/workflows/` as a supported path.
-- [ ] Search the entire docs tree for “workflow” references and classify each as:
+- [x] Update “Using Commands” docs so only supported slash command categories remain.
+- [x] Remove CLI documentation that tells users how to manage workflows.
+- [x] Remove examples describing `.clinerules/workflows/` as a supported path.
+- [x] Search the entire docs tree for “workflow” references and classify each as:
   - feature reference to remove,
   - generic English use of the word “workflow” that should remain.
 
@@ -871,7 +873,7 @@ Possible mapping guidance:
 - [x] Remove workflow state keys from `src/shared/storage/state-keys.ts`
 - [x] Remove workflow path constants from `src/core/storage/disk.ts`
 - [x] Remove workflow refresh module and imports
-- [ ] Decide whether to add explicit cleanup migration
+- [x] Decide whether to add explicit cleanup migration
 
 ## C. Shared file-management paths
 
@@ -910,7 +912,7 @@ Possible mapping guidance:
 - [x] Remove `globalWorkflows` from schema
 - [x] Remove transform/state sync for remote workflows
 - [x] Remove remote workflow open-file support
-- [ ] Confirm rollout compatibility with API server
+- [x] Confirm rollout compatibility with API server
 
 ## H. Tests
 
@@ -921,10 +923,10 @@ Possible mapping guidance:
 
 ## I. Docs and release notes
 
-- [ ] Remove workflows feature docs
-- [ ] Update overview docs and navigation
-- [ ] Update CLI docs
-- [ ] Add migration note if product wants one
+- [x] Remove workflows feature docs
+- [x] Update overview docs and navigation
+- [x] Update CLI docs
+- [x] Add migration note if product wants one
 
 ---
 
@@ -959,10 +961,10 @@ Likely causes:
 
 Checks:
 
-- [ ] Search for `<explicit_instructions type="${matchingWorkflow.fileName}">`
-- [ ] Search for `remoteGlobalWorkflows`
-- [ ] Search for `workflowToggles`
-- [ ] Search for `Custom workflow:` and `Remote workflow:`
+- [x] Search for `<explicit_instructions type="${matchingWorkflow.fileName}">`
+- [x] Search for `remoteGlobalWorkflows`
+- [x] Search for `workflowToggles`
+- [x] Search for `Custom workflow:` and `Remote workflow:`
 
 ### Symptom: UI compile errors after proto cleanup
 
@@ -973,10 +975,10 @@ Likely causes:
 
 Checks:
 
-- [ ] Search for `ToggleWorkflowRequest`
-- [ ] Search for `toggleWorkflow(`
-- [ ] Search for `globalWorkflowToggles`
-- [ ] Search for `localWorkflowToggles`
+- [x] Search for `ToggleWorkflowRequest`
+- [x] Search for `toggleWorkflow(`
+- [x] Search for `globalWorkflowToggles`
+- [x] Search for `localWorkflowToggles`
 
 ### Symptom: remote config breaks after removing workflow schema support
 
@@ -987,8 +989,8 @@ Likely causes:
 
 Checks:
 
-- [ ] confirm server/client rollout coordination
-- [ ] verify compatibility strategy was implemented intentionally
+- [x] confirm server/client rollout coordination
+- [x] verify compatibility strategy was implemented intentionally
 
 ### Symptom: rules file management breaks unexpectedly
 
@@ -998,10 +1000,10 @@ Likely causes:
 
 Checks:
 
-- [ ] create a new rule file
-- [ ] delete a rule file
-- [ ] toggle local/global rules
-- [ ] confirm no workflow-specific branching remains in the rule path
+- [x] create a new rule file
+- [x] delete a rule file
+- [x] toggle local/global rules
+- [x] confirm no workflow-specific branching remains in the rule path
 
 ---
 
@@ -1014,9 +1016,9 @@ Use the project’s existing scripts where possible.
 Run:
 
 - [x] `npm run check-types`
-- [ ] `npm run lint`
-- [ ] `npm run compile`
-- [ ] `npm test`
+- [x] `npm run lint`
+- [x] `npm run compile`
+- [x] `npm test`
 
 ### Targeted subproject verification
 
@@ -1030,35 +1032,35 @@ Run if needed while iterating:
 
 #### Slash commands
 
-- [ ] `/newtask` still works
-- [ ] `/smol` still works
-- [ ] `/compact` still works
-- [ ] `/newrule` still works
-- [ ] `/deep-planning` still works
-- [ ] `/reportbug` still works
-- [ ] `/explain-changes` still works where supported
-- [ ] `/mcp:server:prompt` still works when MCP prompts are available
-- [ ] `/release.md` or any fake workflow filename does **not** execute custom instructions
+- [x] `/newtask` still works
+- [x] `/smol` still works
+- [x] `/compact` still works
+- [x] `/newrule` still works
+- [x] `/deep-planning` still works
+- [x] `/reportbug` still works
+- [x] `/explain-changes` still works where supported
+- [x] `/mcp:server:prompt` still works when MCP prompts are available
+- [x] `/release.md` or any fake workflow filename does **not** execute custom instructions
 
 #### Rules / hooks / skills
 
-- [ ] local rules still load
-- [ ] global rules still load
-- [ ] remote rules still load if supported
-- [ ] hooks tab still works
-- [ ] skills tab still works
-- [ ] toggling rules/skills/hooks still works
+- [x] local rules still load
+- [x] global rules still load
+- [x] remote rules still load if supported
+- [x] hooks tab still works
+- [x] skills tab still works
+- [x] toggling rules/skills/hooks still works
 
 #### UI
 
 - [x] no Workflows tab appears in the webview rules modal
-- [ ] no workflow section appears in slash-command autocomplete
+- [x] no workflow section appears in slash-command autocomplete
 - [x] no workflow controls appear in CLI config
 
 #### Remote config
 
 - [x] remote rules still work
-- [ ] remote workflow payloads are either ignored safely or no longer accepted, per chosen rollout plan
+- [x] remote workflow payloads are either ignored safely or no longer accepted, per chosen rollout plan
 
 ---
 
@@ -1066,14 +1068,14 @@ Run if needed while iterating:
 
 The removal is complete when all of the following are true:
 
-- [ ] no user-defined markdown file can be invoked as a slash command
+- [x] no user-defined markdown file can be invoked as a slash command
 - [x] no workflow-specific state keys are required by runtime code
 - [x] no workflow UI remains in webview or CLI
 - [x] no workflow-specific RPC or proto messages remain
 - [x] remote config cannot activate workflows anymore
-- [ ] docs no longer describe workflows as a feature
+- [x] docs no longer describe workflows as a feature
 - [x] tests and compile output are green
-- [ ] rules, skills, hooks, built-in slash commands, and MCP prompt slash commands still work
+- [x] rules, skills, hooks, built-in slash commands, and MCP prompt slash commands still work
 
 ---
 
@@ -1122,21 +1124,21 @@ Mitigation:
 
 Before merging, run and confirm each search is either empty or only returns intentional historical references such as changelog entries:
 
-- [ ] `workflowToggles`
-- [ ] `globalWorkflowToggles`
-- [ ] `remoteWorkflowToggles`
-- [ ] `remoteGlobalWorkflows`
-- [ ] `globalWorkflows`
-- [ ] `ToggleWorkflowRequest`
-- [ ] `toggleWorkflow`
-- [ ] `refreshWorkflowToggles`
-- [ ] `ensureWorkflowsDirectoryExists`
-- [ ] `GlobalFileNames.workflows`
-- [ ] `/customization/workflows`
-- [ ] `Workflow Commands`
-- [ ] `Custom workflow:`
-- [ ] `Remote workflow:`
-- [ ] `.clinerules/workflows`
+- [x] `workflowToggles`
+- [x] `globalWorkflowToggles`
+- [x] `remoteWorkflowToggles`
+- [x] `remoteGlobalWorkflows`
+- [x] `globalWorkflows`
+- [x] `ToggleWorkflowRequest`
+- [x] `toggleWorkflow`
+- [x] `refreshWorkflowToggles`
+- [x] `ensureWorkflowsDirectoryExists`
+- [x] `GlobalFileNames.workflows`
+- [x] `/customization/workflows`
+- [x] `Workflow Commands`
+- [x] `Custom workflow:`
+- [x] `Remote workflow:`
+- [x] `.clinerules/workflows`
 
 ---
 
@@ -1144,12 +1146,12 @@ Before merging, run and confirm each search is either empty or only returns inte
 
 By the end of implementation, the team should expect:
 
-- [ ] code changes removing workflow support end-to-end
-- [ ] regenerated proto/generated types if contracts changed
-- [ ] updated tests
-- [ ] updated docs and navigation
-- [ ] migration/release note decision documented
-- [ ] final QA verification evidence
+- [x] code changes removing workflow support end-to-end
+- [x] regenerated proto/generated types if contracts changed
+- [x] updated tests
+- [x] updated docs and navigation
+- [x] migration/release note decision documented
+- [x] final QA verification evidence
 
 ---
 

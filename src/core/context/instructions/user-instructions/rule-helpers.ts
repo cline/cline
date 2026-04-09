@@ -275,8 +275,8 @@ export function getRemoteRulesTotalContentWithMetadata(
 }
 
 /**
- * Handles converting any directory into a file (specifically used for .clinerules and .clinerules/workflows)
- * The old .clinerules file or .clinerules/workflows file will be renamed to a default filename
+ * Handles converting a legacy .clinerules file path into a directory-backed rules layout.
+ * The old .clinerules file will be renamed to a default filename inside the new directory.
  * Doesn't do anything if the dir already exists or doesn't exist
  * Returns whether there are any uncaught errors
  */

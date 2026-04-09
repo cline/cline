@@ -15,6 +15,7 @@
 ### Changed
 
 - Polish `Notification` hook functionality
+- Remove the workflows feature; migrate recurring guidance to rules, skills, hooks, or MCP prompts
 
 ## [3.76.0]
 

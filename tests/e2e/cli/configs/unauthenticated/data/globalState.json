@@ -31,7 +31,6 @@
 	"clineApiKey": null,
 	"taskHistory": [],
 	"remoteRulesToggles": {},
-	"remoteWorkflowToggles": {},
 	"actModeThinkingBudgetTokens": 0,
 	"planModeThinkingBudgetTokens": 0,
 	"welcomeViewCompleted": false
