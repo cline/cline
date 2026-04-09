@@ -80,7 +80,7 @@ const SpendLimitError: React.FC<SpendLimitErrorProps> = ({ message, budgetPeriod
 		}
 	}
 
-	const periodLabel = budgetPeriod === "daily" ? "Daily" : budgetPeriod === "monthly" ? "Monthly" : ""
+	const periodLabel = budgetPeriod ? budgetPeriod.charAt(0).toUpperCase() + budgetPeriod.slice(1) : ""
 	const resetsAtFormatted = formatResetsAt(resetsAt)
 
 	return (
