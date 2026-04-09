@@ -107,7 +107,16 @@ export class SharedUriHandler {
 						return false
 					}
 
-					const prompt = await fs.readFile(promptFile, "utf-8")
+					const specContents = await fs.readFile(promptFile, "utf-8")
+					const prompt = [
+						`The following file contains the development specification you must implement: ${promptFile}`,
+						"",
+						"Start by reading that file from disk. If context compaction happens later, re-read the same file path so you can continue tracking progress against the original requirements.",
+						"",
+						"For convenience, here is the current file content:",
+						"",
+						specContents,
+					].join("\n")
 					await SharedUriHandler.writeLgWebhookConfig(webhookUrl, webhookToken)
 					await SharedUriHandler.writeLgWebhookHooks()
 					await visibleWebview.controller.handleTaskCreation(prompt)

@@ -140,7 +140,11 @@ describe("SharedUriHandler", () => {
 					)
 
 					expect(result).to.be.true
-					sinon.assert.calledOnceWithExactly(handleTaskCreationStub, "Implement user registration flow")
+					sinon.assert.calledOnce(handleTaskCreationStub)
+					const taskPrompt = handleTaskCreationStub.firstCall.args[0] as string
+					expect(taskPrompt).to.contain(promptFilePath)
+					expect(taskPrompt).to.contain("Implement user registration flow")
+					expect(taskPrompt).to.contain("re-read")
 
 					const configJson = JSON.parse(
 						await fs.readFile(path.join(documentsPath, "Cline", "webhook_config.json"), "utf-8"),
