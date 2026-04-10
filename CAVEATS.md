@@ -41,8 +41,10 @@ obscured/partially obscured by the last generated code block. In the
 classic extension, this appears with enough space around it to be
 visible.
 
-🔴 Changing the model during a conversation does not, *apparently*,
-change the model used for inference.
+🟢 Changing the model during a conversation does not, *apparently*,
+change the model used for inference. **Fixed:** updateSettings now
+updates the in-memory apiConfiguration (not just disk) so
+model/provider changes take effect immediately for subsequent sessions.
 
 🔴 The OpenAI compatible provider produces "404 404 page not found"
 errors.
@@ -62,8 +64,11 @@ ARCHITECTURE.md.
 🟡 Banners (for example "Try Claude Sonnet 4.6") can be dismissed, but
 there are no < and > buttons visible to page between them.
 
-🔴 "Add to Cline" right click menu (use the command to trigger it)
-does not do anything.
+🟢 "Add to Cline" right click menu (use the command to trigger it)
+does not do anything. **Fixed:** sendAddToInputEvent now falls back to
+the SDK bridge's pushAddToInput when no classic gRPC subscriptions are
+active; WebviewGrpcBridge handles subscribeToAddToInput streaming and
+sends via both gRPC response and typed message.
 
 🟢 When a task is cancelled, you can't enter a new chat and send that
 chat in addition. (The repro is: Run a task, click cancel relatively
@@ -72,11 +77,15 @@ cancelTask now clears currentSession after abort so subsequent
 askResponse calls start a new task instead of sending to the aborted
 session.
 
-🔴 MCP Servers tab never finishes loading (may be a workos: token
-prefix problem?)
+🟢 MCP Servers tab never finishes loading (may be a workos: token
+prefix problem?) **Fixed:** subscribeToMcpServers now sends initial
+server data as a typed message (mcpServers) instead of only via gRPC
+streaming response, which the webview's dual-listen pattern picks up.
 
-🔴 Attached images (via drag and drop or the + icon to attach an image
-file) aren't submitted to models.
+🟢 Attached images (via drag and drop or the + icon to attach an image
+file) aren't submitted to models. **Fixed:** newTask and askResponse
+now include the images array in ClineMessage objects so attached images
+appear in the chat UI and are passed to the SDK session.
 
 🔴 Changing the account profile in the accounts tab (for example from
 Cline External, which has budget, to Cline Internal Testing Org, which
