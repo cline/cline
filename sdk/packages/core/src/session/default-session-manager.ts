@@ -344,6 +344,7 @@ export class DefaultSessionManager implements SessionManager {
 			onConsecutiveMistakeLimitReached:
 				configWithProvider.onConsecutiveMistakeLimitReached,
 			completionGuard: runtime.completionGuard,
+			consumePendingUserMessage: () => this.consumeSteerMessage(sessionId),
 			logger: runtime.logger ?? configWithProvider.logger,
 			extensionContext: configWithProvider.extensionContext,
 			onEvent: (event: AgentEvent) =>
@@ -962,6 +963,27 @@ export class DefaultSessionManager implements SessionManager {
 			prompt,
 			delivery,
 		});
+	}
+
+	/**
+	 * Consume the first steer-delivery pending prompt for injection into the
+	 * running agent loop. Called synchronously by the agent between iterations.
+	 */
+	private consumeSteerMessage(sessionId: string): string | undefined {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		const steerIndex = session.pendingPrompts.findIndex(
+			(entry) => entry.delivery === "steer",
+		);
+		if (steerIndex < 0) {
+			return undefined;
+		}
+		const [steer] = session.pendingPrompts.splice(steerIndex, 1);
+		this.emitPendingPrompts(session);
+		this.emitPendingPromptSubmitted(session, steer);
+		return steer.prompt;
 	}
 
 	private enqueuePendingPrompt(

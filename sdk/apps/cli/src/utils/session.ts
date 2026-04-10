@@ -27,7 +27,11 @@ import {
 	type SessionManifest,
 	SessionSource,
 } from "@clinebot/core";
-import { getRpcServerDefaultAddress, RpcSessionClient } from "@clinebot/rpc";
+import {
+	getRpcServerDefaultAddress,
+	getRpcServerHealth,
+	RpcSessionClient,
+} from "@clinebot/rpc";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { getCliTelemetryService } from "./telemetry";
 
@@ -123,7 +127,21 @@ async function getCoreSessions(): Promise<SessionBackend> {
 		});
 	}
 
-	// Default auto path: use local in-process backend.
+	// Default auto path: probe the default RPC address first.
+	// If a server is already running, attach to it; otherwise fall back to local.
+	const defaultAddress = getRpcServerDefaultAddress();
+	try {
+		const health = await getRpcServerHealth(defaultAddress);
+		if (health?.running) {
+			process.env.CLINE_RPC_ADDRESS = defaultAddress;
+			return resolveSessionBackend({
+				backendMode: "rpc",
+				rpc: { address: defaultAddress, autoStart: false },
+			});
+		}
+	} catch {
+		// RPC probe failed — fall through to local.
+	}
 	return resolveSessionBackend({
 		backendMode: "local",
 		rpc: { autoStart: false },
@@ -503,6 +521,7 @@ function createRpcRuntimeCliSessionManager(
 			const request: RpcChatRunTurnRequest = {
 				config,
 				prompt: input.prompt,
+				delivery: input.delivery,
 				attachments:
 					hasImages || attachmentFiles
 						? {

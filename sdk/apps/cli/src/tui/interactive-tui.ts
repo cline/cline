@@ -1019,11 +1019,21 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		}
 
 		if (key.ctrl && value === "s") {
-			const trimmed = input.trim();
-			if (!trimmed || !isRunning) {
+			if (!isRunning) {
 				return;
 			}
-			void submitPrompt(trimmed, "steer");
+			const trimmed = input.trim();
+			if (trimmed) {
+				void submitPrompt(trimmed, "steer");
+				return;
+			}
+			// If the input is empty, promote the first queued (non-steer) item to
+			// steer delivery so that the hint "Ctrl+S steers the next turn" works
+			// even after the user has already pressed Enter to queue a message.
+			const firstQueued = queuedPrompts.find((item) => !item.steer);
+			if (firstQueued) {
+				void submitPrompt(firstQueued.prompt, "steer");
+			}
 			return;
 		}
 

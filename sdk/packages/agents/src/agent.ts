@@ -542,6 +542,26 @@ export class Agent {
 					break;
 				}
 
+				// Check for steer messages from the host between iterations.
+				// Only inject after the first iteration so we don't stack two
+				// consecutive user messages before the first API call.
+				if (iteration > 0 && this.config.consumePendingUserMessage) {
+					const pendingText = this.config.consumePendingUserMessage();
+					if (pendingText) {
+						this.log("info", "Injecting pending user message", {
+							agentId: this.agentId,
+							conversationId: this.conversationStore.getConversationId(),
+							runId,
+							iteration,
+							length: pendingText.length,
+						});
+						this.conversationStore.appendMessage({
+							role: "user",
+							content: [{ type: "text", text: pendingText }],
+						});
+					}
+				}
+
 				iteration++;
 				this.log("debug", "Agent iteration started", {
 					agentId: this.agentId,
@@ -1263,7 +1283,7 @@ export class Agent {
 		}
 
 		this.appendRecoveryNotice(
-			`The previous turn failed with an API/runtime error: ${message}. Retry and continue from the latest state.`,
+			`Last turn failed with API/runtime error: ${message}. Long responses could cause timeouts, try making focused tool calls in smaller chunks.`,
 			"api_error",
 		);
 		const mistakeOutcome = await recordMistake(

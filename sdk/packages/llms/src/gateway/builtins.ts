@@ -404,7 +404,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	},
 	{
 		id: "doubao",
-		name: "Doubao 1.5 Pro 256k",
+		name: "Doubao",
 		description: "Volcengine Ark platform models",
 		family: "openai-compatible",
 		capabilities: ["tools"],
@@ -426,7 +426,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	},
 	{
 		id: "moonshot",
-		name: "Kimi K2 Preview",
+		name: "Moonshot",
 		description: "Moonshot AI Studio models",
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning"],
@@ -526,7 +526,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 	},
 	{
 		id: "sapaicore",
-		name: "Claude 3.5 Sonnet (SAP AI Core)",
+		name: "SAP AI Core",
 		description: "SAP AI Core inference and orchestration platform",
 		family: "openai-compatible",
 		client: "ai-sdk-community",
@@ -635,7 +635,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 	},
 	{
 		id: "minimax",
-		name: "MiniMax M2.5",
+		name: "MiniMax",
 		description: "MiniMax models via Anthropic-compatible API",
 		family: "anthropic",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
