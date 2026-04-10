@@ -61,6 +61,7 @@ export class WebviewGrpcBridge {
 	private partialMessageSubscriptionRequestId?: string
 	private mcpServersSubscriptionRequestId?: string
 	private authStatusSubscriptionRequestId?: string
+	private addToInputSubscriptionRequestId?: string
 	private sequenceCounters = new Map<string, number>()
 
 	constructor(delegate: GrpcHandlerDelegate, postMessage: PostMessageFn) {
@@ -204,6 +205,12 @@ export class WebviewGrpcBridge {
 				break
 			}
 
+			case "subscribeToAddToInput": {
+				this.addToInputSubscriptionRequestId = requestId
+				this.sequenceCounters.set(requestId, 0)
+				break
+			}
+
 			default: {
 				// For other streaming subscriptions (models, navigation,
 				// etc.) the SDK adapter will push real data via typed messages.
@@ -247,6 +254,24 @@ export class WebviewGrpcBridge {
 		if (this.authStatusSubscriptionRequestId) {
 			this.sendStreamingResponse(this.authStatusSubscriptionRequestId, authData)
 		}
+	}
+
+	/**
+	 * Push an addToInput message to the webview.
+	 * Used by the "Add to Cline" right-click command to insert selected
+	 * code into the chat input area.
+	 *
+	 * Sends via the gRPC streaming subscription (which ChatView's
+	 * subscribeToAddToInput listens for) and also as a typed message
+	 * for the dual-listen pattern.
+	 */
+	pushAddToInput(text: string): void {
+		if (this.addToInputSubscriptionRequestId) {
+			// ChatView expects { value: string } matching the ProtoString shape
+			this.sendStreamingResponse(this.addToInputSubscriptionRequestId, { value: text })
+		}
+		// Also send as typed message for the dual-listen pattern
+		this.postMessage({ type: "addToInput", text })
 	}
 
 	// -----------------------------------------------------------------------

@@ -34,11 +34,13 @@ export async function subscribeToAddToInput(
 }
 
 /**
- * Send an addToInput event to all active subscribers
+ * Send an addToInput event to all active subscribers.
+ * Falls back to the SDK bridge if no classic gRPC subscriptions are active
+ * (SDK mode uses typed messages instead of gRPC streaming subscriptions).
  * @param text The text to add to the input
  */
 export async function sendAddToInputEvent(text: string): Promise<void> {
-	// Send the event to all active subscribers
+	// Send the event to all active classic gRPC subscribers
 	const promises = Array.from(activeAddToInputSubscriptions).map(async (responseStream) => {
 		try {
 			const event: ProtoString = {
@@ -56,4 +58,19 @@ export async function sendAddToInputEvent(text: string): Promise<void> {
 	})
 
 	await Promise.all(promises)
+
+	// Fallback: if no classic subscriptions are active, try the SDK bridge.
+	// In SDK mode, the webview subscribes via typed messages, not gRPC streams,
+	// so activeAddToInputSubscriptions is empty. The SDK bridge sends a typed
+	// "addToInput" message that the webview's dual-listen pattern picks up.
+	if (activeAddToInputSubscriptions.size === 0) {
+		const bridge = (globalThis as any).__sdkBridge
+		if (bridge && typeof bridge.pushAddToInput === "function") {
+			try {
+				bridge.pushAddToInput(text)
+			} catch (error) {
+				Logger.error("Error sending addToInput via SDK bridge:", error)
+			}
+		}
+	}
 }
