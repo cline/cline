@@ -1,57 +1,38 @@
 import { afterEach, beforeEach, describe, it } from "mocha"
 import "should"
 import fs from "fs/promises"
-import os from "os"
 import path from "path"
 import sinon from "sinon"
-import { StateManager } from "../../storage/StateManager"
+import { HookOutput } from "../../../shared/proto/cline/hooks"
 import { HookFactory } from "../hook-factory"
+import { createHookTestEnv, HookTestEnv, stubHookDirs, withFixtureRunner, writeHookScriptForPlatform } from "./test-utils"
 
 describe("UserPromptSubmit Hook", () => {
-	// These tests assume uniform executable script execution via embedded shell
-	// Windows support pending embedded shell implementation
-	before(function () {
-		if (process.platform === "win32") {
-			this.skip()
-		}
-	})
-
 	let tempDir: string
 	let sandbox: sinon.SinonSandbox
+	let hookTestEnv: HookTestEnv
+	const WINDOWS_HOOK_TEST_TIMEOUT_MS = 15000
 
-	// Helper to write executable hook script
+	type FixtureScenario = {
+		fixtureName: string
+		prompt: string
+		assert: (result: HookOutput) => void
+	}
+
+	const getErrorMessage = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+
 	const writeHookScript = async (hookPath: string, nodeScript: string): Promise<void> => {
-		await fs.writeFile(hookPath, nodeScript)
-		await fs.chmod(hookPath, 0o755)
+		await writeHookScriptForPlatform(hookPath, nodeScript)
 	}
 
 	beforeEach(async () => {
-		sandbox = sinon.createSandbox()
-		tempDir = path.join(os.tmpdir(), `hook-test-${Date.now()}-${Math.random().toString(36).slice(2)}`)
-		await fs.mkdir(tempDir, { recursive: true })
-
-		// Create .clinerules/hooks directory
-		const hooksDir = path.join(tempDir, ".clinerules", "hooks")
-		await fs.mkdir(hooksDir, { recursive: true })
-
-		// Mock StateManager to return our temp directory
-		sandbox.stub(StateManager, "get").returns({
-			getGlobalStateKey: () => [{ path: tempDir }],
-		} as any)
+		hookTestEnv = await createHookTestEnv()
+		tempDir = hookTestEnv.tempDir
+		sandbox = hookTestEnv.sandbox
 	})
 
 	afterEach(async () => {
-		sandbox.restore()
-
-		// Clean up hook discovery cache
-		const { HookDiscoveryCache } = await import("../HookDiscoveryCache")
-		HookDiscoveryCache.resetForTesting()
-
-		try {
-			await fs.rm(tempDir, { recursive: true, force: true })
-		} catch (error) {
-			// Ignore cleanup errors
-		}
+		await hookTestEnv.cleanup()
 	})
 
 	describe("Hook Input Format", () => {
@@ -81,7 +62,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Received prompt")
+			result.contextModification?.should.equal("Received prompt")
 		})
 
 		it("should handle multiline prompts", async () => {
@@ -108,7 +89,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Line count: 3")
+			result.contextModification?.should.equal("Line count: 3")
 		})
 
 		it("should handle large prompts", async () => {
@@ -135,7 +116,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Prompt size: 10000")
+			result.contextModification?.should.equal("Prompt size: 10000")
 		})
 
 		it("should receive all common hook input fields", async () => {
@@ -143,7 +124,8 @@ console.log(JSON.stringify({
 			const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const hasAllFields = input.clineVersion && input.hookName && input.timestamp && 
-                     input.taskId && input.workspaceRoots !== undefined;
+                     input.taskId && input.workspaceRoots !== undefined &&
+                     input.model && input.model.provider && input.model.slug;
 console.log(JSON.stringify({
   cancel: false,
   contextModification: hasAllFields ? "All fields present" : "Missing fields"
@@ -162,7 +144,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("All fields present")
+			result.contextModification?.should.equal("All fields present")
 		})
 	})
 
@@ -198,7 +180,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Prompt length: 0")
+			result.contextModification?.should.equal("Prompt length: 0")
 		})
 
 		it("should preserve special characters in prompt", async () => {
@@ -225,7 +207,7 @@ console.log(JSON.stringify({
 				},
 			})
 
-			result.contextModification!.should.equal("Special chars preserved")
+			result.contextModification?.should.equal("Special chars preserved")
 		})
 	})
 
@@ -273,30 +255,25 @@ process.exit(1)`
 					},
 				})
 				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/exited with code 1/)
+			} catch (error: unknown) {
+				getErrorMessage(error).should.match(/exited with code 1/)
 			}
 		})
 	})
 
 	describe("Global and Workspace Hooks", () => {
 		let globalHooksDir: string
-		let originalGetAllHooksDirs: any
+		let workspaceHooksDir: string
 
 		beforeEach(async () => {
 			// Create global hooks directory
 			globalHooksDir = path.join(tempDir, "global-hooks")
 			await fs.mkdir(globalHooksDir, { recursive: true })
+			workspaceHooksDir = path.join(tempDir, ".clinerules", "hooks")
 
-			// Mock getAllHooksDirs to include our test global directory
-			const diskModule = require("../../storage/disk")
-			originalGetAllHooksDirs = diskModule.getAllHooksDirs
-			sandbox.stub(diskModule, "getAllHooksDirs").callsFake(async () => {
-				// Get workspace dirs from original function
-				const workspaceDirs = await originalGetAllHooksDirs()
-				// Return global first, then workspace
-				return [globalHooksDir, ...workspaceDirs]
-			})
+			// Use deterministic hook directories to avoid test flakiness from
+			// calling real directory discovery logic in CI.
+			stubHookDirs(sandbox, [globalHooksDir, workspaceHooksDir])
 		})
 
 		it("should execute both global and workspace UserPromptSubmit hooks", async () => {
@@ -330,8 +307,8 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.false()
-			result.contextModification!.should.match(/GLOBAL: Prompt received/)
-			result.contextModification!.should.match(/WORKSPACE: Prompt received/)
+			result.contextModification?.should.match(/GLOBAL: Prompt received/)
+			result.contextModification?.should.match(/WORKSPACE: Prompt received/)
 		})
 
 		it("should block if workspace hook blocks even when global allows", async () => {
@@ -365,7 +342,7 @@ console.log(JSON.stringify({
 			})
 
 			result.cancel.should.be.true()
-			result.errorMessage!.should.match(/Workspace blocks/)
+			result.errorMessage?.should.match(/Workspace blocks/)
 		})
 	})
 
@@ -391,154 +368,127 @@ console.log(JSON.stringify({
 	describe("Fixture-Based Tests", () => {
 		// These tests demonstrate using pre-written fixtures from the fixtures directory
 		// Fixtures serve as both test data and examples for manual testing
+		const isWindows = process.platform === "win32"
 
-		// Helper to load a fixture and create a runner
-		const loadFixtureAndCreateRunner = async (fixtureName: string) => {
-			const { loadFixture } = await import("./test-utils")
-			await loadFixture(`hooks/userpromptsubmit/${fixtureName}`, tempDir)
+		it("should validate representative fixtures end-to-end", async function () {
+			if (isWindows) {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
 
-			const factory = new HookFactory()
-			return await factory.create("UserPromptSubmit")
-		}
-
-		it("should work with success fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("success")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
+			const scenarios: FixtureScenario[] = [
+				{
+					fixtureName: "success",
 					prompt: "Create a feature",
-					attachments: [],
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Prompt approved")
+					},
 				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Prompt approved")
-		})
-
-		it("should work with blocking fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("blocking")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
+				{
+					fixtureName: "blocking",
 					prompt: "Do something forbidden",
-					attachments: [],
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.true()
+						result.errorMessage?.should.equal("Prompt violates policy")
+					},
 				},
-			})
-
-			result.cancel.should.be.true()
-			result.errorMessage!.should.equal("Prompt violates policy")
-		})
-
-		it("should work with context-injection fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("context-injection")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
+				{
+					fixtureName: "context-injection",
 					prompt: "Build something",
-					attachments: [],
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("CONTEXT_INJECTION: User is in plan mode")
+					},
 				},
-			})
+				{
+					fixtureName: "multiline",
+					prompt: "Line 1\nLine 2\nLine 3",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Line count: 3")
+					},
+				},
+				{
+					fixtureName: "special-chars",
+					prompt: "Test @user #feature $cost",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Special chars preserved")
+					},
+				},
+				{
+					fixtureName: "empty-prompt",
+					prompt: "",
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Prompt length: 0")
+					},
+				},
+			]
 
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("CONTEXT_INJECTION: User is in plan mode")
+			if (!isWindows) {
+				scenarios.push({
+					fixtureName: "large-prompt",
+					prompt: "x".repeat(10000),
+					assert: (result: HookOutput) => {
+						result.cancel.should.be.false()
+						result.contextModification?.should.equal("Prompt size: 10000")
+					},
+				})
+			}
+
+			for (const scenario of scenarios) {
+				await withFixtureRunner(
+					"UserPromptSubmit",
+					`hooks/userpromptsubmit/${scenario.fixtureName}`,
+					hookTestEnv,
+					async (runner) => {
+						const result = await runner.run({
+							taskId: "test-task",
+							userPromptSubmit: {
+								prompt: scenario.prompt,
+								attachments: [],
+							},
+						})
+
+						scenario.assert(result)
+					},
+				)
+			}
 		})
 
-		it("should work with error fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("error")
-
-			try {
-				await runner.run({
+		it("should cover malformed-json fixture path", async () => {
+			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/malformed-json", hookTestEnv, async (runner) => {
+				const malformedResult = await runner.run({
 					taskId: "test-task",
 					userPromptSubmit: {
 						prompt: "Test",
 						attachments: [],
 					},
 				})
-				throw new Error("Should have thrown")
-			} catch (error: any) {
-				error.message.should.match(/exited with code 1/)
-			}
+
+				malformedResult.cancel.should.be.false()
+				;(
+					malformedResult.contextModification === undefined || malformedResult.contextModification === ""
+				).should.be.true()
+			})
 		})
 
-		it("should work with malformed-json fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("malformed-json")
-
-			// When hook exits 0 but has malformed JSON, it returns success without context
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Test",
-					attachments: [],
-				},
+		it("should cover failing fixture path", async () => {
+			await withFixtureRunner("UserPromptSubmit", "hooks/userpromptsubmit/error", hookTestEnv, async (runner) => {
+				try {
+					await runner.run({
+						taskId: "test-task",
+						userPromptSubmit: {
+							prompt: "Test",
+							attachments: [],
+						},
+					})
+					throw new Error("Should have thrown")
+				} catch (error: unknown) {
+					getErrorMessage(error).should.match(/exited with code 1/)
+				}
 			})
-
-			// Hook succeeded (exit 0) but couldn't parse JSON, so returns success without context
-			result.cancel.should.be.false()
-			;(result.contextModification === undefined || result.contextModification === "").should.be.true()
-		})
-
-		it("should work with multiline fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("multiline")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Line 1\nLine 2\nLine 3",
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Line count: 3")
-		})
-
-		it("should work with large-prompt fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("large-prompt")
-
-			const largePrompt = "x".repeat(10000)
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: largePrompt,
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Prompt size: 10000")
-		})
-
-		it("should work with special-chars fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("special-chars")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "Test @user #feature $cost",
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Special chars preserved")
-		})
-
-		it("should work with empty-prompt fixture", async () => {
-			const runner = await loadFixtureAndCreateRunner("empty-prompt")
-
-			const result = await runner.run({
-				taskId: "test-task",
-				userPromptSubmit: {
-					prompt: "",
-					attachments: [],
-				},
-			})
-
-			result.cancel.should.be.false()
-			result.contextModification!.should.equal("Prompt length: 0")
 		})
 	})
 })

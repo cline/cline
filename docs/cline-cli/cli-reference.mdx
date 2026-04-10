@@ -63,6 +63,9 @@ cline
 
 # Start a task directly
 cline "your prompt here"
+
+# Resume the latest task for the current directory
+cline --continue
 ```
 
 **Options:**
@@ -77,6 +80,7 @@ cline "your prompt here"
 | `--thinking` | Enable extended thinking with a 1024 token budget. |
 | `--json` | Output messages as JSON (one object per line). Forces plain text mode. |
 | `--timeout <seconds>` | Maximum execution time before the task is stopped. |
+| `--continue` | Resume the most recent task from the current working directory. |
 
 **Mode Behavior:**
 

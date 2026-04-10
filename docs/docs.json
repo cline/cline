@@ -101,6 +101,7 @@
 						"pages": [
 							"cline-cli/overview",
 							"cline-cli/installation",
+							"cline-sdk/overview",
 							"cline-cli/interactive-mode",
 							{
 								"group": "Headless Mode",
@@ -257,7 +258,7 @@
 							"enterprise-solutions/sso-setup",
 							"enterprise-solutions/team-management/managing-members",
 							{
-								"group": "SaaS Provider Configuration",
+								"group": "Remote Provider Configuration",
 								"pages": [
 									"enterprise-solutions/configuration/remote-configuration/overview",
 									{
@@ -268,17 +269,31 @@
 										]
 									},
 									{
-										"group": "LiteLLM",
-										"pages": [
-											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
-											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
-										]
-									},
-									{
 										"group": "Google Vertex AI",
 										"pages": [
 											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
 											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+										]
+									},
+									{
+										"group": "OpenAI Compatible",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/openai-compatible/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/openai-compatible/member-configuration"
+										]
+									},
+									{
+										"group": "Anthropic",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/anthropic/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/anthropic/member-configuration"
+										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
 										]
 									}
 								]
@@ -297,7 +312,51 @@
 									"enterprise-solutions/monitoring/telemetry",
 									"enterprise-solutions/monitoring/opentelemetry"
 								]
-							}
+							},
+							"enterprise-solutions/api-reference"
+						]
+					}
+				]
+			},
+			{
+				"tab": "API",
+				"icon": "code",
+				"groups": [
+					{
+						"group": "Cline API",
+						"pages": [
+							"api/overview",
+							"api/getting-started",
+							"api/authentication"
+						]
+					},
+					{
+						"group": "Endpoints",
+						"pages": [
+							"api/chat-completions"
+						]
+					},
+					{
+						"group": "Reference",
+						"pages": [
+							"api/models",
+							"api/errors",
+							"api/sdk-examples"
+						]
+					}
+				]
+			},
+			{
+				"tab": "Kanban",
+				"icon": "table-columns",
+				"groups": [
+					{
+						"group": "Cline Kanban",
+						"pages": [
+							"kanban/overview",
+							"kanban/getting-started",
+							"kanban/core-workflow",
+							"kanban/features"
 						]
 					}
 				]
@@ -607,6 +666,10 @@
 		{
 			"source": "/features/skills",
 			"destination": "/customization/skills"
+		},
+		{
+			"source": "/api/reference",
+			"destination": "/api/overview"
 		}
 	],
 	"search": {

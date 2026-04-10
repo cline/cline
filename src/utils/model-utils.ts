@@ -4,6 +4,7 @@ import { AnthropicModelId, anthropicModels } from "@/shared/api"
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
 const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
+export const GEMINI_FLASH_MAX_OUTPUT_TOKENS = 8_192
 
 export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 	const providerId = normalize(providerInfo.providerId)
@@ -28,7 +29,10 @@ export function isNextGenModelProvider(providerInfo: ApiProviderInfo): boolean {
 
 export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
 	const modelId = apiHandlerModel.id.toLowerCase()
-	return modelId.includes("grok")
+	// Grok doesn't support WebP via its API.
+	// GLM and Devstral models running through llama.cpp fail with WebP because
+	// llama.cpp's STB image library doesn't support the WebP format.
+	return modelId.includes("grok") || isGLMModelFamily(modelId) || isDevstralModelFamily(modelId)
 }
 
 /**
@@ -85,6 +89,11 @@ export function isGPT5ModelFamily(id: string): boolean {
 	return modelId.includes("gpt-5") || modelId.includes("gpt5")
 }
 
+export function isGptOssModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-oss") || modelId.includes("gpt_oss")
+}
+
 export function isGPT51Model(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("gpt-5.1") || modelId.includes("gpt-5-1")
@@ -102,6 +111,8 @@ export function isGLMModelFamily(id: string): boolean {
 		modelId.includes("glm-4.7") ||
 		modelId.includes("glm-4.6") ||
 		modelId.includes("glm-4.5") ||
+		// Space-separated variants like "GLM 4.6V" used with openai-compatible local servers
+		modelId.includes("glm 4.") ||
 		modelId.includes("z-ai/glm") ||
 		modelId.includes("zai-org/glm")
 	)
@@ -147,6 +158,13 @@ export function isGemini3ModelFamily(id: string): boolean {
 	return modelId.includes("gemini3") || modelId.includes("gemini-3")
 }
 
+export function isGeminiFlashModel(id: string): boolean {
+	const modelId = normalize(id)
+	const isGooglePrefixedGemini = modelId.startsWith("google/gemini")
+	const isDirectGemini = modelId.startsWith("gemini-")
+	return (isGooglePrefixedGemini || isDirectGemini) && modelId.includes("flash")
+}
+
 function isDeepSeek32ModelFamily(id: string): boolean {
 	const modelId = normalize(id)
 	return modelId.includes("deepseek") && modelId.includes("3.2") && !modelId.includes("speciale")
@@ -164,6 +182,7 @@ export function isNextGenModelFamily(id: string): boolean {
 		isGemini2dot5ModelFamily(modelId) ||
 		isGrok4ModelFamily(modelId) ||
 		isGPT5ModelFamily(modelId) ||
+		isGptOssModelFamily(modelId) ||
 		isMinimaxModelFamily(modelId) ||
 		isGemini3ModelFamily(modelId) ||
 		isNextGenOpenSourceModelFamily(modelId) ||

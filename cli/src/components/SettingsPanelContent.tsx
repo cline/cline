@@ -129,6 +129,12 @@ const FEATURE_SETTINGS = {
 		label: "Double-check completion",
 		description: "Reject first completion attempt and require re-verification",
 	},
+	showFeatureTips: {
+		stateKey: "showFeatureTips",
+		default: true,
+		label: "Feature tips",
+		description: "Show tips during thinking phases",
+	},
 } as const
 
 type FeatureKey = keyof typeof FEATURE_SETTINGS

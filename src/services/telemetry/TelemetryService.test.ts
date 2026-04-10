@@ -49,10 +49,78 @@ describe("Telemetry system is abstracted and can easily switch between providers
 		platform_version: "9.8.7-abc",
 		os_type: "win32",
 		os_version: "Windows 10 Pro",
+		is_remote_workspace: false,
 		is_dev: "",
 	}
 
 	describe("Telemetry Service", () => {
+		it("should derive remote workspace metadata from host version", async () => {
+			const remoteProvider = new NoOpTelemetryProvider()
+			const localProvider = new NoOpTelemetryProvider()
+			const remoteLogSpy = sinon.spy(remoteProvider, "log")
+			const localLogSpy = sinon.spy(localProvider, "log")
+			const hostVersionStub = sinon.stub(HostProvider.env, "getHostVersion")
+			const createProvidersStub = sinon.stub(TelemetryProviderFactory, "createProviders")
+
+			hostVersionStub.onFirstCall().resolves({
+				platform: "VS Code",
+				version: "1.103.0",
+				clineType: "VSCode Extension",
+				remoteName: "ssh-remote",
+			})
+			hostVersionStub.onSecondCall().resolves({
+				platform: "VS Code",
+				version: "1.103.0",
+				clineType: "VSCode Extension",
+			})
+			createProvidersStub.onFirstCall().resolves([remoteProvider])
+			createProvidersStub.onSecondCall().resolves([localProvider])
+
+			const remoteService = await TelemetryService.create()
+			const localService = await TelemetryService.create()
+
+			remoteLogSpy.resetHistory()
+			localLogSpy.resetHistory()
+
+			remoteService.captureTaskCreated("task-remote", "openai")
+			localService.captureTaskCreated("task-local", "openai")
+
+			assert.ok(remoteLogSpy.calledOnce, "remote service should emit an event")
+			assert.ok(localLogSpy.calledOnce, "local service should emit an event")
+			assert.strictEqual(remoteLogSpy.firstCall.args[1]?.is_remote_workspace, true)
+			assert.strictEqual(localLogSpy.firstCall.args[1]?.is_remote_workspace, false)
+
+			hostVersionStub.restore()
+			createProvidersStub.restore()
+			remoteLogSpy.restore()
+			localLogSpy.restore()
+			await remoteService.dispose()
+			await localService.dispose()
+		})
+
+		it("should include remote workspace metadata on workspace.initialized events", async () => {
+			const noOpProvider = new NoOpTelemetryProvider()
+			const logSpy = sinon.spy(noOpProvider, "log")
+			const telemetryService = new TelemetryService([noOpProvider], {
+				...MOCK_METADATA,
+				is_remote_workspace: true,
+			})
+
+			logSpy.resetHistory()
+			telemetryService.captureWorkspaceInitialized(1, ["Git"], 123, false)
+
+			assert.ok(logSpy.calledOnce, "workspace.initialized should be emitted once")
+			const [eventName, properties] = logSpy.firstCall.args
+			assert.strictEqual(eventName, "workspace.initialized")
+			assert.ok(properties, "workspace.initialized properties should be defined")
+			assert.strictEqual(properties.is_remote_workspace, true)
+			assert.strictEqual(properties.root_count, 1)
+			assert.deepStrictEqual(properties.vcs_types, ["Git"])
+
+			logSpy.restore()
+			await noOpProvider.dispose()
+		})
+
 		it("should include correct metadata with telemetry events", async () => {
 			const noOpProvider = new NoOpTelemetryProvider()
 

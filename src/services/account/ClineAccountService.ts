@@ -1,5 +1,6 @@
 import type {
 	BalanceResponse,
+	FeaturebaseTokenResponse,
 	OrganizationBalanceResponse,
 	OrganizationUsageTransaction,
 	PaymentTransaction,
@@ -82,9 +83,8 @@ export class ClineAccountService {
 		}
 		if (response.statusText === "No Content") {
 			return {} as T // Return empty object if no content
-		} else {
-			return response.data.data as T
 		}
+		return response.data.data as T
 	}
 
 	/**
@@ -161,6 +161,20 @@ export class ClineAccountService {
 	}
 
 	/**
+	 * Fetches a short-lived Featurebase SSO JWT for the current user
+	 * @returns FeaturebaseTokenResponse or undefined if failed
+	 */
+	async fetchFeaturebaseToken(): Promise<FeaturebaseTokenResponse | undefined> {
+		try {
+			const data = await this.authenticatedRequest<FeaturebaseTokenResponse>(CLINE_API_ENDPOINT.FEATUREBASE_TOKEN)
+			return data
+		} catch (error) {
+			Logger.error("Failed to fetch Featurebase token:", error)
+			return undefined
+		}
+	}
+
+	/**
 	 * Fetches the current user's organizations
 	 * @returns UserResponse["organizations"] or undefined if failed
 	 */
@@ -217,6 +231,22 @@ export class ClineAccountService {
 		} catch (error) {
 			Logger.error("Failed to fetch active organization transactions (RPC):", error)
 			return undefined
+		}
+	}
+
+	/**
+	 * Submits a spend limit increase request to the user's org admin.
+	 * Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
+	 * @returns void — the backend records the request; errors are logged and swallowed
+	 */
+	async submitLimitIncreaseRequestRPC(): Promise<void> {
+		try {
+			await this.authenticatedRequest<void>("/api/v1/users/me/budget/request", {
+				method: "POST",
+			})
+		} catch (error) {
+			Logger.error("Failed to submit limit increase request (RPC):", error)
+			throw error
 		}
 	}
 

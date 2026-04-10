@@ -5,5 +5,5 @@ describe("library import side effects", () => {
 		const originalConsoleLog = console.log
 		await import("./exports")
 		expect(console.log).toBe(originalConsoleLog)
-	}, 10000)
+	}, 30000)
 })

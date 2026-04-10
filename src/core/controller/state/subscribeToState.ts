@@ -1,5 +1,6 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
+import { telemetryService } from "@/services/telemetry"
 import { ExtensionState } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
@@ -38,6 +39,8 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
+	recordStateSizeTelemetry(Buffer.byteLength(initialStateJson, "utf8"))
+
 	try {
 		await responseStream(
 			{
@@ -56,10 +59,18 @@ export async function subscribeToState(
  * @param state The state to send
  */
 export async function sendStateUpdate(state: ExtensionState): Promise<void> {
-	// Send the state to all active subscribers
+	let stateJson: string
+	try {
+		stateJson = JSON.stringify(state)
+	} catch (error) {
+		Logger.error("Error serializing state update:", error)
+		return
+	}
+
+	recordStateSizeTelemetry(Buffer.byteLength(stateJson, "utf8"))
+
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {
-			const stateJson = JSON.stringify(state)
 			await responseStream(
 				{
 					stateJson,
@@ -68,10 +79,13 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 			)
 		} catch (error) {
 			Logger.error("Error sending state update:", error)
-			// Remove the subscription if there was an error
 			activeStateSubscriptions.delete(responseStream)
 		}
 	})
 
 	await Promise.all(promises)
+}
+
+function recordStateSizeTelemetry(sizeBytes: number): void {
+	telemetryService.captureGrpcResponseSize(sizeBytes, "cline.StateService", "subscribeToState")
 }

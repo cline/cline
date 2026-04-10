@@ -231,6 +231,40 @@ function snakeToCamel(str) {
 }
 
 /**
+ * Normalize a property key to the camelCase form parsed from proto field names.
+ * Example: "openai-codex-oauth-credentials" -> "openaiCodexOauthCredentials".
+ * We do this before looking up existing field numbers so regenerated proto fields
+ * reuse their old numbers instead of being treated as new fields.
+ */
+function normalizePropertyNameForProtoLookup(fieldName) {
+	return snakeToCamel(toProtoFieldName(fieldName))
+}
+
+/**
+ * Fail fast when two distinct property keys collapse to the same normalized lookup key.
+ * Collisions make field-number preservation ambiguous and can cause proto renumbering.
+ */
+function assertNoNormalizedFieldNameCollisions(fields) {
+	const normalizedToOriginalNames = new Map()
+
+	for (const field of fields) {
+		const normalizedName = normalizePropertyNameForProtoLookup(field.name)
+		const names = normalizedToOriginalNames.get(normalizedName) ?? new Set()
+		names.add(field.name)
+		normalizedToOriginalNames.set(normalizedName, names)
+	}
+
+	for (const [normalizedName, names] of normalizedToOriginalNames) {
+		if (names.size > 1) {
+			const sortedNames = [...names].sort()
+			throw new Error(
+				`Field-name collision after proto normalization: ${sortedNames.join(", ")} all normalize to "${normalizedName}". Rename one field to keep proto field-number mapping unambiguous.`,
+			)
+		}
+	}
+}
+
+/**
  * Parse field numbers from an existing proto message definition
  * Returns a map of camelCase field names to their field numbers
  */
@@ -248,7 +282,8 @@ function parseProtoMessageFieldNumbers(protoContent, messageName) {
 	const messageBody = match[1]
 
 	// Match field definitions: optional/required/repeated type name = number;
-	const fieldRegex = /(?:optional|required|repeated)?\s*\w+\s+(\w+)\s*=\s*(\d+)\s*;/g
+	// Supports scalar/message types and map fields.
+	const fieldRegex = /(?:optional|required|repeated)?\s*(?:map<[^>]+>|[\w.]+)\s+(\w+)\s*=\s*(\d+)\s*;/g
 	const matches = messageBody.matchAll(fieldRegex)
 
 	for (const fieldMatch of matches) {
@@ -287,6 +322,8 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 	const result = {}
 	let nextNumber = startNumber
 
+	assertNoNormalizedFieldNameCollisions(fields)
+
 	// Find the highest existing number
 	for (const num of Object.values(existingNumbers)) {
 		if (num >= nextNumber) {
@@ -296,8 +333,21 @@ function assignFieldNumbers(fields, existingNumbers, startNumber = 1) {
 
 	// Preserve existing assignments
 	for (const field of fields) {
-		if (existingNumbers[field.name] !== undefined) {
-			result[field.name] = existingNumbers[field.name]
+		// Normalize before lookup so keys like "openai-codex-oauth-credentials"
+		// reuse existing proto numbers instead of being treated as new fields.
+		const normalizedFieldName = normalizePropertyNameForProtoLookup(field.name)
+		const normalizedFieldNumber = existingNumbers[normalizedFieldName]
+		const rawFieldNumber = existingNumbers[field.name]
+
+		if (normalizedFieldNumber !== undefined && rawFieldNumber !== undefined && normalizedFieldNumber !== rawFieldNumber) {
+			throw new Error(
+				`Ambiguous proto field-number mapping for "${field.name}": normalized key "${normalizedFieldName}" -> ${normalizedFieldNumber}, raw key "${field.name}" -> ${rawFieldNumber}.`,
+			)
+		}
+
+		const existingFieldNumber = normalizedFieldNumber ?? rawFieldNumber
+		if (existingFieldNumber !== undefined) {
+			result[field.name] = existingFieldNumber
 		}
 	}
 

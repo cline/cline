@@ -80,6 +80,13 @@ const agentFeatures: FeatureToggle[] = [
 
 const editorFeatures: FeatureToggle[] = [
 	{
+		id: "show-feature-tips",
+		label: "Feature Tips",
+		description: "Show rotating tips during the thinking phase to help you discover Cline features.",
+		stateKey: "showFeatureTips",
+		settingKey: "showFeatureTips",
+	},
+	{
 		id: "background-edit",
 		label: "Background Edit",
 		description: "Allow edits without stealing editor focus",
@@ -125,6 +132,23 @@ const experimentalFeatures: FeatureToggle[] = [
 			"Rejects the first completion attempt and asks the model to re-verify its work against the original task requirements before accepting.",
 		stateKey: "doubleCheckCompletionEnabled",
 		settingKey: "doubleCheckCompletionEnabled",
+	},
+	{
+		id: "lazy-teammate",
+		label: "Lazy Teammate Mode",
+		description: "Sometimes Cline just isn't feeling it today. For entertainment purposes only.",
+		stateKey: "lazyTeammateModeEnabled",
+		settingKey: "lazyTeammateModeEnabled",
+	},
+]
+
+const advancedFeatures: FeatureToggle[] = [
+	{
+		id: "hooks",
+		label: "Hooks",
+		description: "Enable lifecycle and tool hooks during task execution.",
+		stateKey: "hooksEnabled",
+		settingKey: "hooksEnabled",
 	},
 ]
 
@@ -187,6 +211,7 @@ interface FeatureSettingsSectionProps {
 const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionProps) => {
 	const {
 		enableCheckpointsSetting,
+		hooksEnabled,
 		mcpDisplayMode,
 		strictPlanModeEnabled,
 		yoloModeToggled,
@@ -200,6 +225,8 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lazyTeammateModeEnabled,
+		showFeatureTips,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -213,8 +240,10 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 
 	// State lookup for mapped features
 	const featureState: Record<string, boolean | undefined> = {
+		showFeatureTips,
 		enableCheckpointsSetting,
 		strictPlanModeEnabled,
+		hooksEnabled,
 		nativeToolCallSetting,
 		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
@@ -224,6 +253,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
+		lazyTeammateModeEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 
@@ -338,6 +368,17 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 					<div className="text-xs font-medium text-foreground/80 uppercase tracking-wider mb-3">Advanced</div>
 					<div className="relative p-3 my-3 rounded-md border border-editor-widget-border/50" id="advanced-features">
 						<div className="space-y-3">
+							{advancedFeatures.map((feature) => (
+								<FeatureRow
+									checked={featureState[feature.stateKey]}
+									description={feature.description}
+									isVisible={featureVisibility[feature.stateKey] ?? true}
+									key={feature.id}
+									label={feature.label}
+									onChange={(checked) => handleFeatureChange(feature, checked)}
+								/>
+							))}
+
 							{/* MCP Display Mode */}
 							<div className="space-y-2">
 								<Label className="text-sm font-medium text-foreground">MCP Display Mode</Label>

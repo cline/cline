@@ -1,8 +1,7 @@
 import { ToggleHookRequest, ToggleHookResponse } from "@shared/proto/cline/file"
 import fs from "fs/promises"
-import path from "path"
 import { HookDiscoveryCache } from "../../hooks/HookDiscoveryCache"
-import { resolveHooksDirectory } from "../../hooks/utils"
+import { resolveExistingHookPath, resolveHooksDirectory } from "../../hooks/utils"
 import { Controller } from ".."
 import { refreshHooks } from "./refreshHooks"
 
@@ -15,20 +14,21 @@ export async function toggleHook(
 
 	// Determine hook path
 	const hooksDir = await resolveHooksDirectory(isGlobal, workspaceName, globalHooksDirOverride)
-
-	const hookPath = path.join(hooksDir, hookName)
+	const hookPath = await resolveExistingHookPath(hooksDir, hookName)
 
 	// Verify hook exists
-	try {
-		await fs.stat(hookPath)
-	} catch {
-		throw new Error(`Hook ${hookName} does not exist at ${hookPath}`)
+	if (!hookPath) {
+		throw new Error(`Hook ${hookName} does not exist in ${hooksDir}`)
 	}
 
 	// On Windows, we can't use chmod, so we just return the current state
 	// without modifying the file. The frontend will disable the toggle.
+	// TODO(PR-9552 follow-up): Replace this temporary behavior with a
+	// JSON-backed cross-platform enabled/disabled hook state.
 	if (process.platform !== "win32") {
 		// Toggle executable bit (Unix-like systems only)
+		// TODO(PR-9552 follow-up): Revisit chmod-driven enablement semantics
+		// once cross-platform JSON-backed state is implemented.
 		await fs.chmod(hookPath, enabled ? 0o755 : 0o644)
 	}
 

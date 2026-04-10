@@ -55,6 +55,7 @@ export class PostHogClientProvider {
 		if (!exceptionList?.length) {
 			return null
 		}
+
 		// Check if any exception is from Cline
 		for (let i = 0; i < exceptionList.length; i++) {
 			const stacktrace = exceptionList[i].stacktrace
@@ -62,16 +63,20 @@ export class PostHogClientProvider {
 			if (stacktrace?.value?.toLowerCase().includes("cline")) {
 				return event
 			}
-			// Check stack frames for Cline extension path
+
 			const frames = stacktrace?.frames
 			if (frames?.length) {
 				for (let j = 0; j < frames.length; j++) {
-					if (frames[j]?.filename?.includes("saoudrizwan")) {
+					const fileName = frames[j]?.filename
+					// The extension filename will include "saoudrizwan"
+					// The CLI filename will include "cline"
+					if (fileName?.includes("saoudrizwan") || fileName?.includes("cline")) {
 						return event
 					}
 				}
 			}
 		}
+
 		return null
 	}
 

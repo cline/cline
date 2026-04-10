@@ -1,5 +1,6 @@
 import { ApiHandler } from "@core/api"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { CommandPermissionController } from "@core/permissions"
@@ -19,6 +20,7 @@ import { formatResponse } from "../prompts/responses"
 import { StateManager } from "../storage/StateManager"
 import { WorkspaceRootManager } from "../workspace"
 import { ToolResponse } from "."
+import { checkRepeatedToolCall, LOOP_DETECTION_SOFT_THRESHOLD, toolCallSignature } from "./loop-detection"
 import { MessageStateHandler } from "./message-state"
 import { TaskState } from "./TaskState"
 import { AutoApprove } from "./tools/autoApprove"
@@ -460,6 +462,7 @@ export class ToolExecutor {
 		toolResult: any,
 		executionSuccess: boolean,
 		executionStartTime: number,
+		hooksEnabled: boolean,
 	): Promise<boolean> {
 		const { executeHook } = await import("../hooks/hook-executor")
 
@@ -482,7 +485,8 @@ export class ToolExecutor {
 			clearActiveHookExecution: this.clearActiveHookExecution,
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
-			hooksEnabled: true, // Already checked by caller
+			hooksEnabled,
+			model: getHookModelContext(this.api, this.stateManager),
 			toolName: block.name,
 		})
 
@@ -551,7 +555,7 @@ export class ToolExecutor {
 			return
 		}
 
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		// Track if we need to cancel after hooks complete
 		let shouldCancelAfterHook = false
@@ -572,8 +576,26 @@ export class ToolExecutor {
 			toolWasExecuted = true
 			this.pushToolResult(toolResult, block)
 
-			// Track the last executed tool for consecutive call detection (used by act_mode_respond)
+			// --- Repeated tool call loop detection ---
+			// Must run BEFORE updating lastToolName/lastToolParams so we compare
+			// against the previous call's values, not the current one.
+			const currentSignature = toolCallSignature(block.params)
+			const loopCheck = checkRepeatedToolCall(this.taskState, block.name, currentSignature)
+
+			if (loopCheck.softWarning) {
+				this.taskState.userMessageContent.push({
+					type: "text",
+					text: formatResponse.repeatedToolCall(block.name, LOOP_DETECTION_SOFT_THRESHOLD),
+				})
+			}
+
+			if (loopCheck.hardEscalation) {
+				this.taskState.consecutiveMistakeCount = this.stateManager.getGlobalSettingsKey("maxConsecutiveMistakes")
+			}
+
+			// Update state AFTER comparison
 			this.taskState.lastToolName = block.name
+			this.taskState.lastToolParams = currentSignature
 
 			// Check abort before running PostToolUse hook (success path)
 			if (this.taskState.abort) {
@@ -583,7 +605,13 @@ export class ToolExecutor {
 			// Run PostToolUse hook for successful tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
 			if (hooksEnabled && block.name !== "attempt_completion") {
-				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				const hookRequestedCancel = await this.runPostToolUseHook(
+					block,
+					toolResult,
+					executionSuccess,
+					executionStartTime,
+					hooksEnabled, // always true here - already checked by caller
+				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true
@@ -601,7 +629,13 @@ export class ToolExecutor {
 			// Run PostToolUse hook for failed tool execution
 			// Skip for attempt_completion since it marks task completion, not actual work
 			if (toolWasExecuted && hooksEnabled && block.name !== "attempt_completion") {
-				const hookRequestedCancel = await this.runPostToolUseHook(block, toolResult, executionSuccess, executionStartTime)
+				const hookRequestedCancel = await this.runPostToolUseHook(
+					block,
+					toolResult,
+					executionSuccess,
+					executionStartTime,
+					hooksEnabled, // always true here - already checked by caller
+				)
 				if (hookRequestedCancel) {
 					await config.callbacks.cancelTask()
 					shouldCancelAfterHook = true

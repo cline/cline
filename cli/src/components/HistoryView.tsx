@@ -10,6 +10,7 @@ import { showTaskWithId } from "@/core/controller/task/showTaskWithId"
 import { StringRequest } from "@/shared/proto/cline/common"
 import { useStdinContext } from "../context/StdinContext"
 import { useTerminalSize } from "../hooks/useTerminalSize"
+import { isEnterKey } from "../utils/input"
 
 interface TaskHistoryItem {
 	id: string
@@ -40,7 +41,7 @@ interface HistoryViewProps {
 /**
  * Format separator
  */
-function formatSeparator(char: string = "─", width: number = 80): string {
+function formatSeparator(char = "─", width = 80): string {
 	return char.repeat(Math.max(width, 10))
 }
 
@@ -111,7 +112,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({
 				setSelectedIndex((prev) => Math.max(0, prev - 1))
 			} else if (key.downArrow || input === "j") {
 				setSelectedIndex((prev) => Math.min(pageItems.length - 1, prev + 1))
-			} else if (key.return && pageItems[selectedIndex]) {
+			} else if (isEnterKey(input, key) && pageItems[selectedIndex]) {
 				onSelect(pageItems[selectedIndex])
 			} else if (key.leftArrow && hasPrevPage) {
 				handlePageChange(currentPage - 1)

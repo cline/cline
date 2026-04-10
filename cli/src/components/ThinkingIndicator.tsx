@@ -4,7 +4,9 @@
 
 import { Box, Text, useInput } from "ink"
 import React, { useEffect, useMemo, useState } from "react"
+import { StateManager } from "@/core/storage/StateManager"
 import { COLORS } from "../constants/colors"
+import { FeatureTip } from "./FeatureTip"
 
 interface ThinkingIndicatorProps {
 	mode?: "act" | "plan"
@@ -52,6 +54,7 @@ const ShimmerText: React.FC<{ text: string; color: string; shimmerPos: number }>
 }
 
 export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "act", startTime, onCancel }) => {
+	const showFeatureTips = StateManager.get().getGlobalSettingsKey("showFeatureTips") ?? true
 	const message = mode === "plan" ? "Planning" : "Acting"
 	const color = mode === "plan" ? "yellow" : COLORS.primaryBlue
 
@@ -118,9 +121,12 @@ export const ThinkingIndicator: React.FC<ThinkingIndicatorProps> = ({ mode = "ac
 	}, [startTime, elapsedMs])
 
 	return (
-		<Box paddingLeft={1}>
-			<ShimmerText color={color} shimmerPos={shimmerPos} text={fullText} />
-			{elapsedStr && <Text color="gray"> ({elapsedStr} · esc to interrupt)</Text>}
+		<Box flexDirection="column">
+			<Box paddingLeft={1}>
+				<ShimmerText color={color} shimmerPos={shimmerPos} text={fullText} />
+				{elapsedStr && <Text color="gray"> ({elapsedStr} · esc to interrupt)</Text>}
+			</Box>
+			{showFeatureTips && <FeatureTip />}
 		</Box>
 	)
 }

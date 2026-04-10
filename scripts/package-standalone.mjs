@@ -22,6 +22,7 @@ const TARGET_PLATFORMS = [
 	{ platform: "darwin", arch: "x64", targetDir: "darwin-x64" },
 	{ platform: "darwin", arch: "arm64", targetDir: "darwin-arm64" },
 	{ platform: "linux", arch: "x64", targetDir: "linux-x64" },
+	{ platform: "linux", arch: "arm64", targetDir: "linux-aarch64" },
 ]
 const SUPPORTED_BINARY_MODULES = ["better-sqlite3"]
 

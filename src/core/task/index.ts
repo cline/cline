@@ -20,7 +20,9 @@ import {
 	refreshExternalRulesToggles,
 } from "@core/context/instructions/user-instructions/external-rules"
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import * as NotificationHook from "@core/hooks/notification-hook"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
@@ -113,8 +115,17 @@ import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
 import { StateManager } from "../storage/StateManager"
 import { FocusChainManager } from "./focus-chain"
+import {
+	getPresentationCadenceMs,
+	isPresentationSchedulingDisabled,
+	isRemoteWorkspaceEnvironment,
+	type TaskLatencyTrigger,
+} from "./latency"
 import { MessageStateHandler } from "./message-state"
+import type { PresentationPriority } from "./presentation-types"
+import { StreamChunkCoordinator } from "./StreamChunkCoordinator"
 import { StreamResponseHandler } from "./StreamResponseHandler"
+import { TaskPresentationScheduler } from "./TaskPresentationScheduler"
 import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
@@ -254,6 +265,11 @@ export class Task {
 
 	// Command executor for running shell commands (extracted from executeCommandTool)
 	private commandExecutor!: CommandExecutor
+	private isRemoteWorkspaceEnvironment = false
+	private remoteWorkspaceDetectionSettled = false
+	private readonly remoteWorkspaceDetectionPromise: Promise<void>
+	private readonly presentationScheduler: TaskPresentationScheduler
+	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
 
 	constructor(params: TaskParams) {
 		const {
@@ -281,6 +297,17 @@ export class Task {
 
 		this.taskInitializationStartTime = performance.now()
 		this.taskState = new TaskState()
+		this.remoteWorkspaceDetectionPromise = HostProvider.env
+			.getHostVersion({})
+			.then((hostVersion) => {
+				this.isRemoteWorkspaceEnvironment = isRemoteWorkspaceEnvironment(hostVersion)
+			})
+			.catch((error) => {
+				Logger.warn(`[Task ${taskId}] Failed to detect remote workspace state: ${error}`)
+			})
+			.finally(() => {
+				this.remoteWorkspaceDetectionSettled = true
+			})
 		this.controller = controller
 		this.mcpHub = mcpHub
 		this.updateTaskHistory = updateTaskHistory
@@ -529,6 +556,26 @@ export class Task {
 
 		this.commandExecutor = new CommandExecutor(commandExecutorConfig, commandExecutorCallbacks)
 
+		// Note: the scheduler's getDelayMs reads this.isRemoteWorkspaceEnvironment which is
+		// populated asynchronously by remoteWorkspaceDetectionPromise. The promise is awaited
+		// before streaming begins (in recursivelyMakeClineRequests) so the cadence is always
+		// correct by the time the first flush is scheduled.
+		this.presentationScheduler = new TaskPresentationScheduler({
+			flush: () => this.presentAssistantMessage(),
+			getDelayMs: (priority) => {
+				if (!this.remoteWorkspaceDetectionSettled) {
+					// This should never fire in production because recursivelyMakeClineRequests
+					// awaits remoteWorkspaceDetectionPromise before the first flush is scheduled.
+					// If it does fire, we fall back to the local cadence (safe default).
+					Logger.warn(
+						`[Task ${taskId}] getDelayMs called before remote workspace detection settled — using local cadence as fallback`,
+					)
+				}
+				return getPresentationCadenceMs(this.isRemoteWorkspaceEnvironment, priority)
+			},
+			onFlushError: (error) => Logger.debug(`[Task] Failed scheduled presentation flush: ${error}`),
+		})
+
 		this.toolExecutor = new ToolExecutor(
 			this.taskState,
 			this.messageStateHandler,
@@ -565,6 +612,44 @@ export class Task {
 			this.getActiveHookExecution.bind(this),
 			this.runUserPromptSubmitHook.bind(this),
 		)
+	}
+
+	private async scheduleAssistantPresentation(
+		trigger: TaskLatencyTrigger,
+		priority: PresentationPriority = "normal",
+	): Promise<void> {
+		if (this.presentationSchedulingDisabled) {
+			// Scheduling is disabled: preserve the old per-chunk synchronisation
+			// semantics by awaiting flushNow() directly, while still routing through
+			// the scheduler so its serialisation/locking guarantees are respected.
+			await this.presentationScheduler.flushNow().catch((error) => {
+				Logger.warn(`[Task] Failed immediate presentation flush: ${error}`)
+			})
+			return
+		}
+
+		// Immediate semantic boundaries: first visible token, tool transitions, finalization, and cleanup drains.
+		Logger.debug(`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`)
+		this.presentationScheduler.requestFlush(priority)
+	}
+
+	private async flushAssistantPresentationOrThrow() {
+		await this.presentationScheduler.flushNow()
+	}
+
+	private getPresentationPriorityForChunk(args: {
+		chunkType: "text" | "reasoning" | "tool_calls"
+		hadVisibleAssistantContent: boolean
+	}): PresentationPriority {
+		if (!args.hadVisibleAssistantContent) {
+			return "immediate"
+		}
+
+		if (args.chunkType === "tool_calls") {
+			return "immediate"
+		}
+
+		return "normal"
 	}
 
 	// Communicate with webview
@@ -681,9 +766,37 @@ export class Task {
 			await this.postStateToWebview()
 		}
 
-		await pWaitFor(() => this.taskState.askResponse !== undefined || this.taskState.lastMessageTs !== askTs, {
-			interval: 100,
-		})
+		if (type !== "command_output") {
+			// command_output is a special ask used by the webview command stream UI.
+			// It powers "Proceed While Running" and incremental output updates, so it is
+			// not a strict approval boundary that should force external "user_attention"
+			// handling. In auto-approve flows, command_output asks can still be emitted,
+			// so we intentionally skip Notification hook emission for this ask type.
+			await NotificationHook.emitUserAttentionNotification(
+				{
+					messageStateHandler: this.messageStateHandler,
+					taskId: this.taskId,
+					hooksEnabled: getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled")),
+					model: getHookModelContext(this.api, this.stateManager),
+				},
+				{
+					source: type,
+					message: text || "",
+				},
+			)
+		}
+
+		const shouldWakeOnAbort = type !== "resume_task" && type !== "resume_completed_task"
+		await pWaitFor(
+			() =>
+				this.taskState.askResponse !== undefined ||
+				this.taskState.lastMessageTs !== askTs ||
+				(shouldWakeOnAbort && this.taskState.abort),
+			{ interval: 100 },
+		)
+		if (shouldWakeOnAbort && this.taskState.abort) {
+			throw new Error("Cline instance aborted")
+		}
 		if (this.taskState.lastMessageTs !== askTs) {
 			throw new Error("Current ask promise was ignored") // could happen if we send multiple asks in a row i.e. with command_output. It's important that when we know an ask could fail, it is handled gracefully
 		}
@@ -891,7 +1004,7 @@ export class Task {
 		userContent: ClineContent[],
 		_context: "initial_task" | "resume" | "feedback",
 	): Promise<{ cancel?: boolean; wasCancelled?: boolean; contextModification?: string; errorMessage?: string }> {
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 
 		if (!hooksEnabled) {
 			return {}
@@ -917,6 +1030,7 @@ export class Task {
 			messageStateHandler: this.messageStateHandler,
 			taskId: this.taskId,
 			hooksEnabled,
+			model: getHookModelContext(this.api, this.stateManager),
 		})
 
 		// Handle cancellation from hook
@@ -977,7 +1091,7 @@ export class Task {
 		}
 
 		// Add TaskStart hook context to the conversation if provided
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			const taskStartResult = await executeHook({
 				hookName: "TaskStart",
@@ -997,6 +1111,7 @@ export class Task {
 				messageStateHandler: this.messageStateHandler,
 				taskId: this.taskId,
 				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
 			})
 
 			// Handle cancellation from hook
@@ -1125,7 +1240,7 @@ export class Task {
 		const newUserContent: ClineContent[] = []
 
 		// Run TaskResume hook AFTER user clicks resume button
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			const clineMessages = this.messageStateHandler.getClineMessages()
 			const taskResumeResult = await executeHook({
@@ -1150,6 +1265,7 @@ export class Task {
 				messageStateHandler: this.messageStateHandler,
 				taskId: this.taskId,
 				hooksEnabled,
+				model: getHookModelContext(this.api, this.stateManager),
 			})
 
 			// Handle cancellation from hook
@@ -1449,7 +1565,7 @@ export class Task {
 			// PHASE 4: Run TaskCancel hook
 			// This allows the hook UI to appear in the webview
 			// Use the shouldRunTaskCancelHook value we captured in Phase 1
-			const hooksEnabled = getHooksEnabledSafe()
+			const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 			if (hooksEnabled && shouldRunTaskCancelHook) {
 				try {
 					await executeHook({
@@ -1469,6 +1585,7 @@ export class Task {
 						messageStateHandler: this.messageStateHandler,
 						taskId: this.taskId,
 						hooksEnabled,
+						model: getHookModelContext(this.api, this.stateManager),
 					})
 
 					// TaskCancel completed successfully
@@ -1534,6 +1651,7 @@ export class Task {
 			if (this.FocusChainManager) {
 				this.FocusChainManager.dispose()
 			}
+			await this.presentationScheduler.dispose()
 		} finally {
 			// Release task folder lock
 			if (this.taskLockAcquired) {
@@ -1681,7 +1799,7 @@ export class Task {
 		const apiConversationHistory = this.messageStateHandler.getApiConversationHistory()
 
 		// Run PreCompact hook before truncation
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (hooksEnabled) {
 			try {
 				// Calculate what the new deleted range will be
@@ -1691,6 +1809,7 @@ export class Task {
 				await executePreCompactHookWithCleanup({
 					taskId: this.taskId,
 					ulid: this.ulid,
+					modelContext: getHookModelContext(this.api, this.stateManager),
 					apiConversationHistory,
 					conversationHistoryDeletedRange: this.taskState.conversationHistoryDeletedRange,
 					contextManager: this.contextManager,
@@ -1708,7 +1827,7 @@ export class Task {
 					postStateToWebview: this.postStateToWebview.bind(this),
 					taskState: this.taskState,
 					cancelTask: this.cancelTask.bind(this),
-					hooksEnabled: true,
+					hooksEnabled,
 				})
 			} catch (error) {
 				// If hook was cancelled, re-throw to stop compaction
@@ -1779,7 +1898,16 @@ export class Task {
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalRules = await getGlobalClineRules(globalClineRulesFilePath, globalToggles, { evaluationContext })
-		const globalClineRulesFileInstructions = globalRules.instructions
+		let globalClineRulesFileInstructions = globalRules.instructions
+
+		// Inject Lazy Teammate Mode rules if enabled
+		const lazyTeammateModeEnabled = this.stateManager.getGlobalSettingsKey("lazyTeammateModeEnabled")
+		if (lazyTeammateModeEnabled) {
+			const { LAZY_TEAMMATE_RULES } = await import("@/core/context/instructions/lazy-teammate-rules")
+			globalClineRulesFileInstructions = globalClineRulesFileInstructions
+				? `${globalClineRulesFileInstructions}\n\n${LAZY_TEAMMATE_RULES}`
+				: LAZY_TEAMMATE_RULES
+		}
 
 		const localRules = await getLocalClineRules(this.cwd, localToggles, { evaluationContext })
 		const localClineRulesFileInstructions = localRules.instructions
@@ -1952,6 +2080,7 @@ export class Task {
 				}
 
 				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
+				const isSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -1967,8 +2096,13 @@ export class Task {
 				})()
 
 				let response: ClineAskResponse
-				// Skip auto-retry for Cline provider insufficient credits or auth errors
-				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
+				// Skip auto-retry for Cline provider insufficient credits, auth errors, or spend limit errors
+				if (
+					!isClineProviderInsufficientCredits &&
+					!isAuthError &&
+					!isSpendLimitError &&
+					this.taskState.autoRetryAttempts < 3
+				) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -2018,8 +2152,8 @@ export class Task {
 
 					await setTimeoutPromise(delay)
 				} else {
-					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
-					if (!isClineProviderInsufficientCredits && !isAuthError) {
+					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits or spend limit)
+					if (!isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({
@@ -2221,6 +2355,10 @@ export class Task {
 			throw new Error("Task instance aborted")
 		}
 
+		// Ensure remote workspace detection completes before streaming begins so
+		// the presentation scheduler uses the correct cadence from the first flush.
+		await this.remoteWorkspaceDetectionPromise
+
 		// Increment API request counter for focus chain list management
 		this.taskState.apiRequestCount++
 		this.taskState.apiRequestsSinceLastTodoUpdate++
@@ -2293,6 +2431,10 @@ export class Task {
 			}
 			this.taskState.consecutiveMistakeCount = 0
 			this.taskState.autoRetryAttempts = 0 // need to reset this if the user chooses to manually retry after the mistake limit is reached
+			// Reset loop detection state so it can re-arm if the model continues looping
+			this.taskState.consecutiveIdenticalToolCount = 0
+			this.taskState.lastToolName = ""
+			this.taskState.lastToolParams = ""
 		}
 
 		// get previous api req's index to check token usage and determine if we need to truncate conversation history
@@ -2515,6 +2657,66 @@ export class Task {
 				outputTokens: number
 				totalCost: number | undefined
 			} = { cacheWriteTokens: 0, cacheReadTokens: 0, inputTokens: 0, outputTokens: 0, totalCost: undefined }
+			let didFinalizeApiReqMsg = false
+			let usageChunkSideEffectsQueue = Promise.resolve()
+			/*
+				Usage side effects run as soon as a usage chunk arrives.
+				queueUsageChunkSideEffects() appends work to this promise chain, and each appended step starts immediately
+				(once the previous step finishes). We only await usageChunkSideEffectsQueue at stream end to flush any in-flight
+				updates before finalizing api_req_started, not to start processing.
+			*/
+
+			const updateApiReqMsgFromMetrics = async (
+				cancelReason?: ClineApiReqCancelReason,
+				streamingFailedMessage?: string,
+			) => {
+				await updateApiReqMsg({
+					messageStateHandler: this.messageStateHandler,
+					lastApiReqIndex,
+					inputTokens: taskMetrics.inputTokens,
+					outputTokens: taskMetrics.outputTokens,
+					cacheWriteTokens: taskMetrics.cacheWriteTokens,
+					cacheReadTokens: taskMetrics.cacheReadTokens,
+					api: this.api,
+					totalCost: taskMetrics.totalCost,
+					cancelReason,
+					streamingFailedMessage,
+				})
+			}
+
+			const queueUsageChunkSideEffects = (
+				usageInputTokens: number,
+				usageOutputTokens: number,
+				chunkOptions?: { cacheWriteTokens?: number; cacheReadTokens?: number; totalCost?: number },
+			) => {
+				usageChunkSideEffectsQueue = usageChunkSideEffectsQueue
+					// This executes immediately after enqueue (microtask if already resolved), not at stream end.
+					.then(async () => {
+						if (didFinalizeApiReqMsg || this.taskState.abort) {
+							return
+						}
+
+						await updateApiReqMsgFromMetrics()
+						await this.postStateToWebview()
+						await telemetryService.captureTokenUsage(
+							this.ulid,
+							usageInputTokens,
+							usageOutputTokens,
+							providerId,
+							model.id,
+							chunkOptions,
+						)
+					})
+					.catch((error) => {
+						Logger.debug(`[Task ${this.taskId}] Failed to process usage chunk side effects: ${error}`)
+					})
+			}
+
+			const finalizeApiReqMsg = async (cancelReason?: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
+				didFinalizeApiReqMsg = true
+				await usageChunkSideEffectsQueue
+				await updateApiReqMsgFromMetrics(cancelReason, streamingFailedMessage)
+			}
 
 			const abortStream = async (cancelReason: ClineApiReqCancelReason, streamingFailedMessage?: string) => {
 				Session.get().finalizeRequest()
@@ -2533,18 +2735,7 @@ export class Task {
 					// await this.saveClineMessagesAndUpdateHistory()
 				}
 				// update api_req_started to have cancelled and cost, so that we can display the cost of the partial stream
-				await updateApiReqMsg({
-					messageStateHandler: this.messageStateHandler,
-					lastApiReqIndex,
-					inputTokens: taskMetrics.inputTokens,
-					outputTokens: taskMetrics.outputTokens,
-					cacheWriteTokens: taskMetrics.cacheWriteTokens,
-					cacheReadTokens: taskMetrics.cacheReadTokens,
-					totalCost: taskMetrics.totalCost,
-					api: this.api,
-					cancelReason,
-					streamingFailedMessage,
-				})
+				await finalizeApiReqMsg(cancelReason, streamingFailedMessage)
 				await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 
 				// Let assistant know their response was interrupted for when task is resumed
@@ -2580,13 +2771,7 @@ export class Task {
 					modelInfo.modelId,
 					"assistant",
 					modelInfo.mode,
-					{
-						tokensIn: taskMetrics.inputTokens,
-						tokensOut: taskMetrics.outputTokens,
-						cacheWriteTokens: taskMetrics.cacheWriteTokens,
-						cacheReadTokens: taskMetrics.cacheReadTokens,
-						totalCost: taskMetrics.totalCost,
-					},
+					undefined,
 					this.useNativeToolCalls, // For assistant turn only.
 				)
 
@@ -2607,6 +2792,7 @@ export class Task {
 			this.taskState.didAutomaticallyRetryFailedApiRequest = false
 			await this.diffViewProvider.reset()
 			this.streamHandler.reset()
+			this.presentationScheduler.reset()
 			this.taskState.toolUseIdMap.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
@@ -2620,6 +2806,7 @@ export class Task {
 			this.taskState.isStreaming = true
 			let didReceiveUsageChunk = false
 			let didFinalizeReasoningForUi = false
+			let didScheduleAnyContent = false // Tracks whether any content chunk has been scheduled for presentation (not necessarily flushed yet)
 
 			const finalizePendingReasoningMessage = async (thinking: string): Promise<boolean> => {
 				const pendingReasoningIndex = findLastIndex(
@@ -2644,26 +2831,42 @@ export class Task {
 
 			// Track API call time for session statistics
 			Session.get().startApiCall()
+			let streamCoordinator: StreamChunkCoordinator | undefined
 
 			try {
-				for await (const chunk of stream) {
-					if (
-						!this.taskState.taskFirstTokenTimeMs &&
-						(chunk.type === "text" || chunk.type === "reasoning" || chunk.type === "tool_calls")
-					) {
+				streamCoordinator = new StreamChunkCoordinator(stream, {
+					onUsageChunk: (chunk) => {
+						this.streamHandler.setRequestId(chunk.id)
+						didReceiveUsageChunk = true
+						taskMetrics.inputTokens += chunk.inputTokens
+						taskMetrics.outputTokens += chunk.outputTokens
+						taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
+						taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
+						taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
+						queueUsageChunkSideEffects(chunk.inputTokens, chunk.outputTokens, {
+							cacheWriteTokens: chunk.cacheWriteTokens,
+							cacheReadTokens: chunk.cacheReadTokens,
+							totalCost: chunk.totalCost,
+						})
+					},
+				})
+
+				let shouldInterruptStream = false
+
+				while (true) {
+					const chunk = await streamCoordinator.nextChunk()
+					if (!chunk) {
+						break
+					}
+					// Track whether any content chunk has been scheduled for presentation (not necessarily flushed yet).
+					// Using assistantMessage alone would miss reasoning-only streams where text hasn't
+					// started yet, causing every reasoning chunk to get "immediate" priority.
+					const hadVisibleAssistantContent = didScheduleAnyContent
+					if (!this.taskState.taskFirstTokenTimeMs) {
 						this.taskState.taskFirstTokenTimeMs = Math.max(0, Date.now() - this.taskState.taskStartTimeMs)
 					}
 
 					switch (chunk.type) {
-						case "usage":
-							this.streamHandler.setRequestId(chunk.id)
-							didReceiveUsageChunk = true
-							taskMetrics.inputTokens += chunk.inputTokens
-							taskMetrics.outputTokens += chunk.outputTokens
-							taskMetrics.cacheWriteTokens += chunk.cacheWriteTokens ?? 0
-							taskMetrics.cacheReadTokens += chunk.cacheReadTokens ?? 0
-							taskMetrics.totalCost = chunk.totalCost ?? taskMetrics.totalCost
-							break
 						case "reasoning": {
 							// Process the reasoning delta through the handler
 							// Ensure details is always an array
@@ -2685,6 +2888,11 @@ export class Task {
 									await this.say("reasoning", thinkingBlock.thinking, undefined, undefined, true)
 								}
 							}
+							await this.scheduleAssistantPresentation(
+								"reasoning",
+								this.getPresentationPriorityForChunk({ chunkType: "reasoning", hadVisibleAssistantContent }),
+							)
+							didScheduleAnyContent = true
 
 							break
 						}
@@ -2707,6 +2915,11 @@ export class Task {
 							}
 
 							await this.processNativeToolCalls(assistantTextOnly, toolUseHandler.getPartialToolUsesAsContent())
+							await this.scheduleAssistantPresentation(
+								"tool",
+								this.getPresentationPriorityForChunk({ chunkType: "tool_calls", hadVisibleAssistantContent }),
+							)
+							didScheduleAnyContent = true
 							break
 						}
 						case "text": {
@@ -2734,15 +2947,14 @@ export class Task {
 							if (this.taskState.assistantMessageContent.length > prevLength) {
 								this.taskState.userMessageContentReady = false // new content we need to present, reset to false in case previous content set this to true
 							}
+							await this.scheduleAssistantPresentation(
+								"text",
+								this.getPresentationPriorityForChunk({ chunkType: "text", hadVisibleAssistantContent }),
+							)
+							didScheduleAnyContent = true
 							break
 						}
 					}
-
-					// Present content once per chunk. Calling this from multiple case branches can
-					// race partial updates and duplicate text rows in the chat.
-					await this.presentAssistantMessage().catch((error) =>
-						Logger.debug("[Task] Failed to present message: " + error),
-					)
 
 					if (this.taskState.abort) {
 						this.api.abort?.()
@@ -2750,6 +2962,7 @@ export class Task {
 							// only need to gracefully abort if this instance isn't abandoned (sometimes openrouter stream hangs, in which case this would affect future instances of cline)
 							await abortStream("user_cancelled")
 						}
+						shouldInterruptStream = true
 						break // aborts the stream
 					}
 
@@ -2757,6 +2970,7 @@ export class Task {
 						// userContent has a tool rejection, so interrupt the assistant's response to present the user's feedback
 						assistantMessage += "\n\n[Response interrupted by user feedback]"
 						// this.userMessageContentReady = true // instead of setting this preemptively, we allow the present iterator to finish and set userMessageContentReady when its ready
+						shouldInterruptStream = true
 						break
 					}
 
@@ -2766,9 +2980,18 @@ export class Task {
 					if (!this.isParallelToolCallingEnabled() && this.taskState.didAlreadyUseTool) {
 						assistantMessage +=
 							"\n\n[Response interrupted by a tool use result. Only one tool may be used at a time and should be placed at the end of the message.]"
+						shouldInterruptStream = true
 						break
 					}
 				}
+
+				if (shouldInterruptStream) {
+					await streamCoordinator.stop()
+				} else {
+					await streamCoordinator.waitForCompletion()
+				}
+				// Flush any usage updates that were already executing/queued during streaming.
+				await usageChunkSideEffectsQueue
 
 				if (!this.taskState.abort && !didFinalizeReasoningForUi) {
 					const finalReasoning = reasonsHandler.getCurrentReasoning()
@@ -2781,12 +3004,14 @@ export class Task {
 					}
 				}
 			} catch (error) {
+				await streamCoordinator?.stop()
 				// abandoned happens when extension is no longer waiting for the cline instance to finish aborting (error is thrown here when any function in the for loop throws due to this.abort)
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
-					// Auto-retry for streaming failures (always enabled)
-					if (this.taskState.autoRetryAttempts < 3) {
+					const isStreamingSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
+					// Auto-retry for streaming failures (skip for spend limit errors)
+					if (!isStreamingSpendLimitError && this.taskState.autoRetryAttempts < 3) {
 						this.taskState.autoRetryAttempts++
 
 						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
@@ -2812,7 +3037,7 @@ export class Task {
 								await this.controller.task.handleWebviewAskResponse("yesButtonClicked", "", [])
 							}
 						})
-					} else if (this.taskState.autoRetryAttempts >= 3) {
+					} else if (!isStreamingSpendLimitError && this.taskState.autoRetryAttempts >= 3) {
 						// Show error_retry with failed flag to indicate all retries exhausted
 						await this.say(
 							"error_retry",
@@ -2843,28 +3068,23 @@ export class Task {
 			// OpenRouter/Cline may not return token usage as part of the stream (since it may abort early), so we fetch after the stream is finished
 			// (updateApiReq below will update the api_req_started message with the usage details. we do this async so it updates the api_req_started message in the background)
 			if (!didReceiveUsageChunk) {
-				this.api.getApiStreamUsage?.().then(async (apiStreamUsage) => {
-					if (apiStreamUsage) {
-						taskMetrics.inputTokens += apiStreamUsage.inputTokens
-						taskMetrics.outputTokens += apiStreamUsage.outputTokens
-						taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
-						taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
-						taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
-					}
-				})
+				const apiStreamUsage = await this.api.getApiStreamUsage?.()
+				if (apiStreamUsage) {
+					taskMetrics.inputTokens += apiStreamUsage.inputTokens
+					taskMetrics.outputTokens += apiStreamUsage.outputTokens
+					taskMetrics.cacheWriteTokens += apiStreamUsage.cacheWriteTokens ?? 0
+					taskMetrics.cacheReadTokens += apiStreamUsage.cacheReadTokens ?? 0
+					taskMetrics.totalCost = apiStreamUsage.totalCost ?? taskMetrics.totalCost
+					queueUsageChunkSideEffects(apiStreamUsage.inputTokens, apiStreamUsage.outputTokens, {
+						cacheWriteTokens: apiStreamUsage.cacheWriteTokens,
+						cacheReadTokens: apiStreamUsage.cacheReadTokens,
+						totalCost: apiStreamUsage.totalCost,
+					})
+				}
 			}
 
 			// Update the api_req_started message with final usage and cost details
-			await updateApiReqMsg({
-				messageStateHandler: this.messageStateHandler,
-				lastApiReqIndex,
-				inputTokens: taskMetrics.inputTokens,
-				outputTokens: taskMetrics.outputTokens,
-				cacheWriteTokens: taskMetrics.cacheWriteTokens,
-				cacheReadTokens: taskMetrics.cacheReadTokens,
-				api: this.api,
-				totalCost: taskMetrics.totalCost,
-			})
+			await finalizeApiReqMsg()
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
 			await this.postStateToWebview()
 
@@ -2874,7 +3094,11 @@ export class Task {
 			}
 
 			// Stored the assistant API response immediately after the stream finishes in the same turn
-			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls
+			// Check if the stream produced any content — either text or native tool calls.
+			// toolUseHandler may have accumulated tool_use blocks even when useNativeToolCalls is false
+			// (e.g., from Claude Code provider when the model returns native tool_use blocks).
+			const hasAccumulatedToolCalls = toolUseHandler.getAllFinalizedToolUses().length > 0
+			const assistantHasContent = assistantMessage.length > 0 || this.useNativeToolCalls || hasAccumulatedToolCalls
 			if (assistantHasContent) {
 				telemetryService.captureConversationTurnEvent(
 					this.ulid,
@@ -2882,13 +3106,7 @@ export class Task {
 					model.id,
 					"assistant",
 					modelInfo.mode,
-					{
-						tokensIn: taskMetrics.inputTokens,
-						tokensOut: taskMetrics.outputTokens,
-						cacheWriteTokens: taskMetrics.cacheWriteTokens,
-						cacheReadTokens: taskMetrics.cacheReadTokens,
-						totalCost: taskMetrics.totalCost,
-					},
+					undefined,
 					this.useNativeToolCalls,
 				)
 
@@ -2965,10 +3183,7 @@ export class Task {
 			// in case there are native tool calls pending
 			const partialToolBlocks = toolUseHandler.getPartialToolUsesAsContent()?.map((block) => ({ ...block, partial: false }))
 			await this.processNativeToolCalls(assistantTextOnly, partialToolBlocks)
-
-			if (partialBlocks.length > 0) {
-				await this.presentAssistantMessage() // if there is content to update then it will complete and update this.userMessageContentReady to true, which we pwaitfor before making the next request. all this is really doing is presenting the last partial message that we just set to complete
-			}
+			await this.flushAssistantPresentationOrThrow() // finalization is immediate so no coalesced content remains pending
 
 			// now add to apiconversationhistory
 			// need to save assistant responses to file before proceeding to tool use since user can exit at any moment and we wouldn't be able to save the assistant's response
@@ -3228,7 +3443,7 @@ export class Task {
 		return [processedUserContent, environmentDetails, clinerulesError]
 	}
 
-	async processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
+	protected async processNativeToolCalls(assistantTextOnly: string, toolBlocks: ToolUse[]) {
 		if (!toolBlocks?.length) {
 			return
 		}

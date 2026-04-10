@@ -1,5 +1,142 @@
 # cline
 
+## [2.14.0]
+
+### Added
+
+- Simplify unified `cline update` flow for `cline` and `kanban`
+- Docs updates
+
+### Fixed
+
+- Update Kanban migration view copy
+
+## [2.12.0]
+
+### Added
+
+- `read_file` tool now supports chunked reading for targeted file access
+
+### Fixed
+
+- Exclude `new_task` tool from system prompt in yolo/headless mode
+
+### Changed
+
+- Polish `Notification` hook functionality
+
+## [2.9.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+## [2.8.2]
+
+### Fixed
+- Use `kanban@latest` in `cline kanban` to always fetch the newest version
+
+## [2.8.1]
+
+### Added
+- Implement dynamic free model detection for Cline API
+- Add file read deduplication cache to prevent repeated reads
+- Add feature tips tooltip during thinking state
+
+### Fixed
+- Fix flaky CLI Enter-key handling across Windows/test environments
+- Replace error message when not logged in to Cline
+- Align ClineRulesToggleModal padding with ServersToggleModal
+- Skip WebP for GLM and Devstral models running through llama.cpp
+- Respect user-configured context window in LiteLLM getModel()
+- Honor explicit model IDs outside static catalog in W&B provider
+- Add missing Fireworks serverless models and pricing
+
+## [2.8.0]
+
+### Added
+
+- Added W&B Inference by CoreWeave as a new API provider with 17 models including DeepSeek-V3.1, Llama 4, and Qwen3-Coder
+- Added CLI TUI end-to-end test suite
+
+### Fixed
+
+- Claude Code: handle rate limit events, empty content arrays, error results, and unknown content types without crashing
+- CLI: `/q` and `/exit` slash commands now execute immediately on Enter without requiring the slash menu to be visible
+- CLI: slash command filtering now prioritizes exact and prefix matches over fuzzy matches
+
+## [2.7.0]
+
+### Added
+
+- Added MCP add shortcuts for stdio and HTTP servers
+- Added `--continue` for the current directory
+- Added `--auto-condense` flag for AI-powered context compaction
+- Added `--hooks-dir` flag for runtime hook injection
+- Enabled error autocapture
+- Prompt rules now include test verification guidance and make `CLI_RULES` language-agnostic
+
+### Fixed
+
+- Fixed remount behavior so TUI remounts only on width resize
+- Fixed startup prompt replay on resize remount
+- Fixed task flags so they are applied before the welcome TUI mounts
+
+### Changed
+
+- Hooks: reintroduced feature toggle
+
+## [2.6.1]
+
+### Added
+
+- Added GPT-5.4 models for ChatGPT subscription users
+- Hooks: Added a `Notification` hook for attention and completion boundaries
+- Added `--hooks-dir` CLI flag for runtime hook injection
+- Added `--auto-approve-all` CLI flag for interactive mode
+
+### Fixed
+
+- Handle streamable HTTP MCP reconnects more reliably
+
+## [2.6.0]
+
+### Added
+
+- Hook payloads now include `model.provider` and `model.slug` 
+- Token/cost updates now happen immediately as usage chunks arrive, not after tool execution
+
+### Fixed
+
+- Improve subagent context compaction logic
+- Subagent stream retry delay increased to reduce noise from transient failures
+- State serialization errors are now caught and logged instead of crashing
+- Removed incorrect `max_tokens` from OpenRouter requests
+
+## [2.5.2]
+
+### Added
+
+- Added Windows PowerShell support for hooks (execution, resolution, and management), improving hook behavior on Windows for CLI and shared core workflows.
+
+### Fixed
+
+- Restored GPT-OSS native file editing for OpenAI-compatible models used through shared core tooling.
+- Improved OpenRouter context overflow error handling so auto-compaction triggers correctly for wrapped 400 errors.
+- Hardened checkpoint recovery by retrying nested git restore and preventing silent `.git_disabled` leftovers.
+- Added a User-Agent header for requests to the Cline back-end to improve request handling consistency.
+
+## [2.5.1]
+
+### Added
+
+- Expanded CLI markdown rendering support (headings, lists, blockquotes, fenced code blocks, links, and nested lists).
+
+### Fixed
+
+- Fixed CLI headless auth provider model metadata loading for Cline and Vercel AI Gateway by fetching model info from API with cache fallback.
+- Increased flaky CLI import test timeout on Windows CI to reduce intermittent test failures.
+
 ## [2.5.0]
 
 ### Added

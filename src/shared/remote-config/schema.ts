@@ -182,6 +182,7 @@ export const RemoteConfigSchema = z.object({
 
 	// General settings not specific to any provider
 	telemetryEnabled: z.boolean().optional(),
+	kanbanEnabled: z.boolean().optional(),
 
 	// MCP settings
 	// If this is false, the MCP marketplace is disabled in the extension

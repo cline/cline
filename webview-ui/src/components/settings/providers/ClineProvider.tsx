@@ -1,6 +1,6 @@
 import { Mode } from "@shared/storage/types"
 import { ClineAccountInfoCard } from "../ClineAccountInfoCard"
-import OpenRouterModelPicker from "../OpenRouterModelPicker"
+import ClineModelPicker from "../ClineModelPicker"
 
 /**
  * Props for the ClineProvider component
@@ -25,8 +25,7 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode, initialM
 
 			{showModelOptions && (
 				<>
-					{/* OpenRouter Model Picker - includes Provider Routing in Advanced section */}
-					<OpenRouterModelPicker
+					<ClineModelPicker
 						currentMode={currentMode}
 						initialTab={initialModelTab}
 						isPopup={isPopup}

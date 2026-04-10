@@ -47,6 +47,9 @@ export async function updateApiConfigurationProto(
 			planModeOpenRouterModelInfo: protoApiConfiguration.planModeOpenRouterModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.planModeOpenRouterModelInfo)
 				: undefined,
+			planModeClineModelInfo: protoApiConfiguration.planModeClineModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.planModeClineModelInfo)
+				: undefined,
 			planModeOpenAiModelInfo: protoApiConfiguration.planModeOpenAiModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.planModeOpenAiModelInfo)
 				: undefined,
@@ -81,6 +84,9 @@ export async function updateApiConfigurationProto(
 			// Act Mode
 			actModeOpenRouterModelInfo: protoApiConfiguration.actModeOpenRouterModelInfo
 				? fromProtobufModelInfo(protoApiConfiguration.actModeOpenRouterModelInfo)
+				: undefined,
+			actModeClineModelInfo: protoApiConfiguration.actModeClineModelInfo
+				? fromProtobufModelInfo(protoApiConfiguration.actModeClineModelInfo)
 				: undefined,
 			actModeOpenAiModelInfo: protoApiConfiguration.actModeOpenAiModelInfo
 				? fromProtobufOpenAiCompatibleModelInfo(protoApiConfiguration.actModeOpenAiModelInfo)

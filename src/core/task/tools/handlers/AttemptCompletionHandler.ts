@@ -1,6 +1,8 @@
 import type Anthropic from "@anthropic-ai/sdk"
 import type { ToolUse } from "@core/assistant-message"
+import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import * as NotificationHook from "@core/hooks/notification-hook"
 import { formatResponse } from "@core/prompts/responses"
 import { processFilesIntoText } from "@integrations/misc/extract-text"
 import { showSystemNotification } from "@integrations/notifications"
@@ -216,6 +218,15 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 		// Run TaskComplete hook BEFORE presenting the "Start New Task" button
 		// At this point we know: task is complete, checkpoint saved, result shown to user
 		await this.runTaskCompleteHook(config, block)
+		await NotificationHook.emitTaskCompleteNotification(
+			{
+				messageStateHandler: config.messageState,
+				taskId: config.taskId,
+				hooksEnabled: getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled")),
+				model: getHookModelContext(config.api, config.services.stateManager),
+			},
+			{ message: result },
+		)
 
 		const { response, text, images, files: completionFiles } = await config.callbacks.ask("completion_result", "", false)
 		const prefix = "[attempt_completion] Result: Done"
@@ -301,7 +312,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 	 * Errors are logged but do not affect task completion.
 	 */
 	private async runTaskCompleteHook(config: TaskConfig, block: ToolUse): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe()
+		const hooksEnabled = getHooksEnabledSafe(config.services.stateManager.getGlobalSettingsKey("hooksEnabled"))
 		if (!hooksEnabled) {
 			return
 		}
@@ -328,6 +339,7 @@ export class AttemptCompletionHandler implements IToolHandler, IPartialBlockHand
 				messageStateHandler: config.messageState,
 				taskId: config.taskId,
 				hooksEnabled,
+				model: getHookModelContext(config.api, config.services.stateManager),
 			})
 		} catch (error) {
 			// TaskComplete hook failed - non-fatal, just log

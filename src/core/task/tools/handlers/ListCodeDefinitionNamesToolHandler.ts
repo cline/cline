@@ -65,15 +65,39 @@ export class ListCodeDefinitionNamesToolHandler implements IFullyManagedTool {
 			return await config.callbacks.sayAndCreateMissingParamError(this.name, "path")
 		}
 
+		// Resolve the path and execute the parse operation inside a single
+		// try/catch so that failures in either step (e.g. bad workspace hint,
+		// non-existent directory) return a graceful tool error instead of
+		// crashing the task.
+		let absolutePath: string
+		let displayPath: string
+		let result: string
+		try {
+			const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
+			;({ absolutePath, displayPath } =
+				typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult)
+			result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
+		} catch (error) {
+			config.taskState.consecutiveMistakeCount++
+			const errorMessage = error instanceof Error ? error.message : String(error)
+			return formatResponse.toolError(`Error listing code definitions: ${errorMessage}`)
+		}
+
+		// parseSourceCodeForDefinitionsTopLevel returns error strings for file paths
+		// and non-existent directories rather than throwing. Check for these error
+		// conditions and increment the counter so repeated failures accumulate.
+		const isErrorResult =
+			result.includes("provided path is a file, not a directory") ||
+			result.includes("does not exist or you do not have permission")
+
+		if (isErrorResult) {
+			config.taskState.consecutiveMistakeCount++
+			return formatResponse.toolError(result)
+		}
+
+		// Only reset after a successful operation so repeated failures
+		// accumulate toward the yolo-mode mistake limit.
 		config.taskState.consecutiveMistakeCount = 0
-
-		// Resolve the absolute path based on multi-workspace configuration
-		const pathResult = resolveWorkspacePath(config, relDirPath!, "ListCodeDefinitionNamesToolHandler.execute")
-		const { absolutePath, displayPath } =
-			typeof pathResult === "string" ? { absolutePath: pathResult, displayPath: relDirPath! } : pathResult
-
-		// Execute the actual parse source code operation
-		const result = await parseSourceCodeForDefinitionsTopLevel(absolutePath, config.services.clineIgnoreController)
 
 		// Handle approval flow
 		const sharedMessageProps = {

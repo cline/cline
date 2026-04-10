@@ -9,6 +9,7 @@ import { ClineSayTool } from "@shared/ExtensionMessage"
 import { getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { fileExistsAtPath } from "@utils/fs"
 import { arePathsEqual, getReadablePath, isLocatedInWorkspace } from "@utils/path"
+import { applyPatch } from "diff"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
 import type { ToolResponse } from "../../index"
@@ -17,6 +18,7 @@ import type { IFullyManagedTool } from "../ToolExecutorCoordinator"
 import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
+import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -97,7 +99,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		const rawDiff = block.params.diff // for replace_in_file
 
 		// Extract provider information for telemetry
-		const { providerId, modelId } = this.getModelInfo(config)
+		const { providerId, modelId } = getModelInfo(config)
 
 		// Validate required parameters based on tool type
 		if (!rawRelPath) {
@@ -112,7 +114,12 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		if (block.name === "replace_in_file" && !rawDiff) {
 			config.taskState.consecutiveMistakeCount++
 			await config.services.diffViewProvider.reset()
-			return await config.callbacks.sayAndCreateMissingParamError(block.name, "diff")
+			const relPath = rawRelPath || "unknown"
+			await config.callbacks.say(
+				"error",
+				`Cline tried to use replace_in_file for '${relPath}' without value for required parameter 'diff'. Retrying...`,
+			)
+			return formatResponse.toolError(formatResponse.replaceInFileMissingDiffError(relPath))
 		}
 
 		if (block.name === "write_to_file" && !rawContent) {
@@ -211,6 +218,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 
+				// Capture AI output accepted telemetry with line diff stats
+				captureAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					source: "agent",
+					beforeContent: config.services.diffViewProvider.originalContent || "",
+					afterContent: newContent,
+					providerId,
+					modelId,
+					filesCreated: fileExists ? 0 : 1,
+				})
+
 				// we need an artificial delay to let the diagnostics catch up to the changes
 				await setTimeoutPromise(3_500)
 			} else {
@@ -265,6 +284,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						block.isNativeToolCall,
 					)
 
+					// Capture AI output rejected telemetry with line diff stats
+					captureRejected({
+						ulid: config.ulid,
+						tool: block.name,
+						source: "agent",
+						beforeContent: config.services.diffViewProvider.originalContent || "",
+						afterContent: newContent,
+						providerId,
+						modelId,
+						filesCreated: fileExists ? 0 : 1,
+					})
+
 					await config.services.diffViewProvider.revertChanges()
 					return `The user denied this operation. ${fileDeniedNote}`
 				}
@@ -295,6 +326,18 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					workspaceContext,
 					block.isNativeToolCall,
 				)
+
+				// Capture AI output accepted telemetry with line diff stats (manual approval)
+				captureAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					source: "agent",
+					beforeContent: config.services.diffViewProvider.originalContent || "",
+					afterContent: newContent,
+					providerId,
+					modelId,
+					filesCreated: fileExists ? 0 : 1,
+				})
 			}
 
 			// Run PreToolUse hook after approval but before execution
@@ -323,6 +366,9 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			config.taskState.didEditFile = true // used to determine if we should wait for busy terminal to update before sending api request
 
+			// Invalidate file read cache for this file so re-reads get fresh content
+			config.taskState.fileReadCache.delete(absolutePath.toLowerCase())
+
 			// Track file edit operation
 			await config.services.fileContextTracker.trackFileContext(relPath, "cline_edited")
 
@@ -340,6 +386,20 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 						diff: userEdits,
 					}),
 				)
+
+				// Capture human edit telemetry: diff between agent's proposed content and user's pre-save edits
+				// Use applyPatch to reconstruct pre-save content from userEdits, excluding auto-formatting noise
+				const preSaveContent = applyPatch(newContent, userEdits)
+				captureAccepted({
+					ulid: config.ulid,
+					tool: block.name,
+					source: "human",
+					beforeContent: newContent,
+					afterContent: preSaveContent || finalContent || "",
+					providerId,
+					modelId,
+				})
+
 				return formatResponse.fileEditWithUserChanges(
 					relPath,
 					userEdits,
@@ -459,7 +519,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("diff_error", relPath, undefined, undefined, true)
 
 				// Extract provider information for telemetry
-				const { providerId, modelId } = this.getModelInfo(config)
+				const { providerId, modelId } = getModelInfo(config)
 
 				// Extract error type from error message if possible
 				const errorType =
@@ -516,14 +576,5 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 		}
 
 		return { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices }
-	}
-
-	private getModelInfo(config: TaskConfig) {
-		// Extract provider information for telemetry
-		const apiConfig = config.services.stateManager.getApiConfiguration()
-		const currentMode = config.services.stateManager.getGlobalSettingsKey("mode")
-		const providerId = (currentMode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider) as string
-		const modelId = config.api.getModel().id
-		return { providerId, modelId }
 	}
 }

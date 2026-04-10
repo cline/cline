@@ -134,11 +134,10 @@ For more control, you can also manually copy fixture files.
 
 ## Platform Considerations
 
-These fixtures are designed for the embedded shell architecture (similar to git hooks). They work uniformly across all platforms once the embedded shell is implemented.
+Hooks run cross-platform, but runtime differs by OS:
 
-### Current Status
-- **Linux/macOS**: Fully functional - executable scripts with shebangs
-- **Windows**: Pending embedded shell implementation
+- **Linux/macOS**: executable hook files run directly (shebang/executable bit)
+- **Windows**: hooks execute through PowerShell; tests may use a small PowerShell bridge script that pipes stdin to a Node companion file
 
 ### Creating New Fixtures
 

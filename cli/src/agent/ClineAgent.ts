@@ -42,6 +42,7 @@ import { getProviderModelIdKey } from "@shared/storage/provider-keys"
 import { ClineEndpoint } from "@/config.js"
 import { Controller } from "@/core/controller"
 import { getAvailableSlashCommands } from "@/core/controller/slash/getAvailableSlashCommands"
+import { setRuntimeHooksDir } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { AuthHandler } from "@/hosts/external/AuthHandler.js"
 import { ExternalCommentReviewController } from "@/hosts/external/ExternalCommentReviewController.js"
@@ -140,6 +141,7 @@ export class ClineAgent implements acp.Agent {
 
 	constructor(options: ClineAgentOptions) {
 		this.options = options
+		setRuntimeHooksDir(options.hooksDir)
 		this.ctx = initializeCliContext({ clineDir: options.clineDir })
 	}
 

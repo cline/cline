@@ -1,0 +1,28 @@
+{
+	"name": "Edit file with gpt-oss via OpenAI-compatible",
+	"description": "Reproduces openai-compatible gpt-oss file editing reliability when native tool calling is enabled",
+	"prompt": "Edit the file config.txt and change the line 'debug = false' to 'debug = true'. Prefer direct file-edit tools instead of shell command workarounds.",
+	"provider": "openai",
+	"models": [
+		"gpt-oss-120b"
+	],
+	"requiredEnv": [
+		"OPENAI_COMPAT_API_KEY",
+		"OPENAI_COMPAT_BASE_URL"
+	],
+	"auth": {
+		"apiKeyEnv": "OPENAI_COMPAT_API_KEY",
+		"baseUrlEnv": "OPENAI_COMPAT_BASE_URL",
+		"modelId": "gpt-oss-120b"
+	},
+	"expectedFiles": [
+		"config.txt"
+	],
+	"expectedContent": [
+		{
+			"file": "config.txt",
+			"contains": "debug = true"
+		}
+	],
+	"timeout": 180
+}

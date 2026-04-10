@@ -177,4 +177,22 @@ describe("FailureClassifier", () => {
 			expect(failures).toEqual([])
 		})
 	})
+
+	describe("YAML Safety (JSON_SCHEMA)", () => {
+		it("rejects patterns file with custom YAML tags", () => {
+			// Write a temp YAML file with a !!js/function tag
+			const fs = require("fs")
+			const path = require("path")
+			const os = require("os")
+			const tmpFile = path.join(os.tmpdir(), "unsafe-patterns.yaml")
+			fs.writeFileSync(
+				tmpFile,
+				`version: "1.0"\npatterns:\n  - name: !!js/function 'function(){ return "pwned" }'\n`,
+			)
+
+			expect(() => new FailureClassifier(tmpFile)).toThrow()
+
+			fs.unlinkSync(tmpFile)
+		})
+	})
 })

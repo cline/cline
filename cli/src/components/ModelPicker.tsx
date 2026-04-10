@@ -62,6 +62,8 @@ import {
 	sapAiCoreModels,
 	vertexDefaultModelId,
 	vertexModels,
+	wandbDefaultModelId,
+	wandbModels,
 	xaiDefaultModelId,
 	xaiModels,
 } from "@/shared/api"
@@ -101,6 +103,7 @@ export const providerModels: Record<string, { models: Record<string, unknown>; d
 	sambanova: { models: sambanovaModels, defaultId: sambanovaDefaultModelId },
 	sapaicore: { models: sapAiCoreModels, defaultId: sapAiCoreDefaultModelId },
 	vertex: { models: vertexModels, defaultId: vertexDefaultModelId },
+	wandb: { models: wandbModels, defaultId: wandbDefaultModelId },
 	xai: { models: xaiModels, defaultId: xaiDefaultModelId },
 	zai: { models: internationalZAiModels, defaultId: internationalZAiDefaultModelId },
 }

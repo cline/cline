@@ -163,6 +163,10 @@
 		{
 			"value": "nousResearch",
 			"label": "NousResearch"
+		},
+		{
+			"value": "wandb",
+			"label": "W&B Inference by CoreWeave"
 		}
 	]
 }
