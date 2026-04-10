@@ -183,11 +183,15 @@ export class WebviewGrpcBridge {
 				this.mcpServersSubscriptionRequestId = requestId
 				this.sequenceCounters.set(requestId, 0)
 
-				// Push initial MCP servers from disk
+				// Push initial MCP servers from disk via typed message.
+				// The gRPC streaming response uses proto encoding which may
+				// not match the SDK's plain-object format, so we also send
+				// as a typed message for the dual-listen pattern.
 				const mcpReq: GrpcRequest = { method: "getLatestMcpServers", params: {} }
 				const mcpResult = await this.grpcHandler.handleRequest(mcpReq)
 				if (mcpResult.data) {
-					this.sendStreamingResponse(requestId, mcpResult.data)
+					const servers = (mcpResult.data as any).mcpServers ?? []
+					this.postMessage({ type: "mcpServers", servers })
 				}
 				break
 			}

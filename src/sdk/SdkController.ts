@@ -188,12 +188,13 @@ export class SdkController implements GrpcHandlerDelegate {
 			cwdOnTaskInitialization: this.cwd,
 		}
 
-		// Add initial "task" message
+		// Add initial "task" message (include images so they appear in chat)
 		const taskMessage: ClineMessage = {
 			ts: Date.now(),
 			type: "say",
 			say: "task",
 			text,
+			images,
 		}
 		this.translator.getMessages().push(taskMessage)
 
@@ -224,6 +225,7 @@ export class SdkController implements GrpcHandlerDelegate {
 				type: "say",
 				say: "user_feedback",
 				text,
+				images,
 			}
 			this.translator.getMessages().push(feedbackMessage)
 			this.pushStateUpdate()
@@ -411,6 +413,14 @@ export class SdkController implements GrpcHandlerDelegate {
 
 				if (hasApiConfig) {
 					this.legacyState.saveApiConfiguration(apiConfigUpdates)
+					// Also update the in-memory API configuration so that
+					// model/provider changes take effect immediately for
+					// the next session (or mid-conversation if the session
+					// reads config on each request).
+					this.apiConfiguration = {
+						...this.apiConfiguration,
+						...apiConfigUpdates,
+					} as ApiConfiguration
 				}
 			} catch {
 				// Best-effort persistence
