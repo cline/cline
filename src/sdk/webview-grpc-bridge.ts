@@ -60,6 +60,7 @@ export class WebviewGrpcBridge {
 	private stateSubscriptionRequestId?: string
 	private partialMessageSubscriptionRequestId?: string
 	private mcpServersSubscriptionRequestId?: string
+	private authStatusSubscriptionRequestId?: string
 	private sequenceCounters = new Map<string, number>()
 
 	constructor(delegate: GrpcHandlerDelegate, postMessage: PostMessageFn) {
@@ -191,6 +192,9 @@ export class WebviewGrpcBridge {
 			}
 
 			case "subscribeToAuthStatusUpdate": {
+				this.authStatusSubscriptionRequestId = requestId
+				this.sequenceCounters.set(requestId, 0)
+
 				// Push initial auth state from disk
 				const authReq: GrpcRequest = { method: "subscribeToAuthStatusUpdate", params: {} }
 				const authResult = await this.grpcHandler.handleRequest(authReq)
@@ -231,6 +235,18 @@ export class WebviewGrpcBridge {
 
 		// Also send as typed message
 		this.postMessage({ type: "partialMessage", message })
+	}
+
+	/**
+	 * Push auth status update to the webview via the streaming subscription.
+	 * Called after logout/login to notify the webview's ClineAuthContext
+	 * of auth state changes. The webview checks response.user.uid — if
+	 * falsy, it sets user to null and shows the sign-in view.
+	 */
+	pushAuthStatus(authData: Record<string, unknown>): void {
+		if (this.authStatusSubscriptionRequestId) {
+			this.sendStreamingResponse(this.authStatusSubscriptionRequestId, authData)
+		}
 	}
 
 	// -----------------------------------------------------------------------

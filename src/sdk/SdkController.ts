@@ -95,6 +95,7 @@ export class SdkController implements GrpcHandlerDelegate {
 	/** External push callbacks (registered by WebviewGrpcBridge) */
 	private onPushStateCallback?: (state: ExtensionState) => void
 	private onPushPartialMessageCallback?: (message: ClineMessage) => void
+	private onPushAuthStatusCallback?: (authData: Record<string, unknown>) => void
 
 	constructor(options: SdkControllerOptions = {}) {
 		this.version = options.version ?? "0.0.0"
@@ -127,6 +128,11 @@ export class SdkController implements GrpcHandlerDelegate {
 	/** Register a callback for partial message push events */
 	onPushPartialMessage(callback: (message: ClineMessage) => void): void {
 		this.onPushPartialMessageCallback = callback
+	}
+
+	/** Register a callback for auth status push events */
+	onPushAuthStatus(callback: (authData: Record<string, unknown>) => void): void {
+		this.onPushAuthStatusCallback = callback
 	}
 
 	// -----------------------------------------------------------------------
@@ -917,12 +923,17 @@ export class SdkController implements GrpcHandlerDelegate {
 
 	/**
 	 * Clear Cline auth credentials (logout).
-	 * Removes credentials from disk and pushes state update.
+	 * Removes credentials from disk, pushes auth status update
+	 * (so the webview's ClineAuthContext shows the sign-in view),
+	 * and pushes a state update.
 	 */
 	clearClineAuth(): void {
 		if (this.legacyState) {
 			this.legacyState.clearClineAuthInfo()
 		}
+		// Push auth status update with empty user so the webview
+		// transitions to the sign-in view
+		this.onPushAuthStatusCallback?.({})
 		this.pushStateUpdate()
 	}
 

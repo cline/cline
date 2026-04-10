@@ -997,6 +997,10 @@ export class GrpcHandler {
 	// -----------------------------------------------------------------------
 
 	private handleSubscribeToAuthStatusUpdate(): GrpcResponse {
+		// The webview's ClineAuthContext subscribes to auth status updates
+		// with an onResponse callback. We store the subscription so we can
+		// push auth updates when auth state changes (logout, login).
+		// The initial response is returned immediately with current auth state.
 		const authInfo = this.delegate.getClineAuthInfo?.()
 		if (authInfo?.userInfo) {
 			// Return auth state matching the proto AuthState shape
@@ -1458,13 +1462,19 @@ export class GrpcHandler {
 
 	/**
 	 * Handle login click: open the Cline app login page in the browser.
+	 * Uses appBaseUrl from the current environment config (e.g., staging
+	 * uses a different URL than production). Falls back to production URL.
+	 *
 	 * The classic extension uses AuthService to create a full OAuth flow
 	 * with callback URLs. In SDK mode, we open the login page directly.
 	 * The user authenticates in the browser and the credentials are
 	 * picked up from disk on the next state refresh.
 	 */
 	private async handleAccountLoginClicked(): Promise<GrpcResponse> {
-		const loginUrl = "https://app.cline.bot/login"
+		// Check if there's an appBaseUrl from auth credentials (set by environment)
+		const authInfo = this.delegate.getClineAuthInfo?.()
+		const appBaseUrl = authInfo?.userInfo?.appBaseUrl ?? "https://app.cline.bot"
+		const loginUrl = `${appBaseUrl}/login`
 		if (this.delegate.openUrl) {
 			await this.delegate.openUrl(loginUrl)
 		}

@@ -187,6 +187,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			// Wire push callbacks so SdkController state changes reach the webview
 			this.sdkController.onPushState((state) => this.bridge!.pushState(state))
 			this.sdkController.onPushPartialMessage((msg) => this.bridge!.pushPartialMessage(msg))
+			this.sdkController.onPushAuthStatus((authData) => this.bridge!.pushAuthStatus(authData))
 
 			// Wire platform-specific file picker
 			// Returns { images: dataURL[], files: relativePath[] } matching proto StringArrays (values1/values2)
