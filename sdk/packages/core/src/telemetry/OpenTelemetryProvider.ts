@@ -133,10 +133,9 @@ export class OpenTelemetryProvider {
 			metadata: options.metadata,
 		});
 		return new TelemetryService({
+			...options,
 			adapters: [adapter],
 			distinctId: resolveCoreDistinctId(options.distinctId),
-			commonProperties: options.commonProperties,
-			logger: options.logger,
 		});
 	}
 
@@ -299,6 +298,7 @@ export function createConfiguredTelemetryService(
 	if (options.enabled !== true) {
 		return {
 			telemetry: new TelemetryService({
+				...options,
 				distinctId: resolveCoreDistinctId(options.distinctId),
 			}),
 		};

@@ -98,6 +98,199 @@ describe("createOpenTelemetryTelemetryService", () => {
 		expect(telemetry).toBeInstanceOf(TelemetryService);
 	});
 
+	it("preserves metadata when disabled", () => {
+		const metadata = {
+			extension_version: "1.0.0",
+			cline_type: "kanban",
+			platform: "kanban",
+			platform_version: "v22.0.0",
+			os_type: "darwin",
+			os_version: "15.0",
+		};
+		const { telemetry } = createConfiguredTelemetryService({
+			metadata,
+			enabled: false,
+		});
+		const spy = vi.fn();
+		(telemetry as any).adapters.push({
+			name: "test",
+			emit: spy,
+			emitRequired: spy,
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: async () => {},
+			dispose: async () => {},
+		});
+		telemetry.captureRequired("test.event", {});
+		expect(spy).toHaveBeenCalledWith(
+			"test.event",
+			expect.objectContaining({
+				cline_type: "kanban",
+				platform: "kanban",
+			}),
+		);
+	});
+
+	it("preserves metadata in the enabled (OTEL) path", async () => {
+		const metadata = {
+			extension_version: "1.0.0",
+			cline_type: "kanban",
+			platform: "kanban",
+			platform_version: "v22.0.0",
+			os_type: "darwin",
+			os_version: "15.0",
+		};
+		const { telemetry, provider } = createOpenTelemetryTelemetryService({
+			metadata,
+			enabled: true,
+			logsExporter: "console",
+		});
+		const spy = vi.fn();
+		(telemetry as any).adapters.push({
+			name: "test",
+			emit: spy,
+			emitRequired: spy,
+			isEnabled: () => true,
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: async () => {},
+			dispose: async () => {},
+		});
+		telemetry.captureRequired("test.event", {});
+		expect(spy).toHaveBeenCalledWith(
+			"test.event",
+			expect.objectContaining({
+				cline_type: "kanban",
+				platform: "kanban",
+			}),
+		);
+		await provider.dispose();
+	});
+
+	it("delivers metadata to the OTEL logger without duplication", async () => {
+		const otelEmit = vi.fn();
+		const provider = new OpenTelemetryProvider({
+			enabled: true,
+		});
+		// Replace the loggerProvider with a mock so we can inspect emit calls
+		(provider as any).loggerProvider = {
+			getLogger: () => ({ emit: otelEmit }),
+			forceFlush: async () => {},
+			shutdown: async () => {},
+		};
+
+		const metadata = {
+			extension_version: "1.0.0",
+			cline_type: "kanban",
+			platform: "kanban",
+			platform_version: "v22.0.0",
+			os_type: "darwin",
+			os_version: "15.0",
+		};
+
+		const telemetry = provider.createTelemetryService({ metadata });
+
+		telemetry.captureRequired("test.otel_event", { custom_prop: "value" });
+
+		expect(otelEmit).toHaveBeenCalledTimes(1);
+		const emittedAttributes = otelEmit.mock.calls[0][0].attributes;
+
+		// Metadata fields must be present
+		expect(emittedAttributes).toMatchObject({
+			cline_type: "kanban",
+			platform: "kanban",
+			extension_version: "1.0.0",
+			custom_prop: "value",
+		});
+
+		// Verify no key appears more than once (flattened object can't have
+		// duplicate keys, but this guards against nested duplication patterns
+		// like metadata appearing under a sub-prefix)
+		const keys = Object.keys(emittedAttributes);
+		const metadataKeys = Object.keys(metadata);
+		for (const mk of metadataKeys) {
+			const occurrences = keys.filter(
+				(k) => k === mk || k.endsWith(`.${mk}`),
+			);
+			expect(
+				occurrences,
+				`metadata key "${mk}" should appear exactly once, found: ${occurrences.join(", ")}`,
+			).toHaveLength(1);
+		}
+
+		await provider.dispose();
+	});
+
+	it("propagates updateMetadata to OTEL logger output", async () => {
+		const otelEmit = vi.fn();
+		const provider = new OpenTelemetryProvider({
+			enabled: true,
+		});
+		(provider as any).loggerProvider = {
+			getLogger: () => ({ emit: otelEmit }),
+			forceFlush: async () => {},
+			shutdown: async () => {},
+		};
+
+		const metadata = {
+			extension_version: "1.0.0",
+			cline_type: "kanban",
+			platform: "kanban",
+			platform_version: "v22.0.0",
+			os_type: "darwin",
+			os_version: "15.0",
+		};
+
+		const telemetry = provider.createTelemetryService({ metadata });
+
+		// Update metadata after construction
+		telemetry.updateMetadata({ cline_type: "kanban-updated" });
+
+		telemetry.captureRequired("test.updated_event", {});
+
+		// The OTEL logger should see the updated value
+		const emittedAttributes =
+			otelEmit.mock.calls[otelEmit.mock.calls.length - 1][0].attributes;
+		expect(emittedAttributes.cline_type).toBe("kanban-updated");
+
+		await provider.dispose();
+	});
+
+	it("preserves logger when disabled", () => {
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const { telemetry } = createConfiguredTelemetryService({
+			metadata: {
+				extension_version: "1.0.0",
+				cline_type: "kanban",
+				platform: "kanban",
+				platform_version: "v22.0.0",
+				os_type: "darwin",
+				os_version: "15.0",
+			},
+			enabled: false,
+			logger,
+		});
+
+		telemetry.capture({
+			event: "session.started",
+			properties: { sessionId: "session-1" },
+		});
+
+		expect(logger.log).toHaveBeenCalledWith(
+			"telemetry.event",
+			expect.objectContaining({
+				event: "session.started",
+			}),
+		);
+	});
+
 	it("attaches the logger adapter when creating configured telemetry", () => {
 		const logger: BasicLogger = {
 			debug: vi.fn(),

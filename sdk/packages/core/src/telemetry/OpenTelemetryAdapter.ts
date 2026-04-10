@@ -229,8 +229,8 @@ export class OpenTelemetryAdapter implements ITelemetryAdapter {
 	): TelemetryProperties {
 		return {
 			...this.commonProperties,
-			...properties,
 			...this.metadata,
+			...properties,
 			...(this.distinctId ? { distinct_id: this.distinctId } : {}),
 			...(required ? { _required: true } : {}),
 		};
