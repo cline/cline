@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { TeamTeammateSpec, Tool } from "@clinebot/shared";
+import type { BasicLogger, TeamTeammateSpec, Tool } from "@clinebot/shared";
 import { resolveSkillsConfigSearchPaths } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import {
@@ -191,7 +191,7 @@ function hasSkillsFiles(workspacePath: string): boolean {
 	return false;
 }
 
-async function loadConfiguredMcpTools(): Promise<{
+async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	tools: Tool[];
 	shutdown?: () => Promise<void>;
 }> {
@@ -203,33 +203,50 @@ async function loadConfiguredMcpTools(): Promise<{
 	const manager = new InMemoryMcpManager({
 		clientFactory: createDefaultMcpServerClientFactory(),
 	});
-	const registrations = await registerMcpServersFromSettingsFile(manager, {
-		filePath: settingsPath,
-	});
 
+	let registrations: Awaited<
+		ReturnType<typeof registerMcpServersFromSettingsFile>
+	>;
 	try {
-		const tools = (
-			await Promise.all(
-				registrations
-					.filter((registration) => registration.disabled !== true)
-					.map((registration) =>
-						createMcpTools({
-							serverName: registration.name,
-							provider: manager,
-						}),
-					),
-			)
-		).flat();
-		return {
-			tools,
-			shutdown: async () => {
-				await manager.dispose();
-			},
-		};
+		registrations = await registerMcpServersFromSettingsFile(manager, {
+			filePath: settingsPath,
+		});
 	} catch (error) {
 		await manager.dispose().catch(() => {});
-		throw error;
+		const message = error instanceof Error ? error.message : String(error);
+		logger?.log(
+			`[mcp] Failed to load MCP settings, skipping MCP tools: ${message}`,
+		);
+		return { tools: [] };
 	}
+
+	const enabled = registrations.filter((r) => r.disabled !== true);
+	const results = await Promise.allSettled(
+		enabled.map((r) =>
+			createMcpTools({ serverName: r.name, provider: manager }),
+		),
+	);
+	const tools: Tool[] = [];
+	for (const [i, result] of results.entries()) {
+		if (result.status === "fulfilled") {
+			tools.push(...result.value);
+		} else {
+			const message =
+				result.reason instanceof Error
+					? result.reason.message
+					: String(result.reason);
+			logger?.log(
+				`[mcp] Failed to load tools from MCP server "${enabled[i].name}", skipping: ${message}`,
+			);
+		}
+	}
+
+	return {
+		tools,
+		shutdown: async () => {
+			await manager.dispose();
+		},
+	};
 }
 
 function resolveSkillRecord(
@@ -470,7 +487,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					defaultToolExecutors,
 				),
 			);
-			const mcpRuntime = await loadConfiguredMcpTools();
+			const mcpRuntime = await loadConfiguredMcpTools(config.logger);
 			tools.push(...mcpRuntime.tools);
 			mcpShutdown = mcpRuntime.shutdown;
 		}

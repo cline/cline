@@ -284,7 +284,7 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
-	it("rejects malformed MCP server responses without crashing", async () => {
+	it("skips broken MCP servers without crashing", async () => {
 		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-bad-"));
 		const serverPath = join(tempRoot, "malformed-mcp-server.js");
 		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
@@ -316,11 +316,36 @@ process.stdin.on("data", (chunk) => {
 
 		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
 		try {
-			await expect(
-				new DefaultRuntimeBuilder().build({
-					config: makeBaseConfig(),
-				}),
-			).rejects.toThrow(/Invalid MCP response/);
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			const mcpTools = runtime.tools.filter((t) =>
+				t.name.startsWith("broken__"),
+			);
+			expect(mcpTools).toEqual([]);
+			await runtime.shutdown("test");
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
+	it("skips invalid MCP settings file without crashing", async () => {
+		const tempRoot = mkdtempSync(
+			join(tmpdir(), "runtime-builder-mcp-invalid-"),
+		);
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(settingsPath, "{ not valid json !!!", "utf8");
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			const mcpTools = runtime.tools.filter((t) => t.name.includes("__"));
+			expect(mcpTools).toEqual([]);
+			await runtime.shutdown("test");
 		} finally {
 			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
 		}
