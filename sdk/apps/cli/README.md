@@ -145,7 +145,7 @@ clite connect telegram -m my_bot -k 123456:ABCDEF... --provider cline --model op
 clite connect telegram -m my_bot -k 123456:ABCDEF... --enable-tools
 # Dispatch connector lifecycle/message events to an external hook command
 clite connect telegram -m my_bot -k 123456:ABCDEF... --hook-command '/Users/me/bin/on-connector-event'
-# In Telegram chats, use /tools, /yolo, /cwd <path>, /reset, /whereami, /stop
+# In Telegram chats, use /tools, /yolo, /cwd <path>, /clear, /whereami, /exit
 
 # Bridge a Google Chat app into RPC-backed chat sessions (webhook mode)
 clite connect gchat --base-url https://your-domain.com
@@ -357,7 +357,7 @@ RPC and schedule shortcuts:
 Behavior notes:
 
 - `clite auth` without a provider opens the interactive auth setup TUI.
-- Connector slash commands are shared across connector chat surfaces: `/reset`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/stop`.
+- Connector slash commands are shared across connector chat surfaces: `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/exit`.
 - Interactive CLI can use the same slash-command parser only when `CLINE_ENABLE_CHAT_COMMANDS=1`.
 
 Auth quick-setup flags:

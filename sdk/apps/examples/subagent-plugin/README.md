@@ -7,38 +7,45 @@ Think of it as `spawn()` for AI agents: fire off a recon agent to map a codebase
 ## Quick Start
 
 ```ts
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
-const host = await createSessionHost({});
+const cline = await ClineCore.create({});
 
-await host.start({
+await cline.start({
   config: {
     providerId: "cline",
     modelId: "anthropic/claude-sonnet-4.6",
     cwd: process.cwd(),
     enableTools: true,
-    enableSpawnAgent: false,
-    enableAgentTeams: false,
     systemPrompt: "You are a coding assistant with access to subagents.",
-    pluginPaths: ["./apps/examples/subagent-plugin/index.ts"],
+    pluginPaths: ["./apps/examples/subagent-plugin"],
   },
   prompt: "Use subagents to investigate and refactor this repo.",
   interactive: true,
 });
 ```
 
-That's it. Your agent now has access to 8 new tools for orchestrating subagents and skills.
+Pass the **directory** as the plugin path. The runtime reads `package.json` and uses the `cline.plugins` field to discover entry points — no need to point at `index.ts` directly.
 
-### CLI installation
+### Plugin discovery via `package.json`
 
-The portable plugin can also be used directly from the CLI by copying a single file:
+When a directory is given as a plugin path, the loader looks for a `package.json` with a `cline.plugins` array:
 
-```bash
-mkdir -p ~/.cline/plugins
-cp apps/examples/subagent-plugin/index.ts ~/.cline/plugins/portable-subagents.ts
+```json
+{
+  "name": "my-cline-plugin",
+  "type": "module",
+  "cline": {
+    "plugins": [
+      { "paths": ["./index.ts"], "capabilities": ["tools"] }
+    ]
+  }
+}
 ```
 
-The copied file is self-contained for the bundled presets and skills. You do not need to copy the `agents/` or `skills/` folders just to use the built-in crew.
+Each entry in `plugins` is a `PluginManifest` with a `paths` array of relative file paths and a `capabilities` array declaring what the plugin provides (`tools`, `hooks`, `commands`, `flags`, `providers`). All paths are resolved relative to the directory containing `package.json`.
+
+If no `cline.plugins` field is present, the loader falls back to looking for `index.ts` or `index.js` at the directory root.
 
 ## Tools
 
@@ -90,7 +97,7 @@ Drop a Markdown file with YAML frontmatter into any of these directories:
 
 That global path still works. In the current implementation, agent presets are loaded from:
 
-- bundled presets embedded in the plugin itself
+- bundled presets in `agents/` alongside the plugin
 - `~/.cline/data/settings/agents/`
 - `<cwd>/.cline/agents/`
 
@@ -147,7 +154,7 @@ Same pattern as agents — drop a Markdown file:
 
 In the current implementation, skills are loaded from:
 
-- bundled skills embedded in the plugin itself
+- bundled skills in `skills/` alongside the plugin
 - `~/.cline/data/settings/skills/`
 - `<cwd>/.cline/skills/`
 

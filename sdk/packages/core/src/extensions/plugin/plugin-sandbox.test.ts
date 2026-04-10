@@ -12,7 +12,7 @@ function createApiCapture() {
 		registerCommand: () => {},
 		registerShortcut: () => {},
 		registerFlag: () => {},
-		registerMessageRenderer: () => {},
+		registerMessageBuilder: () => {},
 		registerProvider: () => {},
 	};
 	return { tools, api };

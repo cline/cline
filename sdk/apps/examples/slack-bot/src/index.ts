@@ -8,7 +8,7 @@
  * - Support single-workspace and multi-workspace OAuth Slack installs
  * - Maintain per-thread agent conversation memory
  * - Serialize concurrent messages per thread to avoid race conditions
- * - Handle slash commands (/reset) to clear agent state
+ * - Handle slash commands (/clear) to clear agent state
  * - Use the Slack Assistants API for suggested prompts
  *
  * Prerequisites:
@@ -435,8 +435,8 @@ bot.onSubscribedMessage(async (thread, message) => {
 	});
 });
 
-// /reset slash command — clears all agent thread history in the channel
-bot.onSlashCommand("/reset", async (event) => {
+// /clear slash command — clears all agent thread history in the channel
+bot.onSlashCommand("/clear", async (event) => {
 	const channelPrefix = `${event.channel.id}:`;
 	for (const threadId of runtimes.keys()) {
 		if (threadId.startsWith(channelPrefix)) {

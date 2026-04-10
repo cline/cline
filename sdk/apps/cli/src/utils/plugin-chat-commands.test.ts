@@ -20,7 +20,7 @@ describe("plugin chat commands", () => {
 		const pluginsDir = join(tempRoot, ".clinerules", "plugins");
 		await mkdir(pluginsDir, { recursive: true });
 		await writeFile(
-			join(pluginsDir, "echo.mjs"),
+			join(pluginsDir, "echo.js"),
 			[
 				"export default {",
 				"  name: 'echo-plugin',",

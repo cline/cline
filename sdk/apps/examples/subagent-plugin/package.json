@@ -7,6 +7,19 @@
 	"exports": {
 		".": "./index.ts"
 	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": [
+					"./index.ts"
+				],
+				"capabilities": [
+					"hooks",
+					"tools"
+				]
+			}
+		]
+	},
 	"dependencies": {
 		"@clinebot/agents": "workspace:*",
 		"@clinebot/core": "workspace:*",

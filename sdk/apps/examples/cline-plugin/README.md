@@ -77,34 +77,37 @@ await host.start({
 
 ## Available capabilities
 
-| Capability         | What it unlocks                           |
-| ------------------ | ----------------------------------------- |
-| `tools`            | `api.registerTool()`                      |
-| `commands`         | `api.registerCommand()`                   |
-| `shortcuts`        | `api.registerShortcut()`                  |
-| `flags`            | `api.registerFlag()`                      |
-| `message_renderers`| `api.registerMessageRenderer()`           |
-| `providers`        | `api.registerProvider()`                  |
-| `hooks`            | lifecycle hook handlers (see below)       |
+| Capability         | What it unlocks                              |
+| ------------------ | -------------------------------------------- |
+| `tools`            | `api.registerTool()`                         |
+| `commands`         | `api.registerCommand()`                      |
+| `shortcuts`        | `api.registerShortcut()`                     |
+| `flags`            | `api.registerFlag()`                         |
+| `providers`        | `api.registerProvider()`                     |
+| `messageBuilder`   | `api.registerMessageBuilder()` (Coming soon) |
+| `hooks`            | lifecycle hook handlers (see below)          |
 
 ## Available hook stages
 
-| Stage               | Handler               | When it fires                      |
-| ------------------- | --------------------- | ---------------------------------- |
-| `run_start`         | `onRunStart`          | before the agent starts running    |
-| `run_end`           | `onRunEnd`            | after the agent finishes           |
-| `iteration_start`   | `onIterationStart`    | before each LLM call               |
-| `iteration_end`     | `onIterationEnd`      | after each LLM call                |
-| `turn_start`        | `onTurnStart`         | before the model turn              |
-| `turn_end`          | `onAgentEnd`          | after the model turn               |
-| `tool_call_before`  | `onToolCall`          | before a tool executes             |
-| `tool_call_after`   | `onToolResult`        | after a tool executes              |
-| `before_agent_start`| `onBeforeAgentStart`  | to override system prompt/messages |
-| `session_start`     | `onSessionStart`      | when a session begins              |
-| `session_shutdown`  | `onSessionShutdown`   | when a session ends                |
-| `input`             | `onInput`             | when the user sends input          |
-| `runtime_event`     | `onRuntimeEvent`      | on every agent event               |
-| `error`             | `onError`             | when an unhandled error occurs     |
+| Stage                | Handler               | When it fires                                                                                 |
+| -------------------- | --------------------- | --------------------------------------------------------------------------------------------- |
+| `session_start`      | `onSessionStart`      | once when the session is first initialized                                                    |
+| `input`              | `onInput`             | when the user sends input                                                                     |
+| `run_start`          | `onRunStart`          | once per `run()` / `continue()`, before the first iteration                                  |
+| `iteration_start`    | `onIterationStart`    | at the top of every loop iteration, before turn construction begins                           |
+| `turn_start`         | `onTurnStart`         | after iteration setup, with the current message list, before prompt preparation               |
+| `before_agent_start` | `onBeforeAgentStart`  | immediately before the model call — last chance to replace system prompt or append messages   |
+| `turn_end`           | `onTurnEnd`           | after the model responds, before any tool calls execute                                       |
+| `tool_call_before`   | `onToolCall`          | before each individual tool executes                                                          |
+| `tool_call_after`    | `onToolResult`        | after each individual tool executes                                                           |
+| `iteration_end`      | `onIterationEnd`      | at the end of a loop iteration, after all tool calls for that iteration have completed        |
+| `run_end`            | `onRunEnd`            | once after the agent loop finishes (all iterations done)                                      |
+| `stop_error`         | `onAgentError`        | when a turn error stops forward progress for the current run                                  |
+| `session_shutdown`   | `onSessionShutdown`   | when the session is shutting down                                                             |
+| `error`              | `onError`             | when an unhandled error is thrown in the agent loop                                           |
+| `runtime_event`      | `onRuntimeEvent`      | on every agent event emitted during the run                                                   |
+
+> **`turn_end` vs `iteration_end`:** Within a single iteration the order is `turn_end` → *(tool calls)* → `iteration_end`. Use `turn_end` to inspect or react to the model's raw response before tools run; use `iteration_end` when you need to observe the outcome of the full round-trip including all tool results.
 
 ## Context rewriting vs compaction
 

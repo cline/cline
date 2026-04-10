@@ -1,4 +1,4 @@
-import type { WorkspaceContext } from "../context/extension-context";
+import type { WorkspaceContext } from "../extensions/context";
 import type { WorkspaceInfo } from "../session/workspace";
 import {
 	DEFAULT_CLINE_SYSTEM_PROMPT,

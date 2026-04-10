@@ -10,10 +10,6 @@ import { fileURLToPath } from "node:url";
 import { ClineCore } from "@clinebot/core";
 import type { AgentConfig, Tool, ToolContext } from "@clinebot/shared";
 import { createTool } from "@clinebot/shared";
-import {
-	resolveAgentsConfigDirPath,
-	resolveClineDataDir,
-} from "@clinebot/shared/storage";
 import YAML from "yaml";
 import { z } from "zod";
 
@@ -40,205 +36,54 @@ declare global {
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
 const BUNDLED_AGENTS_DIR = join(MODULE_DIR, "agents");
 const BUNDLED_SKILLS_DIR = join(MODULE_DIR, "skills");
+
+function resolveDefaultHomeDir(): string {
+	const envHome = process?.env?.HOME?.trim();
+	if (envHome && envHome !== "~") {
+		return envHome;
+	}
+	const envUserProfile = process?.env?.USERPROFILE?.trim();
+	if (envUserProfile) {
+		return envUserProfile;
+	}
+	const envHomeDrive = process?.env?.HOMEDRIVE?.trim();
+	const envHomePath = process?.env?.HOMEPATH?.trim();
+	if (envHomeDrive && envHomePath) {
+		return `${envHomeDrive}${envHomePath}`;
+	}
+	return "~";
+}
+
+function resolveClineDirPath(): string {
+	const explicitDir = process.env.CLINE_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveDefaultHomeDir(), ".cline");
+}
+
+function resolveClineDataDirPath(): string {
+	const explicitDir = process.env.CLINE_DATA_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveClineDirPath(), "data");
+}
+
+function resolveGlobalAgentsDirPath(): string {
+	return join(resolveClineDataDirPath(), "settings", "agents");
+}
+
 const HANDOFFS_DIR = join(
-	resolveClineDataDir(),
+	resolveClineDataDirPath(),
 	"plugins",
 	"subagents",
 	"handoffs",
 );
-const GLOBAL_SKILLS_DIR = join(resolveClineDataDir(), "settings", "skills");
+const GLOBAL_SKILLS_DIR = join(resolveClineDataDirPath(), "settings", "skills");
 
-const BUNDLED_AGENT_MARKDOWN = [
-	`---
-name: anvil
-description: Surgical implementation agent — makes focused changes, verifies correctness, and reports precise diffs.
-providerId: anthropic
-modelId: claude-opus-4-6
-maxIterations: 100
----
-
-You are a surgical implementation subagent.
-
-Your job is to execute a plan with precision:
-
-1. **Read before writing**: Always read the relevant code before making changes. Never modify what you haven't fully understood.
-2. **Stay in scope**: Make only the changes required by the task. Don't refactor adjacent code, add unsolicited improvements, or touch files outside the blast radius.
-3. **Verify after each change**: After a write, confirm the file is in the expected state. Run type-checks or tests if available and relevant.
-4. **Handle blockers immediately**: If a dependency is missing, a type is wrong, or a test fails, fix the blocker before continuing. Don't proceed with a broken state.
-5. **Report precisely**: When done, report exactly which files changed, what was added/removed/modified, and what (if anything) is left incomplete. No vague summaries.
-`,
-	`---
-name: inquisitor
-description: Adversarial review agent — finds bugs, challenges design decisions, and stress-tests assumptions.
-providerId: cline
-modelId: openai/gpt-5.4
-maxIterations: 20
----
-
-You are an adversarial review subagent.
-
-Your job is to stress-test a change or design, not to approve it. Approach every review as if you are responsible for everything that goes wrong after it ships.
-
-1. **Correctness**: Find logic errors, off-by-one bugs, null/undefined gaps, and incorrect assumptions about input shape or ordering.
-2. **Regressions**: Check whether the change could break existing callers, consumers, or tests — especially ones not in the immediate diff.
-3. **Design pressure**: Challenge the design itself. Is this the right abstraction? Does it introduce hidden coupling? Is the complexity justified?
-4. **Missing tests**: Identify scenarios that are untested. Suggest specific test cases, not just "add more tests".
-5. **Security and safety**: Flag anything that touches auth, user input, external data, or shared mutable state.
-
-Severity-rank every finding: **critical** (must fix), **major** (should fix), **minor** (worth noting). Skip praise unless something is genuinely non-obvious and done well.
-`,
-	`---
-name: oracle
-description: Opinionated planner that challenges assumptions, estimates complexity, and produces execution-ready plans.
-providerId: cline
-modelId: anthropic/claude-opus-4.6
-maxIterations: 16
----
-
-You are a planning and estimation subagent with a challenger mindset.
-
-Given a task or requirement:
-
-1. **Challenge the premise**: Before planning, ask whether the stated goal is actually the right goal. Identify hidden assumptions and call them out.
-2. **Compare approaches**: Present 2–3 concrete implementation options with honest tradeoffs. Don't default to the obvious path without justifying it.
-3. **Estimate complexity**: Rate each option by effort (S/M/L/XL), risk, and reversibility. Flag anything that touches shared infrastructure or has outsized blast radius.
-4. **Produce an execution plan**: A numbered, dependency-ordered list of steps the worker agent can follow directly. Include explicit checkpoints and rollback conditions.
-5. **State your assumptions**: List what you're taking as given. If any assumption is wrong, note which steps break.
-
-Be direct and opinionated. A plan with a clear recommendation beats a balanced non-answer.
-`,
-	`---
-name: phantom
-description: Fast reconnaissance agent for codebase discovery, pattern matching, and code archaeology.
-providerId: cline
-modelId: google/gemini-3-flash-preview
-maxIterations: 10
----
-
-You are a reconnaissance and archaeology subagent.
-
-Your job is fast, thorough discovery. When exploring a codebase:
-
-1. **Map structure**: Identify relevant files, entry points, data flow, and API contracts.
-2. **Surface conventions**: Note naming patterns, abstraction layers, and implicit rules the codebase follows.
-3. **Dig for intent**: When something looks odd — a workaround, a TODO, an unexpected abstraction — note it. Explain what it's likely reacting to or compensating for.
-4. **Produce crisp output**: Return a structured summary the parent agent can act on directly. No filler.
-
-Never attempt implementation. Return findings only.
-`,
-] as const;
-
-const BUNDLED_SKILL_MARKDOWN = [
-	`---
-name: api-design
-description: Design clean APIs — REST, RPC, or library interfaces with consistent naming, error handling, and versioning.
----
-
-# API Design Skill
-
-When designing or reviewing an API (REST, RPC, or library), follow these principles:
-
-1. Understand the consumer and common operations first.
-2. Use consistent, specific naming across endpoints and methods.
-3. Accept minimal input and validate it at the boundary.
-4. Return consistent shapes with enough context for the caller to act.
-5. Use clear error codes and separate client vs. server failures.
-6. Version from day one and treat removals as breaking changes.
-7. Document purpose, inputs, outputs, errors, auth, and limits.
-`,
-	`---
-name: code-review
-description: Structured code review — security, correctness, performance, and maintainability analysis with severity-ranked findings.
----
-
-# Code Review Skill
-
-When reviewing code:
-
-1. Scope the change and understand intent.
-2. Trace correctness through changed paths and edge cases.
-3. Check security boundaries and unsafe input flows.
-4. Look for performance traps and scaling risks.
-5. Evaluate maintainability, tests, and missing docs.
-6. Report findings by severity with file references and concrete fixes.
-`,
-	`---
-name: debugging
-description: Systematic debugging — reproduce, isolate, diagnose, and fix bugs with root-cause analysis.
----
-
-# Debugging Skill
-
-When debugging:
-
-1. Reproduce the issue and define expected vs. actual behavior.
-2. Isolate the failing file, function, line, and minimal triggering input.
-3. Diagnose the root cause, not just the surface symptom.
-4. Add a failing test, fix the root cause, and verify the regression is covered.
-5. Report reproduction steps, cause, fix, and any similar patterns elsewhere.
-`,
-	`---
-name: documentation
-description: Write clear technical documentation — READMEs, API docs, architecture guides, and inline comments.
----
-
-# Documentation Skill
-
-When writing docs:
-
-1. Optimize for the intended audience.
-2. Structure READMEs around what, quick start, install, usage, config, and contribution flow.
-3. Document APIs with parameters, return values, errors, and examples.
-4. Start architecture docs with high-level structure and data flow.
-5. Use comments to explain why, not what.
-6. Verify examples, links, and terminology before finishing.
-`,
-	`---
-name: migration
-description: Plan and execute data or schema migrations — database, config, and API migrations with rollback strategies.
----
-
-# Migration Skill
-
-When planning a migration:
-
-1. Assess scope, affected systems, data volume, and downtime tolerance.
-2. Choose a strategy such as expand-contract, blue-green, or big bang.
-3. Define rollback before execution.
-4. Keep migrations idempotent, observable, and testable at realistic scale.
-5. Verify success immediately and document results plus rollback status.
-`,
-	`---
-name: refactoring
-description: Safe, incremental refactoring — extract, rename, simplify, and restructure code without changing behavior.
----
-
-# Refactoring Skill
-
-When refactoring:
-
-1. Establish a safety net with tests or characterization coverage.
-2. Identify callers and preserve current behavior as the contract.
-3. Make the smallest useful transformation at a time.
-4. Verify after each step and prefer checkpointed, reversible progress.
-5. Summarize what changed, why, and what remains.
-`,
-	`---
-name: test-generation
-description: Generate comprehensive test suites — unit, integration, and edge-case coverage with proper mocking strategies.
----
-
-# Test Generation Skill
-
-When generating tests:
-
-1. Read the source and map the behavioral contract first.
-2. Cover happy paths, edge cases, errors, and integration points.
-3. Mock only at real boundaries like network, filesystem, and database.
-4. Assert on specific outcomes, side effects, and error details.
-5. Confirm tests fail when behavior is broken and run independently.
-`,
-] as const;
+// Agent and skill definitions live in the `agents/` and `skills/`
+// directories alongside this file. They are loaded at runtime from disk.
 
 /** Safe identifier pattern for conversation IDs used in filesystem paths. */
 const SAFE_ID_RE = /^[A-Za-z0-9_-]+$/;
@@ -374,44 +219,13 @@ function readMarkdownDir(
 	return results;
 }
 
-function readBundledMarkdown(
-	entries: readonly string[],
-	source: AgentDefinition["source"] | SkillDefinition["source"],
-): Array<{
-	name: string;
-	data: Record<string, unknown>;
-	body: string;
-	source: typeof source;
-}> {
-	return entries
-		.map((content) => {
-			const { data, body } = parseFrontmatter(content);
-			const name = optStr(data.name);
-			if (!name || !body) return undefined;
-			return { name, data, body, source };
-		})
-		.filter((entry) => entry !== undefined);
-}
-
 function readAgentDefinitions(baseCwd: string): AgentDefinition[] {
 	const dirs: Array<{ path: string; source: AgentDefinition["source"] }> = [
 		{ path: BUNDLED_AGENTS_DIR, source: "bundled" },
-		{ path: resolveAgentsConfigDirPath(), source: "global" },
+		{ path: resolveGlobalAgentsDirPath(), source: "global" },
 		{ path: join(baseCwd, ".cline", "agents"), source: "project" },
 	];
 	const defs = new Map<string, AgentDefinition>();
-	for (const entry of readBundledMarkdown(BUNDLED_AGENT_MARKDOWN, "bundled")) {
-		defs.set(entry.name, {
-			name: entry.name,
-			description: optStr(entry.data.description),
-			providerId: optStr(entry.data.providerId),
-			modelId: optStr(entry.data.modelId),
-			systemPrompt: entry.body,
-			cwd: optStr(entry.data.cwd),
-			maxIterations: optInt(entry.data.maxIterations),
-			source: entry.source,
-		});
-	}
 	for (const { path, source } of dirs) {
 		for (const entry of readMarkdownDir(path, source)) {
 			defs.set(entry.name, {
@@ -436,14 +250,6 @@ function readSkillDefinitions(baseCwd: string): SkillDefinition[] {
 		{ path: join(baseCwd, ".cline", "skills"), source: "project" },
 	];
 	const defs = new Map<string, SkillDefinition>();
-	for (const entry of readBundledMarkdown(BUNDLED_SKILL_MARKDOWN, "bundled")) {
-		defs.set(entry.name, {
-			name: entry.name,
-			description: optStr(entry.data.description),
-			content: entry.body,
-			source: entry.source,
-		});
-	}
 	for (const { path, source } of dirs) {
 		for (const entry of readMarkdownDir(path, source)) {
 			defs.set(entry.name, {

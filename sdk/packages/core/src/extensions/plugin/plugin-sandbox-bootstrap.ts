@@ -43,9 +43,9 @@ interface PluginFlag {
 	defaultValue?: boolean | string | number;
 }
 
-interface PluginMessageRenderer {
+interface PluginMessageBuilder {
 	name: string;
-	render: (message: unknown) => string;
+	build: (message: unknown[]) => unknown[]; // Message[]
 }
 
 interface PluginProvider {
@@ -59,7 +59,7 @@ interface PluginApi {
 	registerCommand(command: PluginCommand): void;
 	registerShortcut(shortcut: PluginShortcut): void;
 	registerFlag(flag: PluginFlag): void;
-	registerMessageRenderer(renderer: PluginMessageRenderer): void;
+	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 }
 
@@ -91,7 +91,7 @@ interface PluginDescriptor {
 		commands: ContributionDescriptor[];
 		shortcuts: ContributionDescriptor[];
 		flags: ContributionDescriptor[];
-		messageRenderers: ContributionDescriptor[];
+		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 	};
 }
@@ -101,7 +101,7 @@ interface PluginState {
 	handlers: {
 		tools: Map<string, PluginTool["execute"]>;
 		commands: Map<string, NonNullable<PluginCommand["handler"]>>;
-		messageRenderers: Map<string, PluginMessageRenderer["render"]>;
+		messageBuilders: Map<string, PluginMessageBuilder["build"]>;
 	};
 }
 
@@ -203,13 +203,13 @@ async function initialize(args: {
 			commands: [],
 			shortcuts: [],
 			flags: [],
-			messageRenderers: [],
+			messageBuilders: [],
 			providers: [],
 		};
 		const handlers: PluginState["handlers"] = {
 			tools: new Map(),
 			commands: new Map(),
-			messageRenderers: new Map(),
+			messageBuilders: new Map(),
 		};
 
 		const api: PluginApi = {
@@ -252,10 +252,10 @@ async function initialize(args: {
 					defaultValue: flag.defaultValue,
 				});
 			},
-			registerMessageRenderer: (renderer) => {
-				const id = makeId(pluginId, "renderer");
-				handlers.messageRenderers.set(id, renderer.render);
-				contributions.messageRenderers.push({ id, name: renderer.name });
+			registerMessageBuilder: (builder) => {
+				const id = makeId(pluginId, "builder");
+				handlers.messageBuilders.set(id, builder.build);
+				contributions.messageBuilders.push({ id, name: builder.name });
 			},
 			registerProvider: (provider) => {
 				contributions.providers.push({
@@ -325,17 +325,17 @@ async function executeCommand(args: {
 	return await handler(args.input);
 }
 
-async function renderMessage(args: {
+async function buildMessages(args: {
 	pluginId: string;
 	contributionId: string;
-	message: unknown;
-}): Promise<string> {
+	messages: unknown[];
+}): Promise<unknown[]> {
 	const state = getPlugin(args.pluginId);
-	const handler = state.handlers.messageRenderers.get(args.contributionId);
+	const handler = state.handlers.messageBuilders.get(args.contributionId);
 	if (typeof handler !== "function") {
-		return "";
+		return [];
 	}
-	return await handler(args.message);
+	return await handler(args.messages);
 }
 
 // ---------------------------------------------------------------------------
@@ -347,7 +347,7 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	invokeHook,
 	executeTool,
 	executeCommand,
-	renderMessage,
+	buildMessages,
 };
 
 process.on(

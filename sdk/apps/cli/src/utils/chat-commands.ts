@@ -210,7 +210,7 @@ export function createChatCommandHost(): ChatCommandHost {
 function createDefaultChatCommandHost(): ChatCommandHost {
 	return createChatCommandHost()
 		.register("command", {
-			names: ["/reset", "/new"],
+			names: ["/clear", "/new"],
 			isAvailable: (context) => typeof context.reset === "function",
 			run: async (_parsed, context) => {
 				await context.reset?.();
@@ -225,7 +225,7 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 			},
 		})
 		.register("command", {
-			names: ["/stop"],
+			names: ["/exit"],
 			isAvailable: (context) => typeof context.stop === "function",
 			run: async (_parsed, context) => {
 				await context.reply("Stopping session.");

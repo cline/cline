@@ -231,7 +231,7 @@ describe("sdk-enterprise", () => {
 			registerCommand() {},
 			registerShortcut() {},
 			registerFlag() {},
-			registerMessageRenderer() {},
+			registerMessageBuilder() {},
 			registerProvider() {},
 		} satisfies AgentExtensionApi);
 

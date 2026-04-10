@@ -37,7 +37,7 @@ type SandboxedPluginDescriptor = {
 		commands: SandboxedContributionDescriptor[];
 		shortcuts: SandboxedContributionDescriptor[];
 		flags: SandboxedContributionDescriptor[];
-		messageRenderers: SandboxedContributionDescriptor[];
+		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 	};
 };
@@ -111,8 +111,8 @@ const HOOK_BINDINGS: Array<{
 	},
 	{
 		stage: "turn_end",
-		extensionKey: "onAgentEnd",
-		sandboxHookName: "onAgentEnd",
+		extensionKey: "onTurnEnd",
+		sandboxHookName: "onTurnEnd",
 	},
 	{
 		stage: "session_shutdown",
@@ -281,10 +281,10 @@ function registerSimpleContributions(
 		});
 	}
 
-	for (const rd of descriptor.contributions.messageRenderers) {
-		api.registerMessageRenderer({
+	for (const rd of descriptor.contributions.messageBuilders) {
+		api.registerMessageBuilder({
 			name: rd.name,
-			render: () => `[sandbox renderer ${rd.name} requires async bridge]`,
+			build: (m) => m,
 		});
 	}
 

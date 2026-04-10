@@ -117,10 +117,10 @@ describe("plugin-loader", () => {
 		await writeFile(
 			join(copyDir, "portable-subagents.ts"),
 			[
-				"import { resolveClineDataDir } from '@clinebot/shared/storage';",
+				"import { safeJsonStringify } from '@clinebot/shared';",
 				"import YAML from 'yaml';",
 				"export default {",
-				"  name: typeof resolveClineDataDir === 'function' ? YAML.stringify({ ok: true }) : 'invalid',",
+				"  name: typeof safeJsonStringify === 'function' ? YAML.stringify({ ok: true }) : 'invalid',",
 				"  manifest: { capabilities: ['tools'] },",
 				"};",
 			].join("\n"),

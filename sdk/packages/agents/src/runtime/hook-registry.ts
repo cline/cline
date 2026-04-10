@@ -77,9 +77,9 @@ const EXTENSION_STAGE_HANDLERS: Record<
 				| undefined,
 	},
 	turn_end: {
-		name: "onAgentEnd",
+		name: "onTurnEnd",
 		handler: (extension, event) =>
-			extension.onAgentEnd?.(event.payload as never) as
+			extension.onTurnEnd?.(event.payload as never) as
 				| AgentHookControl
 				| undefined,
 	},
@@ -225,6 +225,7 @@ export function registerLifecycleHandlers(
 			},
 		});
 	for (const [index, extension] of (config.extensions ?? []).entries()) {
+		if (extension.disabled) continue;
 		if (!extension.manifest.capabilities.includes("hooks")) continue;
 		const order = String(index).padStart(4, "0");
 		const extensionName = extension.name || `extension_${order}`;

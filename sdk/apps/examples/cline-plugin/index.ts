@@ -12,11 +12,9 @@
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
  */
 
-import { type AgentConfig, ClineCore, createTool } from "@clinebot/core";
+import { type AgentExtension, ClineCore, createTool } from "@clinebot/core";
 
-type Plugin = NonNullable<AgentConfig["extensions"]>[number];
-
-const plugin: Plugin = {
+const plugin: AgentExtension = {
 	name: "weather-and-metrics",
 	manifest: {
 		capabilities: ["tools", "hooks"],
@@ -52,6 +50,17 @@ const plugin: Plugin = {
 	},
 	onToolCall({ call }) {
 		console.log(`[metrics] -> ${call.name}`, call.input);
+		// Block any run_commands call that includes a "git" command.
+		if (call.name === "run_commands") {
+			const { commands } = call.input as { commands?: string[] };
+			const hasGit = commands?.some((cmd) => cmd.trimStart().startsWith("git"));
+			if (hasGit) {
+				console.error(
+					`[metrics] blocked: git command detected in run_commands`,
+				);
+				return { cancel: true };
+			}
+		}
 		return undefined;
 	},
 	onToolResult({ record }) {
@@ -64,7 +73,7 @@ const plugin: Plugin = {
 			`[metrics] done in ${iterations} iteration(s), reason: ${finishReason}`,
 		);
 		console.log(
-			`[metrics] tokens - in: ${usage.inputTokens}, out: ${usage.outputTokens}`,
+			`[metrics] tokens - in: ${usage.inputTokens}, out: ${usage.outputTokens}, cost: $${usage.totalCost?.toFixed(6)}`,
 		);
 	},
 };

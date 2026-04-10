@@ -11,7 +11,7 @@
  */
 
 import { z } from "zod";
-import type { ExtensionContext } from "../context/extension-context";
+import type { ExtensionContext } from "../extensions/context";
 import type {
 	AgentExtensionApi,
 	AgentExtensionRegistry as AgentExtensionRegistryGeneric,
@@ -497,7 +497,7 @@ export interface AgentExtension extends ContributionRegistryExtension<Tool> {
 	onToolResult?: (
 		ctx: AgentHookToolCallEndContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
-	onAgentEnd?: (
+	onTurnEnd?: (
 		ctx: AgentHookTurnEndContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;
 	onAgentError?: (

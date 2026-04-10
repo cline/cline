@@ -83,7 +83,7 @@ export type {
 	AgentExtensionCommand,
 	AgentExtensionFlag,
 	AgentExtensionHookStage,
-	AgentExtensionMessageRenderer,
+	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionShortcut,
 	BasicLogger,

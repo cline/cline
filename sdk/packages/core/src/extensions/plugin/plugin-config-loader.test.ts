@@ -24,17 +24,17 @@ describe("plugin-config-loader", () => {
 		try {
 			const nested = join(root, "nested");
 			await mkdir(nested, { recursive: true });
-			await writeFile(join(root, "a.mjs"), "export default {}", "utf8");
+			await writeFile(join(root, "a.js"), "export default {}", "utf8");
 			await writeFile(join(nested, "b.ts"), "export default {}", "utf8");
 			await writeFile(
-				join(root, ".a.mjs.cline-plugin.mjs"),
+				join(root, ".a.js.cline-plugin.js"),
 				"export default {}",
 				"utf8",
 			);
 			await writeFile(join(root, "ignore.txt"), "noop", "utf8");
 
 			const discovered = discoverPluginModulePaths(root);
-			expect(discovered).toEqual([join(root, "a.mjs"), join(nested, "b.ts")]);
+			expect(discovered).toEqual([join(root, "a.js"), join(nested, "b.ts")]);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}
@@ -47,13 +47,13 @@ describe("plugin-config-loader", () => {
 			setHomeDir(root);
 			const pluginsDir = join(root, "plugins");
 			await mkdir(pluginsDir, { recursive: true });
-			const filePath = join(root, "direct.mjs");
-			const dirPluginPath = join(pluginsDir, "dir-plugin.mjs");
+			const filePath = join(root, "direct.js");
+			const dirPluginPath = join(pluginsDir, "dir-plugin.js");
 			await writeFile(filePath, "export default {}", "utf8");
 			await writeFile(dirPluginPath, "export default {}", "utf8");
 
 			const resolved = resolveAgentPluginPaths({
-				pluginPaths: ["./direct.mjs", "./plugins"],
+				pluginPaths: ["./direct.js", "./plugins"],
 				workspacePath: join(root, "workspace"),
 				cwd: root,
 			});
@@ -71,14 +71,19 @@ describe("plugin-config-loader", () => {
 			const srcDir = join(pluginDir, "src");
 			await mkdir(srcDir, { recursive: true });
 			const declaredEntry = join(srcDir, "index.ts");
-			const ignoredEntry = join(pluginDir, "ignored.mjs");
+			const ignoredEntry = join(pluginDir, "ignored.js");
 			await writeFile(
 				join(pluginDir, "package.json"),
 				JSON.stringify({
 					name: "plugin-package",
 					private: true,
 					cline: {
-						plugins: ["./src/index.ts"],
+						plugins: [
+							{
+								paths: ["./src/index.ts"],
+								capabilities: ["tools"],
+							},
+						],
 					},
 				}),
 				"utf8",
@@ -115,9 +120,9 @@ describe("plugin-config-loader", () => {
 			await mkdir(workspacePlugins, { recursive: true });
 			await mkdir(userPlugins, { recursive: true });
 			await mkdir(documentsPlugins, { recursive: true });
-			const workspacePlugin = join(workspacePlugins, "workspace.mjs");
-			const userPlugin = join(userPlugins, "user.mjs");
-			const documentsPlugin = join(documentsPlugins, "documents.mjs");
+			const workspacePlugin = join(workspacePlugins, "workspace.js");
+			const userPlugin = join(userPlugins, "user.js");
+			const documentsPlugin = join(documentsPlugins, "documents.js");
 			await writeFile(workspacePlugin, "export default {}", "utf8");
 			await writeFile(userPlugin, "export default {}", "utf8");
 			await writeFile(documentsPlugin, "export default {}", "utf8");

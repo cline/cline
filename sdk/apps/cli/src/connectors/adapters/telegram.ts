@@ -335,7 +335,7 @@ class TelegramConnector extends ConnectorBase<
 			.option("--mode <act|plan>", "Agent mode", "act")
 			.option("-i, --interactive", "Keep connector in foreground")
 			.option("--max-iterations <n>", "Optional max iterations")
-			.option("--enable-tools", "Enable tools for Telegram sessions")
+			.option("--no-tools", "Disable tools for Telegram sessions")
 			.option(
 				"--hook-command <command>",
 				"Run a shell command for connector events",
@@ -351,7 +351,7 @@ class TelegramConnector extends ConnectorBase<
 					"",
 					"Notes:",
 					"  - Without -i, the connector is launched in the background.",
-					"  - Tools are disabled by default for Telegram sessions.",
+					"  - Tools are enabled by default for Telegram sessions.",
 					"  - Provider/model default to the CLI's last-used provider settings.",
 				].join("\n"),
 			);
@@ -369,7 +369,7 @@ class TelegramConnector extends ConnectorBase<
 			mode?: string;
 			interactive?: boolean;
 			maxIterations?: string;
-			enableTools?: boolean;
+			noTools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
 		}>();
@@ -397,7 +397,7 @@ class TelegramConnector extends ConnectorBase<
 				opts.maxIterations,
 				"max iterations",
 			),
-			enableTools: Boolean(opts.enableTools),
+			enableTools: opts.noTools !== true,
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
@@ -880,14 +880,14 @@ class TelegramConnector extends ConnectorBase<
 		io.writeln(
 			`[telegram] connected as @${options.botUsername} mode=${telegram.runtimeMode} rpc=${rpcAddress} provider=${startRequest.provider} model=${startRequest.model} tools=${startRequest.enableTools ? "on" : "off"}`,
 		);
-		io.writeln("[telegram] send /reset in a chat to start a fresh RPC session");
+		io.writeln("[telegram] send /clear in a chat to start a fresh RPC session");
 		io.writeln(
 			"[telegram] send /whereami in a chat to get its delivery thread id",
 		);
 		io.writeln(
 			"[telegram] use /tools, /yolo, or /cwd <path> to update runtime settings",
 		);
-		io.writeln("[telegram] send /stop in a chat or press Ctrl+C to stop");
+		io.writeln("[telegram] send /exit in a chat or press Ctrl+C to stop");
 
 		const shutdown = () => {
 			process.off("SIGINT", shutdown);

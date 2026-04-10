@@ -23,22 +23,22 @@ export {
 	ConnectorHookEventSchema,
 } from "./connectors/events";
 export type * from "./connectors/options";
+export type { Disposable } from "./dispose";
+export { disposeAll, registerDisposable } from "./dispose";
 export type {
 	ClientContext,
 	ClientName,
 	ExtensionContext,
 	UserContext,
 	WorkspaceContext,
-} from "./context/extension-context";
-export type { Disposable } from "./dispose";
-export { disposeAll, registerDisposable } from "./dispose";
+} from "./extensions/context";
 export type {
 	AgentExtensionApi,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
 	AgentExtensionFlag,
 	AgentExtensionHookStage,
-	AgentExtensionMessageRenderer,
+	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
 	AgentExtensionShortcut,
@@ -50,6 +50,7 @@ export {
 	ContributionRegistry,
 	createContributionRegistry,
 } from "./extensions/contribution-registry";
+export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export type {
 	HookControl,
 	HookDispatchResult,

@@ -19,9 +19,9 @@ export interface AgentExtensionFlag {
 	defaultValue?: boolean | string | number;
 }
 
-export interface AgentExtensionMessageRenderer<TMessage = unknown> {
+export interface AgentExtensionMessageBuilder<TMessage = unknown> {
 	name: string;
-	render: (message: TMessage) => string;
+	build: (message: TMessage) => TMessage;
 }
 
 export interface AgentExtensionProvider {
@@ -30,29 +30,48 @@ export interface AgentExtensionProvider {
 	metadata?: Record<string, unknown>;
 }
 
+/**
+ * API surface passed to an extension's `setup()` method.
+ *
+ * Use it to register the contributions the extension wants to make — tools,
+ * commands, shortcuts, flags, message builders, and providers. All registrations
+ * accumulate into the `ContributionRegistry` and are available to the host after
+ * `setup()` completes.
+ */
 export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
+	/** Register a tool the agent can invoke during its run. Requires the `tools` capability. */
 	registerTool: (tool: TTool) => void;
+	/** Register a slash command available in connected chat surfaces. Requires the `commands` capability. */
 	registerCommand: (command: AgentExtensionCommand) => void;
+	/** Register a named shortcut that expands to a fixed string in the composer. Requires the `shortcuts` capability. */
 	registerShortcut: (shortcut: AgentExtensionShortcut) => void;
+	/** Register a boolean/string/number flag that can be toggled at runtime. Requires the `flags` capability. */
 	registerFlag: (flag: AgentExtensionFlag) => void;
-	registerMessageRenderer: (
-		renderer: AgentExtensionMessageRenderer<TMessage>,
+	/** Register a named message builder for transforming messages before they are sent. Requires the `messageBuilders` capability. */
+	registerMessageBuilder: (
+		builder: AgentExtensionMessageBuilder<TMessage>,
 	) => void;
+	/** Register a provider contribution (e.g. a custom model provider). Requires the `providers` capability. */
 	registerProvider: (provider: AgentExtensionProvider) => void;
 }
 
+const ExtensionCapabilityOptions = [
+	"hooks",
+	"tools",
+	"commands",
+	"shortcuts",
+	"flags",
+	"messageBuilders",
+	"providers",
+] as const;
+
 export type AgentExtensionCapability =
-	| "hooks"
-	| "tools"
-	| "commands"
-	| "shortcuts"
-	| "flags"
-	| "message_renderers"
-	| "providers";
+	(typeof ExtensionCapabilityOptions)[number];
 
 export type AgentExtensionHookStage = HookStage;
 
 export interface PluginManifest {
+	paths?: string[];
 	capabilities: AgentExtensionCapability[];
 	hookStages?: AgentExtensionHookStage[];
 }
@@ -62,28 +81,62 @@ export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
 	commands: AgentExtensionCommand[];
 	shortcuts: AgentExtensionShortcut[];
 	flags: AgentExtensionFlag[];
-	messageRenderers: AgentExtensionMessageRenderer<TMessage>[];
+	messageBuilder: AgentExtensionMessageBuilder<TMessage>[];
 	providers: AgentExtensionProvider[];
 }
 
+/**
+ * Base shape for a plugin or extension that can be loaded into a
+ * `ContributionRegistry`.
+ *
+ * An extension declares what it does through its `manifest` (capabilities and
+ * hook stages) and implements the corresponding handler methods. The registry
+ * validates at setup time that every declared stage has a matching handler and
+ * that no undeclared handlers are present.
+ *
+ * Hook handler properties are typed `unknown` here so that the generic base
+ * interface stays free of agent-specific imports. Concrete extension types
+ * (e.g. `AgentExtension` in `@clinebot/agents`) narrow them to the correct
+ * context and return types.
+ */
 export interface ContributionRegistryExtension<TTool = Tool> {
+	/** Unique identifier for this extension, used in error messages and hook handler names. */
 	name: string;
+	/** Declares what capabilities and hook stages this extension uses. Validated before `setup()` runs. */
 	manifest: PluginManifest;
+	/** Indicates whether this extension is disabled. Disabled extensions are ignored during setup. */
+	disabled?: boolean;
+	/** Called once during registry setup to register tools, commands, and other contributions. */
 	setup?: (api: AgentExtensionApi<TTool, any>) => void | Promise<void>;
+	/** Handler for the `input` stage — fired when the user submits input. */
 	onInput?: unknown;
+	/** Handler for the `runtime_event` stage — fired on every agent event emitted during a run. */
 	onRuntimeEvent?: unknown;
+	/** Handler for the `session_start` stage — fired once when the session is initialized. */
 	onSessionStart?: unknown;
+	/** Handler for the `run_start` stage — fired once per `run()` / `continue()` before the first iteration. */
 	onRunStart?: unknown;
+	/** Handler for the `iteration_start` stage — fired at the top of every loop iteration. */
 	onIterationStart?: unknown;
+	/** Handler for the `turn_start` stage — fired after iteration setup, before prompt preparation. */
 	onTurnStart?: unknown;
+	/** Handler for the `before_agent_start` stage — fired immediately before the model call; last chance to modify the system prompt or messages. */
 	onBeforeAgentStart?: unknown;
+	/** Handler for the `tool_call_before` stage — fired before each individual tool executes. */
 	onToolCall?: unknown;
+	/** Handler for the `tool_call_after` stage — fired after each individual tool executes. */
 	onToolResult?: unknown;
-	onAgentEnd?: unknown;
+	/** Handler for the `turn_end` stage — fired after the model responds, before tool calls execute. */
+	onTurnEnd?: unknown;
+	/** Handler for the `stop_error` stage — fired when a turn error stops forward progress. */
 	onAgentError?: unknown;
+	/** Handler for the `iteration_end` stage — fired at the end of a loop iteration, after all tool calls complete. */
 	onIterationEnd?: unknown;
+	/** Handler for the `run_end` stage — fired once after the agent loop finishes. */
 	onRunEnd?: unknown;
+	/** Handler for the `session_shutdown` stage — fired when the session is shutting down. */
 	onSessionShutdown?: unknown;
+	/** Handler for the `error` stage — fired when an unhandled error is thrown in the agent loop. */
 	onError?: unknown;
 }
 
@@ -107,15 +160,9 @@ interface NormalizedExtension<
 	};
 }
 
-const ALLOWED_CAPABILITIES = new Set<AgentExtensionCapability>([
-	"hooks",
-	"tools",
-	"commands",
-	"shortcuts",
-	"flags",
-	"message_renderers",
-	"providers",
-]);
+const ALLOWED_CAPABILITIES = new Set<AgentExtensionCapability>(
+	ExtensionCapabilityOptions,
+);
 
 const ALLOWED_HOOK_STAGES = new Set<AgentExtensionHookStage>([
 	"input",
@@ -148,7 +195,7 @@ const STAGE_TO_HANDLER: Record<
 		| "onBeforeAgentStart"
 		| "onToolCall"
 		| "onToolResult"
-		| "onAgentEnd"
+		| "onTurnEnd"
 		| "onAgentError"
 		| "onIterationEnd"
 		| "onRunEnd"
@@ -165,7 +212,7 @@ const STAGE_TO_HANDLER: Record<
 	before_agent_start: "onBeforeAgentStart",
 	tool_call_before: "onToolCall",
 	tool_call_after: "onToolResult",
-	turn_end: "onAgentEnd",
+	turn_end: "onTurnEnd",
 	stop_error: "onAgentError",
 	iteration_end: "onIterationEnd",
 	run_end: "onRunEnd",
@@ -193,7 +240,7 @@ function hasHookHandlers(
 		typeof extension.onBeforeAgentStart === "function" ||
 		typeof extension.onToolCall === "function" ||
 		typeof extension.onToolResult === "function" ||
-		typeof extension.onAgentEnd === "function" ||
+		typeof extension.onTurnEnd === "function" ||
 		typeof extension.onAgentError === "function" ||
 		typeof extension.onIterationEnd === "function" ||
 		typeof extension.onRunEnd === "function" ||
@@ -304,7 +351,7 @@ export class ContributionRegistry<
 		commands: [],
 		shortcuts: [],
 		flags: [],
-		messageRenderers: [],
+		messageBuilder: [],
 		providers: [],
 	};
 	private normalized: NormalizedExtension<TExtension, TTool>[] = [];
@@ -352,12 +399,13 @@ export class ContributionRegistry<
 			registerCommand: (command) => this.registry.commands.push(command),
 			registerShortcut: (shortcut) => this.registry.shortcuts.push(shortcut),
 			registerFlag: (flag) => this.registry.flags.push(flag),
-			registerMessageRenderer: (renderer) =>
-				this.registry.messageRenderers.push(renderer),
+			registerMessageBuilder: (builder) =>
+				this.registry.messageBuilder.push(builder),
 			registerProvider: (provider) => this.registry.providers.push(provider),
 		};
 
 		for (const { extension } of this.normalized) {
+			if (extension.disabled) continue;
 			await extension.setup?.(api);
 		}
 		this.phase = "activate";
@@ -392,7 +440,7 @@ export class ContributionRegistry<
 			commands: [...this.registry.commands],
 			shortcuts: [...this.registry.shortcuts],
 			flags: [...this.registry.flags],
-			messageRenderers: [...this.registry.messageRenderers],
+			messageBuilder: [...this.registry.messageBuilder],
 			providers: [...this.registry.providers],
 		};
 	}

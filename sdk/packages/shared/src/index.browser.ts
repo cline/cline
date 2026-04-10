@@ -29,14 +29,14 @@ export type {
 	ExtensionContext,
 	UserContext,
 	WorkspaceContext,
-} from "./context/extension-context";
+} from "./extensions/context";
 export type {
 	AgentExtensionApi,
 	AgentExtensionCapability,
 	AgentExtensionCommand,
 	AgentExtensionFlag,
 	AgentExtensionHookStage,
-	AgentExtensionMessageRenderer,
+	AgentExtensionMessageBuilder,
 	AgentExtensionProvider,
 	AgentExtensionRegistry,
 	AgentExtensionShortcut,
@@ -48,6 +48,7 @@ export {
 	ContributionRegistry,
 	createContributionRegistry,
 } from "./extensions/contribution-registry";
+export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export type {
 	HookControl,
 	HookDispatchResult,

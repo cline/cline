@@ -91,7 +91,7 @@ Behavior:
 
 ## `@clinebot/scheduler`
 
-Primary role: scheduled execution and bounded autonomous routines.
+Primary role: scheduled execution and bounded autonomous routines. Internally consumed by RPC.
 
 Important exported areas:
 
@@ -383,3 +383,622 @@ If you are integrating enterprise-specific behavior inside this repo, the usual 
 1. use `@clinebot/enterprise` to prepare enterprise state
 2. bridge into core through `prepare`, watcher, extensions, and telemetry inputs
 3. keep enterprise-specific logic out of the published core API surface
+
+## CLI Features
+
+### Hooks
+
+Hooks are shell scripts (or any executable) that Cline runs automatically at key points in the agent lifecycle. They let you inspect, modify, or cancel agent actions without changing your prompts or source code. Hook files are discovered from `.cline/hooks/` in your project root and from any directory passed via `--hooks-dir`.
+
+---
+
+#### Creating a Hook
+
+Name your hook file after the event it should handle and place it in `.cline/hooks/`. The file must be executable.
+
+```
+.cline/
+└── hooks/
+    ├── tool_call.sh
+    ├── tool_result.sh
+    └── agent_start.sh
+```
+
+**Example — log every tool call and allow it to proceed:**
+
+```bash
+#!/usr/bin/env bash
+# .cline/hooks/tool_call.sh
+input=$(cat)
+echo "Tool called: $(echo "$input" | jq -r '.tool')" >&2
+echo '{}'
+```
+
+Make it executable: `chmod +x .cline/hooks/tool_call.sh`
+
+---
+
+#### Supported Hook Events
+
+| Event | Fires when… |
+|---|---|
+| `tool_call` | **Before** a tool executes. Output can modify or cancel the call. |
+| `tool_result` | **After** a tool executes. Output can add context to the result. |
+| `agent_start` | The agent session starts. |
+| `agent_resume` | The agent resumes after a pause or review. |
+| `agent_end` | The agent session ends normally. |
+| `agent_abort` | The agent session is aborted. |
+| `prompt_submit` | A prompt is submitted to the model. |
+| `pre_compact` | Just before context compaction runs. |
+| `session_shutdown` | The session is shutting down. |
+
+---
+
+#### Hook Output Fields
+
+Return a JSON object from stdout. An empty `{}` means "do nothing."
+
+| Field | Type | Effect |
+|---|---|---|
+| `cancel` | `boolean` | Cancels the pending tool call. |
+| `review` | `boolean` | Pauses and prompts the user to review. |
+| `context` | `string` | Injects context into the agent's next turn. |
+| `contextModification` | `string` | Replaces or amends the context window content. |
+| `errorMessage` | `string` | Surfaces an error message to the agent. |
+| `overrideInput` | `any` | Replaces the tool's input before execution. |
+
+**Example — cancel a destructive file write:**
+
+```bash
+#!/usr/bin/env bash
+# .cline/hooks/tool_call.sh
+input=$(cat)
+tool=$(echo "$input" | jq -r '.tool')
+if [ "$tool" = "write_file" ]; then
+  echo '{"cancel": true, "errorMessage": "File writes are not allowed."}'
+else
+  echo '{}'
+fi
+```
+
+---
+
+#### CLI Usage
+
+```bash
+# List all registered hooks
+clite list hooks
+
+# Load hooks from an additional directory at runtime
+clite --hooks-dir ./ci/hooks "run the test suite"
+```
+
+> **Note:** Hooks are disabled in `--yolo` mode. Pass `--verbose` to print each hook invocation as it fires.
+
+---
+
+### Plugins
+
+Plugins extend Cline CLI with custom chat commands. Each plugin registers one or more `AgentExtensionCommand` handlers that become available as slash commands across all connected chat surfaces. Plugins are loaded per-workspace and run in-process alongside the agent.
+
+---
+
+#### Installing a Plugin
+
+Drop a `.js` or `.mjs` file into `.cline/plugins/` at your workspace root. Cline discovers modules automatically — no registration step required.
+
+```
+my-project/
+└── .cline/
+    └── plugins/
+        └── my-plugin.js
+```
+
+```js
+// .cline/plugins/my-plugin.js
+export default [
+  {
+    name: "greet",
+    description: "Say hello",
+    handler: async (ctx) => "Hello from my plugin!",
+  },
+];
+```
+
+Once loaded, users can type `/greet` in any active connector (Telegram, Slack, etc.).
+
+---
+
+#### Listing Plugins
+
+```bash
+clite list plugins
+clite list plugins --json
+```
+
+---
+
+### Rules
+
+Rules are named instruction sets automatically injected into the agent's system prompt at the start of every session. They encode persistent conventions — coding style, tool preferences, project constraints — without repeating them in every prompt. Rules apply to all run modes, including headless and yolo runs.
+
+---
+
+#### File Locations
+
+| Scope | Path |
+|---|---|
+| Workspace-local | `.cline/rules/*.md` |
+| Global (user) | `~/Documents/Cline/Rules/*.md` |
+| Global (data dir) | `~/.cline/data/settings/rules/*.md` |
+| AGENTS.md convention | `AGENTS.md` at the repository root (auto-loaded as a rule) |
+
+Files with `disabled: true` in their YAML frontmatter are skipped.
+
+---
+
+#### Rule File Format
+
+```markdown
+---
+name: typescript-style
+---
+
+Always prefer TypeScript. Never use the `any` type.
+Imports must use ES module syntax (`import`/`export`).
+```
+
+The `name` field is optional — the file name is used if omitted.
+
+---
+
+#### Listing Rules and Hot-Reloading
+
+```bash
+clite list rules
+clite list rules --json
+```
+
+Rule files are **watched for changes** while a session is running. Edits take effect on the next agent turn — no restart required.
+
+---
+
+### Skills and Workflows
+
+Skills and workflows extend Cline's behavior through plain Markdown files with a YAML frontmatter header.
+
+- **Skills** inject reusable capabilities into the system prompt, shaping *how* Cline behaves across all tasks.
+- **Workflows** are named procedures invoked on demand as slash commands (e.g., `/deploy`), telling Cline *what to do* when triggered.
+
+---
+
+#### File Locations
+
+| Type | Search Paths |
+|---|---|
+| Skills | `.cline/skills/` (project), `~/Documents/Cline/Skills/` (global) |
+| Workflows | `.cline/workflows/` (project) |
+
+Files with `disabled: true` in frontmatter are ignored.
+
+---
+
+#### File Format
+
+**Skill:**
+
+```markdown
+---
+name: test-runner
+---
+Run tests with `bun test`. Always show the full output.
+```
+
+**Workflow:**
+
+```markdown
+---
+name: deploy
+---
+Run the full deployment pipeline: lint, test, build, then push.
+```
+
+---
+
+#### Invoking Workflows
+
+**Interactive CLI (TUI):** Type `/` in the message composer to open the workflow picker. Use arrow keys to navigate, then **Enter** or **Tab** to insert.
+
+**Connector mode (Telegram, Slack, etc.):** Send the workflow as a slash command in chat:
+
+```
+/deploy
+/review
+```
+
+---
+
+#### Listing Skills and Workflows
+
+```bash
+clite list skills
+clite list workflows
+```
+
+---
+
+### Scheduled Agents
+
+Schedules let the agent run a prompt autonomously on a cron pattern. There are two entry points: the `/schedule` chat command (when using a connector) and the `clite schedule` CLI subcommand.
+
+---
+
+#### 1. Via Chat (Connectors — Slack, Telegram, Discord, etc.)
+
+When connected via a chat connector, type `/schedule` commands directly in the thread. The connector dispatches the command using your current thread's context (workspace, provider, model) and ties delivery back to that same thread.
+
+| Command | Description |
+|---|---|
+| `/schedule` or `/schedule help` | Show usage |
+| `/schedule create "<name>" --cron "<pattern>" --prompt "<text>"` | Create a recurring schedule |
+| `/schedule list` | List schedules targeting this thread |
+| `/schedule trigger <schedule-id>` | Trigger a schedule immediately |
+| `/schedule delete <schedule-id>` | Delete a schedule |
+
+**Example:**
+
+```
+/schedule create "Daily standup" --cron "0 9 * * MON-FRI" --prompt "Summarize open PRs and blockers."
+```
+
+The agent replies with the schedule ID, cron pattern, and next run time.
+
+---
+
+#### 2. Via the CLI (`clite schedule`)
+
+Manage schedules from the terminal using `clite schedule` subcommands. The CLI communicates with the `clite` RPC sidecar, starting it automatically if needed.
+
+**Required flags for `create`:** `--cron`, `--prompt`, `--workspace`.
+
+```bash
+# Create a schedule
+clite schedule create "Daily code review" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "Review PRs opened yesterday and summarize issues." \
+  --workspace /path/to/repo \
+  --provider cline \
+  --model openai/gpt-5.3-codex \
+  --timeout 3600 \
+  --max-iterations 50 \
+  --tags automation,review
+
+# Route results to a chat thread (use /whereami in Telegram to get the thread ID)
+clite schedule create "Daily summary" \
+  --cron "0 9 * * *" \
+  --prompt "Summarize yesterday's activity in this workspace." \
+  --workspace /path/to/repo \
+  --delivery-adapter telegram \
+  --delivery-bot my_bot \
+  --delivery-thread telegram:123456789
+
+# Update a schedule
+clite schedule update <schedule-id> --cron "0 10 * * MON-FRI" --enabled
+
+# Inspect and manage
+clite schedule list
+clite schedule list --enabled --tags automation
+clite schedule get <schedule-id>
+clite schedule trigger <schedule-id>
+clite schedule pause <schedule-id>
+clite schedule resume <schedule-id>
+clite schedule delete <schedule-id>
+
+# Execution history and stats
+clite schedule history <schedule-id> --limit 20
+clite schedule stats <schedule-id>
+clite schedule active
+clite schedule upcoming --limit 10
+
+# Export and import (YAML by default; use --json for JSON)
+clite schedule export <schedule-id> > daily-review.yaml
+clite schedule import ./daily-review.yaml
+```
+
+**`schedule update` flags:** `--cron`, `--prompt`, `--name`, `--model`, `--provider`, `--workspace`, `--cwd`, `--mode <act|plan>`, `--system-prompt`, `--timeout`, `--max-iterations`, `--tags`, `--enabled`/`--disabled`, `--pause`/`--resume`, delivery options, autonomous options.
+
+**Delivery options** (on `create` and `update`): `--delivery-adapter`, `--delivery-bot`, `--delivery-channel`, `--delivery-thread`.
+
+**Autonomous options** (on `create` and `update`): `--autonomous`/`--no-autonomous`, `--idle-timeout <seconds>`, `--poll-interval <seconds>`.
+
+---
+
+#### How It Works
+
+1. **RPC-backed persistence.** All commands talk to the `clite` RPC sidecar (`127.0.0.1:4317` by default, overridable via `--address` or `CLINE_RPC_ADDRESS`). The sidecar starts automatically if not running.
+2. **Cron patterns** use standard five-field cron syntax (e.g., `"0 9 * * MON-FRI"` = 9 am Mon–Fri).
+3. **Three required fields** for `create`: a name, a `--cron` pattern, and a `--prompt`.
+4. **Delivery metadata.** When a schedule is created from a chat thread, the adapter and thread ID are stored automatically. Use `--delivery-*` flags to set this explicitly from the CLI.
+5. **Autonomous mode.** Pass `--autonomous` to keep the agent alive between cron firings, controlled by `--idle-timeout` and `--poll-interval`.
+6. **Export format** is YAML by default; pass `--json` or use a `.json` extension to export as JSON. `import` accepts both formats.
+
+---
+
+### Agent Team
+
+The agent team runtime gives Cline the ability to spawn and coordinate multiple sub-agents within a single run. Use it for tasks that benefit from parallelism or specialization — such as planning, implementation, and verification happening concurrently. Team tools are enabled by default and can be disabled with `--no-teams`.
+
+---
+
+#### Available Team Tools
+
+| Tool | Description |
+|---|---|
+| `team_spawn_teammate` | Spawn a new teammate agent with a given role prompt |
+| `team_shutdown_teammate` | Shut down a running teammate by ID |
+| `team_run_task` | Delegate a task to a teammate — sync (wait for result) or async (background) |
+| `team_await_run` | Wait for a specific async run to complete |
+| `team_await_all_runs` | Wait for all active async runs to complete |
+| `team_cancel_run` | Cancel an in-progress async run |
+| `team_task` | Shared task board — create, list, claim, complete, or block tasks |
+| `team_send_message` | Send a direct mailbox message to one teammate |
+| `team_broadcast` | Broadcast a message to all teammates |
+| `team_read_mailbox` | Read incoming mailbox messages |
+| `team_log_update` | Append a progress entry to the shared mission log |
+| `team_status` | Snapshot of all teammates, task counts, mailbox, and mission log stats |
+| `team_create_outcome` | Create a converged team outcome document |
+| `team_attach_outcome_fragment` | Attach a content fragment to an outcome section |
+| `team_review_outcome_fragment` | Approve or reject an outcome fragment |
+| `team_finalize_outcome` | Finalize a completed outcome |
+| `team_list_outcomes` | List all team outcomes |
+
+---
+
+#### Named Team State (Persistent Workflows)
+
+Pass `--team-name <name>` to persist team state across multiple CLI invocations. State is stored under `CLINE_TEAM_DATA_DIR` (defaults to `~/.cline/data/teams/<name>/`) and includes the task board, mailbox, mission log, and spawn/run records.
+
+On subsequent runs with the same name, the prior state is restored automatically and the agent receives a `team_restored` event — allowing multi-day workflows to resume where they left off.
+
+```bash
+# Start a named team workflow
+clite --team-name sprint "Plan and implement the auth module"
+
+# Resume the same team on the next day
+clite --team-name sprint "Continue — pick up any incomplete tasks"
+```
+
+---
+
+#### CLI Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--teams` / `--no-teams` | enabled | Enable or disable agent team tools |
+| `--team-name <name>` | — | Persist and restore team state under this name |
+| `--mission-step-interval <n>` | `3` | Steps between automatic mission log updates |
+| `--mission-time-interval-ms <ms>` | `120000` | Milliseconds between automatic mission log updates |
+
+> **Note:** Team tools are automatically disabled in `--yolo` mode.
+
+---
+
+#### Examples
+
+```bash
+# Team tools are on by default — no flag needed
+clite "Plan, implement, and verify the release checklist"
+
+# Named persistent team
+clite --team-name my-team "Plan, implement, and verify the release checklist"
+clite --team-name my-team "Continue yesterday's team workflow"
+
+# Disable team tools entirely
+clite --no-teams "Answer from general knowledge only"
+
+# Emit structured JSON events including team lifecycle and progress
+clite --json --team-name my-team "Run the full release workflow"
+```
+
+---
+
+### Sub Agent
+
+Sub-agents allow the CLI agent to delegate discrete subtasks to autonomous child agents that run independently within their own session. Each spawned sub-agent has access to all tools enabled in the parent session and executes its assigned task to completion before the parent resumes. This enables complex, multi-step workflows to be broken down and handled in parallel or sequentially without the parent agent losing context.
+
+---
+
+#### How It Works
+
+The parent agent invokes the `spawn_agent` tool, passing a task description and any relevant context. The spawned sub-agent runs with its own session ID (tracked as a child of the parent session), executes the task using all enabled tools, and returns a result. The parent agent blocks until the sub-agent completes. All tool calls, events, and completions within the sub-agent are recorded in its own transcript for audit purposes. When spawning is enabled, sub-agents themselves also receive the `spawn_agent` tool, allowing recursive delegation.
+
+---
+
+#### CLI Flags
+
+| Flag | Default | Description |
+|---|---|---|
+| `--spawn` | `true` | Enable the `spawn_agent` tool |
+| `--no-spawn` | — | Disable sub-agent spawning |
+| `--enable-spawn` | — | Force-enable `spawn_agent`, overriding `--no-spawn` |
+
+---
+
+#### Behavior in Yolo Mode
+
+In `--yolo` mode, sub-agent spawning is **disabled by default**. To enable it, pass `--spawn` explicitly alongside `--yolo`. Use `--enable-spawn` to override a prior `--no-spawn` in any mode.
+
+---
+
+#### Example
+
+```bash
+# Default: spawn_agent enabled — agent may delegate subtasks automatically
+clite "Audit the codebase and fix all lint errors"
+
+# Disable sub-agent spawning for a focused, single-agent task
+clite --no-spawn "Fix this specific function"
+
+# Yolo mode with spawning explicitly re-enabled
+clite --yolo --spawn "Refactor the entire auth module"
+```
+
+---
+
+### Connectors
+
+Connectors bridge external messaging platforms into Cline CLI RPC sessions, letting you interact with an AI agent through Telegram, Slack, Google Chat, WhatsApp, or Linear without leaving those tools. Each connector runs as a persistent background process (or foreground with `-i`) and maps platform messages to the same RPC chat model used by `clite`.
+
+---
+
+#### Available Connectors
+
+| Connector | Platform | Transport |
+|-----------|----------|-----------|
+| `telegram` | Telegram Bot | Polling |
+| `slack` | Slack | Webhook |
+| `gchat` | Google Chat | Webhook |
+| `whatsapp` | WhatsApp | Webhook |
+| `linear` | Linear | Webhook |
+
+---
+
+#### Telegram
+
+Telegram uses long-polling — no public URL required. Register a bot via [@BotFather](https://t.me/BotFather) to get a token.
+
+```bash
+# Background (default)
+clite connect telegram -m <bot_username> -k <bot_token>
+
+# Foreground (logs in active terminal)
+clite connect telegram -i -m <bot_username> -k <bot_token>
+```
+
+Credentials can also be set via environment variables:
+
+```bash
+export TELEGRAM_BOT_USERNAME=my_bot
+export TELEGRAM_BOT_TOKEN=123456:ABC-xyz
+clite connect telegram
+```
+
+> **Note:** Tool use is enabled by default for Telegram sessions. Disable with `--no-tools`.
+
+| Flag | Description |
+|------|-------------|
+| `-m`, `--bot-username` | Telegram bot username |
+| `-k`, `--bot-token` | Telegram bot token |
+| `--provider` | AI provider override |
+| `--model` | Model name override |
+| `--api-key` | Provider API key override |
+| `--system` | System prompt override |
+| `--cwd` | Working directory for the session |
+| `--mode` | Agent mode (`act` or `plan`) |
+| `--max-iterations` | Max agent iterations per message |
+| `--no-tools` | Disable tool use (on by default) |
+| `--hook-command` | Shell command for lifecycle events |
+| `--rpc-address` | Custom RPC server address |
+| `-i` | Run in foreground |
+
+---
+
+#### Google Chat
+
+Configure your Google Chat App to send events to `<base-url>/api/webhooks/gchat`.
+
+```bash
+# Background
+clite connect gchat --base-url https://your-domain.com
+
+# Foreground on a custom port
+clite connect gchat -i --base-url https://your-domain.com --port 8787
+
+# With Pub/Sub for Workspace Events
+clite connect gchat --base-url https://your-domain.com \
+  --pubsub-topic projects/my-project/topics/my-topic
+```
+
+---
+
+#### WhatsApp
+
+Point your Meta webhook URL to `<base-url>/api/webhooks/whatsapp`.
+
+```bash
+# Background
+clite connect whatsapp --base-url https://your-domain.com
+
+# Foreground on a custom port
+clite connect whatsapp -i --base-url https://your-domain.com --port 8787
+```
+
+| Flag | Description |
+|------|-------------|
+| `--base-url` | Public base URL of this server |
+| `--port` | Local port to bind |
+| `--phone-number-id` | WhatsApp phone number ID |
+| `--access-token` | Meta access token |
+| `--app-secret` | Meta app secret (for request verification) |
+| `--verify-token` | Webhook verification token |
+
+---
+
+#### Slack and Linear
+
+```bash
+clite connect slack --base-url https://your-domain.com
+clite connect linear --base-url https://your-domain.com
+```
+
+Run `clite connect slack --help` or `clite connect linear --help` for the full flag list.
+
+---
+
+#### Shared Chat Commands
+
+These slash commands work in any connector conversation:
+
+| Command | Description |
+|---------|-------------|
+| `/clear` or `/new` | Start a fresh session |
+| `/abort` | Abort the current running task |
+| `/exit` | Stop the connector process |
+| `/whereami` | Print the current delivery thread ID |
+| `/tools [on\|off\|toggle]` | Enable, disable, or toggle tool use |
+| `/yolo [on\|off\|toggle]` | Enable, disable, or toggle auto-approve mode |
+| `/cwd <path>` | Change the agent's working directory |
+| `/schedule create\|list\|trigger\|delete` | Manage scheduled deliveries |
+
+---
+
+#### Stopping Connectors
+
+```bash
+# Stop all running connectors
+clite connect --stop
+
+# Stop a specific connector
+clite connect --stop telegram
+clite connect --stop gchat
+```
+
+---
+
+#### Hook Command
+
+Pass `--hook-command` to run a shell script on connector lifecycle events.
+
+```bash
+clite connect telegram -m my_bot -k TOKEN --hook-command '/path/to/hook.sh'
+```
+
+| Event | Fired when |
+|-------|------------|
+| `message.received` | A new message arrives from the platform |
+| `message.completed` | The agent successfully responds |
+| `message.failed` | The agent fails to respond |
+| `connector.stopping` | The connector is shutting down |
+| `schedule.delivery.started` | A scheduled delivery begins |
+| `schedule.delivery.sent` | A scheduled delivery is sent successfully |
+| `schedule.delivery.failed` | A scheduled delivery fails |

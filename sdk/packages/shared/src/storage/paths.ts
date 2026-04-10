@@ -7,6 +7,7 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import type { PluginManifest } from "..";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
@@ -267,27 +268,12 @@ export function resolvePluginConfigSearchPaths(
 	]);
 }
 
-const PLUGIN_MODULE_EXTENSIONS = new Set([
-	".js",
-	".mjs",
-	".cjs",
-	".ts",
-	".mts",
-	".cts",
-]);
+const PLUGIN_MODULE_EXTENSIONS = new Set([".js", ".ts"]);
 const PLUGIN_PACKAGE_JSON_FILE_NAME = "package.json";
-const PLUGIN_DIRECTORY_INDEX_CANDIDATES = [
-	"index.ts",
-	"index.mts",
-	"index.cts",
-	"index.js",
-	"index.mjs",
-	"index.cjs",
-];
+const PLUGIN_DIRECTORY_INDEX_CANDIDATES = ["index.ts", "index.js"];
 
 interface PluginPackageManifest {
-	plugins?: unknown;
-	extensions?: unknown;
+	plugins?: PluginManifest[];
 }
 
 export function isPluginModulePath(path: string): boolean {
@@ -317,11 +303,11 @@ function readPluginPackageManifest(
 function getManifestPluginEntries(
 	manifest: PluginPackageManifest | null,
 ): string[] {
-	const entries = manifest?.plugins ?? manifest?.extensions;
+	const entries = manifest?.plugins;
 	if (!Array.isArray(entries)) {
 		return [];
 	}
-	return entries.filter((entry): entry is string => typeof entry === "string");
+	return entries.flatMap((entry) => entry.paths ?? []);
 }
 
 export function resolvePluginModuleEntries(
@@ -373,6 +359,22 @@ export function discoverPluginModulePaths(directoryPath: string): string[] {
 		for (const entry of readdirSync(current, { withFileTypes: true })) {
 			const candidate = join(current, entry.name);
 			if (entry.isDirectory()) {
+				const packageJsonPath = join(candidate, PLUGIN_PACKAGE_JSON_FILE_NAME);
+				if (existsSync(packageJsonPath)) {
+					const manifest = readPluginPackageManifest(packageJsonPath);
+					const entries = getManifestPluginEntries(manifest)
+						.map((e) => resolve(candidate, e))
+						.filter(
+							(entryPath) =>
+								existsSync(entryPath) &&
+								statSync(entryPath).isFile() &&
+								isPluginModulePath(entryPath),
+						);
+					if (entries.length > 0) {
+						discovered.push(...entries);
+						continue;
+					}
+				}
 				stack.push(candidate);
 				continue;
 			}

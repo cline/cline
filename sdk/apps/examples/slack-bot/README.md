@@ -8,7 +8,7 @@ It supports:
 - Multi-workspace OAuth installs (`SLACK_CLIENT_ID` + `SLACK_CLIENT_SECRET`)
 - Thread-level Cline conversation memory
 - Optional Slack Assistants API suggested prompts
-- `/reset` slash command to clear per-thread agent history
+- `/clear` slash command to clear per-thread agent history
 
 Code entrypoint:
 
@@ -75,7 +75,7 @@ settings:
   token_rotation_enabled: false
 ```
 
-4. (Optional) Add slash command `/reset` with the same request URL (`/api/webhooks/slack`)
+4. (Optional) Add slash command `/clear` with the same request URL (`/api/webhooks/slack`)
 
 ## 3. Configure Environment Variables
 
@@ -206,7 +206,7 @@ Multi-workspace:
 - Each Slack thread gets one in-memory `Agent` instance from `@clinebot/agents`.
 - Agent provider/model/auth are read from `CLINE_SLACK_BOT_PROVIDER_CONFIG`.
 - The agent uses plain LLM calls (`tools: []`) by default.
-- `/reset` clears thread memory by dropping that thread's agent runtime.
+- `/clear` clears thread memory by dropping that thread's agent runtime.
 
 ## Troubleshooting
 

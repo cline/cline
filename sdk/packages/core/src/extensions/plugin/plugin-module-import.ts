@@ -2,6 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { builtinModules, createRequire } from "node:module";
 import { dirname, extname, isAbsolute, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { PLUGIN_FILE_EXTENSIONS } from "@clinebot/shared";
 import createJiti from "jiti";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
@@ -12,16 +13,7 @@ const WORKSPACE_ALIASES = collectWorkspaceAliases(WORKSPACE_ROOT);
 const BUILTIN_MODULES = new Set(
 	builtinModules.flatMap((id) => [id, id.replace(/^node:/, "")]),
 );
-const SUPPORTED_PLUGIN_EXTENSIONS = new Set([
-	".js",
-	".mjs",
-	".cjs",
-	".ts",
-	".mts",
-	".cts",
-	".jsx",
-	".tsx",
-]);
+const SUPPORTED_PLUGIN_EXTENSIONS = new Set(PLUGIN_FILE_EXTENSIONS);
 
 export interface ImportPluginModuleOptions {
 	useCache?: boolean;
@@ -33,14 +25,7 @@ function collectWorkspaceAliases(root: string): Record<string, string> {
 		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
 		"@clinebot/core": resolve(root, "packages/core/src/index.ts"),
 		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
-		"@clinebot/rpc": resolve(root, "packages/rpc/src/index.ts"),
-		"@clinebot/scheduler": resolve(root, "packages/scheduler/src/index.ts"),
 		"@clinebot/shared": resolve(root, "packages/shared/src/index.ts"),
-		"@clinebot/shared/storage": resolve(
-			root,
-			"packages/shared/src/storage/index.ts",
-		),
-		"@clinebot/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
 	};
 	for (const [key, value] of Object.entries(candidates)) {
 		if (existsSync(value)) {
@@ -161,6 +146,7 @@ function assertPluginDependenciesInstalled(
 		if (isBareSpecifier(specifier)) {
 			if (
 				Object.hasOwn(WORKSPACE_ALIASES, specifier) ||
+				Object.hasOwn(WORKSPACE_ALIASES, getPackageName(specifier)) ||
 				hasInstalledDependency(pluginPath, specifier)
 			) {
 				continue;
