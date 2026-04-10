@@ -478,6 +478,48 @@ export class LegacyStateReader {
 		}
 	}
 
+	/**
+	 * Clear Cline auth credentials (logout).
+	 * Removes the cline:clineAccountId key from secrets.json.
+	 */
+	clearClineAuthInfo(): void {
+		const secretsPath = path.join(this.dataDir, "secrets.json")
+		let secrets: Record<string, unknown>
+		try {
+			const raw = fs.readFileSync(secretsPath, "utf-8")
+			secrets = JSON.parse(raw)
+		} catch {
+			secrets = {}
+		}
+		delete secrets["cline:clineAccountId"]
+		this.writeJsonFile(secretsPath, secrets, 0o600)
+	}
+
+	/**
+	 * Update the active organization in the stored auth credentials.
+	 * Sets the `active` flag on the matching org and clears it on all others.
+	 */
+	setActiveOrganization(organizationId: string | undefined): void {
+		const authInfo = this.readClineAuthInfo()
+		if (!authInfo?.userInfo?.organizations) return
+
+		for (const org of authInfo.userInfo.organizations) {
+			org.active = organizationId !== undefined && org.organizationId === organizationId
+		}
+
+		// Re-persist the updated credentials
+		const secretsPath = path.join(this.dataDir, "secrets.json")
+		let secrets: Record<string, unknown>
+		try {
+			const raw = fs.readFileSync(secretsPath, "utf-8")
+			secrets = JSON.parse(raw)
+		} catch {
+			secrets = {}
+		}
+		secrets["cline:clineAccountId"] = JSON.stringify(authInfo)
+		this.writeJsonFile(secretsPath, secrets, 0o600)
+	}
+
 	// -----------------------------------------------------------------------
 	// MCP settings
 	// -----------------------------------------------------------------------

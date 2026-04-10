@@ -351,6 +351,28 @@ export interface GrpcHandlerDelegate {
 
 	/** Read MCP servers from settings file and return proto-shaped objects */
 	getMcpServers?(): McpServerProto[]
+
+	// -----------------------------------------------------------------------
+	// Account operations
+	// -----------------------------------------------------------------------
+
+	/** Clear Cline auth credentials (logout) */
+	clearClineAuth?(): void
+
+	/** Update the active organization */
+	setActiveOrganization?(organizationId: string | undefined): void
+
+	/** Fetch user credits from the Cline API */
+	fetchUserCredits?(): Promise<{
+		balance?: { currentBalance: number }
+		usageTransactions?: unknown[]
+		paymentTransactions?: unknown[]
+	}>
+
+	/** Fetch organization credits from the Cline API */
+	fetchOrganizationCredits?(
+		organizationId: string,
+	): Promise<{ balance?: { currentBalance: number }; usageTransactions?: unknown[] }>
 }
 
 /**
@@ -502,9 +524,15 @@ export class GrpcHandler {
 				case "getUserOrganizations":
 					return this.handleGetUserOrganizations()
 				case "getUserCredits":
-					return this.handleGetUserCredits()
+					return await this.handleGetUserCredits()
 				case "getOrganizationCredits":
-					return this.handleGetOrganizationCredits()
+					return await this.handleGetOrganizationCredits(request)
+
+				// ---- Account operations ----
+				case "accountLogoutClicked":
+					return this.handleAccountLogout()
+				case "setUserOrganization":
+					return this.handleSetUserOrganization(request)
 
 				// ---- Terminal profiles ----
 				case "getAvailableTerminalProfiles":
@@ -651,7 +679,6 @@ export class GrpcHandler {
 				case "refreshMcpMarketplace":
 				case "downloadMcp":
 				case "accountLoginClicked":
-				case "accountLogoutClicked":
 				case "openAiCodexSignIn":
 				case "openAiCodexSignOut":
 				case "openrouterAuthClicked":
@@ -660,7 +687,6 @@ export class GrpcHandler {
 				case "ocaAccountLoginClicked":
 				case "ocaAccountLogoutClicked":
 				case "ocaSubscribeToAuthStatusUpdate":
-				case "setUserOrganization":
 				case "getRedirectUrl":
 				case "getBrowserConnectionInfo":
 				case "getDetectedChromePath":
@@ -1005,15 +1031,53 @@ export class GrpcHandler {
 		return { data: { organizations: [] } }
 	}
 
-	private handleGetUserCredits(): GrpcResponse {
-		// We don't have credit info on disk — return a placeholder
-		// The webview will show "Credits: —" which is acceptable
-		return { data: { credits: undefined } }
+	private async handleGetUserCredits(): Promise<GrpcResponse> {
+		if (this.delegate.fetchUserCredits) {
+			try {
+				const result = await this.delegate.fetchUserCredits()
+				return { data: result }
+			} catch (err) {
+				Logger.log("[grpc-handler] Failed to fetch user credits:", err instanceof Error ? err.message : String(err))
+			}
+		}
+		// Fallback: return empty balance data so the webview shows "----"
+		return { data: { balance: undefined } }
 	}
 
-	private handleGetOrganizationCredits(): GrpcResponse {
-		// Same as getUserCredits — no credit info on disk
-		return { data: { credits: undefined } }
+	private async handleGetOrganizationCredits(request: GrpcRequest): Promise<GrpcResponse> {
+		const orgId = (request.params?.organizationId as string) ?? ""
+		if (orgId && this.delegate.fetchOrganizationCredits) {
+			try {
+				const result = await this.delegate.fetchOrganizationCredits(orgId)
+				return { data: result }
+			} catch (err) {
+				Logger.log("[grpc-handler] Failed to fetch org credits:", err instanceof Error ? err.message : String(err))
+			}
+		}
+		return { data: { balance: undefined } }
+	}
+
+	/**
+	 * Handle logout: clear auth credentials from disk and push state update.
+	 * After this, the webview will show the sign-in view.
+	 */
+	private handleAccountLogout(): GrpcResponse {
+		if (this.delegate.clearClineAuth) {
+			this.delegate.clearClineAuth()
+		}
+		return { data: {} }
+	}
+
+	/**
+	 * Handle org switch: update the active organization in stored credentials.
+	 * Webview sends: UserOrganizationUpdateRequest { organizationId?: string }
+	 */
+	private handleSetUserOrganization(request: GrpcRequest): GrpcResponse {
+		const orgId = (request.params?.organizationId as string) ?? undefined
+		if (this.delegate.setActiveOrganization) {
+			this.delegate.setActiveOrganization(orgId || undefined)
+		}
+		return { data: {} }
 	}
 
 	// -----------------------------------------------------------------------
