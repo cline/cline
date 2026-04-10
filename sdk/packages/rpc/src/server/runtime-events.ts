@@ -45,12 +45,12 @@ export class RuntimeEventService {
 		const subscriberId = this.nextSubscriberId;
 		this.nextSubscriberId += 1;
 		this.subscribers.set(subscriberId, { call, filterSessionIds });
-		call.on("cancelled", () => {
+		const drop = (): void => {
 			this.subscribers.delete(subscriberId);
-		});
-		call.on("close", () => {
-			this.subscribers.delete(subscriberId);
-		});
+		};
+		call.on("cancelled", drop);
+		call.on("close", drop);
+		call.on("error", drop);
 		return subscriberId;
 	}
 

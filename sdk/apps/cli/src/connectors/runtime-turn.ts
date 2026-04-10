@@ -245,9 +245,10 @@ export function createConnectorRuntimeTurnStream(input: {
 						}
 					},
 					onError: (error) => {
-						input.logger.core.warn?.(
+						input.logger.core.log(
 							"Connector runtime event stream failed mid-turn",
 							{
+								severity: "warn",
 								transport: input.transport,
 								conversationId: input.conversationId,
 								sessionId: input.sessionId,

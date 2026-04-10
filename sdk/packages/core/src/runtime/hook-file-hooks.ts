@@ -66,8 +66,15 @@ function logHookError(
 ): void {
 	const detail = error instanceof Error ? `: ${error.message}` : "";
 	const text = `${message}${detail}`;
-	if (logger?.warn) {
-		logger.warn(text);
+	if (logger) {
+		try {
+			logger.log(text, {
+				severity: "warn",
+				...(error !== undefined ? { error } : {}),
+			});
+		} catch {
+			// Logging failures must not break hook execution.
+		}
 		return;
 	}
 	console.warn(text);

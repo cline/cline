@@ -265,7 +265,7 @@ export function runBasicCompaction(options: {
 		return undefined;
 	}
 
-	options.logger?.debug?.("Performed basic compaction", {
+	options.logger?.debug("Performed basic compaction", {
 		beforeCount: options.context.messages.length,
 		afterCount: nextMessages.length,
 		targetTokens,

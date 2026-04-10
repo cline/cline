@@ -1,3 +1,10 @@
+import type {
+	BasicLogger,
+	RpcChatRunTurnRequest,
+	RpcChatStartSessionRequest,
+	RpcChatTurnResult,
+} from "@clinebot/shared";
+
 export type ScheduleMode = "act" | "plan";
 
 export interface ScheduleAutonomousOptions {
@@ -139,6 +146,8 @@ export type SchedulerEventPublisher = (
 export interface SchedulerServiceOptions {
 	runtimeHandlers: SchedulerRuntimeHandlers;
 	eventPublisher?: SchedulerEventPublisher;
+	/** Optional structured logs for scheduler lifecycle and tick failures. */
+	logger?: BasicLogger;
 	sessionsDbPath?: string;
 	pollIntervalMs?: number;
 	globalMaxConcurrency?: number;
@@ -158,9 +167,3 @@ export interface UpcomingScheduledRun {
 	name: string;
 	nextRunAt: string;
 }
-
-import type {
-	RpcChatRunTurnRequest,
-	RpcChatStartSessionRequest,
-	RpcChatTurnResult,
-} from "@clinebot/shared";

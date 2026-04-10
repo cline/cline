@@ -27,7 +27,7 @@ type CreateCheckpointHooksOptions = {
 };
 
 function warn(logger: BasicLogger | undefined, message: string): void {
-	logger?.warn?.(message);
+	logger?.log(message, { severity: "warn" });
 }
 
 function readCheckpointMetadata(

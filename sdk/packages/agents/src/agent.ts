@@ -1482,12 +1482,16 @@ export class Agent {
 		message: string,
 		metadata?: Record<string, unknown>,
 	): void {
-		const sink = this.logger?.[level];
-		if (!sink) {
+		const logger = this.logger;
+		if (!logger) {
 			return;
 		}
 		try {
-			if (level === "error" || level === "warn") {
+			if (level === "debug") {
+				logger.debug(message, metadata);
+				return;
+			}
+			if (level === "error") {
 				const errorMeta =
 					metadata?.error instanceof Error
 						? {
@@ -1499,10 +1503,20 @@ export class Agent {
 								},
 							}
 						: metadata;
-				sink(message, errorMeta);
+				if (logger.error) {
+					logger.error(message, errorMeta);
+					return;
+				}
+				logger.log(message, {
+					...errorMeta,
+					severity: "error",
+				});
 				return;
 			}
-			sink(message, metadata);
+			logger.log(message, {
+				...metadata,
+				...(level === "warn" ? { severity: "warn" as const } : {}),
+			});
 		} catch {
 			// Logging failures must never break agent execution.
 		}

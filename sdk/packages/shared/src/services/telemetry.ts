@@ -74,6 +74,12 @@ export interface OpenTelemetryClientConfig {
 	logsExporter?: string;
 
 	/**
+	 * Distributed tracing exporter type(s) - comma-separated for multiple exporters.
+	 * Examples: "console", "otlp". When unset, no `TracerProvider` is registered.
+	 */
+	tracesExporter?: string;
+
+	/**
 	 * Protocol for OTLP exporters. SDK support is currently limited to "http/json".
 	 */
 	otlpProtocol?: string;
@@ -111,6 +117,18 @@ export interface OpenTelemetryClientConfig {
 	otlpLogsEndpoint?: string;
 
 	otlpLogsHeaders?: Record<string, string>;
+
+	/**
+	 * Traces-specific OTLP protocol (SDK support is currently limited to "http/json")
+	 */
+	otlpTracesProtocol?: string;
+
+	/**
+	 * Traces-specific OTLP endpoint (defaults to {@link otlpEndpoint} when exporting OTLP traces)
+	 */
+	otlpTracesEndpoint?: string;
+
+	otlpTracesHeaders?: Record<string, string>;
 
 	/**
 	 * Metric export interval in milliseconds (for console exporter)

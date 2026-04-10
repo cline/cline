@@ -231,21 +231,27 @@ function createCoreLogger(logger: PinoLogger): BasicLogger {
 			}
 			logger.debug(message);
 		},
-		info: (message, metadata) => {
-			const fields = toPinoFields(metadata);
+		log: (message, metadata) => {
+			const severity = metadata?.severity;
+			const rest =
+				metadata === undefined
+					? undefined
+					: (() => {
+							const { severity: _ignored, ...r } = metadata;
+							return Object.keys(r).length > 0 ? r : undefined;
+						})();
+			const fields = toPinoFields(rest);
+			const levelFn =
+				severity === "warn"
+					? logger.warn
+					: severity === "error"
+						? logger.error
+						: logger.info;
 			if (fields) {
-				logger.info(fields, message);
+				levelFn.call(logger, fields, message);
 				return;
 			}
-			logger.info(message);
-		},
-		warn: (message, metadata) => {
-			const fields = toPinoFields(metadata);
-			if (fields) {
-				logger.warn(fields, message);
-				return;
-			}
-			logger.warn(message);
+			levelFn.call(logger, message);
 		},
 		error: (message, metadata) => {
 			const fields = toPinoFields(metadata);

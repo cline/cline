@@ -177,7 +177,7 @@ export async function getOrCreateSessionId<
 			},
 			input.errorLabel,
 		);
-		input.logger.core.info?.(input.reusedLogMessage, {
+		input.logger.core.log(input.reusedLogMessage, {
 			transport: input.transport,
 			threadId: input.thread.id,
 			sessionId: existing,
@@ -236,7 +236,7 @@ export async function getOrCreateSessionId<
 	);
 
 	if (input.startedLogMessage) {
-		input.logger.core.info?.(input.startedLogMessage, {
+		input.logger.core.log(input.startedLogMessage, {
 			transport: input.transport,
 			threadId: input.thread.id,
 			channelId: input.thread.channelId,

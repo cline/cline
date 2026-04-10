@@ -1,3 +1,11 @@
+import type {
+	BasicLogger,
+	RpcChatRunTurnRequest,
+	RpcChatStartSessionRequest,
+	RpcChatTurnResult,
+	RpcProviderActionRequest,
+} from "@clinebot/shared";
+
 export interface RpcServerOptions {
 	address?: string;
 	sessionBackend: RpcSessionBackend;
@@ -7,6 +15,7 @@ export interface RpcServerOptions {
 		sessionsDbPath?: string;
 		pollIntervalMs?: number;
 		globalMaxConcurrency?: number;
+		logger?: BasicLogger;
 	};
 }
 
@@ -213,10 +222,3 @@ export interface RpcSessionBackend {
 		parentAgentId: string,
 	): RpcSpawnQueueItem | undefined;
 }
-
-import type {
-	RpcChatRunTurnRequest,
-	RpcChatStartSessionRequest,
-	RpcChatTurnResult,
-	RpcProviderActionRequest,
-} from "@clinebot/shared";

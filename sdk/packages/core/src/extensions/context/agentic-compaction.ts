@@ -38,7 +38,7 @@ async function generateSummary(options: {
 			throw new Error(chunk.error);
 		}
 	}
-	options.logger?.debug?.("Generated compaction summary", {
+	options.logger?.debug("Generated compaction summary", {
 		outputChars: text.length,
 		modelId: options.providerConfig.modelId,
 		providerId: options.providerConfig.providerId,

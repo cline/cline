@@ -13,6 +13,17 @@ initVcr(process.env.CLINE_VCR);
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
 } else {
+	let shuttingDown = false;
+	const forwardSignalToRuntime = () => {
+		if (shuttingDown) {
+			process.exit(1);
+		}
+		shuttingDown = true;
+		abortActiveRuntime();
+	};
+	process.on("SIGINT", forwardSignalToRuntime);
+	process.on("SIGTERM", forwardSignalToRuntime);
+
 	void (async () => {
 		let exitCode = 0;
 		try {

@@ -185,7 +185,7 @@ export function startConnectorTaskUpdateRelay<
 			} else {
 				await thread.post(body);
 			}
-			input.logger.core.info?.("Connector task update sent", {
+			input.logger.core.log("Connector task update sent", {
 				transport: input.transport,
 				threadId: match.threadId,
 				sessionId: event.sessionId,
@@ -194,7 +194,8 @@ export function startConnectorTaskUpdateRelay<
 				taskId: event.lastEvent.taskId,
 			});
 		} catch (error) {
-			input.logger.core.warn?.("Connector task update delivery failed", {
+			input.logger.core.log("Connector task update delivery failed", {
+				severity: "warn",
 				transport: input.transport,
 				threadId: match.threadId,
 				sessionId: event.sessionId,
@@ -211,7 +212,8 @@ export function startConnectorTaskUpdateRelay<
 				void handleProjection(event);
 			},
 			onError: (error) => {
-				input.logger.core.warn?.("Connector task update stream failed", {
+				input.logger.core.log("Connector task update stream failed", {
+					severity: "warn",
 					transport: input.transport,
 					error,
 				});

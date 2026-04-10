@@ -63,7 +63,7 @@ export async function buildEffectiveConfig(
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		input.config.logger?.warn?.(
+		input.config.logger?.log?.(
 			`plugin loading failed; continuing without plugins (${message})`,
 		);
 	}

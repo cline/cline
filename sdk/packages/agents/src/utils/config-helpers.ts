@@ -57,14 +57,7 @@ export function createHandlerFromConfig(
 		thinkingBudgetTokens: config.thinkingBudgetTokens,
 		thinking: config.thinking,
 		abortSignal: config.abortSignal,
-		logger: logger
-			? {
-					debug: (message, metadata) => logger.debug?.(message, metadata),
-					info: (message, metadata) => logger.info?.(message, metadata),
-					warn: (message, metadata) => logger.warn?.(message, metadata),
-					error: (message, metadata) => logger.error?.(message, metadata),
-				}
-			: undefined,
+		logger,
 		extensionContext: config.extensionContext,
 	};
 	return LlmsProviders.createHandler(normalizedProviderConfig);

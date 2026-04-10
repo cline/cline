@@ -111,7 +111,9 @@ describe("handleConnectorUserTurn", () => {
 			baseStartRequest: baseStartRequest as never,
 			explicitSystemPrompt: undefined,
 			clientId: "client-1",
-			logger: { core: {} } as never,
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
 			transport: "telegram",
 			botUserName: "ClineAdapterBot",
 			requestStop: vi.fn(),
@@ -176,7 +178,9 @@ describe("handleConnectorUserTurn", () => {
 			} as never,
 			explicitSystemPrompt: undefined,
 			clientId: "client-1",
-			logger: { core: {} } as never,
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
 			transport: "slack",
 			botUserName: "ClineAdapterBot",
 			requestStop: vi.fn(),

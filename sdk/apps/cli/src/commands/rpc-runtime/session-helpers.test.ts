@@ -22,8 +22,7 @@ vi.mock("../../logging/adapter", () => ({
 	createCliLoggerAdapter: vi.fn(() => ({
 		core: {
 			debug: vi.fn(),
-			info: vi.fn(),
-			warn: vi.fn(),
+			log: vi.fn(),
 			error: vi.fn(),
 		},
 	})),

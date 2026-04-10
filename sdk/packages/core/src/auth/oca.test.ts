@@ -212,4 +212,129 @@ describe("auth/oca getValidOcaCredentials", () => {
 		expect(result).toBe(current);
 		nowSpy.mockRestore();
 	});
+
+	it("re-discovers token endpoint shortly after discovery fallback errors", async () => {
+		const nowSpy = vi.spyOn(Date, "now").mockReturnValue(100_000);
+		const fetchMock = vi
+			.fn()
+			// first refresh: discovery fails and fallback endpoint is used
+			.mockImplementationOnce(async () => new Response(null, { status: 503 }))
+			.mockImplementationOnce(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "server_error",
+							error_description: "temporary issue",
+						}),
+						{
+							status: 500,
+							headers: { "Content-Type": "application/json" },
+						},
+					),
+			)
+			// second refresh within fallback TTL: discovery should still be cached
+			.mockImplementationOnce(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "server_error",
+							error_description: "temporary issue",
+						}),
+						{
+							status: 500,
+							headers: { "Content-Type": "application/json" },
+						},
+					),
+			)
+			// third refresh after fallback TTL: discovery should be retried
+			.mockImplementationOnce(
+				async () =>
+					new Response(
+						JSON.stringify({
+							token_endpoint: "https://idcs.fallback/oauth2/v2/token",
+						}),
+						{
+							status: 200,
+							headers: { "Content-Type": "application/json" },
+						},
+					),
+			)
+			.mockImplementationOnce(
+				async () =>
+					new Response(
+						JSON.stringify({
+							error: "server_error",
+							error_description: "temporary issue",
+						}),
+						{
+							status: 500,
+							headers: { "Content-Type": "application/json" },
+						},
+					),
+			);
+		vi.stubGlobal("fetch", fetchMock);
+
+		const current = createCredentials({ expires: 10_000_000 });
+		const providerOptions = {
+			config: {
+				internal: {
+					clientId: "client-fallback-ttl",
+					idcsUrl: "https://idcs.fallback",
+					scopes: "openid offline_access",
+					baseUrl: "https://oca.example.com",
+				},
+			},
+		};
+
+		const first = await getValidOcaCredentials(
+			current,
+			{ forceRefresh: true },
+			providerOptions,
+		);
+		expect(first).toBe(current);
+
+		nowSpy.mockReturnValue(200_000);
+		const second = await getValidOcaCredentials(
+			current,
+			{ forceRefresh: true },
+			providerOptions,
+		);
+		expect(second).toBe(current);
+
+		nowSpy.mockReturnValue(500_001);
+		const third = await getValidOcaCredentials(
+			current,
+			{ forceRefresh: true },
+			providerOptions,
+		);
+		expect(third).toBe(current);
+
+		expect(fetchMock).toHaveBeenCalledTimes(5);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			1,
+			"https://idcs.fallback/.well-known/openid-configuration",
+			expect.objectContaining({ method: "GET" }),
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			2,
+			"https://idcs.fallback/oauth2/v1/token",
+			expect.objectContaining({ method: "POST" }),
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			3,
+			"https://idcs.fallback/oauth2/v1/token",
+			expect.objectContaining({ method: "POST" }),
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			4,
+			"https://idcs.fallback/.well-known/openid-configuration",
+			expect.objectContaining({ method: "GET" }),
+		);
+		expect(fetchMock).toHaveBeenNthCalledWith(
+			5,
+			"https://idcs.fallback/oauth2/v2/token",
+			expect.objectContaining({ method: "POST" }),
+		);
+		nowSpy.mockRestore();
+	});
 });

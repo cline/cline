@@ -6,13 +6,16 @@ export function createChatSdkLogger(adapter: CliLoggerAdapter) {
 			return createChatSdkLogger(adapter.child({ chatLogger: prefix }));
 		},
 		debug(message: string, ...args: unknown[]) {
-			adapter.core.debug?.(message, args.length > 0 ? { args } : undefined);
+			adapter.core.debug(message, args.length > 0 ? { args } : undefined);
 		},
 		info(message: string, ...args: unknown[]) {
-			adapter.core.info?.(message, args.length > 0 ? { args } : undefined);
+			adapter.core.log(message, args.length > 0 ? { args } : undefined);
 		},
 		warn(message: string, ...args: unknown[]) {
-			adapter.core.warn?.(message, args.length > 0 ? { args } : undefined);
+			adapter.core.log(message, {
+				severity: "warn",
+				...(args.length > 0 ? { args } : {}),
+			});
 		},
 		error(message: string, ...args: unknown[]) {
 			adapter.core.error?.(message, args.length > 0 ? { args } : undefined);

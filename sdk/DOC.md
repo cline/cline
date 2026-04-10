@@ -29,6 +29,7 @@ Important exported areas:
 Behavior notes:
 
 - shared contracts should be reusable by multiple higher layers
+- **`BasicLogger`** (`@clinebot/shared`) is the cross-package logging contract: required `debug` and `log`, optional `error`. Verbose diagnostics use `debug` (hosts typically gate on debug log level). Operational messages use `log`. Implementations may attach **`BasicLogMetadata`** (`sessionId`, `runId`, `providerId`, `toolName`, `durationMs`, optional `severity` on `log` for warning-style lines). Use **`noopBasicLogger`** when a complete no-op instance is required.
 - path/search helpers define the default config discovery locations used elsewhere in the stack
 - `resolveClineBuildEnv(...)` prefers `CLINE_BUILD_ENV`, falls back to `NODE_ENV`, and also treats `--conditions=development` as a development build
 - SDK-owned `node` subprocess launches add stable role-based inspector endpoints plus `--enable-source-maps` in development builds unless those flags are already present
@@ -136,6 +137,12 @@ Important exported areas:
 - default tools and tool routing
 - provider settings management
 - telemetry factories
+- `TelemetryLoggerSink`: an `ITelemetryAdapter` that forwards capture/metric calls to a `BasicLogger` (distinct from host-specific logger bundles such as the CLI Pino wrapper).
+
+### Telemetry and logging
+
+- `TelemetryService` can accept a `BasicLogger`; when present, core installs a `TelemetryLoggerSink` so telemetry events are also written to that logger with structured fields (`telemetrySink`, `event`, `properties`, …).
+- Host applications (for example the CLI) typically construct a logger bundle that includes both the native backend and a `BasicLogger` view: the CLI keeps the `pino` instance for transport concerns and passes `adapter.core` into SDK/runtime options.
 
 ### Runtime Composition
 
@@ -230,13 +237,23 @@ Behavior:
 Core supports:
 
 - basic telemetry service usage
-- OpenTelemetry-backed telemetry factories
+- OpenTelemetry-backed telemetry factories (`createConfiguredTelemetryService`, `OpenTelemetryProvider` in `@clinebot/core/telemetry`)
 
 The main integration pattern is:
 
-1. construct a telemetry service
+1. construct a telemetry service (often via `createClineTelemetryServiceConfig` from `@clinebot/shared` or explicit `OpenTelemetryProviderOptions`)
 2. pass it to the host or session config
-3. flush/dispose it at the host boundary
+3. flush/dispose it at the host boundary (`ITelemetryService.flush` / `dispose`, and `OpenTelemetryProvider.dispose` when using the OTel provider)
+
+**Signals.** When OpenTelemetry is enabled, the provider registers:
+
+- **Logs (events):** each `ITelemetryService.capture` / `captureRequired` becomes a log record whose body is the event name and whose attributes carry flattened properties (see `OpenTelemetryAdapter`).
+- **Metrics:** counters, histograms, and observable gauges from `recordCounter`, `recordHistogram`, `recordGauge`.
+- **Traces (optional):** set `tracesExporter` (for example `"console"` or `"otlp"`) on `OpenTelemetryProviderOptions`, or `OTEL_TRACES_EXPORTER` via `createClineTelemetryServiceConfig`. OTLP traces POST to `{otlpTracesEndpoint ?? otlpEndpoint}/v1/traces`. A global `TracerProvider` is registered so `trace.getTracer(...)` from `@opentelemetry/api` and integrations such as Langfuse (`@clinebot/llms`) can emit spans. End-to-end correlation across separate processes (CLI → RPC → worker) still requires your transport to propagate W3C `traceparent` / baggage; the SDK does not yet attach those headers automatically to RPC calls.
+
+**Event catalog.** Structured product events are named in `packages/core/src/telemetry/core-events.ts` (`CORE_TELEMETRY_EVENTS` and the `capture*` helpers). Use that module as the source of truth for event strings and typical properties.
+
+**Collector configuration.** Standard OpenTelemetry environment variables are read by `createClineTelemetryServiceConfig`, including `OTEL_EXPORTER_OTLP_ENDPOINT`, `OTEL_EXPORTER_OTLP_HEADERS`, `OTEL_METRICS_EXPORTER`, `OTEL_LOGS_EXPORTER`, `OTEL_TRACES_EXPORTER`, `OTEL_METRIC_EXPORT_INTERVAL`, and `OTEL_TELEMETRY_ENABLED`. Point `OTEL_EXPORTER_OTLP_ENDPOINT` at an OTLP HTTP/JSON collector (for example OpenTelemetry Collector or a vendor endpoint); paths `/v1/logs`, `/v1/metrics`, and `/v1/traces` are appended automatically.
 
 ## `@clinebot/enterprise`
 

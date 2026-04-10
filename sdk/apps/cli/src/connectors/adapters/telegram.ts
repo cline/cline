@@ -217,9 +217,10 @@ async function deliverScheduledResult(input: {
 	const binding = match?.binding;
 	const deliveryThreadId = match?.key || threadId;
 	if (!binding?.serializedThread) {
-		input.logger.core.warn?.(
+		input.logger.core.log(
 			"Scheduled Telegram delivery skipped: missing thread binding",
 			{
+				severity: "warn",
 				transport: "telegram",
 				scheduleId: input.scheduleId,
 				executionId: input.executionId,
@@ -261,7 +262,7 @@ async function deliverScheduledResult(input: {
 	}
 	try {
 		await thread.post(body);
-		input.logger.core.info?.("Scheduled Telegram delivery sent", {
+		input.logger.core.log("Scheduled Telegram delivery sent", {
 			transport: "telegram",
 			threadId: deliveryThreadId,
 			scheduleId: input.scheduleId,
@@ -570,7 +571,7 @@ class TelegramConnector extends ConnectorBase<
 			rpcAddress,
 			startedAt: new Date().toISOString(),
 		});
-		loggerAdapter.core.info?.("Telegram connector started", {
+		loggerAdapter.core.log("Telegram connector started", {
 			transport: "telegram",
 			botUserName: options.botUsername,
 			pid: process.pid,
@@ -604,7 +605,8 @@ class TelegramConnector extends ConnectorBase<
 				return;
 			}
 			stopping = true;
-			loggerAdapter.core.warn?.("Telegram connector stopping", {
+			loggerAdapter.core.log("Telegram connector stopping", {
+				severity: "warn",
 				transport: "telegram",
 				reason,
 				pid: process.pid,
@@ -675,7 +677,7 @@ class TelegramConnector extends ConnectorBase<
 							);
 						},
 						onReplyCompleted: async (result) => {
-							loggerAdapter.core.info?.("Telegram reply completed", {
+							loggerAdapter.core.log("Telegram reply completed", {
 								transport: "telegram",
 								threadId: result.threadId,
 								sessionId: result.sessionId,
@@ -810,9 +812,10 @@ class TelegramConnector extends ConnectorBase<
 			{
 				onEvent: (event) => {
 					if (event.eventType === "rpc.server.shutting_down") {
-						loggerAdapter.core.warn?.(
+						loggerAdapter.core.log(
 							"Telegram connector stopping because the RPC server is shutting down",
 							{
+								severity: "warn",
 								transport: "telegram",
 								eventType: event.eventType,
 							},
@@ -861,9 +864,10 @@ class TelegramConnector extends ConnectorBase<
 					});
 				},
 				onError: (error) => {
-					loggerAdapter.core.warn?.(
+					loggerAdapter.core.log(
 						"Telegram connector server event stream failed",
 						{
+							severity: "warn",
 							transport: "telegram",
 							error,
 						},
@@ -917,7 +921,7 @@ class TelegramConnector extends ConnectorBase<
 		await bot.shutdown().catch(() => undefined);
 		client.close();
 		this.removeStateFile(statePath);
-		loggerAdapter.core.info?.("Telegram connector stopped", {
+		loggerAdapter.core.log("Telegram connector stopped", {
 			transport: "telegram",
 			pid: process.pid,
 		});

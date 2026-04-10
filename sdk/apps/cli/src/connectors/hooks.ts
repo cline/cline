@@ -31,7 +31,7 @@ export async function dispatchConnectorHook(
 			cwd: process.cwd(),
 			env: process.env,
 			onSpawn: ({ command, pid, detached }) => {
-				logger.core.info?.("Process spawned", {
+				logger.core.log("Process spawned", {
 					component: "connector-hooks",
 					command: command.join(" "),
 					commandArgs: command.slice(1),
@@ -45,7 +45,8 @@ export async function dispatchConnectorHook(
 			},
 		});
 		if ((result?.exitCode ?? 0) !== 0) {
-			logger.core.warn?.("Connector hook exited non-zero", {
+			logger.core.log("Connector hook exited non-zero", {
+				severity: "warn",
 				adapter: hookPayload.adapter,
 				event: hookPayload.event,
 				code: result?.exitCode,
@@ -53,7 +54,8 @@ export async function dispatchConnectorHook(
 			});
 		}
 	} catch (error) {
-		logger.core.warn?.("Connector hook dispatch failed", {
+		logger.core.log("Connector hook dispatch failed", {
+			severity: "warn",
 			adapter: hookPayload.adapter,
 			event: hookPayload.event,
 			error,
@@ -90,7 +92,7 @@ export async function authorizeConnectorEvent(
 				cwd: process.cwd(),
 				env: process.env,
 				onSpawn: ({ command, pid, detached }) => {
-					logger.core.info?.("Process spawned", {
+					logger.core.log("Process spawned", {
 						component: "connector-hooks",
 						command: command.join(" "),
 						commandArgs: command.slice(1),
@@ -112,7 +114,8 @@ export async function authorizeConnectorEvent(
 			return parsed.data;
 		}
 		if ((result?.exitCode ?? 0) !== 0) {
-			logger.core.warn?.("Connector authorization hook exited non-zero", {
+			logger.core.log("Connector authorization hook exited non-zero", {
+				severity: "warn",
 				adapter: input.adapter,
 				event: "session.authorize",
 				code: result?.exitCode,
@@ -120,18 +123,17 @@ export async function authorizeConnectorEvent(
 			});
 		}
 		if (result?.parseError || result?.stdout.trim()) {
-			logger.core.warn?.(
-				"Connector authorization hook returned invalid control",
-				{
-					adapter: input.adapter,
-					event: "session.authorize",
-					parseError: result?.parseError,
-					stdout: result?.stdout.trim() || undefined,
-				},
-			);
+			logger.core.log("Connector authorization hook returned invalid control", {
+				severity: "warn",
+				adapter: input.adapter,
+				event: "session.authorize",
+				parseError: result?.parseError,
+				stdout: result?.stdout.trim() || undefined,
+			});
 		}
 	} catch (error) {
-		logger.core.warn?.("Connector authorization hook dispatch failed", {
+		logger.core.log("Connector authorization hook dispatch failed", {
+			severity: "warn",
 			adapter: input.adapter,
 			event: "session.authorize",
 			error,

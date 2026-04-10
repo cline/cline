@@ -676,7 +676,7 @@ export async function runCli(): Promise<void> {
 			runtime: "cli",
 			component: "main",
 		});
-		loggerAdapter.core?.info?.("CLI run started", {
+		loggerAdapter.core.log("CLI run started", {
 			interactive: args.interactive === true,
 			hasPrompt: !!args.prompt?.trim(),
 			cwd,

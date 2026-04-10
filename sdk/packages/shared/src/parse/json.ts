@@ -76,3 +76,11 @@ export function safeJsonStringify(input: unknown): string {
 		return String(input);
 	}
 }
+
+export function safeJsonParse<T>(raw: string): T | undefined {
+	try {
+		return JSON.parse(raw) as T;
+	} catch {
+		return undefined;
+	}
+}

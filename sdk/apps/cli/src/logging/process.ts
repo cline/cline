@@ -15,7 +15,7 @@ export function logSpawnedProcess(input: LogSpawnedProcessInput): void {
 			runtime: "cli",
 			component: input.component,
 		});
-		logger.core.info?.("Process spawned", {
+		logger.core.log("Process spawned", {
 			command: input.command.join(" "),
 			commandArgs: input.command.slice(1),
 			executable: input.command[0],

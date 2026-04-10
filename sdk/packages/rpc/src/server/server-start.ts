@@ -5,7 +5,7 @@ import * as grpc from "@grpc/grpc-js";
 import type { RpcServerHandle, RpcServerOptions } from "../types";
 
 import { loadGatewayService, parseAddress } from "./grpc-service";
-import { nowIso } from "./helpers";
+import { formatRpcCallbackError, nowIso } from "./helpers";
 import type {
 	AbortRuntimeSessionRequest,
 	AbortRuntimeSessionResponse,
@@ -146,6 +146,7 @@ export async function startRpcServer(
 						sessionsDbPath: options.scheduler?.sessionsDbPath,
 						pollIntervalMs: options.scheduler?.pollIntervalMs,
 						globalMaxConcurrency: options.scheduler?.globalMaxConcurrency,
+						logger: options.scheduler?.logger,
 						eventPublisher: (eventType, payload) => {
 							runtime.broadcastServerEvent(eventType, payload);
 						},
@@ -221,7 +222,10 @@ export async function startRpcServer(
 					callback(null, runtime.registerClient(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -234,7 +238,10 @@ export async function startRpcServer(
 					callback(null, runtime.ensureSession(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -247,7 +254,10 @@ export async function startRpcServer(
 					callback(null, runtime.upsertSession(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -260,7 +270,10 @@ export async function startRpcServer(
 					callback(null, runtime.getSession(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -273,7 +286,10 @@ export async function startRpcServer(
 					callback(null, runtime.listSessions(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -286,7 +302,10 @@ export async function startRpcServer(
 					callback(null, runtime.updateSession(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -299,7 +318,10 @@ export async function startRpcServer(
 					callback(null, runtime.deleteSession(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -315,7 +337,10 @@ export async function startRpcServer(
 					callback(null, runtime.enqueueSpawnRequest(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -331,7 +356,10 @@ export async function startRpcServer(
 					callback(null, runtime.claimSpawnRequest(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -350,7 +378,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -369,7 +400,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -388,7 +422,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -407,7 +444,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -426,7 +466,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -445,7 +488,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -464,7 +510,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -483,7 +532,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -502,7 +554,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -515,7 +570,10 @@ export async function startRpcServer(
 					callback(null, runtime.startTask(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -528,7 +586,10 @@ export async function startRpcServer(
 					callback(null, runtime.completeTask(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -541,7 +602,10 @@ export async function startRpcServer(
 					callback(null, runtime.publishEvent(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -552,10 +616,7 @@ export async function startRpcServer(
 					RoutedEventMessage
 				>,
 			) => {
-				const subscriberId = runtime.addSubscriber(call);
-				call.on("error", () => {
-					runtime.removeSubscriber(subscriberId);
-				});
+				runtime.addSubscriber(call);
 			},
 			RequestToolApproval: (
 				call: grpc.ServerUnaryCall<
@@ -571,7 +632,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -587,7 +651,10 @@ export async function startRpcServer(
 					callback(null, runtime.respondToolApproval(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -603,7 +670,10 @@ export async function startRpcServer(
 					callback(null, runtime.listPendingApprovals(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -619,7 +689,10 @@ export async function startRpcServer(
 					callback(null, runtime.createSchedule(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -632,7 +705,10 @@ export async function startRpcServer(
 					callback(null, runtime.getSchedule(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -645,7 +721,10 @@ export async function startRpcServer(
 					callback(null, runtime.listSchedules(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -661,7 +740,10 @@ export async function startRpcServer(
 					callback(null, runtime.updateSchedule(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -677,7 +759,10 @@ export async function startRpcServer(
 					callback(null, runtime.deleteSchedule(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -690,7 +775,10 @@ export async function startRpcServer(
 					callback(null, runtime.pauseSchedule(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -706,7 +794,10 @@ export async function startRpcServer(
 					callback(null, runtime.resumeSchedule(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -725,7 +816,10 @@ export async function startRpcServer(
 					})
 					.catch((error) => {
 						callback(
-							{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+							{
+								code: grpc.status.INVALID_ARGUMENT,
+								message: formatRpcCallbackError(error),
+							},
 							null,
 						);
 					});
@@ -741,7 +835,10 @@ export async function startRpcServer(
 					callback(null, runtime.listScheduleExecutions(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -757,7 +854,10 @@ export async function startRpcServer(
 					callback(null, runtime.getScheduleStats(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -773,7 +873,10 @@ export async function startRpcServer(
 					callback(null, runtime.getActiveScheduledExecutions(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
@@ -789,15 +892,15 @@ export async function startRpcServer(
 					callback(null, runtime.getUpcomingScheduledRuns(call.request));
 				} catch (error) {
 					callback(
-						{ code: grpc.status.INVALID_ARGUMENT, message: String(error) },
+						{
+							code: grpc.status.INVALID_ARGUMENT,
+							message: formatRpcCallbackError(error),
+						},
 						null,
 					);
 				}
 			},
 		});
-		if (scheduler) {
-			void scheduler.start();
-		}
 
 		server.bindAsync(
 			address,
@@ -809,17 +912,38 @@ export async function startRpcServer(
 					return;
 				}
 
-				const serverId = runtime.health().serverId ?? `srv_${randomUUID()}`;
-				const startedAt = nowIso();
-				const handle: RpcServerHandle = {
-					serverId,
-					address,
-					port: boundPort,
-					startedAt,
-					stop: stopBoundServer,
-				};
-				singletonHandle = handle;
-				resolve(handle);
+				void (async () => {
+					if (scheduler) {
+						try {
+							await scheduler.start();
+						} catch (schedErr) {
+							singletonStartPromise = undefined;
+							const err =
+								schedErr instanceof Error
+									? schedErr
+									: new Error(String(schedErr));
+							try {
+								await new Promise<void>((r) => server.tryShutdown(() => r()));
+							} catch {
+								// Best-effort shutdown after failed scheduler start.
+							}
+							reject(err);
+							return;
+						}
+					}
+
+					const serverId = runtime.health().serverId ?? `srv_${randomUUID()}`;
+					const startedAt = nowIso();
+					const handle: RpcServerHandle = {
+						serverId,
+						address,
+						port: boundPort,
+						startedAt,
+						stop: stopBoundServer,
+					};
+					singletonHandle = handle;
+					resolve(handle);
+				})();
 			},
 		);
 	});

@@ -334,9 +334,10 @@ async function deliverScheduledResult(input: {
 			isSlackInvalidThreadTsError(error) &&
 			clearSlackBinding(input.bindingsPath, deliveryThreadId)
 		) {
-			input.logger.core.warn?.(
+			input.logger.core.log(
 				"Cleared stale Slack binding after invalid_thread_ts",
 				{
+					severity: "warn",
 					transport: "slack",
 					threadId: deliveryThreadId,
 					scheduleId: input.scheduleId,
@@ -902,9 +903,10 @@ class SlackConnector extends ConnectorBase<
 							isSlackInvalidThreadTsError(error) &&
 							clearSlackBinding(bindingsPath, threadId)
 						) {
-							loggerAdapter.core.warn?.(
+							loggerAdapter.core.log(
 								"Cleared stale Slack binding after invalid_thread_ts",
 								{
+									severity: "warn",
 									transport: "slack",
 									threadId,
 								},
@@ -931,7 +933,8 @@ class SlackConnector extends ConnectorBase<
 					} catch (error) {
 						const message =
 							error instanceof Error ? error.message : String(error);
-						loggerAdapter.core.warn?.("Slack OAuth callback failed", {
+						loggerAdapter.core.log("Slack OAuth callback failed", {
+							severity: "warn",
 							transport: "slack",
 							error: message,
 						});

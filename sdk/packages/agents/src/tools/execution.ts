@@ -32,6 +32,47 @@ export interface ToolExecutionOptions {
 }
 
 /**
+ * Map `items` to results with at most `concurrency` async workers in flight.
+ * `results[i]` always corresponds to `items[i]` (order is preserved).
+ * On first failure, no new items are started, but in-flight work is awaited
+ * before rejecting so callers do not observe post-rejection side effects.
+ */
+async function mapWithConcurrency<T, R>(
+	items: readonly T[],
+	concurrency: number,
+	fn: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+	if (items.length === 0) {
+		return [];
+	}
+	const results = new Array<R>(items.length);
+	const max = Math.max(1, concurrency);
+	const workerCount = Math.min(max, items.length);
+	let nextIndex = 0;
+	let firstError: unknown;
+	await Promise.all(
+		Array.from({ length: workerCount }, async () => {
+			while (firstError === undefined) {
+				const index = nextIndex++;
+				if (index >= items.length) {
+					return;
+				}
+				try {
+					results[index] = await fn(items[index]!, index);
+				} catch (error) {
+					firstError ??= error;
+					return;
+				}
+			}
+		}),
+	);
+	if (firstError !== undefined) {
+		throw firstError;
+	}
+	return results;
+}
+
+/**
  * Execute a single tool with error handling and timeout
  *
  * @param tool - The tool to execute
@@ -176,18 +217,10 @@ export async function executeToolsInParallel(
 
 	// Phase 2: Execute tools with concurrency cap applied only to tool.execute().
 	const maxConcurrency = options?.maxConcurrency ?? calls.length;
-	const max = Math.max(1, maxConcurrency);
-	const results = new Array<ToolCallRecord>(calls.length);
-	let nextIndex = 0;
-	const workerCount = Math.min(max, prepared.length);
-	const workers = Array.from({ length: workerCount }, async () => {
-		while (true) {
-			const index = nextIndex++;
-			if (index >= prepared.length) {
-				return;
-			}
-
-			const { call, authorization } = prepared[index];
+	return mapWithConcurrency(
+		prepared,
+		maxConcurrency,
+		async ({ call, authorization }) => {
 			const startedAt = new Date();
 			const tool = toolRegistry.get(call.name);
 
@@ -204,8 +237,7 @@ export async function executeToolsInParallel(
 					endedAt,
 				};
 				await observer?.onToolCallEnd?.(record);
-				results[index] = record;
-				continue;
+				return record;
 			}
 
 			if (authorization && !authorization.allowed) {
@@ -221,8 +253,7 @@ export async function executeToolsInParallel(
 					endedAt,
 				};
 				await observer?.onToolCallEnd?.(record);
-				results[index] = record;
-				continue;
+				return record;
 			}
 
 			const effectiveInput =
@@ -251,11 +282,9 @@ export async function executeToolsInParallel(
 				endedAt,
 			};
 			await observer?.onToolCallEnd?.(record);
-			results[index] = record;
-		}
-	});
-	await Promise.all(workers);
-	return results;
+			return record;
+		},
+	);
 }
 
 /**

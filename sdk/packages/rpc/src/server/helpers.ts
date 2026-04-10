@@ -14,6 +14,43 @@ export function nowIso(): string {
 	return new Date().toISOString();
 }
 
+const DEFAULT_RPC_ERROR_MESSAGE_MAX = 4096;
+
+/**
+ * Produces a gRPC status message that preserves Error details (name, message,
+ * stack, optional cause chain) instead of flattening to `[object Object]`.
+ */
+export function formatRpcCallbackError(
+	error: unknown,
+	maxLength = DEFAULT_RPC_ERROR_MESSAGE_MAX,
+): string {
+	const parts: string[] = [];
+	let current: unknown = error;
+	let depth = 0;
+	const maxDepth = 8;
+	while (current !== undefined && current !== null && depth < maxDepth) {
+		depth += 1;
+		if (current instanceof Error) {
+			const chunk = current.stack?.includes(current.message)
+				? current.stack
+				: `${current.name}: ${current.message}`;
+			parts.push(chunk);
+			current =
+				"cause" in current
+					? (current as Error & { cause?: unknown }).cause
+					: undefined;
+		} else {
+			parts.push(String(current));
+			break;
+		}
+	}
+	const out = parts.join("\nCaused by: ");
+	if (out.length <= maxLength) {
+		return out;
+	}
+	return `${out.slice(0, Math.max(0, maxLength - 16))}\n...[truncated]`;
+}
+
 export function safeString(value: unknown): string {
 	return typeof value === "string" ? value : "";
 }

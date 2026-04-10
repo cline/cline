@@ -45,7 +45,8 @@ describe("DefaultRuntimeBuilder", () => {
 
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
-			info: () => {},
+			debug: () => {},
+			log: () => {},
 		};
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({

@@ -4,11 +4,12 @@ import type {
 	OpenTelemetryClientConfig,
 	TelemetryMetadata,
 } from "@clinebot/shared";
-import { metrics } from "@opentelemetry/api";
+import { metrics, type Tracer, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { OTLPLogExporter as OTLPLogExporterHttp } from "@opentelemetry/exporter-logs-otlp-http";
 import { OTLPMetricExporter as OTLPMetricExporterHttp } from "@opentelemetry/exporter-metrics-otlp-http";
-import { Resource } from "@opentelemetry/resources";
+import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
+import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
 	BatchLogRecordProcessor,
 	ConsoleLogRecordExporter,
@@ -21,6 +22,13 @@ import {
 	type MetricReader,
 	PeriodicExportingMetricReader,
 } from "@opentelemetry/sdk-metrics";
+import {
+	BatchSpanProcessor,
+	ConsoleSpanExporter,
+	SimpleSpanProcessor,
+	type SpanProcessor,
+} from "@opentelemetry/sdk-trace-base";
+import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 import {
 	ATTR_SERVICE_NAME,
 	ATTR_SERVICE_VERSION,
@@ -38,13 +46,14 @@ type OpenTelemetryProtocol = "http/json";
 export interface OpenTelemetryProviderOptions
 	extends Omit<
 		OpenTelemetryClientConfig,
-		"enabled" | "logsExporter" | "metricsExporter"
+		"enabled" | "logsExporter" | "metricsExporter" | "tracesExporter"
 	> {
 	serviceName?: string;
 	serviceVersion?: string;
 	enabled?: boolean;
 	logsExporter?: string | OpenTelemetryExporterKind[];
 	metricsExporter?: string | OpenTelemetryExporterKind[];
+	tracesExporter?: string | OpenTelemetryExporterKind[];
 	metricExportIntervalMs?: number;
 	logMaxQueueSize?: number;
 	logBatchSize?: number;
@@ -64,11 +73,12 @@ export interface CreateOpenTelemetryTelemetryServiceOptions
 export class OpenTelemetryProvider {
 	readonly meterProvider: MeterProvider | null;
 	readonly loggerProvider: LoggerProvider | null;
+	readonly tracerProvider: NodeTracerProvider | null;
 	private readonly options: OpenTelemetryProviderOptions;
 
 	constructor(options: OpenTelemetryProviderOptions = {}) {
 		this.options = options;
-		const resource = new Resource({
+		const resource = resourceFromAttributes({
 			[ATTR_SERVICE_NAME]: options.serviceName ?? "cline",
 			...(options.serviceVersion
 				? { [ATTR_SERVICE_VERSION]: options.serviceVersion }
@@ -77,6 +87,7 @@ export class OpenTelemetryProvider {
 
 		this.meterProvider = this.createMeterProvider(resource);
 		this.loggerProvider = this.createLoggerProvider(resource);
+		this.tracerProvider = this.createTracerProvider(resource);
 
 		if (this.meterProvider) {
 			metrics.setGlobalMeterProvider(this.meterProvider);
@@ -84,6 +95,17 @@ export class OpenTelemetryProvider {
 		if (this.loggerProvider) {
 			logs.setGlobalLoggerProvider(this.loggerProvider);
 		}
+		if (this.tracerProvider) {
+			this.tracerProvider.register();
+		}
+	}
+
+	/**
+	 * Returns a tracer for manual spans. Requires {@link OpenTelemetryProviderOptions.tracesExporter}
+	 * so that a {@link NodeTracerProvider} is registered.
+	 */
+	getTracer(name = "cline", version?: string): Tracer {
+		return trace.getTracer(name, version ?? this.options.serviceVersion);
 	}
 
 	createAdapter(
@@ -122,6 +144,7 @@ export class OpenTelemetryProvider {
 		await Promise.all([
 			this.meterProvider?.forceFlush?.(),
 			this.loggerProvider?.forceFlush?.(),
+			this.tracerProvider?.forceFlush?.(),
 		]);
 	}
 
@@ -129,10 +152,13 @@ export class OpenTelemetryProvider {
 		await Promise.all([
 			this.meterProvider?.shutdown?.(),
 			this.loggerProvider?.shutdown?.(),
+			this.tracerProvider?.shutdown?.(),
 		]);
 	}
 
-	private createMeterProvider(resource: Resource): MeterProvider | null {
+	private createMeterProvider(
+		resource: ReturnType<typeof resourceFromAttributes>,
+	): MeterProvider | null {
 		const exporters = normalizeExporters(this.options.metricsExporter);
 		if (exporters.length === 0) {
 			return null;
@@ -168,35 +194,71 @@ export class OpenTelemetryProvider {
 		});
 	}
 
-	private createLoggerProvider(resource: Resource): LoggerProvider | null {
+	private createTracerProvider(
+		resource: ReturnType<typeof resourceFromAttributes>,
+	): NodeTracerProvider | null {
+		const exporters = normalizeExporters(this.options.tracesExporter);
+		if (exporters.length === 0) {
+			return null;
+		}
+
+		const traceEndpoint =
+			this.options.otlpTracesEndpoint ?? this.options.otlpEndpoint;
+		const traceHeaders =
+			this.options.otlpTracesHeaders ?? this.options.otlpHeaders;
+
+		const processors: SpanProcessor[] = [];
+		for (const exporter of exporters) {
+			const processor = createSpanProcessor(exporter, {
+				endpoint: traceEndpoint,
+				headers: traceHeaders,
+				insecure: this.options.otlpInsecure ?? false,
+				protocol: "http/json",
+			});
+			if (processor) {
+				processors.push(processor);
+			}
+		}
+		if (processors.length === 0) {
+			return null;
+		}
+
+		return new NodeTracerProvider({ resource, spanProcessors: processors });
+	}
+
+	private createLoggerProvider(
+		resource: ReturnType<typeof resourceFromAttributes>,
+	): LoggerProvider | null {
 		const exporters = normalizeExporters(this.options.logsExporter);
 		if (exporters.length === 0) {
 			return null;
 		}
 
-		const provider = new LoggerProvider({ resource });
-		for (const exporter of exporters) {
-			const logExporter = createLogExporter(exporter, {
-				endpoint: this.options.otlpEndpoint,
-				headers: this.options.otlpHeaders,
-				insecure: this.options.otlpInsecure ?? false,
-				protocol: "http/json",
-			});
-			if (!logExporter) {
-				continue;
-			}
-			provider.addLogRecordProcessor(
-				new BatchLogRecordProcessor(logExporter, {
+		const processors = exporters
+			.map((exporter) => {
+				const logExporter = createLogExporter(exporter, {
+					endpoint: this.options.otlpEndpoint,
+					headers: this.options.otlpHeaders,
+					insecure: this.options.otlpInsecure ?? false,
+					protocol: "http/json",
+				});
+				if (!logExporter) {
+					return null;
+				}
+				return new BatchLogRecordProcessor(logExporter, {
 					maxQueueSize: this.options.logMaxQueueSize ?? 2048,
 					maxExportBatchSize: this.options.logBatchSize ?? 512,
 					scheduledDelayMillis:
 						this.options.logBatchTimeoutMs ??
 						this.options.logBatchTimeout ??
 						5000,
-				}),
-			);
+				});
+			})
+			.filter((p): p is BatchLogRecordProcessor => p !== null);
+		if (processors.length === 0) {
+			return null;
 		}
-		return provider;
+		return new LoggerProvider({ resource, processors });
 	}
 }
 
@@ -214,6 +276,9 @@ export function createOpenTelemetryTelemetryService(
 		metricsExporter: Array.isArray(options.metricsExporter)
 			? options.metricsExporter.join(",")
 			: options.metricsExporter,
+		tracesExporter: Array.isArray(options.tracesExporter)
+			? options.tracesExporter.join(",")
+			: options.tracesExporter,
 		otlpProtocol: options.otlpProtocol,
 		hasOtlpEndpoint: Boolean(options.otlpEndpoint),
 		serviceName: options.serviceName,
@@ -278,6 +343,31 @@ function createLogExporter(
 		url: endpoint,
 		headers: options.headers,
 	});
+}
+
+function createSpanProcessor(
+	exporter: OpenTelemetryExporterKind,
+	options: {
+		endpoint?: string;
+		headers?: Record<string, string>;
+		insecure: boolean;
+		protocol: OpenTelemetryProtocol;
+	},
+): SpanProcessor | null {
+	if (exporter === "console") {
+		return new SimpleSpanProcessor(new ConsoleSpanExporter());
+	}
+	if (!options.endpoint) {
+		return null;
+	}
+
+	const endpoint = ensurePathSuffix(options.endpoint, "/v1/traces");
+	return new BatchSpanProcessor(
+		new OTLPTraceExporter({
+			url: endpoint,
+			headers: options.headers,
+		}),
+	);
 }
 
 function createMetricReader(

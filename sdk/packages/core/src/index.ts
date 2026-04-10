@@ -64,6 +64,7 @@ export {
 	ContributionRegistry,
 	createContributionRegistry,
 	createTool,
+	noopBasicLogger,
 	normalizeUserInput,
 	RPC_TEAM_LIFECYCLE_EVENT_TYPE,
 	RPC_TEAM_PROGRESS_EVENT_TYPE,
@@ -488,16 +489,16 @@ export {
 } from "./telemetry/core-events";
 export type { ITelemetryAdapter } from "./telemetry/ITelemetryAdapter";
 export {
-	LoggerTelemetryAdapter,
-	type LoggerTelemetryAdapterOptions,
-} from "./telemetry/LoggerTelemetryAdapter";
-export {
 	type CreateOpenTelemetryTelemetryServiceOptions,
 	createConfiguredTelemetryService,
 	createOpenTelemetryTelemetryService,
 	OpenTelemetryProvider,
 	type OpenTelemetryProviderOptions,
 } from "./telemetry/OpenTelemetryProvider";
+export {
+	TelemetryLoggerSink,
+	type TelemetryLoggerSinkOptions,
+} from "./telemetry/TelemetryLoggerSink";
 export { CORE_BUILD_VERSION } from "./version";
 export async function loadOpenTelemetryAdapter() {
 	return import("./telemetry/index.js");

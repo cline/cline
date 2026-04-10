@@ -84,7 +84,8 @@ class RpcRuntimeHookService {
 			env: buildInternalCliEnv("hook-worker"),
 			sessionContext: (input) => this.resolveSessionContext(input),
 			onDispatchError: (error, payload) => {
-				this.logger.warn?.("RPC hook dispatch failed", {
+				this.logger.log("RPC hook dispatch failed", {
+					severity: "warn",
 					error,
 					hookName: payload.hookName,
 					taskId: payload.taskId,
@@ -309,7 +310,8 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 		try {
 			await sessionManager.stop(sessionId);
 		} catch (stopError) {
-			runtimeLogger.warn?.("RPC runtime failed-session cleanup errored", {
+			runtimeLogger.log("RPC runtime failed-session cleanup errored", {
+				severity: "warn",
 				sessionId,
 				reason,
 				error: stopError,
@@ -370,7 +372,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					sessionId,
 				});
 			const started = await sessionManager.start(startedConfig.sessionInput);
-			runtimeLogger.info?.("RPC runtime session started", {
+			runtimeLogger.log("RPC runtime session started", {
 				sessionId: started.sessionId,
 				mode: startedConfig.mode,
 			});
@@ -389,7 +391,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 			};
 		},
 		sendSession: async (sessionId, requestInput) => {
-			moduleLogger.debug?.("sendSession called", {
+			moduleLogger.debug("sendSession called", {
 				sessionId,
 				activeSessions: [...activeSessions],
 			});
@@ -407,7 +409,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 			);
 
 			try {
-				runtimeLogger.debug?.("RPC runtime turn send requested", {
+				runtimeLogger.debug("RPC runtime turn send requested", {
 					sessionId,
 					promptLength: input.length,
 				});
@@ -421,7 +423,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 				if (!result) {
 					return { queued: true };
 				}
-				runtimeLogger.info?.("RPC runtime turn send completed", {
+				runtimeLogger.log("RPC runtime turn send completed", {
 					sessionId,
 					finishReason: result.finishReason,
 					iterations: result.iterations,
@@ -453,9 +455,10 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					restoredStarted.sessionId,
 					restoredStarted.hookPath,
 				);
-				runtimeLogger.warn?.(
+				runtimeLogger.log(
 					"RPC runtime session restored after missing session",
 					{
+						severity: "warn",
 						sessionId,
 					},
 				);
@@ -493,7 +496,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					);
 					throw new Error("runtime send returned no result after restore");
 				}
-				runtimeLogger.info?.("RPC runtime turn completed after restore", {
+				runtimeLogger.log("RPC runtime turn completed after restore", {
 					sessionId,
 					finishReason: restoredResult.finishReason,
 					iterations: restoredResult.iterations,
@@ -517,7 +520,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 			createCliLoggerAdapter({
 				runtime: RPC_RUNTIME_NAME,
 				component: RPC_SESSION_COMPONENT,
-			}).core.info?.("RPC runtime session abort requested", {
+			}).core.log("RPC runtime session abort requested", {
 				sessionId: id,
 				known,
 			});
@@ -533,7 +536,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 			createCliLoggerAdapter({
 				runtime: RPC_RUNTIME_NAME,
 				component: RPC_SESSION_COMPONENT,
-			}).core.info?.("RPC runtime session stopped", {
+			}).core.log("RPC runtime session stopped", {
 				sessionId: id,
 				known,
 			});

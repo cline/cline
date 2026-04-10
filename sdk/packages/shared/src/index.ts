@@ -129,8 +129,16 @@ export type {
 	ToolPolicy,
 } from "./llms/tools";
 export { ToolCallRecordSchema, ToolContextSchema } from "./llms/tools";
-export type { BasicLogger } from "./logging/logger";
-export { parseJsonStream, safeJsonStringify } from "./parse/json";
+export {
+	type BasicLogger,
+	type BasicLogMetadata,
+	noopBasicLogger,
+} from "./logging/logger";
+export {
+	parseJsonStream,
+	safeJsonParse,
+	safeJsonStringify,
+} from "./parse/json";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
 export { maskSecret, sanitizeFileName, truncateStr } from "./parse/string";
 export { formatHumanReadableDate } from "./parse/time";

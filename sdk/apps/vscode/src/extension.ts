@@ -809,8 +809,16 @@ function createOutputChannelLogger(
 
 	return {
 		debug: (message, metadata) => write("debug", message, metadata),
-		info: (message, metadata) => write("info", message, metadata),
-		warn: (message, metadata) => write("warn", message, metadata),
+		log: (message, metadata) => {
+			const level =
+				metadata?.severity === "warn"
+					? ("warn" as const)
+					: metadata?.severity === "error"
+						? ("error" as const)
+						: ("info" as const);
+			const { severity: _s, ...rest } = metadata ?? {};
+			write(level, message, Object.keys(rest).length > 0 ? rest : undefined);
+		},
 		error: (message, metadata) => write("error", message, metadata),
 	};
 }

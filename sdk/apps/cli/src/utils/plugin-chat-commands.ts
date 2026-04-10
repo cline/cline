@@ -1,5 +1,6 @@
 import {
 	type AgentExtensionCommand,
+	type BasicLogger,
 	createContributionRegistry,
 	resolveAndLoadAgentPlugins,
 } from "@clinebot/core";
@@ -8,10 +9,6 @@ import {
 	type ChatCommandHost,
 	chatCommandHost,
 } from "./chat-commands";
-
-type PluginCommandLogger = {
-	warn?: (message: string) => void;
-};
 
 function normalizeCommandName(name: string): string {
 	const trimmed = name.trim();
@@ -45,7 +42,7 @@ function createPluginCommandDefinition(
 export async function createWorkspaceChatCommandHost(input: {
 	cwd: string;
 	workspaceRoot?: string;
-	logger?: PluginCommandLogger;
+	logger?: BasicLogger;
 }): Promise<ChatCommandHost> {
 	const workspaceRoot = input.workspaceRoot?.trim() || input.cwd;
 	let loaded: Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>;
@@ -57,7 +54,7 @@ export async function createWorkspaceChatCommandHost(input: {
 		});
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		input.logger?.warn?.(
+		input.logger?.log(
 			`plugin command loading failed; continuing without plugin commands (${message})`,
 		);
 		return chatCommandHost;
@@ -73,7 +70,7 @@ export async function createWorkspaceChatCommandHost(input: {
 		await registry.initialize();
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
-		input.logger?.warn?.(
+		input.logger?.log(
 			`plugin command registry initialization failed; continuing without plugin commands (${message})`,
 		);
 		return chatCommandHost;

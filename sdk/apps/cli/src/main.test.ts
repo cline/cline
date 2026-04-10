@@ -50,7 +50,11 @@ const checkpointMocks = vi.hoisted(() => ({
 }));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
-		core: undefined,
+		core: {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		},
 		runtimeConfig: undefined,
 	})),
 	flushCliLoggerAdapters: vi.fn(),

@@ -166,7 +166,7 @@ export async function handleConnectorUserTurn<
 			},
 			input.logger,
 		);
-		input.logger.core.info?.(
+		input.logger.core.log(
 			"Inbound connector event denied by authorization hook",
 			{
 				transport: input.transport,
@@ -224,7 +224,7 @@ export async function handleConnectorUserTurn<
 		textPreview,
 	};
 	if (input.messageReceivedLogMessage) {
-		input.logger.core.info?.(input.messageReceivedLogMessage, {
+		input.logger.core.log(input.messageReceivedLogMessage, {
 			transport: input.transport,
 			...receivedDetails,
 		});
@@ -315,7 +315,7 @@ export async function handleConnectorUserTurn<
 					errorLabel: input.errorLabel,
 				});
 				if (input.threadResetLogMessage) {
-					input.logger.core.info?.(input.threadResetLogMessage, {
+					input.logger.core.log(input.threadResetLogMessage, {
 						transport: input.transport,
 						threadId: input.thread.id,
 					});
@@ -353,7 +353,8 @@ export async function handleConnectorUserTurn<
 					errorLabel: input.errorLabel,
 				});
 				if (input.connectorStopLogMessage) {
-					input.logger.core.warn?.(input.connectorStopLogMessage, {
+					input.logger.core.log(input.connectorStopLogMessage, {
+						severity: "warn",
 						transport: input.transport,
 						threadId: input.thread.id,
 					});

@@ -174,8 +174,7 @@ describe("Agent", () => {
 
 		const logger = {
 			debug: vi.fn(),
-			info: vi.fn(),
-			warn: vi.fn(),
+			log: vi.fn(),
 			error: vi.fn(),
 		};
 		const agent = new Agent({
@@ -189,13 +188,13 @@ describe("Agent", () => {
 		await agent.run("Say hello");
 
 		expect(
-			logger.info.mock.calls.some(
+			logger.log.mock.calls.some(
 				([message]) =>
 					typeof message === "string" && message.includes("Agent loop started"),
 			),
 		).toBe(true);
 		expect(
-			logger.info.mock.calls.some(
+			logger.log.mock.calls.some(
 				([message]) =>
 					typeof message === "string" &&
 					message.includes("Agent loop finished"),

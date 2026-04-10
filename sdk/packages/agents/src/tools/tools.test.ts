@@ -301,6 +301,54 @@ describe("tools utilities", () => {
 		expect(maxActive).toBeLessThanOrEqual(2);
 	});
 
+	it("awaits in-flight parallel work before rejecting on observer failure", async () => {
+		const executed: string[] = [];
+		const ended: string[] = [];
+		const variableTool = createTool({
+			name: "variable",
+			description: "variable",
+			inputSchema: {
+				type: "object",
+				properties: { id: { type: "string" }, delayMs: { type: "number" } },
+				required: ["id", "delayMs"],
+			},
+			execute: async (input: { id: string; delayMs: number }) => {
+				await new Promise((resolve) => setTimeout(resolve, input.delayMs));
+				executed.push(input.id);
+				return { ok: true, id: input.id };
+			},
+			retryable: false,
+		});
+		const registry = createToolRegistry([variableTool]);
+		const calls: PendingToolCall[] = [
+			{ id: "1", name: "variable", input: { id: "1", delayMs: 5 } },
+			{ id: "2", name: "variable", input: { id: "2", delayMs: 40 } },
+			{ id: "3", name: "variable", input: { id: "3", delayMs: 0 } },
+		];
+
+		await expect(
+			executeToolsInParallel(
+				registry,
+				calls,
+				baseContext,
+				{
+					onToolCallEnd: async (record: { id: string }) => {
+						ended.push(record.id);
+						if (record.id === "1") {
+							throw new Error("observer boom");
+						}
+					},
+				},
+				undefined,
+				{ maxConcurrency: 2 },
+			),
+		).rejects.toThrow("observer boom");
+
+		expect(executed).toContain("2");
+		expect(executed).not.toContain("3");
+		expect(ended).toContain("2");
+	});
+
 	it("formats tool output and summaries", () => {
 		expect(formatToolResult("hello")).toBe("hello");
 		expect(formatToolResult({ ok: true })).toBe('{"ok":true}');

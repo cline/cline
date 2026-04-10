@@ -52,6 +52,29 @@ describe("createOpenTelemetryTelemetryService", () => {
 		await provider.dispose();
 	});
 
+	it("registers a tracer provider when tracesExporter is set", async () => {
+		const { provider } = createOpenTelemetryTelemetryService({
+			metadata: {
+				extension_version: "1.2.3",
+				cline_type: "cli",
+				platform: "terminal",
+				platform_version: process.version,
+				os_type: process.platform,
+				os_version: "unknown",
+			},
+			enabled: true,
+			tracesExporter: "console",
+			logsExporter: "console",
+			metricsExporter: "console",
+			serviceName: "cline-test",
+		});
+
+		expect(provider.tracerProvider).not.toBeNull();
+		const span = provider.getTracer("test").startSpan("verify.tracing");
+		span.end();
+		await provider.dispose();
+	});
+
 	it("does not create an OTEL provider when disabled", () => {
 		const providerSpy = vi.spyOn(
 			OpenTelemetryProvider.prototype,
@@ -78,8 +101,7 @@ describe("createOpenTelemetryTelemetryService", () => {
 	it("attaches the logger adapter when creating configured telemetry", () => {
 		const logger: BasicLogger = {
 			debug: vi.fn(),
-			info: vi.fn(),
-			warn: vi.fn(),
+			log: vi.fn(),
 			error: vi.fn(),
 		};
 		const { telemetry, provider } = createConfiguredTelemetryService({
@@ -101,7 +123,7 @@ describe("createOpenTelemetryTelemetryService", () => {
 			properties: { sessionId: "session-1" },
 		});
 
-		expect(logger.info).toHaveBeenCalledWith(
+		expect(logger.log).toHaveBeenCalledWith(
 			"telemetry.event",
 			expect.objectContaining({
 				event: "session.started",

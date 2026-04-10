@@ -7,6 +7,7 @@ import {
 	captureAuthSucceeded,
 	identifyAccount,
 } from "../telemetry/core-events";
+import { BoundedTtlCache } from "./bounded-ttl-cache";
 import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,
@@ -113,7 +114,14 @@ const OCA_CONFIG_DEFAULTS: OcaOAuthConfig = {
 };
 
 const OCA_FLOW_STATE = new Map<string, OcaAuthFlowState>();
-const DISCOVERY_CACHE = new Map<string, string>();
+/** OpenID discovery documents change rarely; bound memory in long-lived processes. */
+const DISCOVERY_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const DISCOVERY_ERROR_FALLBACK_TTL_MS = 5 * 60 * 1000;
+const DISCOVERY_CACHE_MAX_ENTRIES = 32;
+const discoveryEndpointCache = new BoundedTtlCache(
+	DISCOVERY_CACHE_TTL_MS,
+	DISCOVERY_CACHE_MAX_ENTRIES,
+);
 
 function resolveMode(mode?: OcaMode | (() => OcaMode)): OcaMode {
 	if (typeof mode === "function") {
@@ -219,7 +227,7 @@ async function discoverTokenEndpoint(
 	requestTimeoutMs: number,
 ): Promise<string> {
 	const normalizedIdcsUrl = normalizeBaseUrl(idcsUrl);
-	const cached = DISCOVERY_CACHE.get(normalizedIdcsUrl);
+	const cached = discoveryEndpointCache.get(normalizedIdcsUrl);
 	if (cached) {
 		return cached;
 	}
@@ -232,14 +240,19 @@ async function discoverTokenEndpoint(
 
 	if (!response.ok) {
 		const fallback = `${normalizedIdcsUrl}/oauth2/v1/token`;
-		DISCOVERY_CACHE.set(normalizedIdcsUrl, fallback);
+		discoveryEndpointCache.set(
+			normalizedIdcsUrl,
+			fallback,
+			Date.now(),
+			DISCOVERY_ERROR_FALLBACK_TTL_MS,
+		);
 		return fallback;
 	}
 
 	const discovery = (await response.json()) as OcaDiscoveryDocument;
 	const endpoint =
 		discovery.token_endpoint || `${normalizedIdcsUrl}/oauth2/v1/token`;
-	DISCOVERY_CACHE.set(normalizedIdcsUrl, endpoint);
+	discoveryEndpointCache.set(normalizedIdcsUrl, endpoint);
 	return endpoint;
 }
 

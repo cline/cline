@@ -152,7 +152,7 @@ describe("createCliLoggerAdapter", () => {
 		try {
 			expect(() => {
 				const adapter = createCliLoggerAdapter({ runtime: "cli" });
-				adapter.core.info?.("fallback path test");
+				adapter.core.log("fallback path test");
 			}).not.toThrow();
 		} finally {
 			restoreEnv(snapshot);
@@ -223,7 +223,7 @@ describe("createCliLoggerAdapter", () => {
 				component: "shutdown-test",
 			});
 			expect(() => {
-				adapter.core.info?.("immediate shutdown");
+				adapter.core.log("immediate shutdown");
 				flushCliLoggerAdapters();
 			}).not.toThrowError(/sonic boom is not ready yet/);
 
@@ -248,7 +248,7 @@ describe("createCliLoggerAdapter", () => {
 				runtime: "cli",
 				component: "flush-test",
 			});
-			adapter.core.info?.("normal logging");
+			adapter.core.log("normal logging");
 			expect(() => flushCliLoggerAdapters()).not.toThrow();
 
 			const logPath = join(dataDir, "logs", `${commandName}.log`);
@@ -272,7 +272,7 @@ describe("createCliLoggerAdapter", () => {
 				runtime: "cli",
 				component: "close-test",
 			});
-			adapter.core.info?.("shutdown logging");
+			adapter.core.log("shutdown logging");
 
 			expect(() => shutdownCliLoggerAdapters()).not.toThrow();
 

@@ -205,14 +205,14 @@ async function runRpcStartCommand(
 	writeln: (text?: string) => void,
 	writeErr: (text: string) => void,
 ): Promise<number> {
-	const startupLogger = createCliLoggerAdapter({
+	const rpcLogger = createCliLoggerAdapter({
 		runtime: "cli",
-		component: "rpc-start",
+		component: "rpc",
 	}).core;
 	const normalizedAddress = options.address;
 	if (!normalizedAddress) {
 		writeErr("rpc start requires a non-empty address");
-		startupLogger.error?.("RPC start rejected: empty address");
+		rpcLogger.error?.("RPC start rejected: empty address");
 		return 1;
 	}
 
@@ -240,6 +240,9 @@ async function runRpcStartCommand(
 			address: startAddress,
 			sessionBackend: createSqliteRpcSessionBackend(),
 			runtimeHandlers: createRpcRuntimeHandlers(),
+			scheduler: {
+				logger: rpcLogger,
+			},
 		});
 		await recordRpcDiscovery(owner, {
 			address: startAddress,
@@ -261,7 +264,7 @@ async function runRpcStartCommand(
 			protocolVersion: RPC_PROTOCOL_VERSION,
 			entryPath: owner.entryPath,
 		});
-		startupLogger.info?.("RPC server activation reused existing instance", {
+		rpcLogger.log("RPC server activation reused existing instance", {
 			address: startAddress,
 			serverId: existingServerId,
 			action: "reuse",
@@ -276,7 +279,7 @@ async function runRpcStartCommand(
 		writeErr(`failed to start rpc server at ${startAddress}`);
 		return 1;
 	}
-	startupLogger.info?.("RPC server activation started", {
+	rpcLogger.log("RPC server activation started", {
 		address: handle.address,
 		serverId: handle.serverId,
 		requestedAddress: normalizedAddress,
@@ -299,7 +302,7 @@ async function runRpcStartCommand(
 
 	await stopRpcServer();
 	await clearRpcDiscoveryIfAddressMatches(owner, handle.address);
-	startupLogger.info?.("RPC server stopped", {
+	rpcLogger.log("RPC server stopped", {
 		address: handle.address,
 		serverId: handle.serverId,
 	});
@@ -433,7 +436,7 @@ async function runRpcRegisterCommand(
 		);
 		return 1;
 	}
-	registerLogger.info?.("RPC client registered", {
+	registerLogger.log("RPC client registered", {
 		address: normalizedAddress,
 		clientType: options.clientType,
 		clientId: registration.clientId,

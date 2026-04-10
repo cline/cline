@@ -1,4 +1,4 @@
-import { LoggerTelemetryAdapter } from "@clinebot/core";
+import { TelemetryLoggerSink } from "@clinebot/core";
 import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
 import {
 	type BasicLogger,
@@ -9,7 +9,7 @@ import {
 import { getCliBuildInfo } from "./common";
 
 type MutableTelemetryService = ITelemetryService & {
-	addAdapter?: (adapter: LoggerTelemetryAdapter) => void;
+	addAdapter?: (adapter: TelemetryLoggerSink) => void;
 };
 
 let telemetrySingleton:
@@ -56,7 +56,7 @@ export function getCliTelemetryService(
 			.addAdapter === "function"
 	) {
 		(telemetrySingleton.telemetry as MutableTelemetryService).addAdapter?.(
-			new LoggerTelemetryAdapter({ logger }),
+			new TelemetryLoggerSink({ logger }),
 		);
 		telemetrySingleton.loggerAttached = true;
 	}

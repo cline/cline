@@ -205,11 +205,14 @@ export class SchedulerService {
 			return;
 		}
 		this.started = true;
-		await this.tick();
 		const intervalMs = Math.max(
 			5_000,
 			optionsOrDefault(this.options.pollIntervalMs, 30_000),
 		);
+		this.options.logger?.log("scheduler.started", {
+			pollIntervalMs: intervalMs,
+		});
+		await this.tick();
 		this.timer = setInterval(() => {
 			void this.tick();
 		}, intervalMs);
@@ -220,6 +223,7 @@ export class SchedulerService {
 			return;
 		}
 		this.started = false;
+		this.options.logger?.log("scheduler.stopped", {});
 		if (this.timer) {
 			clearInterval(this.timer);
 			this.timer = undefined;
@@ -328,6 +332,15 @@ export class SchedulerService {
 			await Promise.allSettled(
 				claims.map((claim) => this.executeClaimedSchedule(claim)),
 			);
+		} catch (error) {
+			const L = this.options.logger;
+			if (L) {
+				if (L.error) {
+					L.error("scheduler.tick.failed", { error });
+				} else {
+					L.log("scheduler.tick.failed", { error, severity: "error" });
+				}
+			}
 		} finally {
 			this.ticking = false;
 		}
@@ -538,6 +551,23 @@ export class SchedulerService {
 			});
 			return completed;
 		} catch (error) {
+			const L = this.options.logger;
+			const payload = {
+				error,
+				scheduleId: schedule.scheduleId,
+				executionId,
+				trigger,
+			};
+			if (L) {
+				if (L.error) {
+					L.error("schedule.execution.failed", payload);
+				} else {
+					L.log("schedule.execution.failed", {
+						...payload,
+						severity: "error",
+					});
+				}
+			}
 			const status: ScheduleExecutionStatus =
 				error instanceof TimeoutError ? "timeout" : "failed";
 			if (sessionId && status === "timeout") {

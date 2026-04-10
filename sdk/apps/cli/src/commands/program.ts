@@ -182,10 +182,8 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		}
 	}
 
-	// Reasoning effort validation (support both --reasoning-effort and --reasoning-effor)
-	const effortRaw = opts.reasoningEffort ?? opts.reasoningEffor;
-	if (effortRaw !== undefined) {
-		const effort = effortRaw.trim().toLowerCase();
+	if (opts.reasoningEffort !== undefined) {
+		const effort = opts.reasoningEffort.trim().toLowerCase();
 		if (
 			effort === "none" ||
 			effort === "low" ||

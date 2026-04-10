@@ -53,8 +53,7 @@ describe("TelemetryService", () => {
 	it("mirrors telemetry events into the logger when provided", () => {
 		const logger: BasicLogger = {
 			debug: vi.fn(),
-			info: vi.fn(),
-			warn: vi.fn(),
+			log: vi.fn(),
 			error: vi.fn(),
 		};
 		const service = new TelemetryService({
@@ -75,10 +74,10 @@ describe("TelemetryService", () => {
 			sessionId: "session-1",
 		});
 
-		expect(logger.info).toHaveBeenCalledWith(
+		expect(logger.log).toHaveBeenCalledWith(
 			"telemetry.event",
 			expect.objectContaining({
-				adapter: "LoggerTelemetryAdapter",
+				telemetrySink: "TelemetryLoggerSink",
 				event: "session.started",
 				properties: expect.objectContaining({
 					sessionId: "session-1",
@@ -87,10 +86,11 @@ describe("TelemetryService", () => {
 				}),
 			}),
 		);
-		expect(logger.warn).toHaveBeenCalledWith(
+		expect(logger.log).toHaveBeenCalledWith(
 			"telemetry.required_event",
 			expect.objectContaining({
-				adapter: "LoggerTelemetryAdapter",
+				telemetrySink: "TelemetryLoggerSink",
+				severity: "warn",
 				event: "user.opt_out",
 				properties: expect.objectContaining({
 					reason: "manual",
@@ -101,7 +101,7 @@ describe("TelemetryService", () => {
 		expect(logger.debug).toHaveBeenCalledWith(
 			"telemetry.metric",
 			expect.objectContaining({
-				adapter: "LoggerTelemetryAdapter",
+				telemetrySink: "TelemetryLoggerSink",
 				instrument: "counter",
 				name: "cline.session.starts.total",
 			}),
