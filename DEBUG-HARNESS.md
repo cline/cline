@@ -48,6 +48,17 @@ for now.
 
 ## Caveats
 
+- **`CLINE_DIR` environment variable**: Because the debug harness
+  spawns a fresh VSCode instance that runs the Cline extension, and
+  because *you* (the agent) share state with that extension (API keys,
+  provider settings, task history), you **must** set `CLINE_DIR=~/.cline`
+  when launching the harness. Without it the debugee uses an isolated
+  data directory and won't have your API keys or provider configuration,
+  causing inference to fail silently (requests hang or error).
+  ```bash
+  CLINE_DIR=~/.cline npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch
+  ```
+
 - **"Introducing Cline Kanban" promotion**: On fresh launches, a
   full-screen promotional overlay ("Introducing Cline Kanban") may
   appear in the sidebar webview. It obscures all other UI elements, so
