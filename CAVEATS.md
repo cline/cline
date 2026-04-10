@@ -68,3 +68,7 @@ prefix problem?)
 
 🔴 Attached images (via drag and drop or the + icon to attach an image
 file) aren't submitted to models.
+
+🔴 Changing the account profile in the accounts tab (for example from
+Cline External, which has budget, to Cline Internal Testing Org, which
+doesn't) doesn't switch to that profile for inference.
