@@ -1,10 +1,7 @@
-import { Empty, StringRequest } from "@shared/proto/cline/common"
-import { Controller } from ".."
-
 /**
- * Report bug slash command logic
+ * Compatibility shim for downstream integration workflows that may temporarily
+ * mirror file updates without propagating deletions.
+ *
+ * The original slash-command bridge has been removed.
  */
-export async function reportBug(controller: Controller, _request: StringRequest): Promise<Empty> {
-	await controller.task?.handleWebviewAskResponse("yesButtonClicked")
-	return Empty.create()
-}
+export {}
