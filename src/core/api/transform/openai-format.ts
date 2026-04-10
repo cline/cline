@@ -12,6 +12,15 @@ import {
 } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 
+/**
+ * Returns true when `data` is a Glazyr zero-copy vision pointer URL rather than
+ * a raw base64 string. Pointers are passed directly to the LLM as an external
+ * image_url instead of being embedded as a data URI.
+ */
+function isVisionPointer(data: string): boolean {
+	return data.startsWith("https://") || data.startsWith("http://")
+}
+
 // OpenAI API has a maximum tool call ID length of 40 characters
 const MAX_TOOL_CALL_ID_LENGTH = 40
 
@@ -144,7 +153,11 @@ export function convertToOpenAiMessages(
 						role: "user",
 						content: toolResultImages.map((part) => ({
 							type: "image_url",
-							image_url: { url: `data:${part.source.media_type};base64,${part.source.data}` },
+							image_url: {
+								url: isVisionPointer(part.source.data)
+									? part.source.data
+									: `data:${part.source.media_type};base64,${part.source.data}`,
+							},
 						})),
 					})
 				}
@@ -158,7 +171,9 @@ export function convertToOpenAiMessages(
 								return {
 									type: "image_url",
 									image_url: {
-										url: `data:${part.source.media_type};base64,${part.source.data}`,
+										url: isVisionPointer(part.source.data)
+											? part.source.data
+											: `data:${part.source.media_type};base64,${part.source.data}`,
 									},
 								}
 							}

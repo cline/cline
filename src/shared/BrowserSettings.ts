@@ -11,6 +11,10 @@ export interface BrowserSettings {
 	chromeExecutablePath?: string
 	disableToolUse?: boolean
 	customArgs?: string
+	/** Glazyr Zero-Copy Vision Gateway — if set, intercepts screenshots with a remote pointer */
+	glazyrVisionUrl?: string
+	/** Bearer token for the Glazyr Vision Gateway */
+	glazyrVisionToken?: string
 }
 
 export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
@@ -24,6 +28,8 @@ export const DEFAULT_BROWSER_SETTINGS: BrowserSettings = {
 	// chromeType: "chromium",
 	disableToolUse: true,
 	customArgs: "",
+	glazyrVisionUrl: "",
+	glazyrVisionToken: "",
 }
 
 export const BROWSER_VIEWPORT_PRESETS = {
