@@ -529,6 +529,8 @@ export class GrpcHandler {
 					return await this.handleGetOrganizationCredits(request)
 
 				// ---- Account operations ----
+				case "accountLoginClicked":
+					return await this.handleAccountLoginClicked()
 				case "accountLogoutClicked":
 					return this.handleAccountLogout()
 				case "setUserOrganization":
@@ -678,7 +680,6 @@ export class GrpcHandler {
 				case "addRemoteMcpServer":
 				case "refreshMcpMarketplace":
 				case "downloadMcp":
-				case "accountLoginClicked":
 				case "openAiCodexSignIn":
 				case "openAiCodexSignOut":
 				case "openrouterAuthClicked":
@@ -1449,5 +1450,24 @@ export class GrpcHandler {
 			return { data: { mcpServers } }
 		}
 		return { data: { mcpServers: [] } }
+	}
+
+	// -----------------------------------------------------------------------
+	// Account login handler
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Handle login click: open the Cline app login page in the browser.
+	 * The classic extension uses AuthService to create a full OAuth flow
+	 * with callback URLs. In SDK mode, we open the login page directly.
+	 * The user authenticates in the browser and the credentials are
+	 * picked up from disk on the next state refresh.
+	 */
+	private async handleAccountLoginClicked(): Promise<GrpcResponse> {
+		const loginUrl = "https://app.cline.bot/login"
+		if (this.delegate.openUrl) {
+			await this.delegate.openUrl(loginUrl)
+		}
+		return { data: { value: loginUrl } }
 	}
 }

@@ -253,6 +253,9 @@ export class SdkController implements GrpcHandlerDelegate {
 	async cancelTask(): Promise<void> {
 		if (this.currentSession) {
 			await this.currentSession.abort()
+			// Clear the session so subsequent askResponse calls start a new task
+			// instead of trying to send to the aborted session.
+			this.currentSession = undefined
 		}
 
 		// Add resume_task ask so the webview shows the input for resuming
@@ -380,6 +383,15 @@ export class SdkController implements GrpcHandlerDelegate {
 				let hasApiConfig = false
 
 				for (const [key, value] of Object.entries(settings)) {
+					// Special handling for clineEnv: changing environment requires
+					// logging out (auth tokens are environment-specific), matching
+					// the classic extension's updateSettings behavior.
+					if (key === "clineEnv" && typeof value === "string") {
+						this.writeGlobalStateKey("clineEnv", value)
+						// Log out when environment changes (tokens are env-specific)
+						this.clearClineAuth()
+						continue
+					}
 					// Try saving via saveApiConfiguration first (handles API keys + secrets)
 					;(apiConfigUpdates as Record<string, unknown>)[key] = value
 					hasApiConfig = true

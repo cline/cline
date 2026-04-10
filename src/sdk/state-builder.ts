@@ -14,6 +14,7 @@ import { type AutoApprovalSettings, DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shar
 import type { ApiConfiguration } from "@shared/api"
 import { type BrowserSettings, DEFAULT_BROWSER_SETTINGS } from "@shared/BrowserSettings"
 import type { ClineRulesToggles } from "@shared/cline-rules"
+import { Environment } from "@shared/config-types"
 import type { ClineMessage, ExtensionState, Platform } from "@shared/ExtensionMessage"
 import { DEFAULT_FOCUS_CHAIN_SETTINGS, type FocusChainSettings } from "@shared/FocusChainSettings"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -117,12 +118,23 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 	// Build ClineMessages array — spread to create new reference for React
 	const clineMessages = [...(input.clineMessages ?? [])]
 
+	// Map clineEnv globalState key to Environment enum
+	// The webview reads state.environment to determine the Cline environment.
+	// The classic extension uses ClineEnv.getEnvironment() which reads from
+	// process.env or runtime state. In SDK mode, we persist it in globalState.
+	const clineEnvRaw = globalState?.clineEnv as string | undefined
+	let environment: Environment | undefined
+	if (clineEnvRaw === "local") environment = Environment.local
+	else if (clineEnvRaw === "staging") environment = Environment.staging
+	else if (clineEnvRaw === "production") environment = Environment.production
+	else if (clineEnvRaw === "selfHosted") environment = Environment.selfHosted
+
 	const state: ExtensionState = {
 		// Identity & version
 		version: input.version ?? "0.0.0",
 		distinctId: input.distinctId ?? "",
 		platform: input.platform ?? (typeof process !== "undefined" ? (process.platform as Platform) : "unknown"),
-		environment: undefined,
+		environment,
 		isNewUser: (globalState?.isNewUser as boolean | undefined) ?? true,
 		welcomeViewCompleted: (globalState?.welcomeViewCompleted as boolean | undefined) ?? false,
 		onboardingModels: undefined,
