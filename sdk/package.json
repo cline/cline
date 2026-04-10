@@ -23,6 +23,7 @@
 		"test:e2e": "bun -F @clinebot/core test:e2e && bun -F @clinebot/cli test:e2e",
 		"test:e2e:interactive": "bun -F @clinebot/cli test:e2e:interactive",
 		"verify:routines": "bun -F @clinebot/scheduler verify:routines",
+		"verify:workos-device-auth": "bun scripts/verify-workos-device-auth.ts",
 		"biome": "bunx --bun @biomejs/biome",
 		"format": "bun biome format",
 		"lint": "bun biome lint",

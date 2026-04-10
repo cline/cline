@@ -96,10 +96,12 @@ export {
 	type OAuthClientCallbacksOptions,
 } from "./auth/client";
 export {
+	completeClineDeviceAuth,
 	createClineOAuthProvider,
 	getValidClineCredentials,
 	loginClineOAuth,
 	refreshClineToken,
+	startClineDeviceAuth,
 } from "./auth/cline";
 export {
 	getValidOpenAICodexCredentials,
