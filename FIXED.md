@@ -143,8 +143,49 @@ These are issues the agent claims to have fixed, but should be verified:
 **Fix:** Added `getOrCreateMcpManager()` to `cline-session-factory.ts` that reads MCP server registrations via `resolveMcpServerRegistrations()`, creates an `InMemoryMcpManager` with a client factory using `@modelcontextprotocol/sdk` (supporting stdio, streamableHttp, and SSE transports), connects to all non-disabled servers, generates `Tool[]` via `createMcpTools()`, and passes them as `extraTools` in `coreConfig`. The MCP manager is cached across sessions (servers are long-lived processes). Connection has a 30s timeout to avoid blocking session start. Individual server connection failures are logged but don't prevent other servers or the session from starting.  
 **Verified:** Debug harness confirmed agent lists `kamibiki__kb_search`, `kamibiki__kb_status`, `kamibiki__kb_index` from the kamibiki MCP server, and successfully invoked `kamibiki__kb_status` returning real indexing data (6 repos, 1M+ embeddings).
 
-## Open Issues
+---
 
+### 27. 🟢 Banners (e.g., "Try Claude Sonnet 4.6") can't be dismissed
+**Where:** Home screen → banner carousel  
+**Symptom:** Clicking the X dismiss button on any banner does nothing — the banner remains visible and reappears on reload.  
+**Root cause:** Two issues: (1) `state-builder.ts` hardcoded `dismissedBanners: undefined` instead of reading from globalState, so dismissed banners were never communicated to the webview. (2) `grpc-handler.ts` wrote dismissed banner IDs as plain strings instead of the `{ bannerId, dismissedAt }` objects the webview expects.  
+**Fix:** State builder now reads `dismissedBanners` from globalState with `normalizeDismissedBanners()` that handles both legacy plain strings and new objects. Handler writes proper `{ bannerId, dismissedAt }` objects and normalizes legacy entries on read.  
+**Verified:** Debug harness confirmed banners dismiss correctly — carousel shrinks as each banner is dismissed and stays dismissed across reloads.
+
+### 28. 🟢 Can't mark chats as favorites in history
+**Where:** History tab → star button on task items  
+**Symptom:** Clicking the star icon on a history item does nothing — the favorite state never changes.  
+**Root cause:** Proto field name mismatch in `handleToggleTaskFavorite()`: handler read `request.params?.id` and `request.params?.isFavorite`, but the webview sends `taskId` and `isFavorited` (proto field names from `TaskFavoriteRequest`).  
+**Fix:** Handler now reads both proto names (`taskId`/`isFavorited`) with fallback to legacy names (`id`/`isFavorite`).  
+
+### 29. 🟢 Copy button obscured by last code block in chat
+**Where:** Chat response text with code blocks  
+**Symptom:** The response copy button overlaps with the last code block, making it hard to see and click.  
+**Root cause:** `CopyButton.tsx` positioned the bottom-right copy button at `bottom-1` (4px from bottom edge), which overlapped with code block content. No padding existed between the markdown content and the button.  
+**Fix:** Changed position to `bottom-2.5` (10px clearance) and added `pb-4` padding to the chat text content wrapper for code block clearance.  
+
+### 30. 🟢 Current balance shows "----" / reload button does nothing
+**Where:** Account pane → credit balance display  
+**Symptom:** The current balance always shows "----" and the reload button has no effect.  
+**Root cause:** `getUserCredits` handler returned `{ credits: undefined }` instead of calling the Cline API. The webview reads `response.balance.currentBalance` which was always undefined.  
+**Fix:** `getUserCredits` and `getOrganizationCredits` now fetch real balance data from the Cline API using the stored auth token (`Bearer` header). Includes 10s timeout and error handling.  
+**Tested:** Integration tests with mock HTTP server verify real balance data flows through correctly (7 tests).
+
+### 31. 🟢 Logout button does nothing
+**Where:** Account pane → logout button  
+**Symptom:** Clicking logout has no effect — the user remains logged in.  
+**Root cause:** `accountLogoutClicked` was a STUB (silent no-op) in grpc-handler.  
+**Fix:** Implemented `handleAccountLogout()` that calls `LegacyStateReader.clearClineAuthInfo()` to remove `cline:clineAccountId` from secrets.json, then pushes state update so the webview shows the sign-in view.  
+**Tested:** Integration test verifies credentials are cleared from disk and auth status shows unauthenticated after logout.
+
+### 32. 🟢 Low credit balance persists after account switching
+**Where:** Account pane after switching organizations  
+**Symptom:** After switching from a low-balance org to a high-balance org, the "Insufficient balance" error persists.  
+**Root cause:** `setUserOrganization` was a STUB. The active org was never updated on disk, so credit queries always returned the same org's data.  
+**Fix:** Implemented `handleSetUserOrganization()` that calls `LegacyStateReader.setActiveOrganization()` to update the `active` flag on orgs in stored credentials. Each credit fetch is a fresh API call keyed by org ID, so switching orgs correctly fetches the new org's balance.  
+**Tested:** Integration test with mock server verifies: switch from low-balance org → high-balance org returns correct (high) balance, not stale (low) balance.
+
+## Open Issues
 
 ---
 
