@@ -1,6 +1,6 @@
 {
 	"name": "@clinebot/shared",
-	"version": "0.0.28",
+	"version": "0.0.29",
 	"description": "Shared utilities, types, and schemas for Cline packages",
 	"type": "module",
 	"main": "dist/index.js",

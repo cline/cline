@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1775690660886,
+	version: 1775856416439,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -4388,6 +4388,35 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		kilo: {
+			"z-ai/glm-5.1": {
+				id: "z-ai/glm-5.1",
+				name: "Z.ai: GLM 5.1",
+				contextWindow: 202752,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature"],
+				pricing: {
+					input: 1.26,
+					output: 3.96,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-27",
+			},
+			"minimax/minimax-m2.7": {
+				id: "minimax/minimax-m2.7",
+				name: "MiniMax: MiniMax M2.7",
+				contextWindow: 204800,
+				maxTokens: 131072,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 0.3,
+					output: 1.2,
+					cacheRead: 0.06,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-18",
+				family: "minimax-m2.7",
+			},
 			"kilo-auto/balanced": {
 				id: "kilo-auto/balanced",
 				name: "Kilo Auto Balanced",
@@ -4804,20 +4833,6 @@ export const GENERATED_PROVIDER_MODELS: {
 					input: 0.25,
 					output: 1.2,
 					cacheRead: 0.029,
-					cacheWrite: 0,
-				},
-				releaseDate: "2026-02-12",
-			},
-			"minimax/minimax-m2.5:free": {
-				id: "minimax/minimax-m2.5:free",
-				name: "MiniMax: MiniMax M2.5 (free)",
-				contextWindow: 204800,
-				maxTokens: 131072,
-				capabilities: ["tools", "reasoning", "temperature"],
-				pricing: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-02-12",
@@ -10664,6 +10679,27 @@ export const GENERATED_PROVIDER_MODELS: {
 				releaseDate: "2026-03-03",
 				family: "gemini-flash-lite",
 			},
+			"qwen/qwen3.5-flash-02-23": {
+				id: "qwen/qwen3.5-flash-02-23",
+				name: "Qwen: Qwen3.5-Flash",
+				contextWindow: 1000000,
+				maxTokens: 65536,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0.065,
+					output: 0.26,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-02-25",
+				family: "qwen",
+			},
 			"openai/gpt-5.3-codex": {
 				id: "openai/gpt-5.3-codex",
 				name: "GPT-5.3-Codex",
@@ -10810,6 +10846,26 @@ export const GENERATED_PROVIDER_MODELS: {
 					input: 0.3,
 					output: 1.2,
 					cacheRead: 0.03,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-02-12",
+				family: "minimax",
+			},
+			"minimax/minimax-m2.5:free": {
+				id: "minimax/minimax-m2.5:free",
+				name: "MiniMax M2.5 (free)",
+				contextWindow: 204800,
+				maxTokens: 131072,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-02-12",
@@ -14200,6 +14256,41 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		together: {
+			"google/gemma-4-31B-it": {
+				id: "google/gemma-4-31B-it",
+				name: "Gemma 4 31B Instruct",
+				contextWindow: 262144,
+				maxTokens: 131072,
+				capabilities: ["images", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 0.2,
+					output: 0.5,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-07",
+				family: "gemma",
+			},
+			"zai-org/GLM-5.1": {
+				id: "zai-org/GLM-5.1",
+				name: "GLM-5.1",
+				contextWindow: 202752,
+				maxTokens: 131072,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 1.4,
+					output: 4.4,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-07",
+				family: "glm",
+			},
 			"Qwen/Qwen3.5-397B-A17B": {
 				id: "Qwen/Qwen3.5-397B-A17B",
 				name: "Qwen3.5 397B A17B",
@@ -14229,26 +14320,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-02-12",
 				family: "minimax",
-			},
-			"zai-org/GLM-5": {
-				id: "zai-org/GLM-5",
-				name: "GLM-5",
-				contextWindow: 202752,
-				maxTokens: 131072,
-				capabilities: [
-					"tools",
-					"reasoning",
-					"structured_output",
-					"temperature",
-				],
-				pricing: {
-					input: 1,
-					output: 3.2,
-					cacheRead: 0,
-					cacheWrite: 0,
-				},
-				releaseDate: "2026-02-11",
-				family: "glm",
 			},
 			"Qwen/Qwen3-Coder-Next-FP8": {
 				id: "Qwen/Qwen3-Coder-Next-FP8",
