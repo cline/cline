@@ -928,6 +928,13 @@ export class SdkController implements GrpcHandlerDelegate {
 	/**
 	 * Fetch user credits from the Cline API using stored auth token.
 	 * Returns credit balance and usage data in the proto format the webview expects.
+	 *
+	 * Uses the same endpoint as ClineAccountService.fetchBalanceRPC():
+	 *   GET https://api.cline.bot/api/v1/users/{userId}/balance
+	 *   Authorization: Bearer workos:{idToken}
+	 * Response: { data: { userId, balance }, success: true }
+	 * The balance value is in cents; we divide by 100 to match the original
+	 * getUserCredits handler which does `balance.balance / 100`.
 	 */
 	async fetchUserCredits(): Promise<{
 		balance?: { currentBalance: number }
@@ -935,29 +942,38 @@ export class SdkController implements GrpcHandlerDelegate {
 		paymentTransactions?: unknown[]
 	}> {
 		const authInfo = this.legacyState?.readClineAuthInfo()
-		if (!authInfo?.idToken) {
+		if (!authInfo?.idToken || !authInfo?.userInfo?.id) {
 			return { balance: undefined }
 		}
 
-		const baseUrl = authInfo.userInfo?.appBaseUrl ?? "https://app.cline.bot"
-		const apiUrl = `${baseUrl}/api/account/credits`
+		// Use appBaseUrl from auth credentials if set (e.g. for testing),
+		// otherwise fall back to the production Cline API endpoint.
+		const apiBaseUrl = authInfo.userInfo?.appBaseUrl ?? "https://api.cline.bot"
+		const userId = authInfo.userInfo.id
+		const apiUrl = `${apiBaseUrl}/api/v1/users/${userId}/balance`
+		// The Cline API requires the "workos:" prefix on the auth token
+		const authToken = authInfo.idToken.startsWith("workos:") ? authInfo.idToken : `workos:${authInfo.idToken}`
 
 		const controller = new AbortController()
 		const timeout = setTimeout(() => controller.abort(), 10000)
 		try {
 			const response = await globalThis.fetch(apiUrl, {
-				headers: { Authorization: `Bearer ${authInfo.idToken}` },
+				headers: {
+					Authorization: `Bearer ${authToken}`,
+					"Content-Type": "application/json",
+				},
 				signal: controller.signal,
 			})
 			clearTimeout(timeout)
 			if (!response.ok) {
 				throw new Error(`Credits API returned ${response.status}`)
 			}
-			const data = (await response.json()) as Record<string, unknown>
+			const json = (await response.json()) as { data?: { balance?: number }; success?: boolean }
+			const balanceValue = json.data?.balance
 			return {
-				balance: data.balance as { currentBalance: number } | undefined,
-				usageTransactions: (data.usageTransactions as unknown[]) ?? [],
-				paymentTransactions: (data.paymentTransactions as unknown[]) ?? [],
+				balance: balanceValue !== undefined ? { currentBalance: balanceValue / 100 } : undefined,
+				usageTransactions: [],
+				paymentTransactions: [],
 			}
 		} catch (err) {
 			clearTimeout(timeout)
@@ -968,6 +984,11 @@ export class SdkController implements GrpcHandlerDelegate {
 
 	/**
 	 * Fetch organization credits from the Cline API.
+	 *
+	 * Uses the same endpoint as ClineAccountService.fetchOrganizationBalanceRPC():
+	 *   GET https://api.cline.bot/api/v1/organizations/{organizationId}/balance
+	 *   Authorization: Bearer workos:{idToken}
+	 * Response: { data: { organizationId, balance }, success: true }
 	 */
 	async fetchOrganizationCredits(
 		organizationId: string,
@@ -977,24 +998,29 @@ export class SdkController implements GrpcHandlerDelegate {
 			return { balance: undefined }
 		}
 
-		const baseUrl = authInfo.userInfo?.appBaseUrl ?? "https://app.cline.bot"
-		const apiUrl = `${baseUrl}/api/organization/${organizationId}/credits`
+		const apiBaseUrl = authInfo.userInfo?.appBaseUrl ?? "https://api.cline.bot"
+		const apiUrl = `${apiBaseUrl}/api/v1/organizations/${organizationId}/balance`
+		const authToken = authInfo.idToken.startsWith("workos:") ? authInfo.idToken : `workos:${authInfo.idToken}`
 
 		const controller = new AbortController()
 		const timeout = setTimeout(() => controller.abort(), 10000)
 		try {
 			const response = await globalThis.fetch(apiUrl, {
-				headers: { Authorization: `Bearer ${authInfo.idToken}` },
+				headers: {
+					Authorization: `Bearer ${authToken}`,
+					"Content-Type": "application/json",
+				},
 				signal: controller.signal,
 			})
 			clearTimeout(timeout)
 			if (!response.ok) {
 				throw new Error(`Org credits API returned ${response.status}`)
 			}
-			const data = (await response.json()) as Record<string, unknown>
+			const json = (await response.json()) as { data?: { balance?: number; organizationId?: string }; success?: boolean }
+			const balanceValue = json.data?.balance
 			return {
-				balance: data.balance as { currentBalance: number } | undefined,
-				usageTransactions: (data.usageTransactions as unknown[]) ?? [],
+				balance: balanceValue !== undefined ? { currentBalance: balanceValue / 100 } : undefined,
+				usageTransactions: [],
 			}
 		} catch (err) {
 			clearTimeout(timeout)

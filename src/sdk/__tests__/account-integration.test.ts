@@ -54,30 +54,32 @@ function createMockClineServer(state: MockServerState): http.Server {
 
 		res.setHeader("Content-Type", "application/json")
 
-		// GET /api/account/credits → user credits
-		if (req.url === "/api/account/credits") {
+		// GET /api/v1/users/:userId/balance → user balance
+		// Matches the real ClineAccountService.fetchBalanceRPC() endpoint
+		const userBalanceMatch = req.url?.match(/^\/api\/v1\/users\/([^/]+)\/balance$/)
+		if (userBalanceMatch) {
 			res.writeHead(200)
 			res.end(
 				JSON.stringify({
-					balance: { currentBalance: state.userBalance },
-					usageTransactions: [{ id: "txn-1", creditsUsed: 50000, model: "claude-sonnet-4", createdAt: Date.now() }],
-					paymentTransactions: [],
+					data: { userId: userBalanceMatch[1], balance: state.userBalance },
+					success: true,
 				}),
 			)
 			return
 		}
 
-		// GET /api/organization/:orgId/credits → org credits
-		const orgMatch = req.url?.match(/^\/api\/organization\/([^/]+)\/credits$/)
-		if (orgMatch) {
-			const orgId = orgMatch[1]
+		// GET /api/v1/organizations/:orgId/balance → org balance
+		// Matches the real ClineAccountService.fetchOrganizationBalanceRPC() endpoint
+		const orgBalanceMatch = req.url?.match(/^\/api\/v1\/organizations\/([^/]+)\/balance$/)
+		if (orgBalanceMatch) {
+			const orgId = orgBalanceMatch[1]
 			const balance = state.orgBalances[orgId]
 			if (balance !== undefined) {
 				res.writeHead(200)
 				res.end(
 					JSON.stringify({
-						balance: { currentBalance: balance },
-						usageTransactions: [],
+						data: { organizationId: orgId, balance },
+						success: true,
 					}),
 				)
 			} else {
@@ -193,15 +195,15 @@ describe("Account Integration", () => {
 			const result = await handler.handleRequest({ method: "getUserCredits" })
 
 			expect(result.error).toBeUndefined()
-			const data = result.data as { balance?: { currentBalance: number }; usageTransactions?: unknown[] }
+			const data = result.data as { balance?: { currentBalance: number } }
 			expect(data.balance).toBeDefined()
-			expect(data.balance?.currentBalance).toBe(125000)
-			expect(data.usageTransactions).toHaveLength(1)
+			// Mock returns 125000; SdkController divides by 100 → 1250
+			expect(data.balance?.currentBalance).toBe(1250)
 
-			// Verify auth header was sent
-			const creditsReq = mockState.requestLog.find((r) => r.url === "/api/account/credits")
+			// Verify auth header was sent with workos: prefix to the v1 balance endpoint
+			const creditsReq = mockState.requestLog.find((r) => r.url?.startsWith("/api/v1/users/"))
 			expect(creditsReq).toBeDefined()
-			expect(creditsReq?.headers.authorization).toBe("Bearer test-token-123")
+			expect(creditsReq?.headers.authorization).toBe("Bearer workos:test-token-123")
 		})
 
 		it("should return undefined balance when not authenticated", async () => {
@@ -244,7 +246,8 @@ describe("Account Integration", () => {
 			expect(result.error).toBeUndefined()
 			const data = result.data as { balance?: { currentBalance: number } }
 			expect(data.balance).toBeDefined()
-			expect(data.balance?.currentBalance).toBe(500000)
+			// Mock returns 500000; SdkController divides by 100 → 5000
+			expect(data.balance?.currentBalance).toBe(5000)
 		})
 	})
 
@@ -302,7 +305,8 @@ describe("Account Integration", () => {
 				method: "getOrganizationCredits",
 				params: { organizationId: "org-alpha" },
 			})
-			expect((alphaResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(500000)
+			// Mock returns 500000; SdkController divides by 100 → 5000
+			expect((alphaResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(5000)
 
 			// Switch to org-beta
 			const switchResult = await handler.handleRequest({
@@ -323,7 +327,8 @@ describe("Account Integration", () => {
 				method: "getOrganizationCredits",
 				params: { organizationId: "org-beta" },
 			})
-			expect((betaResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(10000) // 1 credit
+			// Mock returns 10000; SdkController divides by 100 → 100
+			expect((betaResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(100)
 
 			// Switch back to personal account (no org)
 			await handler.handleRequest({
@@ -333,7 +338,8 @@ describe("Account Integration", () => {
 
 			// Fetch personal balance - should get user credits, not stale org credits
 			const personalResult = await handler.handleRequest({ method: "getUserCredits" })
-			expect((personalResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(125000) // 12.5 credits
+			// Mock returns 125000; SdkController divides by 100 → 1250
+			expect((personalResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(1250)
 		})
 
 		it("should not persist stale balance after switching orgs (CAVEATS: low credit balance persists)", async () => {
@@ -355,7 +361,8 @@ describe("Account Integration", () => {
 				method: "getOrganizationCredits",
 				params: { organizationId: "org-beta" },
 			})
-			expect((lowResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(10000) // Low balance
+			// Mock returns 10000; SdkController divides by 100 → 100
+			expect((lowResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(100)
 
 			// Switch to high-balance org (org-alpha)
 			await handler.handleRequest({
@@ -369,7 +376,8 @@ describe("Account Integration", () => {
 				method: "getOrganizationCredits",
 				params: { organizationId: "org-alpha" },
 			})
-			expect((highResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(500000) // High balance, NOT 10000
+			// Mock returns 500000; SdkController divides by 100 → 5000
+			expect((highResult.data as Record<string, Record<string, number>>).balance.currentBalance).toBe(5000)
 		})
 	})
 
