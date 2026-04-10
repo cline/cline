@@ -1,78 +1,29 @@
 ---
-description: Onboarding + contributor guide for the Cline SDK workspace.
+description: Development reference for the Cline SDK workspace.
 globs: "*.ts,*.tsx,*.js,*.jsx,*.json,*.md"
 alwaysApply: true
 ---
 
-# Cline SDK Guide
+# Cline SDK — Development Reference
 
-This document is for developers working in this repository.
+Quick-reference for active development. For onboarding, workspace setup, publishing, and detailed workflow see [CONTRIBUTION.md](./CONTRIBUTION.md). For architecture and runtime flows see [ARCHITECTURE.md](./ARCHITECTURE.md). For API details see [DOC.md](./DOC.md).
 
-Use it to get oriented quickly:
-
-- what each package owns
-- how the packages fit together
-- where to make changes
-- how to build, test, and publish safely
-
-This repo is a WIP framework for building and orchestrating AI agents. Full refactors are acceptable when they improve the architecture and all call sites are updated.
-
-## Start Here
-
-If you are new to the codebase:
-
-1. Read this file for contributor workflow and package ownership.
-2. Read [ARCHITECTURE.md](./ARCHITECTURE.md) for dependency direction and runtime flows.
-3. Use [DOC.md](./DOC.md) when you need detailed behavior or API reference.
-
-## Documentation Responsibilities
-
-Keep the four top-level docs focused on different audiences.
-
-- `README.md`: visitor-facing overview of the repository. Update this when the high-level repo story changes, when package/app inventory changes, or when the main “what is this repo?” explanation changes.
-- `AGENTS.md`: contributor onboarding and working guide. Update this when contributor workflow changes, package ownership changes, development/publishing rules change, or new contributors need different routing guidance.
-- `ARCHITECTURE.md`: design, dependency direction, boundaries, runtime flows, and integration patterns. Update this when the system design changes or when architectural constraints/seams change.
-- `DOC.md`: detailed API and behavior reference. Update this when exported package surfaces, integration entrypoints, lifecycle semantics, or runtime behavior changes.
-
-Practical rule:
-
-- if a change affects how a visitor understands the repo, update `README.md`
-- if a change affects how a contributor should work in the repo, update `AGENTS.md`
-- if a change affects how the system is designed, update `ARCHITECTURE.md`
-- if a change affects what code does or how an API behaves, update `DOC.md`
-
-## Workspace Map
+## Package Boundaries
 
 ### Published SDK Packages
 
-- `@clinebot/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, and reusable low-level runtime utilities
-- `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, shared gateway contracts, and handler creation
-- `@clinebot/agents`: stateless agent loop, tool orchestration, hook/extension runtime, and event streaming
-- `@clinebot/scheduler`: scheduled execution, concurrency guards, and routine persistence
-- `@clinebot/rpc`: gRPC/control-plane layer for sessions, events, approvals, and schedules
-- `@clinebot/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, and telemetry integration
+- `@clinebot/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
+- `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
+- `@clinebot/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
+- `@clinebot/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry
 
-### Internal Workspace Package
+### Internal Package
 
-- `@clinebot/enterprise`: internal-only enterprise integration layer. It composes with core from above and owns enterprise identity adapters, enterprise control-plane sync, managed instruction materialization, claims-to-role mapping, and enterprise telemetry bridging.
+- `@clinebot/enterprise`: enterprise identity adapters, control-plane sync, managed instruction materialization, claims-to-role mapping, telemetry bridging. Composes with core but `core` must not depend on it. Excluded from root SDK build/version/publish flows.
+- `@clinebot/scheduler`: scheduled execution, concurrency guards, routine persistence
+- `@clinebot/rpc`: gRPC/control-plane layer for sessions, events, approvals, schedules
 
-Important:
-
-- `packages/enterprise` stays in the workspace for internal use.
-- It is intentionally excluded from the root SDK build/version/publish flows.
-- `@clinebot/core` must stay enterprise-agnostic.
-
-### Apps
-
-- `apps/cli`: CLI host and RPC server management
-- `apps/code`: Tauri + Next.js desktop app
-- `apps/desktop`: desktop board/task app
-- `apps/vscode`: VS Code extension
-- `apps/examples`: sample consumers and integration examples
-
-## Dependency Model
-
-Use this as the default mental model:
+### Dependency Direction
 
 ```mermaid
 flowchart TD
@@ -86,154 +37,72 @@ flowchart TD
 ```
 
 Rules:
-
 - `shared` stays low-level and reusable
-- `agents` stays stateless
+- `agents` stays stateless — no session/storage/config concerns
 - `core` owns stateful orchestration
 - `rpc` owns transport/gateway concerns
-- `enterprise` may depend on `core`, but `core` must not depend on `enterprise`
-
-## Runtime Flows
-
-### Local Flow
-
-1. A host app builds a runtime through `@clinebot/core`.
-2. `@clinebot/core` composes config, tools, watchers, hooks, telemetry, and the core-owned context pipeline.
-3. `@clinebot/core` creates an `Agent` from `@clinebot/agents`.
-4. `@clinebot/agents` uses `@clinebot/llms` handlers for model execution.
-5. `@clinebot/core` persists session state and artifacts.
-
-### RPC-Backed Flow
-
-1. Host connects to or ensures an RPC runtime.
-2. `@clinebot/rpc` brokers session/task/event/approval APIs.
-3. `@clinebot/core` still owns shared session persistence behavior.
-4. `@clinebot/scheduler` is embedded behind RPC for routine execution.
-
-### Enterprise Flow
-
-1. Enterprise bootstrap code resolves identity via `@clinebot/enterprise`.
-2. Enterprise fetches a normalized control-plane bundle.
-3. Enterprise materializes managed rules/workflows/skills into workspace-local files.
-4. Enterprise optionally derives telemetry config/services.
-5. `@clinebot/core` consumes watcher/extension/telemetry inputs without enterprise-specific logic.
+- `enterprise` may depend on `core`, but not the reverse
 
 ## Change Routing
 
-When you make a change, route it to the package that owns the concern:
+Route changes to the package that owns the concern:
 
 - model/provider schemas or handler behavior: `@clinebot/llms`
-- stateless loop behavior, tool orchestration, streaming, hook/extension runtime: `@clinebot/agents`
-- session lifecycle, storage, config watching, default tool composition, plugin loading, telemetry integration: `@clinebot/core`
+- stateless loop, tool orchestration, streaming, hook/extension runtime: `@clinebot/agents`
+- session lifecycle, storage, config watching, default tools, plugin loading, telemetry: `@clinebot/core`
 - schedules and routine execution: `@clinebot/scheduler`
-- session gateway, approval routing, RPC server/client contracts: `@clinebot/rpc`
-- enterprise identity, control-plane sync, materialization, claims mapping, telemetry bridge: `@clinebot/enterprise`
+- session gateway, approval routing, RPC contracts: `@clinebot/rpc`
+- enterprise identity, control-plane sync, materialization, claims mapping: `@clinebot/enterprise`
 - host-specific UX or shell behavior: app package
 
-## Development Workflow
+## Verifying Changes
 
-### Essential Commands
+Root commands for cross-package confidence:
 
-- `bun install`
-- `bun run build`
-- `bun run build:sdk`
-- `bun run test`
-- `bun run types`
-- `bun run lint`
-- `bun run fix`
-- `bun run cli`
+```sh
+bun run types       # typecheck all packages
+bun run test        # run all tests
+bun run check       # lint + build + typecheck + check-publish
+```
 
-Direct package work:
+Package-scoped commands while iterating:
 
-- `bun -F @clinebot/core build|test|typecheck`
-- `bun -F @clinebot/agents build|test|typecheck`
-- `bun -F @clinebot/enterprise build|test|typecheck`
-
-### Rebuilding
-
-Changes to published SDK packages require `bun run build:sdk`.
-
-Internal-only packages such as `packages/enterprise` are excluded from the root SDK build/version/publish flows, so work on them directly with package-scoped commands when needed.
-
-Direct CLI runs pick up rebuilt packages immediately. RPC-backed hosts use shared runtime ensure logic and replace incompatible owned sidecars automatically when the RPC runtime build changes.
-
-Debug build behavior:
-
-- SDK-owned `node` subprocesses treat `CLINE_BUILD_ENV=development` as a debug build and add a stable inspector endpoint plus `--enable-source-maps` unless those flags are already present.
-- Default inspector ports are role-based: RPC `127.0.0.1:9230`, hook worker `127.0.0.1:9231`, plugin sandbox `127.0.0.1:9232`, connector child `127.0.0.1:9233`, fallback sandbox `127.0.0.1:9234`.
-- Override the listener host with `CLINE_DEBUG_HOST` and the base port with `CLINE_DEBUG_PORT_BASE`.
-- If `CLINE_BUILD_ENV` is unset, build mode falls back to `NODE_ENV`, then to Bun `--conditions=development`.
-- When you launch SDK flows with Bun in development, prefer keeping that build env signal intact so spawned RPC, hook, and connector child processes remain debuggable.
-- For the top-level CLI process itself, launch the actual CLI entrypoint under Bun, for example `cd apps/cli && CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./src/index.ts "hey"`; the role-based ports above are for spawned Node subprocesses, not the main Bun process.
-- The workspace includes a VS Code launch config with a single `Launch CLI Debugger` entry that launches `apps/cli/src/index.ts` directly under Bun and attaches the common child-process debugger targets. The launch config uses `"type": "bun"` (requires the `oven.bun-vscode` extension) so breakpoints work across workspace packages including `packages/core`; the attach configs use `ws://` URLs with `localRoot`/`remoteRoot` set to `${workspaceFolder}` for correct source map resolution.
-
-### Testing
-
-Use root commands for cross-package confidence:
-
-- `bun run test`
-- `bun run types`
-- `bun run check`
-
-Use package-scoped runs while iterating:
-
-- `bun -F @clinebot/core test`
-- `bun -F @clinebot/agents test`
-- `bun -F @clinebot/enterprise test`
+```sh
+bun -F @clinebot/core build|test|typecheck
+bun -F @clinebot/agents build|test|typecheck
+bun -F @clinebot/enterprise build|test|typecheck
+```
 
 If you touch RPC/bootstrap/session flows, prefer both unit coverage and an end-to-end sanity check.
-
-## Publishing Rules
-
-Only the publishable SDK packages are part of the root release path.
-
-Published package order:
-
-1. `packages/shared`
-2. `packages/llms`
-3. `packages/agents`
-4. `packages/core`
-
-Notes:
-
-- `scripts/check-publish.ts` only checks non-internal packages
-- `scripts/version.ts` skips packages marked `internal: true`
-- internal workspace code must not leak into packed published artifacts
-
-If you add a new internal package, keep it out of root publish/version/build sweeps unless you explicitly intend to publish it.
 
 ## Practical Guidance
 
 ### Keep Boundaries Clean
 
-- don’t move stateful logic down into `agents`
-- don’t put app-specific behavior into `core` unless it is truly shared host behavior
-- don’t let enterprise concerns leak into published core APIs unless they are generic and reusable
+- Don't move stateful logic down into `agents`
+- Don't put app-specific behavior into `core` unless it is truly shared host behavior
+- Don't let enterprise concerns leak into published core APIs unless they are generic and reusable
 
 ### Prefer Existing Seams
 
 Before adding a new subsystem, look for an existing seam:
 
-- watcher/config loader
-- `packages/core/src/extensions/config` for config-facing parsing, watching, and watcher projection
-- `packages/core/src/extensions/plugin` for runtime plugin loading/sandboxing
-- `packages/core/src/extensions/context` for core-owned message/context pipeline behavior
-- runtime builder input
-- extension/hook system
-- storage adapter/service split
-- provider manifest/config resolution
+- `packages/core/src/extensions/config` — config-facing parsing, watching, watcher projection
+- `packages/core/src/extensions/plugin` — runtime plugin loading/sandboxing
+- `packages/core/src/extensions/context` — core-owned message/context pipeline behavior
+- watcher/config loader, runtime builder input, extension/hook system
+- storage adapter/service split, provider manifest/config resolution
 
 ### Refactor Standard
 
-When refactoring within this repo:
+- Prefer direct architectural cleanup over compatibility shims
+- Move code to the layer that owns the concern and update all call sites
+- If a helper just projects watcher state, keep it with the config layer instead of creating thin runtime wrappers
 
-- prefer direct architectural cleanup over compatibility shims
-- move code to the layer that actually owns the concern and update all call sites
-- if a helper is just projecting watcher state, keep it with the config layer instead of creating thin runtime wrappers
+## Documentation Responsibilities
 
-### Be Careful With Root Automation
-
-Root scripts are intentionally narrower than the full workspace now.
-
-- root SDK build/test/version/publish flows target the publishable SDK packages
-- internal packages can still be built/tested directly, but should not be swept into release automation by accident
+- `README.md`: visitor-facing overview. Update when the repo story or package inventory changes.
+- `CONTRIBUTION.md`: onboarding, workflow, publishing. Update when contributor setup or release process changes.
+- `AGENTS.md` (this file): development reference. Update when package boundaries, dependency rules, or change routing changes.
+- `ARCHITECTURE.md`: design, boundaries, runtime flows. Update when system design or architectural constraints change.
+- `DOC.md`: API and behavior reference. Update when exported surfaces, lifecycle semantics, or runtime behavior changes.

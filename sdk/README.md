@@ -21,17 +21,19 @@ This repo is the implementation workspace for the next-generation Cline SDK.
 If you are visiting to understand the project at a high level:
 
 - `README.md`: visitor-facing overview of the repository
+- [CONTRIBUTION.md](./CONTRIBUTION.md): onboarding, development workflow, and publishing
+- [AGENTS.md](./AGENTS.md): development reference — package boundaries, change routing, verification
 - [ARCHITECTURE.md](./ARCHITECTURE.md): system design, dependency direction, and runtime flows
 - [DOC.md](./DOC.md): detailed API and behavior reference
-- [AGENTS.md](./AGENTS.md): contributor onboarding and codebase navigation
 
 ## Resources
 
 Use the docs by question type:
 
 - Start with `README.md` if you want a high-level introduction to what this repository is and what lives here.
-- Read [AGENTS.md](./AGENTS.md) if you are a developer onboarding into the codebase and need workflow, ownership, and change-routing guidance.
-- Read [ARCHITECTURE.md](./ARCHITECTURE.md) if you want to understand the design of the system, package boundaries, and runtime flows.
+- Read [CONTRIBUTION.md](./CONTRIBUTION.md) if you are onboarding — it covers workspace setup, development workflow, debugging, and publishing.
+- Read [AGENTS.md](./AGENTS.md) during active development for package boundaries, dependency rules, change routing, and verification commands.
+- Read [ARCHITECTURE.md](./ARCHITECTURE.md) if you want to understand the design of the system and runtime flows.
 - Read [DOC.md](./DOC.md) if you need detailed package/API/behavior reference while implementing or debugging something.
 
 ## Workspace Overview
@@ -71,9 +73,10 @@ flowchart LR
 
 If you want to:
 
+- get set up and start contributing: read [CONTRIBUTION.md](./CONTRIBUTION.md)
 - understand the design: start with [ARCHITECTURE.md](./ARCHITECTURE.md)
 - inspect APIs and behaviors: use [DOC.md](./DOC.md)
-- work on the codebase as a contributor: read [AGENTS.md](./AGENTS.md)
+- quick-reference during development: read [AGENTS.md](./AGENTS.md)
 - see how the SDK is consumed: look at `apps/cli`, `apps/code`, `apps/desktop`, and `apps/examples`
 
 ## Development Entry Points

@@ -29,7 +29,8 @@
 		"lint": "bun biome lint",
 		"fix": "bun biome check --write --unsafe --diagnostic-level=error",
 		"check": "bun biome check --diagnostic-level=error && bun run build:sdk && bun run -F @clinebot/cli build && bun --parallel -F './packages/**' -F @clinebot/cli typecheck && bun scripts/check-publish.ts",
-		"version": "bun run types && bun scripts/version.ts"
+		"version": "bun run types && bun scripts/version.ts",
+		"release": "bun scripts/release.ts"
 	},
 	"lint-staged": {
 		"*": [

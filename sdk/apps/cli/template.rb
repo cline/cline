@@ -34,7 +34,14 @@ cask "cline" do
   homepage "https://github.com/cline/sdk-wip"
   version "__CLI_VERSION__"
   binary "cline", target: "clite"
-  
+
+  postflight do
+    # Strip Gatekeeper quarantine flag so unsigned binaries run without
+    # the "damaged and can't be opened" error on macOS.
+    system_command "/usr/bin/xattr",
+      args: ["-dr", "com.apple.quarantine", "#{staged_path}/cline"]
+  end
+
   on_macos do
     on_arm do
       url "#{GitHubHelper.get_asset_api_url("v#{version}", "darwin-arm64")}",

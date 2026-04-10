@@ -156,6 +156,19 @@ async function main() {
 			"@anthropic-ai/vertex-sdk",
 		]);
 
+		// Ad-hoc codesign darwin binaries so macOS Gatekeeper doesn't
+		// flag them as "damaged". No Apple Developer account needed.
+		if (platform.startsWith("darwin")) {
+			log(`Ad-hoc signing binary for ${platform}...`);
+			await exec([
+				"codesign",
+				"--force",
+				"--sign",
+				"-",
+				join(buildDir, "cline"),
+			]);
+		}
+
 		// Copy the plugin sandbox bootstrap if it exists
 		const bootstrapSrc = join(
 			ROOT_DIR,
