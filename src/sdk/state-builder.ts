@@ -31,6 +31,21 @@ const DEFAULT_AUTO_APPROVAL: AutoApprovalSettings = DEFAULT_AUTO_APPROVAL_SETTIN
 const DEFAULT_BROWSER: BrowserSettings = DEFAULT_BROWSER_SETTINGS
 const DEFAULT_FOCUS_CHAIN: FocusChainSettings = DEFAULT_FOCUS_CHAIN_SETTINGS
 
+/**
+ * Normalize dismissedBanners from globalState.
+ * Handles mixed formats: plain strings (legacy) and { bannerId, dismissedAt } objects.
+ * Returns undefined if no data, or a normalized array of objects.
+ */
+function normalizeDismissedBanners(raw: unknown): Array<{ bannerId: string; dismissedAt: number }> | undefined {
+	if (!Array.isArray(raw) || raw.length === 0) return undefined
+	return raw.map((entry) => {
+		if (typeof entry === "string") {
+			return { bannerId: entry, dismissedAt: 0 }
+		}
+		return entry as { bannerId: string; dismissedAt: number }
+	})
+}
+
 // ---------------------------------------------------------------------------
 // StateBuilderInput — what the state builder needs
 // ---------------------------------------------------------------------------
@@ -147,12 +162,12 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		terminalReuseEnabled: globalState?.terminalReuseEnabled as boolean | undefined,
 		terminalOutputLineLimit: (globalState?.terminalOutputLineLimit as number | undefined) ?? 500,
 		maxConsecutiveMistakes: (globalState?.maxConsecutiveMistakes as number | undefined) ?? 3,
-		defaultTerminalProfile: (globalState?.defaultTerminalProfile as string | undefined),
+		defaultTerminalProfile: globalState?.defaultTerminalProfile as string | undefined,
 		vscodeTerminalExecutionMode: (globalState?.vscodeTerminalExecutionMode as string | undefined) ?? "default",
-		customPrompt: (globalState?.customPrompt as "compact" | undefined),
-		mcpMarketplaceEnabled: (globalState?.mcpMarketplaceEnabled as boolean | undefined),
+		customPrompt: globalState?.customPrompt as "compact" | undefined,
+		mcpMarketplaceEnabled: globalState?.mcpMarketplaceEnabled as boolean | undefined,
 		mcpDisplayMode: (globalState?.mcpDisplayMode as McpDisplayMode) ?? "expanded",
-		mcpResponsesCollapsed: (globalState?.mcpResponsesCollapsed as boolean | undefined),
+		mcpResponsesCollapsed: globalState?.mcpResponsesCollapsed as boolean | undefined,
 
 		// User
 		userInfo: input.userInfo,
@@ -188,7 +203,7 @@ export function buildExtensionState(input: StateBuilderInput = {}): ExtensionSta
 		lastDismissedInfoBannerVersion: (globalState?.lastDismissedInfoBannerVersion as number) ?? 0,
 		lastDismissedModelBannerVersion: (globalState?.lastDismissedModelBannerVersion as number) ?? 0,
 		lastDismissedCliBannerVersion: (globalState?.lastDismissedCliBannerVersion as number) ?? 0,
-		dismissedBanners: undefined,
+		dismissedBanners: normalizeDismissedBanners(globalState?.dismissedBanners as unknown),
 		banners: [],
 		welcomeBanners: [],
 

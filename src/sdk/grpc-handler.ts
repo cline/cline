@@ -1094,9 +1094,16 @@ export class GrpcHandler {
 		const bannerId = (request.params?.value as string) ?? ""
 		if (!bannerId) return { data: {} }
 
-		const dismissed = (this.delegate.readGlobalStateKey?.("dismissedBanners") as string[]) ?? []
-		if (!dismissed.includes(bannerId)) {
-			this.delegate.writeGlobalStateKey?.("dismissedBanners", [...dismissed, bannerId])
+		const rawDismissed = (this.delegate.readGlobalStateKey?.("dismissedBanners") as unknown[]) ?? []
+		// Normalize mixed formats: convert plain strings (legacy) to { bannerId, dismissedAt } objects
+		const dismissed: Array<{ bannerId: string; dismissedAt: number }> = rawDismissed.map((entry) => {
+			if (typeof entry === "string") {
+				return { bannerId: entry, dismissedAt: 0 }
+			}
+			return entry as { bannerId: string; dismissedAt: number }
+		})
+		if (!dismissed.some((d) => d.bannerId === bannerId)) {
+			this.delegate.writeGlobalStateKey?.("dismissedBanners", [...dismissed, { bannerId, dismissedAt: Date.now() }])
 		}
 		return { data: {} }
 	}
@@ -1139,8 +1146,9 @@ export class GrpcHandler {
 	 * Webview sends: TaskFavoriteRequest { id: "task-id", isFavorite: boolean }
 	 */
 	private async handleToggleTaskFavorite(request: GrpcRequest): Promise<GrpcResponse> {
-		const taskId = (request.params?.id as string) ?? ""
-		const isFavorite = (request.params?.isFavorite as boolean) ?? false
+		// Proto field names are taskId and isFavorited (not id/isFavorite)
+		const taskId = (request.params?.taskId as string) ?? (request.params?.id as string) ?? ""
+		const isFavorite = (request.params?.isFavorited as boolean) ?? (request.params?.isFavorite as boolean) ?? false
 		if (taskId && this.delegate.toggleTaskFavorite) {
 			await this.delegate.toggleTaskFavorite(taskId, isFavorite)
 		}
