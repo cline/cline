@@ -128,7 +128,7 @@ describe("cli e2e", () => {
 		expect(asText(result.stdout)).toContain("--thinking");
 		expect(asText(result.stdout)).toContain("--reasoning-effort");
 		expect(asText(result.stdout)).toContain("--refresh-models");
-		expect(asText(result.stdout)).toContain("List configs or hook paths");
+		expect(asText(result.stdout)).toContain("Show current configuration");
 	});
 
 	it("prints version output", () => {
@@ -208,13 +208,13 @@ describe("cli e2e", () => {
 		);
 	});
 
-	it("returns an error for unknown list targets", () => {
-		const result = runCli(["list", "unknown-target"], {
+	it("returns an error for unknown config targets", () => {
+		const result = runCli(["config", "unknown-target"], {
 			env: createIsolatedEnv(),
 		});
 		expect(result.status).toBe(1);
 		expect(asText(result.stderr)).toContain(
-			'list requires one of: workflows, rules, skills, agents, plugins, hooks, mcp (got "unknown-target")',
+			'config requires one of: workflows, rules, skills, agents, plugins, hooks, mcp, tools (got "unknown-target")',
 		);
 	});
 
@@ -315,7 +315,7 @@ Do not list this.`,
 			"utf8",
 		);
 
-		const result = runCli(["list", "workflows"], {
+		const result = runCli(["config", "workflows"], {
 			cwd: workspace,
 			env: createIsolatedEnv(),
 		});
@@ -348,7 +348,7 @@ Release checklist.`,
 			encoding: "utf8",
 		});
 
-		const result = runCli(["list", "workflows"], {
+		const result = runCli(["config", "workflows"], {
 			cwd: nestedDir,
 			env: createIsolatedEnv(),
 		});
@@ -370,7 +370,7 @@ Review checklist.`,
 			"utf8",
 		);
 
-		const result = runCli(["list", "workflows", "--json"], {
+		const result = runCli(["config", "workflows", "--json"], {
 			cwd: workspace,
 			env: createIsolatedEnv(),
 		});
@@ -401,7 +401,7 @@ Release from docs path.`,
 			"utf8",
 		);
 
-		const result = runCli(["list", "workflows"], {
+		const result = runCli(["config", "workflows"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -426,7 +426,7 @@ Do not force push.`,
 			"utf8",
 		);
 
-		const result = runCli(["list", "rules"], {
+		const result = runCli(["config", "rules"], {
 			cwd: workspace,
 			env: createIsolatedEnv(),
 		});
@@ -450,7 +450,7 @@ Create a concise commit message.`,
 			"utf8",
 		);
 
-		const result = runCli(["list", "skills"], {
+		const result = runCli(["config", "skills"], {
 			cwd: workspace,
 			env: createIsolatedEnv(),
 		});
@@ -491,7 +491,7 @@ Skill from docs path.`,
 			"utf8",
 		);
 
-		const rulesResult = runCli(["list", "rules"], {
+		const rulesResult = runCli(["config", "rules"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -501,7 +501,7 @@ Skill from docs path.`,
 		expect(rulesResult.status).toBe(0);
 		expect(asText(rulesResult.stdout)).toContain("docs-rule");
 
-		const skillsResult = runCli(["list", "skills"], {
+		const skillsResult = runCli(["config", "skills"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -540,7 +540,7 @@ Break work into clear steps.`,
 			"utf8",
 		);
 
-		const textResult = runCli(["list", "agents"], {
+		const textResult = runCli(["config", "agents"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -559,7 +559,7 @@ Break work into clear steps.`,
 			path.join(settingsAgentsDir, "planner.yaml"),
 		);
 
-		const jsonResult = runCli(["list", "agents", "--json"], {
+		const jsonResult = runCli(["config", "agents", "--json"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -586,9 +586,14 @@ Break work into clear steps.`,
 		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));
 		const workspace = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-workspace-"));
 		tempDirs.push(homeDir, dataDir, workspace);
-		const workspacePluginsDir = path.join(workspace, ".clinerules", "plugins");
+		const workspacePluginsDir = path.join(workspace, ".cline", "plugins");
 		const userPluginsDir = path.join(homeDir, ".cline", "plugins");
-		const documentsPluginsDir = path.join(homeDir, "Documents", "Plugins");
+		const documentsPluginsDir = path.join(
+			homeDir,
+			"Documents",
+			"Cline",
+			"Plugins",
+		);
 		mkdirSync(workspacePluginsDir, { recursive: true });
 		mkdirSync(userPluginsDir, { recursive: true });
 		mkdirSync(documentsPluginsDir, { recursive: true });
@@ -598,17 +603,17 @@ Break work into clear steps.`,
 			"utf8",
 		);
 		writeFileSync(
-			path.join(userPluginsDir, "user-plugin.mjs"),
+			path.join(userPluginsDir, "user-plugin.js"),
 			"export default { name: 'user-plugin', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
 		writeFileSync(
-			path.join(documentsPluginsDir, "docs-plugin.cts"),
+			path.join(documentsPluginsDir, "docs-plugin.ts"),
 			"export default { name: 'docs-plugin', manifest: { capabilities: ['tools'] } };",
 			"utf8",
 		);
 
-		const textResult = runCli(["list", "plugins"], {
+		const textResult = runCli(["config", "plugins"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -625,13 +630,13 @@ Break work into clear steps.`,
 			path.join(workspacePluginsDir, "workspace-plugin.ts"),
 		);
 		expect(asText(textResult.stdout)).toContain(
-			path.join(userPluginsDir, "user-plugin.mjs"),
+			path.join(userPluginsDir, "user-plugin.js"),
 		);
 		expect(asText(textResult.stdout)).toContain(
-			path.join(documentsPluginsDir, "docs-plugin.cts"),
+			path.join(documentsPluginsDir, "docs-plugin.ts"),
 		);
 
-		const jsonResult = runCli(["list", "plugins", "--json"], {
+		const jsonResult = runCli(["config", "plugins", "--json"], {
 			cwd: workspace,
 			env: {
 				...createIsolatedEnv(),
@@ -652,19 +657,19 @@ Break work into clear steps.`,
 		expect(
 			parsed.some((plugin) =>
 				plugin.path.endsWith(
-					path.join(".clinerules", "plugins", "workspace-plugin.ts"),
+					path.join(".cline", "plugins", "workspace-plugin.ts"),
 				),
 			),
 		).toBe(true);
 		expect(
 			parsed.some((plugin) =>
-				plugin.path.endsWith(path.join(".cline", "plugins", "user-plugin.mjs")),
+				plugin.path.endsWith(path.join(".cline", "plugins", "user-plugin.js")),
 			),
 		).toBe(true);
 		expect(
 			parsed.some((plugin) =>
 				plugin.path.endsWith(
-					path.join("Documents", "Plugins", "docs-plugin.cts"),
+					path.join("Documents", "Cline", "Plugins", "docs-plugin.ts"),
 				),
 			),
 		).toBe(true);
@@ -700,7 +705,7 @@ Break work into clear steps.`,
 			"utf8",
 		);
 
-		const textResult = runCli(["list", "mcp"], {
+		const textResult = runCli(["config", "mcp"], {
 			env: {
 				...createIsolatedEnv(),
 				CLINE_MCP_SETTINGS_PATH: settingsPath,
@@ -713,7 +718,7 @@ Break work into clear steps.`,
 			"remote [streamableHttp] (disabled)",
 		);
 
-		const jsonResult = runCli(["list", "mcp", "--json"], {
+		const jsonResult = runCli(["config", "mcp", "--json"], {
 			env: {
 				...createIsolatedEnv(),
 				CLINE_MCP_SETTINGS_PATH: settingsPath,
@@ -737,6 +742,28 @@ Break work into clear steps.`,
 					server.path === settingsPath,
 			),
 		).toBe(true);
+	});
+
+	it("lists available tools", () => {
+		const textResult = runCli(["config", "tools"], {
+			env: createIsolatedEnv(),
+		});
+		expect(textResult.status).toBe(0);
+		expect(asText(textResult.stdout)).toContain("Available tools:");
+		expect(asText(textResult.stdout)).toContain("read_files");
+		expect(asText(textResult.stdout)).not.toContain("submit_and_exit");
+
+		const jsonResult = runCli(["config", "tools", "--json"], {
+			env: createIsolatedEnv(),
+		});
+		expect(jsonResult.status).toBe(0);
+		const parsed = JSON.parse(asText(jsonResult.stdout)) as Array<{
+			name: string;
+			type: string;
+		}>;
+		expect(parsed.some((tool) => tool.name === "run_commands")).toBe(true);
+		expect(parsed.some((tool) => tool.name === "submit_and_exit")).toBe(false);
+		expect(parsed.every((tool) => tool.type === "default")).toBe(true);
 	});
 
 	it("rejects invalid hook payloads", () => {

@@ -51,15 +51,25 @@ export async function buildEffectiveConfig(
 		auditHooks,
 	]);
 
-	const loadedPlugins = await resolveAndLoadAgentPlugins({
-		pluginPaths: input.config.pluginPaths,
-		workspacePath,
-		cwd: input.config.cwd,
-		onEvent: onPluginEvent,
-	});
+	let loadedPlugins:
+		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
+		| undefined;
+	try {
+		loadedPlugins = await resolveAndLoadAgentPlugins({
+			pluginPaths: input.config.pluginPaths,
+			workspacePath,
+			cwd: input.config.cwd,
+			onEvent: onPluginEvent,
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		input.config.logger?.warn?.(
+			`plugin loading failed; continuing without plugins (${message})`,
+		);
+	}
 	const effectiveExtensions = mergeAgentExtensions(
 		input.config.extensions,
-		loadedPlugins.extensions,
+		loadedPlugins?.extensions,
 	);
 
 	return {
@@ -69,7 +79,7 @@ export async function buildEffectiveConfig(
 			extensions: effectiveExtensions,
 			telemetry: input.config.telemetry ?? defaultTelemetry,
 		},
-		pluginSandboxShutdown: loadedPlugins.shutdown,
+		pluginSandboxShutdown: loadedPlugins?.shutdown,
 	};
 }
 

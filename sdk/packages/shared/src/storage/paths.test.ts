@@ -88,7 +88,7 @@ describe("storage path resolution", () => {
 		);
 	});
 
-	it("falls back to CLINE_DATA_DIR/settings/agents for agent configs", () => {
+	it("falls back to CLINE_DATA_DIR/settings/.agents for agent configs", () => {
 		snapshot = captureEnv();
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 

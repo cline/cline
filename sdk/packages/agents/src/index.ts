@@ -11,6 +11,7 @@
 export {
 	ContributionRegistry,
 	createContributionRegistry,
+	createTool,
 } from "@clinebot/shared";
 export { Agent, createAgent } from "./agent";
 

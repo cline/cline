@@ -71,15 +71,17 @@ function runInteractiveCli(
 				`sleep ${step.delaySeconds}; printf ${toShellSingleQuotedLiteral(step.input)}`,
 		)
 		.join("; ");
-	const launchArgs = [
+	const baseArgs = [
 		cliEntry,
-		...(options?.launchConfigView ? ["config"] : []),
 		"--provider",
 		"anthropic",
 		"-m",
 		"claude-sonnet-4-6",
 		"-k",
 		"test-key",
+	];
+	const launchArgs = [
+		...(options?.launchConfigView ? [...baseArgs, "config"] : baseArgs),
 	]
 		.map((arg) => toShellSingleQuotedLiteral(arg))
 		.join(" ");
@@ -156,21 +158,18 @@ describe("cli interactive e2e", () => {
 		expect(output).toContain("Auto-approve all disabled (Shift+Tab)");
 	});
 
-	it("opens /settings and navigates tabs with arrow keys", () => {
+	it("opens /settings and navigates tabs with Tab", () => {
 		const result = runInteractiveCli([
 			{ delaySeconds: INITIAL_RENDER_DELAY_SECONDS, input: "/settings" },
 			{ delaySeconds: 0.25, input: "\r" }, // accept slash completion
 			{ delaySeconds: 0.25, input: "\r" }, // submit command
-			{ delaySeconds: 0.7, input: "\u001b[C" },
-			{ delaySeconds: 0.5, input: "\u001b[C" },
-			{ delaySeconds: 0.5, input: "\u001b[C" },
-			{ delaySeconds: 0.5, input: "\u001b[C" },
+			{ delaySeconds: 0.7, input: "\t" },
 			{ delaySeconds: POST_ACTION_SETTLE_SECONDS, input: "" },
 		]);
 		const output = outputOf(result);
 		expect(output).toContain("Configuration");
-		expect(output).toContain("[Workflows] Rules Skills Hooks Agents");
-		expect(output).toContain("Workflows Rules Skills Hooks [Agents]");
+		expect(output).toContain("Tools Plugins Agents Hooks [Skills] Rules MCP");
+		expect(output).toContain("Tools Plugins Agents Hooks Skills [Rules] MCP");
 	});
 
 	it("closes /settings with Escape", () => {
@@ -183,7 +182,7 @@ describe("cli interactive e2e", () => {
 		]);
 		const output = outputOf(result);
 		expect(output).toContain(
-			"Config mode: ←/→ tabs · ↑/↓ navigate · Esc close",
+			"Config mode: Tab tabs · ↑/↓ navigate · Esc close",
 		);
 		expect(output).toContain("/ for commands · @ for files");
 	});
@@ -197,6 +196,6 @@ describe("cli interactive e2e", () => {
 		);
 		const output = outputOf(result);
 		expect(output).toContain("Configuration");
-		expect(output).toContain("[Workflows] Rules Skills Hooks Agents");
+		expect(output).toContain("Tools Plugins Agents Hooks [Skills] Rules MCP");
 	});
 });

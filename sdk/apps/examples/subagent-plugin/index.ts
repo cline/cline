@@ -7,9 +7,13 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ClineCore } from "@clinebot/core";
-import type { AgentConfig, Tool, ToolContext } from "@clinebot/shared";
-import { createTool } from "@clinebot/shared";
+import {
+	type AgentConfig,
+	ClineCore,
+	createTool,
+	type Tool,
+	type ToolContext,
+} from "@clinebot/core";
 import YAML from "yaml";
 import { z } from "zod";
 
@@ -492,7 +496,7 @@ const plugin: AgentPlugin = {
 					name: "start_subagent",
 					description: `Start a background subagent run and return its session ID immediately. Prefer a preset from list_agent_presets; when omitted, this tool uses the bundled "${DEFAULT_AGENT_PRESET}" preset automatically. Use get_subagent to poll, or keep notifyParent enabled to have the result pushed back into the parent session.`,
 					inputSchema: StartSubagentInput,
-					timeoutMs: 5_000,
+					timeoutMs: 60_000,
 					retryable: false,
 					async execute(input, ctx) {
 						const mgr = await getSessionManager();
@@ -530,13 +534,13 @@ const plugin: AgentPlugin = {
 								cwd,
 								workspaceRoot: cwd,
 								enableTools: true,
-								enableSpawnAgent: true,
+								enableSpawnAgent: false,
 								enableAgentTeams: false,
+								pluginPaths: [],
 								systemPrompt: prompt,
 								maxIterations: input.maxIterations ?? def?.maxIterations,
-								pluginPaths: [fileURLToPath(import.meta.url)],
 							},
-							interactive: true,
+							interactive: false,
 						});
 
 						const subagent: RunningSubagent = {
@@ -604,7 +608,7 @@ const plugin: AgentPlugin = {
 					description:
 						"Send a follow-up message to an existing subagent session and return immediately.",
 					inputSchema: MessageSubagentInput,
-					timeoutMs: 5_000,
+					timeoutMs: 60_000,
 					retryable: false,
 					async execute(input, ctx) {
 						const mgr = await getSessionManager();

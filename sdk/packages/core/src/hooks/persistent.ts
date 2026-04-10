@@ -461,7 +461,9 @@ async function dispatchDetached(
 	options: PersistentSubprocessHooksOptions,
 ): Promise<void> {
 	try {
-		const result = await client.send(payload);
+		const result = await client.send(payload, {
+			timeoutMs: options.timeoutMs,
+		});
 		options.onDispatch?.({ payload, result, detached: true });
 	} catch (error) {
 		options.onDispatchError?.(toError(error), payload);

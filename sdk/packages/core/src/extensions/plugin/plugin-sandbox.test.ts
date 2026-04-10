@@ -29,6 +29,7 @@ describe("plugin-sandbox", () => {
 	>();
 	const forwardedEvents: Array<{ name: string; payload?: unknown }> = [];
 
+	// Allow generous time for jiti transpilation of multiple TS plugins in CI.
 	beforeAll(async () => {
 		dir = await mkdtemp(join(tmpdir(), "core-plugin-sandbox-"));
 
@@ -150,6 +151,39 @@ describe("plugin-sandbox", () => {
 			"utf8",
 		);
 
+		await writeFile(
+			join(dir, "plugin-host-dep.ts"),
+			[
+				"import { resolveClineDataDir } from '@clinebot/shared/storage';",
+				"import YAML from 'yaml';",
+				"export default {",
+				"  name: YAML.stringify({ host: !!resolveClineDataDir() }).trim(),",
+				"  manifest: { capabilities: ['tools'] },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
+			join(dir, "plugin-create-tool.ts"),
+			[
+				"import { createTool } from '@clinebot/agents';",
+				"export default {",
+				"  name: 'sandbox-create-tool',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api) {",
+				"    api.registerTool(createTool({",
+				"      name: 'created_tool',",
+				"      description: 'created via agents export',",
+				"      inputSchema: { type: 'object', properties: { value: { type: 'string' } }, required: ['value'] },",
+				"      execute: async (input) => ({ echoed: input.value }),",
+				"    }));",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
 		sharedSandbox = await loadSandboxedPlugins({
 			pluginPaths: [
 				join(dir, "plugin.mjs"),
@@ -157,7 +191,12 @@ describe("plugin-sandbox", () => {
 				join(dir, "plugin-ts.ts"),
 				join(dir, "plugin-dep.ts"),
 				join(dir, "plugin-sdk.ts"),
+				join(dir, "plugin-host-dep.ts"),
+				join(dir, "plugin-create-tool.ts"),
 			],
+			// CI environments are significantly slower for jiti transpilation;
+			// the default 4 000 ms is too tight for 7 plugins.
+			importTimeoutMs: 30_000,
 			onEvent: (event) => {
 				forwardedEvents.push(event);
 			},
@@ -168,7 +207,7 @@ describe("plugin-sandbox", () => {
 				extension,
 			]),
 		);
-	});
+	}, 60_000);
 
 	beforeEach(() => {
 		forwardedEvents.length = 0;
@@ -292,5 +331,23 @@ describe("plugin-sandbox", () => {
 		expect(sharedExtensions.get("sandbox-plugin-installed-sdk")?.name).toBe(
 			"sandbox-plugin-installed-sdk",
 		);
+	});
+
+	it("allows standalone file plugins to use host runtime dependencies in the sandbox", async () => {
+		expect(sharedExtensions.get("host: true")?.name).toBe("host: true");
+	});
+
+	it("supports createTool through the agents package export in the sandbox", async () => {
+		const extension = sharedExtensions.get("sandbox-create-tool");
+		const { tools, api } = createApiCapture();
+		await extension?.setup?.(api);
+		const tool = tools.find((entry) => entry.name === "created_tool");
+		expect(tool).toBeDefined();
+		const result = await tool?.execute({ value: "ok" }, {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 1,
+		} as ToolContext);
+		expect(result).toEqual({ echoed: "ok" });
 	});
 });

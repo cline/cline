@@ -11,7 +11,7 @@ import type { PluginManifest } from "..";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
-export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
+export const AGENT_CONFIG_DIRECTORY_NAME = ".agents";
 
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
 export const SKILLS_CONFIG_DIRECTORY_NAME = "skills";
@@ -231,13 +231,16 @@ export function resolveRulesConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	const wsPaths = workspacePath
-		? [".clinerules", ".cline"].map((prefix) =>
-				join(workspacePath, prefix, RULES_CONFIG_DIRECTORY_NAME),
-			)
+		? [
+				join(workspacePath, DEPRECATED_CONFIG_DIR),
+				join(workspacePath, CLINE_CONFIG_DIR, RULES_CONFIG_DIRECTORY_NAME),
+			]
 		: [];
-	const workspaceRoot = workspacePath ? [workspacePath] : [];
+	const workspaceAgentsFile = workspacePath
+		? [join(workspacePath, "AGENTS.md")]
+		: [];
 	return dedupePaths([
-		...workspaceRoot,
+		...workspaceAgentsFile,
 		...wsPaths,
 		join(resolveClineDataDir(), RULES_CONFIG_DIRECTORY_NAME),
 		resolveDocumentsRulesDirectoryPath(),
@@ -260,9 +263,7 @@ export function resolvePluginConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	return dedupePaths([
-		workspacePath
-			? join(workspacePath, ".clinerules", PLUGINS_DIRECTORY_NAME)
-			: "",
+		workspacePath ? join(workspacePath, ".cline", PLUGINS_DIRECTORY_NAME) : "",
 		join(resolveClineDir(), PLUGINS_DIRECTORY_NAME),
 		resolveDocumentsPluginsDirectoryPath(),
 	]);

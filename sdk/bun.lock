@@ -233,9 +233,9 @@
       "name": "cline-sdk-portable-agents",
       "version": "0.1.0",
       "dependencies": {
-        "@clinebot/agents": "workspace:*",
-        "@clinebot/core": "workspace:*",
-        "@clinebot/shared": "workspace:*",
+        "@clinebot/agents": "latest",
+        "@clinebot/core": "latest",
+        "@clinebot/shared": "latest",
         "yaml": "^2.8.1",
         "zod": "^4.1.5",
       },
@@ -3383,6 +3383,12 @@
 
     "cline-sdk-examples/@types/node": ["@types/node@22.19.17", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q=="],
 
+    "cline-sdk-portable-agents/@clinebot/agents": ["@clinebot/agents@0.0.28", "", { "dependencies": { "@clinebot/llms": "0.0.28", "zod": "^4.3.6" } }, "sha512-/Eo4Dk4T+oYDPcI68QxJEr30mxFcKmm+bDw8K1UYOz2vBJb81KkcN+6X0cqNClWL+UtzATW59euoTja218JGJw=="],
+
+    "cline-sdk-portable-agents/@clinebot/core": ["@clinebot/core@0.0.28", "", { "dependencies": { "@clinebot/agents": "0.0.28", "@clinebot/llms": "0.0.28", "@opentelemetry/api": "^1.9.0", "@opentelemetry/api-logs": "^0.56.0", "@opentelemetry/exporter-logs-otlp-http": "^0.56.0", "@opentelemetry/exporter-metrics-otlp-http": "^0.56.0", "@opentelemetry/resources": "^1.30.1", "@opentelemetry/sdk-logs": "^0.56.0", "@opentelemetry/sdk-metrics": "^1.30.1", "@opentelemetry/semantic-conventions": "^1.37.0", "jiti": "^1.21.7", "nanoid": "^5.1.7", "node-machine-id": "^1.1.12", "simple-git": "^3.32.3", "yaml": "^2.8.2", "zod": "^4.3.6" } }, "sha512-hWRHXazt5NYtw04Baafb2riE7LWZiPM+J8PQOK7rsUzG28K856LMBXxSZDG/8PhII6NKrgfb4L2M9mR4ndEihA=="],
+
+    "cline-sdk-portable-agents/@clinebot/shared": ["@clinebot/shared@0.0.28", "", { "dependencies": { "jsonrepair": "^3.13.2", "zod": "^4.3.6", "zod-to-json-schema": "^3.25.1" }, "optionalDependencies": { "better-sqlite3": "^12.8.0" } }, "sha512-o+pcrFtim8ACepbQxu02eIFjT7zE7eNnosZPUPFPVRO1u3tvKYd1OXFmV2/ekHg1ZlnI0Tt3Jils2nsJqPgLaw=="],
+
     "cliui/string-width": ["string-width@4.2.3", "", { "dependencies": { "emoji-regex": "^8.0.0", "is-fullwidth-code-point": "^3.0.0", "strip-ansi": "^6.0.1" } }, "sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g=="],
 
     "cliui/strip-ansi": ["strip-ansi@6.0.1", "", { "dependencies": { "ansi-regex": "^5.0.1" } }, "sha512-Y38VPSHcqkFrCpFnQ9vuSXmquuv5oXOKpGeT6aGrr3o3Gc9AlVa6JBfUSOCnbxGGZF+/0ooI7KrPuUSztUdU5A=="],
@@ -4017,6 +4023,8 @@
 
     "cline-sdk-examples/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
+    "cline-sdk-portable-agents/@clinebot/core/@clinebot/agents": ["@clinebot/agents@workspace:packages/agents"],
+
     "cliui/string-width/emoji-regex": ["emoji-regex@8.0.0", "", {}, "sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A=="],
 
     "cliui/string-width/is-fullwidth-code-point": ["is-fullwidth-code-point@3.0.0", "", {}, "sha512-zymm5+u+sCsSWyD9qNaejV3DFvhCKclKdizYaJUuHA83RLjb7nSuGnddCHGv0hk+KY7BMAlsWeK4Ueg6EV6XQg=="],
@@ -4312,6 +4320,8 @@
     "@ts-morph/common/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
 
     "@typescript-eslint/typescript-estree/minimatch/brace-expansion/balanced-match": ["balanced-match@4.0.4", "", {}, "sha512-BLrgEcRTwX2o6gGxGOCNyMvGSp35YofuYzw9h1IMTRmKqttAZZVU67bdb9Pr2vUHA8+j3i2tJfjO6C6+4myGTA=="],
+
+    "cline-sdk-portable-agents/@clinebot/core/@clinebot/agents/@clinebot/shared": ["@clinebot/shared@workspace:packages/shared"],
 
     "log-update/cli-cursor/restore-cursor/onetime": ["onetime@7.0.0", "", { "dependencies": { "mimic-function": "^5.0.0" } }, "sha512-VXJjc87FScF88uafS3JllDgvAm+c/Slfz06lorj2uAY34rlUu0Nt+v8wreiImcrgAjjIHp1rXpTDlLOGw29WwQ=="],
 

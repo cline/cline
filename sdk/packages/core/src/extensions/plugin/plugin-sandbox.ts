@@ -1,4 +1,5 @@
 import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentConfig, HookStage, Tool } from "@clinebot/shared";
@@ -42,6 +43,11 @@ type SandboxedPluginDescriptor = {
 	};
 };
 
+function isUnknownPluginIdError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes("Unknown sandbox plugin id:");
+}
+
 /**
  * Resolve the bootstrap for the sandbox subprocess.
  *
@@ -52,6 +58,7 @@ type SandboxedPluginDescriptor = {
  */
 function resolveBootstrap(): { file: string } | { script: string } {
 	const dir = dirname(fileURLToPath(import.meta.url));
+	const requireFromHere = createRequire(import.meta.url);
 	// In dev, the bootstrap sits next to this file in src/extensions/.
 	// In production, the main bundle is at dist/ and the bootstrap is emitted
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
@@ -65,9 +72,15 @@ function resolveBootstrap(): { file: string } | { script: string } {
 		if (existsSync(candidate)) return { file: candidate };
 	}
 	const tsPath = join(dir, "plugin-sandbox-bootstrap.ts");
+	let jitiSpecifier = "jiti";
+	try {
+		jitiSpecifier = requireFromHere.resolve("jiti");
+	} catch {
+		// Fall back to bare specifier and let runtime resolution handle it.
+	}
 	return {
 		script: [
-			"const createJiti = require('jiti');",
+			`const createJiti = require(${JSON.stringify(jitiSpecifier)});`,
 			`const jiti = createJiti(${JSON.stringify(tsPath)}, { cache: false, requireCache: false, esmResolve: true, interopDefault: false });`,
 			`Promise.resolve(jiti.import(${JSON.stringify(tsPath)}, {})).catch((error) => {`,
 			"  console.error(error);",
@@ -155,17 +168,30 @@ export async function loadSandboxedPlugins(
 	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
 	const contributionTimeoutMs = withTimeoutFallback(
 		options.contributionTimeoutMs,
-		5000,
+		60_000,
 	);
+	const initArgs = {
+		pluginPaths: options.pluginPaths,
+		exportName: options.exportName,
+	};
+
+	// Guard against concurrent re-initialization when multiple tools/hooks
+	// fail simultaneously with "Unknown sandbox plugin id:".
+	let reinitPromise: Promise<void> | undefined;
+	const reinitialize = (): Promise<void> => {
+		reinitPromise ??= sandbox
+			.call<void>("initialize", initArgs, { timeoutMs: importTimeoutMs })
+			.finally(() => {
+				reinitPromise = undefined;
+			});
+		return reinitPromise;
+	};
 
 	let descriptors: SandboxedPluginDescriptor[];
 	try {
 		descriptors = await sandbox.call<SandboxedPluginDescriptor[]>(
 			"initialize",
-			{
-				pluginPaths: options.pluginPaths,
-				exportName: options.exportName,
-			},
+			initArgs,
 			{ timeoutMs: importTimeoutMs },
 		);
 	} catch (error) {
@@ -181,13 +207,31 @@ export async function loadSandboxedPlugins(
 				name: descriptor.name,
 				manifest: descriptor.manifest,
 				setup: (api: AgentExtensionApi) => {
-					registerTools(api, sandbox, descriptor, contributionTimeoutMs);
-					registerCommands(api, sandbox, descriptor, contributionTimeoutMs);
+					registerTools(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
+					registerCommands(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
 					registerSimpleContributions(api, descriptor);
 				},
 			};
 
-			bindHooks(extension, sandbox, descriptor.pluginId, hookTimeoutMs);
+			bindHooks(
+				extension,
+				sandbox,
+				descriptor.pluginId,
+				hookTimeoutMs,
+				reinitialize,
+			);
 
 			return extension;
 		},
@@ -210,6 +254,7 @@ function registerTools(
 	sandbox: SubprocessSandbox,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
+	reinitialize: () => Promise<void>,
 ): void {
 	for (const td of descriptor.contributions.tools) {
 		const tool: Tool = {
@@ -221,17 +266,35 @@ function registerTools(
 			}) as Tool["inputSchema"],
 			timeoutMs: td.timeoutMs,
 			retryable: td.retryable,
-			execute: async (input: unknown, context: unknown) =>
-				await sandbox.call(
-					"executeTool",
-					{
-						pluginId: descriptor.pluginId,
-						contributionId: td.id,
-						input,
-						context,
-					},
-					{ timeoutMs },
-				),
+			execute: async (input: unknown, context: unknown) => {
+				try {
+					return await sandbox.call(
+						"executeTool",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: td.id,
+							input,
+							context,
+						},
+						{ timeoutMs },
+					);
+				} catch (error) {
+					if (!isUnknownPluginIdError(error)) {
+						throw error;
+					}
+					await reinitialize();
+					return await sandbox.call(
+						"executeTool",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: td.id,
+							input,
+							context,
+						},
+						{ timeoutMs },
+					);
+				}
+			},
 		};
 		api.registerTool(tool);
 	}
@@ -242,21 +305,39 @@ function registerCommands(
 	sandbox: SubprocessSandbox,
 	descriptor: SandboxedPluginDescriptor,
 	timeoutMs: number,
+	reinitialize: () => Promise<void>,
 ): void {
 	for (const cd of descriptor.contributions.commands) {
 		api.registerCommand({
 			name: cd.name,
 			description: cd.description,
-			handler: async (input: string) =>
-				await sandbox.call<string>(
-					"executeCommand",
-					{
-						pluginId: descriptor.pluginId,
-						contributionId: cd.id,
-						input,
-					},
-					{ timeoutMs },
-				),
+			handler: async (input: string) => {
+				try {
+					return await sandbox.call<string>(
+						"executeCommand",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: cd.id,
+							input,
+						},
+						{ timeoutMs },
+					);
+				} catch (error) {
+					if (!isUnknownPluginIdError(error)) {
+						throw error;
+					}
+					await reinitialize();
+					return await sandbox.call<string>(
+						"executeCommand",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: cd.id,
+							input,
+						},
+						{ timeoutMs },
+					);
+				}
+			},
 		});
 	}
 }
@@ -302,13 +383,27 @@ function makeHookHandler(
 	pluginId: string,
 	hookName: string,
 	timeoutMs: number,
+	reinitialize: () => Promise<void>,
 ): (payload: unknown) => Promise<unknown> {
-	return async (payload: unknown) =>
-		await sandbox.call(
-			"invokeHook",
-			{ pluginId, hookName, payload },
-			{ timeoutMs },
-		);
+	return async (payload: unknown) => {
+		try {
+			return await sandbox.call(
+				"invokeHook",
+				{ pluginId, hookName, payload },
+				{ timeoutMs },
+			);
+		} catch (error) {
+			if (!isUnknownPluginIdError(error)) {
+				throw error;
+			}
+			await reinitialize();
+			return await sandbox.call(
+				"invokeHook",
+				{ pluginId, hookName, payload },
+				{ timeoutMs },
+			);
+		}
+	};
 }
 
 function bindHooks(
@@ -316,6 +411,7 @@ function bindHooks(
 	sandbox: SubprocessSandbox,
 	pluginId: string,
 	hookTimeoutMs: number,
+	reinitialize: () => Promise<void>,
 ): void {
 	for (const { stage, extensionKey, sandboxHookName } of HOOK_BINDINGS) {
 		if (hasHookStage(extension, stage)) {
@@ -324,6 +420,7 @@ function bindHooks(
 				pluginId,
 				sandboxHookName,
 				hookTimeoutMs,
+				reinitialize,
 			);
 			// Each hook property on AgentExtension accepts (payload: unknown) => Promise<unknown>.
 			// TypeScript cannot narrow a union of optional callback keys via computed access,

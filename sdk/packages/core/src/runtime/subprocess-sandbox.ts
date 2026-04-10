@@ -75,10 +75,21 @@ export class SubprocessSandbox {
 				this.options.name === "plugin-sandbox" ? "plugin-sandbox" : "sandbox",
 		});
 		const child = spawn(command[0] ?? process.execPath, command.slice(1), {
-			stdio: ["ignore", "ignore", "ignore", "ipc"],
+			stdio: ["ignore", "ignore", "pipe", "ipc"],
 			env: withResolvedClineBuildEnv(process.env),
 		});
 		this.process = child;
+		let stderrBuffer = "";
+		const appendStderr = (chunk: string) => {
+			const next = stderrBuffer + chunk;
+			// Keep only a small tail so errors include useful context
+			// without unbounded memory growth.
+			stderrBuffer = next.length > 4000 ? next.slice(-4000) : next;
+		};
+		child.stderr?.setEncoding("utf8");
+		child.stderr?.on("data", (chunk: string) => {
+			appendStderr(chunk);
+		});
 		child.on("message", (message) => {
 			this.onMessage(message as SandboxResponseMessage | SandboxEventMessage);
 		});
@@ -91,9 +102,10 @@ export class SubprocessSandbox {
 		});
 		child.on("exit", (code, signal) => {
 			this.process = null;
+			const stderrDetail = stderrBuffer.trim();
 			this.failPending(
 				new Error(
-					`${this.options.name ?? "sandbox"} process exited (code=${String(code)}, signal=${String(signal)})`,
+					`${this.options.name ?? "sandbox"} process exited (code=${String(code)}, signal=${String(signal)})${stderrDetail ? `: ${stderrDetail}` : ""}`,
 				),
 			);
 		});

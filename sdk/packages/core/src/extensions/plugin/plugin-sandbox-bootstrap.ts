@@ -130,6 +130,7 @@ function assertValidPluginModule(
 
 let pluginCounter = 0;
 const pluginState = new Map<string, PluginState>();
+const contributionCounters = new Map<string, number>();
 
 // ---------------------------------------------------------------------------
 // IPC helpers
@@ -169,7 +170,10 @@ function sanitizeObject(value: unknown): Record<string, unknown> {
 }
 
 function makeId(pluginId: string, prefix: string): string {
-	return `${pluginId}_${prefix}_${Math.random().toString(36).slice(2, 10)}`;
+	const key = `${pluginId}:${prefix}`;
+	const next = (contributionCounters.get(key) ?? 0) + 1;
+	contributionCounters.set(key, next);
+	return `${pluginId}_${prefix}_${next}`;
 }
 
 function getPlugin(pluginId: string): PluginState {
@@ -188,6 +192,10 @@ async function initialize(args: {
 	pluginPaths?: string[];
 	exportName?: string;
 }): Promise<PluginDescriptor[]> {
+	pluginState.clear();
+	pluginCounter = 0;
+	contributionCounters.clear();
+
 	const descriptors: PluginDescriptor[] = [];
 	const exportName = args.exportName || "plugin";
 

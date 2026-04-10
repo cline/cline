@@ -25,11 +25,11 @@ bun run 01-minimal.ts  # Get started in 30 seconds
 
 - Register custom tools
 - Hook into agent lifecycle events
-- Export a reusable plugin module for `.clinerules/plugins`
+- Export a reusable plugin module for `.cline/plugins`
 
 ```bash
 mkdir -p .clinerules/plugins
-cp apps/examples/cline-plugin/index.ts .clinerules/plugins/weather-metrics.ts
+cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
 clite -i "What's the weather like in Tokyo and Paris?"
 ```
 
@@ -37,7 +37,7 @@ clite -i "What's the weather like in Tokyo and Paris?"
 
 **Portable subagent plugin** that adds background agent orchestration tools to the CLI and SDK:
 
-- Export a reusable plugin module for `.clinerules/plugins`
+- Export a reusable plugin module for `.cline/plugins`
 - Start background subagents from the main session
 - Load bundled or custom agent presets and skills
 

@@ -9,6 +9,10 @@ import {
 	chatCommandHost,
 } from "./chat-commands";
 
+type PluginCommandLogger = {
+	warn?: (message: string) => void;
+};
+
 function normalizeCommandName(name: string): string {
 	const trimmed = name.trim();
 	if (!trimmed) {
@@ -41,13 +45,23 @@ function createPluginCommandDefinition(
 export async function createWorkspaceChatCommandHost(input: {
 	cwd: string;
 	workspaceRoot?: string;
+	logger?: PluginCommandLogger;
 }): Promise<ChatCommandHost> {
 	const workspaceRoot = input.workspaceRoot?.trim() || input.cwd;
-	const loaded = await resolveAndLoadAgentPlugins({
-		cwd: input.cwd,
-		workspacePath: workspaceRoot,
-		mode: "in_process",
-	});
+	let loaded: Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>;
+	try {
+		loaded = await resolveAndLoadAgentPlugins({
+			cwd: input.cwd,
+			workspacePath: workspaceRoot,
+			mode: "in_process",
+		});
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		input.logger?.warn?.(
+			`plugin command loading failed; continuing without plugin commands (${message})`,
+		);
+		return chatCommandHost;
+	}
 	if (!loaded.extensions.length) {
 		return chatCommandHost;
 	}
@@ -55,7 +69,15 @@ export async function createWorkspaceChatCommandHost(input: {
 	const registry = createContributionRegistry({
 		extensions: loaded.extensions,
 	});
-	await registry.initialize();
+	try {
+		await registry.initialize();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		input.logger?.warn?.(
+			`plugin command registry initialization failed; continuing without plugin commands (${message})`,
+		);
+		return chatCommandHost;
+	}
 
 	const host = chatCommandHost.clone();
 	for (const command of registry.getRegistrySnapshot().commands) {

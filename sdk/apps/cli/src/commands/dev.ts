@@ -47,6 +47,7 @@ export function createDevCommand(
 				ensureFileExists(logPath);
 				await openPath(logPath);
 				io.writeln(logPath);
+				setExitCode(0);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				io.writeErr(`failed to open log file "${logPath}": ${message}`);

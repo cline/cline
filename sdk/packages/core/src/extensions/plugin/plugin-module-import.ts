@@ -6,6 +6,7 @@ import { PLUGIN_FILE_EXTENSIONS } from "@clinebot/shared";
 import createJiti from "jiti";
 
 const MODULE_DIR = dirname(fileURLToPath(import.meta.url));
+const HOST_REQUIRE = createRequire(import.meta.url);
 // `plugin-module-import.ts` lives at `packages/core/src/extensions/plugin`, so
 // walking up five levels lands at the repo root.
 const WORKSPACE_ROOT = resolve(MODULE_DIR, "..", "..", "..", "..", "..");
@@ -25,7 +26,14 @@ function collectWorkspaceAliases(root: string): Record<string, string> {
 		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
 		"@clinebot/core": resolve(root, "packages/core/src/index.ts"),
 		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
+		"@clinebot/rpc": resolve(root, "packages/rpc/src/index.ts"),
+		"@clinebot/scheduler": resolve(root, "packages/scheduler/src/index.ts"),
 		"@clinebot/shared": resolve(root, "packages/shared/src/index.ts"),
+		"@clinebot/shared/storage": resolve(
+			root,
+			"packages/shared/src/storage/index.ts",
+		),
+		"@clinebot/shared/db": resolve(root, "packages/shared/src/db/index.ts"),
 	};
 	for (const [key, value] of Object.entries(candidates)) {
 		if (existsSync(value)) {
@@ -74,6 +82,50 @@ function hasInstalledDependency(
 		}
 		current = parent;
 	}
+}
+
+function resolvesFromHostRuntime(specifier: string): boolean {
+	try {
+		HOST_REQUIRE.resolve(specifier);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function resolveFromHostRuntime(specifier: string): string | null {
+	try {
+		return HOST_REQUIRE.resolve(specifier);
+	} catch {
+		return null;
+	}
+}
+
+function isPackageBasedPlugin(pluginFilePath: string): boolean {
+	// Walk up from the plugin file looking for a package.json with a `cline`
+	// manifest.  Stop at the first package.json we encounter — if it doesn't
+	// declare `cline` we've left the plugin boundary (e.g. hit the workspace
+	// root).  Also cap the traversal so we never wander far from the plugin
+	// search root (.cline/plugins).
+	const MAX_DEPTH = 4;
+	let current = dirname(pluginFilePath);
+	for (let depth = 0; depth < MAX_DEPTH; depth++) {
+		const packageJsonPath = resolve(current, "package.json");
+		if (existsSync(packageJsonPath)) {
+			try {
+				const pkg = JSON.parse(readFileSync(packageJsonPath, "utf8"));
+				return pkg != null && typeof pkg === "object" && "cline" in pkg;
+			} catch {
+				return false;
+			}
+		}
+		const parent = resolve(current, "..");
+		if (parent === current) {
+			return false;
+		}
+		current = parent;
+	}
+	return false;
 }
 
 function resolveRelativeImportPath(
@@ -127,6 +179,7 @@ function collectStaticModuleSpecifiers(source: string): string[] {
 
 function assertPluginDependenciesInstalled(
 	pluginPath: string,
+	preferHostRuntimeDependencies: boolean,
 	seen = new Set<string>(),
 ): void {
 	if (seen.has(pluginPath) || !existsSync(pluginPath)) {
@@ -147,7 +200,8 @@ function assertPluginDependenciesInstalled(
 			if (
 				Object.hasOwn(WORKSPACE_ALIASES, specifier) ||
 				Object.hasOwn(WORKSPACE_ALIASES, getPackageName(specifier)) ||
-				hasInstalledDependency(pluginPath, specifier)
+				hasInstalledDependency(pluginPath, specifier) ||
+				(preferHostRuntimeDependencies && resolvesFromHostRuntime(specifier))
 			) {
 				continue;
 			}
@@ -155,13 +209,18 @@ function assertPluginDependenciesInstalled(
 		}
 		const resolvedPath = resolveRelativeImportPath(pluginPath, specifier);
 		if (resolvedPath) {
-			assertPluginDependenciesInstalled(resolvedPath, seen);
+			assertPluginDependenciesInstalled(
+				resolvedPath,
+				preferHostRuntimeDependencies,
+				seen,
+			);
 		}
 	}
 }
 
 function collectPluginImportAliases(
 	pluginPath: string,
+	preferHostRuntimeDependencies: boolean,
 ): Record<string, string> {
 	const pluginRequire = createRequire(pluginPath);
 	const aliases: Record<string, string> = {};
@@ -175,6 +234,24 @@ function collectPluginImportAliases(
 		}
 		aliases[specifier] = sourcePath;
 	}
+	if (preferHostRuntimeDependencies) {
+		const source = readFileSync(pluginPath, "utf8");
+		for (const specifier of collectStaticModuleSpecifiers(source)) {
+			if (
+				!isBareSpecifier(specifier) ||
+				specifier.startsWith("node:") ||
+				BUILTIN_MODULES.has(specifier) ||
+				Object.hasOwn(aliases, specifier) ||
+				hasInstalledDependency(pluginPath, specifier)
+			) {
+				continue;
+			}
+			const resolved = resolveFromHostRuntime(specifier);
+			if (resolved) {
+				aliases[specifier] = resolved;
+			}
+		}
+	}
 	return aliases;
 }
 
@@ -182,8 +259,12 @@ export async function importPluginModule(
 	pluginPath: string,
 	options: ImportPluginModuleOptions = {},
 ): Promise<Record<string, unknown>> {
-	assertPluginDependenciesInstalled(pluginPath);
-	const aliases = collectPluginImportAliases(pluginPath);
+	const preferHostRuntimeDependencies = !isPackageBasedPlugin(pluginPath);
+	assertPluginDependenciesInstalled(pluginPath, preferHostRuntimeDependencies);
+	const aliases = collectPluginImportAliases(
+		pluginPath,
+		preferHostRuntimeDependencies,
+	);
 	const jiti = createJiti(pluginPath, {
 		alias: aliases,
 		cache: options.useCache,

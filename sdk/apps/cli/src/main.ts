@@ -13,6 +13,7 @@ import {
 	normalizeProviderId,
 	runAuthCommand,
 } from "./commands/auth";
+import { createConfigCommand } from "./commands/config";
 import {
 	formatAdapterList,
 	runConnectAdapter,
@@ -23,7 +24,6 @@ import { createDevCommand } from "./commands/dev";
 import { createDoctorCommand } from "./commands/doctor";
 import { showVersion } from "./commands/help";
 import { runHookCommand, runHookWorkerCommand } from "./commands/hook";
-import { createListCommand } from "./commands/list";
 import {
 	addRootOptions,
 	CommanderError,
@@ -114,8 +114,8 @@ export async function runCli(): Promise<void> {
 		setClineDir(configDir);
 	}
 	setHomeDir(homedir());
-
 	let launchConfigView = false;
+
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
 	const internalLaunchViolation = getInternalLaunchViolation(normalizedArgs);
 	if (internalLaunchViolation) {
@@ -173,13 +173,25 @@ export async function runCli(): Promise<void> {
 			});
 		});
 
-	program
-		.command("config")
-		.description("Show current configuration")
-		.option("--config <dir>", "configuration directory")
-		.action(() => {
+	const configCmd = createConfigCommand(
+		() => resolveWorkspaceRoot(program.opts().cwd ?? process.cwd()),
+		() => {
+			const outputMode =
+				program.opts().json || configCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			setCurrentOutputMode(outputMode);
+			return outputMode;
+		},
+		io,
+		(code) => {
+			ctx.exitCode = code;
+		},
+		() => {
 			launchConfigView = true;
-		});
+		},
+	);
+	program.addCommand(configCmd);
 	program
 		.command("hook-worker")
 		.allowUnknownOption()
@@ -377,23 +389,6 @@ export async function runCli(): Promise<void> {
 			ctx.exitCode = await runHookCommand(io);
 		});
 
-	const listCmd = createListCommand(
-		() => resolveWorkspaceRoot(program.opts().cwd ?? process.cwd()),
-		() => {
-			const outputMode =
-				program.opts().json || listCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			setCurrentOutputMode(outputMode);
-			return outputMode;
-		},
-		io,
-		(code) => {
-			ctx.exitCode = code;
-		},
-	);
-	program.addCommand(listCmd);
-
 	const { createRpcCommand } = await import("./commands/rpc");
 	const rpcCmd = createRpcCommand(io, (code) => {
 		ctx.exitCode = code;
@@ -487,6 +482,7 @@ export async function runCli(): Promise<void> {
 	// When 'task'/'t' was used, options were re-parsed into taskParsedProgram.
 	let args = commanderToParsedArgs(taskParsedProgram ?? program);
 	const cwd = args.cwd ?? process.cwd();
+	const workspaceRoot = resolveWorkspaceRoot(cwd);
 	const sandboxEnabled =
 		args.sandbox || process.env.CLINE_SANDBOX?.trim() === "1";
 	const sandboxDataDir = configureSandboxEnvironment({
@@ -605,9 +601,9 @@ export async function runCli(): Promise<void> {
 	} = await loadCliRuntimeModules();
 
 	const userInstructionWatcher = createUserInstructionConfigWatcher({
-		skills: { workspacePath: cwd },
-		rules: { workspacePath: cwd },
-		workflows: { workspacePath: cwd },
+		skills: { workspacePath: workspaceRoot },
+		rules: { workspacePath: workspaceRoot },
+		workflows: { workspacePath: workspaceRoot },
 	});
 	await userInstructionWatcher.start().catch(() => {});
 	let watcherDisposed = false;
@@ -731,11 +727,11 @@ export async function runCli(): Promise<void> {
 			enableAgentTeams: args.enableAgentTeams,
 			enableTools: args.enableTools,
 			cwd,
-			workspaceRoot: resolveWorkspaceRoot(cwd),
+			workspaceRoot,
 			extensionContext: {
 				client: { name: "cline-cli" },
 				workspace: {
-					rootPath: resolveWorkspaceRoot(cwd),
+					rootPath: workspaceRoot,
 					cwd,
 					workspaceName: basename(cwd),
 					ide: "Terminal Shell",

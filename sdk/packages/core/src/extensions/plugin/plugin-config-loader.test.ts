@@ -114,7 +114,7 @@ describe("plugin-config-loader", () => {
 		try {
 			process.env.HOME = home;
 			setHomeDir(home);
-			const workspacePlugins = join(workspace, ".clinerules", "plugins");
+			const workspacePlugins = join(workspace, ".cline", "plugins");
 			const userPlugins = join(home, ".cline", "plugins");
 			const documentsPlugins = join(home, "Documents", "Cline", "Plugins");
 			await mkdir(workspacePlugins, { recursive: true });

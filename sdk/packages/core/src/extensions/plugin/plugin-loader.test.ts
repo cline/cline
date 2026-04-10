@@ -118,9 +118,35 @@ describe("plugin-loader", () => {
 			join(copyDir, "portable-subagents.ts"),
 			[
 				"import { safeJsonStringify } from '@clinebot/shared';",
+				"import { resolveClineDataDir } from '@clinebot/shared/storage';",
 				"import YAML from 'yaml';",
 				"export default {",
-				"  name: typeof safeJsonStringify === 'function' ? YAML.stringify({ ok: true }) : 'invalid',",
+				"  name: typeof safeJsonStringify === 'function' ? YAML.stringify({ ok: !!resolveClineDataDir() }) : 'invalid',",
+				"  manifest: { capabilities: ['tools'] },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		const packagedCopyDir = join(copyDir, "packaged-plugin");
+		await mkdir(packagedCopyDir, { recursive: true });
+		await writeFile(
+			join(packagedCopyDir, "package.json"),
+			JSON.stringify({
+				name: "packaged-plugin",
+				type: "module",
+				cline: {
+					plugins: ["index.ts"],
+				},
+			}),
+			"utf8",
+		);
+		await writeFile(
+			join(packagedCopyDir, "index.ts"),
+			[
+				"import YAML from 'yaml';",
+				"export default {",
+				"  name: YAML.stringify({ ok: true }),",
 				"  manifest: { capabilities: ['tools'] },",
 				"};",
 			].join("\n"),
@@ -193,10 +219,21 @@ describe("plugin-loader", () => {
 		expect(plugin.name).toBe("plugin-installed-sdk");
 	});
 
-	it("requires copied plugins to provide their own non-SDK dependencies", async () => {
-		await expect(
-			loadAgentPluginFromPath(join(copyDir, "portable-subagents.ts"), {
+	it("allows standalone file plugins to use host runtime dependencies", async () => {
+		const plugin = await loadAgentPluginFromPath(
+			join(copyDir, "portable-subagents.ts"),
+			{
 				cwd: copyDir,
+				useCache: true,
+			},
+		);
+		expect(plugin.name).toMatch(/ok: true/i);
+	});
+
+	it("requires package-based plugins to provide their own non-SDK dependencies", async () => {
+		await expect(
+			loadAgentPluginFromPath(join(copyDir, "packaged-plugin", "index.ts"), {
+				cwd: join(copyDir, "packaged-plugin"),
 				useCache: true,
 			}),
 		).rejects.toThrow(/Cannot find (package|module) 'yaml'/i);

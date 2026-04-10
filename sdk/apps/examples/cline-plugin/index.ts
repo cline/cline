@@ -4,8 +4,8 @@
  * Shows how to author a reusable plugin module for the CLI and SDK hosts.
  *
  * CLI usage:
- *   mkdir -p .clinerules/plugins
- *   cp apps/examples/cline-plugin/index.ts .clinerules/plugins/weather-metrics.ts
+ *   mkdir -p .cline/plugins
+ *   cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
  *   clite -i "What's the weather like in Tokyo and Paris?"
  *
  * Direct demo usage:

@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import {
+	ALL_DEFAULT_TOOL_NAMES,
 	createUserInstructionConfigWatcher,
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
@@ -19,10 +20,12 @@ import {
 import { Command } from "commander";
 import type { CliOutputMode } from "../utils/types";
 
-type ListIo = {
+type ConfigIo = {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 };
+
+const TOOL_NAMES = [...ALL_DEFAULT_TOOL_NAMES];
 
 function resolveCliAgentConfigSearchPaths(): string[] {
 	const clineDataDir =
@@ -33,10 +36,10 @@ function resolveCliAgentConfigSearchPaths(): string[] {
 	];
 }
 
-async function runWorkflowsListCommand(
+async function runWorkflowsConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const workflowsById = new Map<
 		string,
@@ -90,10 +93,10 @@ async function runWorkflowsListCommand(
 	return 0;
 }
 
-async function runRulesListCommand(
+async function runRulesConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const rulesByName = new Map<
 		string,
@@ -146,10 +149,10 @@ async function runRulesListCommand(
 	return 0;
 }
 
-async function runSkillsListCommand(
+async function runSkillsConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const skillDirectories = [
 		...resolveSkillsConfigSearchPaths(cwd),
@@ -207,9 +210,9 @@ async function runSkillsListCommand(
 	return 0;
 }
 
-async function runAgentsListCommand(
+async function runAgentsConfigCommand(
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const agentsById = new Map<
 		string,
@@ -271,10 +274,10 @@ async function runAgentsListCommand(
 	return 0;
 }
 
-async function runPluginsListCommand(
+async function runPluginsConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const pluginsByPath = new Map<
 		string,
@@ -320,10 +323,10 @@ async function runPluginsListCommand(
 	return 0;
 }
 
-async function runHooksListCommand(
+async function runHooksConfigCommand(
 	cwd: string,
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const hooks = listHookConfigFiles(cwd);
 	if (outputMode === "json") {
@@ -342,9 +345,9 @@ async function runHooksListCommand(
 	return 0;
 }
 
-async function runMcpListCommand(
+async function runMcpConfigCommand(
 	outputMode: CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 ): Promise<number> {
 	const settingsPath = resolveDefaultMcpSettingsPath();
 	if (!hasMcpSettingsFile({ filePath: settingsPath })) {
@@ -386,91 +389,109 @@ async function runMcpListCommand(
 	}
 }
 
-export function createListCommand(
+async function runToolsConfigCommand(
+	outputMode: CliOutputMode,
+	io: ConfigIo,
+): Promise<number> {
+	const tools = TOOL_NAMES.map((name) => ({
+		name,
+		type: "default" as const,
+	})).sort((a, b) => a.name.localeCompare(b.name));
+
+	if (outputMode === "json") {
+		process.stdout.write(JSON.stringify(tools));
+		return 0;
+	}
+	if (tools.length === 0) {
+		io.writeln("No tools found.");
+		return 0;
+	}
+	io.writeln("Available tools:");
+	for (const tool of tools) {
+		io.writeln(`  ${tool.name}`);
+	}
+	return 0;
+}
+
+export function createConfigCommand(
 	getCwd: () => string,
 	getOutputMode: () => CliOutputMode,
-	io: ListIo,
+	io: ConfigIo,
 	setExitCode: (code: number) => void,
+	launchInteractiveConfigView: () => void,
 ): Command {
-	let actionExitCode = 0;
+	let actionExitCode: number | undefined;
 
-	const list = new Command("list")
-		.description("List configs or hook paths")
+	const config = new Command("config")
+		.description("Show current configuration")
 		.argument("[target]")
 		.option("--json", "Output as JSON")
+		.option("--config <dir>", "configuration directory")
 		.exitOverride()
-		.action((target?: string) => {
-			if (target) {
-				io.writeErr(
-					`list requires one of: workflows, rules, skills, agents, plugins, hooks, mcp (got "${target}")`,
-				);
-				actionExitCode = 1;
+		.action(async (target?: string) => {
+			if (!target) {
+				actionExitCode = undefined;
+				launchInteractiveConfigView();
+				return;
+			}
+
+			switch (target) {
+				case "workflows":
+					actionExitCode = await runWorkflowsConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+					);
+					break;
+				case "rules":
+					actionExitCode = await runRulesConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+					);
+					break;
+				case "skills":
+					actionExitCode = await runSkillsConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+					);
+					break;
+				case "agents":
+					actionExitCode = await runAgentsConfigCommand(getOutputMode(), io);
+					break;
+				case "plugins":
+					actionExitCode = await runPluginsConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+					);
+					break;
+				case "hooks":
+					actionExitCode = await runHooksConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+					);
+					break;
+				case "mcp":
+					actionExitCode = await runMcpConfigCommand(getOutputMode(), io);
+					break;
+				case "tools":
+					actionExitCode = await runToolsConfigCommand(getOutputMode(), io);
+					break;
+				default:
+					io.writeErr(
+						`config requires one of: workflows, rules, skills, agents, plugins, hooks, mcp, tools (got "${target}")`,
+					);
+					actionExitCode = 1;
 			}
 		})
 		.hook("postAction", () => {
-			setExitCode(actionExitCode);
+			if (typeof actionExitCode === "number") {
+				setExitCode(actionExitCode);
+			}
 		});
 
-	list
-		.command("workflows")
-		.description("List available workflows")
-		.action(async () => {
-			actionExitCode = await runWorkflowsListCommand(
-				getCwd(),
-				getOutputMode(),
-				io,
-			);
-		});
-
-	list
-		.command("rules")
-		.description("List enabled rules")
-		.action(async () => {
-			actionExitCode = await runRulesListCommand(getCwd(), getOutputMode(), io);
-		});
-
-	list
-		.command("skills")
-		.description("List enabled skills")
-		.action(async () => {
-			actionExitCode = await runSkillsListCommand(
-				getCwd(),
-				getOutputMode(),
-				io,
-			);
-		});
-
-	list
-		.command("agents")
-		.description("List configured agents")
-		.action(async () => {
-			actionExitCode = await runAgentsListCommand(getOutputMode(), io);
-		});
-
-	list
-		.command("plugins")
-		.description("List discovered plugins")
-		.action(async () => {
-			actionExitCode = await runPluginsListCommand(
-				getCwd(),
-				getOutputMode(),
-				io,
-			);
-		});
-
-	list
-		.command("hooks")
-		.description("List hook files")
-		.action(async () => {
-			actionExitCode = await runHooksListCommand(getCwd(), getOutputMode(), io);
-		});
-
-	list
-		.command("mcp")
-		.description("List configured MCP servers")
-		.action(async () => {
-			actionExitCode = await runMcpListCommand(getOutputMode(), io);
-		});
-
-	return list;
+	return config;
 }

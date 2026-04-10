@@ -17,7 +17,7 @@ describe("plugin chat commands", () => {
 	it("bridges plugin extension commands onto the chat command host", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "cli-plugin-commands-"));
 		tempRoots.push(tempRoot);
-		const pluginsDir = join(tempRoot, ".clinerules", "plugins");
+		const pluginsDir = join(tempRoot, ".cline", "plugins");
 		await mkdir(pluginsDir, { recursive: true });
 		await writeFile(
 			join(pluginsDir, "echo.js"),

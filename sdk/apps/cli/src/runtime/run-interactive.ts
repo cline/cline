@@ -80,6 +80,7 @@ export async function runInteractive(
 	const chatCommandHost = await createWorkspaceChatCommandHost({
 		cwd: config.cwd,
 		workspaceRoot: config.workspaceRoot,
+		logger: config.logger,
 	});
 
 	const runtimeHooks = createRuntimeHooks({
