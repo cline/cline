@@ -1,10 +1,10 @@
 import type { Agent } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
 import type { BuiltRuntime } from "../../runtime/session-runtime";
-import type { SessionSource } from "../../types/common";
+import type { SessionSource, SessionStatus } from "../../types/common";
 import type { CoreSessionConfig } from "../../types/config";
 import type { SessionAccumulatedUsage } from "../session-manager";
-import type { RootSessionArtifacts } from "../session-service";
+import type { RootSessionArtifacts, SessionRow } from "../session-service";
 
 export type ActiveSession = {
 	sessionId: string;
@@ -45,13 +45,53 @@ export type TeamRunUpdate = {
 	iterations?: number;
 };
 
-export type StoredMessageWithMetadata = LlmsProviders.MessageWithMetadata & {
-	providerId?: string;
-	modelId?: string;
-};
+export type StoredMessageWithMetadata = LlmsProviders.MessageWithMetadata;
 
 export type PreparedTurnInput = {
 	prompt: string;
 	userImages?: string[];
 	userFiles?: string[];
 };
+
+// ── Persistence interfaces ────────────────────────────────────────────
+
+export interface PersistedSessionUpdateInput {
+	sessionId: string;
+	expectedStatusLock?: number;
+	status?: SessionStatus;
+	endedAt?: string | null;
+	exitCode?: number | null;
+	prompt?: string | null;
+	metadata?: Record<string, unknown> | null;
+	title?: string | null;
+	parentSessionId?: string | null;
+	parentAgentId?: string | null;
+	agentId?: string | null;
+	conversationId?: string | null;
+	setRunning?: boolean;
+}
+
+export interface SessionPersistenceAdapter {
+	ensureSessionsDir(): string;
+	upsertSession(row: SessionRow): Promise<void>;
+	getSession(sessionId: string): Promise<SessionRow | undefined>;
+	listSessions(options: {
+		limit: number;
+		parentSessionId?: string;
+		status?: string;
+	}): Promise<SessionRow[]>;
+	updateSession(
+		input: PersistedSessionUpdateInput,
+	): Promise<{ updated: boolean; statusLock: number }>;
+	deleteSession(sessionId: string, cascade: boolean): Promise<boolean>;
+	enqueueSpawnRequest(input: {
+		rootSessionId: string;
+		parentAgentId: string;
+		task?: string;
+		systemPrompt?: string;
+	}): Promise<void>;
+	claimSpawnRequest(
+		rootSessionId: string,
+		parentAgentId: string,
+	): Promise<string | undefined>;
+}

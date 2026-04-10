@@ -28,11 +28,7 @@ export function createLocalTeamStore(options: SqliteTeamStoreOptions = {}): {
 		const store = new SqliteTeamStore(options);
 		store.init();
 		return store;
-	} catch (error) {
-		console.warn(
-			"SQLite team persistence unavailable, falling back to file-based team storage.",
-			error,
-		);
+	} catch {
 		const store = new FileTeamStore({ teamDir: options.teamDir });
 		store.init();
 		return store;

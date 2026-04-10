@@ -89,16 +89,16 @@ export function loadSqliteDb(filePath: string): SqliteDb {
 		return wrapBunDb(new Database(filePath, { create: true }));
 	}
 
-	try {
-		// Suppress "ExperimentalWarning: SQLite is an experimental feature"
-		const originalEmit = process.emitWarning;
-		process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
-			const msg =
-				typeof warning === "string" ? warning : (warning?.message ?? "");
-			if (msg.includes("SQLite")) return;
-			return (originalEmit as Function).call(process, warning, ...args);
-		}) as typeof process.emitWarning;
+	// Suppress "ExperimentalWarning: SQLite is an experimental feature"
+	const originalEmit = process.emitWarning;
+	process.emitWarning = ((warning: string | Error, ...args: unknown[]) => {
+		const msg =
+			typeof warning === "string" ? warning : (warning?.message ?? "");
+		if (msg.includes("SQLite")) return;
+		return (originalEmit as Function).call(process, warning, ...args);
+	}) as typeof process.emitWarning;
 
+	try {
 		const { DatabaseSync } = require(["node", ":sqlite"].join("")) as {
 			DatabaseSync: new (
 				path: string,
@@ -112,22 +112,9 @@ export function loadSqliteDb(filePath: string): SqliteDb {
 				close?: () => void;
 			};
 		};
-		process.emitWarning = originalEmit;
 		return wrapNodeDb(new DatabaseSync(filePath));
-	} catch {
-		// Fall through to better-sqlite3 for older Node runtimes.
-	}
-
-	try {
-		const BetterSqlite3 = require(["better", "-sqlite3"].join("")) as new (
-			path: string,
-		) => SqliteDb;
-		return new BetterSqlite3(filePath);
-	} catch (error) {
-		throw new Error(
-			"SQLite requires Node's built-in sqlite support or the optional dependency better-sqlite3. Install better-sqlite3 when running on older Node versions without node:sqlite.",
-			{ cause: error },
-		);
+	} finally {
+		process.emitWarning = originalEmit;
 	}
 }
 

@@ -6,6 +6,7 @@ import {
 	unlinkSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
+import { parseSubSessionId, parseTeamTaskSubSessionId } from "./session-graph";
 
 export function nowIso(): string {
 	return new Date().toISOString();
@@ -26,6 +27,32 @@ export interface SessionArtifactPaths {
 	transcriptPath: string;
 	hookPath: string;
 	messagesPath: string;
+}
+
+function childArtifactFileStem(sessionId: string): {
+	rootSessionId: string;
+	fileStem: string;
+} {
+	const teamTask = parseTeamTaskSubSessionId(sessionId);
+	if (teamTask) {
+		return {
+			rootSessionId: teamTask.rootSessionId,
+			fileStem: `${teamTask.agentId}__${teamTask.teamTaskId}`,
+		};
+	}
+
+	const subagent = parseSubSessionId(sessionId);
+	if (subagent) {
+		return {
+			rootSessionId: subagent.rootSessionId,
+			fileStem: subagent.agentId,
+		};
+	}
+
+	return {
+		rootSessionId: sessionId,
+		fileStem: sessionId,
+	};
 }
 
 export class SessionArtifacts {
@@ -96,11 +123,12 @@ export class SessionArtifacts {
 	): SessionArtifactPaths {
 		void subAgentId;
 		void activeTeamTaskSessionId;
-		const dir = this.ensureSessionArtifactsDir(sessionId);
+		const { rootSessionId, fileStem } = childArtifactFileStem(sessionId);
+		const dir = this.ensureSessionArtifactsDir(rootSessionId);
 		return {
-			transcriptPath: join(dir, `${sessionId}.log`),
-			hookPath: join(dir, `${sessionId}.hooks.jsonl`),
-			messagesPath: join(dir, `${sessionId}.messages.json`),
+			transcriptPath: join(dir, `${fileStem}.log`),
+			hookPath: join(dir, `${fileStem}.hooks.jsonl`),
+			messagesPath: join(dir, `${fileStem}.messages.json`),
 		};
 	}
 }

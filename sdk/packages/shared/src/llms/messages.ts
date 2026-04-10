@@ -129,16 +129,17 @@ export interface Message {
 export interface MessageWithMetadata extends Message {
 	/** Unique message ID */
 	id?: string;
+	/** Logical agent kind for persisted session/history consumers */
+	agent?: string;
+	/** Concrete session id that owns this persisted message */
+	sessionId?: string;
 	/** Additional message metadata for storage/history consumers */
 	metadata?: Record<string, unknown>;
-	/** Provider ID used to generate this message */
-	providerId?: string;
-	/** Model ID used to generate this message */
-	modelId?: string;
 	/** Model info at the time of generation */
 	modelInfo?: {
 		id: string;
 		provider: string;
+		family?: string;
 	};
 	/** Token usage metrics */
 	metrics?: {

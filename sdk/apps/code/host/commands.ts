@@ -229,7 +229,9 @@ export async function handleCommand(
 			throw new Error("session id is required");
 		}
 		ctx.liveSessions.delete(sessionId);
-		new SqliteSessionStore().delete(sessionId, true);
+		const store = new SqliteSessionStore();
+		const row = store.get(sessionId);
+		store.delete(sessionId, true);
 		for (const path of [
 			sessionLogPath(sessionId),
 			sessionHookLogPath(sessionId),
@@ -237,6 +239,17 @@ export async function handleCommand(
 		]) {
 			if (existsSync(path)) {
 				rmSync(path, { recursive: true, force: true });
+			}
+		}
+		for (const path of [
+			row?.transcriptPath,
+			row?.hookPath,
+			row?.messagesPath,
+		].filter(
+			(value): value is string => typeof value === "string" && value.length > 0,
+		)) {
+			if (existsSync(path)) {
+				rmSync(path, { force: true });
 			}
 		}
 		for (const suffix of ["messages.json", "log", "hooks.jsonl"]) {

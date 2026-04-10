@@ -40,7 +40,8 @@
 	"module": "index.ts",
 	"type": "module",
 	"engines": {
-		"bun": ">=1.0.0"
+		"bun": ">=1.0.0",
+		"node": ">=22"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",

@@ -13,13 +13,13 @@ import { resolveTeamDataDir } from "@clinebot/shared/storage";
 import type { SqliteSessionStore } from "../storage/sqlite-session-store";
 import type { AgentTeamsRuntime, TeamEvent } from "../team";
 import type { SessionSource, SessionStatus } from "../types/common";
-import { nowIso } from "./session-artifacts";
-import type { SessionManifest } from "./session-manifest";
 import type {
 	PersistedSessionUpdateInput,
 	SessionPersistenceAdapter,
-} from "./unified-session-persistence-service";
-import { UnifiedSessionPersistenceService } from "./unified-session-persistence-service";
+} from "./persistence-service";
+import { UnifiedSessionPersistenceService } from "./persistence-service";
+import { nowIso } from "./session-artifacts";
+import type { SessionManifest } from "./session-manifest";
 
 export interface SessionRow {
 	sessionId: string;

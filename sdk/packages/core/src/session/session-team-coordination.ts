@@ -99,6 +99,7 @@ export async function dispatchTeamEventToBackend(
 					event.agentId,
 					"failed",
 					`[error] ${event.error.message}`,
+					undefined,
 					event.messages,
 				);
 			} else if (event.result?.finishReason === "aborted") {
@@ -108,6 +109,7 @@ export async function dispatchTeamEventToBackend(
 					event.agentId,
 					"cancelled",
 					"[done] aborted",
+					event.result,
 					event.result.messages,
 				);
 			} else {
@@ -117,6 +119,7 @@ export async function dispatchTeamEventToBackend(
 					event.agentId,
 					"completed",
 					`[done] ${event.result?.finishReason ?? "completed"}`,
+					event.result,
 					event.result?.messages,
 				);
 			}

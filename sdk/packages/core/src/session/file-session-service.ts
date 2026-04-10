@@ -7,12 +7,12 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
-import type { SessionRow } from "./session-service";
 import type {
 	PersistedSessionUpdateInput,
 	SessionPersistenceAdapter,
-} from "./unified-session-persistence-service";
-import { UnifiedSessionPersistenceService } from "./unified-session-persistence-service";
+} from "./persistence-service";
+import { UnifiedSessionPersistenceService } from "./persistence-service";
+import type { SessionRow } from "./session-service";
 
 interface FileSessionIndex {
 	version: 1;

@@ -5,8 +5,10 @@ type StoredSessionMessage = Llms.Message & {
 	metrics?: {
 		cost?: number;
 	};
-	providerId?: string;
-	modelId?: string;
+	modelInfo?: {
+		id?: string;
+		provider?: string;
+	};
 };
 
 type TextBlock = {
@@ -105,8 +107,8 @@ export function inferProviderAndModelFromMessages(messages: Llms.Message[]): {
 	let model: string | undefined;
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as StoredSessionMessage;
-		const providerId = message.providerId?.trim();
-		const modelId = message.modelId?.trim();
+		const providerId = message.modelInfo?.provider?.trim();
+		const modelId = message.modelInfo?.id?.trim();
 		if (!provider && providerId) {
 			provider = providerId;
 		}

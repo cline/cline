@@ -42,15 +42,16 @@ package-lock.json
 yarn.lock 
 pnpm-lock.yaml
 
-# Session files
-sessions.db
-teams.db
+# Session files / User data
+.cline/data
+*.db
 *.db-shm
 *.db-wal
 
 # Protobuf generated code
 packages/rpc/src/proto/generated
 
+# Tauri UI test snapshots
 apps/cli/src/tests/.tui-test
 apps/cli/src/tests/tui-traces
 

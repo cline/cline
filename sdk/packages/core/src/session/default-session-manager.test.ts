@@ -880,6 +880,10 @@ describe("DefaultSessionManager", () => {
 				model: {
 					id: "claude-sonnet-4-6",
 					provider: "anthropic",
+					info: {
+						id: "claude-sonnet-4-6",
+						family: "claude-sonnet-4",
+					},
 				},
 				endedAt: new Date("2026-01-01T00:00:02.000Z"),
 				messages: [
@@ -918,11 +922,10 @@ describe("DefaultSessionManager", () => {
 		expect(Array.isArray(persisted)).toBe(true);
 		expect(persisted?.[1]).toMatchObject({
 			role: "assistant",
-			providerId: "anthropic",
-			modelId: "claude-sonnet-4-6",
 			modelInfo: {
 				id: "claude-sonnet-4-6",
 				provider: "anthropic",
+				family: "claude-sonnet-4",
 			},
 			metrics: {
 				inputTokens: 33,
@@ -2199,13 +2202,29 @@ describe("DefaultSessionManager", () => {
 					},
 				});
 			}, 0);
-			return createResult({ text: "lead scheduled teammate" });
+			return createResult({
+				text: "lead scheduled teammate",
+				messages: [
+					{ role: "user", content: "run teammate work" },
+					{ role: "assistant", content: "lead scheduled teammate" },
+				],
+			});
 		});
-		const continueFn = vi
-			.fn()
-			.mockResolvedValue(
-				createResult({ text: "lead processed teammate result" }),
-			);
+		const continueFn = vi.fn().mockResolvedValue(
+			createResult({
+				text: "lead processed teammate result",
+				messages: [
+					{ role: "user", content: "run teammate work" },
+					{ role: "assistant", content: "lead scheduled teammate" },
+					{
+						role: "user",
+						content:
+							"System-delivered teammate async run updates:\n- investigator completed",
+					},
+					{ role: "assistant", content: "lead processed teammate result" },
+				],
+			}),
+		);
 		const manager = new DefaultSessionManager({
 			distinctId,
 			sessionService: sessionService as never,
@@ -2236,6 +2255,21 @@ describe("DefaultSessionManager", () => {
 		expect(continueFn.mock.calls[0]?.[0]).toContain(
 			"System-delivered teammate async run updates:",
 		);
+		const finalPersistedMessages = (
+			sessionService.persistSessionMessages as ReturnType<typeof vi.fn>
+		).mock.calls.at(-1)?.[1] as Array<Record<string, unknown>> | undefined;
+		expect(finalPersistedMessages?.at(-1)).toMatchObject({
+			role: "assistant",
+			metrics: {
+				inputTokens: 1,
+				outputTokens: 2,
+				cost: 0,
+			},
+			modelInfo: {
+				id: "mock-model",
+				provider: "mock-provider",
+			},
+		});
 		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
 			sessionId,
 			"completed",
@@ -2323,6 +2357,7 @@ describe("DefaultSessionManager", () => {
 			"providers-investigator",
 			"failed",
 			"[error] 401 Unauthorized",
+			undefined,
 			failedMessages,
 		);
 	});

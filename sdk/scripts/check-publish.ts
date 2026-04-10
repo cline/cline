@@ -249,12 +249,7 @@ async function main(): Promise<number> {
 				[
 					`import { readFileSync } from "node:fs";`,
 					`import { join } from "node:path";`,
-					`const pkgJson = JSON.parse(readFileSync(join(process.cwd(), "node_modules", "@clinebot", "core", "package.json"), "utf8"));`,
 					`try {`,
-					`  if (pkgJson.dependencies?.["better-sqlite3"] !== undefined) {`,
-					`    console.error("  FAIL @clinebot/core: package.json should not declare better-sqlite3 directly");`,
-					`    process.exit(1);`,
-					`  }`,
 					`  const root = await import("@clinebot/core");`,
 					`  const node = await import("@clinebot/core");`,
 					`  if (typeof root.createSessionHost !== "function") {`,

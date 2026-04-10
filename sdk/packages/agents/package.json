@@ -53,7 +53,7 @@
 		"test:watch": "vitest"
 	},
 	"engines": {
-		"node": ">=20"
+		"node": ">=22"
 	},
 	"type": "module",
 	"types": "dist/index.d.ts"

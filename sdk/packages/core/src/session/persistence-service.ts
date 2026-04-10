@@ -5,7 +5,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import type * as LlmsProviders from "@clinebot/llms";
-import { normalizeUserInput, resolveRootSessionId } from "@clinebot/shared";
+import type { AgentResult } from "@clinebot/shared";
+import { resolveRootSessionId } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { HookEventPayload } from "../hooks";
@@ -27,113 +28,34 @@ import type {
 	SessionRow,
 	UpsertSubagentInput,
 } from "./session-service";
+import {
+	buildManifestFromRow,
+	buildMessagesFilePayload,
+	deriveTitleFromPrompt,
+	normalizeStoredMessagesForPersistence,
+	normalizeTitle,
+	resolveMessagesFileContext,
+	resolveMetadataWithTitle,
+	sanitizeMetadata,
+	withLatestAssistantTurnMetadata,
+	withOccRetry,
+	writeEmptyMessagesFile,
+} from "./utils/helpers";
+import type {
+	PersistedSessionUpdateInput,
+	SessionPersistenceAdapter,
+	StoredMessageWithMetadata,
+} from "./utils/types";
+
+export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
 const SUBSESSION_SOURCE = SessionSource.SUBAGENT;
-const MAX_TITLE_LENGTH = 120;
 const OCC_MAX_RETRIES = 4;
 
 const SpawnAgentInputSchema = z.looseObject({
 	task: z.string().optional(),
 	systemPrompt: z.string().optional(),
 });
-
-// ── Metadata helpers ──────────────────────────────────────────────────
-
-function normalizeTitle(title?: string | null): string | undefined {
-	const trimmed = title?.trim();
-	return trimmed ? trimmed.slice(0, MAX_TITLE_LENGTH) : undefined;
-}
-
-function deriveTitleFromPrompt(prompt?: string | null): string | undefined {
-	const normalized = normalizeUserInput(prompt ?? "").trim();
-	if (!normalized) return undefined;
-	return normalizeTitle(normalized.split("\n")[0]?.trim());
-}
-
-/** Strip invalid title from metadata, drop empty objects. */
-function sanitizeMetadata(
-	metadata: Record<string, unknown> | null | undefined,
-): Record<string, unknown> | undefined {
-	if (!metadata) return undefined;
-	const next = { ...metadata };
-	const title = normalizeTitle(
-		typeof next.title === "string" ? next.title : undefined,
-	);
-	if (title) {
-		next.title = title;
-	} else {
-		delete next.title;
-	}
-	return Object.keys(next).length > 0 ? next : undefined;
-}
-
-/** Resolve title from explicit title, prompt, or existing metadata. */
-function resolveMetadataWithTitle(input: {
-	metadata?: Record<string, unknown> | null;
-	title?: string | null;
-	prompt?: string | null;
-}): Record<string, unknown> | undefined {
-	const base = sanitizeMetadata(input.metadata) ?? {};
-	const title =
-		input.title !== undefined
-			? normalizeTitle(input.title)
-			: deriveTitleFromPrompt(input.prompt);
-	if (title) base.title = title;
-	return Object.keys(base).length > 0 ? base : undefined;
-}
-
-// ── File helpers ──────────────────────────────────────────────────────
-
-function writeEmptyMessagesFile(path: string, startedAt: string): void {
-	writeFileSync(
-		path,
-		`${JSON.stringify({ version: 1, updated_at: startedAt, messages: [] }, null, 2)}\n`,
-		"utf8",
-	);
-}
-
-// ── Interfaces ────────────────────────────────────────────────────────
-
-export interface PersistedSessionUpdateInput {
-	sessionId: string;
-	expectedStatusLock?: number;
-	status?: SessionStatus;
-	endedAt?: string | null;
-	exitCode?: number | null;
-	prompt?: string | null;
-	metadata?: Record<string, unknown> | null;
-	title?: string | null;
-	parentSessionId?: string | null;
-	parentAgentId?: string | null;
-	agentId?: string | null;
-	conversationId?: string | null;
-	setRunning?: boolean;
-}
-
-export interface SessionPersistenceAdapter {
-	ensureSessionsDir(): string;
-	upsertSession(row: SessionRow): Promise<void>;
-	getSession(sessionId: string): Promise<SessionRow | undefined>;
-	listSessions(options: {
-		limit: number;
-		parentSessionId?: string;
-		status?: string;
-	}): Promise<SessionRow[]>;
-	updateSession(
-		input: PersistedSessionUpdateInput,
-	): Promise<{ updated: boolean; statusLock: number }>;
-	deleteSession(sessionId: string, cascade: boolean): Promise<boolean>;
-	enqueueSpawnRequest(input: {
-		rootSessionId: string;
-		parentAgentId: string;
-		task?: string;
-		systemPrompt?: string;
-	}): Promise<void>;
-	claimSpawnRequest(
-		rootSessionId: string,
-		parentAgentId: string,
-	): Promise<string | undefined>;
-}
 
 // ── Service ───────────────────────────────────────────────────────────
 
@@ -155,6 +77,35 @@ export class UnifiedSessionPersistenceService {
 
 	ensureSessionsDir(): string {
 		return this.adapter.ensureSessionsDir();
+	}
+
+	private initializeMessagesFile(
+		sessionId: string,
+		path: string,
+		startedAt: string,
+	): void {
+		writeEmptyMessagesFile(
+			path,
+			startedAt,
+			resolveMessagesFileContext(sessionId),
+		);
+	}
+
+	private toPersistedMessages(
+		messages: LlmsProviders.Message[] | undefined,
+		result?: AgentResult,
+		previousMessages?: LlmsProviders.Message[],
+	): StoredMessageWithMetadata[] | undefined {
+		if (!messages) return undefined;
+		return result
+			? withLatestAssistantTurnMetadata(
+					result.messages,
+					result,
+					previousMessages as LlmsProviders.MessageWithMetadata[] | undefined,
+				)
+			: normalizeStoredMessagesForPersistence(
+					messages as LlmsProviders.MessageWithMetadata[],
+				);
 	}
 
 	// ── Manifest I/O ──────────────────────────────────────────────────
@@ -194,39 +145,6 @@ export class UnifiedSessionPersistenceService {
 		} catch {
 			return { path: manifestPath };
 		}
-	}
-
-	private buildManifestFromRow(
-		row: SessionRow,
-		overrides?: {
-			status?: SessionStatus;
-			endedAt?: string | null;
-			exitCode?: number | null;
-			metadata?: Record<string, unknown>;
-		},
-	): SessionManifest {
-		return SessionManifestSchema.parse({
-			version: 1,
-			session_id: row.sessionId,
-			source: row.source,
-			pid: row.pid,
-			started_at: row.startedAt,
-			ended_at: overrides?.endedAt ?? row.endedAt ?? undefined,
-			exit_code: overrides?.exitCode ?? row.exitCode ?? undefined,
-			status: overrides?.status ?? row.status,
-			interactive: row.interactive,
-			provider: row.provider,
-			model: row.model,
-			cwd: row.cwd,
-			workspace_root: row.workspaceRoot,
-			team_name: row.teamName ?? undefined,
-			enable_tools: row.enableTools,
-			enable_spawn: row.enableSpawn,
-			enable_teams: row.enableTeams,
-			prompt: row.prompt ?? undefined,
-			metadata: overrides?.metadata ?? row.metadata ?? undefined,
-			messages_path: row.messagesPath ?? undefined,
-		});
 	}
 
 	// ── Path resolution ───────────────────────────────────────────────
@@ -329,7 +247,7 @@ export class UnifiedSessionPersistenceService {
 			updatedAt: nowIso(),
 		});
 
-		writeEmptyMessagesFile(messagesPath, startedAt);
+		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
 		this.writeManifestFile(manifestPath, manifest);
 		return { manifestPath, transcriptPath, hookPath, messagesPath, manifest };
 	}
@@ -341,24 +259,26 @@ export class UnifiedSessionPersistenceService {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<{ updated: boolean; endedAt?: string }> {
-		for (let attempt = 0; attempt < OCC_MAX_RETRIES; attempt++) {
-			const row = await this.adapter.getSession(sessionId);
-			if (!row) return { updated: false };
-
-			const endedAt = nowIso();
-			const changed = await this.adapter.updateSession({
-				sessionId,
-				status,
-				endedAt,
-				exitCode: typeof exitCode === "number" ? exitCode : null,
-				expectedStatusLock: row.statusLock,
-			});
-			if (changed.updated) {
-				if (status === "cancelled") {
-					await this.applyStatusToRunningChildSessions(sessionId, "cancelled");
-				}
-				return { updated: true, endedAt };
+		let endedAt: string | undefined;
+		const result = await withOccRetry(
+			() => this.adapter.getSession(sessionId),
+			async (statusLock) => {
+				endedAt = nowIso();
+				return this.adapter.updateSession({
+					sessionId,
+					status,
+					endedAt,
+					exitCode: typeof exitCode === "number" ? exitCode : null,
+					expectedStatusLock: statusLock,
+				});
+			},
+			OCC_MAX_RETRIES,
+		);
+		if (result.updated) {
+			if (status === "cancelled") {
+				await this.applyStatusToRunningChildSessions(sessionId, "cancelled");
 			}
+			return { updated: true, endedAt };
 		}
 		return { updated: false };
 	}
@@ -544,7 +464,11 @@ export class UnifiedSessionPersistenceService {
 					...artifactPaths,
 				}),
 			);
-			writeEmptyMessagesFile(artifactPaths.messagesPath, startedAt);
+			this.initializeMessagesFile(
+				sessionId,
+				artifactPaths.messagesPath,
+				startedAt,
+			);
 			return sessionId;
 		}
 
@@ -627,13 +551,15 @@ export class UnifiedSessionPersistenceService {
 			"messagesPath",
 			(id) => this.artifacts.sessionMessagesPath(id),
 		);
-		const payload: {
-			version: number;
-			updated_at: string;
-			systemPrompt?: string;
-			messages: LlmsProviders.Message[];
-		} = { version: 1, updated_at: nowIso(), messages };
-		if (systemPrompt) payload.systemPrompt = systemPrompt;
+		const normalizedMessages = normalizeStoredMessagesForPersistence(
+			messages as LlmsProviders.MessageWithMetadata[],
+		);
+		const payload = buildMessagesFilePayload({
+			updatedAt: nowIso(),
+			context: resolveMessagesFileContext(sessionId),
+			messages: normalizedMessages,
+			systemPrompt,
+		});
 		writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 	}
 
@@ -694,9 +620,8 @@ export class UnifiedSessionPersistenceService {
 
 		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
 		const startedAt = nowIso();
-		const transcriptPath = this.artifacts.sessionTranscriptPath(sessionId);
-		const hookPath = this.artifacts.sessionHookPath(sessionId);
-		const messagesPath = this.artifacts.sessionMessagesPath(sessionId);
+		const { transcriptPath, hookPath, messagesPath } =
+			this.artifacts.subagentArtifactPaths(sessionId, agentId);
 
 		await this.adapter.upsertSession(
 			this.buildSubsessionRow(root, {
@@ -711,7 +636,7 @@ export class UnifiedSessionPersistenceService {
 				messagesPath,
 			}),
 		);
-		writeEmptyMessagesFile(messagesPath, startedAt);
+		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
 		await this.appendSubagentTranscriptLine(sessionId, `[start] ${message}`);
 
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
@@ -725,6 +650,7 @@ export class UnifiedSessionPersistenceService {
 		agentId: string,
 		status: SessionStatus,
 		summary?: string,
+		result?: AgentResult,
 		messages?: LlmsProviders.Message[],
 	): Promise<void> {
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
@@ -735,7 +661,15 @@ export class UnifiedSessionPersistenceService {
 		if (queue.length === 0) this.teamTaskSessionsByAgent.delete(key);
 		if (!sessionId) return;
 
-		if (messages) await this.persistSessionMessages(sessionId, messages);
+		const teammateMessages = result?.messages ?? messages;
+		const persistedMessages = this.toPersistedMessages(
+			teammateMessages,
+			result,
+			messages,
+		);
+		if (persistedMessages) {
+			await this.persistSessionMessages(sessionId, persistedMessages);
+		}
 		await this.appendSubagentTranscriptLine(
 			sessionId,
 			summary ?? `[done] ${status}`,
@@ -882,7 +816,7 @@ export class UnifiedSessionPersistenceService {
 
 			await this.applyStatusToRunningChildSessions(latest.sessionId, "failed");
 
-			const manifest = this.buildManifestFromRow(latest, {
+			const manifest = buildManifestFromRow(latest, {
 				status: "failed",
 				endedAt: detectedAt,
 				exitCode: 1,
@@ -891,7 +825,6 @@ export class UnifiedSessionPersistenceService {
 			const { path: manifestPath } = this.readManifestFile(latest.sessionId);
 			this.writeManifestFile(manifestPath, manifest);
 
-			// Write termination markers to hook + transcript files
 			appendFileSync(
 				latest.hookPath,
 				`${JSON.stringify({

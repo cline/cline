@@ -97,6 +97,10 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 	};
 }
 
+function trimNonEmptyString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
 export function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	const path = sharedSessionMessagesPath(sessionId);
 	if (!existsSync(path)) {
@@ -163,31 +167,24 @@ export function persistUsageInMessages(
 		metrics.cost = totalCost;
 	}
 	record.metrics = metrics;
-	if (typeof config.provider === "string" && config.provider.trim()) {
-		record.providerId = config.provider.trim();
-	}
-	if (typeof config.model === "string" && config.model.trim()) {
-		record.modelId = config.model.trim();
-	}
 	const modelInfo =
 		record.modelInfo && typeof record.modelInfo === "object"
 			? { ...(record.modelInfo as JsonRecord) }
 			: {};
-	if (
-		typeof config.model === "string" &&
-		config.model.trim() &&
-		!modelInfo.id
-	) {
-		modelInfo.id = config.model.trim();
+	const modelId =
+		trimNonEmptyString(modelInfo.id) ?? trimNonEmptyString(config.model);
+	const providerId =
+		trimNonEmptyString(modelInfo.provider) ??
+		trimNonEmptyString(config.provider);
+	delete record.providerId;
+	delete record.modelId;
+	if (modelId && providerId) {
+		record.modelInfo = {
+			...modelInfo,
+			id: modelId,
+			provider: providerId,
+		};
 	}
-	if (
-		typeof config.provider === "string" &&
-		config.provider.trim() &&
-		!modelInfo.provider
-	) {
-		modelInfo.provider = config.provider.trim();
-	}
-	record.modelInfo = modelInfo;
 	if (!record.ts) {
 		record.ts = nowMs();
 	}
