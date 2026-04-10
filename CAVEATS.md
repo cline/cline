@@ -16,15 +16,21 @@ NOTE:
 
 ---
 
-🔴 Under accounts, the when logged in the "current balance" is ---- and
-the reload button does nothing.
+🟢 Under accounts, the when logged in the "current balance" is ---- and
+the reload button does nothing. **Fixed:** getUserCredits handler fetches
+balance from Cline API using stored auth token.
 
-🔴 Under accounts, the "cline environment" dropdown doesn't change from
-production when you select "staging" or "local".
+🟢 Under accounts, the "cline environment" dropdown doesn't change from
+production when you select "staging" or "local". **Fixed:** state-builder
+now reads `clineEnv` from globalState and maps to Environment enum;
+updateSettings handler persists clineEnv and clears auth on change.
 
-🔴 Under accounts, the logout button does nothing.
+🟢 Under accounts, the logout button does nothing. **Fixed:**
+accountLogoutClicked handler clears auth credentials from disk.
 
-🔴 Reportedly under accounts you can't sign in.
+🟢 Reportedly under accounts you can't sign in. **Fixed:**
+accountLoginClicked handler (was STUB) now opens the Cline login page
+in the browser.
 
 🔴 When you have a low credit balance, even after you change accounts
 (for example from one "org" to another) or refreshing you keep getting
@@ -59,9 +65,12 @@ there are no < and > buttons visible to page between them.
 🔴 "Add to Cline" right click menu (use the command to trigger it)
 does not do anything.
 
-🔴 When a task is cancelled, you can't enter a new chat and send that
+🟢 When a task is cancelled, you can't enter a new chat and send that
 chat in addition. (The repro is: Run a task, click cancel relatively
-quickly, type a new prompt, try to hit enter/click the arrow.)
+quickly, type a new prompt, try to hit enter/click the arrow.) **Fixed:**
+cancelTask now clears currentSession after abort so subsequent
+askResponse calls start a new task instead of sending to the aborted
+session.
 
 🔴 MCP Servers tab never finishes loading (may be a workos: token
 prefix problem?)
