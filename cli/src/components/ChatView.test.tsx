@@ -133,7 +133,6 @@ vi.mock("../utils/slash-commands", async (importOriginal) => {
 		extractSlashQuery: vi.fn(() => ({ inSlashMode: false, query: "", slashIndex: -1 })),
 		filterCommands: vi.fn(() => []),
 		insertSlashCommand: vi.fn((text: string) => text),
-		sortCommandsWorkflowsFirst: vi.fn((cmds: unknown[]) => cmds),
 	}
 })
 

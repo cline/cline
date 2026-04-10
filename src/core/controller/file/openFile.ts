@@ -11,9 +11,8 @@ import { Controller } from ".."
  * Opens a file in the editor
  * @param controller The controller instance
  * @param request The request message containing the file path in the 'value' field.
- *                Supports special URI format for remote rules/workflows:
+ *                Supports special URI format for remote rules:
  *                - remote://rule/{ruleName}
- *                - remote://workflow/{workflowName}
  * @returns Empty response
  */
 export async function openFile(_controller: Controller, request: StringRequest): Promise<Empty> {
@@ -29,35 +28,30 @@ export async function openFile(_controller: Controller, request: StringRequest):
 }
 
 /**
- * Opens a remote rule or workflow file by creating a temp file with its contents
- * @param uri The remote URI in format: remote://rule/{name} or remote://workflow/{name}
+ * Opens a remote rule file by creating a temp file with its contents
+ * @param uri The remote URI in format: remote://rule/{name}
  */
 async function openRemoteFile(uri: string): Promise<void> {
-	// Parse: remote://rule/{name} or remote://workflow/{name}
-	const match = uri.match(/^remote:\/\/(rule|workflow)\/(.+)$/)
+	const match = uri.match(/^remote:\/\/rule\/(.+)$/)
 	if (!match) {
 		throw new Error(`Invalid remote file URI: ${uri}`)
 	}
 
-	const [, type, name] = match
+	const [, name] = match
 	const remoteConfig = StateManager.get().getRemoteConfigSettings()
-
-	// Look up content based on type
-	const items = type === "rule" ? remoteConfig.remoteGlobalRules : remoteConfig.remoteGlobalWorkflows
-	const item = items?.find((r) => r.name === name)
+	const item = remoteConfig.remoteGlobalRules?.find((r) => r.name === name)
 
 	if (!item?.contents) {
-		throw new Error(`Remote ${type} not found: ${name}`)
+		throw new Error(`Remote rule not found: ${name}`)
 	}
 
 	// Create temp file with read-only header comment
-	const typeLabel = type === "rule" ? "rule" : "workflow"
-	const header = `# ⚠️ READ-ONLY: This ${typeLabel} is managed by your organization.\n# Changes made here will not be saved.\n\n`
+	const header = "# ⚠️ READ-ONLY: This rule is managed by your organization.\n# Changes made here will not be saved.\n\n"
 	const content = header + item.contents
 
 	// Sanitize the name for use in filename (replace invalid characters)
 	const sanitizedName = name.replace(/[<>:"/\\|?*]/g, "_")
-	const tempPath = path.join(os.tmpdir(), `cline-remote-${type}-${sanitizedName}.md`)
+	const tempPath = path.join(os.tmpdir(), `cline-remote-rule-${sanitizedName}.md`)
 
 	await writeFile(tempPath, content)
 	await openFileIntegration(tempPath)

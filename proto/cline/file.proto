@@ -52,14 +52,11 @@ service FileService {
   // Toggle an Agents rule (enable or disable)
   rpc toggleAgentsRule(ToggleAgentsRuleRequest) returns (ClineRulesToggles);
 
-  // Refreshes all rule toggles (Cline, External, and Workflows)
+  // Refreshes all rule toggles (Cline and external rule families)
   rpc refreshRules(EmptyRequest) returns (RefreshedRules);
 
   // Opens a task's conversation history file on disk
   rpc openDiskConversationHistory(StringRequest) returns (Empty);
-
-  // Toggles a workflow on or off
-  rpc toggleWorkflow(ToggleWorkflowRequest) returns (ClineRulesToggles);
 
   // Check if file exists in the project
   rpc ifFileExistsRelativePath(StringRequest) returns (BooleanResponse);
@@ -102,8 +99,8 @@ message RefreshedRules {
   ClineRulesToggles local_cursor_rules_toggles = 3;
   ClineRulesToggles local_windsurf_rules_toggles = 4;
   ClineRulesToggles local_agents_rules_toggles = 5;
-  ClineRulesToggles local_workflow_toggles = 6;
-  ClineRulesToggles global_workflow_toggles = 7;
+  reserved 6; // was local_workflow_toggles (workflows removed)
+  reserved 7; // was global_workflow_toggles (workflows removed)
 }
 
 // Request to toggle a Windsurf rule
@@ -223,14 +220,6 @@ message ToggleCursorRuleRequest {
   Metadata metadata = 1;
   string rule_path = 2; // Path to the rule file
   bool enabled = 3; // Whether to enable or disable the rule
-}
-
-// Request to toggle a workflow on or off
-message ToggleWorkflowRequest {
-  Metadata metadata = 1;
-  string workflow_path = 2;
-  bool enabled = 3;
-  RuleScope scope = 4; // Scope of the workflow (local, global, or remote)
 }
 
 // Maps from hook name to enabled/disabled status

@@ -1,6 +1,6 @@
 /**
  * Interactive config view component for displaying and editing configuration values
- * Supports tabs for Settings, Rules, Workflows, Hooks, and Skills
+ * Supports tabs for Settings, Rules, Hooks, and Skills
  */
 
 import {
@@ -55,10 +55,6 @@ interface ConfigViewProps {
 	localWindsurfRulesToggles?: Record<string, boolean>
 	localAgentsRulesToggles?: Record<string, boolean>
 	onToggleRule?: (isGlobal: boolean, rulePath: string, enabled: boolean, ruleType: string) => void
-	// Workflow toggles
-	globalWorkflowToggles?: Record<string, boolean>
-	localWorkflowToggles?: Record<string, boolean>
-	onToggleWorkflow?: (isGlobal: boolean, workflowPath: string, enabled: boolean) => void
 	// Hooks
 	hooksEnabled?: boolean
 	globalHooks?: HookInfo[]
@@ -70,7 +66,7 @@ interface ConfigViewProps {
 	localSkills?: SkillInfo[]
 	onToggleSkill?: (isGlobal: boolean, skillPath: string, enabled: boolean) => void
 	// Open folder callback
-	onOpenFolder?: (folderType: "rules" | "workflows" | "hooks" | "skills", isGlobal: boolean) => void
+	onOpenFolder?: (folderType: "rules" | "hooks" | "skills", isGlobal: boolean) => void
 }
 
 // ============================================================================
@@ -89,9 +85,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 	localWindsurfRulesToggles,
 	localAgentsRulesToggles,
 	onToggleRule,
-	globalWorkflowToggles,
-	localWorkflowToggles,
-	onToggleWorkflow,
 	hooksEnabled,
 	globalHooks = [],
 	workspaceHooks = [],
@@ -141,14 +134,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 		localAgentsRulesToggles,
 	])
 
-	// Build entries for workflows tab
-	const workflowEntries = useMemo(() => {
-		const entries: ToggleEntry[] = []
-		entries.push(...buildToggleEntries(globalWorkflowToggles, "global"))
-		entries.push(...buildToggleEntries(localWorkflowToggles, "workspace"))
-		return entries
-	}, [globalWorkflowToggles, localWorkflowToggles])
-
 	// Build flat list of hooks
 	const hookEntries = useMemo(() => {
 		const entries: { hook: HookInfo; isGlobal: boolean; workspaceName?: string }[] = []
@@ -174,8 +159,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 				return filteredConfigEntries.length
 			case "rules":
 				return ruleEntries.length
-			case "workflows":
-				return workflowEntries.length
 			case "hooks":
 				return hookEntries.length
 			case "skills":
@@ -183,14 +166,7 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 			default:
 				return 0
 		}
-	}, [
-		currentTab,
-		filteredConfigEntries.length,
-		ruleEntries.length,
-		workflowEntries.length,
-		hookEntries.length,
-		skillEntries.length,
-	])
+	}, [currentTab, filteredConfigEntries.length, ruleEntries.length, hookEntries.length, skillEntries.length])
 
 	// Get available tabs
 	const availableTabs = useMemo(() => {
@@ -277,14 +253,11 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 		}
 	}
 
-	// Toggle handlers for rules/workflows/hooks/skills
+	// Toggle handlers for rules/hooks/skills
 	const handleToggle = () => {
 		if (currentTab === "rules" && ruleEntries[selectedIndex] && onToggleRule) {
 			const entry = ruleEntries[selectedIndex]
 			onToggleRule(entry.source === "global", entry.path, !entry.enabled, entry.ruleType || "cline")
-		} else if (currentTab === "workflows" && workflowEntries[selectedIndex] && onToggleWorkflow) {
-			const entry = workflowEntries[selectedIndex]
-			onToggleWorkflow(entry.source === "global", entry.path, !entry.enabled)
 		} else if (currentTab === "hooks" && hookEntries[selectedIndex] && onToggleHook) {
 			const entry = hookEntries[selectedIndex]
 			onToggleHook(entry.isGlobal, entry.hook.name, !entry.hook.enabled, entry.workspaceName)
@@ -359,24 +332,22 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 					setSearchQuery((prev) => prev + input)
 				}
 			} else if (key.return || key.tab || input === " ") {
-				// Toggle for rules/workflows/hooks/skills
+				// Toggle for rules/hooks/skills
 				handleToggle()
 			}
 
-			// Open folder (for rules/workflows/hooks/skills tabs)
+			// Open folder (for rules/hooks/skills tabs)
 			if (input === "o" && onOpenFolder && currentTab !== "settings") {
 				// Determine if current selection is global or workspace based on the selected entry
 				let isGlobal = true
 				if (currentTab === "rules" && ruleEntries[selectedIndex]) {
 					isGlobal = ruleEntries[selectedIndex].source === "global"
-				} else if (currentTab === "workflows" && workflowEntries[selectedIndex]) {
-					isGlobal = workflowEntries[selectedIndex].source === "global"
 				} else if (currentTab === "hooks" && hookEntries[selectedIndex]) {
 					isGlobal = hookEntries[selectedIndex].isGlobal
 				} else if (currentTab === "skills" && skillEntries[selectedIndex]) {
 					isGlobal = skillEntries[selectedIndex].isGlobal
 				}
-				onOpenFolder(currentTab as "rules" | "workflows" | "hooks" | "skills", isGlobal)
+				onOpenFolder(currentTab as "rules" | "hooks" | "skills", isGlobal)
 			}
 		},
 		{ isActive: isRawModeSupported && !isEditing },
@@ -504,37 +475,6 @@ export const ConfigView: React.FC<ConfigViewProps> = ({
 										<SectionHeader title={entry.source === "global" ? "Global Rules:" : "Workspace Rules:"} />
 									)}
 									<ToggleRow entry={entry} isSelected={actualIndex === selectedIndex} showType />
-								</React.Fragment>
-							)
-						})}
-					</Box>
-				)
-			}
-
-			case "workflows": {
-				if (workflowEntries.length === 0) {
-					return (
-						<Box>
-							<Text color="gray">No workflows configured. Add workflow files to enable this feature.</Text>
-						</Box>
-					)
-				}
-				const visibleEntries = workflowEntries.slice(startIndex, startIndex + MAX_VISIBLE)
-				return (
-					<Box flexDirection="column">
-						{visibleEntries.map((entry, idx) => {
-							const actualIndex = startIndex + idx
-							const prevEntry = visibleEntries[idx - 1]
-							const showHeader = !prevEntry || prevEntry.source !== entry.source
-
-							return (
-								<React.Fragment key={`${entry.source}-${entry.path}`}>
-									{showHeader && (
-										<SectionHeader
-											title={entry.source === "global" ? "Global Workflows:" : "Workspace Workflows:"}
-										/>
-									)}
-									<ToggleRow entry={entry} isSelected={actualIndex === selectedIndex} />
 								</React.Fragment>
 							)
 						})}

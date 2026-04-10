@@ -1,4 +1,4 @@
-import { ensureRulesDirectoryExists, ensureWorkflowsDirectoryExists, GlobalFileNames } from "@core/storage/disk"
+import { ensureRulesDirectoryExists, GlobalFileNames } from "@core/storage/disk"
 import { ClineRulesToggles } from "@shared/cline-rules"
 import { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { fileExistsAtPath, isDirectory, readDirectory } from "@utils/fs"
@@ -42,7 +42,7 @@ export async function readDirectoryRecursive(
 export async function synchronizeRuleToggles(
 	rulesDirectoryPath: string,
 	currentToggles: ClineRulesToggles,
-	allowedFileExtension: string = "",
+	allowedFileExtension = "",
 	excludedPaths: string[][] = [],
 ): Promise<ClineRulesToggles> {
 	// Create a copy of toggles to modify
@@ -275,8 +275,8 @@ export function getRemoteRulesTotalContentWithMetadata(
 }
 
 /**
- * Handles converting any directory into a file (specifically used for .clinerules and .clinerules/workflows)
- * The old .clinerules file or .clinerules/workflows file will be renamed to a default filename
+ * Handles converting a legacy .clinerules file path into a directory-backed rules layout.
+ * The old .clinerules file will be renamed to a default filename inside the new directory.
  * Doesn't do anything if the dir already exists or doesn't exist
  * Returns whether there are any uncaught errors
  */
@@ -318,13 +318,8 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 	try {
 		let filePath: string
 		if (isGlobal) {
-			if (type === "workflow") {
-				const globalClineWorkflowFilePath = await ensureWorkflowsDirectoryExists()
-				filePath = path.join(globalClineWorkflowFilePath, filename)
-			} else {
-				const globalClineRulesFilePath = await ensureRulesDirectoryExists()
-				filePath = path.join(globalClineRulesFilePath, filename)
-			}
+			const globalClineRulesFilePath = await ensureRulesDirectoryExists()
+			filePath = path.join(globalClineRulesFilePath, filename)
 		} else {
 			const localClineRulesFilePath = path.resolve(cwd, GlobalFileNames.clineRules)
 
@@ -335,21 +330,8 @@ export const createRuleFile = async (isGlobal: boolean, filename: string, cwd: s
 
 			await fs.mkdir(localClineRulesFilePath, { recursive: true })
 
-			if (type === "workflow") {
-				const localWorkflowsFilePath = path.resolve(cwd, GlobalFileNames.workflows)
-
-				const hasError = await ensureLocalClineDirExists(localWorkflowsFilePath, "default-workflows.md")
-				if (hasError === true) {
-					return { filePath: null, fileExists: false }
-				}
-
-				await fs.mkdir(localWorkflowsFilePath, { recursive: true })
-
-				filePath = path.join(localWorkflowsFilePath, filename)
-			} else {
-				// clinerules file creation
-				filePath = path.join(localClineRulesFilePath, filename)
-			}
+			// clinerules file creation
+			filePath = path.join(localClineRulesFilePath, filename)
 		}
 
 		const fileExists = await fileExistsAtPath(filePath)
@@ -393,21 +375,11 @@ export async function deleteRuleFile(
 
 		// Update the appropriate toggles
 		if (isGlobal) {
-			if (type === "workflow") {
-				const toggles = controller.stateManager.getGlobalSettingsKey("globalWorkflowToggles")
-				delete toggles[rulePath]
-				controller.stateManager.setGlobalState("globalWorkflowToggles", toggles)
-			} else {
-				const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
-				delete toggles[rulePath]
-				controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
-			}
+			const toggles = controller.stateManager.getGlobalSettingsKey("globalClineRulesToggles")
+			delete toggles[rulePath]
+			controller.stateManager.setGlobalState("globalClineRulesToggles", toggles)
 		} else {
-			if (type === "workflow") {
-				const toggles = controller.stateManager.getWorkspaceStateKey("workflowToggles")
-				delete toggles[rulePath]
-				controller.stateManager.setWorkspaceState("workflowToggles", toggles)
-			} else if (type === "cursor") {
+			if (type === "cursor") {
 				const toggles = controller.stateManager.getWorkspaceStateKey("localCursorRulesToggles")
 				delete toggles[rulePath]
 				controller.stateManager.setWorkspaceState("localCursorRulesToggles", toggles)

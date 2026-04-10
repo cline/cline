@@ -9,7 +9,6 @@ import {
 	ToggleCursorRuleRequest,
 	ToggleSkillRequest,
 	ToggleWindsurfRuleRequest,
-	ToggleWorkflowRequest,
 } from "@shared/proto/cline/file"
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
@@ -32,12 +31,9 @@ const ClineRulesToggleModal: React.FC = () => {
 		localCursorRulesToggles = {},
 		localWindsurfRulesToggles = {},
 		localAgentsRulesToggles = {},
-		localWorkflowToggles = {},
-		globalWorkflowToggles = {},
 		globalSkillsToggles = {},
 		localSkillsToggles = {},
 		remoteRulesToggles = {},
-		remoteWorkflowToggles = {},
 		remoteConfigSettings = {},
 		hooksEnabled,
 		setGlobalClineRulesToggles,
@@ -45,12 +41,9 @@ const ClineRulesToggleModal: React.FC = () => {
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
 		setLocalAgentsRulesToggles,
-		setLocalWorkflowToggles,
-		setGlobalWorkflowToggles,
 		setGlobalSkillsToggles,
 		setLocalSkillsToggles,
 		setRemoteRulesToggles,
-		setRemoteWorkflowToggles,
 	} = useExtensionState()
 	const [globalHooks, setGlobalHooks] = useState<Array<{ name: string; enabled: boolean; absolutePath: string }>>([])
 	const [workspaceHooks, setWorkspaceHooks] = useState<
@@ -66,7 +59,7 @@ const ClineRulesToggleModal: React.FC = () => {
 	const { width: viewportWidth, height: viewportHeight } = useWindowSize()
 	const [arrowPosition, setArrowPosition] = useState(0)
 	const [menuPosition, setMenuPosition] = useState(0)
-	const [currentView, setCurrentView] = useState<"rules" | "workflows" | "hooks" | "skills">("rules")
+	const [currentView, setCurrentView] = useState<"rules" | "hooks" | "skills">("rules")
 
 	// Auto-switch to rules tab if hooks become disabled while viewing hooks tab
 	useEffect(() => {
@@ -95,12 +88,6 @@ const ClineRulesToggleModal: React.FC = () => {
 					if (response.localAgentsRulesToggles?.toggles) {
 						setLocalAgentsRulesToggles(response.localAgentsRulesToggles.toggles)
 					}
-					if (response.localWorkflowToggles?.toggles) {
-						setLocalWorkflowToggles(response.localWorkflowToggles.toggles)
-					}
-					if (response.globalWorkflowToggles?.toggles) {
-						setGlobalWorkflowToggles(response.globalWorkflowToggles.toggles)
-					}
 				})
 				.catch((error) => {
 					console.error("Failed to refresh rules:", error)
@@ -110,10 +97,8 @@ const ClineRulesToggleModal: React.FC = () => {
 		isVisible,
 		setGlobalClineRulesToggles,
 		setLocalClineRulesToggles,
-		setGlobalWorkflowToggles,
 		setLocalCursorRulesToggles,
 		setLocalWindsurfRulesToggles,
-		setLocalWorkflowToggles,
 	])
 
 	// Refresh hooks when hooks tab becomes visible
@@ -213,21 +198,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	const localWorkflows = Object.entries(localWorkflowToggles || {})
-		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
-		.sort(([a], [b]) => a.localeCompare(b))
-
-	const globalWorkflows = Object.entries(globalWorkflowToggles || {})
-		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
-		.sort(([a], [b]) => a.localeCompare(b))
-
-	// Get remote rules and workflows from remote config
+	// Get remote rules from remote config
 	const remoteGlobalRules = remoteConfigSettings.remoteGlobalRules || []
-	const remoteGlobalWorkflows = remoteConfigSettings.remoteGlobalWorkflows || []
 
-	// Check if we have any remote rules or workflows
+	// Check if we have any remote rules
 	const hasRemoteRules = remoteGlobalRules.length > 0
-	const hasRemoteWorkflows = remoteGlobalWorkflows.length > 0
 
 	// Handle toggle rule using gRPC
 	const toggleRule = (isGlobal: boolean, rulePath: string, enabled: boolean) => {
@@ -325,28 +300,6 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 	}
 
-	const toggleWorkflow = (isGlobal: boolean, workflowPath: string, enabled: boolean) => {
-		FileServiceClient.toggleWorkflow(
-			ToggleWorkflowRequest.create({
-				workflowPath,
-				enabled,
-				scope: isGlobal ? RuleScope.GLOBAL : RuleScope.LOCAL,
-			}),
-		)
-			.then((response) => {
-				if (response.toggles) {
-					if (isGlobal) {
-						setGlobalWorkflowToggles(response.toggles)
-					} else {
-						setLocalWorkflowToggles(response.toggles)
-					}
-				}
-			})
-			.catch((err: Error) => {
-				console.error("Failed to toggle workflow:", err)
-			})
-	}
-
 	// Handle toggle for remote rules
 	const toggleRemoteRule = (ruleName: string, enabled: boolean) => {
 		FileServiceClient.toggleClineRule(
@@ -364,25 +317,6 @@ const ClineRulesToggleModal: React.FC = () => {
 			})
 			.catch((error) => {
 				console.error("Error toggling remote rule:", error)
-			})
-	}
-
-	// Handle toggle for remote workflows
-	const toggleRemoteWorkflow = (workflowName: string, enabled: boolean) => {
-		FileServiceClient.toggleWorkflow(
-			ToggleWorkflowRequest.create({
-				workflowPath: workflowName,
-				enabled,
-				scope: RuleScope.REMOTE,
-			}),
-		)
-			.then((response) => {
-				if (response.toggles) {
-					setRemoteWorkflowToggles(response.toggles)
-				}
-			})
-			.catch((error) => {
-				console.error("Error toggling remote workflow:", error)
 			})
 	}
 
@@ -435,11 +369,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		<div className="inline-flex min-w-0 max-w-full items-center" ref={modalRef}>
 			<div className="inline-flex w-full items-center" ref={buttonRef}>
 				<Tooltip>
-					{!isVisible && <TooltipContent>Manage Cline Rules & Workflows</TooltipContent>}
+					{!isVisible && <TooltipContent>Manage Cline Rules, Hooks & Skills</TooltipContent>}
 					<TooltipTrigger>
 						<VSCodeButton
 							appearance="icon"
-							aria-label={isVisible ? "Hide Cline Rules & Workflows" : "Show Cline Rules & Workflows"}
+							aria-label={isVisible ? "Hide Cline Rules, Hooks & Skills" : "Show Cline Rules, Hooks & Skills"}
 							className="p-0 m-0 flex items-center"
 							onClick={() => setIsVisible(!isVisible)}>
 							<i className="codicon codicon-law" style={{ fontSize: "12.5px" }} />
@@ -470,9 +404,6 @@ const ClineRulesToggleModal: React.FC = () => {
 								<TabButton isActive={currentView === "rules"} onClick={() => setCurrentView("rules")}>
 									Rules
 								</TabButton>
-								<TabButton isActive={currentView === "workflows"} onClick={() => setCurrentView("workflows")}>
-									Workflows
-								</TabButton>
 								{hooksEnabled && (
 									<TabButton isActive={currentView === "hooks"} onClick={() => setCurrentView("hooks")}>
 										Hooks
@@ -485,14 +416,10 @@ const ClineRulesToggleModal: React.FC = () => {
 						</div>
 
 						{/* Remote config banner */}
-						{(currentView === "rules" && hasRemoteRules) || (currentView === "workflows" && hasRemoteWorkflows) ? (
+						{currentView === "rules" && hasRemoteRules ? (
 							<div className="flex items-center gap-2 px-3 py-3 mb-4 bg-vscode-textBlockQuote-background border-l-[3px] border-vscode-textLink-foreground">
 								<i className="codicon codicon-lock text-sm" />
-								<span className="text-base">
-									{currentView === "rules"
-										? "Your organization manages some rules"
-										: "Your organization manages some workflows"}
-								</span>
+								<span className="text-base">Your organization manages some rules</span>
 							</div>
 						) : null}
 
@@ -506,17 +433,6 @@ const ClineRulesToggleModal: React.FC = () => {
 										className="text-xs"
 										href="https://docs.cline.bot/features/cline-rules"
 										style={{ display: "inline", fontSize: "inherit" }}>
-										Docs
-									</VSCodeLink>
-								</p>
-							) : currentView === "workflows" ? (
-								<p>
-									Workflows allow you to define a series of steps to guide Cline through a repetitive set of
-									tasks, such as deploying a service or submitting a PR. To invoke a workflow, type{" "}
-									<span className="text-foreground font-bold">/workflow-name</span> in the chat.{" "}
-									<VSCodeLink
-										className="text-xs inline"
-										href="https://docs.cline.bot/features/slash-commands/workflows">
 										Docs
 									</VSCodeLink>
 								</p>
@@ -618,63 +534,6 @@ const ClineRulesToggleModal: React.FC = () => {
 										showNewRule={true}
 										showNoRules={false}
 										toggleRule={toggleAgentsRule}
-									/>
-								</div>
-							</>
-						) : currentView === "workflows" ? (
-							<>
-								{/* Remote Workflows Section */}
-								{hasRemoteWorkflows && (
-									<div className="mb-3">
-										<div className="text-sm font-normal mb-2">Enterprise Workflows</div>
-										<div className="flex flex-col gap-0">
-											{remoteGlobalWorkflows.map((workflow) => {
-												const enabled =
-													workflow.alwaysEnabled || remoteWorkflowToggles[workflow.name] === true
-												return (
-													<RuleRow
-														alwaysEnabled={workflow.alwaysEnabled}
-														enabled={enabled}
-														isGlobal={false}
-														isRemote={true}
-														key={workflow.name}
-														rulePath={workflow.name}
-														ruleType="workflow"
-														toggleRule={toggleRemoteWorkflow}
-													/>
-												)
-											})}
-										</div>
-									</div>
-								)}
-
-								{/* Global Workflows Section */}
-								<div className="mb-3">
-									<div className="text-sm font-normal mb-2">Global Workflows</div>
-
-									{/* File-based Global Workflows */}
-									<RulesToggleList
-										isGlobal={true}
-										listGap="small"
-										rules={globalWorkflows}
-										ruleType={"workflow"}
-										showNewRule={true}
-										showNoRules={false}
-										toggleRule={(rulePath, enabled) => toggleWorkflow(true, rulePath, enabled)}
-									/>
-								</div>
-
-								{/* Local Workflows Section */}
-								<div className="-mb-2.5">
-									<div className="text-sm font-normal mb-2">Workspace Workflows</div>
-									<RulesToggleList
-										isGlobal={false}
-										listGap="small"
-										rules={localWorkflows}
-										ruleType={"workflow"}
-										showNewRule={true}
-										showNoRules={false}
-										toggleRule={(rulePath, enabled) => toggleWorkflow(false, rulePath, enabled)}
 									/>
 								</div>
 							</>

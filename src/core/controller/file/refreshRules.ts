@@ -1,6 +1,5 @@
 import { refreshClineRulesToggles } from "@core/context/instructions/user-instructions/cline-rules"
 import { refreshExternalRulesToggles } from "@core/context/instructions/user-instructions/external-rules"
-import { refreshWorkflowToggles } from "@core/context/instructions/user-instructions/workflows"
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { RefreshedRules } from "@shared/proto/cline/file"
 import { Logger } from "@/shared/services/Logger"
@@ -8,10 +7,10 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 import type { Controller } from "../index"
 
 /**
- * Refreshes all rule toggles (Cline, External, and Workflows)
+ * Refreshes all rule toggles (Cline and external rule families)
  * @param controller The controller instance
  * @param _request The empty request
- * @returns RefreshedRules containing updated toggles for all rule types
+ * @returns RefreshedRules containing updated toggles for supported rule types
  */
 export async function refreshRules(controller: Controller, _request: EmptyRequest): Promise<RefreshedRules> {
 	try {
@@ -21,7 +20,6 @@ export async function refreshRules(controller: Controller, _request: EmptyReques
 			controller,
 			cwd,
 		)
-		const { localWorkflowToggles, globalWorkflowToggles } = await refreshWorkflowToggles(controller, cwd)
 
 		return RefreshedRules.create({
 			globalClineRulesToggles: { toggles: globalToggles },
@@ -29,8 +27,6 @@ export async function refreshRules(controller: Controller, _request: EmptyReques
 			localCursorRulesToggles: { toggles: cursorLocalToggles },
 			localWindsurfRulesToggles: { toggles: windsurfLocalToggles },
 			localAgentsRulesToggles: { toggles: agentsLocalToggles },
-			localWorkflowToggles: { toggles: localWorkflowToggles },
-			globalWorkflowToggles: { toggles: globalWorkflowToggles },
 		})
 	} catch (error) {
 		Logger.error("Failed to refresh rules:", error)

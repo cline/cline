@@ -105,7 +105,7 @@ describe("slash-commands", () => {
 
 		it("should process MCP prompt command in task tag", async () => {
 			const text = "<task>/mcp:test-server:greet</task>"
-			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false, undefined, mockMcpPromptFetcher)
+			const result = await parseSlashCommands(text, "test-ulid", undefined, false, undefined, mockMcpPromptFetcher)
 
 			expect(result.processedText).to.include('<mcp_prompt server="test-server" prompt="greet">')
 			expect(result.processedText).to.include("Hello from MCP!")
@@ -114,7 +114,7 @@ describe("slash-commands", () => {
 
 		it("should process MCP prompt with additional text", async () => {
 			const text = "<task>/mcp:test-server:greet Please expand on this</task>"
-			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false, undefined, mockMcpPromptFetcher)
+			const result = await parseSlashCommands(text, "test-ulid", undefined, false, undefined, mockMcpPromptFetcher)
 
 			expect(result.processedText).to.include('<mcp_prompt server="test-server" prompt="greet">')
 			expect(result.processedText).to.include("Please expand on this")
@@ -131,14 +131,19 @@ describe("slash-commands", () => {
 			}
 
 			const text = "<task>/mcp:server:prompt:with:colons</task>"
-			const result = await parseSlashCommands(text, {}, {}, "test-ulid", undefined, false, undefined, fetcherWithColons)
+			const result = await parseSlashCommands(text, "test-ulid", undefined, false, undefined, fetcherWithColons)
 
 			expect(result.processedText).to.include('prompt="prompt:with:colons"')
 			expect(result.processedText).to.include("Colon prompt")
 		})
 
-		// Note: Tests for "unknown MCP server", "no fetcher", and "fetcher errors"
-		// are skipped because they require StateManager initialization when falling
-		// through to workflow checking. The core MCP functionality is covered above.
+		it("should treat arbitrary workflow-like filenames as unknown slash commands", async () => {
+			const text = "<task>/release.md Ship the release</task>"
+			const result = await parseSlashCommands(text, "test-ulid")
+
+			expect(result.processedText).to.equal(text)
+			expect(result.processedText).to.not.include("<explicit_instructions")
+			expect(result.needsClinerulesFileCheck).to.equal(false)
+		})
 	})
 })

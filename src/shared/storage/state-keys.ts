@@ -54,7 +54,6 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	remoteMCPServers: { default: undefined as Array<{ name: string; url: string; alwaysEnabled?: boolean }> | undefined },
 	previousRemoteMCPServers: { default: undefined as Array<{ name: string; url: string }> | undefined },
 	remoteGlobalRules: { default: undefined as GlobalInstructionsFile[] | undefined },
-	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
 	otlpMetricsHeaders: { default: undefined as Record<string, string> | undefined },
@@ -88,7 +87,6 @@ const GLOBAL_STATE_FIELDS = {
 	lastDismissedCliBannerVersion: { default: 0 as number },
 	nativeToolCallEnabled: { default: true as boolean },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
-	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
@@ -245,7 +243,6 @@ const USER_SETTINGS_FIELDS = {
 		default: DEFAULT_AUTO_APPROVAL_SETTINGS as AutoApprovalSettings,
 	},
 	globalClineRulesToggles: { default: {} as ClineRulesToggles },
-	globalWorkflowToggles: { default: {} as ClineRulesToggles },
 	globalSkillsToggles: { default: {} as Record<string, boolean> },
 	browserSettings: {
 		default: DEFAULT_BROWSER_SETTINGS as BrowserSettings,
@@ -359,7 +356,6 @@ export const LocalStateKeys = [
 	"localWindsurfRulesToggles",
 	"localAgentsRulesToggles",
 	"localSkillsToggles",
-	"workflowToggles",
 ] as const
 
 // ============================================================================

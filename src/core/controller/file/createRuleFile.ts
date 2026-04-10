@@ -2,7 +2,6 @@ import { refreshClineRulesToggles } from "@core/context/instructions/user-instru
 import { createRuleFile as createRuleFileImpl } from "@core/context/instructions/user-instructions/rule-helpers"
 import { getWorkspaceBasename } from "@core/workspace"
 import { RuleFile, RuleFileRequest } from "@shared/proto/cline/file"
-import { refreshWorkflowToggles } from "@/core/context/instructions/user-instructions/workflows"
 import { HostProvider } from "@/hosts/host-provider"
 import { ShowMessageType } from "@/shared/proto/host/window"
 import { Logger } from "@/shared/services/Logger"
@@ -40,7 +39,7 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		throw new Error("Failed to create file.")
 	}
 
-	const fileTypeName = request.type === "workflow" ? "workflow" : "rule"
+	const fileTypeName = "rule"
 
 	if (fileExists) {
 		const message = `${fileTypeName} file "${request.filename}" already exists.`
@@ -51,11 +50,7 @@ export async function createRuleFile(controller: Controller, request: RuleFileRe
 		// Still open it for editing
 		await openFile(controller, { value: filePath })
 	} else {
-		if (request.type === "workflow") {
-			await refreshWorkflowToggles(controller, cwd)
-		} else {
-			await refreshClineRulesToggles(controller, cwd)
-		}
+		await refreshClineRulesToggles(controller, cwd)
 		await controller.postStateToWebview()
 
 		await openFile(controller, { value: filePath })

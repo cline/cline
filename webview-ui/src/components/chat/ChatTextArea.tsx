@@ -212,18 +212,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		},
 		ref,
 	) => {
-		const {
-			mode,
-			apiConfiguration,
-			openRouterModels,
-			platform,
-			localWorkflowToggles,
-			globalWorkflowToggles,
-			remoteWorkflowToggles,
-			remoteConfigSettings,
-			navigateToSettingsModelPicker,
-			mcpServers,
-		} = useExtensionState()
+		const { mode, apiConfiguration, openRouterModels, platform, navigateToSettingsModelPicker, mcpServers } =
+			useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
 		const [gitCommits, setGitCommits] = useState<GitCommit[]>([])
@@ -471,15 +461,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						event.preventDefault()
 						setSelectedSlashCommandsIndex((prevIndex) => {
 							const direction = event.key === "ArrowUp" ? -1 : 1
-							// Get commands with workflow toggles
-							const allCommands = getMatchingSlashCommands(
-								slashCommandsQuery,
-								localWorkflowToggles,
-								globalWorkflowToggles,
-								remoteWorkflowToggles,
-								remoteConfigSettings?.remoteGlobalWorkflows,
-								mcpServers,
-							)
+							const allCommands = getMatchingSlashCommands(slashCommandsQuery, mcpServers)
 
 							if (allCommands.length === 0) {
 								return prevIndex
@@ -497,14 +479,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 					if ((event.key === "Enter" || event.key === "Tab") && selectedSlashCommandsIndex !== -1) {
 						event.preventDefault()
-						const commands = getMatchingSlashCommands(
-							slashCommandsQuery,
-							localWorkflowToggles,
-							globalWorkflowToggles,
-							remoteWorkflowToggles,
-							remoteConfigSettings?.remoteGlobalWorkflows,
-							mcpServers,
-						)
+						const commands = getMatchingSlashCommands(slashCommandsQuery, mcpServers)
 						if (commands.length > 0) {
 							handleSlashCommandsSelect(commands[selectedSlashCommandsIndex])
 						}
@@ -956,13 +931,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 				// Extract just the command name (without the slash)
 				const commandName = command.substring(1)
-				const isValidCommand = validateSlashCommand(
-					commandName,
-					localWorkflowToggles,
-					globalWorkflowToggles,
-					remoteWorkflowToggles,
-					remoteConfigSettings?.remoteGlobalWorkflows,
-				)
+				const isValidCommand = validateSlashCommand(commandName, mcpServers)
 
 				if (isValidCommand) {
 					hasHighlightedSlashCommand = true
@@ -975,7 +944,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			highlightLayerRef.current.innerHTML = processedText
 			highlightLayerRef.current.scrollTop = textAreaRef.current.scrollTop
 			highlightLayerRef.current.scrollLeft = textAreaRef.current.scrollLeft
-		}, [localWorkflowToggles, globalWorkflowToggles, remoteWorkflowToggles, remoteConfigSettings])
+		}, [mcpServers])
 
 		useLayoutEffect(() => {
 			updateHighlights()
@@ -1363,14 +1332,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					{showSlashCommandsMenu && (
 						<div ref={slashCommandsMenuContainerRef}>
 							<SlashCommandMenu
-								globalWorkflowToggles={globalWorkflowToggles}
-								localWorkflowToggles={localWorkflowToggles}
 								mcpServers={mcpServers}
 								onMouseDown={handleMenuMouseDown}
 								onSelect={handleSlashCommandsSelect}
 								query={slashCommandsQuery}
-								remoteWorkflows={remoteConfigSettings?.remoteGlobalWorkflows}
-								remoteWorkflowToggles={remoteWorkflowToggles}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
 							/>
@@ -1492,7 +1457,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					/>
 					{!inputValue && selectedImages.length === 0 && selectedFiles.length === 0 && (
 						<div className="text-xs absolute bottom-5 left-6.5 right-16 text-(--vscode-input-placeholderForeground)/50 whitespace-nowrap overflow-hidden text-ellipsis pointer-events-none z-1">
-							Type @ for context, / for slash commands & workflows, hold shift to drag in files/images
+							Type @ for context, / for slash commands, hold shift to drag in files/images
 						</div>
 					)}
 					{(selectedImages.length > 0 || selectedFiles.length > 0) && (

@@ -1,6 +1,5 @@
 {
 	"remoteRulesToggles": {},
-	"remoteWorkflowToggles": {},
 	"actModeOpenRouterModelInfo": {
 		"name": "Anthropic: Claude Sonnet 4.6",
 		"maxTokens": 128000,
@@ -56,7 +55,6 @@
 		"enableNotifications": false
 	},
 	"primaryRootIndex": 0,
-	"globalWorkflowToggles": {},
 	"globalClineRulesToggles": {},
 	"isNewUser": false
 }

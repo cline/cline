@@ -136,13 +136,13 @@ export const RemoteMCPServerSchema = z.object({
 	headers: z.record(z.string(), z.string()).optional(),
 })
 
-// Settings for a global cline rules or workflow file.
+// Settings for a global cline rules file.
 export const GlobalInstructionsFileSchema = z.object({
-	// When this is enabled, the user cannot turn off this rule or workflow.
+	// When this is enabled, the user cannot turn off this rule.
 	alwaysEnabled: z.boolean(),
-	// The name of the rules or workflow file.
+	// The name of the rule file.
 	name: z.string(),
-	// The contents of the rules or workflow file
+	// The contents of the rule file
 	contents: z.string(),
 })
 
@@ -221,9 +221,8 @@ export const RemoteConfigSchema = z.object({
 
 	enterpriseTelemetry: EnterpriseTelemetrySchema.optional(),
 
-	// Rules & Workflows
+	// Rules
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
-	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
 })
 
 export const APIKeySchema = z.record(z.string(), z.string())
