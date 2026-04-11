@@ -57,10 +57,7 @@ export function isAnthropicCompatibleModelId(
 		normalized.includes(".claude-") ||
 		normalized.includes("--claude-");
 
-	return (
-		hasAnthropicVendor ||
-		hasClaudeLineage
-	);
+	return hasAnthropicVendor || hasClaudeLineage;
 }
 
 export function createPromptCacheProviderOptions(

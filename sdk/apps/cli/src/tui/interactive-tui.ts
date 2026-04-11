@@ -335,6 +335,12 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const turnErrorReportedRef = useRef(false);
 	const configLoadCounterRef = useRef(0);
 	const knownPendingPromptIdsRef = useRef(new Set<string>());
+	const eventHandlersRef = useRef<{
+		onAgentEvent: (event: AgentEvent) => void;
+		onTeamEvent: (event: TeamEvent) => void;
+		onPendingPrompts: (event: PendingPromptSnapshot) => void;
+		onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	} | null>(null);
 
 	const workspaceName = useMemo(
 		() => basename(config.cwd) || config.cwd,
@@ -776,21 +782,30 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		[appendLine],
 	);
 
+	// Keep the ref in sync with the latest handler instances so the
+	// stable wrappers registered below always delegate to current callbacks.
+	eventHandlersRef.current = {
+		onAgentEvent: handleAgentEvent,
+		onTeamEvent: handleTeamEvent,
+		onPendingPrompts: handlePendingPrompts,
+		onPendingPromptSubmitted: handlePendingPromptSubmitted,
+	};
+
+	// Subscribe exactly once. The stable wrapper functions forward to
+	// eventHandlersRef.current so handler identity changes (from useCallback
+	// dep changes) never cause re-subscription on the EventEmitter.
+	// biome-ignore lint/correctness/useExhaustiveDependencies: subscribeToEvents is an inline prop; ref-based delegation makes re-subscription unnecessary
 	useEffect(
 		() =>
 			subscribeToEvents({
-				onAgentEvent: handleAgentEvent,
-				onTeamEvent: handleTeamEvent,
-				onPendingPrompts: handlePendingPrompts,
-				onPendingPromptSubmitted: handlePendingPromptSubmitted,
+				onAgentEvent: (event) => eventHandlersRef.current?.onAgentEvent(event),
+				onTeamEvent: (event) => eventHandlersRef.current?.onTeamEvent(event),
+				onPendingPrompts: (event) =>
+					eventHandlersRef.current?.onPendingPrompts(event),
+				onPendingPromptSubmitted: (event) =>
+					eventHandlersRef.current?.onPendingPromptSubmitted(event),
 			}),
-		[
-			handleAgentEvent,
-			handlePendingPrompts,
-			handlePendingPromptSubmitted,
-			handleTeamEvent,
-			subscribeToEvents,
-		],
+		[],
 	);
 
 	useEffect(() => {

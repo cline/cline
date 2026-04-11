@@ -1,5 +1,8 @@
+import type {
+	GatewayProviderContext,
+	GatewayProviderManifest,
+} from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import type { GatewayProviderContext, GatewayProviderManifest } from "@clinebot/shared";
 import {
 	isAnthropicCompatibleModel,
 	isAnthropicCompatibleModelId,
@@ -69,9 +72,9 @@ describe("anthropic-compatible routing helpers", () => {
 		expect(
 			isAnthropicCompatibleModelId("eu.anthropic.claude-opus-4-6-v1"),
 		).toBe(true);
-		expect(
-			isAnthropicCompatibleModelId("anthropic--claude-3.5-sonnet"),
-		).toBe(true);
+		expect(isAnthropicCompatibleModelId("anthropic--claude-3.5-sonnet")).toBe(
+			true,
+		);
 	});
 
 	it("does not match unrelated model ids", () => {
