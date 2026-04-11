@@ -95,6 +95,74 @@ export interface CoreCompactionConfig {
 		| undefined;
 }
 
+/**
+ * Context passed to a custom `createCheckpoint` implementation.
+ */
+export interface CoreCheckpointContext {
+	/** Absolute path to the working directory of the session. */
+	cwd: string;
+	/** The session identifier. */
+	sessionId: string;
+	/** Monotonically increasing run counter for this session (starts at 1). */
+	runCount: number;
+}
+
+/**
+ * Configuration for the built-in git-based checkpoint feature.
+ *
+ * Checkpoints capture a restorable snapshot of the workspace at the start of
+ * each root-agent run so that changes made during a session can be rolled back.
+ *
+ * @example Disable checkpoints entirely:
+ * ```ts
+ * checkpoint: { enabled: false }
+ * ```
+ *
+ * @example Bring your own checkpoint implementation:
+ * ```ts
+ * checkpoint: {
+ *   createCheckpoint: async ({ cwd, sessionId, runCount }) => {
+ *     const ref = await mySnapshotFn(cwd);
+ *     return { ref, createdAt: Date.now(), runCount };
+ *   },
+ * }
+ * ```
+ */
+export interface CoreCheckpointConfig {
+	/**
+	 * Whether to create checkpoints on each root-agent run start.
+	 * Defaults to `false` — checkpoints are **opt-in**. Set to `true` to
+	 * enable the built-in git stash/ref checkpoint behaviour for this session.
+	 */
+	enabled?: boolean;
+	/**
+	 * Replace the built-in git stash/ref checkpoint logic with a custom
+	 * implementation. Called once at the start of each root-agent run (before
+	 * the first agent iteration).
+	 *
+	 * Return an object with at least `ref`, `createdAt`, and `runCount` to have
+	 * the entry recorded in session metadata, or return `undefined` to skip
+	 * writing a checkpoint for that run.
+	 */
+	createCheckpoint?: (context: CoreCheckpointContext) =>
+		| Promise<
+				| {
+						ref: string;
+						createdAt: number;
+						runCount: number;
+						kind?: "stash" | "commit";
+				  }
+				| undefined
+		  >
+		| {
+				ref: string;
+				createdAt: number;
+				runCount: number;
+				kind?: "stash" | "commit";
+		  }
+		| undefined;
+}
+
 export interface CoreSessionConfig
 	extends CoreModelConfig,
 		CoreRuntimeFeatures,
@@ -124,6 +192,7 @@ export interface CoreSessionConfig
 	extensions?: AgentConfig["extensions"];
 	execution?: AgentConfig["execution"];
 	compaction?: CoreCompactionConfig;
+	checkpoint?: CoreCheckpointConfig;
 	onTeamEvent?: (event: TeamEvent) => void;
 	onConsecutiveMistakeLimitReached?: (
 		context: ConsecutiveMistakeLimitContext,

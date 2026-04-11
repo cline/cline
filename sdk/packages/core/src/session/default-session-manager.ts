@@ -115,11 +115,6 @@ type SessionBackend =
 const MAX_SCAN_LIMIT = 5000;
 const MAX_USER_FILE_BYTES = 20 * 1_000 * 1_024;
 
-// NOTE: Temporarily disabled until checkpoint is ready for production.
-function isCheckpointFeatureEnabled(): boolean {
-	return process?.env?.CLINE_CHECKPOINT === "true";
-}
-
 async function loadUserFileContent(path: string): Promise<string> {
 	const fileStat = await stat(path);
 	if (!fileStat.isFile()) {
@@ -277,11 +272,12 @@ export class DefaultSessionManager implements SessionManager {
 		};
 		configWithProvider.hooks = mergeAgentHooks([
 			effectiveConfig.hooks,
-			isCheckpointFeatureEnabled()
+			effectiveConfig.checkpoint?.enabled === true
 				? createCheckpointHooks({
 						cwd: configWithProvider.cwd,
 						sessionId,
 						logger: configWithProvider.logger,
+						createCheckpoint: effectiveConfig.checkpoint?.createCheckpoint,
 						readSessionMetadata: async () =>
 							(await this.get(sessionId))?.metadata as
 								| Record<string, unknown>

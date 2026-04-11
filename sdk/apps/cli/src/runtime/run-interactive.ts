@@ -29,7 +29,10 @@ import {
 } from "../utils/session-message-summary";
 import type { Config } from "../utils/types";
 import { setActiveRuntimeAbort } from "./active-runtime";
-import { CLI_DEFAULT_LOOP_DETECTION } from "./defaults";
+import {
+	CLI_DEFAULT_CHECKPOINT_CONFIG,
+	CLI_DEFAULT_LOOP_DETECTION,
+} from "./defaults";
 import { loadInteractiveConfigData } from "./interactive-config";
 import {
 	listInteractiveSlashCommands,
@@ -243,6 +246,7 @@ export async function runInteractive(
 					loopDetection:
 						config.execution?.loopDetection ?? CLI_DEFAULT_LOOP_DETECTION,
 				},
+				checkpoint: config.checkpoint ?? CLI_DEFAULT_CHECKPOINT_CONFIG,
 				enableTools: chatCommandState.enableTools,
 				cwd: chatCommandState.cwd,
 				workspaceRoot: chatCommandState.workspaceRoot,
@@ -277,6 +281,7 @@ export async function runInteractive(
 					loopDetection:
 						config.execution?.loopDetection ?? CLI_DEFAULT_LOOP_DETECTION,
 				},
+				checkpoint: config.checkpoint ?? CLI_DEFAULT_CHECKPOINT_CONFIG,
 				sessionId: resumeId,
 				enableTools: chatCommandState.enableTools,
 				cwd: chatCommandState.cwd,

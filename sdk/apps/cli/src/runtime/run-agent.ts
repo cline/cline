@@ -25,7 +25,10 @@ import {
 import { createDefaultCliSessionManager } from "../utils/session";
 import type { Config } from "../utils/types";
 import { setActiveRuntimeAbort } from "./active-runtime";
-import { CLI_DEFAULT_LOOP_DETECTION } from "./defaults";
+import {
+	CLI_DEFAULT_CHECKPOINT_CONFIG,
+	CLI_DEFAULT_LOOP_DETECTION,
+} from "./defaults";
 import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
 import { resolveClineWelcomeLine } from "./interactive-welcome";
 import { buildUserInputMessage } from "./prompt";
@@ -244,6 +247,7 @@ export async function runAgent(
 					loopDetection:
 						config.execution?.loopDetection ?? CLI_DEFAULT_LOOP_DETECTION,
 				},
+				checkpoint: config.checkpoint ?? CLI_DEFAULT_CHECKPOINT_CONFIG,
 				hooks: runtimeHooks.hooks,
 				onTeamEvent: handleTeamEvent,
 				onConsecutiveMistakeLimitReached: (context) =>

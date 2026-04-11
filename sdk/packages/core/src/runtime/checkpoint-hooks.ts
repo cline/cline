@@ -24,6 +24,16 @@ type CreateCheckpointHooksOptions = {
 	writeSessionMetadata: (
 		metadata: Record<string, unknown>,
 	) => Promise<void> | void;
+	/**
+	 * Optional custom checkpoint implementation. When provided, the built-in
+	 * git stash/ref logic is skipped entirely and this function is called
+	 * instead. Return `undefined` to skip writing a checkpoint for that run.
+	 */
+	createCheckpoint?: (context: {
+		cwd: string;
+		sessionId: string;
+		runCount: number;
+	}) => Promise<CheckpointEntry | undefined> | CheckpointEntry | undefined;
 };
 
 function warn(logger: BasicLogger | undefined, message: string): void {
@@ -99,6 +109,14 @@ export function createCheckpointHooks(
 	};
 
 	const createCheckpoint = async (): Promise<CheckpointEntry | undefined> => {
+		if (options.createCheckpoint) {
+			return await options.createCheckpoint({
+				cwd: options.cwd,
+				sessionId: options.sessionId,
+				runCount,
+			});
+		}
+
 		if (!(await ensureGitRepository())) {
 			return undefined;
 		}
@@ -137,8 +155,15 @@ export function createCheckpointHooks(
 			};
 		}
 
+		// Store the stash commit under a private ref namespace so it is
+		// invisible to the user's normal `git stash list` workflow.
+		// `refs/stash` is what populates that list; writing to any other
+		// ref path keeps the object reachable (GC-safe) without surfacing
+		// it to the user.  The raw SHA already works with `git stash apply`
+		// on the restore path, so no restore-side changes are needed.
+		const privateRef = `refs/cline/checkpoints/${options.sessionId}/${runCount}`;
 		try {
-			await runGit(options.cwd, ["stash", "store", "-m", message, ref]);
+			await runGit(options.cwd, ["update-ref", privateRef, ref]);
 		} catch (error) {
 			warn(
 				options.logger,

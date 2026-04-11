@@ -535,6 +535,8 @@ export type { SessionStatus } from "./types/common";
 export { SESSION_STATUSES, SessionSource } from "./types/common";
 export type {
 	CoreAgentMode,
+	CoreCheckpointConfig,
+	CoreCheckpointContext,
 	CoreCompactionConfig,
 	CoreCompactionContext,
 	CoreCompactionResult,

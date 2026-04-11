@@ -150,7 +150,6 @@ describe("DefaultSessionManager", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
 		CLINE_DIR: process.env.CLINE_DIR,
-		CLINE_CHECKPOINT: process.env.CLINE_CHECKPOINT,
 	};
 	let isolatedHomeDir = "";
 
@@ -158,7 +157,6 @@ describe("DefaultSessionManager", () => {
 		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
 		process.env.HOME = isolatedHomeDir;
 		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
-		delete process.env.CLINE_CHECKPOINT;
 		setHomeDir(isolatedHomeDir);
 		setClineDir(process.env.CLINE_DIR);
 	});
@@ -166,7 +164,6 @@ describe("DefaultSessionManager", () => {
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
 		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
-		process.env.CLINE_CHECKPOINT = envSnapshot.CLINE_CHECKPOINT;
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
@@ -652,7 +649,7 @@ describe("DefaultSessionManager", () => {
 		);
 	});
 
-	it("does not install checkpoint hooks unless CLINE_CHECKPOINT=true", async () => {
+	it("does not install checkpoint hooks when checkpoint.enabled is not set in config", async () => {
 		const sessionId = "sess-checkpoint-default-off";
 		const manifest = createManifest(sessionId);
 		const updateSession = vi.fn().mockResolvedValue({ updated: true });
@@ -737,10 +734,8 @@ describe("DefaultSessionManager", () => {
 		});
 	});
 
-	it("installs checkpoint hooks when CLINE_CHECKPOINT=true", async () => {
-		process.env.CLINE_CHECKPOINT = "true";
-
-		const sessionId = "sess-checkpoint-env-on";
+	it("installs checkpoint hooks when checkpoint.enabled=true in config", async () => {
+		const sessionId = "sess-checkpoint-config-on";
 		const repoCwd = mkdtempSync(join(isolatedHomeDir, "checkpoint-repo-"));
 		createGitRepo(repoCwd);
 		const manifest = createManifest(sessionId);
@@ -813,7 +808,10 @@ describe("DefaultSessionManager", () => {
 		});
 
 		await manager.start({
-			config: createConfig({ sessionId, cwd: repoCwd }),
+			config: {
+				...createConfig({ sessionId, cwd: repoCwd }),
+				checkpoint: { enabled: true },
+			},
 			prompt: "hello",
 			interactive: false,
 		});
