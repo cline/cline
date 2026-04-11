@@ -2,6 +2,7 @@ import type {
 	GatewayModelCapability,
 	GatewayModelDefinition,
 	GatewayProviderManifest,
+	GatewayProviderMetadata,
 	GatewayProviderSettings,
 	JsonValue,
 } from "@clinebot/shared";
@@ -47,6 +48,7 @@ export interface BuiltinSpec {
 	apiKeyEnv?: readonly string[];
 	docsUrl?: string;
 	defaults?: GatewayProviderSettings;
+	metadata?: GatewayProviderMetadata;
 }
 
 function cloneModels(
@@ -213,6 +215,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "anthropic/claude-sonnet-4.6",
 		apiKeyEnv: ["CLINE_API_KEY"],
 		defaults: { baseUrl: "https://api.cline.bot/api/v1" },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "deepseek",
@@ -340,6 +343,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		modelsProviderId: "vercel-ai-gateway",
 		defaults: { baseUrl: "https://ai-gateway.vercel.sh/v1" },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "aihubmix",
@@ -350,6 +354,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["AIHUBMIX_API_KEY"],
 		modelsProviderId: "aihubmix",
 		defaults: { baseUrl: "https://api.aihubmix.com/v1" },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "hicap",
@@ -481,6 +486,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "openrouter",
 		docsUrl: "https://openrouter.ai/models",
 		defaults: { baseUrl: "https://openrouter.ai/api/v1" },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "ollama",
@@ -511,6 +517,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["OCA_API_KEY"],
 		modelsProviderId: "oca",
 		defaults: { baseUrl: DEFAULT_EXTERNAL_OCA_BASE_URL },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "asksage",
@@ -534,6 +541,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaultModelId: "anthropic--claude-3.5-sonnet",
 		apiKeyEnv: ["AICORE_SERVICE_KEY", "VCAP_SERVICES"],
 		modelsProviderId: "sapaicore",
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 ];
 
@@ -569,6 +577,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["ANTHROPIC_API_KEY"],
 		modelsProviderId: "anthropic",
 		defaults: { baseUrl: "https://api.anthropic.com/v1" },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "claude-code",
@@ -606,6 +615,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 			"GOOGLE_API_KEY",
 		],
 		modelsProviderId: "vertex",
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "bedrock",
@@ -621,6 +631,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 			"AWS_SESSION_TOKEN",
 		],
 		modelsProviderId: "bedrock",
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "mistral",
@@ -643,6 +654,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		apiKeyEnv: ["MINIMAX_API_KEY"],
 		modelsProviderId: "minimax",
 		defaults: { baseUrl: "https://api.minimax.io/anthropic" },
+		metadata: { promptCacheStrategy: "anthropic-automatic" },
 	},
 	{
 		id: "opencode",
@@ -736,6 +748,7 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		api: spec.defaults?.baseUrl,
 		apiKeyEnv: spec.apiKeyEnv,
 		docsUrl: spec.docsUrl,
+		metadata: spec.metadata,
 	};
 }
 

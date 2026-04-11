@@ -16,6 +16,18 @@ import { streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { ProviderFactoryResult } from "./providers/types";
+import {
+	applyPromptCacheToLastTextPart,
+	buildAnthropicCompatibleReasoningOptions,
+	buildGatewayReasoningOptions,
+	isAnthropicCompatibleModel,
+	resolveModelFamily,
+	shouldUseAnthropicPromptCache,
+} from "./routing/anthropic-compatible";
+import {
+	createEphemeralCacheControl,
+	toProviderOptionsKey,
+} from "./routing/utils";
 
 interface AiSdkStreamPart {
 	type?: string;
@@ -50,116 +62,6 @@ type ProviderModuleKind =
 	| "opencode"
 	| "dify";
 
-function resolveModelFamily(
-	context: GatewayProviderContext,
-): string | undefined {
-	const family = context.model.metadata?.family;
-	return typeof family === "string" ? family : undefined;
-}
-
-function isAnthropicModel(options: {
-	modelId?: string;
-	family?: string;
-}): boolean {
-	if (typeof options.family === "string") {
-		return options.family.toLowerCase().includes("claude");
-	}
-
-	return isAnthropicModelId(options.modelId);
-}
-
-function isAnthropicModelId(modelId: string | undefined): boolean {
-	if (!modelId) {
-		return false;
-	}
-
-	const normalized = modelId.toLowerCase();
-	return (
-		normalized.startsWith("anthropic/") ||
-		normalized.startsWith("claude-") ||
-		normalized.includes("/claude-")
-	);
-}
-
-function toProviderOptionsKey(providerId: string): string {
-	return providerId.replace(/-([a-z0-9])/gi, (_match, char: string) =>
-		char.toUpperCase(),
-	);
-}
-
-function createEphemeralCacheControl() {
-	return {
-		cache_control: { type: "ephemeral" as const },
-	};
-}
-
-function createPromptCacheProviderOptions(
-	providerId: string,
-	includeAnthropic: boolean,
-) {
-	const providerOptions: Record<string, unknown> = {
-		openaiCompatible: createEphemeralCacheControl(),
-		[providerId]: createEphemeralCacheControl(),
-	};
-
-	const providerOptionsKey = toProviderOptionsKey(providerId);
-	if (providerOptionsKey !== providerId) {
-		providerOptions[providerOptionsKey] = createEphemeralCacheControl();
-	}
-	if (includeAnthropic) {
-		providerOptions.anthropic = createEphemeralCacheControl();
-	}
-
-	return providerOptions;
-}
-
-function applyPromptCacheToLastTextPart(
-	message: Record<string, unknown> | undefined,
-	providerId: string,
-	includeAnthropic: boolean,
-): void {
-	if (!message) {
-		return;
-	}
-
-	const content = message.content;
-	if (typeof content === "string") {
-		message.content = [
-			{
-				type: "text",
-				text: content,
-				providerOptions: createPromptCacheProviderOptions(
-					providerId,
-					includeAnthropic,
-				),
-			},
-		];
-		return;
-	}
-
-	if (!Array.isArray(content)) {
-		return;
-	}
-
-	for (let i = content.length - 1; i >= 0; i--) {
-		const part = content[i];
-		if (
-			part &&
-			typeof part === "object" &&
-			(part as { type?: unknown }).type === "text"
-		) {
-			content[i] = {
-				...(part as Record<string, unknown>),
-				providerOptions: createPromptCacheProviderOptions(
-					providerId,
-					includeAnthropic,
-				),
-			};
-			return;
-		}
-	}
-}
-
 function buildCachedAiSdkMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -168,7 +70,7 @@ function buildCachedAiSdkMessages(
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt) as Array<
 		Record<string, unknown>
 	>;
-	const includeAnthropic = isAnthropicModel({
+	const includeAnthropic = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
 	});
@@ -185,135 +87,6 @@ function buildCachedAiSdkMessages(
 	}
 
 	return aiMessages;
-}
-
-function shouldUseAnthropicPromptCache(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-): boolean {
-	return isAnthropicModel({
-		modelId: request.modelId,
-		family: resolveModelFamily(context),
-	});
-}
-
-function resolveAnthropicCompatibleReasoningBudget(options: {
-	modelId?: string;
-	family?: string;
-	effort?: string;
-	maxTokens?: number;
-	explicitBudgetTokens?: number;
-}) {
-	if (
-		typeof options.explicitBudgetTokens === "number" &&
-		options.explicitBudgetTokens > 0
-	) {
-		return options.explicitBudgetTokens;
-	}
-
-	if (
-		(!options.modelId && !options.family) ||
-		!isAnthropicModel({
-			modelId: options.modelId,
-			family: options.family,
-		}) ||
-		!options.effort ||
-		typeof options.maxTokens !== "number" ||
-		options.maxTokens <= 1024
-	) {
-		return undefined;
-	}
-
-	const ratios: Record<string, number> = {
-		low: 0.2,
-		medium: 0.5,
-		high: 0.8,
-	};
-	const ratio = ratios[options.effort];
-	if (!ratio) {
-		return undefined;
-	}
-
-	const maxBudget = Math.min(options.maxTokens - 1, 128000);
-	return Math.max(1024, Math.floor(maxBudget * ratio));
-}
-
-function buildAnthropicCompatibleReasoningOptions(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-) {
-	if (
-		!isAnthropicModel({
-			modelId: request.modelId,
-			family: resolveModelFamily(context),
-		}) ||
-		(!request.reasoning?.enabled &&
-			!request.reasoning?.effort &&
-			typeof request.reasoning?.budgetTokens !== "number")
-	) {
-		return undefined;
-	}
-
-	const budgetTokens = resolveAnthropicCompatibleReasoningBudget({
-		modelId: request.modelId,
-		family: resolveModelFamily(context),
-		effort: request.reasoning?.effort,
-		maxTokens: request.maxTokens,
-		explicitBudgetTokens: request.reasoning?.budgetTokens,
-	});
-	const reasoning: Record<string, unknown> = {};
-
-	if (request.reasoning?.enabled === true) {
-		reasoning.enabled = true;
-	}
-	if (typeof budgetTokens === "number" && budgetTokens >= 0) {
-		reasoning.max_tokens = budgetTokens;
-	} else if (request.reasoning?.effort) {
-		reasoning.effort = request.reasoning.effort;
-	} else if (request.reasoning?.budgetTokens === 0) {
-		reasoning.max_tokens = 0;
-	}
-
-	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
-}
-
-function buildGatewayReasoningOptions(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-) {
-	if (
-		!request.reasoning?.enabled &&
-		!request.reasoning?.effort &&
-		typeof request.reasoning?.budgetTokens !== "number"
-	) {
-		return undefined;
-	}
-
-	const budgetTokens = isAnthropicModel({
-		modelId: request.modelId,
-		family: resolveModelFamily(context),
-	})
-		? resolveAnthropicCompatibleReasoningBudget({
-				modelId: request.modelId,
-				family: resolveModelFamily(context),
-				effort: request.reasoning?.effort,
-				maxTokens: request.maxTokens,
-				explicitBudgetTokens: request.reasoning?.budgetTokens,
-			})
-		: request.reasoning?.budgetTokens;
-
-	const reasoning: Record<string, unknown> = {
-		...(request.reasoning?.enabled === true || request.reasoning?.effort
-			? { enabled: true }
-			: {}),
-		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
-	};
-
-	if (typeof budgetTokens === "number" && budgetTokens >= 0) {
-		reasoning.max_tokens = budgetTokens;
-	}
-
-	return Object.keys(reasoning).length > 0 ? reasoning : undefined;
 }
 
 async function ensureGatewayLangfuseTelemetry(
@@ -437,10 +210,14 @@ function toAiSdkProviderOptions(
 	context: GatewayProviderContext,
 ): Record<string, unknown> | undefined {
 	const providerOptionsKey = toProviderOptionsKey(request.providerId);
-	const isAnthropicCompatibleModel = isAnthropicModel({
+	const isAnthropicCompatibleModelId = isAnthropicCompatibleModel({
 		modelId: request.modelId,
 		family: resolveModelFamily(context),
 	});
+	const useAnthropicPromptCache = shouldUseAnthropicPromptCache(
+		request,
+		context,
+	);
 	const anthropicCompatibleReasoning = buildAnthropicCompatibleReasoningOptions(
 		request,
 		context,
@@ -452,7 +229,7 @@ function toAiSdkProviderOptions(
 	const anthropicOptions = {
 		...(wantsAnthropicThinking ? { thinking: { type: "adaptive" } } : {}),
 		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
-		...createEphemeralCacheControl(),
+		...(useAnthropicPromptCache ? createEphemeralCacheControl() : {}),
 	};
 	const compatibleOptions = {
 		...(request.reasoning?.enabled === true
@@ -462,13 +239,13 @@ function toAiSdkProviderOptions(
 		...(request.reasoning?.effort
 			? { reasoningEffort: request.reasoning.effort }
 			: {}),
-		...(request.reasoning?.effort && !isAnthropicCompatibleModel
+		...(request.reasoning?.effort && !isAnthropicCompatibleModelId
 			? { reasoningSummary: "auto" }
 			: {}),
 		...(anthropicCompatibleReasoning
 			? { reasoning: anthropicCompatibleReasoning }
 			: {}),
-		...createEphemeralCacheControl(),
+		...(useAnthropicPromptCache ? createEphemeralCacheControl() : {}),
 	};
 	const geminiCompatibleOptions = request.reasoning?.effort
 		? {

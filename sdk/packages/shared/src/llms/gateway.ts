@@ -126,6 +126,13 @@ export type GatewayModelCapability =
 	| "audio"
 	| "structured-output";
 
+export type GatewayPromptCacheStrategy = "anthropic-automatic";
+
+export interface GatewayProviderMetadata {
+	promptCacheStrategy?: GatewayPromptCacheStrategy;
+	[key: string]: JsonValue | undefined;
+}
+
 export interface GatewayModelDefinition {
 	id: string;
 	name: string;
@@ -147,7 +154,7 @@ export interface GatewayProviderManifest {
 	api?: string;
 	apiKeyEnv?: readonly string[];
 	docsUrl?: string;
-	metadata?: Record<string, JsonValue | undefined>;
+	metadata?: GatewayProviderMetadata;
 }
 
 export interface GatewayProviderSettings {
@@ -159,6 +166,7 @@ export interface GatewayProviderSettings {
 	timeoutMs?: number;
 	fetch?: typeof fetch;
 	options?: Record<string, unknown>;
+	metadata?: GatewayProviderMetadata;
 }
 
 export interface GatewayResolvedProviderConfig extends GatewayProviderSettings {

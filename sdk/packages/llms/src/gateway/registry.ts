@@ -100,6 +100,9 @@ export class GatewayRegistry {
 						options: registration.defaults.options
 							? { ...registration.defaults.options }
 							: undefined,
+						metadata: registration.defaults.metadata
+							? { ...registration.defaults.metadata }
+							: undefined,
 					}
 				: undefined,
 			createProvider: registration.createProvider,
@@ -118,6 +121,7 @@ export class GatewayRegistry {
 			timeoutMs: config.timeoutMs,
 			fetch: config.fetch,
 			options: config.options ? { ...config.options } : undefined,
+			metadata: config.metadata ? { ...config.metadata } : undefined,
 			enabled: config.enabled ?? true,
 			defaultModelId: config.defaultModelId,
 			models: config.models?.map((model) => ({ ...model })),
@@ -166,6 +170,13 @@ export class GatewayRegistry {
 			...cloneManifest(record.manifest),
 			defaultModelId,
 			models,
+			metadata:
+				config?.metadata || record.manifest.metadata
+					? {
+							...(record.manifest.metadata ?? {}),
+							...(config?.metadata ?? {}),
+						}
+					: undefined,
 		};
 	}
 
@@ -212,6 +223,12 @@ export class GatewayRegistry {
 		}
 
 		const config = this.providerConfigs.get(providerId);
+		const mergedMetadata = {
+			...(record.defaults?.metadata ?? {}),
+			...(config?.metadata ?? {}),
+		};
+		const metadata =
+			Object.keys(mergedMetadata).length > 0 ? mergedMetadata : undefined;
 
 		return {
 			manifest,
@@ -232,6 +249,7 @@ export class GatewayRegistry {
 					...(record.defaults?.options ?? {}),
 					...(config?.options ?? {}),
 				},
+				metadata,
 			},
 			createProvider: record.createProvider,
 		};

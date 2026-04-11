@@ -148,8 +148,41 @@ describe("sdk-gateway", () => {
 		expect(providerIds).toContain("vertex");
 		expect(providerIds).toContain("bedrock");
 		expect(providerIds).toContain("openrouter");
+		expect(providerIds).toContain("aihubmix");
 		expect(providerIds).toContain("claude-code");
 		expect(providerIds).toContain("openai-codex");
+
+		const aihubmix = gateway
+			.listProviders()
+			.find((provider) => provider.id === "aihubmix");
+		expect(aihubmix?.metadata).toMatchObject({
+			promptCacheStrategy: "anthropic-automatic",
+		});
+	});
+
+	it("keeps anthropic-automatic prompt cache strategy on the expected remapped provider set", () => {
+		const gateway = createGateway();
+		const strategyProviders = gateway
+			.listProviders()
+			.filter(
+				(provider) =>
+					provider.metadata?.promptCacheStrategy === "anthropic-automatic",
+			)
+			.map((provider) => provider.id)
+			.sort();
+
+		expect(strategyProviders).toEqual([
+			"aihubmix",
+			"anthropic",
+			"bedrock",
+			"cline",
+			"minimax",
+			"oca",
+			"openrouter",
+			"sapaicore",
+			"vercel-ai-gateway",
+			"vertex",
+		]);
 	});
 
 	it("adapts OpenAI Responses streams through the native AI SDK provider", async () => {
@@ -827,7 +860,7 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("detects anthropic-compatible models by family and forwards reasoning plus prompt cache", async () => {
+	it("detects anthropic-compatible aliases by family and forwards reasoning plus prompt cache", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -884,12 +917,14 @@ describe("sdk-gateway", () => {
 				]),
 				providerOptions: expect.objectContaining({
 					openaiCompatible: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
 						reasoning: expect.objectContaining({
 							enabled: true,
 							max_tokens: expect.any(Number),
 						}),
 					}),
 					openrouter: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
 						reasoning: expect.objectContaining({
 							enabled: true,
 							max_tokens: expect.any(Number),
@@ -898,8 +933,362 @@ describe("sdk-gateway", () => {
 						thinking: { type: "adaptive" },
 					}),
 					anthropic: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
 						thinking: { type: "adaptive" },
 						effort: "high",
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("does not apply anthropic prompt-cache shaping for non-remapped providers", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "deepseek",
+					apiKey: "deepseek-key",
+					models: [
+						{
+							id: "deepseek-claude-alias",
+							name: "DeepSeek Claude Alias",
+							metadata: {
+								family: "claude-sonnet",
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "deepseek",
+				modelId: "deepseek-claude-alias",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+					effort: "high",
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					{ role: "user", content: [{ type: "text", text: "Hello" }] },
+				],
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.not.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					deepseek: expect.not.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					anthropic: expect.not.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("applies anthropic prompt-cache shaping for direct anthropic provider", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "anthropic",
+					apiKey: "anthropic-key",
+					models: [
+						{
+							id: "claude-sonnet-4-6",
+							name: "Claude Sonnet 4.6",
+							metadata: {
+								family: "claude-sonnet",
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					expect.objectContaining({
+						role: "user",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "text",
+								text: "Hello",
+								providerOptions: expect.objectContaining({
+									anthropic: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+									openaiCompatible: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+						]),
+					}),
+				],
+				providerOptions: expect.objectContaining({
+					anthropic: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("does not apply anthropic prompt-cache shaping for remapped providers on non-claude families", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "openrouter-key",
+					models: [
+						{
+							id: "router-gpt-alias",
+							name: "Router GPT Alias",
+							metadata: {
+								family: "gpt",
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "router-gpt-alias",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					{ role: "user", content: [{ type: "text", text: "Hello" }] },
+				],
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.not.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					openrouter: expect.not.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("falls back to model-id detection for remapped providers when family metadata is absent", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "openrouter-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-sonnet-router-alias",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "user",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "text",
+								providerOptions: expect.objectContaining({
+									openrouter: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+						]),
+					}),
+				]),
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					openrouter: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("falls back to bedrock-style anthropic model ids when family metadata is absent", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "bedrock",
+					apiKey: "bedrock-key",
+					models: [
+						{
+							id: "anthropic.claude-sonnet-4-6",
+							name: "Claude Sonnet 4.6 (Bedrock-style ID)",
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					expect.objectContaining({
+						role: "user",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "text",
+								text: "Hello",
+								providerOptions: expect.objectContaining({
+									anthropic: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+									bedrock: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+						]),
+					}),
+				],
+				providerOptions: expect.objectContaining({
+					anthropic: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					bedrock: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("supports provider config metadata overrides for anthropic prompt-cache strategy", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "deepseek",
+					apiKey: "deepseek-key",
+					metadata: { promptCacheStrategy: "anthropic-automatic" },
+					models: [
+						{
+							id: "deepseek-claude-alias",
+							name: "DeepSeek Claude Alias",
+							metadata: {
+								family: "claude-sonnet",
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "deepseek",
+				modelId: "deepseek-claude-alias",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					expect.objectContaining({
+						role: "user",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "text",
+								text: "Hello",
+								providerOptions: expect.objectContaining({
+									anthropic: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+									deepseek: expect.objectContaining({
+										cache_control: { type: "ephemeral" },
+									}),
+								}),
+							}),
+						]),
+					}),
+				],
+				providerOptions: expect.objectContaining({
+					anthropic: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
+					}),
+					deepseek: expect.objectContaining({
+						cache_control: { type: "ephemeral" },
 					}),
 				}),
 			}),

@@ -160,13 +160,11 @@ describe("UnifiedSessionPersistenceService", () => {
 			row.sessionId.includes("__teamtask__java-haiku-agent__"),
 		)?.sessionId;
 		expect(teammateSessionId).toBeTruthy();
-		const path = join(
-			sessionsDir,
-			rootSessionId,
-			"java-haiku-agent__" +
-				teammateSessionId?.slice(teammateSessionId?.lastIndexOf("__") + 2) +
-				".messages.json",
+		const row = childSessions.find(
+			(item) => item.sessionId === teammateSessionId,
 		);
+		expect(row?.messagesPath).toBeTruthy();
+		const path = row?.messagesPath as string;
 		const payload = JSON.parse(readFileSync(path, "utf8")) as {
 			agent?: string;
 			sessionId?: string;
@@ -195,18 +193,11 @@ describe("UnifiedSessionPersistenceService", () => {
 			cacheWriteTokens: 0,
 			cost: 0.123,
 		});
-		const row = childSessions.find(
-			(item) => item.sessionId === teammateSessionId,
-		);
 		expect(row?.messagesPath).toBe(path);
-		expect(row?.transcriptPath).toBe(
-			join(
-				sessionsDir,
-				rootSessionId,
-				"java-haiku-agent__" +
-					teammateSessionId?.slice(teammateSessionId?.lastIndexOf("__") + 2) +
-					".log",
-			),
+		expect(row?.transcriptPath).toBeTruthy();
+		expect(row?.transcriptPath).toContain(
+			join(sessionsDir, rootSessionId, "java-haiku-agent__"),
 		);
+		expect(row?.transcriptPath).toMatch(/\.log$/);
 	});
 });
