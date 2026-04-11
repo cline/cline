@@ -186,10 +186,9 @@ export async function runAgent(
 		if (abortRequested) return false;
 		abortRequested = true;
 		if (activeSessionId) {
-			void sessionManager.abort(
-				activeSessionId,
-				new Error("Run-agent runtime abort requested"),
-			);
+			sessionManager
+				.abort(activeSessionId, new Error("Run-agent runtime abort requested"))
+				.catch(() => {});
 		}
 		return true;
 	};

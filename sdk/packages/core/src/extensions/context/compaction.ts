@@ -185,19 +185,42 @@ export function createContextCompactionPrepareTurn(
 			contextWindowTokens,
 		});
 
-		if (userCompaction?.compact) {
-			return await userCompaction.compact(compactionContext);
+		const beforeMessageCount = context.messages.length;
+
+		const result = userCompaction?.compact
+			? await userCompaction.compact(compactionContext)
+			: await runBuiltinStrategy({
+					context: compactionContext,
+					providerConfig: {
+						...providerConfig,
+						abortSignal: context.abortSignal,
+					},
+					compaction: userCompaction,
+					estimateMessageTokens,
+					logger: config.logger,
+				});
+
+		if (result?.messages) {
+			const afterTokens = result.messages.reduce(
+				(total: number, message) => total + estimateMessageTokens(message),
+				0,
+			);
+			config.logger?.log("Context compaction completed", {
+				severity: "info",
+				strategy: strategy,
+				contextWindowTokens,
+				inputTokens,
+				afterTokens,
+				tokensSaved: inputTokens - afterTokens,
+				utilizationBefore: `${((inputTokens / contextWindowTokens) * 100).toFixed(1)}%`,
+				utilizationAfter: `${((afterTokens / contextWindowTokens) * 100).toFixed(1)}%`,
+				thresholdTrigger: `${(triggerState.thresholdRatio * 100).toFixed(1)}%`,
+				messagesBefore: beforeMessageCount,
+				messagesAfter: result.messages.length,
+				messagesRemoved: beforeMessageCount - result.messages.length,
+			} as Record<string, unknown>);
 		}
 
-		return await runBuiltinStrategy({
-			context: compactionContext,
-			providerConfig: {
-				...providerConfig,
-				abortSignal: context.abortSignal,
-			},
-			compaction: userCompaction,
-			estimateMessageTokens,
-			logger: config.logger,
-		});
+		return result;
 	};
 }

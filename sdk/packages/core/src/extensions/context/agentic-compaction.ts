@@ -106,14 +106,26 @@ export async function runAgenticCompaction(options: {
 		(total, message) => total + options.estimateMessageTokens(message),
 		0,
 	);
-	return {
-		messages: [
-			buildSummaryMessage({
-				summary,
-				fileOps,
-				tokensBefore,
-			}),
-			...messages.slice(cutIndex),
-		],
-	};
+	const resultMessages = [
+		buildSummaryMessage({
+			summary,
+			fileOps,
+			tokensBefore,
+		}),
+		...messages.slice(cutIndex),
+	];
+	const tokensAfter = resultMessages.reduce(
+		(total, message) => total + options.estimateMessageTokens(message),
+		0,
+	);
+	options.logger?.debug("Performed agentic compaction", {
+		messagesBefore: messages.length,
+		messagesAfter: resultMessages.length,
+		messagesSummarized: cutIndex,
+		messagesPreserved: messages.length - cutIndex,
+		tokensBefore,
+		tokensAfter,
+		contextWindowTokens: options.context.contextWindowTokens,
+	});
+	return { messages: resultMessages };
 }

@@ -75,25 +75,28 @@ export function formatToolInput(toolName: string, input: unknown): string {
 	switch (toolName) {
 		case "run_commands":
 			if (Array.isArray(obj.commands)) {
-				return obj.commands.join("; ");
+				return truncate(obj.commands.join("; "), 120);
 			}
 			break;
 		case "read_files":
 			if (Array.isArray(obj.file_paths)) {
-				return obj.file_paths.join(", ");
+				return truncate(obj.file_paths.join(", "), 120);
 			}
 			break;
 		case "search_codebase":
 			if (Array.isArray(obj.queries)) {
-				return obj.queries.join(", ");
+				return truncate(obj.queries.join(", "), 120);
 			}
 			break;
 		case "fetch_web_content":
 			if (Array.isArray(obj.requests)) {
-				return obj.requests
-					.map((r) => r.url)
-					.filter(Boolean)
-					.join(", ");
+				return truncate(
+					obj.requests
+						.map((r) => r.url)
+						.filter(Boolean)
+						.join(", "),
+					120,
+				);
 			}
 			break;
 		case "spawn_agent":
@@ -104,7 +107,7 @@ export function formatToolInput(toolName: string, input: unknown): string {
 				70,
 			);
 		case "ask_followup_question":
-			return String(obj.question ?? "");
+			return truncate(String(obj.question ?? ""), 120);
 		case "team_member": {
 			const action = String(obj.action ?? "");
 			if (action === "spawn") {

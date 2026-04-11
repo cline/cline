@@ -750,7 +750,16 @@ function createRpcRuntimeCliSessionManager(
 			}
 		},
 		abort: async (sessionId) => {
-			await client.abortRuntimeSession(sessionId);
+			try {
+				await client.abortRuntimeSession(sessionId);
+			} catch (error) {
+				if (
+					!isUnimplementedRpcMethodError(error) &&
+					!isSessionNotFoundError(error)
+				) {
+					throw error;
+				}
+			}
 		},
 		stop: async (sessionId) => {
 			sessionLogger.debug?.("stop() called", { sessionId });
