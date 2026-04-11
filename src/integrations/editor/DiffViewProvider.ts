@@ -23,6 +23,7 @@ export abstract class DiffViewProvider {
 	protected relPath?: string
 	protected absolutePath?: string
 	protected fileEncoding: string = "utf8"
+	private originalHadBom = false
 	private streamedLines: string[] = []
 	private newContent?: string
 
@@ -45,9 +46,11 @@ export abstract class DiffViewProvider {
 			const fileBuffer = await fs.readFile(this.absolutePath)
 			this.fileEncoding = await detectEncoding(fileBuffer)
 			this.originalContent = iconv.decode(fileBuffer, this.fileEncoding)
+			this.originalHadBom = this.originalContent.startsWith("\ufeff")
 		} else {
 			this.originalContent = ""
 			this.fileEncoding = "utf8"
+			this.originalHadBom = false
 		}
 		// for new files, create any necessary directories and keep track of new directories to delete if the user denies the operation
 		this.createdDirs = await createDirectoriesForFile(this.absolutePath)
@@ -352,6 +355,12 @@ export abstract class DiffViewProvider {
 			}
 		}
 
+		// Re-add BOM if the original file had one — update() strips it to prevent
+		// duplication during streaming, but we need to preserve it in the final save.
+		if (this.originalHadBom && !this.newContent.startsWith("\ufeff")) {
+			this.newContent = "\ufeff" + this.newContent
+		}
+
 		await this.saveDocument()
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
@@ -430,8 +439,7 @@ export abstract class DiffViewProvider {
 			// revert document
 			// Apply the edit and save, since contents shouldn't have changed this won't show in local history unless of
 			// course the user made changes and saved during the edit.
-			const contents = (await this.getDocumentText()) || ""
-			const lineCount = (contents.match(/\n/g) || []).length + 1
+			const lineCount = await this.getDocumentLineCount()
 			await this.replaceText(this.originalContent ?? "", { startLine: 0, endLine: lineCount }, undefined)
 
 			await this.saveDocument()
@@ -456,7 +464,7 @@ export abstract class DiffViewProvider {
 		for (const part of diffs) {
 			if (part.added || part.removed) {
 				// Found the first diff, scroll to it
-				this.scrollEditorToLine(lineCount)
+				await this.scrollEditorToLine(lineCount)
 				return
 			}
 			if (!part.removed) {
@@ -495,6 +503,7 @@ export abstract class DiffViewProvider {
 		this.preDiagnostics = []
 
 		this.originalContent = undefined
+		this.originalHadBom = false
 		this.fileEncoding = "utf8"
 		this.documentWasOpen = false
 
