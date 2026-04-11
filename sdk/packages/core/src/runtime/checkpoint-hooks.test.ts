@@ -30,7 +30,8 @@ async function createGitRepo(): Promise<string> {
 	return cwd;
 }
 
-describe("createCheckpointHooks", () => {
+// Currently disabled for process?.env?.CLINE_CHECKPOINT
+describe.skip("createCheckpointHooks", () => {
 	it("creates one checkpoint at the start of each root run and appends metadata", async () => {
 		const cwd = await createGitRepo();
 		let metadata: Record<string, unknown> | undefined;

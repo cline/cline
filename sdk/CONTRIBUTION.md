@@ -124,7 +124,7 @@ If you need fine-grained control over individual steps:
 5. `npm login` — ensure you're authenticated with the npm registry.
 6. Publish in dependency order:
    ```sh
-   cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish
+   cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish && cd ../../
    ```
 7. For tagged production releases, create and push a git tag: `git tag -a sdk-v{VERSION} -m "SDK v{VERSION}" && git push origin sdk-v{VERSION}`.
 

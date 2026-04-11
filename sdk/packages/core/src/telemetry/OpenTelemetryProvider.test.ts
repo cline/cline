@@ -212,9 +212,7 @@ describe("createOpenTelemetryTelemetryService", () => {
 		const keys = Object.keys(emittedAttributes);
 		const metadataKeys = Object.keys(metadata);
 		for (const mk of metadataKeys) {
-			const occurrences = keys.filter(
-				(k) => k === mk || k.endsWith(`.${mk}`),
-			);
+			const occurrences = keys.filter((k) => k === mk || k.endsWith(`.${mk}`));
 			expect(
 				occurrences,
 				`metadata key "${mk}" should appear exactly once, found: ${occurrences.join(", ")}`,

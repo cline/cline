@@ -111,6 +111,7 @@ async function run(
 
 	const proc = Bun.spawn(cmd, {
 		cwd,
+		stdin: "inherit",
 		stdout: options.stdout ?? "inherit",
 		stderr: "inherit",
 	});
