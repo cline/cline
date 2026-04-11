@@ -363,16 +363,22 @@ describe("createContextCompactionPrepareTurn", () => {
 		);
 		expect(result?.messages).toBeDefined();
 		expect(result?.messages.length).toBeGreaterThan(0);
-		expect(
-			result?.messages.every((message) => typeof message.content === "string"),
-		).toBe(true);
-		expect(
-			result?.messages.some((message) =>
-				typeof message.content === "string"
-					? message.content.includes("tool output that should be removed")
-					: false,
-			),
-		).toBe(false);
+		// Compacted messages should not contain tool_result content that was pruned.
+		for (const message of result?.messages ?? []) {
+			if (typeof message.content === "string") {
+				expect(message.content).not.toContain(
+					"tool output that should be removed",
+				);
+			} else {
+				for (const block of message.content) {
+					if (block.type === "text") {
+						expect(block.text).not.toContain(
+							"tool output that should be removed",
+						);
+					}
+				}
+			}
+		}
 	});
 
 	it("defaults to threshold ratio when reserveTokens is not configured", async () => {

@@ -73,8 +73,8 @@ const ENTRIES: ReadonlyArray<{
 		runtimeProviderId: "dify",
 	},
 	{
-		modelsDevKey: "vercel",
-		generatedProviderId: "vercel-ai-gateway",
+		modelsDevKey: "openrouter",
+		generatedProviderId: "openrouter",
 		runtimeProviderId: "cline",
 	},
 	{

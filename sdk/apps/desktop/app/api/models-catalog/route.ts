@@ -24,7 +24,6 @@ const MODELS_DEV_PROVIDER_KEY_MAP: Record<string, string> = {
 	google: "gemini",
 	openai: "openai-native",
 	openrouter: "openrouter",
-	vercel: "vercel-ai-gateway",
 };
 
 const MODELS_DEV_URL = "https://models.dev/api.json";
@@ -165,7 +164,7 @@ export async function GET() {
 			if (modelIds.length === 0) {
 				continue;
 			}
-			if (providerId === "vercel-ai-gateway" || providerId === "cline") {
+			if (providerId === "cline" || providerId === "openrouter") {
 				providerModels.cline = uniqueSorted([
 					...(providerModels.cline ?? []),
 					...modelIds,
@@ -174,6 +173,17 @@ export async function GET() {
 					...(providerReasoningModels.cline ?? []),
 					...reasoningModelIds,
 				]);
+				// openrouter also has its own bucket
+				if (providerId === "openrouter" && providerModels.openrouter) {
+					providerModels.openrouter = uniqueSorted([
+						...providerModels.openrouter,
+						...modelIds,
+					]);
+					providerReasoningModels.openrouter = uniqueSorted([
+						...(providerReasoningModels.openrouter ?? []),
+						...reasoningModelIds,
+					]);
+				}
 				continue;
 			}
 			if (providerId === "openai-native") {

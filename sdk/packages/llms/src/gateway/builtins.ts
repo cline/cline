@@ -211,7 +211,7 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		description: "Cline API endpoint",
 		family: "openai-compatible",
 		capabilities: ["reasoning", "prompt-cache", "tools", "oauth"],
-		modelsProviderId: "vercel-ai-gateway",
+		modelsProviderId: "openrouter",
 		defaultModelId: "anthropic/claude-sonnet-4.6",
 		apiKeyEnv: ["CLINE_API_KEY"],
 		defaults: { baseUrl: "https://api.cline.bot/api/v1" },

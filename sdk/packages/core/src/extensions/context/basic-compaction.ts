@@ -33,17 +33,19 @@ function sanitizeMessageForBasic(
 		return text ? { ...message, content: text } : undefined;
 	}
 
-	const textParts: string[] = [];
-	for (const block of message.content) {
-		if (block.type === "text") {
-			const text = block.text.trim();
-			if (text) {
-				textParts.push(text);
-			}
-		}
+	// Preserve array structure: keep only text blocks with non-empty content.
+	const kept = message.content.filter(
+		(block) => block.type === "text" && block.text.trim(),
+	);
+	if (kept.length === 0) {
+		return undefined;
 	}
-	const text = textParts.join("\n\n").trim();
-	return text ? { ...message, content: text } : undefined;
+	return {
+		...message,
+		content: kept.map((block) =>
+			block.type === "text" ? { ...block, text: block.text.trim() } : block,
+		),
+	};
 }
 
 function getTotalTokens(
@@ -60,14 +62,25 @@ function truncateMessageToTokens(
 	message: MessageWithMetadata,
 	maxTokens: number,
 ): MessageWithMetadata {
-	const content = typeof message.content === "string" ? message.content : "";
 	const safeMaxTokens = Math.max(1, maxTokens);
 	const targetChars = Math.max(16, safeMaxTokens * 4);
-	const truncated = truncateText(content, targetChars).trim();
-	return {
-		...message,
-		content: truncated || "...",
-	};
+
+	if (typeof message.content === "string") {
+		const truncated = truncateText(message.content, targetChars).trim();
+		return { ...message, content: truncated || "..." };
+	}
+
+	// Preserve content block array structure while truncating text blocks.
+	let remaining = targetChars;
+	const truncatedBlocks = message.content.map((block) => {
+		if (block.type !== "text" || remaining <= 0) {
+			return block;
+		}
+		const truncated = truncateText(block.text, remaining).trim();
+		remaining -= truncated.length;
+		return { ...block, text: truncated || "..." };
+	});
+	return { ...message, content: truncatedBlocks };
 }
 
 function buildBasicCandidates(
@@ -265,10 +278,22 @@ export function runBasicCompaction(options: {
 		return undefined;
 	}
 
+	const beforeTokens = getTotalTokens(
+		options.context.messages.map((m) => sanitizeMessageForBasic(m) ?? m),
+		options.estimateMessageTokens,
+	);
+	const afterTokens = getTotalTokens(
+		nextMessages,
+		options.estimateMessageTokens,
+	);
 	options.logger?.debug("Performed basic compaction", {
-		beforeCount: options.context.messages.length,
-		afterCount: nextMessages.length,
+		messagesBefore: options.context.messages.length,
+		messagesAfter: nextMessages.length,
+		messagesRemoved: options.context.messages.length - nextMessages.length,
+		tokensBefore: beforeTokens,
+		tokensAfter: afterTokens,
 		targetTokens,
+		contextWindowTokens: options.context.contextWindowTokens,
 	});
 
 	return { messages: nextMessages };

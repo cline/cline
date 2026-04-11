@@ -312,10 +312,9 @@ export async function runInteractive(
 			return false;
 		}
 		abortRequested = true;
-		void sessionManager.abort(
-			activeSessionId,
-			new Error("Interactive runtime abort requested"),
-		);
+		sessionManager
+			.abort(activeSessionId, new Error("Interactive runtime abort requested"))
+			.catch(() => {});
 		return true;
 	};
 	setActiveRuntimeAbort(abortAll);
