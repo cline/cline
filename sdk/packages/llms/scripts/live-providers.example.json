@@ -1,0 +1,89 @@
+{
+	"version": 1,
+	"providers": {
+		"anthropic": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-sonnet-4-6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"cline": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"openai": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.4"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"gemini": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-flash-lite-preview"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"openrouter-anthropic": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"openrouter-qwen": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "qwen/qwen3.6-plus"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"vercel-anthropic": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"runs": 3,
+			"expectations": {
+				"requireUsage": true,
+				"requireCacheReadTokens": true
+			}
+		},
+		"vercel-qwen": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "alibaba/qwen3.6-plus"
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		}
+	}
+}

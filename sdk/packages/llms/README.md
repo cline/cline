@@ -88,3 +88,121 @@ selection UIs, defaults, or validation.
 
 - Workspace overview: [README.md](https://github.com/cline/cline/blob/main/README.md)
 - API and architecture references: [DOC.md](https://github.com/cline/cline/blob/main/DOC.md), [ARCHITECTURE.md](https://github.com/cline/cline/blob/main/ARCHITECTURE.md)
+
+## Live Provider Smoke Test
+
+Use this for API-key-backed provider validation against real endpoints.
+
+1. Ensure provider keys are present in your environment (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `CLINE_API_KEY`, etc.).
+2. Use the sample config at `packages/llms/scripts/live-providers.example.json` as the providers list.
+3. Run:
+
+```bash
+LLMS_LIVE_TESTS=1 \
+LLMS_LIVE_PROVIDERS_PATH=/absolute/path/to/packages/llms/scripts/live-providers.example.json \
+bun -F @clinebot/llms run test:live
+```
+
+Reasoning-focused live run (same command, different flags):
+
+```bash
+LLMS_LIVE_REASONING_TESTS=1 \
+LLMS_LIVE_REASONING_PROVIDERS_PATH=/absolute/path/to/packages/llms/scripts/live-providers.reasoning.example.json \
+bun -F @clinebot/llms run test:live
+```
+
+Tool-use-focused live run (same command, different flags):
+
+```bash
+LLMS_LIVE_TOOL_TESTS=1 \
+LLMS_LIVE_TOOL_PROVIDERS_PATH=/absolute/path/to/packages/llms/scripts/live-providers.tools.example.json \
+bun -F @clinebot/llms run test:live
+```
+
+Optional:
+
+- `LLMS_LIVE_PROVIDER_TIMEOUT_MS=120000` to increase per-provider timeout.
+- `LLMS_LIVE_PROVIDER_RETRIES=2` to retry transient upstream/provider failures per provider (total attempts = retries + 1).
+- Point `LLMS_LIVE_PROVIDERS_PATH` to a custom file if you want a narrower provider set.
+- Point `LLMS_LIVE_REASONING_PROVIDERS_PATH` to a custom file for reasoning-enabled suites.
+- Point `LLMS_LIVE_TOOL_PROVIDERS_PATH` to a custom file for tool-use suites.
+
+Per-provider live assertions are configured in the JSON via `expectations`:
+
+- `requireUsage`: fail if no `usage` chunk is emitted (defaults to `true`; set to `false` to opt out).
+- `requireCacheReadTokens`: fail unless `cacheReadTokens > 0` (auto-runs at least 2 attempts with a long cache probe prompt if no prompt override is provided).
+- `minCacheReadTokens`: stricter cache floor check.
+- `requireReasoningChunk`: fail unless at least one reasoning chunk is emitted.
+- `minInputTokens` / `minOutputTokens`: enforce lower bounds.
+- `requireToolCall`: fail unless at least one `tool_calls` chunk is emitted.
+
+In reasoning suites, set `requireReasoningSignal: true` to require either a reasoning chunk or `thoughtsTokenCount > 0` (provider-dependent; can be flaky on some endpoints).
+
+### Adding A Model To Live Tests
+
+Add a new entry under the `providers` object in either config file:
+
+- Cache/smoke suite: `packages/llms/scripts/live-providers.example.json`
+- Reasoning suite: `packages/llms/scripts/live-providers.reasoning.example.json`
+- Tool-use suite: `packages/llms/scripts/live-providers.tools.example.json`
+
+Minimal smoke/cache entry:
+
+```json
+"my-openai-model": {
+  "settings": {
+    "provider": "openai",
+    "model": "gpt-5.4"
+  },
+  "expectations": {
+    "requireUsage": true
+  }
+}
+```
+
+Cache-asserted entry (auto-enforces multi-run cache probe):
+
+```json
+"my-cache-model": {
+  "settings": {
+    "provider": "openai",
+    "model": "gpt-5.4"
+  },
+  "expectations": {
+    "requireUsage": true,
+    "requireCacheReadTokens": true
+  }
+}
+```
+
+Reasoning entry:
+
+```json
+"my-reasoning-model": {
+  "settings": {
+    "provider": "anthropic",
+    "model": "claude-sonnet-4-6",
+    "reasoning": {
+      "effort": "high"
+    }
+  },
+  "expectations": {
+    "requireUsage": true
+  }
+}
+```
+
+Tool-use entry:
+
+```json
+"my-tools-model": {
+  "settings": {
+    "provider": "openai",
+    "model": "gpt-5.4"
+  },
+  "expectations": {
+    "requireUsage": true,
+    "requireToolCall": true
+  }
+}
+```

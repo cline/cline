@@ -20,11 +20,12 @@ interface ProviderTarget {
 	systemPrompt: string;
 	userPrompt: string;
 	runs: number;
-	expectations: LiveExpectations;
+	requireUsage: boolean;
+	requireReasoningSignal: boolean;
 }
 
-const LIVE_TEST_ENABLED = process.env.LLMS_LIVE_TESTS === "1";
-const PROVIDERS_FILE_ENV = "LLMS_LIVE_PROVIDERS_PATH";
+const LIVE_TEST_ENABLED = process.env.LLMS_LIVE_REASONING_TESTS === "1";
+const PROVIDERS_FILE_ENV = "LLMS_LIVE_REASONING_PROVIDERS_PATH";
 const PROVIDER_TIMEOUT_MS = Number(
 	process.env.LLMS_LIVE_PROVIDER_TIMEOUT_MS ?? "90000",
 );
@@ -33,23 +34,8 @@ const PROVIDER_ATTEMPTS = Number.isFinite(PROVIDER_RETRIES)
 	? Math.max(1, Math.floor(PROVIDER_RETRIES) + 1)
 	: 1;
 const DEFAULT_SYSTEM_PROMPT = "You are a concise assistant.";
-const DEFAULT_USER_PROMPT = "Reply with the single word OK.";
-const DEFAULT_CACHE_PROBE_PROMPT = [
-	"Answer with one word: OK.",
-	"Use only the provided context below; do not call tools.",
-	"Context:",
-	"Section A: ".repeat(400),
-	"Section B: ".repeat(400),
-].join("\n");
-
-interface LiveExpectations {
-	requireUsage?: boolean;
-	requireReasoningChunk?: boolean;
-	requireCacheReadTokens?: boolean;
-	minInputTokens?: number;
-	minOutputTokens?: number;
-	minCacheReadTokens?: number;
-}
+const DEFAULT_USER_PROMPT =
+	"Solve briefly: what is 47*83? Then give one short sentence.";
 
 interface LiveProviderEntryLike {
 	settings?: unknown;
@@ -63,41 +49,7 @@ interface LiveProviderEntryLike {
 interface LiveRunMetrics {
 	usageSeen: boolean;
 	reasoningChunkCount: number;
-	cacheReadTokensMax: number;
-	cacheWriteTokensMax: number;
-	inputTokensMax: number;
-	outputTokensMax: number;
-}
-
-function parseExpectations(input: unknown): LiveExpectations {
-	if (!input || typeof input !== "object") {
-		return {};
-	}
-	const value = input as Record<string, unknown>;
-	return {
-		requireUsage:
-			typeof value.requireUsage === "boolean" ? value.requireUsage : undefined,
-		requireReasoningChunk:
-			typeof value.requireReasoningChunk === "boolean"
-				? value.requireReasoningChunk
-				: undefined,
-		requireCacheReadTokens:
-			typeof value.requireCacheReadTokens === "boolean"
-				? value.requireCacheReadTokens
-				: undefined,
-		minInputTokens:
-			typeof value.minInputTokens === "number"
-				? value.minInputTokens
-				: undefined,
-		minOutputTokens:
-			typeof value.minOutputTokens === "number"
-				? value.minOutputTokens
-				: undefined,
-		minCacheReadTokens:
-			typeof value.minCacheReadTokens === "number"
-				? value.minCacheReadTokens
-				: undefined,
-	};
+	thoughtsTokenCountMax: number;
 }
 
 function toTarget(
@@ -109,25 +61,17 @@ function toTarget(
 		settingsInput,
 	) as ProviderSettings;
 	const runsCandidate = entry?.runs;
-	let runs =
+	const runs =
 		typeof runsCandidate === "number" &&
 		Number.isFinite(runsCandidate) &&
 		runsCandidate > 0
 			? Math.floor(runsCandidate)
 			: 1;
-	const expectations = parseExpectations(entry?.expectations);
-	const requiresCacheProbe =
-		expectations.requireCacheReadTokens ||
-		typeof expectations.minCacheReadTokens === "number";
-	if (requiresCacheProbe && runs < 2) {
-		runs = 2;
-	}
-	const promptCandidate =
-		typeof entry?.userPrompt === "string"
-			? entry.userPrompt
-			: typeof entry?.prompt === "string"
-				? entry.prompt
-				: undefined;
+	const expectations =
+		entry?.expectations && typeof entry.expectations === "object"
+			? (entry.expectations as Record<string, unknown>)
+			: {};
+
 	return {
 		label: `${label} (${parsed.provider})`,
 		config: LlmsProviders.toProviderConfig(parsed),
@@ -136,10 +80,14 @@ function toTarget(
 				? entry.systemPrompt
 				: DEFAULT_SYSTEM_PROMPT,
 		userPrompt:
-			promptCandidate ??
-			(requiresCacheProbe ? DEFAULT_CACHE_PROBE_PROMPT : DEFAULT_USER_PROMPT),
+			typeof entry?.userPrompt === "string"
+				? entry.userPrompt
+				: typeof entry?.prompt === "string"
+					? entry.prompt
+					: DEFAULT_USER_PROMPT,
 		runs,
-		expectations,
+		requireUsage: expectations.requireUsage !== false,
+		requireReasoningSignal: expectations.requireReasoningSignal === true,
 	};
 }
 
@@ -147,7 +95,7 @@ function requireProvidersFilePath(): string {
 	const filePath = process.env[PROVIDERS_FILE_ENV];
 	if (!filePath) {
 		throw new Error(
-			`Set ${PROVIDERS_FILE_ENV} to a LlmsProviders.json file path before running live provider tests.`,
+			`Set ${PROVIDERS_FILE_ENV} to a provider json path before running live reasoning tests.`,
 		);
 	}
 	return path.resolve(filePath);
@@ -179,8 +127,7 @@ function loadProviderTargets(filePath: string): ProviderTarget[] {
 		});
 	}
 
-	const maybeStored = parsed as StoredProviderSettingsLike;
-	return toTargetsFromStoredFormat(maybeStored);
+	return toTargetsFromStoredFormat(parsed as StoredProviderSettingsLike);
 }
 
 async function withTimeout<T>(
@@ -209,38 +156,16 @@ function assertTargetExpectations(
 	metrics: LiveRunMetrics,
 ): void {
 	const errors: string[] = [];
-	const expectations = target.expectations;
-	if (expectations.requireUsage !== false && !metrics.usageSeen) {
+	if (target.requireUsage && !metrics.usageSeen) {
 		errors.push("expected at least one usage chunk");
 	}
-	if (expectations.requireReasoningChunk && metrics.reasoningChunkCount <= 0) {
-		errors.push("expected at least one reasoning chunk");
-	}
-	if (expectations.requireCacheReadTokens && metrics.cacheReadTokensMax <= 0) {
-		errors.push("expected cacheReadTokens > 0");
-	}
 	if (
-		typeof expectations.minInputTokens === "number" &&
-		metrics.inputTokensMax < expectations.minInputTokens
+		target.requireReasoningSignal &&
+		metrics.reasoningChunkCount <= 0 &&
+		metrics.thoughtsTokenCountMax <= 0
 	) {
 		errors.push(
-			`expected inputTokens >= ${expectations.minInputTokens}, got ${metrics.inputTokensMax}`,
-		);
-	}
-	if (
-		typeof expectations.minOutputTokens === "number" &&
-		metrics.outputTokensMax < expectations.minOutputTokens
-	) {
-		errors.push(
-			`expected outputTokens >= ${expectations.minOutputTokens}, got ${metrics.outputTokensMax}`,
-		);
-	}
-	if (
-		typeof expectations.minCacheReadTokens === "number" &&
-		metrics.cacheReadTokensMax < expectations.minCacheReadTokens
-	) {
-		errors.push(
-			`expected cacheReadTokens >= ${expectations.minCacheReadTokens}, got ${metrics.cacheReadTokensMax}`,
+			"expected reasoning signal (reasoning chunk or thoughts tokens)",
 		);
 	}
 	if (errors.length > 0) {
@@ -248,16 +173,14 @@ function assertTargetExpectations(
 	}
 }
 
-async function runPrompt(target: ProviderTarget): Promise<void> {
+async function runReasoningPrompt(target: ProviderTarget): Promise<void> {
 	const handler = await LlmsProviders.createHandlerAsync(target.config);
 	const metrics: LiveRunMetrics = {
 		usageSeen: false,
 		reasoningChunkCount: 0,
-		cacheReadTokensMax: 0,
-		cacheWriteTokensMax: 0,
-		inputTokensMax: 0,
-		outputTokensMax: 0,
+		thoughtsTokenCountMax: 0,
 	};
+
 	for (let run = 0; run < target.runs; run++) {
 		const stream = handler.createMessage(target.systemPrompt, [
 			{ role: "user", content: target.userPrompt },
@@ -269,21 +192,9 @@ async function runPrompt(target: ProviderTarget): Promise<void> {
 			}
 			if (chunk.type === "usage") {
 				metrics.usageSeen = true;
-				metrics.inputTokensMax = Math.max(
-					metrics.inputTokensMax,
-					chunk.inputTokens ?? 0,
-				);
-				metrics.outputTokensMax = Math.max(
-					metrics.outputTokensMax,
-					chunk.outputTokens ?? 0,
-				);
-				metrics.cacheReadTokensMax = Math.max(
-					metrics.cacheReadTokensMax,
-					chunk.cacheReadTokens ?? 0,
-				);
-				metrics.cacheWriteTokensMax = Math.max(
-					metrics.cacheWriteTokensMax,
-					chunk.cacheWriteTokens ?? 0,
+				metrics.thoughtsTokenCountMax = Math.max(
+					metrics.thoughtsTokenCountMax,
+					chunk.thoughtsTokenCount ?? 0,
 				);
 				continue;
 			}
@@ -295,27 +206,25 @@ async function runPrompt(target: ProviderTarget): Promise<void> {
 	assertTargetExpectations(target, metrics);
 }
 
-describe("live provider smoke test", () => {
+describe("live provider reasoning smoke test", () => {
 	const runLive = LIVE_TEST_ENABLED ? it : it.skip;
 	runLive(
-		"reads configured providers from json and reports providers with failed responses",
+		"runs reasoning-enabled provider configs and reports failures",
 		async () => {
 			const filePath = requireProvidersFilePath();
 			const targets = loadProviderTargets(filePath);
-
 			if (!targets.length) {
 				throw new Error(`No providers found in ${filePath}.`);
 			}
 
 			const failures: string[] = [];
-
 			for (const target of targets) {
 				let success = false;
 				let lastError: unknown;
 				for (let attempt = 1; attempt <= PROVIDER_ATTEMPTS; attempt++) {
 					try {
 						await withTimeout(
-							runPrompt(target),
+							runReasoningPrompt(target),
 							PROVIDER_TIMEOUT_MS,
 							target.label,
 						);

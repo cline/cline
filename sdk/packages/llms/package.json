@@ -30,6 +30,7 @@
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "vitest run",
+		"test:live": "vitest run src/provider-live*.test.ts",
 		"test:watch": "vitest",
 		"clean": "rm -rf dist node_modules",
 		"generate:models": "bun run scripts/generate-models.ts"

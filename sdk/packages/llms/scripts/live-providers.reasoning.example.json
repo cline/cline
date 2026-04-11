@@ -1,0 +1,77 @@
+{
+	"version": 1,
+	"providers": {
+		"anthropic-reasoning": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-sonnet-4-6",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"openai-reasoning": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.4",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"gemini-reasoning": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-flash-lite-preview",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"cline-reasoning": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-sonnet-4.6",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"openrouter-reasoning": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-sonnet-4.6",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"vercel-reasoning": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-sonnet-4.6",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		}
+	}
+}

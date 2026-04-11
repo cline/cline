@@ -1,0 +1,65 @@
+{
+	"version": 1,
+	"providers": {
+		"anthropic-tools": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-sonnet-4-6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openai-tools": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.4"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"gemini-tools": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-flash-lite-preview"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"cline-tools": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"openrouter-tools": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		},
+		"vercel-tools": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"expectations": {
+				"requireUsage": true,
+				"requireToolCall": true
+			}
+		}
+	}
+}
