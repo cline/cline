@@ -65,15 +65,7 @@ bun run test        # run all tests
 bun run check       # lint + build + typecheck + check-publish
 ```
 
-Package-scoped commands while iterating:
-
-```sh
-bun -F @clinebot/core build|test|typecheck
-bun -F @clinebot/agents build|test|typecheck
-bun -F @clinebot/enterprise build|test|typecheck
-```
-
-If you touch RPC/bootstrap/session flows, prefer both unit coverage and an end-to-end sanity check.
+If you touch RPC/bootstrap/session flows, please update `ARCHITECTURE.md`.
 
 ## Practical Guidance
 
@@ -82,16 +74,6 @@ If you touch RPC/bootstrap/session flows, prefer both unit coverage and an end-t
 - Don't move stateful logic down into `agents`
 - Don't put app-specific behavior into `core` unless it is truly shared host behavior
 - Don't let enterprise concerns leak into published core APIs unless they are generic and reusable
-
-### Prefer Existing Seams
-
-Before adding a new subsystem, look for an existing seam:
-
-- `packages/core/src/extensions/config` — config-facing parsing, watching, watcher projection
-- `packages/core/src/extensions/plugin` — runtime plugin loading/sandboxing
-- `packages/core/src/extensions/context` — core-owned message/context pipeline behavior
-- watcher/config loader, runtime builder input, extension/hook system
-- storage adapter/service split, provider manifest/config resolution
 
 ### Refactor Standard
 

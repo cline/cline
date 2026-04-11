@@ -922,7 +922,7 @@ describe("listLocalProviders", () => {
 		).toBe(true);
 	});
 
-	it("uses the same built-in model list for cline as vercel-ai-gateway", async () => {
+	it("uses the same built-in model list for cline as openrouter", async () => {
 		manager.saveProviderSettings(
 			{
 				provider: "cline",
@@ -935,12 +935,12 @@ describe("listLocalProviders", () => {
 
 		const { providers } = await listLocalProviders(manager);
 		const cline = providers.find((provider) => provider.id === "cline");
-		const gateway = providers.find(
-			(provider) => provider.id === "vercel-ai-gateway",
+		const openrouter = providers.find(
+			(provider) => provider.id === "openrouter",
 		);
 
 		expect(cline?.modelList?.length).toBeGreaterThan(0);
-		expect(cline?.modelList).toEqual(gateway?.modelList);
+		expect(cline?.modelList).toEqual(openrouter?.modelList);
 	});
 
 	it("does not eagerly fetch LiteLLM private models while listing providers", async () => {
