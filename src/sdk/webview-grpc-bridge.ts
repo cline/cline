@@ -215,6 +215,17 @@ export class WebviewGrpcBridge {
 				break
 			}
 
+			case "subscribeToMcpMarketplaceCatalog": {
+				this.sequenceCounters.set(requestId, 0)
+
+				// Read marketplace catalog from disk cache and push to webview
+				const catalogResult = await this.grpcHandler.getMcpMarketplaceCatalog()
+				if (catalogResult.data) {
+					this.sendStreamingResponse(requestId, catalogResult.data)
+				}
+				break
+			}
+
 			default: {
 				// For other streaming subscriptions (models, navigation,
 				// etc.) the SDK adapter will push real data via typed messages.

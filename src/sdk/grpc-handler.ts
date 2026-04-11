@@ -32,6 +32,7 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
 import type { Mode } from "@shared/storage/types"
 import { readClineModelsFromCache } from "../core/controller/models/refreshClineModels"
+import { readMcpMarketplaceCatalogFromCache } from "../core/storage/disk"
 import { toProtobufModels } from "../shared/proto-conversions/models/typeConversion"
 import { getAvailableTerminalProfiles } from "../utils/shell"
 
@@ -373,6 +374,9 @@ export interface GrpcHandlerDelegate {
 	fetchOrganizationCredits?(
 		organizationId: string,
 	): Promise<{ balance?: { currentBalance: number }; usageTransactions?: unknown[] }>
+
+	/** Perform Cline OAuth login flow */
+	performClineOAuth?(): Promise<void>
 }
 
 /**
@@ -645,7 +649,6 @@ export class GrpcHandler {
 				case "subscribeToAccountButtonClicked":
 				case "subscribeToOpenRouterModels":
 				case "subscribeToLiteLlmModels":
-				case "subscribeToMcpMarketplaceCatalog":
 				case "subscribeToRelinquishControl":
 				case "subscribeToShowWebview":
 				case "subscribeToAddToInput":
@@ -1457,27 +1460,42 @@ export class GrpcHandler {
 	}
 
 	// -----------------------------------------------------------------------
+	// MCP marketplace handler
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Read the MCP marketplace catalog from the local disk cache.
+	 * Returns: McpMarketplaceCatalog { items: [...] }
+	 * This is used by the bridge for subscribeToMcpMarketplaceCatalog streaming.
+	 */
+	async getMcpMarketplaceCatalog(): Promise<GrpcResponse> {
+		try {
+			const catalog = await readMcpMarketplaceCatalogFromCache()
+			if (catalog?.items?.length) {
+				return { data: catalog }
+			}
+		} catch (err) {
+			Logger.log(
+				"[grpc-handler] Failed to read MCP marketplace catalog from cache:",
+				err instanceof Error ? err.message : String(err),
+			)
+		}
+		return { data: { items: [] } }
+	}
+
+	// -----------------------------------------------------------------------
 	// Account login handler
 	// -----------------------------------------------------------------------
 
 	/**
-	 * Handle login click: open the Cline app login page in the browser.
-	 * Uses appBaseUrl from the current environment config (e.g., staging
-	 * uses a different URL than production). Falls back to production URL.
-	 *
-	 * The classic extension uses AuthService to create a full OAuth flow
-	 * with callback URLs. In SDK mode, we open the login page directly.
-	 * The user authenticates in the browser and the credentials are
-	 * picked up from disk on the next state refresh.
+	 * Handle login click: initiate OAuth flow.
+	 * Delegates to the controller's OAuth handler.
 	 */
 	private async handleAccountLoginClicked(): Promise<GrpcResponse> {
-		// Check if there's an appBaseUrl from auth credentials (set by environment)
-		const authInfo = this.delegate.getClineAuthInfo?.()
-		const appBaseUrl = authInfo?.userInfo?.appBaseUrl ?? "https://app.cline.bot"
-		const loginUrl = `${appBaseUrl}/login`
-		if (this.delegate.openUrl) {
-			await this.delegate.openUrl(loginUrl)
+		if (this.delegate.performClineOAuth) {
+			await this.delegate.performClineOAuth()
+			return { data: { value: "OAuth flow initiated" } }
 		}
-		return { data: { value: loginUrl } }
+		return { error: "OAuth not supported in this environment" }
 	}
 }

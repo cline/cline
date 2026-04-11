@@ -90,3 +90,56 @@ appear in the chat UI and are passed to the SDK session.
 🔴 Changing the account profile in the accounts tab (for example from
 Cline External, which has budget, to Cline Internal Testing Org, which
 doesn't) doesn't switch to that profile for inference.
+
+🟡 Account panel may show logged-out state on launch despite being
+logged in. Inference still works. The `subscribeToAuthStatusUpdate`
+streaming subscription in the webview may not be established before
+the bridge pushes initial auth data, causing a race condition. On most
+launches the auth state loads correctly (verified via debug harness),
+but the user reports intermittent occurrences.
+
+🔴 "Sign up with Cline" button does not do the IDE login flow — it
+opens the dashboard (`https://app.cline.bot/login`) instead. In
+origin/main, `accountLoginClicked` calls
+`AuthService.createAuthRequest()` which starts a local HTTP server for
+the OAuth callback, calls the Cline API auth endpoint with the
+callback URL, and opens the resulting OAuth redirect URL. The SDK does
+not have access to `AuthService` or `HostProvider.getCallbackUrl()`,
+so it falls back to opening the dashboard URL directly. Users who are
+not logged in cannot authenticate through the extension UI.
+**Requires:** SDK support for OAuth callback flows (see
+SDK-FEATURE-REQUESTS.md).
+
+🔴 Buttons in the MCP Servers popup do nothing. The restart (🔄),
+enable/disable toggle, and delete (🔴) buttons on individual MCP
+servers are all no-ops. The gRPC handler stubs these methods:
+`restartMcpServer`, `deleteMcpServer`, `toggleMcpServer`,
+`toggleToolAutoApprove`, `authenticateMcpServer`, `updateMcpTimeout`.
+In origin/main these go through `controller.mcpHub` which manages live
+MCP server connections. The SDK reads MCP settings from disk but does
+not expose server lifecycle management to the webview. See SDK-MCP.md
+for details, we need to implement much more elaborate MCP support
+client side to work with the SDK, via a custom RuntimeBuilder and tool
+client factory that supports streamable HTTP; watches the file for
+changes and either restarts a session or causes the tool definitions
+to change; etc.
+
+🔴 Buttons in the MCP Servers → Configure tab do nothing. Same root
+cause as above — the configure tab shows servers (e.g. "linear",
+"kamibiki") with restart/toggle/delete controls, but all interactions
+are stubbed. The "Configure MCP Servers" and "Advanced MCP Settings"
+links also depend on `openMcpSettings` which may or may not be wired.
+
+🟡 MCP Marketplace never loads. The Marketplace tab shows "No MCP
+servers found in the marketplace". **Partial fix applied:**
+`subscribeToMcpMarketplaceCatalog` in `webview-grpc-bridge.ts` now
+reads from the disk cache (`~/.cline/data/cache/mcp_marketplace_catalog.json`)
+via `readMcpMarketplaceCatalogFromCache()` and pushes the catalog to
+the webview as a streaming response. This works if the cache was
+previously populated by the classic extension. However,
+`refreshMcpMarketplace` (which fetches fresh data from the API) is
+still stubbed because it requires an authenticated API call to
+`https://api.cline.bot/v1/mcp/marketplace`. If no cache file exists
+(fresh install), the marketplace will remain empty.
+**Note:** Could not validate with debug harness since it runs the
+classic extension, not the SDK adapter.

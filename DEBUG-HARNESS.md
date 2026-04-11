@@ -63,24 +63,49 @@ for now.
   full-screen promotional overlay ("Introducing Cline Kanban") may
   appear in the sidebar webview. It obscures all other UI elements, so
   screenshots will show only the promo and interactions with the chat
-  input, settings buttons, etc. will fail. You must dismiss it before
-  doing anything else. Use the debug harness to click the dismiss/close
-  button:
+  input, settings buttons, etc. will fail. **You must dismiss it before
+  doing anything else.** The simplest way is to focus the webview and
+  press ESC:
   ```bash
+  curl localhost:19229/api -d '{"method": "ui.open_sidebar"}'
   curl localhost:19229/api -d '{
-    "method": "ui.locator",
-    "params": {"text": "Dismiss", "frame": "sidebar", "action": "click"}
+    "method": "web.evaluate",
+    "params": {"expression": "document.activeElement.dispatchEvent(new KeyboardEvent(\"keydown\", {key: \"Escape\", code: \"Escape\", keyCode: 27, bubbles: true}))"}
   }'
   ```
-  Or close it via `web.evaluate`:
+  Alternatively, look for `<span class="sr-only">Close</span>` and click
+  its parent button:
   ```bash
   curl localhost:19229/api -d '{
     "method": "web.evaluate",
-    "params": {"expression": "document.querySelector('[data-testid=\"dismiss-announcement\"]')?.click() || document.querySelector(\"button\")?.click()"}
+    "params": {"expression": "document.querySelector(\".sr-only\")?.parentElement?.click()"}
   }'
   ```
-  If the exact selector changes, take a screenshot first
-  (`ui.sidebar_screenshot`) to identify the current dismiss control.
+  If these fail, take a screenshot first (`ui.sidebar_screenshot`) to
+  identify the current dismiss control.
+
+- **Debuggee launch delay**: When launching the debuggee, don't wait a
+  full 30 seconds for startup. The extension and webview typically
+  initialize much faster. A shorter delay (5-10s) is usually sufficient
+  before attempting initial interactions.
+
+- **Top toolbar buttons**: The "new task", "mcp servers", "history",
+  "accounts", and "settings" toolbar buttons are not in the webview DOM
+  (they're VSCode UI chrome). Instead of trying to click them, run the
+  associated VSCode commands directly:
+  - New Task: `cline.plusButtonClicked`
+  - MCP Servers: `cline.showMcpServers`
+  - History: `cline.showHistory`
+  - Accounts: `cline.showAccount`
+  - Settings: `cline.openSettings`
+  
+  Example:
+  ```bash
+  curl localhost:19229/api -d '{
+    "method": "ui.command_palette",
+    "params": {"command": "cline.openSettings"}
+  }'
+  ```
 
 - **CDP disconnects after window reload**: If you use
   `workbench.action.reloadWindow` (e.g., to pick up a rebuilt

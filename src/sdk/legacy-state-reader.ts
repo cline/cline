@@ -520,6 +520,23 @@ export class LegacyStateReader {
 		this.writeJsonFile(secretsPath, secrets, 0o600)
 	}
 
+	/**
+	 * Write Cline OAuth credentials to secrets.json.
+	 * This is called after successful OAuth login.
+	 */
+	writeClineAuthInfo(credentials: ClineAuthCredentials): void {
+		const secretsPath = path.join(this.dataDir, "secrets.json")
+		let secrets: Record<string, unknown>
+		try {
+			const raw = fs.readFileSync(secretsPath, "utf-8")
+			secrets = JSON.parse(raw)
+		} catch {
+			secrets = {}
+		}
+		secrets["cline:clineAccountId"] = JSON.stringify(credentials)
+		this.writeJsonFile(secretsPath, secrets, 0o600)
+	}
+
 	// -----------------------------------------------------------------------
 	// MCP settings
 	// -----------------------------------------------------------------------

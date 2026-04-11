@@ -146,7 +146,7 @@ identify which calls need real implementations.
 - Dual-listen pattern in `ExtensionStateContext.tsx`
 
 **Remaining:**
-- Wire up stubbed gRPC methods in `grpc-handler.ts` (see CAVEATS.md
+- Wire up remaining stubbed gRPC methods in `grpc-handler.ts` (see CAVEATS.md
   for priority list; use `[grpc-handler] STUB:` log to find which
   methods each feature needs)
 - Remove gRPC subscriptions from webview (use typed messages only)
@@ -154,6 +154,21 @@ identify which calls need real implementations.
   `src/generated/`
 - Remove proto build steps from `package.json`
 - Simplify/remove obsolete settings UI (see below)
+
+**Recently completed:**
+- ✅ **Cline OAuth login flow**: The "Sign up with Cline" button now performs
+  proper OAuth using the SDK's `loginClineOAuth()` API. Previously it just
+  opened `https://app.cline.bot/login` and hoped credentials would appear
+  on disk. Now it:
+  - Spawns a local callback server (ports 48801-48811)
+  - Opens the authorization URL in the browser
+  - Captures the redirect with authorization code
+  - Exchanges code for access/refresh tokens
+  - Saves credentials to `~/.cline/data/secrets.json`
+  
+  Implementation in `src/sdk/SdkController.ts` (`performClineOAuth()`),
+  `src/sdk/legacy-state-reader.ts` (`writeClineAuthInfo()`), and
+  `src/sdk/grpc-handler.ts` (delegates to controller).
 
 #### Terminal Settings — Radical Simplification Needed
 

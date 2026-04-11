@@ -1063,6 +1063,102 @@ export class SdkController implements GrpcHandlerDelegate {
 	}
 
 	// -----------------------------------------------------------------------
+	// OAuth login
+	// -----------------------------------------------------------------------
+
+	/**
+	 * Perform Cline OAuth login flow.
+	 * Uses the SDK's loginClineOAuth function to spawn a local callback server,
+	 * open the authorization URL in the browser, exchange the code for tokens,
+	 * and save the credentials to disk.
+	 */
+	async performClineOAuth(): Promise<void> {
+		try {
+			// Import the SDK OAuth function dynamically
+			const { loginClineOAuth } = await import("@clinebot/core")
+
+			// Determine API base URL (support staging/production environments)
+			const currentAuth = this.legacyState?.readClineAuthInfo()
+			const apiBaseUrl = currentAuth?.userInfo?.appBaseUrl ?? "https://api.cline.bot"
+
+			Logger.log("[SdkController] Starting Cline OAuth flow with base URL:", apiBaseUrl)
+
+			// Call the SDK OAuth function with callbacks
+			const credentials = await loginClineOAuth({
+				apiBaseUrl,
+				callbacks: {
+					onAuth: (info) => {
+						// Open the authorization URL in the default browser
+						Logger.log("[SdkController] Opening OAuth URL:", info.url)
+						if (this.openUrlCallback) {
+							this.openUrlCallback(info.url).catch((err) => {
+								Logger.error("[SdkController] Failed to open OAuth URL:", err)
+							})
+						}
+					},
+					onPrompt: async (prompt) => {
+						// Fallback: ask user to paste the authorization code manually
+						// This shouldn't normally happen since the callback server handles it
+						Logger.log("[SdkController] OAuth prompt:", prompt.message)
+						throw new Error("Manual code input not supported in this environment")
+					},
+					onProgress: (message) => {
+						Logger.log("[SdkController] OAuth progress:", message)
+					},
+				},
+			})
+
+			Logger.log("[SdkController] OAuth successful, saving credentials")
+
+			// Convert SDK OAuthCredentials to ClineAuthCredentials format
+			// The SDK returns metadata.userInfo with the Cline API user data
+			const userInfo = credentials.metadata?.userInfo as
+				| {
+						subject?: string | null
+						email?: string
+						name?: string
+						clineUserId?: string | null
+						accounts?: string[] | null
+				  }
+				| undefined
+
+			if (!userInfo?.email) {
+				throw new Error("OAuth succeeded but no user info returned")
+			}
+
+			const clineCredentials: ClineAuthCredentials = {
+				idToken: credentials.access,
+				refreshToken: credentials.refresh,
+				expiresAt: credentials.expires,
+				provider: (credentials.metadata?.provider as string) ?? "unknown",
+				startedAt: Date.now(),
+				userInfo: {
+					id: credentials.accountId ?? userInfo.clineUserId ?? userInfo.subject ?? "unknown",
+					email: userInfo.email,
+					displayName: userInfo.name ?? userInfo.email,
+					appBaseUrl: apiBaseUrl,
+					subject: userInfo.subject ?? undefined,
+					// Organizations will be populated by a separate API call if needed
+					organizations: [],
+				},
+			}
+
+			// Save to disk
+			if (this.legacyState) {
+				this.legacyState.writeClineAuthInfo(clineCredentials)
+			}
+
+			// Push state update so webview sees the login
+			this.pushStateUpdate()
+
+			Logger.log("[SdkController] OAuth complete, user logged in:", userInfo.email)
+		} catch (err) {
+			Logger.error("[SdkController] OAuth failed:", err instanceof Error ? err.message : String(err))
+			throw err
+		}
+	}
+
+	// -----------------------------------------------------------------------
 	// Helpers
 	// -----------------------------------------------------------------------
 
