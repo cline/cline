@@ -47,10 +47,13 @@ export async function openMention(mention?: string): Promise<void> {
 export async function getFileMentionFromPath(filePath: string) {
 	const cwd = await getCwd()
 	if (!cwd) {
-		return "@/" + filePath
+		const pathStr = filePath.includes(" ") ? `"${filePath}"` : filePath
+		return "@/" + pathStr
 	}
 	const relativePath = path.relative(cwd, filePath)
-	return "@/" + relativePath
+	// Quote paths containing spaces so the LLM parses the full path (#7789)
+	const pathStr = relativePath.includes(" ") ? `"${relativePath}"` : relativePath
+	return "@/" + pathStr
 }
 
 export async function parseMentions(
