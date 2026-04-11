@@ -61,6 +61,10 @@ export type CoreSessionEvent =
 			payload: {
 				sessionId: string;
 				event: import("@clinebot/shared").AgentEvent;
+				/** Identifies the named agent within the team (e.g. "educator", "assessor", "coordinator") for both lead and teammate agents */
+				teamAgentId?: string;
+				/** Whether this is the lead agent or a teammate */
+				teamRole?: "lead" | "teammate";
 			};
 	  }
 	| { type: "team_progress"; payload: SessionTeamProgressEvent }

@@ -234,7 +234,15 @@ export function handleAgentEvent(
 
 	emit({
 		type: "agent_event",
-		payload: { sessionId, event },
+		payload: {
+			sessionId,
+			event,
+			teamAgentId: overrides?.teamAgentId,
+			teamRole:
+				overrides !== undefined
+					? (overrides.teamRole ?? (isPrimaryAgentEvent ? "lead" : undefined))
+					: undefined,
+		},
 	});
 	emit({
 		type: "chunk",
