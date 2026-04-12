@@ -46,7 +46,7 @@ import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
-import { buildServerKey, hashServerName } from "./server-key"
+import { buildServerKey } from "./server-key"
 import { McpConnection, McpServerConfig, Transport } from "./types"
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
@@ -140,15 +140,16 @@ export class McpHub {
 		// Generate a deterministic 6-character ID from the server name.
 		// "c" prefix ensures it starts with a letter (for Gemini compatibility).
 		const uid = buildServerKey(server)
+		const existing = McpHub.mcpServerKeys.get(uid)
+		if (existing && existing !== server) {
+			Logger.warn(
+				`MCP server key collision: "${server}" and "${existing}" both hash to "${uid}". ` +
+					`"${existing}" will be overwritten. Consider renaming one of the servers.`,
+			)
+		}
 		McpHub.mcpServerKeys.set(uid, server)
 		return uid
 	}
-
-	/**
-	 * Expose hashServerName for backward compatibility and direct access.
-	 * @see {@link hashServerName} in ./server-key.ts
-	 */
-	static hashServerName = hashServerName
 
 	/**
 	 * Gets the path to the MCP settings file
