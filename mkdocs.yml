@@ -36,8 +36,6 @@ theme:
     code: JetBrains Mono
 
   features:
-    - navigation.tabs
-    - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
     - navigation.path
@@ -154,21 +152,17 @@ nav:
     - Standalone MCP Server (Path A): plugins/standalone-server.md
     - Data Contract: plugins/data-contract.md
 
-  - Architecture: architecture.md
+  - Reference:
+    - Architecture: architecture.md
+    - Provenance Schema: provenance.md
+    - Changelog: changelog.md
+    - Roadmap: roadmap.md
 
-  - Provenance Schema: provenance.md
-
-  - FAQ: faq.md
-
-  - Troubleshooting: troubleshooting.md
-
-  - Contributing: contributing.md
-
-  - Citing AI-Hydro: citing.md
-
-  - Roadmap: roadmap.md
-
-  - Changelog: changelog.md
+  - Help:
+    - FAQ: faq.md
+    - Troubleshooting: troubleshooting.md
+    - Contributing: contributing.md
+    - Citing AI-Hydro: citing.md
 
   - Blog:
     - blog/index.md
