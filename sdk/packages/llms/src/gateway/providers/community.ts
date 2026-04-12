@@ -1,7 +1,6 @@
 import type { GatewayResolvedProviderConfig } from "@clinebot/shared";
 import { createClaudeCode } from "ai-sdk-provider-claude-code";
 import { createCodexExec } from "ai-sdk-provider-codex-cli";
-import { createOpencode } from "ai-sdk-provider-opencode-sdk";
 import { createDifyProvider } from "dify-ai-provider";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
@@ -43,12 +42,12 @@ export async function createOpenAICodexProviderModule(
 //
 // TODO: remove once ai-sdk-provider-opencode-sdk stops calling
 // process.exit() from signal handlers.
-function stripRogueSignalHandlers<T>(fn: () => T): T {
+async function stripRogueSignalHandlers<T>(fn: () => Promise<T>): Promise<T> {
 	const signals = ["SIGINT", "SIGTERM"] as const;
 	const before = new Map(
 		signals.map((sig) => [sig, new Set(process.listeners(sig))]),
 	);
-	const result = fn();
+	const result = await fn();
 	for (const sig of signals) {
 		for (const listener of process.listeners(sig)) {
 			if (!before.get(sig)?.has(listener)) {
@@ -62,9 +61,18 @@ function stripRogueSignalHandlers<T>(fn: () => T): T {
 export async function createOpenCodeProviderModule(
 	config: GatewayResolvedProviderConfig,
 ): Promise<ProviderFactoryResult> {
-	const provider = stripRogueSignalHandlers(() =>
-		createOpencode(readOptions(config)),
-	);
+	// Dynamic import is intentional: ai-sdk-provider-opencode-sdk runs
+	// `var opencode = createOpencode()` at module scope, which registers
+	// process.once("SIGINT") / process.once("SIGTERM") handlers that call
+	// process.exit(0). Importing it inside stripRogueSignalHandlers ensures
+	// both the module side effect and the explicit createOpencode() call are
+	// captured, so the rogue handlers get removed.
+	// TODO: switch back to a static import once the upstream package stops
+	// calling process.exit() from signal handlers.
+	const provider = await stripRogueSignalHandlers(async () => {
+		const { createOpencode } = await import("ai-sdk-provider-opencode-sdk");
+		return createOpencode(readOptions(config));
+	});
 	return {
 		model: (modelId) => provider(modelId),
 	};
