@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+
+{% block announce %}
+<div class="header-social-strip">
+  <a href="https://github.com/AI-Hydro/AI-Hydro" target="_blank" rel="noopener noreferrer" title="GitHub">
+    {% include ".icons/fontawesome/brands/github.svg" %}
+    <span>GitHub</span>
+  </a>
+  <span class="strip-divider">·</span>
+  <a href="https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw" target="_blank" rel="noopener noreferrer" title="YouTube">
+    {% include ".icons/fontawesome/brands/youtube.svg" %}
+    <span>YouTube</span>
+  </a>
+  <span class="strip-divider">·</span>
+  <a href="https://pypi.org/project/aihydro-tools/" target="_blank" rel="noopener noreferrer" title="PyPI">
+    {% include ".icons/fontawesome/brands/python.svg" %}
+    <span>PyPI</span>
+  </a>
+  <span class="strip-divider">·</span>
+  <a href="https://marketplace.visualstudio.com/items?itemName=aihydro.ai-hydro" target="_blank" rel="noopener noreferrer" title="VS Code Marketplace">
+    {% include ".icons/material/microsoft-visual-studio-code.svg" %}
+    <span>VS Code</span>
+  </a>
+</div>
+{% endblock %}

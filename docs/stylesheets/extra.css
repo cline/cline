@@ -129,10 +129,6 @@
 	border-bottom: 1px solid rgba(0, 163, 255, 0.15);
 }
 
-.md-tabs {
-	background-color: #0f0f1e;
-}
-
 /* ── Logo size ────────────────────────────────────────────────────────────── */
 
 .md-header__button.md-logo img,
@@ -178,6 +174,54 @@
 [data-md-color-scheme="slate"] .md-typeset table:not([class]) th {
 	background-color: rgba(0, 163, 255, 0.15);
 	color: #ffffff;
+}
+
+/* ── Social header strip (announce block) ─────────────────────────────────── */
+
+.md-announce {
+	background-color: #07071a;
+	border-bottom: 1px solid rgba(0, 163, 255, 0.12);
+	padding: 0;
+}
+
+.md-announce__inner {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	padding: 0.28rem 0.8rem;
+	max-width: initial;
+}
+
+.header-social-strip {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+}
+
+.header-social-strip a {
+	display: flex;
+	align-items: center;
+	gap: 0.28rem;
+	color: #94a3b8;
+	text-decoration: none;
+	font-size: 0.75rem;
+	font-family: "Nunito", sans-serif;
+	transition: color 0.18s;
+}
+
+.header-social-strip a svg {
+	width: 0.85rem;
+	height: 0.85rem;
+	fill: currentColor;
+}
+
+.header-social-strip a:hover {
+	color: #00a3ff;
+}
+
+.strip-divider {
+	color: rgba(255, 255, 255, 0.18);
+	font-size: 0.75rem;
 }
 
 /* ── Footer ───────────────────────────────────────────────────────────────── */
