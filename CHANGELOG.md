@@ -1,5 +1,16 @@
 # Changelog
 
+## [3.78.0]
+
+### Added
+
+- Add a dedicated "Spend Limit Reached" error UI when spend caps are hit
+- Docs updates
+
+### Fixed
+
+- Show actual `read_file` line ranges in chat UI
+
 ## [3.77.0]
 
 ### Added
