@@ -25,7 +25,7 @@
   <a href="https://github.com/AI-Hydro/AI-Hydro"><strong>GitHub</strong></a> &middot;
   <a href="https://pypi.org/project/aihydro-tools/"><strong>PyPI</strong></a> &middot;
   <a href="https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/"><strong>Quick Start</strong></a> &middot;
-  <a href="./docs/tools-reference.md"><strong>Tools Reference</strong></a> ·
+  <a href="https://ai-hydro.github.io/AI-Hydro/tools-reference/"><strong>Tools Reference</strong></a> ·
   <a href="https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw"><strong>YouTube</strong></a> ·
   <a href="https://github.com/AI-Hydro/AI-Hydro/issues"><strong>Issues</strong></a>
 </p>
@@ -115,7 +115,7 @@ Install the package, restart the server, and those tools are immediately availab
 | **Modelling**    | `get_model_results` — Retrieve cached NSE / KGE / RMSE                                                                  |
 | **Session**      | `start_session`, `get_session_summary`, `clear_session`, `add_note`, `export_session`, `sync_research_context` |
 
-See [docs/tools-reference.md](./docs/tools-reference.md) for full parameters, examples, and return schemas.
+See the [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools-reference/) for full parameters, examples, and return schemas.
 
 ---
 
@@ -229,7 +229,7 @@ python setup_mcp.py --ide vscode
 python setup_mcp.py --ide claude-code   # for Claude Code CLI
 ```
 
-See [docs/installation.md](./docs/installation.md) for detailed platform-specific instructions.
+See the [Installation Guide](https://ai-hydro.github.io/AI-Hydro/getting-started/installation/) for detailed platform-specific instructions.
 
 ---
 
@@ -255,7 +255,7 @@ Train a differentiable HBV model and show me the performance metrics.
 Export the full session methods paragraph for my paper.
 ```
 
-See [docs/quickstart.md](./docs/quickstart.md) for a complete walkthrough.
+See the [Quick Start guide](https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/) for a complete walkthrough.
 
 ---
 
@@ -285,7 +285,7 @@ See [docs/quickstart.md](./docs/quickstart.md) for a complete walkthrough.
 
 The extension acts as an MCP **client**: when the AI decides to call `delineate_watershed`, it sends a JSON-RPC request to the Python server, which fetches real data from USGS/GridMET/etc. and returns structured results. When no tool exists for the task, the AI writes a standalone Python script and executes it through the integrated terminal — combining the reliability of structured tools with the flexibility of general-purpose programming.
 
-Full architecture details: [docs/architecture.md](./docs/architecture.md)
+Full architecture details: [Architecture](https://ai-hydro.github.io/AI-Hydro/architecture/)
 
 ---
 
@@ -293,11 +293,11 @@ Full architecture details: [docs/architecture.md](./docs/architecture.md)
 
 | Document                                          | Description                            |
 | ------------------------------------------------- | -------------------------------------- |
-| [docs/installation.md](./docs/installation.md)       | Platform-specific install guide        |
-| [docs/quickstart.md](./docs/quickstart.md)           | First research session walkthrough     |
-| [docs/tools-reference.md](./docs/tools-reference.md) | All tools with parameters and examples |
-| [docs/architecture.md](./docs/architecture.md)       | System design and data flow            |
-| [CONTRIBUTING.md](./CONTRIBUTING.md)                 | How to contribute                      |
+| [Installation Guide](https://ai-hydro.github.io/AI-Hydro/getting-started/installation/) | Platform-specific install guide |
+| [Quick Start](https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/) | First research session walkthrough |
+| [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools-reference/) | All tools with parameters and examples |
+| [Architecture](https://ai-hydro.github.io/AI-Hydro/architecture/) | System design and data flow |
+| [Contributing](https://ai-hydro.github.io/AI-Hydro/contributing/) | How to contribute |
 
 ---
 
@@ -317,7 +317,7 @@ my_tool = "my_package.tools:my_tool_function"
 
 Install, restart the server, and your tool is immediately available to every AI model.
 
-See **[PLUGIN_GUIDE.md](./PLUGIN_GUIDE.md)** for complete walkthroughs of both paths, including the data contract, session integration, and testing.
+See **[Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/)** for complete walkthroughs of both paths, including the data contract, session integration, and testing.
 
 ### High-Priority Contribution Areas
 
@@ -332,7 +332,7 @@ We're actively looking for community tools in these domains:
 - Irrigation scheduling and water resources management
 - Hydraulic modelling and 2D flood mapping
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for the step-by-step new tool guide and [python/CONTRIBUTING.md](./python/CONTRIBUTING.md) for Python-specific development setup.
+See the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) for the step-by-step new tool guide and Python-specific development setup.
 
 ---
 
@@ -347,7 +347,7 @@ If you use AI-Hydro in your research, please cite:
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},
   url     = {https://github.com/AI-Hydro/AI-Hydro},
-  version = {0.1.0}
+  version = {0.1.3}
 }
 ```
 
