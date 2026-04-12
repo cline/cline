@@ -26,7 +26,7 @@ description: AI-Hydro project roadmap — current beta status, known limitations
 - USGS-gauge-centric data tools — non-USGS international gauges require custom scripts
 - PDF extraction requires text-layer PDFs (scanned images not supported)
 - LSTM modelling requires CAMELS gauges (static attributes dependency)
-- `xrspatial` not available on Python 3.13 — TWI tool falls back gracefully
+- `xrspatial` not available on Python 3.13 — `extract_geomorphic_parameters` requires conda-installed `xarray-spatial`; TWI is unaffected (uses `pysheds`)
 
 ---
 
