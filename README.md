@@ -363,7 +363,7 @@ The Python backend builds on the broader scientific Python ecosystem — federal
 
 ## License
 
-[Apache 2.0](./LICENSE) &copy; 2026 Mohammad Galib, Venkatesh Merwade
+[Apache 2.0](./LICENSE) &copy; 2026 Mohammad Galib
 
 ---
 
