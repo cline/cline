@@ -46,6 +46,7 @@ export default defineConfig({
 	resolve: {
 		conditions: ["node", "import", "module", "default"],
 		alias: [
+			{ find: "vscode", replacement: resolve(__dirname, "./src/test/vscode-mock.ts") },
 			// SDK packages: force Node.js dist entries (bypass browser/development conditions)
 			{ find: "@clinebot/llms/providers/browser", replacement: sdkDir("llms", "dist/providers.browser.js") },
 			{ find: "@clinebot/llms/providers", replacement: sdkDir("llms", "dist/providers.js") },
@@ -67,9 +68,11 @@ export default defineConfig({
 			{ find: /^@\/(.*)/, replacement: resolve(__dirname, "./src/$1") },
 			{ find: /^@shared\/(.*)/, replacement: resolve(__dirname, "./src/shared/$1") },
 			{ find: /^@core\/(.*)/, replacement: resolve(__dirname, "./src/core/$1") },
+			{ find: /^@generated\/(.*)/, replacement: resolve(__dirname, "./src/generated/$1") },
 			{ find: /^@hosts\/(.*)/, replacement: resolve(__dirname, "./src/hosts/$1") },
 			{ find: /^@services\/(.*)/, replacement: resolve(__dirname, "./src/services/$1") },
 			{ find: /^@integrations\/(.*)/, replacement: resolve(__dirname, "./src/integrations/$1") },
+			{ find: /^@packages\/(.*)/, replacement: resolve(__dirname, "./src/packages/$1") },
 			{ find: /^@utils\/(.*)/, replacement: resolve(__dirname, "./src/utils/$1") },
 		],
 	},
