@@ -3,13 +3,8 @@
 // This is the SDK-backed Controller. It provides the same interface as the
 // classic Controller but delegates to the Cline SDK (@clinebot/core).
 //
-// Step 4 implements the session lifecycle:
-// - initTask() — create session, start inference
-// - askResponse() — continue conversation (send to existing session)
-// - cancelTask() — abort running session
-// - clearTask() — reset for new task
-// - showTaskWithId() / reinitExistingTaskFromId() — load task from history
-// - Subscribe to SDK events, translate to internal message format
+// Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
+// Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
 
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
@@ -17,7 +12,7 @@ import type { ChatContent } from "@shared/ChatContent"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
-import type { GlobalState, Settings } from "@shared/storage/state-keys"
+import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
@@ -33,6 +28,8 @@ import {
 	getHistoryItemById,
 } from "./cline-session-factory"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
+import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 
 /**
  * Log a stub warning and return undefined.
@@ -58,9 +55,11 @@ export class Controller {
 	private messageTranslatorState: MessageTranslatorState
 	private sessionEventListeners: Set<SessionEventListener> = new Set()
 
-	// Will be typed to SDK session when implemented in later steps
-	// biome-ignore lint/suspicious/noExplicitAny: typed in later migration steps
-	task?: any
+	// gRPC bridge (Step 5) — bridges SDK events to webview streams
+	private grpcBridge: WebviewGrpcBridge
+
+	// Task proxy (Step 5) — provides classic Task interface for gRPC handlers
+	task?: TaskProxy
 
 	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK services in Steps 6-7
 	mcpHub: any
@@ -90,7 +89,13 @@ export class Controller {
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState()
 
-		Logger.log("[SdkController] Initialized with SDK adapter layer")
+		// Initialize gRPC bridge
+		this.grpcBridge = new WebviewGrpcBridge(this.messageTranslatorState)
+
+		// Register the bridge as a session event listener
+		this.onSessionEvent(this.grpcBridge.createListener())
+
+		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge")
 	}
 
 	async dispose(): Promise<void> {
@@ -135,6 +140,12 @@ export class Controller {
 
 		if (result.messages.length > 0) {
 			this.emitSessionEvents(result.messages, event)
+
+			// Accumulate messages in the task proxy's message state handler
+			// so getStateToPostToWebview() can return them
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages(result.messages)
+			}
 		}
 
 		// Update running state
@@ -185,8 +196,8 @@ export class Controller {
 			// ClineExtensionContext doesn't have workspaceRoot — use cwd from
 			// the workspace storage or fall back to process.cwd()
 			const cwd = process.cwd()
-			// biome-ignore lint/suspicious/noExplicitAny: "mode" is a valid GlobalState key but not in the typed key list yet
-			const mode = ((await this.stateManager.getGlobalStateKey("mode" as any)) as Mode | undefined) ?? "act"
+			const modeValue = await this.stateManager.getGlobalSettingsKey("mode")
+			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({
 				prompt: task,
 				images,
@@ -228,14 +239,17 @@ export class Controller {
 				isRunning: true,
 			}
 
-			// Create a history item for this task
-			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
+			// Create a task proxy for gRPC handlers
+			this.task = createTaskProxy(
+				startResult.sessionId,
+				// onAskResponse callback
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				// onCancelTask callback
+				() => this.cancelTask(),
+			)
 
-			// Set the current task reference
-			this.task = {
-				taskId: startResult.sessionId,
-				historyItem: newHistoryItem,
-			}
+			// Create a history item for this task (will be saved to task history in Step 6)
+			createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
 
 			// Emit initial task message
 			this.emitSessionEvents(
@@ -318,10 +332,12 @@ export class Controller {
 				isRunning: true,
 			}
 
-			this.task = {
-				taskId: startResult.sessionId,
-				historyItem,
-			}
+			// Create a task proxy for gRPC handlers
+			this.task = createTaskProxy(
+				startResult.sessionId,
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				() => this.cancelTask(),
+			)
 
 			await this.postStateToWebview()
 
@@ -401,9 +417,16 @@ export class Controller {
 			}
 
 			this.activeSession = undefined
-			this.task = undefined
-			this.messageTranslatorState.reset()
 		}
+
+		// Clear the task proxy
+		if (this.task) {
+			this.task.messageStateHandler.clear()
+			this.task = undefined
+		}
+
+		// Reset translator state
+		this.messageTranslatorState.reset()
 	}
 
 	async handleTaskCreation(prompt: string): Promise<void> {
@@ -414,7 +437,7 @@ export class Controller {
 	 * Send a follow-up message to the active session.
 	 * This is the "askResponse" equivalent — continues the conversation.
 	 */
-	async askResponse(prompt: string, images?: string[], files?: string[]): Promise<void> {
+	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		if (!this.activeSession) {
 			Logger.error("[SdkController] askResponse: No active session")
 			return
@@ -430,7 +453,7 @@ export class Controller {
 			// Send the follow-up message
 			await core.send({
 				sessionId,
-				prompt,
+				prompt: prompt ?? "",
 				userImages: images,
 				userFiles: files,
 			})
@@ -467,10 +490,11 @@ export class Controller {
 			}
 
 			// Set the current task reference for state building
-			this.task = {
+			this.task = createTaskProxy(
 				taskId,
-				historyItem,
-			}
+				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
+				() => this.cancelTask(),
+			)
 
 			await this.postStateToWebview()
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
@@ -494,7 +518,7 @@ export class Controller {
 	// ---- Telemetry ----
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
-		await this.stateManager.setGlobalState("telemetrySetting", telemetrySetting as GlobalState["telemetrySetting"])
+		await this.stateManager.setGlobalState("telemetrySetting", telemetrySetting)
 		await this.postStateToWebview()
 	}
 
@@ -566,15 +590,7 @@ export class Controller {
 		apiConversationHistory: unknown[]
 	}> {
 		stubWarn("getTaskWithId")
-		return undefined as unknown as {
-			historyItem: HistoryItem
-			taskDirPath: string
-			apiConversationHistoryFilePath: string
-			uiMessagesFilePath: string
-			contextHistoryFilePath: string
-			taskMetadataFilePath: string
-			apiConversationHistory: unknown[]
-		}
+		throw new Error("getTaskWithId not yet implemented")
 	}
 
 	async exportTaskWithId(_id: string): Promise<void> {
@@ -620,9 +636,9 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-		} catch {
-			// Fallback: return minimal state if classic impl not available
-			return {} as unknown as ExtensionState
+		} catch (error) {
+			Logger.error("[SdkController] Failed to get state for webview:", error)
+			throw error
 		}
 	}
 
