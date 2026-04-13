@@ -97,6 +97,13 @@ underlying patterns that caused them are relevant.
 - **Verification**: 37 unit tests pass (`npx vitest run --config vitest.config.sdk.ts`). TypeScript compiles with 0 errors (`npx tsc --noEmit`). All reads are non-throwing — missing/corrupt files return typed defaults.
 - **Evidence**: All tests pass on 2026-04-13.
 
+### Step 3: Provider Migration — Completed
+
+- **Status**: 🟢 Verified Fixed
+- **Description**: `src/sdk/provider-migration.ts` uses the SDK's `ProviderSettingsManager` to auto-migrate legacy provider credentials from `globalState.json` + `secrets.json` to the SDK's `providers.json` format. Supports all 30+ providers. Never overwrites existing entries. Tags migrated entries with `tokenSource: "migration"`. Idempotent.
+- **Verification**: 12 unit tests pass covering Anthropic, OpenAI, OpenRouter, Bedrock, Ollama, Cline providers, no-overwrite guarantee, idempotency, and missing state handling. TypeScript compiles with 0 errors.
+- **Evidence**: All tests pass on 2026-04-13.
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢
