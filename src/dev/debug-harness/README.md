@@ -98,8 +98,8 @@ Call `connect_webview` first after the sidebar is open (only needed for breakpoi
 
 | Method | Params | Description |
 |--------|--------|-------------|
-| `ui.screenshot` | `{fullPage?}` | Take screenshot → returns `{path}` |
-| `ui.sidebar_screenshot` | | Screenshot focused on sidebar |
+| `ui.screenshot` | `{fullPage?}` | Take screenshot → returns `{path}` (use `read_file` on the path, don't `open` the file) |
+| `ui.sidebar_screenshot` | | Screenshot focused on sidebar → returns `{path}` |
 | `ui.click` | `{selector, frame?, delay?}` | Click element (`frame: "sidebar"` for webview) |
 | `ui.fill` | `{selector, text, frame?}` | Fill input |
 | `ui.press` | `{key}` | Press key (e.g., "Enter", "Meta+Shift+p") |
@@ -274,6 +274,24 @@ curl localhost:19229/api -d '{"method": "ext.source_files"}'
 
 6. **UI Automation**: Playwright's Page/Frame APIs provide click, fill, type, screenshot, locator
    queries, and more. The sidebar webview is accessed as a Frame within the VSCode window.
+
+## Caveats
+
+**⚠️ "Introducing Cline Kanban" overlay**: On fresh launches, a full-screen promo overlay may
+appear in the sidebar. It blocks all interactions and makes screenshots useless. **Dismiss it
+immediately after opening the sidebar**, before doing anything else:
+```bash
+# Most reliable — click the close button via DOM:
+curl localhost:19229/api -d '{"method": "ui.open_sidebar"}'
+curl localhost:19229/api -d '{
+  "method": "web.evaluate",
+  "params": {"expression": "document.querySelector(\".sr-only\")?.parentElement?.click()"}
+}'
+```
+
+**Screenshots**: `ui.screenshot` and `ui.sidebar_screenshot` save PNG files to `/tmp/cline-debug/`
+and return `{path}` in the response. **Do NOT `open` the file** — on macOS this launches Preview.app
+which covers the VSCode window. Use `read_file` on the returned path to examine the image.
 
 ## Troubleshooting
 

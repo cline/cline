@@ -1006,11 +1006,30 @@ export class GrpcHandler {
 		// The initial response is returned immediately with current auth state.
 		const authInfo = this.delegate.getClineAuthInfo?.()
 		if (authInfo?.userInfo) {
+			// Resolve uid: the stored id may be empty from a previous broken
+			// login. Fall back to extracting the `sub` claim from the JWT.
+			let uid = authInfo.userInfo.id
+			if (!uid && authInfo.idToken) {
+				try {
+					const parts = authInfo.idToken.split(".")
+					if (parts.length >= 2) {
+						const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+						const payload = JSON.parse(Buffer.from(base64, "base64").toString("utf-8"))
+						uid = (payload.sub as string) || ""
+					}
+				} catch {
+					// Best-effort JWT extraction
+				}
+			}
+			if (!uid) {
+				// No valid user ID — treat as not authenticated
+				return { data: {} }
+			}
 			// Return auth state matching the proto AuthState shape
 			return {
 				data: {
 					user: {
-						uid: authInfo.userInfo.id,
+						uid,
 						displayName: authInfo.userInfo.displayName,
 						email: authInfo.userInfo.email,
 					},

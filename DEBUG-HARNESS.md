@@ -59,13 +59,27 @@ for now.
   CLINE_DIR=~/.cline npx tsx src/dev/debug-harness/server.ts --skip-build --auto-launch
   ```
 
-- **"Introducing Cline Kanban" promotion**: On fresh launches, a
-  full-screen promotional overlay ("Introducing Cline Kanban") may
-  appear in the sidebar webview. It obscures all other UI elements, so
-  screenshots will show only the promo and interactions with the chat
-  input, settings buttons, etc. will fail. **You must dismiss it before
-  doing anything else.** The simplest way is to focus the webview and
-  press ESC:
+- **⚠️ "Introducing Cline Kanban" promotion — DISMISS FIRST**: On
+  fresh launches, a full-screen promotional overlay ("Introducing Cline
+  Kanban") may appear in the sidebar webview. It obscures all other UI
+  elements, so screenshots will show only the promo and interactions
+  with the chat input, settings buttons, etc. will fail. **You must
+  dismiss it immediately after opening the sidebar, before doing
+  anything else.** This is easy to forget — if your screenshots look
+  wrong or interactions fail, this is almost certainly why.
+
+  **Method 1 — Click the close button via DOM** (most reliable):
+  ```bash
+  curl localhost:19229/api -d '{"method": "ui.open_sidebar"}'
+  curl localhost:19229/api -d '{
+    "method": "web.evaluate",
+    "params": {"expression": "document.querySelector(\".sr-only\")?.parentElement?.click()"}
+  }'
+  ```
+  This finds the `<span class="sr-only">Close</span>` element and
+  clicks its parent `<button>`.
+
+  **Method 2 — Press ESC** (simpler but less reliable):
   ```bash
   curl localhost:19229/api -d '{"method": "ui.open_sidebar"}'
   curl localhost:19229/api -d '{
@@ -73,21 +87,21 @@ for now.
     "params": {"expression": "document.activeElement.dispatchEvent(new KeyboardEvent(\"keydown\", {key: \"Escape\", code: \"Escape\", keyCode: 27, bubbles: true}))"}
   }'
   ```
-  Alternatively, look for `<span class="sr-only">Close</span>` and click
-  its parent button:
-  ```bash
-  curl localhost:19229/api -d '{
-    "method": "web.evaluate",
-    "params": {"expression": "document.querySelector(\".sr-only\")?.parentElement?.click()"}
-  }'
-  ```
-  If these fail, take a screenshot first (`ui.sidebar_screenshot`) to
-  identify the current dismiss control.
 
-- **Debuggee launch delay**: When launching the debuggee, don't wait a
-  full 30 seconds for startup. The extension and webview typically
-  initialize much faster. A shorter delay (5-10s) is usually sufficient
-  before attempting initial interactions.
+  If neither works, take a screenshot (`ui.screenshot`) to see what's
+  on screen and identify the current dismiss control.
+
+- **Screenshots**: `ui.screenshot` and `ui.sidebar_screenshot` save
+  PNG files to `/tmp/cline-debug/` and return `{path}` in the JSON
+  response. **Do NOT open the screenshot file with `open`** — on macOS
+  this launches Preview.app which covers the VSCode window you're
+  debugging. Use `read_file` on the returned path to examine the image
+  without disrupting the debuggee.
+
+- **Debuggee launch delay**: The post-launch activation delay is 1
+  second. If the extension hasn't fully loaded by the time you interact
+  with it, just retry — `ui.open_sidebar` and `findSidebar` have their
+  own internal polling with timeouts.
 
 - **Top toolbar buttons**: The "new task", "mcp servers", "history",
   "accounts", and "settings" toolbar buttons are not in the webview DOM

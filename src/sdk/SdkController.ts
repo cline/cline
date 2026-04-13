@@ -941,6 +941,15 @@ export class SdkController implements GrpcHandlerDelegate {
 		if (this.legacyState) {
 			this.legacyState.clearClineAuthInfo()
 		}
+
+		// Keep the API provider as "cline" — the classic extension does the
+		// same. When the user tries to do inference without auth, the Cline
+		// provider's error handling will show a helpful "sign up with cline"
+		// prompt rather than a confusing "missing API key for openrouter".
+
+		// Clear userInfo from global state
+		this.writeGlobalStateKey("userInfo", undefined)
+
 		// Push auth status update with empty user so the webview
 		// transitions to the sign-in view
 		this.onPushAuthStatusCallback?.({})
@@ -1126,6 +1135,17 @@ export class SdkController implements GrpcHandlerDelegate {
 				throw new Error("OAuth succeeded but no user info returned")
 			}
 
+			// Resolve user ID from multiple sources. The SDK credentials
+			// may return empty strings for accountId/clineUserId/subject,
+			// so we use || (not ??) to also skip empty strings.
+			// As a last resort, extract the `sub` claim from the JWT.
+			const userId =
+				credentials.accountId ||
+				userInfo.clineUserId ||
+				userInfo.subject ||
+				this.extractSubFromJwt(credentials.access) ||
+				"unknown"
+
 			const clineCredentials: ClineAuthCredentials = {
 				idToken: credentials.access,
 				refreshToken: credentials.refresh,
@@ -1133,20 +1153,86 @@ export class SdkController implements GrpcHandlerDelegate {
 				provider: (credentials.metadata?.provider as string) ?? "unknown",
 				startedAt: Date.now(),
 				userInfo: {
-					id: credentials.accountId ?? userInfo.clineUserId ?? userInfo.subject ?? "unknown",
+					id: userId,
 					email: userInfo.email,
 					displayName: userInfo.name ?? userInfo.email,
 					appBaseUrl: apiBaseUrl,
 					subject: userInfo.subject ?? undefined,
-					// Organizations will be populated by a separate API call if needed
 					organizations: [],
 				},
+			}
+
+			// Fetch user profile (including organizations) from the Cline API
+			try {
+				const authToken = credentials.access.startsWith("workos:") ? credentials.access : `workos:${credentials.access}`
+				const meResponse = await globalThis.fetch(`${apiBaseUrl}/api/v1/users/me`, {
+					headers: {
+						Authorization: `Bearer ${authToken}`,
+						"Content-Type": "application/json",
+					},
+				})
+				if (meResponse.ok) {
+					const meData = (await meResponse.json()) as {
+						id?: string
+						organizations?: Array<{
+							active: boolean
+							memberId: string
+							name: string
+							organizationId: string
+							roles: string[]
+						}>
+					}
+					if (meData.organizations?.length) {
+						clineCredentials.userInfo.organizations = meData.organizations
+					}
+					// Also use the API user ID if we still have "unknown"
+					if (meData.id && clineCredentials.userInfo.id === "unknown") {
+						clineCredentials.userInfo.id = meData.id
+					}
+				}
+			} catch (err) {
+				Logger.log(
+					"[SdkController] Failed to fetch user profile after login:",
+					err instanceof Error ? err.message : String(err),
+				)
+				// Non-fatal — organizations will just be empty
 			}
 
 			// Save to disk
 			if (this.legacyState) {
 				this.legacyState.writeClineAuthInfo(clineCredentials)
 			}
+
+			// Switch API provider to "cline" so inference uses the new token.
+			// This is the inverse of clearClineAuth() which switches to "openrouter".
+			if (this.apiConfiguration) {
+				const updatedConfig: Partial<ApiConfiguration> = {
+					...this.apiConfiguration,
+					planModeApiProvider: "cline" as ApiConfiguration["planModeApiProvider"],
+					actModeApiProvider: "cline" as ApiConfiguration["actModeApiProvider"],
+				}
+				this.apiConfiguration = updatedConfig as ApiConfiguration
+				if (this.legacyState) {
+					try {
+						this.legacyState.saveApiConfiguration(updatedConfig)
+					} catch {
+						// Best-effort persistence
+					}
+				}
+			}
+
+			// Push auth status update so the webview's ClineAuthContext
+			// transitions from the sign-in view to the logged-in view.
+			// This must be called BEFORE pushStateUpdate so the auth
+			// context is updated before the general state refresh.
+			this.onPushAuthStatusCallback?.({
+				user: {
+					uid: clineCredentials.userInfo.id,
+					displayName: clineCredentials.userInfo.displayName,
+					email: clineCredentials.userInfo.email,
+					appBaseUrl: clineCredentials.userInfo.appBaseUrl,
+				},
+			})
 
 			// Push state update so webview sees the login
 			this.pushStateUpdate()
@@ -1166,6 +1252,25 @@ export class SdkController implements GrpcHandlerDelegate {
 		const state = this.getState()
 		this.grpcHandler.pushState(state)
 		this.onPushStateCallback?.(state)
+	}
+
+	/**
+	 * Extract the `sub` (subject) claim from a JWT access token.
+	 * Returns the subject string, or an empty string if extraction fails.
+	 * This is used as a fallback when the SDK credentials don't include
+	 * a user ID in the metadata fields.
+	 */
+	private extractSubFromJwt(token: string): string {
+		try {
+			const parts = token.split(".")
+			if (parts.length < 2) return ""
+			// Base64url decode the payload
+			const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/")
+			const payload = JSON.parse(Buffer.from(base64, "base64").toString("utf-8"))
+			return (payload.sub as string) || ""
+		} catch {
+			return ""
+		}
 	}
 
 	/**

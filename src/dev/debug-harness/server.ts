@@ -392,7 +392,7 @@ class DebugHarness {
 
 		// Wait briefly for the extension to activate, then find the sidebar
 		log("Waiting for extension activation...")
-		await sleep(3000)
+		await sleep(1000)
 
 		return {
 			status: "launched",
