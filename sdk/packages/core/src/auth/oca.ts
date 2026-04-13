@@ -363,6 +363,8 @@ export async function loginOcaOAuth(
 	const localServer = await startLocalOAuthServer({
 		ports: callbackPorts,
 		callbackPath,
+		onListening: options.callbacks.onServerListening,
+		onClose: options.callbacks.onServerClose,
 	});
 	const callbackUrl = localServer.callbackUrl;
 	if (!callbackUrl) {

@@ -128,6 +128,13 @@ export {
 	OCI_HEADER_OPC_REQUEST_ID,
 	refreshOcaToken,
 } from "./auth/oca";
+export type {
+	LocalOAuthServer,
+	LocalOAuthServerOptions,
+	OAuthCallbackPayload,
+	OAuthServerCloseInfo,
+	OAuthServerListeningInfo,
+} from "./auth/server";
 export { startLocalOAuthServer } from "./auth/server";
 export type {
 	OAuthCredentials,
