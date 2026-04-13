@@ -592,7 +592,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				const factory = input.teamToolsFactory ?? bootstrapAgentTeams;
 				const teamBootstrap = factory({
 					runtime: teamRuntime,
-					leadAgentId: "lead",
+					leadAgentId: config.sessionId || "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
 					restoredTeammates: restoredTeammateSpecs,
 					includeLeadSpawnTool: true,
