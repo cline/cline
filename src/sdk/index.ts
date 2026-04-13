@@ -5,4 +5,5 @@
 // The webview continues to communicate via gRPC; this layer translates
 // between gRPC handlers and SDK calls.
 
+export * from "./legacy-state-reader"
 export { Controller } from "./SdkController"
