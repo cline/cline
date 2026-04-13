@@ -111,11 +111,18 @@ underlying patterns that caused them are relevant.
 - **Verification**: 91 unit tests pass across 4 test files (27 message-translator, 37 legacy-state-reader, 15 cline-session-factory, 12 provider-migration). TypeScript compiles with 0 errors in `src/sdk/`. Tests cover: streaming state tracking, all event type translations, full streaming flows (text→tool→text), history item CRUD, session input building, and provider config resolution.
 - **Evidence**: All tests pass on 2026-04-13. `npx tsc --noEmit` returns 0 errors in `src/sdk/`.
 
+### Step 5: gRPC Thunking Layer — Completed
+
+- **Status**: 🟢 Verified Fixed
+- **Description**: gRPC thunking layer implemented in `src/sdk/task-proxy.ts` and `src/sdk/webview-grpc-bridge.ts`. The `TaskProxy` provides a classic Task-compatible interface that delegates to SDK session methods, allowing existing gRPC handlers to work without modification. The `WebviewGrpcBridge` translates SDK session events to proto ClineMessages and pushes them through the existing `subscribeToPartialMessage` and `subscribeToState` gRPC streams. The `MessageStateHandler` extends `EventEmitter` for CLI compatibility (on/off pattern). The SdkController wires everything together: session events → message translation → gRPC bridge → webview streams.
+- **Verification**: 114 unit tests pass across 6 test files (16 task-proxy, 7 webview-grpc-bridge, 27 message-translator, 37 legacy-state-reader, 15 cline-session-factory, 12 provider-migration). TypeScript compiles with 0 new errors (3 pre-existing errors in unrelated files). Tests cover: TaskProxy delegation, MessageStateHandler event emission, WebviewGrpcBridge message/state pushing, error handling.
+- **Evidence**: All tests pass on 2026-04-13. `npx tsc --noEmit` returns only 3 pre-existing errors (searchFiles.ts, commit-message-generator.ts).
+
 ### S4-1: Session lifecycle not yet wired to gRPC handlers
-- **Status**: 🟡 Minor
-- **Description**: The SdkController's session lifecycle methods work but are not yet called from the gRPC handler layer. The webview's `newTask` and `askResponse` messages still go through the classic Controller path. Wiring will happen in Step 5.
-- **Root cause**: By design — Step 5 implements the gRPC handler bridge.
-- **Fix**: Wire gRPC handlers to call SdkController methods in Step 5.
+- **Status**: 🟢 Verified Fixed
+- **Description**: The SdkController's session lifecycle methods are now wired to the gRPC handler layer via the TaskProxy. The webview's `newTask` and `askResponse` messages flow through: gRPC handler → TaskProxy → SdkController → SDK session. Session events flow back: SDK → message translator → WebviewGrpcBridge → gRPC streams → webview.
+- **Root cause**: N/A — fixed in Step 5.
+- **Fix**: TaskProxy delegates `handleWebviewAskResponse()` and `abortTask()` to SdkController callbacks. WebviewGrpcBridge pushes translated messages through `sendPartialMessageEvent()` and `sendStateUpdate()`.
 
 ### S4-2: Task resumption uses new session instead of SDK resume API
 - **Status**: 🟡 Minor
