@@ -31,8 +31,10 @@ jobs:
 
       - name: Check for recent commits
         id: check_commits
+        env:
+          FORCE_PUBLISH: ${{ inputs.force_publish }}
         run: |
-          if [ "${{ inputs.force_publish }}" = "true" ]; then
+          if [ "$FORCE_PUBLISH" = "true" ]; then
             echo "force_publish enabled, proceeding with publish"
             echo "skip=false" >> $GITHUB_OUTPUT
             exit 0
