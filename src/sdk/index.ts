@@ -6,4 +6,5 @@
 // between gRPC handlers and SDK calls.
 
 export * from "./legacy-state-reader"
+export * from "./provider-migration"
 export { Controller } from "./SdkController"
