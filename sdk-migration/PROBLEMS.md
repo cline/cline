@@ -104,6 +104,31 @@ underlying patterns that caused them are relevant.
 - **Verification**: 12 unit tests pass covering Anthropic, OpenAI, OpenRouter, Bedrock, Ollama, Cline providers, no-overwrite guarantee, idempotency, and missing state handling. TypeScript compiles with 0 errors.
 - **Evidence**: All tests pass on 2026-04-13.
 
+### Step 4: Session Lifecycle — Completed
+
+- **Status**: 🟢 Verified Fixed
+- **Description**: Session lifecycle implemented in `src/sdk/cline-session-factory.ts`, `src/sdk/message-translator.ts`, and `src/sdk/SdkController.ts`. The SdkController now has working `initTask()`, `askResponse()`, `cancelTask()`, `clearTask()`, `showTaskWithId()`, and `reinitExistingTaskFromId()` methods that create SDK sessions via `ClineCore`, subscribe to events, translate them to `ClineMessage[]`, and emit to listeners. The message translator handles all SDK event types: `chunk`, `agent_event` (content_start/update/end, done, error, notice, iteration_start/end, usage), `ended`, `hook`, and `status`. Session factory builds `CoreSessionConfig` from legacy state via `ProviderSettingsManager` and creates `HistoryItem` records.
+- **Verification**: 91 unit tests pass across 4 test files (27 message-translator, 37 legacy-state-reader, 15 cline-session-factory, 12 provider-migration). TypeScript compiles with 0 errors in `src/sdk/`. Tests cover: streaming state tracking, all event type translations, full streaming flows (text→tool→text), history item CRUD, session input building, and provider config resolution.
+- **Evidence**: All tests pass on 2026-04-13. `npx tsc --noEmit` returns 0 errors in `src/sdk/`.
+
+### S4-1: Session lifecycle not yet wired to gRPC handlers
+- **Status**: 🟡 Minor
+- **Description**: The SdkController's session lifecycle methods work but are not yet called from the gRPC handler layer. The webview's `newTask` and `askResponse` messages still go through the classic Controller path. Wiring will happen in Step 5.
+- **Root cause**: By design — Step 5 implements the gRPC handler bridge.
+- **Fix**: Wire gRPC handlers to call SdkController methods in Step 5.
+
+### S4-2: Task resumption uses new session instead of SDK resume API
+- **Status**: 🟡 Minor
+- **Description**: `reinitExistingTaskFromId()` starts a new session with a resumption prompt rather than using a dedicated SDK resume API. This works but doesn't preserve the original conversation context in the SDK's persistence layer.
+- **Root cause**: SDK's resume API needs investigation — may not exist yet or may require session ID continuity.
+- **Fix**: Investigate SDK's `ClineCore.resume()` or similar API and update `reinitExistingTaskFromId()` to use it.
+
+### S4-3: Workspace root not available from ClineExtensionContext
+- **Status**: 🟡 Minor
+- **Description**: `ClineExtensionContext` doesn't have a `workspaceRoot` property. The SdkController falls back to `process.cwd()` for the session's working directory. In VSCode, the workspace root is available from the VSCode extension context but not from the shared `ClineExtensionContext` type.
+- **Root cause**: The shared context type was designed for CLI/ACP use and doesn't include VSCode-specific workspace info.
+- **Fix**: Add workspace root resolution in the host-specific initialization (VSCode host, CLI host) and pass it to the SdkController.
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢

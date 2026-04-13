@@ -3,21 +3,36 @@
 // This is the SDK-backed Controller. It provides the same interface as the
 // classic Controller but delegates to the Cline SDK (@clinebot/core).
 //
-// During migration, unimplemented methods log warnings. The extension will
-// compile and load, but functionality is added incrementally in Steps 4-8.
+// Step 4 implements the session lifecycle:
+// - initTask() — create session, start inference
+// - askResponse() — continue conversation (send to existing session)
+// - cancelTask() — abort running session
+// - clearTask() — reset for new task
+// - showTaskWithId() / reinitExistingTaskFromId() — load task from history
+// - Subscribe to SDK events, translate to internal message format
 
+import type { CoreSessionEvent } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
-import type { ExtensionState } from "@shared/ExtensionMessage"
+import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
-import type { Settings } from "@shared/storage/state-keys"
+import type { GlobalState, Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
 import { StateManager } from "@/core/storage/StateManager"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
+import {
+	type ActiveSession,
+	buildSessionConfig,
+	buildStartSessionInput,
+	createClineCore,
+	createHistoryItemFromSession,
+	getHistoryItemById,
+} from "./cline-session-factory"
+import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 
 /**
  * Log a stub warning and return undefined.
@@ -26,13 +41,35 @@ function stubWarn(name: string): void {
 	Logger.warn(`[SdkController] STUB: ${name} not yet implemented`)
 }
 
-export class Controller {
-	task?: any // Will be typed to SDK session when implemented in Step 4
+// ---------------------------------------------------------------------------
+// Event listener type
+// ---------------------------------------------------------------------------
 
-	mcpHub: any // Replaced by SDK MCP manager in Step 7
-	accountService: any // Replaced by SDK account service in Step 6
-	authService: any // Replaced by SDK auth in Step 6
-	ocaAuthService: any // Replaced by SDK auth in Step 6
+/** Listener for session events translated to ClineMessages */
+export type SessionEventListener = (messages: ClineMessage[], event: CoreSessionEvent) => void
+
+// ---------------------------------------------------------------------------
+// Controller
+// ---------------------------------------------------------------------------
+
+export class Controller {
+	// SDK session state (Step 4)
+	private activeSession: ActiveSession | undefined
+	private messageTranslatorState: MessageTranslatorState
+	private sessionEventListeners: Set<SessionEventListener> = new Set()
+
+	// Will be typed to SDK session when implemented in later steps
+	// biome-ignore lint/suspicious/noExplicitAny: typed in later migration steps
+	task?: any
+
+	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK services in Steps 6-7
+	mcpHub: any
+	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK account service in Step 6
+	accountService: any
+	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK auth in Step 6
+	authService: any
+	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK auth in Step 6
+	ocaAuthService: any
 	readonly stateManager: StateManager
 
 	// Private state kept for stub compatibility
@@ -50,48 +87,292 @@ export class Controller {
 		this.authService = undefined
 		this.ocaAuthService = undefined
 
+		// Initialize message translator state
+		this.messageTranslatorState = new MessageTranslatorState()
+
 		Logger.log("[SdkController] Initialized with SDK adapter layer")
 	}
 
 	async dispose(): Promise<void> {
 		await this.clearTask()
 		this.mcpHub?.dispose?.()
+		this.sessionEventListeners.clear()
 		Logger.log("[SdkController] Disposed")
 	}
 
-	async handleSignOut(): Promise<void> {
-		stubWarn("handleSignOut")
-		await this.postStateToWebview()
+	// ---- Session event subscription ----
+
+	/**
+	 * Subscribe to session events translated to ClineMessages.
+	 * Returns an unsubscribe function.
+	 */
+	onSessionEvent(listener: SessionEventListener): () => void {
+		this.sessionEventListeners.add(listener)
+		return () => {
+			this.sessionEventListeners.delete(listener)
+		}
 	}
 
-	async handleOcaSignOut(): Promise<void> {
-		stubWarn("handleOcaSignOut")
-		await this.postStateToWebview()
+	/**
+	 * Emit translated session events to all listeners.
+	 */
+	private emitSessionEvents(messages: ClineMessage[], event: CoreSessionEvent): void {
+		for (const listener of this.sessionEventListeners) {
+			try {
+				listener(messages, event)
+			} catch (error) {
+				Logger.error("[SdkController] Error in session event listener:", error)
+			}
+		}
 	}
 
-	async setUserInfo(_info?: UserInfo): Promise<void> {
-		stubWarn("setUserInfo")
+	/**
+	 * Handle an SDK session event.
+	 * Translates the event and emits ClineMessages to listeners.
+	 */
+	private handleSessionEvent(event: CoreSessionEvent): void {
+		const result = translateSessionEvent(event, this.messageTranslatorState)
+
+		if (result.messages.length > 0) {
+			this.emitSessionEvents(result.messages, event)
+		}
+
+		// Update running state
+		if (this.activeSession) {
+			if (result.sessionEnded || result.turnComplete) {
+				this.activeSession.isRunning = false
+			}
+
+			// Update task history with usage info
+			if (result.usage && this.activeSession.startResult) {
+				this.updateTaskUsage(result.usage)
+			}
+		}
+
+		// Post state to webview on significant events
+		if (result.sessionEnded || result.turnComplete) {
+			this.postStateToWebview().catch((err) => {
+				Logger.error("[SdkController] Failed to post state after event:", err)
+			})
+		}
+	}
+
+	/**
+	 * Update task usage in history after a turn completes.
+	 */
+	private updateTaskUsage(usage: { tokensIn: number; tokensOut: number; totalCost?: number }): void {
+		// Will be fully wired in Step 5 when gRPC handlers are implemented.
+		// For now, just log the usage.
+		Logger.log(
+			`[SdkController] Task usage: tokensIn=${usage.tokensIn}, tokensOut=${usage.tokensOut}, cost=${usage.totalCost ?? 0}`,
+		)
 	}
 
 	// ---- Task lifecycle (Step 4) ----
 
 	async initTask(
-		_task?: string,
-		_images?: string[],
-		_files?: string[],
-		_historyItem?: HistoryItem,
-		_taskSettings?: Partial<Settings>,
+		task?: string,
+		images?: string[],
+		files?: string[],
+		historyItem?: HistoryItem,
+		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
-		stubWarn("initTask")
-		return undefined
+		try {
+			// Clear any existing session first
+			await this.clearTask()
+
+			// Build session config from current state
+			// ClineExtensionContext doesn't have workspaceRoot — use cwd from
+			// the workspace storage or fall back to process.cwd()
+			const cwd = process.cwd()
+			// biome-ignore lint/suspicious/noExplicitAny: "mode" is a valid GlobalState key but not in the typed key list yet
+			const mode = ((await this.stateManager.getGlobalStateKey("mode" as any)) as Mode | undefined) ?? "act"
+			const config = await buildSessionConfig({
+				prompt: task,
+				images,
+				files,
+				historyItem,
+				taskSettings,
+				cwd,
+				mode,
+			})
+
+			// Create ClineCore instance
+			const core = await createClineCore()
+
+			// Subscribe to session events BEFORE starting
+			const unsubscribe = core.subscribe((event: CoreSessionEvent) => {
+				this.handleSessionEvent(event)
+			})
+
+			// Build start input
+			const startInput = buildStartSessionInput(config, {
+				prompt: task,
+				images,
+				files,
+				historyItem,
+				taskSettings,
+				cwd,
+				mode,
+			})
+
+			// Start the session
+			const startResult = await core.start(startInput)
+
+			// Track the active session
+			this.activeSession = {
+				sessionId: startResult.sessionId,
+				core,
+				unsubscribe,
+				startResult,
+				isRunning: true,
+			}
+
+			// Create a history item for this task
+			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
+
+			// Set the current task reference
+			this.task = {
+				taskId: startResult.sessionId,
+				historyItem: newHistoryItem,
+			}
+
+			// Emit initial task message
+			this.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "task",
+						text: task ?? "",
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId: startResult.sessionId, status: "running" } },
+			)
+
+			// Post state update
+			await this.postStateToWebview()
+
+			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
+			return startResult.sessionId
+		} catch (error) {
+			Logger.error("[SdkController] Failed to init task:", error)
+			this.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "error",
+						text: `Failed to start task: ${error instanceof Error ? error.message : String(error)}`,
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId: "", status: "error" } },
+			)
+			return undefined
+		}
 	}
 
-	async reinitExistingTaskFromId(_taskId: string): Promise<void> {
-		stubWarn("reinitExistingTaskFromId")
+	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		try {
+			// Clear any existing session
+			await this.clearTask()
+
+			// Look up the task in history
+			const historyItem = getHistoryItemById(taskId)
+			if (!historyItem) {
+				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
+				return
+			}
+
+			// Build session config from the history item's context
+			const cwd = historyItem.cwdOnTaskInitialization ?? process.cwd()
+			const config = await buildSessionConfig({
+				cwd,
+				mode: "act", // Default to act mode for resumed tasks
+			})
+
+			// Create ClineCore instance
+			const core = await createClineCore()
+
+			// Subscribe to events
+			const unsubscribe = core.subscribe((event: CoreSessionEvent) => {
+				this.handleSessionEvent(event)
+			})
+
+			// For resumption, we start a new session with the same config
+			// and let the SDK's persistence layer handle loading history.
+			// The SDK will use the sessionId to find existing session data.
+			const startResult = await core.start({
+				config,
+				prompt: `[TASK RESUMPTION] Resuming task: ${historyItem.task}`,
+				interactive: true,
+			})
+
+			this.activeSession = {
+				sessionId: startResult.sessionId,
+				core,
+				unsubscribe,
+				startResult,
+				isRunning: true,
+			}
+
+			this.task = {
+				taskId: startResult.sessionId,
+				historyItem,
+			}
+
+			await this.postStateToWebview()
+
+			Logger.log(`[SdkController] Task resumed: ${taskId} → ${startResult.sessionId}`)
+		} catch (error) {
+			Logger.error("[SdkController] Failed to reinit task:", error)
+			this.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "error",
+						text: `Failed to resume task: ${error instanceof Error ? error.message : String(error)}`,
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId: taskId, status: "error" } },
+			)
+		}
 	}
 
 	async cancelTask(): Promise<void> {
-		stubWarn("cancelTask")
+		if (!this.activeSession) {
+			Logger.warn("[SdkController] cancelTask: No active session")
+			return
+		}
+
+		try {
+			const { core, sessionId } = this.activeSession
+			await core.abort(sessionId)
+			this.activeSession.isRunning = false
+
+			// Emit cancellation message
+			this.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "info",
+						text: "Task cancelled",
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId, status: "cancelled" } },
+			)
+
+			await this.postStateToWebview()
+			Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
+		} catch (error) {
+			Logger.error("[SdkController] Failed to cancel task:", error)
+		}
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -99,11 +380,103 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		stubWarn("clearTask")
+		if (this.activeSession) {
+			const { core, unsubscribe, sessionId } = this.activeSession
+
+			// Unsubscribe from events
+			unsubscribe()
+
+			// Stop the session (best-effort)
+			try {
+				await core.stop(sessionId)
+			} catch (error) {
+				Logger.warn("[SdkController] Error stopping session during clear:", error)
+			}
+
+			// Dispose the core instance
+			try {
+				await core.dispose("clearTask")
+			} catch (error) {
+				Logger.warn("[SdkController] Error disposing core during clear:", error)
+			}
+
+			this.activeSession = undefined
+			this.task = undefined
+			this.messageTranslatorState.reset()
+		}
 	}
 
-	async handleTaskCreation(_prompt: string): Promise<void> {
-		stubWarn("handleTaskCreation")
+	async handleTaskCreation(prompt: string): Promise<void> {
+		await this.initTask(prompt)
+	}
+
+	/**
+	 * Send a follow-up message to the active session.
+	 * This is the "askResponse" equivalent — continues the conversation.
+	 */
+	async askResponse(prompt: string, images?: string[], files?: string[]): Promise<void> {
+		if (!this.activeSession) {
+			Logger.error("[SdkController] askResponse: No active session")
+			return
+		}
+
+		try {
+			const { core, sessionId } = this.activeSession
+			this.activeSession.isRunning = true
+
+			// Reset translator state for new turn
+			this.messageTranslatorState.reset()
+
+			// Send the follow-up message
+			await core.send({
+				sessionId,
+				prompt,
+				userImages: images,
+				userFiles: files,
+			})
+
+			await this.postStateToWebview()
+			Logger.log(`[SdkController] Message sent to session: ${sessionId}`)
+		} catch (error) {
+			Logger.error("[SdkController] Failed to send message:", error)
+			this.emitSessionEvents(
+				[
+					{
+						ts: Date.now(),
+						type: "say",
+						say: "error",
+						text: `Failed to send message: ${error instanceof Error ? error.message : String(error)}`,
+						partial: false,
+					},
+				],
+				{ type: "status", payload: { sessionId: this.activeSession?.sessionId ?? "", status: "error" } },
+			)
+		}
+	}
+
+	/**
+	 * Show a task from history by loading its messages.
+	 * This does NOT start inference — it just loads the task for viewing.
+	 */
+	async showTaskWithId(taskId: string): Promise<void> {
+		try {
+			const historyItem = getHistoryItemById(taskId)
+			if (!historyItem) {
+				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
+				return
+			}
+
+			// Set the current task reference for state building
+			this.task = {
+				taskId,
+				historyItem,
+			}
+
+			await this.postStateToWebview()
+			Logger.log(`[SdkController] Showing task: ${taskId}`)
+		} catch (error) {
+			Logger.error("[SdkController] Failed to show task:", error)
+		}
 	}
 
 	// ---- Mode switching (Step 8) ----
@@ -121,11 +494,25 @@ export class Controller {
 	// ---- Telemetry ----
 
 	async updateTelemetrySetting(telemetrySetting: TelemetrySetting): Promise<void> {
-		await this.stateManager.setGlobalState("telemetrySetting", telemetrySetting as any)
+		await this.stateManager.setGlobalState("telemetrySetting", telemetrySetting as GlobalState["telemetrySetting"])
 		await this.postStateToWebview()
 	}
 
 	// ---- Auth callbacks (Step 6) ----
+
+	async handleSignOut(): Promise<void> {
+		stubWarn("handleSignOut")
+		await this.postStateToWebview()
+	}
+
+	async handleOcaSignOut(): Promise<void> {
+		stubWarn("handleOcaSignOut")
+		await this.postStateToWebview()
+	}
+
+	async setUserInfo(_info?: UserInfo): Promise<void> {
+		stubWarn("setUserInfo")
+	}
 
 	async handleAuthCallback(_customToken: string, _provider: string | null = null): Promise<void> {
 		stubWarn("handleAuthCallback")
@@ -176,10 +563,18 @@ export class Controller {
 		uiMessagesFilePath: string
 		contextHistoryFilePath: string
 		taskMetadataFilePath: string
-		apiConversationHistory: any[]
+		apiConversationHistory: unknown[]
 	}> {
 		stubWarn("getTaskWithId")
-		return undefined as any
+		return undefined as unknown as {
+			historyItem: HistoryItem
+			taskDirPath: string
+			apiConversationHistoryFilePath: string
+			uiMessagesFilePath: string
+			contextHistoryFilePath: string
+			taskMetadataFilePath: string
+			apiConversationHistory: unknown[]
+		}
 	}
 
 	async exportTaskWithId(_id: string): Promise<void> {
@@ -233,7 +628,7 @@ export class Controller {
 
 	// ---- Workspace (kept from classic) ----
 
-	async ensureWorkspaceManager(): Promise<any> {
+	async ensureWorkspaceManager(): Promise<unknown> {
 		stubWarn("ensureWorkspaceManager")
 		return undefined
 	}
