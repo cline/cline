@@ -383,6 +383,11 @@ export function createAgentTeamsTools(
 		}) as Tool,
 	);
 
+	// Track in-flight sync runs per agent for dedup
+	// (Claude sometimes emits duplicate tool_use blocks in a single response;
+	//  we execute the first and return an informative "duplicate ignored" to the rest)
+	const pendingSyncRuns = new Set<string>();
+
 	tools.push(
 		createTool<
 			TeamRunTaskInput,
@@ -417,22 +422,36 @@ export function createAgentTeamsTools(
 						runId: run.id,
 					};
 				}
-				const result = await options.runtime.routeToTeammate(
-					validatedInput.agentId,
-					validatedInput.task,
-					{
-						taskId: validatedInput.taskId || undefined,
-						fromAgentId: options.requesterId,
-						continueConversation:
-							validatedInput.continueConversation || undefined,
-					},
-				);
-				return {
-					agentId: validatedInput.agentId,
-					mode: "sync",
-					text: result.text,
-					iterations: result.iterations,
-				};
+
+				/// Deduplication guard: reject a duplicate sync call for the same agent
+				// that was already dispatched in this same parallel tool-call batch.
+				if (pendingSyncRuns.has(validatedInput.agentId)) {
+					throw new Error(
+						`Duplicate team_run_task call detected for agent "${validatedInput.agentId}". ` +
+							`Only one call per agent is allowed per turn. Discard this duplicate result.`,
+					);
+				}
+				pendingSyncRuns.add(validatedInput.agentId);
+				try {
+					const result = await options.runtime.routeToTeammate(
+						validatedInput.agentId,
+						validatedInput.task,
+						{
+							taskId: validatedInput.taskId || undefined,
+							fromAgentId: options.requesterId,
+							continueConversation:
+								validatedInput.continueConversation || undefined,
+						},
+					);
+					return {
+						agentId: validatedInput.agentId,
+						mode: "sync",
+						text: result.text,
+						iterations: result.iterations,
+					};
+				} finally {
+					pendingSyncRuns.delete(validatedInput.agentId);
+				}
 			},
 		}) as Tool,
 	);

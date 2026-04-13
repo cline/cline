@@ -743,6 +743,110 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(awaitAllRuns?.timeoutMs).toBe(60 * 60 * 1000);
 	});
 
+	it("deduplicates concurrent sync team_run_task calls to the same agent", async () => {
+		let resolveRoute!: (value: { text: string; iterations: number }) => void;
+		const routePromise = new Promise<{ text: string; iterations: number }>(
+			(resolve) => {
+				resolveRoute = resolve;
+			},
+		);
+		const routeToTeammate = vi.fn(() => routePromise);
+		const runtime = {
+			routeToTeammate,
+			getMemberRole: vi.fn(() => "lead"),
+		} as unknown as AgentTeamsRuntime;
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const runTask = tools.find((tool) => tool.name === "team_run_task");
+		expect(runTask).toBeDefined();
+		if (!runTask) {
+			throw new Error("Expected team_run_task tool to be defined");
+		}
+
+		const ctx = { agentId: "lead", conversationId: "conv-1", iteration: 1 };
+		const input = {
+			agentId: "educator",
+			task: "Explain probability",
+			runMode: "sync",
+		};
+
+		// Fire two concurrent sync calls to the same agent
+		const call1 = runTask.execute(input, ctx);
+		const call2 = runTask.execute(input, ctx);
+
+		// Second call should throw with duplicate detection error
+		await expect(call2).rejects.toThrow(
+			'Duplicate team_run_task call detected for agent "educator"',
+		);
+
+		// Only one routeToTeammate call should have been made
+		expect(routeToTeammate).toHaveBeenCalledTimes(1);
+
+		// Now resolve the first call
+		resolveRoute({ text: "Probability explained", iterations: 3 });
+		const result1 = (await call1) as { text?: string; iterations?: number };
+		expect(result1.text).toBe("Probability explained");
+		expect(result1.iterations).toBe(3);
+	});
+
+	it("allows concurrent sync team_run_task calls to different agents", async () => {
+		let resolveRoute1!: (value: { text: string; iterations: number }) => void;
+		let resolveRoute2!: (value: { text: string; iterations: number }) => void;
+		const routeToTeammate = vi.fn((agentId: string) => {
+			if (agentId === "educator") {
+				return new Promise<{ text: string; iterations: number }>((resolve) => {
+					resolveRoute1 = resolve;
+				});
+			}
+			return new Promise<{ text: string; iterations: number }>((resolve) => {
+				resolveRoute2 = resolve;
+			});
+		});
+		const runtime = {
+			routeToTeammate,
+			getMemberRole: vi.fn(() => "lead"),
+		} as unknown as AgentTeamsRuntime;
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const runTask = tools.find((tool) => tool.name === "team_run_task");
+		expect(runTask).toBeDefined();
+		if (!runTask) {
+			throw new Error("Expected team_run_task tool to be defined");
+		}
+
+		const ctx = { agentId: "lead", conversationId: "conv-1", iteration: 1 };
+
+		// Fire sync calls to two different agents - both should proceed
+		const call1 = runTask.execute(
+			{ agentId: "educator", task: "Explain probability", runMode: "sync" },
+			ctx,
+		);
+		const call2 = runTask.execute(
+			{ agentId: "assessor", task: "Evaluate answer", runMode: "sync" },
+			ctx,
+		);
+
+		// Both should have called routeToTeammate
+		expect(routeToTeammate).toHaveBeenCalledTimes(2);
+
+		// Resolve both
+		resolveRoute1({ text: "Explained", iterations: 2 });
+		resolveRoute2({ text: "Evaluated", iterations: 1 });
+
+		const result1 = (await call1) as { text?: string };
+		const result2 = (await call2) as { text?: string };
+		expect(result1.text).toBe("Explained");
+		expect(result2.text).toBe("Evaluated");
+	});
+
 	it("lists ready-to-claim tasks through team_task list action", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
