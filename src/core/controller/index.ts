@@ -1,4 +1,3 @@
-import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import type { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
@@ -6,6 +5,7 @@ import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { setupWorkspaceManager } from "@core/workspace/setup"
 import type { WorkspaceRootManager } from "@core/workspace/WorkspaceRootManager"
+import { cleanupPreMigrationCheckpoints } from "@integrations/checkpoints/CheckpointMigration"
 import { ClineAccountService } from "@services/account/ClineAccountService"
 import { McpHub } from "@services/mcp/McpHub"
 import type { ApiProvider, ModelInfo } from "@shared/api"
@@ -148,9 +148,9 @@ export class Controller {
 			telemetryService,
 		)
 
-		// Clean up legacy checkpoints
-		cleanupLegacyCheckpoints().catch((error) => {
-			Logger.error("Failed to cleanup legacy checkpoints:", error)
+		// Clean up pre-migration checkpoint artifacts
+		cleanupPreMigrationCheckpoints().catch((error) => {
+			Logger.error("Failed to cleanup pre-migration checkpoint artifacts:", error)
 		})
 
 		// Check CLI installation status once on startup

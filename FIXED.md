@@ -14,17 +14,17 @@ These are issues the agent claims to have fixed, but should be verified:
 **File:** `src/sdk/SdkController.ts`  
 **Symptom:** After a task completes successfully, the task did NOT appear in the RECENT section when returning to the home screen.  
 **Root cause:** `newTask()` created a `currentTaskItem` but never pushed it to `this.taskHistory[]`. `clearTask()` discarded it without saving. No disk persistence implementation existed.  
-**Fix:** `SdkController` now persists tasks on three paths: (1) `done` event updates `currentTaskItem` with final usage and calls `persistCurrentTask()`, (2) `clearTask()` calls `persistCurrentTask()` before resetting, (3) `cancelTask()` persists the in-progress task. `LegacyStateReader` gained `saveTaskHistory()`, `saveUiMessages()`, and `deleteTaskDirectory()` methods for disk I/O.
+**Fix:** `SdkController` now persists tasks on three paths: (1) `done` event updates `currentTaskItem` with final usage and calls `persistCurrentTask()`, (2) `clearTask()` calls `persistCurrentTask()` before resetting, (3) `cancelTask()` persists the in-progress task. `DiskStateAdapter` gained `saveTaskHistory()`, `saveUiMessages()`, and `deleteTaskDirectory()` methods for disk I/O.
 
 ### 3. 🟢 Task resumption not implemented
 **File:** `src/sdk/SdkController.ts`  
 **Symptom:** Cannot resume a previous task from history.  
-**Fix:** `showTaskWithId()` now finds the task in history, loads saved UI messages via `legacyState.readUiMessages()`, restores them into the translator, and sets `currentTaskItem`. The task view renders with full message history.
+**Fix:** `showTaskWithId()` now finds the task in history, loads saved UI messages via `diskState.readUiMessages()`, restores them into the translator, and sets `currentTaskItem`. The task view renders with full message history.
 
 ### 6. 🟢 Settings persistence is best-effort / incomplete
 **File:** `src/sdk/SdkController.ts`  
 **Symptom:** `updateSettings()` was a no-op stub with a TODO comment.  
-**Fix:** `updateSettings()` now persists settings to `globalState.json` via `legacyState.saveApiConfiguration()`. `updateAutoApprovalSettings()` also persists via the same mechanism.
+**Fix:** `updateSettings()` now persists settings to `globalState.json` via `diskState.saveApiConfiguration()`. `updateAutoApprovalSettings()` also persists via the same mechanism.
 
 ### 7. 🟢 Completed task not appearing in RECENT section
 **Where:** Home screen → RECENT section  
@@ -175,14 +175,14 @@ These are issues the agent claims to have fixed, but should be verified:
 **Where:** Account pane → logout button  
 **Symptom:** Clicking logout has no effect — the user remains logged in.  
 **Root cause:** `accountLogoutClicked` was a STUB (silent no-op) in grpc-handler.  
-**Fix:** Implemented `handleAccountLogout()` that calls `LegacyStateReader.clearClineAuthInfo()` to remove `cline:clineAccountId` from secrets.json, then pushes state update so the webview shows the sign-in view.  
+**Fix:** Implemented `handleAccountLogout()` that calls `DiskStateAdapter.clearClineAuthInfo()` to remove `cline:clineAccountId` from secrets.json, then pushes state update so the webview shows the sign-in view.
 **Tested:** Integration test verifies credentials are cleared from disk and auth status shows unauthenticated after logout.
 
 ### 32. 🟢 Low credit balance persists after account switching
 **Where:** Account pane after switching organizations  
 **Symptom:** After switching from a low-balance org to a high-balance org, the "Insufficient balance" error persists.  
 **Root cause:** `setUserOrganization` was a STUB. The active org was never updated on disk, so credit queries always returned the same org's data.  
-**Fix:** Implemented `handleSetUserOrganization()` that calls `LegacyStateReader.setActiveOrganization()` to update the `active` flag on orgs in stored credentials. Each credit fetch is a fresh API call keyed by org ID, so switching orgs correctly fetches the new org's balance.  
+**Fix:** Implemented `handleSetUserOrganization()` that calls `DiskStateAdapter.setActiveOrganization()` to update the `active` flag on orgs in stored credentials. Each credit fetch is a fresh API call keyed by org ID, so switching orgs correctly fetches the new org's balance.
 **Tested:** Integration test with mock server verifies: switch from low-balance org → high-balance org returns correct (high) balance, not stale (low) balance.
 
 ## Open Issues

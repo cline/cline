@@ -102,7 +102,7 @@ passing across 10 test files:
 
 | Module | Tests | Description |
 |--------|-------|-------------|
-| `legacy-state-reader` | 42 | Reads `~/.cline/data/` settings |
+| `disk-state-adapter` | 42 | Reads `~/.cline/data/` settings |
 | `message-translator` | 50 | SDK events → ClineMessage[] |
 | `state-builder` | 29 | Controller state → ExtensionState |
 | `grpc-handler` | 26 | gRPC compat layer for webview |
@@ -167,7 +167,7 @@ identify which calls need real implementations.
   - Saves credentials to `~/.cline/data/secrets.json`
   
   Implementation in `src/sdk/SdkController.ts` (`performClineOAuth()`),
-  `src/sdk/legacy-state-reader.ts` (`writeClineAuthInfo()`), and
+  `src/sdk/disk-state-adapter.ts` (`writeClineAuthInfo()`), and
   `src/sdk/grpc-handler.ts` (delegates to controller).
 
 #### Terminal Settings — Radical Simplification Needed
@@ -228,7 +228,7 @@ MCP Marketplace, final cleanup.
 | Webview big-bang breaks everything | Work on branch; classic continues on main |
 | SDK tool behavior differs from classic | E2E tests before/after |
 | Provider migration loses credentials | SDK has migration code + tests; sentinel file |
-| Legacy sessions not resumable | Custom SessionPersistenceAdapter preserves format |
+| Existing on-disk sessions not resumable | Custom SessionPersistenceAdapter preserves format |
 | JetBrains sidecar complexity | Defer to Phase 4; get VSCode solid first |
 | SDK missing a feature | PRs to SDK repo; `npm link` for quick iteration |
 

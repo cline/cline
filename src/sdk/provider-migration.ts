@@ -1,8 +1,8 @@
 /**
  * Provider Migration
  *
- * Wraps the SDK's `ProviderSettingsManager` constructor (which auto-calls
- * `migrateLegacyProviderSettings()`) with:
+ * Wraps the SDK's `ProviderSettingsManager` constructor (which auto-runs
+ * the built-in old-provider-settings migration) with:
  *  - Sentinel file to skip repeated migration attempts
  *  - Error recovery (corrupt files don't crash startup)
  *  - Versioned sentinel for future re-migrations
@@ -36,7 +36,7 @@ export interface ProviderMigrationResult {
 	/** The ProviderSettingsManager instance (always returned, even if migration was skipped) */
 	manager: ProviderSettingsManager
 	/** If migration was skipped, the reason why */
-	skipReason?: "sentinel" | "no-legacy-data" | "error"
+	skipReason?: "sentinel" | "no-pre-sdk-provider-data" | "error"
 	/** Error message if migration failed */
 	error?: string
 	/** Number of providers found after migration */
@@ -69,8 +69,8 @@ interface SentinelData {
  * This is safe to call multiple times — the sentinel file prevents
  * re-migration. It's also safe if files are missing or corrupt.
  *
- * The SDK's ProviderSettingsManager constructor auto-calls
- * migrateLegacyProviderSettings() when it receives a dataDir.
+ * The SDK's ProviderSettingsManager constructor auto-runs its built-in
+ * old-provider-settings migration when it receives a dataDir.
  * We wrap this with a sentinel to avoid unnecessary work on repeat launches.
  */
 export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMigrationResult {
@@ -87,20 +87,20 @@ export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMi
 			return { ran: false, manager, skipReason: "sentinel" }
 		}
 
-		// Check if there's any legacy data to migrate
+		// Check if there's any pre-SDK provider data to migrate
 		const globalStatePath = path.join(dataDir, "globalState.json")
 		const secretsPath = path.join(dataDir, "secrets.json")
 		if (!fs.existsSync(globalStatePath) && !fs.existsSync(secretsPath)) {
 			fs.mkdirSync(path.dirname(providersFilePath), { recursive: true })
 			const manager = new ProviderSettingsManager({ filePath: providersFilePath })
-			return { ran: false, manager, skipReason: "no-legacy-data" }
+			return { ran: false, manager, skipReason: "no-pre-sdk-provider-data" }
 		}
 
 		// Ensure the settings directory exists
 		fs.mkdirSync(path.dirname(providersFilePath), { recursive: true })
 
 		// Construct ProviderSettingsManager WITH dataDir.
-		// The constructor auto-calls migrateLegacyProviderSettings() which
+		// The constructor auto-runs the built-in old-provider-settings migration, which
 		// reads globalState.json + secrets.json and writes to providers.json.
 		const manager = new ProviderSettingsManager({ filePath: providersFilePath, dataDir })
 

@@ -1,6 +1,6 @@
 # SDK Migration Caveats & Known Issues
 
-Tracking issues found during the migration from the legacy inference system to the ClineCore SDK.
+Tracking issues found during the migration from the pre-SDK inference system to the ClineCore SDK.
 
 ## Status Legend
 - 🔴 **Blocker** — prevents core functionality

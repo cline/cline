@@ -63,7 +63,7 @@ questions when necessary.
 
 ### Features to remove
 
-Terminal integration: There is legacy code in the VSCode extension,
+Terminal integration: There is existing VSCode-specific terminal code in the VSCode extension,
 and stubs in the RPC system for JetBrains, which used the IDE's
 integrated terminals. We have decided we don't need these old modes
 and they should be removed. Instead we will rely on "background
@@ -391,7 +391,7 @@ FileSessionService`.
 cleanest extension point. It requires implementing: `ensureSessionsDir`,
 `upsertSession`, `getSession`, `listSessions`, `updateSession`,
 `deleteSession`, `enqueueSpawnRequest`, `claimSpawnRequest`. Our
-`LegacySessionBackend` adapter wraps the existing
+`existing-disk-format session backend` adapter wraps the existing
 `~/.cline/data/tasks/` directory and `taskHistory` JSON array in
 `globalState.json`, mapping between `SessionRow` fields and our
 `HistoryItem` type:
@@ -641,9 +641,9 @@ The shared SDK adapter layer contains:
 ```
 src/sdk-adapter/
   index.ts              — ClineSdkHost (creates ClineCore instance)
-  session-backend.ts    — LegacySessionBackend adapter
+  session-backend.ts    — existing-disk-format session backend adapter
   webview-bridge.ts     — SDK events → webview message translation
-  provider-migration.ts — Legacy provider settings migration
+  provider-migration.ts — old provider settings migration
   approval-adapter.ts   — Auto-approve settings → SDK tool policies
   telemetry-adapter.ts  — Extension telemetry → SDK telemetry
   types.ts              — WebviewInbound, WebviewOutbound types
@@ -765,8 +765,8 @@ All clients backed by:
 
 These capabilities exist in the SDK and do not need to be rebuilt:
 
-1. **Legacy provider settings migration** —
-   `migrateLegacyProviderSettings()` reads `globalState.json` +
+1. **Old provider settings migration** —
+   The SDK's built-in provider-settings migration reads `globalState.json` +
    `secrets.json`, writes to `providers.json`. Handles Anthropic,
    OpenAI, OpenAI Codex OAuth, OpenRouter, Bedrock, custom
    OpenAI-compatible endpoints, etc. Existing providers are never
@@ -784,7 +784,7 @@ These capabilities exist in the SDK and do not need to be rebuilt:
 4. **MCP management** — `InMemoryMcpManager` with stdio, SSE, and
    streamableHttp transports. Config loader reads from
    `~/.cline/data/settings/mcp.json` with Zod validation. Supports
-   legacy format migration.
+   older config format migration.
 
 5. **Tool framework** — 8 built-in tools: `read_files`,
    `search_codebase`, `run_commands`, `editor`, `apply_patch`,

@@ -23,49 +23,49 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `ARCHITECTURE.md`
 
-- [ ] **Occurrence 001 — `ARCHITECTURE.md:66`**
+- [x] **Occurrence 001 — `ARCHITECTURE.md:66`**
   - **Introduced text:** `Terminal integration: There is legacy code in the VSCode extension,`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 002 — `ARCHITECTURE.md:394`**
+- [x] **Occurrence 002 — `ARCHITECTURE.md:394`**
   - **Introduced text:** ``LegacySessionBackend` adapter wraps the existing`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 003 — `ARCHITECTURE.md:644`**
+- [x] **Occurrence 003 — `ARCHITECTURE.md:644`**
   - **Introduced text:** `  session-backend.ts    — LegacySessionBackend adapter`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 004 — `ARCHITECTURE.md:646`**
+- [x] **Occurrence 004 — `ARCHITECTURE.md:646`**
   - **Introduced text:** `  provider-migration.ts — Legacy provider settings migration`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 005 — `ARCHITECTURE.md:768`**
+- [x] **Occurrence 005 — `ARCHITECTURE.md:768`**
   - **Introduced text:** `1. **Legacy provider settings migration** —`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 006 — `ARCHITECTURE.md:769`**
+- [x] **Occurrence 006 — `ARCHITECTURE.md:769`**
   - **Introduced text:** `   `migrateLegacyProviderSettings()` reads `globalState.json` +`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 007 — `ARCHITECTURE.md:787`**
+- [x] **Occurrence 007 — `ARCHITECTURE.md:787`**
   - **Introduced text:** `   legacy format migration.`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** no
@@ -74,28 +74,28 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `CAVEATS.md`
 
-- [ ] **Occurrence 008 — `CAVEATS.md:3`**
+- [x] **Occurrence 008 — `CAVEATS.md:3`**
   - **Introduced text:** `Tracking issues found during the migration from the legacy inference system to the ClineCore SDK.`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** yes
   - **Rubric result:** Reword this caveat or fix note to describe the exact pre-SDK system or adapter involved, and follow any future adapter renames instead of locking the document to eve-era `legacy` terminology.
   - **Assessment:** This occurrence is explanatory documentation about migration behavior. The implementation should keep the factual caveat or fix description, but rename the underlying concepts precisely—such as `pre-SDK inference stack`, `stored disk state`, or whatever the adapter is ultimately called—rather than keeping `legacy` as the headline term. That is appropriate because the document should help future maintainers understand what was fixed without freezing in transitional naming debt. This file was changed again on `dpc/sdk-migration`, so the eventual cleanup must be applied as a forward edit on top of dpc's later work rather than by replaying the eve-era version.
 
-- [ ] **Occurrence 009 — `CAVEATS.md:26`**
+- [x] **Occurrence 009 — `CAVEATS.md:26`**
   - **Introduced text:** `**Fix:** `SdkController` now persists tasks on three paths: (1) `done` event updates `currentTaskItem` with final usage and calls `persistCurrentTask()`, (2) `clearTask()` calls `persistCurrentTask()` before resetting, (3) `cancelTask()` persists the in-progress task. `LegacyStateReader` gained `saveTaskHistory()`, `saveUiMessages()`, and `deleteTaskDirectory()` methods for disk I/O.`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** yes
   - **Rubric result:** Reword this caveat or fix note to describe the exact pre-SDK system or adapter involved, and follow any future adapter renames instead of locking the document to eve-era `legacy` terminology.
   - **Assessment:** This occurrence is explanatory documentation about migration behavior. The implementation should keep the factual caveat or fix description, but rename the underlying concepts precisely—such as `pre-SDK inference stack`, `stored disk state`, or whatever the adapter is ultimately called—rather than keeping `legacy` as the headline term. That is appropriate because the document should help future maintainers understand what was fixed without freezing in transitional naming debt. This file was changed again on `dpc/sdk-migration`, so the eventual cleanup must be applied as a forward edit on top of dpc's later work rather than by replaying the eve-era version.
 
-- [ ] **Occurrence 010 — `CAVEATS.md:31`**
+- [x] **Occurrence 010 — `CAVEATS.md:31`**
   - **Introduced text:** `**Fix:** `showTaskWithId()` now finds the task in history, loads saved UI messages via `legacyState.readUiMessages()`, restores them into the translator, and sets `currentTaskItem`. The task view renders with full message history.`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** yes
   - **Rubric result:** Reword this caveat or fix note to describe the exact pre-SDK system or adapter involved, and follow any future adapter renames instead of locking the document to eve-era `legacy` terminology.
   - **Assessment:** This occurrence is explanatory documentation about migration behavior. The implementation should keep the factual caveat or fix description, but rename the underlying concepts precisely—such as `pre-SDK inference stack`, `stored disk state`, or whatever the adapter is ultimately called—rather than keeping `legacy` as the headline term. That is appropriate because the document should help future maintainers understand what was fixed without freezing in transitional naming debt. This file was changed again on `dpc/sdk-migration`, so the eventual cleanup must be applied as a forward edit on top of dpc's later work rather than by replaying the eve-era version.
 
-- [ ] **Occurrence 011 — `CAVEATS.md:36`**
+- [x] **Occurrence 011 — `CAVEATS.md:36`**
   - **Introduced text:** `**Fix:** `updateSettings()` now persists settings to `globalState.json` via `legacyState.saveApiConfiguration()`. `updateAutoApprovalSettings()` also persists via the same mechanism.`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** yes
@@ -373,14 +373,14 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `migration.md`
 
-- [ ] **Occurrence 047 — `migration.md:105`**
+- [x] **Occurrence 047 — `migration.md:105`**
   - **Introduced text:** `| `legacy-state-reader` | 42 | Reads `~/.cline/data/` settings |`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** yes
   - **Rubric result:** Replace broad `legacy` wording with concrete architectural terms such as `existing VSCode implementation`, `old on-disk format`, `compatibility adapter`, or the exact symbol name being discussed.
   - **Assessment:** This occurrence is in engineering documentation. The implementation should preserve the architectural explanation but swap the blanket `legacy` label for a concrete description of the boundary being documented; if a symbol is ultimately renamed, the doc should follow that rename as part of the same cleanup stream. That is appropriate because architecture docs should maximize precision, not repeat transitional jargon. This file was changed again on `dpc/sdk-migration`, so the eventual cleanup must be applied as a forward edit on top of dpc's later work rather than by replaying the eve-era version.
 
-- [ ] **Occurrence 048 — `migration.md:216`**
+- [x] **Occurrence 048 — `migration.md:216`**
   - **Introduced text:** `| Legacy sessions not resumable | Custom SessionPersistenceAdapter preserves format |`
   - **Surface:** engineering documentation
   - **dpc changed after eve:** yes
@@ -389,7 +389,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `src/core/controller/index.ts`
 
-- [ ] **Occurrence 049 — `src/core/controller/index.ts:1`**
+- [x] **Occurrence 049 — `src/core/controller/index.ts:1`**
   - **Introduced text:** `import { cleanupLegacyCheckpoints } from "@integrations/checkpoints/CheckpointMigration"`
   - **Surface:** internal runtime/control-flow code
   - **dpc changed after eve:** no
@@ -467,7 +467,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `src/integrations/checkpoints/CheckpointMigration.ts`
 
-- [ ] **Occurrence 059 — `src/integrations/checkpoints/CheckpointMigration.ts:4`**
+- [x] **Occurrence 059 — `src/integrations/checkpoints/CheckpointMigration.ts:4`**
   - **Introduced text:** `export async function cleanupLegacyCheckpoints(): Promise<void> {}`
   - **Surface:** internal runtime/control-flow code
   - **dpc changed after eve:** no
@@ -818,28 +818,28 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `src/sdk/__tests__/provider-migration.test.ts`
 
-- [ ] **Occurrence 108 — `src/sdk/__tests__/provider-migration.test.ts:44`**
+- [x] **Occurrence 108 — `src/sdk/__tests__/provider-migration.test.ts:44`**
   - **Introduced text:** `		it("migrates Anthropic key from legacy state to providers.json", () => {`
   - **Surface:** test code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 109 — `src/sdk/__tests__/provider-migration.test.ts:140`**
+- [x] **Occurrence 109 — `src/sdk/__tests__/provider-migration.test.ts:140`**
   - **Introduced text:** `			// Legacy data for anthropic`
   - **Surface:** test code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 110 — `src/sdk/__tests__/provider-migration.test.ts:161`**
+- [x] **Occurrence 110 — `src/sdk/__tests__/provider-migration.test.ts:161`**
   - **Introduced text:** `		it("returns no-legacy-data when no state files exist", () => {`
   - **Surface:** test code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 111 — `src/sdk/__tests__/provider-migration.test.ts:165`**
+- [x] **Occurrence 111 — `src/sdk/__tests__/provider-migration.test.ts:165`**
   - **Introduced text:** `			expect(result.skipReason).toBe("no-legacy-data")`
   - **Surface:** test code
   - **dpc changed after eve:** no
@@ -1593,42 +1593,42 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `src/sdk/provider-migration.ts`
 
-- [ ] **Occurrence 217 — `src/sdk/provider-migration.ts:5`**
+- [x] **Occurrence 217 — `src/sdk/provider-migration.ts:5`**
   - **Introduced text:** ` * `migrateLegacyProviderSettings()`) with:`
   - **Surface:** SDK adapter/runtime code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 218 — `src/sdk/provider-migration.ts:39`**
+- [x] **Occurrence 218 — `src/sdk/provider-migration.ts:39`**
   - **Introduced text:** `	skipReason?: "sentinel" | "no-legacy-data" | "error"`
   - **Surface:** SDK adapter/runtime code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 219 — `src/sdk/provider-migration.ts:73`**
+- [x] **Occurrence 219 — `src/sdk/provider-migration.ts:73`**
   - **Introduced text:** ` * migrateLegacyProviderSettings() when it receives a dataDir.`
   - **Surface:** SDK adapter/runtime code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 220 — `src/sdk/provider-migration.ts:90`**
+- [x] **Occurrence 220 — `src/sdk/provider-migration.ts:90`**
   - **Introduced text:** `		// Check if there's any legacy data to migrate`
   - **Surface:** SDK adapter/runtime code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 221 — `src/sdk/provider-migration.ts:96`**
+- [x] **Occurrence 221 — `src/sdk/provider-migration.ts:96`**
   - **Introduced text:** `			return { ran: false, manager, skipReason: "no-legacy-data" }`
   - **Surface:** SDK adapter/runtime code
   - **dpc changed after eve:** no
   - **Rubric result:** Keep the migration behavior, but narrow the terminology to the exact old provider-settings shape or pre-SDK state being migrated rather than using `legacy` as a blanket label.
   - **Assessment:** This occurrence is one of the few places where an actual old-to-new migration boundary exists. The implementation should preserve the migration and its tests, but rephrase names and comments toward `old provider settings`, `pre-SDK provider state`, or similar precise language. That is appropriate because the compatibility function is real, yet the broader `legacy` wording still adds unnecessary noise. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 222 — `src/sdk/provider-migration.ts:103`**
+- [x] **Occurrence 222 — `src/sdk/provider-migration.ts:103`**
   - **Introduced text:** `		// The constructor auto-calls migrateLegacyProviderSettings() which`
   - **Surface:** SDK adapter/runtime code
   - **dpc changed after eve:** no

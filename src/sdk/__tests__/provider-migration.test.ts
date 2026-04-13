@@ -1,9 +1,9 @@
 import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
-import { afterEach, beforeEach, describe, expect, it } from "vitest"
 import { ProviderSettingsManager } from "@clinebot/core"
-import { runProviderMigration, clearMigrationSentinel } from "../provider-migration"
+import { afterEach, beforeEach, describe, expect, it } from "vitest"
+import { clearMigrationSentinel, runProviderMigration } from "../provider-migration"
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -41,7 +41,7 @@ describe("Provider Migration", () => {
 	})
 
 	describe("runProviderMigration", () => {
-		it("migrates Anthropic key from legacy state to providers.json", () => {
+		it("migrates Anthropic key from pre-SDK provider state to providers.json", () => {
 			writeJson(path.join(dataDir, "globalState.json"), {
 				mode: "act",
 				actModeApiProvider: "anthropic",
@@ -137,7 +137,7 @@ describe("Provider Migration", () => {
 				apiKey: "already-configured-key",
 			})
 
-			// Legacy data for anthropic
+			// Pre-SDK provider data for anthropic
 			writeJson(path.join(dataDir, "globalState.json"), {
 				mode: "act",
 				actModeApiProvider: "anthropic",
@@ -158,11 +158,11 @@ describe("Provider Migration", () => {
 			expect(anthropicSettings?.apiKey).toBe("sk-ant-new-key")
 		})
 
-		it("returns no-legacy-data when no state files exist", () => {
+		it("returns no-pre-sdk-provider-data when no state files exist", () => {
 			const result = runProviderMigration({ dataDir })
 
 			expect(result.ran).toBe(false)
-			expect(result.skipReason).toBe("no-legacy-data")
+			expect(result.skipReason).toBe("no-pre-sdk-provider-data")
 			expect(result.manager).toBeDefined()
 		})
 
