@@ -688,7 +688,11 @@ function createRpcRuntimeCliSessionManager(
 						});
 						streamedText += remainder;
 					}
-				} else if (result.text !== streamedText) {
+				} else if (!streamedText && result.text) {
+					// Only emit the full result text if nothing was streamed yet.
+					// When streamedText is non-empty but diverges from result.text
+					// (e.g. due to normalization differences), the user already saw
+					// the streamed version — re-emitting would duplicate the output.
 					emit(input.sessionId, {
 						type: "content_start",
 						contentType: "text",
