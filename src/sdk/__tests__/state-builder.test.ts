@@ -2,21 +2,30 @@ import { DEFAULT_AUTO_APPROVAL_SETTINGS } from "@shared/AutoApprovalSettings"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { describe, expect, it } from "vitest"
-import type { LegacyStateReader } from "../legacy-state-reader"
+import type { DiskStateAdapter } from "../disk-state-adapter"
 import { buildExtensionState, REQUIRED_STATE_FIELDS } from "../state-builder"
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/** Create a minimal mock LegacyStateReader */
-function mockLegacyState(globalState: Record<string, unknown> = {}): LegacyStateReader {
+/** Create a minimal mock DiskStateAdapter */
+function mockDiskState(globalState: Record<string, unknown> = {}): DiskStateAdapter {
+	const structuredAutoApproval = globalState.autoApprovalSettings as typeof DEFAULT_AUTO_APPROVAL_SETTINGS | undefined
+
 	return {
 		readGlobalState: () => globalState,
 		readSecrets: () => ({}),
 		readTaskHistory: () => [],
-		readAutoApprovalSettings: () => DEFAULT_AUTO_APPROVAL_SETTINGS,
-	} as unknown as LegacyStateReader
+		readAutoApprovalSettings: () => ({
+			...DEFAULT_AUTO_APPROVAL_SETTINGS,
+			...(structuredAutoApproval ?? {}),
+			actions: {
+				...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+				...(structuredAutoApproval?.actions ?? {}),
+			},
+		}),
+	} as unknown as DiskStateAdapter
 }
 
 function makeClineMessage(overrides: Partial<ClineMessage> = {}): ClineMessage {
@@ -110,18 +119,18 @@ describe("buildExtensionState", () => {
 		})
 	})
 
-	describe("with legacy state reader", () => {
-		it("reads mode from legacy state", () => {
+	describe("with persisted disk state", () => {
+		it("reads mode from persisted disk state", () => {
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({ mode: "plan" }),
+				diskState: mockDiskState({ mode: "plan" }),
 			})
 
 			expect(state.mode).toBe("plan")
 		})
 
-		it("reads auto-approval settings from legacy state", () => {
+		it("reads auto-approval settings from persisted disk state", () => {
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({
+				diskState: mockDiskState({
 					autoApprovalSettings: {
 						enabled: true,
 						actions: {
@@ -145,11 +154,11 @@ describe("buildExtensionState", () => {
 			expect(state.autoApprovalSettings.maxRequests).toBe(50)
 		})
 
-		it("reads task history from legacy state", () => {
+		it("reads task history from persisted disk state", () => {
 			const items = [makeHistoryItem({ ts: 1000, task: "First task" }), makeHistoryItem({ ts: 2000, task: "Second task" })]
 
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({ taskHistory: items }),
+				diskState: mockDiskState({ taskHistory: items }),
 			})
 
 			expect(state.taskHistory).toHaveLength(2)
@@ -158,25 +167,25 @@ describe("buildExtensionState", () => {
 			expect(state.taskHistory[1].task).toBe("First task")
 		})
 
-		it("reads telemetry setting from legacy state", () => {
+		it("reads telemetry setting from persisted disk state", () => {
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({ telemetrySetting: "enabled" }),
+				diskState: mockDiskState({ telemetrySetting: "enabled" }),
 			})
 
 			expect(state.telemetrySetting).toBe("enabled")
 		})
 
-		it("reads isNewUser from legacy state", () => {
+		it("reads isNewUser from persisted disk state", () => {
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({ isNewUser: false }),
+				diskState: mockDiskState({ isNewUser: false }),
 			})
 
 			expect(state.isNewUser).toBe(false)
 		})
 
-		it("reads welcomeViewCompleted from legacy state", () => {
+		it("reads welcomeViewCompleted from persisted disk state", () => {
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({ welcomeViewCompleted: true }),
+				diskState: mockDiskState({ welcomeViewCompleted: true }),
 			})
 
 			expect(state.welcomeViewCompleted).toBe(true)
@@ -244,13 +253,13 @@ describe("buildExtensionState", () => {
 			expect(state.taskHistory[0].ts).toBe(150)
 		})
 
-		it("prefers explicit taskHistory over legacy state", () => {
+		it("prefers explicit taskHistory over persisted disk state", () => {
 			const explicit = [makeHistoryItem({ ts: 1000, task: "Explicit" })]
-			const legacy = [makeHistoryItem({ ts: 2000, task: "Legacy" })]
+			const storedStateHistory = [makeHistoryItem({ ts: 2000, task: "Persisted" })]
 
 			const state = buildExtensionState({
 				taskHistory: explicit,
-				legacyState: mockLegacyState({ taskHistory: legacy }),
+				diskState: mockDiskState({ taskHistory: storedStateHistory }),
 			})
 
 			expect(state.taskHistory).toHaveLength(1)
@@ -272,9 +281,9 @@ describe("buildExtensionState", () => {
 			expect(state.apiConfiguration?.actModeApiModelId).toBe("claude-sonnet-4-20250514")
 		})
 
-		it("falls back to legacy state apiConfiguration", () => {
+		it("falls back to persisted disk state apiConfiguration", () => {
 			const state = buildExtensionState({
-				legacyState: mockLegacyState({
+				diskState: mockDiskState({
 					apiConfiguration: {
 						actModeApiProvider: "openrouter",
 						actModeApiModelId: "some-model",
@@ -329,7 +338,7 @@ describe("buildExtensionState", () => {
 		it("overrides trump all other sources", () => {
 			const state = buildExtensionState({
 				mode: "act",
-				legacyState: mockLegacyState({ mode: "plan" }),
+				diskState: mockDiskState({ mode: "plan" }),
 				overrides: { mode: "plan" },
 			})
 
@@ -417,8 +426,8 @@ describe("Interface Contract", () => {
 		expect(state.apiConfiguration?.actModeApiProvider).toBe("anthropic")
 	})
 
-	it("settings round-trip: legacy state → ExtensionState preserves values", () => {
-		const legacy = mockLegacyState({
+	it("settings round-trip: persisted disk state → ExtensionState preserves values", () => {
+		const storedState = mockDiskState({
 			mode: "plan",
 			isNewUser: false,
 			welcomeViewCompleted: true,
@@ -440,7 +449,7 @@ describe("Interface Contract", () => {
 			favoritedModelIds: ["model-1", "model-2"],
 		})
 
-		const state = buildExtensionState({ legacyState: legacy })
+		const state = buildExtensionState({ diskState: storedState })
 
 		expect(state.mode).toBe("plan")
 		expect(state.isNewUser).toBe(false)

@@ -74,7 +74,7 @@ describe("SDK Extension Smoke Test", () => {
 		fs.rmSync(tmpDir, { recursive: true, force: true })
 	})
 
-	it("activates successfully with legacy data", async () => {
+	it("activates successfully with existing disk data", async () => {
 		ctx = await activateSdkExtension({
 			dataDir: tmpDir,
 			version: "3.5.0",
@@ -82,7 +82,7 @@ describe("SDK Extension Smoke Test", () => {
 		})
 
 		expect(ctx.controller).toBeDefined()
-		expect(ctx.legacyState).toBeDefined()
+		expect(ctx.diskState).toBeDefined()
 	})
 
 	it("provides valid initial state after activation", async () => {
@@ -100,7 +100,7 @@ describe("SDK Extension Smoke Test", () => {
 		expect(state.clineMessages).toEqual([])
 	})
 
-	it("loads task history from legacy state", async () => {
+	it("loads task history from persisted disk state", async () => {
 		ctx = await activateSdkExtension({
 			dataDir: tmpDir,
 			version: "3.5.0",
@@ -250,7 +250,7 @@ describe("SDK Extension Smoke Test", () => {
 		}
 	})
 
-	it("activates without legacy data (fresh install)", async () => {
+	it("activates without existing disk data (fresh install)", async () => {
 		const emptyDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-sdk-empty-"))
 
 		try {

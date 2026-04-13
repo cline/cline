@@ -6,7 +6,7 @@
  * webview and host infrastructure.
  *
  * Modules:
- * - legacy-state-reader: Reads existing ~/.cline/data/ files
+ * - disk-state-adapter: Reads existing ~/.cline/data/ files
  * - provider-migration: Migrates provider credentials to SDK format
  * - message-translator: SDK session events → ClineMessage[]
  * - state-builder: Controller state → ExtensionState for webview
@@ -16,23 +16,17 @@
  * - approval-adapter: Auto-approve settings → SDK tool policies
  */
 
-export { LegacyStateReader } from "./legacy-state-reader"
-export type { LegacyGlobalState, LegacySecrets, LegacyStateReaderOptions } from "./legacy-state-reader"
-
-export { runProviderMigration, clearMigrationSentinel } from "./provider-migration"
-export type { ProviderMigrationOptions, ProviderMigrationResult } from "./provider-migration"
-
-export { MessageTranslator } from "./message-translator"
-export type { AgentEvent, MessageUpdate } from "./message-translator"
-
-export { buildExtensionState, REQUIRED_STATE_FIELDS } from "./state-builder"
-export type { StateBuilderInput } from "./state-builder"
-
-export { GrpcHandler } from "./grpc-handler"
-export type { GrpcHandlerDelegate, GrpcRequest, GrpcResponse } from "./grpc-handler"
-
-export { SdkController } from "./SdkController"
-export type { SdkSession, SessionFactory, SdkControllerOptions } from "./SdkController"
-
-export { activateSdkExtension, deactivateSdkExtension } from "./extension-sdk"
+export type { DiskGlobalState, DiskSecrets, DiskStateAdapterOptions } from "./disk-state-adapter"
+export { DiskStateAdapter } from "./disk-state-adapter"
 export type { SdkExtensionContext, SdkExtensionOptions } from "./extension-sdk"
+export { activateSdkExtension, deactivateSdkExtension } from "./extension-sdk"
+export type { GrpcHandlerDelegate, GrpcRequest, GrpcResponse } from "./grpc-handler"
+export { GrpcHandler } from "./grpc-handler"
+export type { AgentEvent, MessageUpdate } from "./message-translator"
+export { MessageTranslator } from "./message-translator"
+export type { ProviderMigrationOptions, ProviderMigrationResult } from "./provider-migration"
+export { clearMigrationSentinel, runProviderMigration } from "./provider-migration"
+export type { SdkControllerOptions, SdkSession, SessionFactory } from "./SdkController"
+export { SdkController } from "./SdkController"
+export type { StateBuilderInput } from "./state-builder"
+export { buildExtensionState, REQUIRED_STATE_FIELDS } from "./state-builder"

@@ -21,8 +21,8 @@ import type { Mode } from "@shared/storage/types"
 import type { UserInfo } from "@shared/UserInfo"
 import * as fs from "fs"
 import * as path from "path"
+import type { ClineAuthCredentials, DiskStateAdapter } from "./disk-state-adapter"
 import { type FileSearchResult, GrpcHandler, type GrpcHandlerDelegate, type McpServerProto } from "./grpc-handler"
-import type { ClineAuthCredentials, LegacyStateReader } from "./legacy-state-reader"
 import { type AgentDoneEvent, type AgentEvent, type AgentUsageEvent, MessageTranslator } from "./message-translator"
 import { buildExtensionState, type StateBuilderInput } from "./state-builder"
 
@@ -74,7 +74,7 @@ export interface SdkControllerOptions {
 	taskHistory?: HistoryItem[]
 
 	/** Legacy state reader (for settings not yet migrated) */
-	legacyState?: LegacyStateReader
+	diskState?: DiskStateAdapter
 }
 
 export class SdkController implements GrpcHandlerDelegate {
@@ -90,7 +90,7 @@ export class SdkController implements GrpcHandlerDelegate {
 	readonly cwd: string
 	private taskHistory: HistoryItem[]
 	private currentTaskItem?: HistoryItem
-	private legacyState?: LegacyStateReader
+	private diskState?: DiskStateAdapter
 
 	/** External push callbacks (registered by WebviewGrpcBridge) */
 	private onPushStateCallback?: (state: ExtensionState) => void
@@ -104,7 +104,7 @@ export class SdkController implements GrpcHandlerDelegate {
 		this.cwd = options.cwd ?? process.cwd()
 		this.taskHistory = options.taskHistory ?? []
 		this.sessionFactory = options.sessionFactory
-		this.legacyState = options.legacyState
+		this.diskState = options.diskState
 
 		this.translator = new MessageTranslator()
 		this.grpcHandler = new GrpcHandler(this)
@@ -142,8 +142,8 @@ export class SdkController implements GrpcHandlerDelegate {
 	getState(): ExtensionState {
 		// Build userInfo from Cline auth credentials on disk
 		let userInfo: UserInfo | undefined
-		if (this.legacyState && typeof this.legacyState.readClineAuthInfo === "function") {
-			const authInfo = this.legacyState.readClineAuthInfo()
+		if (this.diskState && typeof this.diskState.readClineAuthInfo === "function") {
+			const authInfo = this.diskState.readClineAuthInfo()
 			if (authInfo?.userInfo) {
 				userInfo = {
 					displayName: authInfo.userInfo.displayName || authInfo.userInfo.email,
@@ -153,7 +153,7 @@ export class SdkController implements GrpcHandlerDelegate {
 		}
 
 		const input: StateBuilderInput = {
-			legacyState: this.legacyState,
+			diskState: this.diskState,
 			version: this.version,
 			clineMessages: this.translator.getMessages(),
 			currentTaskItem: this.currentTaskItem,
@@ -167,8 +167,8 @@ export class SdkController implements GrpcHandlerDelegate {
 
 	/** Get the Cline auth credentials from disk (for use by grpc-handler) */
 	getClineAuthInfo(): ClineAuthCredentials | null {
-		if (this.legacyState && typeof this.legacyState.readClineAuthInfo === "function") {
-			return this.legacyState.readClineAuthInfo()
+		if (this.diskState && typeof this.diskState.readClineAuthInfo === "function") {
+			return this.diskState.readClineAuthInfo()
 		}
 		return null
 	}
@@ -297,9 +297,9 @@ export class SdkController implements GrpcHandlerDelegate {
 
 		// Load saved messages from disk
 		let messages: ClineMessage[] = []
-		if (this.legacyState) {
+		if (this.diskState) {
 			try {
-				const raw = this.legacyState.readUiMessages(id)
+				const raw = this.diskState.readUiMessages(id)
 				messages = raw as ClineMessage[]
 			} catch {
 				// If messages can't be loaded, show the task with no messages
@@ -325,10 +325,10 @@ export class SdkController implements GrpcHandlerDelegate {
 	async deleteTasksWithIds(ids: string[]): Promise<void> {
 		if (ids.length === 0) {
 			// Delete all — also delete task directories from disk
-			if (this.legacyState) {
+			if (this.diskState) {
 				for (const item of this.taskHistory) {
 					try {
-						this.legacyState.deleteTaskDirectory(item.id)
+						this.diskState.deleteTaskDirectory(item.id)
 					} catch {
 						// Best-effort
 					}
@@ -337,10 +337,10 @@ export class SdkController implements GrpcHandlerDelegate {
 			this.taskHistory = []
 		} else {
 			// Delete specific tasks and their directories
-			if (this.legacyState) {
+			if (this.diskState) {
 				for (const id of ids) {
 					try {
-						this.legacyState.deleteTaskDirectory(id)
+						this.diskState.deleteTaskDirectory(id)
 					} catch {
 						// Best-effort
 					}
@@ -357,9 +357,9 @@ export class SdkController implements GrpcHandlerDelegate {
 	async updateApiConfiguration(config: Partial<ApiConfiguration>): Promise<void> {
 		this.apiConfiguration = { ...this.apiConfiguration, ...config } as ApiConfiguration
 		// Persist to disk so settings survive extension restart
-		if (this.legacyState) {
+		if (this.diskState) {
 			try {
-				this.legacyState.saveApiConfiguration(config)
+				this.diskState.saveApiConfiguration(config)
 			} catch {
 				// Best-effort persistence
 			}
@@ -370,9 +370,9 @@ export class SdkController implements GrpcHandlerDelegate {
 	async togglePlanActMode(mode: Mode): Promise<void> {
 		this.mode = mode
 		// Persist mode to disk
-		if (this.legacyState) {
+		if (this.diskState) {
 			try {
-				this.legacyState.saveMode(mode)
+				this.diskState.saveMode(mode)
 			} catch {
 				// Best-effort persistence
 			}
@@ -385,7 +385,7 @@ export class SdkController implements GrpcHandlerDelegate {
 		// Some keys are API handler settings (persisted via saveApiConfiguration),
 		// while others are user settings (persisted directly to globalState.json).
 		// We need to handle both types.
-		if (this.legacyState) {
+		if (this.diskState) {
 			try {
 				const apiConfigUpdates: Partial<ApiConfiguration> = {}
 				let hasApiConfig = false
@@ -412,7 +412,7 @@ export class SdkController implements GrpcHandlerDelegate {
 				}
 
 				if (hasApiConfig) {
-					this.legacyState.saveApiConfiguration(apiConfigUpdates)
+					this.diskState.saveApiConfiguration(apiConfigUpdates)
 					// Also update the in-memory API configuration so that
 					// model/provider changes take effect immediately for
 					// the next session (or mid-conversation if the session
@@ -533,7 +533,7 @@ export class SdkController implements GrpcHandlerDelegate {
 		}
 
 		// Save to disk
-		if (this.legacyState) {
+		if (this.diskState) {
 			try {
 				// Save task history
 				this.persistTaskHistory()
@@ -541,7 +541,7 @@ export class SdkController implements GrpcHandlerDelegate {
 				// Save UI messages for this task
 				const messages = this.translator.getMessages()
 				if (messages.length > 0) {
-					this.legacyState.saveUiMessages(taskId, messages)
+					this.diskState.saveUiMessages(taskId, messages)
 				}
 			} catch {
 				// Best-effort persistence — don't crash
@@ -551,10 +551,10 @@ export class SdkController implements GrpcHandlerDelegate {
 
 	/** Persist the task history array to disk */
 	private persistTaskHistory(): void {
-		if (!this.legacyState) return
+		if (!this.diskState) return
 
 		try {
-			this.legacyState.saveTaskHistory(this.taskHistory)
+			this.diskState.saveTaskHistory(this.taskHistory)
 		} catch {
 			// Best-effort persistence
 		}
@@ -642,8 +642,8 @@ export class SdkController implements GrpcHandlerDelegate {
 
 	/** Read a value from persistent global state */
 	readGlobalStateKey(key: string): unknown {
-		if (!this.legacyState) return undefined
-		const gs = this.legacyState.readGlobalState()
+		if (!this.diskState) return undefined
+		const gs = this.diskState.readGlobalState()
 		return (gs as Record<string, unknown>)[key]
 	}
 
@@ -652,9 +652,9 @@ export class SdkController implements GrpcHandlerDelegate {
 	 * Writes the key to globalState.json and triggers a webview state push.
 	 */
 	writeGlobalStateKey(key: string, value: unknown): void {
-		if (!this.legacyState) return
+		if (!this.diskState) return
 
-		const gsPath = path.join(this.legacyState.dataDir, "globalState.json")
+		const gsPath = path.join(this.diskState.dataDir, "globalState.json")
 		let gs: Record<string, unknown>
 		try {
 			const raw = fs.readFileSync(gsPath, "utf-8")
@@ -708,8 +708,8 @@ export class SdkController implements GrpcHandlerDelegate {
 	 * Recursively sums file sizes under ~/.cline/data/tasks/.
 	 */
 	async getTotalTasksSize(): Promise<number> {
-		if (!this.legacyState) return 0
-		const tasksDir = path.join(this.legacyState.dataDir, "tasks")
+		if (!this.diskState) return 0
+		const tasksDir = path.join(this.diskState.dataDir, "tasks")
 		return this.getDirectorySize(tasksDir)
 	}
 
@@ -724,9 +724,9 @@ export class SdkController implements GrpcHandlerDelegate {
 
 			// Load messages
 			let messages: unknown[] = []
-			if (this.legacyState) {
+			if (this.diskState) {
 				try {
-					messages = this.legacyState.readUiMessages(taskId)
+					messages = this.diskState.readUiMessages(taskId)
 				} catch {
 					// Best-effort
 				}
@@ -891,10 +891,10 @@ export class SdkController implements GrpcHandlerDelegate {
 	 * since we're not actually running MCP servers in SDK mode.
 	 */
 	getMcpServers(): McpServerProto[] {
-		if (!this.legacyState) return []
+		if (!this.diskState) return []
 
 		try {
-			const settings = this.legacyState.readMcpSettings()
+			const settings = this.diskState.readMcpSettings()
 			if (!settings) return []
 
 			const mcpServersMap = (settings as Record<string, unknown>).mcpServers as Record<string, unknown> | undefined
@@ -938,8 +938,8 @@ export class SdkController implements GrpcHandlerDelegate {
 	 * and pushes a state update.
 	 */
 	clearClineAuth(): void {
-		if (this.legacyState) {
-			this.legacyState.clearClineAuthInfo()
+		if (this.diskState) {
+			this.diskState.clearClineAuthInfo()
 		}
 
 		// Keep the API provider as "cline" — the classic extension does the
@@ -961,8 +961,8 @@ export class SdkController implements GrpcHandlerDelegate {
 	 * Persists the change to disk and pushes state update.
 	 */
 	setActiveOrganization(organizationId: string | undefined): void {
-		if (this.legacyState) {
-			this.legacyState.setActiveOrganization(organizationId)
+		if (this.diskState) {
+			this.diskState.setActiveOrganization(organizationId)
 		}
 		this.pushStateUpdate()
 	}
@@ -983,7 +983,7 @@ export class SdkController implements GrpcHandlerDelegate {
 		usageTransactions?: unknown[]
 		paymentTransactions?: unknown[]
 	}> {
-		const authInfo = this.legacyState?.readClineAuthInfo()
+		const authInfo = this.diskState?.readClineAuthInfo()
 		if (!authInfo?.idToken || !authInfo?.userInfo?.id) {
 			return { balance: undefined }
 		}
@@ -1035,7 +1035,7 @@ export class SdkController implements GrpcHandlerDelegate {
 	async fetchOrganizationCredits(
 		organizationId: string,
 	): Promise<{ balance?: { currentBalance: number }; usageTransactions?: unknown[] }> {
-		const authInfo = this.legacyState?.readClineAuthInfo()
+		const authInfo = this.diskState?.readClineAuthInfo()
 		if (!authInfo?.idToken) {
 			return { balance: undefined }
 		}
@@ -1087,7 +1087,7 @@ export class SdkController implements GrpcHandlerDelegate {
 			const { loginClineOAuth } = await import("@clinebot/core")
 
 			// Determine API base URL (support staging/production environments)
-			const currentAuth = this.legacyState?.readClineAuthInfo()
+			const currentAuth = this.diskState?.readClineAuthInfo()
 			const apiBaseUrl = currentAuth?.userInfo?.appBaseUrl ?? "https://api.cline.bot"
 
 			Logger.log("[SdkController] Starting Cline OAuth flow with base URL:", apiBaseUrl)
@@ -1199,8 +1199,8 @@ export class SdkController implements GrpcHandlerDelegate {
 			}
 
 			// Save to disk
-			if (this.legacyState) {
-				this.legacyState.writeClineAuthInfo(clineCredentials)
+			if (this.diskState) {
+				this.diskState.writeClineAuthInfo(clineCredentials)
 			}
 
 			// Switch API provider to "cline" so inference uses the new token.
@@ -1212,9 +1212,9 @@ export class SdkController implements GrpcHandlerDelegate {
 					actModeApiProvider: "cline" as ApiConfiguration["actModeApiProvider"],
 				}
 				this.apiConfiguration = updatedConfig as ApiConfiguration
-				if (this.legacyState) {
+				if (this.diskState) {
 					try {
-						this.legacyState.saveApiConfiguration(updatedConfig)
+						this.diskState.saveApiConfiguration(updatedConfig)
 					} catch {
 						// Best-effort persistence
 					}

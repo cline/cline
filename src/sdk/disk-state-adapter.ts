@@ -1,5 +1,5 @@
 /**
- * Legacy State Reader
+ * Disk State Adapter
  *
  * Reads the existing on-disk state from ~/.cline/data/ without depending on
  * VSCode, StateManager, or any other extension infrastructure.
@@ -33,7 +33,7 @@ import type { Mode } from "@shared/storage/types"
 // ---------------------------------------------------------------------------
 
 /** The subset of globalState.json we care about for SDK bootstrapping. */
-export interface LegacyGlobalState {
+export interface DiskGlobalState {
 	// Provider / model
 	apiProvider?: string
 	apiModelId?: string
@@ -51,7 +51,7 @@ export interface LegacyGlobalState {
 	// Custom instructions
 	customInstructions?: string
 
-	// Auto-approval (legacy top-level booleans)
+	// Auto-approval (older top-level booleans kept for compatibility)
 	alwaysAllowReadOnly?: boolean
 	alwaysAllowWrite?: boolean
 	alwaysAllowExecute?: boolean
@@ -66,7 +66,7 @@ export interface LegacyGlobalState {
 	autoCondenseContext?: boolean
 	autoCondenseContextPercent?: number
 
-	// Task history (legacy location — may still be in globalState for old installs)
+	// Task history (older location — may still live in globalState for old installs)
 	taskHistory?: HistoryItem[]
 
 	// Telemetry
@@ -80,7 +80,7 @@ export interface LegacyGlobalState {
 }
 
 /** A map of secret key → value. */
-export type LegacySecrets = Partial<Record<SecretKey, string>>
+export type DiskSecrets = Partial<Record<SecretKey, string>>
 
 /** Cline OAuth credential object stored in secrets.json under cline:clineAccountId */
 export interface ClineAuthCredentials {
@@ -107,8 +107,8 @@ export interface ClineAuthCredentials {
 	}
 }
 
-/** Options for constructing a LegacyStateReader. */
-export interface LegacyStateReaderOptions {
+/** Options for constructing a DiskStateAdapter. */
+export interface DiskStateAdapterOptions {
 	/** Override the data directory. Defaults to ~/.cline/data */
 	dataDir?: string
 	/** Override the cline home directory. Defaults to CLINE_DIR env var or ~/.cline */
@@ -119,10 +119,10 @@ export interface LegacyStateReaderOptions {
 // Implementation
 // ---------------------------------------------------------------------------
 
-export class LegacyStateReader {
+export class DiskStateAdapter {
 	readonly dataDir: string
 
-	constructor(opts: LegacyStateReaderOptions = {}) {
+	constructor(opts: DiskStateAdapterOptions = {}) {
 		if (opts.dataDir) {
 			this.dataDir = opts.dataDir
 		} else {
@@ -136,8 +136,8 @@ export class LegacyStateReader {
 	// -----------------------------------------------------------------------
 
 	/** Read and parse globalState.json. Returns empty object on missing/corrupt file. */
-	readGlobalState(): LegacyGlobalState {
-		return this.readJsonFile<LegacyGlobalState>(path.join(this.dataDir, "globalState.json")) ?? {}
+	readGlobalState(): DiskGlobalState {
+		return this.readJsonFile<DiskGlobalState>(path.join(this.dataDir, "globalState.json")) ?? {}
 	}
 
 	// -----------------------------------------------------------------------
@@ -145,8 +145,8 @@ export class LegacyStateReader {
 	// -----------------------------------------------------------------------
 
 	/** Read and parse secrets.json. Returns empty object on missing/corrupt file. */
-	readSecrets(): LegacySecrets {
-		return this.readJsonFile<LegacySecrets>(path.join(this.dataDir, "secrets.json")) ?? {}
+	readSecrets(): DiskSecrets {
+		return this.readJsonFile<DiskSecrets>(path.join(this.dataDir, "secrets.json")) ?? {}
 	}
 
 	// -----------------------------------------------------------------------
@@ -156,7 +156,7 @@ export class LegacyStateReader {
 	/**
 	 * Read the task history. Checks the canonical location first
 	 * (~/.cline/data/state/taskHistory.json), then falls back to the
-	 * legacy location inside globalState.json.
+	 * older globalState.json location.
 	 */
 	readTaskHistory(): HistoryItem[] {
 		// Canonical location (post-migration)
@@ -166,7 +166,7 @@ export class LegacyStateReader {
 			return fromFile
 		}
 
-		// Fallback: legacy location in globalState.json
+		// Fallback: older globalState.json location
 		const gs = this.readGlobalState()
 		if (Array.isArray(gs.taskHistory) && gs.taskHistory.length > 0) {
 			return gs.taskHistory
@@ -236,7 +236,7 @@ export class LegacyStateReader {
 
 	/**
 	 * Read auto-approval settings, merging structured settings with
-	 * legacy top-level boolean flags for backward compatibility.
+	 * older top-level boolean flags for backward compatibility.
 	 */
 	readAutoApprovalSettings(): AutoApprovalSettings {
 		const gs = this.readGlobalState()
@@ -257,7 +257,7 @@ export class LegacyStateReader {
 			}
 		}
 
-		// Legacy top-level booleans override structured settings
+		// Older top-level booleans override structured settings
 		if (typeof gs.alwaysAllowReadOnly === "boolean") {
 			result.actions.readFiles = gs.alwaysAllowReadOnly
 		}
@@ -452,7 +452,7 @@ export class LegacyStateReader {
 				fs.rmSync(taskDir, { recursive: true, force: true })
 			}
 		} catch (err) {
-			Logger.error(`[LegacyStateReader] Failed to delete task directory ${taskDir}:`, err)
+			Logger.error(`[DiskStateAdapter] Failed to delete task directory ${taskDir}:`, err)
 		}
 	}
 
@@ -584,7 +584,7 @@ export class LegacyStateReader {
 			fs.renameSync(tmpPath, filePath)
 		} catch (err) {
 			// Best-effort — don't crash on write failure
-			Logger.error(`[LegacyStateReader] Failed to write ${filePath}:`, err)
+			Logger.error(`[DiskStateAdapter] Failed to write ${filePath}:`, err)
 		}
 	}
 }

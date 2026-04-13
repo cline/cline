@@ -33,7 +33,7 @@ function makeHistoryItem(overrides: Partial<HistoryItem> = {}): HistoryItem {
 	}
 }
 
-function createMockLegacyState() {
+function createMockDiskState() {
 	return {
 		saveApiConfiguration: vi.fn(),
 		saveMode: vi.fn(),
@@ -250,21 +250,21 @@ describe("SdkController", () => {
 			expect(ctrl.getTaskHistory()[0].task).toBe("Build a feature")
 		})
 
-		it("persists task to disk via legacyState", async () => {
-			const mockLegacyState = createMockLegacyState()
+		it("persists task to disk via diskState", async () => {
+			const mockDiskState = createMockDiskState()
 			const mockSession = createMockSession()
 			const factory = vi.fn(async () => mockSession)
 
 			const ctrl = new SdkController({
 				sessionFactory: factory,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 			await ctrl.newTask("Save me to disk")
 			await ctrl.clearTask()
 
-			expect(mockLegacyState.saveTaskHistory).toHaveBeenCalled()
-			expect(mockLegacyState.saveUiMessages).toHaveBeenCalled()
-			const savedHistory = mockLegacyState.saveTaskHistory.mock.calls[0][0]
+			expect(mockDiskState.saveTaskHistory).toHaveBeenCalled()
+			expect(mockDiskState.saveUiMessages).toHaveBeenCalled()
+			const savedHistory = mockDiskState.saveTaskHistory.mock.calls[0][0]
 			expect(savedHistory).toHaveLength(1)
 			expect(savedHistory[0].task).toBe("Save me to disk")
 		})
@@ -550,13 +550,13 @@ describe("SdkController", () => {
 
 	describe("task persistence on done event", () => {
 		it("persists task to history when done event fires", async () => {
-			const mockLegacyState = createMockLegacyState()
+			const mockDiskState = createMockDiskState()
 			const mockSession = createMockSession()
 			const factory = vi.fn(async () => mockSession)
 
 			const ctrl = new SdkController({
 				sessionFactory: factory,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 
 			await ctrl.newTask("Hello world")
@@ -587,8 +587,8 @@ describe("SdkController", () => {
 			expect(saved.cacheWrites).toBe(20)
 
 			// Should have saved to disk
-			expect(mockLegacyState.saveTaskHistory).toHaveBeenCalled()
-			expect(mockLegacyState.saveUiMessages).toHaveBeenCalled()
+			expect(mockDiskState.saveTaskHistory).toHaveBeenCalled()
+			expect(mockDiskState.saveUiMessages).toHaveBeenCalled()
 		})
 
 		it("updates currentTaskItem with usage events", async () => {
@@ -643,20 +643,20 @@ describe("SdkController", () => {
 		})
 
 		it("persists task on cancelTask", async () => {
-			const mockLegacyState = createMockLegacyState()
+			const mockDiskState = createMockDiskState()
 			const mockSession = createMockSession()
 			const factory = vi.fn(async () => mockSession)
 
 			const ctrl = new SdkController({
 				sessionFactory: factory,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 			await ctrl.newTask("Cancel me")
 			await ctrl.cancelTask()
 
 			expect(ctrl.getTaskHistory()).toHaveLength(1)
 			expect(ctrl.getTaskHistory()[0].task).toBe("Cancel me")
-			expect(mockLegacyState.saveTaskHistory).toHaveBeenCalled()
+			expect(mockDiskState.saveTaskHistory).toHaveBeenCalled()
 		})
 	})
 
@@ -667,14 +667,14 @@ describe("SdkController", () => {
 				{ ts: 1001, type: "say", say: "text", text: "I'll help you build it." },
 			]
 
-			const mockLegacyState = createMockLegacyState()
-			mockLegacyState.readUiMessages.mockReturnValue(savedMessages)
+			const mockDiskState = createMockDiskState()
+			mockDiskState.readUiMessages.mockReturnValue(savedMessages)
 
 			const history = [makeHistoryItem({ id: "task_resume_1", task: "Build it", tokensIn: 500, tokensOut: 200 })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 
 			await ctrl.showTaskWithId("task_resume_1")
@@ -701,14 +701,14 @@ describe("SdkController", () => {
 		})
 
 		it("handles missing messages gracefully", async () => {
-			const mockLegacyState = createMockLegacyState()
-			mockLegacyState.readUiMessages.mockReturnValue([])
+			const mockDiskState = createMockDiskState()
+			mockDiskState.readUiMessages.mockReturnValue([])
 
 			const history = [makeHistoryItem({ id: "task_no_msgs", task: "Old task" })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 
 			await ctrl.showTaskWithId("task_no_msgs")
@@ -722,74 +722,74 @@ describe("SdkController", () => {
 
 	describe("deleteTasksWithIds disk persistence", () => {
 		it("deletes task directories from disk", async () => {
-			const mockLegacyState = createMockLegacyState()
+			const mockDiskState = createMockDiskState()
 			const history = [makeHistoryItem({ id: "del_a" }), makeHistoryItem({ id: "del_b" }), makeHistoryItem({ id: "del_c" })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 
 			await ctrl.deleteTasksWithIds(["del_a", "del_c"])
 
-			expect(mockLegacyState.deleteTaskDirectory).toHaveBeenCalledWith("del_a")
-			expect(mockLegacyState.deleteTaskDirectory).toHaveBeenCalledWith("del_c")
-			expect(mockLegacyState.deleteTaskDirectory).not.toHaveBeenCalledWith("del_b")
-			expect(mockLegacyState.saveTaskHistory).toHaveBeenCalled()
+			expect(mockDiskState.deleteTaskDirectory).toHaveBeenCalledWith("del_a")
+			expect(mockDiskState.deleteTaskDirectory).toHaveBeenCalledWith("del_c")
+			expect(mockDiskState.deleteTaskDirectory).not.toHaveBeenCalledWith("del_b")
+			expect(mockDiskState.saveTaskHistory).toHaveBeenCalled()
 		})
 
 		it("deletes all task directories when ids is empty", async () => {
-			const mockLegacyState = createMockLegacyState()
+			const mockDiskState = createMockDiskState()
 			const history = [makeHistoryItem({ id: "all_a" }), makeHistoryItem({ id: "all_b" })]
 
 			const ctrl = new SdkController({
 				taskHistory: history,
-				legacyState: mockLegacyState as any,
+				diskState: mockDiskState as any,
 			})
 
 			await ctrl.deleteTasksWithIds([])
 
-			expect(mockLegacyState.deleteTaskDirectory).toHaveBeenCalledWith("all_a")
-			expect(mockLegacyState.deleteTaskDirectory).toHaveBeenCalledWith("all_b")
+			expect(mockDiskState.deleteTaskDirectory).toHaveBeenCalledWith("all_a")
+			expect(mockDiskState.deleteTaskDirectory).toHaveBeenCalledWith("all_b")
 			expect(ctrl.getTaskHistory()).toHaveLength(0)
 		})
 	})
 
 	describe("settings persistence", () => {
-		it("updateApiConfiguration calls legacyState.saveApiConfiguration", async () => {
-			const mockLegacyState = createMockLegacyState()
-			const ctrl = new SdkController({ legacyState: mockLegacyState as any })
+		it("updateApiConfiguration calls diskState.saveApiConfiguration", async () => {
+			const mockDiskState = createMockDiskState()
+			const ctrl = new SdkController({ diskState: mockDiskState as any })
 			await ctrl.updateApiConfiguration({ actModeApiProvider: "ollama" } as any)
 
-			expect(mockLegacyState.saveApiConfiguration).toHaveBeenCalledWith({ actModeApiProvider: "ollama" })
+			expect(mockDiskState.saveApiConfiguration).toHaveBeenCalledWith({ actModeApiProvider: "ollama" })
 		})
 
-		it("togglePlanActMode calls legacyState.saveMode", async () => {
-			const mockLegacyState = createMockLegacyState()
-			const ctrl = new SdkController({ legacyState: mockLegacyState as any })
+		it("togglePlanActMode calls diskState.saveMode", async () => {
+			const mockDiskState = createMockDiskState()
+			const ctrl = new SdkController({ diskState: mockDiskState as any })
 			await ctrl.togglePlanActMode("plan")
 
-			expect(mockLegacyState.saveMode).toHaveBeenCalledWith("plan")
+			expect(mockDiskState.saveMode).toHaveBeenCalledWith("plan")
 		})
 
-		it("does not throw when legacyState is not provided", async () => {
+		it("does not throw when diskState is not provided", async () => {
 			const ctrl = new SdkController()
 			await expect(ctrl.updateApiConfiguration({ actModeApiProvider: "ollama" } as any)).resolves.not.toThrow()
 			await expect(ctrl.togglePlanActMode("plan")).resolves.not.toThrow()
 		})
 
-		it("updateSettings persists to disk via legacyState", async () => {
-			const mockLegacyState = createMockLegacyState()
-			const ctrl = new SdkController({ legacyState: mockLegacyState as any })
+		it("updateSettings persists to disk via diskState", async () => {
+			const mockDiskState = createMockDiskState()
+			const ctrl = new SdkController({ diskState: mockDiskState as any })
 
 			await ctrl.updateSettings({ customInstructions: "Be concise" })
 
-			expect(mockLegacyState.saveApiConfiguration).toHaveBeenCalledWith(
+			expect(mockDiskState.saveApiConfiguration).toHaveBeenCalledWith(
 				expect.objectContaining({ customInstructions: "Be concise" }),
 			)
 		})
 
-		it("updateSettings does not throw without legacyState", async () => {
+		it("updateSettings does not throw without diskState", async () => {
 			const ctrl = new SdkController()
 			await expect(ctrl.updateSettings({ customInstructions: "Be concise" })).resolves.not.toThrow()
 		})

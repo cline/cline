@@ -4,7 +4,7 @@ import * as vscode from "vscode"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { createClineSessionFactory } from "@/sdk/cline-session-factory"
-import { LegacyStateReader } from "@/sdk/legacy-state-reader"
+import { DiskStateAdapter } from "@/sdk/disk-state-adapter"
 import { SdkController } from "@/sdk/SdkController"
 import { WebviewGrpcBridge } from "@/sdk/webview-grpc-bridge"
 import type { ExtensionMessage } from "@/shared/ExtensionMessage"
@@ -151,13 +151,13 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 
 	/**
 	 * Initialize the SDK adapter bridge.
-	 * This creates an SdkController backed by legacy state and wires it
+	 * This creates an SdkController backed by persisted disk state and wires it
 	 * to the webview via the WebviewGrpcBridge.
 	 */
 	private initSdkBridge(): void {
 		try {
-			const legacyState = new LegacyStateReader()
-			const taskHistory = legacyState.readTaskHistory()
+			const diskState = new DiskStateAdapter()
+			const taskHistory = diskState.readTaskHistory()
 
 			// Build apiConfiguration from ALL flat globalState keys + secrets.
 			// The classic extension stores provider settings as flat keys:
@@ -165,7 +165,7 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			// plus secrets like clineApiKey, openRouterApiKey, etc.
 			// buildApiConfiguration() reads them all and merges into one object,
 			// replicating what StateManager.constructApiConfigurationFromCache() does.
-			const apiConfiguration = legacyState.buildApiConfiguration()
+			const apiConfiguration = diskState.buildApiConfiguration()
 
 			// Create session factory backed by @clinebot/core
 			const sessionFactory = createClineSessionFactory()
@@ -173,10 +173,10 @@ export class VscodeWebviewProvider extends WebviewProvider implements vscode.Web
 			this.sdkController = new SdkController({
 				version: ExtensionRegistryInfo.version,
 				apiConfiguration,
-				mode: legacyState.getMode(),
+				mode: diskState.getMode(),
 				cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? process.cwd(),
 				taskHistory,
-				legacyState,
+				diskState,
 				sessionFactory,
 			})
 

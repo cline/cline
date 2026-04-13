@@ -31,7 +31,7 @@ vi.mock("../../utils/shell", () => ({
 	getAvailableTerminalProfiles: vi.fn().mockReturnValue([]),
 }))
 
-import { LegacyStateReader } from "../legacy-state-reader"
+import { DiskStateAdapter } from "../disk-state-adapter"
 import { SdkController } from "../SdkController"
 
 // ---------------------------------------------------------------------------
@@ -188,8 +188,8 @@ describe("Account Integration", () => {
 			writeAuthCredentials(dataDir, { appBaseUrl: mockBaseUrl })
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			const result = await handler.handleRequest({ method: "getUserCredits" })
@@ -210,8 +210,8 @@ describe("Account Integration", () => {
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 			// No auth credentials written
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			const result = await handler.handleRequest({ method: "getUserCredits" })
@@ -234,8 +234,8 @@ describe("Account Integration", () => {
 			})
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			const result = await handler.handleRequest({
@@ -260,19 +260,19 @@ describe("Account Integration", () => {
 			writeAuthCredentials(dataDir, { appBaseUrl: mockBaseUrl })
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			// Verify auth exists before logout
-			expect(legacyState.readClineAuthInfo()).not.toBeNull()
+			expect(diskState.readClineAuthInfo()).not.toBeNull()
 
 			// Logout
 			const result = await handler.handleRequest({ method: "accountLogoutClicked" })
 			expect(result.error).toBeUndefined()
 
 			// Auth should be cleared
-			expect(legacyState.readClineAuthInfo()).toBeNull()
+			expect(diskState.readClineAuthInfo()).toBeNull()
 
 			// Auth status should show not authenticated
 			const authResult = await handler.handleRequest({ method: "subscribeToAuthStatusUpdate" })
@@ -296,8 +296,8 @@ describe("Account Integration", () => {
 			})
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			// Fetch initial balance for org-alpha (active)
@@ -316,7 +316,7 @@ describe("Account Integration", () => {
 			expect(switchResult.error).toBeUndefined()
 
 			// Verify org-beta is now active on disk
-			const authInfo = legacyState.readClineAuthInfo()
+			const authInfo = diskState.readClineAuthInfo()
 			const betaOrg = authInfo?.userInfo?.organizations?.find((o) => o.organizationId === "org-beta")
 			expect(betaOrg?.active).toBe(true)
 			const alphaOrg = authInfo?.userInfo?.organizations?.find((o) => o.organizationId === "org-alpha")
@@ -352,8 +352,8 @@ describe("Account Integration", () => {
 			})
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			// Start with low-balance org (org-beta)
@@ -398,8 +398,8 @@ describe("Account Integration", () => {
 			})
 			writeGlobalState(dataDir, { welcomeViewCompleted: true })
 
-			const legacyState = new LegacyStateReader({ dataDir })
-			const controller = new SdkController({ legacyState, cwd: dataDir })
+			const diskState = new DiskStateAdapter({ dataDir })
+			const controller = new SdkController({ diskState, cwd: dataDir })
 			const handler = controller.getGrpcHandler()
 
 			// Check auth status

@@ -2,7 +2,7 @@
  * State Builder
  *
  * Constructs the ExtensionState object that the webview expects from
- * legacy settings, SDK session state, and current messages. This is
+ * persisted disk settings, SDK session state, and current messages. This is
  * the "interface contract" between the SDK adapter layer and the
  * existing webview.
  *
@@ -22,7 +22,7 @@ import type { McpDisplayMode } from "@shared/McpDisplayMode"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
-import type { LegacyStateReader } from "./legacy-state-reader"
+import type { DiskStateAdapter } from "./disk-state-adapter"
 
 // ---------------------------------------------------------------------------
 // Default values for ExtensionState fields
@@ -34,7 +34,8 @@ const DEFAULT_FOCUS_CHAIN: FocusChainSettings = DEFAULT_FOCUS_CHAIN_SETTINGS
 
 /**
  * Normalize dismissedBanners from globalState.
- * Handles mixed formats: plain strings (legacy) and { bannerId, dismissedAt } objects.
+ * Handles mixed formats: plain strings (older stored format) and
+ * { bannerId, dismissedAt } objects.
  * Returns undefined if no data, or a normalized array of objects.
  */
 function normalizeDismissedBanners(raw: unknown): Array<{ bannerId: string; dismissedAt: number }> | undefined {
@@ -52,8 +53,8 @@ function normalizeDismissedBanners(raw: unknown): Array<{ bannerId: string; dism
 // ---------------------------------------------------------------------------
 
 export interface StateBuilderInput {
-	/** Legacy state reader for reading persisted settings */
-	legacyState?: LegacyStateReader
+	/** Disk-state adapter for reading persisted settings */
+	diskState?: DiskStateAdapter
 
 	/** Current ClineMessages (from MessageTranslator) */
 	clineMessages?: ClineMessage[]
@@ -101,11 +102,11 @@ export interface StateBuilderInput {
  * should render correctly with any subset of inputs.
  */
 export function buildExtensionState(input: StateBuilderInput = {}): ExtensionState {
-	const legacyState = input.legacyState
-	const globalState = legacyState?.readGlobalState()
+	const diskState = input.diskState
+	const globalState = diskState?.readGlobalState()
 
-	const autoApprovalSettings: AutoApprovalSettings = legacyState?.readAutoApprovalSettings
-		? legacyState.readAutoApprovalSettings()
+	const autoApprovalSettings: AutoApprovalSettings = diskState?.readAutoApprovalSettings
+		? diskState.readAutoApprovalSettings()
 		: DEFAULT_AUTO_APPROVAL
 
 	// Process task history: filter valid items, sort by ts desc, limit to 100

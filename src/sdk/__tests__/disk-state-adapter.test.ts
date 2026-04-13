@@ -2,7 +2,7 @@ import * as fs from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { afterEach, beforeEach, describe, expect, it } from "vitest"
-import { LegacyStateReader } from "../legacy-state-reader"
+import { DiskStateAdapter } from "../disk-state-adapter"
 
 // ---------------------------------------------------------------------------
 // Fixture helpers
@@ -32,13 +32,13 @@ function writeJson(filePath: string, data: unknown): void {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("LegacyStateReader", () => {
+describe("DiskStateAdapter", () => {
 	let dataDir: string
-	let reader: LegacyStateReader
+	let reader: DiskStateAdapter
 
 	beforeEach(() => {
 		dataDir = createTempDataDir()
-		reader = new LegacyStateReader({ dataDir })
+		reader = new DiskStateAdapter({ dataDir })
 	})
 
 	afterEach(() => {
@@ -97,11 +97,7 @@ describe("LegacyStateReader", () => {
 
 		it("returns empty object when globalState.json has trailing garbage", () => {
 			// This is a known failure mode (see migration.md discussion about trailing }s)
-			fs.writeFileSync(
-				path.join(dataDir, "globalState.json"),
-				'{"apiProvider":"anthropic"}}}',
-				"utf-8",
-			)
+			fs.writeFileSync(path.join(dataDir, "globalState.json"), '{"apiProvider":"anthropic"}}}', "utf-8")
 
 			const state = reader.readGlobalState()
 			expect(state).toEqual({})
@@ -341,7 +337,7 @@ describe("LegacyStateReader", () => {
 			expect(settings.enableNotifications).toBe(true)
 		})
 
-		it("merges legacy boolean flags with structured settings", () => {
+		it("merges older top-level boolean flags with structured settings", () => {
 			writeJson(path.join(dataDir, "globalState.json"), {
 				alwaysAllowReadOnly: true,
 				alwaysAllowWrite: true,
@@ -364,7 +360,7 @@ describe("LegacyStateReader", () => {
 
 			const settings = reader.readAutoApprovalSettings()
 
-			// Legacy booleans should override structured settings
+			// Older top-level booleans should override structured settings
 			expect(settings.actions.readFiles).toBe(true)
 			expect(settings.actions.editFiles).toBe(true)
 			expect(settings.actions.useBrowser).toBe(true)
@@ -478,7 +474,7 @@ describe("LegacyStateReader", () => {
 
 	describe("constructor options", () => {
 		it("accepts dataDir option directly", () => {
-			const customReader = new LegacyStateReader({ dataDir })
+			const customReader = new DiskStateAdapter({ dataDir })
 			writeJson(path.join(dataDir, "globalState.json"), { apiProvider: "bedrock" })
 
 			expect(customReader.getProvider()).toBe("bedrock")
@@ -489,7 +485,7 @@ describe("LegacyStateReader", () => {
 			// Ensure that inside clineDir/data the file exists
 			writeJson(path.join(clineDir, "data", "globalState.json"), { apiProvider: "gemini" })
 
-			const customReader = new LegacyStateReader({ clineDir })
+			const customReader = new DiskStateAdapter({ clineDir })
 
 			expect(customReader.dataDir).toBe(path.join(clineDir, "data"))
 			expect(customReader.getProvider()).toBe("gemini")

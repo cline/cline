@@ -9,7 +9,7 @@
  *   or by setting `cline.useSdk: true` (runtime)
  *
  * This entry point:
- * 1. Reads legacy state from ~/.cline/data/
+ * 1. Reads persisted disk state from ~/.cline/data/
  * 2. Runs provider migration (one-time, idempotent)
  * 3. Creates an SdkController
  * 4. Exposes the gRPC handler for webview communication
@@ -20,7 +20,7 @@
  * All communication goes through the gRPC compat layer.
  */
 
-import { LegacyStateReader } from "./legacy-state-reader"
+import { DiskStateAdapter } from "./disk-state-adapter"
 import { runProviderMigration } from "./provider-migration"
 import { SdkController, type SdkControllerOptions } from "./SdkController"
 
@@ -32,8 +32,8 @@ export interface SdkExtensionContext {
 	/** The SdkController instance */
 	controller: SdkController
 
-	/** The legacy state reader */
-	legacyState: LegacyStateReader
+	/** The persisted disk-state adapter */
+	diskState: DiskStateAdapter
 
 	/** Whether provider migration was run */
 	migrationResult?: { migrated: boolean; provider?: string }
@@ -69,13 +69,11 @@ export interface SdkExtensionOptions {
  * - A standalone Node.js process (for headless/CLI usage)
  * - Tests
  */
-export async function activateSdkExtension(
-	options: SdkExtensionOptions = {},
-): Promise<SdkExtensionContext> {
+export async function activateSdkExtension(options: SdkExtensionOptions = {}): Promise<SdkExtensionContext> {
 	const version = options.version ?? "0.0.0"
 
-	// 1. Read legacy state
-	const legacyState = new LegacyStateReader({
+	// 1. Read persisted disk state
+	const diskState = new DiskStateAdapter({
 		dataDir: options.dataDir,
 	})
 
@@ -84,7 +82,7 @@ export async function activateSdkExtension(
 	if (!options.skipMigration) {
 		try {
 			const result = runProviderMigration({
-				dataDir: legacyState.dataDir,
+				dataDir: diskState.dataDir,
 			})
 			migrationResult = {
 				migrated: result.ran,
@@ -95,16 +93,16 @@ export async function activateSdkExtension(
 		}
 	}
 
-	// 3. Read task history from legacy state
-	const taskHistory = legacyState.readTaskHistory()
+	// 3. Read task history from persisted disk state
+	const taskHistory = diskState.readTaskHistory()
 
 	// 4. Build API configuration from flat globalState keys + secrets
 	//    (globalState.json stores provider settings as flat keys like
 	//    actModeApiProvider, actModeClineModelId, etc. — NOT as a nested
 	//    apiConfiguration object. We must reconstruct it the same way
 	//    StateManager.constructApiConfigurationFromCache() does.)
-	const apiConfiguration = legacyState.buildApiConfiguration()
-	const globalState = legacyState.readGlobalState()
+	const apiConfiguration = diskState.buildApiConfiguration()
+	const globalState = diskState.readGlobalState()
 
 	// 5. Create SdkController
 	const controller = new SdkController({
@@ -113,13 +111,13 @@ export async function activateSdkExtension(
 		mode: (globalState.mode as "act" | "plan") ?? "act",
 		cwd: options.cwd ?? process.cwd(),
 		taskHistory,
-		legacyState,
+		diskState,
 		...options.controllerOptions,
 	})
 
 	return {
 		controller,
-		legacyState,
+		diskState,
 		migrationResult,
 	}
 }
@@ -128,9 +126,7 @@ export async function activateSdkExtension(
  * Deactivate the SDK extension.
  * Cleans up resources.
  */
-export async function deactivateSdkExtension(
-	context: SdkExtensionContext,
-): Promise<void> {
+export async function deactivateSdkExtension(context: SdkExtensionContext): Promise<void> {
 	// Cancel any running task
 	try {
 		await context.controller.cancelTask()
