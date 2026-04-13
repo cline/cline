@@ -110,7 +110,7 @@ Include options/trade-offs when helpful, ask if plan matches, then add the exact
 <needs_more_exploration>true or false (optional, but you MUST set to true if in <response> you need to read files or use other exploration tools)</needs_more_exploration>
 <task_progress>Checklist here (If you have presented the user with concrete steps or requirements, you can optionally include a todo list outlining these steps.)</task_progress>
 </plan_mode_respond>${
-	context.subagentsEnabled && !context.isSubagentRun
+	context.subagentsEnabled === true && !context.isSubagentRun
 		? `
 
 **use_subagents** — Run up to 5 focused in-process subagents in parallel for broad exploration. Each subagent gets its own prompt and returns a comprehensive research result. Use this when reading many files would consume the main agent's context window. Using a single subagent is also valid for light discovery work.

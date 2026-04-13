@@ -98,7 +98,7 @@ Key: Never include an option to toggle modes.
 
 **plan_mode_respond** — PLAN-only reply. Params: response, needs_more_exploration (optional).
 Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.${
-				context.subagentsEnabled && !context.isSubagentRun
+				context.subagentsEnabled === true && !context.isSubagentRun
 					? `
 
 **use_subagents** — Run up to 5 focused in-process subagents in parallel for broad exploration. Each subagent gets its own prompt and returns a comprehensive research result. Use this when reading many files would consume the main agent's context window. Using a single subagent is also valid for light discovery work.
