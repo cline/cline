@@ -55,7 +55,23 @@ This means:
 - The webview code is **largely untouched**
 - Proto files stay until the final cleanup step
 - Each SDK feature is wired by implementing its gRPC handler
-- We can compare behavior with the classic extension side-by-side
+
+### Key Architectural Decision: Single Entry Point
+
+There is one extension entry point (`src/extension.ts`), modified to
+use the SDK adapter. No `CLINE_SDK` environment variable, no dual
+codepaths. The classic implementation is always accessible via
+`origin/main` and `kb_search`.
+
+### Key Architectural Decision: Delete and Document
+
+When replacing a classic module with its SDK equivalent, we delete
+the classic code immediately and add a comment in the replacement:
+```
+// Replaces classic src/core/task/ (see origin/main)
+```
+This eliminates confusion about what code is active. The classic
+code is always recoverable from git.
 
 ### Future Architecture (Post-Migration)
 
