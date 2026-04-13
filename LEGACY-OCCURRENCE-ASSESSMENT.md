@@ -104,28 +104,28 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `cli/src/components/ConfigView.tsx`
 
-- [ ] **Occurrence 012 — `cli/src/components/ConfigView.tsx:3`**
+- [x] **Occurrence 012 — `cli/src/components/ConfigView.tsx:3`**
   - **Introduced text:** ` * Supports tabs for Settings, Rules, legacy Workflows, Hooks, and Skills`
   - **Surface:** user-facing UI surface
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 013 — `cli/src/components/ConfigView.tsx:519`**
+- [x] **Occurrence 013 — `cli/src/components/ConfigView.tsx:519`**
   - **Introduced text:** `								No legacy workflows configured. Add workflow files only if you still need `/file.md``
   - **Surface:** user-facing UI surface
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 014 — `cli/src/components/ConfigView.tsx:539`**
+- [x] **Occurrence 014 — `cli/src/components/ConfigView.tsx:539`**
   - **Introduced text:** `													? "Global Legacy Workflows:"`
   - **Surface:** user-facing UI surface
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 015 — `cli/src/components/ConfigView.tsx:540`**
+- [x] **Occurrence 015 — `cli/src/components/ConfigView.tsx:540`**
   - **Introduced text:** `													: "Workspace Legacy Workflows:"`
   - **Surface:** user-facing UI surface
   - **dpc changed after eve:** no
@@ -134,7 +134,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `cli/src/components/ConfigViewComponents.tsx`
 
-- [ ] **Occurrence 016 — `cli/src/components/ConfigViewComponents.tsx:74`**
+- [x] **Occurrence 016 — `cli/src/components/ConfigViewComponents.tsx:74`**
   - **Introduced text:** `	{ key: "workflows", label: "Legacy Workflows" },`
   - **Surface:** user-facing UI surface
   - **dpc changed after eve:** no
@@ -143,7 +143,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/cline-cli/configuration.mdx`
 
-- [ ] **Occurrence 017 — `docs/cline-cli/configuration.mdx:41`**
+- [x] **Occurrence 017 — `docs/cline-cli/configuration.mdx:41`**
   - **Introduced text:** `View and manage [legacy workflows](/customization/workflows):`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -152,7 +152,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/cline-cli/installation.mdx`
 
-- [ ] **Occurrence 018 — `docs/cline-cli/installation.mdx:272`**
+- [x] **Occurrence 018 — `docs/cline-cli/installation.mdx:272`**
   - **Introduced text:** `    Configure settings, rules, skills, legacy workflows, and environment variables.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -161,14 +161,14 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/contributing/documentation-guide.mdx`
 
-- [ ] **Occurrence 019 — `docs/contributing/documentation-guide.mdx:197`**
+- [x] **Occurrence 019 — `docs/contributing/documentation-guide.mdx:197`**
   - **Introduced text:** `  <Card title="Legacy Workflows" icon="diagram-project" href="/customization/workflows">`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 020 — `docs/contributing/documentation-guide.mdx:198`**
+- [x] **Occurrence 020 — `docs/contributing/documentation-guide.mdx:198`**
   - **Introduced text:** `    Learn about Cline's legacy workflow compatibility path.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -177,14 +177,14 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/core-workflows/using-commands.mdx`
 
-- [ ] **Occurrence 021 — `docs/core-workflows/using-commands.mdx:56`**
+- [x] **Occurrence 021 — `docs/core-workflows/using-commands.mdx:56`**
   - **Introduced text:** `Beyond the built-in slash commands, Cline still supports legacy workflow files that can be invoked as `/your-workflow.md`. Use this compatibility path only when you specifically need file-based slash commands; for new reusable guidance, prefer [Skills](/customization/skills).`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 022 — `docs/core-workflows/using-commands.mdx:58`**
+- [x] **Occurrence 022 — `docs/core-workflows/using-commands.mdx:58`**
   - **Introduced text:** `For migration guidance and the remaining compatibility behavior, see [Legacy Workflows](/customization/workflows).`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -193,49 +193,49 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/customization/overview.mdx`
 
-- [ ] **Occurrence 023 — `docs/customization/overview.mdx:4`**
+- [x] **Occurrence 023 — `docs/customization/overview.mdx:4`**
   - **Introduced text:** `description: "Understand how Rules, Skills, legacy Workflows, Hooks, and .clineignore fit together in Cline customization."`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 024 — `docs/customization/overview.mdx:9`**
+- [x] **Occurrence 024 — `docs/customization/overview.mdx:9`**
   - **Introduced text:** `Cline offers four primary systems plus a legacy compatibility path: Rules, Skills, Hooks, `.clineignore`, and legacy Workflows. Each serves a different purpose and activates at different times.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 025 — `docs/customization/overview.mdx:17`**
+- [x] **Occurrence 025 — `docs/customization/overview.mdx:17`**
   - **Introduced text:** `| **[Legacy Workflows](/customization/workflows)** | File-based slash-command compatibility | Invoked with `/workflow.md` | Existing `/file.md` automations you still need while migrating to skills |`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 026 — `docs/customization/overview.mdx:27`**
+- [x] **Occurrence 026 — `docs/customization/overview.mdx:27`**
   - **Introduced text:** `**[Legacy Workflows](/customization/workflows)** are explicit task scripts you invoke on demand. They remain useful when you already depend on a repeatable `/file.md` flow and need backward compatibility, but they are no longer the preferred direction for new reusable behavior. For new work, reach for [Skills](/customization/skills) first.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 027 — `docs/customization/overview.mdx:39`**
+- [x] **Occurrence 027 — `docs/customization/overview.mdx:39`**
   - **Introduced text:** `3. **Legacy workflows** can still provide the explicit `/release.md` sequence while you migrate that automation toward skills`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 028 — `docs/customization/overview.mdx:51`**
+- [x] **Occurrence 028 — `docs/customization/overview.mdx:51`**
   - **Introduced text:** `| Legacy Workflows | `~/Documents/Cline/Workflows/` | `.clinerules/workflows/` |`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 029 — `docs/customization/overview.mdx:57`**
+- [x] **Occurrence 029 — `docs/customization/overview.mdx:57`**
   - **Introduced text:** `**Start with project storage.** Most customizations belong in your project's directory because they're tied to that specific codebase. Team coding standards, deployment skills, legacy workflows, and architectural constraints all live with the code they describe. This also means your customizations travel with the repository, so collaborators get them automatically and changes can be reviewed in pull requests.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -244,49 +244,49 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/customization/workflows.mdx`
 
-- [ ] **Occurrence 030 — `docs/customization/workflows.mdx:2`**
+- [x] **Occurrence 030 — `docs/customization/workflows.mdx:2`**
   - **Introduced text:** `title: "Legacy Workflows"`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 031 — `docs/customization/workflows.mdx:3`**
+- [x] **Occurrence 031 — `docs/customization/workflows.mdx:3`**
   - **Introduced text:** `sidebarTitle: "Legacy Workflows"`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 032 — `docs/customization/workflows.mdx:4`**
+- [x] **Occurrence 032 — `docs/customization/workflows.mdx:4`**
   - **Introduced text:** `description: "Use Markdown workflow files only when you need legacy slash-command compatibility while migrating to skills."`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 033 — `docs/customization/workflows.mdx:7`**
+- [x] **Occurrence 033 — `docs/customization/workflows.mdx:7`**
   - **Introduced text:** `Workflows are a legacy compatibility feature for file-based slash commands like `/deploy.md`. If you're starting fresh, use [Skills](/customization/skills) instead. Skills are the preferred product direction for reusable guidance because they load on demand, support bundled resources cleanly, and align with the rest of the SDK migration.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 034 — `docs/customization/workflows.mdx:57`**
+- [x] **Occurrence 034 — `docs/customization/workflows.mdx:57`**
   - **Introduced text:** `**Prefer skills for new reusable guidance.** After finishing something you'll need to repeat, ask Cline whether it should become a skill or a legacy workflow. Choose a workflow only if you specifically want a `/file.md` command for backward compatibility.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 035 — `docs/customization/workflows.mdx:62`**
+- [x] **Occurrence 035 — `docs/customization/workflows.mdx:62`**
   - **Introduced text:** `Type `/` in the chat input to see available legacy workflows. Cline shows autocomplete suggestions as you type, so `/rel` would match `release-prep.md`. Select a workflow and press Enter to start it.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` product branding; keep the workflow feature description or UI, but describe it as `Workflows` or `file-based workflows` and reserve any migration note for a secondary explanatory sentence.
   - **Assessment:** This occurrence sits on a still-live workflow surface. The implementation path should keep the feature intact, rename tabs/titles/labels/help text away from `legacy`, and then retain at most a narrowly worded note that skills are the preferred path for new reusable guidance. That is the appropriate outcome because users are still meant to discover and use workflows here, so the current wording creates support-status confusion instead of clarifying compatibility. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 036 — `docs/customization/workflows.mdx:68`**
+- [x] **Occurrence 036 — `docs/customization/workflows.mdx:68`**
   - **Introduced text:** `Every workflow has a toggle to enable or disable it. This lets you control which legacy workflows appear in the `/` menu without deleting the file.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -295,7 +295,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/features/auto-compact.mdx`
 
-- [ ] **Occurrence 037 — `docs/features/auto-compact.mdx:38`**
+- [x] **Occurrence 037 — `docs/features/auto-compact.mdx:38`**
   - **Introduced text:** `Auto Compact works well with Cline's built-in task-progress tracking and, if you still use it, [Legacy Focus Chain](/features/focus-chain). When Focus Chain is enabled, todo lists persist across summarizations.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -304,28 +304,28 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/features/focus-chain.mdx`
 
-- [ ] **Occurrence 038 — `docs/features/focus-chain.mdx:2`**
+- [x] **Occurrence 038 — `docs/features/focus-chain.mdx:2`**
   - **Introduced text:** `title: "Legacy Focus Chain"`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Stop using `legacy` as the primary user-facing label for Focus Chain; either retire the stale surface or rewrite it to describe the real current status of Focus Chain without marketing it as a supported “legacy” feature.
   - **Assessment:** This occurrence is part of the Focus Chain product surface or nearby user-facing copy. The implementation should either remove the stale reference entirely or rewrite it so it names the actual state of the feature—hidden setting, compatibility-only behavior, or limited support—without the blanket `legacy` brand. That is appropriate because the current phrasing implies a user-facing product posture that no longer matches the branch's actual UI and runtime reality. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 039 — `docs/features/focus-chain.mdx:3`**
+- [x] **Occurrence 039 — `docs/features/focus-chain.mdx:3`**
   - **Introduced text:** `sidebarTitle: "Legacy Focus Chain"`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Stop using `legacy` as the primary user-facing label for Focus Chain; either retire the stale surface or rewrite it to describe the real current status of Focus Chain without marketing it as a supported “legacy” feature.
   - **Assessment:** This occurrence is part of the Focus Chain product surface or nearby user-facing copy. The implementation should either remove the stale reference entirely or rewrite it so it names the actual state of the feature—hidden setting, compatibility-only behavior, or limited support—without the blanket `legacy` brand. That is appropriate because the current phrasing implies a user-facing product posture that no longer matches the branch's actual UI and runtime reality. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 040 — `docs/features/focus-chain.mdx:4`**
+- [x] **Occurrence 040 — `docs/features/focus-chain.mdx:4`**
   - **Introduced text:** `description: "A legacy todo-tracking feature kept for compatibility while Cline shifts toward built-in task_progress checklists and Plan & Act workflows."`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Stop using `legacy` as the primary user-facing label for Focus Chain; either retire the stale surface or rewrite it to describe the real current status of Focus Chain without marketing it as a supported “legacy” feature.
   - **Assessment:** This occurrence is part of the Focus Chain product surface or nearby user-facing copy. The implementation should either remove the stale reference entirely or rewrite it so it names the actual state of the feature—hidden setting, compatibility-only behavior, or limited support—without the blanket `legacy` brand. That is appropriate because the current phrasing implies a user-facing product posture that no longer matches the branch's actual UI and runtime reality. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 041 — `docs/features/focus-chain.mdx:7`**
+- [x] **Occurrence 041 — `docs/features/focus-chain.mdx:7`**
   - **Introduced text:** `Focus Chain is a legacy todo-tracking feature that maintains a visible checklist across long-running tasks. It is still available in this branch, but it is no longer the primary product direction for task planning and progress tracking.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -334,28 +334,28 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/features/memory-bank.mdx`
 
-- [ ] **Occurrence 042 — `docs/features/memory-bank.mdx:2`**
+- [x] **Occurrence 042 — `docs/features/memory-bank.mdx:2`**
   - **Introduced text:** `title: "Legacy Memory Bank"`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` branding from the Memory Bank page title and copy, while keeping any truthful explanation that this is a manual pattern rather than a primary product direction.
   - **Assessment:** This page is user-facing documentation, not an internal migration shim. The implementation should rewrite the title and descriptive text so they describe Memory Bank as a manual documentation approach, optionally noting that it is no longer the preferred path, without leading with `legacy`. That is appropriate because the current wording reads like product-surface demotion rather than clear guidance. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 043 — `docs/features/memory-bank.mdx:3`**
+- [x] **Occurrence 043 — `docs/features/memory-bank.mdx:3`**
   - **Introduced text:** `sidebarTitle: "Legacy Memory Bank"`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` branding from the Memory Bank page title and copy, while keeping any truthful explanation that this is a manual pattern rather than a primary product direction.
   - **Assessment:** This page is user-facing documentation, not an internal migration shim. The implementation should rewrite the title and descriptive text so they describe Memory Bank as a manual documentation approach, optionally noting that it is no longer the preferred path, without leading with `legacy`. That is appropriate because the current wording reads like product-surface demotion rather than clear guidance. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 044 — `docs/features/memory-bank.mdx:4`**
+- [x] **Occurrence 044 — `docs/features/memory-bank.mdx:4`**
   - **Introduced text:** `description: "A legacy documentation methodology for users who still want to maintain manual cross-session context outside Cline's core product direction."`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
   - **Rubric result:** Remove `legacy` branding from the Memory Bank page title and copy, while keeping any truthful explanation that this is a manual pattern rather than a primary product direction.
   - **Assessment:** This page is user-facing documentation, not an internal migration shim. The implementation should rewrite the title and descriptive text so they describe Memory Bank as a manual documentation approach, optionally noting that it is no longer the preferred path, without leading with `legacy`. That is appropriate because the current wording reads like product-surface demotion rather than clear guidance. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 045 — `docs/features/memory-bank.mdx:7`**
+- [x] **Occurrence 045 — `docs/features/memory-bank.mdx:7`**
   - **Introduced text:** `Memory Bank is a legacy documentation methodology for users who want to maintain structured project context across sessions in plain markdown files. It is no longer a core product direction for Cline, but the pattern can still be useful if you explicitly want to manage persistent context by hand.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -364,7 +364,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `docs/home.mdx`
 
-- [ ] **Occurrence 046 — `docs/home.mdx:35`**
+- [x] **Occurrence 046 — `docs/home.mdx:35`**
   - **Introduced text:** `    Tailor Cline to your workflow with rules, skills, legacy workflows, hooks, and .clineignore.`
   - **Surface:** user-facing or contributor-facing documentation
   - **dpc changed after eve:** no
@@ -398,7 +398,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `src/core/controller/state/updateSettings.ts`
 
-- [ ] **Occurrence 050 — `src/core/controller/state/updateSettings.ts:198`**
+- [x] **Occurrence 050 — `src/core/controller/state/updateSettings.ts:198`**
   - **Introduced text:** `			// Legacy compatibility only: preserve the stored shape without allowing new writes`
   - **Surface:** internal runtime/control-flow code
   - **dpc changed after eve:** no
@@ -407,7 +407,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `src/core/controller/state/updateSettingsCli.ts`
 
-- [ ] **Occurrence 051 — `src/core/controller/state/updateSettingsCli.ts:181`**
+- [x] **Occurrence 051 — `src/core/controller/state/updateSettingsCli.ts:181`**
   - **Introduced text:** `				// Legacy compatibility only: keep the stored value shape intact without letting`
   - **Surface:** internal runtime/control-flow code
   - **dpc changed after eve:** no
@@ -1695,7 +1695,7 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `webview-ui/src/components/settings/UseCustomPromptCheckbox.tsx`
 
-- [ ] **Occurrence 231 — `webview-ui/src/components/settings/UseCustomPromptCheckbox.tsx:31`**
+- [x] **Occurrence 231 — `webview-ui/src/components/settings/UseCustomPromptCheckbox.tsx:31`**
   - **Introduced text:** `					Does not support Mcp and Legacy Focus Chain`
   - **Surface:** user-facing UI surface
   - **dpc changed after eve:** no
@@ -1704,14 +1704,14 @@ The purpose of this file is to support a **review-first cleanup pass**. It does 
 
 ## `webview-ui/src/components/settings/sections/FeatureSettingsSection.spec.tsx`
 
-- [ ] **Occurrence 232 — `webview-ui/src/components/settings/sections/FeatureSettingsSection.spec.tsx:79`**
+- [x] **Occurrence 232 — `webview-ui/src/components/settings/sections/FeatureSettingsSection.spec.tsx:79`**
   - **Introduced text:** `	it("does not render the legacy Focus Chain setting", () => {`
   - **Surface:** test code
   - **dpc changed after eve:** no
   - **Rubric result:** Stop using `legacy` as the primary user-facing label for Focus Chain; either retire the stale surface or rewrite it to describe the real current status of Focus Chain without marketing it as a supported “legacy” feature.
   - **Assessment:** This occurrence is part of the Focus Chain product surface or nearby user-facing copy. The implementation should either remove the stale reference entirely or rewrite it so it names the actual state of the feature—hidden setting, compatibility-only behavior, or limited support—without the blanket `legacy` brand. That is appropriate because the current phrasing implies a user-facing product posture that no longer matches the branch's actual UI and runtime reality. This file appears unchanged since the eve branch introduced this wording, so it is a safe first-pass cleanup target once implementation begins.
 
-- [ ] **Occurrence 233 — `webview-ui/src/components/settings/sections/FeatureSettingsSection.spec.tsx:82`**
+- [x] **Occurrence 233 — `webview-ui/src/components/settings/sections/FeatureSettingsSection.spec.tsx:82`**
   - **Introduced text:** `		expect(screen.queryByText("Legacy Focus Chain")).toBeNull()`
   - **Surface:** test code
   - **dpc changed after eve:** no

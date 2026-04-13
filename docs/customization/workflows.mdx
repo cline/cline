@@ -1,10 +1,10 @@
 ---
-title: "Legacy Workflows"
-sidebarTitle: "Legacy Workflows"
-description: "Use Markdown workflow files only when you need legacy slash-command compatibility while migrating to skills."
+title: "Workflows"
+sidebarTitle: "Workflows"
+description: "Use Markdown workflow files when you need file-based slash-command compatibility while migrating to skills."
 ---
 
-Workflows are a legacy compatibility feature for file-based slash commands like `/deploy.md`. If you're starting fresh, use [Skills](/customization/skills) instead. Skills are the preferred product direction for reusable guidance because they load on demand, support bundled resources cleanly, and align with the rest of the SDK migration.
+Workflows are a compatibility feature for file-based slash commands like `/deploy.md`. If you're starting fresh, use [Skills](/customization/skills) instead. Skills are the preferred product direction for reusable guidance because they load on demand, support bundled resources cleanly, and align with the rest of the SDK migration.
 
 <Warning>
 For new reusable automations, create a [skill](/customization/skills) instead of a workflow. Keep workflows only when you still rely on existing `/name.md` commands or need a compatibility bridge while migrating older setups.
@@ -54,18 +54,18 @@ Steps can be written at different levels of detail:
 </Steps>
 
 <Tip>
-**Prefer skills for new reusable guidance.** After finishing something you'll need to repeat, ask Cline whether it should become a skill or a legacy workflow. Choose a workflow only if you specifically want a `/file.md` command for backward compatibility.
+**Prefer skills for new reusable guidance.** After finishing something you'll need to repeat, ask Cline whether it should become a skill or a workflow. Choose a workflow only if you specifically want a `/file.md` command for backward compatibility.
 </Tip>
 
 ### Invoking Workflows
 
-Type `/` in the chat input to see available legacy workflows. Cline shows autocomplete suggestions as you type, so `/rel` would match `release-prep.md`. Select a workflow and press Enter to start it.
+Type `/` in the chat input to see available workflows. Cline shows autocomplete suggestions as you type, so `/rel` would match `release-prep.md`. Select a workflow and press Enter to start it.
 
 Cline executes each step in sequence, pausing for your approval when needed. You can stop a workflow at any point by rejecting a step.
 
 ### Toggling Workflows
 
-Every workflow has a toggle to enable or disable it. This lets you control which legacy workflows appear in the `/` menu without deleting the file.
+Every workflow has a toggle to enable or disable it. This lets you control which workflows appear in the `/` menu without deleting the file.
 
 ## Where Workflows Live
 

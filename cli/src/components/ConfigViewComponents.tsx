@@ -71,7 +71,7 @@ export const SEPARATOR = "─".repeat(80)
 export const TABS: { key: TabView; label: string; requiresFlag?: "hooks" | "skills" }[] = [
 	{ key: "settings", label: "Settings" },
 	{ key: "rules", label: "Rules" },
-	{ key: "workflows", label: "Legacy Workflows" },
+	{ key: "workflows", label: "Workflows" },
 	{ key: "hooks", label: "Hooks", requiresFlag: "hooks" },
 	{ key: "skills", label: "Skills", requiresFlag: "skills" },
 ]
