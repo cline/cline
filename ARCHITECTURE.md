@@ -784,7 +784,7 @@ These capabilities exist in the SDK and do not need to be rebuilt:
 4. **MCP management** — `InMemoryMcpManager` with stdio, SSE, and
    streamableHttp transports. Config loader reads from
    `~/.cline/data/settings/mcp.json` with Zod validation. Supports
-   older config format migration.
+   migration of config files written by earlier Cline versions.
 
 5. **Tool framework** — 8 built-in tools: `read_files`,
    `search_codebase`, `run_commands`, `editor`, `apply_patch`,

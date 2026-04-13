@@ -7,7 +7,7 @@ description: "Use Markdown workflow files when you need file-based slash-command
 Workflows are a compatibility feature for file-based slash commands like `/deploy.md`. If you're starting fresh, use [Skills](/customization/skills) instead. Skills are the preferred product direction for reusable guidance because they load on demand, support bundled resources cleanly, and align with the rest of the SDK migration.
 
 <Warning>
-For new reusable automations, create a [skill](/customization/skills) instead of a workflow. Keep workflows only when you still rely on existing `/name.md` commands or need a compatibility bridge while migrating older setups.
+For new reusable automations, create a [skill](/customization/skills) instead of a workflow. Keep workflows only when you still rely on existing `/name.md` commands or need a compatibility bridge while migrating file-based commands created for earlier Cline versions.
 </Warning>
 
 Deploying, setting up a new project, running through a release checklist: these tasks often require remembering a dozen steps, running commands in the right order, and updating files manually. Mess up one step and you're debugging for an hour. Workflows turn those multi-step processes into one command. Type `/release.md` and Cline handles the version bump, runs tests, updates the changelog, commits, tags, and pushes. You just review and approve.

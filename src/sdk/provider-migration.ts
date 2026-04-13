@@ -2,7 +2,7 @@
  * Provider Migration
  *
  * Wraps the SDK's `ProviderSettingsManager` constructor (which auto-runs
- * the built-in old-provider-settings migration) with:
+ * the SDK migration for provider data written by earlier Cline versions) with:
  *  - Sentinel file to skip repeated migration attempts
  *  - Error recovery (corrupt files don't crash startup)
  *  - Versioned sentinel for future re-migrations
@@ -70,7 +70,8 @@ interface SentinelData {
  * re-migration. It's also safe if files are missing or corrupt.
  *
  * The SDK's ProviderSettingsManager constructor auto-runs its built-in
- * old-provider-settings migration when it receives a dataDir.
+ * migration for provider data written by earlier Cline versions when it
+ * receives a dataDir.
  * We wrap this with a sentinel to avoid unnecessary work on repeat launches.
  */
 export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMigrationResult {
@@ -87,7 +88,8 @@ export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMi
 			return { ran: false, manager, skipReason: "sentinel" }
 		}
 
-		// Check if there's any pre-SDK provider data to migrate
+		// Check if there's any provider data written by earlier Cline versions
+		// that still needs to be migrated
 		const globalStatePath = path.join(dataDir, "globalState.json")
 		const secretsPath = path.join(dataDir, "secrets.json")
 		if (!fs.existsSync(globalStatePath) && !fs.existsSync(secretsPath)) {
@@ -100,7 +102,8 @@ export function runProviderMigration(opts: ProviderMigrationOptions): ProviderMi
 		fs.mkdirSync(path.dirname(providersFilePath), { recursive: true })
 
 		// Construct ProviderSettingsManager WITH dataDir.
-		// The constructor auto-runs the built-in old-provider-settings migration, which
+		// The constructor auto-runs the built-in migration for provider data written by
+		// earlier Cline versions, which
 		// reads globalState.json + secrets.json and writes to providers.json.
 		const manager = new ProviderSettingsManager({ filePath: providersFilePath, dataDir })
 
