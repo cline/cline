@@ -1,9 +1,5 @@
 import { VSCodeButton, VSCodeLink } from "@vscode/webview-ui-toolkit/react"
-import { CSSProperties, memo, useState } from "react"
-import { useMount } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_INACTIVE_SELECTION_BACKGROUND } from "@/utils/vscStyles"
-import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
+import { CSSProperties, memo } from "react"
 
 interface AnnouncementProps {
 	version: string
@@ -11,115 +7,129 @@ interface AnnouncementProps {
 }
 
 const containerStyle: CSSProperties = {
-	backgroundColor: getAsVar(VSC_INACTIVE_SELECTION_BACKGROUND),
-	borderRadius: "3px",
-	padding: "12px 16px",
-	margin: "5px 15px 5px 15px",
+	backgroundColor: "rgba(0, 163, 255, 0.06)",
+	border: "1px solid rgba(0, 163, 255, 0.2)",
+	borderRadius: "8px",
+	padding: "14px 16px",
+	margin: "8px 15px",
 	position: "relative",
 	flexShrink: 0,
 }
+
 const closeIconStyle: CSSProperties = { position: "absolute", top: "8px", right: "8px" }
-const h3TitleStyle: CSSProperties = { margin: "0 0 8px", fontWeight: "bold" }
-const ulStyle: CSSProperties = { margin: "0 0 8px", paddingLeft: "12px", listStyleType: "disc" }
-const _accountIconStyle: CSSProperties = { fontSize: 11 }
+
+const titleStyle: CSSProperties = {
+	margin: "0 0 10px",
+	fontWeight: "bold",
+	fontSize: "13px",
+	display: "flex",
+	alignItems: "center",
+	gap: "6px",
+}
+
+const ulStyle: CSSProperties = {
+	margin: "0 0 10px",
+	paddingLeft: "14px",
+	listStyleType: "disc",
+	fontSize: "12px",
+	lineHeight: "1.7",
+}
+
 const hrStyle: CSSProperties = {
 	height: "1px",
-	background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
-	opacity: 0.1,
-	margin: "8px 0",
+	background: "rgba(0, 163, 255, 0.15)",
+	border: "none",
+	margin: "10px 0",
 }
-const linkContainerStyle: CSSProperties = { margin: "0" }
+
+const teaserStyle: CSSProperties = {
+	fontSize: "11.5px",
+	color: "rgba(255,255,255,0.55)",
+	margin: "0 0 8px",
+	lineHeight: "1.6",
+}
+
+const teaserHighlight: CSSProperties = {
+	color: "#00ddff",
+	fontWeight: 600,
+}
+
+const linkRowStyle: CSSProperties = {
+	margin: "0",
+	fontSize: "11.5px",
+	color: "rgba(255,255,255,0.45)",
+}
+
 const linkStyle: CSSProperties = { display: "inline" }
 
 /*
-Announcements are automatically shown when the major.minor version changes (for ex 3.19.x → 3.20.x or 4.0.x). 
-The latestAnnouncementId is now automatically generated from the extension's package.json version. 
-Patch releases (3.19.1 → 3.19.2) will not trigger new announcements.
+Announcements show automatically when the major.minor version changes (e.g. 0.1.x → 0.2.x).
+The latestAnnouncementId is derived from package.json — patch releases do not trigger new banners.
 */
 const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
-	const minorVersion = version.split(".").slice(0, 2).join(".") // 2.0.0 -> 2.0
-	const { openRouterModels, setShowChatModelSelector, refreshOpenRouterModels } = useExtensionState()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
-
-	const [didClickGrokCodeButton, setDidClickGrokCodeButton] = useState(false)
-	const [didClickCodeSupernovaButton, setDidClickCodeSupernovaButton] = useState(false)
-
-	// Need to get latest model list in case user hits shortcut button to set model
-	useMount(refreshOpenRouterModels)
-
-	const setGrokCodeFast1 = () => {
-		const modelId = "x-ai/grok-code-fast-1"
-		// set both plan and act modes to use grok-code-fast-1
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "openrouter",
-			actModeApiProvider: "openrouter",
-		})
-
-		setTimeout(() => {
-			setDidClickGrokCodeButton(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
-
-	const setCodeSupernova = () => {
-		const modelId = "cline/code-supernova-1-million"
-		// set both plan and act modes to use code-supernova-1-million
-		handleFieldsChange({
-			planModeOpenRouterModelId: modelId,
-			actModeOpenRouterModelId: modelId,
-			planModeOpenRouterModelInfo: openRouterModels[modelId],
-			actModeOpenRouterModelInfo: openRouterModels[modelId],
-			planModeApiProvider: "openrouter",
-			actModeApiProvider: "openrouter",
-		})
-
-		setTimeout(() => {
-			setDidClickCodeSupernovaButton(true)
-			setShowChatModelSelector(true)
-		}, 10)
-	}
+	const minorVersion = version.split(".").slice(0, 2).join(".") // 0.1.3 → 0.1
 
 	return (
 		<div style={containerStyle}>
-			<VSCodeButton appearance="icon" data-testid="close-button" onClick={hideAnnouncement} style={closeIconStyle}>
-				<span className="codicon codicon-close"></span>
+			<VSCodeButton
+				appearance="icon"
+				data-testid="close-button"
+				onClick={hideAnnouncement}
+				style={closeIconStyle}
+				title="Dismiss">
+				<span className="codicon codicon-close" />
 			</VSCodeButton>
-			<h3 style={h3TitleStyle}>
-				🎉{"  "}New in v{minorVersion}
+
+			<h3 style={titleStyle}>
+				<span>🌊</span>
+				<span>Welcome to AI-Hydro v{minorVersion}</span>
 			</h3>
+
 			<ul style={ulStyle}>
 				<li>
-					<b>AI-Hydro CLI (Preview):</b> Run AI-Hydro from the command line with experimental Subagent support.{" "}
-					<VSCodeLink href="https://github.com/AI-Hydro/AI-Hydro#readme" style={linkStyle}>
-						Learn more
-					</VSCodeLink>
+					<b>26 built-in hydrological tools</b> — watershed delineation, streamflow, signatures, geomorphic analysis,
+					HBV-light calibration, LSTM modelling and more, all from a single conversation.
 				</li>
 				<li>
-					<b>Multi-Root Workspaces:</b> Work across multiple projects simultaneously (Enable in feature settings)
+					<b>Research memory that persists</b> — HydroSession, ProjectSession, and ResearcherProfile remember your gauge
+					data, project context, and expertise across every session. Expensive computations run once and are reused
+					forever.
 				</li>
-
 				<li>
-					<b>Auto-Retry Failed API Requests:</b> No more interrupted auto-approved tasks due to server errors
+					<b>Reproducibility built in</b> — every tool call auto-generates a citable methods paragraph and BibTeX entry.
+					Export your full session provenance for your paper in one command.
+				</li>
+				<li>
+					<b>Community-extensible</b> — register domain tools (flood frequency, sediment transport, groundwater) via
+					Python entry points. Your tools become available to every AI-Hydro user instantly.
 				</li>
 			</ul>
-			<div style={hrStyle} />
-			<p style={linkContainerStyle}>
-				Join us on{" "}
-				<VSCodeLink href="https://github.com/AI-Hydro/AI-Hydro/discussions" style={linkStyle}>
-					Community,
-				</VSCodeLink>{" "}
-				<VSCodeLink href="https://github.com/AI-Hydro/AI-Hydro/issues" style={linkStyle}>
-					issues,
-				</VSCodeLink>{" "}
-				or{" "}
-				<VSCodeLink href="https://github.com/AI-Hydro/AI-Hydro" style={linkStyle}>
-					GitHub
+
+			<hr style={hrStyle} />
+
+			<p style={teaserStyle}>
+				<span style={teaserHighlight}>Coming in v0.2 —</span> Use your existing{" "}
+				<span style={teaserHighlight}>ChatGPT Plus or Pro subscription</span> directly in AI-Hydro. No API key. No
+				per-token billing. Just sign in with your ChatGPT account and your subscription does the work — the same powerful
+				models, zero extra cost.
+			</p>
+
+			<p style={linkRowStyle}>
+				<VSCodeLink href="https://ai-hydro.github.io/AI-Hydro/" style={linkStyle}>
+					Documentation
 				</VSCodeLink>
-				for more updates!
+				{" · "}
+				<VSCodeLink href="https://github.com/AI-Hydro/AI-Hydro/discussions" style={linkStyle}>
+					Community
+				</VSCodeLink>
+				{" · "}
+				<VSCodeLink href="https://github.com/AI-Hydro/AI-Hydro/issues" style={linkStyle}>
+					Issues
+				</VSCodeLink>
+				{" · "}
+				<VSCodeLink href="https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw" style={linkStyle}>
+					YouTube
+				</VSCodeLink>
 			</p>
 		</div>
 	)
