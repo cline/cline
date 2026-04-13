@@ -90,6 +90,13 @@ underlying patterns that caused them are relevant.
 - **Verification**: Debug harness launched with `--auto-launch`, sidebar opened, `document.querySelectorAll("[data-testid=error], .error, .codicon-error").length` returns 0. Sending a message via `ui.send_message` returns `{"sent": true, "method": "newTask"}` without crash. Task doesn't start (expected — `initTask` is a stub).
 - **Evidence**: Debug harness session on 2026-04-13, commit `3dec59fe9`.
 
+### Step 2: Legacy State Reader — Completed
+
+- **Status**: 🟢 Verified Fixed
+- **Description**: `src/sdk/legacy-state-reader.ts` reads all existing on-disk state from the Cline data directory. Supports globalState.json, secrets.json, taskHistory.json, per-task data (api_conversation_history, ui_messages, context_history, task_metadata), MCP settings, and task directory listing.
+- **Verification**: 37 unit tests pass (`npx vitest run --config vitest.config.sdk.ts`). TypeScript compiles with 0 errors (`npx tsc --noEmit`). All reads are non-throwing — missing/corrupt files return typed defaults.
+- **Evidence**: All tests pass on 2026-04-13.
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢
