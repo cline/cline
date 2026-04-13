@@ -17,9 +17,13 @@ Key documents:
 1. **Always use `kb_search(name="sdk", query="...")` before implementing**
    SDK features. Don't guess at APIs.
 2. **Never mark a problem 🟢 without evidence.** Write the test first.
-3. **Don't delete what you haven't replaced.** Classic core stays until
-   the SDK replacement is verified.
-4. **Use `{appBaseUrl}`**, never hardcode `app.cline.bot`.
-5. **Avoid `as` casts.** Use explicit conversion functions with tests.
-6. **Dismiss the Kanban overlay** before any debug harness interaction.
-7. **Use command palette** to navigate tabs in the debug harness.
+3. **Delete and document.** When replacing a classic module, delete it
+   immediately and add `// Replaces classic src/core/... (see origin/main)`.
+   Use `kb_search(name="cline", commit="origin/main")` or
+   `git show origin/main:path` to reference the classic implementation.
+4. **Single entry point.** No `CLINE_SDK` env variable. There is one
+   codepath — the SDK adapter.
+5. **Use `{appBaseUrl}`**, never hardcode `app.cline.bot`.
+6. **Avoid `as` casts.** Use explicit conversion functions with tests.
+7. **Dismiss the Kanban overlay** before any debug harness interaction.
+8. **Use command palette** to navigate tabs in the debug harness.
