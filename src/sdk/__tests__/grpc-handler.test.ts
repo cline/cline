@@ -239,10 +239,11 @@ describe("GrpcHandler", () => {
 			})
 
 			expect(response.error).toBeUndefined()
-			const data = response.data as { history: HistoryItem[] }
-			expect(data.history).toHaveLength(1)
-			expect(data.history[0].task).toBe("Task 1")
-			expect(d.getTaskHistory).toHaveBeenCalledWith(0, 50)
+			const data = response.data as { tasks: Array<{ task: string }>; totalCount: number }
+			expect(data.tasks).toHaveLength(1)
+			expect(data.tasks[0].task).toBe("Task 1")
+			expect(data.totalCount).toBe(1)
+			expect(d.getTaskHistory).toHaveBeenCalledWith()
 		})
 	})
 
@@ -379,16 +380,7 @@ describe("GrpcHandler", () => {
 		})
 
 		it("returns empty for non-critical stubbed methods", async () => {
-			const stubbedMethods = [
-				"getAvailableTerminalProfiles",
-				"refreshOpenRouterModelsRpc",
-				"getLatestMcpServers",
-				"openFile",
-				"checkpointRestore",
-				"accountLoginClicked",
-				"listWorktrees",
-				"getTotalTasksSize",
-			]
+			const stubbedMethods = ["refreshOpenRouterModelsRpc", "openFile", "checkpointRestore", "listWorktrees"]
 
 			for (const method of stubbedMethods) {
 				const response = await handler.handleRequest({ method })

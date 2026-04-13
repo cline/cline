@@ -1,3 +1,6 @@
+import * as fs from "node:fs"
+import * as os from "node:os"
+import * as path from "node:path"
 import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { describe, expect, it, vi } from "vitest"
@@ -778,15 +781,21 @@ describe("SdkController", () => {
 			await expect(ctrl.togglePlanActMode("plan")).resolves.not.toThrow()
 		})
 
-		it("updateSettings persists to disk via diskState", async () => {
-			const mockDiskState = createMockDiskState()
+		it("updateSettings persists customInstructions to globalState.json via diskState", async () => {
+			const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "sdk-controller-settings-"))
+			const mockDiskState = {
+				...createMockDiskState(),
+				dataDir,
+			}
 			const ctrl = new SdkController({ diskState: mockDiskState as any })
 
 			await ctrl.updateSettings({ customInstructions: "Be concise" })
 
-			expect(mockDiskState.saveApiConfiguration).toHaveBeenCalledWith(
-				expect.objectContaining({ customInstructions: "Be concise" }),
-			)
+			const saved = JSON.parse(fs.readFileSync(path.join(dataDir, "globalState.json"), "utf-8")) as {
+				customInstructions?: string
+			}
+			expect(saved.customInstructions).toBe("Be concise")
+			expect(mockDiskState.saveApiConfiguration).toHaveBeenCalledWith({ customInstructions: "Be concise" })
 		})
 
 		it("updateSettings does not throw without diskState", async () => {

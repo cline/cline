@@ -876,9 +876,12 @@ export class GrpcHandler {
 		}
 
 		const totalCount = history.length
+		const offset = (request.params?.offset as number) ?? 0
+		const limit = request.params?.limit as number | undefined
+		const pagedHistory = limit !== undefined ? history.slice(offset, offset + limit) : history.slice(offset)
 
 		// Map HistoryItem → TaskItem proto shape
-		const tasks = history.map((item) => ({
+		const tasks = pagedHistory.map((item) => ({
 			id: item.id,
 			task: item.task,
 			ts: item.ts,

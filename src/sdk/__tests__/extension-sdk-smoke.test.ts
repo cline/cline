@@ -234,12 +234,12 @@ describe("SDK Extension Smoke Test", () => {
 
 		const handler = ctx.controller.getGrpcHandler()
 
-		// These should all return empty (not error)
+		// These should all complete without error. Exclude accountLoginClicked
+		// because it now triggers the real OAuth flow rather than acting as a stub.
 		const methods = [
 			"getAvailableTerminalProfiles",
 			"refreshOpenRouterModelsRpc",
 			"openFile",
-			"accountLoginClicked",
 			"listWorktrees",
 			"initializeWebview",
 		]
