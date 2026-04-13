@@ -291,7 +291,7 @@ async function releaseSDK(version: string): Promise<number> {
 		const pkgDir = join(packagesDir, workspace);
 		const name = `@clinebot/${workspace}`;
 		console.log(`  Publishing ${name}@${version} with tag '${npmTag}'...`);
-		await run(["bun", "publish", "--tag", npmTag, "--access", "restricted"], {
+		await run(["bun", "publish", "--tag", npmTag, "--access", "public"], {
 			cwd: pkgDir,
 		});
 	}
