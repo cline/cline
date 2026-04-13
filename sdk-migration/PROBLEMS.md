@@ -65,7 +65,30 @@ underlying patterns that caused them are relevant.
 
 ## New Issues
 
-*Add issues found during this attempt below this line.*
+### Step 1: Foundation & Cutover — Completed
+
+- **Status**: 🟢 Verified Fixed
+- **Description**: SDK adapter layer created as single entry point. Extension compiles and builds.
+- **Verification**: `npx tsc --noEmit` returns 0 errors. `node esbuild.mjs` produces `dist/extension.js`.
+- **Evidence**: Commit `3dec59fe9` on `sdk-migration-v3` branch.
+
+### S1-1: SdkController stubs log warnings at runtime
+- **Status**: 🟡 Minor
+- **Description**: All unimplemented Controller methods log `[SdkController] STUB: <name> not yet implemented`. This is expected — functionality is added in Steps 4-8.
+- **Root cause**: By design — stub pattern for incremental migration.
+- **Fix**: Implement each method in its corresponding step.
+
+### S1-2: Services not initialized (mcpHub, authService, etc.)
+- **Status**: 🟡 Minor
+- **Description**: The SdkController sets `mcpHub`, `accountService`, `authService`, `ocaAuthService` to `undefined`. Handler modules that access these will throw "not available" errors at runtime.
+- **Root cause**: Services will be properly initialized in Steps 6-7.
+- **Fix**: Wire up services as part of their respective migration steps.
+
+### S1-3: Extension loads but sidebar shows errors
+- **Status**: 🟢 Verified Fixed
+- **Description**: Extension loads, sidebar renders correctly with full UI (chat input, model selector, announcements, auto-approve settings). No error elements in the webview.
+- **Verification**: Debug harness launched with `--auto-launch`, sidebar opened, `document.querySelectorAll("[data-testid=error], .error, .codicon-error").length` returns 0. Sending a message via `ui.send_message` returns `{"sent": true, "method": "newTask"}` without crash. Task doesn't start (expected — `initTask` is a stub).
+- **Evidence**: Debug harness session on 2026-04-13, commit `3dec59fe9`.
 
 <!-- Template:
 ### [ID] Title
