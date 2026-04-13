@@ -50,7 +50,12 @@ describe("createHookConfigFileHooks", () => {
 			});
 			expect(hooks).toBeUndefined();
 		} finally {
-			await rm(workspace, { recursive: true, force: true });
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
 		}
 	});
 
@@ -78,7 +83,12 @@ describe("createHookConfigFileHooks", () => {
 			});
 			expect(control).toMatchObject({ cancel: true, context: "legacy-ok" });
 		} finally {
-			await rm(workspace, { recursive: true, force: true });
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
 		}
 	});
 
@@ -106,7 +116,12 @@ describe("createHookConfigFileHooks", () => {
 			});
 			expect(control).toMatchObject({ cancel: false, context: "shebang-ok" });
 		} finally {
-			await rm(workspace, { recursive: true, force: true });
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
 		}
 	});
 
@@ -137,7 +152,12 @@ describe("createHookConfigFileHooks", () => {
 				context: "needs-review",
 			});
 		} finally {
-			await rm(workspace, { recursive: true, force: true });
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
 		}
 	});
 
@@ -168,7 +188,12 @@ describe("createHookConfigFileHooks", () => {
 				context: "python-ok",
 			});
 		} finally {
-			await rm(workspace, { recursive: true, force: true });
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
 		}
 	});
 
@@ -201,7 +226,12 @@ describe("createHookConfigFileHooks", () => {
 					context: "powershell-ok",
 				});
 			} finally {
-				await rm(workspace, { recursive: true, force: true });
+				await rm(workspace, {
+					recursive: true,
+					force: true,
+					maxRetries: 3,
+					retryDelay: 250,
+				});
 			}
 		},
 	);
@@ -231,7 +261,12 @@ describe("createHookConfigFileHooks", () => {
 			expect(payload.hookName).toBe("agent_error");
 			expect(payload.error?.message).toBe("401 unauthorized");
 		} finally {
-			await rm(workspace, { recursive: true, force: true });
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
 		}
 	});
 
