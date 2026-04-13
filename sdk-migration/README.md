@@ -29,6 +29,7 @@ Docs from previous attempts that are **not** carried forward:
 | Cline (this repo) | `~/clients/cline/cline` | `cline` |
 | Cline SDK | `~/clients/cline/sdk-wip` | `sdk` |
 | JetBrains Plugin | `~/clients/cline/intellij-plugin` | `plugin` |
+| VSCode | `~/clients/cline/vscode` | `vscode` |
 
 ### How to Research the SDK
 
@@ -78,11 +79,24 @@ feature works before moving on. Verification means:
 Mark things as **"awaiting verification"** not "fixed". Only mark
 "verified" after you have evidence (test output, screenshot, etc.).
 
-### 3. Don't Delete What You Haven't Replaced
+### 3. Delete and Document
 
-Never remove classic core code, proto files, or gRPC handlers until
-their SDK replacements are verified working. The classic extension
-is the reference implementation — compare against it.
+When replacing a classic module with its SDK equivalent, **delete the
+classic code immediately** and document where to find it. Dead code
+in the tree creates confusion about what is active vs. vestigial.
+
+The classic implementation is always accessible via:
+- `kb_search(name="cline", query="...", commit="origin/main")` —
+  search the classic codebase at the pre-migration commit
+- `git show origin/main:path/to/file.ts` — view any file
+- `git diff origin/main..HEAD -- path/` — see what changed
+
+When deleting a module, add a comment in the replacement file:
+```
+// Replaces classic src/core/task/ (see origin/main)
+```
+
+This way there is never any ambiguity about what code is running.
 
 ### 4. Use the Debug Harness
 
@@ -119,25 +133,34 @@ never use `as` to paper over type mismatches.
 This plan is ordered by dependency: each step builds on the previous.
 Do not skip steps. Each step ends with a verification gate.
 
-### Step 1: Foundation
+### Step 1: Foundation & Cutover
 
 **Goal:** SDK dependencies installed, test infrastructure ready,
-build can produce an extension that loads in VSCode.
+and the extension's entry point switched to the SDK adapter.
+There is one entry point, not two.
 
 Tasks:
 - Add `@clinebot/core`, `@clinebot/llms`, `@clinebot/shared`,
   `@clinebot/agents` as dependencies (via `npm link` from local SDK)
 - Add `vitest.config.sdk.ts` for SDK adapter tests
 - Create `src/sdk/` directory with `index.ts` barrel export
-- Create `src/sdk/extension-sdk.ts` as alternate entry point,
-  gated behind an env variable (`CLINE_SDK=1`)
-- Wire into `esbuild.mjs` to produce `dist/sdk-extension.js`
-  when the flag is set
+- Modify `src/extension.ts` to use the SDK adapter as its
+  activation path (replacing the classic `Controller` import)
+- Delete `src/core/controller/` — the classic controller is replaced
+  by `src/sdk/SdkController.ts` (to be implemented in Step 4).
+  Add comment: `// Replaces classic src/core/controller/ (see origin/main)`
+- Update `esbuild.mjs` if needed for the new import structure
 - Verify: `npm run compile` succeeds, extension loads in VSCode
-  (classic path still works, SDK path produces a loading extension)
+  (sidebar may show errors since handlers aren't implemented yet,
+  but the extension process itself starts)
 
-**Verification gate:** Both classic and SDK entry points compile
-and load without errors.
+**Why one entry point:** Attempt 2 used `CLINE_SDK=1` to switch
+between two entry points. This caused constant confusion about which
+codepath was running. With a single entry point, there is never any
+doubt. The classic code is always accessible via `origin/main`.
+
+**Verification gate:** Extension compiles and loads. The SDK adapter
+is the only codepath. (It won't do much yet — that's Step 4.)
 
 ### Step 2: Legacy State Reader
 
@@ -457,17 +480,22 @@ Deleted ~138K lines of classic core before having a working
 replacement. Created stub webview components. Result: 595 TypeScript
 errors, non-functional extension.
 
-**Lesson:** Don't delete what you haven't replaced.
+**Lesson:** Delete and document — but only as you replace, not
+before. The classic code is always accessible via `origin/main`.
 
-### Attempt 2 (current branch, 90 commits)
+### Attempt 2 (sdk-migration-v2, 90 commits)
 
 Built an SDK adapter layer with tests. Got inference working.
 But documentation degraded, bugs were marked fixed without
 verification, auth flows were broken, gRPC "mode" vs SDK "mode"
 caused confusion, feature removals were incomplete, and the
-agent kept confusing SDK types with gRPC types.
+agent kept confusing SDK types with gRPC types. The dual entry
+point (`CLINE_SDK=1`) was a constant source of confusion.
 
 **Lessons applied in this plan:**
+- Single entry point — no `CLINE_SDK` flag, no dual codepaths
+- Delete and document — dead code creates confusion; use
+  `origin/main` and `kb_search` to reference the classic impl
 - Thunk at the gRPC boundary, don't create a "mode" system
 - Verify before proceeding, don't mark things fixed prematurely
 - Use kb_search to research the SDK, don't guess at APIs
