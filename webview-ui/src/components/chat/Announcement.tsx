@@ -108,10 +108,9 @@ const Announcement = ({ version, hideAnnouncement }: AnnouncementProps) => {
 			<hr style={hrStyle} />
 
 			<p style={teaserStyle}>
-				<span style={teaserHighlight}>Coming in v0.2 —</span> Use your existing{" "}
-				<span style={teaserHighlight}>ChatGPT Plus or Pro subscription</span> directly in AI-Hydro. No API key. No
-				per-token billing. Just sign in with your ChatGPT account and your subscription does the work — the same powerful
-				models, zero extra cost.
+				<span style={teaserHighlight}>On the roadmap —</span> Use your existing{" "}
+				<span style={teaserHighlight}>ChatGPT Plus or Pro subscription</span> directly in AI-Hydro. No API key, no
+				per-token billing. This requires an OpenAI partnership — something we are working toward as the platform grows.
 			</p>
 
 			<p style={linkRowStyle}>
