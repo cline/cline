@@ -1391,9 +1391,7 @@ export class DefaultSessionManager implements SessionManager {
 			});
 		} catch (error) {
 			if (error instanceof OAuthReauthRequiredError) {
-				throw new Error(
-					`OAuth session for "${error.providerId}" requires re-authentication. Run "clite auth ${error.providerId}" and retry.`,
-				);
+				throw new Error(`${error.providerId} requires re-authentication.`);
 			}
 			throw error;
 		}
