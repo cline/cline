@@ -235,6 +235,22 @@ export class ClineAccountService {
 	}
 
 	/**
+	 * Submits a spend limit increase request to the user's org admin.
+	 * Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
+	 * @returns void — the backend records the request; errors are logged and swallowed
+	 */
+	async submitLimitIncreaseRequestRPC(): Promise<void> {
+		try {
+			await this.authenticatedRequest<void>("/api/v1/users/me/budget/request", {
+				method: "POST",
+			})
+		} catch (error) {
+			Logger.error("Failed to submit limit increase request (RPC):", error)
+			throw error
+		}
+	}
+
+	/**
 	 * Switches the active account to the specified organization or personal account.
 	 * @param organizationId - Optional organization ID to switch to. If not provided, it will switch to the personal account.
 	 * @returns {Promise<void>} A promise that resolves when the account switch is complete.

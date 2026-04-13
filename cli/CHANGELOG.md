@@ -1,5 +1,16 @@
 # cline
 
+## [2.14.0]
+
+### Added
+
+- Simplify unified `cline update` flow for `cline` and `kanban`
+- Docs updates
+
+### Fixed
+
+- Update Kanban migration view copy
+
 ## [2.12.0]
 
 ### Added

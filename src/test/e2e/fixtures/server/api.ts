@@ -12,12 +12,12 @@ export const E2E_REGISTERED_MOCK_ENDPOINTS = {
 			"/users/{userId}/usages",
 			"/users/{userId}/payments",
 		],
-		POST: ["/chat/completions", "/auth/token"],
+		POST: ["/chat/completions", "/auth/token", "/users/me/budget/request"],
 		PUT: ["/users/active-account"],
 	},
 	"/.test": {
 		GET: [],
-		POST: ["/auth", "/setUserBalance", "/setUserHasOrganization", "/setOrgBalance"],
+		POST: ["/auth", "/setUserBalance", "/setUserHasOrganization", "/setOrgBalance", "/setSpendLimitExceeded"],
 		PUT: [],
 	},
 	"/health": {

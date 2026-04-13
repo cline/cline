@@ -2080,6 +2080,7 @@ export class Task {
 				}
 
 				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
+				const isSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2095,8 +2096,13 @@ export class Task {
 				})()
 
 				let response: ClineAskResponse
-				// Skip auto-retry for Cline provider insufficient credits or auth errors
-				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
+				// Skip auto-retry for Cline provider insufficient credits, auth errors, or spend limit errors
+				if (
+					!isClineProviderInsufficientCredits &&
+					!isAuthError &&
+					!isSpendLimitError &&
+					this.taskState.autoRetryAttempts < 3
+				) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -2146,8 +2152,8 @@ export class Task {
 
 					await setTimeoutPromise(delay)
 				} else {
-					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
-					if (!isClineProviderInsufficientCredits && !isAuthError) {
+					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits or spend limit)
+					if (!isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({
@@ -3007,8 +3013,9 @@ export class Task {
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
-					// Auto-retry for streaming failures (always enabled)
-					if (this.taskState.autoRetryAttempts < 3) {
+					const isStreamingSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
+					// Auto-retry for streaming failures (skip for spend limit errors)
+					if (!isStreamingSpendLimitError && this.taskState.autoRetryAttempts < 3) {
 						this.taskState.autoRetryAttempts++
 
 						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
@@ -3034,7 +3041,7 @@ export class Task {
 								await this.controller.task.handleWebviewAskResponse("yesButtonClicked", "", [])
 							}
 						})
-					} else if (this.taskState.autoRetryAttempts >= 3) {
+					} else if (!isStreamingSpendLimitError && this.taskState.autoRetryAttempts >= 3) {
 						// Show error_retry with failed flag to indicate all retries exhausted
 						await this.say(
 							"error_retry",
