@@ -73,7 +73,7 @@ export interface SdkControllerOptions {
 	/** Task history (from persisted storage) */
 	taskHistory?: HistoryItem[]
 
-	/** Legacy state reader (for settings not yet migrated) */
+	/** Persisted disk-state adapter for settings and task data not yet owned directly by the SDK controller */
 	diskState?: DiskStateAdapter
 }
 
