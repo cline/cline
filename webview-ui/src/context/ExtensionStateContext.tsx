@@ -26,7 +26,14 @@ import {
 } from "../../../src/shared/api"
 import { Environment } from "../../../src/shared/config-types"
 import type { McpMarketplaceCatalog, McpServer, McpViewTab } from "../../../src/shared/mcp"
-import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceClient } from "../services/grpc-client"
+import type { PromptsCatalog } from "../../../src/shared/prompts"
+import {
+	McpServiceClient,
+	ModelsServiceClient,
+	PromptsServiceClient,
+	StateServiceClient,
+	UiServiceClient,
+} from "../services/grpc-client"
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
@@ -44,6 +51,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	huggingFaceModels: Record<string, ModelInfo>
 	mcpServers: McpServer[]
 	mcpMarketplaceCatalog: McpMarketplaceCatalog
+	promptsCatalog: PromptsCatalog
 	totalTasksSize: number | null
 	lastDismissedCliBannerVersion: number
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
@@ -53,6 +61,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	// View state
 	showMcp: boolean
 	mcpTab?: McpViewTab
+	showPrompts: boolean
 	showSettings: boolean
 	settingsTargetSection?: string
 	settingsInitialModelTab?: "recommended" | "free"
@@ -82,6 +91,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	setRemoteRulesToggles: (toggles: Record<string, boolean>) => void
 	setRemoteWorkflowToggles: (toggles: Record<string, boolean>) => void
 	setMcpMarketplaceCatalog: (value: McpMarketplaceCatalog) => void
+	setPromptsCatalog: (value: PromptsCatalog) => void
 	setTotalTasksSize: (value: number | null) => void
 	setExpandTaskHeader: (value: boolean) => void
 	setShowWelcome: (value: boolean) => void
@@ -101,6 +111,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Navigation functions
 	navigateToMcp: (tab?: McpViewTab) => void
+	navigateToPrompts: () => void
 	navigateToSettings: (targetSection?: string) => void
 	navigateToSettingsModelPicker: (opts: { targetSection?: string; initialModelTab?: "recommended" | "free" }) => void
 	navigateToHistory: () => void
@@ -113,6 +124,7 @@ export interface ExtensionStateContextType extends ExtensionState {
 	hideHistory: () => void
 	hideAccount: () => void
 	hideWorktrees: () => void
+	hidePrompts: () => void
 	hideAnnouncement: () => void
 	closeMcpView: () => void
 
@@ -160,6 +172,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			setShowHistory(false)
 			setShowAccount(false)
 			setShowWorktrees(false)
+			setShowPrompts(false)
 			if (tab) {
 				setMcpTab(tab)
 			}
@@ -174,6 +187,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
+			setShowPrompts(false)
 			setSettingsTargetSection(targetSection)
 			setSettingsInitialModelTab(undefined)
 			setShowSettings(true)
@@ -187,6 +201,7 @@ export const ExtensionStateContextProvider: React.FC<{
 			closeMcpView()
 			setShowAccount(false)
 			setShowWorktrees(false)
+			setShowPrompts(false)
 			setSettingsTargetSection(opts.targetSection)
 			setSettingsInitialModelTab(opts.initialModelTab)
 			setShowSettings(true)
@@ -199,6 +214,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowAccount(false)
 		setShowWorktrees(false)
+		setShowPrompts(false)
 		setShowHistory(true)
 	}, [setShowSettings, closeMcpView, setShowAccount, setShowWorktrees, setShowHistory])
 
@@ -207,6 +223,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowHistory(false)
 		setShowWorktrees(false)
+		setShowPrompts(false)
 		setShowAccount(true)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowWorktrees, setShowAccount])
 
@@ -215,6 +232,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		closeMcpView()
 		setShowHistory(false)
 		setShowAccount(false)
+		setShowPrompts(false)
 		setShowWorktrees(true)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
 
@@ -224,7 +242,21 @@ export const ExtensionStateContextProvider: React.FC<{
 		setShowHistory(false)
 		setShowAccount(false)
 		setShowWorktrees(false)
+		setShowPrompts(false)
 	}, [setShowSettings, closeMcpView, setShowHistory, setShowAccount, setShowWorktrees])
+
+	const navigateToPrompts = useCallback(() => {
+		setShowSettings(false)
+		closeMcpView()
+		setShowHistory(false)
+		setShowAccount(false)
+		setShowWorktrees(false)
+		setShowPrompts(true)
+	}, [closeMcpView])
+
+	const hidePrompts = useCallback(() => {
+		setShowPrompts(false)
+	}, [])
 
 	const [state, setState] = useState<ExtensionState>({
 		version: "",
@@ -321,6 +353,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const [huggingFaceModels, setHuggingFaceModels] = useState<Record<string, ModelInfo>>({})
 	const [mcpServers, setMcpServers] = useState<McpServer[]>([])
 	const [mcpMarketplaceCatalog, setMcpMarketplaceCatalog] = useState<McpMarketplaceCatalog>({ items: [] })
+	const [promptsCatalog, setPromptsCatalog] = useState<PromptsCatalog>({ items: [], lastUpdated: "" })
+	const [showPrompts, setShowPrompts] = useState(false)
 
 	// References to store subscription cancellation functions
 	const stateSubscriptionRef = useRef<(() => void) | null>(null)
@@ -333,6 +367,8 @@ export const ExtensionStateContextProvider: React.FC<{
 	const worktreesButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const partialMessageUnsubscribeRef = useRef<(() => void) | null>(null)
 	const mcpMarketplaceUnsubscribeRef = useRef<(() => void) | null>(null)
+	const promptsCatalogUnsubscribeRef = useRef<(() => void) | null>(null)
+	const promptsButtonClickedSubscriptionRef = useRef<(() => void) | null>(null)
 	const openRouterModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
@@ -392,10 +428,8 @@ export const ExtensionStateContextProvider: React.FC<{
 						})
 					} catch (error) {
 						console.error("Error parsing state JSON:", error)
-						console.log("[DEBUG] ERR getting state", error)
 					}
 				}
-				console.log('[DEBUG] ended "got subscribed state"')
 			},
 			onError: (error) => {
 				console.error("Error in state subscription:", error)
@@ -410,7 +444,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{},
 			{
 				onResponse: () => {
-					console.log("[DEBUG] Received mcpButtonClicked event from gRPC stream")
 					navigateToMcp()
 				},
 				onError: (error) => {
@@ -427,8 +460,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{},
 			{
 				onResponse: () => {
-					// When history button is clicked, navigate to history view
-					console.log("[DEBUG] Received history button clicked event from gRPC stream")
 					navigateToHistory()
 				},
 				onError: (error) => {
@@ -446,7 +477,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			{
 				onResponse: () => {
 					// When chat button is clicked, navigate to chat
-					console.log("[DEBUG] Received chat button clicked event from gRPC stream")
 					navigateToChat()
 				},
 				onError: (error) => {
@@ -459,7 +489,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		// Subscribe to MCP servers updates
 		mcpServersSubscriptionRef.current = McpServiceClient.subscribeToMcpServers(EmptyRequest.create(), {
 			onResponse: (response) => {
-				console.log("[DEBUG] Received MCP servers update from gRPC stream")
 				if (response.mcpServers) {
 					setMcpServers(convertProtoMcpServersToMcpServers(response.mcpServers))
 				}
@@ -503,6 +532,20 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		)
 
+		// Set up prompts button clicked subscription
+		promptsButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToPromptsButtonClicked(EmptyRequest.create({}), {
+			onResponse: () => {
+				// When prompts button is clicked, navigate to prompts
+				navigateToPrompts()
+			},
+			onError: (error) => {
+				console.error("Error in prompts button clicked subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Prompts button clicked subscription completed")
+			},
+		})
+
 		// Subscribe to partial message events
 		partialMessageUnsubscribeRef.current = UiServiceClient.subscribeToPartialMessage(EmptyRequest.create({}), {
 			onResponse: (protoMessage) => {
@@ -531,15 +574,12 @@ export const ExtensionStateContextProvider: React.FC<{
 			onError: (error) => {
 				console.error("Error in partialMessage subscription:", error)
 			},
-			onComplete: () => {
-				console.log("[DEBUG] partialMessage subscription completed")
-			},
+			onComplete: () => {},
 		})
 
 		// Subscribe to MCP marketplace catalog updates
 		mcpMarketplaceUnsubscribeRef.current = McpServiceClient.subscribeToMcpMarketplaceCatalog(EmptyRequest.create({}), {
 			onResponse: (catalog) => {
-				console.log("[DEBUG] Received MCP marketplace catalog update from gRPC stream")
 				setMcpMarketplaceCatalog(catalog)
 			},
 			onError: (error) => {
@@ -547,6 +587,41 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 			onComplete: () => {
 				console.log("MCP marketplace catalog subscription completed")
+			},
+		})
+
+		// Subscribe to prompts catalog updates
+		promptsCatalogUnsubscribeRef.current = PromptsServiceClient.subscribeToPromptsCatalog(EmptyRequest.create({}), {
+			onResponse: (protoCatalog) => {
+				// Convert proto types to shared types
+				const protoTypeToString = (t: number): "rule" | "workflow" | "hook" | "skill" => {
+					switch (t) {
+						case 1:
+							return "rule"
+						case 2:
+							return "workflow"
+						case 3:
+							return "hook"
+						case 4:
+							return "skill"
+						default:
+							return "rule"
+					}
+				}
+				const catalog = {
+					items: protoCatalog.items.map((item) => ({
+						...item,
+						type: protoTypeToString(item.type),
+					})),
+					lastUpdated: protoCatalog.lastUpdated,
+				}
+				setPromptsCatalog(catalog)
+			},
+			onError: (error) => {
+				console.error("Error in prompts catalog subscription:", error)
+			},
+			onComplete: () => {
+				console.log("Prompts catalog subscription completed")
 			},
 		})
 
@@ -583,9 +658,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Initialize webview using gRPC
 		UiServiceClient.initializeWebview(EmptyRequest.create({}))
-			.then(() => {
-				console.log("[DEBUG] Webview initialization completed via gRPC")
-			})
+			.then(() => {})
 			.catch((error) => {
 				console.error("Failed to initialize webview via gRPC:", error)
 			})
@@ -594,7 +667,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
 			onResponse: () => {
 				// When account button is clicked, navigate to account view
-				console.log("[DEBUG] Received account button clicked event from gRPC stream")
 				navigateToAccount()
 			},
 			onError: (error) => {
@@ -665,6 +737,14 @@ export const ExtensionStateContextProvider: React.FC<{
 			if (mcpMarketplaceUnsubscribeRef.current) {
 				mcpMarketplaceUnsubscribeRef.current()
 				mcpMarketplaceUnsubscribeRef.current = null
+			}
+			if (promptsCatalogUnsubscribeRef.current) {
+				promptsCatalogUnsubscribeRef.current()
+				promptsCatalogUnsubscribeRef.current = null
+			}
+			if (promptsButtonClickedSubscriptionRef.current) {
+				promptsButtonClickedSubscriptionRef.current()
+				promptsButtonClickedSubscriptionRef.current = null
 			}
 			if (openRouterModelsUnsubscribeRef.current) {
 				openRouterModelsUnsubscribeRef.current()
@@ -800,10 +880,12 @@ export const ExtensionStateContextProvider: React.FC<{
 		huggingFaceModels,
 		mcpServers,
 		mcpMarketplaceCatalog,
+		promptsCatalog,
 		totalTasksSize,
 		availableTerminalProfiles,
 		showMcp,
 		mcpTab,
+		showPrompts,
 		showSettings,
 		settingsTargetSection,
 		settingsInitialModelTab,
@@ -825,6 +907,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Navigation functions
 		navigateToMcp,
+		navigateToPrompts,
 		navigateToSettings,
 		navigateToSettingsModelPicker,
 		navigateToHistory,
@@ -837,6 +920,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		hideHistory,
 		hideAccount,
 		hideWorktrees,
+		hidePrompts,
 		hideAnnouncement,
 		setShowAnnouncement,
 		setShowWelcome,
@@ -852,6 +936,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		setBasetenModels,
 		setHuggingFaceModels,
 		setMcpMarketplaceCatalog,
+		setPromptsCatalog,
 		setShowMcp,
 		closeMcpView,
 		setGlobalClineRulesToggles: (toggles) =>
