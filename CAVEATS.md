@@ -143,3 +143,66 @@ still stubbed because it requires an authenticated API call to
 (fresh install), the marketplace will remain empty.
 **Note:** Could not validate with debug harness since it runs the
 classic extension, not the SDK adapter.
+
+🔴 Refreshing OpenRouter and Vercel AI Gateway models fails on startup
+with `TypeError: Cannot convert undefined or null to object` at
+`Object.entries` in `typeConversion.ts:159` (`fromProtobufModels`).
+The protobuf response likely returns `undefined` instead of an object,
+and `fromProtobufModels` calls `Object.entries()` without a null guard.
+
+🔴 "Cline Wants to execute this command" indicator remains in
+"running" state after the command has completed. A cancel button is
+shown but does nothing. The webview is not receiving or processing the
+tool completion event from the SDK session.
+
+🔴 "Cline read X files" and most other tool-use summaries show tool
+names as empty strings. In the main extension, file names are shown
+and clickable. The tool name and file path fields are likely not being
+mapped from the SDK's tool-use events to the webview message format.
+
+🔴 After a task finishes, typing a follow-up message and pressing
+enter creates a new conversation instead of continuing the existing
+one. The finished task's session is likely being discarded or the
+`askResponse` path is creating a new task instead of resuming.
+
+🔴 Cline does not ask for user approval when executing actions, even
+when auto-approve toggles are turned off for most categories. The
+approval gate logic from the classic extension is either not wired
+into the SDK session flow or the settings are not being read correctly.
+
+🔴 Console floods with `Failed to process partial message: TypeError:
+Cannot read properties of undefined (reading 'length')` at
+`convertProtoToClineMessage` (`cline-message.ts:251`) after asking a
+question. The streaming response handler is receiving partial protobuf
+messages with missing fields that `convertProtoToClineMessage` doesn't
+guard against.
+
+🔴 Can get intqo a state where messages can no longer be sent in a
+conversation. Observed after asking Cline to describe a few files. The
+session may be stuck in an unrecoverable state (e.g. waiting for a
+response that was dropped or an approval that was never requested).
+
+🟡 Excessive token usage for trivial tasks. A single prompt ("append
+'Sahh dude' to the Readme") resulted in a `find` command, a file
+edit, 2 file reads, a `tail` command, 116k tokens, and $1.90 cost on
+Opus 4.6. The SDK session may not be sending efficient context or may
+be over-fetching file contents.
+
+🔴 Dashboard "Usage History" page errors with `Failed to fetch credit
+balance: TypeError: Cannot read properties of undefined (reading
+'map')` at `convertProtoUsageTransactions` (`helpers.ts:52`). The
+protobuf response for usage transactions is returning `undefined`
+where an array is expected; `convertProtoUsageTransactions` needs a
+null guard.
+
+🔴 Resuming a task from history does not work. The past conversation
+is displayed, but once the user types a new message the old
+conversation disappears and a new one takes its place. The context
+from the previous conversation is lost. The history resume flow is
+likely not restoring the SDK session state or conversation messages.
+
+🔴 Auto-approve settings are not respected — related to the approval
+gate issue above but specifically: even with auto-approve toggles
+explicitly turned off, Cline proceeds without asking. This may be a
+separate settings-read bug or the SDK session may not have an approval
+callback wired in at all.
