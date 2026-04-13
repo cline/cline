@@ -224,6 +224,7 @@ export const RemoteConfigSchema = z.object({
 	// Rules & Workflows
 	globalRules: z.array(GlobalInstructionsFileSchema).optional(),
 	globalWorkflows: z.array(GlobalInstructionsFileSchema).optional(),
+	globalSkills: z.array(GlobalInstructionsFileSchema).optional(),
 })
 
 export const APIKeySchema = z.record(z.string(), z.string())
