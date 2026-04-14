@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1776004677711,
+	version: 1776191599740,
 	providers: {
 		aihubmix: {
 			"claude-sonnet-4-6": {
@@ -4109,6 +4109,27 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-04-03",
 				family: "glm",
+			},
+			"MiniMaxAI/MiniMax-M2.7": {
+				id: "MiniMaxAI/MiniMax-M2.7",
+				name: "MiniMax-M2.7",
+				contextWindow: 204800,
+				maxTokens: 131072,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.3,
+					output: 1.2,
+					cacheRead: 0.06,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-18",
+				family: "minimax",
 			},
 			"MiniMaxAI/MiniMax-M2.5": {
 				id: "MiniMaxAI/MiniMax-M2.5",
@@ -10339,6 +10360,26 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"openrouter/elephant-alpha": {
+				id: "openrouter/elephant-alpha",
+				name: "Elephant (free)",
+				contextWindow: 262144,
+				maxTokens: 32768,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+				],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-13",
+				family: "elephant",
+			},
 			"z-ai/glm-5.1": {
 				id: "z-ai/glm-5.1",
 				name: "GLM-5.1",
@@ -11017,21 +11058,6 @@ export const GENERATED_PROVIDER_MODELS: {
 					input: 0.1,
 					output: 0.3,
 					cacheRead: 0.02,
-					cacheWrite: 0,
-				},
-				releaseDate: "2026-01-29",
-				family: "step",
-			},
-			"stepfun/step-3.5-flash:free": {
-				id: "stepfun/step-3.5-flash:free",
-				name: "Step 3.5 Flash (free)",
-				contextWindow: 256000,
-				maxTokens: 12800,
-				capabilities: ["tools", "reasoning", "temperature"],
-				pricing: {
-					input: 0,
-					output: 0,
-					cacheRead: 0,
 					cacheWrite: 0,
 				},
 				releaseDate: "2026-01-29",
@@ -14377,6 +14403,27 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2026-04-07",
 				family: "glm",
+			},
+			"MiniMaxAI/MiniMax-M2.7": {
+				id: "MiniMaxAI/MiniMax-M2.7",
+				name: "MiniMax-M2.7",
+				contextWindow: 202752,
+				maxTokens: 131072,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.3,
+					output: 1.2,
+					cacheRead: 0.06,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-03-18",
+				family: "minimax",
 			},
 			"Qwen/Qwen3.5-397B-A17B": {
 				id: "Qwen/Qwen3.5-397B-A17B",
