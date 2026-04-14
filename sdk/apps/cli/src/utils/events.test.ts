@@ -48,6 +48,29 @@ describe("handleEvent text formatting", () => {
 		expect(output).toContain("\n\nNow let me check this file.");
 	});
 
+	it("prints adjacent tool starts on separate lines", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "run_commands",
+				input: { commands: ["echo one"] },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "read_files",
+				input: { file_paths: ["/tmp/demo.txt"] },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toMatch(/\[run_commands\].*\n.*\[read_files\]/s);
+	});
+
 	it("suppresses heartbeat-only team progress messages", () => {
 		handleTeamEvent({
 			type: "run_progress",
@@ -80,5 +103,27 @@ describe("handleEvent text formatting", () => {
 		expect(output).toContain("queued");
 		expect(output).toContain("started");
 		expect(output).toContain("...");
+		// Consecutive team events should not have blank lines between them
+		expect(output).not.toMatch(/\n\n/);
+	});
+
+	it("closes inline reasoning before team events and terminates the line", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "reasoning",
+				reasoning: "Investigating",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleTeamEvent({
+			type: "run_started",
+			run: {
+				id: "run_00001",
+				agentId: "worker-1",
+			},
+		} as unknown as TeamEvent);
+
+		expect(output).toMatch(/Investigating.*\n.*\[team run\].*started.*\n$/s);
 	});
 });

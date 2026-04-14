@@ -96,7 +96,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					const toolName = event.toolName ?? "unknown_tool";
 					const inputStr = formatToolInput(toolName, event.input);
 					write(
-						`${c.dim}[${toolName}]${c.reset} ${c.cyan}${inputStr}${c.reset}`,
+						`${c.dim}[${toolName}]${c.reset} ${c.cyan}${inputStr}${c.reset}\n`,
 					);
 					break;
 				}
@@ -173,89 +173,93 @@ export function handleTeamEvent(event: TeamEvent): void {
 		emitJsonLine("stdout", { type: "team_event", event });
 		return;
 	}
+	// Skip heartbeat events to avoid cluttering the CLI with too many messages,
+	// since they can be emitted frequently during long-running tasks.
+	if (event.type === "run_progress" && event.message === "heartbeat") {
+		return;
+	}
+
+	closeInlineStreamIfNeeded();
 
 	switch (event.type) {
 		case "teammate_spawned":
 			write(
-				`\n${c.dim}[team] teammate spawned:${c.reset} ${c.cyan}${event.agentId}${c.reset}`,
+				`${c.dim}[team] teammate spawned:${c.reset} ${c.cyan}${event.agentId}${c.reset}\n`,
 			);
 			break;
 		case "teammate_shutdown":
 			write(
-				`\n${c.dim}[team] teammate shutdown:${c.reset} ${c.cyan}${event.agentId}${c.reset}`,
+				`${c.dim}[team] teammate shutdown:${c.reset} ${c.cyan}${event.agentId}${c.reset}\n`,
 			);
 			break;
 		case "team_task_updated":
 			write(
-				`\n${c.dim}[team task]${c.reset} ${c.cyan}${event.task.id}${c.reset} -> ${event.task.status}`,
+				`${c.dim}[team task]${c.reset} ${c.cyan}${event.task.id}${c.reset} -> ${event.task.status}\n`,
 			);
 			break;
 		case "team_message":
 			write(
-				`\n${c.dim}[mailbox]${c.reset} ${event.message.fromAgentId} -> ${event.message.toAgentId}: ${event.message.subject}`,
+				`${c.dim}[mailbox]${c.reset} ${event.message.fromAgentId} -> ${event.message.toAgentId}: ${event.message.subject}\n`,
 			);
 			break;
 		case "team_mission_log":
 			write(
-				`\n${c.dim}[mission]${c.reset} ${event.entry.agentId}: ${truncate(event.entry.summary, 90)}`,
+				`${c.dim}[mission]${c.reset} ${event.entry.agentId}: ${truncate(event.entry.summary, 90)}\n`,
 			);
 			break;
 		case "run_queued":
 			write(
-				`\n${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
+				`${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}\n`,
 			);
 			break;
 		case "run_started":
 			write(
-				`\n${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
+				`${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}\n`,
 			);
 			break;
 		case "run_progress":
-			if (event.message === "heartbeat") {
-				break;
-			}
 			write(
-				`\n${c.dim}[team run]${c.reset} progress ${c.cyan}${event.run.id}${c.reset}: ${event.message}`,
+				`${c.dim}[team run]${c.reset} progress ${c.cyan}${event.run.id}${c.reset}: ${event.message}\n`,
 			);
 			break;
 		case "run_completed":
 			write(
-				`\n${c.dim}[team run]${c.reset} completed ${c.cyan}${event.run.id}${c.reset}`,
+				`${c.dim}[team run]${c.reset} completed ${c.cyan}${event.run.id}${c.reset}\n`,
 			);
 			break;
 		case "run_failed":
 			write(
-				`\n${c.dim}[team run]${c.reset} failed ${c.cyan}${event.run.id}${c.reset}: ${event.run.error ?? "unknown error"}`,
+				`${c.dim}[team run]${c.reset} failed ${c.cyan}${event.run.id}${c.reset}: ${event.run.error ?? "unknown error"}\n`,
 			);
 			break;
 		case "run_cancelled":
 			write(
-				`\n${c.dim}[team run]${c.reset} cancelled ${c.cyan}${event.run.id}${c.reset}`,
+				`${c.dim}[team run]${c.reset} cancelled ${c.cyan}${event.run.id}${c.reset}\n`,
 			);
 			break;
 		case "run_interrupted":
 			write(
-				`\n${c.dim}[team run]${c.reset} interrupted ${c.cyan}${event.run.id}${c.reset}`,
+				`${c.dim}[team run]${c.reset} interrupted ${c.cyan}${event.run.id}${c.reset}\n`,
 			);
 			break;
 		case "outcome_created":
 			write(
-				`\n${c.dim}[team outcome]${c.reset} created ${c.cyan}${event.outcome.id}${c.reset}: ${event.outcome.title}`,
+				`${c.dim}[team outcome]${c.reset} created ${c.cyan}${event.outcome.id}${c.reset}: ${event.outcome.title}\n`,
 			);
 			break;
 		case "outcome_fragment_attached":
 			write(
-				`\n${c.dim}[team outcome]${c.reset} fragment ${c.cyan}${event.fragment.id}${c.reset} attached to ${event.fragment.section}`,
+				`${c.dim}[team outcome]${c.reset} fragment ${c.cyan}${event.fragment.id}${c.reset} attached to ${event.fragment.section}\n`,
 			);
 			break;
 		case "outcome_fragment_reviewed":
 			write(
-				`\n${c.dim}[team outcome]${c.reset} fragment ${c.cyan}${event.fragment.id}${c.reset} -> ${event.fragment.status}`,
+				`${c.dim}[team outcome]${c.reset} fragment ${c.cyan}${event.fragment.id}${c.reset} -> ${event.fragment.status}\n`,
 			);
 			break;
 		case "outcome_finalized":
 			write(
-				`\n${c.dim}[team outcome]${c.reset} finalized ${c.cyan}${event.outcome.id}${c.reset}`,
+				`${c.dim}[team outcome]${c.reset} finalized ${c.cyan}${event.outcome.id}${c.reset}\n`,
 			);
 			break;
 		case "task_start":
