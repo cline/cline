@@ -639,14 +639,6 @@ export class AcpTerminalManager implements ITerminalManager {
 	}
 
 	/**
-	 * Set the timeout for waiting for shell integration.
-	 * @param timeout Timeout in milliseconds
-	 */
-	setShellIntegrationTimeout(_timeout: number): void {
-		// no-op
-	}
-
-	/**
 	 * Enable or disable terminal reuse.
 	 * @param enabled Whether to enable terminal reuse
 	 */
@@ -660,14 +652,6 @@ export class AcpTerminalManager implements ITerminalManager {
 	 */
 	setTerminalOutputLineLimit(limit: number): void {
 		this.terminalOutputLineLimit = limit
-	}
-
-	/**
-	 * Set the default terminal profile.
-	 * @param profile The profile identifier
-	 */
-	setDefaultTerminalProfile(_profile: string): void {
-		// no-op
 	}
 
 	/**
