@@ -19,6 +19,8 @@ import type { UserInfo } from "@shared/UserInfo"
 import { StateManager } from "@/core/storage/StateManager"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
+import { ClineAccountService } from "./account-service"
+import { AuthService, LogoutReason } from "./auth-service"
 import {
 	type ActiveSession,
 	buildSessionConfig,
@@ -61,14 +63,14 @@ export class Controller {
 	// Task proxy (Step 5) — provides classic Task interface for gRPC handlers
 	task?: TaskProxy
 
-	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK services in Steps 6-7
+	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK MCP manager in Step 7
 	mcpHub: any
-	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK account service in Step 6
-	accountService: any
-	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK auth in Step 6
-	authService: any
-	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK auth in Step 6
-	ocaAuthService: any
+	// SDK-backed account service (Step 6)
+	accountService: ClineAccountService
+	// SDK-backed auth service (Step 6)
+	authService: AuthService
+	// OCA auth uses the same AuthService (Step 6)
+	ocaAuthService: AuthService
 	readonly stateManager: StateManager
 
 	// Private state kept for stub compatibility
@@ -79,12 +81,13 @@ export class Controller {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
 
-		// Services will be properly initialized in later steps.
-		// For now, set to undefined so the extension compiles and loads.
+		// MCP hub will be initialized in Step 7
 		this.mcpHub = undefined
-		this.accountService = undefined
-		this.authService = undefined
-		this.ocaAuthService = undefined
+
+		// Initialize SDK-backed auth and account services (Step 6)
+		this.authService = AuthService.getInstance(this)
+		this.ocaAuthService = this.authService
+		this.accountService = ClineAccountService.getInstance()
 
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState()
@@ -95,7 +98,12 @@ export class Controller {
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
 
-		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge")
+		// Restore auth state from secrets on startup
+		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().catch((err) => {
+			Logger.error("[SdkController] Failed to restore auth state:", err)
+		})
+
+		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge + auth services")
 	}
 
 	async dispose(): Promise<void> {
@@ -525,31 +533,33 @@ export class Controller {
 	// ---- Auth callbacks (Step 6) ----
 
 	async handleSignOut(): Promise<void> {
-		stubWarn("handleSignOut")
+		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
 		await this.postStateToWebview()
 	}
 
 	async handleOcaSignOut(): Promise<void> {
-		stubWarn("handleOcaSignOut")
+		// OCA uses the same auth service — clear Cline auth on OCA sign out
+		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
 		await this.postStateToWebview()
 	}
 
 	async setUserInfo(_info?: UserInfo): Promise<void> {
-		stubWarn("setUserInfo")
+		// User info is now managed by the SDK-backed AuthService
+		// This method is kept for interface compatibility
 	}
 
-	async handleAuthCallback(_customToken: string, _provider: string | null = null): Promise<void> {
-		stubWarn("handleAuthCallback")
+	async handleAuthCallback(customToken: string, provider: string | null = null): Promise<void> {
+		await this.authService.handleAuthCallback(customToken, provider ?? "cline")
 		await this.postStateToWebview()
 	}
 
-	async handleOcaAuthCallback(_code: string, _state: string): Promise<void> {
-		stubWarn("handleOcaAuthCallback")
+	async handleOcaAuthCallback(code: string, state: string): Promise<void> {
+		await this.authService.handleOcaAuthCallback(code, state)
 		await this.postStateToWebview()
 	}
 
-	async handleMcpOAuthCallback(_serverHash: string, _code: string, _state: string | null): Promise<void> {
-		stubWarn("handleMcpOAuthCallback")
+	async handleMcpOAuthCallback(serverHash: string, code: string, state: string | null): Promise<void> {
+		await this.authService.handleMcpOAuthCallback(serverHash, code, state)
 	}
 
 	// ---- MCP marketplace (Step 7) ----
