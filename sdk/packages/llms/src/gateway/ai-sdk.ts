@@ -548,7 +548,11 @@ function extractErrorMessage(error: unknown): string {
 				"No output generated. Check the stream for errors.",
 			)
 		) {
-			return "The model stream ended without producing output. This usually means an earlier tool-call or prompt-formatting error interrupted the turn.";
+			const cause = (error as { cause?: unknown }).cause;
+			const causeDetail = cause ? extractErrorMessage(cause) : undefined;
+			return causeDetail
+				? `No output generated: ${causeDetail}`
+				: `The model stream ended without producing output: ${error.message}`;
 		}
 	}
 
@@ -804,6 +808,7 @@ async function createProviderModule(
 function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 	return async (config) => ({
 		async *stream(request, context) {
+			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
 			try {
 				const provider = await createProviderModule(kind, config, context);
@@ -823,20 +828,43 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						isEnabled: langfuse,
 					},
 					providerOptions: toAiSdkProviderOptions(request, context) as never,
-					// Suppress the AI SDK's default console.error on stream errors;
-					// we surface errors through the finish event instead.
-					onError: () => {},
+					onError: ({ error: streamError }) => {
+						const msg = extractErrorMessage(streamError);
+						if (log?.error) {
+							log.error("[ai-sdk] stream error", {
+								providerId: request.providerId,
+								error: streamError,
+								severity: "error",
+							});
+						} else if (log) {
+							log.log(`[ai-sdk] stream error: ${msg}`, {
+								providerId: request.providerId,
+								severity: "error",
+							});
+						}
+					},
 				}) as unknown as AiSdkStreamResult;
 
 				yield* emitAiSdkEvents(stream, context.model.metadata?.pricing);
 			} catch (error) {
-				// Suppress unhandled rejections from dangling AI SDK promises
-				// (e.g. usage, finishReason) that reject when the stream errors.
 				suppressDanglingStreamPromises(stream);
+				const msg = extractErrorMessage(error);
+				if (log?.error) {
+					log.error("[ai-sdk] provider error", {
+						providerId: request.providerId,
+						error,
+						severity: "error",
+					});
+				} else if (log) {
+					log.log(`[ai-sdk] provider error: ${msg}`, {
+						providerId: request.providerId,
+						severity: "error",
+					});
+				}
 				yield {
 					type: "finish",
 					reason: "error",
-					error: extractErrorMessage(error),
+					error: msg,
 				};
 			}
 		},

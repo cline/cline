@@ -1,3 +1,5 @@
+import type { BasicLogger } from "../logging/logger";
+
 export type JsonValue =
 	| string
 	| number
@@ -195,6 +197,7 @@ export interface GatewayProviderContext {
 	model: GatewayModelDefinition;
 	config: GatewayResolvedProviderConfig;
 	signal?: AbortSignal;
+	logger?: BasicLogger;
 }
 
 export interface GatewayStreamRequest {
@@ -252,4 +255,5 @@ export interface GatewayConfig {
 	providers?: readonly GatewayProviderRegistration[];
 	providerConfigs?: readonly GatewayProviderConfig[];
 	fetch?: typeof fetch;
+	logger?: BasicLogger;
 }

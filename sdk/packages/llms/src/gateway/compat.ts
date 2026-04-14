@@ -536,6 +536,7 @@ class GatewayApiHandler implements ApiHandler {
 	): ApiStream {
 		const gateway = createGateway({
 			providerConfigs: [buildGatewayConfig(this.config)],
+			logger: this.config.logger ?? this.config.extensionContext?.logger,
 		});
 		const registration = resolveProviderRegistrationSync(this.config);
 		if (registration) {
@@ -584,6 +585,7 @@ export async function createGatewayApiHandlerAsync(
 ): Promise<ApiHandler> {
 	const gateway = createGateway({
 		providerConfigs: [buildGatewayConfig(config)],
+		logger: config.logger ?? config.extensionContext?.logger,
 	});
 	const registration = await resolveProviderRegistration(config);
 	if (registration) {

@@ -2,6 +2,7 @@ import type {
 	AgentModel,
 	AgentModelEvent,
 	AgentModelRequest,
+	BasicLogger,
 	GatewayConfig,
 	GatewayModelHandleOptions,
 	GatewayModelSelection,
@@ -68,9 +69,11 @@ class GatewayModelAdapter implements AgentModel {
 
 export class DefaultGateway implements Gateway {
 	private readonly registry: GatewayRegistry;
+	private readonly logger: BasicLogger | undefined;
 
 	constructor(config: GatewayConfig = {}) {
 		this.registry = new GatewayRegistry(config.fetch);
+		this.logger = config.logger;
 
 		if (config.builtins !== false) {
 			const builtins = new Set(
@@ -144,6 +147,7 @@ export class DefaultGateway implements Gateway {
 				model: resolved.model,
 				config: providerRecord.config,
 				signal: request.signal,
+				logger: this.logger,
 			},
 		);
 
