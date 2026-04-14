@@ -40,14 +40,12 @@ function normalizeToken(
 	raw: string,
 	nameMap: Record<string, number> | undefined,
 ): string {
-	const token = raw.trim().toUpperCase();
+	let token = raw.trim().toUpperCase();
 	if (!nameMap) {
 		return token;
 	}
 	for (const [name, value] of Object.entries(nameMap)) {
-		if (token.includes(name)) {
-			return token.replaceAll(name, String(value));
-		}
+		token = token.replaceAll(name, String(value));
 	}
 	return token;
 }
