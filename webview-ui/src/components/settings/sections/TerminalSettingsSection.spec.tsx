@@ -34,7 +34,7 @@ describe("TerminalSettingsSection", () => {
 		const reuseCheckbox = container.querySelector("#terminal-settings-section vscode-checkbox")
 		expect(reuseCheckbox).toBeTruthy()
 
-		fireEvent.click(reuseCheckbox as Element)
+		fireEvent.change(reuseCheckbox as Element, { target: { checked: true } })
 
 		expect(mockUpdateSetting).toHaveBeenCalledWith("terminalReuseEnabled", true)
 	})

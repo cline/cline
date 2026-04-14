@@ -120,7 +120,7 @@ function createManagerSpies() {
 }
 
 describe("CommandExecutor routing", () => {
-	it("uses the configured terminal manager for normal execution", async () => {
+	it("uses the configured terminal manager for the direct-instantiation fallback path", async () => {
 		const { manager, getOrCreateTerminal, runCommand } = createManagerSpies()
 		const executor = new CommandExecutor(
 			{
