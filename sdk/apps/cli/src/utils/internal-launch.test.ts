@@ -30,7 +30,7 @@ describe("internal launch helpers", () => {
 		expect(spec).toEqual({
 			launcher: "/Users/test/.bun/bin/bun",
 			childArgsPrefix: [
-				"--inspect=127.0.0.1:9239",
+				"--inspect=127.0.0.1:0",
 				"--enable-source-maps",
 				"--conditions=development",
 				resolve(repoRoot, "apps/cli/src/index.ts"),
@@ -68,7 +68,7 @@ describe("internal launch helpers", () => {
 		expect(command).toEqual({
 			launcher: "/usr/local/bin/node",
 			childArgs: [
-				"--inspect=127.0.0.1:9231",
+				"--inspect=127.0.0.1:0",
 				"--enable-source-maps",
 				resolve(repoRoot, "apps/cli/src/index.ts"),
 				"hook-worker",

@@ -23,30 +23,34 @@ interface HookWorkerResponse {
 
 async function handleHookPayload(payload: HookEventPayload): Promise<unknown> {
 	appendHookAudit(payload);
-	const sessions = await getCoreSessionBackend();
-	await sessions.queueSpawnRequest(payload);
-	const subSessionId = await sessions.upsertSubagentSessionFromHook(payload);
-	if (subSessionId) {
-		await sessions.appendSubagentHookAudit(subSessionId, payload);
-		if (payload.hookName === "tool_call") {
-			await sessions.appendSubagentTranscriptLine(
-				subSessionId,
-				`[tool] ${payload.tool_call?.name ?? "unknown"}`,
-			);
+	const shouldTouchSessions =
+		payload.hookName === "tool_call" || !!payload.parent_agent_id;
+	if (shouldTouchSessions) {
+		const sessions = await getCoreSessionBackend();
+		await sessions.queueSpawnRequest(payload);
+		const subSessionId = await sessions.upsertSubagentSessionFromHook(payload);
+		if (subSessionId) {
+			await sessions.appendSubagentHookAudit(subSessionId, payload);
+			if (payload.hookName === "tool_call") {
+				await sessions.appendSubagentTranscriptLine(
+					subSessionId,
+					`[tool] ${payload.tool_call?.name ?? "unknown"}`,
+				);
+			}
+			if (payload.hookName === "agent_end") {
+				await sessions.appendSubagentTranscriptLine(
+					subSessionId,
+					"[done] completed",
+				);
+			}
+			if (payload.hookName === "session_shutdown") {
+				await sessions.appendSubagentTranscriptLine(
+					subSessionId,
+					`[shutdown] ${payload.reason ?? "session shutdown"}`,
+				);
+			}
+			await sessions.applySubagentStatus(subSessionId, payload);
 		}
-		if (payload.hookName === "agent_end") {
-			await sessions.appendSubagentTranscriptLine(
-				subSessionId,
-				"[done] completed",
-			);
-		}
-		if (payload.hookName === "session_shutdown") {
-			await sessions.appendSubagentTranscriptLine(
-				subSessionId,
-				`[shutdown] ${payload.reason ?? "session shutdown"}`,
-			);
-		}
-		await sessions.applySubagentStatus(subSessionId, payload);
 	}
 
 	switch (payload.hookName) {

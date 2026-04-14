@@ -61,9 +61,9 @@ RPC-backed hosts use shared runtime ensure logic and replace incompatible owned 
 
 ### Debug Builds
 
-- Set `CLINE_BUILD_ENV=development` for debug builds. Spawned Node subprocesses get a stable inspector endpoint plus `--enable-source-maps`.
-- Default inspector ports (role-based): RPC `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`, fallback sandbox `9234` — all on `127.0.0.1`.
-- Override with `CLINE_DEBUG_HOST` and `CLINE_DEBUG_PORT_BASE`.
+- Set `CLINE_BUILD_ENV=development` for debug builds. Spawned Node/Bun subprocesses get an inspector endpoint plus `--enable-source-maps`.
+- By default, child-process inspector ports are ephemeral (`--inspect=127.0.0.1:0`) to avoid collisions across parallel dev runs.
+- Set `CLINE_DEBUG_HOST` and `CLINE_DEBUG_PORT_BASE` to opt into deterministic role-based ports. With `CLINE_DEBUG_PORT_BASE=9230`, the roles map to RPC `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`, fallback sandbox `9234`.
 - Fallback chain: `CLINE_BUILD_ENV` → `NODE_ENV` → Bun `--conditions=development`.
 - To debug the CLI process itself: `cd apps/cli && CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./src/index.ts "hey"`.
 - The workspace includes a VS Code launch config (`Launch CLI Debugger`) that uses `"type": "bun"` (requires `oven.bun-vscode`).

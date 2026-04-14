@@ -1,4 +1,8 @@
-import { type AgentResult, formatUserInputBlock } from "@clinebot/shared";
+import {
+	type AgentMode,
+	type AgentResult,
+	formatUserInputBlock,
+} from "@clinebot/shared";
 import type { TeamEvent } from "../team";
 import {
 	buildTeamProgressSummary,
@@ -227,7 +231,10 @@ export function buildTeamRunContinuationPrompt(
 
 export function formatModePrompt(
 	prompt: string,
-	mode: "act" | "plan" | undefined,
+	mode: AgentMode | undefined,
 ): string {
-	return formatUserInputBlock(prompt, mode === "plan" ? "plan" : "act");
+	return formatUserInputBlock(
+		prompt,
+		mode === "plan" ? "plan" : mode === "yolo" ? "yolo" : "act",
+	);
 }

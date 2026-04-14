@@ -432,9 +432,9 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 - `CLINE_SANDBOX_DATA_DIR` - Override sandbox state directory
 - `CLINE_TEAM_DATA_DIR` - Override team persistence directory
 - `CLINE_RPC_ADDRESS` - Address used by `clite rpc start` (default `127.0.0.1:4317`)
-- `CLINE_BUILD_ENV` - Runtime build mode for SDK-owned subprocess launches (`development` adds role-based `node --inspect=127.0.0.1:<port> --enable-source-maps`; falls back to `NODE_ENV` or `--conditions=development`)
+- `CLINE_BUILD_ENV` - Runtime build mode for SDK-owned subprocess launches (`development` adds `node|bun --inspect=127.0.0.1:0 --enable-source-maps` by default; falls back to `NODE_ENV` or `--conditions=development`)
 - `CLINE_DEBUG_HOST` - Override the host used for development inspector listeners (default `127.0.0.1`)
-- `CLINE_DEBUG_PORT_BASE` - Override the base inspector port for development child processes (default `9230`)
+- `CLINE_DEBUG_PORT_BASE` - Override the base inspector port for development child processes; when unset, child processes use ephemeral inspector ports
 - `CLINE_TOOL_APPROVAL_MODE` - Approval mode (`desktop` uses file IPC; unset uses terminal prompt)
 - `CLINE_TOOL_APPROVAL_DIR` - Directory for desktop approval request/decision files
 - `CLINE_LOG_ENABLED` - Set to `0`/`false` to disable runtime file logging
@@ -451,8 +451,9 @@ For OAuth providers (`cline`, `openai-codex`, `oca`), authenticate explicitly wi
 
 ## Debugging
 
-- `CLINE_BUILD_ENV=development` enables stable debugger ports for SDK-owned spawned Node subprocesses.
-- Default child-process ports are: RPC `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`.
+- `CLINE_BUILD_ENV=development` enables debugger ports for SDK-owned spawned Node/Bun subprocesses.
+- By default, child processes use ephemeral inspector ports to avoid collisions.
+- Set `CLINE_DEBUG_PORT_BASE=9230` if you want deterministic role-based ports such as RPC `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`.
 - Those ports do not apply to the top-level CLI when it is running under Bun. To debug the Bun CLI process itself, launch the real CLI entrypoint under Bun with an inspector port such as:
 
 ```bash

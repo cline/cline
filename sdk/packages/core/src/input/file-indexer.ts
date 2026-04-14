@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import type { Dirent } from "node:fs";
 import { readdir } from "node:fs/promises";
 import path from "node:path";
 import { isMainThread, parentPort, Worker } from "node:worker_threads";
@@ -18,6 +19,14 @@ const DEFAULT_EXCLUDE_DIRS = new Set([
 	"target",
 	"out",
 ]);
+
+function shouldSkipWalkError(error: unknown): boolean {
+	const code =
+		error && typeof error === "object" && "code" in error
+			? String((error as { code?: unknown }).code ?? "")
+			: "";
+	return code === "EACCES" || code === "EPERM" || code === "ENOENT";
+}
 
 interface CacheEntry {
 	files: Set<string>;
@@ -103,14 +112,29 @@ async function walkDir(
 	dir: string,
 	files: Set<string>,
 ): Promise<void> {
-	const entries = await readdir(dir, { withFileTypes: true });
+	let entries: Dirent[];
+	try {
+		entries = await readdir(dir, { withFileTypes: true });
+	} catch (error) {
+		if (shouldSkipWalkError(error)) {
+			return;
+		}
+		throw error;
+	}
 	for (const entry of entries) {
 		const absolutePath = path.join(dir, entry.name);
 		if (entry.isDirectory()) {
 			if (DEFAULT_EXCLUDE_DIRS.has(entry.name)) {
 				continue;
 			}
-			await walkDir(cwd, absolutePath, files);
+			try {
+				await walkDir(cwd, absolutePath, files);
+			} catch (error) {
+				if (shouldSkipWalkError(error)) {
+					continue;
+				}
+				throw error;
+			}
 			continue;
 		}
 		if (entry.isFile()) {

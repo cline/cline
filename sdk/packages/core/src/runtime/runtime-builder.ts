@@ -82,14 +82,13 @@ function createBuiltinToolsList(
 	cwd: string,
 	providerId: string,
 	mode: CoreAgentMode,
-	yolo: boolean | undefined,
 	modelId: string,
 	toolRoutingRules: ToolRoutingRule[] | undefined,
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 ): Tool[] {
-	const preset = ToolPresets[resolveToolPresetName({ mode, yolo })];
+	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
 		providerId,
 		modelId,
@@ -429,16 +428,11 @@ function normalizeConfig(
 		| "sessionId"
 	>
 > {
-	const preset =
-		ToolPresets[
-			resolveToolPresetName({
-				mode: config.mode,
-				yolo: config.yolo,
-			})
-		];
+	const preset = ToolPresets[resolveToolPresetName({ mode: config.mode })];
 	return {
 		sessionId: config.sessionId || "",
-		mode: config.mode === "plan" ? "plan" : "act",
+		mode:
+			config.mode === "plan" ? "plan" : config.mode === "yolo" ? "yolo" : "act",
 		enableTools: config.enableTools !== false,
 		enableSpawnAgent:
 			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
@@ -523,7 +517,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.cwd,
 					config.providerId,
 					normalized.mode,
-					normalized.yolo,
 					config.modelId,
 					config.toolRoutingRules,
 					config.toolPolicies,
@@ -653,7 +646,6 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.cwd,
 									config.providerId,
 									normalized.mode,
-									normalized.yolo,
 									config.modelId,
 									config.toolRoutingRules,
 									config.toolPolicies,

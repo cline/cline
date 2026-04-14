@@ -147,13 +147,14 @@ export async function runAgent(
 
 	const runtimeHooks = createRuntimeHooks({
 		verbose: config.verbose,
-		yolo: config.yolo,
+		yolo: config.mode === "yolo",
 	});
 	const sessionManager = await createDefaultCliSessionManager({
 		defaultToolExecutors: {
 			askQuestion: askQuestionInTerminal,
 			submit: submitAndExitInTerminal,
 		},
+		forceLocalBackend: config.mode === "yolo" || config.sandbox === true,
 		logger: config.logger,
 		toolPolicies: config.toolPolicies,
 		requestToolApproval,

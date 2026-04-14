@@ -32,8 +32,9 @@ Behavior notes:
 - **`BasicLogger`** (`@clinebot/shared`) is the cross-package logging contract: required `debug` and `log`, optional `error`. Verbose diagnostics use `debug` (hosts typically gate on debug log level). Operational messages use `log`. Implementations may attach **`BasicLogMetadata`** (`sessionId`, `runId`, `providerId`, `toolName`, `durationMs`, optional `severity` on `log` for warning-style lines). Use **`noopBasicLogger`** when a complete no-op instance is required.
 - path/search helpers define the default config discovery locations used elsewhere in the stack
 - `resolveClineBuildEnv(...)` prefers `CLINE_BUILD_ENV`, falls back to `NODE_ENV`, and also treats `--conditions=development` as a development build
-- SDK-owned `node` subprocess launches add stable role-based inspector endpoints plus `--enable-source-maps` in development builds unless those flags are already present
-- Top-level Bun hosts still need Bun inspector flags separately; for example launch `apps/cli/src/index.ts` directly with `bun --inspect-brk=6499 ...` for the CLI process, while spawned SDK-owned Node children use the role-based ports
+- SDK-owned `node`/`bun` subprocess launches add inspector endpoints plus `--enable-source-maps` in development builds unless those flags are already present
+- By default those child-process inspector ports are ephemeral (`--inspect=127.0.0.1:0`) to avoid collisions; set `CLINE_DEBUG_PORT_BASE` to restore deterministic role-based ports when needed
+- Top-level Bun hosts still need Bun inspector flags separately; for example launch `apps/cli/src/index.ts` directly with `bun --inspect-brk=6499 ...` for the CLI process
 - The VS Code launch config uses `"type": "bun"` (requires `oven.bun-vscode`) so the Bun debug adapter handles source maps natively; attach configs use `ws://` URLs with `localRoot`/`remoteRoot` pointing to `${workspaceFolder}` so breakpoints resolve correctly in workspace packages such as `packages/core`
 
 ## `@clinebot/llms`
@@ -143,6 +144,7 @@ Important exported areas:
 
 - `TelemetryService` can accept a `BasicLogger`; when present, core installs a `TelemetryLoggerSink` so telemetry events are also written to that logger with structured fields (`telemetrySink`, `event`, `properties`, …).
 - Host applications (for example the CLI) typically construct a logger bundle that includes both the native backend and a `BasicLogger` view: the CLI keeps the `pino` instance for transport concerns and passes `adapter.core` into SDK/runtime options.
+- `ClineCore.create(...)` also accepts `logger?: BasicLogger` in `ClineCoreOptions`; core uses it for operational diagnostics such as RPC backend auto-start, reuse, and fallback decisions.
 
 ### Runtime Composition
 

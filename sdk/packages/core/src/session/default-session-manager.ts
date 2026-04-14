@@ -486,6 +486,10 @@ export class DefaultSessionManager implements SessionManager {
 			properties: { sessionId },
 		});
 		session.aborting = true;
+		if (session.pendingPrompts.length > 0) {
+			session.pendingPrompts.length = 0;
+			this.emitPendingPrompts(session);
+		}
 		(
 			session.agent as Agent & {
 				abort: (abortReason?: unknown) => void;
@@ -992,7 +996,7 @@ export class DefaultSessionManager implements SessionManager {
 		},
 	): void {
 		const session = this.sessions.get(sessionId);
-		if (!session) {
+		if (!session || session.aborting) {
 			return;
 		}
 		const { prompt, delivery, userImages, userFiles } = entry;
@@ -1041,7 +1045,7 @@ export class DefaultSessionManager implements SessionManager {
 
 	private async drainPendingPrompts(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
-		if (!session || session.drainingPendingPrompts) {
+		if (!session || session.aborting || session.drainingPendingPrompts) {
 			return;
 		}
 		const canStartRun =
@@ -1181,7 +1185,6 @@ export class DefaultSessionManager implements SessionManager {
 						...ToolPresets[
 							resolveToolPresetName({
 								mode: config.mode,
-								yolo: config.yolo,
 							})
 						],
 						executors: this.defaultToolExecutors,

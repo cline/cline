@@ -106,7 +106,7 @@ export async function enrichPromptWithMentions(
 				continue;
 			}
 
-			totalBytes += nextBytes;
+			totalBytes = nextBytes;
 			matched.push(relativePath);
 		} catch {
 			ignored.push(mention);

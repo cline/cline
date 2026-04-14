@@ -85,10 +85,13 @@ function resolveDebugHost(env: NodeJS.ProcessEnv): string {
 	return env[CLINE_DEBUG_HOST_ENV]?.trim() || "127.0.0.1";
 }
 
-function resolveDebugPortBase(env: NodeJS.ProcessEnv): number {
+function resolveDebugPortBase(env: NodeJS.ProcessEnv): number | undefined {
 	const raw = env[CLINE_DEBUG_PORT_BASE_ENV]?.trim();
-	const parsed = raw ? Number.parseInt(raw, 10) : 9230;
-	return Number.isInteger(parsed) && parsed > 0 ? parsed : 9230;
+	if (!raw) {
+		return undefined;
+	}
+	const parsed = Number.parseInt(raw, 10);
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
 }
 
 function resolveRolePortOffset(role: ClineDebugRole | undefined): number {
@@ -165,8 +168,11 @@ export function augmentNodeCommandForDebug(
 	const debugFlags: string[] = [];
 	if (!hasInspectFlag(existingFlags)) {
 		const host = resolveDebugHost(env);
+		const portBase = resolveDebugPortBase(env);
 		const port =
-			resolveDebugPortBase(env) + resolveRolePortOffset(options.debugRole);
+			portBase === undefined
+				? 0
+				: portBase + resolveRolePortOffset(options.debugRole);
 		debugFlags.push(`--inspect=${host}:${port}`);
 	}
 	if (!hasSourceMapFlag(existingFlags)) {

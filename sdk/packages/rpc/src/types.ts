@@ -132,7 +132,7 @@ export interface RpcSpawnQueueItem {
 	consumedAt?: string;
 }
 
-export type RpcScheduleMode = "act" | "plan";
+export type RpcScheduleMode = "act" | "plan" | "yolo";
 
 export type RpcScheduleExecutionStatus =
 	| "pending"

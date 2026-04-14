@@ -154,7 +154,7 @@ describe("runAgent", () => {
 				},
 				logger: undefined,
 				maxIterations: 10,
-				mode: "act",
+				mode: "yolo",
 				modelId: "google/gemini-3-flash-preview",
 				outputMode: "text",
 				providerId: "openrouter",
@@ -165,7 +165,6 @@ describe("runAgent", () => {
 				toolPolicies: { "*": { autoApprove: true } },
 				verbose: false,
 				workspaceRoot: process.cwd(),
-				yolo: true,
 			} as never),
 		).resolves.toBeUndefined();
 

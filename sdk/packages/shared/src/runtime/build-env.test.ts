@@ -56,7 +56,7 @@ describe("build env helpers", () => {
 		).toBe("development");
 	});
 
-	it("adds stable inspect and source maps for node commands in development", () => {
+	it("adds dynamic inspect and source maps for node commands in development", () => {
 		expect(
 			augmentNodeCommandForDebug(["node", "script.js"], {
 				env: { [CLINE_BUILD_ENV_ENV]: "development" },
@@ -64,7 +64,7 @@ describe("build env helpers", () => {
 			}),
 		).toEqual([
 			"node",
-			"--inspect=127.0.0.1:9230",
+			"--inspect=127.0.0.1:0",
 			"--enable-source-maps",
 			"script.js",
 		]);
@@ -96,7 +96,7 @@ describe("build env helpers", () => {
 			}),
 		).toEqual([
 			"/usr/local/bin/bun",
-			"--inspect=127.0.0.1:9230",
+			"--inspect=127.0.0.1:0",
 			"--enable-source-maps",
 			"script.js",
 		]);

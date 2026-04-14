@@ -100,12 +100,12 @@ test.describe("cline --config (claude-sonnet-4.6)", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline --json "prompt"
+// cline --json --yolo "prompt"
 // Starts cline in headless yolo mode with all output conforming to JSON
 // ---------------------------------------------------------------------------
 test.describe("cline --json (headless yolo mode)", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
+		program: { file: CLINE_BIN, args: ["--json", "--yolo", "tell me a joke"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("unauthenticated"),
 	});
@@ -113,7 +113,7 @@ test.describe("cline --json (headless yolo mode)", () => {
 	test("starts in headless yolo mode with JSON output", async ({
 		terminal,
 	}) => {
-		// --json implies headless yolo; unauthenticated should produce a JSON error line
+		// Explicit yolo with --json should produce a JSON error line.
 		await expectVisible(terminal, /Missing API key/i);
 	});
 });

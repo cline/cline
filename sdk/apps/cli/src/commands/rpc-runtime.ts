@@ -73,7 +73,7 @@ class RpcRuntimeHookService {
 	private readonly control?: PersistentSubprocessHookControl;
 	public readonly hooks?: AgentHooks;
 
-	constructor() {
+	constructor(rpcAddress: string) {
 		const command = getHookWorkerCommand();
 		if (!command) {
 			return;
@@ -81,7 +81,11 @@ class RpcRuntimeHookService {
 		this.control = createPersistentSubprocessHooks({
 			command,
 			cwd: process.cwd(),
-			env: buildInternalCliEnv("hook-worker"),
+			env: {
+				...buildInternalCliEnv("hook-worker"),
+				CLINE_RPC_ADDRESS: rpcAddress,
+				CLINE_SESSION_BACKEND_MODE: "rpc",
+			},
 			sessionContext: (input) => this.resolveSessionContext(input),
 			onDispatchError: (error, payload) => {
 				this.logger.log("RPC hook dispatch failed", {
@@ -291,11 +295,11 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 	const sessionManager = new DefaultSessionManager({
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
 	});
-	const hookService = new RpcRuntimeHookService();
-	const sessionModes = new Map<string, "act" | "plan">();
+	const sessionModes = new Map<string, "act" | "plan" | "yolo">();
 	const activeSessions = new Set<string>();
 	const rpcAddress =
 		process.env.CLINE_RPC_ADDRESS?.trim() || CLINE_DEFAULT_RPC_ADDRESS;
+	const hookService = new RpcRuntimeHookService(rpcAddress);
 	const eventClient = new RpcSessionClient({ address: rpcAddress });
 	const runtimeClientId = `cli-rpc-runtime-${processId}`;
 	const unsubscribeEventBridge = subscribeRuntimeEventBridge({

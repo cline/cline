@@ -132,13 +132,12 @@ export const ToolPresets = {
 export type ToolPresetName = keyof typeof ToolPresets;
 
 export function resolveToolPresetName(options: {
-	mode?: "act" | "plan";
-	yolo?: boolean;
+	mode?: "act" | "plan" | "yolo";
 }): ToolPresetName {
 	if (options.mode === "plan") {
 		return "readonly";
 	}
-	return options.yolo === true ? "yolo" : "development";
+	return options.mode === "yolo" ? "yolo" : "development";
 }
 
 /**

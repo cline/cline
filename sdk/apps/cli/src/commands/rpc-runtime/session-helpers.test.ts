@@ -58,6 +58,34 @@ describe("buildSessionStartInput", () => {
 		});
 		expect(built.sessionInput.config.hooks).toBe(hooks);
 	});
+
+	it("uses explicit yolo mode for prompt resolution and internal yolo config", async () => {
+		const { buildSessionStartInput } = await import("./session-helpers");
+		const { resolveSystemPrompt } = await import("../../runtime/prompt");
+
+		const built = await buildSessionStartInput({
+			sessionId: "session-yolo",
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				workspaceRoot: process.cwd(),
+				cwd: process.cwd(),
+				mode: "yolo",
+				enableTools: true,
+				enableSpawn: true,
+				enableTeams: true,
+				autoApproveTools: true,
+			} as any,
+		});
+
+		expect(resolveSystemPrompt).toHaveBeenCalledWith(
+			expect.objectContaining({
+				mode: "yolo",
+			}),
+		);
+		expect(built.mode).toBe("yolo");
+		expect(built.sessionInput.config.mode).toBe("yolo");
+	});
 });
 
 describe("rpc-runtime payload parsing", () => {

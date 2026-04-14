@@ -88,7 +88,7 @@ export async function runInteractive(
 
 	const runtimeHooks = createRuntimeHooks({
 		verbose: config.verbose,
-		yolo: config.yolo,
+		yolo: config.mode === "yolo",
 	});
 	const enableChatCommands = process.env.CLINE_ENABLE_CHAT_COMMANDS === "1";
 	const autoApproveAllRef = {
@@ -109,6 +109,7 @@ export async function runInteractive(
 			askQuestion: askQuestionInTerminal,
 			submit: submitAndExitInTerminal,
 		},
+		forceLocalBackend: config.mode === "yolo" || config.sandbox === true,
 		logger: config.logger,
 		toolPolicies: config.toolPolicies,
 		requestToolApproval: async (request) => {

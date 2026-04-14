@@ -208,7 +208,7 @@ export class RpcSessionClient {
 		prompt: string;
 		provider: string;
 		model: string;
-		mode?: "act" | "plan";
+		mode?: "act" | "plan" | "yolo";
 		workspaceRoot?: string;
 		cwd?: string;
 		systemPrompt?: string;
@@ -245,7 +245,7 @@ export class RpcSessionClient {
 			prompt?: string;
 			provider?: string;
 			model?: string;
-			mode?: "act" | "plan";
+			mode?: "act" | "plan" | "yolo";
 			workspaceRoot?: string;
 			cwd?: string;
 			systemPrompt?: string;

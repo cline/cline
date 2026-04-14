@@ -281,7 +281,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const [isExitRequested, setIsExitRequested] = useState(false);
 	const [abortRequested, setAbortRequested] = useState(false);
 	const [hasSubmitted, setHasSubmitted] = useState(false);
-	const [uiMode, setUiMode] = useState<"act" | "plan">(config.mode);
+	const [uiMode, setUiMode] = useState<"act" | "plan">(
+		config.mode === "plan" ? "plan" : "act",
+	);
 	const [autoApproveAll, setAutoApproveAll] = useState(
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);

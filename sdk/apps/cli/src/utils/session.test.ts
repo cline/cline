@@ -10,8 +10,7 @@ import {
 } from "vitest";
 
 const resolveSessionBackend = vi.fn();
-const ensureRpcRuntimeAddress = vi.fn();
-const mockGetRpcServerHealth = vi.fn();
+const ensureCliRpcRuntimeAddress = vi.fn();
 
 // Controllable mock for RpcSessionClient used across all tests.
 let mockStreamEventsHandler:
@@ -43,7 +42,6 @@ vi.mock("@clinebot/core", async () => {
 vi.mock("@clinebot/rpc", () => ({
 	RPC_BUILD_VERSION: "rpc-build-test",
 	getRpcServerDefaultAddress: vi.fn(() => "127.0.0.1:4317"),
-	getRpcServerHealth: mockGetRpcServerHealth,
 	RpcSessionClient: vi.fn().mockImplementation(function RpcSessionClient() {
 		return {
 			close: mockClientClose,
@@ -65,12 +63,12 @@ vi.mock("@clinebot/rpc", () => ({
 	}),
 }));
 
-vi.mock("../commands/rpc", () => ({
-	ensureRpcRuntimeAddress,
-}));
-
 vi.mock("./telemetry", () => ({
 	getCliTelemetryService: vi.fn(() => undefined),
+}));
+
+vi.mock("./rpc-runtime", () => ({
+	ensureCliRpcRuntimeAddress,
 }));
 
 describe("createDefaultCliSessionManager", () => {
@@ -86,9 +84,9 @@ describe("createDefaultCliSessionManager", () => {
 
 	beforeEach(() => {
 		resolveSessionBackend.mockReset();
-		ensureRpcRuntimeAddress.mockReset();
-		mockGetRpcServerHealth.mockReset();
 		resolveSessionBackend.mockResolvedValue(new MockRpcCoreSessionService());
+		ensureCliRpcRuntimeAddress.mockReset();
+		ensureCliRpcRuntimeAddress.mockResolvedValue("127.0.0.1:4317");
 		delete process.env.CLINE_RPC_ADDRESS;
 		delete process.env.CLINE_SESSION_BACKEND_MODE;
 	});
@@ -102,65 +100,63 @@ describe("createDefaultCliSessionManager", () => {
 	it("treats an explicit rpc address as a shared server to attach to", async () => {
 		process.env.CLINE_RPC_ADDRESS = "127.0.0.1:5001";
 
-		await createDefaultCliSessionManager();
+		const manager = await createDefaultCliSessionManager();
 
-		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
-		expect(resolveSessionBackend).toHaveBeenCalledWith({
-			backendMode: "rpc",
-			rpc: { address: "127.0.0.1:5001", autoStart: false },
-		});
+		expect(resolveSessionBackend).not.toHaveBeenCalled();
+		expect(manager).toBeTruthy();
 	});
 
-	it("connects to the default rpc address in auto mode when a server is already running", async () => {
-		mockGetRpcServerHealth.mockResolvedValue({
-			running: true,
-			serverId: "auto-discovered-server",
-		});
-
+	it("uses auto mode by default so rpc can be started when needed", async () => {
 		await createDefaultCliSessionManager();
 
-		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
-		expect(mockGetRpcServerHealth).toHaveBeenCalledWith("127.0.0.1:4317");
-		expect(resolveSessionBackend).toHaveBeenCalledWith({
-			backendMode: "rpc",
-			rpc: { address: "127.0.0.1:4317", autoStart: false },
-		});
+		expect(ensureCliRpcRuntimeAddress).toHaveBeenCalledWith("127.0.0.1:4317");
+		expect(resolveSessionBackend).not.toHaveBeenCalled();
 	});
 
-	it("falls back to the local backend in auto mode when no rpc server is running", async () => {
-		mockGetRpcServerHealth.mockResolvedValue(undefined);
+	it("updates CLINE_RPC_ADDRESS when auto-start resolves a different rpc port", async () => {
+		ensureCliRpcRuntimeAddress.mockResolvedValue("127.0.0.1:5317");
 
 		await createDefaultCliSessionManager();
 
-		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
-		expect(mockGetRpcServerHealth).toHaveBeenCalledWith("127.0.0.1:4317");
+		expect(process.env.CLINE_RPC_ADDRESS).toBe("127.0.0.1:5317");
+	});
+
+	it("forces the local backend when requested by the caller", async () => {
+		await createDefaultCliSessionManager({ forceLocalBackend: true });
+
 		expect(resolveSessionBackend).toHaveBeenCalledWith({
 			backendMode: "local",
 			rpc: { autoStart: false },
 		});
 	});
 
-	it("falls back to the local backend in auto mode when the rpc health probe throws", async () => {
-		mockGetRpcServerHealth.mockRejectedValue(new Error("connection refused"));
+	it("honors an explicit local backend override from the environment", async () => {
+		process.env.CLINE_SESSION_BACKEND_MODE = "local";
 
 		await createDefaultCliSessionManager();
 
-		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
 		expect(resolveSessionBackend).toHaveBeenCalledWith({
 			backendMode: "local",
 			rpc: { autoStart: false },
 		});
 	});
 
-	it("uses the local backend by default when no explicit rpc address is configured and no server is running", async () => {
-		mockGetRpcServerHealth.mockResolvedValue(undefined);
+	it("logs the selected backend through the injected logger", async () => {
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
 
-		await createDefaultCliSessionManager();
+		await createDefaultCliSessionManager({ logger });
 
-		expect(ensureRpcRuntimeAddress).not.toHaveBeenCalled();
-		expect(resolveSessionBackend).toHaveBeenCalledWith({
-			backendMode: "local",
-			rpc: { autoStart: false },
+		expect(logger.log).toHaveBeenCalledWith(
+			"Ensuring RPC runtime for CLI session backend",
+			{ address: "127.0.0.1:4317" },
+		);
+		expect(logger.log).toHaveBeenCalledWith("CLI session backend selected", {
+			backendType: "rpc",
+			forceLocalBackend: false,
 		});
 	});
 });
@@ -184,8 +180,6 @@ describe("RPC session streaming text deduplication", () => {
 
 	beforeEach(() => {
 		resolveSessionBackend.mockReset();
-		ensureRpcRuntimeAddress.mockReset();
-		mockGetRpcServerHealth.mockReset();
 		mockStartRuntimeSession.mockReset();
 		mockSendRuntimeSession.mockReset();
 		mockGetSession.mockReset();

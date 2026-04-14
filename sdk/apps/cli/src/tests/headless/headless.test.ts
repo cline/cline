@@ -80,18 +80,17 @@ test.describe("cline -y --verbose — unauthenticated", () => {
 });
 
 // ---------------------------------------------------------------------------
-// cline --json "tell me a joke"
-// All output must conform to JSON (one JSON object per line)
+// cline -y --json "tell me a joke"
+// Headless yolo with JSON output (one JSON object per line)
 // ---------------------------------------------------------------------------
-test.describe("cline --json — unauthenticated", () => {
+test.describe("cline -y --json — unauthenticated", () => {
 	test.use({
-		program: { file: CLINE_BIN, args: ["--json", "tell me a joke"] },
+		program: { file: CLINE_BIN, args: ["-y", "--json", "tell me a joke"] },
 		...TERMINAL_WIDE,
 		env: clineEnv("unauthenticated"),
 	});
 
 	test("outputs JSON error for unauthenticated", async ({ terminal }) => {
-		// cline --json when unauthenticated outputs a plain "unauthorized" message
 		await expectVisible(terminal, /"type":"error"/i);
 		await expectVisible(terminal, /Missing API key/i);
 		await expectExitCode(terminal, EXIT_CODE_FAIL);

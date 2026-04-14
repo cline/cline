@@ -394,7 +394,7 @@ export class ClineGatewayRuntime {
 					cwd: safeString(request.request.cwd),
 					provider: safeString(request.request.provider),
 					model: safeString(request.request.model),
-					mode: safeString(request.request.mode) as "act" | "plan",
+					mode: safeString(request.request.mode) as "act" | "plan" | "yolo",
 					apiKey: safeString(request.request.apiKey),
 					systemPrompt: safeString(request.request.systemPrompt),
 					maxIterations: request.request.hasMaxIterations
@@ -494,7 +494,10 @@ export class ClineGatewayRuntime {
 						cwd: safeString(request.request.config?.cwd),
 						provider: safeString(request.request.config?.provider),
 						model: safeString(request.request.config?.model),
-						mode: safeString(request.request.config?.mode) as "act" | "plan",
+						mode: safeString(request.request.config?.mode) as
+							| "act"
+							| "plan"
+							| "yolo",
 						apiKey: safeString(request.request.config?.apiKey),
 						systemPrompt: safeString(request.request.config?.systemPrompt),
 						maxIterations: request.request.config?.hasMaxIterations

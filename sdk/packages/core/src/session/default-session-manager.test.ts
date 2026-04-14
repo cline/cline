@@ -1105,6 +1105,75 @@ describe("DefaultSessionManager", () => {
 		]);
 	});
 
+	it("drops and ignores queued prompts once a session is aborting", async () => {
+		const sessionId = "sess-abort-pending";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				transcriptPath: "/tmp/transcript.log",
+				hookPath: "/tmp/hook.log",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			abort: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn().mockReturnValue(false),
+		};
+
+		const manager = new DefaultSessionManager({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.start({
+			config: createConfig({ sessionId }),
+			prompt: "hello",
+			interactive: true,
+		});
+
+		const harness = createPluginEventHarness(manager);
+		await harness.handlePluginEvent(sessionId, {
+			name: "queue_message",
+			payload: { prompt: "queued before abort" },
+		});
+		expect(harness.getPendingPrompts(sessionId)).toEqual([
+			{ prompt: "queued before abort", delivery: "queue" },
+		]);
+
+		await manager.abort(sessionId, new Error("test abort"));
+		expect(agent.abort).toHaveBeenCalledTimes(1);
+		expect(harness.getPendingPrompts(sessionId)).toEqual([]);
+
+		await harness.handlePluginEvent(sessionId, {
+			name: "queue_message",
+			payload: { prompt: "queued after abort" },
+		});
+		expect(harness.getPendingPrompts(sessionId)).toEqual([]);
+	});
+
 	it("preserves per-turn metadata on prior assistant messages across turns", async () => {
 		const sessionId = "sess-meta-multi";
 		const manifest = createManifest(sessionId);

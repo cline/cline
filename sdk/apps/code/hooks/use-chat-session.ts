@@ -701,6 +701,8 @@ export function useChatSession() {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(false);
+			abortedRef.current = false;
+			clearAbortFallbackTimeout();
 			setMessages([]);
 			setRawTranscript("");
 			resetCounters();
@@ -721,7 +723,13 @@ export function useChatSession() {
 				setErrorState(errorMessage(err));
 			}
 		},
-		[addMessage, resetCounters, setErrorState, startSession],
+		[
+			addMessage,
+			clearAbortFallbackTimeout,
+			resetCounters,
+			setErrorState,
+			startSession,
+		],
 	);
 
 	const sendPrompt = useCallback(
@@ -1111,7 +1119,7 @@ export function useChatSession() {
 			abortFallbackTimeoutRef.current = null;
 		}, 2000);
 		try {
-			const response = await postSession({ action: "stop", sessionId });
+			const response = await postSession({ action: "abort", sessionId });
 			if (!response.ok) {
 				abortedRef.current = false;
 				clearAbortFallbackTimeout();
@@ -1136,6 +1144,8 @@ export function useChatSession() {
 		setSessionId(null);
 		setStatus("idle");
 		setIsHydratingSession(false);
+		abortedRef.current = false;
+		clearAbortFallbackTimeout();
 		setMessages([]);
 		setRawTranscript("");
 		setError(null);
@@ -1147,7 +1157,13 @@ export function useChatSession() {
 		setPendingToolApprovals([]);
 		setPromptsInQueue([]);
 		clearLiveToolRefs();
-	}, [sessionId, postSession, resetCounters, clearLiveToolRefs]);
+	}, [
+		sessionId,
+		clearAbortFallbackTimeout,
+		postSession,
+		resetCounters,
+		clearLiveToolRefs,
+	]);
 
 	const hydrateSession = useCallback(
 		async (session: SessionHistoryItem) => {
@@ -1156,6 +1172,8 @@ export function useChatSession() {
 			setError(null);
 			setStatus("starting");
 			setIsHydratingSession(true);
+			abortedRef.current = false;
+			clearAbortFallbackTimeout();
 			setSessionId(session.sessionId);
 			setConfig((prev) => ({
 				...prev,
@@ -1239,6 +1257,7 @@ export function useChatSession() {
 			}
 		},
 		[
+			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,

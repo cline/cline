@@ -83,8 +83,7 @@ describe("DefaultRuntimeBuilder", () => {
 	it("uses yolo preset only when yolo mode is explicit", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
-				mode: "act",
-				yolo: true,
+				mode: "yolo",
 			}),
 			defaultToolExecutors: {
 				submit: async () => "submitted",
@@ -120,7 +119,7 @@ describe("DefaultRuntimeBuilder", () => {
 			config: {
 				...makeBaseConfig({
 					enableTools: false,
-					yolo: true,
+					mode: "yolo",
 				}),
 			} as CoreSessionConfig,
 			createSpawnTool: makeSpawnTool,

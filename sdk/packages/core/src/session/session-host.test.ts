@@ -34,11 +34,20 @@ vi.mock("../storage/sqlite-session-store", () => ({
 }));
 
 describe("resolveSessionBackend", () => {
+	const logger = {
+		debug: vi.fn(),
+		log: vi.fn(),
+		error: vi.fn(),
+	};
+
 	afterEach(() => {
 		sqliteInitMock.mockReset();
 		ensureRpcRuntimeAddressMock.mockReset();
 		resolveRpcOwnerContextMock.mockClear();
 		rpcHealthByAddress.clear();
+		logger.debug.mockReset();
+		logger.log.mockReset();
+		logger.error.mockReset();
 		vi.resetModules();
 	});
 
@@ -85,5 +94,48 @@ describe("resolveSessionBackend", () => {
 			}),
 		);
 		expect(backend).not.toBeInstanceOf(FileSessionService);
+	});
+
+	it("logs the rpc auto-start failure before falling back to local", async () => {
+		const { resolveSessionBackend } = await import("./session-host");
+		ensureRpcRuntimeAddressMock.mockRejectedValue(
+			new Error(
+				"failed to ensure rpc runtime at ws://127.0.0.1:4317: health probe reported no running server",
+			),
+		);
+
+		const backend = await resolveSessionBackend({
+			backendMode: "auto",
+			logger,
+			rpc: {
+				address: "ws://127.0.0.1:4317",
+				connectAttempts: 1,
+				connectDelayMs: 0,
+			},
+		});
+
+		expect(backend).not.toBeInstanceOf(FileSessionService);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Ensuring RPC runtime for auto session backend",
+			{ address: "ws://127.0.0.1:4317" },
+		);
+		expect(logger.error).toHaveBeenCalledWith(
+			"RPC backend auto-start failed",
+			expect.objectContaining({
+				address: "ws://127.0.0.1:4317",
+				requestedAddress: "ws://127.0.0.1:4317",
+				error: expect.any(Error),
+			}),
+		);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Falling back to local session backend",
+			{
+				requestedAddress: "ws://127.0.0.1:4317",
+				address: "ws://127.0.0.1:4317",
+				attempts: 1,
+				delayMs: 0,
+				severity: "warn",
+			},
+		);
 	});
 });

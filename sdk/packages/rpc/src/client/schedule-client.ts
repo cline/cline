@@ -27,7 +27,7 @@ export class ScheduleClient {
 		prompt: string;
 		provider: string;
 		model: string;
-		mode?: "act" | "plan";
+		mode?: "act" | "plan" | "yolo";
 		workspaceRoot?: string;
 		cwd?: string;
 		systemPrompt?: string;
@@ -103,7 +103,7 @@ export class ScheduleClient {
 			prompt?: string;
 			provider?: string;
 			model?: string;
-			mode?: "act" | "plan";
+			mode?: "act" | "plan" | "yolo";
 			workspaceRoot?: string;
 			cwd?: string;
 			systemPrompt?: string;

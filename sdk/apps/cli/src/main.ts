@@ -717,8 +717,7 @@ export async function runCli(): Promise<void> {
 					? undefined
 					: effectiveReasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.mode,
-			yolo: args.yolo === true,
+			mode: args.yolo === true ? "yolo" : args.mode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			defaultToolAutoApprove,

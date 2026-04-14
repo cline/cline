@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { describe, expect, it, vi } from "vitest";
@@ -81,6 +81,35 @@ describe("file indexer", () => {
 			const rebuilt = await getFileIndex(cwd, { ttlMs: 60_000 });
 			expect(rebuilt.has("second.ts")).toBe(true);
 		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("skips unreadable directories during fallback indexing", async () => {
+		const cwd = await createTempWorkspace();
+		const unreadableDir = path.join(cwd, "private");
+		try {
+			await mkdir(unreadableDir, { recursive: true });
+			await writeFile(
+				path.join(cwd, "visible.ts"),
+				"export const ok = 1\n",
+				"utf8",
+			);
+			await writeFile(
+				path.join(unreadableDir, "hidden.ts"),
+				"export const hidden = 1\n",
+				"utf8",
+			);
+			await chmod(unreadableDir, 0o000);
+
+			await expect(
+				prewarmFileIndex(cwd, { ttlMs: 0 }),
+			).resolves.toBeUndefined();
+
+			const index = await getFileIndex(cwd, { ttlMs: 0 });
+			expect(index.has("visible.ts")).toBe(true);
+		} finally {
+			await chmod(unreadableDir, 0o755).catch(() => undefined);
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});

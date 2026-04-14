@@ -1,5 +1,6 @@
 import type {
 	AgentConfig,
+	BasicLogger,
 	ITelemetryService,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -70,6 +71,11 @@ export interface ClineCoreOptions {
 	 * If omitted, telemetry is a no-op.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Optional structured logger for core-side operational diagnostics such as
+	 * RPC backend startup, reuse, and fallback decisions.
+	 */
+	logger?: BasicLogger;
 	/**
 	 * Per-tool approval policies that control whether a tool runs automatically,
 	 * requires user confirmation, or is blocked entirely.

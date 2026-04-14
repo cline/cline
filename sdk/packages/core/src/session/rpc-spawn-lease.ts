@@ -10,7 +10,7 @@ import {
 import { dirname, resolve } from "node:path";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
 
-const DEFAULT_LEASE_TTL_MS = 15_000;
+const DEFAULT_LEASE_TTL_MS = 5_000;
 
 interface RpcSpawnLeaseRecord {
 	address: string;
@@ -22,6 +22,10 @@ export interface RpcSpawnLease {
 	path: string;
 	release: () => void;
 }
+
+const ACTIVE_LEASE_RELEASES = new Set<() => void>();
+const ACTIVE_LEASE_PATHS = new Set<string>();
+let EXIT_CLEANUP_REGISTERED = false;
 
 function encodeAddress(address: string): string {
 	return Buffer.from(address).toString("base64url");
@@ -52,17 +56,41 @@ function shouldClearLease(path: string, ttlMs: number): boolean {
 	try {
 		const raw = readFileSync(path, "utf8");
 		const parsed = JSON.parse(raw) as Partial<RpcSpawnLeaseRecord>;
+		const pid = Number(parsed.pid ?? 0);
 		const createdAt = Number(parsed.createdAt ?? 0);
+		if (pid === process.pid && !ACTIVE_LEASE_PATHS.has(path)) {
+			return true;
+		}
 		if (!Number.isFinite(createdAt) || createdAt <= 0) {
 			return true;
 		}
 		if (Date.now() - createdAt > ttlMs) {
 			return true;
 		}
-		return !isProcessAlive(Number(parsed.pid ?? 0));
+		return !isProcessAlive(pid);
 	} catch {
 		return true;
 	}
+}
+
+function cleanupActiveLeases(): void {
+	for (const release of [...ACTIVE_LEASE_RELEASES]) {
+		try {
+			release();
+		} catch {
+			// Best effort.
+		}
+	}
+}
+
+function registerExitCleanupOnce(): void {
+	if (EXIT_CLEANUP_REGISTERED) {
+		return;
+	}
+	EXIT_CLEANUP_REGISTERED = true;
+	process.once("exit", cleanupActiveLeases);
+	process.once("SIGINT", cleanupActiveLeases);
+	process.once("SIGTERM", cleanupActiveLeases);
 }
 
 export function tryAcquireRpcSpawnLease(
@@ -98,25 +126,31 @@ export function tryAcquireRpcSpawnLease(
 	}
 
 	let released = false;
+	const release = () => {
+		if (released) {
+			return;
+		}
+		released = true;
+		ACTIVE_LEASE_RELEASES.delete(release);
+		ACTIVE_LEASE_PATHS.delete(path);
+		try {
+			if (typeof fd === "number") {
+				closeSync(fd);
+			}
+		} catch {
+			// Best effort.
+		}
+		try {
+			rmSync(path, { force: true });
+		} catch {
+			// Best effort.
+		}
+	};
+	registerExitCleanupOnce();
+	ACTIVE_LEASE_RELEASES.add(release);
+	ACTIVE_LEASE_PATHS.add(path);
 	return {
 		path,
-		release: () => {
-			if (released) {
-				return;
-			}
-			released = true;
-			try {
-				if (typeof fd === "number") {
-					closeSync(fd);
-				}
-			} catch {
-				// Best effort.
-			}
-			try {
-				rmSync(path, { force: true });
-			} catch {
-				// Best effort.
-			}
-		},
+		release,
 	};
 }

@@ -1,12 +1,15 @@
 import { spawn } from "node:child_process";
-import { existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { closeSync, existsSync, mkdirSync, openSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
 import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
 import {
 	augmentNodeCommandForDebug,
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
-import { resolveSessionDataDir } from "@clinebot/shared/storage";
+import {
+	resolveClineDataDir,
+	resolveSessionDataDir,
+} from "@clinebot/shared/storage";
 import type { ClineCoreOptions } from "../ClineCore";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../telemetry/distinct-id";
@@ -14,6 +17,11 @@ import { DefaultSessionManager } from "./default-session-manager";
 import { FileSessionService } from "./file-session-service";
 import {
 	ensureRpcRuntimeAddress,
+	RPC_BUILD_ID_ENV,
+	RPC_DISCOVERY_PATH_ENV,
+	RPC_OWNER_ID_ENV,
+	RPC_STARTUP_LOCK_BYPASS_ENV,
+	type RpcOwnerContext,
 	resolveRpcOwnerContext,
 } from "./rpc-runtime-ensure";
 import { RpcCoreSessionService } from "./rpc-session-service";
@@ -43,20 +51,48 @@ async function reconcileDeadSessionsIfSupported(
 	await service.reconcileDeadSessions?.().catch(() => {});
 }
 
-function startRpcServerInBackground(address: string): void {
+function openRpcSidecarLogFile(): { fd: number; logPath: string } | undefined {
+	try {
+		const logPath = join(resolveClineDataDir(), "logs", "rpc-sidecar.log");
+		mkdirSync(dirname(logPath), { recursive: true });
+		return { fd: openSync(logPath, "a"), logPath };
+	} catch {
+		return undefined;
+	}
+}
+
+function startRpcServerInBackground(
+	address: string,
+	owner: RpcOwnerContext,
+	logger?: ClineCoreOptions["logger"],
+): void {
 	const lease = tryAcquireRpcSpawnLease(address);
 	if (!lease) {
+		logger?.log("RPC sidecar spawn skipped", {
+			address,
+			reason: "spawn_lease_unavailable",
+			severity: "warn",
+		});
 		return;
 	}
 	const launcher = process.execPath;
 	const entryArg = process.argv[1]?.trim();
 	if (!entryArg) {
 		lease.release();
+		logger?.error?.("RPC sidecar spawn aborted", {
+			address,
+			reason: "missing_process_entry_arg",
+		});
 		return;
 	}
 	const entry = resolve(process.cwd(), entryArg);
 	if (!existsSync(entry)) {
 		lease.release();
+		logger?.error?.("RPC sidecar spawn aborted", {
+			address,
+			reason: "entrypoint_missing",
+			entryPath: entry,
+		});
 		return;
 	}
 	const conditionsArg = process.execArgv.find((arg) =>
@@ -74,18 +110,50 @@ function startRpcServerInBackground(address: string): void {
 		],
 		{ debugRole: "rpc" },
 	);
-
-	const child = spawn(command[0] ?? launcher, command.slice(1), {
-		detached: true,
-		stdio: "ignore",
-		env: {
-			...withResolvedClineBuildEnv(process.env),
-			CLINE_NO_INTERACTIVE: "1",
-		},
+	const sidecarLog = openRpcSidecarLogFile();
+	logger?.log("Launching detached RPC sidecar", {
+		address,
+		command: command.join(" "),
+		commandArgs: command.slice(1),
+		executable: command[0] ?? launcher,
+		entryPath: entry,
 		cwd: process.cwd(),
+		logPath: sidecarLog?.logPath,
 	});
-	child.unref();
-	setTimeout(() => lease.release(), 10_000).unref();
+	try {
+		const child = spawn(command[0] ?? launcher, command.slice(1), {
+			detached: true,
+			stdio: sidecarLog ? ["ignore", sidecarLog.fd, sidecarLog.fd] : "ignore",
+			env: {
+				...withResolvedClineBuildEnv(process.env),
+				[RPC_STARTUP_LOCK_BYPASS_ENV]: "1",
+				[RPC_OWNER_ID_ENV]: owner.ownerId,
+				[RPC_BUILD_ID_ENV]: owner.buildId,
+				[RPC_DISCOVERY_PATH_ENV]: owner.discoveryPath,
+				CLINE_NO_INTERACTIVE: "1",
+			},
+			cwd: process.cwd(),
+		});
+		logger?.log("Detached RPC sidecar spawned", {
+			address,
+			childPid: child.pid,
+			logPath: sidecarLog?.logPath,
+		});
+		child.unref();
+		setTimeout(() => lease.release(), 10_000).unref();
+	} catch (error) {
+		lease.release();
+		logger?.error?.("RPC sidecar spawn failed", {
+			address,
+			logPath: sidecarLog?.logPath,
+			error,
+		});
+		throw error;
+	} finally {
+		if (sidecarLog) {
+			closeSync(sidecarLog.fd);
+		}
+	}
 }
 
 async function tryConnectRpcBackend(
@@ -134,6 +202,7 @@ export async function resolveSessionBackend(
 	const attempts = Math.max(1, options.rpc?.connectAttempts ?? 5);
 	const delayMs = Math.max(0, options.rpc?.connectDelayMs ?? 100);
 	const autoStartRpc = options.rpc?.autoStart !== false;
+	const logger = options.logger;
 
 	backendInitPromise = (async () => {
 		if (mode === "local") {
@@ -145,6 +214,7 @@ export async function resolveSessionBackend(
 		let address = requestedAddress;
 		const existingRpcBackend = await tryConnectRpcBackend(address);
 		if (existingRpcBackend) {
+			logger?.log("Connected to existing RPC session backend", { address });
 			cachedBackend = existingRpcBackend;
 			await reconcileDeadSessionsIfSupported(cachedBackend);
 			return cachedBackend;
@@ -156,20 +226,37 @@ export async function resolveSessionBackend(
 
 		if (autoStartRpc) {
 			try {
+				logger?.log("Ensuring RPC runtime for auto session backend", {
+					address,
+				});
 				const ensured = await ensureRpcRuntimeAddress(address, {
 					resolveOwner: () => resolveRpcOwnerContext({ ownerPrefix: "core" }),
-					spawnIfNeeded: (rpcAddress) => {
-						startRpcServerInBackground(rpcAddress);
+					spawnIfNeeded: (rpcAddress, owner) => {
+						startRpcServerInBackground(rpcAddress, owner, logger);
 					},
 				});
 				address = ensured.address;
-			} catch {
-				// Ignore launch failures and fall back to local backend.
+				logger?.log("RPC runtime ensure completed", {
+					requestedAddress,
+					address,
+					action: ensured.action,
+				});
+			} catch (error) {
+				logger?.error?.("RPC backend auto-start failed", {
+					address,
+					requestedAddress,
+					error,
+				});
 			}
 
 			for (let attempt = 0; attempt < attempts; attempt += 1) {
 				const rpcBackend = await tryConnectRpcBackend(address);
 				if (rpcBackend) {
+					logger?.log("Connected to ensured RPC session backend", {
+						address,
+						attempt: attempt + 1,
+						attempts,
+					});
 					cachedBackend = rpcBackend;
 					await reconcileDeadSessionsIfSupported(cachedBackend);
 					return cachedBackend;
@@ -180,6 +267,13 @@ export async function resolveSessionBackend(
 			}
 		}
 
+		logger?.log("Falling back to local session backend", {
+			requestedAddress,
+			address,
+			attempts,
+			delayMs,
+			severity: "warn",
+		});
 		cachedBackend = createLocalBackend();
 		await reconcileDeadSessionsIfSupported(cachedBackend);
 		return cachedBackend;

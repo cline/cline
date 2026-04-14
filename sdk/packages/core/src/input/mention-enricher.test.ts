@@ -82,4 +82,25 @@ describe("enrichPromptWithMentions", () => {
 			await rm(cwd, { recursive: true, force: true });
 		}
 	});
+
+	it("does not over-count totalBytes across multiple mentions", async () => {
+		const cwd = await createTempWorkspace();
+		try {
+			await writeFile(path.join(cwd, "a.ts"), "aaa", "utf8");
+			await writeFile(path.join(cwd, "b.ts"), "bbb", "utf8");
+			await writeFile(path.join(cwd, "c.ts"), "ccc", "utf8");
+
+			const result = await enrichPromptWithMentions(
+				"Use @a.ts @b.ts @c.ts",
+				cwd,
+				{ maxTotalBytes: 15, maxFiles: 5, maxFileBytes: 5 },
+			);
+
+			expect(result.mentions).toEqual(["a.ts", "b.ts", "c.ts"]);
+			expect(result.matchedFiles).toEqual(["a.ts", "b.ts", "c.ts"]);
+			expect(result.ignoredMentions).toEqual([]);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
 });

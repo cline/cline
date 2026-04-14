@@ -57,8 +57,14 @@ export async function cleanupMaterializedFiles(
 	}
 }
 
-function resolveMode(config: RpcChatStartSessionRequest): "act" | "plan" {
-	return config.mode === "plan" ? "plan" : "act";
+function resolveMode(
+	config: RpcChatStartSessionRequest,
+): "act" | "plan" | "yolo" {
+	return config.mode === "plan"
+		? "plan"
+		: config.mode === "yolo"
+			? "yolo"
+			: "act";
 }
 
 function resolveSessionCwd(config: RpcChatStartSessionRequest): string {
@@ -85,7 +91,7 @@ export async function buildSessionStartInput(input: {
 	initialMessages?: Llms.Message[];
 	hooks?: AgentHooks;
 }): Promise<{
-	mode: "act" | "plan";
+	mode: "act" | "plan" | "yolo";
 	sessionInput: Parameters<DefaultSessionManager["start"]>[0];
 }> {
 	const { config } = input;
@@ -97,7 +103,7 @@ export async function buildSessionStartInput(input: {
 		explicitSystemPrompt: config.systemPrompt,
 		providerId,
 		rules: config.rules,
-		mode: config.autoApproveTools ? "yolo" : mode,
+		mode,
 	});
 	const logger = createCliLoggerAdapter({
 		runtime: "rpc-runtime",

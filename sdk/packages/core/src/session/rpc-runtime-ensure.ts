@@ -233,20 +233,52 @@ function isProbeBlocked(error: unknown): boolean {
 	return isUnimplementedError(error) || isAuthenticationError(error);
 }
 
-async function hasRuntimeMethods(address: string): Promise<boolean> {
+function formatProbeError(error: unknown): string {
+	if (error instanceof Error && error.message.trim()) {
+		return error.message.trim();
+	}
+	return String(error);
+}
+
+type RuntimeMethodsProbeResult = {
+	available: boolean;
+	reason?: string;
+};
+
+async function probeRuntimeMethods(
+	address: string,
+): Promise<RuntimeMethodsProbeResult> {
 	const client = new RpcSessionClient({ address });
 	try {
 		try {
 			await client.stopRuntimeSession("__rpc_probe__");
 		} catch (error) {
-			if (isProbeBlocked(error)) return false;
+			if (isProbeBlocked(error)) {
+				return {
+					available: false,
+					reason: `runtime probe blocked (${formatProbeError(error)})`,
+				};
+			}
 		}
-		return true;
+		return { available: true };
 	} catch (error) {
-		return !isProbeBlocked(error);
+		if (isProbeBlocked(error)) {
+			return {
+				available: false,
+				reason: `runtime probe blocked (${formatProbeError(error)})`,
+			};
+		}
+		return {
+			available: false,
+			reason: `runtime probe failed (${formatProbeError(error)})`,
+		};
 	} finally {
 		client.close();
 	}
+}
+
+async function hasRuntimeMethods(address: string): Promise<boolean> {
+	return (await probeRuntimeMethods(address)).available;
 }
 
 export async function isCompatibleRuntime(address: string): Promise<boolean> {
@@ -256,6 +288,32 @@ export async function isCompatibleRuntime(address: string): Promise<boolean> {
 		isHealthCompatible(health) &&
 		(await hasRuntimeMethods(address))
 	);
+}
+
+async function describeRpcRuntimeReadinessFailure(
+	address: string,
+): Promise<string> {
+	let health: Awaited<ReturnType<typeof getRpcServerHealth>> | undefined;
+	try {
+		health = await getRpcServerHealth(address);
+	} catch (error) {
+		return `health probe failed (${formatProbeError(error)})`;
+	}
+	if (!health?.running) {
+		return "health probe reported no running server";
+	}
+	if (!isHealthCompatible(health)) {
+		const actualVersion =
+			typeof health.rpcVersion === "string" && health.rpcVersion.trim()
+				? health.rpcVersion.trim()
+				: "unknown";
+		return `protocol mismatch (expected=${RPC_PROTOCOL_VERSION}, actual=${actualVersion})`;
+	}
+	const runtimeProbe = await probeRuntimeMethods(address);
+	if (!runtimeProbe.available) {
+		return runtimeProbe.reason ?? "runtime methods unavailable";
+	}
+	return "runtime did not become compatible before readiness deadline";
 }
 
 async function isPortFree(host: string, port: number): Promise<boolean> {
@@ -506,7 +564,10 @@ export async function ensureRpcRuntimeAddress(
 			options.readinessCheck,
 		))
 	) {
-		throw new Error(`failed to ensure rpc runtime at ${resolved.address}`);
+		const reason = await describeRpcRuntimeReadinessFailure(resolved.address);
+		throw new Error(
+			`failed to ensure rpc runtime at ${resolved.address}: ${reason}`,
+		);
 	}
 	const health = await getRpcServerHealth(resolved.address);
 	await recordRpcDiscovery(resolved.owner, {

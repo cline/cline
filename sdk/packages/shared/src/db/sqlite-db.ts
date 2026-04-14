@@ -14,6 +14,9 @@ export type SqliteDb = {
 	close?: () => void;
 };
 
+const SQLITE_BUSY_RETRY_LIMIT = 3;
+const SQLITE_BUSY_RETRY_BASE_DELAY_MS = 50;
+
 export function nowIso(): string {
 	return new Date().toISOString();
 }
@@ -36,14 +39,68 @@ export function asBool(value: unknown): boolean {
 	return value === 1 || value === true;
 }
 
+function sleepMs(ms: number): void {
+	if (ms <= 0) {
+		return;
+	}
+	try {
+		const shared = new SharedArrayBuffer(4);
+		const array = new Int32Array(shared);
+		Atomics.wait(array, 0, 0, ms);
+	} catch {
+		// Best-effort backoff; skip sleeping if the runtime does not support it.
+	}
+}
+
+export function isSqliteBusyError(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const message =
+		"message" in error && typeof error.message === "string"
+			? error.message
+			: String(error);
+	const code =
+		"code" in error && typeof error.code === "string" ? error.code : "";
+	return (
+		code === "SQLITE_BUSY" ||
+		code === "SQLITE_LOCKED" ||
+		message.includes("SQLITE_BUSY") ||
+		message.includes("SQLITE_LOCKED") ||
+		message.includes("database is locked")
+	);
+}
+
+export function withSqliteBusyRetry<T>(operation: () => T): T {
+	let attempt = 0;
+	for (;;) {
+		try {
+			return operation();
+		} catch (error) {
+			if (!isSqliteBusyError(error) || attempt >= SQLITE_BUSY_RETRY_LIMIT) {
+				throw error;
+			}
+			attempt += 1;
+			sleepMs(SQLITE_BUSY_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1));
+		}
+	}
+}
+
 function wrapBunDb(db: {
 	query: (sql: string) => SqliteStatement;
 	exec: (sql: string) => void;
 	close?: () => void;
 }): SqliteDb {
 	return {
-		prepare: (sql) => db.query(sql),
-		exec: (sql) => db.exec(sql),
+		prepare: (sql) => {
+			const stmt = db.query(sql);
+			return {
+				run: (...params) => withSqliteBusyRetry(() => stmt.run(...params)),
+				get: (...params) => withSqliteBusyRetry(() => stmt.get(...params)),
+				all: (...params) => withSqliteBusyRetry(() => stmt.all(...params)),
+			};
+		},
+		exec: (sql) => withSqliteBusyRetry(() => db.exec(sql)),
 		close: () => db.close?.(),
 	};
 }
@@ -61,12 +118,13 @@ function wrapNodeDb(db: {
 		prepare: (sql) => {
 			const stmt = db.prepare(sql);
 			return {
-				run: (...params) => stmt.run(...params),
-				get: (...params) => stmt.get(...params) ?? null,
-				all: (...params) => stmt.all(...params),
+				run: (...params) => withSqliteBusyRetry(() => stmt.run(...params)),
+				get: (...params) =>
+					withSqliteBusyRetry(() => stmt.get(...params) ?? null),
+				all: (...params) => withSqliteBusyRetry(() => stmt.all(...params)),
 			};
 		},
-		exec: (sql) => db.exec(sql),
+		exec: (sql) => withSqliteBusyRetry(() => db.exec(sql)),
 		close: () => db.close?.(),
 	};
 }

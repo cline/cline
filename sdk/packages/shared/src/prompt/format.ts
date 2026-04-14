@@ -4,7 +4,7 @@ export function formatFileContentBlock(path: string, content: string): string {
 
 export function formatUserInputBlock(
 	input: string,
-	mode: "act" | "plan" = "act",
+	mode: "act" | "plan" | "yolo" = "act",
 ): string {
 	return `<user_input mode="${mode}">${input}</user_input>`;
 }

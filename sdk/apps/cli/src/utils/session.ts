@@ -22,17 +22,15 @@ import {
 	createInitialAccumulatedUsage,
 	RpcCoreSessionService,
 	resolveSessionBackend,
+	resolveSessionDataDir,
 	type SessionAccumulatedUsage,
 	type SessionBackend,
 	type SessionManifest,
 	SessionSource,
 } from "@clinebot/core";
-import {
-	getRpcServerDefaultAddress,
-	getRpcServerHealth,
-	RpcSessionClient,
-} from "@clinebot/rpc";
+import { getRpcServerDefaultAddress, RpcSessionClient } from "@clinebot/rpc";
 import { createCliLoggerAdapter } from "../logging/adapter";
+import { ensureCliRpcRuntimeAddress } from "./rpc-runtime";
 import { getCliTelemetryService } from "./telemetry";
 
 // ---------------------------------------------------------------------------
@@ -51,6 +49,11 @@ function resolveSessionBackendMode(): "auto" | "rpc" | "local" {
 	const raw = process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase();
 	if (raw === "rpc" || raw === "local") return raw;
 	return "auto";
+}
+
+export interface CliSessionBackendOptions {
+	forceLocalBackend?: boolean;
+	logger?: BasicLogger;
 }
 
 export interface CliSessionManager {
@@ -102,14 +105,17 @@ export interface CliSessionManager {
 // Backend resolution
 // ---------------------------------------------------------------------------
 
-async function getCoreSessions(): Promise<SessionBackend> {
+async function getCoreSessions(
+	options: CliSessionBackendOptions = {},
+): Promise<SessionBackend> {
 	const backendMode = resolveSessionBackendMode();
+	const forceLocalBackend = options.forceLocalBackend === true;
 
 	// Force local when VCR mode or explicit local override.
-	if (backendMode === "local" || process.env.CLINE_VCR) {
-		process.stderr.write("Forcing local in-process sessions\n");
+	if (forceLocalBackend || backendMode === "local" || process.env.CLINE_VCR) {
 		return resolveSessionBackend({
 			backendMode: "local",
+			logger: options.logger,
 			rpc: { autoStart: false },
 		});
 	}
@@ -121,56 +127,50 @@ async function getCoreSessions(): Promise<SessionBackend> {
 	) {
 		const address = resolveRpcAddress();
 		process.env.CLINE_RPC_ADDRESS = address;
-		return resolveSessionBackend({
-			backendMode: "rpc",
-			rpc: { address, autoStart: false },
+		return new RpcCoreSessionService({
+			address,
+			sessionsDir: resolveSessionDataDir(),
 		});
 	}
 
-	// Default auto path: probe the default RPC address first.
-	// If a server is already running, attach to it; otherwise fall back to local.
-	const defaultAddress = getRpcServerDefaultAddress();
-	try {
-		const health = await getRpcServerHealth(defaultAddress);
-		if (health?.running) {
-			process.env.CLINE_RPC_ADDRESS = defaultAddress;
-			return resolveSessionBackend({
-				backendMode: "rpc",
-				rpc: { address: defaultAddress, autoStart: false },
-			});
-		}
-	} catch {
-		// RPC probe failed — fall through to local.
-	}
-	return resolveSessionBackend({
-		backendMode: "local",
-		rpc: { autoStart: false },
+	const requestedAddress = resolveRpcAddress();
+	options.logger?.log("Ensuring RPC runtime for CLI session backend", {
+		address: requestedAddress,
 	});
-}
-
-export async function getCoreSessionBackend(): Promise<SessionBackend> {
-	return getCoreSessions();
-}
-
-export async function createDefaultCliSessionManager(options?: {
-	defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
-	toolPolicies?: AgentConfig["toolPolicies"];
-	logger?: BasicLogger;
-	requestToolApproval?: (
-		request: ToolApprovalRequest,
-	) => Promise<ToolApprovalResult>;
-}): Promise<CliSessionManager> {
-	const sessionBackend = await getCoreSessions();
-	if (sessionBackend instanceof RpcCoreSessionService) {
-		return createRpcRuntimeCliSessionManager(options, sessionBackend);
+	try {
+		const address = await ensureCliRpcRuntimeAddress(requestedAddress);
+		process.env.CLINE_RPC_ADDRESS = address;
+		options.logger?.log("Connected to ensured RPC session backend", {
+			requestedAddress,
+			address,
+		});
+		return new RpcCoreSessionService({
+			address,
+			sessionsDir: resolveSessionDataDir(),
+		});
+	} catch (error) {
+		options.logger?.error?.("RPC backend auto-start failed", {
+			address: requestedAddress,
+			requestedAddress,
+			error,
+		});
+		options.logger?.log("Falling back to local session backend", {
+			requestedAddress,
+			address: requestedAddress,
+			severity: "warn",
+		});
+		return resolveSessionBackend({
+			backendMode: "local",
+			logger: options.logger,
+			rpc: { autoStart: false },
+		});
 	}
-	return (await ClineCore.create({
-		sessionService: sessionBackend,
-		defaultToolExecutors: options?.defaultToolExecutors,
-		telemetry: getCliTelemetryService(options?.logger),
-		toolPolicies: options?.toolPolicies,
-		requestToolApproval: options?.requestToolApproval,
-	})) as CliSessionManager;
+}
+
+export async function getCoreSessionBackend(
+	options?: CliSessionBackendOptions,
+): Promise<SessionBackend> {
+	return getCoreSessions(options);
 }
 
 type StartSessionInput = Parameters<CliSessionManager["start"]>[0];
@@ -861,4 +861,35 @@ export async function getSessionRow(
 export async function getLatestSessionRow(): Promise<unknown | undefined> {
 	const rows = await (await getCoreSessions()).listSessions(1);
 	return rows[0];
+}
+
+export async function createDefaultCliSessionManager(options?: {
+	defaultToolExecutors?: Partial<import("@clinebot/core").ToolExecutors>;
+	toolPolicies?: AgentConfig["toolPolicies"];
+	logger?: BasicLogger;
+	forceLocalBackend?: boolean;
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult>;
+}): Promise<CliSessionManager> {
+	const sessionBackend = await getCoreSessions({
+		forceLocalBackend: options?.forceLocalBackend,
+		logger: options?.logger,
+	});
+	const backendType =
+		sessionBackend instanceof RpcCoreSessionService ? "rpc" : "local";
+	options?.logger?.log("CLI session backend selected", {
+		backendType,
+		forceLocalBackend: options?.forceLocalBackend === true,
+	});
+	if (sessionBackend instanceof RpcCoreSessionService) {
+		return createRpcRuntimeCliSessionManager(options, sessionBackend);
+	}
+	return (await ClineCore.create({
+		sessionService: sessionBackend,
+		defaultToolExecutors: options?.defaultToolExecutors,
+		telemetry: getCliTelemetryService(options?.logger),
+		toolPolicies: options?.toolPolicies,
+		requestToolApproval: options?.requestToolApproval,
+	})) as CliSessionManager;
 }

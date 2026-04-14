@@ -1,18 +1,10 @@
-import { spawn } from "node:child_process";
 import {
 	clearRpcDiscoveryIfAddressMatches,
 	createSqliteRpcSessionBackend,
-	ensureRpcRuntimeAddress as ensureSharedRpcRuntimeAddress,
 	type ResolveRpcRuntimeResult,
-	RPC_BUILD_ID_ENV,
-	RPC_DISCOVERY_PATH_ENV,
-	RPC_OWNER_ID_ENV,
-	RPC_STARTUP_LOCK_BYPASS_ENV,
 	type RpcOwnerContext,
 	recordRpcDiscovery,
 	resolveEnsuredRpcRuntime,
-	resolveRpcOwnerContext,
-	tryAcquireRpcSpawnLease,
 	withRpcStartupLock,
 } from "@clinebot/core";
 import {
@@ -23,17 +15,14 @@ import {
 	startRpcServer,
 	stopRpcServer,
 } from "@clinebot/rpc";
-import {
-	CLINE_DEFAULT_RPC_ADDRESS,
-	withResolvedClineBuildEnv,
-} from "@clinebot/shared";
+import { CLINE_DEFAULT_RPC_ADDRESS } from "@clinebot/shared";
 import { Command } from "commander";
 import { createCliLoggerAdapter } from "../logging/adapter";
-import { logSpawnedProcess } from "../logging/process";
 import {
-	buildCliSubcommandCommand,
-	resolveCliLaunchSpec,
-} from "../utils/internal-launch";
+	ensureCliRpcRuntime,
+	ensureCliRpcRuntimeAddress,
+	resolveCurrentCliRpcOwnerContext,
+} from "../utils/rpc-runtime";
 import { createRpcRuntimeHandlers } from "./rpc-runtime";
 
 const c = {
@@ -68,70 +57,14 @@ function parseMetaEntries(entries: string[]): Record<string, string> {
 	return metadata;
 }
 
-function resolveRpcEntrypoint(): string | undefined {
-	return resolveCliLaunchSpec()?.identityPath;
-}
-
 function resolveCurrentRpcOwnerContext(): RpcOwnerContext {
-	return resolveRpcOwnerContext({
-		discoveryPath: process.env[RPC_DISCOVERY_PATH_ENV]?.trim(),
-		identityPath: resolveRpcEntrypoint(),
-		ownerId: process.env[RPC_OWNER_ID_ENV]?.trim(),
-		ownerPrefix: "cli",
-	});
-}
-
-// ---------------------------------------------------------------------------
-// Detached spawn & readiness
-// ---------------------------------------------------------------------------
-
-function spawnRpcStartDetached(address: string, owner: RpcOwnerContext): void {
-	const lease = tryAcquireRpcSpawnLease(address);
-	if (!lease) return;
-
-	const command = buildCliSubcommandCommand("rpc", [
-		"start",
-		"--address",
-		address,
-	]);
-	if (!command) {
-		lease.release();
-		throw new Error("unable to resolve CLI entrypoint for detached rpc start");
-	}
-	const child = spawn(command.launcher, command.childArgs, {
-		detached: true,
-		stdio: "ignore",
-		env: {
-			...withResolvedClineBuildEnv(process.env),
-			[RPC_STARTUP_LOCK_BYPASS_ENV]: "1",
-			[RPC_OWNER_ID_ENV]: owner.ownerId,
-			[RPC_BUILD_ID_ENV]: owner.buildId,
-			[RPC_DISCOVERY_PATH_ENV]: owner.discoveryPath,
-		},
-		cwd: process.cwd(),
-	});
-	logSpawnedProcess({
-		component: "rpc",
-		command: [command.launcher, ...command.childArgs],
-		childPid: child.pid ?? undefined,
-		detached: true,
-		cwd: process.cwd(),
-		metadata: { rpcAddress: address, purpose: "rpc.start.background" },
-	});
-	child.unref();
-	setTimeout(() => lease.release(), 10_000).unref();
+	return resolveCurrentCliRpcOwnerContext();
 }
 
 export async function ensureRpcRuntimeAddress(
 	requestedAddress: string,
 ): Promise<string> {
-	const ensured = await ensureSharedRpcRuntimeAddress(requestedAddress, {
-		resolveOwner: resolveCurrentRpcOwnerContext,
-		spawnIfNeeded: (address, owner) => {
-			spawnRpcStartDetached(address, owner);
-		},
-	});
-	return ensured.address;
+	return ensureCliRpcRuntimeAddress(requestedAddress);
 }
 
 // ---------------------------------------------------------------------------
@@ -168,12 +101,7 @@ export async function runRpcEnsureCommand(
 	const { address: requestedAddress, json: jsonOutput } = options;
 	let ensured: ResolveRpcRuntimeResult | undefined;
 	try {
-		ensured = await ensureSharedRpcRuntimeAddress(requestedAddress, {
-			resolveOwner: resolveCurrentRpcOwnerContext,
-			spawnIfNeeded: (address, owner) => {
-				spawnRpcStartDetached(address, owner);
-			},
-		});
+		ensured = await ensureCliRpcRuntime(requestedAddress);
 	} catch (error) {
 		writeErr(error instanceof Error ? error.message : String(error));
 		return 1;
