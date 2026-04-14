@@ -24,6 +24,7 @@ export class ClineApiServerMock {
 	private userBalance = 100.5 // Default sufficient balance
 	private orgBalance = 500.0
 	private userHasOrganization = false
+	private spendLimitExceeded = false
 	public generationCounter = 0
 
 	public readonly API_USER = new ClineDataMock("personal")
@@ -47,6 +48,16 @@ export class ClineApiServerMock {
 
 	public setOrgBalance(balance: number) {
 		this.orgBalance = balance
+	}
+
+	/**
+	 * Puts the mock server into "spend limit exceeded" mode.
+	 * While true, POST /api/v1/chat/completions returns 429 SPEND_LIMIT_EXCEEDED
+	 * instead of a normal streaming response.
+	 * Toggle off to resume normal behaviour.
+	 */
+	public setSpendLimitExceeded(exceeded: boolean) {
+		this.spendLimitExceeded = exceeded
 	}
 
 	public setCurrentUser(user: UserResponse | null) {
@@ -369,8 +380,35 @@ export class ClineApiServerMock {
 						})
 					}
 
+					// Budget limit increase request endpoint
+					if (endpoint === "/users/me/budget/request" && method === "POST") {
+						log("Spend limit increase request received — recording and notifying admin")
+						res.writeHead(204)
+						res.end()
+						return
+					}
+
 					// Chat completions endpoint
 					if (endpoint === "/chat/completions" && method === "POST") {
+						// Spend limit check takes priority — org-enforced budget cap (429)
+						if (controller.spendLimitExceeded) {
+							log("Returning SPEND_LIMIT_EXCEEDED (429)")
+							return sendJson(
+								{
+									error: {
+										code: "SPEND_LIMIT_EXCEEDED",
+										limit_scope: "user",
+										budget_period: "daily",
+										limit_usd: 20.0,
+										spent_usd: 20.5,
+										resets_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+										message: "Your daily spend limit of $20.00 has been reached.",
+									},
+								},
+								429,
+							)
+						}
+
 						if (!controller.userHasOrganization && controller.userBalance <= 0) {
 							return sendApiError(
 								JSON.stringify({
@@ -535,6 +573,15 @@ export class ClineApiServerMock {
 						const body = await readBody()
 						const { balance } = JSON.parse(body)
 						controller.setOrgBalance(balance)
+						res.writeHead(200)
+						res.end()
+						return
+					}
+
+					if (endpoint === "/setSpendLimitExceeded" && method === "POST") {
+						const body = await readBody()
+						const { exceeded } = JSON.parse(body)
+						controller.setSpendLimitExceeded(!!exceeded)
 						res.writeHead(200)
 						res.end()
 						return
