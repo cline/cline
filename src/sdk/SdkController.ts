@@ -240,7 +240,8 @@ export class Controller {
 				this.handleSessionEvent(event)
 			})
 
-			// Build start input
+			// Build start input — NO prompt, so start() returns immediately
+			// (session creation only, no inference yet)
 			const startInput = buildStartSessionInput(config, {
 				prompt: task,
 				images,
@@ -251,8 +252,8 @@ export class Controller {
 				mode,
 			})
 
-			// Start the session
-			Logger.log("[SdkController] Starting session...")
+			// Start the session (returns immediately since no prompt)
+			Logger.log("[SdkController] Starting session (no prompt — fast return)...")
 			const startResult = await core.start(startInput)
 
 			// Track the active session
@@ -294,10 +295,57 @@ export class Controller {
 			// Post state update
 			await this.postStateToWebview()
 
+			// Now send the prompt to start inference (fire-and-forget).
+			// core.send() blocks until the agent turn completes, but events
+			// stream in real-time via the subscription we set up above.
+			// We do NOT await this — the gRPC handler needs to return immediately.
+			if (task?.trim()) {
+				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
+				core.send({
+					sessionId: startResult.sessionId,
+					prompt: task,
+					userImages: images,
+					userFiles: files,
+				})
+					.then(() => {
+						Logger.log(`[SdkController] Agent turn completed for session: ${startResult.sessionId}`)
+						if (this.activeSession) {
+							this.activeSession.isRunning = false
+						}
+						this.postStateToWebview().catch((err) => {
+							Logger.error("[SdkController] Failed to post state after turn:", err)
+						})
+					})
+					.catch((error) => {
+						Logger.error("[SdkController] Agent turn failed:", error)
+						this.emitSessionEvents(
+							[
+								{
+									ts: Date.now(),
+									type: "say",
+									say: "error",
+									text: `Agent error: ${error instanceof Error ? error.message : String(error)}`,
+									partial: false,
+								},
+							],
+							{ type: "status", payload: { sessionId: startResult.sessionId, status: "error" } },
+						)
+						if (this.activeSession) {
+							this.activeSession.isRunning = false
+						}
+						this.postStateToWebview().catch(() => {})
+					})
+			}
+
 			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
 			return startResult.sessionId
 		} catch (error) {
-			Logger.error("[SdkController] Failed to init task:", error)
+			const errorDetails =
+				error instanceof Error ? `${error.name}: ${error.message}\n${error.stack?.substring(0, 500)}` : String(error)
+			Logger.error(`[SdkController] Failed to init task: ${errorDetails}`)
+			// Store error for debugging
+			;(globalThis as any).__cline_last_init_error = errorDetails
+			;(globalThis as any).__cline_last_init_error_raw = error
 			this.emitSessionEvents(
 				[
 					{
@@ -462,6 +510,11 @@ export class Controller {
 	/**
 	 * Send a follow-up message to the active session.
 	 * This is the "askResponse" equivalent — continues the conversation.
+	 *
+	 * Like initTask(), this is fire-and-forget: core.send() blocks until
+	 * the agent turn completes, but events stream in real-time via the
+	 * subscription. We do NOT await the send — the gRPC handler needs to
+	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		if (!this.activeSession) {
@@ -469,38 +522,50 @@ export class Controller {
 			return
 		}
 
-		try {
-			const { core, sessionId } = this.activeSession
-			this.activeSession.isRunning = true
+		const { core, sessionId } = this.activeSession
+		this.activeSession.isRunning = true
 
-			// Reset translator state for new turn
-			this.messageTranslatorState.reset()
+		// Reset translator state for new turn
+		this.messageTranslatorState.reset()
 
-			// Send the follow-up message
-			await core.send({
-				sessionId,
-				prompt: prompt ?? "",
-				userImages: images,
-				userFiles: files,
+		// Fire-and-forget: send the follow-up message without awaiting.
+		// Events stream in real-time via the subscription.
+		core.send({
+			sessionId,
+			prompt: prompt ?? "",
+			userImages: images,
+			userFiles: files,
+		})
+			.then(() => {
+				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
+				if (this.activeSession) {
+					this.activeSession.isRunning = false
+				}
+				this.postStateToWebview().catch((err) => {
+					Logger.error("[SdkController] Failed to post state after askResponse turn:", err)
+				})
+			})
+			.catch((error) => {
+				Logger.error("[SdkController] Failed to send message:", error)
+				this.emitSessionEvents(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Failed to send message: ${error instanceof Error ? error.message : String(error)}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId, status: "error" } },
+				)
+				if (this.activeSession) {
+					this.activeSession.isRunning = false
+				}
+				this.postStateToWebview().catch(() => {})
 			})
 
-			await this.postStateToWebview()
-			Logger.log(`[SdkController] Message sent to session: ${sessionId}`)
-		} catch (error) {
-			Logger.error("[SdkController] Failed to send message:", error)
-			this.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "error",
-						text: `Failed to send message: ${error instanceof Error ? error.message : String(error)}`,
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId: this.activeSession?.sessionId ?? "", status: "error" } },
-			)
-		}
+		Logger.log(`[SdkController] Message sent (fire-and-forget) to session: ${sessionId}`)
 	}
 
 	/**
