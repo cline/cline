@@ -186,6 +186,22 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(runtime.tools).toEqual([]);
 	});
 
+	it("omits tools disabled by policy from the advertised runtime tool list", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				toolPolicies: {
+					run_commands: { enabled: false },
+					read_files: { enabled: false },
+				},
+			}),
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("run_commands");
+		expect(names).not.toContain("read_files");
+		expect(names).toContain("search_codebase");
+	});
+
 	it("adds spawn tool when enabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({

@@ -51,6 +51,29 @@ type SkillsExecutorWithMetadata = SkillsExecutor & {
 	configuredSkills?: SkillsExecutorMetadataItem[];
 };
 
+function isToolEnabledByPolicies(
+	toolName: string,
+	toolPolicies: CoreSessionConfig["toolPolicies"],
+): boolean {
+	const globalPolicy = toolPolicies?.["*"] ?? {};
+	const toolPolicy = toolPolicies?.[toolName] ?? {};
+	return (
+		{
+			...globalPolicy,
+			...toolPolicy,
+		}.enabled !== false
+	);
+}
+
+function filterToolsByPolicies(
+	tools: Tool[],
+	toolPolicies: CoreSessionConfig["toolPolicies"],
+): Tool[] {
+	return tools.filter((tool) =>
+		isToolEnabledByPolicies(tool.name, toolPolicies),
+	);
+}
+
 export function createTeamName(): string {
 	return `team-${nanoid(5)}`;
 }
@@ -62,6 +85,7 @@ function createBuiltinToolsList(
 	yolo: boolean | undefined,
 	modelId: string,
 	toolRoutingRules: ToolRoutingRule[] | undefined,
+	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 ): Tool[] {
@@ -73,20 +97,23 @@ function createBuiltinToolsList(
 		toolRoutingRules ?? DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	);
 
-	return createBuiltinTools({
-		cwd,
-		...preset,
-		enableSkills: !!skillsExecutor,
-		...toolRoutingConfig,
-		executors: {
-			...(skillsExecutor
-				? {
-						skills: skillsExecutor,
-					}
-				: {}),
-			...(executorOverrides ?? {}),
-		},
-	});
+	return filterToolsByPolicies(
+		createBuiltinTools({
+			cwd,
+			...preset,
+			enableSkills: !!skillsExecutor,
+			...toolRoutingConfig,
+			executors: {
+				...(skillsExecutor
+					? {
+							skills: skillsExecutor,
+						}
+					: {}),
+				...(executorOverrides ?? {}),
+			},
+		}),
+		toolPolicies,
+	);
 }
 
 const SKILL_FILE_NAME = "SKILL.md";
@@ -497,6 +524,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					normalized.yolo,
 					config.modelId,
 					config.toolRoutingRules,
+					config.toolPolicies,
 					skillsExecutor,
 					defaultToolExecutors,
 				),
@@ -624,6 +652,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									normalized.yolo,
 									config.modelId,
 									config.toolRoutingRules,
+									config.toolPolicies,
 									skillsExecutor,
 									defaultToolExecutors,
 								)
@@ -689,7 +718,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			: undefined;
 
 		return {
-			tools,
+			tools: filterToolsByPolicies(tools, config.toolPolicies),
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,

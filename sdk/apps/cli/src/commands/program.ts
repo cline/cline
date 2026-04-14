@@ -11,6 +11,15 @@ function collect(value: string, previous: string[]): string[] {
 	return previous.concat(value);
 }
 
+function expandToolOptionValues(values: string[]): string[] {
+	return values.flatMap((value) =>
+		value
+			.split(",")
+			.map((part) => part.trim())
+			.filter(Boolean),
+	);
+}
+
 function normalizeAutoApproveValue(
 	value: string | boolean | undefined,
 ): string {
@@ -238,26 +247,20 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	}
 
 	// Tool policies
-	const toolEnable: string[] = opts.toolEnable ?? [];
-	const toolDisable: string[] = opts.toolDisable ?? [];
+	const toolEnable = expandToolOptionValues(opts.toolEnable ?? []);
+	const toolDisable = expandToolOptionValues(opts.toolDisable ?? []);
 
 	for (const name of toolEnable) {
-		const trimmed = name.trim();
-		if (trimmed) {
-			result.toolPolicies[trimmed] = {
-				...(result.toolPolicies[trimmed] ?? {}),
-				enabled: true,
-			};
-		}
+		result.toolPolicies[name] = {
+			...(result.toolPolicies[name] ?? {}),
+			enabled: true,
+		};
 	}
 	for (const name of toolDisable) {
-		const trimmed = name.trim();
-		if (trimmed) {
-			result.toolPolicies[trimmed] = {
-				...(result.toolPolicies[trimmed] ?? {}),
-				enabled: false,
-			};
-		}
+		result.toolPolicies[name] = {
+			...(result.toolPolicies[name] ?? {}),
+			enabled: false,
+		};
 	}
 
 	// Positional args → prompt

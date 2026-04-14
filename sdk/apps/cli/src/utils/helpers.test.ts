@@ -137,6 +137,21 @@ describe("parseArgs", () => {
 		expect(parsed.toolPolicies).toEqual({});
 	});
 
+	it("splits comma-separated tool policy flags", () => {
+		const parsed = parseArgs([
+			"--tool-enable",
+			"search_codebase,fetch_web_content",
+			"--tool-disable",
+			"run_commands,read_files",
+		]);
+		expect(parsed.toolPolicies).toEqual({
+			search_codebase: { enabled: true },
+			fetch_web_content: { enabled: true },
+			run_commands: { enabled: false },
+			read_files: { enabled: false },
+		});
+	});
+
 	it("parses --autoapprove false as global approval-off", () => {
 		const parsed = parseArgs([
 			"--autoapprove",
