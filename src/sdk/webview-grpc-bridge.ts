@@ -28,12 +28,27 @@ import type { SessionEventListener } from "./SdkController"
  * 3. Pushes them through the subscribeToPartialMessage gRPC stream
  * 4. Pushes state updates through the subscribeToState gRPC stream
  *    on significant events (turn complete, session ended)
+ *
+ * The bridge needs access to the controller's getStateToPostToWebview()
+ * method to push state updates that include the current task's messages
+ * and task history. Without this, state updates would have empty messages.
  */
 export class WebviewGrpcBridge {
 	private translatorState: MessageTranslatorState
+	/** Function to get the full ExtensionState from the controller */
+	private getStateFn?: () => Promise<import("@shared/ExtensionMessage").ExtensionState>
 
 	constructor(translatorState: MessageTranslatorState) {
 		this.translatorState = translatorState
+	}
+
+	/**
+	 * Set the function used to get ExtensionState for state updates.
+	 * This should be called after the controller is fully initialized,
+	 * passing `controller.getStateToPostToWebview.bind(controller)`.
+	 */
+	setGetStateFn(fn: () => Promise<import("@shared/ExtensionMessage").ExtensionState>): void {
+		this.getStateFn = fn
 	}
 
 	/**
@@ -80,21 +95,32 @@ export class WebviewGrpcBridge {
 	/**
 	 * Push a state update to the webview via the subscribeToState stream.
 	 * This is called on significant events (turn complete, session ended).
+	 *
+	 * Uses the controller's getStateToPostToWebview() when available,
+	 * which includes the current task's messages and task history.
+	 * Falls back to a minimal state update without task data.
 	 */
 	private async pushStateUpdate(): Promise<void> {
 		try {
-			// Import dynamically to avoid circular deps
-			const { getStateToPostToWebview } = await import("@core/controller/state/getStateToPostToWebview")
-			const { StateManager } = await import("@core/storage/StateManager")
-			const stateManager = StateManager.get()
-			const state = await getStateToPostToWebview({
-				task: undefined, // Will be populated by the controller
-				stateManager,
-				mcpHub: undefined,
-				backgroundCommandRunning: false,
-				backgroundCommandTaskId: undefined,
-			})
-			await sendStateUpdate(state)
+			if (this.getStateFn) {
+				// Use the controller's getStateToPostToWebview() which
+				// includes messages, currentTaskItem, and task history
+				const state = await this.getStateFn()
+				await sendStateUpdate(state)
+			} else {
+				// Fallback: build a minimal state without task data
+				const { getStateToPostToWebview } = await import("@core/controller/state/getStateToPostToWebview")
+				const { StateManager } = await import("@core/storage/StateManager")
+				const stateManager = StateManager.get()
+				const state = await getStateToPostToWebview({
+					task: undefined,
+					stateManager,
+					mcpHub: undefined,
+					backgroundCommandRunning: false,
+					backgroundCommandTaskId: undefined,
+				})
+				await sendStateUpdate(state)
+			}
 		} catch (error) {
 			Logger.error("[WebviewGrpcBridge] Failed to push state update:", error)
 		}

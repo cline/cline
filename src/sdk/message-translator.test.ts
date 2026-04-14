@@ -196,7 +196,10 @@ describe("translateSessionEvent — agent_event content_start", () => {
 		expect(result.messages).toHaveLength(1)
 		expect(result.messages[0].say).toBe("tool")
 		expect(result.messages[0].partial).toBe(true)
-		expect(result.messages[0].text).toContain("read_files")
+		// sdkToolToClineSayTool converts "read_files" → "readFile" and
+		// the text is JSON.stringify(ClineSayTool)
+		expect(result.messages[0].text).toContain("readFile")
+		expect(result.messages[0].text).toContain("/src/index.ts")
 	})
 })
 
@@ -258,10 +261,13 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		}
 
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
+		// Error produces two messages: the tool message + an error message
+		expect(result.messages).toHaveLength(2)
 		expect(result.messages[0].say).toBe("tool")
-		expect(result.messages[0].text).toContain("Error: Command not found")
 		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].say).toBe("error")
+		expect(result.messages[1].text).toBe("Command not found")
+		expect(result.messages[1].partial).toBe(false)
 	})
 
 	it("translates tool content_end with output", () => {
@@ -282,7 +288,9 @@ describe("translateSessionEvent — agent_event content_end", () => {
 
 		const result = translateSessionEvent(event, state)
 		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].text).toContain("Result:")
+		// Tool content_end produces a ClineSayTool JSON with the tool name
+		expect(result.messages[0].say).toBe("tool")
+		expect(result.messages[0].text).toContain("readFile")
 		expect(result.messages[0].partial).toBe(false)
 	})
 })
@@ -595,7 +603,7 @@ describe("translateSessionEvent — agent_event notice", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event content_update", () => {
-	it("translates tool content_update to partial tool message", () => {
+	it("skips tool content_update (webview uses content_start partial until content_end)", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -611,11 +619,11 @@ describe("translateSessionEvent — agent_event content_update", () => {
 			},
 		}
 
+		// content_update is intentionally not forwarded to the webview —
+		// the content_start message with partial=true is sufficient until
+		// content_end finalizes it. This avoids flooding the webview.
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].say).toBe("tool")
-		expect(result.messages[0].partial).toBe(true)
-		expect(result.messages[0].text).toContain("execute_command")
+		expect(result.messages).toHaveLength(0)
 	})
 })
 
