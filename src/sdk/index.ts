@@ -5,6 +5,8 @@
 // The webview continues to communicate via gRPC; this layer translates
 // between gRPC handlers and SDK calls.
 
+export * from "./account-service"
+export * from "./auth-service"
 export * from "./cline-session-factory"
 export * from "./legacy-state-reader"
 export * from "./message-translator"

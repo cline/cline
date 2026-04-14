@@ -79,10 +79,10 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement each method in its corresponding step.
 
 ### S1-2: Services not initialized (mcpHub, authService, etc.)
-- **Status**: 🟡 Minor
-- **Description**: The SdkController sets `mcpHub`, `accountService`, `authService`, `ocaAuthService` to `undefined`. Handler modules that access these will throw "not available" errors at runtime.
-- **Root cause**: Services will be properly initialized in Steps 6-7.
-- **Fix**: Wire up services as part of their respective migration steps.
+- **Status**: 🟡 Minor (partially resolved)
+- **Description**: The SdkController now initializes `authService`, `ocaAuthService`, and `accountService` (Step 6). Only `mcpHub` remains as `undefined` — will be wired in Step 7.
+- **Root cause**: MCP hub will be properly initialized in Step 7.
+- **Fix**: Auth and account services wired in Step 6. MCP hub pending Step 7.
 
 ### S1-3: Extension loads but sidebar shows errors
 - **Status**: 🟢 Verified Fixed
@@ -135,6 +135,66 @@ underlying patterns that caused them are relevant.
 - **Description**: `ClineExtensionContext` doesn't have a `workspaceRoot` property. The SdkController falls back to `process.cwd()` for the session's working directory. In VSCode, the workspace root is available from the VSCode extension context but not from the shared `ClineExtensionContext` type.
 - **Root cause**: The shared context type was designed for CLI/ACP use and doesn't include VSCode-specific workspace info.
 - **Fix**: Add workspace root resolution in the host-specific initialization (VSCode host, CLI host) and pass it to the SdkController.
+
+### Step 6: Auth & Account Flows — Completed
+
+- **Status**: 🔵 Awaiting Verification
+- **Description**: SDK-backed auth and account services implemented. `src/sdk/auth-service.ts` replaces classic `src/services/auth/AuthService.ts`, using `@clinebot/core` OAuth functions (`loginClineOAuth`, `loginOcaOAuth`, `loginOpenAICodex`, `refreshClineToken`) for login flows while maintaining compatibility with the existing gRPC handler interface. `src/sdk/account-service.ts` replaces classic `src/services/account/ClineAccountService.ts`, making authenticated API requests using the SDK-backed AuthService for token management. The SdkController now initializes `authService`, `ocaAuthService`, and `accountService` in its constructor and restores auth state from secrets on startup. gRPC handlers (`accountLoginClicked`, `accountLogoutClicked`, `subscribeToAuthStatusUpdate`, `openAiCodexSignIn`, `openAiCodexSignOut`) now import from `@/sdk/auth-service` instead of the classic `@/services/auth/AuthService`. The `extension.ts` secrets listener also imports from the new location.
+- **Key design decisions**:
+  - Auth info persisted in `secrets.json` under `cline:clineAccountId` (same key as classic)
+  - Tokens stored with `workos:` prefix for API compatibility
+  - Token refresh uses SDK's `refreshClineToken()` with automatic retry and error recovery
+  - Cross-window auth sync via secrets change listener preserved
+  - Codex credentials stored via SDK's `ProviderSettingsManager`
+  - `handleAuthCallback()` supports URI-handler-based OAuth flow (code exchange)
+  - Streaming subscriptions push initial auth state immediately (prevents race condition)
+- **Verification**: 20 unit tests pass in `src/sdk/auth-service.test.ts`. TypeScript compiles with 0 new errors. Tests cover: singleton pattern, auth state management, organization lookup, token persistence (read/write/clear), logout flow, workos: prefix handling, streaming subscriptions, and auth restoration on startup.
+- **Evidence**: All tests pass on 2026-04-14. `npx tsc --noEmit` returns only pre-existing errors (none in `src/sdk/`).
+
+### S6-1: Auth login flow not yet verified end-to-end
+- **Status**: 🔵 Awaiting Verification
+- **Description**: The SDK-backed `loginClineOAuth()` flow has not been tested with a real browser OAuth flow. The classic flow used Firebase custom token exchange; the SDK flow uses a local callback server. Need to verify: (1) browser opens correctly, (2) callback server receives the code, (3) tokens are exchanged and persisted, (4) webview shows authenticated state.
+- **Root cause**: Requires debug harness + real Cline account.
+- **Fix**: Test with debug harness using `ui.send_message` to trigger login flow.
+- **Verification**: Debug harness `ui.screenshot` after login should show user avatar/credits.
+
+### S6-2: OCA and Codex OAuth flows not yet verified
+- **Status**: 🔵 Awaiting Verification
+- **Description**: `ocaLogin()` and `openAiCodexLogin()` delegate to SDK functions but haven't been tested end-to-end. The Codex flow stores credentials via `ProviderSettingsManager` instead of the classic `openAiCodexOAuthManager`.
+- **Root cause**: Requires real OAuth providers.
+- **Fix**: Manual testing with debug harness.
+
+### S6-3: MCP OAuth callback stubbed
+- **Status**: 🟡 Minor
+- **Description**: `handleMcpOAuthCallback()` is stubbed — will be implemented in Step 7 (MCP Integration).
+- **Root cause**: MCP integration is Step 7.
+- **Fix**: Implement in Step 7.
+
+### S6-5: Sending messages does not start inference
+- **Status**: 🔴 Blocker
+- **Description**: When the user types a message and hits Enter (or clicks Send), nothing happens. The `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, but inference doesn't start. Possible causes: (1) provider config not correctly resolved from `ProviderSettingsManager`, (2) the SDK session doesn't have the right credentials, (3) the send button may be disabled because the webview thinks no provider is configured.
+- **Root cause**: The `initTask()` → `ClineCore.start()` path hasn't been tested end-to-end. The provider config resolution in `cline-session-factory.ts` may not correctly pass Cline provider credentials from the new AuthService to the SDK.
+- **Fix**: Debug the `initTask()` flow — check that `buildSessionConfig()` produces a valid config with the right API key, and that `ClineCore.start()` doesn't silently fail.
+- **Verification**: Send a message via debug harness `ui.send_message`, check extension host console for errors.
+
+### S6-6: Clicking historical chat items does nothing
+- **Status**: 🔴 Blocker
+- **Description**: Clicking on a task in the history view doesn't load the task's messages. `showTaskWithId()` creates a TaskProxy but doesn't load the actual messages from disk. The webview shows an empty chat.
+- **Root cause**: `showTaskWithId()` in SdkController only creates a TaskProxy and posts state — it doesn't load the task's `ui_messages.json` or `api_conversation_history.json` from disk. The classic Controller loaded these through the Task class.
+- **Fix**: Implement message loading in `showTaskWithId()` — read the task's messages from `~/.cline/data/tasks/{taskId}/` and push them to the webview via the gRPC bridge.
+- **Verification**: Click a history item, verify messages appear in the chat view.
+
+### S6-7: Credits/payment history don't load immediately on startup
+- **Status**: 🟡 Minor
+- **Description**: After login, the available tokens and payment history don't appear immediately. They show up after clicking refresh. This is a timing issue — the first `getStateToPostToWebview()` call may happen before the auth token is fully restored.
+- **Root cause**: Race condition between auth restoration and initial state push.
+- **Fix**: Ensure `restoreRefreshTokenAndRetrieveAuthInfo()` completes before the first state push, or trigger a re-fetch after auth restoration completes.
+
+### S6-4: Provider-specific OAuth callbacks (OpenRouter, Requesty, Hicap) stubbed
+- **Status**: 🟡 Minor
+- **Description**: `handleOpenRouterCallback()`, `handleRequestyCallback()`, `handleHicapCallback()` are stubbed. These are less commonly used and can be implemented when needed.
+- **Root cause**: Lower priority — Cline OAuth is the primary flow.
+- **Fix**: Implement when provider-specific OAuth is needed.
 
 <!-- Template:
 ### [ID] Title
