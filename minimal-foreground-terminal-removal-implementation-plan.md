@@ -802,23 +802,23 @@ By the end of the work, the team should ideally have:
 
 ### Planning
 
-- [ ] Create a fresh branch from `main`
-- [ ] Write down the exact semantic definition of "remove foreground terminal" for the branch
+- [x] Create a fresh branch from `main`
+- [x] Write down the exact semantic definition of "remove foreground terminal" for the branch
 - [ ] Confirm which remaining terminal settings still map to real runtime behavior
 
 ### Inventory
 
-- [ ] Audit foreground-specific UI
-- [ ] Audit foreground-specific state and controller plumbing
-- [ ] Audit foreground-specific runtime branches
-- [ ] Classify files as remove / simplify / leave alone
+- [x] Audit foreground-specific UI
+- [x] Audit foreground-specific state and controller plumbing
+- [x] Audit foreground-specific runtime branches
+- [x] Classify files as remove / simplify / leave alone
 
 ### Implementation
 
-- [ ] Remove foreground mode UI
+- [x] Remove foreground mode UI
 - [ ] Remove foreground mode state persistence
 - [ ] Remove controller update paths for terminal mode
-- [ ] Simplify command execution routing
+- [x] Simplify command execution routing
 - [ ] Remove dead foreground-only runtime code
 - [ ] Apply only essential compatibility fixes
 

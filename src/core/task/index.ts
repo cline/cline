@@ -283,7 +283,6 @@ export class Task {
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
 			defaultTerminalProfile,
-			vscodeTerminalExecutionMode,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -317,20 +316,10 @@ export class Task {
 		this.clineIgnoreController = new ClineIgnoreController(cwd)
 		this.commandPermissionController = new CommandPermissionController()
 		this.taskLockAcquired = taskLockAcquired
-		// Determine terminal execution mode and create appropriate terminal manager
-		this.terminalExecutionMode = vscodeTerminalExecutionMode || "vscodeTerminal"
-
-		// When backgroundExec mode is selected, use StandaloneTerminalManager for hidden execution
-		// Otherwise, use the HostProvider's terminal manager (VSCode terminal in VSCode, standalone in CLI)
-		if (this.terminalExecutionMode === "backgroundExec") {
-			// Import StandaloneTerminalManager for background execution
-			this.terminalManager = new StandaloneTerminalManager()
-			Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for backgroundExec mode`)
-		} else {
-			// Use the host-provided terminal manager (VSCode terminal in VSCode environment)
-			this.terminalManager = HostProvider.get().createTerminalManager()
-			Logger.info(`[Task ${taskId}] Using HostProvider terminal manager for vscodeTerminal mode`)
-		}
+		// Foreground terminal mode has been removed; all task commands now use background execution.
+		this.terminalExecutionMode = "backgroundExec"
+		this.terminalManager = new StandaloneTerminalManager()
+		Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for command execution`)
 		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
