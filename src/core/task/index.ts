@@ -542,6 +542,9 @@ export class Task {
 					files: result.files,
 				}
 			},
+			resolvePendingAsk: (response) => {
+				void this.handleWebviewAskResponse(response as ClineAskResponse)
+			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
 			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
