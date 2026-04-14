@@ -244,6 +244,8 @@ message Settings {
   optional string telemetry_setting = 133;
   optional bool plan_act_separate_models_setting = 134;
   optional bool enable_checkpoints_setting = 135;
+  reserved 136; // was shell_integration_timeout
+  reserved 137; // was default_terminal_profile
   optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
   optional bool strict_plan_mode_enabled = 141;

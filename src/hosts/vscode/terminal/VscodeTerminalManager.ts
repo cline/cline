@@ -99,7 +99,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private terminalIds: Set<number> = new Set()
 	private processes: Map<number, VscodeTerminalProcess> = new Map()
 	private disposables: vscode.Disposable[] = []
-	private shellIntegrationTimeout = 4000
 	private terminalReuseEnabled = true
 	private terminalOutputLineLimit = 500
 
@@ -202,10 +201,10 @@ export class VscodeTerminalManager implements ITerminalManager {
 		} else {
 			// docs recommend waiting 3s for shell integration to activate
 			Logger.log(
-				`[TerminalManager Test] Waiting for shell integration for terminal ${vscodeTerminalInfo.id} with timeout ${this.shellIntegrationTimeout}ms`,
+				`[TerminalManager Test] Waiting for shell integration for terminal ${vscodeTerminalInfo.id} with timeout 4000ms`,
 			)
 			pWaitFor(() => vscodeTerminalInfo.terminal.shellIntegration !== undefined, {
-				timeout: this.shellIntegrationTimeout,
+				timeout: 4000,
 			})
 				.then(() => {
 					Logger.log(
