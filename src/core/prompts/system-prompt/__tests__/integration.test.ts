@@ -23,7 +23,10 @@ import * as path from "node:path"
 import { expect } from "chai"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { ModelFamily } from "@/shared/prompts"
+import { ClineDefaultTool } from "@/shared/tools"
 import { getSystemPrompt } from "../index"
+import { PromptRegistry } from "../registry/PromptRegistry"
+import { SystemPromptSection } from "../templates/placeholders"
 import type { SystemPromptContext } from "../types"
 
 // ============================================================================
@@ -299,6 +302,50 @@ describe("Prompt System Integration Tests", () => {
 						const snapshotName = `${providerId}_${modelId.replace(/[^a-zA-Z0-9]/g, "_")}-parallel-tools.snap`
 						await assertSnapshot(snapshotName, systemPrompt)
 					})
+				})
+			}
+		})
+
+		describe("Hardcoded TOOL_USE drift guard", () => {
+			const toolNameByKey: Partial<Record<ClineDefaultTool, string>> = {
+				[ClineDefaultTool.USE_SUBAGENTS]: "use_subagents",
+				[ClineDefaultTool.USE_SKILL]: "use_skill",
+			}
+
+			const driftGuardCases = [
+				{ modelId: "glm-4.6", providerId: "zai" },
+				{ modelId: "hermes-4", providerId: "test" },
+				{ modelId: "qwen3_coder", providerId: "lmstudio" },
+			]
+
+			for (const { modelId, providerId } of driftGuardCases) {
+				it(`should include key tool docs in rendered prompt for ${providerId}/${modelId}`, async () => {
+					const context: SystemPromptContext = {
+						...baseContext,
+						providerInfo: makeProviderInfo(modelId, providerId),
+						enableNativeToolCalls: false,
+					}
+					const registry = PromptRegistry.getInstance()
+					const variant = registry.getVariant(context)
+					const toolUseTemplate = variant.componentOverrides[SystemPromptSection.TOOL_USE]?.template
+
+					expect(toolUseTemplate).to.exist
+
+					const renderedToolUse = typeof toolUseTemplate === "function" ? toolUseTemplate(context) : toolUseTemplate
+					expect(renderedToolUse).to.be.a("string")
+					expect(renderedToolUse).to.not.include("{{TOOLS_SECTION}}")
+
+					const configuredKeyTools = (variant.tools ?? []).filter(
+						(tool) => tool === ClineDefaultTool.USE_SUBAGENTS || tool === ClineDefaultTool.USE_SKILL,
+					)
+					expect(configuredKeyTools.length).to.be.greaterThan(0)
+
+					const { systemPrompt } = await getSystemPrompt(context)
+					for (const keyTool of configuredKeyTools) {
+						const toolName = toolNameByKey[keyTool]
+						expect(toolName).to.be.a("string")
+						expect(systemPrompt).to.include(`**${toolName}**`)
+					}
 				})
 			}
 		})

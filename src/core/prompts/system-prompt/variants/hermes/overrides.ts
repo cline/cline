@@ -101,6 +101,13 @@ Param: context (Current Work; Key Concepts; Relevant Files/Code; Problem Solving
 <context>context to preload new task with</context>
 </new_task>
 
+**use_skill** — Load and activate a skill by exact name. Use this once when the request matches one of the listed skills.
+Params: skill_name.
+*Example:*
+<use_skill>
+<skill_name>skill name here</skill_name>
+</use_skill>
+
 **plan_mode_respond** — PLAN-only reply.
 Params: response, needs_more_exploration (optional).
 Include options/trade-offs when helpful, ask if plan matches, then add the exact mode-switch line.
