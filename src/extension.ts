@@ -48,8 +48,7 @@ import { VscodeWebviewProvider } from "./hosts/vscode/VscodeWebviewProvider"
 import { exportVSCodeStorageToSharedFiles } from "./hosts/vscode/vscode-to-file-migration"
 import { StandaloneTerminalManager } from "./integrations/terminal/standalone/StandaloneTerminalManager"
 import { ExtensionRegistryInfo } from "./registry"
-import { AuthService } from "./services/auth/AuthService"
-import { LogoutReason } from "./services/auth/types"
+import { AuthService, LogoutReason } from "./sdk/auth-service"
 import { telemetryService } from "./services/telemetry"
 import { SharedUriHandler, TASK_URI_PATH } from "./services/uri/SharedUriHandler"
 import { ShowMessageType } from "./shared/proto/host/window"
@@ -87,7 +86,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 	// Initialize hook discovery cache for performance optimization
 	HookDiscoveryCache.getInstance().initialize(
-		context as any, // Adapt VSCode ExtensionContext to generic interface
+		// biome-ignore lint/suspicious/noExplicitAny: Adapt VSCode ExtensionContext to generic interface
+		context as any,
 		(dir: string) => {
 			try {
 				const pattern = new vscode.RelativePattern(dir, "*")
@@ -189,7 +189,7 @@ export async function activate(context: vscode.ExtensionContext) {
 				Logger.log("[Cline Dev] Dev mode activated & dev commands registered")
 			})
 			.catch((error) => {
-				Logger.log("[Cline Dev] Failed to register dev commands: " + error)
+				Logger.log(`[Cline Dev] Failed to register dev commands: ${error}`)
 			})
 	}
 
@@ -701,6 +701,6 @@ async function cleanupLegacyVSCodeStorage(context: ExtensionContext): Promise<vo
 
 		Logger.info("[VS Code Storage Migrations] Completed")
 	} catch (error) {
-		Logger.warn("[VS Code Storage Migrations] Failed" + (error instanceof Error ? `: ${error.message}` : ""))
+		Logger.warn(`[VS Code Storage Migrations] Failed${error instanceof Error ? `: ${error.message}` : ""}`)
 	}
 }
