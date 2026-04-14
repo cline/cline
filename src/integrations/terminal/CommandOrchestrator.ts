@@ -135,12 +135,10 @@ export async function orchestrateCommandExecution(
 
 	const releaseAnyPendingCommandOutputAsk = () => {
 		const release = releasePendingCommandOutputAsk
-		if (release) {
-			callbacks.resolvePendingAsk?.("messageResponse")
-		}
 		if (!release) {
 			return
 		}
+		callbacks.resolvePendingAsk?.("messageResponse")
 		release()
 	}
 
