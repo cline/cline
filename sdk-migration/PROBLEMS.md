@@ -171,11 +171,18 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement in Step 7.
 
 ### S6-5: Sending messages does not start inference
-- **Status**: 🔵 Awaiting Verification
-- **Description**: When the user types a message and hits Enter (or clicks Send), nothing happens. The `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, but inference doesn't start.
-- **Root cause**: `buildSessionConfig()` in `cline-session-factory.ts` only read from the SDK's `ProviderSettingsManager`, which may not have any providers configured yet (providers.json may not exist). The classic StateManager's `buildApiHandlerSettings()` was not used as a fallback.
-- **Fix**: Updated `buildSessionConfig()` to try SDK's ProviderSettingsManager first, then fall back to classic StateManager's `buildApiHandlerSettings()` which correctly resolves provider/model/apiKey for the current mode (plan/act). This ensures credentials from globalState.json + secrets.json are used when the SDK's providers.json doesn't exist yet.
-- **Verification**: Send a message via debug harness `ui.send_message`, check extension host console for provider resolution logs.
+- **Status**: 🔴 Blocker
+- **Description**: When the user types a message and hits Enter (or clicks Send), nothing happens. The `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, but inference doesn't start. This affects both the debug harness and the production VSCode launch configuration.
+- **Root cause**: **Both credential resolution paths in `buildSessionConfig()` fail silently:**
+  1. **Path 1 — SDK ProviderSettingsManager**: The "cline" provider in `~/.cline/data/settings/providers.json` has `tokenSource: "oauth"` but an **empty `apiKey`** field. The OAuth token lives in `secrets.json` as `cline:clineAccountId` (a JSON object with `idToken`), but the SDK's migration never extracted it into the `apiKey` field. The check `if (lastUsed?.provider && lastUsed?.apiKey)` fails because `apiKey` is falsy.
+  2. **Path 2 — Classic StateManager fallback**: Calls `stateManager.buildApiHandlerSettings(mode)` which **does not exist** on StateManager. TypeScript confirms: `error TS2339: Property 'buildApiHandlerSettings' does not exist on type 'StateManager'`. esbuild doesn't type-check so the build succeeds, but at runtime this throws `TypeError: stateManager.buildApiHandlerSettings is not a function`, caught silently by the try/catch.
+  3. **Result**: Both paths fail → defaults to `providerId: "anthropic"`, `apiKey: ""` → API call fails with empty key.
+- **Additional issue**: `SdkController.initTask()` awaits `core.start(startInput)` which blocks until the first agent turn completes, holding up the gRPC response to the webview. Even if credentials were correct, the webview would appear frozen until the first turn finishes.
+- **Fix needed**:
+  1. **Credential resolution**: Port the `resolveApiKey()` and `resolveModelId()` functions from `sdk-migration-fri` branch's `cline-session-factory.ts`. These functions read directly from `ApiConfiguration` (which includes secrets from `StateManager.constructApiConfigurationFromCache()`) and handle the "cline" provider specially: extract `idToken` from `cline:clineAccountId` JSON, add `workos:` prefix. They also map all 30+ providers to their correct API key field names.
+  2. **Non-blocking session start**: Call `start({ interactive: true })` WITHOUT a `prompt`. This creates the session and returns immediately — `DefaultSessionManager.start()` at line 411 checks `if (startInput.prompt?.trim())` and skips `runTurn()` when there's no prompt. Then call `send({ sessionId, prompt })` to run the first turn. The `send()` blocks but events stream in real-time via `subscribe()`. The gRPC `newTask` handler should: (a) push the task message to the UI immediately, (b) `await start()` (fast — just creates session, returns session ID), (c) fire-and-forget `send()` (blocks in background, events stream to webview). This cleanly separates session creation from inference. Confirmed working by SDK's own e2e test (`default-session-manager.e2e.test.ts` lines 324-346).
+- **Verification**: Send a message via debug harness `ui.send_message`, check extension host console for provider resolution logs showing a non-empty API key.
+- **Reference**: `sdk-migration-fri:src/sdk/cline-session-factory.ts` lines 156-230 (`resolveApiKey()`, `resolveModelId()`)
 
 ### S6-6: Clicking historical chat items does nothing
 - **Status**: 🔵 Awaiting Verification
@@ -195,6 +202,128 @@ underlying patterns that caused them are relevant.
 - **Description**: `handleOpenRouterCallback()`, `handleRequestyCallback()`, `handleHicapCallback()` are stubbed. These are less commonly used and can be implemented when needed.
 - **Root cause**: Lower priority — Cline OAuth is the primary flow.
 - **Fix**: Implement when provider-specific OAuth is needed.
+
+### S6-8: Debug harness loads extension in "local" environment (brown logo)
+- **Status**: 🟡 Minor
+- **Description**: When run via the debug harness, the extension appears in "local" environment mode (brown Cline logo) instead of "production" mode (white-on-black logo). The production VSCode launch configuration works correctly.
+- **Root cause**: `src/dev/debug-harness/server.ts:370` hardcodes `CLINE_ENVIRONMENT: "local"` in the environment variables passed to the extension host.
+- **Fix needed**: Change to `"production"` or make it configurable via a CLI flag (e.g., `--environment production`).
+- **Verification**: Launch debug harness, take screenshot, verify logo is white-on-black.
+
+### S6-9: DefaultSessionManager has multiple CLI-oriented assumptions
+- **Status**: 🟡 Minor (anticipated, multiple sub-issues)
+- **Description**: `DefaultSessionManager` was designed primarily for the SDK's CLI (`clite`) and has several assumptions that don't fit the VSCode extension context. These are all addressable through the constructor options or by wrapping/catching, but must be accounted for:
+
+  **a) Hardcoded "clite" in OAuth error messages** (`default-session-manager.ts:1377`):
+  `syncOAuthCredentials()` throws `Run "clite auth ${error.providerId}" and retry.` when OAuth re-auth is needed. Meaningless in VSCode.
+  **Mitigation**: Provide a custom `oauthTokenManager` that handles re-auth through the extension's login flow, or catch this error in SdkController and show a login button.
+
+  **b) Session source defaults to `SessionSource.CLI`** (line 199):
+  Every session is tagged as `"cli"` in telemetry and session manifests. VSCode sessions should be tagged differently.
+  **Mitigation**: Pass `source: SessionSource.VSCODE` (or equivalent) in `StartSessionInput`. Check if `SessionSource` has a VSCode variant; if not, use a custom string.
+
+  **c) OAuth token manager uses `ProviderSettingsManager` for token storage** (lines 185-190):
+  The default `RuntimeOAuthTokenManager` reads/writes tokens via `ProviderSettingsManager` (`providers.json`). The VSCode extension stores OAuth tokens in `secrets.json` under `cline:clineAccountId`. The default manager won't find them.
+  **Mitigation**: Provide a custom `oauthTokenManager` that reads from the extension's `secrets.json` / `StateManager`.
+
+  **d) `providerSettingsManager` defaults to reading `providers.json`** (lines 183-184):
+  `buildResolvedProviderConfig()` (line 268) uses this to resolve provider config including `knownModels` and `reasoningSettings`. If the extension's credentials aren't in `providers.json`, this resolution may produce incomplete config.
+  **Mitigation**: Provide a custom `providerSettingsManager` or ensure `providers.json` is kept in sync.
+
+  **e) `start()` and `send()` block until the agent turn completes** (lines 411-420, 437-475):
+  Both methods are blocking — they return only after the agent finishes its turn. Events stream in real-time via `subscribe()`, but the calling code is blocked. This is fine for CLI but problematic for gRPC handlers that need to return immediately.
+  **Mitigation**: Fire-and-forget the `start()`/`send()` calls (don't await in the gRPC handler), or run them in a background task. The `sdk-migration-fri` branch awaits them but pushes UI state before calling.
+
+  **f) Tools are built once per session — no mid-session tool list changes** (line 296-318):
+  `runtimeBuilder.build()` is called once at session start. The resulting `runtime.tools` array plus `config.extraTools` are merged and passed to the agent. There is no mechanism to add/remove tools from the array mid-session.
+
+  **Important distinction — tool policies vs tool list:**
+  - **Tool policies** (`toolPolicies: Record<string, ToolPolicy>`) control whether each tool is `enabled` and `autoApprove`d. The CLI mutates the policies object in-place mid-session and the agent sees changes on the next tool call. The VSCode auto-approve settings dialog maps to **policy changes**, which ARE supported natively.
+  - **Tool list** (the actual `Tool[]` array) is static after `build()`. Adding/removing MCP servers mid-session requires changing this array, which is NOT supported.
+
+  **Mitigation for auto-approve toggles**: Use `toolPolicies` mutation or `requestToolApproval` callback — both work mid-session.
+
+  **Mitigation for MCP tool list changes**: The SDK supports `initialMessages` on `start()`, which pre-loads conversation history into a new session. The Tauri desktop app (`apps/code/host/runtime-bridge.ts`) already uses this pattern for checkpoint restoration. When MCP servers change mid-session: (1) stop the current session, (2) read its messages via `readMessages(sessionId)`, (3) start a new session with `initialMessages` set to those messages + the updated MCP tool list. The agent continues seamlessly. This is simpler and more robust than dynamic tool wrappers.
+
+  **g) No mechanism for IDE-specific tool executors at the `DefaultSessionManager` level**:
+  The `defaultToolExecutors` option (line 310) allows overriding how builtin tools execute (e.g., `bash`, `editor`). This IS the extensibility point for IDE-specific behavior like using VSCode's integrated terminal. However, the executor interface is defined by the SDK and may not cover all VSCode-specific needs (e.g., diff view, browser session).
+  **Mitigation**: Investigate the `ToolExecutors` interface to see what's overridable. For tools not covered, use `extraTools` to provide custom implementations.
+
+- **Root cause**: The SDK was designed as a host-agnostic runtime. The `DefaultSessionManager` provides sensible defaults for CLI use, but VSCode integration requires overriding several of these defaults. All fields are `private readonly` — the class cannot be subclassed. `ClineCore.create()` always creates a `DefaultSessionManager` internally via `createSessionHost()` — there's no way to inject a custom `SessionHost`.
+
+- **Architecture decision — Wrapper vs Fork vs Direct Use:**
+
+  **Option A: Direct use of `ClineCore.create()`** — Cannot customize `source`, cannot intercept OAuth errors. ❌ Insufficient.
+
+  **Option B: Fork `DefaultSessionManager`** — Write a `VscodeSessionManager` (1516 lines to maintain). Full control but high maintenance burden. Reserve as fallback.
+
+  **Option C (Recommended): Wrapper around `DefaultSessionManager`** — Construct `DefaultSessionManager` directly (it's exported), pass all custom options, then wrap it in a thin `VscodeSessionHost` that implements `SessionManager`:
+  - Intercepts `start()` to inject `source: "vscode"`
+  - Provides custom `oauthTokenManager` that reads from `secrets.json`/`StateManager` and triggers VSCode login UI on re-auth (preventing the "clite" error path entirely — `syncOAuthCredentials` only throws the "clite" message when `OAuthReauthRequiredError` is caught, so if our custom manager handles re-auth differently, that code path is never reached)
+  - Provides custom `runtimeBuilder` for MCP (see S6-10)
+  - Provides `requestToolApproval` for VSCode approval UI
+  - Provides `defaultToolExecutors` for IDE-specific behavior
+  - Catches and translates any remaining errors from `send()`/`start()` into VSCode-appropriate signals
+
+  The wrapper is ~50-100 lines. If we hit walls where internal behavior can't be intercepted at the boundary, escalate to Option B.
+
+- **Fix needed**: Create `src/sdk/vscode-session-host.ts` with the following custom components:
+
+  **1. `VscodeSessionHost` (wrapper, ~50-100 lines)**
+  - Implements `SessionManager` interface (13 methods: `start`, `send`, `abort`, `stop`, `dispose`, `get`, `list`, `delete`, `readMessages`, `readTranscript`, `readHooks`, `subscribe`, `getAccumulatedUsage`)
+  - Delegates all methods to an inner `DefaultSessionManager`
+  - Intercepts `start()` to inject `source: "vscode"` (or check `SessionSource` enum for a VSCode variant)
+  - Catches errors from `start()`/`send()` and translates OAuth re-auth errors into VSCode-friendly signals (e.g., emit an event that triggers the login UI)
+
+  **2. `VscodeOAuthTokenManager` (custom `oauthTokenManager`, ~50 lines)**
+  - Implements `RuntimeOAuthTokenManager` interface (check `packages/core/src/session/` for the interface)
+  - `resolveProviderApiKey({ providerId, forceRefresh })`: reads OAuth tokens from `secrets.json` via `StateManager.get().getSecretKey("cline:clineAccountId")`, extracts `idToken`, adds `workos:` prefix
+  - On re-auth failure: instead of throwing `OAuthReauthRequiredError` (which triggers the "clite" message), emit a signal/event that the SdkController can use to show the VSCode login UI
+  - This prevents the "clite" error path in `syncOAuthCredentials` from ever being reached
+
+  **3. `VscodeRuntimeBuilder` (custom `runtimeBuilder`, ~100 lines)**
+  - Implements `RuntimeBuilder` interface (`build(config): { tools: Tool[], shutdown: () => void, ... }`)
+  - For builtin tools: delegate to `DefaultRuntimeBuilder`
+  - For MCP tools: read currently-connected servers from `McpHub`, convert to SDK `Tool[]` format
+  - See S6-10 for full MCP integration details
+
+  **4. `requestToolApproval` callback (~30 lines)**
+  - Receives `ToolApprovalRequest` with `toolName`, `input`, `policy`
+  - If `policy.autoApprove` is true: return `{ approved: true }` immediately
+  - Otherwise: emit an event to the webview showing the approval dialog, await user response
+  - Return `{ approved: boolean, reason?: string }`
+
+  **5. Wire into `SdkController`:**
+  - Replace `ClineCore.create()` with direct `DefaultSessionManager` construction + `VscodeSessionHost` wrapper
+  - Pass `VscodeOAuthTokenManager`, `VscodeRuntimeBuilder`, `requestToolApproval`, `defaultToolExecutors`
+  - Use `VscodeSessionHost.subscribe()` for event streaming to the webview
+
+  **Reference**: `DefaultSessionManager` constructor options at `packages/core/src/session/default-session-manager.ts:138-151`. `SessionManager` interface at `packages/core/src/session/session-manager.ts:57-73`. `RuntimeOAuthTokenManager` in `packages/core/src/session/`. `RuntimeBuilder` interface in `packages/core/src/runtime/`.
+
+### S6-10: DefaultRuntimeBuilder loads MCP tools once — no file watching
+- **Status**: 🔴 Blocker (anticipated)
+- **Description**: The SDK's `DefaultRuntimeBuilder.loadConfiguredMcpTools()` reads MCP settings from `CLINE_MCP_SETTINGS_PATH` (or default path) **once** at session start. It creates an `InMemoryMcpManager`, connects all servers, and returns tools. There is **no file watching** — changes to the MCP settings file after session start are not detected.
+- **Root cause**: The SDK's MCP integration was designed for CLI/batch use where sessions are short-lived. The VSCode extension's `McpHub` watches the settings file, supports dynamic connect/disconnect, provides real-time server status to the webview, and supports the MCP Marketplace.
+- **Impact**: Users cannot add/remove/restart MCP servers without restarting the extension. MCP server status in the webview will be stale. MCP Marketplace installs won't take effect until next session.
+- **Fix needed**: Two-layer approach:
+  1. **McpHub stays as the lifecycle manager**: Keep the classic `McpHub` for file watching, dynamic connect/disconnect, server status UI, and MCP Marketplace. It manages the MCP settings file and server connections independently of the SDK session.
+  2. **Custom RuntimeBuilder bridges McpHub → SDK tools**: At session start, a custom `RuntimeBuilder` reads the currently-connected MCP servers from `McpHub` and converts them to SDK `Tool[]` format. For builtin tools (editor, bash, etc.), delegate to `DefaultRuntimeBuilder`.
+  3. **Session restart on MCP tool list changes**: When `McpHub` detects that MCP servers have been added or removed (file watcher fires), and there's an active session: (a) stop the current session, (b) read its messages via `readMessages(sessionId)`, (c) start a new session with `initialMessages` set to those messages. The new session's `RuntimeBuilder.build()` will pick up the updated MCP tool list from `McpHub`. The Tauri desktop app (`apps/code/host/runtime-bridge.ts`) already uses this `initialMessages` pattern for checkpoint restoration.
+
+     **History deduplication caveat**: A session restart creates a new session ID. The old session's persisted data stays on disk, which would create a duplicate entry in the task history list. The Tauri desktop app avoids this via its "threads" abstraction — the UI tracks threads, not raw sessions, and updates the thread's session reference. For the VSCode extension, we need to either: (a) delete the old session's history entry when restarting, (b) mark it as "superseded" and filter it from the history view, or (c) reuse the same task ID / history entry and just swap the underlying session. Option (c) is cleanest — the `SdkController` already maintains a `currentTaskItem` that maps to the history view; on restart, keep the same task item and just update the internal session reference.
+  4. **No session restart needed for MCP tool policy changes**: If the user just toggles auto-approve for an MCP tool, that's a `toolPolicies` mutation — no session restart required.
+- **Reference**: Classic extension's `McpHub` in `src/services/mcp/McpHub.ts`; SDK's `InMemoryMcpManager` in `packages/core/src/extensions/mcp/`; Tauri desktop's session restart pattern in `apps/code/host/runtime-bridge.ts`
+
+### S6-11: Credential caching from classic extension may not work
+- **Status**: 🔴 Blocker
+- **Description**: A key requirement of the SDK migration is that users should NOT need to log in again — cached credentials from the classic extension (`globalState.json` + `secrets.json`) should be reused. This branch's `buildSessionConfig()` attempts this via two paths, but **both fail** (see S6-5). The `sdk-migration-fri` branch solved this with custom `resolveApiKey()` / `resolveModelId()` functions that read directly from `StateManager.constructApiConfigurationFromCache()` and handle all provider-specific key mappings including the "cline" provider's OAuth token extraction.
+- **Root cause**: The SDK's `ProviderSettingsManager` auto-migration does not correctly extract OAuth tokens for the "cline" provider. The `providers.json` entry has `tokenSource: "oauth"` but an empty `apiKey`. The fallback to `stateManager.buildApiHandlerSettings()` calls a method that doesn't exist.
+- **Fix needed**: Replace the broken credential resolution in `buildSessionConfig()` with the working approach from `sdk-migration-fri`:
+  1. Read `ApiConfiguration` from `StateManager.constructApiConfigurationFromCache()` (or equivalent)
+  2. Use a `resolveApiKey(provider, config)` function that handles all providers, especially "cline" (extract `idToken` from `cline:clineAccountId` JSON, add `workos:` prefix)
+  3. Use a `resolveModelId(provider, modePrefix, config)` function that maps provider-specific model ID keys
+- **Verification**: After fix, `buildSessionConfig()` should log a non-empty API key for the "cline" provider when `secrets.json` contains a valid `cline:clineAccountId` entry.
+- **Reference**: `sdk-migration-fri:src/sdk/cline-session-factory.ts` lines 156-280
 
 <!-- Template:
 ### [ID] Title
