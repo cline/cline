@@ -232,21 +232,24 @@ export const e2e = test
 			await use(async (workspacePath: string) => {
 				// Create isolated Cline data directory for this test
 				const clineTestDir = mkdtempSync(path.join(os.tmpdir(), "cline-e2e-"))
+				const launchEnv = {
+					...process.env,
+					TEMP_PROFILE: "true",
+					E2E_TEST: "true",
+					CLINE_ENVIRONMENT: "local",
+					CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
+					GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
+					// GRPC_RECORDER_ENABLED: "true",
+					// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
+					// IS_DEV: "true",
+					// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
+				}
+
+				delete launchEnv.ELECTRON_RUN_AS_NODE
 
 				const app = await _electron.launch({
 					executablePath,
-					env: {
-						...process.env,
-						TEMP_PROFILE: "true",
-						E2E_TEST: "true",
-						CLINE_ENVIRONMENT: "local",
-						CLINE_DIR: clineTestDir, // Isolate test data from user's ~/.cline
-						GRPC_RECORDER_FILE_NAME: E2ETestHelper.generateTestFileName(testInfo.title, testInfo.project.name),
-						// GRPC_RECORDER_ENABLED: "true",
-						// GRPC_RECORDER_TESTS_FILTERS_ENABLED: "true"
-						// IS_DEV: "true",
-						// DEV_WORKSPACE_FOLDER: E2ETestHelper.CODEBASE_ROOT_DIR,
-					},
+					env: launchEnv,
 					recordVideo: {
 						dir: E2ETestHelper.getResultsDir(testInfo.title, "recordings"),
 					},
