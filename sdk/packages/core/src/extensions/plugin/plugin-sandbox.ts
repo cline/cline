@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { AgentConfig, HookStage, Tool } from "@clinebot/shared";
 import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
+import type { PluginLoadDiagnostics } from "./plugin-load-report";
 
 export interface PluginSandboxOptions {
 	pluginPaths: string[];
@@ -31,6 +32,7 @@ type SandboxedContributionDescriptor = {
 
 type SandboxedPluginDescriptor = {
 	pluginId: string;
+	pluginPath: string;
 	name: string;
 	manifest: AgentExtension["manifest"];
 	contributions: {
@@ -42,6 +44,10 @@ type SandboxedPluginDescriptor = {
 		providers: SandboxedContributionDescriptor[];
 	};
 };
+
+type SandboxedInitializeResult = {
+	plugins: SandboxedPluginDescriptor[];
+} & PluginLoadDiagnostics;
 
 function isUnknownPluginIdError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
@@ -153,10 +159,12 @@ function withTimeoutFallback(
 
 export async function loadSandboxedPlugins(
 	options: PluginSandboxOptions,
-): Promise<{
-	extensions: AgentConfig["extensions"];
-	shutdown: () => Promise<void>;
-}> {
+): Promise<
+	{
+		extensions: AgentConfig["extensions"];
+		shutdown: () => Promise<void>;
+	} & PluginLoadDiagnostics
+> {
 	const sandbox = new SubprocessSandbox({
 		name: "plugin-sandbox",
 		...("file" in BOOTSTRAP
@@ -187,9 +195,9 @@ export async function loadSandboxedPlugins(
 		return reinitPromise;
 	};
 
-	let descriptors: SandboxedPluginDescriptor[];
+	let initialized: SandboxedInitializeResult;
 	try {
-		descriptors = await sandbox.call<SandboxedPluginDescriptor[]>(
+		initialized = await sandbox.call<SandboxedInitializeResult>(
 			"initialize",
 			initArgs,
 			{ timeoutMs: importTimeoutMs },
@@ -200,6 +208,7 @@ export async function loadSandboxedPlugins(
 		});
 		throw error;
 	}
+	const descriptors = initialized.plugins;
 
 	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
 		(descriptor) => {
@@ -239,9 +248,11 @@ export async function loadSandboxedPlugins(
 
 	return {
 		extensions,
+		failures: initialized.failures,
 		shutdown: async () => {
 			await sandbox.shutdown();
 		},
+		warnings: initialized.warnings,
 	};
 }
 

@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	discoverPluginModulePaths,
 	resolveAgentPluginPaths,
+	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,
 } from "./plugin-config-loader";
 
@@ -140,6 +141,42 @@ describe("plugin-config-loader", () => {
 		} finally {
 			await rm(home, { recursive: true, force: true });
 			await rm(workspace, { recursive: true, force: true });
+		}
+	});
+
+	it("loads valid plugins while reporting failures and duplicate overrides", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-plugin-config-loader-"));
+		try {
+			const first = join(root, "duplicate-one.js");
+			const second = join(root, "duplicate-two.js");
+			const invalid = join(root, "invalid.js");
+			await writeFile(
+				first,
+				"export default { name: 'duplicate-plugin', manifest: { capabilities: ['tools'] } };",
+				"utf8",
+			);
+			await writeFile(
+				second,
+				"export default { name: 'duplicate-plugin', manifest: { capabilities: ['commands'] } };",
+				"utf8",
+			);
+			await writeFile(invalid, "export default { name: 'broken' };", "utf8");
+
+			const loaded = await resolveAndLoadAgentPlugins({
+				mode: "in_process",
+				pluginPaths: [first, invalid, second],
+				cwd: root,
+			});
+
+			expect(loaded.extensions.map((plugin) => plugin.name)).toEqual([
+				"duplicate-plugin",
+			]);
+			expect(loaded.extensions[0]?.manifest.capabilities).toEqual(["commands"]);
+			expect(loaded.failures).toHaveLength(1);
+			expect(loaded.warnings).toHaveLength(1);
+			expect(loaded.warnings[0]?.overriddenPluginPath).toBe(first);
+		} finally {
+			await rm(root, { recursive: true, force: true });
 		}
 	});
 });

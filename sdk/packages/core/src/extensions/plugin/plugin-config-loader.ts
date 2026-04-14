@@ -5,7 +5,8 @@ import {
 	resolveConfiguredPluginModulePaths,
 	resolvePluginConfigSearchPaths as resolvePluginConfigSearchPathsFromShared,
 } from "@clinebot/shared/storage";
-import { loadAgentPluginsFromPaths } from "./plugin-loader";
+import type { PluginLoadDiagnostics } from "./plugin-load-report";
+import { loadAgentPluginsFromPathsWithDiagnostics } from "./plugin-loader";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
@@ -64,21 +65,26 @@ export interface ResolveAndLoadAgentPluginsOptions
 
 export async function resolveAndLoadAgentPlugins(
 	options: ResolveAndLoadAgentPluginsOptions = {},
-): Promise<{
-	extensions: AgentPlugin[];
-	shutdown?: () => Promise<void>;
-}> {
+): Promise<
+	{
+		extensions: AgentPlugin[];
+		shutdown?: () => Promise<void>;
+	} & PluginLoadDiagnostics
+> {
 	const paths = resolveAgentPluginPaths(options);
 	if (paths.length === 0) {
-		return { extensions: [] };
+		return { extensions: [], failures: [], warnings: [] };
 	}
 
 	if (options.mode === "in_process") {
+		const report = await loadAgentPluginsFromPathsWithDiagnostics(paths, {
+			cwd: options.cwd,
+			exportName: options.exportName,
+		});
 		return {
-			extensions: await loadAgentPluginsFromPaths(paths, {
-				cwd: options.cwd,
-				exportName: options.exportName,
-			}),
+			extensions: report.plugins,
+			failures: report.failures,
+			warnings: report.warnings,
 		};
 	}
 
@@ -93,5 +99,7 @@ export async function resolveAndLoadAgentPlugins(
 	return {
 		extensions: sandboxed.extensions ?? [],
 		shutdown: sandboxed.shutdown,
+		failures: sandboxed.failures,
+		warnings: sandboxed.warnings,
 	};
 }

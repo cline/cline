@@ -170,12 +170,16 @@ export {
 } from "./chat/chat-schema";
 export type {
 	LoadAgentPluginFromPathOptions,
+	PluginInitializationFailure,
+	PluginInitializationWarning,
+	PluginLoadDiagnostics,
 	ResolveAgentPluginPathsOptions,
 } from "./extensions";
 export {
 	discoverPluginModulePaths,
 	loadAgentPluginFromPath,
 	loadAgentPluginsFromPaths,
+	loadAgentPluginsFromPathsWithDiagnostics,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,

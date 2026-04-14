@@ -1,5 +1,9 @@
 import { resolve } from "node:path";
 import type { AgentConfig } from "@clinebot/shared";
+import type {
+	PluginInitializationFailure,
+	PluginInitializationWarning,
+} from "./plugin-load-report";
 import { importPluginModule } from "./plugin-module-import";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
@@ -98,9 +102,59 @@ export async function loadAgentPluginsFromPaths(
 	pluginPaths: string[],
 	options: LoadAgentPluginFromPathOptions = {},
 ): Promise<AgentPlugin[]> {
-	const loaded: AgentPlugin[] = [];
+	const report = await loadAgentPluginsFromPathsWithDiagnostics(
+		pluginPaths,
+		options,
+	);
+	return report.plugins;
+}
+
+export async function loadAgentPluginsFromPathsWithDiagnostics(
+	pluginPaths: string[],
+	options: LoadAgentPluginFromPathOptions = {},
+): Promise<{
+	plugins: AgentPlugin[];
+	failures: PluginInitializationFailure[];
+	warnings: PluginInitializationWarning[];
+}> {
+	const failures: PluginInitializationFailure[] = [];
+	const warnings: PluginInitializationWarning[] = [];
+	const loadedByName = new Map<
+		string,
+		{ plugin: AgentPlugin; pluginPath: string; order: number }
+	>();
+	let order = 0;
+
 	for (const pluginPath of pluginPaths) {
-		loaded.push(await loadAgentPluginFromPath(pluginPath, options));
+		try {
+			const plugin = await loadAgentPluginFromPath(pluginPath, options);
+			const existing = loadedByName.get(plugin.name);
+			if (existing) {
+				warnings.push({
+					type: "duplicate_plugin_override",
+					pluginName: plugin.name,
+					pluginPath,
+					overriddenPluginPath: existing.pluginPath,
+					message: `Plugin "${plugin.name}" from ${pluginPath} overrides ${existing.pluginPath}`,
+				});
+			}
+			loadedByName.set(plugin.name, { plugin, pluginPath, order: order++ });
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			failures.push({
+				pluginPath,
+				phase: "load",
+				message,
+				stack: error instanceof Error ? error.stack : undefined,
+			});
+		}
 	}
-	return loaded;
+
+	return {
+		plugins: [...loadedByName.values()]
+			.sort((left, right) => left.order - right.order)
+			.map((entry) => entry.plugin),
+		failures,
+		warnings,
+	};
 }

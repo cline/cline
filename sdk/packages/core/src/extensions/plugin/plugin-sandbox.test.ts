@@ -184,6 +184,31 @@ describe("plugin-sandbox", () => {
 			"utf8",
 		);
 
+		await writeFile(
+			join(dir, "plugin-broken-setup.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-broken-setup',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  async setup() {",
+				"    throw new Error('broken setup');",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
+			join(dir, "plugin-duplicate-a.mjs"),
+			"export default { name: 'sandbox-duplicate', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		await writeFile(
+			join(dir, "plugin-duplicate-b.mjs"),
+			"export default { name: 'sandbox-duplicate', manifest: { capabilities: ['commands'] } };",
+			"utf8",
+		);
+
 		sharedSandbox = await loadSandboxedPlugins({
 			pluginPaths: [
 				join(dir, "plugin.mjs"),
@@ -319,6 +344,51 @@ describe("plugin-sandbox", () => {
 			iteration: 1,
 		} as ToolContext);
 		expect(result).toEqual({ echoed: "ok" });
+	});
+
+	it("continues loading remaining sandbox plugins when one setup fails", async () => {
+		const sandboxed = await loadSandboxedPlugins({
+			pluginPaths: [
+				join(dir, "plugin.mjs"),
+				join(dir, "plugin-broken-setup.mjs"),
+				join(dir, "plugin-events.mjs"),
+			],
+		});
+
+		try {
+			expect(sandboxed.extensions?.map((extension) => extension.name)).toEqual([
+				"sandbox-test",
+				"sandbox-events",
+			]);
+			expect(sandboxed.failures).toHaveLength(1);
+			expect(sandboxed.failures[0]?.pluginName).toBe("sandbox-broken-setup");
+			expect(sandboxed.failures[0]?.phase).toBe("setup");
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+
+	it("keeps the later duplicate sandbox plugin and reports the override", async () => {
+		const sandboxed = await loadSandboxedPlugins({
+			pluginPaths: [
+				join(dir, "plugin-duplicate-a.mjs"),
+				join(dir, "plugin-duplicate-b.mjs"),
+			],
+		});
+
+		try {
+			expect(sandboxed.extensions).toHaveLength(1);
+			expect(sandboxed.extensions?.[0]?.name).toBe("sandbox-duplicate");
+			expect(sandboxed.extensions?.[0]?.manifest.capabilities).toEqual([
+				"commands",
+			]);
+			expect(sandboxed.warnings).toHaveLength(1);
+			expect(sandboxed.warnings[0]?.overriddenPluginPath).toBe(
+				join(dir, "plugin-duplicate-a.mjs"),
+			);
+		} finally {
+			await sandboxed.shutdown();
+		}
 	});
 
 	it("resolves plugin-local dependencies in the sandbox process", async () => {

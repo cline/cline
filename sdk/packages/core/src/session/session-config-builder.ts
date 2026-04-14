@@ -1,5 +1,9 @@
 import type { ITelemetryService } from "@clinebot/shared";
 import { resolveAndLoadAgentPlugins } from "../extensions/plugin/plugin-config-loader";
+import type {
+	PluginInitializationFailure,
+	PluginInitializationWarning,
+} from "../extensions/plugin/plugin-load-report";
 import {
 	createHookAuditHooks,
 	createHookConfigFileHooks,
@@ -14,6 +18,43 @@ import {
 } from "../types/provider-settings";
 import type { StartSessionInput } from "./session-manager";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./utils/helpers";
+
+function formatPluginFailure(failure: PluginInitializationFailure): string {
+	const label = failure.pluginName ?? failure.pluginPath;
+	return `${label}: ${failure.message}`;
+}
+
+function logPluginDiagnostics(
+	failures: PluginInitializationFailure[],
+	warnings: PluginInitializationWarning[],
+	logger: CoreSessionConfig["logger"],
+): void {
+	if (warnings.length > 0) {
+		for (const warning of warnings) {
+			logger?.log(warning.message, { severity: "warn" });
+		}
+	}
+	if (failures.length === 0) {
+		return;
+	}
+	const preview = failures.slice(0, 3).map(formatPluginFailure).join("; ");
+	const suffix = failures.length > 3 ? `; and ${failures.length - 3} more` : "";
+	logger?.log(
+		`Some plugins failed to initialize. ${preview}${suffix}. Use --verbose for more details.`,
+		{ severity: "warn" },
+	);
+	for (const failure of failures) {
+		logger?.log(
+			`Plugin initialization failed (${failure.phase}) for ${failure.pluginPath}`,
+			{
+				severity: "warn",
+				stack: failure.stack,
+				pluginPath: failure.pluginPath,
+				pluginName: failure.pluginName,
+			},
+		);
+	}
+}
 
 export function resolveWorkspacePath(config: CoreSessionConfig): string {
 	return config.workspaceRoot ?? config.cwd;
@@ -61,6 +102,11 @@ export async function buildEffectiveConfig(
 			cwd: input.config.cwd,
 			onEvent: onPluginEvent,
 		});
+		logPluginDiagnostics(
+			loadedPlugins.failures,
+			loadedPlugins.warnings,
+			input.config.logger,
+		);
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
 		input.config.logger?.log?.(

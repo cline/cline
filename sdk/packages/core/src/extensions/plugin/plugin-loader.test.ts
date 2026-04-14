@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import {
 	loadAgentPluginFromPath,
 	loadAgentPluginsFromPaths,
+	loadAgentPluginsFromPathsWithDiagnostics,
 } from "./plugin-loader";
 
 describe("plugin-loader", () => {
@@ -158,6 +159,17 @@ describe("plugin-loader", () => {
 			"export default { name: 'invalid-plugin' };",
 			"utf8",
 		);
+
+		await writeFile(
+			join(dir, "duplicate-one.mjs"),
+			"export default { name: 'duplicate-plugin', manifest: { capabilities: ['tools'] } };",
+			"utf8",
+		);
+		await writeFile(
+			join(dir, "duplicate-two.mjs"),
+			"export default { name: 'duplicate-plugin', manifest: { capabilities: ['commands'] } };",
+			"utf8",
+		);
 	});
 
 	afterAll(async () => {
@@ -243,5 +255,38 @@ describe("plugin-loader", () => {
 		await expect(
 			loadAgentPluginFromPath(join(dir, "invalid-plugin.mjs")),
 		).rejects.toThrow(/missing required "manifest"/i);
+	});
+
+	it("continues loading valid plugins when one plugin fails", async () => {
+		const report = await loadAgentPluginsFromPathsWithDiagnostics([
+			join(dir, "plugin-a.mjs"),
+			join(dir, "invalid-plugin.mjs"),
+			join(dir, "plugin-b.mjs"),
+		]);
+
+		expect(report.plugins.map((plugin) => plugin.name)).toEqual([
+			"plugin-a",
+			"plugin-b",
+		]);
+		expect(report.failures).toHaveLength(1);
+		expect(report.failures[0]?.pluginPath).toBe(
+			join(dir, "invalid-plugin.mjs"),
+		);
+		expect(report.warnings).toEqual([]);
+	});
+
+	it("keeps the later duplicate plugin and reports the override", async () => {
+		const report = await loadAgentPluginsFromPathsWithDiagnostics([
+			join(dir, "duplicate-one.mjs"),
+			join(dir, "duplicate-two.mjs"),
+		]);
+
+		expect(report.plugins).toHaveLength(1);
+		expect(report.plugins[0]?.name).toBe("duplicate-plugin");
+		expect(report.plugins[0]?.manifest.capabilities).toEqual(["commands"]);
+		expect(report.warnings).toHaveLength(1);
+		expect(report.warnings[0]?.overriddenPluginPath).toBe(
+			join(dir, "duplicate-one.mjs"),
+		);
 	});
 });

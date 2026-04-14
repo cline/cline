@@ -84,6 +84,7 @@ interface ContributionDescriptor {
 
 interface PluginDescriptor {
 	pluginId: string;
+	pluginPath: string;
 	name: string;
 	manifest: Record<string, unknown>;
 	contributions: {
@@ -94,6 +95,28 @@ interface PluginDescriptor {
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 	};
+}
+
+interface PluginInitializationFailure {
+	pluginPath: string;
+	pluginName?: string;
+	phase: "load" | "setup";
+	message: string;
+	stack?: string;
+}
+
+interface PluginInitializationWarning {
+	type: "duplicate_plugin_override";
+	pluginPath: string;
+	pluginName: string;
+	overriddenPluginPath: string;
+	message: string;
+}
+
+interface InitializeResult {
+	plugins: PluginDescriptor[];
+	failures: PluginInitializationFailure[];
+	warnings: PluginInitializationWarning[];
 }
 
 interface PluginState {
@@ -191,104 +214,153 @@ function getPlugin(pluginId: string): PluginState {
 async function initialize(args: {
 	pluginPaths?: string[];
 	exportName?: string;
-}): Promise<PluginDescriptor[]> {
+}): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
 	contributionCounters.clear();
 
 	const descriptors: PluginDescriptor[] = [];
+	const failures: PluginInitializationFailure[] = [];
+	const warnings: PluginInitializationWarning[] = [];
 	const exportName = args.exportName || "plugin";
+	const pluginIndexByName = new Map<string, number>();
 
 	for (const pluginPath of args.pluginPaths || []) {
-		const moduleExports = await importPluginModule(pluginPath);
-		const plugin = (moduleExports.default ??
-			moduleExports[exportName]) as unknown;
-		assertValidPluginModule(plugin, pluginPath);
+		let plugin: PluginModule | undefined;
+		try {
+			const moduleExports = await importPluginModule(pluginPath);
+			plugin = (moduleExports.default ??
+				moduleExports[exportName]) as unknown as PluginModule;
+			assertValidPluginModule(plugin, pluginPath);
 
-		const pluginId = `plugin_${++pluginCounter}`;
-		const contributions: PluginDescriptor["contributions"] = {
-			tools: [],
-			commands: [],
-			shortcuts: [],
-			flags: [],
-			messageBuilders: [],
-			providers: [],
-		};
-		const handlers: PluginState["handlers"] = {
-			tools: new Map(),
-			commands: new Map(),
-			messageBuilders: new Map(),
-		};
+			const pluginId = `plugin_${++pluginCounter}`;
+			const contributions: PluginDescriptor["contributions"] = {
+				tools: [],
+				commands: [],
+				shortcuts: [],
+				flags: [],
+				messageBuilders: [],
+				providers: [],
+			};
+			const handlers: PluginState["handlers"] = {
+				tools: new Map(),
+				commands: new Map(),
+				messageBuilders: new Map(),
+			};
 
-		const api: PluginApi = {
-			registerTool: (tool) => {
-				const id = makeId(pluginId, "tool");
-				handlers.tools.set(id, tool.execute);
-				contributions.tools.push({
-					id,
-					name: tool.name,
-					description: tool.description,
-					inputSchema: tool.inputSchema,
-					timeoutMs: tool.timeoutMs,
-					retryable: tool.retryable,
-				});
-			},
-			registerCommand: (command) => {
-				const id = makeId(pluginId, "command");
-				if (typeof command.handler === "function") {
-					handlers.commands.set(id, command.handler);
+			const api: PluginApi = {
+				registerTool: (tool) => {
+					const id = makeId(pluginId, "tool");
+					handlers.tools.set(id, tool.execute);
+					contributions.tools.push({
+						id,
+						name: tool.name,
+						description: tool.description,
+						inputSchema: tool.inputSchema,
+						timeoutMs: tool.timeoutMs,
+						retryable: tool.retryable,
+					});
+				},
+				registerCommand: (command) => {
+					const id = makeId(pluginId, "command");
+					if (typeof command.handler === "function") {
+						handlers.commands.set(id, command.handler);
+					}
+					contributions.commands.push({
+						id,
+						name: command.name,
+						description: command.description,
+					});
+				},
+				registerShortcut: (shortcut) => {
+					contributions.shortcuts.push({
+						id: makeId(pluginId, "shortcut"),
+						name: shortcut.name,
+						value: shortcut.value,
+						description: shortcut.description,
+					});
+				},
+				registerFlag: (flag) => {
+					contributions.flags.push({
+						id: makeId(pluginId, "flag"),
+						name: flag.name,
+						description: flag.description,
+						defaultValue: flag.defaultValue,
+					});
+				},
+				registerMessageBuilder: (builder) => {
+					const id = makeId(pluginId, "builder");
+					handlers.messageBuilders.set(id, builder.build);
+					contributions.messageBuilders.push({ id, name: builder.name });
+				},
+				registerProvider: (provider) => {
+					contributions.providers.push({
+						id: makeId(pluginId, "provider"),
+						name: provider.name,
+						description: provider.description,
+						metadata: sanitizeObject(provider.metadata),
+					});
+				},
+			};
+
+			if (typeof plugin.setup === "function") {
+				try {
+					await plugin.setup(api);
+				} catch (error) {
+					failures.push({
+						pluginPath,
+						pluginName: plugin.name,
+						phase: "setup",
+						message: error instanceof Error ? error.message : String(error),
+						stack: error instanceof Error ? error.stack : undefined,
+					});
+					continue;
 				}
-				contributions.commands.push({
-					id,
-					name: command.name,
-					description: command.description,
-				});
-			},
-			registerShortcut: (shortcut) => {
-				contributions.shortcuts.push({
-					id: makeId(pluginId, "shortcut"),
-					name: shortcut.name,
-					value: shortcut.value,
-					description: shortcut.description,
-				});
-			},
-			registerFlag: (flag) => {
-				contributions.flags.push({
-					id: makeId(pluginId, "flag"),
-					name: flag.name,
-					description: flag.description,
-					defaultValue: flag.defaultValue,
-				});
-			},
-			registerMessageBuilder: (builder) => {
-				const id = makeId(pluginId, "builder");
-				handlers.messageBuilders.set(id, builder.build);
-				contributions.messageBuilders.push({ id, name: builder.name });
-			},
-			registerProvider: (provider) => {
-				contributions.providers.push({
-					id: makeId(pluginId, "provider"),
-					name: provider.name,
-					description: provider.description,
-					metadata: sanitizeObject(provider.metadata),
-				});
-			},
-		};
+			}
 
-		if (typeof plugin.setup === "function") {
-			await plugin.setup(api);
+			const previousIndex = pluginIndexByName.get(plugin.name);
+			if (previousIndex !== undefined) {
+				const previous = descriptors[previousIndex];
+				if (!previous) {
+					pluginIndexByName.delete(plugin.name);
+				} else {
+					warnings.push({
+						type: "duplicate_plugin_override",
+						pluginName: plugin.name,
+						pluginPath,
+						overriddenPluginPath: previous.pluginPath,
+						message: `Plugin "${plugin.name}" from ${pluginPath} overrides ${previous.pluginPath}`,
+					});
+					pluginState.delete(previous.pluginId);
+					descriptors.splice(previousIndex, 1);
+					pluginIndexByName.clear();
+					for (const [index, descriptor] of descriptors.entries()) {
+						pluginIndexByName.set(descriptor.name, index);
+					}
+				}
+			}
+
+			pluginState.set(pluginId, { plugin, handlers });
+			pluginIndexByName.set(plugin.name, descriptors.length);
+			descriptors.push({
+				pluginId,
+				pluginPath,
+				name: plugin.name,
+				manifest: plugin.manifest,
+				contributions,
+			});
+		} catch (error) {
+			failures.push({
+				pluginPath,
+				pluginName: plugin?.name,
+				phase: "load",
+				message: error instanceof Error ? error.message : String(error),
+				stack: error instanceof Error ? error.stack : undefined,
+			});
 		}
-
-		pluginState.set(pluginId, { plugin, handlers });
-		descriptors.push({
-			pluginId,
-			name: plugin.name,
-			manifest: plugin.manifest,
-			contributions,
-		});
 	}
 
-	return descriptors;
+	return { plugins: descriptors, failures, warnings };
 }
 
 async function invokeHook(args: {
