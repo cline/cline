@@ -25,7 +25,7 @@ export interface TaskProxy {
 	handleWebviewAskResponse: (askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) => Promise<void>
 	/** Abort the running task */
 	abortTask: () => Promise<void>
-	/** API handler — stubbed for now, needed for model switching */
+	/** API handler — settable for model switching via updateSettings */
 	api: TaskProxyApi
 	/** Browser session — stubbed (browser automation removed in this migration) */
 	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; browser automation removed
@@ -33,9 +33,8 @@ export interface TaskProxy {
 	/** Checkpoint manager — stubbed (shadow git removed in this migration) */
 	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; checkpoints removed
 	checkpointManager: any
-	/** Terminal manager — stubbed for now, will be wired in Step 8 */
-	// biome-ignore lint/suspicious/noExplicitAny: typed as any for handler compatibility; will be properly typed in Step 8
-	terminalManager: any
+	/** Terminal manager — stub that safely no-ops for settings compatibility */
+	terminalManager: TaskProxyTerminalManager
 	/** Task state for tracking */
 	taskState: TaskProxyState
 	/** Message state handler — accumulates messages for state building */
@@ -98,9 +97,23 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 /**
  * Minimal API handler interface for model info access.
  * The classic Task had a full API handler; we expose just what handlers need.
+ * The `api` property is settable — updateSettings() replaces it when the
+ * user switches models/providers.
  */
 export interface TaskProxyApi {
 	getModel: () => { id: string }
+}
+
+/**
+ * Terminal manager stub for settings compatibility.
+ * The updateSettings handler calls setDefaultTerminalProfile() which
+ * returns { closedCount, busyTerminals }. This stub safely no-ops.
+ */
+export interface TaskProxyTerminalManager {
+	setDefaultTerminalProfile: (profileId: string) => { closedCount: number; busyTerminals: never[] }
+	setShellIntegrationTimeout: (timeout: number) => void
+	setTerminalReuseEnabled: (enabled: boolean) => void
+	setTerminalOutputLineLimit: (limit: number) => void
 }
 
 /**
@@ -146,6 +159,19 @@ export function createTaskProxy(
 	const state: TaskProxyState = {}
 	const messageStateHandler = new MessageStateHandler()
 
+	// Mutable API handler — updateSettings() replaces it when switching models
+	let currentApi: TaskProxyApi = {
+		getModel: () => ({ id: "unknown" }),
+	}
+
+	// Terminal manager stub — safely no-ops for settings compatibility
+	const terminalManagerStub: TaskProxyTerminalManager = {
+		setDefaultTerminalProfile: () => ({ closedCount: 0, busyTerminals: [] }),
+		setShellIntegrationTimeout: () => {},
+		setTerminalReuseEnabled: () => {},
+		setTerminalOutputLineLimit: () => {},
+	}
+
 	const proxy: TaskProxy = {
 		get ulid(): string {
 			return sessionId
@@ -189,13 +215,11 @@ export function createTaskProxy(
 		},
 
 		get api(): TaskProxyApi {
-			// Stub API handler — provides minimal model info
-			// Full API handler replacement happens in later steps
-			return {
-				getModel: () => ({
-					id: "unknown",
-				}),
-			}
+			return currentApi
+		},
+		set api(handler: TaskProxyApi) {
+			// updateSettings() replaces the API handler when switching models/providers
+			currentApi = handler
 		},
 
 		get browserSession() {
@@ -208,9 +232,8 @@ export function createTaskProxy(
 			return undefined
 		},
 
-		get terminalManager() {
-			// Terminal management will be wired in Step 8
-			return undefined
+		get terminalManager(): TaskProxyTerminalManager {
+			return terminalManagerStub
 		},
 
 		get taskState(): TaskProxyState {
