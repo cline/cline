@@ -367,7 +367,7 @@ class DebugHarness {
 					IS_DEV: "true",
 					TEMP_PROFILE: "true",
 					DEV_WORKSPACE_FOLDER: PROJECT_ROOT,
-					CLINE_ENVIRONMENT: "local",
+					CLINE_ENVIRONMENT: "production",
 				},
 				timeout: 60000,
 			})
@@ -964,19 +964,25 @@ class DebugHarness {
 					// Responding to an ask (followup, resume, etc.)
 					api.postMessage({
 						type: "grpc_request",
-						service: "cline.TaskService",
-						method: "askResponse",
-						requestId: `debug-${Date.now()}`,
-						payload: { responseType, text, images, files },
+						grpc_request: {
+							service: "cline.TaskService",
+							method: "askResponse",
+							message: { responseType, text, images, files },
+							request_id: `debug-${Date.now()}`,
+							is_streaming: false,
+						},
 					})
 				} else {
 					// New task
 					api.postMessage({
 						type: "grpc_request",
-						service: "cline.TaskService",
-						method: "newTask",
-						requestId: `debug-${Date.now()}`,
-						payload: { text, images, files },
+						grpc_request: {
+							service: "cline.TaskService",
+							method: "newTask",
+							message: { text, images, files },
+							request_id: `debug-${Date.now()}`,
+							is_streaming: false,
+						},
 					})
 				}
 
