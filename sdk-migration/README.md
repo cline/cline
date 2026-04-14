@@ -287,44 +287,60 @@ files). The gRPC thunking layer is complete — session events flow
 from SDK through message translation to webview gRPC streams.
 See PROBLEMS.md for known minor issues.
 
-### Step 6: Auth & Account Flows
+### Step 6: Auth & Account Flows — ✅ Implementation Complete, 🔵 Awaiting E2E Verification
 
 **Goal:** Full OAuth login/logout, credit display, org switching work.
 
 This was the **most broken area** in attempt 2. Be especially careful.
 
 Tasks:
-- Implement Cline OAuth using SDK's `loginClineOAuth()`:
+- [x] Implement Cline OAuth using SDK's `loginClineOAuth()`:
   - SDK spawns local callback server and provides the auth URL
-  - Our code opens the browser
+  - Our code opens the browser via `openExternal()`
   - SDK handles token exchange
-  - We persist tokens to `secrets.json`
-- Implement `subscribeToAuthStatusUpdate` streaming:
+  - We persist tokens to `secrets.json` under `cline:clineAccountId`
+- [x] Implement `subscribeToAuthStatusUpdate` streaming:
   - Read credentials from disk on subscription
-  - Push initial auth state immediately
-  - Watch for changes (file watcher on secrets.json or in-memory)
-- Implement `getUserCredits` / `getOrganizationCredits`:
-  - Fetch from Cline API using stored auth token
+  - Push initial auth state immediately (prevents race condition)
+  - Cross-window sync via secrets change listener
+- [x] Implement `getUserCredits` / `getOrganizationCredits`:
+  - Fetch from Cline API using stored auth token via `ClineAccountService`
   - Use `{apiBaseUrl}` not hardcoded `app.cline.bot`
-- Implement `accountLogoutClicked`:
+- [x] Implement `accountLogoutClicked`:
   - Clear credentials from disk
   - Push unauthenticated state to webview
-- Implement `setUserOrganization`:
-  - Update active org in stored credentials
-  - Refresh credit display
-- Test: stub environment where OAuth redirect is captured
-  without opening a real browser
+- [x] Implement `setUserOrganization`:
+  - Update active org via API call
+  - Refresh auth info after switching
+- [x] Implement OpenAI Codex OAuth via SDK's `loginOpenAICodex()`
+- [x] Implement OCA OAuth via SDK's `loginOcaOAuth()`
+- [x] Implement token refresh using SDK's `refreshClineToken()`
+- [x] Write unit tests — 20 tests in `src/sdk/auth-service.test.ts`
 
-**Key pitfalls from attempt 2:**
-- `workos:` prefix on account IDs — sometimes needed, sometimes not
-- `{appBaseUrl}` vs hardcoded URLs — always use the env variable
+**Key pitfalls from attempt 2 (all addressed):**
+- `workos:` prefix on account IDs — `getAuthToken()` always returns `workos:`-prefixed token
+- `{appBaseUrl}` vs hardcoded URLs — uses `ClineEnv.config().apiBaseUrl` and `appBaseUrl`
 - Race condition: webview subscribes to auth state before the
-  bridge pushes it — always push initial state on subscribe
-- Token field name mismatches between SDK and classic storage
+  bridge pushes it — `subscribeToAuthStatusUpdate` pushes initial state immediately
+- Token field name mismatches between SDK and classic storage —
+  explicit conversion in `credentialsToAuthInfo()` (ms→seconds for expiresAt)
 
-**Verification gate:** Debug harness test — login, verify profile
-appears, check credits, switch org, logout, verify logged-out state.
-Then login again, verify session resumes.
+**Files created/modified:**
+- `src/sdk/auth-service.ts` — SDK-backed AuthService (replaces `src/services/auth/AuthService.ts`)
+- `src/sdk/account-service.ts` — SDK-backed ClineAccountService (replaces `src/services/account/ClineAccountService.ts`)
+- `src/sdk/auth-service.test.ts` — 20 unit tests
+- `src/sdk/SdkController.ts` — Wired auth/account services in constructor
+- `src/sdk/index.ts` — Added barrel exports
+- `src/core/controller/account/accountLoginClicked.ts` — Import from `@/sdk/auth-service`
+- `src/core/controller/account/accountLogoutClicked.ts` — Delegates to SdkController
+- `src/core/controller/account/subscribeToAuthStatusUpdate.ts` — Import from `@/sdk/auth-service`
+- `src/core/controller/account/openAiCodexSignIn.ts` — Uses SDK-backed AuthService
+- `src/core/controller/account/openAiCodexSignOut.ts` — Uses SDK-backed AuthService
+- `src/extension.ts` — Import from `@/sdk/auth-service`
+
+**Verification gate:** 🔵 Unit tests pass (20/20). TypeScript compiles
+with 0 new errors. End-to-end verification with debug harness pending —
+need to test: login flow, profile display, credits, org switching, logout.
 
 ### Step 7: MCP Integration
 
