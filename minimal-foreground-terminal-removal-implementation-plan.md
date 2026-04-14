@@ -824,7 +824,7 @@ By the end of the work, the team should ideally have:
 
 ### Testing
 
-- [ ] Update UI tests
+- [x] Update UI tests
 - [ ] Update controller/state tests
 - [ ] Update runtime tests
 - [ ] Run manual verification
