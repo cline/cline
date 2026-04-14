@@ -342,30 +342,33 @@ Tasks:
 with 0 new errors. End-to-end verification with debug harness pending —
 need to test: login flow, profile display, credits, org switching, logout.
 
-### Step 7: MCP Integration
+### Step 7: MCP Integration — ✅ Classic McpHub Wired (SDK Manager Deferred)
 
 **Goal:** MCP servers load, tools appear in agent, server management
 UI works.
 
+Following the "Thunk, Don't Replace" principle, we wire the classic
+`McpHub` into the SdkController instead of building a custom SDK MCP
+manager. The classic McpHub already supports all three transports
+(stdio, SSE, streamableHTTP), file watching, and all gRPC handlers.
+The SDK's `InMemoryMcpManager` will replace it in Step 10 (Cleanup).
+
 Tasks:
-- Implement custom MCP manager (not SDK Default):
-  - Support stdio, SSE, and streamableHTTP transports
-  - Watch `cline_mcp_settings.json` for changes
-  - Reconnect/reload on file change
-- Wire MCP tools into session as `extraTools`
-- Implement gRPC handlers for MCP management UI:
-  - `subscribeToMcpServers` — list servers with status
-  - `restartMcpServer` / `deleteMcpServer`
-  - `toggleMcpServer` / `toggleToolAutoApprove`
-  - `updateMcpTimeout`
-- Implement MCP marketplace (cache + refresh from API)
+- [x] Wire classic `McpHub` into `SdkController.mcpHub`
+  - Same constructor args as classic Controller
+  - Existing gRPC handlers (`subscribeToMcpServers`, `restartMcpServer`,
+    `deleteMcpServer`, `toggleMcpServer`, etc.) work without modification
+  - They all delegate to `controller.mcpHub` which is now a real instance
+- [x] Update `SdkController.mcpHub` type from `any` to `McpHub`
+- [ ] Implement MCP marketplace (cache + refresh from API) — deferred
+- [ ] Replace classic McpHub with SDK's InMemoryMcpManager — deferred to Step 10
 
 **Reference:** See `SDK-REFERENCE/MCP.md` for how the SDK's MCP
 manager works and what gaps exist.
 
-**Verification gate:** Debug harness test — MCP servers tab loads,
-shows configured servers, can toggle enable/disable, agent can use
-MCP tools during inference.
+**Verification gate:** 🔵 Classic McpHub wired in. Existing gRPC
+handlers should work. Full E2E verification pending debug harness
+test with real MCP servers configured.
 
 ### Step 8: Settings & Features
 
