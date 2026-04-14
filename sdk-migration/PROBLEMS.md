@@ -184,8 +184,10 @@ underlying patterns that caused them are relevant.
 ### S6-6: Clicking historical chat items does nothing
 - **Status**: 🔵 Awaiting Verification
 - **Description**: Clicking on a task in the history view doesn't load the task's messages. `showTaskWithId()` creates a TaskProxy but doesn't load the actual messages from disk. The webview shows an empty chat.
-- **Root cause**: `showTaskWithId()` in SdkController only created a TaskProxy and posted state — it didn't load the task's `ui_messages.json` from disk. The classic Controller loaded these through the Task class.
-- **Fix**: Updated `showTaskWithId()` to call `readUiMessages(taskId)` from the legacy-state-reader and add them to the TaskProxy's `messageStateHandler` via `addMessages()`. This populates the message state so `getStateToPostToWebview()` returns the task's messages.
+- **Root cause**: Two issues: (1) `showTaskWithId()` in SdkController only created a TaskProxy and posted state — it didn't load the task's `ui_messages.json` from disk. (2) History lookup used `getHistoryItemById()` which reads from `state/taskHistory.json`, but `updateTaskHistory()` writes to `StateManager`'s `globalState.json`. These are different storage locations, so SDK-created tasks were never found.
+- **Fix applied**:
+  1. Updated `showTaskWithId()` to call `readUiMessages(taskId)` from the legacy-state-reader and add them to the TaskProxy's `messageStateHandler` via `addMessages()`.
+  2. Updated both `showTaskWithId()` and `reinitExistingTaskFromId()` to look up tasks in `StateManager.getGlobalStateKey("taskHistory")` first, then fall back to `getHistoryItemById()`. This ensures tasks created by the SDK adapter (which write to StateManager) are found.
 - **Verification**: Click a history item, verify messages appear in the chat view.
 
 ### S6-7: Credits/payment history don't load immediately on startup
@@ -310,6 +312,34 @@ underlying patterns that caused them are relevant.
      **History deduplication caveat**: A session restart creates a new session ID. The old session's persisted data stays on disk, which would create a duplicate entry in the task history list. The Tauri desktop app avoids this via its "threads" abstraction — the UI tracks threads, not raw sessions, and updates the thread's session reference. For the VSCode extension, we need to either: (a) delete the old session's history entry when restarting, (b) mark it as "superseded" and filter it from the history view, or (c) reuse the same task ID / history entry and just swap the underlying session. Option (c) is cleanest — the `SdkController` already maintains a `currentTaskItem` that maps to the history view; on restart, keep the same task item and just update the internal session reference.
   4. **No session restart needed for MCP tool policy changes**: If the user just toggles auto-approve for an MCP tool, that's a `toolPolicies` mutation — no session restart required.
 - **Reference**: Classic extension's `McpHub` in `src/services/mcp/McpHub.ts`; SDK's `InMemoryMcpManager` in `packages/core/src/extensions/mcp/`; Tauri desktop's session restart pattern in `apps/code/host/runtime-bridge.ts`
+
+### S6-12: Webview shows raw JSON instead of rendered messages
+- **Status**: 🔵 Awaiting Verification
+- **Description**: When the SDK streams events to the webview, the ChatRow.tsx component shows raw JSON instead of properly rendered messages (text, tool calls, etc.). The message translator was producing ClineMessages with the wrong format for tool calls — using `tool_name`/`tool_input`/`tool_output` keys instead of the `text` field with XML-like `<tool_name>...</tool_name>` format that ChatRow.tsx expects.
+- **Root cause**: The message translator's `translateToolCall()` and `translateToolResult()` methods were creating ClineMessages with custom fields (`tool_name`, `tool_input`, `tool_output`) that the webview's ChatRow.tsx doesn't understand. The classic Task class formats tool calls as XML-like text in the `text` field (e.g., `<read_file>\n<path>file.ts</path>\n</read_file>`), and ChatRow.tsx parses this format to render tool-specific UI.
+- **Fix applied**: Rewrote `translateToolCall()` and `translateToolResult()` in `src/sdk/message-translator.ts` to format tool calls as XML-like text in the `text` field, matching the classic Task's format. Added `formatToolCallText()` and `formatToolResultText()` helper functions. Updated `translateTextChunk()` to handle partial text streaming. Updated `translateAgentEvent()` to properly track tool call state (pending tool name, accumulating input, partial text).
+- **Verification**: Send a message that triggers tool use, verify ChatRow renders the tool call with proper formatting (file path, command, etc.) instead of raw JSON.
+
+### S6-13: Webview state not populated with messages and task history
+- **Status**: 🔵 Awaiting Verification
+- **Description**: The webview's `ExtensionStateContext` wasn't receiving messages, current task item, or task history. The `subscribeToState` stream was pushing state updates without task data because the `WebviewGrpcBridge.pushStateUpdate()` method was building state without the controller's task reference.
+- **Root cause**: The `WebviewGrpcBridge` was importing `getStateToPostToWebview()` directly and calling it with `task: undefined`, which meant the state never included messages or the current task item. The bridge didn't have access to the controller's `getStateToPostToWebview()` method which knows about the active task.
+- **Fix applied**:
+  1. Added `setGetStateFn()` method to `WebviewGrpcBridge` that accepts the controller's `getStateToPostToWebview` bound method.
+  2. Updated `pushStateUpdate()` to use `getStateFn` when available (which includes task data), falling back to the minimal state builder.
+  3. Wired `grpcBridge.setGetStateFn(() => this.getStateToPostToWebview())` in `SdkController` constructor.
+- **Verification**: Send a message, verify the webview shows messages in the chat view and the task appears in history.
+
+### S6-14: VscodeRuntimeBuilder for MCP tool bridging
+- **Status**: 🔵 Awaiting Verification
+- **Description**: The SDK's `DefaultRuntimeBuilder.loadConfiguredMcpTools()` only supports stdio transport. SSE and streamableHttp MCP servers are filtered out, causing "Unsupported MCP transport" errors. The classic `McpHub` already supports all three transports.
+- **Root cause**: The SDK's `InMemoryMcpManager` with `createDefaultMcpServerClientFactory()` only creates stdio clients. The VSCode extension's `McpHub` has its own connection management that supports stdio, SSE, and streamableHttp.
+- **Fix applied**: Created `src/sdk/vscode-runtime-builder.ts` with:
+  1. `McpHubToolProvider` — adapter that makes the classic McpHub look like an SDK `McpToolProvider` (implements `listTools()` and `callTool()` by delegating to McpHub).
+  2. `VscodeRuntimeBuilder` — custom `RuntimeBuilder` that delegates builtin tool creation to `DefaultRuntimeBuilder` but replaces MCP tools with ones loaded from the classic `McpHub`. This gives the SDK agent access to all MCP servers regardless of transport type.
+  3. Tool name transform matches SDK's default (`serverName__toolName` format).
+- **Note**: This builder is not yet wired into the session creation flow. It needs to be passed to `DefaultSessionManager` constructor (or the future `VscodeSessionHost` wrapper) as the `runtimeBuilder` option. Currently, `ClineCore.create()` doesn't accept a `runtimeBuilder` — it creates a `DefaultSessionManager` internally. The wiring will happen when we implement the `VscodeSessionHost` wrapper (see S6-9).
+- **Verification**: Wire `VscodeRuntimeBuilder` into session creation, start a session with MCP servers configured, verify the agent can use MCP tools from all transport types.
 
 ### S6-11: Credential caching from classic extension may not work
 - **Status**: 🟢 Verified Fixed

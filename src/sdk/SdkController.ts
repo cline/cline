@@ -107,6 +107,10 @@ export class Controller {
 		// Initialize gRPC bridge
 		this.grpcBridge = new WebviewGrpcBridge(this.messageTranslatorState)
 
+		// Wire the bridge to the controller's getStateToPostToWebview()
+		// so state updates include messages, currentTaskItem, and task history
+		this.grpcBridge.setGetStateFn(() => this.getStateToPostToWebview())
+
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
 
@@ -367,8 +371,13 @@ export class Controller {
 			// Clear any existing session
 			await this.clearTask()
 
-			// Look up the task in history
-			const historyItem = getHistoryItemById(taskId)
+			// Look up the task in StateManager's task history first,
+			// then fall back to the legacy file reader
+			const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+			let historyItem = history.find((item) => item.id === taskId)
+			if (!historyItem) {
+				historyItem = getHistoryItemById(taskId)
+			}
 			if (!historyItem) {
 				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
 				return
@@ -574,10 +583,22 @@ export class Controller {
 	 */
 	async showTaskWithId(taskId: string): Promise<void> {
 		try {
-			const historyItem = getHistoryItemById(taskId)
+			// Look up the task in StateManager's task history (which is where
+			// updateTaskHistory writes). Fall back to the legacy file reader.
+			const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+			let historyItem = history.find((item) => item.id === taskId)
+			if (!historyItem) {
+				// Fallback: try the legacy file reader
+				historyItem = getHistoryItemById(taskId)
+			}
 			if (!historyItem) {
 				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
 				return
+			}
+
+			// Clear any active session (viewing history is read-only)
+			if (this.activeSession) {
+				await this.clearTask()
 			}
 
 			// Set the current task reference for state building
