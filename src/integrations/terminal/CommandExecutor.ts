@@ -75,9 +75,8 @@ export class CommandExecutor {
 			Logger.info(`[CommandExecutor] Created new StandaloneTerminalManager`)
 
 			// Copy settings from the provided terminalManager to ensure consistency
-			if ("shellIntegrationTimeout" in config.terminalManager) {
+			if ("terminalReuseEnabled" in config.terminalManager || "terminalOutputLineLimit" in config.terminalManager) {
 				const tm = config.terminalManager as any
-				this.standaloneManager.setShellIntegrationTimeout(tm.shellIntegrationTimeout || 4000)
 				this.standaloneManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
 				this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
 			}

@@ -68,17 +68,11 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	/** Set of terminal IDs managed by this instance */
 	private terminalIds: Set<number> = new Set()
 
-	/** Timeout for shell integration (not used in standalone, but kept for interface compatibility) */
-	private shellIntegrationTimeout = 4000
-
 	/** Whether terminal reuse is enabled */
 	private terminalReuseEnabled = true
 
 	/** Maximum output lines to keep */
 	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
-
-	/** Default terminal profile */
-	private defaultTerminalProfile = "default"
 
 	// =========================================================================
 	// Background Command Tracking
@@ -260,14 +254,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	}
 
 	/**
-	 * Set the timeout for waiting for shell integration.
-	 * @param timeout Timeout in milliseconds
-	 */
-	setShellIntegrationTimeout(timeout: number): void {
-		this.shellIntegrationTimeout = timeout
-	}
-
-	/**
 	 * Enable or disable terminal reuse.
 	 * @param enabled Whether to enable terminal reuse
 	 */
@@ -281,23 +267,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 */
 	setTerminalOutputLineLimit(limit: number): void {
 		this.terminalOutputLineLimit = limit
-	}
-
-	/**
-	 * Set the default terminal profile.
-	 * @param profile The profile identifier
-	 * @returns Object with information about closed terminals and remaining busy terminals
-	 */
-	setDefaultTerminalProfile(profile: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
-		const previousProfile = this.defaultTerminalProfile
-		this.defaultTerminalProfile = profile
-
-		// If profile changed, handle terminal cleanup like TerminalManager does
-		if (previousProfile !== profile) {
-			return this.handleTerminalProfileChange(profile)
-		}
-
-		return { closedCount: 0, busyTerminals: [] }
 	}
 
 	// Additional methods required for TerminalManager compatibility
@@ -327,66 +296,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		const currentCwd = (terminalInfo.terminal as any)._cwd
 		const targetCwd = (terminalInfo as any).pendingCwdChange
 		return currentCwd === targetCwd
-	}
-
-	/**
-	 * Filter terminals based on a provided criteria function.
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean
-	 * @returns Array of terminals that match the criteria
-	 */
-	filterTerminals(filterFn: (terminal: TerminalInfo) => boolean): TerminalInfo[] {
-		const terminals = this.registry.getAllTerminals()
-		return terminals.filter(filterFn)
-	}
-
-	/**
-	 * Close terminals that match the provided criteria.
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean for terminals to close
-	 * @param force If true, closes even busy terminals
-	 * @returns Number of terminals closed
-	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
-		const terminalsToClose = this.filterTerminals(filterFn)
-		let closedCount = 0
-
-		for (const terminalInfo of terminalsToClose) {
-			if (terminalInfo.busy && !force) {
-				continue
-			}
-
-			this.terminalIds.delete(terminalInfo.id)
-			this.processes.delete(terminalInfo.id)
-			terminalInfo.terminal.dispose()
-			this.registry.removeTerminal(terminalInfo.id)
-			closedCount++
-		}
-
-		return closedCount
-	}
-
-	/**
-	 * Handle terminal management when the terminal profile changes.
-	 * @param newShellPath New shell path to use
-	 * @returns Object with information about closed terminals and remaining busy terminals
-	 */
-	handleTerminalProfileChange(newShellPath: string | undefined): {
-		closedCount: number
-		busyTerminals: TerminalInfo[]
-	} {
-		const closedCount = this.closeTerminals(
-			(terminal) => !terminal.busy && (terminal as any).shellPath !== newShellPath,
-			false,
-		)
-		const busyTerminals = this.filterTerminals((terminal) => terminal.busy && (terminal as any).shellPath !== newShellPath)
-		return { closedCount, busyTerminals }
-	}
-
-	/**
-	 * Force closure of all terminals (including busy ones).
-	 * @returns Number of terminals closed
-	 */
-	closeAllTerminals(): number {
-		return this.closeTerminals(() => true, true)
 	}
 
 	// =========================================================================

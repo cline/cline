@@ -206,12 +206,6 @@ export interface ITerminalManager {
 	disposeAll(): void
 
 	/**
-	 * Set the timeout for waiting for shell integration.
-	 * @param timeout Timeout in milliseconds
-	 */
-	setShellIntegrationTimeout(timeout: number): void
-
-	/**
 	 * Enable or disable terminal reuse.
 	 * @param enabled Whether to enable terminal reuse
 	 */
@@ -222,12 +216,6 @@ export interface ITerminalManager {
 	 * @param limit Maximum number of lines
 	 */
 	setTerminalOutputLineLimit(limit: number): void
-
-	/**
-	 * Set the default terminal profile.
-	 * @param profile The profile identifier
-	 */
-	setDefaultTerminalProfile(profile: string): void
 
 	/**
 	 * Process output lines, potentially truncating if over limit.

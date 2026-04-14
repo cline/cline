@@ -111,10 +111,8 @@ function createManagerSpies() {
 		getUnretrievedOutput: () => "",
 		isProcessHot: () => false,
 		disposeAll: () => {},
-		setShellIntegrationTimeout: () => {},
 		setTerminalReuseEnabled: () => {},
 		setTerminalOutputLineLimit: () => {},
-		setDefaultTerminalProfile: () => {},
 		processOutput: (outputLines: string[]) => outputLines.join("\n"),
 	}
 

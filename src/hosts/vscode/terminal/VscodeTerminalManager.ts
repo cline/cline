@@ -1,5 +1,4 @@
 import { arePathsEqual } from "@utils/path"
-import { getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import {
@@ -103,7 +102,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 	private shellIntegrationTimeout = 4000
 	private terminalReuseEnabled = true
 	private terminalOutputLineLimit = 500
-	private defaultTerminalProfile = "default"
 
 	constructor() {
 		let disposable: vscode.Disposable | undefined
@@ -234,8 +232,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 
 	async getOrCreateTerminal(cwd: string): Promise<ITerminalInfo> {
 		const terminals = TerminalRegistry.getAllTerminals()
-		const expectedShellPath =
-			this.defaultTerminalProfile !== "default" ? getShellForProfile(this.defaultTerminalProfile) : undefined
 
 		// Find available terminal from our pool first (created for this task)
 		Logger.log(`[TerminalManager] Looking for terminal in cwd: ${cwd}`)
@@ -247,7 +243,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 				return false
 			}
 			// Check if shell path matches current configuration
-			if (t.shellPath !== expectedShellPath) {
+			if (t.shellPath !== undefined) {
 				return false
 			}
 			const terminalCwd = t.terminal.shellIntegration?.cwd // one of cline's commands could have changed the cwd of the terminal
@@ -268,7 +264,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 
 		// If no non-busy terminal in the current working dir exists and terminal reuse is enabled, try to find any non-busy terminal regardless of CWD
 		if (this.terminalReuseEnabled) {
-			const availableTerminal = terminals.find((t) => !t.busy && t.shellPath === expectedShellPath)
+			const availableTerminal = terminals.find((t) => !t.busy && t.shellPath === undefined)
 			if (availableTerminal) {
 				// Set up promise and tracking for CWD change
 				const cwdPromise = new Promise<void>((resolve, reject) => {
@@ -315,7 +311,7 @@ export class VscodeTerminalManager implements ITerminalManager {
 		}
 
 		// If all terminals are busy or don't match shell profile, create a new one with the configured shell
-		const newTerminalInfo = TerminalRegistry.createTerminal(cwd, expectedShellPath)
+		const newTerminalInfo = TerminalRegistry.createTerminal(cwd)
 		this.terminalIds.add(newTerminalInfo.id)
 		// Cast to ITerminalInfo for interface compatibility
 		return newTerminalInfo as unknown as ITerminalInfo
@@ -351,10 +347,6 @@ export class VscodeTerminalManager implements ITerminalManager {
 		this.disposables = []
 	}
 
-	setShellIntegrationTimeout(timeout: number): void {
-		this.shellIntegrationTimeout = timeout
-	}
-
 	setTerminalReuseEnabled(enabled: boolean): void {
 		this.terminalReuseEnabled = enabled
 	}
@@ -372,104 +364,5 @@ export class VscodeTerminalManager implements ITerminalManager {
 			return `${start.join("\n")}\n... (output truncated) ...\n${end.join("\n")}`.trim()
 		}
 		return outputLines.join("\n").trim()
-	}
-
-	setDefaultTerminalProfile(profileId: string): { closedCount: number; busyTerminals: TerminalInfo[] } {
-		// Only handle terminal change if profile actually changed
-		if (this.defaultTerminalProfile === profileId) {
-			return { closedCount: 0, busyTerminals: [] }
-		}
-
-		const _oldProfileId = this.defaultTerminalProfile
-		this.defaultTerminalProfile = profileId
-
-		// Get the shell path for the new profile
-		const newShellPath = profileId !== "default" ? getShellForProfile(profileId) : undefined
-
-		// Handle terminal management for the profile change
-		const result = this.handleTerminalProfileChange(newShellPath)
-
-		// Update lastActive for any remaining terminals
-		const allTerminals = TerminalRegistry.getAllTerminals()
-		allTerminals.forEach((terminal) => {
-			if (terminal.shellPath !== newShellPath) {
-				TerminalRegistry.updateTerminal(terminal.id, { lastActive: Date.now() })
-			}
-		})
-
-		return result
-	}
-
-	/**
-	 * Filters terminals based on a provided criteria function
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean
-	 * @returns Array of terminals that match the criteria
-	 */
-	filterTerminals(filterFn: (terminal: TerminalInfo) => boolean): TerminalInfo[] {
-		const terminals = TerminalRegistry.getAllTerminals()
-		return terminals.filter(filterFn)
-	}
-
-	/**
-	 * Closes terminals that match the provided criteria
-	 * @param filterFn Function that accepts TerminalInfo and returns boolean for terminals to close
-	 * @param force If true, closes even busy terminals (with warning)
-	 * @returns Number of terminals closed
-	 */
-	closeTerminals(filterFn: (terminal: TerminalInfo) => boolean, force = false): number {
-		const terminalsToClose = this.filterTerminals(filterFn)
-		let closedCount = 0
-
-		for (const terminalInfo of terminalsToClose) {
-			// Skip busy terminals unless force is true
-			if (terminalInfo.busy && !force) {
-				continue
-			}
-
-			// Remove from our tracking
-			if (this.terminalIds.has(terminalInfo.id)) {
-				this.terminalIds.delete(terminalInfo.id)
-			}
-			this.processes.delete(terminalInfo.id)
-
-			// Dispose the actual terminal
-			terminalInfo.terminal.dispose()
-
-			// Remove from registry
-			TerminalRegistry.removeTerminal(terminalInfo.id)
-
-			closedCount++
-		}
-
-		return closedCount
-	}
-
-	/**
-	 * Handles terminal management when the terminal profile changes
-	 * @param newShellPath New shell path to use
-	 * @returns Object with information about closed terminals and remaining busy terminals
-	 */
-	handleTerminalProfileChange(newShellPath: string | undefined): {
-		closedCount: number
-		busyTerminals: TerminalInfo[]
-	} {
-		// Close non-busy terminals with different shell path
-		const closedCount = this.closeTerminals((terminal) => !terminal.busy && terminal.shellPath !== newShellPath, false)
-
-		// Get remaining busy terminals with different shell path
-		const busyTerminals = this.filterTerminals((terminal) => terminal.busy && terminal.shellPath !== newShellPath)
-
-		return {
-			closedCount,
-			busyTerminals,
-		}
-	}
-
-	/**
-	 * Forces closure of all terminals (including busy ones)
-	 * @returns Number of terminals closed
-	 */
-	closeAllTerminals(): number {
-		return this.closeTerminals(() => true, true)
 	}
 }

@@ -819,14 +819,14 @@ By the end of the work, the team should ideally have:
 - [x] Remove foreground mode state persistence
 - [x] Remove controller update paths for terminal mode
 - [x] Simplify command execution routing
-- [ ] Remove dead foreground-only runtime code
+- [x] Remove dead foreground-only runtime code
 - [x] Apply only essential compatibility fixes
 
 ### Testing
 
 - [x] Update UI tests
-- [ ] Update controller/state tests
-- [ ] Update runtime tests
+- [x] Update controller/state tests
+- [x] Update runtime tests
 - [ ] Run manual verification
 
 ### Review and Cleanup
