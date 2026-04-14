@@ -817,7 +817,7 @@ By the end of the work, the team should ideally have:
 
 - [x] Remove foreground mode UI
 - [ ] Remove foreground mode state persistence
-- [ ] Remove controller update paths for terminal mode
+- [x] Remove controller update paths for terminal mode
 - [x] Simplify command execution routing
 - [ ] Remove dead foreground-only runtime code
 - [ ] Apply only essential compatibility fixes
