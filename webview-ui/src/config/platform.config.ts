@@ -54,6 +54,11 @@ declare global {
 // Initialize the vscode API if available
 const vsCodeApi = typeof acquireVsCodeApi === "function" ? acquireVsCodeApi() : null
 
+// Expose the VSCode API for debug harness access
+if (vsCodeApi && typeof window !== "undefined") {
+	;(window as any).__clineVsCodeApi = vsCodeApi
+}
+
 // Implementations for post message handling
 const postMessageStrategies: Record<string, PostMessageFunction> = {
 	vscode: (message: any) => {
