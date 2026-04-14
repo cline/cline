@@ -17,6 +17,7 @@ export interface RpcChatRuntimeConfigBase extends SessionPromptConfig {
 	enableTools: boolean;
 	enableSpawn: boolean;
 	enableTeams: boolean;
+	disableMcpSettingsTools?: boolean;
 	autoApproveTools?: boolean;
 	teamName: string;
 	missionStepInterval: number;

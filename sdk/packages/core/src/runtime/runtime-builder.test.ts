@@ -300,6 +300,88 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("skips MCP settings tools when disableMcpSettingsTools is true", async () => {
+		const tempRoot = mkdtempSync(
+			join(tmpdir(), "runtime-builder-mcp-disabled-"),
+		);
+		const serverPath = join(tempRoot, "mock-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+
+		writeFileSync(
+			serverPath,
+			`let buffer = "";
+function write(payload) {
+  const body = JSON.stringify(payload);
+  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+}
+function handle(message) {
+  if (message.method === "initialize") {
+    write({ jsonrpc: "2.0", id: message.id, result: { protocolVersion: "2024-11-05", capabilities: { tools: {} }, serverInfo: { name: "mock", version: "1.0.0" } } });
+    return;
+  }
+  if (message.method === "tools/list") {
+    write({ jsonrpc: "2.0", id: message.id, result: { tools: [{ name: "echo", description: "Echo tool", inputSchema: { type: "object", properties: { value: { type: "string" } }, required: [] } }] } });
+    return;
+  }
+  if (message.method === "tools/call") {
+    write({ jsonrpc: "2.0", id: message.id, result: { echoed: message.params?.arguments?.value ?? null } });
+  }
+}
+process.stdin.on("data", (chunk) => {
+  buffer += chunk.toString("utf8");
+  while (true) {
+    const separator = buffer.indexOf("\\r\\n\\r\\n");
+    if (separator < 0) break;
+    const header = buffer.slice(0, separator);
+    const match = header.match(/Content-Length:\\s*(\\d+)/i);
+    if (!match) throw new Error("missing content length");
+    const length = Number(match[1]);
+    const start = separator + 4;
+    const end = start + length;
+    if (buffer.length < end) break;
+    const body = buffer.slice(start, end);
+    buffer = buffer.slice(end);
+    const message = JSON.parse(body);
+    if (message.method === "notifications/initialized") continue;
+    handle(message);
+  }
+});`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						mock: {
+							command: process.execPath,
+							args: [serverPath],
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					disableMcpSettingsTools: true,
+				}),
+			});
+			expect(runtime.tools.map((tool) => tool.name)).not.toContain(
+				"mock__echo",
+			);
+			await runtime.shutdown("test");
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+		}
+	});
+
 	it("skips broken MCP servers without crashing", async () => {
 		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-bad-"));
 		const serverPath = join(tempRoot, "malformed-mcp-server.js");

@@ -15,6 +15,7 @@ export function toRuntimeConfig(config: RpcChatStartSessionRequest) {
 		enableTools: config.enableTools,
 		enableSpawn: config.enableSpawn,
 		enableTeams: config.enableTeams,
+		disableMcpSettingsTools: config.disableMcpSettingsTools ?? false,
 		autoApproveTools: config.autoApproveTools ?? false,
 		hasAutoApproveTools: typeof config.autoApproveTools === "boolean",
 		teamName: config.teamName,

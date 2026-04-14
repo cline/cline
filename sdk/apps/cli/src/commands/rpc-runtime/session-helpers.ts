@@ -127,6 +127,7 @@ export async function buildSessionStartInput(input: {
 				enableTools: config.enableTools,
 				enableSpawnAgent: config.enableSpawn,
 				enableAgentTeams: config.enableTeams,
+				disableMcpSettingsTools: config.disableMcpSettingsTools,
 				teamName: config.teamName,
 				missionLogIntervalSteps: config.missionStepInterval,
 				missionLogIntervalMs: config.missionTimeIntervalMs,

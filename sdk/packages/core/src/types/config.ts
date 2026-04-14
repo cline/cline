@@ -42,6 +42,7 @@ export interface CoreRuntimeFeatures {
 	enableTools: boolean;
 	enableSpawnAgent: boolean;
 	enableAgentTeams: boolean;
+	disableMcpSettingsTools?: boolean;
 	yolo?: boolean;
 }
 

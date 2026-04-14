@@ -105,3 +105,46 @@ describe("ClineGatewayRuntime.enterprise methods", () => {
 		});
 	});
 });
+
+describe("ClineGatewayRuntime.startRuntimeSession", () => {
+	it("forwards disableMcpSettingsTools when explicitly provided", async () => {
+		const startSession = vi.fn(async (request) => {
+			expect(request.disableMcpSettingsTools).toBe(true);
+			return { sessionId: "session-1" };
+		});
+		const runtime = new ClineGatewayRuntime(
+			"127.0.0.1:0",
+			createSessionBackend(),
+			{ startSession },
+		);
+
+		await runtime.startRuntimeSession({
+			request: {
+				sessionId: "session-1",
+				workspaceRoot: "/tmp/workspace",
+				cwd: "/tmp/workspace",
+				provider: "anthropic",
+				model: "claude-sonnet-4-6",
+				mode: "act",
+				apiKey: "",
+				systemPrompt: "test",
+				maxIterations: 0,
+				hasMaxIterations: false,
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				disableMcpSettingsTools: true,
+				autoApproveTools: false,
+				hasAutoApproveTools: false,
+				teamName: "",
+				missionStepInterval: 3,
+				missionTimeIntervalMs: 120000,
+				toolPolicies: {},
+				initialMessages: [],
+				logger: undefined,
+			},
+		} as never);
+
+		expect(startSession).toHaveBeenCalledTimes(1);
+	});
+});

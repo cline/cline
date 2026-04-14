@@ -403,6 +403,8 @@ export class ClineGatewayRuntime {
 					enableTools: request.request.enableTools === true,
 					enableSpawn: request.request.enableSpawn === true,
 					enableTeams: request.request.enableTeams === true,
+					disableMcpSettingsTools:
+						request.request.disableMcpSettingsTools === true,
 					autoApproveTools: request.request.hasAutoApproveTools
 						? request.request.autoApproveTools === true
 						: undefined,
@@ -501,6 +503,8 @@ export class ClineGatewayRuntime {
 						enableTools: request.request.config?.enableTools === true,
 						enableSpawn: request.request.config?.enableSpawn === true,
 						enableTeams: request.request.config?.enableTeams === true,
+						disableMcpSettingsTools:
+							request.request.config?.disableMcpSettingsTools === true,
 						autoApproveTools: request.request.config?.hasAutoApproveTools
 							? request.request.config?.autoApproveTools === true
 							: undefined,

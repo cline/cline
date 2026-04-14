@@ -422,6 +422,7 @@ function normalizeConfig(
 		| "enableTools"
 		| "enableSpawnAgent"
 		| "enableAgentTeams"
+		| "disableMcpSettingsTools"
 		| "yolo"
 		| "missionLogIntervalSteps"
 		| "missionLogIntervalMs"
@@ -443,6 +444,7 @@ function normalizeConfig(
 			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
 		enableAgentTeams:
 			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
+		disableMcpSettingsTools: config.disableMcpSettingsTools === true,
 		yolo: config.yolo === true,
 		missionLogIntervalSteps:
 			typeof config.missionLogIntervalSteps === "number" &&
@@ -529,9 +531,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					defaultToolExecutors,
 				),
 			);
-			const mcpRuntime = await loadConfiguredMcpTools(config.logger);
-			tools.push(...mcpRuntime.tools);
-			mcpShutdown = mcpRuntime.shutdown;
+			if (!normalized.disableMcpSettingsTools) {
+				const mcpRuntime = await loadConfiguredMcpTools(config.logger);
+				tools.push(...mcpRuntime.tools);
+				mcpShutdown = mcpRuntime.shutdown;
+			}
 		}
 
 		let teamRuntime: AgentTeamsRuntime | undefined;

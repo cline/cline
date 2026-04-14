@@ -242,6 +242,7 @@ message RuntimeSessionConfig {
   bool enable_tools = 11;
   bool enable_spawn = 12;
   bool enable_teams = 13;
+  bool disable_mcp_settings_tools = 22;
   bool auto_approve_tools = 14;
   bool has_auto_approve_tools = 15;
   string team_name = 16;
