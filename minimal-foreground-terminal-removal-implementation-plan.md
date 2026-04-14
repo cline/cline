@@ -827,13 +827,18 @@ By the end of the work, the team should ideally have:
 - [x] Update UI tests
 - [x] Update controller/state tests
 - [x] Update runtime tests
-- [ ] Run manual verification
+- [x] Run manual verification
 
 ### Review and Cleanup
 
 - [x] Confirm branch remains minimal in scope
 - [x] Document any intentionally deferred follow-up work
-- [ ] Prepare branch for code review
+- [x] Prepare branch for code review
+
+### Deferred Follow-up Notes
+
+- Full extension-host / end-to-end manual verification of command execution in a live IDE session was not added to this branch.
+- The branch is verified by typecheck, full unit-test suite, focused webview/runtime regressions, and a targeted Storybook visual check of terminal settings.
 
 ---
 
