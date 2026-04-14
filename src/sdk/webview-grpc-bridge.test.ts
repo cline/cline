@@ -14,16 +14,16 @@ vi.mock("@core/controller/state/subscribeToState", () => ({
 
 // Mock the proto conversion
 vi.mock("@shared/proto-conversions/cline-message", () => ({
-	convertClineMessageToProto: vi.fn((msg: { ts?: number; type?: string }) => ({
+	convertClineMessageToProto: vi.fn((msg: Record<string, unknown>) => ({
 		ts: msg.ts,
 		type: msg.type === "ask" ? 1 : 2,
 		ask: 0,
 		say: 0,
-		text: msg.text ?? "",
-		reasoning: msg.reasoning ?? "",
+		text: (msg.text as string) ?? "",
+		reasoning: (msg.reasoning as string) ?? "",
 		images: [],
 		files: [],
-		partial: msg.partial ?? false,
+		partial: (msg.partial as boolean) ?? false,
 	})),
 }))
 
