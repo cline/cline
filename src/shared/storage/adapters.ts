@@ -153,7 +153,7 @@ function createAzureAdapter(settings: BlobStoreSettings): StorageAdapter | undef
 		return {
 			async read(_: string): Promise<string | undefined> {
 				// We don't have a use case to read files yet.
-				throw new Error("Reading is not supporteyetd")
+				throw new Error("Reading is not supported")
 			},
 
 			async write(path: string, value: string): Promise<void> {
