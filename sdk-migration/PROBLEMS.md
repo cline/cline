@@ -79,10 +79,10 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement each method in its corresponding step.
 
 ### S1-2: Services not initialized (mcpHub, authService, etc.)
-- **Status**: 🟡 Minor (partially resolved)
-- **Description**: The SdkController now initializes `authService`, `ocaAuthService`, and `accountService` (Step 6). Only `mcpHub` remains as `undefined` — will be wired in Step 7.
-- **Root cause**: MCP hub will be properly initialized in Step 7.
-- **Fix**: Auth and account services wired in Step 6. MCP hub pending Step 7.
+- **Status**: 🟢 Verified Fixed
+- **Description**: The SdkController now initializes `authService`, `ocaAuthService`, `accountService` (Step 6), and `mcpHub` (Step 7). All core services are initialized.
+- **Root cause**: N/A — fixed incrementally in Steps 6 and 7.
+- **Fix**: Auth and account services wired in Step 6. MCP hub wired in Step 7 using classic McpHub (will be replaced by SDK's InMemoryMcpManager in Step 10).
 
 ### S1-3: Extension loads but sidebar shows errors
 - **Status**: 🟢 Verified Fixed
