@@ -9,14 +9,19 @@
 // - SDK "agent_event" content_start (text) → ClineMessage say="text" with partial=true
 // - SDK "agent_event" content_start (reasoning) → ClineMessage say="reasoning" with partial=true
 // - SDK "agent_event" content_start (tool) → ClineMessage say="tool" with partial=true
+//   IMPORTANT: The webview's ChatRow.tsx parses message.text as JSON when
+//   say==="tool", expecting ClineSayTool format: {tool, path, content, ...}.
+//   We must convert SDK tool names (read_files, editor, run_commands, etc.)
+//   and their inputs to this format.
 // - SDK "agent_event" content_end → ClineMessage with partial=false
 // - SDK "agent_event" done → ClineMessage say="completion_result"
 // - SDK "agent_event" error → ClineMessage say="error"
+// - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { AgentEvent } from "@clinebot/shared"
-import type { ClineMessage, ClineSay } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, ClineSay, ClineSayTool } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 
 // ---------------------------------------------------------------------------
@@ -121,6 +126,165 @@ export class MessageTranslatorState {
 }
 
 // ---------------------------------------------------------------------------
+// SDK tool name → classic ClineSayTool mapping
+// ---------------------------------------------------------------------------
+
+/**
+ * Map an SDK tool name and its input to a ClineSayTool object that the
+ * webview's ChatRow.tsx can render.
+ *
+ * The webview does `JSON.parse(message.text) as ClineSayTool` when
+ * `say === "tool"`, so the text MUST be valid ClineSayTool JSON.
+ *
+ * SDK tool names → classic tool names:
+ *   read_files       → readFile
+ *   editor           → editedExistingFile / newFileCreated
+ *   apply_patch      → editedExistingFile
+ *   run_commands     → (uses say="command", NOT say="tool")
+ *   search_codebase  → searchFiles
+ *   fetch_web_content → webFetch
+ *   skills           → useSkill
+ *   ask_question     → (not a visual tool — handled as text)
+ *   MCP tools        → (passed through with tool name as-is)
+ */
+function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
+	// Parse input if it's a string (some SDK tools pass stringified JSON)
+	const parsedInput = parseToolInput(input)
+
+	switch (toolName) {
+		case "read_files": {
+			// SDK input: { files: [{ path, start_line?, end_line? }] }
+			// Classic format: { tool: "readFile", path: "file.ts" }
+			const filePath = extractFirstFilePath(parsedInput)
+			return {
+				tool: "readFile",
+				path: filePath,
+			}
+		}
+
+		case "editor": {
+			// SDK input: { path, old_text?, new_text?, insert_line? }
+			// Classic format: { tool: "editedExistingFile"|"newFileCreated", path, content/diff }
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			const newText = getStringField(parsedInput, "new_text")
+			const oldText = getStringField(parsedInput, "old_text")
+			// If there's old_text, it's an edit; otherwise it's a create
+			const isEdit = !!oldText
+			return {
+				tool: isEdit ? "editedExistingFile" : "newFileCreated",
+				path: filePath,
+				content: newText,
+			}
+		}
+
+		case "apply_patch": {
+			// SDK input: { path, patch }
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			const patch = getStringField(parsedInput, "patch")
+			return {
+				tool: "editedExistingFile",
+				path: filePath,
+				diff: patch,
+			}
+		}
+
+		case "search_codebase": {
+			// SDK input: { queries: ["regex1", ...] }
+			const queries = getArrayField(parsedInput, "queries")
+			return {
+				tool: "searchFiles",
+				regex: queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? "",
+			}
+		}
+
+		case "fetch_web_content": {
+			// SDK input: { url }
+			const url = getStringField(parsedInput, "url") ?? ""
+			return {
+				tool: "webFetch",
+				path: url,
+			}
+		}
+
+		case "skills": {
+			// SDK input: { skill_name }
+			const skillName = getStringField(parsedInput, "skill_name") ?? getStringField(parsedInput, "name") ?? ""
+			return {
+				tool: "useSkill",
+				path: skillName,
+			}
+		}
+
+		default: {
+			// MCP tools and unknown tools — pass through with the raw tool name.
+			// The webview will render a generic tool display.
+			// Try to extract a path from the input for display.
+			const filePath =
+				getStringField(parsedInput, "path") ??
+				getStringField(parsedInput, "url") ??
+				getStringField(parsedInput, "command") ??
+				""
+			return {
+				tool: toolName as ClineSayTool["tool"],
+				path: filePath,
+			}
+		}
+	}
+}
+
+/**
+ * Parse tool input into a record if it's a string or object.
+ */
+function parseToolInput(input: unknown): Record<string, unknown> | undefined {
+	if (!input) return undefined
+	if (typeof input === "object" && !Array.isArray(input)) {
+		return input as Record<string, unknown>
+	}
+	if (typeof input === "string") {
+		try {
+			const parsed = JSON.parse(input)
+			if (typeof parsed === "object" && !Array.isArray(parsed)) {
+				return parsed
+			}
+		} catch {
+			// Not JSON — return undefined
+		}
+	}
+	return undefined
+}
+
+/** Extract the first file path from a read_files input */
+function extractFirstFilePath(input: Record<string, unknown> | undefined): string {
+	if (!input) return ""
+	const files = input.files
+	if (Array.isArray(files) && files.length > 0) {
+		const first = files[0]
+		if (typeof first === "string") return first
+		if (typeof first === "object" && first !== null) {
+			return ((first as Record<string, unknown>).path as string) ?? ""
+		}
+	}
+	// Fallback: check for path or file_path fields
+	return (input.path as string) ?? (input.file_path as string) ?? ""
+}
+
+/** Get a string field from a parsed input object */
+function getStringField(input: Record<string, unknown> | undefined, field: string): string | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "string") return value
+	return undefined
+}
+
+/** Get an array field from a parsed input object */
+function getArrayField(input: Record<string, unknown> | undefined, field: string): string[] | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (Array.isArray(value)) return value.map(String)
+	return undefined
+}
+
+// ---------------------------------------------------------------------------
 // Agent event translation
 // ---------------------------------------------------------------------------
 
@@ -156,14 +320,32 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					break
 				}
 				case "tool": {
-					const ts = state.getStreamingToolTs()
 					const toolName = event.toolName ?? "unknown"
 					const input = event.input
+
+					// run_commands uses say="command" (not say="tool")
+					// because the webview renders commands differently
+					if (toolName === "run_commands") {
+						const parsedInput = parseToolInput(input)
+						const commands = getArrayField(parsedInput, "commands")
+						const commandText = commands?.join(" && ") ?? getStringField(parsedInput, "commands") ?? ""
+						messages.push({
+							ts: state.getStreamingToolTs(),
+							type: "say",
+							say: "command",
+							text: commandText,
+							partial: true,
+						})
+						break
+					}
+
+					// All other tools → say="tool" with ClineSayTool JSON
+					const sayTool = sdkToolToClineSayTool(toolName, input)
 					messages.push({
-						ts,
+						ts: state.getStreamingToolTs(),
 						type: "say",
 						say: "tool",
-						text: formatToolStartText(toolName, input),
+						text: JSON.stringify(sayTool),
 						partial: true,
 					})
 					break
@@ -173,18 +355,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "content_update": {
-			// Content updates provide incremental progress for tool calls
-			if (event.contentType === "tool") {
-				const ts = state.getStreamingToolTs()
-				const toolName = event.toolName ?? "unknown"
-				messages.push({
-					ts,
-					type: "say",
-					say: "tool",
-					text: formatToolUpdateText(toolName, event.update),
-					partial: true,
-				})
-			}
+			// Content updates provide incremental progress for tool calls.
+			// For the webview, we don't need to push every update — the
+			// content_start message with partial=true is sufficient until
+			// content_end finalizes it. This avoids flooding the webview
+			// with intermediate states.
 			break
 		}
 
@@ -213,15 +388,52 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					break
 				}
 				case "tool": {
-					const ts = state.clearStreamingTool()
 					const toolName = event.toolName ?? "unknown"
-					messages.push({
-						ts,
-						type: "say",
-						say: "tool",
-						text: formatToolEndText(toolName, event.output, event.error),
-						partial: false,
-					})
+
+					// run_commands → say="command_output" for the result
+					if (toolName === "run_commands") {
+						const ts = state.clearStreamingTool()
+						const outputStr = typeof event.output === "string" ? event.output : JSON.stringify(event.output ?? "")
+						messages.push({
+							ts,
+							type: "say",
+							say: "command_output",
+							text: event.error ? `Error: ${event.error}` : outputStr,
+							partial: false,
+						})
+						break
+					}
+
+					// All other tools → finalize the say="tool" message
+					const ts = state.clearStreamingTool()
+					const input = undefined // content_end doesn't carry input
+					const sayTool = sdkToolToClineSayTool(toolName, input)
+					// If there's an error, include it in the tool message
+					if (event.error) {
+						messages.push({
+							ts,
+							type: "say",
+							say: "tool",
+							text: JSON.stringify(sayTool),
+							partial: false,
+						})
+						// Also push an error message
+						messages.push({
+							ts: state.nextTs(),
+							type: "say",
+							say: "error",
+							text: event.error,
+							partial: false,
+						})
+					} else {
+						messages.push({
+							ts,
+							type: "say",
+							say: "tool",
+							text: JSON.stringify(sayTool),
+							partial: false,
+						})
+					}
 					break
 				}
 			}
@@ -231,6 +443,19 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "iteration_start": {
 			// New iteration — reset streaming state for the new turn
 			state.reset()
+
+			// Emit an api_req_started message for the webview's API request
+			// spinner and cost display. The classic Task emits this before
+			// each API request.
+			messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					request: undefined, // Will be filled in by usage event
+				} satisfies ClineApiReqInfo),
+				partial: false,
+			})
 			break
 		}
 
@@ -252,14 +477,28 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "usage": {
-			// Usage events are captured in the result, not as messages
-			// They'll be included in the TranslationResult.usage field
+			// Usage events carry token counts. In the classic system,
+			// these are embedded in the api_req_started message's
+			// ClineApiReqInfo. We emit a separate api_req_started update
+			// with the usage data so the webview can display costs.
+			const apiReqInfo: ClineApiReqInfo = {
+				tokensIn: (event as any).inputTokens ?? 0,
+				tokensOut: (event as any).outputTokens ?? 0,
+				cacheWrites: (event as any).cacheWrites ?? undefined,
+				cacheReads: (event as any).cacheReads ?? undefined,
+			}
+			messages.push({
+				ts: state.nextTs(),
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify(apiReqInfo),
+				partial: false,
+			})
 			break
 		}
 
 		case "done": {
 			// Agent turn is complete
-			// AgentDoneEvent has: reason, text, iterations, usage?
 			messages.push({
 				ts: state.nextTs(),
 				type: "say",
@@ -405,63 +644,6 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 	}
 
 	return result
-}
-
-// ---------------------------------------------------------------------------
-// Tool text formatting helpers
-// ---------------------------------------------------------------------------
-
-/**
- * Format the start of a tool call as human-readable text.
- */
-function formatToolStartText(toolName: string, input?: unknown): string {
-	if (!input) return `[${toolName}]`
-
-	try {
-		const inputStr = typeof input === "string" ? input : JSON.stringify(input, null, 2)
-		// Truncate very long inputs for display
-		const maxLen = 500
-		const truncated = inputStr.length > maxLen ? `${inputStr.slice(0, maxLen)}...` : inputStr
-		return `[${toolName}]\n${truncated}`
-	} catch {
-		return `[${toolName}]`
-	}
-}
-
-/**
- * Format a tool update as human-readable text.
- */
-function formatToolUpdateText(toolName: string, update?: unknown): string {
-	if (!update) return `[${toolName}] running...`
-
-	try {
-		const updateStr = typeof update === "string" ? update : JSON.stringify(update)
-		const maxLen = 200
-		const truncated = updateStr.length > maxLen ? `${updateStr.slice(0, maxLen)}...` : updateStr
-		return `[${toolName}] ${truncated}`
-	} catch {
-		return `[${toolName}] running...`
-	}
-}
-
-/**
- * Format the end of a tool call as human-readable text.
- */
-function formatToolEndText(toolName: string, output?: unknown, error?: string): string {
-	if (error) {
-		return `[${toolName}] Error: ${error}`
-	}
-
-	if (!output) return `[${toolName}] Completed`
-
-	try {
-		const outputStr = typeof output === "string" ? output : JSON.stringify(output)
-		const maxLen = 500
-		const truncated = outputStr.length > maxLen ? `${outputStr.slice(0, maxLen)}...` : outputStr
-		return `[${toolName}] Result:\n${truncated}`
-	} catch {
-		return `[${toolName}] Completed`
-	}
 }
 
 // ---------------------------------------------------------------------------
