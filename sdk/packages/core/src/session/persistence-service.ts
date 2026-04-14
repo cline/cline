@@ -4,6 +4,7 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
+import { dirname } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms";
 import type { AgentResult } from "@clinebot/shared";
 import { resolveRootSessionId } from "@clinebot/shared";
@@ -922,7 +923,21 @@ export class UnifiedSessionPersistenceService {
 		unlinkIfExists(row.hookPath);
 		unlinkIfExists(row.messagesPath);
 		unlinkIfExists(this.artifacts.sessionManifestPath(id, false));
-		this.artifacts.removeSessionDirIfEmpty(id);
+		if (row.isSubagent) {
+			this.artifacts.removeSessionDirIfEmpty(id);
+		} else {
+			const candidateDirs = new Set<string>([
+				this.artifacts.sessionArtifactsDir(id),
+			]);
+			for (const path of [row.transcriptPath, row.hookPath, row.messagesPath]) {
+				if (typeof path === "string" && path.trim().length > 0) {
+					candidateDirs.add(dirname(path));
+				}
+			}
+			for (const dir of candidateDirs) {
+				this.artifacts.removeDir(dir);
+			}
+		}
 		return { deleted: true };
 	}
 }

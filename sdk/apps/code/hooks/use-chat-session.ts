@@ -50,6 +50,8 @@ const RELEVANT_STREAMS = new Set([
 	"chat_tool_call_start",
 	"chat_tool_call_end",
 	"chat_core_log",
+	"chat_usage",
+	"chat_done",
 ]);
 
 const BUSY_STATUSES = new Set<ChatSessionStatus>([
@@ -553,6 +555,17 @@ export function useChatSession() {
 				return;
 			}
 
+			if (payload.stream === "chat_usage") {
+				// Usage is still finalized from the send() response to avoid
+				// double-counting when both stream and response include it.
+				return;
+			}
+
+			if (payload.stream === "chat_done") {
+				clearLiveToolRefs();
+				return;
+			}
+
 			// --- Tool call start ---
 			if (payload.stream === "chat_tool_call_start") {
 				let parsed: ToolCallStartEvent = {};
@@ -663,7 +676,10 @@ export function useChatSession() {
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
 			setSessionId(id);
-			setStatus("running");
+			// Mark idle — not running — so the first sendPrompt is not queued.
+			// The status transitions to "starting"/"running" once a prompt is
+			// actually dispatched.
+			setStatus("idle");
 			setConfig(validatedConfig);
 			setHydratedHistorySessionId(null);
 			return id;

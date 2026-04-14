@@ -2,8 +2,8 @@ import { $ } from "bun";
 
 const main = async () => {
 	await $`next build`;
-	await $`mkdir -p dist/host`;
-	await $`bun build ./host/index.ts --outfile ./dist/host/index.js --target bun`;
+	await $`mkdir -p dist/sidecar`;
+	await $`bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun`;
 };
 
 main().catch((error: unknown) => {

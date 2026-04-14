@@ -153,7 +153,7 @@ export function AgentHeader({
 						<DropdownMenuItem
 							className="text-destructive focus:text-destructive"
 							disabled={!canDeleteSession || deletingSession}
-							onClick={() => onDeleteSession?.()}
+							onSelect={() => onDeleteSession?.()}
 						>
 							<Trash2 className="size-4" />
 							<span>{deletingSession ? "Deleting..." : "Delete session"}</span>

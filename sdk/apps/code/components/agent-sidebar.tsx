@@ -82,6 +82,10 @@ type SessionTitleUpdatedEvent = CustomEvent<{
 	title: string;
 }>;
 
+type SessionDeletedEvent = CustomEvent<{
+	sessionId: string;
+}>;
+
 const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
 const INITIAL_HISTORY_FETCH_LIMIT = 300;
@@ -220,6 +224,19 @@ function toThread(session: SessionHistoryItem): Thread {
 		model: session.model || "",
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 	};
+}
+
+function isKnownModelField(value?: string): boolean {
+	const trimmed = value?.trim().toLowerCase() ?? "";
+	return trimmed.length > 0 && trimmed !== "unknown";
+}
+
+function isValidHistorySession(session: SessionHistoryItem): boolean {
+	return (
+		Boolean(session.sessionId.trim()) &&
+		isKnownModelField(session.provider) &&
+		isKnownModelField(session.model)
+	);
 }
 
 function formatTokenCount(
@@ -487,14 +504,40 @@ export function AgentSidebar({
 			);
 		};
 
+		const handleSessionDeleted = (event: Event) => {
+			const detail = (event as SessionDeletedEvent).detail;
+			const sessionId = detail?.sessionId?.trim();
+			if (!sessionId) {
+				return;
+			}
+			usageLoadingRef.current.delete(sessionId);
+			titleLoadingRef.current.delete(sessionId);
+			usageHydratedStatusRef.current.delete(sessionId);
+			messageHydratedStatusRef.current.delete(sessionId);
+			setSessions((current) =>
+				current.filter((session) => session.sessionId !== sessionId),
+			);
+			setThreads((current) =>
+				current.filter((thread) => thread.id !== sessionId),
+			);
+		};
+
 		window.addEventListener(
 			"cline:session-title-updated",
 			handleTitleUpdated as EventListener,
+		);
+		window.addEventListener(
+			"cline:session-deleted",
+			handleSessionDeleted as EventListener,
 		);
 		return () => {
 			window.removeEventListener(
 				"cline:session-title-updated",
 				handleTitleUpdated as EventListener,
+			);
+			window.removeEventListener(
+				"cline:session-deleted",
+				handleSessionDeleted as EventListener,
 			);
 		};
 	}, []);
@@ -525,6 +568,7 @@ export function AgentSidebar({
 					return normalized;
 				})
 				.filter((session) => Boolean(session.sessionId))
+				.filter(isValidHistorySession)
 				.filter((session) => !session.isSubagent && !session.parentSessionId)
 				.sort(compareSessionsByStartedAtDesc);
 			const mergedSessions = mergeDiscoveredSessions(

@@ -3,6 +3,7 @@ import {
 	mkdirSync,
 	readdirSync,
 	rmdirSync,
+	rmSync,
 	unlinkSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
@@ -113,6 +114,21 @@ export class SessionArtifacts {
 				break;
 			}
 			dir = dirname(dir);
+		}
+	}
+
+	public removeSessionDir(sessionId: string): void {
+		this.removeDir(this.sessionArtifactsDir(sessionId));
+	}
+
+	public removeDir(dir: string): void {
+		if (!existsSync(dir)) {
+			return;
+		}
+		try {
+			rmSync(dir, { recursive: true, force: true });
+		} catch {
+			// Best-effort cleanup.
 		}
 	}
 

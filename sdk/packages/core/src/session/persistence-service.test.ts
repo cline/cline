@@ -200,4 +200,42 @@ describe("UnifiedSessionPersistenceService", () => {
 		);
 		expect(row?.transcriptPath).toMatch(/\.log$/);
 	});
+
+	it("deletes the full root session directory even when artifact paths are stale", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "delete-root-session-dir-"));
+		tempDirs.push(sessionsDir);
+
+		const store = new SqliteSessionStore({ sessionsDir });
+		stores.push(store);
+		const service = new CoreSessionService(store);
+		const sessionId = "root-session-delete";
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: false,
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			prompt: "delete me",
+			startedAt: "2026-04-10T19:00:00.000Z",
+		});
+
+		store.run(`UPDATE sessions SET messages_path = NULL WHERE session_id = ?`, [
+			sessionId,
+		]);
+
+		expect(existsSync(artifacts.messagesPath)).toBe(true);
+		expect(existsSync(join(sessionsDir, sessionId))).toBe(true);
+
+		const result = await service.deleteSession(sessionId);
+
+		expect(result).toEqual({ deleted: true });
+		expect(existsSync(artifacts.messagesPath)).toBe(false);
+		expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
+	});
 });

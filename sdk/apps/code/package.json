@@ -4,14 +4,13 @@
 	"private": true,
 	"scripts": {
 		"dev:web": "next dev -p 3125 --turbo",
-		"dev:host": "bun run host/index.ts",
+		"dev:sidecar": "bun run sidecar/index.ts",
 		"dev": "tauri dev",
 		"build": "bun run bun.mts",
-		"build:host": "mkdir -p dist/host && bun build ./host/index.ts --outfile ./dist/host/index.js --target bun",
-		"build:host:bin": "mkdir -p src-tauri/bin && bun build ./host/index.ts --compile --outfile ./src-tauri/bin/code-host",
+		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
+		"build:sidecar:bin": "mkdir -p src-tauri/bin && bun build ./sidecar/index.ts --compile --outfile ./src-tauri/bin/code-sidecar",
 		"build:binary": "tauri build",
 		"start": "next start",
-		"test:host": "bun test ./host/index.test.ts",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
 		"clean": "rm -rf .next out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},

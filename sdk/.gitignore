@@ -51,6 +51,9 @@ pnpm-lock.yaml
 # Protobuf generated code
 packages/rpc/src/proto/generated
 
+# Tauri generated code
+apps/code/src-tauri/gen
+
 # Tauri UI test snapshots
 apps/cli/src/tests/.tui-test
 apps/cli/src/tests/tui-traces

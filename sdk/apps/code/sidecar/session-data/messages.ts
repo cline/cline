@@ -5,13 +5,25 @@ import {
 	sharedSessionMessagesPath,
 	sharedSessionMessagesWritePath,
 } from "../paths";
-import { nowMs } from "../state";
-import type { ChatTurnResult, HostContext, JsonRecord } from "../types";
+import type { JsonRecord, SidecarContext } from "../types";
 import {
 	parseF64Value,
 	parseU64Value,
 	stringifyMessageContent,
 } from "./common";
+
+type ChatTurnResult = {
+	usage?: {
+		inputTokens?: number;
+		outputTokens?: number;
+		totalCost?: number;
+	};
+	inputTokens?: number;
+	outputTokens?: number;
+	totalCost?: number;
+};
+
+const nowMs = () => Date.now();
 
 function readMessageMetadata(message: JsonRecord): JsonRecord | undefined {
 	return message.metadata && typeof message.metadata === "object"
@@ -269,7 +281,7 @@ function readCheckpointEntriesByRunCount(
 }
 
 export async function readSessionMessages(
-	ctx: HostContext,
+	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
 ): Promise<unknown[]> {

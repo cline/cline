@@ -1,17 +1,17 @@
 # @clinebot/code
 
-Tauri desktop shell + persistent Bun desktop backend + Next.js UI for running and inspecting Cline chat sessions.
+Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspecting Cline chat sessions.
 
 ## Dev Commands
 
 From `apps/code/`:
 
 - `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
-- `bun run dev:host` - desktop backend only
+- `bun run dev:sidecar` - sidecar backend only
 - `bun run dev` - Tauri desktop dev
 - `bun run build` - build web assets
-- `bun run build:host` - build the Bun host bundle
-- `bun run build:host:bin` - compile the Bun host into a local binary
+- `bun run build:sidecar` - build the Bun sidecar bundle
+- `bun run build:sidecar:bin` - compile the Bun sidecar into a local binary
 - `bun run build:binary` - build desktop binary
 - `bun run typecheck` - TypeScript check
 
@@ -20,11 +20,10 @@ From `apps/code/`:
 Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
-2. The desktop backend ensures an owner-scoped RPC sidecar via `clite rpc ensure --json`, sets `CLINE_RPC_ADDRESS`, and registers the desktop client.
-3. The backend owns `scripts/chat-runtime-bridge.ts` and exposes one websocket transport (`/transport`) for commands, queries, and pushed events.
-4. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
-5. Tool approval updates are pushed from the backend instead of polled from the UI.
-6. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
+2. The desktop backend starts the Bun sidecar and exposes one websocket transport (`/transport`) for commands, queries, and pushed events.
+3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
+4. Tool approval updates are pushed from the backend instead of polled from the UI.
+5. Session process context resolves `workspaceRoot` from git root and uses that same path as default `cwd` for chat runtime and git operations unless explicitly overridden.
 
 Desktop transport envelope:
 
@@ -42,8 +41,8 @@ Desktop transport envelope:
 ## Key Files
 
 - [`src-tauri/src/main.rs`](./apps/code/src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
-- [`host/index.ts`](./apps/code/host/index.ts) - persistent Bun desktop backend
-- [`scripts/chat-runtime-bridge.ts`](./apps/code/scripts/chat-runtime-bridge.ts) - persistent RPC runtime bridge
+- [`sidecar/index.ts`](./apps/code/sidecar/index.ts) - persistent Bun sidecar backend
+- [`sidecar/chat-session.ts`](./apps/code/sidecar/chat-session.ts) - in-process chat session runtime
 - [`scripts/routine-schedules.ts`](./apps/code/scripts/routine-schedules.ts) - RPC scheduler action bridge for Settings > Routine
 - [`lib/desktop-client.ts`](./apps/code/lib/desktop-client.ts) - typed desktop websocket client
 - [`hooks/use-chat-session.ts`](./apps/code/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
@@ -58,8 +57,7 @@ Desktop transport envelope:
 ## Troubleshooting
 
 - If live updates stall, verify the desktop backend websocket is connected and `chat_event` messages are arriving.
-- Runtime bridge `send` calls are now bounded to 120s by default (`CLINE_RPC_RUNTIME_SEND_TIMEOUT_MS`). This prevents one hung turn from wedging the persistent bridge loop for all future chat requests.
-- Tauri restarts the desktop backend if the host process exits and kills it on app teardown.
+- Tauri restarts the desktop backend if the sidecar process exits and kills it on app teardown.
 - Chat sends now preflight provider credentials. If a provider that requires API-key auth is selected without a key, the UI blocks the turn with a clear error message instead of starting a hanging session.
 - If a turn completes with `finishReason=error` before any assistant content is produced, the UI now adds an explicit error chat message so failed turns are visible in the transcript.
 - If package changes are not reflected, rebuild SDK packages (`bun run build:sdk`). The next `clite rpc ensure` call should attach to the current build's sidecar automatically.

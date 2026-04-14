@@ -1,6 +1,5 @@
 "use client";
 
-import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 import type {
 	DesktopTransportEvent,
 	DesktopTransportMessage,
@@ -8,6 +7,67 @@ import type {
 	DesktopTransportResponse,
 	DesktopTransportState,
 } from "@/lib/desktop-transport";
+
+// Lazily import the Tauri invoke API only when available. When running in
+// sidecar/web mode (without Tauri), this module may not exist or the bridge
+// may not be initialised, so we fall back to a hardcoded local WS endpoint.
+async function tryTauriInvoke<T>(
+	command: string,
+	args?: Record<string, unknown>,
+): Promise<T> {
+	try {
+		const { invoke } = await import("@tauri-apps/api/core");
+		return await invoke<T>(command, args);
+	} catch {
+		throw new Error(`Tauri invoke unavailable for command: ${command}`);
+	}
+}
+
+/** Resolved once on first call; cached for subsequent calls. */
+let resolvedEndpointCache: string | null = null;
+
+/**
+ * Resolve the backend WebSocket endpoint.
+ *
+ * Priority order:
+ * 1. `window.__SIDECAR_WS_ENDPOINT__` — injected by the sidecar's HTML scaffold
+ *    or an integration test harness.
+ * 2. Tauri `get_desktop_backend_endpoint` command — used when running inside
+ *    the full Tauri app shell.
+ * 3. Fallback to `ws://127.0.0.1:3126/transport` — the sidecar's default port
+ *    when running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
+ */
+async function resolveBackendEndpoint(): Promise<string> {
+	if (resolvedEndpointCache) return resolvedEndpointCache;
+
+	// 1. Explicit injection from sidecar or test harness.
+	const injected =
+		typeof window !== "undefined"
+			? (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__
+			: undefined;
+	if (typeof injected === "string" && injected.trim()) {
+		resolvedEndpointCache = injected.trim();
+		return resolvedEndpointCache;
+	}
+
+	// 2. Tauri command (full desktop app).
+	try {
+		const endpoint = await tryTauriInvoke<string>(
+			"get_desktop_backend_endpoint",
+		);
+		const trimmed = endpoint.trim();
+		if (trimmed) {
+			resolvedEndpointCache = trimmed;
+			return resolvedEndpointCache;
+		}
+	} catch {
+		// Tauri not available — fall through to default.
+	}
+
+	// 3. Default sidecar port for local dev mode.
+	resolvedEndpointCache = "ws://127.0.0.1:3126/transport";
+	return resolvedEndpointCache;
+}
 
 type PendingRequest = {
 	resolve: (value: unknown) => void;
@@ -21,6 +81,13 @@ type TransportStateHandler = (state: DesktopTransportState) => void;
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
 const RECONNECT_MAX_DELAY_MS = 4_000;
+// Commands that should be routed to Tauri's native invoke bridge instead of
+// the WebSocket transport — only applicable in the full Tauri app shell.
+// In sidecar/web mode these commands are handled by the sidecar over WebSocket.
+function isTauriAvailable(): boolean {
+	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
 const NATIVE_COMMANDS = new Set([
 	"pick_workspace_directory",
 	"open_mcp_settings_file",
@@ -49,8 +116,8 @@ class DesktopClient {
 		if (this.endpoint?.trim()) {
 			return this.endpoint;
 		}
-		const endpoint = await tauriInvoke<string>("get_desktop_backend_endpoint");
-		this.endpoint = endpoint.trim();
+		const endpoint = await resolveBackendEndpoint();
+		this.endpoint = endpoint;
 		return this.endpoint;
 	}
 
@@ -166,8 +233,11 @@ class DesktopClient {
 	}
 
 	async invoke<T>(command: string, args?: Record<string, unknown>): Promise<T> {
-		if (NATIVE_COMMANDS.has(command)) {
-			return await tauriInvoke<T>(command, args);
+		// Route native OS commands (directory picker, file opener) through Tauri
+		// only when running inside the full Tauri app shell. In sidecar/web mode
+		// these are handled by the sidecar over WebSocket.
+		if (NATIVE_COMMANDS.has(command) && isTauriAvailable()) {
+			return await tryTauriInvoke<T>(command, args);
 		}
 
 		await this.ensureConnected();

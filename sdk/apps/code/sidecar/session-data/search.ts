@@ -1,8 +1,8 @@
 import { getFileIndex } from "@clinebot/core";
-import type { HostContext } from "../types";
+import type { SidecarContext } from "../types";
 
 export function searchWorkspaceFiles(
-	ctx: HostContext,
+	ctx: Pick<SidecarContext, "workspaceRoot">,
 	args?: Record<string, unknown>,
 ): Promise<string[]> {
 	const root =

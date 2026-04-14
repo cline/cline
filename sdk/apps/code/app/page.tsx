@@ -89,21 +89,27 @@ export default function Home() {
 	}, []);
 
 	const handleDeleteSession = useCallback(
-		(deletedSessionId: string) => {
+		(deletedSessionId: string, deletedThreadId?: string) => {
 			const historyThreadId = `session_${deletedSessionId}`;
 			setThreads((prev) => {
 				const next = prev.filter(
 					(thread) =>
+						thread.id !== deletedThreadId &&
 						thread.id !== historyThreadId &&
 						thread.historySession?.sessionId !== deletedSessionId,
 				);
+				const deletedWasActive =
+					activeThreadId === deletedThreadId ||
+					activeThreadId === historyThreadId;
+				if (deletedWasActive) {
+					const fallback = { id: makeThreadId() };
+					setActiveThreadId(fallback.id);
+					return [...next, fallback];
+				}
 				if (next.length === 0) {
 					const fallback = { id: makeThreadId() };
 					setActiveThreadId(fallback.id);
 					return [fallback];
-				}
-				if (!next.some((thread) => thread.id === activeThreadId)) {
-					setActiveThreadId(next[0]?.id);
 				}
 				return next;
 			});
@@ -157,6 +163,7 @@ export default function Home() {
 						{activeThread ? (
 							<div className="flex min-h-0 flex-1 flex-col">
 								<ChatThreadPane
+									key={activeThread.id}
 									historySession={activeThread.historySession}
 									onUpdateSessionMetadata={handleUpdateSessionMetadata}
 									threadId={activeThread.id}
@@ -190,7 +197,7 @@ function ChatThreadPane({
 		sessionId: string,
 		metadata: SessionMetadata,
 	) => void;
-	onDeleteSession?: (sessionId: string) => void;
+	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
 }) {
 	const {
@@ -222,6 +229,9 @@ function ChatThreadPane({
 	const [deletingSession, setDeletingSession] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
 	const [manualTitle, setManualTitle] = useState("");
+	const [dismissedHistorySessionId, setDismissedHistorySessionId] = useState<
+		string | null
+	>(null);
 	const [gitBranch, setGitBranch] = useState("no-git");
 	const [providerCredentials, setProviderCredentials] = useState<
 		Record<string, { apiKey: string }>
@@ -485,6 +495,10 @@ function ChatThreadPane({
 	}, [refreshGitBranch]);
 
 	useEffect(() => {
+		setDismissedHistorySessionId(null);
+	}, []);
+
+	useEffect(() => {
 		if (historySession) {
 			resetThreadRef.current = null;
 			const nextSessionId = historySession.sessionId;
@@ -550,7 +564,19 @@ function ChatThreadPane({
 		[rejectToolApproval],
 	);
 
-	const activeSessionToDelete = sessionId ?? historySession?.sessionId ?? null;
+	const visibleHistorySession =
+		historySession?.sessionId &&
+		historySession.sessionId === dismissedHistorySessionId
+			? undefined
+			: historySession;
+	const hideDeletedSessionUi = Boolean(
+		dismissedHistorySessionId &&
+			(sessionId === dismissedHistorySessionId ||
+				historySession?.sessionId === dismissedHistorySessionId),
+	);
+	const activeSessionToDelete = hideDeletedSessionUi
+		? null
+		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 
 	const handleDeleteSession = useCallback(async () => {
 		if (!activeSessionToDelete || deletingSession) {
@@ -562,20 +588,43 @@ function ChatThreadPane({
 
 		setDeletingSession(true);
 		try {
-			await desktopClient.invoke("delete_chat_session", {
-				sessionId: activeSessionToDelete,
-			});
+			const deleted = await desktopClient.invoke<boolean>(
+				"delete_chat_session",
+				{
+					sessionId: activeSessionToDelete,
+				},
+			);
+			if (!deleted) {
+				return;
+			}
+			setDismissedHistorySessionId(activeSessionToDelete);
+			setManualTitle("");
+			hydratedSessionRef.current = null;
+			manualTitleSessionRef.current = null;
+			window.dispatchEvent(
+				new CustomEvent("cline:session-deleted", {
+					detail: {
+						sessionId: activeSessionToDelete,
+					},
+				}),
+			);
+			onDeleteSession?.(activeSessionToDelete, threadId);
 			setPromptInput("");
 			setPendingAttachments([]);
 			setShowDiffView(false);
-			await reset();
-			onDeleteSession?.(activeSessionToDelete);
+			void reset();
 		} catch {
 			// Keep current state when deletion fails.
 		} finally {
 			setDeletingSession(false);
 		}
-	}, [activeSessionToDelete, deletingSession, onDeleteSession, reset]);
+	}, [
+		activeSessionToDelete,
+		deletingSession,
+		onDeleteSession,
+		reset,
+		threadId,
+	]);
 
 	const attachmentList = pendingAttachments.map((file, index) => ({
 		id: `${file.name}:${file.size}:${file.lastModified}:${index}`,
@@ -587,14 +636,25 @@ function ChatThreadPane({
 		(message) => message.role === "user",
 	)?.content;
 	const metadataTitle =
-		manualTitle || getSessionMetadataTitle(historySession?.metadata);
+		manualTitle || getSessionMetadataTitle(visibleHistorySession?.metadata);
 	const threadTitle = toThreadTitle({
-		title: metadataTitle,
-		prompt: historySession?.prompt ?? firstUserMessage,
+		title: hideDeletedSessionUi ? undefined : metadataTitle,
+		prompt: hideDeletedSessionUi
+			? undefined
+			: (visibleHistorySession?.prompt ?? firstUserMessage),
 	});
 	const hasDiffChanges = summary.additions + summary.deletions > 0;
 
-	const activeSessionForTitle = sessionId ?? historySession?.sessionId ?? null;
+	const activeSessionForTitle = hideDeletedSessionUi
+		? null
+		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
+	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const displayedError = hideDeletedSessionUi ? null : error;
+	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
+	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
+	const displayedIsSwitching = hideDeletedSessionUi
+		? false
+		: isHydratingSession;
 
 	const handleRenameTitle = useCallback(
 		async (nextTitle: string) => {
@@ -662,19 +722,14 @@ function ChatThreadPane({
 	);
 
 	const isAppReady =
-		chatTransportState === "connected" &&
-		resolvedWorkspaceRoot.length > 0 &&
-		providersLoaded &&
-		workspacesLoaded;
+		chatTransportState === "connected" && providersLoaded && workspacesLoaded;
 
 	if (!isAppReady) {
 		return (
 			<div className="flex h-full flex-1 flex-col items-center justify-center gap-3 bg-background text-foreground">
 				<div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
 				<p className="text-sm text-muted-foreground">
-					{chatTransportState !== "connected"
-						? "Connecting..."
-						: "Loading workspace..."}
+					{chatTransportState !== "connected" ? "Connecting..." : "Loading..."}
 				</p>
 			</div>
 		);
@@ -719,18 +774,18 @@ function ChatThreadPane({
 								setPromptInput(prompt);
 							}}
 							chatTransportState={chatTransportState}
-							error={error}
-							messages={messages}
+							error={displayedError}
+							messages={displayedMessages}
 							model={config.model}
 							onRestoreCheckpoint={(runCount) =>
 								void restoreCheckpoint(runCount)
 							}
 							pendingToolApprovals={pendingToolApprovals}
 							provider={config.provider}
-							sessionId={sessionId}
+							sessionId={displayedSessionId}
 							streamingMessageId={activeAssistantMessageId}
-							isSessionSwitching={isHydratingSession}
-							status={status}
+							isSessionSwitching={displayedIsSwitching}
+							status={displayedStatus}
 						/>
 					)}
 				</div>
