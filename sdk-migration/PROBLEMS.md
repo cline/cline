@@ -171,18 +171,15 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement in Step 7.
 
 ### S6-5: Sending messages does not start inference
-- **Status**: 🔴 Blocker
-- **Description**: When the user types a message and hits Enter (or clicks Send), nothing happens. The `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, but inference doesn't start. This affects both the debug harness and the production VSCode launch configuration.
-- **Root cause**: **Both credential resolution paths in `buildSessionConfig()` fail silently:**
-  1. **Path 1 — SDK ProviderSettingsManager**: The "cline" provider in `~/.cline/data/settings/providers.json` has `tokenSource: "oauth"` but an **empty `apiKey`** field. The OAuth token lives in `secrets.json` as `cline:clineAccountId` (a JSON object with `idToken`), but the SDK's migration never extracted it into the `apiKey` field. The check `if (lastUsed?.provider && lastUsed?.apiKey)` fails because `apiKey` is falsy.
-  2. **Path 2 — Classic StateManager fallback**: Calls `stateManager.buildApiHandlerSettings(mode)` which **does not exist** on StateManager. TypeScript confirms: `error TS2339: Property 'buildApiHandlerSettings' does not exist on type 'StateManager'`. esbuild doesn't type-check so the build succeeds, but at runtime this throws `TypeError: stateManager.buildApiHandlerSettings is not a function`, caught silently by the try/catch.
-  3. **Result**: Both paths fail → defaults to `providerId: "anthropic"`, `apiKey: ""` → API call fails with empty key.
-- **Additional issue**: `SdkController.initTask()` awaits `core.start(startInput)` which blocks until the first agent turn completes, holding up the gRPC response to the webview. Even if credentials were correct, the webview would appear frozen until the first turn finishes.
-- **Fix needed**:
-  1. **Credential resolution**: Port the `resolveApiKey()` and `resolveModelId()` functions from `sdk-migration-fri` branch's `cline-session-factory.ts`. These functions read directly from `ApiConfiguration` (which includes secrets from `StateManager.constructApiConfigurationFromCache()`) and handle the "cline" provider specially: extract `idToken` from `cline:clineAccountId` JSON, add `workos:` prefix. They also map all 30+ providers to their correct API key field names.
-  2. **Non-blocking session start**: Call `start({ interactive: true })` WITHOUT a `prompt`. This creates the session and returns immediately — `DefaultSessionManager.start()` at line 411 checks `if (startInput.prompt?.trim())` and skips `runTurn()` when there's no prompt. Then call `send({ sessionId, prompt })` to run the first turn. The `send()` blocks but events stream in real-time via `subscribe()`. The gRPC `newTask` handler should: (a) push the task message to the UI immediately, (b) `await start()` (fast — just creates session, returns session ID), (c) fire-and-forget `send()` (blocks in background, events stream to webview). This cleanly separates session creation from inference. Confirmed working by SDK's own e2e test (`default-session-manager.e2e.test.ts` lines 324-346).
-- **Verification**: Send a message via debug harness `ui.send_message`, check extension host console for provider resolution logs showing a non-empty API key.
-- **Reference**: `sdk-migration-fri:src/sdk/cline-session-factory.ts` lines 156-230 (`resolveApiKey()`, `resolveModelId()`)
+- **Status**: 🟢 Verified Fixed
+- **Description**: Inference now works end-to-end. When the user sends a message, the `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, starts it without a prompt (fast return), then fire-and-forgets `core.send()` to run the first agent turn. Events stream in real-time via `subscribe()`.
+- **Root cause (fixed)**:
+  1. **Credential resolution**: Replaced broken `ProviderSettingsManager` and `buildApiHandlerSettings()` paths with `resolveApiKey()` and `resolveModelId()` functions that read directly from `StateManager.getApiConfiguration()` (which includes secrets). These handle all 30+ providers and the "cline" provider's OAuth token extraction (`idToken` from `cline:clineAccountId` JSON, `workos:` prefix).
+  2. **Non-blocking session start**: `initTask()` now calls `start({ interactive: true })` WITHOUT a prompt, which returns immediately. Then fire-and-forgets `core.send({ sessionId, prompt })` so the gRPC handler returns immediately while inference runs in the background.
+  3. **MCP transport fallback**: Added catch for `Unsupported MCP transport` errors — retries with `enableTools: false` if the SDK's MCP client doesn't support a configured transport type (e.g., `streamableHttp`).
+- **Fix applied**: `src/sdk/cline-session-factory.ts` (resolveApiKey, resolveModelId, resolveBaseUrl), `src/sdk/SdkController.ts` (non-blocking start, MCP fallback)
+- **Verification**: Debug harness `web.post_message` with `newTask` → session starts, agent runs, events stream to webview. Webview shows `iteration_start`, `usage`, `iteration_end`, `done` events. `globalThis.__cline_last_init_error` is `undefined` (no error).
+- **Evidence**: Debug harness session on 2026-04-14. Webview body text shows: `iteration_start` (iteration 1), `usage` (tokens tracked), `iteration_end`, `done` (reason: "completed"). Session completed successfully with `z-ai/glm-5.1` provider.
 
 ### S6-6: Clicking historical chat items does nothing
 - **Status**: 🔵 Awaiting Verification
@@ -315,15 +312,12 @@ underlying patterns that caused them are relevant.
 - **Reference**: Classic extension's `McpHub` in `src/services/mcp/McpHub.ts`; SDK's `InMemoryMcpManager` in `packages/core/src/extensions/mcp/`; Tauri desktop's session restart pattern in `apps/code/host/runtime-bridge.ts`
 
 ### S6-11: Credential caching from classic extension may not work
-- **Status**: 🔴 Blocker
-- **Description**: A key requirement of the SDK migration is that users should NOT need to log in again — cached credentials from the classic extension (`globalState.json` + `secrets.json`) should be reused. This branch's `buildSessionConfig()` attempts this via two paths, but **both fail** (see S6-5). The `sdk-migration-fri` branch solved this with custom `resolveApiKey()` / `resolveModelId()` functions that read directly from `StateManager.constructApiConfigurationFromCache()` and handle all provider-specific key mappings including the "cline" provider's OAuth token extraction.
-- **Root cause**: The SDK's `ProviderSettingsManager` auto-migration does not correctly extract OAuth tokens for the "cline" provider. The `providers.json` entry has `tokenSource: "oauth"` but an empty `apiKey`. The fallback to `stateManager.buildApiHandlerSettings()` calls a method that doesn't exist.
-- **Fix needed**: Replace the broken credential resolution in `buildSessionConfig()` with the working approach from `sdk-migration-fri`:
-  1. Read `ApiConfiguration` from `StateManager.constructApiConfigurationFromCache()` (or equivalent)
-  2. Use a `resolveApiKey(provider, config)` function that handles all providers, especially "cline" (extract `idToken` from `cline:clineAccountId` JSON, add `workos:` prefix)
-  3. Use a `resolveModelId(provider, modePrefix, config)` function that maps provider-specific model ID keys
-- **Verification**: After fix, `buildSessionConfig()` should log a non-empty API key for the "cline" provider when `secrets.json` contains a valid `cline:clineAccountId` entry.
-- **Reference**: `sdk-migration-fri:src/sdk/cline-session-factory.ts` lines 156-280
+- **Status**: 🟢 Verified Fixed
+- **Description**: Cached credentials from the classic extension (`globalState.json` + `secrets.json`) are now correctly reused. The `buildSessionConfig()` function reads from `StateManager.getApiConfiguration()` (which includes secrets) and uses `resolveApiKey()` / `resolveModelId()` functions that handle all 30+ providers including the "cline" provider's OAuth token extraction.
+- **Root cause (fixed)**: Same as S6-5 — replaced broken `ProviderSettingsManager` and `buildApiHandlerSettings()` paths with direct `ApiConfiguration` reading.
+- **Fix applied**: `src/sdk/cline-session-factory.ts` — `resolveApiKey()`, `resolveModelId()`, `resolveBaseUrl()` functions that read from `StateManager.getApiConfiguration()`.
+- **Verification**: Debug harness session shows inference working with `z-ai/glm-5.1` provider using cached credentials. No re-login required.
+- **Evidence**: Same as S6-5 — debug harness session on 2026-04-14.
 
 <!-- Template:
 ### [ID] Title
