@@ -13,6 +13,7 @@ import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
+import { StateManager } from "@/core/storage/StateManager"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { getProviderSettingsManager } from "./provider-migration"
 
@@ -61,28 +62,70 @@ export interface ActiveSession {
 /**
  * Build a CoreSessionConfig from the current state.
  *
- * Reads provider settings from the SDK's ProviderSettingsManager
- * (which auto-migrated from legacy storage in Step 3).
+ * Reads provider settings from the SDK's ProviderSettingsManager first,
+ * then falls back to the classic StateManager (globalState.json) if the
+ * SDK manager doesn't have a valid provider configured. This fallback is
+ * critical because the SDK's providers.json may not exist yet or may not
+ * have been populated with the user's credentials.
  */
 export async function buildSessionConfig(input: SessionConfigInput): Promise<CoreSessionConfig> {
-	const dataDir = resolveDataDir()
-	const manager = getProviderSettingsManager(dataDir)
-	const lastUsed = manager.getLastUsedProviderSettings()
-
-	// Read current provider/model from state
-	// getLastUsedProviderSettings() returns { provider, model, apiKey, ... }
-	// (flat structure, not nested under "settings")
-	const providerId = lastUsed?.provider ?? "anthropic"
-	const modelId = lastUsed?.model ?? "claude-sonnet-4-6"
-	const apiKey = lastUsed?.apiKey ?? ""
-
 	const cwd = input.cwd || process.cwd()
 	const workspaceRoot = input.workspaceRoot ?? cwd
+
+	// Try SDK's ProviderSettingsManager first
+	let providerId: string | undefined
+	let modelId: string | undefined
+	let apiKey: string | undefined
+	let baseUrl: string | undefined
+
+	try {
+		const dataDir = resolveDataDir()
+		const manager = getProviderSettingsManager(dataDir)
+		const lastUsed = manager.getLastUsedProviderSettings()
+
+		if (lastUsed?.provider && lastUsed?.apiKey) {
+			providerId = lastUsed.provider
+			modelId = lastUsed.model
+			apiKey = lastUsed.apiKey
+			baseUrl = lastUsed.baseUrl
+			Logger.log(`[SessionFactory] Using SDK provider: ${providerId}/${modelId}`)
+		}
+	} catch (error) {
+		Logger.warn("[SessionFactory] SDK ProviderSettingsManager not available, falling back to StateManager:", error)
+	}
+
+	// Fallback: read from classic StateManager (globalState.json + secrets.json)
+	// Uses the existing buildApiHandlerSettings() which correctly resolves
+	// provider/model/apiKey for the current mode (plan/act).
+	if (!providerId || !apiKey) {
+		try {
+			const stateManager = StateManager.get()
+			const mode = input.mode ?? "act"
+			const apiSettings = stateManager.buildApiHandlerSettings(mode)
+
+			if (apiSettings.apiProvider) {
+				providerId = apiSettings.apiProvider
+				modelId = apiSettings.apiModelId ?? undefined
+				apiKey = (apiSettings[`${apiSettings.apiProvider}ApiKey` as keyof typeof apiSettings] as string) ?? undefined
+				baseUrl = (apiSettings[`${apiSettings.apiProvider}BaseUrl` as keyof typeof apiSettings] as string) ?? undefined
+
+				Logger.log(`[SessionFactory] Using classic StateManager provider: ${providerId}/${modelId}`)
+			}
+		} catch (error) {
+			Logger.warn("[SessionFactory] Classic StateManager fallback failed:", error)
+		}
+	}
+
+	// Final defaults
+	providerId = providerId ?? "anthropic"
+	modelId = modelId ?? "claude-sonnet-4-6"
+	apiKey = apiKey ?? ""
 
 	const config: CoreSessionConfig = {
 		providerId,
 		modelId,
 		apiKey,
+		baseUrl,
 		cwd,
 		workspaceRoot,
 		systemPrompt: "", // Will be resolved by the SDK's prompt builder
