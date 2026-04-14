@@ -15,7 +15,10 @@ import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
 
-// Default timeout for commands in yolo mode and background exec mode
+// Managed timeouts now apply to all execute_command invocations.
+// Commands without an explicit timeout fall back to a short default or a longer
+// timeout for known long-running command families, and can continue in
+// background tracking if they exceed that managed timeout.
 const DEFAULT_COMMAND_TIMEOUT_SECONDS = 30
 const LONG_RUNNING_COMMAND_TIMEOUT_SECONDS = 300
 
