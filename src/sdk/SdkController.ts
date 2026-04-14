@@ -208,16 +208,16 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
+		Logger.log(`[SdkController] initTask called: "${task?.substring(0, 50)}"`)
 		try {
 			// Clear any existing session first
 			await this.clearTask()
 
 			// Build session config from current state
-			// ClineExtensionContext doesn't have workspaceRoot — use cwd from
-			// the workspace storage or fall back to process.cwd()
 			const cwd = process.cwd()
-			const modeValue = await this.stateManager.getGlobalSettingsKey("mode")
+			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
+			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
 			const config = await buildSessionConfig({
 				prompt: task,
 				images,
@@ -227,8 +227,12 @@ export class Controller {
 				cwd,
 				mode,
 			})
+			Logger.log(
+				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
+			)
 
 			// Create ClineCore instance
+			Logger.log("[SdkController] Creating ClineCore instance...")
 			const core = await createClineCore()
 
 			// Subscribe to session events BEFORE starting
@@ -248,6 +252,7 @@ export class Controller {
 			})
 
 			// Start the session
+			Logger.log("[SdkController] Starting session...")
 			const startResult = await core.start(startInput)
 
 			// Track the active session
@@ -268,8 +273,9 @@ export class Controller {
 				() => this.cancelTask(),
 			)
 
-			// Create a history item for this task (will be saved to task history in Step 6)
-			createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
+			// Create and save a history item for this task
+			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
+			await this.updateTaskHistory(newHistoryItem)
 
 			// Emit initial task message
 			this.emitSessionEvents(
@@ -653,14 +659,23 @@ export class Controller {
 		stubWarn("exportTaskWithId")
 	}
 
-	async deleteTaskFromState(_id: string): Promise<HistoryItem[]> {
-		stubWarn("deleteTaskFromState")
-		return []
+	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
+		const history = this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined
+		const updated = (history || []).filter((item) => item.id !== id)
+		await this.stateManager.setGlobalState("taskHistory", updated)
+		return updated
 	}
 
-	async updateTaskHistory(_item: HistoryItem): Promise<HistoryItem[]> {
-		stubWarn("updateTaskHistory")
-		return []
+	async updateTaskHistory(item: HistoryItem): Promise<HistoryItem[]> {
+		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+		const index = history.findIndex((h) => h.id === item.id)
+		if (index >= 0) {
+			history[index] = item
+		} else {
+			history.unshift(item)
+		}
+		await this.stateManager.setGlobalState("taskHistory", history)
+		return history
 	}
 
 	// ---- Background command state ----
