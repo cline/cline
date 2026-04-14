@@ -1,4 +1,4 @@
-import { AuthService } from "@services/auth/AuthService"
+import { AuthService } from "@/sdk/auth-service"
 import { AuthState, EmptyRequest } from "@/shared/proto/index.cline"
 import { Controller } from ".."
 import { StreamingResponseHandler } from "../grpc-handler"
