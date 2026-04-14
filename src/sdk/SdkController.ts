@@ -29,6 +29,7 @@ import {
 	createHistoryItemFromSession,
 	getHistoryItemById,
 } from "./cline-session-factory"
+import { readUiMessages } from "./legacy-state-reader"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -503,6 +504,16 @@ export class Controller {
 				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
 				() => this.cancelTask(),
 			)
+
+			// Load the task's messages from disk and add them to the message state handler
+			// so the webview can display them
+			const messages = readUiMessages(taskId)
+			if (messages.length > 0) {
+				this.task.messageStateHandler.addMessages(messages)
+				Logger.log(`[SdkController] Loaded ${messages.length} messages for task: ${taskId}`)
+			} else {
+				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
+			}
 
 			await this.postStateToWebview()
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
