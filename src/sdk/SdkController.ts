@@ -16,7 +16,11 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
+import { ExtensionRegistryInfo } from "@/registry"
+import { McpHub } from "@/services/mcp/McpHub"
+import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
 import { ClineAccountService } from "./account-service"
@@ -64,8 +68,9 @@ export class Controller {
 	// Task proxy (Step 5) — provides classic Task interface for gRPC handlers
 	task?: TaskProxy
 
-	// biome-ignore lint/suspicious/noExplicitAny: replaced by SDK MCP manager in Step 7
-	mcpHub: any
+	// MCP hub — classic McpHub wired in Step 7; will be replaced by SDK's
+	// InMemoryMcpManager in Step 10 (Cleanup)
+	mcpHub: McpHub
 	// SDK-backed account service (Step 6)
 	accountService: ClineAccountService
 	// SDK-backed auth service (Step 6)
@@ -82,8 +87,14 @@ export class Controller {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
 
-		// MCP hub will be initialized in Step 7
-		this.mcpHub = undefined
+		// MCP hub — using classic McpHub for now (Step 7).
+		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
+		this.mcpHub = new McpHub(
+			() => ensureMcpServersDirectoryExists(),
+			() => ensureSettingsDirectoryExists(),
+			ExtensionRegistryInfo.version,
+			telemetryService,
+		)
 
 		// Initialize SDK-backed auth and account services (Step 6)
 		this.authService = AuthService.getInstance(this)
