@@ -831,8 +831,8 @@ By the end of the work, the team should ideally have:
 
 ### Review and Cleanup
 
-- [ ] Confirm branch remains minimal in scope
-- [ ] Document any intentionally deferred follow-up work
+- [x] Confirm branch remains minimal in scope
+- [x] Document any intentionally deferred follow-up work
 - [ ] Prepare branch for code review
 
 ---
