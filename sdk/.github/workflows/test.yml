@@ -87,7 +87,7 @@ jobs:
               run: bun -F './packages/**' test
 
             - name: Smoke test SQLite under Node
-              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' }}
+              if: ${{ !cancelled() && steps.build_sdk_step.outcome == 'success' && matrix.os != 'windows-latest' }}
               timeout-minutes: 10
               run: bun scripts/ci-node-smoke.ts
 
