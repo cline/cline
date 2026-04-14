@@ -171,17 +171,17 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement in Step 7.
 
 ### S6-5: Sending messages does not start inference
-- **Status**: 🔴 Blocker
-- **Description**: When the user types a message and hits Enter (or clicks Send), nothing happens. The `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, but inference doesn't start. Possible causes: (1) provider config not correctly resolved from `ProviderSettingsManager`, (2) the SDK session doesn't have the right credentials, (3) the send button may be disabled because the webview thinks no provider is configured.
-- **Root cause**: The `initTask()` → `ClineCore.start()` path hasn't been tested end-to-end. The provider config resolution in `cline-session-factory.ts` may not correctly pass Cline provider credentials from the new AuthService to the SDK.
-- **Fix**: Debug the `initTask()` flow — check that `buildSessionConfig()` produces a valid config with the right API key, and that `ClineCore.start()` doesn't silently fail.
-- **Verification**: Send a message via debug harness `ui.send_message`, check extension host console for errors.
+- **Status**: 🔵 Awaiting Verification
+- **Description**: When the user types a message and hits Enter (or clicks Send), nothing happens. The `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, but inference doesn't start.
+- **Root cause**: `buildSessionConfig()` in `cline-session-factory.ts` only read from the SDK's `ProviderSettingsManager`, which may not have any providers configured yet (providers.json may not exist). The classic StateManager's `buildApiHandlerSettings()` was not used as a fallback.
+- **Fix**: Updated `buildSessionConfig()` to try SDK's ProviderSettingsManager first, then fall back to classic StateManager's `buildApiHandlerSettings()` which correctly resolves provider/model/apiKey for the current mode (plan/act). This ensures credentials from globalState.json + secrets.json are used when the SDK's providers.json doesn't exist yet.
+- **Verification**: Send a message via debug harness `ui.send_message`, check extension host console for provider resolution logs.
 
 ### S6-6: Clicking historical chat items does nothing
-- **Status**: 🔴 Blocker
+- **Status**: 🔵 Awaiting Verification
 - **Description**: Clicking on a task in the history view doesn't load the task's messages. `showTaskWithId()` creates a TaskProxy but doesn't load the actual messages from disk. The webview shows an empty chat.
-- **Root cause**: `showTaskWithId()` in SdkController only creates a TaskProxy and posts state — it doesn't load the task's `ui_messages.json` or `api_conversation_history.json` from disk. The classic Controller loaded these through the Task class.
-- **Fix**: Implement message loading in `showTaskWithId()` — read the task's messages from `~/.cline/data/tasks/{taskId}/` and push them to the webview via the gRPC bridge.
+- **Root cause**: `showTaskWithId()` in SdkController only created a TaskProxy and posted state — it didn't load the task's `ui_messages.json` from disk. The classic Controller loaded these through the Task class.
+- **Fix**: Updated `showTaskWithId()` to call `readUiMessages(taskId)` from the legacy-state-reader and add them to the TaskProxy's `messageStateHandler` via `addMessages()`. This populates the message state so `getStateToPostToWebview()` returns the task's messages.
 - **Verification**: Click a history item, verify messages appear in the chat view.
 
 ### S6-7: Credits/payment history don't load immediately on startup
