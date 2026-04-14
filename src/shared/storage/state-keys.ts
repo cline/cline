@@ -74,9 +74,6 @@ const GLOBAL_STATE_FIELDS = {
 	mcpMarketplaceEnabled: { default: true as boolean },
 	mcpResponsesCollapsed: { default: false as boolean },
 	terminalReuseEnabled: { default: true as boolean },
-	vscodeTerminalExecutionMode: {
-		default: "backgroundExec" as "vscodeTerminal" | "backgroundExec",
-	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
 	cliKanbanMigrationAnnouncementShown: { default: false as boolean },
@@ -256,8 +253,6 @@ const USER_SETTINGS_FIELDS = {
 	telemetrySetting: { default: "unset" as TelemetrySetting },
 	planActSeparateModelsSetting: { default: false as boolean, isComputed: true },
 	enableCheckpointsSetting: { default: true as boolean },
-	shellIntegrationTimeout: { default: 4000 as number },
-	defaultTerminalProfile: { default: "default" as string },
 	terminalOutputLineLimit: { default: 500 as number },
 	maxConsecutiveMistakes: { default: 3 as number },
 	strictPlanModeEnabled: { default: false as boolean },

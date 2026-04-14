@@ -335,11 +335,11 @@ Delete the state, update handlers, and controller wiring whose only purpose was 
 
 ### Tasks
 
-- [ ] Remove persisted state fields for terminal mode if they only exist for foreground/background selection.
-- [ ] Remove update handlers that only support changing that mode.
-- [ ] Remove extension message fields or webview contract values tied only to that mode.
-- [ ] Remove controller methods that are now dead.
-- [ ] Update any consumers still reading terminal mode to use the surviving behavior directly.
+- [x] Remove persisted state fields for terminal mode if they only exist for foreground/background selection.
+- [x] Remove update handlers that only support changing that mode.
+- [x] Remove extension message fields or webview contract values tied only to that mode.
+- [x] Remove controller methods that are now dead.
+- [x] Update any consumers still reading terminal mode to use the surviving behavior directly.
 
 ### Architectural explanation
 
@@ -355,9 +355,9 @@ Prefer **deleting the branch variable entirely** over leaving a constant like `t
 
 ### Verification
 
-- [ ] No settings update path still writes foreground/background mode.
-- [ ] No controller route still exists only to switch terminal mode.
-- [ ] The webview no longer expects terminal mode state.
+- [x] No settings update path still writes foreground/background mode.
+- [x] No controller route still exists only to switch terminal mode.
+- [x] The webview no longer expects terminal mode state.
 
 ---
 
@@ -471,11 +471,11 @@ After foreground mode is removed, do the remaining settings still correspond to 
 
 ### Tasks
 
-- [ ] Review `defaultTerminalProfile` usage on `main`.
-- [ ] Review `shellIntegrationTimeout` usage on `main`.
-- [ ] Determine whether each setting:
+- [x] Review `defaultTerminalProfile` usage on `main`.
+- [x] Review `shellIntegrationTimeout` usage on `main`.
+- [x] Determine whether each setting:
   - [ ] remains valid as-is,
-  - [ ] should be removed in the minimal branch,
+  - [x] should be removed in the minimal branch,
   - [ ] needs a tiny adjustment to remain truthful.
 
 ### Detailed guidance
@@ -804,7 +804,7 @@ By the end of the work, the team should ideally have:
 
 - [x] Create a fresh branch from `main`
 - [x] Write down the exact semantic definition of "remove foreground terminal" for the branch
-- [ ] Confirm which remaining terminal settings still map to real runtime behavior
+- [x] Confirm which remaining terminal settings still map to real runtime behavior
 
 ### Inventory
 
@@ -816,11 +816,11 @@ By the end of the work, the team should ideally have:
 ### Implementation
 
 - [x] Remove foreground mode UI
-- [ ] Remove foreground mode state persistence
+- [x] Remove foreground mode state persistence
 - [x] Remove controller update paths for terminal mode
 - [x] Simplify command execution routing
 - [ ] Remove dead foreground-only runtime code
-- [ ] Apply only essential compatibility fixes
+- [x] Apply only essential compatibility fixes
 
 ### Testing
 

@@ -140,11 +140,8 @@ type TaskParams = {
 	postStateToWebview: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
-	shellIntegrationTimeout: number
 	terminalReuseEnabled: boolean
 	terminalOutputLineLimit: number
-	defaultTerminalProfile: string
-	vscodeTerminalExecutionMode: "vscodeTerminal" | "backgroundExec"
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -279,10 +276,8 @@ export class Task {
 			postStateToWebview,
 			reinitExistingTaskFromId,
 			cancelTask,
-			shellIntegrationTimeout,
 			terminalReuseEnabled,
 			terminalOutputLineLimit,
-			defaultTerminalProfile,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -320,10 +315,8 @@ export class Task {
 		this.terminalExecutionMode = "backgroundExec"
 		this.terminalManager = new StandaloneTerminalManager()
 		Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for command execution`)
-		this.terminalManager.setShellIntegrationTimeout(shellIntegrationTimeout)
 		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
 		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
-		this.terminalManager.setDefaultTerminalProfile(defaultTerminalProfile)
 
 		this.urlContentFetcher = new UrlContentFetcher()
 		this.browserSession = new BrowserSession(stateManager)
@@ -584,7 +577,6 @@ export class Task {
 			cwd,
 			this.taskId,
 			this.ulid,
-			this.terminalExecutionMode,
 			this.workspaceManager,
 			isMultiRootEnabled(this.stateManager),
 			this.say.bind(this),
