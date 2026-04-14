@@ -65,19 +65,62 @@ export function truncate(str: string, maxLen: number): string {
 	return `${oneLine.slice(0, maxLen - 3)}...`;
 }
 
+function formatStructuredCommand(cmd: unknown): string {
+	if (typeof cmd === "string") {
+		return cmd;
+	}
+	if (cmd && typeof cmd === "object" && "command" in cmd) {
+		const structured = cmd as { command: string; args?: unknown };
+		const args = Array.isArray(structured.args) ? structured.args : [];
+		if (args.length === 0) {
+			return structured.command;
+		}
+		return `${structured.command} ${args.join(" ")}`;
+	}
+	return String(cmd);
+}
+
+function summarizeRunCommandsInput(input: unknown): string {
+	if (typeof input === "string") {
+		return input;
+	}
+
+	if (Array.isArray(input)) {
+		return input.map(formatStructuredCommand).join("; ");
+	}
+
+	if (input && typeof input === "object") {
+		const obj = input as Record<string, unknown>;
+		if (obj.commands !== undefined) {
+			if (Array.isArray(obj.commands)) {
+				return obj.commands.map(formatStructuredCommand).join("; ");
+			}
+			return formatStructuredCommand(obj.commands);
+		}
+		if ("command" in obj) {
+			return formatStructuredCommand(obj);
+		}
+	}
+
+	return "";
+}
+
 export function formatToolInput(toolName: string, input: unknown): string {
-	if (!input || typeof input !== "object") {
+	if (!input) {
+		return "";
+	}
+
+	if (toolName === "run_commands") {
+		return truncate(summarizeRunCommandsInput(input), 120);
+	}
+
+	if (typeof input !== "object") {
 		return "";
 	}
 
 	const obj = input as Record<string, unknown>;
 
 	switch (toolName) {
-		case "run_commands":
-			if (Array.isArray(obj.commands)) {
-				return truncate(obj.commands.join("; "), 120);
-			}
-			break;
 		case "read_files":
 			if (Array.isArray(obj.file_paths)) {
 				return truncate(obj.file_paths.join(", "), 120);
