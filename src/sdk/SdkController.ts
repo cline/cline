@@ -536,13 +536,37 @@ export class Controller {
 	// ---- Mode switching (Step 8) ----
 
 	async toggleActModeForYoloMode(): Promise<boolean> {
-		stubWarn("toggleActModeForYoloMode")
-		return false
+		// YOLO mode = auto-approve all tools. Just switch to act mode.
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		if (currentMode === "act") {
+			return false
+		}
+		await this.stateManager.setGlobalState("mode", "act")
+		await this.postStateToWebview()
+		return true
 	}
 
-	async togglePlanActMode(_modeToSwitchTo: Mode, _chatContent?: ChatContent): Promise<boolean> {
-		stubWarn("togglePlanActMode")
-		return false
+	async togglePlanActMode(modeToSwitchTo: Mode, _chatContent?: ChatContent): Promise<boolean> {
+		const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+		if (currentMode === modeToSwitchTo) {
+			return false
+		}
+
+		// Save the mode
+		await this.stateManager.setGlobalState("mode", modeToSwitchTo)
+
+		// If there's an active task, we need to handle the mode switch.
+		// In the classic controller, this would cancel the current task and
+		// potentially start a new one. For now, we just update the mode
+		// and let the next task use the new mode's model config.
+		if (this.task && this.activeSession?.isRunning) {
+			// Cancel the current task — the user will need to send a new message
+			// in the new mode. This matches the classic behavior.
+			await this.cancelTask()
+		}
+
+		await this.postStateToWebview()
+		return true
 	}
 
 	// ---- Telemetry ----
