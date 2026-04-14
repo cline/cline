@@ -61,6 +61,22 @@ export class SubprocessSandbox {
 		this.options = options;
 	}
 
+	private get processLabel(): string {
+		return this.options.name ?? "sandbox";
+	}
+
+	private clearPendingRequest(id: string): PendingRequest | undefined {
+		const pending = this.pending.get(id);
+		if (!pending) {
+			return undefined;
+		}
+		this.pending.delete(id);
+		if (pending.timeout) {
+			clearTimeout(pending.timeout);
+		}
+		return pending;
+	}
+
 	start(): void {
 		if (this.process && this.process.exitCode === null) {
 			return;
@@ -96,7 +112,7 @@ export class SubprocessSandbox {
 		child.on("error", (error) => {
 			this.failPending(
 				new Error(
-					`${this.options.name ?? "sandbox"} process error: ${asError(error).message}`,
+					`${this.processLabel} process error: ${asError(error).message}`,
 				),
 			);
 		});
@@ -119,9 +135,7 @@ export class SubprocessSandbox {
 		this.start();
 		const child = this.process;
 		if (!child || child.exitCode !== null) {
-			throw new Error(
-				`${this.options.name ?? "sandbox"} process is not available`,
-			);
+			throw new Error(`${this.processLabel} process is not available`);
 		}
 
 		const id = `req_${++this.requestCounter}`;
@@ -139,13 +153,13 @@ export class SubprocessSandbox {
 			};
 			if ((options.timeoutMs ?? 0) > 0) {
 				pending.timeout = setTimeout(() => {
-					this.pending.delete(id);
+					this.clearPendingRequest(id);
 					this.shutdown().catch(() => {
 						// Best-effort process shutdown after timeout.
 					});
 					reject(
 						new Error(
-							`${this.options.name ?? "sandbox"} call timed out after ${options.timeoutMs}ms: ${method}`,
+							`${this.processLabel} call timed out after ${options.timeoutMs}ms: ${method}`,
 						),
 					);
 				}, options.timeoutMs);
@@ -155,17 +169,13 @@ export class SubprocessSandbox {
 				if (!error) {
 					return;
 				}
-				const entry = this.pending.get(id);
+				const entry = this.clearPendingRequest(id);
 				if (!entry) {
 					return;
 				}
-				this.pending.delete(id);
-				if (entry.timeout) {
-					clearTimeout(entry.timeout);
-				}
 				entry.reject(
 					new Error(
-						`${this.options.name ?? "sandbox"} failed to send call "${method}": ${asError(error).message}`,
+						`${this.processLabel} failed to send call "${method}": ${asError(error).message}`,
 					),
 				);
 			});
@@ -176,7 +186,7 @@ export class SubprocessSandbox {
 		const child = this.process;
 		this.process = null;
 		if (!child || child.exitCode !== null) {
-			this.failPending(new Error(`${this.options.name ?? "sandbox"} shutdown`));
+			this.failPending(new Error(`${this.processLabel} shutdown`));
 			return;
 		}
 		await new Promise<void>((resolve) => {
@@ -199,7 +209,7 @@ export class SubprocessSandbox {
 				resolve();
 			}
 		});
-		this.failPending(new Error(`${this.options.name ?? "sandbox"} shutdown`));
+		this.failPending(new Error(`${this.processLabel} shutdown`));
 	}
 
 	private onMessage(
@@ -220,23 +230,16 @@ export class SubprocessSandbox {
 		if (message.type !== "response" || !message.id) {
 			return;
 		}
-		const pending = this.pending.get(message.id);
+		const pending = this.clearPendingRequest(message.id);
 		if (!pending) {
 			return;
-		}
-		this.pending.delete(message.id);
-		if (pending.timeout) {
-			clearTimeout(pending.timeout);
 		}
 		if (message.ok) {
 			pending.resolve(message.result);
 			return;
 		}
 		pending.reject(
-			new Error(
-				message.error?.message ||
-					`${this.options.name ?? "sandbox"} call failed`,
-			),
+			new Error(message.error?.message || `${this.processLabel} call failed`),
 		);
 	}
 

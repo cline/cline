@@ -18,6 +18,14 @@ function delay(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function unlinkIfPresent(path: string): Promise<void> {
+	try {
+		await unlink(path);
+	} catch {
+		// Best-effort cleanup.
+	}
+}
+
 export async function requestDesktopToolApproval(
 	request: ToolApprovalRequest,
 	options: DesktopToolApprovalOptions = {},
@@ -77,16 +85,10 @@ export async function requestDesktopToolApproval(
 				approved: parsed.approved === true,
 				reason: typeof parsed.reason === "string" ? parsed.reason : undefined,
 			};
-			try {
-				await unlink(decisionPath);
-			} catch {
-				// Best-effort cleanup.
-			}
-			try {
-				await unlink(requestPath);
-			} catch {
-				// Best-effort cleanup.
-			}
+			await Promise.all([
+				unlinkIfPresent(decisionPath),
+				unlinkIfPresent(requestPath),
+			]);
 			return result;
 		} catch {
 			// Decision not available yet.
@@ -94,11 +96,7 @@ export async function requestDesktopToolApproval(
 		await delay(pollIntervalMs);
 	}
 
-	try {
-		await unlink(requestPath);
-	} catch {
-		// Best-effort cleanup.
-	}
+	await unlinkIfPresent(requestPath);
 
 	return { approved: false, reason: "Tool approval request timed out" };
 }

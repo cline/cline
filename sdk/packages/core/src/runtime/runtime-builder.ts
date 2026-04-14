@@ -39,7 +39,6 @@ import type {
 	RuntimeBuilderInput,
 	BuiltRuntime as RuntimeEnvironment,
 } from "./session-runtime";
-import { TeamRuntimeRegistry } from "./team-runtime-registry";
 
 type SkillsExecutorMetadataItem = {
 	id: string;
@@ -96,7 +95,7 @@ function listAvailableSkillNames(
 	watcher: UserInstructionConfigWatcher,
 	allowedSkillNames?: ReadonlyArray<string>,
 ): string[] {
-	return listConfiguredSkills(watcher, allowedSkillNames)
+	return getConfiguredSkills(watcher, allowedSkillNames)
 		.filter((skill) => !skill.disabled)
 		.map((skill) => skill.name.trim())
 		.filter((name) => name.length > 0)
@@ -143,10 +142,14 @@ function isSkillAllowed(
 	);
 }
 
-function listConfiguredSkills(
+type ConfiguredSkill = SkillsExecutorMetadataItem & {
+	skill: SkillConfig;
+};
+
+function getConfiguredSkills(
 	watcher: UserInstructionConfigWatcher,
 	allowedSkillNames?: ReadonlyArray<string>,
-): SkillsExecutorMetadataItem[] {
+): ConfiguredSkill[] {
 	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const snapshot = watcher.getSnapshot("skill");
 	return [...snapshot.entries()]
@@ -157,6 +160,7 @@ function listConfiguredSkills(
 				name: skill.name.trim(),
 				description: skill.description?.trim(),
 				disabled: skill.disabled === true,
+				skill,
 			};
 		})
 		.filter((skill) => isSkillAllowed(skill.id, skill.name, allowedSkills));
@@ -254,28 +258,22 @@ function resolveSkillRecord(
 	requestedSkill: string,
 	allowedSkillNames?: ReadonlyArray<string>,
 ): { id: string; skill: SkillConfig } | { error: string } {
-	const allowedSkills = toAllowedSkillSet(allowedSkillNames);
 	const normalized = requestedSkill.trim().replace(/^\/+/, "").toLowerCase();
 	if (!normalized) {
 		return { error: "Missing skill name." };
 	}
 
-	const snapshot = watcher.getSnapshot("skill");
-	const scopedEntries = [...snapshot.entries()].filter(([id, record]) => {
-		const skill = record.item as SkillConfig;
-		return isSkillAllowed(id, skill.name, allowedSkills);
-	});
-	const scopedSnapshot = new Map(scopedEntries);
-	const exact = scopedSnapshot.get(normalized);
+	const configuredSkills = getConfiguredSkills(watcher, allowedSkillNames);
+	const exact = configuredSkills.find((entry) => entry.id === normalized);
 	if (exact) {
-		const skill = exact.item as SkillConfig;
+		const { skill } = exact;
 		if (skill.disabled === true) {
 			return {
 				error: `Skill "${skill.name}" is configured but disabled.`,
 			};
 		}
 		return {
-			id: normalized,
+			id: exact.id,
 			skill,
 		};
 	}
@@ -284,30 +282,38 @@ function resolveSkillRecord(
 		? (normalized.split(":").at(-1) ?? normalized)
 		: normalized;
 
-	const suffixMatches = [...scopedSnapshot.entries()].filter(([id]) => {
+	const suffixMatches = configuredSkills.filter(({ id }) => {
 		if (id === bareName) {
 			return true;
 		}
 		return id.endsWith(`:${bareName}`);
 	});
 
-	if (suffixMatches.length === 1) {
-		const [id, record] = suffixMatches[0];
-		const skill = record.item as SkillConfig;
-		if (skill.disabled === true) {
-			return {
-				error: `Skill "${skill.name}" is configured but disabled.`,
-			};
-		}
+	const enabledSuffixMatches = suffixMatches.filter(
+		({ skill }) => skill.disabled !== true,
+	);
+
+	if (enabledSuffixMatches.length === 1) {
+		const { id, skill } = enabledSuffixMatches[0];
+		return { id, skill };
+	}
+
+	if (enabledSuffixMatches.length > 1) {
 		return {
-			id,
-			skill,
+			error: `Skill "${requestedSkill}" is ambiguous. Use one of: ${enabledSuffixMatches.map(({ id }) => id).join(", ")}`,
+		};
+	}
+
+	if (suffixMatches.length === 1) {
+		const { skill } = suffixMatches[0];
+		return {
+			error: `Skill "${skill.name}" is configured but disabled.`,
 		};
 	}
 
 	if (suffixMatches.length > 1) {
 		return {
-			error: `Skill "${requestedSkill}" is ambiguous. Use one of: ${suffixMatches.map(([id]) => id).join(", ")}`,
+			error: `Skill "${requestedSkill}" is ambiguous, and all matches are disabled: ${suffixMatches.map(({ id }) => id).join(", ")}`,
 		};
 	}
 
@@ -354,7 +360,10 @@ function createSkillsExecutor(
 		}
 	};
 	Object.defineProperty(executor, "configuredSkills", {
-		get: () => listConfiguredSkills(watcher, allowedSkillNames),
+		get: () =>
+			getConfiguredSkills(watcher, allowedSkillNames).map(
+				({ skill: _skill, ...metadata }) => metadata,
+			),
 		enumerable: true,
 		configurable: false,
 	});
@@ -422,7 +431,15 @@ function normalizeConfig(
 }
 
 export class DefaultRuntimeBuilder implements RuntimeBuilder {
-	private readonly teamRuntimeRegistry = new TeamRuntimeRegistry();
+	private readonly teamRuntimeEntries = new Map<
+		string,
+		{
+			runtime?: AgentTeamsRuntime;
+			delegatedAgentConfigProvider: ReturnType<
+				typeof createDelegatedAgentConfigProvider
+			>;
+		}
+	>();
 
 	async build(input: RuntimeBuilderInput): Promise<RuntimeEnvironment> {
 		const {
@@ -440,6 +457,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const normalized = normalizeConfig(config);
 		const tools: Tool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
+		const hasLocalSkills = hasSkillsFiles(config.cwd);
 		let teamToolsRegistered = false;
 		const watcherProvided = Boolean(sharedUserInstructionWatcher);
 		let userInstructionWatcher = sharedUserInstructionWatcher;
@@ -447,11 +465,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		let skillsExecutor: SkillsExecutorWithMetadata | undefined;
 		let mcpShutdown: (() => Promise<void>) | undefined;
 
-		if (
-			!userInstructionWatcher &&
-			normalized.enableTools &&
-			hasSkillsFiles(config.cwd)
-		) {
+		if (!userInstructionWatcher && normalized.enableTools && hasLocalSkills) {
 			userInstructionWatcher = createUserInstructionConfigWatcher({
 				skills: { workspacePath: config.cwd },
 				rules: { workspacePath: config.cwd },
@@ -464,8 +478,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			normalized.enableTools &&
 			userInstructionWatcher &&
 			(watcherProvided ||
-				hasSkillsFiles(config.cwd) ||
-				listConfiguredSkills(userInstructionWatcher, config.skills).length > 0)
+				hasLocalSkills ||
+				getConfiguredSkills(userInstructionWatcher, config.skills).length > 0)
 		) {
 			skillsExecutor = createSkillsExecutor(
 				userInstructionWatcher,
@@ -526,21 +540,21 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
 		});
-		this.teamRuntimeRegistry.getOrCreate(registryKey, () => ({
-			delegatedAgentConfigProvider,
-		}));
+		if (!this.teamRuntimeEntries.has(registryKey)) {
+			this.teamRuntimeEntries.set(registryKey, {
+				delegatedAgentConfigProvider,
+			});
+		}
 
 		const ensureTeamRuntime = (): AgentTeamsRuntime | undefined => {
 			if (!normalized.enableAgentTeams) {
 				return undefined;
 			}
 
-			const registryEntry = this.teamRuntimeRegistry.getOrCreate(
-				registryKey,
-				() => ({
-					delegatedAgentConfigProvider,
-				}),
-			);
+			const registryEntry = this.teamRuntimeEntries.get(registryKey) ?? {
+				delegatedAgentConfigProvider,
+			};
+			this.teamRuntimeEntries.set(registryKey, registryEntry);
 			teamRuntime = registryEntry.runtime;
 
 			if (!teamRuntime) {
@@ -643,7 +657,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		const completionGuard = normalized.enableAgentTeams
 			? () => {
-					const rt = this.teamRuntimeRegistry.get(registryKey)?.runtime;
+					const rt = this.teamRuntimeEntries.get(registryKey)?.runtime;
 					if (!rt) return undefined;
 					const tasks = rt.listTasks();
 					const hasInProgress = tasks.some(
@@ -681,7 +695,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			teamRuntime,
 			teamRestoredFromPersistence: Boolean(restoredTeamState),
 			delegatedAgentConfigProvider:
-				this.teamRuntimeRegistry.get(registryKey)
+				this.teamRuntimeEntries.get(registryKey)
 					?.delegatedAgentConfigProvider ?? delegatedAgentConfigProvider,
 			completionGuard,
 			registerLeadAgent: (agent) => {
@@ -692,7 +706,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			},
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
-				this.teamRuntimeRegistry.delete(registryKey);
+				this.teamRuntimeEntries.delete(registryKey);
 				await mcpShutdown?.();
 				if (!watcherProvided) {
 					userInstructionWatcher?.stop();
