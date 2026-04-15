@@ -8,14 +8,12 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { ClineCore, type CoreSessionConfig, type StartSessionInput, type StartSessionResult } from "@clinebot/core"
+import { type CoreSessionConfig, type SessionManager, type StartSessionInput, type StartSessionResult } from "@clinebot/core"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
-import { existsSync, readFileSync, writeFileSync } from "fs"
-import { join } from "path"
 import { StateManager } from "@/core/storage/StateManager"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { getProviderSettingsManager } from "./provider-migration"
@@ -48,8 +46,8 @@ export interface SessionConfigInput {
 export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
-	/** The ClineCore instance managing this session */
-	core: ClineCore
+	/** The SessionManager instance managing this session (VscodeSessionHost) */
+	sessionManager: SessionManager
 	/** Unsubscribe function for session events */
 	unsubscribe: () => void
 	/** The start result from the session */
@@ -352,111 +350,6 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 // ---------------------------------------------------------------------------
 // Session factory
 // ---------------------------------------------------------------------------
-
-/**
- * Create a ClineCore instance for managing sessions.
- *
- * The ClineCore instance is the primary entry point for the SDK's
- * session management. It handles creating, sending, aborting, and
- * subscribing to sessions.
- *
- * **MCP filtering**: The SDK's MCP client (`StdioMcpClient`) only supports
- * `stdio` transport. If the user's MCP settings include `streamableHttp` or
- * `sse` servers, the SDK throws "Unsupported MCP transport" errors during
- * session start. To prevent this, we write a filtered copy of the MCP
- * settings (containing only `stdio` servers) to a temp file and point the
- * SDK to it via the `CLINE_MCP_SETTINGS_PATH` environment variable.
- *
- * **Future streamableHttp support**: When the SDK supports streamableHttp
- * transports (or when we provide a custom `RuntimeBuilder` with a
- * `clientFactory` that delegates to the classic `McpHub`), this filtering
- * can be removed. The hook point is `DefaultRuntimeBuilder`'s
- * `loadConfiguredMcpTools()` which creates an `InMemoryMcpManager` with
- * `createDefaultMcpServerClientFactory()`. A custom `RuntimeBuilder` can
- * provide its own `clientFactory` that uses the classic McpHub's already-
- * connected streamableHttp clients instead of the SDK's stdio-only client.
- */
-export async function createClineCore(): Promise<ClineCore> {
-	// Filter MCP settings to only include stdio servers (the SDK's MCP
-	// client only supports stdio). This sets CLINE_MCP_SETTINGS_PATH
-	// for the SDK to read from.
-	await ensureFilteredMcpSettings()
-
-	const core = await ClineCore.create({
-		clientName: "cline-vscode",
-		backendMode: "local",
-	})
-
-	Logger.log("[SessionFactory] ClineCore instance created")
-	return core
-}
-
-/**
- * Write a filtered copy of MCP settings that only includes stdio servers.
- * Sets `CLINE_MCP_SETTINGS_PATH` env var to point to the filtered file.
- *
- * The SDK's `InMemoryMcpManager` only supports stdio transport. Servers
- * with `streamableHttp` or `sse` transport cause "Unsupported MCP transport"
- * errors during session start. By filtering them out at the settings level,
- * we allow the SDK to connect only to stdio servers while the classic
- * `McpHub` continues to manage all server types for the webview UI.
- *
- * **Future improvement**: Replace this filtering with a custom `RuntimeBuilder`
- * that provides a `clientFactory` delegating to the classic `McpHub`'s
- * already-connected clients. This would give the SDK access to all transport
- * types (stdio, sse, streamableHttp) without modifying the settings file.
- */
-async function ensureFilteredMcpSettings(): Promise<void> {
-	try {
-		const dataDir = resolveDataDir()
-		const settingsPath = join(dataDir, "settings", "cline_mcp_settings.json")
-
-		if (!existsSync(settingsPath)) {
-			return // No settings file — nothing to filter
-		}
-
-		const raw = readFileSync(settingsPath, "utf8")
-		const parsed = JSON.parse(raw) as {
-			mcpServers?: Record<string, McpServerConfig>
-		}
-
-		const servers = parsed.mcpServers ?? {}
-		const filteredServers: Record<string, McpServerConfig> = {}
-		let skippedCount = 0
-
-		for (const [name, config] of Object.entries(servers)) {
-			// The SDK's StdioMcpClient only supports stdio transport.
-			// Skip streamableHttp and sse servers — they'll be managed
-			// by the classic McpHub for the webview UI instead.
-			if (config.type === "streamableHttp" || config.type === "sse") {
-				skippedCount++
-				continue
-			}
-			filteredServers[name] = config
-		}
-
-		if (skippedCount > 0) {
-			Logger.log(
-				`[SessionFactory] Filtered ${skippedCount} non-stdio MCP server(s) from SDK settings (SDK only supports stdio transport)`,
-			)
-		}
-
-		// Write filtered settings to a temp file
-		const filteredPath = join(dataDir, "settings", "cline_mcp_settings_sdk.json")
-		writeFileSync(filteredPath, JSON.stringify({ mcpServers: filteredServers }, null, 2))
-
-		// Point the SDK to the filtered settings
-		process.env.CLINE_MCP_SETTINGS_PATH = filteredPath
-	} catch (error) {
-		Logger.warn("[SessionFactory] Failed to filter MCP settings:", error)
-	}
-}
-
-/** Minimal MCP server config type for filtering */
-interface McpServerConfig {
-	type?: string
-	[key: string]: unknown
-}
 
 /**
  * Build the StartSessionInput for a new task.
