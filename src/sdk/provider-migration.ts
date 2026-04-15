@@ -85,17 +85,28 @@ export function migrateProviders(dataDir?: string): ProviderMigrationResult {
 }
 
 // ---------------------------------------------------------------------------
-// Provider settings access
+// Provider settings access (cached singleton)
 // ---------------------------------------------------------------------------
 
+let _cachedManager: ProviderSettingsManager | null = null
+let _cachedDataDir: string | null = null
+
 /**
- * Get the ProviderSettingsManager instance for the given data directory.
+ * Get the ProviderSettingsManager singleton for the given data directory.
  *
  * Construction triggers auto-migration if needed, so this is the primary
  * way to access provider settings throughout the SDK adapter layer.
+ *
+ * The instance is cached so all callers share the same in-memory state.
+ * Pass a different dataDir to force a new instance (e.g. in tests).
  */
 export function getProviderSettingsManager(dataDir?: string): ProviderSettingsManager {
 	const resolvedDataDir = dataDir ?? resolveDataDir()
+	if (_cachedManager && _cachedDataDir === resolvedDataDir) {
+		return _cachedManager
+	}
 	const filePath = path.join(resolvedDataDir, "settings", "providers.json")
-	return new ProviderSettingsManager({ filePath, dataDir: resolvedDataDir })
+	_cachedManager = new ProviderSettingsManager({ filePath, dataDir: resolvedDataDir })
+	_cachedDataDir = resolvedDataDir
+	return _cachedManager
 }
