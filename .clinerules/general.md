@@ -18,6 +18,49 @@ This file is the secret sauce for working effectively in this codebase. It captu
 - When adding new feature flags, see this PR as a reference https://github.com/cline/cline/pull/7566
 - Additional instructions about making requests: @.clinerules/network.md
 
+## Searching the Codebase — Avoiding Build Output
+
+Several directories contain build output or generated code that produces
+noisy or unusable results with `search_files` / `grep`:
+
+| Directory | What it is | Why it's a problem |
+|-----------|-----------|-------------------|
+| `out/` | esbuild bundle output | Mirrors `src/` structure as minified JS — every search gets duplicate hits on single-line files |
+| `dist/` | Packaged extension | Entire extension bundled into one minified `extension.js` (~1 long line) |
+| `dist-standalone/` | Standalone build output | Same minification issue |
+| `src/generated/` | Generated protobuf code | Auto-generated from `proto/`; not the source of truth |
+| `src/shared/proto/` | Generated proto type defs | Auto-generated from `proto/`; not the source of truth |
+| `node_modules/` | Dependencies | Huge, not project source |
+
+### How to skip build output
+
+**`search_files`** — Point at `src/` (not the project root) and use `file_pattern`:
+```
+search_files(path="src/core", regex="myFunction", file_pattern="*.ts")
+```
+The `file_pattern` parameter is the most effective filter — e.g. `"*.ts"`,
+`"*.tsx"`, `"*.proto"`.
+
+**`grep` directly** — Exclude build dirs and restrict to source extensions:
+```bash
+grep -rn "myFunction" src/ --include="*.ts" --exclude-dir={out,dist,node_modules,generated}
+```
+
+### When you must search minified files
+
+Sometimes you need to verify what got bundled (e.g., checking if a change
+made it into the build). Minified files are typically one long line, so
+normal `grep` shows the entire file as context. Use these approaches:
+
+- **`grep -oP`** to extract just the match with limited surrounding context:
+  ```bash
+  grep -oP '.{0,40}myFunction.{0,40}' dist/extension.js
+  ```
+- **`read_file`** on files in `out/src/` — these have source maps and are
+  more readable than `dist/extension.js` (which is the fully bundled output).
+- **Source maps** — `out/src/*.js.map` and `dist/extension.js.map` can be
+  used to trace minified output back to original source locations.
+
 ## gRPC/Protobuf Communication
 The extension and webview communicate via gRPC-like protocol over VS Code message passing.
 
