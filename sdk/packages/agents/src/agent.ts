@@ -883,9 +883,11 @@ export class Agent {
 					conversationId: this.conversationStore.getConversationId(),
 					iteration,
 					abortSignal,
-					metadata: this.config.toolContextMetadata
-						? { ...this.config.toolContextMetadata }
-						: undefined,
+					metadata: {
+						...(this.config.toolContextMetadata ?? {}),
+						modelSupportsImages:
+							model.info.capabilities?.includes("images") === true,
+					},
 				};
 				const { results: toolResults, cancelRequested } =
 					await this.toolOrchestrator.execute(

@@ -103,4 +103,60 @@ describe("ToolOrchestrator reminder cadence", () => {
 			'"query":"create:/tmp/file.txt"',
 		);
 	});
+
+	it("preserves read_files image blocks in tool result messages", () => {
+		const orchestrator = createOrchestrator();
+		const results = [
+			{
+				id: "tool-1",
+				name: "read_files",
+				input: { files: [{ path: "/tmp/image.png" }] },
+				durationMs: 100,
+				startedAt: new Date(),
+				endedAt: new Date(),
+				output: [
+					{
+						query: "/tmp/image.png",
+						result: [
+							{
+								type: "text",
+								text: "Successfully read image",
+							},
+							{
+								type: "image",
+								data: "aGVsbG8=",
+								mediaType: "image/png",
+							},
+						],
+						success: true,
+					},
+				],
+			},
+		] satisfies ToolCallRecord[];
+
+		const message = orchestrator.buildToolResultMessage(results, 1, {
+			afterIterations: 0,
+			text: "reminder",
+		});
+		expect(message.content).toHaveLength(1);
+		expect(message.content[0]).toMatchObject({
+			type: "tool_result",
+			tool_use_id: "tool-1",
+			is_error: false,
+			content: [
+				{
+					type: "text",
+				},
+				{
+					type: "image",
+					data: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			],
+		});
+		const toolResult = message.content[0] as {
+			content: Array<{ type: string; text?: string }>;
+		};
+		expect(toolResult.content[0]?.text).toContain('"query":"/tmp/image.png"');
+	});
 });

@@ -68,6 +68,191 @@ describe("MessageBuilder", () => {
 		expect(reset[1]?.content).toEqual(secondReadResult.content);
 	});
 
+	it("parses read_files locators from multimodal tool result content", () => {
+		const builder = new MessageBuilder();
+		const firstReadUse = {
+			role: "assistant" as const,
+			content: [
+				{
+					type: "tool_use" as const,
+					id: "call_1",
+					name: "read_files",
+					input: { files: [{ path: "/tmp/image.png" }] },
+				},
+			],
+		};
+		const firstReadResult = {
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_1",
+					content: [
+						{
+							type: "text" as const,
+							text: '[{"toolName":"read_files","query":"/tmp/image.png","result":"Successfully read image","success":true}]',
+						},
+						{
+							type: "image" as const,
+							data: "aGVsbG8=",
+							mediaType: "image/png" as const,
+						},
+					],
+					is_error: false,
+				},
+			],
+		};
+		const secondReadUse = {
+			role: "assistant" as const,
+			content: [
+				{
+					type: "tool_use" as const,
+					id: "call_2",
+					name: "read_files",
+					input: { files: [{ path: "/tmp/image.png" }] },
+				},
+			],
+		};
+		const secondReadResult = {
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_2",
+					content: [
+						{
+							type: "text" as const,
+							text: '[{"toolName":"read_files","query":"/tmp/image.png","result":"Successfully read image","success":true}]',
+						},
+						{
+							type: "image" as const,
+							data: "d29ybGQ=",
+							mediaType: "image/png" as const,
+						},
+					],
+					is_error: false,
+				},
+			],
+		};
+
+		const built = builder.buildForApi([
+			firstReadUse,
+			firstReadResult,
+			secondReadUse,
+			secondReadResult,
+		]);
+		const firstToolResult = built[1] as {
+			content: Array<{
+				type: string;
+				content?: Array<{ type: string; text?: string }>;
+			}>;
+		};
+		const firstToolResultText = firstToolResult.content[0]?.content?.find(
+			(entry) => entry.type === "text",
+		)?.text;
+		expect(firstToolResultText).toContain(
+			"[outdated - see the latest file content]",
+		);
+	});
+
+	it("replaces outdated image blocks in multimodal read_files results", () => {
+		const builder = new MessageBuilder();
+		const firstReadUse = {
+			role: "assistant" as const,
+			content: [
+				{
+					type: "tool_use" as const,
+					id: "call_1",
+					name: "read_files",
+					input: { files: [{ path: "/tmp/image.png" }] },
+				},
+			],
+		};
+		const firstReadResult = {
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_1",
+					content: [
+						{
+							type: "text" as const,
+							text: '[{"toolName":"read_files","query":"/tmp/image.png","result":"Successfully read image","success":true}]',
+						},
+						{
+							type: "image" as const,
+							data: "aGVsbG8=",
+							mediaType: "image/png" as const,
+						},
+					],
+					is_error: false,
+				},
+			],
+		};
+		const secondReadUse = {
+			role: "assistant" as const,
+			content: [
+				{
+					type: "tool_use" as const,
+					id: "call_2",
+					name: "read_files",
+					input: { files: [{ path: "/tmp/image.png" }] },
+				},
+			],
+		};
+		const secondReadResult = {
+			role: "user" as const,
+			content: [
+				{
+					type: "tool_result" as const,
+					tool_use_id: "call_2",
+					content: [
+						{
+							type: "text" as const,
+							text: '[{"toolName":"read_files","query":"/tmp/image.png","result":"Successfully read image","success":true}]',
+						},
+						{
+							type: "image" as const,
+							data: "d29ybGQ=",
+							mediaType: "image/png" as const,
+						},
+					],
+					is_error: false,
+				},
+			],
+		};
+
+		const built = builder.buildForApi([
+			firstReadUse,
+			firstReadResult,
+			secondReadUse,
+			secondReadResult,
+		]);
+		const firstToolResult = (
+			built[1] as { content: Array<{ content: unknown }> }
+		).content[0] as {
+			content: Array<{ type: string; text?: string; data?: string }>;
+		};
+
+		expect(firstToolResult.content).toEqual([
+			{
+				type: "text",
+				text: expect.stringContaining(
+					"[outdated - see the latest file content]",
+				),
+			},
+			{
+				type: "text",
+				text: "[outdated - see the latest file content]",
+			},
+		]);
+		expect(
+			firstToolResult.content.some(
+				(entry) => entry.type === "image" || entry.data === "aGVsbG8=",
+			),
+		).toBe(false);
+	});
+
 	it("truncates long file blocks in user messages", () => {
 		const builder = new MessageBuilder();
 		const longFileContent = "a".repeat(120_500);

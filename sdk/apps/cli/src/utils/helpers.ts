@@ -292,7 +292,24 @@ export function formatToolOutput(output: unknown): string {
 		const results = output
 			.map((item) => {
 				if (item && typeof item === "object" && "result" in item) {
-					return truncate(String(item.result ?? ""), 80);
+					const result = item.result;
+					const resultStr = Array.isArray(result)
+						? result
+								.map((part: unknown) =>
+									part &&
+									typeof part === "object" &&
+									"type" in part &&
+									(part as { type: string }).type === "text" &&
+									"text" in part
+										? String((part as { text: unknown }).text)
+										: (part as { type?: string })?.type === "image"
+											? "[image]"
+											: "",
+								)
+								.filter(Boolean)
+								.join(" ") || "Successfully read image"
+						: String(result ?? "");
+					return truncate(resultStr, 80);
 				}
 				return truncate(JSON.stringify(item), 80);
 			})

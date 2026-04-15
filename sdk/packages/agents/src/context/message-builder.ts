@@ -290,16 +290,28 @@ export class MessageBuilder {
 	private extractReadLocatorsFromToolResultContent(
 		content: LlmsProviders.ToolResultContent["content"],
 	): ReadLocator[] {
-		if (typeof content !== "string") {
-			return [];
+		if (typeof content === "string") {
+			try {
+				const parsed = JSON.parse(content);
+				return this.extractLocatorsFromParsedReadResult(parsed);
+			} catch {
+				return [];
+			}
 		}
 
-		try {
-			const parsed = JSON.parse(content);
-			return this.extractLocatorsFromParsedReadResult(parsed);
-		} catch {
-			return [];
+		for (const entry of content) {
+			if (entry.type !== "text") {
+				continue;
+			}
+			try {
+				const parsed = JSON.parse(entry.text);
+				return this.extractLocatorsFromParsedReadResult(parsed);
+			} catch {
+				// no-op
+			}
 		}
+
+		return [];
 	}
 
 	private extractLocatorsFromParsedReadResult(value: unknown): ReadLocator[] {
@@ -451,6 +463,16 @@ export class MessageBuilder {
 			return replaced ?? OUTDATED_FILE_CONTENT;
 		}
 
+		let outdatedImageCount = content.reduce((count, entry) => {
+			if (entry.type !== "text") {
+				return count;
+			}
+			return (
+				count +
+				this.countOutdatedImageEntries(entry.text, outdatedLocatorKeySet)
+			);
+		}, 0);
+
 		return content.map((entry) => {
 			if (entry.type === "file") {
 				if (!outdatedPathSet.has(entry.path)) {
@@ -460,6 +482,17 @@ export class MessageBuilder {
 					...(entry as LlmsProviders.FileContent),
 					content: OUTDATED_FILE_CONTENT,
 				};
+			}
+
+			if (entry.type === "image") {
+				if (outdatedImageCount === 0) {
+					return entry;
+				}
+				outdatedImageCount -= 1;
+				return {
+					type: "text",
+					text: OUTDATED_FILE_CONTENT,
+				} satisfies LlmsProviders.TextContent;
 			}
 
 			if (entry.type !== "text") {
@@ -483,6 +516,66 @@ export class MessageBuilder {
 				text: replaced,
 			};
 		});
+	}
+
+	private countOutdatedImageEntries(
+		text: string,
+		outdatedLocatorKeySet: Set<string>,
+	): number {
+		try {
+			const parsed = JSON.parse(text);
+			return this.countOutdatedImageEntriesInParsed(
+				parsed,
+				outdatedLocatorKeySet,
+			);
+		} catch {
+			return 0;
+		}
+	}
+
+	private countOutdatedImageEntriesInParsed(
+		value: unknown,
+		outdatedLocatorKeySet: Set<string>,
+	): number {
+		if (Array.isArray(value)) {
+			return value.reduce(
+				(count, entry) =>
+					count +
+					this.countOutdatedImageEntriesInEntry(entry, outdatedLocatorKeySet),
+				0,
+			);
+		}
+
+		return this.countOutdatedImageEntriesInEntry(value, outdatedLocatorKeySet);
+	}
+
+	private countOutdatedImageEntriesInEntry(
+		entry: unknown,
+		outdatedLocatorKeySet: Set<string>,
+	): number {
+		if (!entry || typeof entry !== "object") {
+			return 0;
+		}
+
+		const record = entry as Record<string, unknown>;
+		const locator = this.extractLocatorFromResultEntry(record);
+		if (!locator) {
+			return 0;
+		}
+
+		const locatorKey = this.toReadLocatorKey(locator);
+		if (!outdatedLocatorKeySet.has(locatorKey)) {
+			return 0;
+		}
+
+		return this.isImageReadSummaryEntry(record) ? 1 : 0;
+	}
+
+	private isImageReadSummaryEntry(record: Record<string, unknown>): boolean {
+		return (
+			record.result === "Successfully read image" ||
+			record.content === "Successfully read image"
+		);
 	}
 
 	private replaceOutdatedReadContentInString(

@@ -46,4 +46,80 @@ describe("createFileReadExecutor", () => {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("returns image blocks for image files when the model supports images", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "example.png");
+		const pngBytes = Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+			"base64",
+		);
+		await fs.writeFile(filePath, pngBytes);
+
+		try {
+			const readFile = createFileReadExecutor();
+			const result = await readFile(
+				{ path: filePath },
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+					metadata: {
+						modelSupportsImages: true,
+					},
+				},
+			);
+			expect(result).toEqual([
+				{
+					type: "text",
+					text: "Successfully read image",
+				},
+				{
+					type: "image",
+					data: pngBytes.toString("base64"),
+					mediaType: "image/png",
+				},
+			]);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("returns image blocks for gif files when the model supports images", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-file-read-"));
+		const filePath = path.join(dir, "example.gif");
+		const gifBytes = Buffer.from(
+			"R0lGODdhAQABAIABAP///wAAACwAAAAAAQABAAACAkQBADs=",
+			"base64",
+		);
+		await fs.writeFile(filePath, gifBytes);
+
+		try {
+			const readFile = createFileReadExecutor();
+			const result = await readFile(
+				{ path: filePath },
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+					metadata: {
+						modelSupportsImages: true,
+					},
+				},
+			);
+			expect(result).toEqual([
+				{
+					type: "text",
+					text: "Successfully read image",
+				},
+				{
+					type: "image",
+					data: gifBytes.toString("base64"),
+					mediaType: "image/gif",
+				},
+			]);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
 });

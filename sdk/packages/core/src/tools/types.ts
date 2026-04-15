@@ -4,7 +4,7 @@
  * Type definitions for executors, configuration, and results.
  */
 
-import type { ToolContext } from "@clinebot/shared";
+import type { ImageContent, TextContent, ToolContext } from "@clinebot/shared";
 import type {
 	ApplyPatchInput,
 	EditFileInput,
@@ -23,7 +23,7 @@ export interface ToolOperationResult {
 	/** The query/input that was executed */
 	query: string;
 	/** The result content (if successful) */
-	result: string;
+	result: unknown;
 	/** Error message (if failed) */
 	error?: string;
 	/** Whether the operation succeeded */
@@ -31,6 +31,8 @@ export interface ToolOperationResult {
 	/** Duration in MS */
 	duration?: number;
 }
+
+export type FileReadResultContent = string | Array<TextContent | ImageContent>;
 
 // =============================================================================
 // Executor Interfaces
@@ -46,7 +48,7 @@ export interface ToolOperationResult {
 export type FileReadExecutor = (
 	request: ReadFileRequest,
 	context: ToolContext,
-) => Promise<string>;
+) => Promise<FileReadResultContent>;
 
 /**
  * Executor for searching the codebase

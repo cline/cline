@@ -4,6 +4,7 @@
  * Functions for formatting tool results for various purposes.
  */
 
+import type * as LlmsProviders from "@clinebot/llms";
 import type { ToolCallRecord } from "../types";
 
 /**
@@ -65,7 +66,70 @@ function enrichToolOutput(toolName: string, output: unknown): unknown {
 	};
 }
 
-export function formatStructuredToolResult(record: ToolCallRecord): string {
+function normalizeReadResultForText(
+	value: unknown,
+): string | Array<Record<string, unknown>> {
+	if (!Array.isArray(value)) {
+		return "";
+	}
+
+	const normalized = value.map((part) => {
+		if (!part || typeof part !== "object") {
+			return part;
+		}
+
+		const entry = part as Record<string, unknown>;
+		const result = entry.result;
+		if (!Array.isArray(result)) {
+			return entry;
+		}
+
+		const textParts = result
+			.filter(
+				(item): item is LlmsProviders.TextContent =>
+					!!item &&
+					typeof item === "object" &&
+					(item as { type?: string }).type === "text" &&
+					typeof (item as { text?: unknown }).text === "string",
+			)
+			.map((item) => item.text);
+
+		return {
+			...entry,
+			result: textParts.join("\n").trim() || "Successfully read image",
+		};
+	});
+
+	return normalized;
+}
+
+function extractReadResultImages(value: unknown): LlmsProviders.ImageContent[] {
+	if (!Array.isArray(value)) {
+		return [];
+	}
+
+	return value.flatMap((entry) => {
+		if (!entry || typeof entry !== "object") {
+			return [];
+		}
+		const result = (entry as { result?: unknown }).result;
+		if (!Array.isArray(result)) {
+			return [];
+		}
+		return result.filter(
+			(item): item is LlmsProviders.ImageContent =>
+				!!item &&
+				typeof item === "object" &&
+				(item as { type?: string }).type === "image" &&
+				typeof (item as { data?: unknown }).data === "string" &&
+				typeof (item as { mediaType?: unknown }).mediaType === "string",
+		);
+	});
+}
+
+export function formatStructuredToolResult(
+	record: ToolCallRecord,
+): LlmsProviders.ToolResultContent["content"] {
 	if (record.error) {
 		return JSON.stringify({
 			toolName: record.name,
@@ -76,7 +140,21 @@ export function formatStructuredToolResult(record: ToolCallRecord): string {
 		});
 	}
 
-	return formatToolResult(enrichToolOutput(record.name, record.output));
+	const enriched = enrichToolOutput(record.name, record.output);
+	if (record.name === "read_files") {
+		const images = extractReadResultImages(enriched);
+		if (images.length > 0) {
+			return [
+				{
+					type: "text",
+					text: formatToolResult(normalizeReadResultForText(enriched)),
+				},
+				...images,
+			];
+		}
+	}
+
+	return formatToolResult(enriched);
 }
 
 /**

@@ -10,6 +10,14 @@ import type { ToolContext } from "@clinebot/shared";
 import type { ReadFileRequest } from "../schemas";
 import type { FileReadExecutor } from "../types";
 
+const IMAGE_MEDIA_TYPES = new Map<string, string>([
+	[".gif", "image/gif"],
+	[".png", "image/png"],
+	[".jpg", "image/jpeg"],
+	[".jpeg", "image/jpeg"],
+	[".webp", "image/webp"],
+]);
+
 /**
  * Options for the file read executor
  */
@@ -60,14 +68,13 @@ export function createFileReadExecutor(
 		...options,
 	};
 
-	return async (
-		request: ReadFileRequest,
-		_context: ToolContext,
-	): Promise<string> => {
+	return async (request: ReadFileRequest, context: ToolContext) => {
 		const { path: filePath, start_line, end_line } = request;
 		const resolvedPath = path.isAbsolute(filePath)
 			? path.normalize(filePath)
 			: path.resolve(process.cwd(), filePath);
+		const extension = path.extname(resolvedPath).toLowerCase();
+		const imageMediaType = IMAGE_MEDIA_TYPES.get(extension);
 
 		// Check if file exists
 		const stat = await fs.stat(resolvedPath);
@@ -82,6 +89,24 @@ export function createFileReadExecutor(
 				`File too large: ${stat.size} bytes (max: ${maxFileSizeBytes} bytes). ` +
 					`Consider reading specific sections or using a different approach.`,
 			);
+		}
+
+		if (imageMediaType) {
+			if (context.metadata?.modelSupportsImages !== true) {
+				throw new Error("Current model does not support image input");
+			}
+			const data = await fs.readFile(resolvedPath);
+			return [
+				{
+					type: "text",
+					text: "Successfully read image",
+				},
+				{
+					type: "image",
+					data: data.toString("base64"),
+					mediaType: imageMediaType,
+				},
+			];
 		}
 
 		// Read file content

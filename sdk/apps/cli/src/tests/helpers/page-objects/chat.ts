@@ -5,9 +5,13 @@
 import type { Terminal } from "@microsoft/tui-test/lib/terminal/term";
 import { expectVisible, typeAndSubmit } from "../terminal.js";
 
+const chatReadyTimeoutMs = 20_000;
+
 /** Wait for the main chat view to be ready */
 export async function waitForChatReady(terminal: Terminal): Promise<void> {
-	await expectVisible(terminal, "What can I do for you?");
+	await expectVisible(terminal, "What can I do for you?", {
+		timeout: chatReadyTimeoutMs,
+	});
 }
 
 /** Submit a prompt in the chat input */

@@ -311,27 +311,49 @@ function toGatewayRequestMessages(
 											: undefined,
 									},
 								];
-							case "tool_result":
+							case "tool_result": {
+								const contentParts =
+									typeof part.content === "string" ? [] : part.content;
+								const textOutput =
+									typeof part.content === "string"
+										? part.content
+										: contentParts
+												.map((contentPart) =>
+													contentPart.type === "text"
+														? contentPart.text
+														: contentPart.type === "file"
+															? contentPart.content
+															: "",
+												)
+												.join("\n");
+								const imageParts =
+									typeof part.content === "string"
+										? []
+										: contentParts
+												.filter(
+													(
+														contentPart,
+													): contentPart is Extract<
+														typeof contentPart,
+														{ type: "image" }
+													> => contentPart.type === "image",
+												)
+												.map((contentPart) => ({
+													type: "image" as const,
+													image: `data:${contentPart.mediaType};base64,${contentPart.data}`,
+													mediaType: contentPart.mediaType,
+												}));
 								return [
 									{
 										type: "tool-result" as const,
 										toolCallId: part.tool_use_id,
 										toolName: toolNames.get(part.tool_use_id) ?? "tool",
-										output:
-											typeof part.content === "string"
-												? part.content
-												: part.content
-														.map((contentPart) =>
-															contentPart.type === "text"
-																? contentPart.text
-																: contentPart.type === "file"
-																	? contentPart.content
-																	: "",
-														)
-														.join("\n"),
+										output: textOutput,
 										isError: part.is_error ?? false,
 									},
+									...imageParts,
 								];
+							}
 							case "image":
 								return [
 									{

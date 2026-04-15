@@ -81,7 +81,7 @@ export function createReadFilesTool(
 	return createTool<ReadFilesInput, ToolOperationResult[]>({
 		name: "read_files",
 		description:
-			"Read the full content of text files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
+			"Read the full content of text or image files at the provided absolute paths, or return only an inclusive one-based line range when start_line/end_line are provided. " +
 			"Returns file contents or error messages for each path.",
 		inputSchema: zodToJsonSchema(ReadFilesInputSchema),
 		timeoutMs: timeoutMs * 2, // Account for multiple files
