@@ -7,7 +7,7 @@ import { createOpenAIClient } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { ApiHandler, CommonApiHandlerOptions } from "../index"
 import { withRetry } from "../retry"
-import { ApiStream } from "../transform/stream"
+import { ApiStream, parseOpenAIStreamingUsage } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
 import { createVercelAIGatewayStream } from "../transform/vercel-ai-gateway-stream"
 
@@ -113,15 +113,12 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				}
 
 				if (!didOutputUsage && chunk.usage) {
-					// @ts-expect-error - Vercel AI Gateway extends OpenAI types
+					// @ts-expect-error - Vercel AI Gateway extends OpenAI types with Anthropic/provider-specific fields
 					const totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
-						outputTokens: chunk.usage.completion_tokens || 0,
+						...parseOpenAIStreamingUsage(chunk.usage as Parameters<typeof parseOpenAIStreamingUsage>[0]),
 						totalCost,
 					}
 					didOutputUsage = true
