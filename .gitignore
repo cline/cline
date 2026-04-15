@@ -1,5 +1,8 @@
 out
 dist
+
+# YouTube channel scripts — local only, not for public repo
+.youtube/
 dist-standalone
 node_modules
 tmp
@@ -27,6 +30,12 @@ coverage-unit
 
 *evals.env
 .env
+
+# Local notes — never commit
+BLOG_IDEAS.md
+NOTES.md
+TODO_LOCAL.md
+local-docs/
 
 ## Generated files ##
 src/generated/

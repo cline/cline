@@ -41,6 +41,17 @@ buf.yaml
 # Private documents — never ship in VSIX
 paper.md
 branding.md
+BLOG_IDEAS.md
+
+# Private local-only folders — never ship in VSIX
+.youtube/
+.cache/
+local-docs/
+
+# MkDocs build artefacts
+site/
+mkdocs.yml
+docs/
 
 # AI-Hydro specific — exclude large directories not needed in .vsix
 python/
