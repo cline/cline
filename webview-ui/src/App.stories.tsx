@@ -811,26 +811,7 @@ export const ShellIntegrationWarningWithSuggestion: Story = {
 	parameters: {
 		docs: {
 			description: {
-				story: "Shows shell integration warning with suggestion to enable Background Terminal mode.",
-			},
-		},
-	},
-}
-
-export const ShellIntegrationWarningBackgroundEnabled: Story = {
-	decorators: [
-		createStoryDecorator({
-			clineMessages: [
-				createMessage(5, "say", "task", "Run a command"),
-				createMessage(4.7, "say", "text", "I'll run the command for you."),
-				createMessage(4.5, "say", "shell_integration_warning_with_suggestion", ""),
-			],
-		}),
-	],
-	parameters: {
-		docs: {
-			description: {
-				story: "Shows shell integration warning when Background Terminal mode is already enabled.",
+				story: "Shows shell integration guidance with an informational suggestion.",
 			},
 		},
 	},

@@ -1104,9 +1104,9 @@ export const ChatRowContent = memo(
 						return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
 					case "shell_integration_warning_with_suggestion":
 						return (
-							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
+							<div className="flex flex-col bg-link/10 p-2 rounded-xs border border-link/30">
 								<div className="flex items-center mb-1">
-									<LightbulbIcon className="mr-1.5 size-2 text-warning-foreground" />
+									<LightbulbIcon className="mr-1.5 size-2 text-link" />
 									<span className="font-medium text-foreground">Shell integration issues</span>
 								</div>
 								<div className="text-foreground opacity-80">
