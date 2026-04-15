@@ -105,6 +105,9 @@ extra:
     - icon: fontawesome/brands/github
       link: https://github.com/AI-Hydro/AI-Hydro
       name: GitHub
+    - icon: fontawesome/brands/x-twitter
+      link: https://x.com/aihydro
+      name: X / Twitter
     - icon: fontawesome/brands/youtube
       link: https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw
       name: YouTube

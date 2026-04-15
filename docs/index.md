@@ -19,6 +19,7 @@ hide:
 [Get Started](getting-started/installation.md){ .md-button .md-button--primary }
 [View on GitHub](https://github.com/AI-Hydro/AI-Hydro){ .md-button }
 [Watch on YouTube](https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw){ .md-button }
+[Follow on X](https://x.com/aihydro){ .md-button }
 
 </div>
 

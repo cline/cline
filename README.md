@@ -28,6 +28,7 @@
   <a href="https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/"><strong>Quick Start</strong></a> &middot;
   <a href="https://ai-hydro.github.io/AI-Hydro/tools-reference/"><strong>Tools Reference</strong></a> ·
   <a href="https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw"><strong>YouTube</strong></a> ·
+  <a href="https://x.com/aihydro"><strong>X / Twitter</strong></a> ·
   <a href="https://github.com/AI-Hydro/AI-Hydro/issues"><strong>Issues</strong></a>
 </p>
 
