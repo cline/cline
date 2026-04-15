@@ -23,7 +23,8 @@
 		"rootDir": "."
 	},
 	"include": [
-		"src/**/*.test.ts"
+		"src/**/*.test.ts",
+		"src/**/*.d.ts"
 	],
 	"exclude": [
 		"src/test/**/*.js",
