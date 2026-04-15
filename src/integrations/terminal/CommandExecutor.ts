@@ -69,16 +69,6 @@ export class CommandExecutor {
 			// Create a standalone manager for background execution support.
 			this.standaloneManager = new StandaloneTerminalManager()
 			Logger.info(`[CommandExecutor] Created new StandaloneTerminalManager`)
-
-			// Copy settings from the provided terminalManager to ensure consistency
-			const tm = config.terminalManager as any
-			if ("terminalReuseEnabled" in config.terminalManager) {
-				this.standaloneManager.setTerminalReuseEnabled(tm.terminalReuseEnabled ?? true)
-			}
-
-			if ("terminalOutputLineLimit" in config.terminalManager) {
-				this.standaloneManager.setTerminalOutputLineLimit(tm.terminalOutputLineLimit || 500)
-			}
 		}
 	}
 

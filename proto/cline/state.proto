@@ -11,7 +11,6 @@ option java_package = "bot.cline.proto";
 
 service StateService {
   rpc getLatestState(EmptyRequest) returns (State);
-  rpc updateTerminalReuseEnabled(BooleanRequest) returns (Empty);
   rpc subscribeToState(EmptyRequest) returns (stream State);
   rpc toggleFavoriteModel(StringRequest) returns (Empty);
   rpc resetState(ResetStateRequest) returns (Empty);
@@ -244,9 +243,6 @@ message Settings {
   optional string telemetry_setting = 133;
   optional bool plan_act_separate_models_setting = 134;
   optional bool enable_checkpoints_setting = 135;
-  reserved 136; // was shell_integration_timeout
-  reserved 137; // was default_terminal_profile
-  optional int32 terminal_output_line_limit = 138;
   optional int32 max_consecutive_mistakes = 139;
   optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
@@ -373,6 +369,8 @@ message UpdateSettingsRequest {
   reserved 23; // was dictation_settings (dictation removed)
   reserved 38; // was skills_enabled (removed - now always enabled)
   reserved 8; // was shell_integration_timeout
+  reserved 9; // was terminal_reuse_enabled
+  reserved 12; // was terminal_output_line_limit
   reserved 21; // was default_terminal_profile
 
   Metadata metadata = 1;
@@ -381,10 +379,8 @@ message UpdateSettingsRequest {
   optional bool plan_act_separate_models_setting = 4;
   optional bool enable_checkpoints_setting = 5;
   optional bool mcp_marketplace_enabled = 6;
-  optional bool terminal_reuse_enabled = 9;
   optional bool mcp_responses_collapsed = 10;
   optional McpDisplayMode mcp_display_mode = 11;
-  optional int32 terminal_output_line_limit = 12;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
   optional bool strict_plan_mode_enabled = 16;

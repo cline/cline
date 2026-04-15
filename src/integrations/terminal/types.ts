@@ -207,18 +207,6 @@ export interface ITerminalManager {
 	disposeAll(): void
 
 	/**
-	 * Enable or disable terminal reuse.
-	 * @param enabled Whether to enable terminal reuse
-	 */
-	setTerminalReuseEnabled(enabled: boolean): void
-
-	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void
-
-	/**
 	 * Process output lines, potentially truncating if over limit.
 	 * @param outputLines Array of output lines
 	 * @param overrideLimit Optional limit override

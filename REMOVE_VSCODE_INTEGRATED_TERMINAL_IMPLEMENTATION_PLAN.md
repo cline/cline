@@ -16,6 +16,8 @@
 - [x] Perform a final search-based audit to confirm no live integrated-terminal dependency remains
 
 > Status update (2026-04-15): Phases 1-5 are implemented. Automated validation completed with `npm run check-types`, `npm run lint`, `npm run build:webview`, `npm run compile`, `npm run test:unit`, `npm run test:webview`, and `npm run test:integration`. Remaining references are intentional compatibility/generated/dev-only scaffolding rather than live VS Code integrated-terminal product behavior.
+>
+> Follow-up note: this document predates the separate removal of the remaining **Terminal Settings** UI and its two persisted settings (`terminalReuseEnabled`, `terminalOutputLineLimit`) from the VS Code extension. That follow-up work is tracked independently in `REMOVE_TERMINAL_SETTINGS_IMPLEMENTATION_PLAN.md` and supersedes the “leave those settings in place” guidance below for the VS Code extension.
 
 ---
 
@@ -127,7 +129,7 @@ This plan does **not** aim to:
 - redesign the background terminal implementation
 - simplify every shared terminal interface immediately
 - regenerate proto/grpc surfaces unless required for build correctness
-- remove background terminal settings that still matter (`terminalReuseEnabled`, `terminalOutputLineLimit`)
+- remove background terminal settings that still matter (`terminalReuseEnabled`, `terminalOutputLineLimit`) *(superseded for the VS Code extension by `REMOVE_TERMINAL_SETTINGS_IMPLEMENTATION_PLAN.md`)*
 - change CLI or JetBrains terminal architecture beyond what is needed to keep shared code building
 
 ## 3.3 Safety rule: what we are allowed to leave behind
@@ -680,7 +682,7 @@ This section is meant to be used directly by a developer while making changes.
 
 - [x] `src/core/task/index.ts`
   - confirm the background-exec path remains intact
-  - do **not** remove `terminalReuseEnabled` or `terminalOutputLineLimit`
+  - do **not** remove `terminalReuseEnabled` or `terminalOutputLineLimit` *(superseded for the VS Code extension by the dedicated terminal-settings removal follow-up)*
   - do **not** broaden scope here unless compilation requires it
 
 Why those settings stay: they govern the background terminal behavior that Cline still actively uses. They are terminal-related, but they are not integrated-terminal-specific.

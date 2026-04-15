@@ -140,8 +140,6 @@ type TaskParams = {
 	postStateToWebview: () => Promise<void>
 	reinitExistingTaskFromId: (taskId: string) => Promise<void>
 	cancelTask: () => Promise<void>
-	terminalReuseEnabled: boolean
-	terminalOutputLineLimit: number
 	cwd: string
 	stateManager: StateManager
 	workspaceManager?: WorkspaceRootManager
@@ -276,8 +274,6 @@ export class Task {
 			postStateToWebview,
 			reinitExistingTaskFromId,
 			cancelTask,
-			terminalReuseEnabled,
-			terminalOutputLineLimit,
 			cwd,
 			stateManager,
 			workspaceManager,
@@ -315,8 +311,6 @@ export class Task {
 		this.terminalExecutionMode = "backgroundExec"
 		this.terminalManager = new StandaloneTerminalManager()
 		Logger.info(`[Task ${taskId}] Using StandaloneTerminalManager for command execution`)
-		this.terminalManager.setTerminalReuseEnabled(terminalReuseEnabled ?? true)
-		this.terminalManager.setTerminalOutputLineLimit(terminalOutputLineLimit)
 
 		this.urlContentFetcher = new UrlContentFetcher()
 		this.browserSession = new BrowserSession(stateManager)

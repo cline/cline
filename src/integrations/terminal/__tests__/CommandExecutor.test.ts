@@ -111,8 +111,6 @@ function createManagerSpies() {
 		getUnretrievedOutput: () => "",
 		isProcessHot: () => false,
 		disposeAll: () => {},
-		setTerminalReuseEnabled: () => {},
-		setTerminalOutputLineLimit: () => {},
 		processOutput: (outputLines: string[]) => outputLines.join("\n"),
 	}
 
@@ -180,35 +178,6 @@ describe("CommandExecutor routing", () => {
 		} finally {
 			standaloneGetOrCreateTerminal.restore()
 			standaloneRunCommand.restore()
-		}
-	})
-
-	it("copies terminal output line limit even when terminal reuse is not exposed", () => {
-		const setTerminalReuseEnabled = sinon.stub(StandaloneTerminalManager.prototype, "setTerminalReuseEnabled")
-		const setTerminalOutputLineLimit = sinon.stub(StandaloneTerminalManager.prototype, "setTerminalOutputLineLimit")
-
-		try {
-			const manager = {
-				...createManagerSpies().manager,
-				terminalOutputLineLimit: 1234,
-			} as ITerminalManager & { terminalOutputLineLimit: number }
-
-			new CommandExecutor(
-				{
-					cwd: "/workspace",
-					taskId: "task-3",
-					ulid: "ulid-3",
-					terminalExecutionMode: "vscodeTerminal",
-					terminalManager: manager,
-				},
-				createCallbacks(),
-			)
-
-			assert.equal(setTerminalReuseEnabled.called, false)
-			assert.equal(setTerminalOutputLineLimit.calledOnceWithExactly(1234), true)
-		} finally {
-			setTerminalReuseEnabled.restore()
-			setTerminalOutputLineLimit.restore()
 		}
 	})
 })

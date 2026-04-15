@@ -104,16 +104,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("preferredLanguage", request.preferredLanguage)
 		}
 
-		// Update terminal reuse setting
-		if (request.terminalReuseEnabled !== undefined) {
-			controller.stateManager.setGlobalState("terminalReuseEnabled", request.terminalReuseEnabled)
-		}
-
-		// Update terminal output line limit
-		if (request.terminalOutputLineLimit !== undefined) {
-			controller.stateManager.setGlobalState("terminalOutputLineLimit", Number(request.terminalOutputLineLimit))
-		}
-
 		// Update max consecutive mistakes
 		if (request.maxConsecutiveMistakes !== undefined) {
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))

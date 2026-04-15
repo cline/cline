@@ -247,7 +247,13 @@ describe("State Keys Type Safety", () => {
 		})
 
 		it("should not expose removed foreground terminal settings keys", () => {
-			const removedKeys = ["vscodeTerminalExecutionMode", "shellIntegrationTimeout", "defaultTerminalProfile"] as const
+			const removedKeys = [
+				"vscodeTerminalExecutionMode",
+				"shellIntegrationTimeout",
+				"defaultTerminalProfile",
+				"terminalReuseEnabled",
+				"terminalOutputLineLimit",
+			] as const
 
 			for (const key of removedKeys) {
 				expect(isSettingsKey(key), `${key} should not remain a SettingsKey`).to.be.false

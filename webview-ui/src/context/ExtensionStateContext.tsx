@@ -248,8 +248,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		localAgentsRulesToggles: {},
 		localWorkflowToggles: {},
 		globalWorkflowToggles: {},
-		terminalReuseEnabled: true,
-		terminalOutputLineLimit: 500,
 		maxConsecutiveMistakes: 3,
 		isNewUser: false,
 		welcomeViewCompleted: false,

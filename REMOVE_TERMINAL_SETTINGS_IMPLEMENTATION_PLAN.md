@@ -7,10 +7,10 @@
 ## Progress Checklist
 
 - [x] Remove the Terminal Settings UI surface from the webview
-- [ ] Remove `terminalOutputLineLimit` as a persisted/user-facing setting while preserving fixed internal output limiting
-- [ ] Remove `terminalReuseEnabled` as a persisted/user-facing setting while preserving internal aggressive reuse defaulting to `true`
-- [ ] Simplify controller, task, terminal, proto, and generated-code plumbing to match the new architecture
-- [ ] Clean up stale tests, stories, RPCs, comments, and references
+- [x] Remove `terminalOutputLineLimit` as a persisted/user-facing setting while preserving fixed internal output limiting
+- [x] Remove `terminalReuseEnabled` as a persisted/user-facing setting while preserving internal aggressive reuse defaulting to `true`
+- [x] Simplify controller, task, terminal, proto, and generated-code plumbing to match the new architecture
+- [x] Clean up stale tests, stories, RPCs, comments, and references
 - [ ] Validate the extension end to end and confirm the final architecture behaves as intended
 
 ---

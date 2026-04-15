@@ -59,8 +59,6 @@ export interface ExtensionState {
 	shouldShowAnnouncement: boolean
 	taskHistory: HistoryItem[]
 	telemetrySetting: TelemetrySetting
-	terminalReuseEnabled?: boolean
-	terminalOutputLineLimit: number
 	maxConsecutiveMistakes: number
 	backgroundCommandRunning?: boolean
 	backgroundCommandTaskId?: string

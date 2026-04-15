@@ -68,11 +68,11 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	/** Set of terminal IDs managed by this instance */
 	private terminalIds: Set<number> = new Set()
 
-	/** Whether terminal reuse is enabled */
-	private terminalReuseEnabled = true
+	/** Whether idle terminals may be reused across commands */
+	private reuseIdleTerminals = true
 
-	/** Maximum output lines to keep */
-	private terminalOutputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
+	/** Maximum output lines to keep when formatting command output */
+	private outputLineLimit: number = DEFAULT_TERMINAL_OUTPUT_LINE_LIMIT
 
 	// =========================================================================
 	// Background Command Tracking
@@ -142,8 +142,8 @@ export class StandaloneTerminalManager implements ITerminalManager {
 			return matchingTerminal
 		}
 
-		// Find any available terminal if reuse is enabled
-		if (this.terminalReuseEnabled) {
+		// Aggressive terminal reuse is always enabled for background execution.
+		if (this.reuseIdleTerminals) {
 			const availableTerminal = terminals.find((t) => !t.busy)
 			if (availableTerminal) {
 				// Change directory
@@ -217,7 +217,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	 * @returns Processed output string
 	 */
 	processOutput(outputLines: string[], overrideLimit?: number): string {
-		const limit = overrideLimit !== undefined ? overrideLimit : this.terminalOutputLineLimit
+		const limit = overrideLimit !== undefined ? overrideLimit : this.outputLineLimit
 		if (outputLines.length > limit) {
 			const halfLimit = Math.floor(limit / 2)
 			const start = outputLines.slice(0, halfLimit)
@@ -251,22 +251,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		}
 
 		this.registry.clear()
-	}
-
-	/**
-	 * Enable or disable terminal reuse.
-	 * @param enabled Whether to enable terminal reuse
-	 */
-	setTerminalReuseEnabled(enabled: boolean): void {
-		this.terminalReuseEnabled = enabled
-	}
-
-	/**
-	 * Set the maximum number of output lines to keep.
-	 * @param limit Maximum number of lines
-	 */
-	setTerminalOutputLineLimit(limit: number): void {
-		this.terminalOutputLineLimit = limit
 	}
 
 	// Additional methods required for TerminalManager compatibility
