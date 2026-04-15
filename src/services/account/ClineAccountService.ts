@@ -5,6 +5,7 @@ import type {
 	OrganizationUsageTransaction,
 	PaymentTransaction,
 	UsageTransaction,
+	UserRemoteConfigDiscoveryResponse,
 	UserResponse,
 } from "@shared/ClineAccount"
 import axios, { AxiosRequestConfig, AxiosResponse } from "axios"
@@ -46,13 +47,20 @@ export class ClineAccountService {
 	 * Helper function to make authenticated requests to the Cline API
 	 * @param endpoint The API endpoint to call (without the base URL)
 	 * @param config Additional axios request configuration
+	 * @param options.allowNullData When true, allows response.data.data to be null without throwing.
+	 *   Callers must include `| null` in T and handle null themselves.
+	 *   Used by endpoints like /users/me/remote-config that return 200 with data: null.
 	 * @returns The API response data
 	 * @throws Error if the API key is not found or the request fails
 	 */
-	private async authenticatedRequest<T>(endpoint: string, config: AxiosRequestConfig = {}): Promise<T> {
+	private async authenticatedRequest<T>(
+		endpoint: string,
+		config: AxiosRequestConfig = {},
+		options?: { allowNullData?: boolean; authToken?: string },
+	): Promise<T> {
 		const url = new URL(endpoint, this.baseUrl).toString() // Validate URL
 		// IMPORTANT: Prefixed with 'workos:' so backend can route verification to WorkOS provider
-		const clineAccountAuthToken = await this._authService.getAuthToken()
+		const clineAccountAuthToken = options?.authToken ?? (await this._authService.getAuthToken())
 		if (!clineAccountAuthToken) {
 			throw new Error("No Cline account auth token found")
 		}
@@ -66,7 +74,7 @@ export class ClineAccountService {
 			},
 			...getAxiosSettings(),
 		}
-		const response: AxiosResponse<{ data?: T; error: string; success: boolean }> = await axios.request({
+		const response: AxiosResponse<{ data?: T | null; error: string; success: boolean }> = await axios.request({
 			url,
 			method: "GET",
 			...requestConfig,
@@ -75,16 +83,22 @@ export class ClineAccountService {
 		if (status < 200 || status >= 300) {
 			throw new Error(`Request to ${endpoint} failed with status ${status}`)
 		}
-		if (response.statusText !== "No Content" && (!response.data || !response.data.data)) {
-			throw new Error(`Invalid response from ${endpoint} API`)
-		}
 		if (typeof response.data === "object" && !response.data.success) {
 			throw new Error(`API error: ${response.data.error}`)
 		}
 		if (response.statusText === "No Content") {
-			return {} as T // Return empty object if no content
+			return {} as T
 		}
-		return response.data.data as T
+
+		const payload = response.data?.data
+		if (!response.data || typeof payload === "undefined") {
+			throw new Error(`Invalid response from ${endpoint} API`)
+		}
+		if (payload === null && !options?.allowNullData) {
+			throw new Error(`Invalid response from ${endpoint} API`)
+		}
+
+		return payload as T
 	}
 
 	/**
@@ -232,6 +246,21 @@ export class ClineAccountService {
 			Logger.error("Failed to fetch active organization transactions (RPC):", error)
 			return undefined
 		}
+	}
+
+	async fetchUserRemoteConfig(): Promise<UserRemoteConfigDiscoveryResponse | undefined> {
+		const token = await this._authService.getAuthToken()
+		if (!token) {
+			return undefined
+		}
+
+		const data = await this.authenticatedRequest<UserRemoteConfigDiscoveryResponse | null>(
+			CLINE_API_ENDPOINT.USER_REMOTE_CONFIG,
+			{},
+			{ allowNullData: true, authToken: token },
+		)
+		// Backend returns 200 with data: null when no org has remote config
+		return data ?? undefined
 	}
 
 	/**
