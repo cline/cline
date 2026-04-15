@@ -125,7 +125,17 @@ export class VscodeSessionHost implements SessionManager {
 	}
 
 	async send(input: SendSessionInput) {
-		return this.inner.send(input)
+		Logger.log(`[VscodeSessionHost] send() called: sessionId=${input.sessionId}, prompt=${input.prompt?.substring(0, 50)}`)
+		try {
+			const result = await this.inner.send(input)
+			Logger.log(
+				`[VscodeSessionHost] send() completed: text=${result?.text?.substring(0, 100)}, inputTokens=${result?.usage?.inputTokens}`,
+			)
+			return result
+		} catch (error) {
+			Logger.error(`[VscodeSessionHost] send() error:`, error)
+			throw error
+		}
 	}
 
 	async getAccumulatedUsage(sessionId: string): Promise<SessionAccumulatedUsage | undefined> {

@@ -8,7 +8,14 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type CoreSessionConfig, type SessionManager, type StartSessionInput, type StartSessionResult } from "@clinebot/core"
+import {
+	buildWorkspaceMetadata,
+	type CoreSessionConfig,
+	type SessionManager,
+	type StartSessionInput,
+	type StartSessionResult,
+} from "@clinebot/core"
+import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
@@ -311,6 +318,30 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	modelId = modelId ?? "claude-sonnet-4-6"
 	apiKey = apiKey ?? ""
 
+	// Build the system prompt using the SDK's prompt builder.
+	// This is required — the SDK does NOT have a fallback for empty system prompts.
+	// Both the CLI (apps/cli/src/runtime/prompt.ts) and the SDK's VSCode extension
+	// (apps/vscode/src/extension.ts) call buildClineSystemPrompt() before passing
+	// the config to the session manager.
+	let systemPrompt = ""
+	try {
+		const { basename } = await import("path")
+		const metadata = await buildWorkspaceMetadata(cwd)
+		systemPrompt = buildClineSystemPrompt({
+			ide: "VS Code",
+			workspaceRoot: cwd,
+			workspaceName: basename(cwd),
+			metadata,
+			mode: mode === "plan" ? "plan" : "act",
+			providerId,
+			platform: process.platform,
+		})
+		Logger.log(`[SessionFactory] Built system prompt: ${systemPrompt.length} chars`)
+	} catch (error) {
+		Logger.warn("[SessionFactory] Failed to build system prompt, using minimal fallback:", error)
+		systemPrompt = "You are Cline, a highly skilled software engineer. Help the user with their request."
+	}
+
 	const config: CoreSessionConfig = {
 		providerId,
 		modelId,
@@ -318,7 +349,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		baseUrl,
 		cwd,
 		workspaceRoot,
-		systemPrompt: "", // Will be resolved by the SDK's prompt builder
+		systemPrompt,
 		enableTools: true,
 		enableSpawnAgent: input.taskSettings?.subagentsEnabled ?? false,
 		enableAgentTeams: false,
