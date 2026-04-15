@@ -33,7 +33,7 @@ flowchart TD
   agents --> core
   rpc --> core
   enterprise["@clinebot/enterprise"] --> agents & core & shared
-  core --> apps["CLI / Desktop / VS Code / Code App"]
+  core --> apps["CLI / VS Code / Code App"]
 ```
 
 Rules:

@@ -59,7 +59,7 @@ Public package exports stay stable through `packages/rpc/src/server.ts`.
 - `runRpcRuntimeEventBridge(...)` (`packages/rpc/src/runtime-chat-stream-bridge.ts`)
 - `runRpcRuntimeCommandBridge(...)` (`packages/rpc/src/runtime-chat-command-bridge.ts`)
 
-These allow host clients (for example code/desktop apps) to share one implementation for:
+These allow host clients (for example code/code apps) to share one implementation for:
 
 - runtime chat start/send/abort calls
 - session-subscription control loop for streamed chat events

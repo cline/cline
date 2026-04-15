@@ -372,14 +372,6 @@ Notable behaviors:
 - provider settings and model selection are driven by SDK packages rather than static app-local state
 - settings surfaces for rules, MCP servers, and provider config map back to shared/core behavior
 
-### `@clinebot/desktop`
-
-Desktop board/task host with subprocess-per-task execution patterns.
-
-Notable behaviors:
-
-- uses persistent session/runtime state and host orchestration over SDK primitives
-
 ### `@clinebot/vscode`
 
 VS Code extension host over RPC-backed chat/runtime interactions.

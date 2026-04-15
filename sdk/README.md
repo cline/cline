@@ -12,7 +12,7 @@ It is a Bun workspace centered around a small stack of reusable packages:
 - `@clinebot/core`: stateful orchestration, sessions, storage, and runtime assembly
 - `@clinebot/enterprise`: used for internal enterprise integrations. It is intentionally excluded from the root SDK build/version/publish flows.
 
-Host apps in `apps/` compose those packages into real user-facing products such as the CLI, desktop apps, and the VS Code extension.
+Host apps in `apps/` compose those packages into real user-facing products such as the CLI apps, and the VS Code extension.
 
 ## What This Repo Is
 
@@ -52,7 +52,6 @@ Use the docs by question type:
 
 - `apps/cli`: command-line host
 - `apps/code`: Tauri + Next.js desktop app
-- `apps/desktop`: Tauri desktop app with board-oriented UX
 - `apps/vscode`: VS Code extension
 - `apps/examples`: sample integrations and usage examples
 
@@ -66,7 +65,7 @@ flowchart LR
   agents --> core
   rpc --> core
   enterprise["@clinebot/enterprise (internal)"] --> agents & core & shared
-  core --> apps["CLI / Desktop / VS Code / Code App"]
+  core --> apps["CLI / VS Code / Code App"]
 ```
 
 ## Getting Around
@@ -77,7 +76,7 @@ If you want to:
 - understand the design: start with [ARCHITECTURE.md](./ARCHITECTURE.md)
 - inspect APIs and behaviors: use [DOC.md](./DOC.md)
 - quick-reference during development: read [AGENTS.md](./AGENTS.md)
-- see how the SDK is consumed: look at `apps/cli`, `apps/code`, `apps/desktop`, and `apps/examples`
+- see how the SDK is consumed: look at `apps/cli`, `apps/code`, and `apps/examples`
 
 ## Development Entry Points
 

@@ -25,7 +25,6 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 
 - `apps/cli`: CLI host and RPC server management
 - `apps/code`: Tauri + Next.js desktop app
-- `apps/desktop`: desktop board/task app
 - `apps/vscode`: VS Code extension
 - `apps/examples`: sample consumers and integration examples
 
