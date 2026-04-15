@@ -1,8 +1,12 @@
 // Replaces classic src/services/auth/AuthService.ts (see origin/main)
 //
 // SDK-backed authentication service. Uses @clinebot/core OAuth functions
-// for login flows while maintaining compatibility with the existing gRPC
-// handler interface.
+// for login flows and ProviderSettingsManager (providers.json) as the
+// single source of truth for credentials.
+//
+// User profile info (email, displayName, organizations) is NOT stored on
+// disk — it's fetched from the Cline API on startup and cached in memory.
+// This matches the CLI's pattern (see apps/cli/src/runtime/interactive-welcome.ts).
 
 import type { OAuthCredentials } from "@clinebot/core"
 import { createOAuthClientCallbacks, loginClineOAuth, loginOcaOAuth, loginOpenAICodex, refreshClineToken } from "@clinebot/core"
@@ -12,7 +16,6 @@ import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
-import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
@@ -20,12 +23,13 @@ import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
+import { getProviderSettingsManager } from "./provider-migration"
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
-/** Shape of the auth info persisted in secrets.json under "cline:clineAccountId" */
+/** Shape of the auth info cached in memory (NOT persisted to disk). */
 export interface ClineAuthInfo {
 	idToken: string
 	refreshToken?: string
@@ -62,11 +66,105 @@ export enum LogoutReason {
 }
 
 // ---------------------------------------------------------------------------
-// Secret keys
+// Constants
 // ---------------------------------------------------------------------------
 
-const CLINE_AUTH_SECRET_KEY = "cline:clineAccountId"
-const CLINE_AUTH_SECRET_KEY_LEGACY = "clineAccountId"
+const WORKOS_TOKEN_PREFIX = "workos:"
+
+// ---------------------------------------------------------------------------
+// providers.json helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Read Cline OAuth credentials from providers.json.
+ * Returns { accessToken, refreshToken, expiresAt, accountId } or null.
+ */
+function readClineCredentials(): {
+	accessToken: string
+	refreshToken?: string
+	expiresAt?: number // milliseconds since epoch (providers.json convention)
+	accountId?: string
+} | null {
+	try {
+		const manager = getProviderSettingsManager()
+		const settings = manager.getProviderSettings("cline")
+		if (!settings?.auth?.accessToken) return null
+
+		// Strip workos: prefix if present (providers.json stores it with prefix)
+		let accessToken = settings.auth.accessToken
+		if (accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)) {
+			accessToken = accessToken.slice(WORKOS_TOKEN_PREFIX.length)
+		}
+
+		return {
+			accessToken,
+			refreshToken: settings.auth.refreshToken,
+			expiresAt: (settings.auth as { expiresAt?: number }).expiresAt,
+			accountId: settings.auth.accountId,
+		}
+	} catch (error) {
+		Logger.error("[SdkAuthService] Failed to read credentials from providers.json:", error)
+		return null
+	}
+}
+
+/**
+ * Write Cline OAuth credentials to providers.json.
+ */
+function writeClineCredentials(credentials: {
+	accessToken: string
+	refreshToken?: string
+	expiresAt?: number // milliseconds since epoch
+	accountId?: string
+}): void {
+	try {
+		const manager = getProviderSettingsManager()
+		const existing = manager.getProviderSettings("cline")
+
+		const auth = {
+			...(existing?.auth ?? {}),
+			accessToken: `${WORKOS_TOKEN_PREFIX}${credentials.accessToken}`,
+			refreshToken: credentials.refreshToken,
+			accountId: credentials.accountId,
+		} as Record<string, unknown>
+		if (credentials.expiresAt !== undefined) {
+			auth.expiresAt = credentials.expiresAt
+		}
+
+		manager.saveProviderSettings(
+			{
+				...(existing ?? { provider: "cline" }),
+				provider: "cline",
+				auth: auth as { accessToken?: string; refreshToken?: string; accountId?: string },
+			},
+			{ tokenSource: "oauth", setLastUsed: true },
+		)
+	} catch (error) {
+		Logger.error("[SdkAuthService] Failed to write credentials to providers.json:", error)
+	}
+}
+
+/**
+ * Clear Cline OAuth credentials from providers.json.
+ */
+function clearClineCredentials(): void {
+	try {
+		const manager = getProviderSettingsManager()
+		const existing = manager.getProviderSettings("cline")
+		if (existing) {
+			manager.saveProviderSettings(
+				{
+					...existing,
+					provider: "cline",
+					auth: undefined,
+				},
+				{ tokenSource: "manual" },
+			)
+		}
+	} catch (error) {
+		Logger.error("[SdkAuthService] Failed to clear credentials from providers.json:", error)
+	}
+}
 
 // ---------------------------------------------------------------------------
 // AuthService
@@ -107,50 +205,6 @@ export class AuthService {
 		// Kept for interface compatibility — not needed in SDK-backed version
 	}
 
-	// ---- Token persistence ----
-
-	/**
-	 * Read auth info from secrets.json.
-	 */
-	private readAuthInfoFromSecrets(): ClineAuthInfo | null {
-		try {
-			const stateManager = StateManager.get()
-			const raw = stateManager.getSecretKey(CLINE_AUTH_SECRET_KEY)
-			if (!raw) return null
-			return JSON.parse(raw) as ClineAuthInfo
-		} catch (error) {
-			Logger.error("[SdkAuthService] Failed to read auth info from secrets:", error)
-			return null
-		}
-	}
-
-	/**
-	 * Write auth info to secrets.json.
-	 */
-	private writeAuthInfoToSecrets(info: ClineAuthInfo): void {
-		try {
-			const stateManager = StateManager.get()
-			stateManager.setSecret(CLINE_AUTH_SECRET_KEY, JSON.stringify(info))
-			// Clean up legacy key
-			stateManager.setSecret(CLINE_AUTH_SECRET_KEY_LEGACY, undefined)
-		} catch (error) {
-			Logger.error("[SdkAuthService] Failed to write auth info to secrets:", error)
-		}
-	}
-
-	/**
-	 * Clear auth info from secrets.json.
-	 */
-	private clearAuthInfoFromSecrets(): void {
-		try {
-			const stateManager = StateManager.get()
-			stateManager.setSecret(CLINE_AUTH_SECRET_KEY, undefined)
-			stateManager.setSecret(CLINE_AUTH_SECRET_KEY_LEGACY, undefined)
-		} catch (error) {
-			Logger.error("[SdkAuthService] Failed to clear auth info from secrets:", error)
-		}
-	}
-
 	// ---- SDK OAuth → ClineAuthInfo conversion ----
 
 	/**
@@ -182,9 +236,13 @@ export class AuthService {
 	private async fetchUserInfoFromApi(accessToken: string): Promise<ClineAccountUserInfo | null> {
 		try {
 			const apiBaseUrl = ClineEnv.config().apiBaseUrl
+			// Ensure the token has the workos: prefix for the API
+			const bearerToken = accessToken.toLowerCase().startsWith(WORKOS_TOKEN_PREFIX)
+				? accessToken
+				: `${WORKOS_TOKEN_PREFIX}${accessToken}`
 			const response = await axios.get(`${apiBaseUrl}/api/v1/users/me`, {
 				headers: {
-					Authorization: `Bearer workos:${accessToken}`,
+					Authorization: `Bearer ${bearerToken}`,
 					"Content-Type": "application/json",
 					...(await buildBasicClineHeaders()),
 				},
@@ -227,11 +285,12 @@ export class AuthService {
 			return null
 		}
 
-		return `workos:${this._clineAuthInfo.idToken}`
+		return `${WORKOS_TOKEN_PREFIX}${this._clineAuthInfo.idToken}`
 	}
 
 	/**
 	 * Refresh the access token using the SDK's refreshClineToken().
+	 * Persists refreshed credentials to providers.json.
 	 */
 	private async refreshAccessToken(): Promise<boolean> {
 		if (this._refreshPromise) {
@@ -246,7 +305,6 @@ export class AuthService {
 		this._refreshPromise = (async () => {
 			try {
 				const apiBaseUrl = ClineEnv.config().apiBaseUrl
-				// We already checked _clineAuthInfo and refreshToken above, so we know they exist
 				const currentInfo = this._clineAuthInfo
 				if (!currentInfo?.refreshToken) {
 					return undefined
@@ -273,7 +331,14 @@ export class AuthService {
 					startedAt: currentInfo.startedAt ?? Date.now(),
 				}
 				this._authenticated = true
-				this.writeAuthInfoToSecrets(this._clineAuthInfo)
+
+				// Persist refreshed credentials to providers.json
+				writeClineCredentials({
+					accessToken: newCredentials.access,
+					refreshToken: newCredentials.refresh,
+					expiresAt: newCredentials.expires,
+					accountId: this._clineAuthInfo.userInfo.id,
+				})
 
 				// Push auth state update
 				setImmediate(() => {
@@ -289,7 +354,7 @@ export class AuthService {
 				if (error instanceof Error && (error.message.includes("401") || error.message.includes("400"))) {
 					this._clineAuthInfo = null
 					this._authenticated = false
-					this.clearAuthInfoFromSecrets()
+					clearClineCredentials()
 					setImmediate(() => {
 						this.sendAuthStatusUpdate().catch(() => {})
 					})
@@ -353,7 +418,7 @@ export class AuthService {
 	/**
 	 * Initiate Cline OAuth login.
 	 * Uses SDK's loginClineOAuth() which spawns a local callback server.
-	 * Returns the auth URL for the caller to open in a browser.
+	 * Persists credentials to providers.json.
 	 */
 	async createAuthRequest(strict = false): Promise<String> {
 		// In strict mode, don't open a new auth window if already authenticated
@@ -381,11 +446,17 @@ export class AuthService {
 				callbacks,
 			})
 
-			// Convert and persist
+			// Convert and persist to providers.json
 			const authInfo = await this.credentialsToAuthInfo(credentials, "cline")
 			this._clineAuthInfo = authInfo
 			this._authenticated = true
-			this.writeAuthInfoToSecrets(authInfo)
+
+			writeClineCredentials({
+				accessToken: credentials.access,
+				refreshToken: credentials.refresh,
+				expiresAt: credentials.expires,
+				accountId: authInfo.userInfo.id || credentials.accountId,
+			})
 
 			// Push auth state update
 			await this.sendAuthStatusUpdate()
@@ -423,7 +494,13 @@ export class AuthService {
 			const authInfo = await this.credentialsToAuthInfo(credentials, "oca")
 			this._clineAuthInfo = authInfo
 			this._authenticated = true
-			this.writeAuthInfoToSecrets(authInfo)
+
+			writeClineCredentials({
+				accessToken: credentials.access,
+				refreshToken: credentials.refresh,
+				expiresAt: credentials.expires,
+				accountId: authInfo.userInfo.id || credentials.accountId,
+			})
 
 			await this.sendAuthStatusUpdate()
 
@@ -452,7 +529,7 @@ export class AuthService {
 
 			const credentials = await loginOpenAICodex(callbacks)
 
-			// Store Codex credentials in the SDK's provider settings format
+			// Store Codex credentials in providers.json
 			await this.saveCodexCredentials(credentials)
 
 			// Notify webview of state change
@@ -468,8 +545,7 @@ export class AuthService {
 	 */
 	private async saveCodexCredentials(credentials: OAuthCredentials): Promise<void> {
 		try {
-			const { ProviderSettingsManager } = await import("@clinebot/core")
-			const manager = new ProviderSettingsManager()
+			const manager = getProviderSettingsManager()
 			const existing = manager.getProviderSettings("openai-codex")
 
 			manager.saveProviderSettings(
@@ -494,8 +570,7 @@ export class AuthService {
 	 */
 	async clearCodexCredentials(): Promise<void> {
 		try {
-			const { ProviderSettingsManager } = await import("@clinebot/core")
-			const manager = new ProviderSettingsManager()
+			const manager = getProviderSettingsManager()
 			const existing = manager.getProviderSettings("openai-codex")
 			if (existing) {
 				manager.saveProviderSettings(
@@ -515,13 +590,13 @@ export class AuthService {
 	// ---- Logout ----
 
 	/**
-	 * Handle deauthentication — clear tokens and push unauthenticated state.
+	 * Handle deauthentication — clear tokens from providers.json and push unauthenticated state.
 	 */
 	async handleDeauth(_reason: LogoutReason = LogoutReason.UNKNOWN): Promise<void> {
 		try {
 			this._clineAuthInfo = null
 			this._authenticated = false
-			this.clearAuthInfoFromSecrets()
+			clearClineCredentials()
 			await this.sendAuthStatusUpdate()
 
 			// Notify BannerService of auth change (mirrors classic AuthService)
@@ -593,7 +668,14 @@ export class AuthService {
 
 			this._clineAuthInfo = authInfo
 			this._authenticated = true
-			this.writeAuthInfoToSecrets(authInfo)
+
+			// Persist to providers.json
+			writeClineCredentials({
+				accessToken: tokenData.accessToken,
+				refreshToken: tokenData.refreshToken,
+				expiresAt: new Date(tokenData.expiresAt).getTime(),
+				accountId: authInfo.userInfo.id,
+			})
 
 			await this.sendAuthStatusUpdate()
 		} catch (error) {
@@ -622,37 +704,63 @@ export class AuthService {
 	// ---- Restore auth on startup ----
 
 	/**
-	 * Restore authentication data from secrets.json.
-	 * Called on extension activation.
+	 * Restore authentication from providers.json on startup.
+	 *
+	 * Reads tokens from providers.json, refreshes if needed, then fetches
+	 * user profile from the API. This matches the CLI's pattern — credentials
+	 * live in providers.json, user info is fetched fresh each session.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
 		try {
-			const authInfo = this.readAuthInfoFromSecrets()
-			if (authInfo) {
-				this._clineAuthInfo = authInfo
-				this._authenticated = true
-
-				// Try to refresh the token if it's expired
-				const expiresAt = authInfo.expiresAt
-				if (expiresAt) {
-					const currentTime = Date.now() / 1000
-					const bufferSeconds = 5 * 60
-					if (currentTime + bufferSeconds >= expiresAt && authInfo.refreshToken) {
-						// Token is expired or about to expire — try to refresh
-						await this.refreshAccessToken()
-					}
-				}
-
-				await this.sendAuthStatusUpdate()
-
-				// Notify BannerService of auth change (mirrors classic AuthService)
-				BannerService.onAuthUpdate(authInfo.userInfo?.id || null).catch((error) => {
-					Logger.error("[SdkAuthService] Banner update failed after restore", error)
-				})
-			} else {
+			const creds = readClineCredentials()
+			if (!creds) {
 				this._authenticated = false
 				this._clineAuthInfo = null
+				return
 			}
+
+			// Build a minimal ClineAuthInfo from providers.json tokens
+			this._clineAuthInfo = {
+				idToken: creds.accessToken,
+				refreshToken: creds.refreshToken,
+				expiresAt: creds.expiresAt ? creds.expiresAt / 1000 : undefined, // providers.json uses ms, we use seconds
+				userInfo: {
+					id: creds.accountId ?? "",
+					email: "",
+					displayName: "",
+					organizations: [],
+				},
+				provider: "cline",
+			}
+			this._authenticated = true
+
+			// Try to refresh the token if it's expired
+			const expiresAt = this._clineAuthInfo.expiresAt
+			if (expiresAt) {
+				const currentTime = Date.now() / 1000
+				const bufferSeconds = 5 * 60
+				if (currentTime + bufferSeconds >= expiresAt && creds.refreshToken) {
+					await this.refreshAccessToken()
+				}
+			}
+
+			// Fetch full user info from the API (the key step — fills in
+			// email, displayName, organizations that providers.json doesn't store)
+			if (this._authenticated && this._clineAuthInfo) {
+				const userInfo = await this.fetchUserInfoFromApi(this._clineAuthInfo.idToken)
+				if (userInfo) {
+					this._clineAuthInfo.userInfo = userInfo
+				} else {
+					Logger.warn("[SdkAuthService] Could not fetch user info on restore — UI will show limited profile")
+				}
+			}
+
+			await this.sendAuthStatusUpdate()
+
+			// Notify BannerService of auth change (mirrors classic AuthService)
+			BannerService.onAuthUpdate(this._clineAuthInfo?.userInfo?.id || null).catch((error) => {
+				Logger.error("[SdkAuthService] Banner update failed after restore", error)
+			})
 		} catch (error) {
 			Logger.error("[SdkAuthService] Error restoring auth token:", error)
 			this._authenticated = false
