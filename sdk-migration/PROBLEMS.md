@@ -349,6 +349,33 @@ underlying patterns that caused them are relevant.
 - **Verification**: Debug harness session shows inference working with `z-ai/glm-5.1` provider using cached credentials. No re-login required.
 - **Evidence**: Same as S6-5 — debug harness session on 2026-04-14.
 
+### S6-15: History items not clickable (welcome page and history view)
+- **Status**: 🔴 Blocker
+- **Description**: Clicking history items from the welcome page does nothing. Clicking history items from the history view navigates back to the welcome page instead of loading the task. This is a regression from the OAuth simplification or was already broken (S6-6 was "Awaiting Verification").
+- **Root cause**: Unknown — likely `showTaskWithId()` or `reinitExistingTaskFromId()` in SdkController is not properly loading messages or the webview navigation state isn't being set correctly.
+- **Fix**: Investigate the gRPC handler for `showTaskWithId` and verify it loads messages from disk and pushes the correct navigation state to the webview.
+- **Verification**: Click a history item, verify the chat view loads with the task's messages.
+
+### S6-16: Sending a message completes immediately with no output
+- **Status**: 🔴 Blocker
+- **Description**: When the user types and submits a message, the task immediately shows as "completed" with no tokens, no size, and no output. The webview console shows `handleSendMessage - Sending message: <text>` followed by four `ended "got subscribed state"` messages. No inference occurs.
+- **Root cause**: Unknown — the `initTask()` → `core.send()` flow may not be starting the agent turn, or the session may be ending immediately. The four "ended" subscription messages suggest the session is completing without running any agent iterations. Possibly the `start()` call is failing silently, or the `send()` promise resolves immediately without streaming events.
+- **Fix**: Add logging to `SdkController.initTask()` to trace the session lifecycle: `start()` result, `send()` invocation, subscription events. Check if `resolveApiKey()` is returning a valid key for the current provider.
+- **Verification**: Send a message, verify the agent runs iterations and streams text/tool events to the webview.
+
+### S6-17: Cancel button enabled after task "completes" but does nothing
+- **Status**: 🟡 Minor
+- **Description**: Despite the task showing as "completed", the cancel button remains enabled. Clicking it disables the button but has no visible effect. Sending a follow-up message after cancellation just logs `handleSendMessage` again with no inference.
+- **Root cause**: Likely related to S6-16 — the task state isn't being properly set to "completed" in the webview, so the cancel button's enabled/disabled state is wrong. The follow-up message issue is the same root cause as S6-16.
+- **Fix**: Fix S6-16 first. Then verify the task completion state properly disables the cancel button and enables the follow-up input.
+
+### S6-18: Missing API key shows error instead of login prompt
+- **Status**: 🔴 Blocker
+- **Description**: When not logged in and attempting inference with the "cline" provider, instead of showing a login prompt, the user sees a red error message: `Missing API key for provider "cline". Set apiKey explicitly or one of: CLINE_API_KEY.` followed by "Thinking..." that spins forever.
+- **Root cause**: The `resolveApiKey()` function in `cline-session-factory.ts` reads the access token from `providers.json`. When the user is not logged in, there's no token, and the SDK throws a generic "missing API key" error. The classic extension would detect the missing Cline credentials and show a login button instead. The error handling in `SdkController.initTask()` doesn't distinguish between "missing credentials for cline provider" (should show login UI) and other API key errors.
+- **Fix**: In `SdkController.initTask()` or the session error handler, detect when the error is about missing Cline credentials specifically and emit a signal to the webview to show the login UI instead of a generic error. Alternatively, check for Cline credentials before starting the session and redirect to login if missing.
+- **Verification**: Log out, attempt to send a message with "cline" provider selected, verify a login prompt appears instead of the error.
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢
