@@ -268,7 +268,7 @@ export interface RpcClineAccountOrganizationUsageTransaction {
 	userId: string;
 }
 
-import type { OAuthProviderId } from "../auth/constants";
+import type { OAuthProviderId } from "../types/auth";
 
 export type RpcOAuthProviderId = OAuthProviderId;
 

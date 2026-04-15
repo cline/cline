@@ -1,11 +1,4 @@
 export * from "./agents";
-export type { OAuthProviderId } from "./auth/constants";
-export {
-	AUTH_ERROR_PATTERNS,
-	isLikelyAuthError,
-	isOAuthProviderId,
-	OAUTH_PROVIDER_IDS,
-} from "./auth/constants";
 export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,
@@ -299,5 +292,12 @@ export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export * from "./team";
 export { createTool } from "./tools/create";
+export type { OAuthProviderId } from "./types/auth";
+export {
+	AUTH_ERROR_PATTERNS,
+	isLikelyAuthError,
+	isOAuthProviderId,
+	OAUTH_PROVIDER_IDS,
+} from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path) — excluded from browser build
-export type { VcrRecording } from "./vcr";
+export type { VcrRecording } from "./types/vcr";

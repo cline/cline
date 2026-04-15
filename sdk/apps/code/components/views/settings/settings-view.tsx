@@ -11,6 +11,7 @@ import type {
 	ProviderModelsResponse,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
+import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { primeExtensionsListsCache, RulesView } from "./extensions.view";
 import { McpServersContent } from "./mcp-view";
@@ -450,6 +451,8 @@ export function SettingsView({ onClose }: { onClose: () => void }) {
 						<RoutineSchedulesContent />
 					) : activeNav === "Extensions" ? (
 						<RulesView />
+					) : activeNav === "Account" ? (
+						<AccountView />
 					) : (
 						<div className="flex h-full items-center justify-center">
 							<p className="text-sm text-muted-foreground">

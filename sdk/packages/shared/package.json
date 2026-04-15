@@ -17,6 +17,11 @@
 			"types": "./dist/index.browser.d.ts",
 			"import": "./dist/index.browser.js"
 		},
+		"./types": {
+			"development": "./src/types/index.ts",
+			"types": "./dist/types/index.d.ts",
+			"import": "./dist/types/index.js"
+		},
 		"./storage": {
 			"development": "./src/storage/index.ts",
 			"types": "./dist/storage/index.d.ts",

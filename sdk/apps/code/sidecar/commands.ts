@@ -9,17 +9,23 @@ import {
 } from "node:fs";
 import { homedir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
-import type { RpcProviderCapability } from "@clinebot/core";
+import type {
+	RpcClineAccountActionRequest,
+	RpcProviderCapability,
+} from "@clinebot/core";
 import {
 	addLocalProvider,
+	ClineAccountService,
 	createUserInstructionConfigWatcher,
 	ensureCustomProvidersLoaded,
+	executeRpcClineAccountAction,
 	getLocalProviderModels,
 	listHookConfigFiles,
 	listLocalProviders,
 	loginLocalProvider,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	resolveLocalClineAuthToken,
 	resolveRulesConfigSearchPaths,
 	resolveSessionBackend,
 	resolveSkillsConfigSearchPaths,
@@ -585,6 +591,22 @@ export async function handleCommand(
 	// ── Workspace file search ─────────────────────────────────────────
 	if (command === "search_workspace_files") {
 		return await searchWorkspaceFiles(ctx as any, args);
+	}
+
+	// ── Cline account ──────────────────────────────────────────────────
+	if (command === "cline_account") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+		const settings = manager.getProviderSettings("cline");
+		const accountService = new ClineAccountService({
+			apiBaseUrl: settings?.baseUrl?.trim() || "https://api.cline.bot",
+			getAuthToken: async () => resolveLocalClineAuthToken(settings),
+		});
+		return await executeRpcClineAccountAction(
+			args as RpcClineAccountActionRequest,
+			accountService,
+		);
 	}
 
 	// ── Provider management ────────────────────────────────────────────

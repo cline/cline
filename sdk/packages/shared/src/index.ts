@@ -1,11 +1,4 @@
 export * from "./agents";
-export type { OAuthProviderId } from "./auth/constants";
-export {
-	AUTH_ERROR_PATTERNS,
-	isLikelyAuthError,
-	isOAuthProviderId,
-	OAUTH_PROVIDER_IDS,
-} from "./auth/constants";
 export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,
@@ -314,5 +307,12 @@ export type { RuntimeEnv } from "./session/runtime-env";
 export * from "./session/workspace";
 export * from "./team";
 export { createTool } from "./tools/create";
-export type { VcrRecording } from "./vcr";
+export * from "./types";
+export type { OAuthProviderId } from "./types/auth";
+export {
+	AUTH_ERROR_PATTERNS,
+	isLikelyAuthError,
+	isOAuthProviderId,
+	OAUTH_PROVIDER_IDS,
+} from "./types/auth";
 export { initVcr } from "./vcr";
