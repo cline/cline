@@ -124,6 +124,23 @@ export async function orchestrateCommandExecution(
 
 	// Track if buffer gets stuck
 	let bufferStuckTimer: NodeJS.Timeout | null = null
+	let commandOutputAskSequence = 0
+	let pendingCommandOutputAskId: number | null = null
+	let releasePendingCommandOutputAsk: (() => void) | null = null
+
+	const clearPendingCommandOutputAsk = () => {
+		pendingCommandOutputAskId = null
+		releasePendingCommandOutputAsk = null
+	}
+
+	const releaseAnyPendingCommandOutputAsk = () => {
+		const release = releasePendingCommandOutputAsk
+		if (!release) {
+			return
+		}
+		callbacks.resolvePendingAsk?.("messageResponse")
+		release()
+	}
 
 	/**
 	 * Flush buffered output to the UI using ask() which waits for user response.
@@ -148,7 +165,36 @@ export async function orchestrateCommandExecution(
 			try {
 				// Use ask() to present output and wait for user response
 				// This enables "Proceed While Running" button functionality
-				const interaction = await ask("command_output", chunk)
+				const interaction = await new Promise<Awaited<ReturnType<CommandExecutorCallbacks["ask"]>> | undefined>(
+					(resolve, reject) => {
+						const currentAskId = ++commandOutputAskSequence
+						pendingCommandOutputAskId = currentAskId
+
+						releasePendingCommandOutputAsk = () => {
+							if (pendingCommandOutputAskId !== currentAskId) {
+								return
+							}
+							clearPendingCommandOutputAsk()
+							resolve(undefined)
+						}
+
+						ask("command_output", chunk)
+							.then((result) => {
+								if (pendingCommandOutputAskId !== currentAskId) {
+									return
+								}
+								clearPendingCommandOutputAsk()
+								resolve(result)
+							})
+							.catch((error) => {
+								if (pendingCommandOutputAskId !== currentAskId) {
+									return
+								}
+								clearPendingCommandOutputAsk()
+								reject(error)
+							})
+					},
+				)
 				if (!interaction) {
 					return
 				}
@@ -397,6 +443,8 @@ export async function orchestrateCommandExecution(
 	process.once("completed", async (details?: TerminalCompletionDetails) => {
 		completed = true
 		completionDetails = details
+		// If command completed while command_output ask was pending, release it.
+		releaseAnyPendingCommandOutputAsk()
 		// Clear the completion timer
 		if (completionTimer) {
 			clearTimeout(completionTimer)
@@ -410,6 +458,9 @@ export async function orchestrateCommandExecution(
 			}
 			await flushBuffer(true)
 		}
+	})
+	process.once("error", () => {
+		releaseAnyPendingCommandOutputAsk()
 	})
 
 	process.once("no_shell_integration", async () => {
@@ -435,6 +486,8 @@ export async function orchestrateCommandExecution(
 				if (error.message === "COMMAND_TIMEOUT") {
 					// Timeout triggers "Proceed While Running" behavior
 					didContinue = true
+					// Release any pending command_output ask before transitioning state.
+					releaseAnyPendingCommandOutputAsk()
 
 					// Clear all our timers first
 					if (chunkTimer) {

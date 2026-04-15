@@ -328,6 +328,8 @@ export interface CommandExecutorCallbacks {
 	 * This is used for "Proceed While Running" flow where we need to wait for user input
 	 */
 	ask: (type: string, text?: string, partial?: boolean) => Promise<AskResponse>
+	/** Resolve the currently pending ask (if any). Used to release command_output waits on terminal lifecycle transitions. */
+	resolvePendingAsk?: (response: AskResponse["response"]) => void
 	/** Update the background command running state in the controller */
 	updateBackgroundCommandState: (running: boolean) => void
 	/**
