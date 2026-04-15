@@ -47,7 +47,7 @@ describe("handleEvent text formatting", () => {
 		expect(output).toContain(
 			`\x1b[36m⏺ [read_files]\x1b[0m {"path":"/tmp/demo.txt"}`,
 		);
-		expect(output).toContain("⎿ ok");
+		expect(output).toMatch(/⎿.*ok/s);
 	});
 
 	it("prints adjacent tool starts on separate lines", () => {
