@@ -11,7 +11,7 @@
 - [x] Remove `terminalReuseEnabled` as a persisted/user-facing setting while preserving internal aggressive reuse defaulting to `true`
 - [x] Simplify controller, task, terminal, proto, and generated-code plumbing to match the new architecture
 - [x] Clean up stale tests, stories, RPCs, comments, and references
-- [ ] Validate the extension end to end and confirm the final architecture behaves as intended
+- [x] Validate the extension end to end and confirm the final architecture behaves as intended
 
 ---
 
