@@ -58,11 +58,6 @@ extra_css:
 plugins:
   - search:
       lang: en
-  - social:
-      cards_layout_options:
-        background_color: "#0a0a15"
-        color: "#ffffff"
-        font_family: Noto Sans
   - blog:
       blog_dir: blog
       post_url_format: "{slug}"

@@ -26,21 +26,10 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install system dependencies for social cards
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libcairo2-dev \
-            libfreetype6-dev \
-            libffi-dev \
-            libjpeg-dev \
-            libpng-dev \
-            libz-dev
-
       - name: Install MkDocs
         run: |
           pip install \
-            "mkdocs-material[imaging]" \
+            mkdocs-material \
             mkdocs-minify-plugin \
             pymdown-extensions
 
