@@ -180,7 +180,6 @@ describe("createSpawnAgentTool", () => {
 				{
 					systemPrompt: "System",
 					task: "Fail task",
-					maxIterations: 6,
 				},
 				{
 					agentId: "parent-2",
@@ -195,11 +194,6 @@ describe("createSpawnAgentTool", () => {
 			expect.objectContaining({
 				parentAgentId: "parent-2",
 				error: expect.any(Error),
-			}),
-		);
-		expect(agentConstructorSpy).toHaveBeenCalledWith(
-			expect.objectContaining({
-				maxIterations: 6,
 			}),
 		);
 	});

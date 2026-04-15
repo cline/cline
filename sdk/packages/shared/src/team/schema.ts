@@ -37,12 +37,6 @@ export const TeamSpawnTeammateInputSchema = z
 			.string()
 			.min(1)
 			.describe("System prompt describing teammate role"),
-		maxIterations: z
-			.preprocess(
-				(value) => (value === null ? undefined : value),
-				z.number().int().min(1).optional(),
-			)
-			.describe("Max iterations per teammate run for spawn"),
 	})
 	.strict();
 

@@ -32,12 +32,6 @@ export const SpawnAgentInputSchema = z.object({
 		.string()
 		.describe("System prompt defining the sub-agent's behavior"),
 	task: z.string().describe("Task for the sub-agent to complete"),
-	maxIterations: z
-		.number()
-		.int()
-		.min(1)
-		.optional()
-		.describe("Max iterations for the sub-agent"),
 });
 
 export type SpawnAgentInput = z.infer<typeof SpawnAgentInputSchema>;
@@ -136,7 +130,7 @@ export function createSpawnAgentTool(
 				prompt: input.systemPrompt,
 				configProvider: config.configProvider,
 				tools,
-				maxIterations: input.maxIterations ?? config.defaultMaxIterations,
+				maxIterations: config.defaultMaxIterations,
 				parentAgentId: context.agentId,
 				abortSignal: context.abortSignal,
 				onEvent: config.onSubAgentEvent,

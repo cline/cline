@@ -244,7 +244,6 @@ export function createAgentTeamsTools(
 					const spec: TeamTeammateSpec = {
 						agentId: validatedInput.agentId,
 						rolePrompt: validatedInput.rolePrompt,
-						maxIterations: validatedInput.maxIterations,
 					};
 					spawnTeamTeammate({
 						runtime: options.runtime,
