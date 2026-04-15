@@ -53,6 +53,10 @@ service AccountService {
 
   // Signs out of OpenAI Codex and clears stored credentials
   rpc openAiCodexSignOut(EmptyRequest) returns (Empty);
+
+  // Submits a spend limit increase request to the user's org admin.
+  // Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
+  rpc submitLimitIncreaseRequest(EmptyRequest) returns (SubmitLimitIncreaseResponse);
 }
 
 message AuthStateChangedRequest {
@@ -123,6 +127,11 @@ message UsageTransaction {
   int32 total_tokens = 11;
   string user_id = 12;
   string operation = 13;
+}
+
+// Response from a spend limit increase request submission
+message SubmitLimitIncreaseResponse {
+  bool success = 1;
 }
 
 message PaymentTransaction {

@@ -153,6 +153,67 @@ export const ClineRateLimitError: Story = {
 	},
 }
 
+export const ClineSpendLimitDaily: Story = {
+	args: {
+		message: createMockMessage(),
+		errorType: "error",
+		apiRequestFailedMessage: JSON.stringify({
+			message: "$20.00 daily limit has been reached.",
+			status: 429,
+			code: "SPEND_LIMIT_EXCEEDED",
+			providerId: "cline",
+			details: {
+				code: "SPEND_LIMIT_EXCEEDED",
+				limit_scope: "user",
+				budget_period: "daily",
+				limit_usd: 20.0,
+				spent_usd: 20.5,
+				resets_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+				message: "$20.00 daily limit has been reached.",
+			},
+		}),
+	},
+}
+
+export const ClineSpendLimitMonthly: Story = {
+	args: {
+		message: createMockMessage(),
+		errorType: "error",
+		apiRequestFailedMessage: JSON.stringify({
+			message: "$100.00 monthly limit has been reached.",
+			status: 429,
+			code: "SPEND_LIMIT_EXCEEDED",
+			providerId: "cline",
+			details: {
+				code: "SPEND_LIMIT_EXCEEDED",
+				limit_scope: "user",
+				budget_period: "monthly",
+				limit_usd: 100.0,
+				spent_usd: 103.22,
+				resets_at: null,
+				message: "$100.00 monthly limit has been reached.",
+			},
+		}),
+	},
+}
+
+export const ClineSpendLimitMinimal: Story = {
+	args: {
+		message: createMockMessage(),
+		errorType: "error",
+		apiRequestFailedMessage: JSON.stringify({
+			message: "Spend limit reached.",
+			status: 429,
+			code: "SPEND_LIMIT_EXCEEDED",
+			providerId: "cline",
+			details: {
+				code: "SPEND_LIMIT_EXCEEDED",
+				message: "Spend limit reached.",
+			},
+		}),
+	},
+}
+
 // Authentication-related errors with configurable scenarios
 export const AuthenticationErrors: Story = {
 	args: {

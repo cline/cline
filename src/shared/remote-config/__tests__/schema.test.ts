@@ -679,6 +679,13 @@ describe("Remote Config Schema", () => {
 						contents: "# Deployment Workflow\n\n1. Run tests\n2. Build\n3. Deploy",
 					},
 				],
+				globalSkills: [
+					{
+						alwaysEnabled: true,
+						name: "company-standards.md",
+						contents: "# Company Standards\n\nAll code must follow these standards...",
+					},
+				],
 				providerSettings: {
 					OpenAiCompatible: {
 						models: [
@@ -840,6 +847,11 @@ describe("Remote Config Schema", () => {
 			expect(result.globalWorkflows?.[0].alwaysEnabled).to.equal(true)
 			expect(result.globalWorkflows?.[0].name).to.equal("deployment-workflow.md")
 			expect(result.globalWorkflows?.[0].contents).to.include("Deployment Workflow")
+
+			expect(result.globalSkills).to.have.lengthOf(1)
+			expect(result.globalSkills?.[0].alwaysEnabled).to.equal(true)
+			expect(result.globalSkills?.[0].name).to.equal("company-standards.md")
+			expect(result.globalSkills?.[0].contents).to.include("Company Standards")
 
 			expect(result.enterpriseTelemetry?.promptUploading?.enabled).to.equal(true)
 			expect(result.enterpriseTelemetry?.promptUploading?.type).to.equal("s3_access_keys")
