@@ -183,7 +183,7 @@ export class KanbanEc2Stack extends cdk.Stack {
             allowAllOutbound: true,
             description: "Kanban EC2 security group",
         });
-        sg.addIngressRule(ec2.Peer.anyIpv4(), ec2.Port.tcp(22), "SSH access");
+        sg.addIngressRule(ec2.Peer.myIp(), ec2.Port.tcp(22), "SSH access");
 
         // User data script
         const userData = ec2.UserData.forLinux();
