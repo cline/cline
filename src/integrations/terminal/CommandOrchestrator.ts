@@ -2,15 +2,15 @@
  * CommandOrchestrator - Shared command execution orchestration logic.
  *
  * This module contains the common orchestration logic for command execution
- * that is shared between VSCode and Standalone terminal modes. It handles:
+ * shared across terminal manager implementations. It handles:
  * - Output buffering and chunking
  * - User interaction (ask/say callbacks)
  * - "Proceed While Running" behavior
  * - Timeout handling
  * - Result formatting
  *
- * The actual process spawning/management is handled by the TerminalProcess
- * implementations (VscodeTerminalProcess, StandaloneTerminalProcess).
+ * The actual process spawning/management is handled by the host-specific
+ * TerminalProcess implementation supplied by the terminal manager.
  */
 
 import { setTimeout as setTimeoutPromise } from "node:timers/promises"

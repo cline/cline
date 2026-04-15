@@ -1,16 +1,12 @@
 /**
- * CommandExecutor - Unified command execution for all terminal modes.
+ * CommandExecutor - Unified command execution for shared terminal abstractions.
  *
- * This class handles command execution for both VSCode terminal mode and
- * standalone/CLI mode. It uses the shared CommandOrchestrator for the
- * common orchestration logic (buffering, user interaction, result formatting).
+ * This class handles command execution using whichever terminal manager is
+ * provided by the host runtime, while reusing the shared CommandOrchestrator
+ * for buffering, user interaction, and result formatting.
  *
- * The differentiation between modes happens at the TerminalManager level:
- * - VscodeTerminalManager → VscodeTerminalProcess (shell integration)
- * - StandaloneTerminalManager → StandaloneTerminalProcess (child_process)
- *
- * IMPORTANT: Background execution mode uses StandaloneTerminalManager to run
- * commands in hidden terminals without cluttering the visible terminal.
+ * In the current VS Code architecture, Cline's active runtime path uses
+ * StandaloneTerminalManager-backed background execution.
  */
 
 import { findLastIndex } from "@shared/array"
@@ -111,7 +107,7 @@ export class CommandExecutor {
 		// Select the appropriate terminal manager
 		const useStandalone = options?.useBackgroundExecution || this.terminalExecutionMode === "backgroundExec"
 		const manager = useStandalone ? this.standaloneManager : this.terminalManager
-		Logger.info(`Executing command in ${useStandalone ? "standalone" : "VSCode"} terminal: ${command}`)
+		Logger.info(`Executing command in ${useStandalone ? "standalone" : "configured"} terminal: ${command}`)
 
 		// Get terminal and run command
 		const terminalInfo = await manager.getOrCreateTerminal(this.cwd)

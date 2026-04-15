@@ -175,11 +175,6 @@
 				"category": "Cline"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
-			},
-			{
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
@@ -307,12 +302,6 @@
 					"command": "cline.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
-				}
-			],
-			"terminal/context": [
-				{
-					"command": "cline.addTerminalOutputToChat",
-					"group": "navigation"
 				}
 			],
 			"scm/title": [

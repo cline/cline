@@ -13,7 +13,10 @@ export enum BannerActionType {
 	ShowAccount = "show-account",
 	/** Set the active model */
 	SetModel = "set-model",
-	/** Trigger CLI installation flow */
+	/**
+	 * Deprecated compatibility action for the removed CLI install flow.
+	 * Intentionally retained so remote banner payload validation and older clients remain compatible.
+	 */
 	InstallCli = "install-cli",
 }
 

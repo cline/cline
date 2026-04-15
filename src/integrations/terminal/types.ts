@@ -1,7 +1,7 @@
 /**
- * Shared terminal types and interfaces for both VSCode and Standalone terminal managers.
- * These types ensure compatibility between the VSCode-based TerminalManager and
- * the StandaloneTerminalManager used in CLI/JetBrains environments.
+ * Shared terminal types and interfaces for terminal manager implementations.
+ * These types allow the active background terminal path and any compatibility
+ * host implementations to share the same orchestration contracts.
  */
 
 import type { ClineToolResponseContent } from "@shared/messages"
@@ -31,7 +31,7 @@ export interface TerminalProcessEvents {
 
 /**
  * Interface for terminal process implementations.
- * Both VscodeTerminalProcess and StandaloneTerminalProcess implement this interface.
+ * Any host-specific terminal process can implement this contract.
  *
  * Events emitted:
  * - 'line': Emitted for each line of output
@@ -48,7 +48,8 @@ export interface ITerminalProcess extends EventEmitter<TerminalProcessEvents> {
 
 	/**
 	 * Whether to wait for shell integration before running commands.
-	 * VSCode processes may need to wait, standalone processes don't.
+	 * Compatibility-oriented terminal implementations may need this, while the
+	 * active standalone/background process path does not.
 	 */
 	waitForShellIntegration: boolean
 

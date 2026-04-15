@@ -1,11 +1,10 @@
 import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useMemo, useState } from "react"
+import React, { useEffect, useState } from "react"
 import kanbanDemoVideoMp4 from "@/assets/cline_kanban_demo.mp4"
 import kanbanDemoVideoWebm from "@/assets/cline_kanban_demo.webm"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
+import { FileServiceClient } from "@/services/grpc-client"
 
 const INSTALL_COMMAND = "npm install -g cline"
 const COPIED_TIMEOUT = 1500
@@ -22,31 +21,15 @@ interface ClineKanbanLaunchModalProps {
 
 export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ open, onClose }) => {
 	const [doNotShowAgain, setDoNotShowAgain] = useState(false)
-	const [isInstalling, setIsInstalling] = useState(false)
 	const [copied, setCopied] = useState(false)
-
-	const isVsCode = useMemo(() => PLATFORM_CONFIG.type === PlatformType.VSCODE, [])
 
 	useEffect(() => {
 		if (open) {
 			setCopied(false)
-			setIsInstalling(false)
 		}
 	}, [open])
 
 	const handleAction = async () => {
-		if (isVsCode) {
-			setIsInstalling(true)
-			try {
-				await StateServiceClient.installClineCli({})
-			} catch (error) {
-				console.error("Failed to run CLI install command:", error)
-			} finally {
-				setIsInstalling(false)
-			}
-			return
-		}
-
 		try {
 			await FileServiceClient.copyToClipboard(StringRequest.create({ value: INSTALL_COMMAND }))
 			setCopied(true)
@@ -93,15 +76,7 @@ export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ 
 							{INSTALL_COMMAND}
 						</code>
 						<div className="mt-3">
-							<VSCodeButton disabled={isInstalling} onClick={handleAction}>
-								{isVsCode
-									? isInstalling
-										? "Running install command..."
-										: "Run in terminal"
-									: copied
-										? "Copied"
-										: "Copy command"}
-							</VSCodeButton>
+							<VSCodeButton onClick={handleAction}>{copied ? "Copied" : "Copy command"}</VSCodeButton>
 						</div>
 					</div>
 
