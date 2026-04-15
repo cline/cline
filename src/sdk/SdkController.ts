@@ -29,13 +29,13 @@ import {
 	type ActiveSession,
 	buildSessionConfig,
 	buildStartSessionInput,
-	createClineCore,
 	createHistoryItemFromSession,
 	getHistoryItemById,
 } from "./cline-session-factory"
 import { readUiMessages } from "./legacy-state-reader"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 
 /**
@@ -235,12 +235,13 @@ export class Controller {
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
 
-			// Create ClineCore instance
-			Logger.log("[SdkController] Creating ClineCore instance...")
-			const core = await createClineCore()
+			// Create VscodeSessionHost instance (wraps DefaultSessionManager
+			// with VscodeRuntimeBuilder + VscodeOAuthTokenManager)
+			Logger.log("[SdkController] Creating VscodeSessionHost...")
+			const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
 
 			// Subscribe to session events BEFORE starting
-			const unsubscribe = core.subscribe((event: CoreSessionEvent) => {
+			const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 				this.handleSessionEvent(event)
 			})
 
@@ -258,12 +259,12 @@ export class Controller {
 
 			// Start the session (returns immediately since no prompt)
 			Logger.log("[SdkController] Starting session (no prompt — fast return)...")
-			const startResult = await core.start(startInput)
+			const startResult = await sessionManager.start(startInput)
 
 			// Track the active session
 			this.activeSession = {
 				sessionId: startResult.sessionId,
-				core,
+				sessionManager,
 				unsubscribe,
 				startResult,
 				isRunning: true,
@@ -300,17 +301,18 @@ export class Controller {
 			await this.postStateToWebview()
 
 			// Now send the prompt to start inference (fire-and-forget).
-			// core.send() blocks until the agent turn completes, but events
+			// sessionManager.send() blocks until the agent turn completes, but events
 			// stream in real-time via the subscription we set up above.
 			// We do NOT await this — the gRPC handler needs to return immediately.
 			if (task?.trim()) {
 				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
-				core.send({
-					sessionId: startResult.sessionId,
-					prompt: task,
-					userImages: images,
-					userFiles: files,
-				})
+				sessionManager
+					.send({
+						sessionId: startResult.sessionId,
+						prompt: task,
+						userImages: images,
+						userFiles: files,
+					})
 					.then(() => {
 						Logger.log(`[SdkController] Agent turn completed for session: ${startResult.sessionId}`)
 						if (this.activeSession) {
@@ -348,8 +350,8 @@ export class Controller {
 				error instanceof Error ? `${error.name}: ${error.message}\n${error.stack?.substring(0, 500)}` : String(error)
 			Logger.error(`[SdkController] Failed to init task: ${errorDetails}`)
 			// Store error for debugging
-			;(globalThis as any).__cline_last_init_error = errorDetails
-			;(globalThis as any).__cline_last_init_error_raw = error
+			;(globalThis as Record<string, unknown>).__cline_last_init_error = errorDetails
+			;(globalThis as Record<string, unknown>).__cline_last_init_error_raw = error
 			this.emitSessionEvents(
 				[
 					{
@@ -390,18 +392,18 @@ export class Controller {
 				mode: "act", // Default to act mode for resumed tasks
 			})
 
-			// Create ClineCore instance
-			const core = await createClineCore()
+			// Create VscodeSessionHost instance
+			const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
 
 			// Subscribe to events
-			const unsubscribe = core.subscribe((event: CoreSessionEvent) => {
+			const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 				this.handleSessionEvent(event)
 			})
 
 			// For resumption, we start a new session with the same config
 			// and let the SDK's persistence layer handle loading history.
 			// The SDK will use the sessionId to find existing session data.
-			const startResult = await core.start({
+			const startResult = await sessionManager.start({
 				config,
 				prompt: `[TASK RESUMPTION] Resuming task: ${historyItem.task}`,
 				interactive: true,
@@ -409,7 +411,7 @@ export class Controller {
 
 			this.activeSession = {
 				sessionId: startResult.sessionId,
-				core,
+				sessionManager,
 				unsubscribe,
 				startResult,
 				isRunning: true,
@@ -449,8 +451,8 @@ export class Controller {
 		}
 
 		try {
-			const { core, sessionId } = this.activeSession
-			await core.abort(sessionId)
+			const { sessionManager, sessionId } = this.activeSession
+			await sessionManager.abort(sessionId)
 			this.activeSession.isRunning = false
 
 			// Emit cancellation message
@@ -480,23 +482,23 @@ export class Controller {
 
 	async clearTask(): Promise<void> {
 		if (this.activeSession) {
-			const { core, unsubscribe, sessionId } = this.activeSession
+			const { sessionManager, unsubscribe, sessionId } = this.activeSession
 
 			// Unsubscribe from events
 			unsubscribe()
 
 			// Stop the session (best-effort)
 			try {
-				await core.stop(sessionId)
+				await sessionManager.stop(sessionId)
 			} catch (error) {
 				Logger.warn("[SdkController] Error stopping session during clear:", error)
 			}
 
-			// Dispose the core instance
+			// Dispose the session manager instance
 			try {
-				await core.dispose("clearTask")
+				await sessionManager.dispose("clearTask")
 			} catch (error) {
-				Logger.warn("[SdkController] Error disposing core during clear:", error)
+				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
 			}
 
 			this.activeSession = undefined
@@ -531,7 +533,7 @@ export class Controller {
 			return
 		}
 
-		const { core, sessionId } = this.activeSession
+		const { sessionManager, sessionId } = this.activeSession
 		this.activeSession.isRunning = true
 
 		// Reset translator state for new turn
@@ -539,12 +541,13 @@ export class Controller {
 
 		// Fire-and-forget: send the follow-up message without awaiting.
 		// Events stream in real-time via the subscription.
-		core.send({
-			sessionId,
-			prompt: prompt ?? "",
-			userImages: images,
-			userFiles: files,
-		})
+		sessionManager
+			.send({
+				sessionId,
+				prompt: prompt ?? "",
+				userImages: images,
+				userFiles: files,
+			})
 			.then(() => {
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				if (this.activeSession) {

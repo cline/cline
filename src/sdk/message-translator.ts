@@ -481,11 +481,12 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// these are embedded in the api_req_started message's
 			// ClineApiReqInfo. We emit a separate api_req_started update
 			// with the usage data so the webview can display costs.
+			const usageEvent = event as Record<string, unknown>
 			const apiReqInfo: ClineApiReqInfo = {
-				tokensIn: (event as any).inputTokens ?? 0,
-				tokensOut: (event as any).outputTokens ?? 0,
-				cacheWrites: (event as any).cacheWrites ?? undefined,
-				cacheReads: (event as any).cacheReads ?? undefined,
+				tokensIn: (usageEvent.inputTokens as number) ?? 0,
+				tokensOut: (usageEvent.outputTokens as number) ?? 0,
+				cacheWrites: (usageEvent.cacheWrites as number) ?? undefined,
+				cacheReads: (usageEvent.cacheReads as number) ?? undefined,
 			}
 			messages.push({
 				ts: state.nextTs(),
@@ -550,20 +551,16 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 	switch (event.type) {
 		case "chunk": {
-			// Raw chunk events from the session stream
-			const payload = event.payload
-			if (payload.stream === "agent") {
-				// Agent text streaming — emit as partial text message
-				const ts = state.getStreamingTextTs()
-				result.messages.push({
-					ts,
-					type: "say",
-					say: "text",
-					text: payload.chunk,
-					partial: true,
-				})
-			}
-			// stdout/stderr chunks are not displayed as messages
+			// Raw chunk events from the session stream.
+			// IMPORTANT: We do NOT emit these as text messages. The SDK sends
+			// raw model output (which may contain JSON, tool call fragments, etc.)
+			// as chunk events. The structured agent_event system (content_start,
+			// content_update, content_end) is the proper way to get displayable
+			// content. Emitting raw chunks would show JSON like
+			// {"type":"iteration_start",...} in the webview.
+			//
+			// The chunk events are useful for logging but should not be
+			// displayed to the user.
 			break
 		}
 

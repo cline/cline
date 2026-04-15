@@ -90,24 +90,23 @@ describe("MessageTranslatorState", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — chunk events", () => {
-	it("translates agent stream chunks to partial text messages", () => {
+	it("ignores agent stream chunks (raw model output not displayed)", () => {
+		// Chunk events contain raw model output which may include JSON,
+		// tool call fragments, etc. The structured agent_event system
+		// (content_start/update/end) is used for displayable content.
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "chunk",
 			payload: {
 				sessionId: "session-1",
 				stream: "agent",
-				chunk: "Hello, ",
+				chunk: '{"type":"iteration_start",...}',
 				ts: Date.now(),
 			},
 		}
 
 		const result = translateSessionEvent(event, state)
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].type).toBe("say")
-		expect(result.messages[0].say).toBe("text")
-		expect(result.messages[0].text).toBe("Hello, ")
-		expect(result.messages[0].partial).toBe(true)
+		expect(result.messages).toHaveLength(0)
 		expect(result.sessionEnded).toBe(false)
 		expect(result.turnComplete).toBe(false)
 	})
