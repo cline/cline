@@ -18,6 +18,7 @@ import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import type { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
+import { extractCacheTokenUsage, OpenAiCompatibleCacheUsage } from "./cache-usage"
 import type { OpenRouterErrorResponse } from "./types"
 
 interface ClineHandlerOptions extends CommonApiHandlerOptions {
@@ -230,6 +231,9 @@ export class ClineHandler implements ApiHandler {
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
 					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
+					const { cacheReadTokens, cacheWriteTokens } = extractCacheTokenUsage(
+						chunk.usage as OpenAiCompatibleCacheUsage,
+					)
 
 					if (isFreeModel) {
 						totalCost = 0
@@ -237,9 +241,9 @@ export class ClineHandler implements ApiHandler {
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						cacheWriteTokens,
+						cacheReadTokens,
+						inputTokens: (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens,
 						outputTokens: chunk.usage.completion_tokens || 0,
 						totalCost,
 					}
@@ -282,6 +286,11 @@ export class ClineHandler implements ApiHandler {
 				})
 
 				const generation = response.data
+				const { cacheReadTokens: usageCacheReadTokens, cacheWriteTokens: usageCacheWriteTokens } = extractCacheTokenUsage(
+					generation as OpenAiCompatibleCacheUsage,
+				)
+				const cacheWriteTokens = generation?.native_tokens_cache_write ?? usageCacheWriteTokens
+				const cacheReadTokens = generation?.native_tokens_cached ?? usageCacheReadTokens
 				let totalCost = generation?.total_cost || 0
 				const modelId = this.getModel().id
 				const isFreeModel = resolvedFreeModelIds.has(normalizeModelId(modelId))
@@ -292,10 +301,10 @@ export class ClineHandler implements ApiHandler {
 
 				return {
 					type: "usage",
-					cacheWriteTokens: 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
+					cacheWriteTokens,
+					cacheReadTokens,
 					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+					inputTokens: (generation?.native_tokens_prompt || 0) - cacheReadTokens - cacheWriteTokens,
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost,
 				}

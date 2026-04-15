@@ -12,6 +12,7 @@ import { convertToOpenAiMessages } from "../transform/openai-format"
 import { convertToR1Format } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
+import { extractCacheTokenUsage, OpenAiCompatibleCacheUsage } from "./cache-usage"
 
 interface OpenAiHandlerOptions extends CommonApiHandlerOptions {
 	openAiApiKey?: string
@@ -133,6 +134,39 @@ export class OpenAiHandler implements ApiHandler {
 			reasoningEffort = requestedEffort === "none" ? undefined : (requestedEffort as ChatCompletionReasoningEffort)
 		}
 
+		// OpenRouter Anthropic and MiniMax models require explicit cache_control blocks
+		// when accessed through the OpenAI-compatible endpoint.
+		const isOpenRouterBaseUrl = this.options.openAiBaseUrl?.toLowerCase().includes("openrouter.ai")
+		const needsCacheControl = isOpenRouterBaseUrl && (modelId.startsWith("anthropic/") || modelId.startsWith("minimax/"))
+		if (needsCacheControl && openAiMessages.length > 0) {
+			const firstMessage = openAiMessages[0] as any
+			if (typeof firstMessage.content === "string") {
+				firstMessage.content = [{ type: "text", text: firstMessage.content, cache_control: { type: "ephemeral" } }]
+			} else if (Array.isArray(firstMessage.content)) {
+				let firstMessageLastTextPart = firstMessage.content.filter((part: any) => part.type === "text").pop()
+				if (!firstMessageLastTextPart) {
+					firstMessageLastTextPart = { type: "text", text: "..." }
+					firstMessage.content.push(firstMessageLastTextPart)
+				}
+				firstMessageLastTextPart.cache_control = { type: "ephemeral" }
+			}
+
+			const lastTwoUserMessages = openAiMessages.filter((msg) => msg.role === "user").slice(-2) as any[]
+			lastTwoUserMessages.forEach((msg) => {
+				if (typeof msg.content === "string") {
+					msg.content = [{ type: "text", text: msg.content }]
+				}
+				if (Array.isArray(msg.content)) {
+					let lastTextPart = msg.content.filter((part: any) => part.type === "text").pop()
+					if (!lastTextPart) {
+						lastTextPart = { type: "text", text: "..." }
+						msg.content.push(lastTextPart)
+					}
+					lastTextPart.cache_control = { type: "ephemeral" }
+				}
+			})
+		}
+
 		const stream = await client.chat.completions.create({
 			model: modelId,
 			messages: openAiMessages,
@@ -167,13 +201,13 @@ export class OpenAiHandler implements ApiHandler {
 			}
 
 			if (chunk.usage) {
+				const { cacheReadTokens, cacheWriteTokens } = extractCacheTokenUsage(chunk.usage as OpenAiCompatibleCacheUsage)
 				yield {
 					type: "usage",
-					inputTokens: chunk.usage.prompt_tokens || 0,
+					inputTokens: (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens,
 					outputTokens: chunk.usage.completion_tokens || 0,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					// @ts-expect-error-next-line
-					cacheWriteTokens: chunk.usage.prompt_cache_miss_tokens || 0,
+					cacheReadTokens,
+					cacheWriteTokens,
 				}
 			}
 		}

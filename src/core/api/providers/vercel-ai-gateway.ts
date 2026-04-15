@@ -10,6 +10,7 @@ import { withRetry } from "../retry"
 import { ApiStream } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
 import { createVercelAIGatewayStream } from "../transform/vercel-ai-gateway-stream"
+import { extractCacheTokenUsage, OpenAiCompatibleCacheUsage } from "./cache-usage"
 
 interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	vercelAiGatewayApiKey?: string
@@ -113,14 +114,17 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				}
 
 				if (!didOutputUsage && chunk.usage) {
+					const { cacheReadTokens, cacheWriteTokens } = extractCacheTokenUsage(
+						chunk.usage as OpenAiCompatibleCacheUsage,
+					)
 					// @ts-expect-error - Vercel AI Gateway extends OpenAI types
 					const totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						cacheWriteTokens,
+						cacheReadTokens,
+						inputTokens: (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens,
 						outputTokens: chunk.usage.completion_tokens || 0,
 						totalCost,
 					}

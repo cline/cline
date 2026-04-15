@@ -13,6 +13,7 @@ import { withRetry } from "../retry"
 import { createOpenRouterStream } from "../transform/openrouter-stream"
 import { ApiStream, ApiStreamUsageChunk } from "../transform/stream"
 import { ToolCallProcessor } from "../transform/tool-call-processor"
+import { extractCacheTokenUsage, OpenAiCompatibleCacheUsage } from "./cache-usage"
 import { OpenRouterErrorResponse } from "./types"
 
 interface OpenRouterHandlerOptions extends CommonApiHandlerOptions {
@@ -154,16 +155,12 @@ export class OpenRouterHandler implements ApiHandler {
 			}
 
 			if (!didOutputUsage && chunk.usage) {
-				// @ts-expect-error-next-line -- OpenRouter returns cache_write_tokens for Anthropic models
-				const cacheWriteTokens = chunk.usage.prompt_tokens_details?.cache_write_tokens || 0
+				const { cacheReadTokens, cacheWriteTokens } = extractCacheTokenUsage(chunk.usage as OpenAiCompatibleCacheUsage)
 				yield {
 					type: "usage",
 					cacheWriteTokens,
-					cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-					inputTokens:
-						(chunk.usage.prompt_tokens || 0) -
-						(chunk.usage.prompt_tokens_details?.cached_tokens || 0) -
-						(cacheWriteTokens || 0),
+					cacheReadTokens,
+					inputTokens: (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens,
 					outputTokens: chunk.usage.completion_tokens || 0,
 					// @ts-expect-error-next-line
 					totalCost: (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0),
@@ -187,13 +184,18 @@ export class OpenRouterHandler implements ApiHandler {
 			try {
 				const generationIterator = this.fetchGenerationDetails(this.lastGenerationId)
 				const generation = (await generationIterator.next()).value
+				const { cacheReadTokens: usageCacheReadTokens, cacheWriteTokens: usageCacheWriteTokens } = extractCacheTokenUsage(
+					generation as OpenAiCompatibleCacheUsage,
+				)
+				const cacheWriteTokens = generation?.native_tokens_cache_write ?? usageCacheWriteTokens
+				const cacheReadTokens = generation?.native_tokens_cached ?? usageCacheReadTokens
 				// Logger.log("OpenRouter generation details:", generation)
 				return {
 					type: "usage",
-					cacheWriteTokens: generation?.native_tokens_cache_write || 0,
-					cacheReadTokens: generation?.native_tokens_cached || 0,
+					cacheWriteTokens,
+					cacheReadTokens,
 					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+					inputTokens: (generation?.native_tokens_prompt || 0) - cacheReadTokens - cacheWriteTokens,
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost: generation?.total_cost || 0,
 				}
