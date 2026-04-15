@@ -1,13 +1,12 @@
-import { StringRequest } from "@shared/proto/cline/common"
+import { EmptyRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import React, { useEffect, useState } from "react"
+import React, { useState } from "react"
 import kanbanDemoVideoMp4 from "@/assets/cline_kanban_demo.mp4"
 import kanbanDemoVideoWebm from "@/assets/cline_kanban_demo.webm"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { FileServiceClient } from "@/services/grpc-client"
+import { StateServiceClient } from "@/services/grpc-client"
 
 const INSTALL_COMMAND = "npm install -g cline"
-const COPIED_TIMEOUT = 1500
 const resolveAssetSrc = (src: string) => (src.startsWith("/src/") ? new URL(src, import.meta.url).toString() : src)
 const kanbanDemoMp4Src = resolveAssetSrc(kanbanDemoVideoMp4)
 const kanbanDemoWebmSrc = resolveAssetSrc(kanbanDemoVideoWebm)
@@ -21,21 +20,12 @@ interface ClineKanbanLaunchModalProps {
 
 export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ open, onClose }) => {
 	const [doNotShowAgain, setDoNotShowAgain] = useState(false)
-	const [copied, setCopied] = useState(false)
-
-	useEffect(() => {
-		if (open) {
-			setCopied(false)
-		}
-	}, [open])
 
 	const handleAction = async () => {
 		try {
-			await FileServiceClient.copyToClipboard(StringRequest.create({ value: INSTALL_COMMAND }))
-			setCopied(true)
-			setTimeout(() => setCopied(false), COPIED_TIMEOUT)
+			await StateServiceClient.installClineCli(EmptyRequest.create({}))
 		} catch (error) {
-			console.error("Failed to copy CLI install command:", error)
+			console.error("Failed to launch CLI install command:", error)
 		}
 	}
 
@@ -76,7 +66,7 @@ export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ 
 							{INSTALL_COMMAND}
 						</code>
 						<div className="mt-3">
-							<VSCodeButton onClick={handleAction}>{copied ? "Copied" : "Copy command"}</VSCodeButton>
+							<VSCodeButton onClick={handleAction}>Run in terminal</VSCodeButton>
 						</div>
 					</div>
 

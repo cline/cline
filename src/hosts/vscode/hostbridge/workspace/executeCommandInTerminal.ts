@@ -1,10 +1,9 @@
 import { ExecuteCommandInTerminalRequest, ExecuteCommandInTerminalResponse } from "@shared/proto/host/workspace"
+import * as vscode from "vscode"
 import { Logger } from "@/shared/services/Logger"
 
 /**
- * Deprecated compatibility handler for the removed integrated-terminal command launcher.
- * The RPC surface remains temporarily to avoid host/proto churn, but it no longer
- * creates a VS Code terminal or executes commands on the user's behalf.
+ * Executes a single command in a new VS Code integrated terminal.
  * @param request The request containing the command to execute
  * @returns Response indicating success
  */
@@ -12,15 +11,15 @@ export async function executeCommandInTerminal(
 	request: ExecuteCommandInTerminalRequest,
 ): Promise<ExecuteCommandInTerminalResponse> {
 	try {
-		Logger.warn(
-			`executeCommandInTerminal called after integrated-terminal removal; command was not executed: ${request.command}`,
-		)
+		const terminal = vscode.window.createTerminal("Cline")
+		terminal.show()
+		terminal.sendText(request.command, true)
 
 		return ExecuteCommandInTerminalResponse.create({
-			success: false,
+			success: true,
 		})
 	} catch (error) {
-		Logger.error("Error handling deprecated executeCommandInTerminal request:", error)
+		Logger.error("Error executing command in terminal:", error)
 		return ExecuteCommandInTerminalResponse.create({
 			success: false,
 		})
