@@ -14,7 +14,7 @@
 		"build:apps": "bun -F './apps/**' --production build",
 		"build:models": "bun -F @clinebot/llms generate:models && bun format --write",
 		"dev": "bun --conditions=development run build:sdk && bun run cli && bun run cli rpc stop",
-		"cli": "bun --conditions=development --cwd apps/cli dev",
+		"cli": "bun --conditions=development --cwd apps/cli dev 2>/dev/null",
 		"code": "bun --conditions=development -F @clinebot/code dev",
 		"clean": "bun --parallel -F '*' clean",
 		"types": "bun --parallel -F '*' typecheck",

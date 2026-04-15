@@ -21,10 +21,15 @@ import type {
 	PendingPromptSubmittedEvent,
 } from "../runtime/session-events";
 import { resolveStatusNoticeLabel } from "../utils/events";
-import { formatToolInput, formatToolOutput, truncate } from "../utils/helpers";
-import { c, formatUsd } from "../utils/output";
+import { truncate } from "../utils/helpers";
 import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
+import {
+	type ChatEntry,
+	ChatMessageList,
+	makeToolEndEntry,
+	makeToolStartEntry,
+} from "./components/ChatMessage";
 import {
 	CONFIG_TABS,
 	ConfigView,
@@ -75,11 +80,6 @@ interface InteractiveTuiProps {
 	onAutoApproveChange: (enabled: boolean) => void;
 }
 
-interface UiLine {
-	id: number;
-	text: string;
-}
-
 type InlineStream = "text" | "reasoning" | undefined;
 type CompletionMode = "mention" | "slash" | undefined;
 
@@ -100,7 +100,6 @@ const MAX_BUFFERED_LINES = 500;
 const DEFAULT_CONTEXT_WINDOW = 200000;
 const COMPLETION_DEBOUNCE_MS = 120;
 const MAX_COMPLETION_RESULTS = 8;
-const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 
 function isConfigCommand(text: string): boolean {
 	const normalized = text.trim().toLowerCase();
@@ -229,10 +228,8 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		onAutoApproveChange,
 	} = props;
 
-	// Output
-	const [lines, setLines] = useState<UiLine[]>(
-		props.welcomeLine ? [{ id: 0, text: props.welcomeLine }] : [],
-	);
+	// Chat entries — structured message history
+	const [entries, setEntries] = useState<ChatEntry[]>([]);
 
 	// Input & submission
 	const [input, setInput] = useState("");
@@ -289,7 +286,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const [configTab, setConfigTab] = useState<InteractiveConfigTab>("tools");
 	const [configSelectedIndex, setConfigSelectedIndex] = useState(0);
 
-	const nextLineIdRef = useRef(props.welcomeLine ? 1 : 0);
 	const activeInlineStreamRef = useRef<InlineStream>(undefined);
 	const mentionSearchTimerRef = useRef<NodeJS.Timeout | null>(null);
 	const mentionSearchCounterRef = useRef(0);
@@ -483,33 +479,48 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		};
 	}, [mentionInfo.inMentionMode, mentionInfo.query, workspaceRoot]);
 
-	const appendLine = useCallback((text: string) => {
-		setLines((prev) => {
-			const next = [...prev, { id: nextLineIdRef.current++, text }];
-			if (next.length <= MAX_BUFFERED_LINES) {
-				return next;
-			}
-			return next.slice(next.length - MAX_BUFFERED_LINES);
+	// Append a new ChatEntry to the structured history (capped at MAX_BUFFERED_LINES)
+	const appendEntry = useCallback((entry: ChatEntry) => {
+		setEntries((prev) => {
+			const next = [...prev, entry];
+			return next.length <= MAX_BUFFERED_LINES
+				? next
+				: next.slice(next.length - MAX_BUFFERED_LINES);
 		});
 	}, []);
 
-	const appendInline = useCallback((text: string) => {
-		setLines((prev) => {
-			if (prev.length === 0) {
-				return [{ id: nextLineIdRef.current++, text }];
-			}
-			const next = [...prev];
-			const lastIndex = next.length - 1;
-			next[lastIndex] = {
-				...next[lastIndex],
-				text: `${next[lastIndex]?.text ?? ""}${text}`,
-			};
-			return next;
-		});
-	}, []);
+	// Mutate the last entry in-place (for streaming text/reasoning updates)
+	const updateLastEntry = useCallback(
+		(updater: (prev: ChatEntry) => ChatEntry) => {
+			setEntries((prev) => {
+				if (prev.length === 0) return prev;
+				const next = [...prev];
+				next[next.length - 1] = updater(next[next.length - 1] as ChatEntry);
+				return next;
+			});
+		},
+		[],
+	);
 
 	const closeInlineStream = useCallback(() => {
 		activeInlineStreamRef.current = undefined;
+		// Mark the last streaming entry as no longer streaming
+		setEntries((prev) => {
+			if (prev.length === 0) return prev;
+			const last = prev[prev.length - 1];
+			if (
+				last &&
+				(last.kind === "assistant_text" ||
+					last.kind === "reasoning" ||
+					last.kind === "tool_start") &&
+				last.streaming
+			) {
+				const next = [...prev];
+				next[next.length - 1] = { ...last, streaming: false } as ChatEntry;
+				return next;
+			}
+			return prev;
+		});
 	}, []);
 
 	const handleAgentEvent = useCallback(
@@ -527,31 +538,51 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 						case "text": {
 							if (activeInlineStreamRef.current !== "text") {
 								closeInlineStream();
-								appendLine("");
 								activeInlineStreamRef.current = "text";
+								appendEntry({
+									kind: "assistant_text",
+									text: event.text ?? "",
+									streaming: true,
+								});
+							} else {
+								updateLastEntry((prev) =>
+									prev.kind === "assistant_text"
+										? { ...prev, text: prev.text + (event.text ?? "") }
+										: prev,
+								);
 							}
-							appendInline(event.text ?? "");
 							break;
 						}
 						case "reasoning": {
+							const chunk =
+								event.redacted && !event.reasoning
+									? "[redacted]"
+									: (event.reasoning ?? "");
 							if (activeInlineStreamRef.current !== "reasoning") {
 								closeInlineStream();
-								appendLine(`${c.dim}[thinking] ${c.reset}`);
 								activeInlineStreamRef.current = "reasoning";
+								appendEntry({
+									kind: "reasoning",
+									text: chunk,
+									streaming: true,
+								});
+							} else {
+								updateLastEntry((prev) =>
+									prev.kind === "reasoning"
+										? { ...prev, text: prev.text + chunk }
+										: prev,
+								);
 							}
-							if (event.redacted && !event.reasoning) {
-								appendInline(`${c.dim}[redacted]${c.reset}`);
-								break;
-							}
-							appendInline(`${c.dim}${event.reasoning ?? ""}${c.reset}`);
 							break;
 						}
 						case "tool": {
 							closeInlineStream();
-							const toolName = event.toolName ?? "unknown_tool";
-							const inputStr = formatToolInput(toolName, event.input);
-							appendLine(
-								`${c.dim}[${toolName}]${c.reset} ${c.cyan}${inputStr}${c.reset}`,
+							appendEntry(
+								makeToolStartEntry(
+									event.toolName ?? "unknown_tool",
+									event.input,
+									true,
+								),
 							);
 							break;
 						}
@@ -566,16 +597,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 							break;
 						case "tool": {
 							closeInlineStream();
-							if (event.error) {
-								appendLine(`${c.red}error:${c.reset} ${event.error}`);
-							} else {
-								const outputStr = formatToolOutput(event.output);
-								appendLine(
-									outputStr
-										? `  ${c.dim}-> ${outputStr}${c.reset}`
-										: ` ${c.green}ok${c.reset}`,
-								);
-							}
+							appendEntry(
+								makeToolEndEntry(event.output, event.error ?? undefined),
+							);
 							break;
 						}
 					}
@@ -590,107 +614,88 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					closeInlineStream();
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
-					appendLine(`${c.red}error:${c.reset} ${event.error.message}`);
+					appendEntry({ kind: "error", text: event.error.message });
 					break;
 				case "notice":
 					if (event.displayRole === "status") {
 						closeInlineStream();
 						const label = resolveStatusNoticeLabel(event);
 						if (label) {
-							appendLine(`${c.dim}[status]${c.reset} ${label}`);
+							appendEntry({ kind: "status", text: label });
 						}
 					}
 					break;
 			}
 		},
-		[appendInline, appendLine, closeInlineStream, onTurnErrorReported],
+		[appendEntry, updateLastEntry, closeInlineStream, onTurnErrorReported],
 	);
 
 	const handleTeamEvent = useCallback(
 		(event: TeamEvent) => {
+			const team = (text: string) => appendEntry({ kind: "team", text });
 			switch (event.type) {
 				case "teammate_spawned":
-					appendLine(
-						`${c.dim}[team] teammate spawned:${c.reset} ${c.cyan}${event.agentId}${c.reset}`,
-					);
+					team(`[team] teammate spawned: ${event.agentId}`);
 					break;
 				case "teammate_shutdown":
-					appendLine(
-						`${c.dim}[team] teammate shutdown:${c.reset} ${c.cyan}${event.agentId}${c.reset}`,
-					);
+					team(`[team] teammate shutdown: ${event.agentId}`);
 					break;
 				case "team_task_updated":
-					appendLine(
-						`${c.dim}[team task]${c.reset} ${c.cyan}${event.task.id}${c.reset} -> ${event.task.status}`,
-					);
+					team(`[team task] ${event.task.id} -> ${event.task.status}`);
 					break;
 				case "team_message":
-					appendLine(
-						`${c.dim}[mailbox]${c.reset} ${event.message.fromAgentId} -> ${event.message.toAgentId}: ${event.message.subject}`,
+					team(
+						`[mailbox] ${event.message.fromAgentId} -> ${event.message.toAgentId}: ${event.message.subject}`,
 					);
 					break;
 				case "team_mission_log":
-					appendLine(
-						`${c.dim}[mission]${c.reset} ${event.entry.agentId}: ${truncate(event.entry.summary, 90)}`,
+					team(
+						`[mission] ${event.entry.agentId}: ${truncate(event.entry.summary, 90)}`,
 					);
 					break;
 				case "run_queued":
-					appendLine(
-						`${c.dim}[team run]${c.reset} queued ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
-					);
+					team(`[team run] queued ${event.run.id} -> ${event.run.agentId} ...`);
 					break;
 				case "run_started":
-					appendLine(
-						`${c.dim}[team run]${c.reset} started ${c.cyan}${event.run.id}${c.reset} -> ${event.run.agentId}${TEAM_RUN_ACTIVE_SUFFIX}`,
+					team(
+						`[team run] started ${event.run.id} -> ${event.run.agentId} ...`,
 					);
 					break;
 				case "run_progress":
-					if (event.message === "heartbeat") {
-						break;
-					}
-					appendLine(
-						`${c.dim}[team run]${c.reset} progress ${c.cyan}${event.run.id}${c.reset}: ${event.message}`,
-					);
+					if (event.message === "heartbeat") break;
+					team(`[team run] progress ${event.run.id}: ${event.message}`);
 					break;
 				case "run_completed":
-					appendLine(
-						`${c.dim}[team run]${c.reset} completed ${c.cyan}${event.run.id}${c.reset}`,
-					);
+					team(`[team run] completed ${event.run.id}`);
 					break;
 				case "run_failed":
-					appendLine(
-						`${c.dim}[team run]${c.reset} failed ${c.cyan}${event.run.id}${c.reset}: ${event.run.error ?? "unknown error"}`,
+					team(
+						`[team run] failed ${event.run.id}: ${event.run.error ?? "unknown error"}`,
 					);
 					break;
 				case "run_cancelled":
-					appendLine(
-						`${c.dim}[team run]${c.reset} cancelled ${c.cyan}${event.run.id}${c.reset}`,
-					);
+					team(`[team run] cancelled ${event.run.id}`);
 					break;
 				case "run_interrupted":
-					appendLine(
-						`${c.dim}[team run]${c.reset} interrupted ${c.cyan}${event.run.id}${c.reset}`,
-					);
+					team(`[team run] interrupted ${event.run.id}`);
 					break;
 				case "outcome_created":
-					appendLine(
-						`${c.dim}[team outcome]${c.reset} created ${c.cyan}${event.outcome.id}${c.reset}: ${event.outcome.title}`,
+					team(
+						`[team outcome] created ${event.outcome.id}: ${event.outcome.title}`,
 					);
 					break;
 				case "outcome_fragment_attached":
-					appendLine(
-						`${c.dim}[team outcome]${c.reset} fragment ${c.cyan}${event.fragment.id}${c.reset} attached to ${event.fragment.section}`,
+					team(
+						`[team outcome] fragment ${event.fragment.id} attached to ${event.fragment.section}`,
 					);
 					break;
 				case "outcome_fragment_reviewed":
-					appendLine(
-						`${c.dim}[team outcome]${c.reset} fragment ${c.cyan}${event.fragment.id}${c.reset} -> ${event.fragment.status}`,
+					team(
+						`[team outcome] fragment ${event.fragment.id} -> ${event.fragment.status}`,
 					);
 					break;
 				case "outcome_finalized":
-					appendLine(
-						`${c.dim}[team outcome]${c.reset} finalized ${c.cyan}${event.outcome.id}${c.reset}`,
-					);
+					team(`[team outcome] finalized ${event.outcome.id}`);
 					break;
 				case "task_start":
 				case "task_end":
@@ -698,7 +703,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					break;
 			}
 		},
-		[appendLine],
+		[appendEntry],
 	);
 
 	const handlePendingPrompts = useCallback((event: PendingPromptSnapshot) => {
@@ -719,9 +724,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	const handlePendingPromptSubmitted = useCallback(
 		(event: PendingPromptSubmittedEvent) => {
 			knownPendingPromptIdsRef.current.delete(event.id);
-			appendLine(`${c.green}>${c.reset} ${event.prompt}`);
+			appendEntry({ kind: "user_submitted", text: event.prompt });
 		},
-		[appendLine],
+		[appendEntry],
 	);
 
 	// Keep the ref in sync with the latest handler instances so the
@@ -778,20 +783,14 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				turnErrorReportedRef.current = false;
 				onTurnErrorReported(false);
 			}
-			const prefix =
-				delivery === "steer"
-					? `${c.yellow}[steer]${c.reset} `
-					: delivery === "queue"
-						? `${c.dim}[queued]${c.reset} `
-						: "";
-			appendLine(`${c.green}>${c.reset} ${prefix}${prompt}`);
+			appendEntry({ kind: "user_submitted", text: prompt, delivery });
 			setInput("");
 
 			const startedAt = performance.now();
 			try {
 				const result = await onSubmit(prompt, uiMode, delivery);
 				if (result.commandOutput) {
-					appendLine(result.commandOutput);
+					appendEntry({ kind: "status", text: result.commandOutput });
 				}
 				if (result.queued) {
 					return;
@@ -803,26 +802,23 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				}
 				if (!result.commandOutput && (config.showTimings || config.showUsage)) {
 					const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
-					const parts: string[] = [];
-					if (config.showTimings) {
-						parts.push(`${elapsed}s`);
-					}
-					if (config.showUsage) {
-						parts.push(`${tokens} tokens`);
-						if (typeof result.usage.totalCost === "number") {
-							parts.push(`${formatUsd(result.usage.totalCost)} est. cost`);
-						}
-						if (result.iterations > 1) {
-							parts.push(`${result.iterations} iterations`);
-						}
-					}
-					appendLine(`${c.dim}[${parts.join(" | ")}]${c.reset}`);
+					appendEntry({
+						kind: "done",
+						tokens: config.showUsage ? tokens : 0,
+						cost:
+							config.showUsage && typeof result.usage.totalCost === "number"
+								? result.usage.totalCost
+								: 0,
+						elapsed: config.showTimings ? elapsed : "",
+						iterations: result.iterations,
+					});
 				}
 			} catch (error) {
 				if (!turnErrorReportedRef.current) {
-					config.logger?.log(
-						`${c.red}error:${c.reset} ${error instanceof Error ? error.message : String(error)}`,
-					);
+					appendEntry({
+						kind: "error",
+						text: error instanceof Error ? error.message : String(error),
+					});
 				}
 			} finally {
 				if (!delivery) {
@@ -832,14 +828,13 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			}
 		},
 		[
-			appendLine,
+			appendEntry,
 			config.showTimings,
 			config.showUsage,
 			onSubmit,
 			onTurnErrorReported,
 			refreshRepoStatus,
 			uiMode,
-			config.logger,
 		],
 	);
 
@@ -961,7 +956,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				if (!abortRequested) {
 					setAbortRequested(true);
 					onAbort();
-					appendLine(`${c.dim}[abort] requested${c.reset}`);
+					appendEntry({ kind: "status", text: "abort requested" });
 				}
 				return;
 			}
@@ -1096,12 +1091,12 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		}
 	});
 
-	const visibleLines = useMemo(
-		() => lines.slice(-maxVisibleLines),
-		[lines, maxVisibleLines],
+	const visibleEntries = useMemo(
+		() => entries.slice(-maxVisibleLines),
+		[entries, maxVisibleLines],
 	);
 	const shouldShowWelcome =
-		!isConfigViewOpen && !hasSubmitted && visibleLines.length <= 1;
+		!isConfigViewOpen && !hasSubmitted && entries.length === 0;
 	const visibleMentionResults = useMemo(
 		() => getVisibleWindow(fileMentionResults, fileMentionSelectedIndex),
 		[fileMentionResults, fileMentionSelectedIndex],
@@ -1129,13 +1124,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		: null;
 
 	const renderLines = !isConfigViewOpen
-		? React.createElement(
-				Box,
-				{ flexDirection: "column", marginBottom: 1 },
-				visibleLines.map((line) =>
-					React.createElement(Text, { key: line.id }, line.text),
-				),
-			)
+		? React.createElement(ChatMessageList, { entries: visibleEntries })
 		: null;
 
 	const renderInputBox =
@@ -1180,7 +1169,12 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					React.createElement(
 						Box,
 						{ borderStyle: "round", paddingX: 1 },
-						React.createElement(Text, null, `${c.green}>${c.reset} ${input}`),
+						React.createElement(
+							Text,
+							null,
+							React.createElement(Text, { color: "green" }, "> "),
+							input,
+						),
 					),
 				)
 			: null;

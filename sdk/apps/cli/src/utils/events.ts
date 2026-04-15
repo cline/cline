@@ -44,6 +44,20 @@ export function closeInlineStreamIfNeeded(): void {
 // Agent event handler
 // =============================================================================
 
+// Prefix for assistant/tool dot rows: "⏺ "
+const DOT = "⏺";
+// Prefix for result rows
+const HOOK = "⎿ ";
+
+function formatResultLines(text: string, maxLines = 5): string[] {
+	const lines = text.split("\n");
+	if (lines.length <= maxLines) return lines;
+	return [
+		...lines.slice(0, maxLines),
+		`... ${lines.length - maxLines} more lines`,
+	];
+}
+
 export function handleEvent(event: AgentEvent, config: Config): void {
 	if (getCurrentOutputMode() === "json") {
 		emitJsonLine("stdout", { type: "agent_event", event });
@@ -57,9 +71,6 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 
 		case "iteration_end":
 			closeInlineStreamIfNeeded();
-			if (!event.hadToolCalls) {
-				// write(`\n\n${c.dim}(no tools called, done)${c.reset}\n`)
-			}
 			break;
 
 		case "content_start":
@@ -71,6 +82,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 							write("\n");
 							shouldPrefixNextTextWithBlankLine = false;
 						}
+						write(`${DOT} `);
 						activeInlineStream = "text";
 					}
 					write(event.text ?? "");
@@ -79,7 +91,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 				case "reasoning":
 					if (activeInlineStream !== "reasoning") {
 						closeInlineStreamIfNeeded();
-						write(`${c.dim}[thinking] ${c.reset}`);
+						write(`${c.dim}${DOT} [thinking] ${c.reset}`);
 						activeInlineStream = "reasoning";
 						inlineStreamHasOutput = true;
 					}
@@ -96,7 +108,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					const toolName = event.toolName ?? "unknown_tool";
 					const inputStr = formatToolInput(toolName, event.input);
 					write(
-						`${c.dim}[${toolName}]${c.reset} ${c.cyan}${inputStr}${c.reset}\n`,
+						`${c.cyan}${DOT} [${toolName}]${c.reset}${inputStr ? ` ${inputStr}` : ""}\n`,
 					);
 					break;
 				}
@@ -112,16 +124,24 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 				case "tool":
 					closeInlineStreamIfNeeded();
 					if (event.error) {
-						write(` ${c.red}error: ${event.error}${c.reset}\n`);
+						write(
+							`   ${c.gray}${HOOK}${c.reset}${c.red}error: ${event.error}${c.reset}\n`,
+						);
 					} else {
 						const outputStr = formatToolOutput(event.output);
 						if (outputStr) {
-							write(`  ${c.dim}-> ${outputStr}${c.reset}\n`);
+							const lines = formatResultLines(outputStr);
+							for (let i = 0; i < lines.length; i++) {
+								const prefix = i === 0 ? HOOK : "  ";
+								write(
+									`   ${c.gray}${prefix}${c.reset}${c.dim}${lines[i]}${c.reset}\n`,
+								);
+							}
 						} else {
-							write(` ${c.green}ok${c.reset}\n`);
+							write(`   ${c.gray}${HOOK}${c.reset}${c.green}ok${c.reset}\n`);
 						}
 					}
-					shouldPrefixNextTextWithBlankLine = true;
+					shouldPrefixNextTextWithBlankLine = false;
 					break;
 			}
 			break;

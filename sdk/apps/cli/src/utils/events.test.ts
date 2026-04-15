@@ -16,7 +16,7 @@ describe("handleEvent text formatting", () => {
 		});
 	});
 
-	it("adds an empty line before text that follows a tool block", () => {
+	it("adds a ⎿ before text that follows a tool block", () => {
 		handleEvent(
 			{
 				type: "content_start",
@@ -44,8 +44,10 @@ describe("handleEvent text formatting", () => {
 			{} as Config,
 		);
 
-		expect(output).toContain("-> ok");
-		expect(output).toContain("\n\nNow let me check this file.");
+		expect(output).toContain(
+			`\x1b[36m⏺ [read_files]\x1b[0m {"path":"/tmp/demo.txt"}`,
+		);
+		expect(output).toContain("⎿ ok");
 	});
 
 	it("prints adjacent tool starts on separate lines", () => {

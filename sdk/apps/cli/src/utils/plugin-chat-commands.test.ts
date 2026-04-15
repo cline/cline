@@ -36,11 +36,15 @@ describe("plugin chat commands", () => {
 			].join("\n"),
 		);
 
-		const host = await createWorkspaceChatCommandHost({
+		const { host, pluginSlashCommands } = await createWorkspaceChatCommandHost({
 			cwd: tempRoot,
 			workspaceRoot: tempRoot,
 		});
 		const reply = vi.fn(async () => undefined);
+
+		expect(pluginSlashCommands).toEqual([
+			{ name: "echo", description: "Echo input" },
+		]);
 
 		const handled = await host.handle("/echo hello plugin", {
 			enabled: true,

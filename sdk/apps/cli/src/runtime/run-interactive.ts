@@ -85,11 +85,19 @@ export async function runInteractive(
 	const workflowSlashCommands = listInteractiveSlashCommands(
 		userInstructionWatcher,
 	);
-	const chatCommandHost = await createWorkspaceChatCommandHost({
-		cwd: config.cwd,
-		workspaceRoot: config.workspaceRoot,
-		logger: config.logger,
-	});
+	const { host: chatCommandHost, pluginSlashCommands } =
+		await createWorkspaceChatCommandHost({
+			cwd: config.cwd,
+			workspaceRoot: config.workspaceRoot,
+			logger: config.logger,
+		});
+	for (const cmd of pluginSlashCommands) {
+		workflowSlashCommands.push({
+			name: cmd.name,
+			instructions: "",
+			description: cmd.description ?? "Plugin command",
+		});
+	}
 
 	const runtimeHooks = createRuntimeHooks({
 		verbose: config.verbose,

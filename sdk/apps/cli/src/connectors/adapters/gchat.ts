@@ -537,7 +537,7 @@ class GoogleChatConnector extends ConnectorBase<
 		});
 		await userInstructionWatcher.start().catch(() => undefined);
 		const commandCwd = startRequest.cwd || process.cwd();
-		const chatCommandHost = await createWorkspaceChatCommandHost({
+		const { host: chatCommandHost } = await createWorkspaceChatCommandHost({
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});

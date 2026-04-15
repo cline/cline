@@ -11,7 +11,7 @@ export function describeAbortSource(input: {
 	if (input.abortRequested) {
 		return "aborted";
 	}
-	return "aborted by another client (for example Desktop)";
+	return "aborted by another client";
 }
 
 export async function resolveMistakeLimitDecision(
