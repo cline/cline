@@ -509,11 +509,15 @@ export const ExtensionStateContextProvider: React.FC<{
 						// worth noting it will never be possible for a more up-to-date message to be sent here or in normal messages post since the presentAssistantContent function uses lock
 						const lastIndex = findLastIndex(prevState.clineMessages, (msg) => msg.ts === partialMessage.ts)
 						if (lastIndex !== -1) {
+							// Update existing message in-place (classic streaming update)
 							const newClineMessages = [...prevState.clineMessages]
 							newClineMessages[lastIndex] = partialMessage
 							return { ...prevState, clineMessages: newClineMessages }
 						}
-						return prevState
+						// No existing message with this timestamp — append it.
+						// This happens in the SDK migration where messages arrive
+						// via the partial message stream before the state update.
+						return { ...prevState, clineMessages: [...prevState.clineMessages, partialMessage] }
 					})
 				} catch (error) {
 					console.error("Failed to process partial message:", error, protoMessage)
