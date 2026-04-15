@@ -148,45 +148,28 @@ const PROVIDER_MODEL_ID_MAP: Record<string, { plan: keyof ApiConfiguration; act:
 /**
  * Resolve the API key for a given provider from the ApiConfiguration.
  *
- * Special handling for the "cline" provider: the OAuth token is stored in
- * `secrets.json` under `cline:clineAccountId` as a JSON object containing
- * `idToken`. We extract it and add the `workos:` prefix, matching the
- * classic AuthService.getAuthToken() behavior.
+ * For the "cline" provider, reads the OAuth token from providers.json
+ * via ProviderSettingsManager (the single source of truth for credentials).
  */
 function resolveApiKey(providerId: string, config: ApiConfiguration): string | undefined {
-	// Special handling for "cline" provider — extract OAuth token from secrets
+	// For "cline" provider — read from providers.json
 	if (providerId === "cline") {
-		// First check if clineApiKey is set directly
+		// First check if clineApiKey is set directly (e.g. from env var)
 		if (config.clineApiKey) {
 			return config.clineApiKey
 		}
 
-		// Extract from the cline:clineAccountId secret (JSON with idToken)
-		const clineAccountSecret = config["cline:clineAccountId" as keyof ApiConfiguration] as string | undefined
-		if (clineAccountSecret) {
-			try {
-				const parsed = JSON.parse(clineAccountSecret)
-				if (parsed.idToken) {
-					return `workos:${parsed.idToken}`
-				}
-			} catch {
-				Logger.warn("[SessionFactory] Failed to parse cline:clineAccountId secret")
+		// Read from providers.json via the shared ProviderSettingsManager
+		try {
+			const manager = getProviderSettingsManager()
+			const settings = manager.getProviderSettings("cline")
+			const accessToken = settings?.auth?.accessToken?.trim()
+			if (accessToken) {
+				// providers.json stores the token with workos: prefix already
+				return accessToken.toLowerCase().startsWith("workos:") ? accessToken : `workos:${accessToken}`
 			}
-		}
-
-		// Fallback: check clineAccountId (legacy key)
-		const clineAccountId = config.clineAccountId
-		if (clineAccountId) {
-			// clineAccountId might be the raw token or a JSON string
-			try {
-				const parsed = JSON.parse(clineAccountId)
-				if (parsed.idToken) {
-					return `workos:${parsed.idToken}`
-				}
-			} catch {
-				// Not JSON — treat as raw token
-				return `workos:${clineAccountId}`
-			}
+		} catch {
+			Logger.warn("[SessionFactory] Failed to read cline credentials from providers.json")
 		}
 
 		return undefined

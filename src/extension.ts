@@ -479,7 +479,10 @@ ${ctx.cellJson || "{}"}
 		}),
 	)
 
-	// Listen for secrets changes (e.g., cross-window login/logout sync)
+	// Listen for secrets changes (cross-window login/logout sync).
+	// NOTE: Credentials now live in providers.json (single source of truth).
+	// This listener catches legacy secrets.json writes from older windows and
+	// triggers a re-read from providers.json via restoreRefreshTokenAndRetrieveAuthInfo().
 	const unsubSecrets = storageContext.secrets.onDidChange((event) => {
 		if (event.key === "cline:clineAccountId") {
 			const secretValue = storageContext.secrets.get<string>(event.key)
