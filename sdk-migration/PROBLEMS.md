@@ -210,7 +210,7 @@ underlying patterns that caused them are relevant.
 - **Verification**: Launch debug harness, take screenshot, verify logo is white-on-black.
 
 ### S6-9: DefaultSessionManager has multiple CLI-oriented assumptions
-- **Status**: 🟡 Minor (anticipated, multiple sub-issues)
+- **Status**: 🔵 Awaiting Verification (VscodeSessionHost wired into SdkController)
 - **Description**: `DefaultSessionManager` was designed primarily for the SDK's CLI (`clite`) and has several assumptions that don't fit the VSCode extension context. These are all addressable through the constructor options or by wrapping/catching, but must be accounted for:
 
   **a) Hardcoded "clite" in OAuth error messages** (`default-session-manager.ts:1377`):
@@ -331,15 +331,15 @@ underlying patterns that caused them are relevant.
 - **Verification**: Send a message, verify the webview shows messages in the chat view and the task appears in history.
 
 ### S6-14: VscodeRuntimeBuilder for MCP tool bridging
-- **Status**: 🔵 Awaiting Verification
+- **Status**: 🔵 Awaiting Verification (now wired into VscodeSessionHost)
 - **Description**: The SDK's `DefaultRuntimeBuilder.loadConfiguredMcpTools()` only supports stdio transport. SSE and streamableHttp MCP servers are filtered out, causing "Unsupported MCP transport" errors. The classic `McpHub` already supports all three transports.
 - **Root cause**: The SDK's `InMemoryMcpManager` with `createDefaultMcpServerClientFactory()` only creates stdio clients. The VSCode extension's `McpHub` has its own connection management that supports stdio, SSE, and streamableHttp.
 - **Fix applied**: Created `src/sdk/vscode-runtime-builder.ts` with:
   1. `McpHubToolProvider` — adapter that makes the classic McpHub look like an SDK `McpToolProvider` (implements `listTools()` and `callTool()` by delegating to McpHub).
   2. `VscodeRuntimeBuilder` — custom `RuntimeBuilder` that delegates builtin tool creation to `DefaultRuntimeBuilder` but replaces MCP tools with ones loaded from the classic `McpHub`. This gives the SDK agent access to all MCP servers regardless of transport type.
   3. Tool name transform matches SDK's default (`serverName__toolName` format).
-- **Note**: This builder is not yet wired into the session creation flow. It needs to be passed to `DefaultSessionManager` constructor (or the future `VscodeSessionHost` wrapper) as the `runtimeBuilder` option. Currently, `ClineCore.create()` doesn't accept a `runtimeBuilder` — it creates a `DefaultSessionManager` internally. The wiring will happen when we implement the `VscodeSessionHost` wrapper (see S6-9).
-- **Verification**: Wire `VscodeRuntimeBuilder` into session creation, start a session with MCP servers configured, verify the agent can use MCP tools from all transport types.
+- **Wiring**: The `VscodeRuntimeBuilder` is now wired into session creation via `VscodeSessionHost.create()`, which passes it as the `runtimeBuilder` option to `DefaultSessionManager`. The `VscodeSessionHost` also writes an empty MCP settings file and points `CLINE_MCP_SETTINGS_PATH` to it, so the `DefaultRuntimeBuilder`'s internal `loadConfiguredMcpTools()` loads no MCP tools — the `VscodeRuntimeBuilder` replaces them with tools from the classic `McpHub`.
+- **Verification**: Start a session with MCP servers configured (including SSE/streamableHttp), verify the agent can use MCP tools from all transport types.
 
 ### S6-11: Credential caching from classic extension may not work
 - **Status**: 🟢 Verified Fixed
