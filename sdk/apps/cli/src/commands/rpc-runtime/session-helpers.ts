@@ -130,6 +130,9 @@ export async function buildSessionStartInput(input: {
 				compaction: {
 					enabled: true,
 				},
+				checkpoint: {
+					enabled: true,
+				},
 				enableTools: config.enableTools,
 				enableSpawnAgent: config.enableSpawn,
 				enableAgentTeams: config.enableTeams,

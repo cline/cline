@@ -84,10 +84,14 @@ describe("runAgent", () => {
 		sessionManagerMocks.start.mockReset();
 		sessionManagerMocks.send.mockReset();
 		sessionManagerMocks.stop.mockReset();
+		sessionManagerMocks.stop.mockResolvedValue(undefined);
 		sessionManagerMocks.dispose.mockReset();
+		sessionManagerMocks.dispose.mockResolvedValue(undefined);
 		sessionManagerMocks.abort.mockReset();
+		sessionManagerMocks.abort.mockResolvedValue(undefined);
 		sessionManagerMocks.getAccumulatedUsage.mockReset();
 		hookMocks.runtimeHooks.shutdown.mockReset();
+		hookMocks.runtimeHooks.shutdown.mockResolvedValue(undefined);
 		hookMocks.createRuntimeHooks.mockReturnValue(hookMocks.runtimeHooks);
 		outputMocks.writeErr.mockReset();
 		outputMocks.writeln.mockReset();
@@ -98,6 +102,79 @@ describe("runAgent", () => {
 	afterEach(() => {
 		process.exitCode = originalExitCode;
 		vi.clearAllMocks();
+	});
+
+	it("starts the session with normalized user input", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			transcriptPath: "/tmp/transcript.jsonl",
+			hookPath: "/tmp/hooks.jsonl",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "stop",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent(
+				'<user_command slash="team">spawn a team of agents for the following task: how is rpc server started?</user_command>',
+				{
+					cwd: process.cwd(),
+					enableAgentTeams: true,
+					enableSpawnAgent: false,
+					enableTools: [],
+					execution: {
+						maxConsecutiveMistakes: 3,
+					},
+					logger: undefined,
+					maxIterations: 10,
+					mode: "act",
+					modelId: "google/gemini-3-flash-preview",
+					outputMode: "text",
+					providerId: "openrouter",
+					showTimings: false,
+					showUsage: false,
+					systemPrompt: "system",
+					thinking: false,
+					toolPolicies: { "*": { autoApprove: true } },
+					verbose: false,
+					workspaceRoot: process.cwd(),
+				} as never,
+			),
+		).resolves.toBeUndefined();
+
+		expect(sessionManagerMocks.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "prompt",
+			}),
+		);
 	});
 
 	it("does not fail an aborted run when teardown hooks throw", async () => {
@@ -172,5 +249,40 @@ describe("runAgent", () => {
 		expect(outputMocks.writeErr).not.toHaveBeenCalledWith(
 			"hook shutdown failed",
 		);
+	});
+
+	it("sets a failing exit code when session startup throws", async () => {
+		sessionManagerMocks.start.mockRejectedValue(new Error("Missing API key"));
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: {
+					log: vi.fn(),
+				},
+				maxIterations: 10,
+				mode: "yolo",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "text",
+				providerId: "openrouter",
+				showTimings: false,
+				showUsage: false,
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
 	});
 });

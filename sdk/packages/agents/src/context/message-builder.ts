@@ -1,4 +1,5 @@
 import type * as LlmsProviders from "@clinebot/llms";
+import { normalizeUserInput } from "@clinebot/shared";
 
 const DEFAULT_MAX_TOOL_RESULT_CHARS = 50_000;
 const TARGET_TOOL_NAMES = new Set([
@@ -55,10 +56,33 @@ export class MessageBuilder {
 
 		return messages.map((message) => {
 			if (!Array.isArray(message.content)) {
+				if (message.role === "user" && typeof message.content === "string") {
+					const normalized = normalizeUserInput(message.content);
+					if (normalized !== message.content) {
+						return {
+							...message,
+							content: normalized,
+						};
+					}
+				}
 				return message;
 			}
 
 			const content = message.content.map((block) => {
+				if (
+					message.role === "user" &&
+					block.type === "text" &&
+					typeof block.text === "string"
+				) {
+					const normalized = normalizeUserInput(block.text);
+					if (normalized !== block.text) {
+						return {
+							...block,
+							text: normalized,
+						};
+					}
+				}
+
 				if (block.type === "file") {
 					const truncated = this.truncateMiddle(block.content);
 					if (truncated === block.content) {

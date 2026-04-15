@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayUserInput } from "@clinebot/shared";
 import {
 	Check,
 	Copy,
@@ -123,7 +124,7 @@ function MessageBubble({
 					</div>
 				)}
 				<p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-foreground">
-					{message.content}
+					{isUser ? formatDisplayUserInput(message.content) : message.content}
 				</p>
 			</div>
 

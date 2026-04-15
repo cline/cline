@@ -27,6 +27,11 @@ import {
 	formatPreviewMessageText,
 	getLastSessionPreviewMessages,
 } from "../utils/session-message-summary";
+import {
+	enableTeamsForPrompt,
+	rewriteTeamPrompt,
+	TEAM_COMMAND_USAGE,
+} from "../utils/team-command";
 import type { Config } from "../utils/types";
 import { setActiveRuntimeAbort } from "./active-runtime";
 import {
@@ -414,6 +419,29 @@ export async function runInteractive(
 					isRunning = true;
 				}
 				try {
+					// Handle /team command: transform the input and ensure
+					// teams are enabled for the current session.
+					const rewrittenTeamPrompt = rewriteTeamPrompt(input);
+					if (rewrittenTeamPrompt.kind !== "none") {
+						if (rewrittenTeamPrompt.kind === "usage") {
+							return {
+								usage: { inputTokens: 0, outputTokens: 0 },
+								iterations: 0,
+								commandOutput: TEAM_COMMAND_USAGE,
+							};
+						}
+						// Enable teams on the config so the next session picks it up.
+						if (!config.enableAgentTeams) {
+							enableTeamsForPrompt(config);
+							// Restart the session with teams enabled.
+							if (activeSessionId) {
+								await sessionManager.stop(activeSessionId);
+							}
+							await startFreshSession([]);
+						}
+						input = rewrittenTeamPrompt.prompt;
+					}
+
 					let commandOutput: string | undefined;
 					if (
 						await maybeHandleChatCommand(input, {

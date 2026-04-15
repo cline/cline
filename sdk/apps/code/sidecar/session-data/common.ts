@@ -1,4 +1,4 @@
-import { normalizeUserInput } from "@clinebot/shared";
+import { formatDisplayUserInput } from "@clinebot/shared";
 import { readSessionManifest } from "../paths";
 import type { JsonRecord } from "../types";
 
@@ -6,7 +6,7 @@ export function normalizeSessionTitle(
 	title?: string | null,
 ): string | undefined {
 	const trimmed = title?.trim();
-	return trimmed ? normalizeUserInput(trimmed).slice(0, 120) : undefined;
+	return trimmed ? formatDisplayUserInput(trimmed).slice(0, 120) : undefined;
 }
 
 export function parseTimestamp(value?: string | number | null): number {

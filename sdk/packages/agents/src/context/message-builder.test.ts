@@ -98,6 +98,26 @@ describe("MessageBuilder", () => {
 		expect(fileBlock?.content?.length).toBeLessThanOrEqual(50_000);
 	});
 
+	it("strips user command wrapper tags from user messages sent to the model", () => {
+		const builder = new MessageBuilder();
+		const messages: LlmsProviders.Message[] = [
+			{
+				role: "user",
+				content:
+					'<user_command slash="team">spawn a team of agents for the following task: inspect rpc startup</user_command>',
+			},
+		];
+
+		const built = builder.buildForApi(messages);
+
+		expect(built[0]).toEqual({
+			role: "user",
+			content:
+				"spawn a team of agents for the following task: inspect rpc startup",
+		});
+		expect(messages[0]?.content).toContain("<user_command");
+	});
+
 	it("truncates long search tool results before sending them to the model", () => {
 		const builder = new MessageBuilder();
 		const longSearchResult = "match\n".repeat(20_100);

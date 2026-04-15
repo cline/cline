@@ -300,6 +300,24 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 			},
 		})
 		.register("command", {
+			names: ["/team"],
+			run: async ({ args }, context) => {
+				const taskBody = args.join(" ").trim();
+				if (!taskBody) {
+					await context.reply(
+						"Usage: /team <task description>\nStarts a team of agents for the given task.",
+					);
+					return;
+				}
+				// In the default host the /team command only shows usage.
+				// The interactive runtime handles input transformation and
+				// session-level enableTeams toggling before this host runs.
+				await context.reply(
+					"The /team command must be entered directly as a prompt, not via a chat command.",
+				);
+			},
+		})
+		.register("command", {
 			names: ["/schedule"],
 			run: async ({ args }, context) => {
 				if (!context.schedule) {

@@ -45,6 +45,11 @@ import {
 	writeErr,
 	writeln,
 } from "./utils/output";
+import {
+	enableTeamsForPrompt,
+	rewriteTeamPrompt,
+	TEAM_COMMAND_USAGE,
+} from "./utils/team-command";
 import type { Config } from "./utils/types";
 
 export function stdinHasPipedInput(): boolean {
@@ -275,7 +280,7 @@ export async function runCli(): Promise<void> {
 			const opts = historyDeleteCmd.opts();
 			if (!opts.sessionId) {
 				writeErr("history delete requires --session-id <id>");
-				ctx.exitCode = 1;
+				ctx.exitCode = 0;
 				return;
 			}
 			const outputMode =
@@ -320,7 +325,11 @@ export async function runCli(): Promise<void> {
 		.description("Inspect or restore session checkpoints")
 		.option("--json", "Output as JSON")
 		.option("--session-id <id>", "Session ID to inspect")
-		.option("--config <dir>", "configuration directory");
+		.option("--config <dir>", "configuration directory")
+		.action(() => {
+			checkpointCmd.outputHelp();
+			ctx.exitCode = 0;
+		});
 
 	const checkpointStatusCmd = checkpointCmd
 		.command("status")
@@ -465,7 +474,6 @@ export async function runCli(): Promise<void> {
 				} else {
 					writeErr(err.message);
 				}
-				process.exitCode = 1;
 				return;
 			}
 			return;
@@ -787,6 +795,20 @@ export async function runCli(): Promise<void> {
 				const prompt = args.prompt
 					? `${args.prompt}\n\n${pipedInput}`
 					: pipedInput;
+				const rewrittenTeamPrompt = rewriteTeamPrompt(prompt);
+				if (rewrittenTeamPrompt.kind === "usage") {
+					writeln(TEAM_COMMAND_USAGE);
+					return;
+				}
+				if (rewrittenTeamPrompt.kind === "rewritten") {
+					enableTeamsForPrompt(config);
+					await runAgent(
+						rewrittenTeamPrompt.prompt,
+						config,
+						userInstructionWatcher,
+					);
+					return;
+				}
 				await runAgent(prompt, config, userInstructionWatcher);
 				return;
 			}
@@ -804,6 +826,20 @@ export async function runCli(): Promise<void> {
 		}
 
 		// Single prompt mode
+		const rewrittenTeamPrompt = rewriteTeamPrompt(args.prompt);
+		if (rewrittenTeamPrompt.kind === "usage") {
+			writeln(TEAM_COMMAND_USAGE);
+			return;
+		}
+		if (rewrittenTeamPrompt.kind === "rewritten") {
+			enableTeamsForPrompt(config);
+			await runAgent(
+				rewrittenTeamPrompt.prompt,
+				config,
+				userInstructionWatcher,
+			);
+			return;
+		}
 		await runAgent(args.prompt, config, userInstructionWatcher);
 		// Exit once agent is done in non-interactive mode
 		return;

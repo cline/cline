@@ -1,5 +1,5 @@
 import type { Llms } from "@clinebot/core";
-import { normalizeUserInput } from "@clinebot/core";
+import { formatDisplayUserInput, normalizeUserInput } from "@clinebot/core";
 
 type StoredSessionMessage = Llms.Message & {
 	metrics?: {
@@ -65,7 +65,8 @@ function getTextMessages(messages: Llms.Message[]): SessionPreviewMessage[] {
 		}
 		out.push({
 			role: raw.role,
-			text,
+			text:
+				raw.role === "user" ? toSingleLine(formatDisplayUserInput(text)) : text,
 		});
 	}
 	return out;

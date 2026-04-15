@@ -160,14 +160,10 @@ export async function runAgent(
 		requestToolApproval,
 	});
 
-	let errorAlreadyReported = false;
 	let reasoningChunkCount = 0;
 	let redactedReasoningChunkCount = 0;
 
 	const onAgentEvent = (event: AgentEvent) => {
-		if (event.type === "error") {
-			errorAlreadyReported = true;
-		}
 		if (event.type === "content_start" && event.contentType === "reasoning") {
 			reasoningChunkCount += 1;
 			if (event.redacted) {
@@ -253,7 +249,7 @@ export async function runAgent(
 				onConsecutiveMistakeLimitReached: (context) =>
 					resolveMistakeLimitDecision(config, context),
 			},
-			prompt,
+			prompt: userInput,
 			interactive: false,
 			userInstructionWatcher,
 			onTeamRestored: () => emitTeamRestored(config),
@@ -348,9 +344,9 @@ export async function runAgent(
 		if (config.outputMode === "text") {
 			writeln();
 		}
-		if (!errorAlreadyReported) {
-			writeErr(err instanceof Error ? err.message : String(err));
-		}
+		config.logger?.log(
+			err instanceof Error ? (err.stack ?? err.message) : String(err),
+		);
 		process.exitCode = 1;
 	} finally {
 		await cleanupRuntime();

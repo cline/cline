@@ -49,6 +49,48 @@ describe("chat commands", () => {
 		expect(reply).toHaveBeenCalledWith("hello world");
 	});
 
+	it("shows usage for /team with no arguments", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/team", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(true);
+		expect(reply).toHaveBeenCalledWith(
+			"Usage: /team <task description>\nStarts a team of agents for the given task.",
+		);
+	});
+
+	it("replies with unsupported message for /team with arguments in default host", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/team build a web app", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+		});
+
+		expect(handled).toBe(true);
+		expect(reply).toHaveBeenCalledWith(
+			"The /team command must be entered directly as a prompt, not via a chat command.",
+		);
+	});
+
 	it("runs /abort without disconnecting", async () => {
 		const abort = vi.fn(async () => undefined);
 		const reply = vi.fn(async () => undefined);

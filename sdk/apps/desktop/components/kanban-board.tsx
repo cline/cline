@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayUserInput } from "@clinebot/shared";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -76,9 +77,7 @@ function normalizePromptPreview(value: string | undefined): string {
 	if (!value) {
 		return "";
 	}
-	return value
-		.replace(/<user_input\b[^>]*>([\s\S]*?)<\/user_input>/gi, "$1")
-		.trim();
+	return formatDisplayUserInput(value).trim();
 }
 
 function deriveDiscoveredDisplayName(session: CliDiscoveredSession): string {

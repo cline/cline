@@ -174,6 +174,20 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
+	it("exits gracefully for handled command errors", async () => {
+		mockState.runAgentImports = 0;
+		mockState.runInteractiveImports = 0;
+
+		process.argv = ["bun", "src/index.ts", "history", "delete"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
 	it("does not load interactive runtime for single-prompt mode", async () => {
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
@@ -191,6 +205,52 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(mockState.runAgentImports).toBe(1);
 		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "/team", "find", "the", "bug"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			'<user_command slash="team">spawn a team of agents for the following task: find the bug</user_command>',
+			expect.objectContaining({
+				enableAgentTeams: true,
+				teamName: "team-test",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("shows /team usage in single-prompt mode when no task is provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		const stdoutWrite = vi
+			.spyOn(process.stdout, "write")
+			.mockImplementation(() => true);
+
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
+		process.argv = ["bun", "src/index.ts", "/team"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(0);
+		expect(stdoutWrite).toHaveBeenCalledWith(
+			expect.stringContaining("Usage: /team <task description>"),
+		);
 	});
 
 	it("enables thinking when reasoning effort is provided", async () => {

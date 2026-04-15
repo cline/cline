@@ -358,7 +358,8 @@ Behavior notes:
 
 - `clite auth` without a provider opens the interactive auth setup TUI.
 - Connector slash commands are shared across connector chat surfaces: `/clear`, `/whereami`, `/tools`, `/yolo`, `/cwd <path>`, `/exit`.
-- Interactive CLI can use the same slash-command parser only when `CLINE_ENABLE_CHAT_COMMANDS=1`.
+- Interactive CLI can use the shared slash-command parser when `CLINE_ENABLE_CHAT_COMMANDS=1`.
+- `/team <task>` is handled directly by the CLI in both interactive and non-interactive runs, even when chat commands are otherwise disabled.
 
 Auth quick-setup flags:
 

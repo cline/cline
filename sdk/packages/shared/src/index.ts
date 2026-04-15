@@ -146,9 +146,12 @@ export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";
 export { buildClineSystemPrompt, processWorkspaceInfo } from "./prompt/cline";
 export {
+	formatDisplayUserInput,
 	formatFileContentBlock,
+	formatUserCommandBlock,
 	formatUserInputBlock,
 	normalizeUserInput,
+	parseUserCommandEnvelope,
 	xmlTagsRemoval,
 } from "./prompt/format";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";

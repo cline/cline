@@ -133,7 +133,7 @@ describe("checkpoint commands", () => {
 		expect(io.writeln).toHaveBeenCalledWith("Restored checkpoint def456");
 	});
 
-	it("returns an error when checkpoint metadata is missing", async () => {
+	it("returns gracefully when checkpoint metadata is missing in text mode", async () => {
 		sessionMocks.getLatestSessionRow.mockResolvedValue({
 			sessionId: "sess_2",
 			cwd: "/tmp/repo",
@@ -143,6 +143,25 @@ describe("checkpoint commands", () => {
 
 		const code = await runCheckpointStatus({
 			outputMode: "text",
+			io,
+		});
+
+		expect(code).toBe(0);
+		expect(io.writeln).toHaveBeenCalledWith(
+			"No checkpoint metadata found for session sess_2",
+		);
+	});
+
+	it("still returns an error when checkpoint metadata is missing in json mode", async () => {
+		sessionMocks.getLatestSessionRow.mockResolvedValue({
+			sessionId: "sess_2",
+			cwd: "/tmp/repo",
+			metadata: {},
+		});
+		const { runCheckpointStatus } = await import("./checkpoint");
+
+		const code = await runCheckpointStatus({
+			outputMode: "json",
 			io,
 		});
 

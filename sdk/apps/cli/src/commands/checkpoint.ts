@@ -41,6 +41,19 @@ function readCheckpointMetadata(
 	};
 }
 
+function reportCheckpointAvailabilityIssue(
+	message: string,
+	outputMode: CliOutputMode,
+	io: CheckpointIo,
+): number {
+	if (outputMode === "json") {
+		io.writeErr(message);
+		return 1;
+	}
+	io.writeln(message);
+	return 0;
+}
+
 async function resolveSession(
 	sessionId?: string,
 ): Promise<SessionRecordWithCheckpoint | undefined> {
@@ -181,15 +194,19 @@ export async function runCheckpointStatus(input: {
 }): Promise<number> {
 	const session = await resolveSession(input.sessionId);
 	if (!session) {
-		input.io.writeErr("No matching session found");
-		return 1;
+		return reportCheckpointAvailabilityIssue(
+			"No matching session found",
+			input.outputMode,
+			input.io,
+		);
 	}
 	const metadata = readCheckpointMetadata(session);
 	if (!metadata) {
-		input.io.writeErr(
+		return reportCheckpointAvailabilityIssue(
 			`No checkpoint metadata found for session ${session.sessionId}`,
+			input.outputMode,
+			input.io,
 		);
-		return 1;
 	}
 	printSummary(session, metadata, input.outputMode, input.io);
 	return 0;
@@ -202,15 +219,15 @@ export async function runCheckpointList(input: {
 }): Promise<number> {
 	const session = await resolveSession(input.sessionId);
 	if (!session) {
-		input.io.writeErr("No matching session found");
-		return 1;
+		input.io.writeln("No matching session found");
+		return 0;
 	}
 	const metadata = readCheckpointMetadata(session);
 	if (!metadata) {
-		input.io.writeErr(
+		input.io.writeln(
 			`No checkpoint metadata found for session ${session.sessionId}`,
 		);
-		return 1;
+		return 0;
 	}
 	printList(session, metadata, input.outputMode, input.io);
 	return 0;
@@ -230,19 +247,19 @@ export async function runCheckpointRestore(input: {
 	}
 	const metadata = readCheckpointMetadata(session);
 	if (!metadata) {
-		input.io.writeErr(
+		input.io.writeln(
 			`No checkpoint metadata found for session ${session.sessionId}`,
 		);
-		return 1;
+		return 0;
 	}
 
 	let entry = selectCheckpoint(metadata, input.selector);
 	if (!entry) {
 		if (input.outputMode === "json") {
-			input.io.writeErr(
+			input.io.writeln(
 				"Checkpoint restore in json mode requires an explicit selector.",
 			);
-			return 1;
+			return 0;
 		}
 		entry = await promptForCheckpoint(metadata, input.io);
 		if (!entry) {

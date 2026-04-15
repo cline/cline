@@ -25,6 +25,12 @@ import { formatToolInput, formatToolOutput, truncate } from "../utils/helpers";
 import { c, formatUsd } from "../utils/output";
 import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
+import {
+	CONFIG_TABS,
+	ConfigView,
+	getVisibleWindow,
+	resolveActiveConfigItems,
+} from "./components/ConfigView";
 import { WelcomeView } from "./components/WelcomeView";
 
 interface InteractiveTurnResult {
@@ -94,37 +100,7 @@ const MAX_BUFFERED_LINES = 500;
 const DEFAULT_CONTEXT_WINDOW = 200000;
 const COMPLETION_DEBOUNCE_MS = 120;
 const MAX_COMPLETION_RESULTS = 8;
-const MAX_MENU_ITEMS_VISIBLE = 5;
-const MAX_CONFIG_ITEMS_VISIBLE = 12;
 const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
-const CONFIG_TABS: InteractiveConfigTab[] = [
-	"tools",
-	"plugins",
-	"agents",
-	"hooks",
-	"skills",
-	"rules",
-	"mcp",
-];
-
-function toTabLabel(tab: InteractiveConfigTab): string {
-	switch (tab) {
-		case "tools":
-			return "Tools";
-		case "skills":
-			return "Skills";
-		case "rules":
-			return "Rules";
-		case "hooks":
-			return "Hooks";
-		case "agents":
-			return "Agents";
-		case "plugins":
-			return "Plugins";
-		case "mcp":
-			return "MCP";
-	}
-}
 
 function isConfigCommand(text: string): boolean {
 	const normalized = text.trim().toLowerCase();
@@ -219,23 +195,6 @@ function truncatePath(path: string, maxLength = 70): string {
 		return path;
 	}
 	return `...${path.slice(-(maxLength - 3))}`;
-}
-
-function getVisibleWindow<T>(
-	items: T[],
-	selectedIndex: number,
-	maxVisible = MAX_MENU_ITEMS_VISIBLE,
-): { items: T[]; startIndex: number } {
-	if (items.length <= maxVisible) {
-		return { items, startIndex: 0 };
-	}
-	const halfWindow = Math.floor(maxVisible / 2);
-	let startIndex = Math.max(0, selectedIndex - halfWindow);
-	const endIndex = Math.min(items.length, startIndex + maxVisible);
-	if (endIndex - startIndex < maxVisible) {
-		startIndex = Math.max(0, endIndex - maxVisible);
-	}
-	return { items: items.slice(startIndex, endIndex), startIndex };
 }
 
 function resolveModelContextWindow(config: Config): number {
@@ -395,29 +354,10 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			? "slash"
 			: undefined;
 
-	const activeConfigItems = useMemo(() => {
-		switch (configTab) {
-			case "skills":
-				return [...configData.workflows, ...configData.skills].sort((a, b) => {
-					if (a.source !== b.source) {
-						return a.source === "workspace" ? -1 : 1;
-					}
-					return a.name.localeCompare(b.name);
-				});
-			case "rules":
-				return configData.rules;
-			case "hooks":
-				return configData.hooks;
-			case "agents":
-				return configData.agents;
-			case "plugins":
-				return configData.plugins;
-			case "mcp":
-				return configData.mcp;
-			case "tools":
-				return configData.tools;
-		}
-	}, [configData, configTab]);
+	const activeConfigItems = useMemo(
+		() => resolveActiveConfigItems(configData, configTab),
+		[configData, configTab],
+	);
 
 	const refreshRepoStatus = useCallback(() => {
 		void readRepoStatus(config.cwd).then((nextStatus) => {
@@ -880,7 +820,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				}
 			} catch (error) {
 				if (!turnErrorReportedRef.current) {
-					appendLine(
+					config.logger?.log(
 						`${c.red}error:${c.reset} ${error instanceof Error ? error.message : String(error)}`,
 					);
 				}
@@ -899,6 +839,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			onTurnErrorReported,
 			refreshRepoStatus,
 			uiMode,
+			config.logger,
 		],
 	);
 
@@ -1169,18 +1110,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		() => getVisibleWindow(filteredSlashCommands, slashSelectedIndex),
 		[filteredSlashCommands, slashSelectedIndex],
 	);
-	const visibleConfigItems = useMemo(
-		() =>
-			getVisibleWindow(
-				activeConfigItems,
-				Math.min(
-					configSelectedIndex,
-					Math.max(activeConfigItems.length - 1, 0),
-				),
-				MAX_CONFIG_ITEMS_VISIBLE,
-			),
-		[activeConfigItems, configSelectedIndex],
-	);
 	const contextBar = useMemo(
 		() => createContextBar(lastTotalTokens, contextWindowSize),
 		[lastTotalTokens, contextWindowSize],
@@ -1256,73 +1185,13 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				)
 			: null;
 
-	const renderConfigItems = isLoadingConfig
-		? React.createElement(Text, { color: "gray" }, "Loading config...")
-		: activeConfigItems.length === 0
-			? React.createElement(
-					Text,
-					{ color: "gray" },
-					`No ${toTabLabel(configTab).toLowerCase()} found.`,
-				)
-			: visibleConfigItems.items.map((item, index) => {
-					const absoluteIndex = visibleConfigItems.startIndex + index;
-					const selected = absoluteIndex === configSelectedIndex;
-					const prefix = selected ? "❯" : " ";
-					const enabledTag =
-						typeof item.enabled === "boolean"
-							? item.enabled
-								? "enabled"
-								: "disabled"
-							: "";
-					const details = [item.source, enabledTag, truncatePath(item.path, 42)]
-						.filter((value) => value.length > 0)
-						.join(" · ");
-					return React.createElement(
-						Box,
-						{
-							flexDirection: "column",
-							key: `${item.id}:${absoluteIndex}`,
-						},
-						React.createElement(
-							Text,
-							{ color: selected ? "blue" : undefined },
-							`${prefix} ${item.name}`,
-						),
-						React.createElement(Text, { color: "gray" }, `  ${details}`),
-					);
-				});
-
 	const renderConfigView = isConfigViewOpen
-		? React.createElement(
-				Box,
-				{
-					flexDirection: "column",
-					borderStyle: "round",
-					paddingX: 1,
-					marginBottom: 1,
-				},
-				React.createElement(Text, { color: "cyan" }, "Configuration"),
-				React.createElement(
-					Box,
-					{ marginBottom: 1, gap: 1 },
-					CONFIG_TABS.map((tab) =>
-						React.createElement(
-							Text,
-							{
-								key: tab,
-								color: tab === configTab ? "blue" : "gray",
-								bold: tab === configTab,
-							},
-							tab === configTab ? `[${toTabLabel(tab)}]` : toTabLabel(tab),
-						),
-					),
-				),
-				renderConfigItems,
-				activeConfigItems.length >
-					visibleConfigItems.startIndex + visibleConfigItems.items.length
-					? React.createElement(Text, { color: "gray" }, "  ▼")
-					: null,
-			)
+		? React.createElement(ConfigView, {
+				configTab,
+				configSelectedIndex,
+				activeConfigItems,
+				isLoadingConfig,
+			})
 		: null;
 
 	const renderMentionMenu =

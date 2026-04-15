@@ -52,6 +52,11 @@ export function listInteractiveSlashCommands(
 			instructions: "",
 			description: "Alias for /config",
 		},
+		{
+			name: "team",
+			instructions: "/team [prompt]",
+			description: "Start the task with agent team",
+		},
 	];
 	if (!watcher) {
 		return builtins;
