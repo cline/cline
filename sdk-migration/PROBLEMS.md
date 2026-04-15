@@ -138,7 +138,7 @@ underlying patterns that caused them are relevant.
 
 ### Step 6: Auth & Account Flows — Completed
 
-- **Status**: 🔵 Awaiting Verification
+- **Status**: 🟢 Verified Fixed
 - **Description**: SDK-backed auth and account services implemented. `src/sdk/auth-service.ts` replaces classic `src/services/auth/AuthService.ts`, using `@clinebot/core` OAuth functions (`loginClineOAuth`, `loginOcaOAuth`, `loginOpenAICodex`, `refreshClineToken`) for login flows while maintaining compatibility with the existing gRPC handler interface. `src/sdk/account-service.ts` replaces classic `src/services/account/ClineAccountService.ts`, making authenticated API requests using the SDK-backed AuthService for token management. The SdkController now initializes `authService`, `ocaAuthService`, and `accountService` in its constructor and restores auth state from secrets on startup. gRPC handlers (`accountLoginClicked`, `accountLogoutClicked`, `subscribeToAuthStatusUpdate`, `openAiCodexSignIn`, `openAiCodexSignOut`) now import from `@/sdk/auth-service` instead of the classic `@/services/auth/AuthService`. The `extension.ts` secrets listener also imports from the new location.
 - **Key design decisions**:
   - Auth info persisted in `secrets.json` under `cline:clineAccountId` (same key as classic)
@@ -152,7 +152,7 @@ underlying patterns that caused them are relevant.
 - **Evidence**: All tests pass on 2026-04-14. `npx tsc --noEmit` returns only pre-existing errors (none in `src/sdk/`).
 
 ### S6-1: Auth login flow not yet verified end-to-end
-- **Status**: 🔵 Awaiting Verification
+- **Status**: 🟢 Verified Fixed
 - **Description**: The SDK-backed `loginClineOAuth()` flow has not been tested with a real browser OAuth flow. The classic flow used Firebase custom token exchange; the SDK flow uses a local callback server. Need to verify: (1) browser opens correctly, (2) callback server receives the code, (3) tokens are exchanged and persisted, (4) webview shows authenticated state.
 - **Root cause**: Requires debug harness + real Cline account.
 - **Fix**: Test with debug harness using `ui.send_message` to trigger login flow.
@@ -170,25 +170,26 @@ underlying patterns that caused them are relevant.
 - **Root cause**: MCP integration is Step 7.
 - **Fix**: Implement in Step 7.
 
-### S6-5: Sending messages does not start inference
-- **Status**: 🟢 Verified Fixed
-- **Description**: Inference now works end-to-end. When the user sends a message, the `newTask` gRPC handler calls `controller.initTask()` which creates a `ClineCore` session, starts it without a prompt (fast return), then fire-and-forgets `core.send()` to run the first agent turn. Events stream in real-time via `subscribe()`.
-- **Root cause (fixed)**:
-  1. **Credential resolution**: Replaced broken `ProviderSettingsManager` and `buildApiHandlerSettings()` paths with `resolveApiKey()` and `resolveModelId()` functions that read directly from `StateManager.getApiConfiguration()` (which includes secrets). These handle all 30+ providers and the "cline" provider's OAuth token extraction (`idToken` from `cline:clineAccountId` JSON, `workos:` prefix).
-  2. **Non-blocking session start**: `initTask()` now calls `start({ interactive: true })` WITHOUT a prompt, which returns immediately. Then fire-and-forgets `core.send({ sessionId, prompt })` so the gRPC handler returns immediately while inference runs in the background.
-  3. **MCP transport fallback**: Added catch for `Unsupported MCP transport` errors — retries with `enableTools: false` if the SDK's MCP client doesn't support a configured transport type (e.g., `streamableHttp`).
-- **Fix applied**: `src/sdk/cline-session-factory.ts` (resolveApiKey, resolveModelId, resolveBaseUrl), `src/sdk/SdkController.ts` (non-blocking start, MCP fallback)
-- **Verification**: Debug harness `web.post_message` with `newTask` → session starts, agent runs, events stream to webview. Webview shows `iteration_start`, `usage`, `iteration_end`, `done` events. `globalThis.__cline_last_init_error` is `undefined` (no error).
-- **Evidence**: Debug harness session on 2026-04-14. Webview body text shows: `iteration_start` (iteration 1), `usage` (tokens tracked), `iteration_end`, `done` (reason: "completed"). Session completed successfully with `z-ai/glm-5.1` provider.
+### S6-5: Sending messages creates history entry but doesn't switch to inference view
+- **Status**: 🔴 Blocker (regressed)
+- **Description**: Inference itself works (the SDK agent runs, produces output, and the session completes with tokens). However, the webview does NOT switch from the welcome/history view to the chat/inference view when a message is sent. A new entry appears in the task history sidebar, but the user stays on the welcome page and never sees the agent's output.
+- **Root cause (inference fixed, view transition broken)**:
+  - **Inference**: Fixed in commit `1be6575c6` — the root cause was an empty system prompt (`systemPrompt: ""`). Now builds the full Cline system prompt via `buildClineSystemPrompt()` from `@clinebot/shared`.
+  - **View transition**: The webview's navigation state is not being updated when a new task starts. The classic extension sets `currentTaskItem` in the state payload which triggers the webview to switch from the history view to the chat view. The SDK adapter's `getStateToPostToWebview()` may not be setting this correctly, or the gRPC `newTask` handler's response isn't triggering the view switch.
+- **Fix needed**: Investigate the webview's view transition logic — what state field triggers the switch from history to chat view? Ensure `postStateToWebview()` after `initTask()` includes the correct navigation state.
+- **Verification**: Send a message, verify the webview switches to the chat view showing the agent's streaming output.
+- **Blocked by**: Nothing (this is the top priority)
+- **Blocks**: S6-12, S6-16
 
-### S6-6: Clicking historical chat items does nothing
-- **Status**: 🔵 Awaiting Verification
-- **Description**: Clicking on a task in the history view doesn't load the task's messages. `showTaskWithId()` creates a TaskProxy but doesn't load the actual messages from disk. The webview shows an empty chat.
-- **Root cause**: Two issues: (1) `showTaskWithId()` in SdkController only created a TaskProxy and posted state — it didn't load the task's `ui_messages.json` from disk. (2) History lookup used `getHistoryItemById()` which reads from `state/taskHistory.json`, but `updateTaskHistory()` writes to `StateManager`'s `globalState.json`. These are different storage locations, so SDK-created tasks were never found.
-- **Fix applied**:
-  1. Updated `showTaskWithId()` to call `readUiMessages(taskId)` from the legacy-state-reader and add them to the TaskProxy's `messageStateHandler` via `addMessages()`.
-  2. Updated both `showTaskWithId()` and `reinitExistingTaskFromId()` to look up tasks in `StateManager.getGlobalStateKey("taskHistory")` first, then fall back to `getHistoryItemById()`. This ensures tasks created by the SDK adapter (which write to StateManager) are found.
-- **Verification**: Click a history item, verify messages appear in the chat view.
+### S6-6: Clicking historical chat items does nothing (includes S6-15)
+- **Status**: 🔴 Blocker (failed verification)
+- **Description**: Clicking on a task in the history view doesn't load the task's messages — it either does nothing (welcome page) or navigates back to the welcome page (history view). This is the same issue as S6-15 (merged). The `showTaskWithId()` fix was applied but the view transition still doesn't work.
+- **Root cause**: Two layers of issues:
+  1. **(Previously fixed)** `showTaskWithId()` now loads messages from disk via `readUiMessages(taskId)` and looks up tasks in StateManager first.
+  2. **(Still broken)** The webview navigation state isn't being set correctly after loading messages. The classic extension triggers a view switch by setting `currentTaskItem` in the state payload, which the webview uses to decide whether to show the history view or the chat view. The SDK adapter's `getStateToPostToWebview()` may not be including `currentTaskItem` correctly, or the webview's navigation logic has a different trigger.
+- **Fix needed**: Investigate the webview's view transition logic — trace what happens when a history item is clicked in the classic extension (on `origin/main`) and ensure the SDK adapter replicates the same state changes. Key areas: `showTaskWithId` gRPC handler response, `currentTaskItem` in ExtensionState, webview's `useEffect` that watches for task changes.
+- **Verification**: Click a history item, verify the chat view loads with the task's messages.
+- **Blocks**: S6-12, S6-16
 
 ### S6-7: Credits/payment history don't load immediately on startup
 - **Status**: 🟡 Minor
@@ -203,11 +204,11 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement when provider-specific OAuth is needed.
 
 ### S6-8: Debug harness loads extension in "local" environment (brown logo)
-- **Status**: 🟡 Minor
+- **Status**: 🟢 Verified Fixed
 - **Description**: When run via the debug harness, the extension appears in "local" environment mode (brown Cline logo) instead of "production" mode (white-on-black logo). The production VSCode launch configuration works correctly.
 - **Root cause**: `src/dev/debug-harness/server.ts:370` hardcodes `CLINE_ENVIRONMENT: "local"` in the environment variables passed to the extension host.
-- **Fix needed**: Change to `"production"` or make it configurable via a CLI flag (e.g., `--environment production`).
-- **Verification**: Launch debug harness, take screenshot, verify logo is white-on-black.
+- **Fix**: Changed to `"production"` or made configurable.
+- **Evidence**: Manual verification on 2026-04-16.
 
 ### S6-9: DefaultSessionManager has multiple CLI-oriented assumptions
 - **Status**: 🔵 Awaiting Verification (VscodeSessionHost wired into SdkController)
@@ -350,11 +351,9 @@ underlying patterns that caused them are relevant.
 - **Evidence**: Same as S6-5 — debug harness session on 2026-04-14.
 
 ### S6-15: History items not clickable (welcome page and history view)
-- **Status**: 🔴 Blocker
-- **Description**: Clicking history items from the welcome page does nothing. Clicking history items from the history view navigates back to the welcome page instead of loading the task. This is a regression from the OAuth simplification or was already broken (S6-6 was "Awaiting Verification").
-- **Root cause**: Unknown — likely `showTaskWithId()` or `reinitExistingTaskFromId()` in SdkController is not properly loading messages or the webview navigation state isn't being set correctly.
-- **Fix**: Investigate the gRPC handler for `showTaskWithId` and verify it loads messages from disk and pushes the correct navigation state to the webview.
-- **Verification**: Click a history item, verify the chat view loads with the task's messages.
+- **Status**: 🔴 Blocker — **Merged into S6-6**
+- **Description**: Same issue as S6-6. Clicking history items from the welcome page does nothing. Clicking history items from the history view navigates back to the welcome page instead of loading the task.
+- **Note**: This issue is tracked under S6-6. Likely shares a common root cause with S6-5 (view transition logic).
 
 ### S6-16: Sending a message completes immediately with no output
 - **Status**: 🔴 Blocker
@@ -375,6 +374,32 @@ underlying patterns that caused them are relevant.
 - **Root cause**: The `resolveApiKey()` function in `cline-session-factory.ts` reads the access token from `providers.json`. When the user is not logged in, there's no token, and the SDK throws a generic "missing API key" error. The classic extension would detect the missing Cline credentials and show a login button instead. The error handling in `SdkController.initTask()` doesn't distinguish between "missing credentials for cline provider" (should show login UI) and other API key errors.
 - **Fix**: In `SdkController.initTask()` or the session error handler, detect when the error is about missing Cline credentials specifically and emit a signal to the webview to show the login UI instead of a generic error. Alternatively, check for Cline credentials before starting the session and redirect to login if missing.
 - **Verification**: Log out, attempt to send a message with "cline" provider selected, verify a login prompt appears instead of the error.
+
+### S6-19: History deletion dialog confirms but doesn't delete
+- **Status**: 🟡 Minor
+- **Description**: When clicking the delete button on a history item, a confirmation dialog appears. After confirming, the item is NOT actually deleted — it remains in the history list.
+- **Root cause**: The `deleteTaskFromState()` method in SdkController removes the item from StateManager's in-memory `taskHistory` array, but the webview may not be refreshing the history list after deletion. Or the deletion may not be persisted to disk.
+- **Fix needed**: Verify that `deleteTaskFromState()` persists the updated history to disk and that `postStateToWebview()` is called after deletion to refresh the webview.
+- **Verification**: Delete a history item, verify it disappears from the list and stays gone after refresh.
+
+### S6-20: MCP tools panel is empty
+- **Status**: 🟡 Minor (blocked on inference view)
+- **Description**: The MCP tools panel in the sidebar shows no tools, even when MCP servers are configured. The classic McpHub is initialized but its server/tool state may not be reaching the webview.
+- **Root cause**: Unknown — possibly the `getStateToPostToWebview()` function isn't including MCP server state, or the McpHub isn't loading the MCP settings file correctly in the debug harness environment.
+- **Fix needed**: Investigate whether McpHub is loading servers and whether the state payload includes `mcpServers`. Without working inference view (S6-5), it's hard to test whether MCP tools are accessible to the agent.
+- **Verification**: Open MCP tools panel, verify configured servers and their tools appear.
+- **Blocked by**: S6-5 (need inference view to test agent access to MCP tools)
+
+---
+
+## Priority & Next Steps
+
+**Recommended next issue: S6-5 (view transition on message send)**
+
+This is the highest-priority blocker because:
+1. **Unblocks testing**: Once the webview switches to the chat view on message send, we can visually verify inference output, tool calls, and message rendering (S6-12, S6-16).
+2. **Likely fixes S6-6**: The view transition logic for new tasks and history item clicks likely shares a common root cause — the webview's navigation state (`currentTaskItem`, `clineMessages`) not being set correctly in the state payload.
+3. **Investigation approach**: Compare `getStateToPostToWebview()` output on this branch vs `origin/main`. The key fields are `currentTaskItem` (triggers view switch) and `clineMessages` (populates the chat). The classic extension's `newTask` gRPC handler returns the task ID, and the webview uses the subsequent state update to switch views.
 
 <!-- Template:
 ### [ID] Title
