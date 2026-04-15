@@ -359,7 +359,8 @@
 							"kanban/overview",
 							"kanban/getting-started",
 							"kanban/core-workflow",
-							"kanban/features"
+							"kanban/features",
+							"kanban/remote-access"
 						]
 					}
 				]
