@@ -1,4 +1,5 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
+import { parseYamlFrontmatter } from "@core/context/instructions/user-instructions/frontmatter"
 import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
 import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
@@ -217,12 +218,15 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 		transformed.remoteConfiguredProviders = providers
 	}
 
-	// Map global rules and workflows
+	// Map global rules, workflows, and skills
 	if (remoteConfig.globalRules !== undefined) {
 		transformed.remoteGlobalRules = remoteConfig.globalRules
 	}
 	if (remoteConfig.globalWorkflows !== undefined) {
 		transformed.remoteGlobalWorkflows = remoteConfig.globalWorkflows
+	}
+	if (remoteConfig.globalSkills !== undefined) {
+		transformed.remoteGlobalSkills = remoteConfig.globalSkills
 	}
 
 	if (remoteConfig.enterpriseTelemetry?.promptUploading) {
@@ -282,6 +286,7 @@ export function clearRemoteConfig() {
 		// the remote config cline rules toggle state is stored in global state
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
+		stateManager.setGlobalState("remoteSkillsToggles", {})
 
 		// clear secrets
 		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
@@ -322,8 +327,19 @@ export async function applyRemoteConfig(
 	const syncedRuleToggles = synchronizeRemoteRuleToggles(remoteConfig.globalRules || [], currentRuleToggles)
 	const syncedWorkflowToggles = synchronizeRemoteRuleToggles(remoteConfig.globalWorkflows || [], currentWorkflowToggles)
 
+	// For remote skills, identity is frontmatter.name (not entry.name). Parse and filter valid entries.
+	const currentSkillToggles = stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+	const parsedSkillEntries = (remoteConfig.globalSkills || [])
+		.map((entry) => {
+			const { data } = parseYamlFrontmatter(entry.contents)
+			return typeof data.name === "string" ? { ...entry, name: data.name } : null
+		})
+		.filter((e): e is NonNullable<typeof e> => e !== null)
+	const syncedSkillToggles = synchronizeRemoteRuleToggles(parsedSkillEntries, currentSkillToggles)
+
 	stateManager.setGlobalState("remoteRulesToggles", syncedRuleToggles)
 	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
+	stateManager.setGlobalState("remoteSkillsToggles", syncedSkillToggles)
 
 	// Clear existing remote config cache
 	stateManager.clearRemoteConfig()

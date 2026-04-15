@@ -786,16 +786,21 @@ const ClineRulesToggleModal: React.FC = () => {
 									<div className="flex flex-col gap-0">
 										{globalSkills
 											.sort((a, b) => a.name.localeCompare(b.name))
-											.map((skill) => (
-												<RuleRow
-													enabled={skill.enabled}
-													isGlobal={true}
-													key={skill.path}
-													rulePath={skill.path}
-													ruleType="skill"
-													toggleRule={(path, enabled) => toggleSkill(true, path, enabled)}
-												/>
-											))}
+											.map((skill) => {
+												const isRemote = skill.path.startsWith("remote:")
+												return (
+													<RuleRow
+														enabled={skill.enabled}
+														isGlobal={true}
+														isRemote={isRemote}
+														alwaysEnabled={isRemote ? skill.alwaysEnabled : undefined}
+														key={skill.path}
+														rulePath={isRemote ? skill.name : skill.path}
+														ruleType="skill"
+														toggleRule={(_path, enabled) => toggleSkill(true, skill.path, enabled)}
+													/>
+												)
+											})}
 										<NewRuleRow isGlobal={true} ruleType="skill" />
 									</div>
 								</div>

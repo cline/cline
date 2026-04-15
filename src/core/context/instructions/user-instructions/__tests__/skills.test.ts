@@ -467,4 +467,121 @@ description: Test
 			expect(content!.instructions).to.equal("Instructions with whitespace")
 		})
 	})
+
+	describe("Remote Skills", () => {
+		const makeEntry = (name: string, desc: string, body = "Instructions", alwaysEnabled = false) => ({
+			name: "entry-key",
+			alwaysEnabled,
+			contents: `---\nname: ${name}\ndescription: ${desc}\n---\n${body}`,
+		})
+
+		describe("discoverSkills - remote skill discovery", () => {
+			it("should include remote skills from remote config", async () => {
+				const entries = [makeEntry("Deploy Pipeline", "Handles CI/CD deployment", "Deploy instructions")]
+				const skills = await discoverSkills(TEST_CWD, entries)
+
+				const remoteSkill = skills.find((s) => s.name === "Deploy Pipeline")
+				expect(remoteSkill).to.not.be.undefined
+				expect(remoteSkill!.path).to.equal("remote:Deploy Pipeline")
+				expect(remoteSkill!.source).to.equal("global")
+				expect(remoteSkill!.description).to.equal("Handles CI/CD deployment")
+			})
+
+			it("should use frontmatter.name as identity (not entry.name)", async () => {
+				const entries = [makeEntry("My Actual Skill", "The real name")]
+				const skills = await discoverSkills(TEST_CWD, entries)
+
+				expect(skills.find((s) => s.name === "My Actual Skill")).to.not.be.undefined
+				expect(skills.find((s) => s.name === "entry-key")).to.be.undefined
+			})
+
+			it("should skip remote skills with missing frontmatter name", async () => {
+				const entries = [{ name: "bad", alwaysEnabled: false, contents: `---\ndescription: No name\n---\nContent` }]
+				const skills = await discoverSkills(TEST_CWD, entries)
+				expect(skills.find((s) => s.path?.startsWith("remote:"))).to.be.undefined
+			})
+
+			it("should skip remote skills with missing frontmatter description", async () => {
+				const entries = [{ name: "bad", alwaysEnabled: false, contents: `---\nname: No Desc\n---\nContent` }]
+				const skills = await discoverSkills(TEST_CWD, entries)
+				expect(skills.find((s) => s.path?.startsWith("remote:"))).to.be.undefined
+			})
+
+			it("should handle empty and undefined entries gracefully", async () => {
+				for (const val of [[], undefined]) {
+					const skills = await discoverSkills(TEST_CWD, val)
+					expect(skills.filter((s) => s.path?.startsWith("remote:"))).to.have.lengthOf(0)
+				}
+			})
+		})
+
+		describe("Override resolution (remote > disk-global > project)", () => {
+			it("remote overrides disk-global skill of same name", async () => {
+				const entries = [makeEntry("coding", "Remote coding")]
+				const diskGlobalDir = path.join(GLOBAL_SKILLS_DIR, "coding")
+				const diskGlobalMd = path.join(diskGlobalDir, "SKILL.md")
+				fileExistsStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+				fileExistsStub.withArgs(diskGlobalMd).resolves(true)
+				isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
+				readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["coding"])
+				statStub.withArgs(diskGlobalDir).resolves({ isDirectory: () => true })
+				readFileStub.withArgs(diskGlobalMd, "utf-8").resolves(`---\nname: coding\ndescription: Disk global coding\n---\nDisk`)
+
+				const available = getAvailableSkills(await discoverSkills(TEST_CWD, entries))
+				expect(available).to.have.lengthOf(1)
+				expect(available[0].description).to.equal("Remote coding")
+				expect(available[0].path).to.equal("remote:coding")
+			})
+
+			it("remote overrides project skill of same name", async () => {
+				const entries = [makeEntry("coding", "Remote coding")]
+				const projDir = path.join(TEST_CWD, ".clinerules", "skills")
+				const projSkillDir = path.join(projDir, "coding")
+				const projMd = path.join(projSkillDir, "SKILL.md")
+				fileExistsStub.withArgs(projDir).resolves(true)
+				fileExistsStub.withArgs(projMd).resolves(true)
+				isDirectoryStub.withArgs(projDir).resolves(true)
+				readdirStub.withArgs(projDir).resolves(["coding"])
+				statStub.withArgs(projSkillDir).resolves({ isDirectory: () => true })
+				readFileStub.withArgs(projMd, "utf-8").resolves(`---\nname: coding\ndescription: Project coding\n---\nProject`)
+
+				const available = getAvailableSkills(await discoverSkills(TEST_CWD, entries))
+				expect(available).to.have.lengthOf(1)
+				expect(available[0].description).to.equal("Remote coding")
+				expect(available[0].path).to.equal("remote:coding")
+			})
+		})
+
+		describe("getSkillContent - remote skill content loading", () => {
+			it("should load content from provided entries for remote skills", async () => {
+				const entries = [makeEntry("Deploy Pipeline", "Deployment skill", "These are the deployment instructions.")]
+				const skill = { name: "Deploy Pipeline", description: "Deployment skill", path: "remote:Deploy Pipeline", source: "global" as const }
+				const content = await getSkillContent("Deploy Pipeline", [skill], entries)
+
+				expect(content).to.not.be.null
+				expect(content!.name).to.equal("Deploy Pipeline")
+				expect(content!.instructions).to.equal("These are the deployment instructions.")
+			})
+
+			it("should trim whitespace from remote skill instructions", async () => {
+				const entries = [makeEntry("Trim Skill", "Test", "\n   Instructions with whitespace   \n\n")]
+				const skill = { name: "Trim Skill", description: "Test", path: "remote:Trim Skill", source: "global" as const }
+				const content = await getSkillContent("Trim Skill", [skill], entries)
+				expect(content!.instructions).to.equal("Instructions with whitespace")
+			})
+
+			it("should return null if remote skill entry not found in entries", async () => {
+				const skill = { name: "Gone", description: "Removed", path: "remote:Gone", source: "global" as const }
+				const content = await getSkillContent("Gone", [skill], [])
+				expect(content).to.be.null
+			})
+
+			it("should not attempt disk read for remote skills", async () => {
+				const entries = [makeEntry("Remote Only", "Test", "Remote content")]
+				const skill = { name: "Remote Only", description: "Test", path: "remote:Remote Only", source: "global" as const }
+				await getSkillContent("Remote Only", [skill], entries)
+				sinon.assert.notCalled(readFileStub)
+			})
+		})
+	})
 })

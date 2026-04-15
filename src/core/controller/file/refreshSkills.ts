@@ -97,6 +97,33 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 		skill.enabled = globalToggles[skill.path] !== false
 	}
 
+	// Add remote skills from remote config.
+	// Precedence: remote (enterprise) > disk-global (user) > project (workspace).
+	// Remote entries are appended to globalSkills[] and rendered under "Global Skills" in the UI.
+	// The toggle store distinguishes them by the "remote:" path prefix.
+	const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
+	const remoteSkillEntries = remoteConfigSettings.remoteGlobalSkills || []
+	const remoteSkillsToggles = controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+
+	for (const entry of remoteSkillEntries) {
+		const { data: frontmatter } = parseYamlFrontmatter(entry.contents)
+		if (!frontmatter.name || typeof frontmatter.name !== "string") continue
+		if (!frontmatter.description || typeof frontmatter.description !== "string") continue
+
+		const name = frontmatter.name
+		const enabled = entry.alwaysEnabled || remoteSkillsToggles[name] !== false
+
+		globalSkills.push(
+			SkillInfo.create({
+				name,
+				description: frontmatter.description,
+				path: `remote:${name}`,
+				enabled,
+				alwaysEnabled: entry.alwaysEnabled,
+			}),
+		)
+	}
+
 	// Get local toggles and apply them
 	const localToggles = controller.stateManager.getWorkspaceStateKey("localSkillsToggles") || {}
 	for (const skill of localSkills) {

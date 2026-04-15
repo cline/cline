@@ -36,14 +36,20 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 		}
 
 		// Discover skills on-demand (lazy loading)
-		const allSkills = await discoverSkills(config.cwd)
+		const remoteSkillEntries = config.services.stateManager.getRemoteConfigSettings().remoteGlobalSkills || []
+		const allSkills = await discoverSkills(config.cwd, remoteSkillEntries)
 		const resolvedSkills = getAvailableSkills(allSkills)
 
 		// Filter by toggle state
 		const stateManager = config.services.stateManager
 		const globalSkillsToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
 		const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const remoteSkillsToggles = stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {}
 		const availableSkills = resolvedSkills.filter((skill) => {
+			if (skill.path.startsWith("remote:")) {
+				const name = skill.path.replace("remote:", "")
+				return remoteSkillsToggles[name] !== false
+			}
 			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
 			return toggles[skill.path] !== false
 		})
@@ -68,7 +74,7 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 		config.taskState.consecutiveMistakeCount = 0
 
 		try {
-			const skillContent = await getSkillContent(skillName, availableSkills)
+			const skillContent = await getSkillContent(skillName, availableSkills, remoteSkillEntries)
 
 			if (!skillContent) {
 				const availableNames = availableSkills.map((s: SkillMetadata) => s.name).join(", ")
@@ -89,12 +95,16 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 				"UseSkillToolHandler.execute",
 			)
 
+			const skillDirNote = skillContent.path.startsWith("remote:")
+				? ""
+				: ` You may access other files in the skill directory at: ${skillContent.path.replace(/SKILL\.md$/, "")}`
+
 			return `# Skill "${skillContent.name}" is now active
 
 ${skillContent.instructions}
 
 ---
-IMPORTANT: The skill is now loaded. Do NOT call use_skill again for this task. Simply follow the instructions above to complete the user's request. You may access other files in the skill directory at: ${skillContent.path.replace(/SKILL\.md$/, "")}`
+IMPORTANT: The skill is now loaded. Do NOT call use_skill again for this task. Simply follow the instructions above to complete the user's request.${skillDirNote}`
 		} catch (error) {
 			return `Error loading skill "${skillName}": ${(error as Error)?.message}`
 		}

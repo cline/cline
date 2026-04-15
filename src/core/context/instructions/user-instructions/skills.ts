@@ -1,4 +1,5 @@
 import { getSkillsDirectoriesForScan } from "@core/storage/disk"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
@@ -91,19 +92,49 @@ async function loadSkillMetadata(
 }
 
 /**
- * Discover all skills from global (~/.cline/skills) and project directories.
- * Returns skills in order: project skills first, then global skills.
- * Global skills take precedence over project skills with the same name.
+ * Discover all skills from global (~/.cline/skills), remote config, and project directories.
+ *
+ * Precedence (highest wins on name collision via getAvailableSkills):
+ *   remote (enterprise) > disk-global (user personal) > project (workspace)
+ *
+ * This is achieved by the array order + getAvailableSkills iterating in reverse (last wins):
+ *   [project..., disk-global..., remote...]
  */
-export async function discoverSkills(cwd: string): Promise<SkillMetadata[]> {
+export async function discoverSkills(cwd: string, remoteSkillEntries?: GlobalInstructionsFile[]): Promise<SkillMetadata[]> {
 	const skills: SkillMetadata[] = []
 
 	const scanDirs = getSkillsDirectoriesForScan(cwd)
 
+	// Collect project and disk-global skills separately so we can insert remote between them
+	const projectSkills: SkillMetadata[] = []
+	const diskGlobalSkills: SkillMetadata[] = []
+
 	for (const dir of scanDirs) {
 		const dirSkills = await scanSkillsDirectory(dir.path, dir.source)
-		skills.push(...dirSkills)
+		if (dir.source === "project") {
+			projectSkills.push(...dirSkills)
+		} else {
+			diskGlobalSkills.push(...dirSkills)
+		}
 	}
+
+	// Remote skills: identity is frontmatter.name (not entry.name)
+	const remoteSkills: SkillMetadata[] = []
+	for (const entry of remoteSkillEntries || []) {
+		const { data: frontmatter } = parseYamlFrontmatter(entry.contents)
+		if (!frontmatter.name || typeof frontmatter.name !== "string") continue
+		if (!frontmatter.description || typeof frontmatter.description !== "string") continue
+		remoteSkills.push({
+			name: frontmatter.name,
+			description: frontmatter.description,
+			path: `remote:${frontmatter.name}`,
+			source: "global",
+		})
+	}
+
+	// Insert in order: project → disk-global → remote
+	// getAvailableSkills iterates backwards so remote (last) wins, then disk-global, then project
+	skills.push(...projectSkills, ...diskGlobalSkills, ...remoteSkills)
 
 	return skills
 }
@@ -129,10 +160,29 @@ export function getAvailableSkills(skills: SkillMetadata[]): SkillMetadata[] {
 
 /**
  * Get full skill content including instructions.
+ * For remote skills, pass remoteSkillEntries so content can be loaded without disk I/O.
  */
-export async function getSkillContent(skillName: string, availableSkills: SkillMetadata[]): Promise<SkillContent | null> {
+export async function getSkillContent(
+	skillName: string,
+	availableSkills: SkillMetadata[],
+	remoteSkillEntries?: GlobalInstructionsFile[],
+): Promise<SkillContent | null> {
 	const skill = availableSkills.find((s) => s.name === skillName)
 	if (!skill) return null
+
+	// Remote skills have no file on disk — retrieve content from the provided entries
+	if (skill.path.startsWith("remote:")) {
+		const entry = (remoteSkillEntries || []).find((e) => {
+			const { data } = parseYamlFrontmatter(e.contents)
+			return typeof data.name === "string" && data.name === skillName
+		})
+		if (!entry) return null
+		const { body } = parseYamlFrontmatter(entry.contents)
+		return {
+			...skill,
+			instructions: body.trim(),
+		}
+	}
 
 	try {
 		const fileContent = await fs.readFile(skill.path, "utf-8")
