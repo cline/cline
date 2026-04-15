@@ -16,6 +16,7 @@
   <a href="https://marketplace.visualstudio.com/items?itemName=aihydro.ai-hydro"><img src="https://img.shields.io/visual-studio-marketplace/v/aihydro.ai-hydro?label=VS%20Code%20Marketplace&color=0078d7" alt="Marketplace" /></a>
   <a href="https://pypi.org/project/aihydro-tools/"><img src="https://img.shields.io/pypi/v/aihydro-tools?color=3775a9" alt="PyPI" /></a>
   <a href="https://github.com/AI-Hydro/AI-Hydro/releases"><img src="https://img.shields.io/github/v/release/AI-Hydro/AI-Hydro?label=release&color=blue" alt="Release" /></a>
+  <a href="https://doi.org/10.5281/zenodo.19597664"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.19597664-blue" alt="DOI" /></a>
   <a href="./LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License" /></a>
   <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-blue" alt="Python" /></a>
 </p>
@@ -341,13 +342,28 @@ See the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) 
 If you use AI-Hydro in your research, please cite:
 
 ```bibtex
-@software{aihydro2026,
-  title   = {AI-Hydro: An Intelligent Computational Hydrology Research Platform
-             for Hydrology and Geospatial Sciences},
+@software{aihydro_extension_2026,
+  title   = {AI-Hydro: An Open Platform for End-to-End AI-Automated
+             Hydrological Research (VS Code Extension)},
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},
-  url     = {https://github.com/AI-Hydro/AI-Hydro},
-  version = {0.1.3}
+  version = {0.1.3},
+  doi     = {10.5281/zenodo.19597664},
+  url     = {https://doi.org/10.5281/zenodo.19597664}
+}
+```
+
+For the Python MCP server package, cite:
+
+```bibtex
+@software{aihydro_tools_2026,
+  title   = {aihydro-tools: Python MCP Server for AI-Automated
+             Hydrological Research},
+  author  = {Galib, Mohammad and Merwade, Venkatesh},
+  year    = {2026},
+  version = {1.2.1},
+  doi     = {10.5281/zenodo.19597589},
+  url     = {https://doi.org/10.5281/zenodo.19597589}
 }
 ```
 
