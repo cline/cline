@@ -160,7 +160,13 @@ export class Controller {
 	 * Translates the event and emits ClineMessages to listeners.
 	 */
 	private handleSessionEvent(event: CoreSessionEvent): void {
+		Logger.log(
+			`[SdkController] handleSessionEvent: type=${event.type}, payload=${JSON.stringify(event.type === "agent_event" ? { eventType: (event as any).payload?.event?.type } : {}).substring(0, 200)}`,
+		)
 		const result = translateSessionEvent(event, this.messageTranslatorState)
+		Logger.log(
+			`[SdkController] translateSessionEvent result: messages=${result.messages.length}, sessionEnded=${result.sessionEnded}, turnComplete=${result.turnComplete}`,
+		)
 
 		if (result.messages.length > 0) {
 			this.emitSessionEvents(result.messages, event)
@@ -306,6 +312,10 @@ export class Controller {
 			// We do NOT await this — the gRPC handler needs to return immediately.
 			if (task?.trim()) {
 				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
+				Logger.log(
+					`[SdkController] Config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}, apiKeyPrefix=${config.apiKey?.substring(0, 15)}`,
+				)
+				const sendStartTime = Date.now()
 				sessionManager
 					.send({
 						sessionId: startResult.sessionId,
@@ -313,8 +323,10 @@ export class Controller {
 						userImages: images,
 						userFiles: files,
 					})
-					.then(() => {
-						Logger.log(`[SdkController] Agent turn completed for session: ${startResult.sessionId}`)
+					.then((result) => {
+						Logger.log(
+							`[SdkController] Agent turn completed for session: ${startResult.sessionId}, result=${JSON.stringify(result)?.substring(0, 200)}`,
+						)
 						if (this.activeSession) {
 							this.activeSession.isRunning = false
 						}
