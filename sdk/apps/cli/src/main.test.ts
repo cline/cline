@@ -1,8 +1,14 @@
 import { fstatSync } from "node:fs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+/** Real `fstatSync` — used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
+const fsActual = vi.hoisted(() => ({
+	realFstatSync: null as null | typeof import("node:fs").fstatSync,
+}));
+
 vi.mock("node:fs", async () => {
 	const actual = await vi.importActual<typeof import("node:fs")>("node:fs");
+	fsActual.realFstatSync = actual.fstatSync;
 	return { ...actual, fstatSync: vi.fn(actual.fstatSync) };
 });
 
@@ -59,6 +65,25 @@ const loggingMocks = vi.hoisted(() => ({
 	})),
 	flushCliLoggerAdapters: vi.fn(),
 }));
+
+function forcePromptModeInput() {
+	Object.defineProperty(process.stdin, "isTTY", {
+		value: true,
+		configurable: true,
+	});
+	vi.mocked(fstatSync).mockImplementation((fd, ...rest) => {
+		if (fd === 0) {
+			throw new Error("stdin not piped");
+		}
+		const real = fsActual.realFstatSync;
+		if (!real) {
+			throw new Error("node:fs fstatSync mock not initialized");
+		}
+		return real(fd, ...rest) as
+			| import("node:fs").Stats
+			| import("node:fs").BigIntStats;
+	});
+}
 
 vi.mock("./runtime/run-agent", () => {
 	mockState.runAgentImports += 1;
@@ -117,6 +142,9 @@ describe("runCli lightweight command dispatch", () => {
 
 	beforeEach(() => {
 		process.exitCode = undefined;
+		mockState.runAgentImports = 0;
+		mockState.runInteractiveImports = 0;
+		mockState.runAgentCalls = 0;
 		historyMocks.runHistoryList.mockReset();
 		historyMocks.runHistoryList.mockResolvedValue(0);
 		historyMocks.runHistoryDelete.mockReset();
@@ -134,6 +162,25 @@ describe("runCli lightweight command dispatch", () => {
 			mockState.runAgentCalls += 1;
 		});
 		runtimeMocks.runInteractive.mockReset();
+		authMocks.ensureOAuthProviderApiKey.mockReset();
+		authMocks.getPersistedProviderApiKey.mockReset();
+		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
+		authMocks.isOAuthProvider.mockReset();
+		authMocks.isOAuthProvider.mockReturnValue(false);
+		authMocks.normalizeProviderId.mockReset();
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "cline",
+		);
+		authMocks.parseAuthCommandArgs.mockReset();
+		authMocks.runAuthCommand.mockReset();
+		// CI: fd 0 is often a pipe with no EOF. If routing ever falls through to agent bootstrap,
+		// `main` can block forever in `for await (process.stdin)` (see `!process.stdin.isTTY && …`).
+		// Mark stdin as a TTY so that path is skipped in unit tests (real piped-input behavior is
+		// covered elsewhere). `forcePromptModeInput()` in agent tests still tightens fstat on fd 0.
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: true,
+			configurable: true,
+		});
 	});
 
 	afterEach(() => {
@@ -189,38 +236,27 @@ describe("runCli lightweight command dispatch", () => {
 	});
 
 	it("does not load interactive runtime for single-prompt mode", async () => {
-		mockState.runAgentImports = 0;
-		mockState.runInteractiveImports = 0;
-		mockState.runAgentCalls = 0;
-
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
-		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(mockState.runAgentImports).toBe(1);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
 	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {
-		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "/team", "find", "the", "bug"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
-		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
 			'<user_command slash="team">spawn a team of agents for the following task: find the bug</user_command>',
 			expect.objectContaining({
@@ -238,10 +274,7 @@ describe("runCli lightweight command dispatch", () => {
 			.spyOn(process.stdout, "write")
 			.mockImplementation(() => true);
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "/team"];
 
 		const { runCli } = await import("./main");
@@ -257,10 +290,7 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = [
 			"bun",
 			"src/index.ts",
@@ -287,10 +317,7 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "--thinking", "hello"];
 
 		const { runCli } = await import("./main");
@@ -314,10 +341,7 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "hello"];
 
 		const { runCli } = await import("./main");
@@ -342,10 +366,7 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
 		authMocks.ensureOAuthProviderApiKey.mockClear();
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "--json", "hello"];
 
 		const { runCli } = await import("./main");
@@ -372,10 +393,7 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
 		authMocks.ensureOAuthProviderApiKey.mockClear();
 
-		Object.defineProperty(process.stdin, "isTTY", {
-			value: true,
-			configurable: true,
-		});
+		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "--json", "hello"];
 
 		const { runCli } = await import("./main");

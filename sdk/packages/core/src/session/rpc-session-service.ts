@@ -84,14 +84,17 @@ export interface RpcCoreSessionServiceOptions {
 export class RpcCoreSessionService extends UnifiedSessionPersistenceService {
 	private readonly sessionsDirPath: string;
 	private readonly client: RpcSessionClient;
+	public readonly address: string;
 
 	constructor(options: RpcCoreSessionServiceOptions) {
+		const address = options.address?.trim() || "127.0.0.1:4317";
 		const client = new RpcSessionClient({
-			address: options.address?.trim() || "127.0.0.1:4317",
+			address,
 		});
 		super(new RpcSessionPersistenceAdapter(client));
 		this.sessionsDirPath = options.sessionsDir;
 		this.client = client;
+		this.address = address;
 	}
 
 	override ensureSessionsDir(): string {

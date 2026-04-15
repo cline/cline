@@ -19,6 +19,7 @@ import {
 import { setHomeDirIfUnset } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { createContextCompactionPrepareTurn } from "../extensions/context/compaction";
+import type { HookEventPayload } from "../hooks";
 import { enrichPromptWithMentions } from "../input";
 import { createCheckpointHooks } from "../runtime/checkpoint-hooks";
 import { mergeAgentHooks } from "../runtime/hook-file-hooks";
@@ -146,6 +147,7 @@ export interface DefaultSessionManagerOptions {
 }
 
 export class DefaultSessionManager implements SessionManager {
+	public readonly runtimeAddress = undefined;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => Agent;
@@ -559,6 +561,26 @@ export class DefaultSessionManager implements SessionManager {
 		return result.deleted;
 	}
 
+	async update(
+		sessionId: string,
+		updates: {
+			prompt?: string | null;
+			metadata?: Record<string, unknown> | null;
+			title?: string | null;
+		},
+	): Promise<{ updated: boolean }> {
+		const result = await this.invokeOptionalValue<{ updated?: boolean }>(
+			"updateSession",
+			{
+				sessionId,
+				prompt: updates.prompt,
+				metadata: updates.metadata,
+				title: updates.title,
+			},
+		);
+		return { updated: result?.updated === true };
+	}
+
 	async readTranscript(sessionId: string, maxChars?: number): Promise<string> {
 		const row = await this.getRow(sessionId);
 		if (!row?.transcriptPath || !existsSync(row.transcriptPath)) return "";
@@ -601,6 +623,45 @@ export class DefaultSessionManager implements SessionManager {
 				return { raw: line };
 			}
 		});
+	}
+
+	async handleHookEvent(payload: HookEventPayload): Promise<void> {
+		const shouldTouchSessions =
+			payload.hookName === "tool_call" || !!payload.parent_agent_id;
+		if (!shouldTouchSessions) {
+			return;
+		}
+		await this.invokeOptional("queueSpawnRequest", payload);
+		const subSessionId = await this.invokeOptionalValue<string | undefined>(
+			"upsertSubagentSessionFromHook",
+			payload,
+		);
+		if (!subSessionId) {
+			return;
+		}
+		await this.invokeOptional("appendSubagentHookAudit", subSessionId, payload);
+		if (payload.hookName === "tool_call") {
+			await this.invokeOptional(
+				"appendSubagentTranscriptLine",
+				subSessionId,
+				`[tool] ${payload.tool_call?.name ?? "unknown"}`,
+			);
+		}
+		if (payload.hookName === "agent_end") {
+			await this.invokeOptional(
+				"appendSubagentTranscriptLine",
+				subSessionId,
+				"[done] completed",
+			);
+		}
+		if (payload.hookName === "session_shutdown") {
+			await this.invokeOptional(
+				"appendSubagentTranscriptLine",
+				subSessionId,
+				`[shutdown] ${payload.reason ?? "session shutdown"}`,
+			);
+		}
+		await this.invokeOptional("applySubagentStatus", subSessionId, payload);
 	}
 
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {

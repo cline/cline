@@ -47,7 +47,13 @@ export function getActiveCliSession(): ActiveCliSession | undefined {
 // Stream error guards
 // =============================================================================
 
-let streamErrorGuardsBound = false;
+const STDOUT_ERROR_GUARD = Symbol.for("@clinebot/cli.stdoutErrorGuard");
+const STDERR_ERROR_GUARD = Symbol.for("@clinebot/cli.stderrErrorGuard");
+
+type GuardedStream = NodeJS.WriteStream & {
+	[STDOUT_ERROR_GUARD]?: (error: unknown) => void;
+	[STDERR_ERROR_GUARD]?: (error: unknown) => void;
+};
 
 export function isBrokenPipeError(error: unknown): boolean {
 	return Boolean(
@@ -60,30 +66,43 @@ export function isBrokenPipeError(error: unknown): boolean {
 }
 
 export function installStreamErrorGuards(): void {
-	if (streamErrorGuardsBound) {
-		return;
+	const stdout = process.stdout as GuardedStream;
+	if (!stdout[STDOUT_ERROR_GUARD]) {
+		const onStdoutError = (error: unknown) => {
+			if (isBrokenPipeError(error)) {
+				process.exit(0);
+			}
+		};
+		stdout[STDOUT_ERROR_GUARD] = onStdoutError;
+		stdout.on("error", onStdoutError);
+		registerDisposable(() => {
+			const guard = stdout[STDOUT_ERROR_GUARD];
+			if (!guard) {
+				return;
+			}
+			stdout.off("error", guard);
+			delete stdout[STDOUT_ERROR_GUARD];
+		});
 	}
-	streamErrorGuardsBound = true;
 
-	const onStdoutError = (error: unknown) => {
-		if (isBrokenPipeError(error)) {
-			process.exit(0);
-		}
-	};
-	const onStderrError = (error: unknown) => {
-		if (isBrokenPipeError(error)) {
-			process.exit(0);
-		}
-	};
-
-	process.stdout.on("error", onStdoutError);
-	process.stderr.on("error", onStderrError);
-
-	registerDisposable(() => {
-		process.stdout.off("error", onStdoutError);
-		process.stderr.off("error", onStderrError);
-		streamErrorGuardsBound = false;
-	});
+	const stderr = process.stderr as GuardedStream;
+	if (!stderr[STDERR_ERROR_GUARD]) {
+		const onStderrError = (error: unknown) => {
+			if (isBrokenPipeError(error)) {
+				process.exit(0);
+			}
+		};
+		stderr[STDERR_ERROR_GUARD] = onStderrError;
+		stderr.on("error", onStderrError);
+		registerDisposable(() => {
+			const guard = stderr[STDERR_ERROR_GUARD];
+			if (!guard) {
+				return;
+			}
+			stderr.off("error", guard);
+			delete stderr[STDERR_ERROR_GUARD];
+		});
+	}
 }
 
 // =============================================================================

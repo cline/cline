@@ -114,8 +114,8 @@ export async function buildSessionStartInput(input: {
 	return {
 		mode,
 		sessionInput: {
-			source: SessionSource.CLI,
-			interactive: true,
+			source: config.source || SessionSource.CLI,
+			interactive: config.interactive !== false,
 			initialMessages: input.initialMessages,
 			config: {
 				...(input.sessionId ? { sessionId: input.sessionId } : {}),

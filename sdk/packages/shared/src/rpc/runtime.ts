@@ -38,6 +38,8 @@ export interface RpcChatStartSessionRequest extends RpcChatRuntimeConfigBase {
 	workspaceRoot: string;
 	provider: string;
 	model: string;
+	source?: string;
+	interactive?: boolean;
 	sessions?: RpcSessionStorageOptions;
 	initialMessages?: RpcChatMessage[];
 }

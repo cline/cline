@@ -24,6 +24,7 @@ import {
 	type RpcOwnerContext,
 	resolveRpcOwnerContext,
 } from "./rpc-runtime-ensure";
+import { RpcSessionHost } from "./rpc-session-host";
 import { RpcCoreSessionService } from "./rpc-session-service";
 import { tryAcquireRpcSpawnLease } from "./rpc-spawn-lease";
 import type { SessionManager } from "./session-manager";
@@ -31,6 +32,22 @@ import { CoreSessionService } from "./session-service";
 
 const DEFAULT_RPC_ADDRESS =
 	process.env.CLINE_RPC_ADDRESS?.trim() || getRpcServerDefaultAddress();
+
+function resolveConfiguredBackendMode(
+	options: ClineCoreOptions,
+): "auto" | "rpc" | "local" {
+	if (options.backendMode) {
+		return options.backendMode;
+	}
+	if (process.env.CLINE_VCR?.trim()) {
+		return "local";
+	}
+	const raw = process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase();
+	if (raw === "rpc" || raw === "local") {
+		return raw;
+	}
+	return "auto";
+}
 
 export type SessionBackend =
 	| RpcCoreSessionService
@@ -197,7 +214,7 @@ export async function resolveSessionBackend(
 		return await backendInitPromise;
 	}
 
-	const mode = options.backendMode ?? "auto";
+	const mode = resolveConfiguredBackendMode(options);
 	const requestedAddress = options.rpc?.address?.trim() || DEFAULT_RPC_ADDRESS;
 	const attempts = Math.max(1, options.rpc?.connectAttempts ?? 5);
 	const delayMs = Math.max(0, options.rpc?.connectDelayMs ?? 100);
@@ -296,6 +313,16 @@ export async function createSessionHost(
 	options.telemetry?.setDistinctId(distinctId);
 	const backend =
 		options.sessionService ?? (await resolveSessionBackend(options));
+	if (
+		backend instanceof RpcCoreSessionService &&
+		!options.defaultToolExecutors
+	) {
+		return new RpcSessionHost(
+			backend,
+			options.toolPolicies,
+			options.requestToolApproval,
+		);
+	}
 	return new DefaultSessionManager({
 		sessionService: backend,
 		defaultToolExecutors: options.defaultToolExecutors,

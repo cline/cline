@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const sessionMocks = vi.hoisted(() => ({
-	createDefaultCliSessionManager: vi.fn(),
+	createCliCore: vi.fn(),
 	listSessions: vi.fn(),
 }));
 
@@ -38,7 +38,7 @@ describe("session history rows", () => {
 		const hydrated = await hydrateHistoryRows(rows);
 
 		expect(hydrated).toEqual(rows);
-		expect(sessionMocks.createDefaultCliSessionManager).not.toHaveBeenCalled();
+		expect(sessionMocks.createCliCore).not.toHaveBeenCalled();
 	});
 
 	it("hydrates missing metadata from stored messages when needed", async () => {
@@ -48,7 +48,7 @@ describe("session history rows", () => {
 			.mockResolvedValue([
 				{ role: "user", content: [{ type: "text", text: "hello" }] },
 			]);
-		sessionMocks.createDefaultCliSessionManager.mockResolvedValue({
+		sessionMocks.createCliCore.mockResolvedValue({
 			readMessages,
 			dispose,
 		});
@@ -69,9 +69,7 @@ describe("session history rows", () => {
 			},
 		]);
 
-		expect(sessionMocks.createDefaultCliSessionManager).toHaveBeenCalledTimes(
-			1,
-		);
+		expect(sessionMocks.createCliCore).toHaveBeenCalledTimes(1);
 		expect(readMessages).toHaveBeenCalledWith("sess_2");
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(hydrated).toMatchObject({

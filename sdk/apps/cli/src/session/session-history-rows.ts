@@ -1,7 +1,7 @@
 import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { resolveSessionDataDir } from "@clinebot/shared/storage";
-import { createDefaultCliSessionManager, listSessions } from "./session";
+import { createCliCore, listSessions } from "./session";
 import {
 	inferProviderAndModelFromMessages,
 	inferTitleFromMessages,
@@ -178,7 +178,7 @@ export async function hydrateHistoryRows(
 	if (rowsNeedingHydration.length === 0) {
 		return rows;
 	}
-	const sessionManager = await createDefaultCliSessionManager();
+	const core = await createCliCore();
 	try {
 		return await Promise.all(
 			rows.map(async (row) => {
@@ -195,7 +195,7 @@ export async function hydrateHistoryRows(
 				if (hasTitle && hasProvider && hasModel) {
 					return row;
 				}
-				const messages = await sessionManager.readMessages(row.sessionId);
+				const messages = await core.readMessages(row.sessionId);
 				if (messages.length === 0) {
 					return row;
 				}
@@ -222,7 +222,7 @@ export async function hydrateHistoryRows(
 			}),
 		);
 	} finally {
-		await sessionManager.dispose().catch(() => {});
+		await core.dispose().catch(() => {});
 	}
 }
 

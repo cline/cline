@@ -32,6 +32,7 @@ describe("spawnDetachedConnector", () => {
 				"./apps/cli/src/index.ts",
 				["--conditions=development"],
 				repoRoot,
+				{},
 			),
 		).toEqual({
 			launcher: "/Users/test/.bun/bin/bun",

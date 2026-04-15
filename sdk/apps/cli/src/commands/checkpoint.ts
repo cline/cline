@@ -6,7 +6,7 @@ import type {
 	CheckpointMetadata,
 	SessionRecord,
 } from "@clinebot/core";
-import { getLatestSessionRow, getSessionRow } from "../utils/session";
+import { getLatestSessionRow, getSessionRow } from "../session/session";
 import type { CliOutputMode } from "../utils/types";
 
 const execFile = promisify(execFileCallback);

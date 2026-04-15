@@ -251,6 +251,8 @@ message RuntimeSessionConfig {
   map<string, RuntimeToolPolicy> tool_policies = 19;
   repeated RuntimeChatMessage initial_messages = 20;
   RuntimeLoggerConfig logger = 21;
+  string source = 23;
+  bool interactive = 24;
 }
 
 message RuntimeAttachmentFile {

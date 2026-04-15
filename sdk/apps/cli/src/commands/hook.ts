@@ -1,5 +1,6 @@
 import { createInterface } from "node:readline";
 import type { HookEventPayload, RunHookResult } from "@clinebot/core";
+import { handleSessionHookEvent } from "../session/session";
 import {
 	appendHookAudit,
 	parseCliHookPayload,
@@ -7,7 +8,6 @@ import {
 	truncate,
 	writeHookJson,
 } from "../utils/helpers";
-import { getCoreSessionBackend } from "../utils/session";
 
 interface HookWorkerRequest {
 	id: string;
@@ -22,36 +22,8 @@ interface HookWorkerResponse {
 }
 
 async function handleHookPayload(payload: HookEventPayload): Promise<unknown> {
-	appendHookAudit(payload);
-	const shouldTouchSessions =
-		payload.hookName === "tool_call" || !!payload.parent_agent_id;
-	if (shouldTouchSessions) {
-		const sessions = await getCoreSessionBackend();
-		await sessions.queueSpawnRequest(payload);
-		const subSessionId = await sessions.upsertSubagentSessionFromHook(payload);
-		if (subSessionId) {
-			await sessions.appendSubagentHookAudit(subSessionId, payload);
-			if (payload.hookName === "tool_call") {
-				await sessions.appendSubagentTranscriptLine(
-					subSessionId,
-					`[tool] ${payload.tool_call?.name ?? "unknown"}`,
-				);
-			}
-			if (payload.hookName === "agent_end") {
-				await sessions.appendSubagentTranscriptLine(
-					subSessionId,
-					"[done] completed",
-				);
-			}
-			if (payload.hookName === "session_shutdown") {
-				await sessions.appendSubagentTranscriptLine(
-					subSessionId,
-					`[shutdown] ${payload.reason ?? "session shutdown"}`,
-				);
-			}
-			await sessions.applySubagentStatus(subSessionId, payload);
-		}
-	}
+	await appendHookAudit(payload);
+	await handleSessionHookEvent(payload);
 
 	switch (payload.hookName) {
 		case "tool_call":
@@ -106,7 +78,7 @@ export async function runHookCommand(io: HookIo) {
 		}
 
 		const parsed = JSON.parse(raw) as unknown;
-		const payload = parseCliHookPayload(parsed);
+		const payload = await parseCliHookPayload(parsed);
 		if (!payload) {
 			io.writeErr("invalid hook payload");
 			return 1;
@@ -148,7 +120,7 @@ export async function runHookWorkerCommand(writeErr: (text: string) => void) {
 			}
 
 			try {
-				const payload = parseCliHookPayload(request.payload);
+				const payload = await parseCliHookPayload(request.payload);
 				if (!payload) {
 					throw new Error("invalid hook payload");
 				}

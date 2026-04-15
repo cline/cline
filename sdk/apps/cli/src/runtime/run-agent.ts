@@ -6,6 +6,7 @@ import {
 	SessionSource,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
+import { createCliCore } from "../session/session";
 import {
 	askQuestionInTerminal,
 	requestToolApproval,
@@ -22,7 +23,6 @@ import {
 	writeErr,
 	writeln,
 } from "../utils/output";
-import { createDefaultCliSessionManager } from "../utils/session";
 import type { Config } from "../utils/types";
 import { setActiveRuntimeAbort } from "./active-runtime";
 import {
@@ -149,7 +149,7 @@ export async function runAgent(
 		verbose: config.verbose,
 		yolo: config.mode === "yolo",
 	});
-	const sessionManager = await createDefaultCliSessionManager({
+	const sessionManager = await createCliCore({
 		defaultToolExecutors: {
 			askQuestion: askQuestionInTerminal,
 			submit: submitAndExitInTerminal,

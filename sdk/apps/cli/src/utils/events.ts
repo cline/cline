@@ -170,7 +170,9 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 		}
 		case "error":
 			closeInlineStreamIfNeeded();
-			writeErr(event.error.message);
+			if (!event.recoverable || config.verbose) {
+				writeErr(event.error.message);
+			}
 			break;
 		case "notice":
 			if (event.displayRole === "status") {

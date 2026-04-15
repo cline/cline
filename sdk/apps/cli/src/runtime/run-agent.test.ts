@@ -51,8 +51,8 @@ vi.mock("../utils/hooks", () => ({
 
 vi.mock("../utils/output", () => outputMocks);
 
-vi.mock("../utils/session", () => ({
-	createDefaultCliSessionManager: vi.fn(async () => sessionManagerMocks),
+vi.mock("../session/session", () => ({
+	createCliCore: vi.fn(async () => sessionManagerMocks),
 }));
 
 vi.mock("./active-runtime", () => ({

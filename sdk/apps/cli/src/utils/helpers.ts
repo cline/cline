@@ -3,11 +3,11 @@ import { appendFileSync, existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
-	ensureHookLogDir,
 	type HookEventPayload,
 	parseHookEventPayload,
 	resolveHookLogPath,
-} from "@clinebot/core";
+} from "@clinebot/shared";
+import { ensureHookLogDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { commanderToParsedArgs, createProgram } from "../commands/program";
 import type { ParsedArgs } from "./types";
@@ -411,7 +411,7 @@ export function writeHookJson(value: unknown): void {
 	}
 }
 
-export function appendHookAudit(event: HookEventPayload): void {
+export async function appendHookAudit(event: HookEventPayload): Promise<void> {
 	const payloadHookPath = resolveHookLogPath(event.sessionContext);
 	const envHookPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
 	const targetHookPath = payloadHookPath ?? envHookPath;
@@ -428,13 +428,13 @@ export function appendHookAudit(event: HookEventPayload): void {
 	appendFileSync(join(dir, "hooks.jsonl"), line, "utf-8");
 }
 
-export function isCliHookPayload(value: unknown): value is HookEventPayload {
+export async function isCliHookPayload(value: unknown): Promise<boolean> {
 	return parseHookEventPayload(value) !== undefined;
 }
 
-export function parseCliHookPayload(
+export async function parseCliHookPayload(
 	value: unknown,
-): HookEventPayload | undefined {
+): Promise<HookEventPayload | undefined> {
 	return parseHookEventPayload(value);
 }
 

@@ -2,39 +2,15 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
-import { setClineDir, setHomeDir } from "@clinebot/core";
-import {
-	getRpcServerDefaultAddress,
-	requestRpcServerShutdown,
-} from "@clinebot/rpc";
+import { getRpcServerDefaultAddress } from "@clinebot/rpc";
 import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
-import {
-	ensureOAuthProviderApiKey,
-	getPersistedProviderApiKey,
-	isOAuthProvider,
-	normalizeProviderId,
-	runAuthCommand,
-} from "./commands/auth";
-import { createConfigCommand } from "./commands/config";
-import {
-	formatAdapterList,
-	runConnectAdapter,
-	runStopAllConnectors,
-	runStopConnector,
-} from "./commands/connect";
-import { createDevCommand } from "./commands/dev";
-import { createDoctorCommand } from "./commands/doctor";
-import { showVersion } from "./commands/help";
-import { runHookCommand, runHookWorkerCommand } from "./commands/hook";
 import {
 	addRootOptions,
 	CommanderError,
 	commanderToParsedArgs,
 	createProgram,
 } from "./commands/program";
-import { createScheduleCommand } from "./commands/schedule";
-import { createCliLoggerAdapter } from "./logging/adapter";
 import {
 	configureSandboxEnvironment,
 	normalizeAutoApproveArgs,
@@ -119,6 +95,7 @@ export async function runCli(): Promise<void> {
 
 	const cliArgs = process.argv.slice(2);
 	const configDir = resolveConfigDirArg(cliArgs);
+	const { setClineDir, setHomeDir } = await import("@clinebot/shared/storage");
 	if (configDir) {
 		setClineDir(configDir);
 	}
@@ -171,6 +148,7 @@ export async function runCli(): Promise<void> {
 				cwd?: string;
 				verbose?: boolean;
 			}>();
+			const { runAuthCommand } = await import("./commands/auth");
 			const providerSettingsManager = await createProviderSettingsManager();
 			ctx.exitCode = await runAuthCommand({
 				providerSettingsManager,
@@ -182,30 +160,48 @@ export async function runCli(): Promise<void> {
 			});
 		});
 
-	const configCmd = createConfigCommand(
-		() => resolveWorkspaceRoot(program.opts().cwd ?? process.cwd()),
-		() => {
-			const outputMode =
-				program.opts().json || configCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			setCurrentOutputMode(outputMode);
-			return outputMode;
-		},
-		io,
-		(code) => {
-			ctx.exitCode = code;
-		},
-		() => {
-			launchConfigView = true;
-		},
-	);
-	program.addCommand(configCmd);
+	const createConfigRuntimeCommand = async () => {
+		const { createConfigCommand } = await import("./commands/config");
+		let configCmd: Command;
+		configCmd = createConfigCommand(
+			() => resolveWorkspaceRoot(program.opts().cwd ?? process.cwd()),
+			() => {
+				const outputMode =
+					program.opts().json || configCmd.opts().json
+						? ("json" as const)
+						: ("text" as const);
+				setCurrentOutputMode(outputMode);
+				return outputMode;
+			},
+			io,
+			(code) => {
+				ctx.exitCode = code;
+			},
+			() => {
+				launchConfigView = true;
+			},
+		);
+		return configCmd;
+	};
+
+	program
+		.command("config")
+		.description("Show current configuration")
+		.option("--json", "Output as JSON")
+		.option("--config <dir>", "configuration directory")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.action(async (_opts: unknown, cmd: Command) => {
+			const realCmd = await createConfigRuntimeCommand();
+			await realCmd.parseAsync(cmd.args, { from: "user" });
+		});
 	program
 		.command("hook-worker")
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.action(async () => {
+			const { runHookWorkerCommand } = await import("./commands/hook");
 			ctx.exitCode = await runHookWorkerCommand(writeErr);
 		});
 
@@ -216,8 +212,17 @@ export async function runCli(): Promise<void> {
 		.option("--stop", "Stop running connector(s)")
 		.allowUnknownOption()
 		.passThroughOptions()
-		.addHelpText("after", () => `\nAdapters:\n${formatAdapterList()}`)
+		.addHelpText(
+			"after",
+			"\nRun 'connect <adapter> --help' for adapter-specific options.",
+		)
 		.action(async (adapter: string | undefined) => {
+			const {
+				formatAdapterList,
+				runConnectAdapter,
+				runStopAllConnectors,
+				runStopConnector,
+			} = await import("./commands/connect");
 			const opts = connectCmd.opts();
 			if (opts.stop) {
 				if (adapter) {
@@ -246,19 +251,47 @@ export async function runCli(): Promise<void> {
 					io,
 				);
 			} else {
+				writeln(`\nAdapters:\n${formatAdapterList()}`);
 				connectCmd.help();
 			}
 		});
 
-	const devCmd = createDevCommand(io, (code) => {
-		ctx.exitCode = code;
-	});
-	program.addCommand(devCmd);
+	const createDevRuntimeCommand = async () => {
+		const { createDevCommand } = await import("./commands/dev");
+		return createDevCommand(io, (code) => {
+			ctx.exitCode = code;
+		});
+	};
 
-	const doctorCmd = createDoctorCommand(io, (code) => {
-		ctx.exitCode = code;
-	});
-	program.addCommand(doctorCmd);
+	program
+		.command("dev")
+		.description("Developer tools and utilities")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.addHelpText("after", "\nCommands:\n  log  Open the CLI log file\n")
+		.action(async (_opts: unknown, cmd: Command) => {
+			const devCmd = await createDevRuntimeCommand();
+			await devCmd.parseAsync(cmd.args, { from: "user" });
+		});
+
+	const createDoctorRuntimeCommand = async () => {
+		const { createDoctorCommand } = await import("./commands/doctor");
+		return createDoctorCommand(io, (code) => {
+			ctx.exitCode = code;
+		});
+	};
+
+	program
+		.command("doctor")
+		.description("Diagnose and fix configuration issues")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.action(async (_opts: unknown, cmd: Command) => {
+			const doctorCmd = await createDoctorRuntimeCommand();
+			await doctorCmd.parseAsync(cmd.args, { from: "user" });
+		});
 
 	const historyCmd = program
 		.command("history")
@@ -283,8 +316,15 @@ export async function runCli(): Promise<void> {
 			});
 			if (typeof result === "string") {
 				ctx.resumeSessionId = result;
+				// JSON listing should never return a session id; if it does, still exit here so
+				// we never fall through to agent bootstrap (which can block on stdin in CI).
+				if (outputMode === "json") {
+					ctx.exitCode = 0;
+				}
 			} else {
-				ctx.exitCode = result;
+				// Always set exit code for numeric results so `ctx.exitCode` is never left
+				// undefined (that would fall through and load the full CLI runtime).
+				ctx.exitCode = result ?? 0;
 			}
 		});
 
@@ -411,19 +451,45 @@ export async function runCli(): Promise<void> {
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.action(async () => {
+			const { runHookCommand } = await import("./commands/hook");
 			ctx.exitCode = await runHookCommand(io);
 		});
 
-	const { createRpcCommand } = await import("./commands/rpc");
-	const rpcCmd = createRpcCommand(io, (code) => {
-		ctx.exitCode = code;
-	});
-	program.addCommand(rpcCmd);
+	const createRpcRuntimeCommand = async () => {
+		const { createRpcCommand } = await import("./commands/rpc");
+		return createRpcCommand(io, (code) => {
+			ctx.exitCode = code;
+		});
+	};
 
-	const scheduleCmd = createScheduleCommand(io, (code) => {
-		ctx.exitCode = code;
-	});
-	program.addCommand(scheduleCmd);
+	program
+		.command("rpc")
+		.description("Start or manage the RPC server")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.action(async (_opts: unknown, cmd: Command) => {
+			const rpcCmd = await createRpcRuntimeCommand();
+			await rpcCmd.parseAsync(cmd.args, { from: "user" });
+		});
+
+	const createScheduleRuntimeCommand = async () => {
+		const { createScheduleCommand } = await import("./commands/schedule");
+		return createScheduleCommand(io, (code) => {
+			ctx.exitCode = code;
+		});
+	};
+
+	program
+		.command("schedule")
+		.description("Manage scheduled tasks")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.action(async (_opts: unknown, cmd: Command) => {
+			const scheduleCmd = await createScheduleRuntimeCommand();
+			await scheduleCmd.parseAsync(cmd.args, { from: "user" });
+		});
 
 	// 'task' is syntactic sugar for the default prompt flow.
 	// Re-parse everything after 'task'/'t' through a fresh root program
@@ -465,7 +531,11 @@ export async function runCli(): Promise<void> {
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
 			const address = process.env.CLINE_RPC_ADDRESS || "127.0.0.1:4317";
-			requestRpcServerShutdown(address).catch(() => {});
+			import("@clinebot/rpc")
+				.then(({ requestRpcServerShutdown }) =>
+					requestRpcServerShutdown(address),
+				)
+				.catch(() => {});
 			writeErr(
 				"update command is not implemented yet (use your package manager to update manually)",
 			);
@@ -475,7 +545,8 @@ export async function runCli(): Promise<void> {
 	program
 		.command("version")
 		.description("Show Cline CLI version number")
-		.action(() => {
+		.action(async () => {
+			const { showVersion } = await import("./commands/help");
 			showVersion();
 			ctx.exitCode = 0;
 		});
@@ -640,6 +711,12 @@ export async function runCli(): Promise<void> {
 	};
 	registerDisposable(stopUserInstructionWatcher);
 	try {
+		const {
+			normalizeProviderId,
+			isOAuthProvider,
+			getPersistedProviderApiKey,
+			ensureOAuthProviderApiKey,
+		} = await import("./commands/auth");
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings();
 		const provider = normalizeProviderId(
@@ -696,6 +773,7 @@ export async function runCli(): Promise<void> {
 		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
 		const effectiveReasoningEffort =
 			args.reasoningEffort ?? (args.thinking ? "medium" : "none");
+		const { createCliLoggerAdapter } = await import("./logging/adapter");
 		const loggerAdapter = createCliLoggerAdapter({
 			runtime: "cli",
 			component: "main",
@@ -799,8 +877,11 @@ export async function runCli(): Promise<void> {
 				`${c.dim}[provider-settings] failed to persist selection (${message})${c.reset}`,
 			);
 		}
-		// Check for piped input (skip when stdin is not a real pipe/file, e.g. headless CI)
-		if (stdinHasPipedInput() && !args.interactive) {
+		// Check for piped input (skip when stdin is not a real pipe/file, e.g. headless CI).
+		// Guard `isTTY` first so we never block on fd 0 when stdin is a terminal (and avoid
+		// redundant fstat work). `stdinHasPipedInput` also checks `isTTY`, but callers may hit
+		// inconsistent state in tests or embedded hosts.
+		if (!process.stdin.isTTY && stdinHasPipedInput() && !args.interactive) {
 			const chunks: Buffer[] = [];
 			for await (const chunk of process.stdin) {
 				chunks.push(chunk as Buffer);
@@ -817,7 +898,7 @@ export async function runCli(): Promise<void> {
 					return;
 				}
 				if (rewrittenTeamPrompt.kind === "rewritten") {
-					enableTeamsForPrompt(config);
+					await enableTeamsForPrompt(config);
 					await runAgent(
 						rewrittenTeamPrompt.prompt,
 						config,
@@ -848,7 +929,7 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 		if (rewrittenTeamPrompt.kind === "rewritten") {
-			enableTeamsForPrompt(config);
+			await enableTeamsForPrompt(config);
 			await runAgent(
 				rewrittenTeamPrompt.prompt,
 				config,

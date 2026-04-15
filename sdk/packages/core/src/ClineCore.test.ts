@@ -53,6 +53,7 @@ describe("ClineCore", () => {
 			(event: { type: string; payload: { sessionId: string } }) => void
 		> = [];
 		const host = {
+			runtimeAddress: undefined,
 			start: vi.fn(async (input: StartSessionInput) => {
 				expect(input.config.systemPrompt).toBe("Bootstrapped prompt");
 				expect(input.config.extensions).toEqual([{ name: "enterprise" }]);
@@ -111,6 +112,7 @@ describe("ClineCore", () => {
 			| ((event: { type: string; payload: { sessionId: string } }) => void)
 			| undefined;
 		const host = {
+			runtimeAddress: "127.0.0.1:5317",
 			start: vi.fn(async () => createStartResult("session-2")),
 			send: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
@@ -138,6 +140,7 @@ describe("ClineCore", () => {
 				dispose,
 			}),
 		});
+		expect(core.runtimeAddress).toBe("127.0.0.1:5317");
 
 		await core.start(createStartInput());
 		expect(dispose).not.toHaveBeenCalled();

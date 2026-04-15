@@ -50,11 +50,11 @@ export interface ClineCoreOptions {
 	 */
 	distinctId?: string;
 	/**
-	 * Controls how the session backend is selected:
+	 * Controls how the runtime host is selected:
 	 * - `"auto"` (default) — connects to a running RPC server if available, starts one in the
-	 *   background if `rpc.autoStart` is true, and falls back to local SQLite/file storage.
-	 * - `"rpc"` — requires an RPC server; throws if one is not reachable.
-	 * - `"local"` — always uses local SQLite (or file-based) storage; never touches RPC.
+	 *   background if `rpc.autoStart` is true, and falls back to local in-process execution.
+	 * - `"rpc"` — requires an RPC runtime server; throws if one is not reachable.
+	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
 	 */
 	backendMode?: "auto" | "rpc" | "local";
 	/**
@@ -138,6 +138,7 @@ export interface StartSessionBootstrap {
  */
 export class ClineCore implements SessionHost {
 	readonly clientName: string | undefined;
+	readonly runtimeAddress: string | undefined;
 	private readonly host: SessionHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly teamToolsFactory: TeamToolsFactory | undefined;
@@ -150,10 +151,12 @@ export class ClineCore implements SessionHost {
 	private constructor(
 		host: SessionHost,
 		clientName: string | undefined,
+		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
 		teamToolsFactory: TeamToolsFactory | undefined,
 	) {
 		this.clientName = clientName;
+		this.runtimeAddress = runtimeAddress;
 		this.host = host;
 		this.prepare = prepare;
 		this.teamToolsFactory = teamToolsFactory;
@@ -170,6 +173,7 @@ export class ClineCore implements SessionHost {
 		return new ClineCore(
 			host,
 			options.clientName,
+			host.runtimeAddress,
 			options.prepare,
 			options.teamToolsFactory,
 		);
@@ -236,12 +240,15 @@ export class ClineCore implements SessionHost {
 		}
 		return deleted;
 	};
+	update: SessionHost["update"] = (...args) => this.host.update(...args);
 	readMessages: SessionHost["readMessages"] = (...args) =>
 		this.host.readMessages(...args);
 	readTranscript: SessionHost["readTranscript"] = (...args) =>
 		this.host.readTranscript(...args);
 	readHooks: SessionHost["readHooks"] = (...args) =>
 		this.host.readHooks(...args);
+	handleHookEvent: SessionHost["handleHookEvent"] = (...args) =>
+		this.host.handleHookEvent(...args);
 	subscribe: SessionHost["subscribe"] = (...args) =>
 		this.host.subscribe(...args);
 	updateSessionModel: SessionHost["updateSessionModel"] = (...args) =>

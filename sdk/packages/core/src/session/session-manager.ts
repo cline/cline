@@ -4,6 +4,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
+import type { HookEventPayload } from "../hooks";
 import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import type { CoreSessionEvent } from "../types/events";
@@ -55,6 +56,7 @@ export interface SessionAccumulatedUsage {
 }
 
 export interface SessionManager {
+	readonly runtimeAddress?: string;
 	start(input: StartSessionInput): Promise<StartSessionResult>;
 	send(input: SendSessionInput): Promise<AgentResult | undefined>;
 	getAccumulatedUsage(
@@ -66,9 +68,18 @@ export interface SessionManager {
 	get(sessionId: string): Promise<SessionRecord | undefined>;
 	list(limit?: number): Promise<SessionRecord[]>;
 	delete(sessionId: string): Promise<boolean>;
+	update(
+		sessionId: string,
+		updates: {
+			prompt?: string | null;
+			metadata?: Record<string, unknown> | null;
+			title?: string | null;
+		},
+	): Promise<{ updated: boolean }>;
 	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
 	readTranscript(sessionId: string, maxChars?: number): Promise<string>;
 	readHooks(sessionId: string, limit?: number): Promise<unknown[]>;
+	handleHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void;
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>;
 }

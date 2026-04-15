@@ -1,4 +1,3 @@
-import { createTeamName } from "@clinebot/core";
 import { formatUserCommandBlock } from "@clinebot/shared";
 import type { Config } from "./types";
 
@@ -28,10 +27,11 @@ export function rewriteTeamPrompt(input: string): TeamPromptRewriteResult {
 	};
 }
 
-export function enableTeamsForPrompt(config: Config): void {
+export async function enableTeamsForPrompt(config: Config): Promise<void> {
 	if (config.enableAgentTeams) {
 		return;
 	}
 	config.enableAgentTeams = true;
+	const { createTeamName } = await import("@clinebot/core");
 	config.teamName = config.teamName?.trim() || createTeamName();
 }

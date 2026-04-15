@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockSpawn,
@@ -60,12 +60,30 @@ import { runRpcEnsureCommand } from "./rpc";
 describe("runRpcEnsureCommand", () => {
 	const tempDirs: string[] = [];
 	const originalArgv = [...process.argv];
+	const savedEnvKeys = [
+		"CLINE_DATA_DIR",
+		"CLINE_RPC_OWNER_ID",
+		"CLINE_RPC_BUILD_ID",
+		"CLINE_RPC_DISCOVERY_PATH",
+		"CLINE_RPC_STARTUP_LOCK_HELD",
+	] as const;
+	const savedEnv: Record<string, string | undefined> = {};
+
+	beforeEach(() => {
+		for (const key of savedEnvKeys) {
+			savedEnv[key] = process.env[key];
+			delete process.env[key];
+		}
+	});
 
 	afterEach(() => {
-		delete process.env.CLINE_DATA_DIR;
-		delete process.env.CLINE_RPC_OWNER_ID;
-		delete process.env.CLINE_RPC_BUILD_ID;
-		delete process.env.CLINE_RPC_DISCOVERY_PATH;
+		for (const key of savedEnvKeys) {
+			if (savedEnv[key] !== undefined) {
+				process.env[key] = savedEnv[key];
+			} else {
+				delete process.env[key];
+			}
+		}
 		process.argv = [...originalArgv];
 		vi.clearAllMocks();
 		for (const dir of tempDirs.splice(0)) {

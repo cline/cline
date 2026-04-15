@@ -351,9 +351,9 @@ describe("hook payload validation and audit logging", () => {
 		}
 	});
 
-	it("validates hook payload structure", () => {
+	it("validates hook payload structure", async () => {
 		expect(
-			isCliHookPayload({
+			await isCliHookPayload({
 				clineVersion: "",
 				hookName: "tool_call",
 				timestamp: new Date().toISOString(),
@@ -370,14 +370,14 @@ describe("hook payload validation and audit logging", () => {
 				},
 			}),
 		).toBe(true);
-		expect(isCliHookPayload({ hookName: "tool_call" })).toBe(false);
-		expect(isCliHookPayload(null)).toBe(false);
+		expect(await isCliHookPayload({ hookName: "tool_call" })).toBe(false);
+		expect(await isCliHookPayload(null)).toBe(false);
 	});
 
-	it("writes hook audits to payload session hook path", () => {
+	it("writes hook audits to payload session hook path", async () => {
 		tempDir = mkdtempSync(path.join(os.tmpdir(), "cli-helper-audit-"));
 		const hookPath = path.join(tempDir, "explicit", "hooks.jsonl");
-		appendHookAudit({
+		await appendHookAudit({
 			clineVersion: "",
 			hookName: "tool_call",
 			timestamp: new Date().toISOString(),
@@ -404,7 +404,7 @@ describe("hook payload validation and audit logging", () => {
 		expect(content).toContain('"agent_id":"agent_1"');
 	});
 
-	it("falls back to shared hook audit file when payload context is missing", () => {
+	it("falls back to shared hook audit file when payload context is missing", async () => {
 		tempDir = mkdtempSync(path.join(os.tmpdir(), "cli-helper-session-audit-"));
 		const expectedPath = path.join(tempDir, "hooks", "hooks.jsonl");
 		const env = captureEnv();
@@ -413,7 +413,7 @@ describe("hook payload validation and audit logging", () => {
 		delete process.env.CLINE_SESSION_ID;
 		delete process.env.CLINE_SESSION_DATA_DIR;
 
-		appendHookAudit({
+		await appendHookAudit({
 			clineVersion: "",
 			hookName: "tool_result",
 			timestamp: new Date().toISOString(),
@@ -440,7 +440,7 @@ describe("hook payload validation and audit logging", () => {
 		expect(content).toContain('"hookName":"tool_result"');
 	});
 
-	it("writes hook audits to CLINE_HOOKS_LOG_PATH when payload context is missing", () => {
+	it("writes hook audits to CLINE_HOOKS_LOG_PATH when payload context is missing", async () => {
 		tempDir = mkdtempSync(path.join(os.tmpdir(), "cli-helper-env-audit-"));
 		const expectedPath = path.join(tempDir, "hooks", "from-env.jsonl");
 		const env = captureEnv();
@@ -449,7 +449,7 @@ describe("hook payload validation and audit logging", () => {
 		delete process.env.CLINE_SESSION_ID;
 		delete process.env.CLINE_SESSION_DATA_DIR;
 
-		appendHookAudit({
+		await appendHookAudit({
 			clineVersion: "",
 			hookName: "tool_result",
 			timestamp: new Date().toISOString(),

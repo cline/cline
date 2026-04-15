@@ -48,6 +48,8 @@ describe("resolveSessionBackend", () => {
 		logger.debug.mockReset();
 		logger.log.mockReset();
 		logger.error.mockReset();
+		delete process.env.CLINE_SESSION_BACKEND_MODE;
+		delete process.env.CLINE_VCR;
 		vi.resetModules();
 	});
 
@@ -137,5 +139,25 @@ describe("resolveSessionBackend", () => {
 				severity: "warn",
 			},
 		);
+	});
+
+	it("honors env-managed local mode inside core backend resolution", async () => {
+		process.env.CLINE_SESSION_BACKEND_MODE = "local";
+		const { resolveSessionBackend } = await import("./session-host");
+
+		const backend = await resolveSessionBackend({});
+
+		expect(backend).not.toBeInstanceOf(FileSessionService);
+		expect(ensureRpcRuntimeAddressMock).not.toHaveBeenCalled();
+	});
+
+	it("forces local backend when vcr is enabled", async () => {
+		process.env.CLINE_VCR = "1";
+		const { resolveSessionBackend } = await import("./session-host");
+
+		const backend = await resolveSessionBackend({});
+
+		expect(backend).not.toBeInstanceOf(FileSessionService);
+		expect(ensureRpcRuntimeAddressMock).not.toHaveBeenCalled();
 	});
 });

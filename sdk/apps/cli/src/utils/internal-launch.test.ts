@@ -25,6 +25,7 @@ describe("internal launch helpers", () => {
 			argv: ["bun", "./apps/cli/src/index.ts"],
 			execArgv: ["--conditions=development"],
 			cwd: repoRoot,
+			env: {},
 		});
 
 		expect(spec).toEqual({

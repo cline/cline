@@ -429,6 +429,8 @@ export class ClineGatewayRuntime {
 							content: fromProtoValue(message.content),
 						}),
 					),
+					source: safeString(request.request.source),
+					interactive: request.request.interactive === true,
 					logger: request.request.logger
 						? {
 								enabled: request.request.logger.enabled === true,
@@ -533,6 +535,8 @@ export class ClineGatewayRuntime {
 							role: safeString(message.role),
 							content: fromProtoValue(message.content),
 						})),
+						source: safeString(request.request.config?.source),
+						interactive: request.request.config?.interactive === true,
 						logger: request.request.config?.logger
 							? {
 									enabled: request.request.config.logger.enabled === true,

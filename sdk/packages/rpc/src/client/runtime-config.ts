@@ -45,5 +45,7 @@ export function toRuntimeConfig(config: RpcChatStartSessionRequest) {
 					),
 				}
 			: undefined,
+		source: config.source ?? "",
+		interactive: config.interactive === true,
 	};
 }

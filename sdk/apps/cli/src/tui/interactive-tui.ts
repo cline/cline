@@ -614,7 +614,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					closeInlineStream();
 					turnErrorReportedRef.current = true;
 					onTurnErrorReported(true);
-					appendEntry({ kind: "error", text: event.error.message });
+					if (!event.recoverable || config.verbose) {
+						appendEntry({ kind: "error", text: event.error.message });
+					}
 					break;
 				case "notice":
 					if (event.displayRole === "status") {
@@ -627,7 +629,13 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					break;
 			}
 		},
-		[appendEntry, updateLastEntry, closeInlineStream, onTurnErrorReported],
+		[
+			appendEntry,
+			updateLastEntry,
+			closeInlineStream,
+			onTurnErrorReported,
+			config.verbose,
+		],
 	);
 
 	const handleTeamEvent = useCallback(

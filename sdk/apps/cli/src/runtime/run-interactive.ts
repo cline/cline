@@ -7,6 +7,11 @@ import {
 } from "@clinebot/core";
 import { render } from "ink";
 import React from "react";
+import { createCliCore } from "../session/session";
+import {
+	formatPreviewMessageText,
+	getLastSessionPreviewMessages,
+} from "../session/session-message-summary";
 import { InteractiveTui } from "../tui/interactive-tui";
 import {
 	askQuestionInTerminal,
@@ -22,11 +27,6 @@ import { c, setActiveCliSession, writeErr, writeln } from "../utils/output";
 import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
 import { readRepoStatus } from "../utils/repo-status";
 import { loadInteractiveResumeMessages } from "../utils/resume";
-import { createDefaultCliSessionManager } from "../utils/session";
-import {
-	formatPreviewMessageText,
-	getLastSessionPreviewMessages,
-} from "../utils/session-message-summary";
 import {
 	enableTeamsForPrompt,
 	rewriteTeamPrompt,
@@ -117,7 +117,7 @@ export async function runInteractive(
 			enabled,
 		});
 	};
-	const sessionManager = await createDefaultCliSessionManager({
+	const sessionManager = await createCliCore({
 		defaultToolExecutors: {
 			askQuestion: askQuestionInTerminal,
 			submit: submitAndExitInTerminal,
@@ -440,7 +440,7 @@ export async function runInteractive(
 						}
 						// Enable teams on the config so the next session picks it up.
 						if (!config.enableAgentTeams) {
-							enableTeamsForPrompt(config);
+							await enableTeamsForPrompt(config);
 							// Restart the session with teams enabled.
 							if (activeSessionId) {
 								await sessionManager.stop(activeSessionId);

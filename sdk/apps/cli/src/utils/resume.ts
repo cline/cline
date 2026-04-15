@@ -1,8 +1,7 @@
-import type { Llms } from "@clinebot/core";
-import type { CliSessionManager } from "./session";
+import type { ClineCore, Llms } from "@clinebot/core";
 
 export async function loadInteractiveResumeMessages(
-	sessionManager: CliSessionManager,
+	sessionManager: ClineCore,
 	resumeSessionId?: string,
 ): Promise<Llms.Message[] | undefined> {
 	const target = resumeSessionId?.trim();

@@ -7,7 +7,7 @@ const sessionMocks = vi.hoisted(() => ({
 
 const execFileMock = vi.hoisted(() => vi.fn());
 
-vi.mock("../utils/session", () => sessionMocks);
+vi.mock("../session/session", () => sessionMocks);
 vi.mock("node:child_process", () => ({
 	execFile: execFileMock,
 }));

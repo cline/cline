@@ -5,8 +5,8 @@ import {
 } from "@clinebot/shared";
 import { Box, Text, useInput } from "ink";
 import React, { useMemo, useState } from "react";
+import type { HistoryListRow } from "../../session/session-history-rows";
 import { formatUsd } from "../../utils/output";
-import type { HistoryListRow } from "../../utils/session-history-rows";
 
 function formatHistoryTitle(
 	title: string | undefined,

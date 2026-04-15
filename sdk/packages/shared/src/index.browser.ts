@@ -59,6 +59,34 @@ export {
 	type HookHandler,
 } from "./hooks/engine";
 export type {
+	AgentAbortHookPayload,
+	AgentEndHookPayload,
+	AgentErrorHookPayload,
+	AgentResumeHookPayload,
+	AgentStartHookPayload,
+	HookEventName,
+	HookEventPayload,
+	HookEventPayloadBase,
+	PostToolUseData,
+	PreCompactData,
+	PreCompactHookPayload,
+	PreToolUseData,
+	PromptSubmitHookPayload,
+	SessionShutdownHookPayload,
+	TaskCancelData,
+	TaskCompleteData,
+	TaskResumeData,
+	TaskStartData,
+	ToolCallHookPayload,
+	ToolResultHookPayload,
+	UserPromptSubmitData,
+} from "./hooks/events";
+export {
+	HookEventNameSchema,
+	HookEventPayloadSchema,
+	parseHookEventPayload,
+} from "./hooks/events";
+export type {
 	AiSdkFormatterMessage,
 	AiSdkFormatterMessageRole,
 	AiSdkFormatterPart,

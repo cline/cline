@@ -23,6 +23,7 @@ import type {
 import { PROTOCOL_VERSION, RequestError } from "@agentclientprotocol/sdk";
 import {
 	type AgentEvent,
+	type ClineCore,
 	Llms,
 	ProviderSettingsManager,
 	SessionSource,
@@ -30,12 +31,9 @@ import {
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
+import { createCliCore } from "../session/session";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
-import {
-	type CliSessionManager,
-	createDefaultCliSessionManager,
-} from "../utils/session";
 import type { Config } from "../utils/types";
 import {
 	ACP_AUTH_METHODS,
@@ -63,7 +61,7 @@ interface SessionState {
 	/** Current model id for the session. */
 	currentModelId: string;
 	/** Active session manager for the running agent, if any. */
-	sessionManager?: CliSessionManager;
+	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
 	activeSessionId?: string;
 	/** Abort controller for the current prompt, if running. */
@@ -470,7 +468,7 @@ export class AcpAgent implements Agent {
 
 		const config = await this.buildConfig(session);
 
-		const sessionManager = await createDefaultCliSessionManager({
+		const sessionManager = await createCliCore({
 			toolPolicies: config.toolPolicies,
 			requestToolApproval: (request) =>
 				requestAcpToolApproval(this.conn, acpSessionId, request),
