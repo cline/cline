@@ -16,7 +16,6 @@ import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Logger } from "@shared/services/Logger"
 import type { MessageTranslatorState } from "./message-translator"
-import { translateSessionEvent } from "./message-translator"
 import type { SessionEventListener } from "./SdkController"
 
 /**
@@ -34,12 +33,12 @@ import type { SessionEventListener } from "./SdkController"
  * and task history. Without this, state updates would have empty messages.
  */
 export class WebviewGrpcBridge {
-	private translatorState: MessageTranslatorState
 	/** Function to get the full ExtensionState from the controller */
 	private getStateFn?: () => Promise<import("@shared/ExtensionMessage").ExtensionState>
 
-	constructor(translatorState: MessageTranslatorState) {
-		this.translatorState = translatorState
+	constructor(_translatorState: MessageTranslatorState) {
+		// translatorState is kept as a constructor param for API compatibility
+		// but translation is done in SdkController, not in the bridge
 	}
 
 	/**
@@ -62,7 +61,12 @@ export class WebviewGrpcBridge {
 	}
 
 	/**
-	 * Handle a session event by translating and pushing to webview streams.
+	 * Handle a session event by pushing translated messages to webview streams.
+	 *
+	 * NOTE: The messages are already translated by SdkController.handleSessionEvent().
+	 * We do NOT re-translate here — that would double-emit messages and corrupt
+	 * the MessageTranslatorState (e.g., state.reset() on iteration_start would
+	 * clear streaming timestamps that the first translation used).
 	 */
 	private handleSessionEvent(messages: ClineMessage[], event: CoreSessionEvent): void {
 		// Push each translated message through the partial message stream
@@ -70,9 +74,14 @@ export class WebviewGrpcBridge {
 			this.pushPartialMessage(message)
 		}
 
-		// Check if we need to push a state update
-		const result = translateSessionEvent(event, this.translatorState)
-		if (result.sessionEnded || result.turnComplete) {
+		// Check if we need to push a state update based on event type.
+		// Do NOT call translateSessionEvent() again — the messages are already
+		// translated. Just check the raw event type for state update triggers.
+		const needsStateUpdate =
+			event.type === "ended" ||
+			(event.type === "agent_event" && (event.payload.event.type === "done" || event.payload.event.type === "error"))
+
+		if (needsStateUpdate) {
 			// Push state update asynchronously — don't block the event stream
 			this.pushStateUpdate().catch((err) => {
 				Logger.error("[WebviewGrpcBridge] Failed to push state update:", err)
