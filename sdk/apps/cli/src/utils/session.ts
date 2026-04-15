@@ -115,16 +115,12 @@ async function getCoreSessions(
 	if (forceLocalBackend || backendMode === "local" || process.env.CLINE_VCR) {
 		return resolveSessionBackend({
 			backendMode: "local",
-			logger: options.logger,
 			rpc: { autoStart: false },
 		});
 	}
 
 	// Explicit RPC address or explicit rpc mode → attach to that server directly.
-	if (
-		backendMode === "rpc" ||
-		(backendMode === "auto" && hasExplicitRpcAddress())
-	) {
+	if (backendMode === "rpc" || hasExplicitRpcAddress()) {
 		const address = resolveRpcAddress();
 		process.env.CLINE_RPC_ADDRESS = address;
 		return new RpcCoreSessionService({
@@ -133,38 +129,17 @@ async function getCoreSessions(
 		});
 	}
 
-	const requestedAddress = resolveRpcAddress();
+	// Default (auto): ensure the RPC runtime is running and attach to it.
+	const defaultAddress = resolveRpcAddress();
 	options.logger?.log("Ensuring RPC runtime for CLI session backend", {
-		address: requestedAddress,
+		address: defaultAddress,
 	});
-	try {
-		const address = await ensureCliRpcRuntimeAddress(requestedAddress);
-		process.env.CLINE_RPC_ADDRESS = address;
-		options.logger?.log("Connected to ensured RPC session backend", {
-			requestedAddress,
-			address,
-		});
-		return new RpcCoreSessionService({
-			address,
-			sessionsDir: resolveSessionDataDir(),
-		});
-	} catch (error) {
-		options.logger?.error?.("RPC backend auto-start failed", {
-			address: requestedAddress,
-			requestedAddress,
-			error,
-		});
-		options.logger?.log("Falling back to local session backend", {
-			requestedAddress,
-			address: requestedAddress,
-			severity: "warn",
-		});
-		return resolveSessionBackend({
-			backendMode: "local",
-			logger: options.logger,
-			rpc: { autoStart: false },
-		});
-	}
+	const resolvedAddress = await ensureCliRpcRuntimeAddress(defaultAddress);
+	process.env.CLINE_RPC_ADDRESS = resolvedAddress;
+	return new RpcCoreSessionService({
+		address: resolvedAddress,
+		sessionsDir: resolveSessionDataDir(),
+	});
 }
 
 export async function getCoreSessionBackend(

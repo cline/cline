@@ -3,7 +3,10 @@ import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
 import { setClineDir, setHomeDir } from "@clinebot/core";
-import { requestRpcServerShutdown } from "@clinebot/rpc";
+import {
+	getRpcServerDefaultAddress,
+	requestRpcServerShutdown,
+} from "@clinebot/rpc";
 import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
 import {
@@ -45,6 +48,7 @@ import {
 	writeErr,
 	writeln,
 } from "./utils/output";
+import { ensureCliRpcRuntimeAddress } from "./utils/rpc-runtime";
 import {
 	enableTeamsForPrompt,
 	rewriteTeamPrompt,
@@ -222,6 +226,18 @@ export async function runCli(): Promise<void> {
 					ctx.exitCode = await runStopAllConnectors(io);
 				}
 			} else if (adapter) {
+				// Ensure the RPC server is running before starting the connector.
+				// The connect command requires RPC for multi-client session management.
+				if (!process.env.CLINE_RPC_ADDRESS?.trim()) {
+					try {
+						const rpcAddress = await ensureCliRpcRuntimeAddress(
+							getRpcServerDefaultAddress(),
+						);
+						process.env.CLINE_RPC_ADDRESS = rpcAddress;
+					} catch {
+						// Best effort: proceed and let the connector handle any connection errors.
+					}
+				}
 				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
 				// connector-specific flags (everything after the adapter name).
 				ctx.exitCode = await runConnectAdapter(

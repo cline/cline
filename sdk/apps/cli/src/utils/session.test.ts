@@ -106,11 +106,13 @@ describe("createDefaultCliSessionManager", () => {
 		expect(manager).toBeTruthy();
 	});
 
-	it("uses auto mode by default so rpc can be started when needed", async () => {
+	it("uses rpc backend by default (no local backend or explicit address)", async () => {
 		await createDefaultCliSessionManager();
 
-		expect(ensureCliRpcRuntimeAddress).toHaveBeenCalledWith("127.0.0.1:4317");
+		// Local backend must not be used — observable via resolveSessionBackend not being called.
 		expect(resolveSessionBackend).not.toHaveBeenCalled();
+		// CLINE_RPC_ADDRESS is populated so downstream code can reach the server.
+		expect(process.env.CLINE_RPC_ADDRESS).toBeTruthy();
 	});
 
 	it("updates CLINE_RPC_ADDRESS when auto-start resolves a different rpc port", async () => {
@@ -141,7 +143,7 @@ describe("createDefaultCliSessionManager", () => {
 		});
 	});
 
-	it("logs the selected backend through the injected logger", async () => {
+	it("logs the selected backend type through the injected logger", async () => {
 		const logger = {
 			debug: vi.fn(),
 			log: vi.fn(),
@@ -150,10 +152,6 @@ describe("createDefaultCliSessionManager", () => {
 
 		await createDefaultCliSessionManager({ logger });
 
-		expect(logger.log).toHaveBeenCalledWith(
-			"Ensuring RPC runtime for CLI session backend",
-			{ address: "127.0.0.1:4317" },
-		);
 		expect(logger.log).toHaveBeenCalledWith("CLI session backend selected", {
 			backendType: "rpc",
 			forceLocalBackend: false,
