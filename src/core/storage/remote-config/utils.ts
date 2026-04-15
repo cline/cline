@@ -231,6 +231,8 @@ export function transformRemoteConfigToStateShape(remoteConfig: RemoteConfig): P
 			transformed.blobStoreConfig = accessSettingsToBlobStorage("s3", promptUplaoding.s3AccessSettings)
 		} else if (promptUplaoding.type === "r2_access_keys" && promptUplaoding.r2AccessSettings) {
 			transformed.blobStoreConfig = accessSettingsToBlobStorage("r2", promptUplaoding.r2AccessSettings)
+		} else if (promptUplaoding.type === "azure_access_keys" && promptUplaoding.azureAccessSettings) {
+			transformed.blobStoreConfig = accessSettingsToBlobStorage("azure", promptUplaoding.azureAccessSettings)
 		}
 	}
 
