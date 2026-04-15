@@ -122,6 +122,41 @@ describe("slack binding lookup", () => {
 		});
 	});
 
+	it("normalizes direct-message channels even when Slack omits im channel_type", () => {
+		expect(
+			__test__.normalizeSlackMessageEventChannelType({
+				channel: "D123",
+				channel_type: "app_home",
+				ts: "123.456",
+			}),
+		).toEqual({
+			channel: "D123",
+			channel_type: "im",
+			ts: "123.456",
+		});
+		expect(
+			__test__.normalizeSlackMessageEventChannelType({
+				channel: "D123",
+				ts: "123.456",
+			}),
+		).toEqual({
+			channel: "D123",
+			channel_type: "im",
+			ts: "123.456",
+		});
+	});
+
+	it("leaves non-DM Slack message events unchanged", () => {
+		const channelEvent = {
+			channel: "C123",
+			channel_type: "channel",
+			ts: "123.456",
+		};
+		expect(__test__.normalizeSlackMessageEventChannelType(channelEvent)).toBe(
+			channelEvent,
+		);
+	});
+
 	it("routes Slack posts through the installation bot token for a team", async () => {
 		const calls: string[] = [];
 		const result = await __test__.withSlackTeamBotToken({

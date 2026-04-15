@@ -126,6 +126,18 @@ function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
 }
 
+function normalizeSlackMessageEventChannelType<T>(event: T): T {
+	const record = asRecord(event);
+	const channel = readString(record?.channel);
+	if (!channel?.startsWith("D") || record?.channel_type === "im") {
+		return event;
+	}
+	return {
+		...record,
+		channel_type: "im",
+	} as T;
+}
+
 function buildSlackParticipantKey(teamId: string, userId: string): string {
 	return `slack:team:${teamId}:user:${userId}`;
 }
@@ -196,6 +208,18 @@ async function withSlackTeamBotToken<T>(input: {
 		return input.work();
 	}
 	return input.slack.withBotToken(installation.botToken, input.work);
+}
+
+function patchSlackMessageEventHandling(slack: SlackAdapter): void {
+	const adapter = slack as unknown as {
+		handleMessageEvent?: (event: unknown, options?: unknown) => unknown;
+	};
+	if (typeof adapter.handleMessageEvent !== "function") {
+		return;
+	}
+	const original = adapter.handleMessageEvent.bind(slack);
+	adapter.handleMessageEvent = (event, options) =>
+		original(normalizeSlackMessageEventChannelType(event), options);
 }
 
 function isSlackInvalidThreadTsError(error: unknown): boolean {
@@ -616,6 +640,7 @@ class SlackConnector extends ConnectorBase<
 			slackConfig.installationKeyPrefix = options.installationKeyPrefix.trim();
 		}
 		const slack = createSlackAdapter(slackConfig) as SlackAdapter;
+		patchSlackMessageEventHandling(slack);
 		const bot = new Chat({
 			userName: options.userName,
 			adapters: { slack: slack as unknown as Adapter },
@@ -1040,6 +1065,7 @@ export const slackConnector: ConnectCommandDefinition = new SlackConnector();
 export const __test__ = {
 	buildSlackParticipantKey,
 	resolveSlackParticipant,
+	normalizeSlackMessageEventChannelType,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (

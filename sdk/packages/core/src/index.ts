@@ -374,6 +374,7 @@ export {
 	RPC_STARTUP_LOCK_BYPASS_ENV,
 	type RpcDiscoveryRecord,
 	type RpcOwnerContext,
+	type RpcStartupLockHandle,
 	recordRpcDiscovery,
 	resolveEnsuredRpcRuntime,
 	resolveRpcOwnerContext,

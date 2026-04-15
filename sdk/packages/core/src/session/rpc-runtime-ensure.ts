@@ -24,6 +24,10 @@ type RpcStartupLockRecord = {
 	pid: number;
 	address: string;
 	acquiredAt: string;
+	updatedAt: string;
+	status: "starting" | "running";
+	resolvedAddress?: string;
+	serverId?: string;
 };
 
 export type RpcDiscoveryRecord = {
@@ -352,13 +356,8 @@ function isPidAlive(pid: number | undefined): boolean {
 
 async function writeRpcStartupLockRecord(
 	lockDir: string,
-	address: string,
+	record: RpcStartupLockRecord,
 ): Promise<void> {
-	const record: RpcStartupLockRecord = {
-		pid: process.pid,
-		address,
-		acquiredAt: new Date().toISOString(),
-	};
 	await writeFile(
 		join(lockDir, "owner.json"),
 		JSON.stringify(record, null, 2),
@@ -376,7 +375,9 @@ async function readRpcStartupLockRecord(
 		if (
 			typeof parsed.pid !== "number" ||
 			typeof parsed.address !== "string" ||
-			typeof parsed.acquiredAt !== "string"
+			typeof parsed.acquiredAt !== "string" ||
+			typeof parsed.updatedAt !== "string" ||
+			(parsed.status !== "starting" && parsed.status !== "running")
 		) {
 			return undefined;
 		}
@@ -384,6 +385,14 @@ async function readRpcStartupLockRecord(
 			pid: parsed.pid,
 			address: parsed.address,
 			acquiredAt: parsed.acquiredAt,
+			updatedAt: parsed.updatedAt,
+			status: parsed.status,
+			resolvedAddress:
+				typeof parsed.resolvedAddress === "string"
+					? parsed.resolvedAddress
+					: undefined,
+			serverId:
+				typeof parsed.serverId === "string" ? parsed.serverId : undefined,
 		};
 	} catch {
 		return undefined;
@@ -394,12 +403,59 @@ async function removeRpcStartupLockDir(lockDir: string): Promise<void> {
 	await rm(lockDir, { recursive: true, force: true }).catch(() => {});
 }
 
+async function updateRpcStartupLockRecord(
+	lockDir: string,
+	patch: Partial<Omit<RpcStartupLockRecord, "pid" | "address" | "acquiredAt">>,
+): Promise<void> {
+	const current = await readRpcStartupLockRecord(lockDir);
+	if (!current) {
+		return;
+	}
+	await writeRpcStartupLockRecord(lockDir, {
+		...current,
+		...patch,
+		updatedAt: new Date().toISOString(),
+	});
+}
+
+async function isRpcStartupLockStale(
+	existing: RpcStartupLockRecord | undefined,
+): Promise<boolean> {
+	const acquiredAtMs = existing ? new Date(existing.acquiredAt).getTime() : NaN;
+	if (
+		!existing ||
+		!Number.isFinite(acquiredAtMs) ||
+		Date.now() - acquiredAtMs > RPC_STARTUP_LOCK_MAX_AGE_MS ||
+		!isPidAlive(existing.pid)
+	) {
+		return true;
+	}
+	if (existing.status !== "running") {
+		return false;
+	}
+	const targetAddress = existing.resolvedAddress?.trim() || existing.address;
+	try {
+		return !(await getRpcServerHealth(targetAddress))?.running;
+	} catch {
+		return true;
+	}
+}
+
+export type RpcStartupLockHandle = {
+	markRunning: (details?: {
+		resolvedAddress?: string;
+		serverId?: string;
+	}) => Promise<void>;
+};
+
 export async function withRpcStartupLock<T>(
 	address: string,
-	action: () => Promise<T>,
+	action: (lock: RpcStartupLockHandle) => Promise<T>,
 ): Promise<T> {
 	if (process.env[RPC_STARTUP_LOCK_BYPASS_ENV] === "1") {
-		return await action();
+		return await action({
+			markRunning: async () => undefined,
+		});
 	}
 
 	const lockDir = getRpcStartupLockDir(address);
@@ -409,9 +465,23 @@ export async function withRpcStartupLock<T>(
 	while (true) {
 		try {
 			await mkdir(lockDir, { recursive: false });
-			await writeRpcStartupLockRecord(lockDir, address);
+			await writeRpcStartupLockRecord(lockDir, {
+				pid: process.pid,
+				address,
+				acquiredAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString(),
+				status: "starting",
+			});
 			try {
-				return await action();
+				return await action({
+					markRunning: async (details) => {
+						await updateRpcStartupLockRecord(lockDir, {
+							status: "running",
+							resolvedAddress: details?.resolvedAddress?.trim() || undefined,
+							serverId: details?.serverId?.trim() || undefined,
+						});
+					},
+				});
 			} finally {
 				await removeRpcStartupLockDir(lockDir);
 			}
@@ -419,22 +489,17 @@ export async function withRpcStartupLock<T>(
 			if (errorCode(error) !== "EEXIST") throw error;
 
 			const existing = await readRpcStartupLockRecord(lockDir);
-			const acquiredAtMs = existing
-				? new Date(existing.acquiredAt).getTime()
-				: Number.NaN;
-			const isStale =
-				!existing ||
-				!Number.isFinite(acquiredAtMs) ||
-				Date.now() - acquiredAtMs > RPC_STARTUP_LOCK_MAX_AGE_MS ||
-				!isPidAlive(existing.pid);
+			const isStale = await isRpcStartupLockStale(existing);
 			if (isStale) {
 				await removeRpcStartupLockDir(lockDir);
 				continue;
 			}
 
 			if (Date.now() - startedAt >= RPC_STARTUP_LOCK_WAIT_MS) {
+				const ownerPid =
+					typeof existing?.pid === "number" ? existing.pid : "unknown";
 				throw new Error(
-					`timed out waiting for rpc startup lock at ${address} (owner pid=${existing.pid})`,
+					`timed out waiting for rpc startup lock at ${address} (owner pid=${ownerPid})`,
 				);
 			}
 			await sleep(RPC_STARTUP_LOCK_POLL_MS);
@@ -473,11 +538,18 @@ export async function resolveEnsuredRpcRuntime(
 	options: {
 		owner?: RpcOwnerContext;
 		resolveOwner?: () => RpcOwnerContext;
+		/**
+		 * When true, skip startup lock acquisition. Use this when the caller
+		 * already holds the lock via {@link withRpcStartupLock} to avoid a
+		 * deadlock from nested lock acquisition on the same address.
+		 */
+		lockAlreadyHeld?: boolean;
 	} = {},
 ): Promise<ResolveRpcRuntimeResult> {
 	const owner =
 		options.owner ?? options.resolveOwner?.() ?? resolveRpcOwnerContext();
-	return await withRpcStartupLock(requestedAddress, async () => {
+
+	const core = async (): Promise<ResolveRpcRuntimeResult> => {
 		const discovery = await readRpcDiscovery(owner);
 		if (discovery?.address) {
 			const discoveredHealth = await getRpcServerHealth(discovery.address);
@@ -533,7 +605,12 @@ export async function resolveEnsuredRpcRuntime(
 			action: "new-port",
 			owner,
 		} satisfies ResolveRpcRuntimeResult;
-	});
+	};
+
+	if (options.lockAlreadyHeld) {
+		return await core();
+	}
+	return await withRpcStartupLock(requestedAddress, core);
 }
 
 export async function waitForCompatibleRpcRuntime(

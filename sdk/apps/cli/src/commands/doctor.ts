@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@clinebot/core";
 import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
 import { Command } from "commander";
@@ -18,10 +18,20 @@ type DoctorStatus = {
 	rpcHealthy: boolean;
 	rpcServerId?: string;
 	listeningPids: number[];
+	rpcStartupLocks: RpcStartupArtifact[];
+	rpcSpawnLeases: RpcStartupArtifact[];
 	staleCliPids: number[];
 	hookWorkerPids: number[];
 	activeConnectors: ActiveConnectorRecord[];
 	recentSpawnedProcesses: SpawnedProcessRecord[];
+};
+
+type RpcStartupArtifact = {
+	path: string;
+	address?: string;
+	pid?: number;
+	acquiredAt?: string;
+	stale: boolean;
 };
 
 type ActiveConnectorRecord = {
@@ -103,6 +113,124 @@ function parseRpcPort(address: string): number | undefined {
 	}
 	const port = Number.parseInt(address.slice(idx + 1), 10);
 	return Number.isInteger(port) && port > 0 ? port : undefined;
+}
+
+function encodeRpcAddress(address: string): string {
+	return Buffer.from(address).toString("base64url");
+}
+
+function normalizeRpcAddressForLockName(address: string): string {
+	return address.trim().replace(/[^a-zA-Z0-9_.-]+/g, "_");
+}
+
+function getRpcStartupLockRoot(): string {
+	return join(resolveClineDataDir(), "locks");
+}
+
+function getRpcStartupLockDir(address: string): string {
+	return join(
+		getRpcStartupLockRoot(),
+		`rpc-start-${normalizeRpcAddressForLockName(address)}.lock`,
+	);
+}
+
+function getRpcSpawnLeaseRoot(): string {
+	return join(resolveClineDataDir(), "sessions", "rpc", "spawn-leases");
+}
+
+function getRpcSpawnLeasePath(address: string): string {
+	return join(getRpcSpawnLeaseRoot(), `${encodeRpcAddress(address)}.lock`);
+}
+
+function readRpcStartupArtifacts(path: string): RpcStartupArtifact | undefined {
+	try {
+		const raw = JSON.parse(readFileSync(path, "utf8")) as Record<
+			string,
+			unknown
+		>;
+		const pid = typeof raw.pid === "number" ? raw.pid : undefined;
+		const address = typeof raw.address === "string" ? raw.address : undefined;
+		const acquiredAt =
+			typeof raw.acquiredAt === "string"
+				? raw.acquiredAt
+				: typeof raw.createdAt === "number"
+					? new Date(raw.createdAt).toISOString()
+					: undefined;
+		return {
+			path,
+			address,
+			pid,
+			acquiredAt,
+			stale: !isProcessRunning(pid ?? -1),
+		};
+	} catch {
+		return {
+			path,
+			stale: true,
+		};
+	}
+}
+
+function listRpcStartupLocks(address: string): RpcStartupArtifact[] {
+	const lockDir = getRpcStartupLockDir(address);
+	if (!existsSync(lockDir)) {
+		return [];
+	}
+	const ownerPath = join(lockDir, "owner.json");
+	return [
+		readRpcStartupArtifacts(ownerPath) ?? { path: ownerPath, stale: true },
+	];
+}
+
+function listRpcSpawnLeases(address: string): RpcStartupArtifact[] {
+	const leasePath = getRpcSpawnLeasePath(address);
+	if (!existsSync(leasePath)) {
+		return [];
+	}
+	return [
+		readRpcStartupArtifacts(leasePath) ?? { path: leasePath, stale: true },
+	];
+}
+
+function clearPathIfExists(path: string): boolean {
+	if (!existsSync(path)) {
+		return false;
+	}
+	try {
+		rmSync(path, { recursive: true, force: true });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function clearRpcStartupArtifacts(
+	address: string,
+	options?: { forceAddressArtifacts?: boolean },
+): { startupLocks: number; spawnLeases: number } {
+	const force = options?.forceAddressArtifacts === true;
+	const startupLocks = listRpcStartupLocks(address);
+	const spawnLeases = listRpcSpawnLeases(address);
+	let clearedStartupLocks = 0;
+	let clearedSpawnLeases = 0;
+
+	for (const artifact of startupLocks) {
+		if (
+			(force || artifact.stale) &&
+			clearPathIfExists(dirname(artifact.path))
+		) {
+			clearedStartupLocks += 1;
+		}
+	}
+	for (const artifact of spawnLeases) {
+		if ((force || artifact.stale) && clearPathIfExists(artifact.path)) {
+			clearedSpawnLeases += 1;
+		}
+	}
+	return {
+		startupLocks: clearedStartupLocks,
+		spawnLeases: clearedSpawnLeases,
+	};
 }
 
 function listListeningPids(address: string): number[] {
@@ -349,6 +477,8 @@ async function collectDoctorStatus(address: string): Promise<DoctorStatus> {
 		rpcHealthy: health?.running === true,
 		rpcServerId: health?.serverId,
 		listeningPids: listListeningPids(address),
+		rpcStartupLocks: listRpcStartupLocks(address),
+		rpcSpawnLeases: listRpcSpawnLeases(address),
 		staleCliPids: listStaleCliPids(),
 		hookWorkerPids: listHookWorkerPids(),
 		activeConnectors: listActiveConnectors(),
@@ -429,6 +559,18 @@ export async function runDoctorCommand(
 			`rpc healthy ${c.dim}${before.rpcHealthy ? "yes" : "no"}${before.rpcServerId ? ` (${before.rpcServerId})` : ""}${c.reset}`,
 		);
 		writeln(formatPidList("rpc listeners", before.listeningPids));
+		writeln(
+			formatPidList(
+				"rpc startup locks",
+				before.rpcStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+			),
+		);
+		writeln(
+			formatPidList(
+				"rpc spawn leases",
+				before.rpcSpawnLeases.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+			),
+		);
 		writeln(formatPidList("cli processes", before.staleCliPids));
 		writeln(formatPidList("hook workers", before.hookWorkerPids));
 		if (before.activeConnectors.length === 0) {
@@ -467,6 +609,11 @@ export async function runDoctorCommand(
 			!before.listeningPids.includes(pid) && !staleCliTargets.includes(pid),
 	);
 	const killedHookWorkers = killPids(hookWorkerTargets);
+	const postKillStatus = await collectDoctorStatus(address);
+	const clearedArtifacts = clearRpcStartupArtifacts(address, {
+		forceAddressArtifacts:
+			!postKillStatus.rpcHealthy && postKillStatus.listeningPids.length === 0,
+	});
 	const after = await collectDoctorStatus(address);
 
 	if (jsonOutput) {
@@ -478,6 +625,8 @@ export async function runDoctorCommand(
 					rpcListeners: killedRpc,
 					cliProcesses: killedCli,
 					hookWorkers: killedHookWorkers,
+					rpcStartupLocks: clearedArtifacts.startupLocks,
+					rpcSpawnLeases: clearedArtifacts.spawnLeases,
 				},
 			}),
 		);
@@ -486,8 +635,26 @@ export async function runDoctorCommand(
 	writeln(`killed rpc listeners ${c.dim}${killedRpc}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
 	writeln(`killed hook workers ${c.dim}${killedHookWorkers}${c.reset}`);
+	writeln(
+		`cleared rpc startup locks ${c.dim}${clearedArtifacts.startupLocks}${c.reset}`,
+	);
+	writeln(
+		`cleared rpc spawn leases ${c.dim}${clearedArtifacts.spawnLeases}${c.reset}`,
+	);
 	writeln(`rpc healthy after fix: ${after.rpcHealthy ? "yes" : "no"}`);
 	writeln(formatPidList("remaining rpc listeners", after.listeningPids));
+	writeln(
+		formatPidList(
+			"remaining rpc startup locks",
+			after.rpcStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+		),
+	);
+	writeln(
+		formatPidList(
+			"remaining rpc spawn leases",
+			after.rpcSpawnLeases.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+		),
+	);
 	writeln(formatPidList("remaining cli processes", after.staleCliPids));
 	writeln(formatPidList("remaining hook workers", after.hookWorkerPids));
 	return 0;

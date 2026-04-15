@@ -151,9 +151,10 @@ async function runRpcStartCommand(
 	const owner = resolveCurrentRpcOwnerContext();
 	let startedAction: "new-port" | "started" = "started";
 
-	await withRpcStartupLock(normalizedAddress, async () => {
+	await withRpcStartupLock(normalizedAddress, async (lock) => {
 		const ensured = await resolveEnsuredRpcRuntime(normalizedAddress, {
 			owner,
+			lockAlreadyHeld: true,
 		});
 		startAddress = ensured.address;
 		if (ensured.action === "reuse") {
@@ -171,6 +172,10 @@ async function runRpcStartCommand(
 			scheduler: {
 				logger: rpcLogger,
 			},
+		});
+		await lock.markRunning({
+			resolvedAddress: handle.address,
+			serverId: handle.serverId,
 		});
 		await recordRpcDiscovery(owner, {
 			address: startAddress,
