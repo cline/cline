@@ -34,6 +34,8 @@ hide:
   <a href="https://github.com/AI-Hydro/AI-Hydro/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License" /></a>
   &nbsp;
   <a href="https://github.com/AI-Hydro/AI-Hydro/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/AI-Hydro/AI-Hydro/docs.yml?label=docs" alt="Docs" /></a>
+  &nbsp;
+  <a href="https://doi.org/10.5281/zenodo.19597664"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.19597664-blue" alt="DOI" /></a>
 </p>
 
 ---

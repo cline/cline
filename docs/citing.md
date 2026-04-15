@@ -10,28 +10,40 @@ If you use AI-Hydro in your research, please cite the platform and the underlyin
 
 ## Platform Citation
 
+**VS Code Extension** (DOI: [10.5281/zenodo.19597664](https://doi.org/10.5281/zenodo.19597664))
+
 ```bibtex
-@software{aihydro2026,
-  title   = {AI-Hydro: An Agent-Native Platform for Reproducible
-             Computational Hydrology},
+@software{aihydro_extension_2026,
+  title   = {AI-Hydro: An Open Platform for End-to-End AI-Automated
+             Hydrological Research (VS Code Extension)},
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},
-  url     = {https://github.com/AI-Hydro/AI-Hydro},
   version = {0.1.3},
+  doi     = {10.5281/zenodo.19597664},
+  url     = {https://doi.org/10.5281/zenodo.19597664},
   license = {Apache-2.0}
 }
 ```
 
+**Python MCP Server** (DOI: [10.5281/zenodo.19597589](https://doi.org/10.5281/zenodo.19597589))
+
 ```bibtex
-@software{aihydrotools2026,
-  title   = {aihydro-tools: Hydrological Research Tools as an MCP Server for AI Agents},
-  author  = {Galib, Mohammad},
+@software{aihydro_tools_2026,
+  title   = {aihydro-tools: Python MCP Server for AI-Automated
+             Hydrological Research},
+  author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},
-  url     = {https://github.com/AI-Hydro/aihydro-tools},
   version = {1.2.1},
+  doi     = {10.5281/zenodo.19597589},
+  url     = {https://doi.org/10.5281/zenodo.19597589},
   license = {Apache-2.0}
 }
 ```
+
+!!! tip "Which should I cite?"
+    Cite **both** if you used the VS Code extension and ran analyses through it.
+    Cite only **aihydro-tools** if you used the Python package or MCP server directly
+    without the extension. When in doubt, cite both — they are companion releases.
 
 ---
 
