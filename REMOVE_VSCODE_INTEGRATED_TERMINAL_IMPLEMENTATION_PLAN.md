@@ -673,12 +673,12 @@ This section is meant to be used directly by a developer while making changes.
 
 ### Core runtime wiring
 
-- [ ] `src/extension.ts`
+- [x] `src/extension.ts`
   - swap terminal-manager factory to `StandaloneTerminalManager`
   - remove terminal-output command registration
   - remove unused imports that supported integrated terminal output copying
 
-- [ ] `src/core/task/index.ts`
+- [x] `src/core/task/index.ts`
   - confirm the background-exec path remains intact
   - do **not** remove `terminalReuseEnabled` or `terminalOutputLineLimit`
   - do **not** broaden scope here unless compilation requires it
@@ -687,47 +687,47 @@ Why those settings stay: they govern the background terminal behavior that Cline
 
 ### `@terminal` removal
 
-- [ ] `src/shared/context-mentions.ts`
-- [ ] `src/core/mentions/index.ts`
-- [ ] `src/shared/__tests__/context-mentions.test.ts`
-- [ ] `src/core/mentions/index.test.ts`
-- [ ] `webview-ui/src/utils/context-mentions.ts`
-- [ ] `webview-ui/src/components/chat/ChatTextArea.tsx`
-- [ ] `webview-ui/src/components/chat/ContextMenu.tsx`
-- [ ] `webview-ui/src/config/platform-configs.json`
-- [ ] `webview-ui/src/config/platform.config.ts`
-- [ ] `webview-ui/src/utils/__tests__/context-mentions.test.ts`
+- [x] `src/shared/context-mentions.ts`
+- [x] `src/core/mentions/index.ts`
+- [x] `src/shared/__tests__/context-mentions.test.ts`
+- [x] `src/core/mentions/index.test.ts`
+- [x] `webview-ui/src/utils/context-mentions.ts`
+- [x] `webview-ui/src/components/chat/ChatTextArea.tsx`
+- [x] `webview-ui/src/components/chat/ContextMenu.tsx`
+- [x] `webview-ui/src/config/platform-configs.json`
+- [x] `webview-ui/src/config/platform.config.ts`
+- [x] `webview-ui/src/utils/__tests__/context-mentions.test.ts`
 
 ### Terminal-output-to-chat command removal
 
-- [ ] `src/registry.ts`
-- [ ] `package.json`
-- [ ] any tests that reference `cline.addTerminalOutputToChat`
+- [x] `src/registry.ts`
+- [x] `package.json`
+- [x] any tests that reference `cline.addTerminalOutputToChat`
 
 ### CLI install flow removal
 
-- [ ] `src/core/controller/state/installClineCli.ts`
-- [ ] `webview-ui/src/components/common/ClineKanbanLaunchModal.tsx`
-- [ ] `webview-ui/src/components/chat/chat-view/components/layout/WelcomeSection.tsx`
-- [ ] `src/shared/cline/banner.ts`
-- [ ] `webview-ui/src/services/grpc-client.ts`
-- [ ] any banner or state code that is only meaningful for the removed install flow
+- [x] `src/core/controller/state/installClineCli.ts`
+- [x] `webview-ui/src/components/common/ClineKanbanLaunchModal.tsx`
+- [x] `webview-ui/src/components/chat/chat-view/components/layout/WelcomeSection.tsx`
+- [x] `src/shared/cline/banner.ts`
+- [x] `webview-ui/src/services/grpc-client.ts`
+- [x] any banner or state code that is only meaningful for the removed install flow
 
 ### Integrated-terminal implementation deletion
 
-- [ ] `src/hosts/vscode/terminal/VscodeTerminalManager.ts`
-- [ ] `src/hosts/vscode/terminal/VscodeTerminalProcess.ts`
-- [ ] `src/hosts/vscode/terminal/VscodeTerminalRegistry.ts`
-- [ ] `src/hosts/vscode/terminal/get-latest-output.ts`
-- [ ] `src/hosts/vscode/terminal/ansiUtils.ts` if unused
-- [ ] related tests
+- [x] `src/hosts/vscode/terminal/VscodeTerminalManager.ts`
+- [x] `src/hosts/vscode/terminal/VscodeTerminalProcess.ts`
+- [x] `src/hosts/vscode/terminal/VscodeTerminalRegistry.ts`
+- [x] `src/hosts/vscode/terminal/get-latest-output.ts`
+- [x] `src/hosts/vscode/terminal/ansiUtils.ts` if unused
+- [x] related tests
 
 ### Compatibility surfaces to leave alone unless necessary
 
-- [ ] shared proto/grpc generated files
-- [ ] shared interface residue (`waitForShellIntegration`, etc.)
-- [ ] telemetry enum/constants unless build/tests require changes
-- [ ] `terminalExecutionMode` types/comments unless they cause direct confusion or compile errors
+- [x] shared proto/grpc generated files
+- [x] shared interface residue (`waitForShellIntegration`, etc.)
+- [x] telemetry enum/constants unless build/tests require changes
+- [x] `terminalExecutionMode` types/comments unless they cause direct confusion or compile errors
 
 Developers should read this as a restraint list. These are the places where unnecessary enthusiasm can turn a focused cleanup into a multi-week refactor.
 
@@ -747,10 +747,10 @@ What likely happened:
 
 What to do:
 
-- [ ] Search for `Terminal` in the context-mentions UI files
-- [ ] Search for `supportsTerminalMentions`
-- [ ] Search for `@terminal`
-- [ ] Update tests and types until the compiler matches the new behavior
+- [x] Search for `Terminal` in the context-mentions UI files
+- [x] Search for `supportsTerminalMentions`
+- [x] Search for `@terminal`
+- [x] Update tests and types until the compiler matches the new behavior
 
 ### Problem: Build fails after removing the terminal-output command
 
@@ -761,8 +761,8 @@ What likely happened:
 
 What to do:
 
-- [ ] Search for `addTerminalOutputToChat`
-- [ ] Remove all command references from runtime code and manifest contributions together
+- [x] Search for `addTerminalOutputToChat`
+- [x] Remove all command references from runtime code and manifest contributions together
 
 ### Problem: The extension still creates or focuses a VS Code terminal somewhere
 
@@ -773,10 +773,10 @@ What likely happened:
 
 What to do:
 
-- [ ] Search for `openTerminalPanel(`
-- [ ] Search for `executeCommandInTerminal(`
-- [ ] Search for `vscode.window.createTerminal`
-- [ ] Search for `workbench.action.terminal`
+- [x] Search for `openTerminalPanel(`
+- [x] Search for `executeCommandInTerminal(`
+- [x] Search for `vscode.window.createTerminal`
+- [x] Search for `workbench.action.terminal`
 
 ### Problem: Developers are tempted to simplify shared terminal types immediately
 
@@ -787,8 +787,8 @@ Why that is risky:
 
 What to do instead:
 
-- [ ] stop and ask whether the change is required for correctness
-- [ ] if not required, defer it to a later cleanup PR
+- [x] stop and ask whether the change is required for correctness
+- [x] if not required, defer it to a later cleanup PR
 
 In practice, that means developers should prefer a temporary unused field over a broad signature change unless the compiler or runtime forces the broader change.
 
