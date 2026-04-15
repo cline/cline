@@ -62,6 +62,9 @@ export class Controller {
 	private messageTranslatorState: MessageTranslatorState
 	private sessionEventListeners: Set<SessionEventListener> = new Set()
 
+	// Debounce timer for saving ClineMessages to disk
+	private saveClineMessagesTimer: ReturnType<typeof setTimeout> | undefined
+
 	// gRPC bridge (Step 5) — bridges SDK events to webview streams
 	private grpcBridge: WebviewGrpcBridge
 
@@ -123,10 +126,51 @@ export class Controller {
 	}
 
 	async dispose(): Promise<void> {
+		// Flush any pending message save
+		if (this.saveClineMessagesTimer) {
+			clearTimeout(this.saveClineMessagesTimer)
+			this.saveClineMessagesTimer = undefined
+		}
 		await this.clearTask()
 		this.mcpHub?.dispose?.()
 		this.sessionEventListeners.clear()
 		Logger.log("[SdkController] Disposed")
+	}
+
+	// ---- Message persistence ----
+
+	/**
+	 * Debounced save of ClineMessages to disk.
+	 * Writes to the classic ui_messages.json location so that
+	 * showTaskWithId() → readUiMessages() can find them later.
+	 */
+	private debouncedSaveClineMessages(): void {
+		if (this.saveClineMessagesTimer) {
+			clearTimeout(this.saveClineMessagesTimer)
+		}
+		this.saveClineMessagesTimer = setTimeout(() => {
+			this.saveClineMessagesTimer = undefined
+			this.saveClineMessagesNow().catch((err) => {
+				Logger.error("[SdkController] Failed to save ClineMessages:", err)
+			})
+		}, 500) // 500ms debounce — fast enough for interruptions, slow enough to batch
+	}
+
+	private async saveClineMessagesNow(): Promise<void> {
+		const taskId = this.task?.taskId
+		if (!taskId || !this.task?.messageStateHandler) {
+			return
+		}
+		const messages = this.task.messageStateHandler.getClineMessages()
+		if (messages.length === 0) {
+			return
+		}
+		try {
+			const { saveClineMessages } = await import("@core/storage/disk")
+			await saveClineMessages(taskId, messages)
+		} catch (error) {
+			Logger.error("[SdkController] saveClineMessagesNow error:", error)
+		}
 	}
 
 	// ---- Session event subscription ----
@@ -175,6 +219,12 @@ export class Controller {
 			// so getStateToPostToWebview() can return them
 			if (this.task?.messageStateHandler) {
 				this.task.messageStateHandler.addMessages(result.messages)
+
+				// Persist messages to disk so showTaskWithId() can load them later.
+				// The classic extension stores ClineMessages in ui_messages.json;
+				// the SDK stores its own format in sessions/. We write to the classic
+				// location so the existing readUiMessages() path works.
+				this.debouncedSaveClineMessages()
 			}
 		}
 
