@@ -207,11 +207,14 @@ describe("AwsBedrockHandler", () => {
 	describe("model metadata parity", () => {
 		it("should mark Bedrock Opus 4.7 variants as global-endpoint capable", () => {
 			bedrockModels["anthropic.claude-opus-4-7"].supportsGlobalEndpoint.should.equal(true)
+			bedrockModels["anthropic.claude-opus-4-7:1m"].supportsGlobalEndpoint.should.equal(true)
 		})
 
 		it("should include Vertex Opus 4.7 variants in the derived global model list", () => {
 			vertexModels["claude-opus-4-7"].supportsGlobalEndpoint.should.equal(true)
+			vertexModels["claude-opus-4-7:1m"].supportsGlobalEndpoint.should.equal(true)
 			vertexGlobalModels.should.have.property("claude-opus-4-7")
+			vertexGlobalModels.should.have.property("claude-opus-4-7:1m")
 		})
 	})
 
@@ -1114,7 +1117,7 @@ describe("AwsBedrockHandler", () => {
 			]
 
 			// Consume the generator to trigger createAnthropicMessage
-			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), tools)
+			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), false, tools)
 			for await (const _ of gen) {
 				// drain
 			}

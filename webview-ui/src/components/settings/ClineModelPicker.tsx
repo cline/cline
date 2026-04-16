@@ -1,4 +1,4 @@
-import { openRouterDefaultModelId } from "@shared/api"
+import { CLAUDE_SONNET_1M_SUFFIX, openRouterDefaultModelId } from "@shared/api"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@shared/cline/recommended-models"
 import { EmptyRequest, StringRequest } from "@shared/proto/cline/common"
 import { type ClineRecommendedModel, ClineRecommendedModelsResponse } from "@shared/proto/cline/models"
@@ -13,6 +13,7 @@ import styled from "styled-components"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient, StateServiceClient } from "@/services/grpc-client"
 import { highlight } from "../history/HistoryView"
+import { ContextWindowSwitcher } from "./common/ContextWindowSwitcher"
 import { ModelInfoView } from "./common/ModelInfoView"
 import FeaturedModelCard from "./FeaturedModelCard"
 import ReasoningEffortSelector from "./ReasoningEffortSelector"
@@ -510,6 +511,46 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{/* Context window switcher for Claude Opus 4.7 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.7"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Opus 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Sonnet 4.6 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.6"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Sonnet 4.5 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4.5"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
+
+				{/* Context window switcher for Claude Sonnet 4 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-sonnet-4"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 			</div>
 
 			{hasInfo ? (

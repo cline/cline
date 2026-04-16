@@ -6,7 +6,14 @@ import type {
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import type { MessageCreateParamsStreaming as AnthropicMessageCreateParamsStreaming } from "@anthropic-ai/sdk/resources/messages/messages"
 import { Stream as AnthropicStream } from "@anthropic-ai/sdk/streaming"
-import { ANTHROPIC_FAST_MODE_SUFFIX, AnthropicModelId, anthropicDefaultModelId, anthropicModels, ModelInfo } from "@shared/api"
+import {
+	ANTHROPIC_FAST_MODE_SUFFIX,
+	AnthropicModelId,
+	anthropicDefaultModelId,
+	anthropicModels,
+	CLAUDE_SONNET_1M_SUFFIX,
+	ModelInfo,
+} from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -62,8 +69,13 @@ export class AnthropicHandler implements ApiHandler {
 
 		const useFastMode = model.id.endsWith(ANTHROPIC_FAST_MODE_SUFFIX)
 		const baseModelId = useFastMode ? model.id.slice(0, -ANTHROPIC_FAST_MODE_SUFFIX.length) : model.id
-		const modelId = baseModelId
-		const fastModeBetas = [ANTHROPIC_FAST_MODE_BETA]
+		const modelId = baseModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+			? baseModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
+			: baseModelId
+		const enable1mContextWindow = baseModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+		const fastModeBetas = enable1mContextWindow
+			? [ANTHROPIC_FAST_MODE_BETA, "context-1m-2025-08-07"]
+			: [ANTHROPIC_FAST_MODE_BETA]
 		const createFastModeMessage = (
 			body: AnthropicMessageCreateParamsStreaming,
 		): Promise<AsyncIterable<BetaRawMessageStreamEvent>> => {
@@ -131,7 +143,22 @@ export class AnthropicHandler implements ApiHandler {
 				requestBody.output_config = outputConfig
 			}
 
-			stream = useFastMode ? await createFastModeMessage(requestBody) : await client.messages.create(requestBody)
+			stream = useFastMode
+				? await createFastModeMessage(requestBody)
+				: await client.messages.create(
+						requestBody,
+						(() => {
+							// 1m context window beta header
+							if (enable1mContextWindow) {
+								return {
+									headers: {
+										"anthropic-beta": "context-1m-2025-08-07",
+									},
+								}
+							}
+							return undefined
+						})(),
+					)
 		} else {
 			const requestBody: AnthropicMessageCreateParamsStreaming & Record<string, unknown> = {
 				model: modelId,

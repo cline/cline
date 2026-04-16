@@ -1,7 +1,7 @@
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
-import { ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
+import { CLAUDE_SONNET_1M_SUFFIX, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
@@ -74,10 +74,14 @@ export class VertexHandler implements ApiHandler {
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
 		const model = this.getModel()
-		const modelId = model.id
+		const rawModelId = model.id
+		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
+			: rawModelId
+		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		// For Gemini models, use the GeminiHandler
-		if (!modelId.includes("claude")) {
+		if (!rawModelId.includes("claude")) {
 			const geminiHandler = this.ensureGeminiHandler()
 			yield* geminiHandler.createMessage(systemPrompt, messages, tools as GoogleTool[])
 			return
@@ -136,7 +140,16 @@ export class VertexHandler implements ApiHandler {
 			requestBody.output_config = outputConfig
 		}
 
-		const stream = (await clientAnthropic.beta.messages.create(requestBody as any)) as unknown as AsyncIterable<any>
+		const stream = (await clientAnthropic.beta.messages.create(
+			requestBody as any,
+			enable1mContextWindow
+				? {
+						headers: {
+							"anthropic-beta": "context-1m-2025-08-07",
+						},
+					}
+				: undefined,
+		)) as unknown as AsyncIterable<any>
 
 		const lastStartedToolCall = { id: "", name: "", arguments: "" }
 

@@ -10,7 +10,7 @@ import {
 	InvokeModelWithResponseStreamCommand,
 } from "@aws-sdk/client-bedrock-runtime"
 import { fromNodeProviderChain } from "@aws-sdk/credential-providers"
-import { type BedrockModelId, bedrockDefaultModelId, bedrockModels, type ModelInfo } from "@shared/api"
+import { type BedrockModelId, bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX, type ModelInfo } from "@shared/api"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { calculateApiCostOpenAI, calculateApiCostQwen } from "@utils/cost"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -138,8 +138,11 @@ interface ProviderChainOptions {
 // https://docs.aws.amazon.com/bedrock/latest/userguide/inference-profiles-support.html
 const JP_SUPPORTED_CRIS_MODELS = [
 	"anthropic.claude-sonnet-4-6",
+	"anthropic.claude-sonnet-4-6:1m",
 	"anthropic.claude-opus-4-6-v1",
+	"anthropic.claude-opus-4-6-v1:1m",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
+	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",
 ]
 
@@ -154,7 +157,13 @@ export class AwsBedrockHandler implements ApiHandler {
 	@withRetry({ maxRetries: 4 })
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
 		// cross region inference requires prefixing the model id with the region
-		const modelId = await this.getModelId()
+		const rawModelId = await this.getModelId()
+
+		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
+			: rawModelId
+
+		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
 
 		const model = this.getModel()
 
@@ -188,7 +197,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		}
 
 		// Default: Use Anthropic Converse API for all Anthropic models
-		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model, tools)
+		yield* this.createAnthropicMessage(systemPrompt, messages, modelId, model, enable1mContextWindow, tools)
 	}
 
 	getModel(): { id: string; info: ModelInfo } {
@@ -897,6 +906,7 @@ export class AwsBedrockHandler implements ApiHandler {
 		messages: ClineStorageMessage[],
 		modelId: string,
 		model: { id: string; info: ModelInfo },
+		enable1mContextWindow: boolean,
 		tools?: ClineTool[],
 	): ApiStream {
 		// Format messages for Anthropic model using unified formatter
@@ -946,6 +956,9 @@ export class AwsBedrockHandler implements ApiHandler {
 					output_config: {
 						effort: adaptiveThinkingEffort,
 					},
+				}),
+				...(enable1mContextWindow && {
+					anthropic_beta: ["context-1m-2025-08-07"],
 				}),
 			},
 		})
