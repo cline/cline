@@ -62,7 +62,6 @@ export function resolveWorkspacePath(config: CoreSessionConfig): string {
 
 export async function buildEffectiveConfig(
 	input: StartSessionInput,
-	hookPath: string,
 	sessionId: string,
 	defaultTelemetry: ITelemetryService | undefined,
 	onPluginEvent?: (event: { name: string; payload?: unknown }) => void,
@@ -76,13 +75,11 @@ export async function buildEffectiveConfig(
 		cwd: input.config.cwd,
 		workspacePath,
 		rootSessionId: sessionId,
-		hookLogPath: hookPath,
 		logger: input.config.logger,
 	});
 	const auditHooks = hasRuntimeHooks(input.config.hooks)
 		? undefined
 		: createHookAuditHooks({
-				hookLogPath: hookPath,
 				rootSessionId: sessionId,
 				workspacePath,
 			});

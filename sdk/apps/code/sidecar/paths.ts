@@ -50,10 +50,6 @@ export function sharedSessionLogPath(sessionId: string): string {
 	return sharedSessionArtifactPath(sessionId, "log");
 }
 
-export function sharedSessionHookPath(sessionId: string): string {
-	return sharedSessionArtifactPath(sessionId, "hooks.jsonl");
-}
-
 export function sharedSessionMessagesPath(sessionId: string): string {
 	return sharedSessionArtifactPath(sessionId, "messages.json");
 }
@@ -97,10 +93,6 @@ function kanbanDataRoot(): string {
 
 export function sessionLogPath(sessionId: string): string {
 	return join(kanbanDataRoot(), "sessions", `${sessionId}.jsonl`);
-}
-
-export function sessionHookLogPath(sessionId: string): string {
-	return join(kanbanDataRoot(), "hooks", `${sessionId}.jsonl`);
 }
 
 // ---------------------------------------------------------------------------

@@ -192,7 +192,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest.json",
 				transcriptPath: "/tmp/transcript.log",
-				hookPath: "/tmp/hook.log",
 				messagesPath: "/tmp/messages.json",
 				manifest,
 			}),
@@ -282,7 +281,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest.json",
 				transcriptPath: "/tmp/transcript.log",
-				hookPath: "/tmp/hook.log",
 				messagesPath: "/tmp/messages.json",
 				manifest,
 			}),
@@ -342,7 +340,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest.json",
 				transcriptPath: "/tmp/transcript.log",
-				hookPath: "/tmp/hook.log",
 				messagesPath: "/tmp/messages.json",
 				manifest,
 			}),
@@ -379,7 +376,6 @@ describe("DefaultSessionManager", () => {
 					prompt: null,
 					metadata: null,
 					transcriptPath: "/tmp/transcript.log",
-					hookPath: "/tmp/hook.log",
 					messagesPath: "/tmp/messages.json",
 					updatedAt: "2026-01-01T00:00:00.000Z",
 				},
@@ -436,7 +432,6 @@ describe("DefaultSessionManager", () => {
 		const createRootSessionWithArtifacts = vi.fn().mockResolvedValue({
 			manifestPath: "/tmp/manifest.json",
 			transcriptPath: "/tmp/transcript.log",
-			hookPath: "/tmp/hook.log",
 			messagesPath: "/tmp/messages.json",
 			manifest,
 		});
@@ -529,7 +524,6 @@ describe("DefaultSessionManager", () => {
 		const createRootSessionWithArtifacts = vi.fn().mockResolvedValue({
 			manifestPath: "/tmp/manifest-history-meta.json",
 			transcriptPath: "/tmp/transcript-history-meta.log",
-			hookPath: "/tmp/hook-history-meta.log",
 			messagesPath: "/tmp/messages-history-meta.json",
 			manifest: { ...storedManifest },
 		});
@@ -658,7 +652,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-checkpoint-default-off.json",
 				transcriptPath: "/tmp/transcript-checkpoint-default-off.log",
-				hookPath: "/tmp/hook-checkpoint-default-off.log",
 				messagesPath: "/tmp/messages-checkpoint-default-off.json",
 				manifest,
 			}),
@@ -745,7 +738,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-checkpoint-env-on.json",
 				transcriptPath: "/tmp/transcript-checkpoint-env-on.log",
-				hookPath: "/tmp/hook-checkpoint-env-on.log",
 				messagesPath: "/tmp/messages-checkpoint-env-on.json",
 				manifest,
 			}),
@@ -844,7 +836,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-meta.json",
 				transcriptPath: "/tmp/transcript-meta.log",
-				hookPath: "/tmp/hook-meta.log",
 				messagesPath: "/tmp/messages-meta.json",
 				manifest,
 			}),
@@ -944,7 +935,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest.json",
 				transcriptPath: "/tmp/transcript.log",
-				hookPath: "/tmp/hook.log",
 				messagesPath: "/tmp/messages.json",
 				manifest,
 			}),
@@ -1037,7 +1027,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest.json",
 				transcriptPath: "/tmp/transcript.log",
-				hookPath: "/tmp/hook.log",
 				messagesPath: "/tmp/messages.json",
 				manifest,
 			}),
@@ -1113,7 +1102,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest.json",
 				transcriptPath: "/tmp/transcript.log",
-				hookPath: "/tmp/hook.log",
 				messagesPath: "/tmp/messages.json",
 				manifest,
 			}),
@@ -1253,7 +1241,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-meta-multi.json",
 				transcriptPath: "/tmp/transcript-meta-multi.log",
-				hookPath: "/tmp/hook-meta-multi.log",
 				messagesPath: "/tmp/messages-meta-multi.json",
 				manifest,
 			}),
@@ -1314,7 +1301,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-failed-turn.json",
 				transcriptPath: "/tmp/transcript-failed-turn.log",
-				hookPath: "/tmp/hook-failed-turn.log",
 				messagesPath: "/tmp/messages-failed-turn.json",
 				manifest,
 			}),
@@ -1382,7 +1368,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-2.json",
 				transcriptPath: "/tmp/transcript-2.log",
-				hookPath: "/tmp/hook-2.log",
 				messagesPath: "/tmp/messages-2.json",
 				manifest,
 			}),
@@ -1439,7 +1424,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-usage.json",
 				transcriptPath: "/tmp/transcript-usage.log",
-				hookPath: "/tmp/hook-usage.log",
 				messagesPath: "/tmp/messages-usage.json",
 				manifest,
 			}),
@@ -1526,7 +1510,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-queue.json",
 				transcriptPath: "/tmp/transcript-queue.log",
-				hookPath: "/tmp/hook-queue.log",
 				messagesPath: "/tmp/messages-queue.json",
 				manifest,
 			}),
@@ -1662,7 +1645,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-fail.json",
 				transcriptPath: "/tmp/transcript-fail.log",
-				hookPath: "/tmp/hook-fail.log",
 				messagesPath: "/tmp/messages-fail.json",
 				manifest,
 			}),
@@ -1767,7 +1749,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-oauth.json",
 				transcriptPath: "/tmp/transcript-oauth.log",
-				hookPath: "/tmp/hook-oauth.log",
 				messagesPath: "/tmp/messages-oauth.json",
 				manifest,
 			}),
@@ -1842,7 +1823,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-provider-config.json",
 				transcriptPath: "/tmp/transcript-provider-config.log",
-				hookPath: "/tmp/hook-provider-config.log",
 				messagesPath: "/tmp/messages-provider-config.json",
 				manifest,
 			}),
@@ -1924,7 +1904,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-loop.json",
 				transcriptPath: "/tmp/transcript-loop.log",
-				hookPath: "/tmp/hook-loop.log",
 				messagesPath: "/tmp/messages-loop.json",
 				manifest,
 			}),
@@ -1984,7 +1963,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-compaction.json",
 				transcriptPath: "/tmp/transcript-compaction.log",
-				hookPath: "/tmp/hook-compaction.log",
 				messagesPath: "/tmp/messages-compaction.json",
 				manifest,
 			}),
@@ -2056,7 +2034,6 @@ describe("DefaultSessionManager", () => {
 				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 					manifestPath: "/tmp/manifest-format.json",
 					transcriptPath: "/tmp/transcript-format.log",
-					hookPath: "/tmp/hook-format.log",
 					messagesPath: "/tmp/messages-format.json",
 					manifest,
 				}),
@@ -2119,7 +2096,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-oauth-retry.json",
 				transcriptPath: "/tmp/transcript-oauth-retry.log",
-				hookPath: "/tmp/hook-oauth-retry.log",
 				messagesPath: "/tmp/messages-oauth-retry.json",
 				manifest,
 			}),
@@ -2212,7 +2188,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-team-auto-continue.json",
 				transcriptPath: "/tmp/transcript-team-auto-continue.log",
-				hookPath: "/tmp/hook-team-auto-continue.log",
 				messagesPath: "/tmp/messages-team-auto-continue.json",
 				manifest,
 			}),
@@ -2352,7 +2327,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-team-task-failure-messages.json",
 				transcriptPath: "/tmp/transcript-team-task-failure-messages.log",
-				hookPath: "/tmp/hook-team-task-failure-messages.log",
 				messagesPath: "/tmp/messages-team-task-failure-messages.json",
 				manifest,
 			}),
@@ -2437,7 +2411,6 @@ describe("DefaultSessionManager", () => {
 			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
 				manifestPath: "/tmp/manifest-team-task-progress.json",
 				transcriptPath: "/tmp/transcript-team-task-progress.log",
-				hookPath: "/tmp/hook-team-task-progress.log",
 				messagesPath: "/tmp/messages-team-task-progress.json",
 				manifest,
 			}),

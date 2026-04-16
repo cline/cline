@@ -79,7 +79,6 @@ class LocalFileSessionService {
 
 		const manifestPath = join(sessionPath, `${sessionId}.json`);
 		const transcriptPath = join(sessionPath, `${sessionId}.log`);
-		const hookPath = join(sessionPath, `${sessionId}.hooks.jsonl`);
 		const messagesPath = join(sessionPath, `${sessionId}.messages.json`);
 		const prompt = input.prompt?.trim() || undefined;
 		const manifest: SessionManifest = {
@@ -107,7 +106,6 @@ class LocalFileSessionService {
 			"utf8",
 		);
 		writeFileSync(transcriptPath, "", "utf8");
-		writeFileSync(hookPath, "", "utf8");
 		writeFileSync(
 			messagesPath,
 			`${JSON.stringify({ version: 1, updated_at: startedAt, messages: [] }, null, 2)}\n`,
@@ -139,7 +137,7 @@ class LocalFileSessionService {
 			isSubagent: false,
 			prompt: prompt ?? null,
 			transcriptPath,
-			hookPath,
+			hookPath: "",
 			messagesPath,
 			updatedAt: startedAt,
 		});
@@ -147,7 +145,6 @@ class LocalFileSessionService {
 		return {
 			manifestPath,
 			transcriptPath,
-			hookPath,
 			messagesPath,
 			manifest,
 		};
@@ -215,7 +212,6 @@ class LocalFileSessionService {
 		}
 		this.rows.delete(sessionId);
 		unlinkSync(row.transcriptPath);
-		unlinkSync(row.hookPath);
 		unlinkSync(row.messagesPath ?? "");
 		unlinkSync(join(this.sessionsDir, sessionId, `${sessionId}.json`));
 		return { deleted: true };

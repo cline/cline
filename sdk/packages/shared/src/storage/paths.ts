@@ -436,7 +436,7 @@ export function ensureHookLogDir(filePath?: string): string {
 		ensureParentDir(filePath);
 		return dirname(filePath);
 	}
-	const dir = join(resolveClineDataDir(), "hooks");
+	const dir = join(resolveClineDataDir(), "logs");
 	if (!existsSync(dir)) {
 		mkdirSync(dir, { recursive: true });
 	}

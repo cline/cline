@@ -27,6 +27,7 @@ import { StatusBar } from "../tui/components/StatusBar";
 import { WelcomeView } from "../tui/components/WelcomeView";
 import { resolveStatusNoticeLabel } from "../utils/events";
 import { truncate } from "../utils/helpers";
+import { appendInputHistory, loadInputHistory } from "../utils/input-history";
 import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
 import type {
@@ -224,6 +225,10 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	// Input & submission
 	const [input, setInput] = useState("");
+	const [inputHistory, setInputHistory] = useState<string[]>(() =>
+		loadInputHistory(),
+	);
+	const [historyIndex, setHistoryIndex] = useState(-1);
 	const [isRunning, setIsRunning] = useState(false);
 	const [isExitRequested, setIsExitRequested] = useState(false);
 	const [abortRequested, setAbortRequested] = useState(false);
@@ -784,6 +789,11 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			}
 			appendEntry({ kind: "user_submitted", text: prompt, delivery });
 			setInput("");
+			if (!delivery) {
+				appendInputHistory(prompt);
+				setInputHistory((prev) => [prompt, ...prev]);
+				setHistoryIndex(-1);
+			}
 
 			const startedAt = performance.now();
 			try {
@@ -1033,6 +1043,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		}
 
 		if (key.backspace || key.delete) {
+			setHistoryIndex(-1);
 			setInput((prev) => prev.slice(0, -1));
 			return;
 		}
@@ -1050,6 +1061,14 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				);
 				return;
 			}
+			if ((input === "" || historyIndex >= 0) && inputHistory.length > 0) {
+				setHistoryIndex((prev) => {
+					const next = Math.min(prev + 1, inputHistory.length - 1);
+					setInput(inputHistory[next] ?? "");
+					return next;
+				});
+				return;
+			}
 			return;
 		}
 
@@ -1064,6 +1083,14 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				setSlashSelectedIndex((prev) =>
 					prev < slashResults.length - 1 ? prev + 1 : 0,
 				);
+				return;
+			}
+			if (historyIndex >= 0) {
+				setHistoryIndex((prev) => {
+					const next = prev - 1;
+					setInput(next < 0 ? "" : (inputHistory[next] ?? ""));
+					return next;
+				});
 				return;
 			}
 			return;
@@ -1086,6 +1113,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			value.length > 0 &&
 			!value.includes("\u001b")
 		) {
+			setHistoryIndex(-1);
 			setInput((prev) => prev + value);
 		}
 	});

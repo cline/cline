@@ -35,7 +35,6 @@ export interface StartSessionResult {
 	manifest: SessionManifest;
 	manifestPath: string;
 	transcriptPath: string;
-	hookPath: string;
 	messagesPath: string;
 	result?: AgentResult;
 }
@@ -79,7 +78,6 @@ export interface SessionManager {
 	): Promise<{ updated: boolean }>;
 	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
 	readTranscript(sessionId: string, maxChars?: number): Promise<string>;
-	readHooks(sessionId: string, limit?: number): Promise<unknown[]>;
 	handleHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void;
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>;

@@ -86,6 +86,33 @@ async function runGit(
 	};
 }
 
+/**
+ * Deletes all private git refs under refs/cline/checkpoints/{sessionId}/ that
+ * were created by the checkpoint system to keep stash objects reachable.
+ * Errors are swallowed — if the cwd is not a git repo or the refs don't exist,
+ * the delete is a no-op.
+ */
+export async function deleteCheckpointRefs(
+	cwd: string | null | undefined,
+	sessionId: string,
+): Promise<void> {
+	if (!cwd) return;
+	const prefix = `refs/cline/checkpoints/${sessionId}/`;
+	try {
+		const { stdout } = await runGit(cwd, [
+			"for-each-ref",
+			"--format=%(refname)",
+			prefix,
+		]);
+		const refs = stdout.trim().split("\n").filter(Boolean);
+		await Promise.allSettled(
+			refs.map((ref) => runGit(cwd, ["update-ref", "-d", ref])),
+		);
+	} catch {
+		// Not a git repo or git not available — ignore.
+	}
+}
+
 export function createCheckpointHooks(
 	options: CreateCheckpointHooksOptions,
 ): AgentHooks {

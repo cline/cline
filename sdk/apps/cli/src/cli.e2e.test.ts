@@ -105,7 +105,7 @@ describe("cli e2e", () => {
 				"settings",
 				"providers.json",
 			),
-			CLINE_HOOKS_LOG_PATH: path.join(dataDir, "hooks", "hooks.jsonl"),
+			CLINE_HOOKS_LOG_PATH: path.join(dataDir, "logs", "hooks.jsonl"),
 			...overrides,
 		};
 	};
@@ -785,7 +785,7 @@ Break work into clear steps.`,
 			homeDir,
 			".cline",
 			"data",
-			"hooks",
+			"logs",
 			"hooks.jsonl",
 		);
 		const result = runCli(["hook"], {

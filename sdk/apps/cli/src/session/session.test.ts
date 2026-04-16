@@ -54,7 +54,6 @@ describe("createCliCore", () => {
 			update: vi.fn(),
 			readMessages: vi.fn(),
 			readTranscript: vi.fn(),
-			readHooks: vi.fn(),
 			handleHookEvent: vi.fn(),
 			subscribe: vi.fn(),
 			updateSessionModel: vi.fn(),

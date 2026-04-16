@@ -70,7 +70,6 @@ export {
 	parseUserCommandEnvelope,
 	RPC_TEAM_LIFECYCLE_EVENT_TYPE,
 	RPC_TEAM_PROGRESS_EVENT_TYPE,
-	resolveHookLogPath,
 } from "@clinebot/shared";
 export * from "@clinebot/shared/storage";
 export {

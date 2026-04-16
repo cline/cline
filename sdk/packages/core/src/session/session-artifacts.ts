@@ -26,7 +26,6 @@ export function unlinkIfExists(path: string | null | undefined): void {
 
 export interface SessionArtifactPaths {
 	transcriptPath: string;
-	hookPath: string;
 	messagesPath: string;
 }
 
@@ -73,13 +72,6 @@ export class SessionArtifacts {
 
 	public sessionTranscriptPath(sessionId: string): string {
 		return join(this.ensureSessionArtifactsDir(sessionId), `${sessionId}.log`);
-	}
-
-	public sessionHookPath(sessionId: string): string {
-		return join(
-			this.ensureSessionArtifactsDir(sessionId),
-			`${sessionId}.hooks.jsonl`,
-		);
 	}
 
 	public sessionMessagesPath(sessionId: string): string {
@@ -143,7 +135,6 @@ export class SessionArtifacts {
 		const dir = this.ensureSessionArtifactsDir(rootSessionId);
 		return {
 			transcriptPath: join(dir, `${fileStem}.log`),
-			hookPath: join(dir, `${fileStem}.hooks.jsonl`),
 			messagesPath: join(dir, `${fileStem}.messages.json`),
 		};
 	}

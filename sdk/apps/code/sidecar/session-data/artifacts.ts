@@ -1,11 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { readFile } from "node:fs/promises";
-import {
-	sessionHookLogPath,
-	sessionLogPath,
-	sharedSessionHookPath,
-	sharedSessionLogPath,
-} from "../paths";
+import { join } from "node:path";
+import { sessionLogPath, sharedSessionLogPath } from "../paths";
 import type { JsonRecord } from "../types";
 import { parseF64Value, parseU64Value } from "./common";
 
@@ -44,13 +40,20 @@ export async function readSessionTranscript(
 	return out;
 }
 
+function resolveGlobalHookLogPath(): string {
+	const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim();
+	if (envPath) return envPath;
+	const dataDir =
+		process.env.CLINE_DATA_DIR?.trim() ||
+		join(process.env.HOME ?? process.env.USERPROFILE ?? "", ".cline", "data");
+	return join(dataDir, "logs", "hooks.jsonl");
+}
+
 export async function readSessionHooks(
 	sessionId: string,
 	limit = 300,
 ): Promise<unknown[]> {
-	const path = existsSync(sessionHookLogPath(sessionId))
-		? sessionHookLogPath(sessionId)
-		: sharedSessionHookPath(sessionId);
+	const path = resolveGlobalHookLogPath();
 	if (!existsSync(path)) {
 		return [];
 	}
@@ -62,6 +65,24 @@ export async function readSessionHooks(
 		}
 		try {
 			const value = JSON.parse(line) as JsonRecord;
+
+			// Filter to events belonging to this session.
+			const rootSessionId =
+				value.sessionContext &&
+				typeof value.sessionContext === "object" &&
+				typeof (value.sessionContext as JsonRecord).rootSessionId === "string"
+					? ((value.sessionContext as JsonRecord).rootSessionId as string)
+					: undefined;
+			const eventSessionId =
+				typeof value.sessionId === "string" ? value.sessionId : undefined;
+			if (
+				rootSessionId !== sessionId &&
+				eventSessionId !== sessionId &&
+				value.taskId !== sessionId
+			) {
+				continue;
+			}
+
 			const hookName =
 				(typeof value.hookName === "string" && value.hookName) ||
 				(typeof value.hook_event_name === "string" && value.hook_event_name) ||

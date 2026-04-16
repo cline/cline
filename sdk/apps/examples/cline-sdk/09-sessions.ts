@@ -14,7 +14,8 @@
  * - <sessionId>.json: Session manifest
  * - <sessionId>.log: Full transcript log
  * - <sessionId>.messages.json: Message history
- * - <sessionId>.hooks.jsonl: Hook execution log
+ *
+ * Hook audit log stored in ~/.cline/data/logs/hooks.jsonl
  *
  * Prerequisites:
  * - Set ANTHROPIC_API_KEY environment variable

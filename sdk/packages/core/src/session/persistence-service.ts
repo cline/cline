@@ -4,13 +4,15 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname } from "node:path";
+import { dirname, join } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms";
 import type { AgentResult } from "@clinebot/shared";
 import { resolveRootSessionId } from "@clinebot/shared";
+import { ensureHookLogDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { z } from "zod";
 import type { HookEventPayload } from "../hooks";
+import { deleteCheckpointRefs } from "../runtime/checkpoint-hooks";
 import type { SubAgentEndContext, SubAgentStartContext } from "../team";
 import { SessionSource, type SessionStatus } from "../types/common";
 import { nowIso, SessionArtifacts, unlinkIfExists } from "./session-artifacts";
@@ -160,7 +162,7 @@ export class UnifiedSessionPersistenceService {
 
 	private async resolveArtifactPath(
 		sessionId: string,
-		kind: "transcriptPath" | "hookPath" | "messagesPath",
+		kind: "transcriptPath" | "messagesPath",
 		fallback: (id: string) => string,
 	): Promise<string> {
 		const row = await this.adapter.getSession(sessionId);
@@ -196,7 +198,6 @@ export class UnifiedSessionPersistenceService {
 		const sessionId =
 			providedId.length > 0 ? providedId : `${Date.now()}_${nanoid(5)}`;
 		const transcriptPath = this.artifacts.sessionTranscriptPath(sessionId);
-		const hookPath = this.artifacts.sessionHookPath(sessionId);
 		const messagesPath = this.artifacts.sessionMessagesPath(sessionId);
 		const manifestPath = this.artifacts.sessionManifestPath(sessionId);
 
@@ -251,14 +252,14 @@ export class UnifiedSessionPersistenceService {
 			prompt: manifest.prompt ?? null,
 			metadata: sanitizeMetadata(manifest.metadata),
 			transcriptPath,
-			hookPath,
+			hookPath: "",
 			messagesPath,
 			updatedAt: nowIso(),
 		});
 
 		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
 		this.writeManifestFile(manifestPath, manifest);
-		return { manifestPath, transcriptPath, hookPath, messagesPath, manifest };
+		return { manifestPath, transcriptPath, messagesPath, manifest };
 	}
 
 	// ── Session status updates ────────────────────────────────────────
@@ -397,7 +398,6 @@ export class UnifiedSessionPersistenceService {
 			prompt: string;
 			startedAt: string;
 			transcriptPath: string;
-			hookPath: string;
 			messagesPath: string;
 		},
 	): SessionRow {
@@ -427,7 +427,7 @@ export class UnifiedSessionPersistenceService {
 			prompt: opts.prompt,
 			metadata: resolveMetadataWithTitle({ prompt: opts.prompt }),
 			transcriptPath: opts.transcriptPath,
-			hookPath: opts.hookPath,
+			hookPath: "",
 			messagesPath: opts.messagesPath,
 			updatedAt: opts.startedAt,
 		};
@@ -525,13 +525,11 @@ export class UnifiedSessionPersistenceService {
 		subSessionId: string,
 		event: HookEventPayload,
 	): Promise<void> {
-		const path = await this.resolveArtifactPath(
-			subSessionId,
-			"hookPath",
-			(id) => this.artifacts.sessionHookPath(id),
-		);
+		void subSessionId;
+		const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
+		const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
 		appendFileSync(
-			path,
+			logPath,
 			`${JSON.stringify({ ts: nowIso(), ...event })}\n`,
 			"utf8",
 		);
@@ -647,7 +645,7 @@ export class UnifiedSessionPersistenceService {
 
 		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
 		const startedAt = nowIso();
-		const { transcriptPath, hookPath, messagesPath } =
+		const { transcriptPath, messagesPath } =
 			this.artifacts.subagentArtifactPaths(sessionId, agentId);
 
 		await this.adapter.upsertSession(
@@ -659,7 +657,6 @@ export class UnifiedSessionPersistenceService {
 				prompt: message || `Team task for ${agentId}`,
 				startedAt,
 				transcriptPath,
-				hookPath,
 				messagesPath,
 			}),
 		);
@@ -852,18 +849,22 @@ export class UnifiedSessionPersistenceService {
 			const { path: manifestPath } = this.readManifestFile(latest.sessionId);
 			this.writeManifestFile(manifestPath, manifest);
 
-			appendFileSync(
-				latest.hookPath,
-				`${JSON.stringify({
-					ts: detectedAt,
-					hookName: "session_shutdown",
-					reason,
-					sessionId: latest.sessionId,
-					pid: latest.pid,
-					source: UnifiedSessionPersistenceService.STALE_SOURCE,
-				})}\n`,
-				"utf8",
-			);
+			{
+				const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
+				const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
+				appendFileSync(
+					logPath,
+					`${JSON.stringify({
+						ts: detectedAt,
+						hookName: "session_shutdown",
+						reason,
+						sessionId: latest.sessionId,
+						pid: latest.pid,
+						source: UnifiedSessionPersistenceService.STALE_SOURCE,
+					})}\n`,
+					"utf8",
+				);
+			}
 			appendFileSync(
 				latest.transcriptPath,
 				`[shutdown] ${reason} (pid=${latest.pid})\n`,
@@ -934,19 +935,22 @@ export class UnifiedSessionPersistenceService {
 				parentSessionId: id,
 			});
 			await this.adapter.deleteSession(id, true);
-			for (const child of children) {
-				unlinkIfExists(child.transcriptPath);
-				unlinkIfExists(child.hookPath);
-				unlinkIfExists(child.messagesPath);
-				unlinkIfExists(
-					this.artifacts.sessionManifestPath(child.sessionId, false),
-				);
-				this.artifacts.removeSessionDirIfEmpty(child.sessionId);
-			}
+			await Promise.allSettled(
+				children.map(async (child) => {
+					await deleteCheckpointRefs(child.cwd, child.sessionId);
+					unlinkIfExists(child.transcriptPath);
+					unlinkIfExists(child.messagesPath);
+					unlinkIfExists(
+						this.artifacts.sessionManifestPath(child.sessionId, false),
+					);
+					this.artifacts.removeSessionDirIfEmpty(child.sessionId);
+				}),
+			);
 		}
 
+		await deleteCheckpointRefs(row.cwd, id);
+
 		unlinkIfExists(row.transcriptPath);
-		unlinkIfExists(row.hookPath);
 		unlinkIfExists(row.messagesPath);
 		unlinkIfExists(this.artifacts.sessionManifestPath(id, false));
 		if (row.isSubagent) {
@@ -955,7 +959,7 @@ export class UnifiedSessionPersistenceService {
 			const candidateDirs = new Set<string>([
 				this.artifacts.sessionArtifactsDir(id),
 			]);
-			for (const path of [row.transcriptPath, row.hookPath, row.messagesPath]) {
+			for (const path of [row.transcriptPath, row.messagesPath]) {
 				if (typeof path === "string" && path.trim().length > 0) {
 					candidateDirs.add(dirname(path));
 				}

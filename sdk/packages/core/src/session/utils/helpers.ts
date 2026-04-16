@@ -198,7 +198,6 @@ export function toSessionRecord(row: SessionRow): SessionRecord {
 		prompt: row.prompt ?? undefined,
 		metadata: row.metadata ?? undefined,
 		transcriptPath: row.transcriptPath,
-		hookPath: row.hookPath,
 		messagesPath: row.messagesPath ?? undefined,
 		updatedAt: row.updatedAt,
 	};

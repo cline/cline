@@ -63,7 +63,7 @@ export class SqliteRpcSessionBackend implements RpcSessionBackend {
 				row.prompt ?? null,
 				row.metadata ? JSON.stringify(row.metadata) : null,
 				row.transcriptPath,
-				row.hookPath,
+				"",
 				row.messagesPath ?? null,
 				row.updatedAt || nowIso(),
 			],
@@ -122,7 +122,6 @@ export class SqliteRpcSessionBackend implements RpcSessionBackend {
 				return undefined;
 			})(),
 			transcriptPath: asString(row.transcript_path),
-			hookPath: asString(row.hook_path),
 			messagesPath: asOptionalString(row.messages_path),
 			updatedAt: asString(row.updated_at) || nowIso(),
 		};

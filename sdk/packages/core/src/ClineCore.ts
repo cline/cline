@@ -251,8 +251,6 @@ export class ClineCore implements SessionHost {
 		this.host.readMessages(...args);
 	readTranscript: SessionHost["readTranscript"] = (...args) =>
 		this.host.readTranscript(...args);
-	readHooks: SessionHost["readHooks"] = (...args) =>
-		this.host.readHooks(...args);
 	handleHookEvent: SessionHost["handleHookEvent"] = (...args) =>
 		this.host.handleHookEvent(...args);
 	subscribe: SessionHost["subscribe"] = (...args) =>

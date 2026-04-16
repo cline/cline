@@ -5,6 +5,7 @@ import {
 } from "@clinebot/shared";
 import { Box, Text, useInput } from "ink";
 import React, { useMemo, useState } from "react";
+import { deleteSession } from "../../session/session";
 import type { HistoryListRow } from "../../session/session-history-rows";
 import { formatUsd } from "../../utils/output";
 
@@ -85,11 +86,13 @@ export interface HistoryListViewProps {
 }
 
 export function HistoryListView({
-	rows,
+	rows: initialRows,
 	onSelect,
 	onExit,
 }: HistoryListViewProps) {
+	const [rows, setRows] = useState(initialRows);
 	const [selectedIndex, setSelectedIndex] = useState(0);
+	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
 	const pageSize = Math.max(1, (process.stdout.rows ?? 24) / 4); // Leave room for header and footer
 	const selectedRow = rows[selectedIndex];
 	const checkpointDetail = selectedRow
@@ -107,10 +110,39 @@ export function HistoryListView({
 	}, [rows, selectedIndex, pageSize]);
 
 	useInput((input, key) => {
+		if (confirmDelete !== null) {
+			if (input === "y" || input === "Y") {
+				const sessionId = confirmDelete;
+				setConfirmDelete(null);
+				deleteSession(sessionId)
+					.then(() => {
+						setRows((prev) => {
+							const next = prev.filter((r) => r.sessionId !== sessionId);
+							setSelectedIndex((idx) =>
+								Math.min(idx, Math.max(0, next.length - 1)),
+							);
+							return next;
+						});
+					})
+					.catch(() =>
+						// Ignore errors, just close the confirm dialog
+						setConfirmDelete(null),
+					);
+			} else {
+				setConfirmDelete(null);
+			}
+			return;
+		}
+
 		if (key.upArrow) {
 			setSelectedIndex((prev) => (prev > 0 ? prev - 1 : rows.length - 1));
 		} else if (key.downArrow) {
 			setSelectedIndex((prev) => (prev < rows.length - 1 ? prev + 1 : 0));
+		} else if (input === "x" || input === "X") {
+			const selected = rows[selectedIndex];
+			if (selected?.sessionId) {
+				setConfirmDelete(selected.sessionId);
+			}
 		} else if (key.return) {
 			const selected = rows[selectedIndex];
 			if (selected?.sessionId) {
@@ -121,14 +153,15 @@ export function HistoryListView({
 		}
 	});
 
+	const headerText = confirmDelete
+		? `Delete this session? (y/n)`
+		: "History (Up/Down to navigate | Enter to resume | x to delete | Esc to quit)";
+	const headerColor = confirmDelete ? "red" : "cyan";
+
 	return React.createElement(
 		Box,
 		{ flexDirection: "column", padding: 1 },
-		React.createElement(
-			Text,
-			{ bold: true, color: "cyan" },
-			"History (Up/Down to navigate | Enter to resume | Esc to quit)",
-		),
+		React.createElement(Text, { bold: true, color: headerColor }, headerText),
 		React.createElement(
 			Box,
 			{ flexDirection: "column", marginTop: 1 },
@@ -142,7 +175,7 @@ export function HistoryListView({
 						Text,
 						{
 							key: row.sessionId || absoluteIndex,
-							color: isSelected ? "blue" : undefined,
+							color: isSelected ? (confirmDelete ? "red" : "blue") : undefined,
 							inverse: isSelected,
 						},
 						`${isSelected ? "❯" : " "} ${formatHistoryListLine(row)}`,

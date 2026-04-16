@@ -48,7 +48,7 @@ export interface SessionRow {
 	prompt?: string | null;
 	metadata?: Record<string, unknown> | null;
 	transcriptPath: string;
-	hookPath: string;
+	hookPath?: string;
 	messagesPath?: string | null;
 	updatedAt: string;
 }
@@ -70,7 +70,6 @@ export interface CreateRootSessionInput {
 	prompt?: string;
 	metadata?: Record<string, unknown>;
 	transcriptPath: string;
-	hookPath: string;
 	messagesPath: string;
 }
 
@@ -95,7 +94,6 @@ export interface CreateRootSessionWithArtifactsInput {
 export interface RootSessionArtifacts {
 	manifestPath: string;
 	transcriptPath: string;
-	hookPath: string;
 	messagesPath: string;
 	manifest: SessionManifest;
 }
@@ -427,7 +425,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				row.prompt ?? null,
 				stringifyMetadata(row.metadata),
 				row.transcriptPath,
-				row.hookPath,
+				row.hookPath ?? "",
 				row.messagesPath ?? null,
 				row.updatedAt,
 			],
@@ -667,7 +665,7 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 				input.prompt ?? null,
 				input.metadata ? JSON.stringify(input.metadata) : null,
 				input.transcriptPath,
-				input.hookPath,
+				"",
 				input.messagesPath,
 				nowIso(),
 			],

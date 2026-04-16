@@ -37,7 +37,6 @@ export function toMessage(row: RpcSessionRow): SessionRecord {
 		isSubagent: row.isSubagent,
 		prompt: row.prompt ?? "",
 		transcriptPath: row.transcriptPath,
-		hookPath: row.hookPath,
 		messagesPath: row.messagesPath ?? "",
 		updatedAt: row.updatedAt,
 		metadata: toProtoStruct(row.metadata),
@@ -71,7 +70,6 @@ export function fromMessage(message: SessionRecord__Output): RpcSessionRow {
 		prompt: message.prompt || undefined,
 		metadata: fromProtoStruct(message.metadata),
 		transcriptPath: message.transcriptPath ?? "",
-		hookPath: message.hookPath ?? "",
 		messagesPath: message.messagesPath || undefined,
 		updatedAt: message.updatedAt ?? "",
 	};

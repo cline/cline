@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AgentHooks } from "@clinebot/agents";
 import {
 	augmentNodeCommandForDebug,
@@ -7,7 +8,7 @@ import {
 	type HookSessionContext,
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
-import { ensureParentDir } from "@clinebot/shared/storage";
+import { ensureHookLogDir } from "@clinebot/shared/storage";
 import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
 import type { HookEventName, HookEventPayload } from "../hooks";
 
@@ -42,7 +43,6 @@ type AgentHookSessionShutdownContext = Parameters<
 type HookRuntimeOptions = {
 	cwd: string;
 	workspacePath: string;
-	hookLogPath?: string;
 	rootSessionId?: string;
 	logger?: BasicLogger;
 	toolCallTimeoutMs?: number;
@@ -147,10 +147,6 @@ function isAbortReason(reason?: string): boolean {
 	);
 }
 
-function ensureHookLogDir(filePath: string): void {
-	ensureParentDir(filePath);
-}
-
 function createPayloadBase(
 	ctx: HookContextBase,
 	options: HookRuntimeOptions,
@@ -159,7 +155,6 @@ function createPayloadBase(
 		process.env.CLINE_USER_ID?.trim() || process.env.USER?.trim() || "unknown";
 	const sessionContext: HookSessionContext = {
 		rootSessionId: options.rootSessionId || ctx.conversationId,
-		hookLogPath: options.hookLogPath,
 	};
 	return {
 		clineVersion: process.env.CLINE_VERSION?.trim() || "",
@@ -503,14 +498,12 @@ function runAsyncHookCommands(options: {
 }
 
 export function createHookAuditHooks(options: {
-	hookLogPath: string;
 	rootSessionId?: string;
 	workspacePath: string;
 }): AgentHooks {
 	const runtimeOptions: HookRuntimeOptions = {
 		cwd: options.workspacePath,
 		workspacePath: options.workspacePath,
-		hookLogPath: options.hookLogPath,
 		rootSessionId: options.rootSessionId,
 	};
 
@@ -519,8 +512,10 @@ export function createHookAuditHooks(options: {
 			ts: new Date().toISOString(),
 			...payload,
 		})}\n`;
-		ensureHookLogDir(options.hookLogPath);
-		appendFileSync(options.hookLogPath, line, "utf8");
+		const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
+		const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
+		ensureHookLogDir(logPath);
+		appendFileSync(logPath, line, "utf8");
 	};
 
 	return {

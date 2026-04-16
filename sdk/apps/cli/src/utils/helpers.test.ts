@@ -374,18 +374,21 @@ describe("hook payload validation and audit logging", () => {
 		expect(await isCliHookPayload(null)).toBe(false);
 	});
 
-	it("writes hook audits to payload session hook path", async () => {
+	it("writes hook audits to global log", async () => {
 		tempDir = mkdtempSync(path.join(os.tmpdir(), "cli-helper-audit-"));
-		const hookPath = path.join(tempDir, "explicit", "hooks.jsonl");
+		const expectedPath = path.join(tempDir, "logs", "hooks.jsonl");
+		const env = captureEnv();
+		process.env.CLINE_DATA_DIR = tempDir;
+		delete process.env.CLINE_HOOKS_LOG_PATH;
+		delete process.env.CLINE_SESSION_ID;
+		delete process.env.CLINE_SESSION_DATA_DIR;
+
 		await appendHookAudit({
 			clineVersion: "",
 			hookName: "tool_call",
 			timestamp: new Date().toISOString(),
 			taskId: "conv_1",
-			sessionContext: {
-				rootSessionId: "session_from_context",
-				hookLogPath: hookPath,
-			},
+			sessionContext: { rootSessionId: "session_from_context" },
 			workspaceRoots: [],
 			userId: "agent_1",
 			iteration: 1,
@@ -397,50 +400,15 @@ describe("hook payload validation and audit logging", () => {
 				input: { file_paths: ["README.md"] },
 			},
 		});
-
-		expect(existsSync(hookPath)).toBe(true);
-		const content = readFileSync(hookPath, "utf8");
-		expect(content).toContain('"hookName":"tool_call"');
-		expect(content).toContain('"agent_id":"agent_1"');
-	});
-
-	it("falls back to shared hook audit file when payload context is missing", async () => {
-		tempDir = mkdtempSync(path.join(os.tmpdir(), "cli-helper-session-audit-"));
-		const expectedPath = path.join(tempDir, "hooks", "hooks.jsonl");
-		const env = captureEnv();
-		process.env.CLINE_DATA_DIR = tempDir;
-		delete process.env.CLINE_HOOKS_LOG_PATH;
-		delete process.env.CLINE_SESSION_ID;
-		delete process.env.CLINE_SESSION_DATA_DIR;
-
-		await appendHookAudit({
-			clineVersion: "",
-			hookName: "tool_result",
-			timestamp: new Date().toISOString(),
-			taskId: "conv_2",
-			workspaceRoots: [],
-			userId: "agent_2",
-			iteration: 1,
-			agent_id: "agent_2",
-			parent_agent_id: null,
-			tool_result: {
-				id: "call_2",
-				name: "read_files",
-				input: { file_paths: ["README.md"] },
-				output: "ok",
-				durationMs: 5,
-				startedAt: new Date("2026-01-01T00:00:00.000Z"),
-				endedAt: new Date("2026-01-01T00:00:00.005Z"),
-			},
-		});
 		restoreEnv(env);
 
 		expect(existsSync(expectedPath)).toBe(true);
 		const content = readFileSync(expectedPath, "utf8");
-		expect(content).toContain('"hookName":"tool_result"');
+		expect(content).toContain('"hookName":"tool_call"');
+		expect(content).toContain('"agent_id":"agent_1"');
 	});
 
-	it("writes hook audits to CLINE_HOOKS_LOG_PATH when payload context is missing", async () => {
+	it("writes hook audits to CLINE_HOOKS_LOG_PATH when set", async () => {
 		tempDir = mkdtempSync(path.join(os.tmpdir(), "cli-helper-env-audit-"));
 		const expectedPath = path.join(tempDir, "hooks", "from-env.jsonl");
 		const env = captureEnv();
@@ -511,7 +479,7 @@ describe("sandbox environment", () => {
 				path.join(root, "sandbox-state", "settings", "providers.json"),
 			);
 			expect(process.env.CLINE_HOOKS_LOG_PATH).toBe(
-				path.join(root, "sandbox-state", "hooks", "hooks.jsonl"),
+				path.join(root, "sandbox-state", "logs", "hooks.jsonl"),
 			);
 		} finally {
 			process.env.CLINE_SANDBOX = previous.CLINE_SANDBOX;

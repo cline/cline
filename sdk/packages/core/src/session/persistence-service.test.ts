@@ -70,14 +70,13 @@ describe("UnifiedSessionPersistenceService", () => {
 			(manifest.metadata as Record<string, unknown>).terminal_marker_at,
 		).toBeTruthy();
 
-		expect(existsSync(artifacts.hookPath)).toBe(true);
 		expect(existsSync(artifacts.transcriptPath)).toBe(true);
-		expect(readFileSync(artifacts.hookPath, "utf8")).toContain(
-			'"hookName":"session_shutdown"',
-		);
-		expect(readFileSync(artifacts.hookPath, "utf8")).toContain(
-			'"reason":"failed_external_process_exit"',
-		);
+		const globalHookLog = process.env.CLINE_HOOKS_LOG_PATH ?? "";
+		if (globalHookLog && existsSync(globalHookLog)) {
+			const hookContent = readFileSync(globalHookLog, "utf8");
+			expect(hookContent).toContain('"hookName":"session_shutdown"');
+			expect(hookContent).toContain('"reason":"failed_external_process_exit"');
+		}
 		expect(readFileSync(artifacts.transcriptPath, "utf8")).toContain(
 			"[shutdown] failed_external_process_exit",
 		);

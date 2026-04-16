@@ -226,7 +226,6 @@ export class DefaultSessionManager implements SessionManager {
 
 		const sessionDir = join(sessionsDir, sessionId);
 		const transcriptPath = join(sessionDir, `${sessionId}.log`);
-		const hookPath = join(sessionDir, `${sessionId}.hooks.jsonl`);
 		const messagesPath = join(sessionDir, `${sessionId}.messages.json`);
 		const manifestPath = join(sessionDir, `${sessionId}.json`);
 		const workspacePath = resolveWorkspacePath(input.config);
@@ -254,7 +253,6 @@ export class DefaultSessionManager implements SessionManager {
 		const { config: effectiveConfig, pluginSandboxShutdown } =
 			await buildEffectiveConfig(
 				startInput,
-				hookPath,
 				sessionId,
 				this.defaultTelemetry,
 				(e) => void this.handlePluginEvent(sessionId, e),
@@ -428,7 +426,6 @@ export class DefaultSessionManager implements SessionManager {
 			manifest,
 			manifestPath,
 			transcriptPath,
-			hookPath,
 			messagesPath,
 			result,
 		};
@@ -609,21 +606,6 @@ export class DefaultSessionManager implements SessionManager {
 		} catch {
 			return [];
 		}
-	}
-
-	async readHooks(sessionId: string, limit = 200): Promise<unknown[]> {
-		const row = await this.getRow(sessionId);
-		if (!row?.hookPath || !existsSync(row.hookPath)) return [];
-		const lines = readFileSync(row.hookPath, "utf8")
-			.split("\n")
-			.filter((line) => line.trim().length > 0);
-		return lines.slice(-Math.max(1, Math.floor(limit))).map((line) => {
-			try {
-				return JSON.parse(line) as unknown;
-			} catch {
-				return { raw: line };
-			}
-		});
 	}
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {

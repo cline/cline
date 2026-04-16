@@ -128,7 +128,6 @@ export function rowToMessage(row: RpcSessionRow): SessionRecordMessage {
 		isSubagent: row.isSubagent,
 		prompt: row.prompt ?? "",
 		transcriptPath: row.transcriptPath,
-		hookPath: row.hookPath,
 		messagesPath: row.messagesPath ?? "",
 		updatedAt: row.updatedAt,
 		metadata: toProtoStruct(row.metadata),
@@ -144,7 +143,6 @@ export function messageToRow(message: SessionRecordMessage): RpcSessionRow {
 	const cwd = safeString(message.cwd).trim();
 	const workspaceRoot = safeString(message.workspaceRoot).trim();
 	const transcriptPath = safeString(message.transcriptPath).trim();
-	const hookPath = safeString(message.hookPath).trim();
 	if (
 		!sessionId ||
 		!source ||
@@ -153,8 +151,7 @@ export function messageToRow(message: SessionRecordMessage): RpcSessionRow {
 		!model ||
 		!cwd ||
 		!workspaceRoot ||
-		!transcriptPath ||
-		!hookPath
+		!transcriptPath
 	) {
 		throw new Error("session record is missing required fields");
 	}
@@ -190,7 +187,6 @@ export function messageToRow(message: SessionRecordMessage): RpcSessionRow {
 		prompt: safeString(message.prompt).trim() || undefined,
 		metadata: fromProtoStruct(message.metadata),
 		transcriptPath,
-		hookPath,
 		messagesPath: safeString(message.messagesPath).trim() || undefined,
 		updatedAt: safeString(message.updatedAt).trim() || nowIso(),
 	};

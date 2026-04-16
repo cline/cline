@@ -288,7 +288,6 @@ export class RpcSessionHost implements SessionManager {
 			manifest,
 			manifestPath: startResult.manifestPath,
 			transcriptPath: startResult.transcriptPath,
-			hookPath: startResult.hookPath,
 			messagesPath: startResult.messagesPath,
 			result,
 		};
@@ -444,21 +443,6 @@ export class RpcSessionHost implements SessionManager {
 			return raw.slice(-normalizedMaxChars);
 		}
 		return raw;
-	}
-
-	async readHooks(sessionId: string, limit = 200): Promise<unknown[]> {
-		const row = await this.client.getSession(sessionId);
-		if (!row?.hookPath || !existsSync(row.hookPath)) return [];
-		const lines = (await readFile(row.hookPath, "utf8"))
-			.split("\n")
-			.filter((line) => line.trim().length > 0);
-		return lines.slice(-Math.max(1, Math.floor(limit))).map((line) => {
-			try {
-				return JSON.parse(line) as unknown;
-			} catch {
-				return { raw: line };
-			}
-		});
 	}
 
 	async handleHookEvent(payload: HookEventPayload): Promise<void> {

@@ -111,7 +111,6 @@ describe("runAgent", () => {
 			sessionId: "session-1",
 			manifestPath: "/tmp/manifest.json",
 			transcriptPath: "/tmp/transcript.jsonl",
-			hookPath: "/tmp/hooks.jsonl",
 			messagesPath: "/tmp/messages.json",
 			manifest: {
 				session_id: "session-1",
@@ -184,7 +183,6 @@ describe("runAgent", () => {
 			sessionId: "session-1",
 			manifestPath: "/tmp/manifest.json",
 			transcriptPath: "/tmp/transcript.jsonl",
-			hookPath: "/tmp/hooks.jsonl",
 			messagesPath: "/tmp/messages.json",
 			manifest: {
 				session_id: "session-1",

@@ -38,7 +38,6 @@ function createStartResult(sessionId: string): StartSessionResult {
 		manifest: {} as StartSessionResult["manifest"],
 		manifestPath: `/tmp/${sessionId}.json`,
 		transcriptPath: `/tmp/${sessionId}.log`,
-		hookPath: `/tmp/${sessionId}.hooks.jsonl`,
 		messagesPath: `/tmp/${sessionId}.messages.json`,
 	};
 }
@@ -69,7 +68,6 @@ describe("ClineCore", () => {
 			delete: vi.fn(),
 			readMessages: vi.fn(),
 			readTranscript: vi.fn(),
-			readHooks: vi.fn(),
 			subscribe: vi.fn((listener) => {
 				listeners.push(listener);
 				return () => {};
@@ -124,7 +122,6 @@ describe("ClineCore", () => {
 			delete: vi.fn(),
 			readMessages: vi.fn(),
 			readTranscript: vi.fn(),
-			readHooks: vi.fn(),
 			subscribe: vi.fn((nextListener) => {
 				listener = nextListener;
 				return () => {};

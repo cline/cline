@@ -64,7 +64,6 @@ class RpcRuntimeHookService {
 		runtime: RPC_RUNTIME_NAME,
 		component: "hooks",
 	}).core;
-	private readonly rootHookPaths = new Map<string, string>();
 	private readonly agentRoots = new Map<string, string>();
 	private readonly conversationRoots = new Map<string, string>();
 	private readonly rootMembers = new Map<
@@ -111,13 +110,11 @@ class RpcRuntimeHookService {
 		this.hooks = this.wrapHooks(this.control.hooks);
 	}
 
-	public registerSession(sessionId: string, hookPath: string): void {
+	public registerSession(sessionId: string): void {
 		const normalizedSessionId = sessionId.trim();
-		const normalizedHookPath = hookPath.trim();
-		if (!normalizedSessionId || !normalizedHookPath) {
+		if (!normalizedSessionId) {
 			return;
 		}
-		this.rootHookPaths.set(normalizedSessionId, normalizedHookPath);
 		this.conversationRoots.set(normalizedSessionId, normalizedSessionId);
 		this.membersForRoot(normalizedSessionId).conversations.add(
 			normalizedSessionId,
@@ -129,12 +126,10 @@ class RpcRuntimeHookService {
 		if (!normalizedSessionId) {
 			return;
 		}
-		this.rootHookPaths.delete(normalizedSessionId);
 		this.clearRoot(normalizedSessionId);
 	}
 
 	public async shutdown(): Promise<void> {
-		this.rootHookPaths.clear();
 		this.agentRoots.clear();
 		this.conversationRoots.clear();
 		this.rootMembers.clear();
@@ -172,7 +167,6 @@ class RpcRuntimeHookService {
 		}
 		return {
 			rootSessionId,
-			hookLogPath: this.rootHookPaths.get(rootSessionId),
 		};
 	}
 
@@ -187,7 +181,7 @@ class RpcRuntimeHookService {
 			if (rootFromConversation) {
 				return rootFromConversation;
 			}
-			if (this.rootHookPaths.has(conversationId)) {
+			if (this.conversationRoots.has(conversationId)) {
 				return conversationId;
 			}
 		}
@@ -255,7 +249,6 @@ class RpcRuntimeHookService {
 			}
 			return;
 		}
-		this.rootHookPaths.delete(rootSessionId);
 		this.clearRoot(rootSessionId);
 	}
 
@@ -383,7 +376,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 				sessionId: started.sessionId,
 				mode: startedConfig.mode,
 			});
-			hookService.registerSession(started.sessionId, started.hookPath);
+			hookService.registerSession(started.sessionId);
 			sessionModes.set(started.sessionId, startedConfig.mode);
 			activeSessions.add(started.sessionId);
 			return {
@@ -392,7 +385,6 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					sessionId: started.sessionId,
 					manifestPath: started.manifestPath,
 					transcriptPath: started.transcriptPath,
-					hookPath: started.hookPath,
 					messagesPath: started.messagesPath,
 				},
 			};
@@ -458,10 +450,7 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 				const restoredStarted = await sessionManager.start(
 					restoredConfig.sessionInput,
 				);
-				hookService.registerSession(
-					restoredStarted.sessionId,
-					restoredStarted.hookPath,
-				);
+				hookService.registerSession(restoredStarted.sessionId);
 				runtimeLogger.log(
 					"RPC runtime session restored after missing session",
 					{

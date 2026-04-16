@@ -1,6 +1,5 @@
 export interface HookSessionContext {
 	rootSessionId?: string;
-	hookLogPath?: string;
 }
 
 export interface HookSessionContextLookup {
@@ -31,13 +30,11 @@ export function resolveHookSessionContext(
 		return undefined;
 	}
 	const rootSessionId = normalized(context.rootSessionId);
-	const hookLogPath = normalized(context.hookLogPath);
-	if (!rootSessionId && !hookLogPath) {
+	if (!rootSessionId) {
 		return undefined;
 	}
 	return {
 		rootSessionId,
-		hookLogPath,
 	};
 }
 
@@ -45,10 +42,4 @@ export function resolveRootSessionId(
 	context: HookSessionContext | undefined,
 ): string | undefined {
 	return normalized(context?.rootSessionId);
-}
-
-export function resolveHookLogPath(
-	context: HookSessionContext | undefined,
-): string | undefined {
-	return normalized(context?.hookLogPath);
 }

@@ -2,11 +2,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, unlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import {
-	type HookEventPayload,
-	parseHookEventPayload,
-	resolveHookLogPath,
-} from "@clinebot/shared";
+import { type HookEventPayload, parseHookEventPayload } from "@clinebot/shared";
 import { ensureHookLogDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { commanderToParsedArgs, createProgram } from "../commands/program";
@@ -412,20 +408,14 @@ export function writeHookJson(value: unknown): void {
 }
 
 export async function appendHookAudit(event: HookEventPayload): Promise<void> {
-	const payloadHookPath = resolveHookLogPath(event.sessionContext);
-	const envHookPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
-	const targetHookPath = payloadHookPath ?? envHookPath;
 	const line = `${JSON.stringify({
 		ts: new Date().toISOString(),
 		...event,
 	})}\n`;
-	if (targetHookPath) {
-		ensureHookLogDir(targetHookPath);
-		appendFileSync(targetHookPath, line, "utf-8");
-		return;
-	}
-	const dir = ensureHookLogDir();
-	appendFileSync(join(dir, "hooks.jsonl"), line, "utf-8");
+	const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
+	const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
+	ensureHookLogDir(logPath);
+	appendFileSync(logPath, line, "utf-8");
 }
 
 export async function isCliHookPayload(value: unknown): Promise<boolean> {
@@ -506,6 +496,6 @@ export function configureSandboxEnvironment(options: {
 		"settings",
 		"providers.json",
 	);
-	process.env.CLINE_HOOKS_LOG_PATH = join(dataDir, "hooks", "hooks.jsonl");
+	process.env.CLINE_HOOKS_LOG_PATH = join(dataDir, "logs", "hooks.jsonl");
 	return dataDir;
 }

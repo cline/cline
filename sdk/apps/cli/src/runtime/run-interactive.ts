@@ -239,7 +239,6 @@ export async function runInteractive(
 		setActiveCliSession({
 			manifestPath: started.manifestPath,
 			transcriptPath: started.transcriptPath,
-			hookPath: started.hookPath,
 			messagesPath: started.messagesPath,
 			manifest: started.manifest,
 		});

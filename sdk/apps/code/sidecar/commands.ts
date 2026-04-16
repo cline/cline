@@ -40,7 +40,6 @@ import {
 	findArtifactUnderDir,
 	resolveMcpSettingsPath,
 	rootSessionIdFrom,
-	sessionHookLogPath,
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
@@ -539,19 +538,12 @@ export async function handleCommand(
 		const directoryCandidates = new Set<string>([
 			join(sharedSessionDataDir(), sessionId),
 		]);
-		for (const path of [
-			row?.transcriptPath,
-			row?.hookPath,
-			row?.messagesPath,
-		]) {
+		for (const path of [row?.transcriptPath, row?.messagesPath]) {
 			if (typeof path === "string" && path.trim().length > 0) {
 				directoryCandidates.add(dirname(path));
 			}
 		}
-		for (const path of [
-			sessionLogPath(sessionId),
-			sessionHookLogPath(sessionId),
-		]) {
+		for (const path of [sessionLogPath(sessionId)]) {
 			if (existsSync(path)) {
 				rmSync(path, { recursive: true, force: true });
 				deleted = true;
@@ -563,17 +555,15 @@ export async function handleCommand(
 				deleted = true;
 			}
 		}
-		for (const path of [
-			row?.transcriptPath,
-			row?.hookPath,
-			row?.messagesPath,
-		].filter((v): v is string => typeof v === "string" && v.length > 0)) {
+		for (const path of [row?.transcriptPath, row?.messagesPath].filter(
+			(v): v is string => typeof v === "string" && v.length > 0,
+		)) {
 			if (existsSync(path)) {
 				rmSync(path, { force: true });
 				deleted = true;
 			}
 		}
-		for (const suffix of ["messages.json", "log", "hooks.jsonl"]) {
+		for (const suffix of ["messages.json", "log"]) {
 			const fileName = `${sessionId}.${suffix}`;
 			const found = findArtifactUnderDir(
 				join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),

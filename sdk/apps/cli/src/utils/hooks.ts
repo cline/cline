@@ -61,7 +61,6 @@ export function currentHookSessionContext(): HookSessionContext | undefined {
 	}
 	return {
 		rootSessionId: session.manifest.session_id,
-		hookLogPath: session.hookPath,
 	};
 }
 

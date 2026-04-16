@@ -48,7 +48,6 @@ export interface RpcChatStartSessionArtifacts {
 	sessionId: string;
 	manifestPath: string;
 	transcriptPath: string;
-	hookPath: string;
 	messagesPath: string;
 }
 

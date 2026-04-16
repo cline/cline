@@ -309,7 +309,6 @@ export type {
 	HookSessionContextProvider,
 } from "./session/hook-context";
 export {
-	resolveHookLogPath,
 	resolveHookSessionContext,
 	resolveRootSessionId,
 } from "./session/hook-context";
