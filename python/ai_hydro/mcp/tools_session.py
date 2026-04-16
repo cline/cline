@@ -1,12 +1,14 @@
 """
-Session management MCP tools (6 tools).
+Session management MCP tools (8 tools).
 
-Start, query, clear, annotate, sync, and export research sessions.
+Start, query, clear, annotate, sync, export, and discover research sessions and tools.
 """
 from __future__ import annotations
 
 import json
 import logging
+import subprocess
+import sys
 from pathlib import Path
 
 from ai_hydro.mcp.app import mcp
@@ -55,6 +57,22 @@ def start_session(gauge_id: str, workspace_dir: str | None = None) -> dict:
         session.save()
         summary = session.summary()
         summary["workspace_dir"] = session.workspace_dir
+
+        # Expose the MCP server's Python environment so agents can write
+        # scripts that use the same interpreter and installed packages.
+        summary["mcp_python"] = sys.executable
+        pip_path = Path(sys.executable).parent / "pip"
+        summary["mcp_pip"] = str(pip_path) if pip_path.exists() else f"{sys.executable} -m pip"
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "pip", "list", "--format=json"],
+                capture_output=True, text=True, timeout=10
+            )
+            pkgs = json.loads(result.stdout) if result.returncode == 0 else []
+            summary["available_packages"] = {p["name"]: p["version"] for p in pkgs}
+        except Exception:
+            summary["available_packages"] = {}
+
         return summary
     except Exception as e:
         log.error("start_session failed: %s", e)
@@ -220,6 +238,59 @@ def sync_research_context(gauge_id: str) -> dict:
         }
     except Exception as e:
         log.error("sync_research_context failed: %s", e)
+        return _tool_error_to_dict(e)
+
+
+@mcp.tool()
+def list_available_tools() -> dict:
+    """
+    List all MCP tools currently registered on this AI-Hydro server.
+
+    Returns every registered tool with its name, description, and parameter
+    schema. Includes both built-in tools and any community plugin tools
+    discovered via the aihydro.tools entry point.
+
+    Call this at the start of a session to discover what capabilities are
+    available — especially useful when community plugins have been installed.
+
+    Returns
+    -------
+    dict with keys:
+        tools      : list of {name, description, parameters} dicts
+        n_tools    : total count of registered tools
+        mcp_python : Python interpreter running the MCP server
+        note       : guidance on installing additional plugins
+    """
+    try:
+        from ai_hydro.mcp.tools_docs import _list_tools_sync
+        tools_raw = _list_tools_sync()
+        tools_out = []
+        for t in tools_raw:
+            entry: dict = {"name": t.name, "description": (t.description or "").strip()}
+            if hasattr(t, "parameters") and t.parameters:
+                params = {}
+                props = getattr(t.parameters, "properties", None) or {}
+                for pname, pschema in props.items():
+                    params[pname] = {
+                        "type": pschema.get("type", "any"),
+                        "description": pschema.get("description", ""),
+                        "required": pname in (getattr(t.parameters, "required", None) or []),
+                    }
+                    if "default" in pschema:
+                        params[pname]["default"] = pschema["default"]
+                entry["parameters"] = params
+            tools_out.append(entry)
+        return {
+            "tools": tools_out,
+            "n_tools": len(tools_out),
+            "mcp_python": sys.executable,
+            "note": (
+                "Install community plugins with: pip install <plugin-package>. "
+                "Restart the MCP server to discover newly installed plugins."
+            ),
+        }
+    except Exception as e:
+        log.error("list_available_tools failed: %s", e)
         return _tool_error_to_dict(e)
 
 

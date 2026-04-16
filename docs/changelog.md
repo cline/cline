@@ -6,6 +6,37 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.1.4] — 2026-04-15
+
+### Added
+- **Python env context in `start_session`** — response now includes `mcp_python`
+  (the interpreter running the MCP server), `mcp_pip`, and `available_packages`
+  (dict of all installed packages with versions). Agents can use this to write
+  correct Python scripts without guessing the interpreter path or assuming what
+  is installed.
+- **`list_available_tools` tool** — returns all registered MCP tools with names,
+  descriptions, and parameter schemas at runtime. Includes community plugin tools
+  discovered via entry points. Call this to see what capabilities are available
+  without relying on hardcoded documentation.
+- **`get_library_reference` tool** — per-library reference cards covering field-name
+  gotchas, API quirks, unit assumptions, and copy-paste code patterns. Covers 8
+  core libraries: pynhd, pygeohydro, pygridmet, py3dep, hydrofunctions, pysheds,
+  rasterio, xarray. Call before writing any Python script using these libraries.
+- **`aihydro.knowledge` entry point** — community plugins can now contribute
+  additional library reference cards by registering a `get_refs_dir` callable
+  under `[project.entry-points."aihydro.knowledge"]` in their `pyproject.toml`.
+- **Agent instruction improvements** — system prompt now includes explicit Python
+  scripting decision tree: call `start_session` first, call `get_library_reference`
+  for any library you'll use, then use `mcp_python` as the interpreter. Also
+  clarifies that `list_available_tools` is the ground truth for available capabilities.
+
+### Tests
+- 4 new smoke tests covering all additions
+- Fixed stale `_RESEARCH_MD` patch targets (attribute no longer exists in store.py)
+- Updated expected tool count from 16 → 28
+
+---
+
 ## [0.1.3] — 2026-04-11
 
 ### Fixed

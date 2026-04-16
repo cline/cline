@@ -150,3 +150,32 @@ Retrieve the full CAMELS-US attribute set for a gauge from the 671-basin benchma
 
 !!! note
     Only available for the 671 gauges in the CAMELS-US dataset. Returns an error for gauges not in CAMELS.
+
+---
+
+## `get_library_reference`
+
+Look up field-name gotchas, API quirks, unit assumptions, and copy-paste code patterns for a core hydrological Python library.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `library` | str | Yes | Library name (case-insensitive). See supported libraries below. |
+
+**Supported libraries:**
+
+| Library | Purpose |
+|---------|---------|
+| `pynhd` | NLDI watershed polygons and NHD data |
+| `pygeohydro` | USGS NWIS streamflow and NLCD land cover |
+| `pygridmet` | GridMET daily climate (precipitation, temperature) |
+| `py3dep` | 3DEP elevation (DEM) access |
+| `hydrofunctions` | Simple NWIS streamflow client |
+| `pysheds` | DEM-based flow direction, accumulation, TWI |
+| `rasterio` | Raster I/O, masking, reprojection |
+| `xarray` | N-dimensional labeled arrays for gridded data |
+
+**When to use:** Call this before writing any Python script that uses one of these libraries. It returns the exact field names, CRS requirements, unit conventions, and common mistakes — preventing hallucination errors in generated scripts.
+
+**Returns:** `library`, `purpose`, `field_mappings` (function-level notes), `gotchas` (list), `common_patterns` (copy-paste snippets).
+
+Community plugins can extend this via the `aihydro.knowledge` entry point — see [Plugin Guide](../plugins/overview.md).

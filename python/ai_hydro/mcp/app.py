@@ -28,9 +28,22 @@ mcp = FastMCP(
         "across conversations via HydroSession (gauge-level) and ProjectSession (project-level).\n\n"
 
         "── TOOL SELECTION RULE ─────────────────────────────────────────────────\n"
-        "If an MCP tool exists for the task → call it. Never write Python instead.\n"
-        "If NO MCP tool exists → Python scripting is the correct fallback.\n"
-        "NEVER call pip install. All dependencies are pre-installed.\n\n"
+        "1. If an MCP tool exists for the task → CALL IT. Never write Python instead.\n"
+        "2. If NO MCP tool exists → Python scripting is the correct fallback.\n"
+        "   Before writing any Python script:\n"
+        "   a. Call start_session() — it returns mcp_python (the correct interpreter)\n"
+        "      and available_packages (what is installed).\n"
+        "   b. Call get_library_reference(library) for any library you will use.\n"
+        "      This prevents field-name hallucinations and API gotchas.\n"
+        "   c. Use the mcp_python path as the shebang/interpreter — NEVER assume\n"
+        "      'python', 'python3', or any other path.\n"
+        "   d. NEVER call pip install. All hydro deps are pre-installed.\n"
+        "      If a package is missing, report it to the researcher.\n\n"
+
+        "── TOOL DISCOVERY ──────────────────────────────────────────────────────\n"
+        "Call list_available_tools() at any time to see what is registered,\n"
+        "including community plugin tools. This is the ground truth for available\n"
+        "capabilities — do not guess from memory.\n\n"
 
         "── RESEARCHER PERSONA ──────────────────────────────────────────────────\n"
         "At the start of each conversation:\n"
@@ -76,6 +89,6 @@ mcp = FastMCP(
         "ResearcherProfile (~/.aihydro/researcher.json)  → WHO the researcher is\n"
         "ProjectSession    (~/.aihydro/projects/<n>/)    → WHAT project is active\n"
         "HydroSession      (~/.aihydro/sessions/<id>.json) → gauge-level results\n"
-        ".clinerules/research.md                         → auto-injected context\n"
+        ".aihydrorules/research.md                       → auto-injected context\n"
     ),
 )

@@ -1,6 +1,6 @@
 # Session Tools
 
-Tools for managing per-gauge research sessions, exporting results, and synchronising context.
+Tools for managing per-gauge research sessions, exporting results, synchronising context, and discovering available tools.
 
 See [Sessions & Provenance](../guide/sessions.md) for a full explanation of how the session system works.
 
@@ -13,8 +13,17 @@ Initialise or resume a research session for a USGS gauge.
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `gauge_id` | str | USGS gauge ID |
+| `workspace_dir` | str (optional) | Absolute path to the VS Code workspace folder |
 
 If a session already exists, it is loaded without clearing any cached results. Calling `start_session` on an existing session is safe and idempotent.
+
+As of v0.1.4 the response also includes:
+
+- `mcp_python` — the Python interpreter running the MCP server (use this as the interpreter for any Python scripts you write)
+- `mcp_pip` — corresponding pip path
+- `available_packages` — dict of `{package_name: version}` for all installed packages
+
+This makes it safe to write Python scripts without guessing interpreter paths or assuming what is installed.
 
 ---
 
@@ -106,10 +115,30 @@ achieving NSE = 0.79 on the validation period (2018–2024).
 
 ## `sync_research_context`
 
-Refresh `.clinerules/research.md` and `.clinerules/tools.md` from the current session and server state.
+Refresh `.aihydrorules/research.md` and `.aihydrorules/tools.md` from the current session and server state.
 
 Call this after computing new results to ensure the agent has the latest context injected automatically in future conversations.
 
 ```
 Sync my research context.
 ```
+
+---
+
+## `list_available_tools`
+
+Return all registered MCP tools with names, descriptions, and parameter schemas.
+
+No parameters required.
+
+This is the runtime source of truth for available capabilities — it includes both built-in tools and any community plugin tools discovered via the `aihydro.tools` entry point. Always prefer this over documentation for an accurate picture of what is installed.
+
+```
+What tools do I have available?
+```
+
+**Returns:**
+- `tools` — list of `{name, description, parameters}` dicts
+- `n_tools` — total count
+- `mcp_python` — interpreter running the server
+- `note` — how to install additional community plugins

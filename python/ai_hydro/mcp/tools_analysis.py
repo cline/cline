@@ -2,7 +2,7 @@
 Analysis MCP tools (9 tools).
 
 Watershed delineation, streamflow, signatures, geomorphic parameters,
-TWI, curve number grid, forcing data, CAMELS attributes, and concept search.
+TWI, curve number grid, forcing data, CAMELS attributes, and library reference.
 """
 from __future__ import annotations
 
@@ -761,4 +761,60 @@ def extract_camels_attributes(gauge_id: str) -> dict:
         }
     except Exception as e:
         log.error("extract_camels_attributes failed: %s", e)
+        return _tool_error_to_dict(e)
+
+
+# ============================================================================
+# Tool: Library Reference (gotchas, field mappings, code patterns)
+# ============================================================================
+
+@mcp.tool()
+def get_library_reference(library: str) -> dict:
+    """
+    Look up field-name gotchas, API quirks, and copy-paste patterns for a
+    core hydrological Python library.
+
+    Use this before writing Python scripts that use one of the supported
+    libraries — it prevents the most common hallucination mistakes (wrong
+    field names, wrong CRS, wrong unit assumptions).
+
+    Supported libraries
+    -------------------
+    pynhd       — NLDI watershed polygons and NHD data
+    pygeohydro  — USGS NWIS streamflow and NLCD land cover
+    pygridmet   — GridMET daily climate (precipitation, temperature)
+    py3dep      — 3DEP elevation (DEM) access
+    hydrofunctions — simple NWIS streamflow client
+    pysheds     — DEM-based flow direction, accumulation, TWI
+    rasterio    — raster I/O, masking, reprojection
+    xarray      — N-dimensional labeled arrays for gridded data
+
+    Parameters
+    ----------
+    library : str
+        Library name (case-insensitive). One of the supported libraries above.
+
+    Returns
+    -------
+    dict with keys:
+        library         : canonical library name
+        purpose         : one-line description
+        field_mappings  : dict of function → field name notes
+        gotchas         : list of common mistakes to avoid
+        common_patterns : dict of task → copy-paste code snippet
+        available_refs  : list of all libraries with references (if not found)
+    """
+    try:
+        from ai_hydro.knowledge import get_library_ref, list_library_refs
+        ref = get_library_ref(library)
+        if ref is None:
+            return {
+                "error": True,
+                "code": "NOT_FOUND",
+                "message": f"No reference available for '{library}'.",
+                "available_refs": list_library_refs(),
+            }
+        return ref
+    except Exception as e:
+        log.error("get_library_reference failed: %s", e)
         return _tool_error_to_dict(e)
