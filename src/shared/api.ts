@@ -297,7 +297,7 @@ export const anthropicModels = {
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,
-		contextWindow: 1_000_000,
+		contextWindow: 200_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
