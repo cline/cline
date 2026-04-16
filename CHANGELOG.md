@@ -1,5 +1,26 @@
 # Changelog
 
+## [3.79.0]
+
+### Added
+
+- Add Claude Opus 4.7 model support
+- Add Azure Blob Storage as a storage provider
+- Add GPT-5.2 model support
+- Add `globalSkills` to remote config
+- Inline value reuse in user-level remote-config discovery
+
+### Fixed
+
+- Fix cache reflection for Cline and Vercel API handlers
+- Fix stuck `command_output` ask when terminal command ends unexpectedly
+- Add `use_subagents` to system prompt for GLM, Hermes, and XS models
+- Fix action injection security risk
+
+### Changed
+
+- Remove deprecated evals tool
+
 ## [3.78.0]
 
 ### Added
