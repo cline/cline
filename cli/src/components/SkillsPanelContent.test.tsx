@@ -46,7 +46,7 @@ type WaitForConditionOptions = {
 
 const waitForCondition = async (
 	condition: () => boolean,
-	{ timeoutMs = 1000, intervalMs = 10, errorMessage }: WaitForConditionOptions,
+	{ timeoutMs = 1000, intervalMs = 25, errorMessage }: WaitForConditionOptions,
 ) => {
 	const start = Date.now()
 	while (Date.now() - start < timeoutMs) {
