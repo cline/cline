@@ -148,7 +148,7 @@ At a deeper architectural level, the goal here is to make the test describe the 
 - [x] Make post-input assertions wait on mock calls rather than a fixed delay
 - [x] Update the other navigation/toggle tests in the file to use the same pattern for consistency
 - [x] Decide whether to retain `delay()` only as an internal polling primitive or remove it entirely
- - [ ] Optionally prevent input handling while `isLoading` is true inside the component
+ - [x] Optionally prevent input handling while `isLoading` is true inside the component
 
  ### Detailed developer instructions
 
@@ -224,6 +224,7 @@ In plain language: if the screen is still loading its list of skills, the safest
 Current implementation note:
 
 - The CLI `SkillsPanelContent` tests have been refactored to use readiness-based polling helpers instead of fixed render/input sleeps.
+- `SkillsPanelContent.tsx` now also ignores keyboard input while the panel is still loading, which makes the runtime behavior match the stabilized test assumptions more closely.
 - The targeted CLI package test run passed locally via:
   - `npm --prefix /Users/evekillaby/dev/github.com/cline/cline/cli run test:run -- src/components/SkillsPanelContent.test.tsx`
 - This workstream now has local verification in the package-native test harness.

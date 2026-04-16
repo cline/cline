@@ -127,6 +127,9 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 			if (isMouseEscapeSequence(input)) {
 				return
 			}
+			if (isLoading) {
+				return
+			}
 			if (key.escape) {
 				onClose()
 				return
