@@ -13,6 +13,8 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
+	"claude-opus-4-7",
+	`claude-opus-4-7${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-opus-4-6",
 	`claude-opus-4-6${ANTHROPIC_FAST_MODE_SUFFIX}`,
 	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
@@ -86,6 +88,14 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 								currentMode,
 							)
 						}
+						selectedModelId={selectedModelId}
+					/>
+
+					{/* Context window switcher for Claude Opus 4.7 */}
+					<ContextWindowSwitcher
+						base1mModelId={`claude-opus-4-7${CLAUDE_SONNET_1M_SUFFIX}`}
+						base200kModelId="claude-opus-4-7"
+						onModelChange={handleModelChange}
 						selectedModelId={selectedModelId}
 					/>
 

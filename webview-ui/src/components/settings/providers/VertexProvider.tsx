@@ -24,6 +24,8 @@ interface VertexProviderProps {
 
 // Vertex models that support thinking
 const SUPPORTED_THINKING_MODELS = [
+	"claude-opus-4-7",
+	"claude-opus-4-7:1m",
 	"claude-opus-4-6",
 	"claude-opus-4-6:1m",
 	"claude-sonnet-4-6",

@@ -168,6 +168,7 @@ const VercelModelPicker: React.FC<VercelModelPickerProps> = ({ isPopup, currentM
 			return false
 		}
 		return (
+			selectedModelIdLower.includes("claude-opus-4.7") ||
 			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||

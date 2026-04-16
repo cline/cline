@@ -355,6 +355,7 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 		}
 		return (
 			Object.entries(clineModels ?? {})?.some(([id, m]) => id === selectedModelId && m.thinkingConfig) ||
+			selectedModelIdLower.includes("claude-opus-4.7") ||
 			selectedModelIdLower.includes("claude-opus-4.6") ||
 			selectedModelIdLower.includes("claude-haiku-4.5") ||
 			selectedModelIdLower.includes("claude-4.5-haiku") ||
@@ -504,6 +505,14 @@ const ClineModelPicker: React.FC<ClineModelPickerProps> = ({ isPopup, currentMod
 						</DropdownList>
 					)}
 				</DropdownWrapper>
+
+				{/* Context window switcher for Claude Opus 4.7 */}
+				<ContextWindowSwitcher
+					base1mModelId={`anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`}
+					base200kModelId="anthropic/claude-opus-4.7"
+					onModelChange={handleModelChange}
+					selectedModelId={selectedModelId}
+				/>
 
 				{/* Context window switcher for Claude Opus 4.6 */}
 				<ContextWindowSwitcher
