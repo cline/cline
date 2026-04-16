@@ -50,6 +50,13 @@ async function* makeStreamParts(parts: unknown[]) {
 	}
 }
 
+async function* makeFailingStreamParts(error: unknown, parts: unknown[] = []) {
+	for (const part of parts) {
+		yield part;
+	}
+	throw error;
+}
+
 async function collect(
 	iterable: AsyncIterable<AgentModelEvent>,
 ): Promise<AgentModelEvent[]> {
@@ -250,6 +257,39 @@ describe("sdk-gateway", () => {
 			}),
 		});
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("surfaces nested AI SDK stream errors as human-readable finish messages", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeFailingStreamParts(
+				new Error("No output generated. Check the stream for errors.", {
+					cause: new Error("Invalid API key"),
+				}),
+			),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "error",
+			error: "Invalid API key",
+		});
 	});
 
 	it("passes user file blocks through as text content", async () => {
@@ -1431,27 +1471,24 @@ describe("sdk-gateway", () => {
 	});
 
 	it("normalizes models.dev catalogs into ModelInfo", () => {
-		const result = normalizeModelsDevProviderModels(
-			{
-				openai: {
-					models: {
-						"gpt-5": {
-							name: "GPT-5",
-							tool_call: true,
-							reasoning: true,
-							structured_output: true,
-							release_date: "2026-01-01",
-							limit: { context: 200000, output: 32000 },
-							cost: { input: 1, output: 2 },
-							modalities: { input: ["text", "image"] },
-						},
+		const result = normalizeModelsDevProviderModels({
+			openai: {
+				models: {
+					"gpt-5": {
+						name: "GPT-5",
+						tool_call: true,
+						reasoning: true,
+						structured_output: true,
+						release_date: "2026-01-01",
+						limit: { context: 200000, output: 32000 },
+						cost: { input: 1, output: 2 },
+						modalities: { input: ["text", "image"] },
 					},
 				},
 			},
-			{ openai: "openai" },
-		);
+		});
 
-		expect(result.openai["gpt-5"]).toMatchObject({
+		expect(result["openai-native"]["gpt-5"]).toMatchObject({
 			id: "gpt-5",
 			name: "GPT-5",
 			contextWindow: 200000,

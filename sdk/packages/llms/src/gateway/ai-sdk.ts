@@ -503,33 +503,33 @@ function normalizeUsage(
 /**
  * Suppress unhandled rejections from AI SDK stream promises (usage, finishReason, etc.)
  * that reject with NoOutputGeneratedError when the stream encounters an error.
+ *
+ * The AI SDK's streamText result exposes lazy promise getters (finishReason, totalUsage,
+ * steps, text, usage, etc.) backed by internal DelayedPromise instances. When the stream
+ * errors with 0 recorded steps, the flush callback rejects all of them. We must access
+ * each getter to obtain the promise and attach a no-op rejection handler before Bun/Node
+ * surfaces them as unhandled rejections.
  */
 function suppressDanglingStreamPromises(
 	stream: AiSdkStreamResult | undefined,
 ): void {
 	if (!stream) return;
 	const noop = () => {};
-	if (
-		stream.usage &&
-		typeof (stream.usage as Promise<unknown>).catch === "function"
-	) {
-		(stream.usage as Promise<unknown>).catch(noop);
-	}
-	if (
-		stream.text &&
-		typeof (stream.text as Promise<unknown>).catch === "function"
-	) {
-		(stream.text as Promise<unknown>).catch(noop);
-	}
-	// Suppress any other promise-valued properties the AI SDK may expose.
-	for (const key of Object.keys(stream)) {
-		const val = (stream as Record<string, unknown>)[key];
-		if (
-			val &&
-			typeof val === "object" &&
-			typeof (val as Promise<unknown>).catch === "function"
-		) {
+	const suppress = (val: unknown) => {
+		if (val && typeof (val as Promise<unknown>).catch === "function") {
 			(val as Promise<unknown>).catch(noop);
+		}
+	};
+
+	// Access known lazy promise getters on the AI SDK StreamTextResult object.
+	const s = stream as Record<string, unknown>;
+
+	// Catch-all for any remaining promise-valued own properties.
+	for (const key of Object.keys(stream)) {
+		try {
+			suppress(s[key]);
+		} catch {
+			// ignore
 		}
 	}
 }
@@ -622,89 +622,108 @@ function extractGoogleThoughtMetadata(
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
 	pricingValue?: unknown,
+	capturedError?: { current: string | undefined },
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	let finishReason: unknown;
+	let streamError: string | undefined;
 
-	if (stream.fullStream) {
-		for await (const part of stream.fullStream) {
-			if (part.type === "text-delta") {
-				const text =
-					(part.textDelta as string | undefined) ??
-					(part.text as string | undefined) ??
-					(part.delta as string | undefined);
-				if (text) {
-					yield { type: "text-delta", text };
+	try {
+		if (stream.fullStream) {
+			for await (const part of stream.fullStream) {
+				if (part.type === "text-delta") {
+					const text =
+						(part.textDelta as string | undefined) ??
+						(part.text as string | undefined) ??
+						(part.delta as string | undefined);
+					if (text) {
+						yield { type: "text-delta", text };
+					}
+					continue;
 				}
-				continue;
-			}
 
-			if (part.type === "reasoning-delta" || part.type === "reasoning") {
-				const text =
-					(part.textDelta as string | undefined) ??
-					(part.text as string | undefined) ??
-					(part.reasoning as string | undefined);
-				if (text) {
+				if (part.type === "reasoning-delta" || part.type === "reasoning") {
+					const text =
+						(part.textDelta as string | undefined) ??
+						(part.text as string | undefined) ??
+						(part.reasoning as string | undefined);
+					if (text) {
+						yield {
+							type: "reasoning-delta",
+							text,
+							metadata: extractGoogleThoughtMetadata(part),
+						};
+					}
+					continue;
+				}
+
+				if (part.type === "tool-call") {
+					sawToolCalls = true;
+					const input = (part.input ?? part.args ?? {}) as unknown;
+					const inputText =
+						typeof input === "string" ? input : JSON.stringify(input);
 					yield {
-						type: "reasoning-delta",
-						text,
+						type: "tool-call-delta",
+						toolCallId:
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined) ??
+							`tool_${nanoid()}`,
+						toolName:
+							(part.toolName as string | undefined) ??
+							(part.name as string | undefined) ??
+							"tool",
+						input: typeof input === "string" ? undefined : input,
+						inputText,
 						metadata: extractGoogleThoughtMetadata(part),
 					};
+					continue;
 				}
-				continue;
-			}
 
-			if (part.type === "tool-call") {
-				sawToolCalls = true;
-				const input = (part.input ?? part.args ?? {}) as unknown;
-				const inputText =
-					typeof input === "string" ? input : JSON.stringify(input);
-				yield {
-					type: "tool-call-delta",
-					toolCallId:
-						(part.toolCallId as string | undefined) ??
-						(part.id as string | undefined) ??
-						`tool_${nanoid()}`,
-					toolName:
-						(part.toolName as string | undefined) ??
-						(part.name as string | undefined) ??
-						"tool",
-					input: typeof input === "string" ? undefined : input,
-					inputText,
-					metadata: extractGoogleThoughtMetadata(part),
-				};
-				continue;
-			}
+				if (part.type === "error") {
+					streamError =
+						capturedError?.current ?? extractErrorMessage(part.error);
+					break;
+				}
 
-			if (part.type === "finish") {
-				yield {
-					type: "usage",
-					usage: normalizeUsage(
-						part.usage ?? part.totalUsage ?? {},
-						part.providerMetadata,
-						pricingValue,
-					),
-				};
-				finishReason = part.finishReason ?? part.reason;
+				if (part.type === "finish") {
+					yield {
+						type: "usage",
+						usage: normalizeUsage(
+							part.usage ?? part.totalUsage ?? {},
+							part.providerMetadata,
+							pricingValue,
+						),
+					};
+					finishReason = part.finishReason ?? part.reason;
+				}
+			}
+		} else if (stream.textStream) {
+			for await (const text of stream.textStream) {
+				yield { type: "text-delta", text };
 			}
 		}
-	} else if (stream.textStream) {
-		for await (const text of stream.textStream) {
-			yield { type: "text-delta", text };
-		}
+	} catch (error) {
+		// Prefer the real provider error from onError over the generic
+		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
+		streamError = capturedError?.current ?? extractErrorMessage(error);
 	}
 
-	if (stream.usage) {
-		const usage = await stream.usage;
-		yield {
-			type: "usage",
-			usage: normalizeUsage(usage, undefined, pricingValue),
-		};
+	if (!streamError && stream.usage) {
+		try {
+			const usage = await stream.usage;
+			yield {
+				type: "usage",
+				usage: normalizeUsage(usage, undefined, pricingValue),
+			};
+		} catch (error) {
+			streamError = capturedError?.current ?? extractErrorMessage(error);
+		}
 	}
 
 	yield {
 		type: "finish",
-		reason: mapFinishReason(finishReason, sawToolCalls),
+		reason: streamError ? "error" : mapFinishReason(finishReason, sawToolCalls),
+		error: streamError,
 	};
 }
 
@@ -782,6 +801,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 		async *stream(request, context) {
 			const log = context.logger;
 			let stream: AiSdkStreamResult | undefined;
+			const capturedError: { current: string | undefined } = {
+				current: undefined,
+			};
 			try {
 				const provider = await createProviderModule(kind, config, context);
 				const langfuse = await ensureGatewayLangfuseTelemetry(
@@ -802,6 +824,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					providerOptions: toAiSdkProviderOptions(request, context) as never,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
+						capturedError.current = msg;
 						if (log?.error) {
 							log.error("[ai-sdk] stream error", {
 								providerId: request.providerId,
@@ -817,10 +840,22 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				}) as unknown as AiSdkStreamResult;
 
-				yield* emitAiSdkEvents(stream, context.model.metadata?.pricing);
+				// Suppress dangling promise rejections (finishReason, totalUsage, steps, etc.)
+				// BEFORE iterating. The AI SDK rejects these DelayedPromises inside the stream's
+				// flush callback, which runs during iteration — so we must attach .catch() handlers
+				// upfront or Bun/Node will surface them as unhandled rejections.
+				suppressDanglingStreamPromises(stream);
+
+				yield* emitAiSdkEvents(
+					stream,
+					context.model.metadata?.pricing,
+					capturedError,
+				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);
-				const msg = extractErrorMessage(error);
+				// Prefer the real provider error captured in onError over the generic
+				// NoOutputGeneratedError that the AI SDK throws when 0 steps are recorded.
+				const msg = capturedError.current ?? extractErrorMessage(error);
 				if (log?.error) {
 					log.error("[ai-sdk] provider error", {
 						providerId: request.providerId,

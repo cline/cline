@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 
-import { MODELS_DEV_PROVIDER_KEY_MAP } from "@clinebot/shared";
 import { fetchModelsDevProviderModels } from "../../src/model/catalog-live";
 import type { ModelInfo } from "../../src/model/types";
 
@@ -20,7 +19,6 @@ export async function loadModelsDevProviderModels(): Promise<
 > {
 	const providerModels = await fetchModelsDevProviderModels(
 		"https://models.dev/api.json",
-		MODELS_DEV_PROVIDER_KEY_MAP,
 	);
 	return sortObjectByKey(providerModels);
 }

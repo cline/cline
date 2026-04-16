@@ -1,3 +1,4 @@
+import { MODELS_DEV_PROVIDER_KEY_MAP } from "../gateway/provider-keys";
 import type { ModelInfo } from "./types";
 
 export interface ModelsDevModel {
@@ -128,12 +129,11 @@ function isDeprecatedModel(model: ModelsDevModel): boolean {
 
 export function normalizeModelsDevProviderModels(
 	payload: ModelsDevPayload,
-	providerKeyMap: ModelsDevProviderKeyMap,
 ): Record<string, Record<string, ModelInfo>> {
 	const providerModels: Record<string, Record<string, ModelInfo>> = {};
 
 	for (const [sourceProviderKey, targetProviderId] of Object.entries(
-		providerKeyMap,
+		MODELS_DEV_PROVIDER_KEY_MAP,
 	)) {
 		const source = payload[sourceProviderKey];
 		if (!source?.models) {
@@ -158,7 +158,6 @@ export function normalizeModelsDevProviderModels(
 
 export async function fetchModelsDevProviderModels(
 	url: string,
-	providerKeyMap: ModelsDevProviderKeyMap,
 	fetcher: typeof fetch = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const response = await fetcher(url);
@@ -169,5 +168,5 @@ export async function fetchModelsDevProviderModels(
 	}
 
 	const payload = (await response.json()) as ModelsDevPayload;
-	return normalizeModelsDevProviderModels(payload, providerKeyMap);
+	return normalizeModelsDevProviderModels(payload);
 }

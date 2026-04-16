@@ -341,12 +341,8 @@ export async function runAgent(
 			redactedReasoningChunkCount,
 		);
 	} catch (err) {
-		if (config.outputMode === "text") {
-			writeln();
-		}
-		config.logger?.log(
-			err instanceof Error ? (err.stack ?? err.message) : String(err),
-		);
+		const message = err instanceof Error ? err.message : String(err);
+		config.logger?.log(err instanceof Error ? (err.stack ?? message) : message);
 		process.exitCode = 1;
 	} finally {
 		await cleanupRuntime();

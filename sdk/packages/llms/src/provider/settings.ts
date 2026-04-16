@@ -5,12 +5,12 @@
  * Converts to internal ProviderConfig for handler creation.
  */
 
-import { resolveProviderModelCatalogKeys } from "@clinebot/shared";
 import { z } from "zod";
 import {
 	DEFAULT_EXTERNAL_OCA_BASE_URL,
 	DEFAULT_INTERNAL_OCA_BASE_URL,
 } from "../gateway/builtins";
+import { resolveProviderModelCatalogKeys } from "../gateway/provider-keys";
 import { getGeneratedModelsForProvider } from "../model/catalog.generated-access";
 import type { ProviderCapability, ProviderConfig, ProviderId } from "./config";
 import { OPENAI_COMPATIBLE_PROVIDERS } from "./defaults";

@@ -267,7 +267,7 @@ export function buildMistakeLimitStopMessage(input: {
 	];
 	const details = input.details?.trim();
 	if (details) {
-		parts.push(`Latest failure: ${details}`);
+		parts.push(`Error: ${details}`);
 	}
 	const stopReason = input.stopReason?.trim();
 	if (stopReason) {

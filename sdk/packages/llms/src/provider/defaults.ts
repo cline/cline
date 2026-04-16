@@ -6,11 +6,8 @@
  */
 /** biome-ignore-all lint/style/noNonNullAssertion: static */
 
-import {
-	MODELS_DEV_PROVIDER_KEY_MAP,
-	resolveProviderModelCatalogKeys,
-} from "@clinebot/shared";
 import { BUILTIN_PROVIDER_COLLECTION_LIST } from "../gateway/builtins";
+import { resolveProviderModelCatalogKeys } from "../gateway/provider-keys";
 import {
 	fetchModelsDevProviderModels,
 	sortModelsByReleaseDate,
@@ -546,7 +543,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return fetchModelsDevProviderModels(url, MODELS_DEV_PROVIDER_KEY_MAP);
+	return fetchModelsDevProviderModels(url);
 }
 
 export async function getLiveModelsCatalog(

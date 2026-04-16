@@ -5,12 +5,12 @@ const ENTRIES: ReadonlyArray<{
 }> = [
 	{
 		modelsDevKey: "openai",
-		generatedProviderId: "openai",
+		generatedProviderId: "openai-native",
 		runtimeProviderId: "openai-native",
 	},
 	{
 		modelsDevKey: "openai",
-		generatedProviderId: "openai",
+		generatedProviderId: "openai-native",
 		runtimeProviderId: "openai-codex",
 	},
 	{ modelsDevKey: "anthropic", generatedProviderId: "anthropic" },
@@ -32,6 +32,8 @@ const ENTRIES: ReadonlyArray<{
 		generatedProviderId: "sapaicore",
 		runtimeProviderId: "sapaicore",
 	},
+	{ modelsDevKey: "ollama", runtimeProviderId: "ollama-cloud" },
+	{ modelsDevKey: "ollama-cloud", generatedProviderId: "ollama" },
 	{
 		modelsDevKey: "fireworks-ai",
 		generatedProviderId: "fireworks",
@@ -73,6 +75,10 @@ const ENTRIES: ReadonlyArray<{
 		runtimeProviderId: "dify",
 	},
 	{
+		modelsDevKey: "vercel",
+		generatedProviderId: "vercel-ai-gateway",
+	},
+	{
 		modelsDevKey: "openrouter",
 		generatedProviderId: "openrouter",
 		runtimeProviderId: "cline",
@@ -100,6 +106,7 @@ const ENTRIES: ReadonlyArray<{
 	{ modelsDevKey: "wandb", generatedProviderId: "wandb" },
 	{ modelsDevKey: "kilo", generatedProviderId: "kilo" },
 	{ modelsDevKey: "xiaomi", generatedProviderId: "xiaomi" },
+	{ modelsDevKey: "v0", generatedProviderId: "v0" },
 ];
 
 function dedupe(values: readonly string[]): string[] {

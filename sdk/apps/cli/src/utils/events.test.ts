@@ -45,7 +45,7 @@ describe("handleEvent text formatting", () => {
 		);
 
 		expect(output).toContain(
-			`\x1b[36m⏺ [read_files]\x1b[0m {"path":"/tmp/demo.txt"}`,
+			`\x1b[36m[read_files]\x1b[0m {"path":"/tmp/demo.txt"}`,
 		);
 		expect(output).toMatch(/⎿.*ok/s);
 	});

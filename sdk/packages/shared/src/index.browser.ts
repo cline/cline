@@ -113,11 +113,6 @@ export type {
 	ToolUseContent,
 } from "./llms/messages";
 export {
-	MODELS_DEV_PROVIDER_KEY_ENTRIES,
-	MODELS_DEV_PROVIDER_KEY_MAP,
-	resolveProviderModelCatalogKeys,
-} from "./llms/model-id";
-export {
 	ApiFormat,
 	ApiFormatSchema,
 	type ModelCapability,

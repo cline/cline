@@ -17,6 +17,9 @@ import type { Config } from "./types";
 let activeInlineStream: "text" | "reasoning" | undefined;
 let inlineStreamHasOutput = false;
 let shouldPrefixNextTextWithBlankLine = false;
+
+// Prefix for result rows
+const HOOK = "⎿ ";
 const TEAM_RUN_ACTIVE_SUFFIX = `${c.dim} ...${c.reset}`;
 
 export function resolveStatusNoticeLabel(
@@ -40,14 +43,20 @@ export function closeInlineStreamIfNeeded(): void {
 	inlineStreamHasOutput = false;
 }
 
+// Used by team events that arrive while the lead agent is mid-stream. Ends the
+// current visual line so the team event prints cleanly, but keeps
+// activeInlineStream set so the next text chunk continues on a new line without
+// re-emitting any prefix.
+function breakLineIfStreaming(): void {
+	if (activeInlineStream === "text" && inlineStreamHasOutput) {
+		write("\n");
+		inlineStreamHasOutput = false;
+	}
+}
+
 // =============================================================================
 // Agent event handler
 // =============================================================================
-
-// Prefix for assistant/tool dot rows: "⏺ "
-const DOT = "⏺";
-// Prefix for result rows
-const HOOK = "⎿ ";
 
 function formatResultLines(text: string, maxLines = 5): string[] {
 	const lines = text.split("\n");
@@ -82,7 +91,6 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 							write("\n");
 							shouldPrefixNextTextWithBlankLine = false;
 						}
-						write(`${DOT} `);
 						activeInlineStream = "text";
 					}
 					write(event.text ?? "");
@@ -91,7 +99,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 				case "reasoning":
 					if (activeInlineStream !== "reasoning") {
 						closeInlineStreamIfNeeded();
-						write(`${c.dim}${DOT} [thinking] ${c.reset}`);
+						write(`${c.dim}[thinking] ${c.reset}`);
 						activeInlineStream = "reasoning";
 						inlineStreamHasOutput = true;
 					}
@@ -108,7 +116,7 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					const toolName = event.toolName ?? "unknown_tool";
 					const inputStr = formatToolInput(toolName, event.input);
 					write(
-						`${c.cyan}${DOT} [${toolName}]${c.reset}${inputStr ? ` ${inputStr}` : ""}\n`,
+						`${c.cyan}[${toolName}]${c.reset}${inputStr ? ` ${inputStr}` : ""}\n`,
 					);
 					break;
 				}
@@ -201,7 +209,10 @@ export function handleTeamEvent(event: TeamEvent): void {
 		return;
 	}
 
-	closeInlineStreamIfNeeded();
+	breakLineIfStreaming();
+	if (activeInlineStream !== "text") {
+		closeInlineStreamIfNeeded();
+	}
 
 	switch (event.type) {
 		case "teammate_spawned":

@@ -21,15 +21,18 @@ describe("models-dev-catalog", () => {
 						limit: { context: 1_000_000 },
 						cost: { input: 1, output: 2, cache_read: 0.5, cache_write: 0.8 },
 						status: "preview",
+						family: "gpt",
 					},
 					"gpt-no-tools": {
 						name: "GPT No Tools",
 						tool_call: false,
+						family: "gpt",
 					},
 					"gpt-deprecated": {
 						name: "GPT Deprecated",
 						tool_call: true,
 						status: "deprecated",
+						family: "gpt",
 					},
 				},
 			},
@@ -39,19 +42,18 @@ describe("models-dev-catalog", () => {
 						tool_call: true,
 						status: "experimental",
 						release_date: "2025-02-01",
+						family: "claude",
 					},
 					"claude-older": {
 						tool_call: true,
 						release_date: "2024-02-01",
+						family: "claude",
 					},
 				},
 			},
 		};
 
-		const providerModels = normalizeModelsDevProviderModels(payload, {
-			openai: "openai-native",
-			anthropic: "anthropic",
-		});
+		const providerModels = normalizeModelsDevProviderModels(payload);
 
 		expect(providerModels).toEqual({
 			"openai-native": {
@@ -76,6 +78,7 @@ describe("models-dev-catalog", () => {
 					},
 					status: "preview",
 					releaseDate: "2026-01-01",
+					family: "gpt",
 				},
 			},
 			anthropic: {
@@ -93,6 +96,7 @@ describe("models-dev-catalog", () => {
 					},
 					status: undefined,
 					releaseDate: "2025-02-01",
+					family: "claude",
 				},
 				"claude-older": {
 					id: "claude-older",
@@ -108,6 +112,7 @@ describe("models-dev-catalog", () => {
 					},
 					status: undefined,
 					releaseDate: "2024-02-01",
+					family: "claude",
 				},
 			},
 		});
@@ -135,7 +140,6 @@ describe("models-dev-catalog", () => {
 
 		const result = await fetchModelsDevProviderModels(
 			"https://models.dev/api.json",
-			{ openai: "openai-native" },
 			fetcher as unknown as typeof fetch,
 		);
 
@@ -152,7 +156,6 @@ describe("models-dev-catalog", () => {
 		await expect(
 			fetchModelsDevProviderModels(
 				"https://models.dev/api.json",
-				{ openai: "openai-native" },
 				fetcher as unknown as typeof fetch,
 			),
 		).rejects.toThrow(

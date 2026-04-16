@@ -68,8 +68,12 @@ export function subscribeToAgentEvents(
 			| { type: string; payload?: unknown };
 		if (typedEvent.type === "agent_event") {
 			hasSeenStructuredAgentEvent = true;
-			const payload = typedEvent.payload as { event?: AgentEvent } | undefined;
-			if (payload?.event) {
+			const payload = typedEvent.payload as
+				| { event?: AgentEvent; teamRole?: string }
+				| undefined;
+			// Skip teammate events — they stream concurrently and would interleave
+			// with the lead agent's output on shared stdout.
+			if (payload?.event && payload.teamRole !== "teammate") {
 				onAgentEvent(payload.event);
 			}
 			return;

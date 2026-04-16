@@ -47,6 +47,8 @@ await runBuild("browser", {
 	target: "browser",
 	minify: true,
 	sourcemap: "none",
+	packages: "bundle",
+	external: ["zod"],
 });
 
 if (shouldEmitTypes) {
