@@ -1,3 +1,4 @@
+import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
@@ -102,22 +103,17 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 	// Remote entries are appended to globalSkills[] and rendered under "Global Skills" in the UI.
 	// The toggle store distinguishes them by the "remote:" path prefix.
 	const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
-	const remoteSkillEntries = remoteConfigSettings.remoteGlobalSkills || []
 	const remoteSkillsToggles = controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+	const validatedRemoteSkills = parseRemoteSkillEntries(remoteConfigSettings.remoteGlobalSkills || [])
 
-	for (const entry of remoteSkillEntries) {
-		const { data: frontmatter } = parseYamlFrontmatter(entry.contents)
-		if (!frontmatter.name || typeof frontmatter.name !== "string") continue
-		if (!frontmatter.description || typeof frontmatter.description !== "string") continue
-
-		const name = frontmatter.name
-		const enabled = entry.alwaysEnabled || remoteSkillsToggles[name] !== false
+	for (const entry of validatedRemoteSkills) {
+		const enabled = entry.alwaysEnabled || remoteSkillsToggles[entry.name] !== false
 
 		globalSkills.push(
 			SkillInfo.create({
-				name,
-				description: frontmatter.description,
-				path: `remote:${name}`,
+				name: entry.name,
+				description: entry.description,
+				path: `remote:${entry.name}`,
 				enabled,
 				alwaysEnabled: entry.alwaysEnabled,
 			}),

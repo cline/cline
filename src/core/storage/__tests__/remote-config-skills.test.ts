@@ -5,9 +5,9 @@
 
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import { transformRemoteConfigToStateShape } from "@/core/storage/remote-config/utils"
 import { synchronizeRemoteRuleToggles } from "@/core/context/instructions/user-instructions/rule-helpers"
-import { parseYamlFrontmatter } from "@/core/context/instructions/user-instructions/frontmatter"
+import { parseRemoteSkillEntries } from "@/core/context/instructions/user-instructions/skills"
+import { transformRemoteConfigToStateShape } from "@/core/storage/remote-config/utils"
 import type { RemoteConfig } from "@/shared/remote-config/schema"
 
 function makeConfig(globalSkills: RemoteConfig["globalSkills"]): RemoteConfig {
@@ -20,7 +20,7 @@ function makeSKILLMd(name: string, description: string, body = "Instructions her
 
 describe("transformRemoteConfigToStateShape - globalSkills", () => {
 	it("maps globalSkills to remoteGlobalSkills", () => {
-		const entries = [{ name: "s1", alwaysEnabled: false, contents: makeSKILLMd("My Skill", "Desc") }]
+		const entries = [{ name: "My Skill", alwaysEnabled: false, contents: makeSKILLMd("My Skill", "Desc") }]
 		const result = transformRemoteConfigToStateShape(makeConfig(entries))
 		expect(result.remoteGlobalSkills).to.deep.equal(entries)
 	})
@@ -37,8 +37,8 @@ describe("transformRemoteConfigToStateShape - globalSkills", () => {
 
 	it("preserves alwaysEnabled flag", () => {
 		const entries = [
-			{ name: "locked", alwaysEnabled: true, contents: makeSKILLMd("Locked", "Desc") },
-			{ name: "unlocked", alwaysEnabled: false, contents: makeSKILLMd("Free", "Desc") },
+			{ name: "Locked", alwaysEnabled: true, contents: makeSKILLMd("Locked", "Desc") },
+			{ name: "Free", alwaysEnabled: false, contents: makeSKILLMd("Free", "Desc") },
 		]
 		const result = transformRemoteConfigToStateShape(makeConfig(entries))
 		expect(result.remoteGlobalSkills![0].alwaysEnabled).to.equal(true)
@@ -58,7 +58,10 @@ describe("synchronizeRemoteRuleToggles - remote skill toggle sync", () => {
 	})
 
 	it("removes stale toggle entries", () => {
-		const result = synchronizeRemoteRuleToggles([{ name: "New", alwaysEnabled: false, contents: "" }], { Old: true, New: false })
+		const result = synchronizeRemoteRuleToggles([{ name: "New", alwaysEnabled: false, contents: "" }], {
+			Old: true,
+			New: false,
+		})
 		expect(result["Old"]).to.be.undefined
 		expect(result["New"]).to.equal(false)
 	})
@@ -80,63 +83,58 @@ describe("synchronizeRemoteRuleToggles - remote skill toggle sync", () => {
 	})
 })
 
-describe("applyRemoteConfig skill frontmatter parsing pattern", () => {
-	const parse = (entries: { name: string; alwaysEnabled: boolean; contents: string }[]) =>
-		entries
-			.map((entry) => {
-				const { data } = parseYamlFrontmatter(entry.contents)
-				return typeof data.name === "string" ? { ...entry, name: data.name } : null
-			})
-			.filter((e): e is NonNullable<typeof e> => e !== null)
+describe("applyRemoteConfig uses parseRemoteSkillEntries", () => {
+	it("validates entry.name matches frontmatter.name", () => {
+		const validated = parseRemoteSkillEntries([
+			{ name: "Deploy", alwaysEnabled: false, contents: makeSKILLMd("Deploy", "Desc") },
+		])
+		expect(validated).to.have.lengthOf(1)
+		expect(validated[0].name).to.equal("Deploy")
+	})
 
-	it("uses frontmatter.name not entry.name as identity", () => {
-		const parsed = parse([{ name: "entry-key", alwaysEnabled: false, contents: makeSKILLMd("Actual Name", "Desc") }])
-		expect(parsed).to.have.lengthOf(1)
-		expect(parsed[0].name).to.equal("Actual Name")
+	it("rejects entries where entry.name drifts from frontmatter.name", () => {
+		const validated = parseRemoteSkillEntries([
+			{ name: "entry-key", alwaysEnabled: false, contents: makeSKILLMd("Actual Name", "Desc") },
+		])
+		expect(validated).to.have.lengthOf(0)
 	})
 
 	it("filters entries with missing frontmatter name", () => {
-		const parsed = parse([
+		const validated = parseRemoteSkillEntries([
 			{ name: "x", alwaysEnabled: false, contents: `---\ndescription: No name\n---\nBody` },
 			{ name: "y", alwaysEnabled: false, contents: "No frontmatter" },
 		])
-		expect(parsed).to.have.lengthOf(0)
+		expect(validated).to.have.lengthOf(0)
 	})
 
 	it("filters entries where frontmatter.name is not a string", () => {
-		const parsed = parse([{ name: "x", alwaysEnabled: false, contents: `---\nname: 123\ndescription: Desc\n---\nBody` }])
-		expect(parsed).to.have.lengthOf(0)
+		const validated = parseRemoteSkillEntries([
+			{ name: "x", alwaysEnabled: false, contents: `---\nname: 123\ndescription: Desc\n---\nBody` },
+		])
+		expect(validated).to.have.lengthOf(0)
 	})
 
 	it("passes through multiple valid entries", () => {
-		const parsed = parse([
-			{ name: "a", alwaysEnabled: true, contents: makeSKILLMd("Skill One", "Desc") },
-			{ name: "b", alwaysEnabled: false, contents: makeSKILLMd("Skill Two", "Desc") },
+		const validated = parseRemoteSkillEntries([
+			{ name: "Skill One", alwaysEnabled: true, contents: makeSKILLMd("Skill One", "Desc") },
+			{ name: "Skill Two", alwaysEnabled: false, contents: makeSKILLMd("Skill Two", "Desc") },
 		])
-		expect(parsed).to.have.lengthOf(2)
-		expect(parsed[0].name).to.equal("Skill One")
-		expect(parsed[1].name).to.equal("Skill Two")
+		expect(validated).to.have.lengthOf(2)
+		expect(validated[0].name).to.equal("Skill One")
+		expect(validated[1].name).to.equal("Skill Two")
 	})
 })
 
 describe("alwaysEnabled enforcement in toggle sync", () => {
-	const { parseYamlFrontmatter } = require("@/core/context/instructions/user-instructions/frontmatter")
-
 	function syncWithAlwaysEnabled(
 		entries: { name: string; alwaysEnabled: boolean; contents: string }[],
 		currentToggles: Record<string, boolean>,
 	) {
-		const parsedEntries = entries
-			.map((entry) => {
-				const { data } = parseYamlFrontmatter(entry.contents)
-				return typeof data.name === "string" ? { ...entry, name: data.name } : null
-			})
-			.filter((e): e is NonNullable<typeof e> => e !== null)
-
-		const synced = synchronizeRemoteRuleToggles(parsedEntries, currentToggles)
+		const validated = parseRemoteSkillEntries(entries)
+		const synced = synchronizeRemoteRuleToggles(validated, currentToggles)
 
 		// Enforce alwaysEnabled (mirrors applyRemoteConfig logic)
-		for (const entry of parsedEntries) {
+		for (const entry of validated) {
 			if (entry.alwaysEnabled && synced[entry.name] === false) {
 				synced[entry.name] = true
 			}
@@ -145,30 +143,26 @@ describe("alwaysEnabled enforcement in toggle sync", () => {
 		return synced
 	}
 
-	function makeSKILLMd(name: string, desc: string): string {
-		return `---\nname: ${name}\ndescription: ${desc}\n---\nBody`
-	}
-
 	it("overrides stale false toggle when admin sets alwaysEnabled", () => {
-		const entries = [{ name: "x", alwaysEnabled: true, contents: makeSKILLMd("Deploy", "Desc") }]
+		const entries = [{ name: "Deploy", alwaysEnabled: true, contents: makeSKILLMd("Deploy", "Desc") }]
 		const result = syncWithAlwaysEnabled(entries, { Deploy: false })
 		expect(result["Deploy"]).to.equal(true)
 	})
 
 	it("does not override false toggle when alwaysEnabled is false", () => {
-		const entries = [{ name: "x", alwaysEnabled: false, contents: makeSKILLMd("Deploy", "Desc") }]
+		const entries = [{ name: "Deploy", alwaysEnabled: false, contents: makeSKILLMd("Deploy", "Desc") }]
 		const result = syncWithAlwaysEnabled(entries, { Deploy: false })
 		expect(result["Deploy"]).to.equal(false)
 	})
 
 	it("keeps true toggle unchanged when alwaysEnabled is true", () => {
-		const entries = [{ name: "x", alwaysEnabled: true, contents: makeSKILLMd("Deploy", "Desc") }]
+		const entries = [{ name: "Deploy", alwaysEnabled: true, contents: makeSKILLMd("Deploy", "Desc") }]
 		const result = syncWithAlwaysEnabled(entries, { Deploy: true })
 		expect(result["Deploy"]).to.equal(true)
 	})
 
 	it("new alwaysEnabled skill defaults to true", () => {
-		const entries = [{ name: "x", alwaysEnabled: true, contents: makeSKILLMd("New Skill", "Desc") }]
+		const entries = [{ name: "New Skill", alwaysEnabled: true, contents: makeSKILLMd("New Skill", "Desc") }]
 		const result = syncWithAlwaysEnabled(entries, {})
 		expect(result["New Skill"]).to.equal(true)
 	})

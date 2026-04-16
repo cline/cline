@@ -23,11 +23,13 @@ export async function toggleSkill(controller: Controller, request: ToggleSkillRe
 	let globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}
 	let localToggles = controller.stateManager.getWorkspaceStateKey("localSkillsToggles") || {}
 
+	let remoteToggles = controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+
 	// Remote skills are identified by a "remote:" path prefix. They use a separate toggle store
-	// keyed by frontmatter name (the part after "remote:") rather than the file path.
+	// keyed by skill name (the part after "remote:") rather than the file path.
 	if (skillPath.startsWith("remote:")) {
 		const name = skillPath.replace("remote:", "")
-		const remoteToggles = { ...(controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}), [name]: enabled }
+		remoteToggles = { ...remoteToggles, [name]: enabled }
 		controller.stateManager.setGlobalState("remoteSkillsToggles", remoteToggles)
 	} else if (isGlobal) {
 		globalToggles = { ...globalToggles, [skillPath]: enabled }
@@ -42,5 +44,6 @@ export async function toggleSkill(controller: Controller, request: ToggleSkillRe
 	return SkillsToggles.create({
 		globalSkillsToggles: globalToggles,
 		localSkillsToggles: localToggles,
+		remoteSkillsToggles: remoteToggles,
 	})
 }

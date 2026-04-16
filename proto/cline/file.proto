@@ -310,6 +310,7 @@ message RefreshedSkills {
 message SkillsToggles {
   map<string, bool> global_skills_toggles = 1;
   map<string, bool> local_skills_toggles = 2;
+  map<string, bool> remote_skills_toggles = 3;
 }
 
 // Request to toggle a skill

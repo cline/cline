@@ -12,7 +12,7 @@ import * as sinon from "sinon"
 import * as disk from "@/core/storage/disk"
 import { Logger } from "@/shared/services/Logger"
 import * as fsUtils from "@/utils/fs"
-import { discoverSkills, getAvailableSkills, getSkillContent } from "../skills"
+import { discoverSkills, getAvailableSkills, getSkillContent, parseRemoteSkillEntries } from "../skills"
 
 describe("Skills Utility Functions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -469,10 +469,69 @@ description: Test
 	})
 
 	describe("Remote Skills", () => {
+		// entry.name must match frontmatter name (enforced by parseRemoteSkillEntries)
 		const makeEntry = (name: string, desc: string, body = "Instructions", alwaysEnabled = false) => ({
-			name: "entry-key",
+			name,
 			alwaysEnabled,
 			contents: `---\nname: ${name}\ndescription: ${desc}\n---\n${body}`,
+		})
+
+		describe("parseRemoteSkillEntries", () => {
+			it("should return validated entries when entry.name matches frontmatter.name", () => {
+				const entries = [
+					{ name: "Deploy", alwaysEnabled: true, contents: `---\nname: Deploy\ndescription: CI/CD\n---\nBody` },
+				]
+				const result = parseRemoteSkillEntries(entries)
+				expect(result).to.have.lengthOf(1)
+				expect(result[0].name).to.equal("Deploy")
+				expect(result[0].description).to.equal("CI/CD")
+				expect(result[0].alwaysEnabled).to.equal(true)
+			})
+
+			it("should reject entries where entry.name does not match frontmatter.name", () => {
+				const entries = [
+					{
+						name: "entry-key",
+						alwaysEnabled: false,
+						contents: `---\nname: Different Name\ndescription: Desc\n---\nBody`,
+					},
+				]
+				const result = parseRemoteSkillEntries(entries)
+				expect(result).to.have.lengthOf(0)
+				sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /does not match frontmatter\.name/)
+			})
+
+			it("should skip entries with missing frontmatter name", () => {
+				const entries = [{ name: "bad", alwaysEnabled: false, contents: `---\ndescription: No name\n---\nContent` }]
+				const result = parseRemoteSkillEntries(entries)
+				expect(result).to.have.lengthOf(0)
+			})
+
+			it("should skip entries with missing frontmatter description", () => {
+				const entries = [{ name: "No Desc", alwaysEnabled: false, contents: `---\nname: No Desc\n---\nContent` }]
+				const result = parseRemoteSkillEntries(entries)
+				expect(result).to.have.lengthOf(0)
+			})
+
+			it("should handle empty array", () => {
+				expect(parseRemoteSkillEntries([])).to.have.lengthOf(0)
+			})
+
+			it("should filter mixed valid and invalid entries", () => {
+				const entries = [
+					{ name: "Good", alwaysEnabled: false, contents: `---\nname: Good\ndescription: Valid\n---\nBody` },
+					{ name: "drift", alwaysEnabled: false, contents: `---\nname: Different\ndescription: Drifted\n---\nBody` },
+					{
+						name: "Also Good",
+						alwaysEnabled: true,
+						contents: `---\nname: Also Good\ndescription: Valid too\n---\nBody`,
+					},
+				]
+				const result = parseRemoteSkillEntries(entries)
+				expect(result).to.have.lengthOf(2)
+				expect(result[0].name).to.equal("Good")
+				expect(result[1].name).to.equal("Also Good")
+			})
 		})
 
 		describe("discoverSkills - remote skill discovery", () => {
@@ -487,12 +546,12 @@ description: Test
 				expect(remoteSkill!.description).to.equal("Handles CI/CD deployment")
 			})
 
-			it("should use frontmatter.name as identity (not entry.name)", async () => {
-				const entries = [makeEntry("My Actual Skill", "The real name")]
+			it("should reject entries where entry.name drifts from frontmatter.name", async () => {
+				const entries = [
+					{ name: "entry-key", alwaysEnabled: false, contents: `---\nname: Actual Name\ndescription: Desc\n---\nBody` },
+				]
 				const skills = await discoverSkills(TEST_CWD, entries)
-
-				expect(skills.find((s) => s.name === "My Actual Skill")).to.not.be.undefined
-				expect(skills.find((s) => s.name === "entry-key")).to.be.undefined
+				expect(skills.find((s) => s.path?.startsWith("remote:"))).to.be.undefined
 			})
 
 			it("should skip remote skills with missing frontmatter name", async () => {
@@ -502,7 +561,7 @@ description: Test
 			})
 
 			it("should skip remote skills with missing frontmatter description", async () => {
-				const entries = [{ name: "bad", alwaysEnabled: false, contents: `---\nname: No Desc\n---\nContent` }]
+				const entries = [{ name: "No Desc", alwaysEnabled: false, contents: `---\nname: No Desc\n---\nContent` }]
 				const skills = await discoverSkills(TEST_CWD, entries)
 				expect(skills.find((s) => s.path?.startsWith("remote:"))).to.be.undefined
 			})
@@ -525,7 +584,9 @@ description: Test
 				isDirectoryStub.withArgs(GLOBAL_SKILLS_DIR).resolves(true)
 				readdirStub.withArgs(GLOBAL_SKILLS_DIR).resolves(["coding"])
 				statStub.withArgs(diskGlobalDir).resolves({ isDirectory: () => true })
-				readFileStub.withArgs(diskGlobalMd, "utf-8").resolves(`---\nname: coding\ndescription: Disk global coding\n---\nDisk`)
+				readFileStub
+					.withArgs(diskGlobalMd, "utf-8")
+					.resolves(`---\nname: coding\ndescription: Disk global coding\n---\nDisk`)
 
 				const available = getAvailableSkills(await discoverSkills(TEST_CWD, entries))
 				expect(available).to.have.lengthOf(1)
@@ -555,7 +616,12 @@ description: Test
 		describe("getSkillContent - remote skill content loading", () => {
 			it("should load content from provided entries for remote skills", async () => {
 				const entries = [makeEntry("Deploy Pipeline", "Deployment skill", "These are the deployment instructions.")]
-				const skill = { name: "Deploy Pipeline", description: "Deployment skill", path: "remote:Deploy Pipeline", source: "global" as const }
+				const skill = {
+					name: "Deploy Pipeline",
+					description: "Deployment skill",
+					path: "remote:Deploy Pipeline",
+					source: "global" as const,
+				}
 				const content = await getSkillContent("Deploy Pipeline", [skill], entries)
 
 				expect(content).to.not.be.null

@@ -1,5 +1,5 @@
 import { synchronizeRemoteRuleToggles } from "@core/context/instructions/user-instructions/rule-helpers"
-import { parseYamlFrontmatter } from "@core/context/instructions/user-instructions/frontmatter"
+import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import type { RemoteConfig, S3AccessKeySettings } from "@shared/remote-config/schema"
 import { ConfiguredAPIKeys, GlobalStateAndSettings, RemoteConfigFields } from "@shared/storage/state-keys"
 import { AuthService } from "@/services/auth/AuthService"
@@ -327,19 +327,14 @@ export async function applyRemoteConfig(
 	const syncedRuleToggles = synchronizeRemoteRuleToggles(remoteConfig.globalRules || [], currentRuleToggles)
 	const syncedWorkflowToggles = synchronizeRemoteRuleToggles(remoteConfig.globalWorkflows || [], currentWorkflowToggles)
 
-	// For remote skills, identity is frontmatter.name (not entry.name). Parse and filter valid entries.
+	// Remote skills use shared validation (entry.name must match frontmatter.name)
 	const currentSkillToggles = stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
-	const parsedSkillEntries = (remoteConfig.globalSkills || [])
-		.map((entry) => {
-			const { data } = parseYamlFrontmatter(entry.contents)
-			return typeof data.name === "string" ? { ...entry, name: data.name } : null
-		})
-		.filter((e): e is NonNullable<typeof e> => e !== null)
-	const syncedSkillToggles = synchronizeRemoteRuleToggles(parsedSkillEntries, currentSkillToggles)
+	const validatedSkillEntries = parseRemoteSkillEntries(remoteConfig.globalSkills || [])
+	const syncedSkillToggles = synchronizeRemoteRuleToggles(validatedSkillEntries, currentSkillToggles)
 
 	// Enforce alwaysEnabled: override any stale false toggles for skills the admin has locked on.
 	// This ensures the toggle store is the single source of truth — both the UI and handler agree.
-	for (const entry of parsedSkillEntries) {
+	for (const entry of validatedSkillEntries) {
 		if (entry.alwaysEnabled && syncedSkillToggles[entry.name] === false) {
 			syncedSkillToggles[entry.name] = true
 		}

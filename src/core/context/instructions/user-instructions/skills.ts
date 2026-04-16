@@ -7,6 +7,49 @@ import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
 
+/**
+ * A remote skill entry after frontmatter validation.
+ * entry.name must match frontmatter.name to prevent drift between dashboard and SKILL.md content.
+ */
+export interface ValidatedRemoteSkill {
+	name: string
+	description: string
+	alwaysEnabled: boolean
+	contents: string
+}
+
+/**
+ * Parse and validate remote skill entries from GlobalInstructionsFile[].
+ *
+ * Validates:
+ *  - frontmatter.name and frontmatter.description are present strings
+ *  - entry.name matches frontmatter.name (rejects on drift)
+ *
+ * Returns only valid entries. Callers share this single validation point
+ * instead of duplicating frontmatter parsing.
+ */
+export function parseRemoteSkillEntries(entries: GlobalInstructionsFile[]): ValidatedRemoteSkill[] {
+	return entries
+		.map((entry) => {
+			const { data: frontmatter } = parseYamlFrontmatter(entry.contents)
+			if (!frontmatter.name || typeof frontmatter.name !== "string") return null
+			if (!frontmatter.description || typeof frontmatter.description !== "string") return null
+			if (entry.name !== frontmatter.name) {
+				Logger.warn(
+					`Remote skill entry.name "${entry.name}" does not match frontmatter.name "${frontmatter.name}", skipping`,
+				)
+				return null
+			}
+			return {
+				name: entry.name,
+				description: frontmatter.description as string,
+				alwaysEnabled: entry.alwaysEnabled,
+				contents: entry.contents,
+			}
+		})
+		.filter((e): e is NonNullable<typeof e> => e !== null)
+}
+
 /** Parse YAML frontmatter from markdown content (shared helper). */
 function parseFrontmatter(fileContent: string): { data: Record<string, unknown>; content: string } {
 	const result = parseYamlFrontmatter(fileContent)
@@ -118,19 +161,13 @@ export async function discoverSkills(cwd: string, remoteSkillEntries?: GlobalIns
 		}
 	}
 
-	// Remote skills: identity is frontmatter.name (not entry.name)
-	const remoteSkills: SkillMetadata[] = []
-	for (const entry of remoteSkillEntries || []) {
-		const { data: frontmatter } = parseYamlFrontmatter(entry.contents)
-		if (!frontmatter.name || typeof frontmatter.name !== "string") continue
-		if (!frontmatter.description || typeof frontmatter.description !== "string") continue
-		remoteSkills.push({
-			name: frontmatter.name,
-			description: frontmatter.description,
-			path: `remote:${frontmatter.name}`,
-			source: "global",
-		})
-	}
+	// Remote skills: validated via parseRemoteSkillEntries (entry.name must match frontmatter.name)
+	const remoteSkills: SkillMetadata[] = parseRemoteSkillEntries(remoteSkillEntries || []).map((entry) => ({
+		name: entry.name,
+		description: entry.description,
+		path: `remote:${entry.name}`,
+		source: "global" as const,
+	}))
 
 	// Insert in order: project → disk-global → remote
 	// getAvailableSkills iterates backwards so remote (last) wins, then disk-global, then project
@@ -170,12 +207,10 @@ export async function getSkillContent(
 	const skill = availableSkills.find((s) => s.name === skillName)
 	if (!skill) return null
 
-	// Remote skills have no file on disk — retrieve content from the provided entries
+	// Remote skills have no file on disk — retrieve content from the provided entries.
+	// Lookup by entry.name is safe because parseRemoteSkillEntries validated entry.name === frontmatter.name.
 	if (skill.path.startsWith("remote:")) {
-		const entry = (remoteSkillEntries || []).find((e) => {
-			const { data } = parseYamlFrontmatter(e.contents)
-			return typeof data.name === "string" && data.name === skillName
-		})
+		const entry = (remoteSkillEntries || []).find((e) => e.name === skillName)
 		if (!entry) return null
 		const { body } = parseYamlFrontmatter(entry.contents)
 		return {

@@ -48,6 +48,8 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 		const availableSkills = resolvedSkills.filter((skill) => {
 			if (skill.path.startsWith("remote:")) {
 				const name = skill.path.replace("remote:", "")
+				const entry = remoteSkillEntries.find((e) => e.name === name)
+				if (entry?.alwaysEnabled) return true
 				return remoteSkillsToggles[name] !== false
 			}
 			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
