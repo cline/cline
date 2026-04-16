@@ -142,12 +142,12 @@ At a deeper architectural level, the goal here is to make the test describe the 
 
  ### Implementation checklist
 
- - [ ] Review all tests in `SkillsPanelContent.test.tsx` that currently use `delay()` after render or input
- - [ ] Add a reusable helper such as `waitForCondition` or `waitForFrameContent`
- - [ ] Make the Enter-key test wait until the skill is actually rendered before sending input
- - [ ] Make post-input assertions wait on mock calls rather than a fixed delay
- - [ ] Update the other navigation/toggle tests in the file to use the same pattern for consistency
- - [ ] Decide whether to retain `delay()` only as an internal polling primitive or remove it entirely
+- [x] Review all tests in `SkillsPanelContent.test.tsx` that currently use `delay()` after render or input
+- [x] Add a reusable helper such as `waitForCondition` or `waitForFrameContent`
+- [x] Make the Enter-key test wait until the skill is actually rendered before sending input
+- [x] Make post-input assertions wait on mock calls rather than a fixed delay
+- [x] Update the other navigation/toggle tests in the file to use the same pattern for consistency
+- [x] Decide whether to retain `delay()` only as an internal polling primitive or remove it entirely
  - [ ] Optionally prevent input handling while `isLoading` is true inside the component
 
  ### Detailed developer instructions
@@ -220,6 +220,13 @@ In plain language: if the screen is still loading its list of skills, the safest
  - [ ] Run it specifically on Windows if available
  - [ ] Confirm the test no longer relies on fixed 60ms assumptions
  - [ ] Confirm no false positives were introduced by over-broad polling
+
+Current implementation note:
+
+- The CLI `SkillsPanelContent` tests have been refactored to use readiness-based polling helpers instead of fixed render/input sleeps.
+- The targeted CLI package test run passed locally via:
+  - `npm --prefix /Users/evekillaby/dev/github.com/cline/cline/cli run test:run -- src/components/SkillsPanelContent.test.tsx`
+- This workstream now has local verification in the package-native test harness.
 
 ---
 
