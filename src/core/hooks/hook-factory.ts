@@ -132,8 +132,12 @@ class StdioHookRunner<Name extends HookName> extends HookRunner<Name> {
 
 	override async [exec](input: HookInput): Promise<HookOutput> {
 		return new Promise((resolve, reject) => {
-			// Serialize input to JSON
-			const inputJson = JSON.stringify(HookInput.toJSON(input))
+			// Serialize input to JSON.
+			// Add aihydroVersion alias so hook scripts can use the AI-Hydro field name.
+			// clineVersion is kept in the proto for wire-protocol compatibility.
+			const jsonObj = HookInput.toJSON(input) as Record<string, unknown>
+			jsonObj.aihydroVersion = jsonObj.clineVersion
+			const inputJson = JSON.stringify(jsonObj)
 
 			// Spawn the hook process
 			const child = spawn(this.scriptPath, [], {
