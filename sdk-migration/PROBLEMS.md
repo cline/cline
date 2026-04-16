@@ -386,13 +386,16 @@ underlying patterns that caused them are relevant.
 - **Verification**: Debug harness test on 2026-04-16: Created 2 tasks ("Say hello world", "Say goodbye world"). Deleted "Say goodbye world" via the history view delete button. History list immediately showed only "Say hello world" (1 delete button, size 682 B down from 1.3 kB). Navigated to welcome page — recents list showed only "Say hello world". Disk state confirmed: only 1 task in `taskHistory.json`, only 1 task directory remaining.
 - **Evidence**: Debug harness session on 2026-04-16.
 
-### S6-20: MCP tools panel is empty
-- **Status**: 🟡 Minor (blocked on inference view)
-- **Description**: The MCP tools panel in the sidebar shows no tools, even when MCP servers are configured. The classic McpHub is initialized but its server/tool state may not be reaching the webview.
-- **Root cause**: Unknown — possibly the `getStateToPostToWebview()` function isn't including MCP server state, or the McpHub isn't loading the MCP settings file correctly in the debug harness environment.
-- **Fix needed**: Investigate whether McpHub is loading servers and whether the state payload includes `mcpServers`. Without working inference view (S6-5), it's hard to test whether MCP tools are accessible to the agent.
-- **Verification**: Open MCP tools panel, verify configured servers and their tools appear.
-- **Blocked by**: S6-5 (need inference view to test agent access to MCP tools)
+### S6-20: MCP tools panel is empty / MCP tools not available to agent
+- **Status**: 🔵 Implemented (needs interactive verification)
+- **Description**: Two related issues: (1) The MCP tools panel in the sidebar shows no tools, even when MCP servers are configured. (2) The SDK's DefaultSessionBuilder does not support dynamic MCP tools — tools are loaded once at session build time, so adding/removing MCP servers mid-session had no effect.
+- **Root cause**: The VscodeRuntimeBuilder already bridges McpHub → SDK tools at session start, but there was no mechanism to reload tools when the McpHub's server list changed after session creation.
+- **Fix**: Implemented a tool-list-change detection and session restart mechanism:
+  - `McpHub.ts`: Added `computeToolFingerprint()` to detect actual tool list changes (vs. mere status updates), `setToolListChangeCallback()`/`clearToolListChangeCallback()` for subscribers, and `checkToolListChanged()` called from `notifyWebviewOfServerChanges()`.
+  - `SdkController.ts`: Added `handleMcpToolListChanged()` which restarts the session immediately when idle, or defers via `mcpToolRestartPending` flag until the current turn completes (`checkDeferredMcpToolRestart()` called from `handleSessionEvent()` on turn completion). `restartSessionForMcpTools()` creates a new VscodeSessionHost with fresh tools, preserves conversation messages, and emits info messages to the chat.
+  - `task-proxy.ts`: Made `taskId` settable so the session restart can update the proxy's session ID without recreating it (preserving accumulated messages).
+- **Tests**: 16 unit tests in `src/services/mcp/__tests__/McpHub.toolListChange.test.ts` covering fingerprinting, callback firing, edge cases.
+- **Verification**: Start a task, then add/remove an MCP server in `cline_mcp_settings.json`. The chat should show "MCP tools changed — reloading tools for this session..." and "MCP tools reloaded successfully." The agent should then be able to use the new tools.
 
 ### S6-21: Incremental messages are repeated/duplicated in chat output
 - **Status**: 🟢 Verified Fixed
@@ -511,9 +514,24 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 
 ### 🟡 Lower Priority:
 - S6-17: Cancel button state
-- S6-20: MCP tools panel empty
+- S6-28: MCP tool reload messages appear twice
+- S6-29: "New Task" button broken after MCP tool reload
 - S6-2: OCA and Codex OAuth flows not yet verified
 - S6-7: Credits/payment history don't load immediately
+
+### S6-28: MCP tool reload messages appear twice in chat
+- **Status**: 🟡 Minor
+- **Description**: When saving the MCP settings file (triggering a tool list change), the info messages "MCP tools changed — reloading tools for this session..." and "MCP tools reloaded successfully." each appear TWICE in the chat. The tool reload itself works correctly — only the messages are duplicated.
+- **Root cause**: Likely the `emitSessionEvents()` call pushes messages to the partial message stream via the gRPC bridge, AND the `postStateToWebview()` call also includes the messages in the state's `clineMessages` array. The webview may be rendering from both sources without deduplicating these non-streaming messages. Alternatively, the `notifyWebviewOfServerChanges()` in McpHub may fire twice (once per server status change) causing `checkToolListChanged()` to detect the change twice in rapid succession.
+- **Fix needed**: Investigate whether the callback fires twice (add logging to `checkToolListChanged`) or whether the message rendering is the issue. If the callback fires twice, add a debounce or guard. If it's rendering, ensure the webview deduplicates by timestamp.
+- **Verification**: Save MCP settings file, verify each message appears exactly once.
+
+### S6-29: "New Task" button broken after MCP tool reload
+- **Status**: 🔴 Blocker
+- **Description**: After an MCP tool reload (triggered by saving the MCP settings file), clicking the "New Task" (+) button does nothing. The button appears clickable but no new task is created and the view doesn't change.
+- **Root cause**: Unknown — possibly the session restart in `restartSessionForMcpTools()` leaves the controller in a state where `clearTask()` or `initTask()` doesn't work correctly. The `activeSession` may be in an unexpected state, or the gRPC handler for new task creation may be checking a condition that fails after the restart.
+- **Fix needed**: Investigate the gRPC handler for new task creation (`newTask` handler) and trace what happens when it's called after an MCP tool restart. Check if `clearTask()` succeeds and whether `initTask()` is reached.
+- **Verification**: After MCP tool reload, click "New Task" button, verify a new task is created and the chat view shows the input.
 
 <!-- Template:
 ### [ID] Title
