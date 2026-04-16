@@ -48,54 +48,42 @@ export async function deleteTasksWithIds(controller: Controller, request: String
  * @param id The task ID to delete
  */
 async function deleteTaskWithId(controller: Controller, id: string): Promise<void> {
+	// Clear current task if it matches the ID being deleted
+	if (id === controller.task?.taskId) {
+		await controller.clearTask()
+		Logger.debug("cleared task")
+	}
+
+	// Remove task from state FIRST — this updates the in-memory cache
+	// immediately so the next postStateToWebview() sends the updated list.
+	const updatedTaskHistory = await controller.deleteTaskFromState(id)
+
+	// Try to clean up task files on disk (best-effort — don't let file
+	// errors prevent the UI from updating).
 	try {
-		// Clear current task if it matches the ID being deleted
-		if (id === controller.task?.taskId) {
-			await controller.clearTask()
-			Logger.debug("cleared task")
-		}
+		const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
+		await fs.rm(taskDirPath, { recursive: true, force: true })
+	} catch (error) {
+		Logger.debug(`Error cleaning up task files for ${id}:`, error)
+	}
 
-		// Get task file paths
-		const { taskDirPath, apiConversationHistoryFilePath, uiMessagesFilePath, contextHistoryFilePath, taskMetadataFilePath } =
-			await controller.getTaskWithId(id)
-
-		// Remove task from state
-		const updatedTaskHistory = await controller.deleteTaskFromState(id)
-
-		// Delete the task files
-		for (const filePath of [
-			apiConversationHistoryFilePath,
-			uiMessagesFilePath,
-			contextHistoryFilePath,
-			taskMetadataFilePath,
-		]) {
-			await fs.rm(filePath, { force: true })
-		}
-
-		// Remove empty task directory
+	// If no tasks remain, clean up the top-level directories
+	if (updatedTaskHistory.length === 0) {
 		try {
-			await fs.rmdir(taskDirPath) // succeeds if the dir is empty
-		} catch (error) {
-			Logger.debug("Could not remove task directory (may not be empty):", error)
-		}
-
-		// If no tasks remain, clean up everything
-		if (updatedTaskHistory.length === 0) {
-			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
+			const tasksDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks")
 			const checkpointsDirPath = path.join(HostProvider.get().globalStorageFsPath, "checkpoints")
 
-			if (await fileExistsAtPath(taskDirPath)) {
-				await fs.rm(taskDirPath, { recursive: true, force: true })
+			if (await fileExistsAtPath(tasksDirPath)) {
+				await fs.rm(tasksDirPath, { recursive: true, force: true })
 			}
 			if (await fileExistsAtPath(checkpointsDirPath)) {
 				await fs.rm(checkpointsDirPath, { recursive: true, force: true })
 			}
+		} catch (error) {
+			Logger.debug("Error cleaning up empty task/checkpoint directories:", error)
 		}
-	} catch (error) {
-		Logger.debug(`Error deleting task ${id}:`, error)
-		throw error // Re-throw to let caller handle the error
 	}
 
-	// Update webview state
+	// Always update webview state so the history list and recents refresh
 	await controller.postStateToWebview()
 }
