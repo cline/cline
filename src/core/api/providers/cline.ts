@@ -39,6 +39,14 @@ function normalizeModelId(modelId: string): string {
 
 const CLINE_FREE_MODEL_IDS = new Set(CLINE_RECOMMENDED_MODELS_FALLBACK.free.map((model) => normalizeModelId(model.id)))
 
+function getCacheReadTokens(usage: any): number {
+	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
+}
+
+function getCacheWriteTokens(usage: any): number {
+	return usage?.prompt_tokens_details?.cache_write_tokens || usage?.cache_creation_input_tokens || 0
+}
+
 export class ClineHandler implements ApiHandler {
 	private options: ClineHandlerOptions
 	private clineAccountService = ClineAccountService.getInstance()
@@ -230,6 +238,8 @@ export class ClineHandler implements ApiHandler {
 					let totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
 					const modelId = this.getModel().id
 					const isFreeModel = freeModelIds.has(normalizeModelId(modelId))
+					const cacheReadTokens = getCacheReadTokens(chunk.usage)
+					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 
 					if (isFreeModel) {
 						totalCost = 0
@@ -237,9 +247,9 @@ export class ClineHandler implements ApiHandler {
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						cacheWriteTokens,
+						cacheReadTokens,
+						inputTokens: Math.max(0, (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens),
 						outputTokens: chunk.usage.completion_tokens || 0,
 						totalCost,
 					}
@@ -292,10 +302,15 @@ export class ClineHandler implements ApiHandler {
 
 				return {
 					type: "usage",
-					cacheWriteTokens: 0,
+					cacheWriteTokens: generation?.native_tokens_cache_write || 0,
 					cacheReadTokens: generation?.native_tokens_cached || 0,
 					// openrouter generation endpoint fails often
-					inputTokens: (generation?.native_tokens_prompt || 0) - (generation?.native_tokens_cached || 0),
+					inputTokens: Math.max(
+						0,
+						(generation?.native_tokens_prompt || 0) -
+							(generation?.native_tokens_cached || 0) -
+							(generation?.native_tokens_cache_write || 0),
+					),
 					outputTokens: generation?.native_tokens_completion || 0,
 					totalCost,
 				}
