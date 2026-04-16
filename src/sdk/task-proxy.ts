@@ -176,6 +176,9 @@ export function createTaskProxy(
 	const state: TaskProxyState = {}
 	const messageStateHandler = new MessageStateHandler()
 
+	// Mutable session ID — updated when the session is restarted (e.g., MCP tool reload)
+	let currentSessionId = sessionId
+
 	// Mutable API handler — updateSettings() replaces it when switching models
 	let currentApi: TaskProxyApi = {
 		getModel: () => ({ id: "unknown" }),
@@ -191,11 +194,14 @@ export function createTaskProxy(
 
 	const proxy: TaskProxy = {
 		get ulid(): string {
-			return sessionId
+			return currentSessionId
 		},
 
 		get taskId(): string {
-			return sessionId
+			return currentSessionId
+		},
+		set taskId(newId: string) {
+			currentSessionId = newId
 		},
 
 		async handleWebviewAskResponse(

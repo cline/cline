@@ -7,6 +7,7 @@
 // Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
 
 import * as fs from "node:fs/promises"
+import * as os from "node:os"
 import * as path from "node:path"
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
@@ -18,7 +19,7 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "@/core/storage/disk"
+import { ensureMcpServersDirectoryExists, GlobalFileNames } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
@@ -89,18 +90,38 @@ export class Controller {
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
 
+	// MCP tool list change tracking — when the tool list changes mid-session,
+	// we need to restart the SDK session to pick up the new tools.
+	// If the session is mid-turn, we defer the restart until the turn completes.
+	private mcpToolRestartPending = false
+
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
 		this.stateManager = StateManager.get()
 
 		// MCP hub — using classic McpHub for now (Step 7).
 		// Will be replaced by SDK's InMemoryMcpManager in Step 10 (Cleanup).
+		// IMPORTANT: Use ~/.cline/data/settings/ for the settings directory,
+		// NOT ensureSettingsDirectoryExists() which returns the VSCode extension
+		// storage path (HostProvider.globalStorageFsPath/settings/). The MCP
+		// settings file lives at ~/.cline/data/settings/cline_mcp_settings.json
+		// (shared across VSCode, CLI, and JetBrains clients).
 		this.mcpHub = new McpHub(
 			() => ensureMcpServersDirectoryExists(),
-			() => ensureSettingsDirectoryExists(),
+			async () => {
+				const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
+				const settingsDir = path.join(clineDir, "data", "settings")
+				await fs.mkdir(settingsDir, { recursive: true })
+				return settingsDir
+			},
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
+
+		// Subscribe to MCP tool list changes so we can restart the SDK session
+		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
+		// does not support dynamic MCP tools, so we must restart the session.
+		this.mcpHub.setToolListChangeCallback(() => this.handleMcpToolListChanged())
 
 		// Initialize SDK-backed auth and account services (Step 6)
 		this.authService = AuthService.getInstance(this)
@@ -134,6 +155,8 @@ export class Controller {
 			clearTimeout(this.saveClineMessagesTimer)
 			this.saveClineMessagesTimer = undefined
 		}
+		// Clear MCP tool list change callback before disposing McpHub
+		this.mcpHub?.clearToolListChangeCallback()
 		await this.clearTask()
 		this.mcpHub?.dispose?.()
 		this.sessionEventListeners.clear()
@@ -229,6 +252,10 @@ export class Controller {
 		if (this.activeSession) {
 			if (result.sessionEnded || result.turnComplete) {
 				this.activeSession.isRunning = false
+
+				// Check if MCP tools changed while we were mid-turn.
+				// If so, restart the session now that the turn is complete.
+				this.checkDeferredMcpToolRestart()
 			}
 
 			// Update task history with usage info
@@ -936,6 +963,180 @@ export class Controller {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
+		}
+	}
+
+	// ---- MCP tool list change handling ----
+
+	/**
+	 * Called by McpHub when the set of available MCP tools changes
+	 * (servers added/removed/reconnected, tools discovered/lost).
+	 *
+	 * The SDK's DefaultSessionBuilder does not support dynamic MCP tools —
+	 * tools are loaded once at session build time. To pick up new tools,
+	 * we must restart the session with a new VscodeSessionHost (which
+	 * creates a new VscodeRuntimeBuilder that reads the current tool list).
+	 *
+	 * Strategy:
+	 * - If no active session: nothing to do (next initTask will pick up tools)
+	 * - If session is idle (not mid-turn): restart immediately
+	 * - If session is mid-turn: set a flag and restart when the turn completes
+	 */
+	private handleMcpToolListChanged(): void {
+		Logger.log("[SdkController] MCP tool list changed")
+
+		if (!this.activeSession) {
+			Logger.log("[SdkController] No active session — tools will be picked up on next initTask")
+			return
+		}
+
+		if (this.activeSession.isRunning) {
+			Logger.log("[SdkController] Session is mid-turn — deferring MCP tool restart")
+			this.mcpToolRestartPending = true
+			return
+		}
+
+		// Session is idle — restart now
+		this.restartSessionForMcpTools().catch((error) => {
+			Logger.error("[SdkController] Failed to restart session for MCP tools:", error)
+		})
+	}
+
+	/**
+	 * Check if a deferred MCP tool restart is pending and execute it.
+	 * Called after a turn completes (from the send() .then() handlers).
+	 */
+	private checkDeferredMcpToolRestart(): void {
+		if (!this.mcpToolRestartPending) {
+			return
+		}
+		this.mcpToolRestartPending = false
+
+		if (!this.activeSession) {
+			Logger.log("[SdkController] Deferred MCP restart: no active session, skipping")
+			return
+		}
+
+		Logger.log("[SdkController] Executing deferred MCP tool restart")
+		this.restartSessionForMcpTools().catch((error) => {
+			Logger.error("[SdkController] Failed deferred MCP tool restart:", error)
+		})
+	}
+
+	/**
+	 * Restart the active SDK session to pick up changed MCP tools.
+	 *
+	 * This creates a new VscodeSessionHost (with a fresh VscodeRuntimeBuilder
+	 * that reads the current McpHub tool list), starts a new session with the
+	 * same config, and preserves the conversation by loading messages from the
+	 * old session. The old session is stopped and disposed.
+	 *
+	 * The user sees an informational message in the chat about the tool reload.
+	 */
+	private async restartSessionForMcpTools(): Promise<void> {
+		if (!this.activeSession) {
+			return
+		}
+
+		const { sessionManager: oldManager, unsubscribe: oldUnsubscribe, sessionId: oldSessionId } = this.activeSession
+
+		Logger.log(`[SdkController] Restarting session ${oldSessionId} for MCP tool changes`)
+
+		// Emit an info message so the user knows what's happening
+		const infoMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "say",
+			say: "info",
+			text: "MCP tools changed — reloading tools for this session...",
+			partial: false,
+		}
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([infoMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([infoMessage], {
+			type: "status",
+			payload: { sessionId: oldSessionId, status: "running" },
+		})
+
+		try {
+			// 1. Build fresh session config (same provider/model/mode)
+			const cwd = process.cwd()
+			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
+			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
+			const config = await buildSessionConfig({ cwd, mode })
+
+			// 2. Create a new VscodeSessionHost with fresh MCP tools
+			const newManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+
+			// 3. Subscribe to events on the new manager
+			const newUnsubscribe = newManager.subscribe((event: CoreSessionEvent) => {
+				this.handleSessionEvent(event)
+			})
+
+			// 4. Start a new session (no prompt — just create it)
+			const startInput = buildStartSessionInput(config, { cwd, mode })
+			const startResult = await newManager.start(startInput)
+
+			// 5. Tear down the old session
+			oldUnsubscribe()
+			oldManager.stop(oldSessionId).catch(() => {})
+			oldManager.dispose("mcpToolRestart").catch(() => {})
+
+			// 6. Update active session
+			this.activeSession = {
+				sessionId: startResult.sessionId,
+				sessionManager: newManager,
+				unsubscribe: newUnsubscribe,
+				startResult,
+				isRunning: false,
+			}
+
+			// 7. Update the task proxy's session ID (keep existing messages)
+			if (this.task) {
+				this.task.taskId = startResult.sessionId
+			}
+
+			// Emit success message
+			const successMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "info",
+				text: "MCP tools reloaded successfully. You can continue your conversation.",
+				partial: false,
+			}
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([successMessage])
+				this.debouncedSaveClineMessages()
+			}
+			this.emitSessionEvents([successMessage], {
+				type: "status",
+				payload: { sessionId: startResult.sessionId, status: "idle" },
+			})
+
+			await this.postStateToWebview()
+			Logger.log(`[SdkController] Session restarted for MCP tools: ${oldSessionId} → ${startResult.sessionId}`)
+		} catch (error) {
+			Logger.error("[SdkController] Failed to restart session for MCP tools:", error)
+
+			// Emit error message but don't crash — the old session may still work
+			// for non-MCP tools
+			const errorMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "error",
+				text: `Failed to reload MCP tools: ${error instanceof Error ? error.message : String(error)}. MCP tools may be outdated.`,
+				partial: false,
+			}
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([errorMessage])
+				this.debouncedSaveClineMessages()
+			}
+			this.emitSessionEvents([errorMessage], {
+				type: "status",
+				payload: { sessionId: oldSessionId, status: "error" },
+			})
+			await this.postStateToWebview()
 		}
 	}
 
