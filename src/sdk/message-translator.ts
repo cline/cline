@@ -64,6 +64,10 @@ export class MessageTranslatorState {
 	private streamingReasoningTs: number | undefined
 	/** Current streaming tool message timestamp */
 	private streamingToolTs: number | undefined
+	/** Stored tool input from content_start — used at content_end which doesn't carry input */
+	private streamingToolInput: unknown | undefined
+	/** Stored tool name from content_start — used at content_end for consistency */
+	private streamingToolName: string | undefined
 	/** Monotonic counter for message timestamps */
 	private tsCounter = Date.now()
 
@@ -110,10 +114,28 @@ export class MessageTranslatorState {
 		return this.streamingToolTs
 	}
 
+	/** Store tool input from content_start for use at content_end */
+	setStreamingToolContext(toolName: string, input: unknown): void {
+		this.streamingToolName = toolName
+		this.streamingToolInput = input
+	}
+
+	/** Get the stored tool input (from content_start) */
+	getStreamingToolInput(): unknown | undefined {
+		return this.streamingToolInput
+	}
+
+	/** Get the stored tool name (from content_start) */
+	getStreamingToolName(): string | undefined {
+		return this.streamingToolName
+	}
+
 	/** Clear streaming tool */
 	clearStreamingTool(): number {
 		const ts = this.streamingToolTs ?? this.nextTs()
 		this.streamingToolTs = undefined
+		this.streamingToolInput = undefined
+		this.streamingToolName = undefined
 		return ts
 	}
 
@@ -122,6 +144,8 @@ export class MessageTranslatorState {
 		this.streamingTextTs = undefined
 		this.streamingReasoningTs = undefined
 		this.streamingToolTs = undefined
+		this.streamingToolInput = undefined
+		this.streamingToolName = undefined
 	}
 }
 
@@ -298,23 +322,31 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		case "content_start": {
 			switch (event.contentType) {
 				case "text": {
+					// The SDK emits MULTIPLE content_start events for streaming text.
+					// Each has `text` (the delta) and `accumulated` (full text so far).
+					// We use `accumulated` so the webview can update the message in-place
+					// with the growing text, giving smooth streaming. Using `text` (delta)
+					// would cause a "flip book" effect where each update replaces the
+					// previous content with just the new chunk.
 					const ts = state.getStreamingTextTs()
 					messages.push({
 						ts,
 						type: "say",
 						say: "text",
-						text: event.text ?? event.accumulated ?? "",
+						text: event.accumulated ?? event.text ?? "",
 						partial: true,
 					})
 					break
 				}
 				case "reasoning": {
+					// Same pattern as text — use accumulated reasoning for smooth streaming
 					const ts = state.getStreamingReasoningTs()
+					const reasoning = event.reasoning ?? ""
 					messages.push({
 						ts,
 						type: "say",
 						say: "reasoning",
-						reasoning: event.reasoning ?? "",
+						reasoning,
 						partial: true,
 					})
 					break
@@ -322,6 +354,10 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 					const input = event.input
+
+					// Store tool context so content_end can use it
+					// (content_end doesn't carry the input)
+					state.setStreamingToolContext(toolName, input)
 
 					// run_commands uses say="command" (not say="tool")
 					// because the webview renders commands differently
@@ -405,9 +441,11 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					}
 
 					// All other tools → finalize the say="tool" message
+					// Use the stored input from content_start since content_end
+					// doesn't carry the input (S6-24 fix)
+					const storedInput = state.getStreamingToolInput()
 					const ts = state.clearStreamingTool()
-					const input = undefined // content_end doesn't carry input
-					const sayTool = sdkToolToClineSayTool(toolName, input)
+					const sayTool = sdkToolToClineSayTool(toolName, storedInput)
 					// If there's an error, include it in the tool message
 					if (event.error) {
 						messages.push({
@@ -481,7 +519,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// these are embedded in the api_req_started message's
 			// ClineApiReqInfo. We emit a separate api_req_started update
 			// with the usage data so the webview can display costs.
-			const usageEvent = event as Record<string, unknown>
+			const usageEvent = event as unknown as Record<string, unknown>
 			const apiReqInfo: ClineApiReqInfo = {
 				tokensIn: (usageEvent.inputTokens as number) ?? 0,
 				tokensOut: (usageEvent.outputTokens as number) ?? 0,

@@ -6,6 +6,8 @@
 // Step 4: Session lifecycle methods (initTask, askResponse, cancelTask, etc.)
 // Step 5: gRPC thunking layer — bridges SDK events to webview gRPC streams
 
+import * as fs from "node:fs/promises"
+import * as path from "node:path"
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -16,13 +18,15 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
-import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists } from "@/core/storage/disk"
+import { ensureMcpServersDirectoryExists, ensureSettingsDirectoryExists, GlobalFileNames } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
+import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
 import { Logger } from "@/shared/services/Logger"
+import { fileExistsAtPath } from "@/utils/fs"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import {
@@ -32,7 +36,6 @@ import {
 	createHistoryItemFromSession,
 	getHistoryItemById,
 } from "./cline-session-factory"
-import { readUiMessages } from "./legacy-state-reader"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -142,7 +145,7 @@ export class Controller {
 	/**
 	 * Debounced save of ClineMessages to disk.
 	 * Writes to the classic ui_messages.json location so that
-	 * showTaskWithId() → readUiMessages() can find them later.
+	 * showTaskWithId() → getSavedClineMessages() can find them later.
 	 */
 	private debouncedSaveClineMessages(): void {
 		if (this.saveClineMessagesTimer) {
@@ -204,28 +207,22 @@ export class Controller {
 	 * Translates the event and emits ClineMessages to listeners.
 	 */
 	private handleSessionEvent(event: CoreSessionEvent): void {
-		Logger.log(
-			`[SdkController] handleSessionEvent: type=${event.type}, payload=${JSON.stringify(event.type === "agent_event" ? { eventType: (event as any).payload?.event?.type } : {}).substring(0, 200)}`,
-		)
 		const result = translateSessionEvent(event, this.messageTranslatorState)
-		Logger.log(
-			`[SdkController] translateSessionEvent result: messages=${result.messages.length}, sessionEnded=${result.sessionEnded}, turnComplete=${result.turnComplete}`,
-		)
 
 		if (result.messages.length > 0) {
-			this.emitSessionEvents(result.messages, event)
-
 			// Accumulate messages in the task proxy's message state handler
-			// so getStateToPostToWebview() can return them
+			// BEFORE emitting to listeners. This ensures that if a listener
+			// (e.g., the gRPC bridge) triggers a state update, the state
+			// will include these messages.
 			if (this.task?.messageStateHandler) {
 				this.task.messageStateHandler.addMessages(result.messages)
 
 				// Persist messages to disk so showTaskWithId() can load them later.
-				// The classic extension stores ClineMessages in ui_messages.json;
-				// the SDK stores its own format in sessions/. We write to the classic
-				// location so the existing readUiMessages() path works.
 				this.debouncedSaveClineMessages()
 			}
+
+			// Emit to listeners (bridge pushes via partial message stream)
+			this.emitSessionEvents(result.messages, event)
 		}
 
 		// Update running state
@@ -240,8 +237,11 @@ export class Controller {
 			}
 		}
 
-		// Post state to webview on significant events
-		if (result.sessionEnded || result.turnComplete) {
+		// Push state update so the webview's clineMessages stays in sync.
+		// The partial message stream pushes individual messages, but the
+		// webview also needs the full clineMessages array in state for
+		// proper rendering (e.g., ChatView checks messages.length).
+		if (result.messages.length > 0) {
 			this.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
@@ -339,21 +339,26 @@ export class Controller {
 			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
 			await this.updateTaskHistory(newHistoryItem)
 
-			// Emit initial task message
-			this.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "task",
-						text: task ?? "",
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId: startResult.sessionId, status: "running" } },
-			)
+			// Emit initial task message — must be added to messageStateHandler
+			// so that getStateToPostToWebview() includes it in clineMessages.
+			// Without this, the state update would have empty clineMessages and
+			// the webview would lose the task message (S6-22 fix).
+			const taskMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "task",
+				text: task ?? "",
+				partial: false,
+			}
+			// Add to message state handler FIRST so state includes it
+			this.task.messageStateHandler.addMessages([taskMessage])
+			// Then emit to listeners (bridge pushes via partial message stream)
+			this.emitSessionEvents([taskMessage], {
+				type: "status",
+				payload: { sessionId: startResult.sessionId, status: "running" },
+			})
 
-			// Post state update
+			// Post state update — now includes the task message in clineMessages
 			await this.postStateToWebview()
 
 			// Now send the prompt to start inference (fire-and-forget).
@@ -645,6 +650,18 @@ export class Controller {
 	/**
 	 * Show a task from history by loading its messages.
 	 * This does NOT start inference — it just loads the task for viewing.
+	 *
+	 * IMPORTANT: We do NOT call clearTask() here because clearTask() sets
+	 * this.task = undefined and may trigger async operations (session stop/dispose)
+	 * that race with the new task proxy creation. If any of those async operations
+	 * trigger postStateToWebview() while this.task is undefined, the webview
+	 * receives a state with no currentTaskItem/clineMessages and flashes back
+	 * to the welcome screen (S6-6/S6-23 fix).
+	 *
+	 * Instead, we:
+	 * 1. Silently tear down the active session (unsubscribe + stop in background)
+	 * 2. Create the new task proxy with loaded messages BEFORE any state push
+	 * 3. Only then push state to the webview
 	 */
 	async showTaskWithId(taskId: string): Promise<void> {
 		try {
@@ -661,12 +678,27 @@ export class Controller {
 				return
 			}
 
-			// Clear any active session (viewing history is read-only)
+			// Silently tear down any active session WITHOUT clearing this.task
+			// (prevents race condition where state push sees task=undefined)
 			if (this.activeSession) {
-				await this.clearTask()
+				const { sessionManager, unsubscribe, sessionId } = this.activeSession
+				// Unsubscribe FIRST to prevent stale events from triggering state pushes
+				unsubscribe()
+				this.activeSession = undefined
+				// Stop and dispose in background — don't await, don't let errors propagate
+				sessionManager.stop(sessionId).catch(() => {})
+				sessionManager.dispose("showTaskWithId").catch(() => {})
 			}
 
-			// Set the current task reference for state building
+			// Clear old task proxy's messages (if any)
+			if (this.task) {
+				this.task.messageStateHandler.clear()
+			}
+
+			// Reset translator state
+			this.messageTranslatorState.reset()
+
+			// Create the new task proxy BEFORE pushing state
 			this.task = createTaskProxy(
 				taskId,
 				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
@@ -674,15 +706,35 @@ export class Controller {
 			)
 
 			// Load the task's messages from disk and add them to the message state handler
-			// so the webview can display them
-			const messages = readUiMessages(taskId)
+			// so the webview can display them.
+			// IMPORTANT: Use getSavedClineMessages (from disk.ts) instead of readUiMessages
+			// (from legacy-state-reader.ts) because they use different base paths:
+			// - getSavedClineMessages: HostProvider.globalStorageFsPath/tasks/<id>/ui_messages.json
+			// - readUiMessages: ~/.cline/data/tasks/<id>/ui_messages.json
+			// saveClineMessages writes to the HostProvider path, so we must read from there too.
+			const { getSavedClineMessages } = await import("@core/storage/disk")
+			const messages = await getSavedClineMessages(taskId)
 			if (messages.length > 0) {
 				this.task.messageStateHandler.addMessages(messages)
 				Logger.log(`[SdkController] Loaded ${messages.length} messages for task: ${taskId}`)
+
+				// Also push each message through the partial message stream.
+				// The webview receives messages from two sources:
+				// 1. State updates (subscribeToState) — sets clineMessages in bulk
+				// 2. Partial messages (subscribeToPartialMessage) — appends/updates by ts
+				// Pushing through both ensures the webview has messages regardless
+				// of any timing issues with the state update. The webview deduplicates
+				// by timestamp, so duplicate pushes are harmless.
+				const { pushMessageToWebview } = await import("./webview-grpc-bridge")
+				for (const msg of messages) {
+					await pushMessageToWebview(msg)
+				}
 			} else {
 				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
 			}
 
+			// Now push state — this.task is set with messages, so the webview
+			// will see currentTaskItem + clineMessages and show the chat view
 			await this.postStateToWebview()
 			Logger.log(`[SdkController] Showing task: ${taskId}`)
 		} catch (error) {
@@ -793,7 +845,7 @@ export class Controller {
 
 	// ---- Task history (Step 4) ----
 
-	async getTaskWithId(_id: string): Promise<{
+	async getTaskWithId(id: string): Promise<{
 		historyItem: HistoryItem
 		taskDirPath: string
 		apiConversationHistoryFilePath: string
@@ -802,8 +854,31 @@ export class Controller {
 		taskMetadataFilePath: string
 		apiConversationHistory: unknown[]
 	}> {
-		stubWarn("getTaskWithId")
-		throw new Error("getTaskWithId not yet implemented")
+		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+		const historyItem = history.find((item) => item.id === id)
+		if (historyItem) {
+			const taskDirPath = path.join(HostProvider.get().globalStorageFsPath, "tasks", id)
+			const apiConversationHistoryFilePath = path.join(taskDirPath, GlobalFileNames.apiConversationHistory)
+			const uiMessagesFilePath = path.join(taskDirPath, GlobalFileNames.uiMessages)
+			const contextHistoryFilePath = path.join(taskDirPath, GlobalFileNames.contextHistory)
+			const taskMetadataFilePath = path.join(taskDirPath, GlobalFileNames.taskMetadata)
+			const fileExists = await fileExistsAtPath(apiConversationHistoryFilePath)
+			if (fileExists) {
+				const apiConversationHistory = JSON.parse(await fs.readFile(apiConversationHistoryFilePath, "utf8"))
+				return {
+					historyItem,
+					taskDirPath,
+					apiConversationHistoryFilePath,
+					uiMessagesFilePath,
+					contextHistoryFilePath,
+					taskMetadataFilePath,
+					apiConversationHistory,
+				}
+			}
+		}
+		// If we tried to get a task that doesn't exist, remove it from state
+		await this.deleteTaskFromState(id)
+		throw new Error("Task not found")
 	}
 
 	async exportTaskWithId(_id: string): Promise<void> {

@@ -292,6 +292,167 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].text).toContain("readFile")
 		expect(result.messages[0].partial).toBe(false)
 	})
+
+	it("content_end preserves tool input from content_start (S6-24 fix)", () => {
+		const state = new MessageTranslatorState()
+
+		// 1. content_start with editor tool input
+		const startEvent: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-1",
+					input: { path: "/src/app.ts", new_text: "console.log('hello')", old_text: "console.log('world')" },
+				} as AgentEvent,
+			},
+		}
+		const startResult = translateSessionEvent(startEvent, state)
+		expect(startResult.messages).toHaveLength(1)
+		const startTool = JSON.parse(startResult.messages[0].text!)
+		expect(startTool.tool).toBe("editedExistingFile")
+		expect(startTool.path).toBe("/src/app.ts")
+		expect(startTool.content).toBe("console.log('hello')")
+
+		// 2. content_end — should preserve the input from content_start
+		const endEvent: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-1",
+				} as AgentEvent,
+			},
+		}
+		const endResult = translateSessionEvent(endEvent, state)
+		expect(endResult.messages).toHaveLength(1)
+		expect(endResult.messages[0].partial).toBe(false)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		// The finalized message should have the same content as the partial
+		expect(endTool.tool).toBe("editedExistingFile")
+		expect(endTool.path).toBe("/src/app.ts")
+		expect(endTool.content).toBe("console.log('hello')")
+	})
+
+	it("content_end for newFileCreated preserves content from content_start (S6-24)", () => {
+		const state = new MessageTranslatorState()
+
+		// content_start with editor tool (no old_text → newFileCreated)
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "c1",
+						input: { path: "/new-file.ts", new_text: "export const x = 1" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("newFileCreated")
+		expect(endTool.path).toBe("/new-file.ts")
+		expect(endTool.content).toBe("export const x = 1")
+	})
+
+	it("content_end for read_files preserves path from content_start (S6-24)", () => {
+		const state = new MessageTranslatorState()
+
+		// content_start
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: { files: [{ path: "/src/config.ts" }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// content_end (no input)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("readFile")
+		expect(endTool.path).toBe("/src/config.ts")
+	})
+
+	it("content_end without prior content_start still works (graceful fallback)", () => {
+		const state = new MessageTranslatorState()
+
+		// content_end with no prior content_start — stored input is undefined
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "editor",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// Should still produce a message, just with empty fields
+		expect(endResult.messages).toHaveLength(1)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("newFileCreated") // no old_text → newFileCreated
+		expect(endTool.path).toBe("")
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -663,5 +824,146 @@ describe("historyItemToSessionFields", () => {
 
 		expect(result.sessionId).toBe("task-456")
 		expect(result.modelId).toBeUndefined()
+	})
+})
+
+describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () => {
+	it("uses accumulated text for smooth streaming instead of delta", () => {
+		const state = new MessageTranslatorState()
+
+		// First chunk: text="Hello ", accumulated="Hello "
+		const chunk1 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Hello ",
+						accumulated: "Hello ",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk1.messages).toHaveLength(1)
+		expect(chunk1.messages[0].text).toBe("Hello ")
+		expect(chunk1.messages[0].partial).toBe(true)
+		const streamingTs = chunk1.messages[0].ts
+
+		// Second chunk: text="world" (delta), accumulated="Hello world" (full)
+		// The message should use accumulated, NOT text (delta)
+		const chunk2 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "world",
+						accumulated: "Hello world",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk2.messages).toHaveLength(1)
+		// CRITICAL: Must be "Hello world" (accumulated), NOT "world" (delta)
+		// Using delta would cause "flip book" effect in the webview
+		expect(chunk2.messages[0].text).toBe("Hello world")
+		expect(chunk2.messages[0].partial).toBe(true)
+		// Same timestamp — webview updates in-place
+		expect(chunk2.messages[0].ts).toBe(streamingTs)
+
+		// Third chunk: more text
+		const chunk3 = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "!",
+						accumulated: "Hello world!",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(chunk3.messages).toHaveLength(1)
+		expect(chunk3.messages[0].text).toBe("Hello world!")
+		expect(chunk3.messages[0].ts).toBe(streamingTs)
+
+		// content_end finalizes
+		const end = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "text",
+						text: "Hello world!",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(end.messages).toHaveLength(1)
+		expect(end.messages[0].text).toBe("Hello world!")
+		expect(end.messages[0].partial).toBe(false)
+		expect(end.messages[0].ts).toBe(streamingTs)
+	})
+
+	it("falls back to text when accumulated is not provided", () => {
+		const state = new MessageTranslatorState()
+
+		// Some SDK events may not have accumulated (e.g., first chunk)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "text",
+						text: "Hello",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].text).toBe("Hello")
+	})
+
+	it("all streaming chunks share the same timestamp for in-place updates", () => {
+		const state = new MessageTranslatorState()
+		const timestamps: number[] = []
+
+		for (let i = 0; i < 5; i++) {
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "text",
+							text: `chunk${i}`,
+							accumulated: `accumulated${i}`,
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+			timestamps.push(result.messages[0].ts)
+		}
+
+		// All timestamps should be identical
+		expect(new Set(timestamps).size).toBe(1)
 	})
 })

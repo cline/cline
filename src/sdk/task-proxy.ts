@@ -75,11 +75,28 @@ export interface ClineMessageChange {
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
 	private messages: ClineMessage[] = []
 
-	/** Add messages from a session event */
+	/** Add or update messages from a session event.
+	 *  If a message with the same `ts` already exists, update it in-place
+	 *  (this handles partial→final streaming updates). Otherwise append.
+	 *  This prevents duplicate messages when both partial message stream
+	 *  and state updates carry the same content.
+	 */
 	addMessages(messages: ClineMessage[]): void {
 		for (const message of messages) {
-			this.messages.push(message)
-			this.emit("clineMessagesChanged", { type: "add", messages: this.messages, message })
+			const existingIndex = this.messages.findIndex((m) => m.ts === message.ts)
+			if (existingIndex !== -1) {
+				// Update existing message in-place (e.g., partial=true → partial=false)
+				this.messages[existingIndex] = message
+				this.emit("clineMessagesChanged", {
+					type: "update",
+					messages: this.messages,
+					index: existingIndex,
+					message,
+				})
+			} else {
+				this.messages.push(message)
+				this.emit("clineMessagesChanged", { type: "add", messages: this.messages, message })
+			}
 		}
 	}
 

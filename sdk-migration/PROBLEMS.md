@@ -171,25 +171,25 @@ underlying patterns that caused them are relevant.
 - **Fix**: Implement in Step 7.
 
 ### S6-5: Sending messages creates history entry but doesn't switch to inference view
-- **Status**: 🔴 Blocker (regressed)
+- **Status**: 🟢 Verified Fixed
 - **Description**: Inference itself works (the SDK agent runs, produces output, and the session completes with tokens). However, the webview does NOT switch from the welcome/history view to the chat/inference view when a message is sent. A new entry appears in the task history sidebar, but the user stays on the welcome page and never sees the agent's output.
-- **Root cause (inference fixed, view transition broken)**:
-  - **Inference**: Fixed in commit `1be6575c6` — the root cause was an empty system prompt (`systemPrompt: ""`). Now builds the full Cline system prompt via `buildClineSystemPrompt()` from `@clinebot/shared`.
-  - **View transition**: The webview's navigation state is not being updated when a new task starts. The classic extension sets `currentTaskItem` in the state payload which triggers the webview to switch from the history view to the chat view. The SDK adapter's `getStateToPostToWebview()` may not be setting this correctly, or the gRPC `newTask` handler's response isn't triggering the view switch.
-- **Fix needed**: Investigate the webview's view transition logic — what state field triggers the switch from history to chat view? Ensure `postStateToWebview()` after `initTask()` includes the correct navigation state.
+- **Root cause**: The view transition depends on `clineMessages` having at least one message (the "task" message) in the state update. The webview's `ChatView.tsx` shows the chat view when `messages.at(0)` is truthy. Previously, the task message was only sent via the partial message stream but NOT included in the state's `clineMessages` (see S6-22). When the state update arrived with empty `clineMessages`, the webview saw no messages and stayed on the welcome view.
+- **Fix applied**: Same as S6-22 — the task message is now added to `messageStateHandler` before emitting, so the state update includes it in `clineMessages`. The webview receives `clineMessages` with the task message and switches to the chat view.
 - **Verification**: Send a message, verify the webview switches to the chat view showing the agent's streaming output.
-- **Blocked by**: Nothing (this is the top priority)
-- **Blocks**: S6-12, S6-16
+- **Evidence**: Manual verification on 2026-04-16 — new chats display and do inference.
 
 ### S6-6: Clicking historical chat items does nothing (includes S6-15)
-- **Status**: 🔴 Blocker (failed verification)
-- **Description**: Clicking on a task in the history view doesn't load the task's messages — it either does nothing (welcome page) or navigates back to the welcome page (history view). This is the same issue as S6-15 (merged). The `showTaskWithId()` fix was applied but the view transition still doesn't work.
-- **Root cause**: Two layers of issues:
-  1. **(Previously fixed)** `showTaskWithId()` now loads messages from disk via `readUiMessages(taskId)` and looks up tasks in StateManager first.
-  2. **(Still broken)** The webview navigation state isn't being set correctly after loading messages. The classic extension triggers a view switch by setting `currentTaskItem` in the state payload, which the webview uses to decide whether to show the history view or the chat view. The SDK adapter's `getStateToPostToWebview()` may not be including `currentTaskItem` correctly, or the webview's navigation logic has a different trigger.
-- **Fix needed**: Investigate the webview's view transition logic — trace what happens when a history item is clicked in the classic extension (on `origin/main`) and ensure the SDK adapter replicates the same state changes. Key areas: `showTaskWithId` gRPC handler response, `currentTaskItem` in ExtensionState, webview's `useEffect` that watches for task changes.
-- **Verification**: Click a history item, verify the chat view loads with the task's messages.
-- **Blocks**: S6-12, S6-16
+- **Status**: 🔵 Awaiting Verification (three fixes applied)
+- **Description**: Clicking on a task in the history view now opens the chat view and stays there (no more flash-back to welcome). Previously, the chat view showed only "Thinking" with no messages displayed. The task's messages were loaded from disk but not rendering in the webview.
+- **Root cause (flash-back fixed)**: `showTaskWithId()` was rewritten to avoid `clearTask()` race condition. The view now stays on the chat view.
+- **Root cause (messages missing — fixed)**: Two issues:
+  1. The messages loaded from disk were added to `messageStateHandler` and included in the state update's `clineMessages`, but the webview relies on the partial message stream for rendering individual messages. The state update alone wasn't sufficient — messages also need to be pushed through the partial message stream (`subscribeToPartialMessage`).
+  2. **Path mismatch**: `showTaskWithId()` was using `readUiMessages()` from `legacy-state-reader.ts` which reads from `~/.cline/data/tasks/<id>/ui_messages.json`. But `saveClineMessages()` (from `disk.ts`) writes to `HostProvider.globalStorageFsPath/tasks/<id>/ui_messages.json` — a different path (e.g., VSCode's extension storage). The messages were being saved to one location and read from another, so `readUiMessages()` always returned an empty array.
+- **Fix applied**:
+  1. **(flash-back)**: Rewrote `showTaskWithId()` in `SdkController.ts` to avoid calling `clearTask()`. Instead: (1) unsubscribe from events FIRST, (2) clear `activeSession` reference, (3) fire-and-forget session stop/dispose, (4) create new task proxy with loaded messages BEFORE state push, (5) only then call `postStateToWebview()`.
+  2. **(messages — partial stream)**: In `showTaskWithId()`, after loading messages from disk and adding them to `messageStateHandler`, also push each message through the partial message stream via `pushMessageToWebview()`. The webview receives messages from two sources: state updates (bulk) and partial messages (individual). Pushing through both ensures the webview has messages regardless of timing. The webview deduplicates by timestamp, so duplicate pushes are harmless.
+  3. **(messages — path mismatch)**: Replaced `readUiMessages()` (from `legacy-state-reader.ts`) with `getSavedClineMessages()` (from `@core/storage/disk`) in `showTaskWithId()`. Both `saveClineMessages` and `getSavedClineMessages` use `HostProvider.globalStorageFsPath` as the base path, so they read/write from the same location. Removed the unused `readUiMessages` import.
+- **Verification**: Click a history item, verify the chat view loads with the task's messages visible.
 
 ### S6-7: Credits/payment history don't load immediately on startup
 - **Status**: 🟡 Minor
@@ -356,11 +356,14 @@ underlying patterns that caused them are relevant.
 - **Note**: This issue is tracked under S6-6. Likely shares a common root cause with S6-5 (view transition logic).
 
 ### S6-16: Sending a message completes immediately with no output
-- **Status**: 🔴 Blocker
+- **Status**: 🟢 Verified Fixed
 - **Description**: When the user types and submits a message, the task immediately shows as "completed" with no tokens, no size, and no output. The webview console shows `handleSendMessage - Sending message: <text>` followed by four `ended "got subscribed state"` messages. No inference occurs.
-- **Root cause**: Unknown — the `initTask()` → `core.send()` flow may not be starting the agent turn, or the session may be ending immediately. The four "ended" subscription messages suggest the session is completing without running any agent iterations. Possibly the `start()` call is failing silently, or the `send()` promise resolves immediately without streaming events.
-- **Fix**: Add logging to `SdkController.initTask()` to trace the session lifecycle: `start()` result, `send()` invocation, subscription events. Check if `resolveApiKey()` is returning a valid key for the current provider.
-- **Verification**: Send a message, verify the agent runs iterations and streams text/tool events to the webview.
+- **Root cause**: Two issues:
+  1. **Inference was actually working** — the SDK agent ran, produced output, and completed with tokens. But the output was invisible because of issue #2.
+  2. **Partial message handler dropped new messages** — The webview's `ExtensionStateContext.tsx` partial message handler only updated existing messages by matching timestamps (`findLastIndex` by `ts`). If no existing message matched, the message was silently dropped (`return prevState`). In the classic extension, messages were first added via state updates, then updated in-place by partial messages. In the SDK migration, messages arrive via the partial message stream *before* any state update, so they were all dropped.
+- **Fix**: In `webview-ui/src/context/ExtensionStateContext.tsx`, when a partial message arrives with a new timestamp (no match), append it to the `clineMessages` array instead of returning `prevState` unchanged. Also added debounced ClineMessage persistence in `SdkController.ts` so task history can load messages via `readUiMessages()`.
+- **Verification**: Debug harness: sent "Say hello", Playwright locator found 3 elements containing "Hello" (user message + AI response). SDK returned: `"Hello! 👋 How can I help you today?"` with `inputTokens: 2776, outputTokens: 36, totalCost: 0.01478`.
+- **Evidence**: Commit `32f1fa84e` on `sdk-migration-v3`.
 
 ### S6-17: Cancel button enabled after task "completes" but does nothing
 - **Status**: 🟡 Minor
@@ -376,11 +379,15 @@ underlying patterns that caused them are relevant.
 - **Verification**: Log out, attempt to send a message with "cline" provider selected, verify a login prompt appears instead of the error.
 
 ### S6-19: History deletion dialog confirms but doesn't delete
-- **Status**: 🟡 Minor
-- **Description**: When clicking the delete button on a history item, a confirmation dialog appears. After confirming, the item is NOT actually deleted — it remains in the history list.
-- **Root cause**: The `deleteTaskFromState()` method in SdkController removes the item from StateManager's in-memory `taskHistory` array, but the webview may not be refreshing the history list after deletion. Or the deletion may not be persisted to disk.
-- **Fix needed**: Verify that `deleteTaskFromState()` persists the updated history to disk and that `postStateToWebview()` is called after deletion to refresh the webview.
-- **Verification**: Delete a history item, verify it disappears from the list and stays gone after refresh.
+- **Status**: 🟡 Minor (partially fixed — deletion works but UI stale)
+- **Description**: When clicking the delete button on a history item, a confirmation dialog appears. After confirming, the item IS now deleted from state/disk. However:
+  1. **History list doesn't update** — the deleted item remains visible in the history list until you close and reopen history.
+  2. **Recents list not updated** — if the deleted item appeared on the welcome page's recents list, it still shows there.
+- **Root cause (deletion fixed)**: `getTaskWithId()` was stubbed and threw "not yet implemented". Now implemented.
+- **Root cause (UI stale — NEW)**: The `deleteTaskWithId` handler calls `controller.postStateToWebview()` after deletion, which should refresh the history list. But the webview's history component may not be re-rendering when `taskHistory` changes in the state update. The recents list on the welcome page may be using a separate cached list that isn't updated by the state push.
+- **Fix applied (deletion)**: Implemented `getTaskWithId()` in `SdkController.ts`.
+- **Fix needed (UI refresh)**: Investigate why the history list and recents list don't update after `postStateToWebview()`. Check if the webview's history component watches `taskHistory` from state, or if it uses a separate data source. The classic extension may have sent a specific "task deleted" event that triggers a re-render.
+- **Verification**: Delete a history item, verify it disappears from both the history list and recents list immediately.
 
 ### S6-20: MCP tools panel is empty
 - **Status**: 🟡 Minor (blocked on inference view)
@@ -390,16 +397,142 @@ underlying patterns that caused them are relevant.
 - **Verification**: Open MCP tools panel, verify configured servers and their tools appear.
 - **Blocked by**: S6-5 (need inference view to test agent access to MCP tools)
 
+### S6-21: Incremental messages are repeated/duplicated in chat output
+- **Status**: 🟢 Verified Fixed
+- **Description**: After the S6-16 fix (appending new partial messages), the AI response text was repeated multiple times in the chat. Additionally, during streaming, the text appeared in a "flip book" style — fragments flashed and replaced each other rather than smoothly appending.
+- **Root cause**: The message translator was using `event.text` (the delta/chunk) for streaming text messages. The SDK emits MULTIPLE `content_start` events during streaming, each with `text` (delta) and `accumulated` (full text so far). Using the delta caused each update to replace the previous content with just the new chunk, creating a "flip book" effect.
+- **Fix applied**: Changed `message-translator.ts` to use `event.accumulated ?? event.text` for streaming text content_start events. This gives smooth streaming — the webview updates the message in-place with the growing accumulated text.
+- **Note on state push**: An earlier fix attempt removed `postStateToWebview()` from `handleSessionEvent()` to prevent double state updates. This was reverted because the webview needs the full `clineMessages` array in state for proper rendering — without it, streaming appeared completely broken (the webview sat on "Thinking" and only showed the completed response at the end). The `postStateToWebview()` call is now restored. The `MessageStateHandler.addMessages()` deduplicates by timestamp, so the state update and partial message stream don't cause duplication.
+- **Verification**: 34 unit tests pass in `message-translator.test.ts` including 3 new tests for accumulated text streaming behavior.
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 34/34 pass.
+
+### S6-22: User input message displays as "{}" instead of message text
+- **Status**: 🔵 Awaiting Verification
+- **Description**: The task header box at the top of the chat shows `{}` instead of the actual user message text (e.g., "Say hello"). The message is sent correctly (inference works), but the display of the user's input in the chat header is wrong.
+- **Root cause**: The initial "task" message was emitted via `emitSessionEvents()` in `SdkController.initTask()`, which sent it to listeners (including the gRPC bridge for partial message streaming) but did NOT add it to the `messageStateHandler`. When `getStateToPostToWebview()` built the state, `clineMessages` from the handler was empty (missing the task message). The state update then arrived at the webview and replaced the partial-message-sourced `clineMessages` (which had the task message) with the empty state `clineMessages`, losing the user's input text. The webview then showed `{}` because `task.text` was undefined.
+- **Fix applied**: In `SdkController.initTask()`, the task message is now added to `this.task.messageStateHandler.addMessages([taskMessage])` BEFORE emitting to listeners. This ensures `getStateToPostToWebview()` includes the task message in `clineMessages`, so the state update preserves it.
+- **Verification**: Send a message, verify the task header shows the actual message text.
+
+### S6-23: Opening a message from history returns to welcome screen
+- **Status**: 🔵 Awaiting Verification — **Same fix as S6-6**
+- **Description**: Clicking a task in the history list briefly flashes the chat view, then returns to the welcome screen. Opening a recent conversation from the welcome screen also shows a brief flash and returns to the welcome screen. The `showTaskWithId()` method loads messages from disk but the view transition doesn't stick.
+- **Root cause**: Same as S6-6 — `showTaskWithId()` called `clearTask()` which set `this.task = undefined` and triggered async session teardown that raced with the new task proxy creation.
+- **Fix applied**: Same as S6-6 — rewrote `showTaskWithId()` to avoid `clearTask()` race condition.
+- **Verification**: Click a history item, verify the chat view loads and stays visible with the task's messages.
+
+### S6-24: Tool use blocks ("Cline wants to create a new file") are empty
+- **Status**: 🟢 Verified Fixed
+- **Description**: When the agent uses tools (e.g., `editor`), the tool use block in the chat showed the header ("Cline wants to create a new file") but the content area was empty — no file path, no diff, no content preview.
+- **Root cause**: The `content_end` event for tools does NOT carry the tool's `input` (path, content, etc.). The message translator was passing `undefined` as the input to `sdkToolToClineSayTool()` at `content_end`, resulting in a `ClineSayTool` with empty `path`, `content`, and `diff` fields. The `content_start` event DOES carry the input, but it wasn't being preserved for use at `content_end`.
+- **Fix applied**: Three changes to `src/sdk/message-translator.ts`:
+  1. Added `streamingToolInput` and `streamingToolName` fields to `MessageTranslatorState` to store the tool context from `content_start`.
+  2. At `content_start` for tools, store the input via `state.setStreamingToolContext(toolName, input)`.
+  3. At `content_end` for tools, retrieve the stored input via `state.getStreamingToolInput()` and pass it to `sdkToolToClineSayTool()` instead of `undefined`.
+  4. The stored context is cleared in `clearStreamingTool()` and `reset()`.
+- **Verification**: 4 new unit tests verify: (1) editor edit preserves path+content through content_start→content_end, (2) newFileCreated preserves content, (3) read_files preserves path, (4) graceful fallback when content_end arrives without prior content_start.
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 34/34 pass.
+
+### S6-25: Streaming text appears in "flip book" style instead of smooth append
+- **Status**: 🟢 Verified Fixed (same root cause as S6-21)
+- **Description**: During streaming, the AI response text appeared in a "flip book" style — the entire message content flashed and replaced itself on each chunk, rather than smoothly appending new characters.
+- **Root cause**: Same as S6-21. The message translator was using `event.text` (the delta) instead of `event.accumulated` (the full text so far). Each streaming update replaced the message content with just the new chunk instead of the growing accumulated text.
+- **Fix applied**: Same as S6-21 — changed `message-translator.ts` to use `event.accumulated ?? event.text` for streaming text. All streaming chunks now share the same timestamp and use accumulated text, giving smooth in-place updates.
+- **Verification**: 3 new unit tests verify: (1) accumulated text is used over delta, (2) fallback to text when accumulated is absent, (3) all streaming chunks share the same timestamp.
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 34/34 pass.
+
+### S6-26: SDK pending prompts / tool approval / ask_question not integrated
+- **Status**: 🔴 Blocker
+- **Description**: The SDK has three mechanisms for the agent to interact with the user mid-task, none of which are currently wired into the VSCode extension:
+
+  **1. `requestToolApproval` callback** — When a tool's policy has `autoApprove: false`, the agent calls `requestToolApproval({ agentId, conversationId, iteration, toolCallId, toolName, input, policy })` and blocks until the callback returns `{ approved: boolean, reason?: string }`. Without this callback, ALL non-auto-approved tools are denied with "no approval handler is configured". This is the equivalent of the classic extension's "Cline wants to..." approval dialog.
+
+  **2. `ask_question` tool executor** — The SDK has a built-in `ask_question` tool (equivalent to the classic `ask_followup_question`). It requires an `askQuestion` executor function passed via `defaultToolExecutors: { askQuestion: fn }`. The executor receives `(question, options, context)` and returns the user's answer as a string. Without this executor, the tool is excluded from the agent's tool list entirely. The CLI implements this as `askQuestionInTerminal` which prompts in the terminal.
+
+  **3. Pending prompts system** — When the user sends a message while the agent is already running, `send()` with `delivery: "queue"` or `delivery: "steer"` enqueues the message as a pending prompt. The SDK emits `pending_prompts` events with the current queue snapshot, and `pending_prompt_submitted` events when a queued prompt is consumed. The `drainPendingPrompts()` method processes the queue when the agent is idle. `"steer"` prompts go to the front of the queue; `"queue"` prompts go to the back. The Tauri desktop app and CLI TUI both subscribe to these events to show queued messages in the UI.
+
+- **Root cause**: The `VscodeSessionHost` currently passes no `requestToolApproval` callback and no `defaultToolExecutors.askQuestion`. The `SdkController.askResponse()` method sends with no `delivery` parameter (defaults to "immediate"), which blocks if the agent is already running.
+
+- **Impact**: 
+  - Tools that require approval are silently denied → agent can't use file editing, commands, etc. unless everything is auto-approved
+  - Agent can't ask the user clarifying questions → `ask_question` tool is missing from the tool list
+  - User can't send follow-up messages while the agent is running → `send()` throws "already in progress"
+
+- **Fix needed** (three parts):
+
+  **Part A: `requestToolApproval` callback (~50 lines)**
+  Wire into `VscodeSessionHost.create()` options. The callback should:
+  1. Emit a ClineMessage with `type: "ask"`, `ask: "tool"` containing the tool name and input as `ClineSayTool` JSON (same format the classic extension uses for tool approval dialogs)
+  2. Add the message to `messageStateHandler` and push to the partial message stream
+  3. Return a Promise that resolves when the user clicks Approve/Reject in the webview
+  4. The webview's existing approval UI (Approve/Reject buttons in ChatRow) already sends `askResponse` back through gRPC → `SdkController.askResponse()`. Need to wire this to resolve the approval Promise.
+  
+  **Reference**: CLI implementation at `apps/cli/src/utils/approval.ts:63-108`. Desktop implementation at `apps/desktop/hooks/use-agent-session.tsx:134-194` (polls for approvals via `poll_tool_approvals` Tauri command). Tauri desktop at `apps/code/hooks/use-chat-session.ts:993-1010` (responds via `respond_tool_approval`).
+
+  **Part B: `askQuestion` executor (~30 lines)**
+  Wire into `VscodeSessionHost.create()` via `defaultToolExecutors: { askQuestion: fn }`. The executor should:
+  1. Emit a ClineMessage with `type: "ask"`, `ask: "followup"` containing the question and options
+  2. Return a Promise that resolves with the user's text response when they reply in the webview
+  3. The webview's existing follow-up question UI already handles this message type
+  
+  **Reference**: CLI implementation at `apps/cli/src/runtime/run-interactive.ts:106` (`askQuestionInTerminal`).
+
+  **Part C: Pending prompts for follow-up messages (~20 lines)**
+  Update `SdkController.askResponse()` to use `delivery: "queue"` when the agent is running, so follow-up messages are queued instead of throwing. Subscribe to `pending_prompts` and `pending_prompt_submitted` events to show queued messages in the webview.
+  
+  **Reference**: CLI wiring at `apps/cli/src/runtime/run-interactive.ts:125-134`. Tauri desktop at `apps/code/host/runtime-bridge.ts:338-382`.
+
+- **Verification**: 
+  1. Start a task that uses tools → verify approval dialog appears → approve → tool executes
+  2. Start a task where the agent calls `ask_question` → verify question appears in chat → answer → agent continues
+  3. While agent is running, send a follow-up message → verify it queues and is processed after the current turn
+
+### S6-27: History messages not rendering when opened (S6-6 still broken)
+- **Status**: 🔴 Blocker
+- **Description**: Despite three fixes applied to `showTaskWithId()` (flash-back prevention, partial stream push, path mismatch fix), clicking a history item still does not render the task's messages in the chat view. The chat view opens but shows no messages.
+- **Root cause (investigation needed)**: The three fixes addressed:
+  1. ✅ Flash-back to welcome screen (race condition in `clearTask()`)
+  2. ✅ Messages pushed via both state update and partial message stream
+  3. ✅ Path mismatch between `readUiMessages` and `saveClineMessages`
+  
+  But messages still don't render. Possible remaining causes:
+  - **Messages not being saved at all**: The `debouncedSaveClineMessages()` may not be flushing before the task ends. Check if `ui_messages.json` actually exists on disk after a task completes.
+  - **`getSavedClineMessages()` returning empty**: The `HostProvider.globalStorageFsPath` may not be set correctly in the debug harness environment. Log the actual path being read.
+  - **Webview not processing loaded messages**: The partial message stream push in `showTaskWithId()` may not be reaching the webview if the gRPC stream isn't connected yet when the messages are pushed.
+  - **State update timing**: The `getStateToPostToWebview()` may be called before `messageStateHandler` has the loaded messages, or the webview may be ignoring the state update.
+
+- **Debugging steps**:
+  1. After a task completes, check if `ui_messages.json` exists: `find ~/.cline -name "ui_messages.json" -newer /tmp/test-marker 2>/dev/null` (create marker file before task)
+  2. Also check the VSCode extension storage path: use debug harness `ext.evaluate` to log `HostProvider.get().globalStorageFsPath`
+  3. In `showTaskWithId()`, add logging for: (a) the path being read, (b) number of messages loaded, (c) whether `pushMessageToWebview` succeeds
+  4. In the webview, check if the partial message handler receives the pushed messages (add console.log in `ExtensionStateContext.tsx`)
+
+- **Fix**: Depends on root cause found during debugging.
+- **Verification**: Complete a task → click away → click back on the task in history → verify all messages render.
+
 ---
 
 ## Priority & Next Steps
 
-**Recommended next issue: S6-5 (view transition on message send)**
+**Current state (updated 2026-04-16)**: Inference works end-to-end. New chats display and do inference. Streaming is functional but could be smoother. History messages still don't render when opened.
 
-This is the highest-priority blocker because:
-1. **Unblocks testing**: Once the webview switches to the chat view on message send, we can visually verify inference output, tool calls, and message rendering (S6-12, S6-16).
-2. **Likely fixes S6-6**: The view transition logic for new tasks and history item clicks likely shares a common root cause — the webview's navigation state (`currentTaskItem`, `clineMessages`) not being set correctly in the state payload.
-3. **Investigation approach**: Compare `getStateToPostToWebview()` output on this branch vs `origin/main`. The key fields are `currentTaskItem` (triggers view switch) and `clineMessages` (populates the chat). The classic extension's `newTask` gRPC handler returns the task ID, and the webview uses the subsequent state update to switch views.
+### 🔴 Top Priority: S6-27 — History messages not rendering
+
+Three fixes have been applied but the issue persists. Need to debug with the harness to find the remaining root cause. See debugging steps in S6-27.
+
+### 🔴 Second Priority: S6-26 — Pending prompts / tool approval / ask_question
+
+The SDK's three user-interaction mechanisms are not wired in. Without `requestToolApproval`, non-auto-approved tools are silently denied. Without `askQuestion`, the agent can't ask clarifying questions. Without pending prompts, follow-up messages during a running task will fail.
+
+### 🔴 Third Priority: S6-18 — Missing API key shows error instead of login prompt
+
+When not logged in with the "cline" provider, the user sees a raw error instead of a login prompt. This blocks the first-run experience.
+
+### 🟡 Lower Priority:
+- S6-19: History deletion UI doesn't refresh
+- S6-17: Cancel button state
+- S6-20: MCP tools panel empty
+- S6-2: OCA and Codex OAuth flows not yet verified
+- S6-7: Credits/payment history don't load immediately
 
 <!-- Template:
 ### [ID] Title
