@@ -14,6 +14,8 @@ import type {
 import {
 	createEnterprisePlugin,
 	createEnterpriseRpcHandlers,
+	createEnterpriseSessionMessagesArtifactUploader,
+	ENTERPRISE_SESSION_BLOB_UPLOAD_METADATA_KEY,
 	FileEnterpriseBundleStore,
 	normalizeBundleTelemetry,
 	prepareEnterpriseCoreIntegration,
@@ -213,6 +215,18 @@ describe("sdk-enterprise", () => {
 						version: "1",
 						remoteConfig: {
 							version: "v1",
+							enterpriseTelemetry: {
+								promptUploading: {
+									enabled: true,
+									type: "s3_access_keys",
+									s3AccessSettings: {
+										bucket: "enterprise-prompts",
+										accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+										secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+										region: "us-east-1",
+									},
+								},
+							},
 							globalRules: [
 								{
 									alwaysEnabled: true,
@@ -256,6 +270,18 @@ describe("sdk-enterprise", () => {
 						},
 						remoteConfig: {
 							version: "v1",
+							enterpriseTelemetry: {
+								promptUploading: {
+									enabled: true,
+									type: "s3_access_keys",
+									s3AccessSettings: {
+										bucket: "enterprise-prompts",
+										accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+										secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+										region: "us-east-1",
+									},
+								},
+							},
 							globalRules: [
 								{
 									alwaysEnabled: true,
@@ -317,9 +343,209 @@ describe("sdk-enterprise", () => {
 			expect(startInput.config.extensions).toHaveLength(1);
 			expect(startInput.userInstructionWatcher).toBeUndefined();
 			expect(startInput.config.telemetry).toBeDefined();
+			expect(startInput.config.sessionId).toBeDefined();
+			expect(startInput.sessionMetadata).toMatchObject({
+				[ENTERPRISE_SESSION_BLOB_UPLOAD_METADATA_KEY]: {
+					version: 1,
+					storage: {
+						adapterType: "s3",
+						bucket: "enterprise-prompts",
+					},
+				},
+			});
+			expect(startInput.sessionMetadata).not.toMatchObject({
+				[ENTERPRISE_SESSION_BLOB_UPLOAD_METADATA_KEY]: {
+					storage: {
+						accessKeyId: expect.any(String),
+						secretAccessKey: expect.any(String),
+					},
+				},
+			});
 		} finally {
 			await integration.dispose();
 		}
+	});
+
+	it("requires an explicit enabled flag before prompt uploads are configured", async () => {
+		const workspacePath = await createTempWorkspace();
+		const integration = await prepareEnterpriseCoreIntegration({
+			workspacePath,
+			controlPlane: {
+				name: "integration",
+				async fetchBundle() {
+					return {
+						source: "integration",
+						version: "1",
+						remoteConfig: {
+							version: "v1",
+							enterpriseTelemetry: {
+								promptUploading: {
+									type: "s3_access_keys",
+									s3AccessSettings: {
+										bucket: "enterprise-prompts",
+										accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+										secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+										region: "us-east-1",
+									},
+								},
+							},
+						},
+					};
+				},
+			},
+		});
+
+		try {
+			const startInput = integration.applyToStartSessionInput({
+				config: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-6",
+					apiKey: "test",
+					cwd: workspacePath,
+					workspaceRoot: workspacePath,
+					systemPrompt: "You are concise.",
+					enableTools: true,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+				prompt: "hello",
+				interactive: false,
+			});
+
+			expect(startInput.sessionMetadata).toBeUndefined();
+		} finally {
+			await integration.dispose();
+		}
+	});
+
+	it("uploads messages to blob storage with in-memory credentials only", async () => {
+		const writes: Array<{ path: string; value: string }> = [];
+		const uploader = createEnterpriseSessionMessagesArtifactUploader();
+		const originalFetch = globalThis.fetch;
+		globalThis.fetch = (async (input, init) => {
+			writes.push({
+				path: String(input),
+				value: Buffer.from(
+					(init?.body as Uint8Array | undefined) ?? [],
+				).toString("utf8"),
+			});
+			return new Response(null, { status: 201 });
+		}) as typeof fetch;
+
+		const workspacePath = await createTempWorkspace();
+		const integration = await prepareEnterpriseCoreIntegration({
+			workspacePath,
+			controlPlane: {
+				name: "integration",
+				async fetchBundle() {
+					return {
+						source: "integration",
+						version: "1",
+						remoteConfig: {
+							version: "v1",
+							enterpriseTelemetry: {
+								promptUploading: {
+									enabled: true,
+									type: "azure_access_keys",
+									azureAccessSettings: {
+										bucket: "chat-history",
+										accessKeyId: "storage-account",
+										secretAccessKey: Buffer.from("secret").toString("base64"),
+										endpoint: "https://storage-account.blob.core.windows.net",
+									},
+								},
+							},
+						},
+					};
+				},
+			},
+		});
+
+		try {
+			const startInput = integration.applyToStartSessionInput({
+				config: {
+					sessionId: "session-123",
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-6",
+					apiKey: "test",
+					cwd: workspacePath,
+					workspaceRoot: workspacePath,
+					systemPrompt: "You are concise.",
+					enableTools: true,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+				prompt: "hello",
+				interactive: false,
+			});
+			await uploader.uploadMessagesFile({
+				sessionId: "session-123",
+				path: "/tmp/session-123.messages.json",
+				contents: '{"messages":[]}\n',
+				row: {
+					sessionId: "session-123",
+					source: "cli",
+					pid: process.pid,
+					startedAt: "2026-04-10T19:00:00.000Z",
+					status: "running",
+					statusLock: 0,
+					interactive: false,
+					provider: "anthropic",
+					model: "claude-sonnet-4-6",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					isSubagent: false,
+					transcriptPath: "/tmp/session-123.log",
+					hookPath: "/tmp/session-123.hooks.jsonl",
+					messagesPath: "/tmp/session-123.messages.json",
+					updatedAt: "2026-04-10T19:00:00.000Z",
+					metadata: startInput.sessionMetadata,
+				},
+			});
+
+			expect(writes).toHaveLength(1);
+			expect(writes[0]?.path).toContain(
+				"/chat-history/sessions/unknown/session-123/messages.json",
+			);
+			expect(writes[0]?.value).toContain('"messages":[]');
+
+			await integration.dispose();
+			await uploader.uploadMessagesFile({
+				sessionId: "session-123",
+				path: "/tmp/session-123.messages.json",
+				contents: '{"messages":[{"role":"user"}]}\n',
+				row: {
+					sessionId: "session-123",
+					source: "cli",
+					pid: process.pid,
+					startedAt: "2026-04-10T19:00:00.000Z",
+					status: "running",
+					statusLock: 0,
+					interactive: false,
+					provider: "anthropic",
+					model: "claude-sonnet-4-6",
+					cwd: "/tmp/project",
+					workspaceRoot: "/tmp/project",
+					enableTools: true,
+					enableSpawn: false,
+					enableTeams: false,
+					isSubagent: false,
+					transcriptPath: "/tmp/session-123.log",
+					hookPath: "/tmp/session-123.hooks.jsonl",
+					messagesPath: "/tmp/session-123.messages.json",
+					updatedAt: "2026-04-10T19:00:00.000Z",
+					metadata: startInput.sessionMetadata,
+				},
+			});
+		} finally {
+			globalThis.fetch = originalFetch;
+			await integration.dispose();
+		}
+
+		expect(writes).toHaveLength(1);
 	});
 
 	it("creates enterprise rpc handlers for authenticate, sync, and status", async () => {

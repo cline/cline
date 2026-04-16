@@ -153,21 +153,20 @@ export const S3AccessKeySettingsSchema = z.object({
 	region: z.string().optional(),
 	endpoint: z.string().optional(),
 	accountId: z.string().optional(),
-	intervalMs: z.number().optional(),
-	maxRetries: z.number().optional(),
-	batchSize: z.number().optional(),
-	maxQueueSize: z.number().optional(),
-	maxFailedAgeMs: z.number().optional(),
-	backfillEnabled: z.boolean().optional(),
 });
 
 export const PromptUploadingSchema = z.object({
 	enabled: z.boolean().optional(),
 	type: z
-		.union([z.literal("s3_access_keys"), z.literal("r2_access_keys")])
+		.union([
+			z.literal("s3_access_keys"),
+			z.literal("r2_access_keys"),
+			z.literal("azure_access_keys"),
+		])
 		.optional(),
 	s3AccessSettings: S3AccessKeySettingsSchema.optional(),
 	r2AccessSettings: S3AccessKeySettingsSchema.optional(),
+	azureAccessSettings: S3AccessKeySettingsSchema.optional(),
 });
 
 export const EnterpriseTelemetrySchema = z.object({

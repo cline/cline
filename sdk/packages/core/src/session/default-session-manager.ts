@@ -386,6 +386,7 @@ export class DefaultSessionManager implements SessionManager {
 		const active: ActiveSession = {
 			sessionId,
 			config: configWithProvider,
+			sessionMetadata: startInput.sessionMetadata,
 			source,
 			startedAt,
 			pendingPrompt: manifest.prompt,
@@ -861,6 +862,7 @@ export class DefaultSessionManager implements SessionManager {
 			enableSpawn: session.config.enableSpawnAgent,
 			enableTeams: session.config.enableAgentTeams,
 			prompt: session.pendingPrompt,
+			metadata: session.sessionMetadata,
 			startedAt: session.startedAt,
 		})) as RootSessionArtifacts;
 	}

@@ -44,6 +44,7 @@ import {
 } from "./utils/helpers";
 import type {
 	PersistedSessionUpdateInput,
+	SessionMessagesArtifactUploader,
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
 } from "./utils/types";
@@ -68,12 +69,19 @@ export class UnifiedSessionPersistenceService {
 		string
 	>();
 	protected readonly artifacts: SessionArtifacts;
+	private readonly messagesArtifactUploader?: SessionMessagesArtifactUploader;
 	private static readonly STALE_REASON = "failed_external_process_exit";
 	private static readonly STALE_SOURCE = "stale_session_reconciler";
 	private static readonly TEAM_HEARTBEAT_LOG_INTERVAL_MS = 30_000;
 
-	constructor(private readonly adapter: SessionPersistenceAdapter) {
+	constructor(
+		private readonly adapter: SessionPersistenceAdapter,
+		options: {
+			messagesArtifactUploader?: SessionMessagesArtifactUploader;
+		} = {},
+	) {
 		this.artifacts = new SessionArtifacts(() => this.ensureSessionsDir());
+		this.messagesArtifactUploader = options.messagesArtifactUploader;
 	}
 
 	ensureSessionsDir(): string {
@@ -561,7 +569,25 @@ export class UnifiedSessionPersistenceService {
 			messages: normalizedMessages,
 			systemPrompt,
 		});
-		writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
+		const contents = `${JSON.stringify(payload, null, 2)}\n`;
+		writeFileSync(path, contents, "utf8");
+		if (!this.messagesArtifactUploader) {
+			return;
+		}
+		try {
+			const row = await this.adapter.getSession(sessionId);
+			await this.messagesArtifactUploader.uploadMessagesFile({
+				sessionId,
+				path,
+				contents,
+				row,
+			});
+		} catch (error) {
+			console.warn(
+				`Failed to upload persisted session messages for ${sessionId}`,
+				error,
+			);
+		}
 	}
 
 	// ── Subagent status ───────────────────────────────────────────────

@@ -12,6 +12,11 @@
 				"../packages/core/src/*/index.ts"
 			],
 			"@clinebot/core/telemetry": ["../packages/core/src/telemetry/index.ts"],
+			"@clinebot/enterprise": ["../packages/enterprise/src/index.ts"],
+			"@clinebot/enterprise/*": [
+				"../packages/enterprise/src/*",
+				"../packages/enterprise/src/*/index.ts"
+			],
 			"@clinebot/llms": ["../packages/llms/src/index.ts"],
 			"@clinebot/rpc": ["../packages/rpc/src/index.ts"],
 			"@clinebot/rpc/*": [

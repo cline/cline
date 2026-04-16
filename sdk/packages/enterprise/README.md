@@ -30,6 +30,7 @@ Provider-specific code ends at the adapter boundary. `@clinebot/core` loads mate
 ```ts
 import { ClineCore } from "@clinebot/core";
 import {
+  createEnterpriseSessionMessagesArtifactUploader,
   createWorkosControlPlaneAdapter,
   createWorkosIdentityAdapter,
   prepareEnterpriseCoreIntegration,
@@ -37,6 +38,7 @@ import {
 
 const runtime = await ClineCore.create({
   backendMode: "local",
+  messagesArtifactUploader: createEnterpriseSessionMessagesArtifactUploader(),
   prepare: async (input) =>
     prepareEnterpriseCoreIntegration({
       workspacePath: input.config.workspaceRoot ?? input.config.cwd,
@@ -73,6 +75,7 @@ await runtime.start({
 This keeps enterprise as a materialization layer:
 - enterprise syncs and writes managed files under the workspace
 - core discovers those files through its normal instruction loader and consumes extensions and telemetry through a generic bootstrap seam
+- when remote config explicitly sets `enterpriseTelemetry.promptUploading.enabled: true`, the enterprise bootstrap stamps non-sensitive per-session upload metadata and `createEnterpriseSessionMessagesArtifactUploader()` mirrors persisted `messages.json` files into the configured blob store using in-memory credentials scoped to the live session
 - there is no enterprise-specific in-memory prompt path inside core
 
 To run the sync step explicitly before constructing the runtime, use `prepareEnterpriseRuntime`:
@@ -170,6 +173,8 @@ Three file-based store implementations are provided out of the box. Each can be 
 | Token store | `EnterpriseTokenStore` | `FileEnterpriseTokenStore` |
 | Bundle cache | `EnterpriseBundleStore` | `FileEnterpriseBundleStore` |
 | Artifact store | `EnterpriseManagedArtifactStore` | `FileSystemEnterpriseManagedArtifactStore` |
+
+For remote chat-history uploads, `createEnterpriseSessionMessagesArtifactUploader()` builds an uploader from enterprise session metadata written by `prepareEnterpriseCoreIntegration(...)`. When the remote bundle includes `enterpriseTelemetry.promptUploading`, core can mirror persisted `messages.json` files into S3, R2, or Azure Blob Storage by passing that uploader to `ClineCore.create(...)`. Uploading is explicit opt-in: `promptUploading.enabled` must be `true`, and persisted session metadata contains only non-secret routing details while access credentials remain in memory for the lifetime of the active session.
 
 ## WorkOS Provider
 

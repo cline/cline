@@ -412,6 +412,7 @@ export type { SessionManifest } from "./session/session-manifest";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
+	SessionRow,
 } from "./session/session-service";
 export { CoreSessionService } from "./session/session-service";
 export {
@@ -419,6 +420,7 @@ export {
 	SqliteRpcSessionBackend,
 	type SqliteRpcSessionBackendOptions,
 } from "./session/sqlite-rpc-session-backend";
+export type { SessionMessagesArtifactUploader } from "./session/utils/types";
 export {
 	accumulateUsageTotals,
 	createInitialAccumulatedUsage,

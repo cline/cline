@@ -19,6 +19,7 @@ import {
 	flushCliLoggerAdapters,
 } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
+import { createCliMessagesArtifactUploader } from "../utils/enterprise";
 import {
 	buildCliSubcommandCommand,
 	buildInternalCliEnv,
@@ -293,7 +294,9 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 	const RPC_SESSION_COMPONENT = "rpc-runtime-session";
 	const processId = process.pid.toString();
 	const sessionManager = new DefaultSessionManager({
-		sessionService: new CoreSessionService(new SqliteSessionStore()),
+		sessionService: new CoreSessionService(new SqliteSessionStore(), {
+			messagesArtifactUploader: createCliMessagesArtifactUploader(),
+		}),
 	});
 	const sessionModes = new Map<string, "act" | "plan" | "yolo">();
 	const activeSessions = new Set<string>();

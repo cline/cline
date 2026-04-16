@@ -13,6 +13,7 @@ import type {
 } from "./persistence-service";
 import { UnifiedSessionPersistenceService } from "./persistence-service";
 import type { SessionRow } from "./session-service";
+import type { SessionMessagesArtifactUploader } from "./utils/types";
 
 interface FileSessionIndex {
 	version: 1;
@@ -270,8 +271,13 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 }
 
 export class FileSessionService extends UnifiedSessionPersistenceService {
-	constructor(sessionsDir?: string) {
-		super(new FileSessionPersistenceAdapter(sessionsDir));
+	constructor(
+		sessionsDir?: string,
+		options: {
+			messagesArtifactUploader?: SessionMessagesArtifactUploader;
+		} = {},
+	) {
+		super(new FileSessionPersistenceAdapter(sessionsDir), options);
 	}
 
 	override ensureSessionsDir(): string {

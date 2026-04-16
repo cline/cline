@@ -4,6 +4,7 @@ import {
 } from "@clinebot/core";
 import {
 	createClineTelemetryServiceConfig,
+	createSessionId,
 	type ITelemetryService,
 	type OpenTelemetryClientConfig,
 } from "@clinebot/shared";
@@ -12,6 +13,12 @@ import type {
 	PreparedEnterpriseRuntime,
 	PrepareEnterpriseCoreIntegrationOptions,
 } from "../contracts";
+import {
+	buildEnterpriseSessionBlobUploadMetadata,
+	clearEnterpriseSessionBlobUpload,
+	ENTERPRISE_SESSION_BLOB_UPLOAD_METADATA_KEY,
+	registerEnterpriseSessionBlobUpload,
+} from "../storage";
 import { prepareEnterpriseRuntime } from "./prepare";
 
 function createTelemetryService(
@@ -41,6 +48,13 @@ export async function prepareEnterpriseCoreIntegration(
 	const prepared = await prepareEnterpriseRuntime(options);
 	const telemetry = createTelemetryService(prepared, options);
 	const extensions = [prepared.pluginDefinition];
+	const userDistinctId =
+		prepared.claims?.subject ?? prepared.identity?.claims?.subject;
+	const blobUploadMetadataTemplate = buildEnterpriseSessionBlobUploadMetadata(
+		prepared.bundle?.remoteConfig,
+		userDistinctId,
+	);
+	let registeredSessionId: string | undefined;
 
 	return {
 		prepared,
@@ -48,15 +62,41 @@ export async function prepareEnterpriseCoreIntegration(
 		telemetry,
 		applyToStartSessionInput(input: StartSessionInput): StartSessionInput {
 			const existingExtensions = input.config.extensions ?? [];
+			const sessionId = blobUploadMetadataTemplate
+				? input.config.sessionId?.trim() || createSessionId()
+				: input.config.sessionId;
+			if (sessionId && blobUploadMetadataTemplate) {
+				registeredSessionId = sessionId;
+			}
+			const blobUploadMetadata =
+				sessionId && blobUploadMetadataTemplate
+					? registerEnterpriseSessionBlobUpload(
+							sessionId,
+							prepared.bundle?.remoteConfig,
+							userDistinctId,
+						)
+					: undefined;
+			const sessionMetadata = blobUploadMetadata
+				? {
+						...(input.sessionMetadata ?? {}),
+						[ENTERPRISE_SESSION_BLOB_UPLOAD_METADATA_KEY]: blobUploadMetadata,
+					}
+				: input.sessionMetadata;
 			return {
 				...input,
+				...(sessionMetadata ? { sessionMetadata } : {}),
 				config: {
 					...input.config,
+					...(sessionId ? { sessionId } : {}),
 					extensions: [...existingExtensions, ...extensions],
 					telemetry: telemetry ?? input.config.telemetry,
 				},
 			};
 		},
-		async dispose(): Promise<void> {},
+		async dispose(): Promise<void> {
+			if (registeredSessionId) {
+				clearEnterpriseSessionBlobUpload(registeredSessionId);
+			}
+		},
 	};
 }

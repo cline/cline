@@ -12,6 +12,7 @@ import {
 	type SessionHost,
 } from "./session/session-host";
 import type { StartSessionInput } from "./session/session-manager";
+import type { SessionMessagesArtifactUploader } from "./session/utils/types";
 import type { ToolExecutors } from "./tools";
 
 /** Advanced options for connecting to or spawning the Cline RPC server. */
@@ -89,6 +90,11 @@ export interface ClineCoreOptions {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
+	/**
+	 * Optional hook invoked after `messages.json` is persisted to disk.
+	 * Consumers can use this to mirror session transcripts into remote storage.
+	 */
+	messagesArtifactUploader?: SessionMessagesArtifactUploader;
 	/**
 	 * An already-constructed session backend to use instead of resolving one automatically.
 	 * Intended for testing or embedding a custom persistence layer.

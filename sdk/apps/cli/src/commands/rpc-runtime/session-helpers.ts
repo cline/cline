@@ -16,6 +16,7 @@ import {
 } from "@clinebot/core";
 import { createCliLoggerAdapter } from "../../logging/adapter";
 import { resolveSystemPrompt } from "../../runtime/prompt";
+import { resolveCliSessionMetadata } from "../../utils/enterprise";
 import { getCliTelemetryService } from "../../utils/telemetry";
 
 function sanitizeFilename(name: string, index: number): string {
@@ -110,6 +111,7 @@ export async function buildSessionStartInput(input: {
 		component: "session-runtime",
 		runtimeConfig: config.logger,
 	});
+	const sessionMetadata = await resolveCliSessionMetadata(input.sessionId);
 
 	return {
 		mode,
@@ -117,6 +119,7 @@ export async function buildSessionStartInput(input: {
 			source: config.source || SessionSource.CLI,
 			interactive: config.interactive !== false,
 			initialMessages: input.initialMessages,
+			...(sessionMetadata ? { sessionMetadata } : {}),
 			config: {
 				...(input.sessionId ? { sessionId: input.sessionId } : {}),
 				providerId,

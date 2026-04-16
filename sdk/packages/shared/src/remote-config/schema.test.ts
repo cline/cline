@@ -46,69 +46,9 @@ describe("Remote Config Schema", () => {
 				region: "us-east-1",
 				endpoint: "https://s3.us-east-1.amazonaws.com",
 				accountId: "123456789012",
-				intervalMs: 30000,
-				maxRetries: 3,
-				batchSize: 100,
-				maxQueueSize: 1000,
-				maxFailedAgeMs: 86400000,
-				backfillEnabled: true,
 			};
 			const result = S3AccessKeySettingsSchema.parse(fullSettings);
 			expect(result).to.deep.equal(fullSettings);
-		});
-
-		it("should accept S3 settings with queue configuration fields", () => {
-			const settings = {
-				bucket: "my-bucket",
-				accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-				secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-				intervalMs: 60000,
-				maxRetries: 5,
-				batchSize: 50,
-				maxQueueSize: 500,
-				maxFailedAgeMs: 172800000,
-				backfillEnabled: false,
-			};
-			const result = S3AccessKeySettingsSchema.parse(settings);
-			expect(result.intervalMs).to.equal(60000);
-			expect(result.maxRetries).to.equal(5);
-			expect(result.batchSize).to.equal(50);
-			expect(result.maxQueueSize).to.equal(500);
-			expect(result.maxFailedAgeMs).to.equal(172800000);
-			expect(result.backfillEnabled).to.equal(false);
-		});
-
-		it("should reject S3 settings with invalid intervalMs type", () => {
-			expect(() =>
-				S3AccessKeySettingsSchema.parse({
-					bucket: "my-bucket",
-					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-					intervalMs: "30000",
-				}),
-			).to.throw();
-		});
-
-		it("should reject S3 settings with invalid maxRetries type", () => {
-			expect(() =>
-				S3AccessKeySettingsSchema.parse({
-					bucket: "my-bucket",
-					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-					maxRetries: "3",
-				}),
-			).to.throw();
-		});
-
-		it("should reject S3 settings with invalid backfillEnabled type", () => {
-			expect(() =>
-				S3AccessKeySettingsSchema.parse({
-					bucket: "my-bucket",
-					accessKeyId: "AKIAIOSFODNN7EXAMPLE",
-					secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
-					backfillEnabled: "true",
-				}),
-			).to.throw();
 		});
 
 		it("should reject S3 settings with missing bucket", () => {
@@ -179,12 +119,6 @@ describe("Remote Config Schema", () => {
 					region: "us-west-2",
 					endpoint: "https://s3.us-west-2.amazonaws.com",
 					accountId: "123456789012",
-					intervalMs: 30000,
-					maxRetries: 3,
-					batchSize: 100,
-					maxQueueSize: 1000,
-					maxFailedAgeMs: 86400000,
-					backfillEnabled: true,
 				},
 			};
 			const result = PromptUploadingSchema.parse(fullConfig);
@@ -193,12 +127,6 @@ describe("Remote Config Schema", () => {
 			expect(result.type).to.equal("s3_access_keys");
 			expect(result.s3AccessSettings?.bucket).to.equal("prompt-uploads-bucket");
 			expect(result.s3AccessSettings?.region).to.equal("us-west-2");
-			expect(result.s3AccessSettings?.intervalMs).to.equal(30000);
-			expect(result.s3AccessSettings?.maxRetries).to.equal(3);
-			expect(result.s3AccessSettings?.batchSize).to.equal(100);
-			expect(result.s3AccessSettings?.maxQueueSize).to.equal(1000);
-			expect(result.s3AccessSettings?.maxFailedAgeMs).to.equal(86400000);
-			expect(result.s3AccessSettings?.backfillEnabled).to.equal(true);
 		});
 
 		it("should accept s3AccessSettings without optional fields", () => {
@@ -216,12 +144,6 @@ describe("Remote Config Schema", () => {
 			expect(result.s3AccessSettings?.region).to.be.undefined;
 			expect(result.s3AccessSettings?.endpoint).to.be.undefined;
 			expect(result.s3AccessSettings?.accountId).to.be.undefined;
-			expect(result.s3AccessSettings?.intervalMs).to.be.undefined;
-			expect(result.s3AccessSettings?.maxRetries).to.be.undefined;
-			expect(result.s3AccessSettings?.batchSize).to.be.undefined;
-			expect(result.s3AccessSettings?.maxQueueSize).to.be.undefined;
-			expect(result.s3AccessSettings?.maxFailedAgeMs).to.be.undefined;
-			expect(result.s3AccessSettings?.backfillEnabled).to.be.undefined;
 		});
 
 		it("should reject s3AccessSettings with missing required fields", () => {
@@ -983,6 +905,57 @@ describe("Remote Config Schema", () => {
 	});
 
 	describe("Type Inference", () => {
+		it("accepts azure prompt uploading settings", () => {
+			const config: RemoteConfig = {
+				version: "v1",
+				enterpriseTelemetry: {
+					promptUploading: {
+						enabled: true,
+						type: "azure_access_keys",
+						azureAccessSettings: {
+							bucket: "chat-history",
+							accessKeyId: "storage-account",
+							secretAccessKey: Buffer.from("secret").toString("base64"),
+							endpoint: "https://storage-account.blob.core.windows.net",
+						},
+					},
+				},
+			};
+
+			const result = RemoteConfigSchema.parse(config);
+			expect(result.enterpriseTelemetry?.promptUploading?.type).to.equal(
+				"azure_access_keys",
+			);
+			expect(
+				result.enterpriseTelemetry?.promptUploading?.azureAccessSettings
+					?.bucket,
+			).to.equal("chat-history");
+		});
+
+		it("allows prompt uploading settings without an explicit enabled flag", () => {
+			const config: RemoteConfig = {
+				version: "v1",
+				enterpriseTelemetry: {
+					promptUploading: {
+						type: "s3_access_keys",
+						s3AccessSettings: {
+							bucket: "enterprise-prompts",
+							accessKeyId: "AKIAIOSFODNN7EXAMPLE",
+							secretAccessKey: "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+						},
+					},
+				},
+			};
+
+			const result = RemoteConfigSchema.parse(config);
+			expect(result.enterpriseTelemetry?.promptUploading?.enabled).to.equal(
+				undefined,
+			);
+			expect(
+				result.enterpriseTelemetry?.promptUploading?.s3AccessSettings?.bucket,
+			).to.equal("enterprise-prompts");
+		});
+
 		it("should properly infer RemoteConfig type", () => {
 			const config: RemoteConfig = {
 				version: "v1",

@@ -16,6 +16,7 @@ export interface StartSessionInput {
 	source?: SessionSource;
 	prompt?: string;
 	interactive?: boolean;
+	sessionMetadata?: Record<string, unknown>;
 	initialMessages?: LlmsProviders.Message[];
 	userImages?: string[];
 	userFiles?: string[];

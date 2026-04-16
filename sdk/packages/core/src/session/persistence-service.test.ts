@@ -1,7 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SqliteSessionStore } from "../storage/sqlite-session-store";
 import { SessionSource } from "../types/common";
 import { CoreSessionService } from "./session-service";
@@ -199,6 +199,62 @@ describe("UnifiedSessionPersistenceService", () => {
 			join(sessionsDir, rootSessionId, "java-haiku-agent__"),
 		);
 		expect(row?.transcriptPath).toMatch(/\.log$/);
+	});
+
+	it("uploads messages after persisting them when a messages uploader is configured", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "messages-upload-"));
+		tempDirs.push(sessionsDir);
+
+		const store = new SqliteSessionStore({ sessionsDir });
+		stores.push(store);
+		const uploadMessagesFile = vi.fn(async () => {});
+		const service = new CoreSessionService(store, {
+			messagesArtifactUploader: {
+				uploadMessagesFile,
+			},
+		});
+		const sessionId = "root-upload-session";
+		await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: false,
+			provider: "anthropic",
+			model: "claude-sonnet-4-6",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			prompt: "hello",
+			metadata: {
+				blobUpload: true,
+			},
+			startedAt: "2026-04-10T19:00:00.000Z",
+		});
+
+		await service.persistSessionMessages(sessionId, [
+			{
+				role: "user",
+				content: "hello",
+			},
+		]);
+
+		expect(uploadMessagesFile).toHaveBeenCalledTimes(1);
+		expect(uploadMessagesFile).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				path: expect.stringContaining(`${sessionId}.messages.json`),
+				contents: expect.stringContaining('"role": "user"'),
+				row: expect.objectContaining({
+					sessionId,
+					metadata: {
+						blobUpload: true,
+						title: "hello",
+					},
+				}),
+			}),
+		);
 	});
 
 	it("deletes the full root session directory even when artifact paths are stale", async () => {

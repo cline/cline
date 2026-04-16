@@ -31,6 +31,7 @@
         "@chat-adapter/slack": "^4.23.0",
         "@chat-adapter/telegram": "^4.23.0",
         "@chat-adapter/whatsapp": "^4.23.0",
+        "@clinebot/enterprise": "workspace:*",
         "chat": "^4.23.0",
         "commander": "^14.0.3",
         "ink": "^6.8.0",
@@ -44,6 +45,7 @@
       },
       "devDependencies": {
         "@clinebot/core": "workspace:*",
+        "@clinebot/enterprise": "workspace:*",
         "@clinebot/rpc": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
@@ -294,6 +296,7 @@
         "@clinebot/agents": "workspace:*",
         "@clinebot/core": "workspace:*",
         "@clinebot/shared": "workspace:*",
+        "aws4fetch": "^1.0.20",
       },
     },
     "packages/llms": {

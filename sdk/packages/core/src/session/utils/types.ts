@@ -9,6 +9,7 @@ import type { RootSessionArtifacts, SessionRow } from "../session-service";
 export type ActiveSession = {
 	sessionId: string;
 	config: CoreSessionConfig;
+	sessionMetadata?: Record<string, unknown>;
 	artifacts?: RootSessionArtifacts;
 	source: SessionSource;
 	startedAt: string;
@@ -94,4 +95,13 @@ export interface SessionPersistenceAdapter {
 		rootSessionId: string,
 		parentAgentId: string,
 	): Promise<string | undefined>;
+}
+
+export interface SessionMessagesArtifactUploader {
+	uploadMessagesFile(input: {
+		sessionId: string;
+		path: string;
+		contents: string;
+		row?: SessionRow;
+	}): Promise<void>;
 }

@@ -20,6 +20,7 @@ import type {
 import { UnifiedSessionPersistenceService } from "./persistence-service";
 import { nowIso } from "./session-artifacts";
 import type { SessionManifest } from "./session-manifest";
+import type { SessionMessagesArtifactUploader } from "./utils/types";
 
 export interface SessionRow {
 	sessionId: string;
@@ -623,8 +624,13 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 }
 
 export class CoreSessionService extends UnifiedSessionPersistenceService {
-	constructor(private readonly store: SqliteSessionStore) {
-		super(new LocalSessionPersistenceAdapter(store));
+	constructor(
+		private readonly store: SqliteSessionStore,
+		options: {
+			messagesArtifactUploader?: SessionMessagesArtifactUploader;
+		} = {},
+	) {
+		super(new LocalSessionPersistenceAdapter(store), options);
 	}
 
 	createRootSession(input: CreateRootSessionInput): void {

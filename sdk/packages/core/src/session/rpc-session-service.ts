@@ -6,6 +6,7 @@ import type {
 } from "./persistence-service";
 import { UnifiedSessionPersistenceService } from "./persistence-service";
 import type { SessionRow } from "./session-service";
+import type { SessionMessagesArtifactUploader } from "./utils/types";
 
 // ── Adapter ──────────────────────────────────────────────────────────
 
@@ -79,6 +80,7 @@ class RpcSessionPersistenceAdapter implements SessionPersistenceAdapter {
 export interface RpcCoreSessionServiceOptions {
 	address?: string;
 	sessionsDir: string;
+	messagesArtifactUploader?: SessionMessagesArtifactUploader;
 }
 
 export class RpcCoreSessionService extends UnifiedSessionPersistenceService {
@@ -91,7 +93,9 @@ export class RpcCoreSessionService extends UnifiedSessionPersistenceService {
 		const client = new RpcSessionClient({
 			address,
 		});
-		super(new RpcSessionPersistenceAdapter(client));
+		super(new RpcSessionPersistenceAdapter(client), {
+			messagesArtifactUploader: options.messagesArtifactUploader,
+		});
 		this.sessionsDirPath = options.sessionsDir;
 		this.client = client;
 		this.address = address;

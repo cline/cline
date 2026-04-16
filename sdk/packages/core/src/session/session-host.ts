@@ -175,6 +175,7 @@ function startRpcServerInBackground(
 
 async function tryConnectRpcBackend(
 	address: string,
+	options: ClineCoreOptions,
 ): Promise<RpcCoreSessionService | undefined> {
 	try {
 		const health = await getRpcServerHealth(address);
@@ -184,23 +185,28 @@ async function tryConnectRpcBackend(
 		return new RpcCoreSessionService({
 			address,
 			sessionsDir: resolveSessionDataDir(),
+			messagesArtifactUploader: options.messagesArtifactUploader,
 		});
 	} catch {
 		return undefined;
 	}
 }
 
-function createLocalBackend(): SessionBackend {
+function createLocalBackend(options: ClineCoreOptions): SessionBackend {
 	try {
 		const store = new SqliteSessionStore();
 		store.init();
-		return new CoreSessionService(store);
+		return new CoreSessionService(store, {
+			messagesArtifactUploader: options.messagesArtifactUploader,
+		});
 	} catch (error) {
 		console.warn(
 			"SQLite session persistence unavailable, falling back to file-based session storage.",
 			error,
 		);
-		return new FileSessionService();
+		return new FileSessionService(undefined, {
+			messagesArtifactUploader: options.messagesArtifactUploader,
+		});
 	}
 }
 
@@ -223,13 +229,13 @@ export async function resolveSessionBackend(
 
 	backendInitPromise = (async () => {
 		if (mode === "local") {
-			cachedBackend = createLocalBackend();
+			cachedBackend = createLocalBackend(options);
 			await reconcileDeadSessionsIfSupported(cachedBackend);
 			return cachedBackend;
 		}
 
 		let address = requestedAddress;
-		const existingRpcBackend = await tryConnectRpcBackend(address);
+		const existingRpcBackend = await tryConnectRpcBackend(address, options);
 		if (existingRpcBackend) {
 			logger?.log("Connected to existing RPC session backend", { address });
 			cachedBackend = existingRpcBackend;
@@ -267,7 +273,7 @@ export async function resolveSessionBackend(
 			}
 
 			for (let attempt = 0; attempt < attempts; attempt += 1) {
-				const rpcBackend = await tryConnectRpcBackend(address);
+				const rpcBackend = await tryConnectRpcBackend(address, options);
 				if (rpcBackend) {
 					logger?.log("Connected to ensured RPC session backend", {
 						address,
@@ -291,7 +297,7 @@ export async function resolveSessionBackend(
 			delayMs,
 			severity: "warn",
 		});
-		cachedBackend = createLocalBackend();
+		cachedBackend = createLocalBackend(options);
 		await reconcileDeadSessionsIfSupported(cachedBackend);
 		return cachedBackend;
 	})().finally(() => {
