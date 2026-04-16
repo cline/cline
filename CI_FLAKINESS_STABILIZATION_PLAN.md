@@ -7,7 +7,7 @@
  It is written to be handed directly to a development team. It explains:
 
  - what is failing,
- - why we believe it is flaky rather than a single deterministic regression,xx
+- why we believe it is flaky rather than a single deterministic regression,
  - what architectural direction we want to take to stabilize CI,
  - exactly what files and behaviors need to change,
  - how to verify that each change actually improves reliability.
@@ -402,8 +402,8 @@ The key design principle here is to distinguish between a correctness problem an
 
  ### Implementation checklist
 
- - [ ] Update the global-hook cwd test to use function syntax and set Windows timeout explicitly
- - [ ] Compare the timeout pattern with the nearby workspace-hook cwd test and keep them aligned
+- [x] Update the global-hook cwd test to use function syntax and set Windows timeout explicitly
+- [x] Compare the timeout pattern with the nearby workspace-hook cwd test and keep them aligned
  - [ ] Optionally extract a shared helper or convention comment for future hook tests
 
  ### Detailed developer instructions
@@ -445,6 +445,14 @@ This restraint is important. When a test flakes, it is tempting to modify the pr
  - [ ] Run on Windows if possible
  - [ ] Confirm the test still asserts the same cwd behavior
  - [ ] Confirm timeout failures disappear without masking genuine assertion failures
+
+Current implementation note:
+
+- The Windows timeout-budget code change for the global-hook cwd test has been made.
+- Targeted local verification is currently blocked by unrelated pre-existing repository test execution issues:
+  - direct TypeScript/Mocha invocation is currently tripping path-resolution problems in the unit-test harness,
+  - and the compiled test flow is currently blocked by unrelated TypeScript build failures in `updateSettings*` / `shell.ts`.
+- Because those failures are outside the scope of the hook-timeout change, this workstream should be treated as **implemented but awaiting full repo-level test verification once the unrelated test/build blockers are cleared**.
 
 ---
 
