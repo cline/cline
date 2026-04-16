@@ -64,6 +64,8 @@
 									"!@clinebot/agents/node",
 									"!@clinebot/agents/browser",
 									"!@clinebot/core/telemetry",
+									"!@clinebot/shared/browser",
+									"!@clinebot/shared/types",
 									"!@clinebot/shared/storage",
 									"!@clinebot/shared/db"
 								],
