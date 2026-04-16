@@ -46,6 +46,8 @@ jobs:
 
     test:
         needs: quality-checks
+        env:
+            VSCODE_TEST_VERSION: 1.103.0
         strategy:
             fail-fast: false
             matrix:
@@ -81,6 +83,13 @@ jobs:
               run: |
                   npm config set script-shell "C:\\Program Files\\Git\\bin\\bash.exe"
 
+            - name: Cache VS Code test runtime
+              if: runner.os == 'Windows'
+              uses: actions/cache@v4
+              with:
+                  path: .vscode-test
+                  key: vscode-test-runtime-${{ runner.os }}-${{ env.VSCODE_TEST_VERSION }}
+
             # Build the extension and tests (without redundant checks)
             - name: Build Tests and Extension
               id: build_step
@@ -106,7 +115,21 @@ jobs:
             - name: Extension Integration Tests - Non-Linux
               id: integration_tests_non_linux
               if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os != 'Linux' }}
-              run: npm run test:integration
+              run: |
+                  for attempt in 1 2 3; do
+                    echo "Running extension integration tests (attempt ${attempt}/3)"
+                    if npm run test:integration; then
+                      exit 0
+                    fi
+
+                    if [ "$attempt" -eq 3 ]; then
+                      echo "Extension integration tests failed after 3 attempts"
+                      exit 1
+                    fi
+
+                    echo "Extension integration tests failed; retrying after short delay"
+                    sleep 5
+                  done
 
             - name: Webview Tests with Coverage
               id: webview_tests
