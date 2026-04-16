@@ -128,8 +128,6 @@ export async function fetchUserRemoteConfig(): Promise<RemoteConfig | undefined>
  *
  * @param organizationId The organization ID to fetch config for
  * @returns RemoteConfig if enabled, undefined if disabled or not found
- *
- * @deprecated see {@link fetchUserRemoteConfig}
  */
 async function fetchRemoteConfigForOrganization(organizationId: string): Promise<RemoteConfig | undefined> {
 	try {
