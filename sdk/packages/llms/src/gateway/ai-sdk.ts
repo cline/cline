@@ -535,27 +535,6 @@ function suppressDanglingStreamPromises(
 }
 
 function extractErrorMessage(error: unknown): string {
-	if (error instanceof Error) {
-		if (
-			error.name === "AI_MissingToolResultsError" ||
-			error.message.includes("Tool result is missing for tool call")
-		) {
-			return "A previous turn left an unfinished tool call in the conversation history. The runtime will need to resume from a repaired history state before sending more user content.";
-		}
-		if (
-			error.name === "AI_NoOutputGeneratedError" ||
-			error.message.includes(
-				"No output generated. Check the stream for errors.",
-			)
-		) {
-			const cause = (error as { cause?: unknown }).cause;
-			const causeDetail = cause ? extractErrorMessage(cause) : undefined;
-			return causeDetail
-				? `No output generated: ${causeDetail}`
-				: `The model stream ended without producing output: ${error.message}`;
-		}
-	}
-
 	if (
 		error &&
 		typeof error === "object" &&
@@ -567,30 +546,23 @@ function extractErrorMessage(error: unknown): string {
 			responseBody?: unknown;
 			message?: unknown;
 		};
-		const statusCode =
-			typeof apiError.statusCode === "number" ? apiError.statusCode : undefined;
 		if (typeof apiError.responseBody === "string") {
 			try {
 				const parsed = JSON.parse(apiError.responseBody) as {
 					error?: { message?: string } | string;
 				};
-				const msg =
-					typeof parsed.error === "string"
-						? parsed.error
-						: typeof parsed.error?.message === "string"
-							? parsed.error.message
-							: undefined;
-				if (msg) {
-					return statusCode ? `${statusCode} ${msg}` : msg;
+				if (typeof parsed.error === "string") {
+					return parsed.error;
+				}
+				if (typeof parsed.error?.message === "string") {
+					return parsed.error.message;
 				}
 			} catch {
 				// Fall through to other representations.
 			}
 		}
 		if (typeof apiError.message === "string" && apiError.message.trim()) {
-			return statusCode
-				? `${statusCode} ${apiError.message}`
-				: apiError.message;
+			return apiError.message;
 		}
 	}
 
