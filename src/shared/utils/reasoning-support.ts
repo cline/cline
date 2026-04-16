@@ -11,7 +11,7 @@ export function isClaudeOpusAdaptiveThinkingModel(modelId?: string): boolean {
 	}
 
 	const id = modelId.toLowerCase()
-	const adaptiveVersions = ["4-5", "4.5", "4-6", "4.6", "4-7", "4.7"]
+	const adaptiveVersions = ["4-6", "4.6", "4-7", "4.7"]
 	return adaptiveVersions.some((version) => id.includes(`claude-opus-${version}`) || id.includes(`claude-${version}-opus`))
 }
 

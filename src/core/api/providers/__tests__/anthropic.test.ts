@@ -179,7 +179,7 @@ describe("AnthropicHandler", () => {
 		it("should use adaptive thinking and output_config for Claude Opus adaptive models", async () => {
 			const handler = new AnthropicHandler({
 				apiKey: "test-api-key",
-				apiModelId: "claude-opus-4-5-20251101",
+				apiModelId: "claude-opus-4-7",
 				reasoningEffort: "xhigh",
 			})
 
