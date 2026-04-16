@@ -38,7 +38,7 @@ describe("createOpenRouterStream", () => {
 			info: createModelInfo(65_536),
 		})
 
-		const payload = create.firstCall.args[0] as Record<string, unknown>
+		const payload = create.firstCall.args[0] as Record<string, any>
 		payload.should.have.property("max_tokens", 8_192)
 	})
 
@@ -50,7 +50,7 @@ describe("createOpenRouterStream", () => {
 			info: createModelInfo(4_096),
 		})
 
-		const payload = create.firstCall.args[0] as Record<string, unknown>
+		const payload = create.firstCall.args[0] as Record<string, any>
 		payload.should.have.property("max_tokens", 4_096)
 	})
 
@@ -62,7 +62,7 @@ describe("createOpenRouterStream", () => {
 			info: createModelInfo(64_000),
 		})
 
-		const payload = create.firstCall.args[0] as Record<string, unknown>
+		const payload = create.firstCall.args[0] as any
 		payload.should.not.have.property("max_tokens")
 	})
 
@@ -74,7 +74,29 @@ describe("createOpenRouterStream", () => {
 			info: createModelInfo(65_536),
 		})
 
-		const payload = create.firstCall.args[0] as Record<string, unknown>
+		const payload = create.firstCall.args[0] as any
 		payload.should.not.have.property("max_tokens")
+	})
+
+	it("uses adaptive reasoning with verbosity for Claude Opus adaptive models", async () => {
+		const { client, create } = createClient()
+
+		await createOpenRouterStream(
+			client as any,
+			"system prompt",
+			[{ role: "user", content: "hello" }] as any,
+			{
+				id: "anthropic/claude-opus-4.6",
+				info: createModelInfo(64_000),
+			},
+			"xhigh",
+		)
+
+		const payload = create.firstCall.args[0] as any
+		payload.should.have.property("reasoning")
+		payload.reasoning.should.deepEqual({ enabled: true })
+		payload.should.have.property("verbosity", "xhigh")
+		should(payload.temperature).equal(undefined)
+		should(payload.top_p).equal(undefined)
 	})
 })

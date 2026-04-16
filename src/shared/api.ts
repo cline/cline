@@ -602,7 +602,7 @@ export const bedrockModels = {
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
-	"anthropic.claude-opus-4-7-v1": {
+	"anthropic.claude-opus-4-7": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
 		supportsImages: true,

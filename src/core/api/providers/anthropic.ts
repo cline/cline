@@ -14,6 +14,7 @@ import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
 } from "@shared/api"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -28,6 +29,7 @@ interface AnthropicHandlerOptions extends CommonApiHandlerOptions {
 	apiKey?: string
 	anthropicBaseUrl?: string
 	apiModelId?: string
+	reasoningEffort?: string
 	thinkingBudgetTokens?: number
 }
 
@@ -94,19 +96,30 @@ export class AnthropicHandler implements ApiHandler {
 		const nativeToolsOn = tools?.length && tools?.length > 0
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
-		// Claude Opus 4.7 uses adaptive thinking and does not support temperature, top_p, or top_k parameters.
-		// Setting any of these to a non-default value returns a 400 error.
-		const isAdaptiveThinkingModel = modelId === "claude-opus-4-7"
+		// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		const adaptiveThinking = isAdaptiveThinkingModel
+			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
+			: undefined
+		const adaptiveThinkingEnabled = adaptiveThinking?.enabled === true
+		const adaptiveThinkingEffort = adaptiveThinking?.effort
+		const thinkingEnabled = isAdaptiveThinkingModel ? adaptiveThinkingEnabled : reasoningOn
+		const thinkingConfig = thinkingEnabled
+			? isAdaptiveThinkingModel
+				? ({ type: "adaptive" } as any)
+				: { type: "enabled", budget_tokens: budget_tokens }
+			: undefined
+		const outputConfig = isAdaptiveThinkingModel && adaptiveThinkingEffort ? { effort: adaptiveThinkingEffort } : undefined
 
 		if (model.info.supportsPromptCache) {
 			const anthropicMessages = sanitizeAnthropicMessages(messages, true)
-			const requestBody: AnthropicMessageCreateParamsStreaming = {
+			const requestBody: AnthropicMessageCreateParamsStreaming & Record<string, unknown> = {
 				model: modelId,
-				thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
+				thinking: thinkingConfig,
 				max_tokens: model.info.maxTokens || 8192,
 				// "Thinking isn't compatible with temperature, top_p, or top_k modifications as well as forced tool use."
 				// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
-				// Claude Opus 4.7 does not support temperature at all (adaptive thinking model).
+				// Adaptive Claude Opus models do not support temperature.
 				temperature: isAdaptiveThinkingModel ? undefined : reasoningOn ? undefined : 0,
 				system: [
 					{
@@ -124,7 +137,10 @@ export class AnthropicHandler implements ApiHandler {
 				// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
 				// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
 				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
+				tool_choice: nativeToolsOn && !thinkingEnabled ? { type: "any" } : undefined,
+			}
+			if (outputConfig) {
+				requestBody.output_config = outputConfig
 			}
 
 			stream = useFastMode
@@ -144,15 +160,19 @@ export class AnthropicHandler implements ApiHandler {
 						})(),
 					)
 		} else {
-			const requestBody: AnthropicMessageCreateParamsStreaming = {
+			const requestBody: AnthropicMessageCreateParamsStreaming & Record<string, unknown> = {
 				model: modelId,
 				max_tokens: model.info.maxTokens || 8192,
-				temperature: isAdaptiveThinkingModel ? undefined : 0,
+				temperature: isAdaptiveThinkingModel ? undefined : reasoningOn ? undefined : 0,
 				system: [{ text: systemPrompt, type: "text" }],
 				messages: sanitizeAnthropicMessages(messages, false),
 				tools: nativeToolsOn ? tools : undefined,
-				tool_choice: { type: "auto" },
+				tool_choice: thinkingEnabled ? undefined : { type: "auto" },
 				stream: true,
+				thinking: thinkingConfig,
+			}
+			if (outputConfig) {
+				requestBody.output_config = outputConfig
 			}
 
 			stream = useFastMode ? await createFastModeMessage(requestBody) : await client.messages.create(requestBody)

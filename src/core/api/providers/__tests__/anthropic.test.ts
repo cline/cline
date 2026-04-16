@@ -127,5 +127,38 @@ describe("AnthropicHandler", () => {
 				stream: true,
 			})
 		})
+
+		it("should use adaptive thinking and output_config for Claude Opus adaptive models", async () => {
+			const handler = new AnthropicHandler({
+				apiKey: "test-api-key",
+				apiModelId: "claude-opus-4-5-20251101",
+				reasoningEffort: "xhigh",
+			})
+
+			const standardCreate = sinon.stub().resolves(createAsyncIterable())
+
+			sinon.stub(handler as unknown as { ensureClient: () => unknown }, "ensureClient").returns({
+				messages: {
+					create: standardCreate,
+				},
+				beta: {
+					messages: {
+						_client: {},
+						create: sinon.stub().resolves(createAsyncIterable()),
+					},
+				},
+			})
+
+			for await (const _chunk of handler.createMessage("system prompt", [{ role: "user", content: "Hello" }])) {
+			}
+
+			sinon.assert.calledOnce(standardCreate)
+			const requestBody = standardCreate.firstCall.args[0] as Record<string, any>
+			requestBody.should.have.property("thinking")
+			requestBody.thinking.should.deepEqual({ type: "adaptive" })
+			requestBody.should.have.property("output_config")
+			requestBody.output_config.should.deepEqual({ effort: "xhigh" })
+			should(requestBody.temperature).equal(undefined)
+		})
 	})
 })
