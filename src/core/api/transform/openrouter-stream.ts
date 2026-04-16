@@ -1,14 +1,5 @@
 import { Anthropic } from "@anthropic-ai/sdk"
-import {
-	CLAUDE_SONNET_1M_SUFFIX,
-	ModelInfo,
-	OPENROUTER_PROVIDER_PREFERENCES,
-	openRouterClaudeOpus461mModelId,
-	openRouterClaudeOpus471mModelId,
-	openRouterClaudeSonnet41mModelId,
-	openRouterClaudeSonnet451mModelId,
-	openRouterClaudeSonnet461mModelId,
-} from "@shared/api"
+import { ModelInfo, OPENROUTER_PROVIDER_PREFERENCES } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import {
@@ -39,17 +30,6 @@ export async function createOpenRouterStream(
 		{ role: "system", content: systemPrompt },
 		...convertToOpenAiMessages(messages),
 	]
-
-	const isClaude1m =
-		model.id === openRouterClaudeSonnet41mModelId ||
-		model.id === openRouterClaudeSonnet451mModelId ||
-		model.id === openRouterClaudeSonnet461mModelId ||
-		model.id === openRouterClaudeOpus461mModelId ||
-		model.id === openRouterClaudeOpus471mModelId
-	if (isClaude1m) {
-		// remove the custom :1m suffix, to create the model id openrouter API expects
-		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-	}
 
 	// Sanitize messages for Gemini models (removes tool_calls without reasoning_details)
 	openAiMessages = sanitizeGeminiMessages(openAiMessages, model.id)
@@ -188,7 +168,6 @@ export async function createOpenRouterStream(
 		...(isAdaptiveThinkingModel && adaptiveThinking?.effort ? { verbosity: adaptiveThinking.effort } : {}),
 		...(openRouterProviderSorting && !providerPreferences ? { provider: { sort: openRouterProviderSorting } } : {}),
 		...(providerPreferences ? { provider: providerPreferences } : {}),
-		...(isClaude1m ? { provider: { order: ["anthropic", "google-vertex/global"], allow_fallbacks: false } } : {}),
 		...getOpenAIToolParams(tools, !!enableParallelToolCalling),
 	}
 

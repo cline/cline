@@ -110,40 +110,7 @@ export interface OcaModelInfo extends OpenAiCompatibleModelInfo {
 	reasoningEffortOptions: string[]
 }
 
-export const CLAUDE_SONNET_1M_SUFFIX = ":1m"
 export const ANTHROPIC_FAST_MODE_SUFFIX = ":fast"
-export const CLAUDE_SONNET_1M_TIERS = [
-	{
-		contextWindow: 200000,
-		inputPrice: 3.0,
-		outputPrice: 15,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	{
-		contextWindow: Number.MAX_SAFE_INTEGER, // storing infinity in vs storage is not possible, it converts to 'null', which causes crash in webview ModelInfoView
-		inputPrice: 6,
-		outputPrice: 22.5,
-		cacheWritesPrice: 7.5,
-		cacheReadsPrice: 0.6,
-	},
-]
-export const CLAUDE_OPUS_1M_TIERS = [
-	{
-		contextWindow: 200000,
-		inputPrice: 5.0,
-		outputPrice: 25,
-		cacheWritesPrice: 6.25,
-		cacheReadsPrice: 0.5,
-	},
-	{
-		contextWindow: Number.MAX_SAFE_INTEGER,
-		inputPrice: 10,
-		outputPrice: 37.5,
-		cacheWritesPrice: 12.5,
-		cacheReadsPrice: 1.0,
-	},
-]
 
 export interface HicapCompatibleModelInfo extends ModelInfo {
 	temperature?: number
@@ -168,17 +135,6 @@ export const ANTHROPIC_MAX_THINKING_BUDGET = 6_000
 export const anthropicModels = {
 	"claude-sonnet-4-6": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"claude-sonnet-4-6:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -187,21 +143,9 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-5-20250929": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"claude-sonnet-4-5-20250929:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -210,7 +154,6 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-haiku-4-5-20251001": {
 		maxTokens: 64_000,
@@ -225,17 +168,6 @@ export const anthropicModels = {
 	},
 	"claude-sonnet-4-20250514": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"claude-sonnet-4-20250514:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -244,11 +176,10 @@ export const anthropicModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-opus-4-6": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
@@ -259,7 +190,7 @@ export const anthropicModels = {
 	},
 	"claude-opus-4-6:fast": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
+		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
@@ -269,31 +200,6 @@ export const anthropicModels = {
 		cacheReadsPrice: 3.0,
 		description:
 			"Anthropic fast mode preview for Claude Opus 4.6. Same model and capabilities with higher output token speed at premium pricing. Requires fast mode access on your Anthropic account.",
-	},
-	"claude-opus-4-6:1m": {
-		maxTokens: 128_000,
-		contextWindow: 1_000_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 5.0,
-		outputPrice: 25.0,
-		cacheWritesPrice: 6.25,
-		cacheReadsPrice: 0.5,
-		tiers: CLAUDE_OPUS_1M_TIERS,
-	},
-	"claude-opus-4-6:1m:fast": {
-		maxTokens: 128_000,
-		contextWindow: 1_000_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		inputPrice: 30.0,
-		outputPrice: 150.0,
-		cacheWritesPrice: 37.5,
-		cacheReadsPrice: 3.0,
-		description:
-			"Anthropic fast mode preview for Claude Opus 4.6 with the 1M context beta enabled. Same model and capabilities with higher output token speed at premium pricing across the full 1M context window. Requires both fast mode and 1M context access on your Anthropic account.",
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,
@@ -403,11 +309,6 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
-	"sonnet[1m]": {
-		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
 	opus: {
 		...anthropicModels["claude-opus-4-7"],
 		supportsImages: false,
@@ -423,18 +324,8 @@ export const claudeCodeModels = {
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
-	"claude-sonnet-4-6[1m]": {
-		...anthropicModels["claude-sonnet-4-6:1m"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
 	"claude-sonnet-4-5-20250929": {
 		...anthropicModels["claude-sonnet-4-5-20250929"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
-	"claude-sonnet-4-5-20250929[1m]": {
-		...anthropicModels["claude-sonnet-4-5-20250929:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -445,11 +336,6 @@ export const claudeCodeModels = {
 	},
 	"claude-opus-4-6": {
 		...anthropicModels["claude-opus-4-6"],
-		supportsImages: false,
-		supportsPromptCache: false,
-	},
-	"claude-opus-4-6[1m]": {
-		...anthropicModels["claude-opus-4-6:1m"],
 		supportsImages: false,
 		supportsPromptCache: false,
 	},
@@ -492,18 +378,6 @@ export const bedrockDefaultModelId: BedrockModelId = "anthropic.claude-sonnet-4-
 export const bedrockModels = {
 	"anthropic.claude-sonnet-4-6": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"anthropic.claude-sonnet-4-6:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -513,22 +387,9 @@ export const bedrockModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-sonnet-4-5-20250929-v1:0": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"anthropic.claude-sonnet-4-5-20250929-v1:0:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -538,7 +399,6 @@ export const bedrockModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-haiku-4-5-20251001-v1:0": {
 		maxTokens: 64_000,
@@ -554,18 +414,6 @@ export const bedrockModels = {
 	},
 	"anthropic.claude-sonnet-4-20250514-v1:0": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-	},
-	"anthropic.claude-sonnet-4-20250514-v1:0:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -575,22 +423,9 @@ export const bedrockModels = {
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-6-v1": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsReasoning: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 5.0,
-		outputPrice: 25.0,
-		cacheWritesPrice: 6.25,
-		cacheReadsPrice: 0.5,
-	},
-	"anthropic.claude-opus-4-6-v1:1m": {
-		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -600,7 +435,6 @@ export const bedrockModels = {
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
-		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"anthropic.claude-opus-4-7": {
 		maxTokens: 128_000,
@@ -820,14 +654,9 @@ export const bedrockModels = {
 // OpenRouter
 // https://openrouter.ai/models?order=newest&supported_parameters=tools
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
-export const openRouterClaudeSonnet41mModelId = `anthropic/claude-sonnet-4${CLAUDE_SONNET_1M_SUFFIX}`
-export const openRouterClaudeSonnet451mModelId = `anthropic/claude-sonnet-4.5${CLAUDE_SONNET_1M_SUFFIX}`
-export const openRouterClaudeSonnet461mModelId = `anthropic/claude-sonnet-4.6${CLAUDE_SONNET_1M_SUFFIX}`
-export const openRouterClaudeOpus461mModelId = `anthropic/claude-opus-4.6${CLAUDE_SONNET_1M_SUFFIX}`
-export const openRouterClaudeOpus471mModelId = `anthropic/claude-opus-4.7${CLAUDE_SONNET_1M_SUFFIX}`
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
-	contextWindow: 200_000,
+	contextWindow: 1_000_000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 3.0,
@@ -990,17 +819,6 @@ export const vertexModels = {
 	},
 	"claude-sonnet-4-6": {
 		maxTokens: 64_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		inputPrice: 3.0,
-		outputPrice: 15.0,
-		cacheWritesPrice: 3.75,
-		cacheReadsPrice: 0.3,
-		supportsReasoning: true,
-	},
-	"claude-sonnet-4-6:1m": {
-		maxTokens: 64_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1009,7 +827,6 @@ export const vertexModels = {
 		cacheWritesPrice: 3.75,
 		cacheReadsPrice: 0.3,
 		supportsReasoning: true,
-		tiers: CLAUDE_SONNET_1M_TIERS,
 	},
 	"claude-sonnet-4-5@20250929": {
 		maxTokens: 64_000,
@@ -1046,18 +863,6 @@ export const vertexModels = {
 	},
 	"claude-opus-4-6": {
 		maxTokens: 128_000,
-		contextWindow: 200_000,
-		supportsImages: true,
-		supportsPromptCache: true,
-		supportsGlobalEndpoint: true,
-		inputPrice: 5.0,
-		outputPrice: 25.0,
-		cacheWritesPrice: 6.25,
-		cacheReadsPrice: 0.5,
-		supportsReasoning: true,
-	},
-	"claude-opus-4-6:1m": {
-		maxTokens: 128_000,
 		contextWindow: 1_000_000,
 		supportsImages: true,
 		supportsPromptCache: true,
@@ -1067,7 +872,6 @@ export const vertexModels = {
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		supportsReasoning: true,
-		tiers: CLAUDE_OPUS_1M_TIERS,
 	},
 	"claude-opus-4-7": {
 		maxTokens: 128_000,

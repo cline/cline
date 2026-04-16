@@ -1,4 +1,4 @@
-import { bedrockDefaultModelId, bedrockModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import { bedrockDefaultModelId, bedrockModels } from "@shared/api"
 import BedrockData from "@shared/providers/bedrock.json"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
@@ -25,12 +25,9 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 
 export const SUPPORTED_BEDROCK_THINKING_MODELS = [
 	"anthropic.claude-sonnet-4-6",
-	`anthropic.claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-3-7-sonnet-20250219-v1:0",
 	"anthropic.claude-sonnet-4-20250514-v1:0",
 	"anthropic.claude-sonnet-4-5-20250929-v1:0",
-	`anthropic.claude-sonnet-4-20250514-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
-	`anthropic.claude-sonnet-4-5-20250929-v1:0${CLAUDE_SONNET_1M_SUFFIX}`,
 	"anthropic.claude-opus-4-1-20250805-v1:0",
 	"anthropic.claude-opus-4-20250514-v1:0",
 	"anthropic.claude-haiku-4-5-20251001-v1:0",

@@ -1,4 +1,4 @@
-import { anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import { anthropicModels } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -15,14 +15,11 @@ import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandler
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
 	"claude-sonnet-4-6",
-	`claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
-	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-opus-4-20250514",
 	"claude-opus-4-1-20250805",
 	"claude-sonnet-4-5-20250929",
-	`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-haiku-4-5-20251001",
 ]
 

@@ -1114,7 +1114,7 @@ describe("AwsBedrockHandler", () => {
 			]
 
 			// Consume the generator to trigger createAnthropicMessage
-			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), false, tools)
+			const gen = handler["createAnthropicMessage"]("system prompt", [], "test-model", handler.getModel(), tools)
 			for await (const _ of gen) {
 				// drain
 			}
