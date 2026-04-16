@@ -379,15 +379,12 @@ underlying patterns that caused them are relevant.
 - **Verification**: Log out, attempt to send a message with "cline" provider selected, verify a login prompt appears instead of the error.
 
 ### S6-19: History deletion dialog confirms but doesn't delete
-- **Status**: 🟡 Minor (partially fixed — deletion works but UI stale)
-- **Description**: When clicking the delete button on a history item, a confirmation dialog appears. After confirming, the item IS now deleted from state/disk. However:
-  1. **History list doesn't update** — the deleted item remains visible in the history list until you close and reopen history.
-  2. **Recents list not updated** — if the deleted item appeared on the welcome page's recents list, it still shows there.
-- **Root cause (deletion fixed)**: `getTaskWithId()` was stubbed and threw "not yet implemented". Now implemented.
-- **Root cause (UI stale — NEW)**: The `deleteTaskWithId` handler calls `controller.postStateToWebview()` after deletion, which should refresh the history list. But the webview's history component may not be re-rendering when `taskHistory` changes in the state update. The recents list on the welcome page may be using a separate cached list that isn't updated by the state push.
-- **Fix applied (deletion)**: Implemented `getTaskWithId()` in `SdkController.ts`.
-- **Fix needed (UI refresh)**: Investigate why the history list and recents list don't update after `postStateToWebview()`. Check if the webview's history component watches `taskHistory` from state, or if it uses a separate data source. The classic extension may have sent a specific "task deleted" event that triggers a re-render.
-- **Verification**: Delete a history item, verify it disappears from both the history list and recents list immediately.
+- **Status**: 🟢 Verified Fixed
+- **Description**: When clicking the delete button on a history item, a confirmation dialog appears. After confirming, the item is deleted from state/disk AND the UI updates immediately — both the history list and the recents list on the welcome page reflect the deletion.
+- **Root cause**: The `deleteTaskWithId` handler in `src/core/controller/task/deleteTasksWithIds.ts` called `controller.getTaskWithId(id)` before `deleteTaskFromState(id)`. When the task's `apiConversationHistory` file didn't exist on disk (common for new/short tasks), `getTaskWithId()` threw `"Task not found"`, which was caught and re-thrown. The `postStateToWebview()` call at the end of the function was outside the try/catch block and was never reached. The state was updated (because `getTaskWithId` called `deleteTaskFromState` internally before throwing), but the webview was never notified.
+- **Fix applied**: Restructured `deleteTaskWithId()` to: (1) call `deleteTaskFromState(id)` first (always succeeds, updates in-memory cache immediately), (2) clean up task files on disk as best-effort (wrapped in try/catch), (3) always call `postStateToWebview()` at the end. Removed the `getTaskWithId()` call entirely — it's not needed for deletion since the task directory path can be constructed directly from the ID. Also simplified file cleanup to use `fs.rm(taskDirPath, { recursive: true, force: true })` instead of deleting individual files.
+- **Verification**: Debug harness test on 2026-04-16: Created 2 tasks ("Say hello world", "Say goodbye world"). Deleted "Say goodbye world" via the history view delete button. History list immediately showed only "Say hello world" (1 delete button, size 682 B down from 1.3 kB). Navigated to welcome page — recents list showed only "Say hello world". Disk state confirmed: only 1 task in `taskHistory.json`, only 1 task directory remaining.
+- **Evidence**: Debug harness session on 2026-04-16.
 
 ### S6-20: MCP tools panel is empty
 - **Status**: 🟡 Minor (blocked on inference view)
@@ -528,7 +525,6 @@ The SDK's three user-interaction mechanisms are not wired in. Without `requestTo
 When not logged in with the "cline" provider, the user sees a raw error instead of a login prompt. This blocks the first-run experience.
 
 ### 🟡 Lower Priority:
-- S6-19: History deletion UI doesn't refresh
 - S6-17: Cancel button state
 - S6-20: MCP tools panel empty
 - S6-2: OCA and Codex OAuth flows not yet verified
