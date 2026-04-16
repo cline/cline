@@ -12,7 +12,6 @@ copyright: Copyright &copy; 2026 Mohammad Galib — Apache 2.0
 # ── Theme ─────────────────────────────────────────────────────────────────────
 theme:
   name: material
-  custom_dir: overrides
   logo: assets/logo.png
   favicon: assets/favicon.png
 
