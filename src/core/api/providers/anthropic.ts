@@ -94,15 +94,20 @@ export class AnthropicHandler implements ApiHandler {
 		const nativeToolsOn = tools?.length && tools?.length > 0
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
+		// Claude Opus 4.7 uses adaptive thinking and does not support temperature, top_p, or top_k parameters.
+		// Setting any of these to a non-default value returns a 400 error.
+		const isAdaptiveThinkingModel = modelId === "claude-opus-4-7"
+
 		if (model.info.supportsPromptCache) {
 			const anthropicMessages = sanitizeAnthropicMessages(messages, true)
 			const requestBody: AnthropicMessageCreateParamsStreaming = {
 				model: modelId,
 				thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
 				max_tokens: model.info.maxTokens || 8192,
-				// "Thinking isn’t compatible with temperature, top_p, or top_k modifications as well as forced tool use."
+				// "Thinking isn't compatible with temperature, top_p, or top_k modifications as well as forced tool use."
 				// (https://docs.anthropic.com/en/docs/build-with-claude/extended-thinking#important-considerations-when-using-extended-thinking)
-				temperature: reasoningOn ? undefined : 0,
+				// Claude Opus 4.7 does not support temperature at all (adaptive thinking model).
+				temperature: isAdaptiveThinkingModel ? undefined : reasoningOn ? undefined : 0,
 				system: [
 					{
 						text: systemPrompt,
@@ -142,7 +147,7 @@ export class AnthropicHandler implements ApiHandler {
 			const requestBody: AnthropicMessageCreateParamsStreaming = {
 				model: modelId,
 				max_tokens: model.info.maxTokens || 8192,
-				temperature: 0,
+				temperature: isAdaptiveThinkingModel ? undefined : 0,
 				system: [{ text: systemPrompt, type: "text" }],
 				messages: sanitizeAnthropicMessages(messages, false),
 				tools: nativeToolsOn ? tools : undefined,

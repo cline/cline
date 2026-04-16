@@ -93,6 +93,9 @@ export class VertexHandler implements ApiHandler {
 		// Use model metadata to determine if reasoning should be enabled
 		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
 
+		// Claude Opus 4.7 uses adaptive thinking and does not support temperature, top_p, or top_k parameters.
+		const isAdaptiveThinkingModel = modelId === "claude-opus-4-7"
+
 		// Tools are available only when native tools are enabled.
 		const nativeToolsOn = tools?.length ? tools?.length > 0 : false
 
@@ -103,7 +106,7 @@ export class VertexHandler implements ApiHandler {
 				model: modelId,
 				max_tokens: model.info.maxTokens || 8192,
 				thinking: reasoningOn ? { type: "enabled", budget_tokens: budget_tokens } : undefined,
-				temperature: reasoningOn ? undefined : 0,
+				temperature: isAdaptiveThinkingModel ? undefined : reasoningOn ? undefined : 0,
 				system: [
 					{
 						text: systemPrompt,

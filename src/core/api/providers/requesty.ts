@@ -88,11 +88,14 @@ export class RequestyHandler implements ApiHandler {
 				? thinking
 				: {}
 
+		// Claude Opus 4.7 uses adaptive thinking and does not support temperature.
+		const isAdaptiveThinkingModel = model.id.includes("claude-opus-4-7")
+
 		const stream = await client.chat.completions.create({
 			model: model.id,
 			max_tokens: model.info.maxTokens || undefined,
 			messages: openAiMessages,
-			temperature: 0,
+			...(isAdaptiveThinkingModel ? {} : { temperature: 0 }),
 			stream: true,
 			stream_options: { include_usage: true },
 			...reasoningArgs,

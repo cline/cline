@@ -111,9 +111,16 @@ export async function createOpenRouterStream(
 
 	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
 
+	// Claude Opus 4.7 uses adaptive thinking and does not support temperature, top_p, or top_k parameters.
+	// Setting any of these to a non-default value returns a 400 error.
+	const isAdaptiveThinkingModel = model.id === "anthropic/claude-opus-4.7"
+	if (isAdaptiveThinkingModel) {
+		temperature = undefined
+		topP = undefined
+	}
+
 	let reasoning: { max_tokens: number } | undefined
 	switch (model.id) {
-		case "anthropic/claude-opus-4.7":
 		case "anthropic/claude-opus-4.6":
 		case "anthropic/claude-haiku-4.5":
 		case "anthropic/claude-4.5-haiku":

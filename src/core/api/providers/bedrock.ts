@@ -874,15 +874,18 @@ export class AwsBedrockHandler implements ApiHandler {
 	/**
 	 * Gets inference configuration for different model types
 	 */
-	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova"): any {
+	private getInferenceConfig(modelInfo: ModelInfo, modelType: "anthropic" | "nova", modelId?: string): any {
 		// For Anthropic models with thinking enabled, temperature must be 1
 		if (modelType === "anthropic") {
 			const budget_tokens = this.options.thinkingBudgetTokens || 0
 			const reasoningOn = modelInfo.supportsReasoning && budget_tokens > 0
 
+			// Claude Opus 4.7 uses adaptive thinking and does not support temperature.
+			const isAdaptiveThinkingModel = modelId?.includes("claude-opus-4-7")
+
 			return {
 				maxTokens: modelInfo.maxTokens || 8192,
-				temperature: reasoningOn ? 1 : 0,
+				...(isAdaptiveThinkingModel ? {} : { temperature: reasoningOn ? 1 : 0 }),
 			}
 		}
 
@@ -930,7 +933,7 @@ export class AwsBedrockHandler implements ApiHandler {
 			modelId: modelId,
 			messages: messagesWithCache,
 			system: systemMessages,
-			inferenceConfig: this.getInferenceConfig(model.info, "anthropic"),
+			inferenceConfig: this.getInferenceConfig(model.info, "anthropic", modelId),
 			...(toolConfig ? { toolConfig } : {}),
 			additionalModelRequestFields: {
 				// Add thinking configuration as per LangChain documentation

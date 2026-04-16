@@ -91,6 +91,14 @@ export async function createVercelAIGatewayStream(
 	let temperature: number | undefined = model.info?.temperature ?? 0
 	let topP: number | undefined
 
+	// Claude Opus 4.7 uses adaptive thinking and does not support temperature, top_p, or top_k parameters.
+	// Setting any of these to a non-default value returns a 400 error.
+	const isAdaptiveThinkingModel = model.id === "anthropic/claude-opus-4.7"
+	if (isAdaptiveThinkingModel) {
+		temperature = undefined
+		topP = undefined
+	}
+
 	// R1 format conversion for DeepSeek and similar reasoning models
 	const requiresR1Format =
 		model.id.startsWith("deepseek/deepseek-r1") ||
