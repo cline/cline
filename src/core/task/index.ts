@@ -1940,15 +1940,22 @@ export class Task {
 		}
 
 		// Discover and filter available skills
-		const allSkills = await discoverSkills(this.cwd)
+		const remoteSkillEntries = this.stateManager.getRemoteConfigSettings().remoteGlobalSkills || []
+		const allSkills = await discoverSkills(this.cwd, remoteSkillEntries)
 		const resolvedSkills = getAvailableSkills(allSkills)
 
 		// Filter skills by toggle state (enabled by default)
 		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
 		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
+		const remoteSkillsToggles = this.stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {}
 		const availableSkills = resolvedSkills.filter((skill) => {
+			if (skill.path.startsWith("remote:")) {
+				const name = skill.path.replace("remote:", "")
+				const entry = remoteSkillEntries.find((e) => e.name === name)
+				if (entry?.alwaysEnabled) return true
+				return remoteSkillsToggles[name] !== false
+			}
 			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
-			// If toggle exists, use it; otherwise default to enabled (true)
 			return toggles[skill.path] !== false
 		})
 

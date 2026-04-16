@@ -344,8 +344,6 @@ export async function applyRemoteConfig(
 	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
 	stateManager.setGlobalState("remoteSkillsToggles", syncedSkillToggles)
 
-	// Clear existing remote config cache
-	stateManager.clearRemoteConfig()
 	telemetryService.removeProvider(REMOTE_CONFIG_OTEL_PROVIDER_ID)
 
 	// If the existing configured provider is valid, don't update it
@@ -357,16 +355,13 @@ export async function applyRemoteConfig(
 		transformed.planModeApiProvider = apiConfiguration.planModeApiProvider
 	}
 
-	// Populate remote config cache with transformed values
-	for (const [key, value] of Object.entries(transformed)) {
-		stateManager.setRemoteConfigField(key as keyof RemoteConfigFields, value)
-	}
-	stateManager.setRemoteConfigField("configuredApiKeys", configuredKeys)
-
-	// Restore previousRemoteMCPServers across cache clears
+	// Build the full new cache and swap atomically to avoid a window where
+	// concurrent readers (e.g., UseSkillToolHandler) see an empty cache.
+	const newCache: Partial<RemoteConfigFields> = { ...transformed, configuredApiKeys: configuredKeys }
 	if (previousRemoteMCPServers !== undefined) {
-		stateManager.setRemoteConfigField("previousRemoteMCPServers", previousRemoteMCPServers)
+		newCache.previousRemoteMCPServers = previousRemoteMCPServers
 	}
+	stateManager.replaceRemoteConfig(newCache)
 
 	applyRemoteSyncQueueConfig(transformed)
 
