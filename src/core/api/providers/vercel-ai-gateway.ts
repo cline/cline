@@ -19,6 +19,14 @@ interface VercelAIGatewayHandlerOptions extends CommonApiHandlerOptions {
 	thinkingBudgetTokens?: number
 }
 
+function getCacheReadTokens(usage: any): number {
+	return usage?.prompt_tokens_details?.cached_tokens || usage?.cache_read_input_tokens || 0
+}
+
+function getCacheWriteTokens(usage: any): number {
+	return usage?.prompt_tokens_details?.cache_write_tokens || usage?.cache_creation_input_tokens || 0
+}
+
 export class VercelAIGatewayHandler implements ApiHandler {
 	private options: VercelAIGatewayHandlerOptions
 	private client: OpenAI | undefined
@@ -115,12 +123,14 @@ export class VercelAIGatewayHandler implements ApiHandler {
 				if (!didOutputUsage && chunk.usage) {
 					// @ts-expect-error - Vercel AI Gateway extends OpenAI types
 					const totalCost = (chunk.usage.cost || 0) + (chunk.usage.cost_details?.upstream_inference_cost || 0)
+					const cacheReadTokens = getCacheReadTokens(chunk.usage)
+					const cacheWriteTokens = getCacheWriteTokens(chunk.usage)
 
 					yield {
 						type: "usage",
-						cacheWriteTokens: 0,
-						cacheReadTokens: chunk.usage.prompt_tokens_details?.cached_tokens || 0,
-						inputTokens: (chunk.usage.prompt_tokens || 0) - (chunk.usage.prompt_tokens_details?.cached_tokens || 0),
+						cacheWriteTokens,
+						cacheReadTokens,
+						inputTokens: Math.max(0, (chunk.usage.prompt_tokens || 0) - cacheReadTokens - cacheWriteTokens),
 						outputTokens: chunk.usage.completion_tokens || 0,
 						totalCost,
 					}
