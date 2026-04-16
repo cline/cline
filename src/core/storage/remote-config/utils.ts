@@ -337,6 +337,14 @@ export async function applyRemoteConfig(
 		.filter((e): e is NonNullable<typeof e> => e !== null)
 	const syncedSkillToggles = synchronizeRemoteRuleToggles(parsedSkillEntries, currentSkillToggles)
 
+	// Enforce alwaysEnabled: override any stale false toggles for skills the admin has locked on.
+	// This ensures the toggle store is the single source of truth — both the UI and handler agree.
+	for (const entry of parsedSkillEntries) {
+		if (entry.alwaysEnabled && syncedSkillToggles[entry.name] === false) {
+			syncedSkillToggles[entry.name] = true
+		}
+	}
+
 	stateManager.setGlobalState("remoteRulesToggles", syncedRuleToggles)
 	stateManager.setGlobalState("remoteWorkflowToggles", syncedWorkflowToggles)
 	stateManager.setGlobalState("remoteSkillsToggles", syncedSkillToggles)

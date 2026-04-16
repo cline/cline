@@ -118,3 +118,58 @@ describe("applyRemoteConfig skill frontmatter parsing pattern", () => {
 		expect(parsed[1].name).to.equal("Skill Two")
 	})
 })
+
+describe("alwaysEnabled enforcement in toggle sync", () => {
+	const { parseYamlFrontmatter } = require("@/core/context/instructions/user-instructions/frontmatter")
+
+	function syncWithAlwaysEnabled(
+		entries: { name: string; alwaysEnabled: boolean; contents: string }[],
+		currentToggles: Record<string, boolean>,
+	) {
+		const parsedEntries = entries
+			.map((entry) => {
+				const { data } = parseYamlFrontmatter(entry.contents)
+				return typeof data.name === "string" ? { ...entry, name: data.name } : null
+			})
+			.filter((e): e is NonNullable<typeof e> => e !== null)
+
+		const synced = synchronizeRemoteRuleToggles(parsedEntries, currentToggles)
+
+		// Enforce alwaysEnabled (mirrors applyRemoteConfig logic)
+		for (const entry of parsedEntries) {
+			if (entry.alwaysEnabled && synced[entry.name] === false) {
+				synced[entry.name] = true
+			}
+		}
+
+		return synced
+	}
+
+	function makeSKILLMd(name: string, desc: string): string {
+		return `---\nname: ${name}\ndescription: ${desc}\n---\nBody`
+	}
+
+	it("overrides stale false toggle when admin sets alwaysEnabled", () => {
+		const entries = [{ name: "x", alwaysEnabled: true, contents: makeSKILLMd("Deploy", "Desc") }]
+		const result = syncWithAlwaysEnabled(entries, { Deploy: false })
+		expect(result["Deploy"]).to.equal(true)
+	})
+
+	it("does not override false toggle when alwaysEnabled is false", () => {
+		const entries = [{ name: "x", alwaysEnabled: false, contents: makeSKILLMd("Deploy", "Desc") }]
+		const result = syncWithAlwaysEnabled(entries, { Deploy: false })
+		expect(result["Deploy"]).to.equal(false)
+	})
+
+	it("keeps true toggle unchanged when alwaysEnabled is true", () => {
+		const entries = [{ name: "x", alwaysEnabled: true, contents: makeSKILLMd("Deploy", "Desc") }]
+		const result = syncWithAlwaysEnabled(entries, { Deploy: true })
+		expect(result["Deploy"]).to.equal(true)
+	})
+
+	it("new alwaysEnabled skill defaults to true", () => {
+		const entries = [{ name: "x", alwaysEnabled: true, contents: makeSKILLMd("New Skill", "Desc") }]
+		const result = syncWithAlwaysEnabled(entries, {})
+		expect(result["New Skill"]).to.equal(true)
+	})
+})
