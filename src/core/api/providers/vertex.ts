@@ -57,10 +57,16 @@ export class VertexHandler implements ApiHandler {
 			try {
 				const externalHeaders = buildExternalBasicHeaders()
 				// Initialize Anthropic client for Claude models
+				// The AnthropicVertex SDK constructs the base URL as `${region}-aiplatform.googleapis.com`,
+				// but the global endpoint uses `aiplatform.googleapis.com` (no region prefix).
+				// See: https://docs.cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-partner-models#global
 				this.clientAnthropic = new AnthropicVertex({
 					projectId: this.options.vertexProjectId,
 					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
 					region: this.options.vertexRegion,
+					...(this.options.vertexRegion === "global"
+						? { baseURL: "https://aiplatform.googleapis.com/v1" }
+						: {}),
 					defaultHeaders: externalHeaders,
 				})
 			} catch (error: any) {
@@ -117,7 +123,7 @@ export class VertexHandler implements ApiHandler {
 				// tool_choice options:
 				// - none: disables tool use, even if tools are provided. Claude will not call any tools.
 				// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-				// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
+				// - any: tells Claude that it must use one of the provided tools, but doesn't force a particular tool.
 				// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
 				tool_choice: nativeToolsOn && !reasoningOn ? { type: "any" } : undefined,
 			},
