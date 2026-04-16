@@ -1,5 +1,7 @@
 # Cline SDK Packages
 
+_CONFIDENTIAL AND PROPRIETARY_
+
 This repository contains the packages and host apps that power Cline agent runtimes.
 
 It is a Bun workspace centered around a small stack of reusable packages:
