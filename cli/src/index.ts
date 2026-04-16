@@ -339,14 +339,23 @@ async function isKanbanEnabled(options: InitOptions): Promise<boolean> {
 	const context = await initializeCli({ ...options, enableAuth: true })
 	AuthService.getInstance(context.controller)
 
-	const remoteConfig = await fetchUserRemoteConfig()
+	// Restore auth before fetching remote config, as it may be needed for the fetch
+	await context.controller.authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+	const response = await fetchUserRemoteConfig()
+
+	if (!response) {
+		return true
+	}
+
+	const { config: remoteConfig } = response
 
 	return !remoteConfig || remoteConfig.kanbanEnabled === true
 }
 
 async function startKanban(options: InitOptions): Promise<boolean> {
 	try {
-		if (!isKanbanEnabled(options)) {
+		if (!(await isKanbanEnabled(options))) {
 			return false
 		}
 
