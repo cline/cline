@@ -94,6 +94,13 @@ export class McpHub {
 	// Callback for sending notifications to active task
 	private notificationCallback?: (serverName: string, level: string, message: string) => void
 
+	// Callback for notifying when the MCP tool list changes (servers added/removed/reconnected).
+	// Used by SdkController to restart the SDK session with updated tools.
+	private toolListChangeCallback?: () => void
+	// Fingerprint of the last tool list snapshot, used to detect actual tool list changes
+	// vs. mere status updates (e.g., error messages appended).
+	private lastToolFingerprint = ""
+
 	constructor(
 		getMcpServersPath: () => Promise<string>,
 		getSettingsDirectoryPath: () => Promise<string>,
@@ -1109,6 +1116,9 @@ export class McpHub {
 		await sendMcpServersUpdate({
 			mcpServers: convertMcpServersToProtoMcpServers(sortedServers),
 		})
+
+		// Check if the tool list actually changed and notify SDK controller if so
+		this.checkToolListChanged()
 	}
 
 	async sendLatestMcpServers() {
@@ -1590,6 +1600,73 @@ export class McpHub {
 	clearNotificationCallback(): void {
 		this.notificationCallback = undefined
 		//Logger.log("[MCP Debug] Notification callback cleared")
+	}
+
+	/**
+	 * Set a callback that fires when the MCP tool list changes.
+	 *
+	 * The callback is invoked only when the set of available tools actually
+	 * changes (servers added/removed, tools discovered/lost), NOT on mere
+	 * status updates (error messages, reconnect attempts).
+	 *
+	 * Used by SdkController to restart the SDK session with updated tools
+	 * when MCP servers change mid-session.
+	 */
+	setToolListChangeCallback(callback: () => void): void {
+		this.toolListChangeCallback = callback
+		// Initialize the fingerprint so the first real change is detected
+		this.lastToolFingerprint = this.computeToolFingerprint()
+	}
+
+	/**
+	 * Clear the tool list change callback.
+	 */
+	clearToolListChangeCallback(): void {
+		this.toolListChangeCallback = undefined
+	}
+
+	/**
+	 * Compute a fingerprint of the current tool list.
+	 *
+	 * The fingerprint is a sorted, deterministic string of
+	 * "serverName:toolName" pairs for all connected, non-disabled servers.
+	 * Changes to this fingerprint indicate that the agent's available
+	 * tool set has changed and a session restart may be needed.
+	 */
+	computeToolFingerprint(): string {
+		const entries: string[] = []
+		for (const conn of this.connections) {
+			if (conn.server.disabled || conn.server.status !== "connected") {
+				continue
+			}
+			for (const tool of conn.server.tools ?? []) {
+				entries.push(`${conn.server.name}:${tool.name}`)
+			}
+		}
+		entries.sort()
+		return entries.join("|")
+	}
+
+	/**
+	 * Check if the tool list has changed and fire the callback if so.
+	 * Called internally after server connection changes settle.
+	 */
+	private checkToolListChanged(): void {
+		if (!this.toolListChangeCallback) {
+			return
+		}
+		const newFingerprint = this.computeToolFingerprint()
+		if (newFingerprint !== this.lastToolFingerprint) {
+			Logger.log(
+				`[McpHub] Tool list changed: "${this.lastToolFingerprint.substring(0, 80)}" → "${newFingerprint.substring(0, 80)}"`,
+			)
+			this.lastToolFingerprint = newFingerprint
+			try {
+				this.toolListChangeCallback()
+			} catch (error) {
+				Logger.error("[McpHub] Error in toolListChangeCallback:", error)
+			}
+		}
 	}
 
 	/**
