@@ -487,12 +487,12 @@ This workstream is best understood as separating "testing the extension" from "d
 
  ### Implementation checklist
 
- - [ ] Choose and pin a specific VS Code test runtime version in `.vscode-test.mjs`
- - [ ] Verify where `@vscode/test-cli` / `@vscode/test-electron` stores downloaded VS Code artifacts in CI
- - [ ] Add cache step(s) in `.github/workflows/test.yml` keyed by OS + pinned version
- - [ ] Add a narrow retry around the Windows extension integration step
+- [x] Choose and pin a specific VS Code test runtime version in `.vscode-test.mjs`
+- [x] Verify where `@vscode/test-cli` / `@vscode/test-electron` stores downloaded VS Code artifacts in CI
+- [x] Add cache step(s) in `.github/workflows/test.yml` keyed by OS + pinned version
+- [x] Add a narrow retry around the Windows extension integration step
  - [ ] Optionally prefetch the runtime in a dedicated setup step before running integration tests
- - [ ] Document why the version is pinned so future changes do not revert to `stable`
+- [x] Document why the version is pinned so future changes do not revert to `stable`
 
  ### Detailed developer instructions
 
@@ -576,6 +576,18 @@ Caching is important because it changes the problem from "download this every ti
  - [ ] Confirm Windows integration steps no longer fail at `Resolving version...`
  - [ ] Confirm a clean-cache run still succeeds reliably
  - [ ] Confirm retries are limited to the setup-sensitive integration step
+
+Current implementation note:
+
+- `.vscode-test.mjs` now pins the runtime version through `VSCODE_TEST_VERSION`, defaulting to `1.103.0`.
+- `.github/workflows/test.yml` now:
+  - sets `VSCODE_TEST_VERSION` in the test job,
+  - caches `.vscode-test` on Windows keyed by runner OS and pinned version,
+  - retries the Windows non-Linux extension integration step up to three times.
+- Local validation completed for the repository-controlled pieces of this workstream:
+  - importing `.vscode-test.mjs` resolved the pinned version correctly,
+  - workflow YAML parsed successfully.
+- Full end-to-end verification of cache hits and retry behavior still depends on CI execution, since those behaviors only manifest in GitHub Actions.
 
 ---
 
