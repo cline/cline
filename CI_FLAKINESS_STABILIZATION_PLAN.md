@@ -216,9 +216,9 @@ In plain language: if the screen is still loading its list of skills, the safest
 
  ### Verification checklist
 
- - [ ] Run the CLI test file locally multiple times
+ - [x] Run the CLI test file locally multiple times
  - [ ] Run it specifically on Windows if available
- - [ ] Confirm the test no longer relies on fixed 60ms assumptions
+ - [x] Confirm the test no longer relies on fixed 60ms assumptions
  - [ ] Confirm no false positives were introduced by over-broad polling
 
 Current implementation note:
@@ -584,11 +584,11 @@ Caching is important because it changes the problem from "download this every ti
 
  ### Verification checklist
 
- - [ ] Confirm `.vscode-test.mjs` uses a pinned version
+ - [x] Confirm `.vscode-test.mjs` uses a pinned version
  - [ ] Confirm the CI cache path is correct and receives hits on reruns
  - [ ] Confirm Windows integration steps no longer fail at `Resolving version...`
  - [ ] Confirm a clean-cache run still succeeds reliably
- - [ ] Confirm retries are limited to the setup-sensitive integration step
+ - [x] Confirm retries are limited to the setup-sensitive integration step
 
 Current implementation note:
 
@@ -711,6 +711,36 @@ The pinned VS Code runtime should be used in CI, runtime caching should work as 
 ## Definition of done
 
 This initiative is done when the four identified flake classes have concrete repo-local fixes merged, the tests and workflow reflect the deterministic design principles described in this document, and the resulting code is documented clearly enough that future contributors understand both what was changed and why it needed to work that way.
+
+## Current project status
+
+At the current checkpoint, the repo-local implementation work described in this plan has been completed for all four primary flake classes.
+
+What has been implemented:
+
+- the Windows hook timeout hardening,
+- the CLI `SkillsPanelContent` test stabilization,
+- the VS Code runtime pin/cache/retry CI hardening,
+- the BannerService fake-timer/background-work stabilization,
+- and the optional CLI loading-state input guard.
+
+What has been verified locally:
+
+- the CLI `SkillsPanelContent` test file passes in the CLI package-native Vitest runner,
+- `.vscode-test.mjs` resolves the pinned runtime version correctly,
+- the workflow YAML parses successfully,
+- the BannerService-modified files pass static validation via Biome.
+
+What is still pending before anyone can honestly claim full end-to-end completion:
+
+- Windows CI runs need to execute and confirm that the workflow hardening behaves as intended,
+- the repository’s broader unit-test harness/module-resolution issues need to be cleared before the BannerService and hook changes can be re-verified through the normal repo test path,
+- the unrelated TypeScript build failures currently blocking compiled-test verification need to be fixed elsewhere in the repo.
+
+So the correct status is:
+
+- **implementation of the CI flakiness stabilization plan is substantially complete at the repo-local code/config level**, but
+- **full end-to-end verification is not yet complete**, because there are still unrelated repository and CI validation blockers outside the specific stabilization changes made here.
 
 ---
 
