@@ -229,7 +229,7 @@ Events tracking user interface interactions.
 
 | Event | Description | Key Attributes |
 |-------|-------------|----------------|
-| `ui.model_selected` | Model selected in UI | model_id, provider, previous_model |
+| `ui.model_selected` | Model selected in UI | model, provider, previous_model |
 | `ui.model_favorite_toggled` | Model favorite toggled | model_id, is_favorited |
 | `ui.button_clicked` | UI button click event | button_id, context |
 | `ui.rules_menu_opened` | Rules/workflows menu/modal opened | menu_type |
@@ -241,7 +241,7 @@ Events tracking user interface interactions.
   "event": "ui.model_selected",
   "timestamp": "2026-03-05T11:20:00Z",
   "attributes": {
-    "model_id": "claude-sonnet-4",
+    "model": "claude-sonnet-4",
     "provider": "anthropic",
     "previous_model": "gpt-4o",
     "mode": "act"
@@ -436,9 +436,9 @@ Token events provide detailed cost and usage information:
 
 ## Using Events for Analytics
 
-<Note>
-SQL syntax shown is illustrative. Attribute access varies by platform (e.g., `JSON_EXTRACT(attributes, '$.model')` in BigQuery, `attributes['model']` in ClickHouse).
-</Note>
+<Warning>
+**SQL syntax is illustrative only.** Attribute access varies by observability platform — for example, `JSON_EXTRACT(attributes, '$.model')` in BigQuery, `attributes['model']` in ClickHouse, or `@attributes.model` in Datadog. Adapt all queries below to your platform's query language before use.
+</Warning>
 
 ### Query Patterns
 
@@ -490,6 +490,10 @@ ORDER BY total_uses DESC
 ```
 
 ## Integration Examples
+
+<Note>
+Query syntax below is illustrative. Attribute access varies by platform — for example, `JSON_EXTRACT(attributes, '$.model')` in BigQuery, `attributes['model']` in ClickHouse, or dot notation in Datadog. Adapt to your platform's query language.
+</Note>
 
 ### Datadog Dashboard
 
@@ -544,7 +548,7 @@ Query task completion rates:
 SELECT count(*) 
 FROM Log 
 WHERE event = 'task.completed' 
-FACET attributes.model_id 
+FACET attributes.model 
 SINCE 1 day ago
 ```
 
