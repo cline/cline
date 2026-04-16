@@ -125,9 +125,8 @@ describe("BannerService", () => {
 
 	async function flushBannerServiceWork(clock: sinon.SinonFakeTimers, bannerService?: BannerService) {
 		await clock.tickAsync(0)
-		const inFlightFetch = (bannerService as unknown as { fetchPromise?: Promise<unknown> } | undefined)?.fetchPromise
-		if (inFlightFetch) {
-			await inFlightFetch
+		if (bannerService) {
+			await bannerService.drainForTesting()
 		}
 		await clock.tickAsync(0)
 	}

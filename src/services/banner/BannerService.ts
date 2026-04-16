@@ -188,6 +188,13 @@ export class BannerService {
 		return welcomeBanners
 	}
 
+	/**
+	 * Testing hook for draining in-flight background fetch work deterministically.
+	 */
+	public async drainForTesting(): Promise<void> {
+		await this.fetchPromise
+	}
+
 	private ensureFreshCache(): void {
 		const now = Date.now()
 		const cacheDurationMs = this.getCacheDurationMs()
