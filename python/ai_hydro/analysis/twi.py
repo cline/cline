@@ -39,9 +39,12 @@ References
 """
 from __future__ import annotations
 
+import logging
 from typing import Callable, Dict, Optional, Tuple
 import warnings
 warnings.filterwarnings('ignore')
+
+log = logging.getLogger(__name__)
 
 # Public API
 __all__ = ['compute_twi', 'get_twi_interpretation', 'classify_twi_zones']
@@ -378,12 +381,12 @@ def compute_twi(
         # === Step 10: Create Visualizations ===
         if create_visualizations:
             if not VIZ_AVAILABLE:
-                print("\n⚠️  Visualization libraries not available. Skipping maps.")
-                print("   Install with: pip install matplotlib rasterio folium")
+                log.warning("Visualization libraries not available — skipping maps. "
+                            "Install with: pip install matplotlib rasterio folium")
             else:
                 _progress(10, 10, "Creating visualizations...")
+                # Static map — independent try/except so interactive failure can't prevent PNG
                 try:
-                    # Static map
                     viz_paths = _create_static_map(
                         twi_masked, twi_stats, output_dir,
                         output_prefix, save_outputs
@@ -391,19 +394,22 @@ def compute_twi(
                     twi_stats.update(viz_paths)
                     if viz_paths.get('static_map_path'):
                         files_saved.append(viz_paths['static_map_path'])
+                except Exception as static_err:
+                    log.warning("TWI static map creation failed: %s", static_err)
+                    twi_stats['_static_map_error'] = str(static_err)
 
-                    # Interactive map
-                    if save_outputs:
+                # Interactive map — separate try/except so PNG is never blocked by this
+                if save_outputs:
+                    try:
                         interactive_path = _create_interactive_map(
                             watershed_geom, twi_masked, twi_stats,
                             output_dir, output_prefix, raster_path
                         )
                         twi_stats['interactive_map_path'] = interactive_path
                         files_saved.append(interactive_path)
-                except Exception as viz_err:
-                    print(f"\n⚠️  Visualization creation failed: {viz_err}")
-                    print("   Statistics and raster saved successfully.")
-                    twi_stats['_visualization_error'] = str(viz_err)
+                    except Exception as html_err:
+                        log.warning("TWI interactive map creation failed: %s", html_err)
+                        twi_stats['_interactive_map_error'] = str(html_err)
 
         twi_stats['files_saved'] = files_saved
         

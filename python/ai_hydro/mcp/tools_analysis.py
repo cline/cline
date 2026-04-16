@@ -168,20 +168,35 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
         d = _result_to_dict(result)
         # Store full result (including geometry) in session FIRST
         _session_store(gauge_id, "watershed", d)
-        # Save GeoJSON file directly — geometry never needs to pass through LLM
-        saved = _workspace_write(
+        files_saved: list[str] = []
+        # Save GeoJSON file — geometry never needs to pass through LLM
+        geojson_path = _workspace_write(
             gauge_id,
             f"watershed_{gauge_id}.geojson",
             d["data"]["geometry_geojson"],
         )
-        if saved:
-            d["_file_saved"] = saved
+        if geojson_path:
+            files_saved.append(geojson_path)
+        # Watershed boundary map PNG
+        ws = session.workspace_dir
+        if ws:
+            from ai_hydro.analysis.plots import plot_watershed_map
+            png = plot_watershed_map(
+                geojson=d["data"]["geometry_geojson"],
+                gauge_lat=d["data"].get("gauge_lat", 0.0),
+                gauge_lon=d["data"].get("gauge_lon", 0.0),
+                gauge_name=d["data"].get("gauge_name", ""),
+                output_dir=ws,
+                gauge_id=gauge_id,
+            )
+            if png:
+                files_saved.append(png)
         # Strip geometry from agent response — it's large and already on disk
         compact = {k: v for k, v in d["data"].items() if k != "geometry_geojson"}
         return {
             "data": compact,
             "meta": d.get("meta", {}),
-            "_file_saved": d.get("_file_saved"),
+            "_files_saved": files_saved,
             "_note": "geometry_geojson stored in session and saved to file. "
                      "Downstream tools (signatures, geomorphic, twi, forcing) "
                      "load it automatically — no need to pass it manually.",
@@ -255,7 +270,10 @@ def fetch_streamflow_data(
                      end_date=end_date, interval=interval)
         d = _result_to_dict(result)
         _session_store(gauge_id, "streamflow", d)
+        files_saved: list[str] = []
         saved = _workspace_write(gauge_id, f"streamflow_{gauge_id}.json", d["data"])
+        if saved:
+            files_saved.append(saved)
         # Strip raw arrays from response — saved to disk, not needed in context
         data = d["data"]
         q_vals = data.get("q_cms", [])
@@ -267,10 +285,23 @@ def fetch_streamflow_data(
                 compact["q_max_cms"] = round(max(valid), 4)
                 compact["q_min_cms"] = round(min(valid), 4)
                 compact["n_missing"] = len(q_vals) - len(valid)
+        # Hydrograph PNG
+        ws = session.workspace_dir
+        if ws and data.get("dates") and q_vals:
+            from ai_hydro.analysis.plots import plot_hydrograph
+            png = plot_hydrograph(
+                dates=data["dates"],
+                q_cms=q_vals,
+                gauge_name=data.get("gauge_name", ""),
+                gauge_id=gauge_id,
+                output_dir=ws,
+            )
+            if png:
+                files_saved.append(png)
         return {
             "data": compact,
             "meta": d.get("meta", {}),
-            "_file_saved": saved,
+            "_files_saved": files_saved,
             "_note": (
                 f"Full time series ({compact.get('n_days', '?')} records) saved to file. "
                 "Raw dates/q_cms arrays stripped from response to prevent context overflow."
@@ -340,9 +371,25 @@ def extract_hydrological_signatures(
         )
         d = _result_to_dict(result)
         _session_store(gauge_id, "signatures", d)
+        files_saved: list[str] = []
         saved = _workspace_write(gauge_id, f"signatures_{gauge_id}.json", d["data"])
         if saved:
-            d["_file_saved"] = saved
+            files_saved.append(saved)
+        # FDC + signature summary PNG — needs q_cms from the streamflow slot
+        ws = session.workspace_dir
+        if ws and session.streamflow:
+            q_vals = session.streamflow.get("data", {}).get("q_cms")
+            if q_vals:
+                from ai_hydro.analysis.plots import plot_flow_duration_curve
+                png = plot_flow_duration_curve(
+                    q_cms=q_vals,
+                    signatures=d["data"],
+                    gauge_id=gauge_id,
+                    output_dir=ws,
+                )
+                if png:
+                    files_saved.append(png)
+        d["_files_saved"] = files_saved
         return d
     except Exception as e:
         log.error("extract_hydrological_signatures failed: %s", e)
@@ -514,7 +561,7 @@ async def compute_twi(
                 log.warning("TWI full computation failed, falling back to stats only: %s", viz_err)
                 viz_failed = str(viz_err)
 
-        # Fallback: statistics only (when workspace missing, create_map=False,
+        # Fallback: statistics only (workspace missing, create_map=False,
         # or full computation raised a fatal error)
         from ai_hydro.analysis.twi import compute_twi_result as _fn
         result = await asyncio.to_thread(
@@ -525,10 +572,15 @@ async def compute_twi(
         saved = _workspace_write(gauge_id, f"twi_{gauge_id}.json", d["data"])
         if saved:
             d["_file_saved"] = saved
-        if viz_failed:
+        if not workspace:
+            d["_note"] = (
+                "No workspace directory set — statistics only, no map files saved. "
+                "Call delineate_watershed(gauge_id, workspace_dir=<path>) to enable file output."
+            )
+        elif viz_failed:
             d["_visualization_warning"] = (
-                f"Map generation failed: {viz_failed[:300]}. "
-                "Statistics saved successfully. Use create_map=False to suppress."
+                f"Full TWI computation failed ({viz_failed[:200]}); "
+                "statistics computed via fallback. No map files generated."
             )
 
         if ctx:
