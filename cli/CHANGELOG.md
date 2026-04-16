@@ -4,7 +4,7 @@
 
 ### Added
 
-- Add Claude Opus 4.7 and GPT-5.2 model support
+- Add Claude Opus 4.7 model support
 - Inline value reuse in user-level remote-config discovery
 - Add `globalSkills` to remote config
 

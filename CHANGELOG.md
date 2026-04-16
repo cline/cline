@@ -6,7 +6,6 @@
 
 - Add Claude Opus 4.7 model support
 - Add Azure Blob Storage as a storage provider
-- Add GPT-5.2 model support
 - Add `globalSkills` to remote config
 - Inline value reuse in user-level remote-config discovery
 
