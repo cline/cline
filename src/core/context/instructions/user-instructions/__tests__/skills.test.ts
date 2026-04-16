@@ -488,7 +488,7 @@ description: Test
 				expect(result[0].alwaysEnabled).to.equal(true)
 			})
 
-			it("should reject entries where entry.name does not match frontmatter.name", () => {
+			it("should warn but still include entries where entry.name drifts from frontmatter.name", () => {
 				const entries = [
 					{
 						name: "entry-key",
@@ -497,7 +497,8 @@ description: Test
 					},
 				]
 				const result = parseRemoteSkillEntries(entries)
-				expect(result).to.have.lengthOf(0)
+				expect(result).to.have.lengthOf(1)
+				expect(result[0].name).to.equal("Different Name")
 				sinon.assert.calledWithMatch(Logger.warn as sinon.SinonStub, /does not match frontmatter\.name/)
 			})
 
@@ -517,7 +518,7 @@ description: Test
 				expect(parseRemoteSkillEntries([])).to.have.lengthOf(0)
 			})
 
-			it("should filter mixed valid and invalid entries", () => {
+			it("should include all entries with valid frontmatter even with drift", () => {
 				const entries = [
 					{ name: "Good", alwaysEnabled: false, contents: `---\nname: Good\ndescription: Valid\n---\nBody` },
 					{ name: "drift", alwaysEnabled: false, contents: `---\nname: Different\ndescription: Drifted\n---\nBody` },
@@ -528,9 +529,10 @@ description: Test
 					},
 				]
 				const result = parseRemoteSkillEntries(entries)
-				expect(result).to.have.lengthOf(2)
+				expect(result).to.have.lengthOf(3)
 				expect(result[0].name).to.equal("Good")
-				expect(result[1].name).to.equal("Also Good")
+				expect(result[1].name).to.equal("Different")
+				expect(result[2].name).to.equal("Also Good")
 			})
 		})
 
@@ -546,12 +548,15 @@ description: Test
 				expect(remoteSkill!.description).to.equal("Handles CI/CD deployment")
 			})
 
-			it("should reject entries where entry.name drifts from frontmatter.name", async () => {
+			it("should use frontmatter.name as identity even when entry.name drifts", async () => {
 				const entries = [
 					{ name: "entry-key", alwaysEnabled: false, contents: `---\nname: Actual Name\ndescription: Desc\n---\nBody` },
 				]
 				const skills = await discoverSkills(TEST_CWD, entries)
-				expect(skills.find((s) => s.path?.startsWith("remote:"))).to.be.undefined
+				const remoteSkill = skills.find((s) => s.path?.startsWith("remote:"))
+				expect(remoteSkill).to.not.be.undefined
+				expect(remoteSkill!.name).to.equal("Actual Name")
+				expect(remoteSkill!.path).to.equal("remote:Actual Name")
 			})
 
 			it("should skip remote skills with missing frontmatter name", async () => {

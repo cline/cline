@@ -9,7 +9,7 @@ import { parseYamlFrontmatter } from "./frontmatter"
 
 /**
  * A remote skill entry after frontmatter validation.
- * entry.name must match frontmatter.name to prevent drift between dashboard and SKILL.md content.
+ * name is always frontmatter.name (canonical). A warning is logged if entry.name drifts.
  */
 export interface ValidatedRemoteSkill {
 	name: string
@@ -23,7 +23,7 @@ export interface ValidatedRemoteSkill {
  *
  * Validates:
  *  - frontmatter.name and frontmatter.description are present strings
- *  - entry.name matches frontmatter.name (rejects on drift)
+ *  - Warns if entry.name does not match frontmatter.name (drift)
  *
  * Returns only valid entries. Callers share this single validation point
  * instead of duplicating frontmatter parsing.
@@ -34,14 +34,14 @@ export function parseRemoteSkillEntries(entries: GlobalInstructionsFile[]): Vali
 			const { data: frontmatter } = parseYamlFrontmatter(entry.contents)
 			if (!frontmatter.name || typeof frontmatter.name !== "string") return null
 			if (!frontmatter.description || typeof frontmatter.description !== "string") return null
+			// Warn on drift but use frontmatter.name as the canonical identity.
+			// The dashboard should keep entry.name in sync, but we don't reject on mismatch
+			// since that would silently hide org-configured skills from users.
 			if (entry.name !== frontmatter.name) {
-				Logger.warn(
-					`Remote skill entry.name "${entry.name}" does not match frontmatter.name "${frontmatter.name}", skipping`,
-				)
-				return null
+				Logger.warn(`Remote skill entry.name "${entry.name}" does not match frontmatter.name "${frontmatter.name}"`)
 			}
 			return {
-				name: entry.name,
+				name: frontmatter.name,
 				description: frontmatter.description as string,
 				alwaysEnabled: entry.alwaysEnabled,
 				contents: entry.contents,
@@ -208,9 +208,15 @@ export async function getSkillContent(
 	if (!skill) return null
 
 	// Remote skills have no file on disk — retrieve content from the provided entries.
-	// Lookup by entry.name is safe because parseRemoteSkillEntries validated entry.name === frontmatter.name.
+	// Try entry.name first (fast path when dashboard is in sync), fall back to frontmatter match.
 	if (skill.path.startsWith("remote:")) {
-		const entry = (remoteSkillEntries || []).find((e) => e.name === skillName)
+		let entry = (remoteSkillEntries || []).find((e) => e.name === skillName)
+		if (!entry) {
+			entry = (remoteSkillEntries || []).find((e) => {
+				const { data } = parseYamlFrontmatter(e.contents)
+				return typeof data.name === "string" && data.name === skillName
+			})
+		}
 		if (!entry) return null
 		const { body } = parseYamlFrontmatter(entry.contents)
 		return {

@@ -92,11 +92,12 @@ describe("applyRemoteConfig uses parseRemoteSkillEntries", () => {
 		expect(validated[0].name).to.equal("Deploy")
 	})
 
-	it("rejects entries where entry.name drifts from frontmatter.name", () => {
+	it("warns but includes entries where entry.name drifts from frontmatter.name", () => {
 		const validated = parseRemoteSkillEntries([
 			{ name: "entry-key", alwaysEnabled: false, contents: makeSKILLMd("Actual Name", "Desc") },
 		])
-		expect(validated).to.have.lengthOf(0)
+		expect(validated).to.have.lengthOf(1)
+		expect(validated[0].name).to.equal("Actual Name")
 	})
 
 	it("filters entries with missing frontmatter name", () => {

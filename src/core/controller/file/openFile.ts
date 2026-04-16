@@ -1,7 +1,9 @@
+import { parseYamlFrontmatter } from "@core/context/instructions/user-instructions/frontmatter"
 import { StateManager } from "@core/storage/StateManager"
 import { openFile as openFileIntegration } from "@integrations/misc/open-file"
 import { Empty, StringRequest } from "@shared/proto/cline/common"
 import { REMOTE_URI_SCHEME } from "@shared/remote-config/constants"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { writeFile } from "@utils/fs"
 import * as os from "os"
 import * as path from "path"
@@ -44,7 +46,7 @@ async function openRemoteFile(uri: string): Promise<void> {
 	const remoteConfig = StateManager.get().getRemoteConfigSettings()
 
 	// Look up content based on type
-	let items
+	let items: GlobalInstructionsFile[] | undefined
 	if (type === "rule") {
 		items = remoteConfig.remoteGlobalRules
 	} else if (type === "workflow") {
@@ -52,7 +54,15 @@ async function openRemoteFile(uri: string): Promise<void> {
 	} else {
 		items = remoteConfig.remoteGlobalSkills
 	}
-	const item = items?.find((r) => r.name === name)
+	// Try entry.name first (fast path), fall back to frontmatter.name for skills
+	// in case entry.name drifts from the frontmatter
+	let item = items?.find((r) => r.name === name)
+	if (!item && type === "skill") {
+		item = items?.find((r) => {
+			const { data } = parseYamlFrontmatter(r.contents)
+			return typeof data.name === "string" && data.name === name
+		})
+	}
 
 	if (!item?.contents) {
 		throw new Error(`Remote ${type} not found: ${name}`)
