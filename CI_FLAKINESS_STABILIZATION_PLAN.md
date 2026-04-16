@@ -7,7 +7,7 @@
  It is written to be handed directly to a development team. It explains:
 
  - what is failing,
-- why we believe it is flaky rather than a single deterministic regression,
+ - why we believe it is flaky rather than a single deterministic regression,
  - what architectural direction we want to take to stabilize CI,
  - exactly what files and behaviors need to change,
  - how to verify that each change actually improves reliability.
@@ -264,11 +264,11 @@ Each of those behaviors is valid in production. The instability appears because 
 
  ### Implementation checklist
 
- - [ ] Add test helpers for draining background BannerService work
- - [ ] Use those helpers in the flaky cache/429/auth-update tests
- - [ ] Improve fake-timer setup to avoid native/fake timer mismatch
- - [ ] Harden `BannerService.reset()` so pending debounce state is fully cleared
- - [ ] Review whether other BannerService tests use the same brittle pattern and convert them if needed
+  - [x] Add test helpers for draining background BannerService work
+  - [x] Use those helpers in the flaky cache/429/auth-update tests
+  - [x] Improve fake-timer setup to avoid native/fake timer mismatch
+  - [x] Harden `BannerService.reset()` so pending debounce state is fully cleared
+  - [x] Review whether other BannerService tests use the same brittle pattern and convert them if needed
 
  ### Detailed developer instructions
 
@@ -388,6 +388,18 @@ This is not just cleanup for neatness. It is an architectural containment step. 
  - [ ] Confirm no test times out while waiting on fake timers
  - [ ] Confirm `reset()` leaves no pending state between tests
  - [ ] Confirm behavior assertions still match intended product semantics, not just timing behavior
+
+Current implementation note:
+
+- The BannerService workstream has been implemented in both the service and the flaky test cases.
+- The changes include:
+  - a shared fake-timer factory for BannerService tests,
+  - a helper that explicitly drains in-flight background fetch work,
+  - replacement of fragile zero-tick assumptions in the targeted fake-timer tests,
+  - stronger `BannerService.reset()` cleanup for pending debounce and fetch state.
+- Targeted local execution is currently blocked by unrelated repository test-harness/module-resolution issues in the Mocha + ts-node path.
+- The repository’s compiled test flow is also currently blocked by unrelated TypeScript build errors outside BannerService.
+- Static validation of the modified files succeeded via `biome check`, and the remaining lint findings were pre-existing style issues unrelated to this stabilization work.
 
 ---
 
