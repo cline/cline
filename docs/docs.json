@@ -258,7 +258,7 @@
 							"enterprise-solutions/sso-setup",
 							"enterprise-solutions/team-management/managing-members",
 							{
-								"group": "SaaS Provider Configuration",
+								"group": "Remote Provider Configuration",
 								"pages": [
 									"enterprise-solutions/configuration/remote-configuration/overview",
 									{
@@ -269,17 +269,31 @@
 										]
 									},
 									{
-										"group": "LiteLLM",
-										"pages": [
-											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
-											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
-										]
-									},
-									{
 										"group": "Google Vertex AI",
 										"pages": [
 											"enterprise-solutions/configuration/remote-configuration/google-vertex/admin-configuration",
 											"enterprise-solutions/configuration/remote-configuration/google-vertex/member-configuration"
+										]
+									},
+									{
+										"group": "OpenAI Compatible",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/openai-compatible/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/openai-compatible/member-configuration"
+										]
+									},
+									{
+										"group": "Anthropic",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/anthropic/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/anthropic/member-configuration"
+										]
+									},
+									{
+										"group": "LiteLLM",
+										"pages": [
+											"enterprise-solutions/configuration/remote-configuration/litellm/admin-configuration",
+											"enterprise-solutions/configuration/remote-configuration/litellm/member-configuration"
 										]
 									}
 								]
@@ -328,6 +342,22 @@
 							"api/models",
 							"api/errors",
 							"api/sdk-examples"
+						]
+					}
+				]
+			},
+			{
+				"tab": "Kanban",
+				"icon": "table-columns",
+				"groups": [
+					{
+						"group": "Cline Kanban",
+						"pages": [
+							"kanban/overview",
+							"kanban/getting-started",
+							"kanban/core-workflow",
+							"kanban/features",
+							"kanban/remote-access"
 						]
 					}
 				]

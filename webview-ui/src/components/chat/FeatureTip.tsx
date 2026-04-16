@@ -43,6 +43,9 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 	{
 		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
 	},
+	{
+		text: 'You can disable these tips in Settings → Features → "Feature Tips".',
+	},
 ]
 
 const SHOW_DELAY_MS = 2000

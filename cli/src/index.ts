@@ -40,13 +40,16 @@ import { restoreConsole, suppressConsoleUnlessVerbose } from "./utils/console"
 import { printError, printInfo, printWarning } from "./utils/display"
 import {
 	forwardSignalToKanbanProcess,
+	isKanbanCommandAvailable,
 	KANBAN_LAUNCH_COMMAND,
 	KANBAN_SHUTDOWN_TIMEOUT_MS,
 	type KanbanMigrationAction,
 	LEGACY_TUI_FLAG,
 	markKanbanMigrationAnnouncementShown,
+	resolveKanbanInstallCommand,
 	shouldLaunchKanbanByDefault,
 	shouldShowKanbanMigrationAnnouncementForCurrentUser,
+	spawnKanbanInstallProcess,
 	spawnKanbanProcess,
 } from "./utils/kanban"
 import { addMcpServerShortcut, type McpAddOptions } from "./utils/mcp"
@@ -267,18 +270,52 @@ function getPlainTextModeReason(options: TaskOptions): string {
 }
 
 function runKanbanAlias(spawnOptions?: Parameters<typeof spawnKanbanProcess>[0]): void {
-	const child = spawnKanbanProcess(spawnOptions)
-	activeKanbanProcess = child
+	const launchKanban = () => {
+		const child = spawnKanbanProcess(spawnOptions)
+		activeKanbanProcess = child
 
-	child.on("error", () => {
-		clearActiveKanbanProcess()
-		printWarning(`Failed to run '${KANBAN_LAUNCH_COMMAND}'. Make sure npx is installed and available in PATH.`)
+		child.on("error", (error) => {
+			clearActiveKanbanProcess()
+			const errorMessage = error instanceof Error ? ` ${error.message}` : ""
+			printWarning(`Failed to run '${KANBAN_LAUNCH_COMMAND}'.${errorMessage}`)
+			exit(1)
+		})
+
+		child.on("close", (code, signal) => {
+			clearActiveKanbanProcess()
+			exit(resolveProcessExitCode(code, signal))
+		})
+	}
+
+	if (isKanbanCommandAvailable()) {
+		launchKanban()
+		return
+	}
+
+	const installCommand = resolveKanbanInstallCommand()
+	if (!installCommand) {
+		printWarning(
+			`'${KANBAN_LAUNCH_COMMAND}' not found and no supported package manager was detected in PATH (npm, pnpm, bun). Install Kanban globally and try again.`,
+		)
+		exit(1)
+	}
+
+	const installProcess = spawnKanbanInstallProcess(installCommand)
+
+	installProcess.on("error", (error) => {
+		const errorMessage = error instanceof Error ? ` ${error.message}` : ""
+		printWarning(`Failed to run '${installCommand.displayCommand}'.${errorMessage}`)
 		exit(1)
 	})
 
-	child.on("close", (code, signal) => {
-		clearActiveKanbanProcess()
-		exit(resolveProcessExitCode(code, signal))
+	installProcess.on("close", (code, signal) => {
+		const installExitCode = resolveProcessExitCode(code, signal)
+		if (installExitCode !== 0) {
+			printWarning(`Failed to install Kanban automatically. Please run '${installCommand.displayCommand}' manually.`)
+			exit(installExitCode)
+		}
+
+		launchKanban()
 	})
 }
 
@@ -1020,7 +1057,7 @@ program
 	.command("update")
 	.description("Check for updates and install if available")
 	.option("-v, --verbose", "Show verbose output")
-	.action(() => checkForUpdates(CLI_VERSION))
+	.action((options) => checkForUpdates(CLI_VERSION, { verbose: options.verbose, includeKanban: true }))
 
 program
 	.command("kanban")
@@ -1185,6 +1222,7 @@ program
 	.option("--auto-condense", "Enable AI-powered context compaction instead of mechanical truncation")
 	.option("--hooks-dir <path>", "Path to additional hooks directory for runtime hook injection")
 	.option("--acp", "Run in ACP (Agent Client Protocol) mode for editor integration")
+	.option("--update", "Check for updates and install if available")
 	.option("--kanban", `Run ${KANBAN_LAUNCH_COMMAND}`)
 	.option("--tui", "Open the legacy terminal UI instead of the kanban experience")
 	.option("-T, --taskId <id>", "Resume an existing task by ID")
@@ -1193,6 +1231,16 @@ program
 		if (options.kanban && options.tui) {
 			printWarning(`Use either --kanban or ${LEGACY_TUI_FLAG}, not both.`)
 			exit(1)
+		}
+
+		if (options.update) {
+			if (prompt || options.taskId || options.continue || options.kanban || options.tui || options.acp) {
+				printWarning("Use --update without a prompt or task flags.")
+				exit(1)
+			}
+
+			await checkForUpdates(CLI_VERSION, { verbose: options.verbose, includeKanban: true })
+			return
 		}
 
 		if (options.kanban) {

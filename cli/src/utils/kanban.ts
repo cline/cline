@@ -1,20 +1,59 @@
 import { type ChildProcess, type SpawnOptions, spawn } from "node:child_process"
+import { accessSync, constants as fsConstants } from "node:fs"
+import { delimiter, extname, join } from "node:path"
 import { StateManager } from "@/core/storage/StateManager"
 import { checkAnyProviderConfigured } from "./auth"
 
-export const KANBAN_LAUNCH_ARGS = ["-y", "kanban@latest"] as const
-export const KANBAN_LAUNCH_COMMAND = `npx ${KANBAN_LAUNCH_ARGS.join(" ")}`
+export const KANBAN_LAUNCH_COMMAND = "kanban"
 export const KANBAN_SHUTDOWN_TIMEOUT_MS = 10_000
 export const LEGACY_TUI_FLAG = "--tui"
 export type KanbanMigrationAction = "kanban" | "exit"
+type KanbanInstaller = "npm" | "pnpm" | "bun"
+
+interface KanbanInstallCommand {
+	packageManager: KanbanInstaller
+	command: string
+	args: readonly string[]
+	displayCommand: string
+}
 
 interface SignalableKanbanProcess {
 	pid?: number
 	kill: (signal?: NodeJS.Signals | number) => boolean
 }
 
-function getNpxCommand(): string {
-	return process.platform === "win32" ? "npx.cmd" : "npx"
+function getKanbanCommand(platform: NodeJS.Platform = process.platform): string {
+	return platform === "win32" ? "kanban.cmd" : "kanban"
+}
+
+function getPackageManagerCommand(packageManager: KanbanInstaller, platform: NodeJS.Platform = process.platform): string {
+	if (platform !== "win32") {
+		return packageManager
+	}
+
+	return packageManager === "bun" ? "bun" : `${packageManager}.cmd`
+}
+
+const KANBAN_INSTALL_COMMANDS: ReadonlyArray<Omit<KanbanInstallCommand, "displayCommand">> = [
+	{
+		packageManager: "npm",
+		command: "npm",
+		args: ["install", "-g", "kanban@latest"],
+	},
+	{
+		packageManager: "pnpm",
+		command: "pnpm",
+		args: ["add", "-g", "kanban@latest"],
+	},
+	{
+		packageManager: "bun",
+		command: "bun",
+		args: ["add", "-g", "kanban@latest"],
+	},
+]
+
+function toDisplayCommand(command: string, args: readonly string[]): string {
+	return `${command} ${args.join(" ")}`
 }
 
 export function shouldDetachKanbanProcess(platform: NodeJS.Platform = process.platform): boolean {
@@ -25,12 +64,108 @@ export function buildKanbanSpawnOptions(options: SpawnOptions = {}, platform: No
 	return {
 		stdio: "inherit",
 		detached: shouldDetachKanbanProcess(platform),
+		...(platform === "win32" ? { shell: true } : {}),
+		...options,
+	}
+}
+
+export function buildKanbanInstallSpawnOptions(
+	options: SpawnOptions = {},
+	platform: NodeJS.Platform = process.platform,
+): SpawnOptions {
+	return {
+		stdio: "inherit",
+		detached: false,
+		...(platform === "win32" ? { shell: true } : {}),
 		...options,
 	}
 }
 
 export function spawnKanbanProcess(options: SpawnOptions = {}): ChildProcess {
-	return spawn(getNpxCommand(), [...KANBAN_LAUNCH_ARGS], buildKanbanSpawnOptions(options))
+	return spawn(getKanbanCommand(), [], buildKanbanSpawnOptions(options))
+}
+
+export function spawnKanbanInstallProcess(installCommand: KanbanInstallCommand, options: SpawnOptions = {}): ChildProcess {
+	return spawn(
+		getPackageManagerCommand(installCommand.packageManager),
+		[...installCommand.args],
+		buildKanbanInstallSpawnOptions(options),
+	)
+}
+
+function getPathEntries(env: NodeJS.ProcessEnv): string[] {
+	const pathValue = env.PATH ?? env.Path ?? env.path
+	if (!pathValue) {
+		return []
+	}
+
+	return pathValue
+		.split(delimiter)
+		.map((entry) => entry.trim().replace(/^"(.*)"$/u, "$1"))
+		.filter((entry) => entry.length > 0)
+}
+
+function pathExists(candidatePath: string, platform: NodeJS.Platform): boolean {
+	try {
+		if (platform === "win32") {
+			accessSync(candidatePath, fsConstants.F_OK)
+		} else {
+			accessSync(candidatePath, fsConstants.X_OK)
+		}
+		return true
+	} catch {
+		return false
+	}
+}
+
+export function isCommandAvailable(
+	command: string,
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): boolean {
+	const commandHasExtension = extname(command).length > 0
+	const pathExtensions =
+		platform === "win32" ? (env.PATHEXT ?? ".EXE;.CMD;.BAT;.COM").split(";").filter((ext) => ext.length > 0) : []
+
+	for (const pathEntry of getPathEntries(env)) {
+		const commandPath = join(pathEntry, command)
+		if (pathExists(commandPath, platform)) {
+			return true
+		}
+
+		if (!commandHasExtension && platform === "win32") {
+			for (const extension of pathExtensions) {
+				if (pathExists(`${commandPath}${extension}`, platform)) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+export function isKanbanCommandAvailable(
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): boolean {
+	return isCommandAvailable(getKanbanCommand(platform), env, platform)
+}
+
+export function resolveKanbanInstallCommand(
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): KanbanInstallCommand | null {
+	for (const installCommand of KANBAN_INSTALL_COMMANDS) {
+		if (isCommandAvailable(installCommand.command, env, platform)) {
+			return {
+				...installCommand,
+				displayCommand: toDisplayCommand(installCommand.command, installCommand.args),
+			}
+		}
+	}
+
+	return null
 }
 
 export function forwardSignalToKanbanProcess(options: {

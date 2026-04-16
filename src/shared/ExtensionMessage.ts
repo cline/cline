@@ -108,6 +108,8 @@ export interface ExtensionState {
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
 	doubleCheckCompletionEnabled?: boolean
+	lazyTeammateModeEnabled?: boolean
+	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
@@ -214,6 +216,9 @@ export interface ClineSayTool {
 	operationIsLocatedInWorkspace?: boolean
 	/** Starting line numbers in the original file where each SEARCH block matched */
 	startLineNumbers?: number[]
+	/** Inclusive line range actually returned by read_file (for UI summaries). */
+	readLineStart?: number
+	readLineEnd?: number
 }
 
 export interface ClineSayHook {

@@ -1,5 +1,30 @@
 # cline
 
+## [2.14.0]
+
+### Added
+
+- Simplify unified `cline update` flow for `cline` and `kanban`
+- Docs updates
+
+### Fixed
+
+- Update Kanban migration view copy
+
+## [2.12.0]
+
+### Added
+
+- `read_file` tool now supports chunked reading for targeted file access
+
+### Fixed
+
+- Exclude `new_task` tool from system prompt in yolo/headless mode
+
+### Changed
+
+- Polish `Notification` hook functionality
+
 ## [2.9.0]
 
 ### Added

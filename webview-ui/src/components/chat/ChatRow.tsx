@@ -155,6 +155,7 @@ export const ChatRowContent = memo(
 			onRelinquishControl,
 			vscodeTerminalExecutionMode,
 			clineMessages,
+			showFeatureTips,
 		} = useExtensionState()
 		const [seeNewChangesDisabled, setSeeNewChangesDisabled] = useState(false)
 		const [explainChangesDisabled, setExplainChangesDisabled] = useState(false)
@@ -526,6 +527,12 @@ export const ChatRowContent = memo(
 									{tool.path && !tool.path.startsWith(".") && <span>/</span>}
 									<span className="ph-no-capture whitespace-nowrap overflow-hidden text-ellipsis mr-2 text-left [direction: rtl]">
 										{cleanPathPrefix(tool.path ?? "") + "\u200E"}
+										{tool.readLineStart != null && tool.readLineEnd != null ? (
+											<span className="opacity-80">
+												{" "}
+												({tool.readLineStart}-{tool.readLineEnd})
+											</span>
+										) : null}
 									</span>
 									<div className="grow" />
 									{!isImage && <SquareArrowOutUpRightIcon className="size-2" />}
@@ -903,7 +910,7 @@ export const ChatRowContent = memo(
 									showTitle={true}
 									title={isReasoningStreaming ? "Thinking..." : "Thinking"}
 								/>
-						{isReasoningStreaming && <FeatureTip />}
+								{isReasoningStreaming && showFeatureTips !== false && <FeatureTip />}
 							</div>
 						)
 					}

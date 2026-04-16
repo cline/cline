@@ -6,9 +6,10 @@ enum CLINE_API_AUTH_ENDPOINTS {
 enum CLINE_API_ENDPOINT_V1 {
 	TOKEN_EXCHANGE = "/api/v1/auth/token",
 	USER_INFO = "/api/v1/users/me",
+	FEATUREBASE_TOKEN = "/api/v1/users/me/featurebase-token",
 	ACTIVE_ACCOUNT = "/api/v1/users/active-account",
-	REMOTE_CONFIG = "/api/v1/organizations/{id}/remote-config",
 	USER_REMOTE_CONFIG = "/api/v1/users/me/remote-config",
+	REMOTE_CONFIG = "/api/v1/organizations/{id}/remote-config",
 	API_KEYS = "/api/v1/organizations/{id}/api-keys",
 }
 

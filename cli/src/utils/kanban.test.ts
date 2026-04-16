@@ -1,8 +1,14 @@
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "node:fs"
+import { tmpdir } from "node:os"
+import { join } from "node:path"
 import { describe, expect, it, vi } from "vitest"
 import {
+	buildKanbanInstallSpawnOptions,
 	buildKanbanSpawnOptions,
 	forwardSignalToKanbanProcess,
 	hasUsedLegacyCli,
+	isKanbanCommandAvailable,
+	resolveKanbanInstallCommand,
 	shouldDetachKanbanProcess,
 	shouldLaunchKanbanByDefault,
 	shouldShowKanbanMigrationAnnouncement,
@@ -101,6 +107,102 @@ describe("kanban process launch", () => {
 			stdio: "inherit",
 			detached: false,
 		})
+	})
+
+	it("enables shell mode on windows for command launches", () => {
+		expect(buildKanbanSpawnOptions({}, "win32")).toMatchObject({
+			shell: true,
+		})
+	})
+
+	it("does not set shell mode on unix-like platforms", () => {
+		expect(buildKanbanSpawnOptions({}, "darwin")).not.toHaveProperty("shell")
+	})
+})
+
+describe("kanban command availability", () => {
+	it("returns false when PATH is empty", () => {
+		expect(isKanbanCommandAvailable({ PATH: "" }, "darwin")).toBe(false)
+	})
+
+	it("detects the kanban command in PATH", () => {
+		const tempDirectory = mkdtempSync(join(tmpdir(), "kanban-cli-test-"))
+		const commandPath = join(tempDirectory, process.platform === "win32" ? "kanban.cmd" : "kanban")
+		writeFileSync(commandPath, process.platform === "win32" ? "@echo off\r\necho ok\r\n" : "#!/bin/sh\necho ok\n")
+		if (process.platform !== "win32") {
+			chmodSync(commandPath, 0o755)
+		}
+
+		try {
+			expect(isKanbanCommandAvailable({ PATH: tempDirectory }, process.platform)).toBe(true)
+		} finally {
+			rmSync(tempDirectory, { recursive: true, force: true })
+		}
+	})
+})
+
+describe("kanban install process launch", () => {
+	it("does not detach the install process on unix-like platforms", () => {
+		expect(buildKanbanInstallSpawnOptions({}, "darwin")).toMatchObject({
+			stdio: "inherit",
+			detached: false,
+		})
+	})
+
+	it("enables shell mode on windows for npm.cmd launches", () => {
+		expect(buildKanbanInstallSpawnOptions({}, "win32")).toMatchObject({
+			shell: true,
+		})
+	})
+})
+
+describe("kanban installer resolution", () => {
+	it("prefers npm when available", () => {
+		const tempDirectory = mkdtempSync(join(tmpdir(), "kanban-installer-test-"))
+		writeFileSync(join(tempDirectory, "npm"), "#!/bin/sh\necho npm\n")
+		writeFileSync(join(tempDirectory, "pnpm"), "#!/bin/sh\necho pnpm\n")
+		writeFileSync(join(tempDirectory, "bun"), "#!/bin/sh\necho bun\n")
+		chmodSync(join(tempDirectory, "npm"), 0o755)
+		chmodSync(join(tempDirectory, "pnpm"), 0o755)
+		chmodSync(join(tempDirectory, "bun"), 0o755)
+
+		try {
+			expect(resolveKanbanInstallCommand({ PATH: tempDirectory }, "darwin")?.packageManager).toBe("npm")
+		} finally {
+			rmSync(tempDirectory, { recursive: true, force: true })
+		}
+	})
+
+	it("falls back to pnpm when npm is unavailable", () => {
+		const tempDirectory = mkdtempSync(join(tmpdir(), "kanban-installer-test-"))
+		writeFileSync(join(tempDirectory, "pnpm"), "#!/bin/sh\necho pnpm\n")
+		chmodSync(join(tempDirectory, "pnpm"), 0o755)
+
+		try {
+			const installer = resolveKanbanInstallCommand({ PATH: tempDirectory }, "darwin")
+			expect(installer?.packageManager).toBe("pnpm")
+			expect(installer?.displayCommand).toBe("pnpm add -g kanban@latest")
+		} finally {
+			rmSync(tempDirectory, { recursive: true, force: true })
+		}
+	})
+
+	it("falls back to bun when npm and pnpm are unavailable", () => {
+		const tempDirectory = mkdtempSync(join(tmpdir(), "kanban-installer-test-"))
+		writeFileSync(join(tempDirectory, "bun"), "#!/bin/sh\necho bun\n")
+		chmodSync(join(tempDirectory, "bun"), 0o755)
+
+		try {
+			const installer = resolveKanbanInstallCommand({ PATH: tempDirectory }, "darwin")
+			expect(installer?.packageManager).toBe("bun")
+			expect(installer?.displayCommand).toBe("bun add -g kanban@latest")
+		} finally {
+			rmSync(tempDirectory, { recursive: true, force: true })
+		}
+	})
+
+	it("returns null when no supported package manager is available", () => {
+		expect(resolveKanbanInstallCommand({ PATH: "" }, "darwin")).toBeNull()
 	})
 })
 

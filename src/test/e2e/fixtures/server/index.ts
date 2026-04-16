@@ -1,6 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http"
 import type { Socket } from "node:net"
-import { parse } from "node:url"
 import { v4 as uuidv4 } from "uuid"
 import type { BalanceResponse, OrganizationBalanceResponse, UserResponse } from "../../../../shared/ClineAccount"
 import { E2E_MOCK_API_RESPONSES, E2E_REGISTERED_MOCK_ENDPOINTS } from "./api"
@@ -25,6 +24,7 @@ export class ClineApiServerMock {
 	private userBalance = 100.5 // Default sufficient balance
 	private orgBalance = 500.0
 	private userHasOrganization = false
+	private spendLimitExceeded = false
 	public generationCounter = 0
 
 	public readonly API_USER = new ClineDataMock("personal")
@@ -48,6 +48,16 @@ export class ClineApiServerMock {
 
 	public setOrgBalance(balance: number) {
 		this.orgBalance = balance
+	}
+
+	/**
+	 * Puts the mock server into "spend limit exceeded" mode.
+	 * While true, POST /api/v1/chat/completions returns 429 SPEND_LIMIT_EXCEEDED
+	 * instead of a normal streaming response.
+	 * Toggle off to resume normal behaviour.
+	 */
+	public setSpendLimitExceeded(exceeded: boolean) {
+		this.spendLimitExceeded = exceeded
 	}
 
 	public setCurrentUser(user: UserResponse | null) {
@@ -122,9 +132,9 @@ export class ClineApiServerMock {
 		log("Starting global server...")
 		const server = createServer((req: IncomingMessage, res: ServerResponse) => {
 			// Parse URL and method
-			const parsedUrl = parse(req.url || "", true)
-			const path = parsedUrl.pathname || ""
-			const query = parsedUrl.query
+			const parsedUrl = new URL(req.url || "/", MOCK_CLINE_API_SERVER_URL)
+			const path = parsedUrl.pathname
+			const query = Object.fromEntries(parsedUrl.searchParams.entries())
 			const method = req.method || "GET"
 
 			// Helper to read request body
@@ -212,6 +222,16 @@ export class ClineApiServerMock {
 							return sendApiError("Unauthorized", 401)
 						}
 						return sendApiResponse(currentUser)
+					}
+
+					if (endpoint === "/users/me/featurebase-token" && method === "GET") {
+						const currentUser = controller.currentUser
+						if (!currentUser) {
+							return sendApiError("Unauthorized", 401)
+						}
+						return sendApiResponse({
+							featurebaseJwt: `mock-featurebase-jwt-${currentUser.id}`,
+						})
 					}
 
 					if (endpoint === "/users/{userId}/balance" && method === "GET") {
@@ -360,8 +380,35 @@ export class ClineApiServerMock {
 						})
 					}
 
+					// Budget limit increase request endpoint
+					if (endpoint === "/users/me/budget/request" && method === "POST") {
+						log("Spend limit increase request received — recording and notifying admin")
+						res.writeHead(204)
+						res.end()
+						return
+					}
+
 					// Chat completions endpoint
 					if (endpoint === "/chat/completions" && method === "POST") {
+						// Spend limit check takes priority — org-enforced budget cap (429)
+						if (controller.spendLimitExceeded) {
+							log("Returning SPEND_LIMIT_EXCEEDED (429)")
+							return sendJson(
+								{
+									error: {
+										code: "SPEND_LIMIT_EXCEEDED",
+										limit_scope: "user",
+										budget_period: "daily",
+										limit_usd: 20.0,
+										spent_usd: 20.5,
+										resets_at: new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString(),
+										message: "Your daily spend limit of $20.00 has been reached.",
+									},
+								},
+								429,
+							)
+						}
+
 						if (!controller.userHasOrganization && controller.userBalance <= 0) {
 							return sendApiError(
 								JSON.stringify({
@@ -454,36 +501,35 @@ export class ClineApiServerMock {
 
 							sendChunk()
 							return
-						} else {
-							const response = {
-								id: generationId,
-								object: "chat.completion",
-								created: Math.floor(Date.now() / 1000),
-								model,
-								choices: [
-									{
-										index: 0,
-										message: {
-											role: "assistant",
-											content: "Hello! I'm a mock Cline API response.",
-										},
-										finish_reason: "stop",
-									},
-								],
-								usage: {
-									prompt_tokens: 140,
-									completion_tokens: responseText.length,
-									total_tokens: 140 + responseText.length,
-									cost: (140 + responseText.length) * 0.00015,
-								},
-							}
-							return sendJson(response)
 						}
+						const response = {
+							id: generationId,
+							object: "chat.completion",
+							created: Math.floor(Date.now() / 1000),
+							model,
+							choices: [
+								{
+									index: 0,
+									message: {
+										role: "assistant",
+										content: "Hello! I'm a mock Cline API response.",
+									},
+									finish_reason: "stop",
+								},
+							],
+							usage: {
+								prompt_tokens: 140,
+								completion_tokens: responseText.length,
+								total_tokens: 140 + responseText.length,
+								cost: (140 + responseText.length) * 0.00015,
+							},
+						}
+						return sendJson(response)
 					}
 
 					// Generation details endpoint
 					if (endpoint === "/generation" && method === "GET") {
-						const generationId = query.id as string
+						const generationId = parsedUrl.searchParams.get("id") || ""
 						const generation = controller.API_USER.getGeneration(generationId)
 
 						if (!generation) {
@@ -527,6 +573,15 @@ export class ClineApiServerMock {
 						const body = await readBody()
 						const { balance } = JSON.parse(body)
 						controller.setOrgBalance(balance)
+						res.writeHead(200)
+						res.end()
+						return
+					}
+
+					if (endpoint === "/setSpendLimitExceeded" && method === "POST") {
+						const body = await readBody()
+						const { exceeded } = JSON.parse(body)
+						controller.setSpendLimitExceeded(!!exceeded)
 						res.writeHead(200)
 						res.end()
 						return

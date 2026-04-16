@@ -49,7 +49,7 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 		text: "Use /reportbug to quickly file a GitHub issue with diagnostic context included.",
 	},
 	{
-		text: "Try 'npx kanban' to manage tasks on a Kankan board — orchestrate coding agents across worktrees.",
+		text: "Try 'npm i -g cline' to manage tasks on a Kankan board — orchestrate coding agents across worktrees.",
 	},
 	{
 		text: "Use Shift+Tab to toggle auto-approve all — let Cline work uninterrupted on trusted tasks.",
@@ -62,6 +62,9 @@ const FEATURE_TIPS: FeatureTipItem[] = [
 	},
 	{
 		text: "Use /skills to browse and attach reusable skill files that guide Cline's behavior.",
+	},
+	{
+		text: 'You can disable these tips in /settings → Features → "Feature tips".',
 	},
 ]
 

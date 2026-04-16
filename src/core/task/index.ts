@@ -22,6 +22,7 @@ import {
 import { sendPartialMessageEvent } from "@core/controller/ui/subscribeToPartialMessage"
 import { getHookModelContext } from "@core/hooks/hook-model-context"
 import { getHooksEnabledSafe } from "@core/hooks/hooks-utils"
+import * as NotificationHook from "@core/hooks/notification-hook"
 import { executePreCompactHookWithCleanup, HookCancellationError, HookExecution } from "@core/hooks/precompact-executor"
 import { ClineIgnoreController } from "@core/ignore/ClineIgnoreController"
 import { parseMentions } from "@core/mentions"
@@ -541,6 +542,9 @@ export class Task {
 					files: result.files,
 				}
 			},
+			resolvePendingAsk: (response) => {
+				void this.handleWebviewAskResponse(response as ClineAskResponse)
+			},
 			updateBackgroundCommandState: (isRunning: boolean) =>
 				this.controller.updateBackgroundCommandState(isRunning, this.taskId),
 			updateClineMessage: async (index: number, updates: { commandCompleted?: boolean; text?: string }) => {
@@ -771,12 +775,18 @@ export class Task {
 			// not a strict approval boundary that should force external "user_attention"
 			// handling. In auto-approve flows, command_output asks can still be emitted,
 			// so we intentionally skip Notification hook emission for this ask type.
-			await this.runNotificationHook({
-				event: "user_attention",
-				source: type,
-				message: text || "",
-				waitingForUserInput: true,
-			})
+			await NotificationHook.emitUserAttentionNotification(
+				{
+					messageStateHandler: this.messageStateHandler,
+					taskId: this.taskId,
+					hooksEnabled: getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled")),
+					model: getHookModelContext(this.api, this.stateManager),
+				},
+				{
+					source: type,
+					message: text || "",
+				},
+			)
 		}
 
 		const shouldWakeOnAbort = type !== "resume_task" && type !== "resume_completed_task"
@@ -804,35 +814,6 @@ export class Task {
 		this.taskState.askResponseImages = undefined
 		this.taskState.askResponseFiles = undefined
 		return result
-	}
-
-	private async runNotificationHook(notification: {
-		event: string
-		source: string
-		message: string
-		waitingForUserInput: boolean
-	}): Promise<void> {
-		const hooksEnabled = getHooksEnabledSafe(this.stateManager.getGlobalSettingsKey("hooksEnabled"))
-		if (!hooksEnabled) {
-			return
-		}
-
-		try {
-			await executeHook({
-				hookName: "Notification",
-				hookInput: {
-					notification,
-				},
-				isCancellable: false,
-				say: async () => undefined,
-				messageStateHandler: this.messageStateHandler,
-				taskId: this.taskId,
-				hooksEnabled,
-				model: getHookModelContext(this.api, this.stateManager),
-			})
-		} catch (error) {
-			Logger.error("[Notification Hook] Failed (non-fatal):", error)
-		}
 	}
 
 	async handleWebviewAskResponse(askResponse: ClineAskResponse, text?: string, images?: string[], files?: string[]) {
@@ -1920,7 +1901,16 @@ export class Task {
 
 		const globalClineRulesFilePath = await ensureRulesDirectoryExists()
 		const globalRules = await getGlobalClineRules(globalClineRulesFilePath, globalToggles, { evaluationContext })
-		const globalClineRulesFileInstructions = globalRules.instructions
+		let globalClineRulesFileInstructions = globalRules.instructions
+
+		// Inject Lazy Teammate Mode rules if enabled
+		const lazyTeammateModeEnabled = this.stateManager.getGlobalSettingsKey("lazyTeammateModeEnabled")
+		if (lazyTeammateModeEnabled) {
+			const { LAZY_TEAMMATE_RULES } = await import("@/core/context/instructions/lazy-teammate-rules")
+			globalClineRulesFileInstructions = globalClineRulesFileInstructions
+				? `${globalClineRulesFileInstructions}\n\n${LAZY_TEAMMATE_RULES}`
+				: LAZY_TEAMMATE_RULES
+		}
 
 		const localRules = await getLocalClineRules(this.cwd, localToggles, { evaluationContext })
 		const localClineRulesFileInstructions = localRules.instructions
@@ -2093,6 +2083,7 @@ export class Task {
 				}
 
 				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
+				const isSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2108,8 +2099,13 @@ export class Task {
 				})()
 
 				let response: ClineAskResponse
-				// Skip auto-retry for Cline provider insufficient credits or auth errors
-				if (!isClineProviderInsufficientCredits && !isAuthError && this.taskState.autoRetryAttempts < 3) {
+				// Skip auto-retry for Cline provider insufficient credits, auth errors, or spend limit errors
+				if (
+					!isClineProviderInsufficientCredits &&
+					!isAuthError &&
+					!isSpendLimitError &&
+					this.taskState.autoRetryAttempts < 3
+				) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -2159,8 +2155,8 @@ export class Task {
 
 					await setTimeoutPromise(delay)
 				} else {
-					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits)
-					if (!isClineProviderInsufficientCredits && !isAuthError) {
+					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits or spend limit)
+					if (!isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({
@@ -3016,8 +3012,9 @@ export class Task {
 				if (!this.taskState.abandoned) {
 					const clineError = ErrorService.get().toClineError(error, this.api.getModel().id)
 					const errorMessage = clineError.serialize()
-					// Auto-retry for streaming failures (always enabled)
-					if (this.taskState.autoRetryAttempts < 3) {
+					const isStreamingSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
+					// Auto-retry for streaming failures (skip for spend limit errors)
+					if (!isStreamingSpendLimitError && this.taskState.autoRetryAttempts < 3) {
 						this.taskState.autoRetryAttempts++
 
 						// Calculate exponential backoff for streaming failures: 2s, 4s, 8s
@@ -3043,7 +3040,7 @@ export class Task {
 								await this.controller.task.handleWebviewAskResponse("yesButtonClicked", "", [])
 							}
 						})
-					} else if (this.taskState.autoRetryAttempts >= 3) {
+					} else if (!isStreamingSpendLimitError && this.taskState.autoRetryAttempts >= 3) {
 						// Show error_retry with failed flag to indicate all retries exhausted
 						await this.say(
 							"error_retry",
