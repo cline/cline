@@ -484,39 +484,24 @@ underlying patterns that caused them are relevant.
   3. While agent is running, send a follow-up message → verify it queues and is processed after the current turn
 
 ### S6-27: History messages not rendering when opened (S6-6 still broken)
-- **Status**: 🔴 Blocker
-- **Description**: Despite three fixes applied to `showTaskWithId()` (flash-back prevention, partial stream push, path mismatch fix), clicking a history item still does not render the task's messages in the chat view. The chat view opens but shows no messages.
-- **Root cause (investigation needed)**: The three fixes addressed:
-  1. ✅ Flash-back to welcome screen (race condition in `clearTask()`)
-  2. ✅ Messages pushed via both state update and partial message stream
-  3. ✅ Path mismatch between `readUiMessages` and `saveClineMessages`
-  
-  But messages still don't render. Possible remaining causes:
-  - **Messages not being saved at all**: The `debouncedSaveClineMessages()` may not be flushing before the task ends. Check if `ui_messages.json` actually exists on disk after a task completes.
-  - **`getSavedClineMessages()` returning empty**: The `HostProvider.globalStorageFsPath` may not be set correctly in the debug harness environment. Log the actual path being read.
-  - **Webview not processing loaded messages**: The partial message stream push in `showTaskWithId()` may not be reaching the webview if the gRPC stream isn't connected yet when the messages are pushed.
-  - **State update timing**: The `getStateToPostToWebview()` may be called before `messageStateHandler` has the loaded messages, or the webview may be ignoring the state update.
-
-- **Debugging steps**:
-  1. After a task completes, check if `ui_messages.json` exists: `find ~/.cline -name "ui_messages.json" -newer /tmp/test-marker 2>/dev/null` (create marker file before task)
-  2. Also check the VSCode extension storage path: use debug harness `ext.evaluate` to log `HostProvider.get().globalStorageFsPath`
-  3. In `showTaskWithId()`, add logging for: (a) the path being read, (b) number of messages loaded, (c) whether `pushMessageToWebview` succeeds
-  4. In the webview, check if the partial message handler receives the pushed messages (add console.log in `ExtensionStateContext.tsx`)
-
-- **Fix**: Depends on root cause found during debugging.
-- **Verification**: Complete a task → click away → click back on the task in history → verify all messages render.
+- **Status**: 🟢 Verified Fixed
+- **Description**: Clicking a history item (from the welcome page's "Recent" section or the history view) did not render the task's messages. The chat view either stayed on the welcome page or showed no messages.
+- **Root cause**: The gRPC handler `src/core/controller/task/showTaskWithId.ts` was calling `controller.initTask(undefined, undefined, undefined, historyItem)` which started a **new SDK session** instead of loading the existing task's messages from disk. The `SdkController.initTask()` method creates a new session, new task proxy, and new history item — it does NOT load saved messages. Meanwhile, `SdkController.showTaskWithId()` (which correctly loads messages from disk, creates a task proxy with those messages, and pushes them to the webview) was never being called.
+- **Fix applied**: Changed `src/core/controller/task/showTaskWithId.ts` to call `controller.showTaskWithId(id)` instead of `controller.initTask(...)`. The `SdkController.showTaskWithId()` method handles: (1) looking up the history item, (2) tearing down any active session, (3) creating a task proxy with loaded messages, (4) pushing messages through both state updates and partial message stream, (5) posting state to the webview.
+- **Verification**: Debug harness test on 2026-04-16: (1) Sent "Say hello world test", inference completed with "Hello world test! 👋". (2) Clicked "New Task" to navigate to welcome page. (3) Clicked the history item from the "Recent" section. (4) Chat view loaded with all 5 messages: task, api_req_started, text response, api_req_started with tokens, completion_result.
+- **Evidence**: Debug harness session on 2026-04-16. Messages confirmed saved to `ui_messages.json` at `HostProvider.globalStorageFsPath/tasks/<id>/`. Both direct gRPC call and click-based navigation verified.
 
 ---
 
 ## Priority & Next Steps
 
-**Current state (updated 2026-04-16)**: Inference works end-to-end. New chats display and do inference. Streaming is functional but could be smoother. History messages still don't render when opened.
+**Current state (updated 2026-04-16)**: Inference works end-to-end. New chats display and do inference. Streaming is functional but could be smoother. **History messages now render when opened (S6-27 fixed).**
 
-### 🔴 Top Priority: S6-27 — History messages not rendering
+### 🟢 Resolved: S6-27 — History messages not rendering
 
-Three fixes have been applied but the issue persists. Need to debug with the harness to find the remaining root cause. See debugging steps in S6-27.
+Fixed. The gRPC handler was calling `controller.initTask()` (starts new session) instead of `controller.showTaskWithId()` (loads messages from disk). See S6-27 entry for details.
 
-### 🔴 Second Priority: S6-26 — Pending prompts / tool approval / ask_question
+### 🔴 Top Priority: S6-26 — Pending prompts / tool approval / ask_question
 
 The SDK's three user-interaction mechanisms are not wired in. Without `requestToolApproval`, non-auto-approved tools are silently denied. Without `askQuestion`, the agent can't ask clarifying questions. Without pending prompts, follow-up messages during a running task will fail.
 
