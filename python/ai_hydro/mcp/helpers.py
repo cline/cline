@@ -36,7 +36,8 @@ def _get_session_geometry(gauge_id: str) -> dict:
     """
     Return the watershed GeoJSON dict from the cached session.
 
-    Raises RuntimeError if watershed has not been delineated yet.
+    Raises RuntimeError if watershed has not been delineated yet or if the
+    geometry key is missing (e.g., partially-written session).
     """
     try:
         from ai_hydro.session import HydroSession
@@ -46,7 +47,20 @@ def _get_session_geometry(gauge_id: str) -> dict:
                 f"No watershed cached for gauge {gauge_id}. "
                 "Run delineate_watershed first."
             )
-        return session.watershed["data"]["geometry_geojson"]
+        ws_data = session.watershed.get("data", {})
+        # Support both current and any legacy key names
+        geojson = (
+            ws_data.get("geometry_geojson")
+            or ws_data.get("geometry")
+            or ws_data.get("geojson")
+        )
+        if geojson is None:
+            raise RuntimeError(
+                f"Watershed geometry missing from session for gauge {gauge_id}. "
+                "The session may be corrupted. Run: "
+                f"clear_session('{gauge_id}', ['watershed']) then delineate_watershed again."
+            )
+        return geojson
     except RuntimeError:
         raise
     except Exception as exc:

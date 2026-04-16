@@ -7,7 +7,10 @@ TWI, curve number grid, forcing data, CAMELS attributes, and library reference.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+import subprocess
+import sys
 from pathlib import Path
 
 from ai_hydro.mcp.app import mcp, Context
@@ -24,6 +27,79 @@ from ai_hydro.mcp.helpers import (
 )
 
 log = logging.getLogger("ai_hydro.mcp")
+
+# Script run in an isolated child process by _run_camels_extractor_subprocess.
+# A crash inside CamelsExtractor.extract_all() will only kill the child, not
+# the MCP server.
+_CAMELS_SUBPROCESS_SCRIPT = """\
+import sys, json
+from camels_attrs import CamelsExtractor
+gauge_id = sys.argv[1]
+extractor = CamelsExtractor(gauge_id)
+attrs = extractor.extract_all()
+clean = {}
+for k, v in attrs.items():
+    try:
+        clean[k] = float(v) if v is not None else None
+    except (TypeError, ValueError):
+        clean[k] = str(v) if v is not None else None
+print(json.dumps(clean))
+"""
+
+
+def _run_camels_extractor_subprocess(gauge_id: str, timeout: int = 180) -> dict:
+    """
+    Run CamelsExtractor.extract_all() in a separate subprocess.
+
+    extract_all() fetches data from many external APIs and has been observed to
+    crash the Python process in some environments. Running it in a child process
+    ensures any crash is isolated and the MCP server stays alive.
+
+    Parameters
+    ----------
+    gauge_id : str
+        8-digit USGS gauge identifier.
+    timeout : int
+        Maximum seconds to wait (default: 180 — extract_all is slow).
+
+    Returns
+    -------
+    dict
+        JSON-serialisable attribute mapping.
+
+    Raises
+    ------
+    RuntimeError
+        If the child exits non-zero or times out.
+    """
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", _CAMELS_SUBPROCESS_SCRIPT, gauge_id],
+            capture_output=True,
+            text=True,
+            timeout=timeout,
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(
+            f"CamelsExtractor timed out after {timeout}s for gauge {gauge_id}. "
+            "The CAMELS attribute extraction makes many external API calls — "
+            "check your network connection and try again."
+        )
+
+    if result.returncode != 0:
+        stderr_snippet = result.stderr.strip()[:600]
+        raise RuntimeError(
+            f"CamelsExtractor subprocess exited with code {result.returncode} "
+            f"for gauge {gauge_id}. stderr: {stderr_snippet}"
+        )
+
+    try:
+        return json.loads(result.stdout.strip())
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"CamelsExtractor returned non-JSON output for gauge {gauge_id}: "
+            f"{result.stdout[:200]}"
+        ) from exc
 
 
 # ============================================================================
@@ -698,26 +774,30 @@ def extract_camels_attributes(gauge_id: str) -> dict:
     Requires: pip install camels-attrs
     See: https://github.com/AI-Hydro/camels-attrs
     """
+    # Check package availability before spawning subprocess for a friendlier message.
+    try:
+        import camels_attrs as _camels_check  # noqa: F401
+    except ImportError:
+        return {
+            "error": True,
+            "code": "DEPENDENCY_ERROR",
+            "message": "camels-attrs package not installed.",
+            "recovery": "pip install camels-attrs",
+            "tool": "camels_attrs.CamelsExtractor",
+        }
+
     try:
         gauge_id = _validate_gauge_id(gauge_id)
         from ai_hydro.session import HydroSession as _HS3
         _sess = _HS3.load(gauge_id)
         if _sess.camels is not None:
             return _cached_response("camels", _sess)
-        from camels_attrs import CamelsExtractor
         from ai_hydro.core import HydroResult, HydroMeta, DataSource
         from ai_hydro.mcp.tools_docs import _get_camels_attrs_version
 
-        extractor = CamelsExtractor(gauge_id)
-        attrs = extractor.extract_all()
-
-        # Ensure JSON-serializable
-        clean = {}
-        for k, v in attrs.items():
-            try:
-                clean[k] = float(v) if v is not None else None
-            except (TypeError, ValueError):
-                clean[k] = str(v) if v is not None else None
+        # Run in isolated subprocess — extract_all() can crash the process
+        # on some environments; a child crash won't kill the MCP server.
+        clean = _run_camels_extractor_subprocess(gauge_id)
 
         result = HydroResult(
             data=clean,
@@ -751,14 +831,6 @@ def extract_camels_attributes(gauge_id: str) -> dict:
             d["_file_saved"] = saved
         return d
 
-    except ImportError:
-        return {
-            "error": True,
-            "code": "DEPENDENCY_ERROR",
-            "message": "camels-attrs package not installed.",
-            "recovery": "pip install camels-attrs",
-            "tool": "camels_attrs.CamelsExtractor",
-        }
     except Exception as e:
         log.error("extract_camels_attributes failed: %s", e)
         return _tool_error_to_dict(e)

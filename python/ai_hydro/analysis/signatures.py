@@ -466,7 +466,10 @@ def _fetch_precipitation_data_bygeom(
         return s
 
     except Exception as e:
-        log.error(f"Error fetching precipitation data: {e}")
+        # Common causes: pandas 2.x DateOffset/Timedelta incompatibility inside
+        # pygridmet, network timeouts, or missing spatial data for the watershed.
+        # Returning None causes water-balance signatures to be NaN, which is safe.
+        log.warning("Precipitation fetch skipped (runoff_ratio/stream_elas will be NaN): %s", e)
         return None
 
 
