@@ -76,7 +76,7 @@ describe("Announcement", () => {
 				<Announcement hideAnnouncement={hideAnnouncement} version="2.0.0" />
 			</TestWrapper>,
 		)
-		expect(screen.getByText(/New in v2.0/)).toBeInTheDocument()
+		expect(screen.getByText(/Welcome to AI-Hydro v2.0/)).toBeInTheDocument()
 	})
 
 	it("calls hideAnnouncement when close button is clicked", () => {

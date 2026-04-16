@@ -134,7 +134,7 @@ describe("ErrorRow", () => {
 			render(<ErrorRow apiRequestFailedMessage="Authentication failed" errorType="error" message={mockMessage} />)
 
 			expect(screen.getByText("Authentication failed")).toBeInTheDocument()
-			expect(screen.getByText("Sign in to AI-Hydro")).toBeInTheDocument()
+			expect(screen.getByText("Check your provider credentials, then click Retry.")).toBeInTheDocument()
 		})
 
 		it("renders PowerShell troubleshooting link when error mentions PowerShell", async () => {
