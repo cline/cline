@@ -152,3 +152,94 @@ And the tool is immediately available on next server restart.
 ## Listing on the AI-Hydro Plugin Registry
 
 Open an issue on [AI-Hydro/AI-Hydro](https://github.com/AI-Hydro/AI-Hydro/issues) with the tag `plugin` and your package name. We'll add it to the community plugin list.
+
+---
+
+## Path C: Knowledge Plugin
+
+A lighter contribution — no tool function needed. Just contribute a JSON reference card for a library the community uses.
+
+### When to use
+
+You know a library well (e.g., a VIC model wrapper, a TOPMODEL package, a snow model) and want to prevent agents from hallucinating wrong field names or unit conventions when writing scripts with it.
+
+### How to build one
+
+**1. Create the package**
+
+```
+aihydro-vic-knowledge/
+├── pyproject.toml
+└── aihydro_vic_knowledge/
+    ├── __init__.py
+    ├── knowledge.py
+    └── library_refs/
+        └── vic_model.json
+```
+
+**2. Write the reference JSON**
+
+```json title="library_refs/vic_model.json"
+{
+  "library": "vic_model",
+  "version_tested": "5.x",
+  "purpose": "Variable Infiltration Capacity macroscale hydrological model",
+  "install": "pip install vic-python",
+  "field_mappings": {
+    "run_vic": {
+      "forcing_param": "path to meteorological forcing files (NetCDF)",
+      "note": "Forcing files must have vars: prec, tmax, tmin, wind"
+    }
+  },
+  "gotchas": [
+    "VIC outputs are in local time — convert to UTC before merging with NWIS data.",
+    "State files are binary — do not try to read them as text.",
+    "Routing must be run separately after VIC — VIC produces fluxes, not routed streamflow."
+  ],
+  "common_patterns": {
+    "basic_run": "from vic import VIC\nmodel = VIC(params_file='params.nc')\nmodel.run(forcings_dir='./forcings/', start='2000-01-01', end='2020-12-31')"
+  }
+}
+```
+
+**3. Export the directory path**
+
+```python title="aihydro_vic_knowledge/knowledge.py"
+from pathlib import Path
+
+def get_refs_dir() -> Path:
+    """Return path to the library_refs directory."""
+    return Path(__file__).parent / "library_refs"
+```
+
+**4. Register the entry point**
+
+```toml title="pyproject.toml"
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "aihydro-vic-knowledge"
+version = "0.1.0"
+dependencies = ["aihydro-tools>=1.3.0"]
+
+[project.entry-points."aihydro.knowledge"]
+vic_model = "aihydro_vic_knowledge.knowledge:get_refs_dir"
+```
+
+**5. Install and verify**
+
+```bash
+pip install -e .
+# Restart the MCP server, then:
+```
+
+```
+Look up the vic_model library reference.
+```
+
+The agent calls `get_library_reference("vic_model")` and gets your JSON card back — including the gotchas and code patterns.
+
+!!! tip
+    One package can contribute multiple reference files. Just add more `*.json` files to `library_refs/` — they're all discovered automatically.

@@ -6,9 +6,17 @@ The most impactful way to contribute to AI-Hydro is adding domain tools — know
 
 ## Plugin Contributions
 
-See the [Plugin Guide](plugins/overview.md) for complete walkthroughs.
+There are three ways to contribute:
 
-**High-priority domains:**
+| Type | What you build | Entry point |
+|------|---------------|-------------|
+| **Tool plugin** | New MCP tool (e.g., flood frequency analysis) | `aihydro.tools` |
+| **Knowledge plugin** | Library reference card (gotchas, field names, patterns) | `aihydro.knowledge` |
+| **Standalone server** | Full sub-domain toolkit with separate process | Any MCP client |
+
+See the [Plugin Guide](plugins/overview.md) for complete walkthroughs for all three paths.
+
+**High-priority tool domains:**
 
 - Flood frequency analysis and extreme event statistics
 - Sediment transport and reservoir sedimentation
@@ -18,6 +26,15 @@ See the [Plugin Guide](plugins/overview.md) for complete walkthroughs.
 - Snow hydrology and glaciology
 - Irrigation scheduling and water resources management
 - Hydraulic modelling and 2D flood mapping
+
+**High-priority knowledge cards** (library references not yet contributed):
+
+- `swmmio` — SWMM model Python interface
+- `hecras` — HEC-RAS automation
+- `nlmod` — MODFLOW/MODFLOW 6 Python interface
+- `oggm` — Open Global Glacier Model
+- `snowpack` — Alpine3D / SNOWPACK model
+- `pywr` — Pywr water resources network model
 
 ---
 

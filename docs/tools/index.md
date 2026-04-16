@@ -8,10 +8,12 @@ All tools are exposed via the [Model Context Protocol (MCP)](https://modelcontex
 
 | Category | Tools | Description |
 |----------|-------|-------------|
-| [Analysis Tools](analysis.md) | 10 tools | Data retrieval, watershed, signatures, terrain, modelling |
+| [Analysis Tools](analysis.md) | 9 tools | Data retrieval, watershed, signatures, terrain, library reference |
 | [Modelling Tools](modelling.md) | 2 tools | HBV-light, LSTM calibration and results |
 | [Project & Literature](project.md) | 10 tools | Projects, literature indexing, researcher persona |
-| [Session Tools](session.md) | 6 tools | Session management, export, provenance |
+| [Session Tools](session.md) | 8 tools | Session management, export, tool discovery, provenance |
+
+**Total: 29 built-in tools.** Community plugins add more — call `list_available_tools()` for the live count.
 
 ---
 
@@ -40,4 +42,6 @@ This contract is what makes provenance automatic — every result carries the in
 
 ## Community Tools
 
-Tools registered via the `aihydro.tools` entry-point system appear in this reference automatically after the server restarts. See [Plugin Overview](../plugins/overview.md) for how to contribute tools.
+Tools registered via the `aihydro.tools` entry-point system appear here automatically after the server restarts. Call `list_available_tools()` at any time to see what is currently registered on your installation.
+
+See [Plugin Overview](../plugins/overview.md) for how to contribute tools or library reference cards.

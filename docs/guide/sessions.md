@@ -80,6 +80,26 @@ Start a session for gauge 01031500.
 
 If a session already exists, it is loaded — existing results remain intact.
 
+As of v0.1.4, the response also includes the **Python environment context**:
+
+```json
+{
+  "gauge_id": "01031500",
+  "computed": [],
+  "pending": ["watershed", "streamflow", ...],
+  "mcp_python": "/opt/miniconda3/bin/python",
+  "mcp_pip": "/opt/miniconda3/bin/pip",
+  "available_packages": {
+    "numpy": "1.26.4",
+    "pandas": "2.2.1",
+    "pygeohydro": "0.16.2",
+    ...
+  }
+}
+```
+
+The agent uses `mcp_python` as the interpreter for any Python scripts it writes — preventing the most common mistake of writing `#!/usr/bin/env python3` and running in the wrong environment.
+
 ### `get_session_summary`
 
 Show what has been computed and what is still pending.
