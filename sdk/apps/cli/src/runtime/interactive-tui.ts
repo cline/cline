@@ -1,6 +1,6 @@
 import { basename } from "node:path";
 import type { AgentEvent, TeamEvent } from "@clinebot/core";
-import { Box, Text, useInput } from "ink";
+import { Box, useInput } from "ink";
 import React, {
 	useCallback,
 	useEffect,
@@ -8,35 +8,39 @@ import React, {
 	useRef,
 	useState,
 } from "react";
-import type {
-	InteractiveConfigData,
-	InteractiveConfigTab,
-} from "../runtime/interactive-config";
-import {
-	type InteractiveSlashCommand,
-	searchWorkspaceFilesForMention,
-} from "../runtime/interactive-welcome";
-import type {
-	PendingPromptSnapshot,
-	PendingPromptSubmittedEvent,
-} from "../runtime/session-events";
-import { resolveStatusNoticeLabel } from "../utils/events";
-import { truncate } from "../utils/helpers";
-import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
-import type { Config } from "../utils/types";
 import {
 	type ChatEntry,
 	ChatMessageList,
 	makeToolEndEntry,
 	makeToolStartEntry,
-} from "./components/ChatMessage";
+} from "../tui/components/ChatMessage";
 import {
 	CONFIG_TABS,
 	ConfigView,
 	getVisibleWindow,
 	resolveActiveConfigItems,
-} from "./components/ConfigView";
-import { WelcomeView } from "./components/WelcomeView";
+} from "../tui/components/ConfigView";
+import { InputBox, type QueuedPromptItem } from "../tui/components/InputBox";
+import { MentionMenu } from "../tui/components/MentionMenu";
+import { SlashMenu } from "../tui/components/SlashMenu";
+import { StatusBar } from "../tui/components/StatusBar";
+import { WelcomeView } from "../tui/components/WelcomeView";
+import { resolveStatusNoticeLabel } from "../utils/events";
+import { truncate } from "../utils/helpers";
+import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
+import type { Config } from "../utils/types";
+import type {
+	InteractiveConfigData,
+	InteractiveConfigTab,
+} from "./interactive-config";
+import {
+	type InteractiveSlashCommand,
+	searchWorkspaceFilesForMention,
+} from "./interactive-welcome";
+import type {
+	PendingPromptSnapshot,
+	PendingPromptSubmittedEvent,
+} from "./session-events";
 
 interface InteractiveTurnResult {
 	usage: {
@@ -47,12 +51,6 @@ interface InteractiveTurnResult {
 	iterations: number;
 	commandOutput?: string;
 	queued?: boolean;
-}
-
-interface QueuedPromptItem {
-	id: string;
-	prompt: string;
-	steer: boolean;
 }
 
 interface InteractiveTuiProps {
@@ -187,13 +185,6 @@ function insertSlashCommand(
 	commandName: string,
 ): string {
 	return `${text.slice(0, slashIndex)}/${commandName} `;
-}
-
-function truncatePath(path: string, maxLength = 70): string {
-	if (path.length <= maxLength) {
-		return path;
-	}
-	return `...${path.slice(-(maxLength - 3))}`;
 }
 
 function resolveModelContextWindow(config: Config): number {
@@ -1137,54 +1128,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const renderInputBox =
 		!isConfigViewOpen && !isExitRequested
-			? React.createElement(
-					Box,
-					{ flexDirection: "column" },
-					queuedPrompts.length > 0
-						? React.createElement(
-								Box,
-								{
-									borderStyle: "round",
-									paddingX: 1,
-									paddingY: 0,
-									marginBottom: 1,
-									flexDirection: "column",
-								},
-								React.createElement(
-									Text,
-									{ color: "gray" },
-									"Queued for upcoming turns",
-								),
-								React.createElement(
-									Text,
-									{ color: "gray" },
-									"Enter queues while running. Ctrl+S steers the next turn.",
-								),
-								...queuedPrompts.map((item, index) =>
-									React.createElement(
-										Text,
-										{
-											key: item.id,
-											color: item.steer ? "yellow" : undefined,
-										},
-										item.steer
-											? `Steer: ${truncate(item.prompt, 100)}`
-											: `Queue ${index + 1}: ${truncate(item.prompt, 100)}`,
-									),
-								),
-							)
-						: null,
-					React.createElement(
-						Box,
-						{ borderStyle: "round", paddingX: 1 },
-						React.createElement(
-							Text,
-							null,
-							React.createElement(Text, { color: "green" }, "> "),
-							input,
-						),
-					),
-				)
+			? React.createElement(InputBox, { input, queuedPrompts })
 			: null;
 
 	const renderConfigView = isConfigViewOpen
@@ -1198,39 +1142,13 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const renderMentionMenu =
 		!isExitRequested && !isConfigViewOpen && mentionInfo.inMentionMode
-			? React.createElement(
-					Box,
-					{ flexDirection: "column", marginTop: 1, paddingX: 1 },
-					isSearchingMentions
-						? React.createElement(Text, { color: "gray" }, "Searching files...")
-						: fileMentionResults.length === 0
-							? React.createElement(
-									Text,
-									{ color: "gray" },
-									mentionInfo.query
-										? `No files matching "${mentionInfo.query}"`
-										: "Type to search files...",
-								)
-							: visibleMentionResults.items.map((path, index) => {
-									const absoluteIndex =
-										visibleMentionResults.startIndex + index;
-									const selected = absoluteIndex === fileMentionSelectedIndex;
-									const prefix = selected ? "❯" : " ";
-									return React.createElement(
-										Text,
-										{
-											color: selected ? "blue" : undefined,
-											key: `${path}:${absoluteIndex}`,
-										},
-										`${prefix} ${truncatePath(path)}`,
-									);
-								}),
-					fileMentionResults.length >
-						visibleMentionResults.startIndex +
-							visibleMentionResults.items.length
-						? React.createElement(Text, { color: "gray" }, "  ▼")
-						: null,
-				)
+			? React.createElement(MentionMenu, {
+					query: mentionInfo.query,
+					isSearching: isSearchingMentions,
+					results: fileMentionResults,
+					selectedIndex: fileMentionSelectedIndex,
+					visibleWindow: visibleMentionResults,
+				})
 			: null;
 
 	const renderSlashMenu =
@@ -1238,153 +1156,29 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		!isConfigViewOpen &&
 		!mentionInfo.inMentionMode &&
 		slashInfo.inSlashMode
-			? React.createElement(
-					Box,
-					{ flexDirection: "column", marginTop: 1, paddingX: 1 },
-					filteredSlashCommands.length === 0
-						? React.createElement(
-								Text,
-								{ color: "gray" },
-								slashInfo.query
-									? `No commands matching "/${slashInfo.query}"`
-									: "No slash commands available",
-							)
-						: visibleSlashResults.items.map((command, index) => {
-								const absoluteIndex = visibleSlashResults.startIndex + index;
-								const selected = absoluteIndex === slashSelectedIndex;
-								const prefix = selected ? "❯" : " ";
-								const summary = command.description
-									? `${prefix} /${command.name} - ${command.description}`
-									: `${prefix} /${command.name}`;
-								return React.createElement(
-									Text,
-									{
-										color: selected ? "blue" : undefined,
-										key: `${command.name}:${absoluteIndex}`,
-									},
-									summary,
-								);
-							}),
-					filteredSlashCommands.length >
-						visibleSlashResults.startIndex + visibleSlashResults.items.length
-						? React.createElement(Text, { color: "gray" }, "  ▼")
-						: null,
-				)
+			? React.createElement(SlashMenu, {
+					query: slashInfo.query,
+					commands: filteredSlashCommands,
+					selectedIndex: slashSelectedIndex,
+					visibleWindow: visibleSlashResults,
+				})
 			: null;
 
-	const renderModeSelector = React.createElement(
-		Box,
-		{ gap: 1 },
-		React.createElement(
-			Text,
-			{
-				color: uiMode === "plan" ? "yellow" : "gray",
-				bold: uiMode === "plan",
-			},
-			`${uiMode === "plan" ? "●" : "○"} Plan`,
-		),
-		React.createElement(
-			Text,
-			{
-				color: uiMode === "act" ? "blue" : "gray",
-				bold: uiMode === "act",
-			},
-			`${uiMode === "act" ? "●" : "○"} Act`,
-		),
-		React.createElement(Text, { color: "gray" }, "(Tab)"),
-	);
-
-	const renderGitDiffStats =
-		gitDiffStats && gitDiffStats.files > 0
-			? React.createElement(
-					Text,
-					{ color: "gray" },
-					` | ${gitDiffStats.files} file${gitDiffStats.files !== 1 ? "s" : ""} `,
-					React.createElement(
-						Text,
-						{ color: "green" },
-						`+${gitDiffStats.additions}`,
-					),
-					" ",
-					React.createElement(
-						Text,
-						{ color: "red" },
-						`-${gitDiffStats.deletions}`,
-					),
-				)
-			: null;
-
-	const renderAutoApprove = autoApproveAll
-		? React.createElement(
-				Text,
-				null,
-				React.createElement(
-					Text,
-					{ color: "green" },
-					"⏵⏵ Auto-approve all enabled",
-				),
-				React.createElement(Text, { color: "gray" }, " (Shift+Tab)"),
-			)
-		: React.createElement(
-				Text,
-				{ color: "gray" },
-				"Auto-approve all disabled (Shift+Tab)",
-			);
-
-	const renderQueueHint =
-		!isConfigViewOpen && !isExitRequested
-			? React.createElement(
-					Text,
-					{ color: "gray" },
-					isRunning
-						? "Enter queues while running · Ctrl+S steers the next turn"
-						: "Enter submits · / for commands · @ for files",
-				)
-			: null;
-
-	const renderStatusBar = React.createElement(
-		Box,
-		{ flexDirection: "column", marginTop: 1 },
-		React.createElement(
-			Box,
-			{ justifyContent: "space-between" },
-			React.createElement(
-				Text,
-				{ color: "gray" },
-				isConfigViewOpen
-					? "Config mode: Tab tabs \u00b7 \u2191/\u2193 navigate \u00b7 Esc close"
-					: undefined,
-			),
-			isConfigViewOpen
-				? React.createElement(Text, { color: "gray" }, "(Esc)")
-				: renderModeSelector,
-		),
-		renderQueueHint,
-		React.createElement(
-			Box,
-			null,
-			React.createElement(
-				Text,
-				null,
-				`${config.providerId} ${config.modelId} `,
-			),
-			React.createElement(Text, null, contextBar.filled),
-			React.createElement(Text, { color: "gray" }, contextBar.empty),
-			React.createElement(
-				Text,
-				{ color: "gray" },
-				` (${lastTotalTokens.toLocaleString()}) | $${lastTotalCost.toFixed(3)}`,
-			),
-		),
-		React.createElement(
-			Box,
-			null,
-			React.createElement(Text, null, workspaceName),
-			gitBranch ? React.createElement(Text, null, ` (${gitBranch})`) : null,
-			renderGitDiffStats,
-		),
-		renderAutoApprove,
-	);
+	const renderStatusBar = React.createElement(StatusBar, {
+		isConfigViewOpen,
+		isRunning,
+		isExitRequested,
+		uiMode,
+		providerId: config.providerId,
+		modelId: config.modelId,
+		contextBar,
+		lastTotalTokens,
+		lastTotalCost,
+		workspaceName,
+		gitBranch,
+		gitDiffStats,
+		autoApproveAll,
+	});
 
 	const isMenuOpen =
 		!isExitRequested &&

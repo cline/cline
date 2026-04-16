@@ -12,7 +12,6 @@ import {
 	formatPreviewMessageText,
 	getLastSessionPreviewMessages,
 } from "../session/session-message-summary";
-import { InteractiveTui } from "../tui/interactive-tui";
 import {
 	askQuestionInTerminal,
 	requestToolApproval,
@@ -39,6 +38,7 @@ import {
 	CLI_DEFAULT_LOOP_DETECTION,
 } from "./defaults";
 import { loadInteractiveConfigData } from "./interactive-config";
+import { InteractiveTui } from "./interactive-tui";
 import {
 	listInteractiveSlashCommands,
 	resolveClineWelcomeLine,

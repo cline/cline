@@ -45,11 +45,16 @@ function truncatePath(path: string, maxLength = 70): string {
 	return `...${path.slice(-(maxLength - 3))}`;
 }
 
+export interface VisibleWindow<T> {
+	items: T[];
+	startIndex: number;
+}
+
 export function getVisibleWindow<T>(
 	items: T[],
 	selectedIndex: number,
 	maxVisible = MAX_MENU_ITEMS_VISIBLE,
-): { items: T[]; startIndex: number } {
+): VisibleWindow<T> {
 	if (items.length <= maxVisible) {
 		return { items, startIndex: 0 };
 	}
