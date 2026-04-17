@@ -19,6 +19,7 @@ import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
 import { type FileOpsResult, FileProviderOperations } from "../utils/FileProviderOperations"
+import { getSafeEditDisplayContent } from "../utils/LargeEditGuards"
 import { PatchParser } from "../utils/PatchParser"
 import { PathResolver } from "../utils/PathResolver"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -158,7 +159,10 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 				JSON.stringify({
 					tool: PatchClineSayMap[actionType],
 					path: getReadablePath(config.cwd, finalPath),
-					content: rawInput,
+					content: getSafeEditDisplayContent(rawInput, {
+						relPath: finalPath,
+						context: "Patch preview",
+					}).text,
 					operationIsLocatedInWorkspace: await isLocatedInWorkspace(finalPath),
 				}),
 				true,
@@ -362,13 +366,17 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 					// Format response similar to WriteToFileToolHandler
 					if (result.userEdits) {
 						// User made edits during approval
-						responseLines.push(`\nThe user made edits to the file:\n${result.userEdits}\n`)
+						const userEditsDisplay = getSafeEditDisplayContent(result.userEdits, {
+							relPath: path,
+							context: "User edits",
+						})
+						responseLines.push(`\nThe user made edits to the file:\n${userEditsDisplay.text}\n`)
 						await config.callbacks.say(
 							"user_feedback_diff",
 							JSON.stringify({
 								tool: "editedExistingFile",
 								path,
-								diff: result.userEdits,
+								diff: userEditsDisplay.text,
 							}),
 						)
 
@@ -387,12 +395,24 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 						})
 					}
 					if (result.autoFormattingEdits) {
-						responseLines.push(`\nAuto-formatting was applied to ${path}:\n${result.autoFormattingEdits}\n`)
+						const autoFormattingDisplay = getSafeEditDisplayContent(result.autoFormattingEdits, {
+							relPath: path,
+							context: "Auto-formatting edits",
+						})
+						responseLines.push(`\nAuto-formatting was applied to ${path}:\n${autoFormattingDisplay.text}\n`)
 					}
 					if (result.finalContent) {
-						responseLines.push(`\n<final_file_content path="${path}">`)
-						responseLines.push(result.finalContent)
-						responseLines.push(`</final_file_content>`)
+						const finalContentDisplay = getSafeEditDisplayContent(result.finalContent, {
+							relPath: path,
+							context: "Final file content",
+						})
+						if (finalContentDisplay.wasSummarized) {
+							responseLines.push(`\n${finalContentDisplay.text}`)
+						} else {
+							responseLines.push(`\n<final_file_content path="${path}">`)
+							responseLines.push(finalContentDisplay.text || "")
+							responseLines.push(`</final_file_content>`)
+						}
 					}
 					if (result.newProblemsMessage) {
 						responseLines.push(`\n\n${result.newProblemsMessage}`)
@@ -685,19 +705,25 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		const summaries = await Promise.all(
 			Object.entries(changes).map(async ([file, change]) => {
 				const operationIsLocatedInWorkspace = await isLocatedInWorkspace(file)
+				const changeContent =
+					change.type === PatchActionType.UPDATE && change.movePath ? change.oldContent : change.newContent
+				const displayContent = getSafeEditDisplayContent(changeContent, {
+					relPath: change.movePath || file,
+					context: "Patch change preview",
+				}).text
 				switch (change.type) {
 					case PatchActionType.ADD:
 						return {
 							tool: "newFileCreated",
 							path: file,
-							content: change.newContent,
+							content: displayContent,
 							operationIsLocatedInWorkspace,
 						} as ClineSayTool
 					case PatchActionType.UPDATE:
 						return {
 							tool: change.movePath ? "newFileCreated" : "editedExistingFile",
 							path: change.movePath || file,
-							content: change.movePath ? change.oldContent : change.newContent,
+							content: displayContent,
 							operationIsLocatedInWorkspace,
 							startLineNumbers: change.startLineNumbers,
 						} as ClineSayTool
@@ -705,7 +731,7 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 						return {
 							tool: "fileDeleted",
 							path: file,
-							content: change.newContent,
+							content: displayContent,
 							operationIsLocatedInWorkspace,
 						} as ClineSayTool
 				}
@@ -722,7 +748,13 @@ export class ApplyPatchHandler implements IFullyManagedTool {
 		rawInput: string,
 		change?: FileChange,
 	): Promise<boolean> {
-		const patch = { ...message, content: rawInput }
+		const patch = {
+			...message,
+			content: getSafeEditDisplayContent(rawInput, {
+				relPath: message.path || "patch",
+				context: "Patch input",
+			}).text,
+		}
 		const completeMessage = JSON.stringify(patch)
 		const shouldAutoApprove = await config.callbacks.shouldAutoApproveToolWithPath(block.name, message.path)
 
