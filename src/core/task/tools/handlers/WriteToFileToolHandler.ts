@@ -19,7 +19,7 @@ import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
-import { validateFileEditSafety } from "../utils/LargeEditGuards"
+import { getSafeEditDisplayContent, validateFileEditSafety } from "../utils/LargeEditGuards"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -54,6 +54,10 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 		try {
 			const { relPath, absolutePath, fileExists, diff, content, newContent, matchIndices } = result
+			const displayContent = getSafeEditDisplayContent(diff || content, {
+				relPath,
+				context: block.name === "replace_in_file" ? "File edit diff" : "File write content",
+			}).text
 
 			// Create and show partial UI message
 			const sharedMessageProps: ClineSayTool = {
@@ -62,7 +66,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 					config.cwd,
 					uiHelpers.removeClosingTag(block, block.params.path ? "path" : "absolutePath", relPath),
 				),
-				content: diff || content,
+				content: displayContent,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 				startLineNumbers: matchIndices?.map((idx) =>
 					getLineNumberFromCharIndex(config.services.diffViewProvider.originalContent || "", idx),
@@ -165,12 +169,16 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			}
 
 			const { relPath, absolutePath, fileExists, diff, content, newContent, workspaceContext, matchIndices } = result
+			const displayContent = getSafeEditDisplayContent(diff || content, {
+				relPath,
+				context: block.name === "replace_in_file" ? "File edit diff" : "File write content",
+			}).text
 
 			// Handle approval flow
 			const sharedMessageProps: ClineSayTool = {
 				tool: fileExists ? "editedExistingFile" : "newFileCreated",
 				path: getReadablePath(config.cwd, relPath),
-				content: diff || content,
+				content: displayContent,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 				startLineNumbers: matchIndices?.map((idx) =>
 					getLineNumberFromCharIndex(config.services.diffViewProvider.originalContent || "", idx),
@@ -192,7 +200,7 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			const completeMessage = JSON.stringify({
 				...sharedMessageProps,
-				content: diff || content,
+				content: displayContent,
 				operationIsLocatedInWorkspace: await isLocatedInWorkspace(relPath),
 				// ? formatResponse.createPrettyPatch(
 				// 		relPath,
@@ -378,13 +386,17 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 
 			// Handle user edits if any
 			if (userEdits) {
+				const userEditsDisplay = getSafeEditDisplayContent(userEdits, {
+					relPath,
+					context: "User edits",
+				}).text
 				await config.services.fileContextTracker.trackFileContext(relPath, "user_edited")
 				await config.callbacks.say(
 					"user_feedback_diff",
 					JSON.stringify({
 						tool: fileExists ? "editedExistingFile" : "newFileCreated",
 						path: relPath,
-						diff: userEdits,
+						diff: userEditsDisplay,
 					}),
 				)
 
