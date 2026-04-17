@@ -111,7 +111,7 @@ describe("migrateLegacyProviderSettings", () => {
 		);
 		expect(manager.getProviderSettings("anthropic")).toEqual({
 			provider: "anthropic",
-			model: "claude-sonnet-4-6",
+			model: "claude-opus-4-7",
 			apiKey: "legacy-key",
 		});
 		expect(manager.read().providers.openai?.tokenSource).toBe("manual");

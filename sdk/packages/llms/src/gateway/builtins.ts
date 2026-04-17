@@ -552,7 +552,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "Creator of GPT and ChatGPT",
 		family: "openai",
 		capabilities: ["reasoning"],
-		modelsProviderId: "openai",
+		modelsProviderId: "openai-native",
 		defaultModelId: "gpt-5.4-mini",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
@@ -603,7 +603,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 	{
 		id: "vertex",
 		name: "Google Vertex AI",
-		description: "Google Cloud Vertex AI (Gemini and partner models)",
+		description: "Google Cloud Vertex AI",
 		family: "vertex",
 		capabilities: ["reasoning", "prompt-cache"],
 		defaultModelId: "claude-sonnet-4-6@default",

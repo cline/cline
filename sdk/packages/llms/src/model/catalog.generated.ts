@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1776310527795,
+	version: 1776404096994,
 	providers: {
 		aihubmix: {
 			"coding-glm-5.1": {
@@ -900,6 +900,21 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		anthropic: {
+			"claude-opus-4-7": {
+				id: "claude-opus-4-7",
+				name: "Claude Opus 4.7",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
 			"claude-sonnet-4-6": {
 				id: "claude-sonnet-4-6",
 				name: "Claude Sonnet 4.6",
@@ -1516,6 +1531,94 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		bedrock: {
+			"anthropic.claude-opus-4-7": {
+				id: "anthropic.claude-opus-4-7",
+				name: "Claude Opus 4.7",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
+			"eu.anthropic.claude-opus-4-7": {
+				id: "eu.anthropic.claude-opus-4-7",
+				name: "Claude Opus 4.7 (EU)",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
+			"global.anthropic.claude-opus-4-7": {
+				id: "global.anthropic.claude-opus-4-7",
+				name: "Claude Opus 4.7 (Global)",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
+			"us.anthropic.claude-opus-4-7": {
+				id: "us.anthropic.claude-opus-4-7",
+				name: "Claude Opus 4.7 (US)",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
 			"minimax.minimax-m2.5": {
 				id: "minimax.minimax-m2.5",
 				name: "MiniMax M2.5",
@@ -9645,7 +9748,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				family: "ministral",
 			},
 		},
-		openai: {
+		"openai-native": {
 			"gpt-5.4-mini": {
 				id: "gpt-5.4-mini",
 				name: "GPT-5.4 mini",
@@ -10431,6 +10534,28 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"anthropic/claude-opus-4.7": {
+				id: "anthropic/claude-opus-4.7",
+				name: "Claude Opus 4.7",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
 			"openrouter/elephant-alpha": {
 				id: "openrouter/elephant-alpha",
 				name: "Elephant (free)",
@@ -14590,6 +14715,43 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		"vercel-ai-gateway": {
+			"anthropic/claude-opus-4.7": {
+				id: "anthropic/claude-opus-4.7",
+				name: "Claude Opus 4.7",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
+			"zai/glm-5.1": {
+				id: "zai/glm-5.1",
+				name: "GLM 5.1",
+				contextWindow: 202752,
+				maxTokens: 10137,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.4,
+					output: 4.4,
+					cacheRead: 0.26,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-07",
+				family: "glm",
+			},
 			"alibaba/qwen3.6-plus": {
 				id: "alibaba/qwen3.6-plus",
 				name: "Qwen 3.6 Plus",
@@ -16866,6 +17028,21 @@ export const GENERATED_PROVIDER_MODELS: {
 				releaseDate: "2025-03-13",
 				family: "command",
 			},
+			"inception/mercury-coder-small": {
+				id: "inception/mercury-coder-small",
+				name: "Mercury Coder Small Beta",
+				contextWindow: 32000,
+				maxTokens: 16384,
+				capabilities: ["tools", "temperature"],
+				pricing: {
+					input: 0.25,
+					output: 1,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2025-02-26",
+				family: "mercury",
+			},
 			"anthropic/claude-3.7-sonnet": {
 				id: "anthropic/claude-3.7-sonnet",
 				name: "Claude Sonnet 3.7",
@@ -17583,6 +17760,21 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		vertex: {
+			"claude-opus-4-7@default": {
+				id: "claude-opus-4-7@default",
+				name: "Claude Opus 4.7",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "files", "tools", "reasoning", "prompt-cache"],
+				pricing: {
+					input: 5,
+					output: 25,
+					cacheRead: 0.5,
+					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-04-16",
+				family: "claude-opus",
+			},
 			"claude-sonnet-4-6@default": {
 				id: "claude-sonnet-4-6@default",
 				name: "Claude Sonnet 4.6",

@@ -225,7 +225,7 @@ function toAiSdkProviderOptions(
 	const gatewayReasoning = buildGatewayReasoningOptions(request, context);
 	const wantsAnthropicThinking =
 		request.reasoning?.enabled === true ||
-		typeof request.reasoning?.effort === "string";
+		request.reasoning?.effort !== undefined;
 	const anthropicOptions = {
 		...(wantsAnthropicThinking ? { thinking: { type: "adaptive" } } : {}),
 		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
@@ -246,6 +246,8 @@ function toAiSdkProviderOptions(
 			? { reasoning: anthropicCompatibleReasoning }
 			: {}),
 		...(useAnthropicPromptCache ? createEphemeralCacheControl() : {}),
+		// OpenAI specific
+		...(request.providerId === "openai-native" ? { truncation: "auto" } : {}),
 	};
 	const geminiCompatibleOptions = request.reasoning?.effort
 		? {

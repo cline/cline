@@ -176,6 +176,7 @@ export interface RpcProviderListItem {
 	authDescription: string;
 	baseUrlDescription: string;
 	modelList?: RpcProviderModel[];
+	family?: string;
 }
 
 export interface RpcProviderCatalogResponse {

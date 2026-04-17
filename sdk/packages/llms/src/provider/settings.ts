@@ -357,11 +357,9 @@ export function safeParseSettings(
 export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
 	const providerId = settings.provider as ProviderId;
 	const normalizedProviderId = normalizeProviderId(providerId);
-	const unifiedReasoningLevel = settings.reasoning?.effort;
+	const unifiedReasoningLevel = settings.reasoning?.effort || "none";
 	const reasoningEffort =
-		unifiedReasoningLevel && unifiedReasoningLevel !== "none"
-			? unifiedReasoningLevel
-			: undefined;
+		unifiedReasoningLevel === "none" ? undefined : unifiedReasoningLevel;
 
 	// Get provider defaults if available
 	const providerDefaults = OPENAI_COMPATIBLE_PROVIDERS[normalizedProviderId];
