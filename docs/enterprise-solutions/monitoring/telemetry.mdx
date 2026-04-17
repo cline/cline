@@ -83,11 +83,22 @@ Administrators can set default telemetry state through remote configuration:
 Even with enterprise configuration, individual users can still disable Cline Telemetry in their local settings.
 </Note>
 
-## Advanced Monitoring
+## Enterprise Monitoring Features
 
-For organizations needing detailed monitoring, Cline supports optional OpenTelemetry integration to export telemetry data to your own observability systems.
+For organizations with additional compliance or monitoring requirements, Cline provides:
 
-See [Enterprise Monitoring](/enterprise-solutions/monitoring/overview) for details on available monitoring options.
+### Prompt Storage
+Automatically backup conversation history to AWS S3 or Cloudflare R2 for:
+- Compliance and audit trails
+- Usage analysis and reporting
+- Disaster recovery
+
+See [Prompt Storage](/enterprise-solutions/monitoring/prompt-storage) for configuration details.
+
+### OpenTelemetry Integration
+Export detailed metrics and logs to your own observability platforms like Datadog, New Relic, or Grafana Cloud.
+
+See [OpenTelemetry](/enterprise-solutions/monitoring/opentelemetry) for setup instructions.
 
 ## Privacy
 
@@ -127,7 +138,7 @@ Anonymous usage data helps:
     Enterprise monitoring and observability
   </Card>
   
-  <Card title="Privacy" icon="shield" href="/more-info/telemetry">
-    Full telemetry documentation
+  <Card title="Event Details" icon="shield" href="/enterprise-solutions/monitoring/opentelemetry-events">
+    See what data is collected
   </Card>
 </CardGroup>
