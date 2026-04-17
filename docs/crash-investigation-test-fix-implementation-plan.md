@@ -382,11 +382,11 @@ This workstream targets the main file-edit pipeline.
 
 #### Test fixtures to create
 
-- [ ] large text file fixture (5 MB)
-- [ ] very large text file fixture (20+ MB)
-- [ ] single-line giant file fixture
-- [ ] notebook fixture with large JSON body
-- [ ] multi-file patch fixture with several large files
+- [x] large text file fixture (5 MB)
+- [x] very large text file fixture (20+ MB)
+- [x] single-line giant file fixture
+- [x] notebook fixture with large JSON body
+- [x] multi-file patch fixture with several large files
 
 #### What to test
 

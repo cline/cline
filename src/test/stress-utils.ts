@@ -67,6 +67,20 @@ export interface StressFailureReport {
 	annotations?: Record<string, string | number | boolean>
 }
 
+export const WORKSTREAM_E_LARGE_TEXT_FIXTURE_BYTES = 5 * 1024 * 1024
+export const WORKSTREAM_E_VERY_LARGE_TEXT_FIXTURE_BYTES = 20 * 1024 * 1024
+
+export interface GeneratedTextFixtureOptions {
+	linePrefix?: string
+	lineLength?: number
+	fillChar?: string
+}
+
+export interface GeneratedPatchFileSpec {
+	path: string
+	content: string
+}
+
 function toMemorySnapshot(memoryUsage: NodeJS.MemoryUsage): MemorySnapshot {
 	return {
 		heapUsed: memoryUsage.heapUsed,
@@ -146,6 +160,118 @@ export function diffProcessResourceSnapshots(
 
 export function measureUtf8Bytes(content: string): number {
 	return Buffer.byteLength(content, "utf8")
+}
+
+export function createLargeTextFixture(targetBytes: number, options: GeneratedTextFixtureOptions = {}): string {
+	if (targetBytes <= 0) {
+		return ""
+	}
+
+	const linePrefix = options.linePrefix ?? "fixture-line"
+	const lineLength = Math.max(16, options.lineLength ?? 96)
+	const fillChar = (options.fillChar ?? "x").charAt(0) || "x"
+	const lines: string[] = []
+	let totalBytes = 0
+	let index = 1
+
+	while (totalBytes < targetBytes) {
+		const prefix = `${linePrefix}-${String(index).padStart(6, "0")}-`
+		const fillLength = Math.max(1, lineLength - prefix.length)
+		const line = `${prefix}${fillChar.repeat(fillLength)}`
+		lines.push(line)
+		totalBytes += Buffer.byteLength(line, "utf8") + 1
+		index += 1
+	}
+
+	return lines.join("\n")
+}
+
+export function createSingleLineFixture(targetBytes: number, fillChar = "x"): string {
+	if (targetBytes <= 0) {
+		return ""
+	}
+	return (fillChar.charAt(0) || "x").repeat(targetBytes)
+}
+
+export function createNotebookFixture(targetBytes: number): string {
+	if (targetBytes <= 0) {
+		return JSON.stringify({ cells: [], metadata: {}, nbformat: 4, nbformat_minor: 5 })
+	}
+
+	const sourcePayload = createLargeTextFixture(Math.max(256, Math.floor(targetBytes * 0.45)), {
+		linePrefix: "cell",
+		lineLength: 88,
+		fillChar: "s",
+	})
+	const outputPayload = createLargeTextFixture(Math.max(256, Math.floor(targetBytes * 0.35)), {
+		linePrefix: "output",
+		lineLength: 88,
+		fillChar: "o",
+	})
+
+	const notebook = {
+		cells: [
+			{
+				cell_type: "code",
+				execution_count: 1,
+				metadata: {
+					generatedFixture: true,
+				},
+				outputs: [
+					{
+						output_type: "stream",
+						name: "stdout",
+						text: outputPayload.split("\n").map((line) => `${line}\n`),
+					},
+				],
+				source: sourcePayload.split("\n").map((line) => `${line}\n`),
+			},
+		],
+		metadata: {
+			language_info: {
+				name: "typescript",
+			},
+		},
+		nbformat: 4,
+		nbformat_minor: 5,
+	}
+
+	let serialized = JSON.stringify(notebook)
+	const currentBytes = measureUtf8Bytes(serialized)
+	if (currentBytes < targetBytes) {
+		;(notebook.metadata as Record<string, unknown>).padding = "p".repeat(targetBytes - currentBytes)
+		serialized = JSON.stringify(notebook)
+	}
+
+	return serialized
+}
+
+export function createMultiFilePatchFixture(files: GeneratedPatchFileSpec[]): string {
+	const lines = ["*** Begin Patch"]
+	for (const file of files) {
+		lines.push(`*** Add File: ${file.path}`)
+		for (const line of file.content.split("\n")) {
+			lines.push(`+${line}`)
+		}
+	}
+	lines.push("*** End Patch")
+	return lines.join("\n")
+}
+
+export function createWorkstreamELargeTextFixture(): string {
+	return createLargeTextFixture(WORKSTREAM_E_LARGE_TEXT_FIXTURE_BYTES)
+}
+
+export function createWorkstreamEVeryLargeTextFixture(): string {
+	return createLargeTextFixture(WORKSTREAM_E_VERY_LARGE_TEXT_FIXTURE_BYTES)
+}
+
+export function createWorkstreamESingleLineFixture(targetBytes = WORKSTREAM_E_LARGE_TEXT_FIXTURE_BYTES): string {
+	return createSingleLineFixture(targetBytes)
+}
+
+export function createWorkstreamENotebookFixture(targetBytes = WORKSTREAM_E_LARGE_TEXT_FIXTURE_BYTES): string {
+	return createNotebookFixture(targetBytes)
 }
 
 export function assertUtf8ByteBudget(content: string, maxBytes: number, label = "content"): void {

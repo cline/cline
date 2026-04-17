@@ -2,12 +2,18 @@ import { describe, it } from "mocha"
 import "should"
 import {
 	assertUtf8ByteBudget,
+	createLargeTextFixture,
+	createMultiFilePatchFixture,
+	createNotebookFixture,
+	createSingleLineFixture,
 	createStressFailureReport,
 	diffProcessResourceSnapshots,
 	measureAsyncOperation,
 	measureUtf8Bytes,
 	sampleEventLoopLagStats,
 	takeProcessResourceSnapshot,
+	WORKSTREAM_E_LARGE_TEXT_FIXTURE_BYTES,
+	WORKSTREAM_E_VERY_LARGE_TEXT_FIXTURE_BYTES,
 } from "./stress-utils"
 
 describe("stress-utils", () => {
@@ -23,6 +29,47 @@ describe("stress-utils", () => {
 
 	it("assertUtf8ByteBudget should throw a readable error when budget is exceeded", () => {
 		;(() => assertUtf8ByteBudget("abcde", 4, "test payload")).should.throw(/test payload exceeded UTF-8 byte budget/)
+	})
+
+	it("createLargeTextFixture should generate at least the requested byte size across many lines", () => {
+		const fixture = createLargeTextFixture(8 * 1024, { linePrefix: "large", lineLength: 64 })
+		measureUtf8Bytes(fixture).should.be.greaterThanOrEqual(8 * 1024)
+		fixture.split("\n").length.should.be.greaterThan(10)
+	})
+
+	it("createSingleLineFixture should generate a giant single line with exact ASCII byte length", () => {
+		const fixture = createSingleLineFixture(4096, "z")
+		measureUtf8Bytes(fixture).should.equal(4096)
+		fixture.should.not.containEql("\n")
+	})
+
+	it("createNotebookFixture should produce valid notebook JSON at or above the requested size", () => {
+		const fixture = createNotebookFixture(12 * 1024)
+		const parsed = JSON.parse(fixture)
+		measureUtf8Bytes(fixture).should.be.greaterThanOrEqual(12 * 1024)
+		parsed.nbformat.should.equal(4)
+		parsed.cells.should.be.an.Array().and.have.length(1)
+		parsed.cells[0].outputs.should.be.an.Array().and.have.length(1)
+	})
+
+	it("createMultiFilePatchFixture should generate an apply_patch payload with all file sections", () => {
+		const patch = createMultiFilePatchFixture([
+			{ path: "a.ts", content: "alpha\nbeta" },
+			{ path: "b.ts", content: "gamma" },
+		])
+
+		patch.should.containEql("*** Begin Patch")
+		patch.should.containEql("*** Add File: a.ts")
+		patch.should.containEql("*** Add File: b.ts")
+		patch.should.containEql("+alpha")
+		patch.should.containEql("+beta")
+		patch.should.containEql("+gamma")
+		patch.should.containEql("*** End Patch")
+	})
+
+	it("exports the expected Workstream E large fixture byte budgets", () => {
+		WORKSTREAM_E_LARGE_TEXT_FIXTURE_BYTES.should.equal(5 * 1024 * 1024)
+		WORKSTREAM_E_VERY_LARGE_TEXT_FIXTURE_BYTES.should.equal(20 * 1024 * 1024)
 	})
 
 	it("takeProcessResourceSnapshot should return process memory and active handle information", () => {
@@ -107,8 +154,8 @@ describe("stress-utils", () => {
 		report.before.should.deepEqual(measured.before)
 		report.after.should.deepEqual(measured.after)
 		report.diff.should.deepEqual(measured.diff)
-		report.error.should.deepEqual({ name: "Error", message: "boom" })
-		report.annotations.should.deepEqual({ testCase: "stress-utils", iteration: 1 })
+		report.error!.should.deepEqual({ name: "Error", message: "boom" })
+		report.annotations!.should.deepEqual({ testCase: "stress-utils", iteration: 1 })
 	})
 
 	it("createStressFailureReport should normalize non-Error failures", async function () {
@@ -117,6 +164,6 @@ describe("stress-utils", () => {
 		const measured = await measureAsyncOperation("string failure", async () => "ok")
 		const report = createStressFailureReport(measured, { error: "plain failure" })
 
-		report.error.should.deepEqual({ name: "UnknownError", message: "plain failure" })
+		report.error!.should.deepEqual({ name: "UnknownError", message: "plain failure" })
 	})
 })
