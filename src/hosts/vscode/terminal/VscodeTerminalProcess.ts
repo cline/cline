@@ -78,6 +78,11 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			})
 			const endOfExecutionDisposable = (vscode.window as any).onDidEndTerminalShellExecution?.((e: any) => {
 				if (e?.shellIntegration === terminal.shellIntegration) {
+					// Capture exit code from the event when the stream never yields its own ]633;D marker
+					// (e.g. parse-rejected commands). Available on VS Code 1.93+.
+					if (this.exitCode === undefined && typeof e?.exitCode === "number") {
+						this.exitCode = e.exitCode
+					}
 					resolveEndOfExecution()
 				}
 			})
@@ -235,6 +240,9 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 				}
 			} finally {
 				endOfExecutionDisposable?.dispose?.()
+				// Signal the async iterator to clean up on early exit. `for await` does this
+				// automatically on `break`; we're using a manual while loop so call it explicitly.
+				await iterator.return?.()
 			}
 
 			this.emitRemainingBufferIfListening()
