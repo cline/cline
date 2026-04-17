@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
-import { constructNewFileContent as cnfc } from "./diff"
+import { constructNewFileContent as cnfc, MAX_DIFF_LINE_BYTES } from "./diff"
 
 async function cnfc2(diffContent: string, originalContent: string, isFinal: boolean): Promise<string> {
 	const result = await cnfc(diffContent, originalContent, isFinal, "v2")
@@ -249,6 +249,46 @@ replaced
 			expect.fail("Expected an error to be thrown")
 		} catch (err) {
 			expect(err).to.be.an("error")
+		}
+	})
+
+	it("should reject giant single-line SEARCH payloads", async () => {
+		const giantLine = "x".repeat(MAX_DIFF_LINE_BYTES + 1)
+		const original = "small line\nsecond line"
+		const diff = `------- SEARCH\n${giantLine}\n=======\nupdated\n+++++++ REPLACE`
+
+		try {
+			await cnfc(diff, original, true)
+			expect.fail("Expected v1 diff reconstruction to reject giant single-line payloads")
+		} catch (error) {
+			expect((error as Error).message).to.match(/SEARCH\/REPLACE payload contains a line that is too large/)
+		}
+
+		try {
+			await cnfc2(diff, original, true)
+			expect.fail("Expected v2 diff reconstruction to reject giant single-line payloads")
+		} catch (error) {
+			expect((error as Error).message).to.match(/SEARCH\/REPLACE payload contains a line that is too large/)
+		}
+	})
+
+	it("should reject giant single-line original content", async () => {
+		const giantLine = "x".repeat(MAX_DIFF_LINE_BYTES + 1)
+		const original = giantLine
+		const diff = `------- SEARCH\nsmall\n=======\nupdated\n+++++++ REPLACE`
+
+		try {
+			await cnfc(diff, original, true)
+			expect.fail("Expected v1 diff reconstruction to reject giant single-line original content")
+		} catch (error) {
+			expect((error as Error).message).to.match(/original file contains a line that is too large/)
+		}
+
+		try {
+			await cnfc2(diff, original, true)
+			expect.fail("Expected v2 diff reconstruction to reject giant single-line original content")
+		} catch (error) {
+			expect((error as Error).message).to.match(/original file contains a line that is too large/)
 		}
 	})
 

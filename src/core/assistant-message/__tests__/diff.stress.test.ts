@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
 import { measureAsyncOperation, measureUtf8Bytes } from "@/test/stress-utils"
-import { constructNewFileContent } from "../diff"
+import { constructNewFileContent, MAX_DIFF_LINE_BYTES } from "../diff"
 
 function makeLargeOriginalContent(blockCount: number): string {
 	return Array.from({ length: blockCount }, (_, i) => {
@@ -60,5 +60,22 @@ describe("constructNewFileContent stress", () => {
 		expect(measured.durationMs).to.be.lessThan(5_000)
 		expect(measured.result.newContent).to.include("payload 90 updated")
 		expect(measured.result.matchIndices).to.have.lengthOf(1)
+	})
+
+	it("fails fast on giant single-line diff payloads", async function () {
+		this.timeout(10_000)
+
+		const giantLine = "x".repeat(MAX_DIFF_LINE_BYTES + 1)
+		const original = "small line\nsecond line"
+		const diff = ["------- SEARCH", giantLine, "=======", "updated", "+++++++ REPLACE"].join("\n")
+
+		const startedAt = Date.now()
+		try {
+			await constructNewFileContent(diff, original, true, "v1")
+			expect.fail("Expected constructNewFileContent to reject giant single-line diff payloads")
+		} catch (error) {
+			expect(Date.now() - startedAt).to.be.lessThan(1_000)
+			expect((error as Error).message).to.match(/SEARCH\/REPLACE payload contains a line that is too large/)
+		}
 	})
 })

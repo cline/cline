@@ -2,6 +2,49 @@ const SEARCH_BLOCK_START = "------- SEARCH"
 const SEARCH_BLOCK_END = "======="
 const REPLACE_BLOCK_END = "+++++++ REPLACE"
 
+export const MAX_DIFF_LINE_BYTES = 200 * 1024
+
+function getLargestLineBytes(content: string): number {
+	let largest = 0
+	for (const line of content.split("\n")) {
+		const lineBytes = Buffer.byteLength(line, "utf8")
+		if (lineBytes > largest) {
+			largest = lineBytes
+		}
+	}
+	return largest
+}
+
+function formatBytes(bytes: number): string {
+	if (bytes < 1024) {
+		return `${bytes} B`
+	}
+	if (bytes < 1024 * 1024) {
+		return `${(bytes / 1024).toFixed(1)} KB`
+	}
+	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function assertDiffLineLengthsWithinBudget(diffContent: string, originalContent: string): void {
+	const largestOriginalLineBytes = getLargestLineBytes(originalContent)
+	if (largestOriginalLineBytes > MAX_DIFF_LINE_BYTES) {
+		throw new Error(
+			`Refusing to reconstruct diff content because the original file contains a line that is too large ` +
+				`(${formatBytes(largestOriginalLineBytes)} > ${formatBytes(MAX_DIFF_LINE_BYTES)}). ` +
+				`Use a narrower edit or a different strategy for giant single-line content.`,
+		)
+	}
+
+	const largestDiffLineBytes = getLargestLineBytes(diffContent)
+	if (largestDiffLineBytes > MAX_DIFF_LINE_BYTES) {
+		throw new Error(
+			`Refusing to reconstruct diff content because the SEARCH/REPLACE payload contains a line that is too large ` +
+				`(${formatBytes(largestDiffLineBytes)} > ${formatBytes(MAX_DIFF_LINE_BYTES)}). ` +
+				`Split the change into smaller line-oriented edits.`,
+		)
+	}
+}
+
 /**
  * Converts a character index in a string to a 1-based line number.
  * @param content - The full content string
@@ -248,6 +291,7 @@ export async function constructNewFileContent(
 	isFinal: boolean,
 	version: "v1" | "v2" = "v1",
 ): Promise<{ newContent: string; matchIndices: number[] }> {
+	assertDiffLineLengthsWithinBudget(diffContent, originalContent)
 	const constructor = constructNewFileContentVersionMapping[version]
 	if (!constructor) {
 		throw new Error(`Invalid version '${version}' for file content constructor`)
