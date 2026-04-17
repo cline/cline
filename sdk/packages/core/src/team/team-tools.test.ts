@@ -69,8 +69,10 @@ describe("createAgentTeamsTools schema surface", () => {
 		const createOutcome = tools.find(
 			(tool) => tool.name === "team_create_outcome",
 		);
-		const teamAwaitRun = tools.find((tool) => tool.name === "team_await_run");
-		const teamLogUpdate = tools.find((tool) => tool.name === "team_log_update");
+		const teamAwaitRuns = tools.find((tool) => tool.name === "team_await_runs");
+		const teamLogUpdate = tools.find(
+			(tool) => tool.name === "team_mission_log",
+		);
 
 		expect(spawn?.inputSchema.type).toBe("object");
 		const teamTaskSchema = teamTask?.inputSchema as
@@ -85,7 +87,7 @@ describe("createAgentTeamsTools schema surface", () => {
 		expect(teamTaskSchema?.required).toEqual(["action"]);
 		expect(send?.inputSchema.type).toBe("object");
 		expect(createOutcome?.inputSchema.type).toBe("object");
-		expect(teamAwaitRun?.inputSchema.type).toBe("object");
+		expect(teamAwaitRuns?.inputSchema.type).toBe("object");
 		const schema = teamLogUpdate?.inputSchema as
 			| { properties: Record<string, unknown>; required: unknown[] }
 			| undefined;
@@ -243,7 +245,7 @@ describe("createAgentTeamsTools schema surface", () => {
 		});
 	});
 
-	it("rejects fields that do not belong to the selected action", async () => {
+	it("ignores non-create fields for action=create and reports them back", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
@@ -252,13 +254,18 @@ describe("createAgentTeamsTools schema surface", () => {
 		});
 		const teamTask = tools.find((tool) => tool.name === "team_task");
 		expect(teamTask).toBeDefined();
+		if (!teamTask) {
+			throw new Error("Expected team_task tool to be defined");
+		}
 
 		await expect(
-			teamTask?.execute(
+			teamTask.execute(
 				{
-					action: "claim",
-					taskId: "task_0001",
-					title: "should not be here",
+					action: "create",
+					title: "Draft TypeScript haiku",
+					description: "Write a concise haiku",
+					status: "pending",
+					summary: "not used",
 				},
 				{
 					agentId: "lead",
@@ -266,7 +273,13 @@ describe("createAgentTeamsTools schema surface", () => {
 					iteration: 1,
 				},
 			),
-		).rejects.toThrow('Field "title" is not allowed when action=claim');
+		).resolves.toMatchObject({
+			action: "create",
+			status: "pending",
+			taskId: expect.stringMatching(/^task_/),
+			ignoredFields: ["status", "summary"],
+			note: "Ignored fields for action=create: status, summary",
+		});
 	});
 
 	it("defaults requiredSections for team_create_outcome", async () => {
@@ -530,7 +543,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		);
 	});
 
-	it("throws from team_await_run when async delegated run fails", async () => {
+	it("throws from team_await_runs when a requested async delegated run fails", async () => {
 		const runtime = {
 			awaitRun: vi.fn(async () => ({
 				id: "run_0001",
@@ -544,11 +557,11 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			requesterId: "lead",
 			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
-		expect(awaitRun).toBeDefined();
+		const awaitRuns = tools.find((tool) => tool.name === "team_await_runs");
+		expect(awaitRuns).toBeDefined();
 
 		await expect(
-			awaitRun?.execute(
+			awaitRuns?.execute(
 				{ runId: "run_0001" },
 				{
 					agentId: "lead",
@@ -559,7 +572,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		).rejects.toThrow('Run "run_0001" failed: Authentication failed');
 	});
 
-	it("throws from team_await_all_runs when any delegated run is not successful", async () => {
+	it("throws from team_await_runs when any delegated run is not successful in all-runs mode", async () => {
 		const runtime = {
 			awaitAllRuns: vi.fn(async () => [
 				{ id: "run_ok", status: "completed" },
@@ -572,13 +585,11 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			requesterId: "lead",
 			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const awaitAllRuns = tools.find(
-			(tool) => tool.name === "team_await_all_runs",
-		);
-		expect(awaitAllRuns).toBeDefined();
+		const awaitRuns = tools.find((tool) => tool.name === "team_await_runs");
+		expect(awaitRuns).toBeDefined();
 
 		await expect(
-			awaitAllRuns?.execute(
+			awaitRuns?.execute(
 				{},
 				{
 					agentId: "lead",
@@ -591,7 +602,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		);
 	});
 
-	it("returns compact summaries from team_await_run without full teammate transcripts", async () => {
+	it("returns compact summaries from team_await_runs without full teammate transcripts", async () => {
 		const runtime = {
 			awaitRun: vi.fn(async () => ({
 				id: "run_0001",
@@ -633,10 +644,10 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			requesterId: "lead",
 			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
+		const awaitRuns = tools.find((tool) => tool.name === "team_await_runs");
 
 		await expect(
-			awaitRun?.execute(
+			awaitRuns?.execute(
 				{ runId: "run_0001" },
 				{
 					agentId: "lead",
@@ -728,19 +739,15 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		]);
 	});
 
-	it("sets long timeout for team await tools", () => {
+	it("sets long timeout for team await tool", () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
 			requesterId: "lead",
 			teammateConfigProvider: makeTeammateConfigProvider(),
 		});
-		const awaitRun = tools.find((tool) => tool.name === "team_await_run");
-		const awaitAllRuns = tools.find(
-			(tool) => tool.name === "team_await_all_runs",
-		);
-		expect(awaitRun?.timeoutMs).toBe(60 * 60 * 1000);
-		expect(awaitAllRuns?.timeoutMs).toBe(60 * 60 * 1000);
+		const awaitRuns = tools.find((tool) => tool.name === "team_await_runs");
+		expect(awaitRuns?.timeoutMs).toBe(60 * 60 * 1000);
 	});
 
 	it("deduplicates concurrent sync team_run_task calls to the same agent", async () => {
@@ -847,7 +854,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(result2.text).toBe("Evaluated");
 	});
 
-	it("lists ready-to-claim tasks through team_task list action", async () => {
+	it("lists team tasks through team_task list action", async () => {
 		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
 		const tools = createAgentTeamsTools({
 			runtime,
@@ -885,7 +892,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 
 		await expect(
 			teamTask?.execute(
-				{ action: "list", readyOnly: true },
+				{ action: "list" },
 				{
 					agentId: "lead",
 					conversationId: "conv-1",
@@ -899,6 +906,11 @@ describe("createAgentTeamsTools runtime behavior", () => {
 					id: first.taskId,
 					isReady: true,
 					blockedBy: [],
+				}),
+				expect.objectContaining({
+					title: "Blocked task",
+					isReady: false,
+					blockedBy: [first.taskId],
 				}),
 			],
 		});

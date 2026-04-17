@@ -97,7 +97,7 @@ function summarizeTeamTool(event: TeamToolEvent): ReactNode {
 			return `${statePrefix} broadcast${asString(input?.subject) ? `: ${asString(input?.subject)}` : ""}`;
 		case "team_read_mailbox":
 			return `${statePrefix} read mailbox`;
-		case "team_log_update":
+		case "team_mission_log":
 			return `${statePrefix} log ${asString(input?.kind) ?? "update"}${asString(input?.summary) ? `: ${asString(input?.summary)}` : ""}`;
 		case "team_cleanup":
 			return `${statePrefix} clean up team runtime`;
@@ -148,7 +148,7 @@ function describeTeamTool(event: TeamToolEvent): string | undefined {
 		case "team_send_message":
 		case "team_broadcast":
 			return asString(input?.body);
-		case "team_log_update":
+		case "team_mission_log":
 			return asString(input?.nextAction) ?? asString(input?.summary);
 		case "team_attach_outcome_fragment":
 			return asString(input?.content);

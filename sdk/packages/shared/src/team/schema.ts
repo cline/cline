@@ -49,20 +49,20 @@ export const TeamShutdownTeammateInputSchema = z.object({
 
 export const TeamStatusInputSchema = z.object({});
 
-const TEAM_TASK_FIELDS_BY_ACTION = {
-	create: ["title", "description", "dependsOn", "assignee"],
-	list: ["status", "assignee", "unassignedOnly", "readyOnly"],
-	claim: ["taskId"],
-	complete: ["taskId", "summary"],
-	block: ["taskId", "reason"],
-} as const;
-
 const TEAM_TASK_REQUIRED_FIELDS_BY_ACTION = {
 	create: ["title", "description"],
 	list: [],
 	claim: ["taskId"],
 	complete: ["taskId", "summary"],
 	block: ["taskId", "reason"],
+} as const;
+
+type TeamTaskAction = "create" | "list" | "claim" | "complete" | "block";
+
+export const TEAM_TASK_IGNORED_FIELDS_BY_ACTION: Partial<
+	Record<TeamTaskAction, readonly string[]>
+> = {
+	create: ["status", "taskId", "summary", "reason"],
 } as const;
 
 export const TeamTaskInputSchema = z
@@ -77,32 +77,11 @@ export const TeamTaskInputSchema = z
 		status: nullableOptional(
 			z.enum(["pending", "in_progress", "blocked", "completed"]),
 		).describe("Optional task status filter"),
-		unassignedOnly: nullableOptional(z.boolean()).describe(
-			"Only include tasks without an assignee",
-		),
-		readyOnly: nullableOptional(z.boolean()).describe(
-			"Only include tasks ready to claim now",
-		),
 		taskId: nullableOptional(z.string()).describe("Task ID"),
 		summary: nullableOptional(z.string().min(1)).describe("Completion summary"),
 		reason: nullableOptional(z.string().min(1)).describe("Blocking reason"),
 	})
 	.superRefine((input, ctx) => {
-		const allowedFields = new Set([
-			"action",
-			...TEAM_TASK_FIELDS_BY_ACTION[input.action],
-		]);
-		for (const [key, value] of Object.entries(input)) {
-			if (key === "action" || value === undefined || allowedFields.has(key)) {
-				continue;
-			}
-			ctx.addIssue({
-				code: "custom",
-				path: [key],
-				message: `Field "${key}" is not allowed when action=${input.action}`,
-			});
-		}
-
 		for (const field of TEAM_TASK_REQUIRED_FIELDS_BY_ACTION[input.action]) {
 			if (input[field] !== undefined) {
 				continue;
@@ -120,7 +99,7 @@ export const TeamRunTaskInputSchema = z.object({
 	task: z.string().min(1).describe("Task instructions for the teammate"),
 	taskId: nullableOptional(z.string()).describe("Optional shared task list ID"),
 	runMode: nullableOptional(z.enum(["sync", "async"])).describe(
-		"Execution mode: 'sync' blocks until the teammate finishes and returns the result (default if omitted); 'async' queues the run and returns a runId immediately — use team_await_run or team_await_all_runs to collect results later.",
+		"Execution mode: 'sync' blocks until the teammate finishes and returns the result (default if omitted); 'async' queues the run and returns a runId immediately — use team_await_runs to collect results later.",
 	),
 	continueConversation: nullableOptional(z.boolean()).describe(
 		"If true, continue the teammate conversation; otherwise start fresh",
@@ -153,11 +132,13 @@ export const TeamCancelRunInputSchema = z.object({
 	),
 });
 
-export const TeamAwaitRunInputSchema = z.object({
-	runId: z.string().min(1).describe("Async run ID to await"),
-});
-
-export const TeamAwaitAllRunsInputSchema = z.object({});
+export const TeamAwaitRunsInputSchema = z
+	.object({
+		runId: nullableOptional(z.string().min(1)).describe(
+			"Optional async run ID to await. Omit to wait for all active async runs.",
+		),
+	})
+	.strict();
 
 export const TeamSendMessageInputSchema = z.object({
 	toAgentId: z.string().min(1).describe("Recipient agent ID"),
@@ -174,21 +155,15 @@ export const TeamBroadcastInputSchema = z.object({
 	taskId: nullableOptional(z.string().min(1)).describe(
 		"Optional task ID context",
 	),
-	includeLead: nullableOptional(z.boolean()).describe(
-		"Include the lead agent in broadcast recipients",
-	),
 });
 
 export const TeamReadMailboxInputSchema = z.object({
 	unreadOnly: nullableOptional(z.boolean()).describe(
 		"Only unread messages for read action (default true)",
 	),
-	limit: nullableOptional(z.number().int().min(1).max(100)).describe(
-		"Optional max number of messages for read action",
-	),
 });
 
-export const TeamLogUpdateInputSchema = z.object({
+export const TeamMissionLogInputSchema = z.object({
 	kind: z.enum(["progress", "handoff", "blocked", "decision", "done", "error"]),
 	summary: z.string().min(1).describe("Update summary"),
 	taskId: nullableOptional(z.string().min(1)).describe(
@@ -241,12 +216,11 @@ export type TeamTaskInput = z.infer<typeof TeamTaskInputSchema>;
 export type TeamRunTaskInput = z.infer<typeof TeamRunTaskInputSchema>;
 export type TeamListRunsInput = z.infer<typeof TeamListRunsInputSchema>;
 export type TeamCancelRunInput = z.infer<typeof TeamCancelRunInputSchema>;
-export type TeamAwaitRunInput = z.infer<typeof TeamAwaitRunInputSchema>;
-export type TeamAwaitAllRunsInput = z.infer<typeof TeamAwaitAllRunsInputSchema>;
+export type TeamAwaitRunsInput = z.infer<typeof TeamAwaitRunsInputSchema>;
 export type TeamSendMessageInput = z.infer<typeof TeamSendMessageInputSchema>;
 export type TeamBroadcastInput = z.infer<typeof TeamBroadcastInputSchema>;
 export type TeamReadMailboxInput = z.infer<typeof TeamReadMailboxInputSchema>;
-export type TeamLogUpdateInput = z.infer<typeof TeamLogUpdateInputSchema>;
+export type TeamMissionLogInput = z.infer<typeof TeamMissionLogInputSchema>;
 export type TeamCleanupInput = z.infer<typeof TeamCleanupInputSchema>;
 export type TeamCreateOutcomeInput = z.infer<
 	typeof TeamCreateOutcomeInputSchema
@@ -299,7 +273,13 @@ export interface TeamRunToolSummary {
 }
 
 export type TeamTaskToolResult =
-	| { action: "create"; taskId: string; status: string }
+	| {
+			action: "create";
+			taskId: string;
+			status: string;
+			ignoredFields?: string[];
+			note?: string;
+	  }
 	| { action: "list"; tasks: TeamTaskListItem[] }
 	| { action: "claim"; taskId: string; status: string; nextStep: string }
 	| { action: "complete"; taskId: string; status: string }

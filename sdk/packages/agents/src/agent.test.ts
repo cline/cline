@@ -1068,7 +1068,7 @@ describe("Agent", () => {
 	it("finalizes streamed tool arguments at end of turn", async () => {
 		const { Agent } = await import("./agent.js");
 		const teamLogTool = createTool({
-			name: "team_log_update",
+			name: "team_mission_log",
 			description: "Append a mission log update",
 			inputSchema: {
 				type: "object",
@@ -1089,7 +1089,7 @@ describe("Agent", () => {
 					tool_call: {
 						call_id: "call_1",
 						function: {
-							name: "team_log_update",
+							name: "team_mission_log",
 							arguments: '{"kind":"progress",',
 						},
 					},

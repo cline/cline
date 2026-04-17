@@ -484,6 +484,7 @@ interface TeamMemberState extends TeamMemberSnapshot {
 	runningCount: number;
 	lastMissionStep: number;
 	lastMissionAt: number;
+	pendingSteerMessage?: string;
 }
 
 export class AgentTeamsRuntime {
@@ -568,8 +569,6 @@ export class AgentTeamsRuntime {
 	listTaskItems(options?: {
 		status?: TeamTaskStatus;
 		assignee?: string;
-		unassignedOnly?: boolean;
-		readyOnly?: boolean;
 	}): TeamTaskListItem[] {
 		return Array.from(this.tasks.values())
 			.map((task) => {
@@ -588,12 +587,6 @@ export class AgentTeamsRuntime {
 					return false;
 				}
 				if (options?.assignee && task.assignee !== options.assignee) {
-					return false;
-				}
-				if (options?.unassignedOnly && !!task.assignee) {
-					return false;
-				}
-				if (options?.readyOnly && !task.isReady) {
 					return false;
 				}
 				return true;
@@ -825,6 +818,15 @@ export class AgentTeamsRuntime {
 		const wrappedConfig: TeamMemberConfig = {
 			...config,
 			apiTimeoutMs: TEAMMATE_API_TIMEOUT_MS,
+			consumePendingUserMessage: () => {
+				const member = this.members.get(agentId);
+				if (!member || !member.pendingSteerMessage) {
+					return undefined;
+				}
+				const message = member.pendingSteerMessage;
+				member.pendingSteerMessage = undefined;
+				return message;
+			},
 			onEvent: (event: AgentEvent) => {
 				config.onEvent?.(event);
 				this.emitEvent({ type: TeamMessageType.AgentEvent, agentId, event });
@@ -986,9 +988,17 @@ export class AgentTeamsRuntime {
 		this.emitEvent({ type: TeamMessageType.TaskStart, agentId, message });
 
 		try {
+			const unreadMail = this.listMailbox(agentId, {
+				unreadOnly: true,
+				markRead: true,
+			});
+			const enrichedMessage =
+				unreadMail.length > 0
+					? `${this.buildMailboxNotification(unreadMail)}\n\n${message}`
+					: message;
 			const result = options?.continueConversation
-				? await member.agent.continue(message)
-				: await member.agent.run(message);
+				? await member.agent.continue(enrichedMessage)
+				: await member.agent.run(enrichedMessage);
 			this.emitEvent({ type: TeamMessageType.TaskEnd, agentId, result });
 			this.recordProgressStep(
 				agentId,
@@ -1254,7 +1264,8 @@ export class AgentTeamsRuntime {
 		if (!this.members.has(fromAgentId)) {
 			throw new Error(`Unknown sender "${fromAgentId}"`);
 		}
-		if (!this.members.has(toAgentId)) {
+		const recipient = this.members.get(toAgentId);
+		if (!recipient) {
 			throw new Error(`Unknown recipient "${toAgentId}"`);
 		}
 		const message: TeamMailboxMessage = {
@@ -1272,6 +1283,13 @@ export class AgentTeamsRuntime {
 			type: TeamMessageType.TeamMessage,
 			message: { ...message },
 		});
+		if (
+			recipient.role === "teammate" &&
+			recipient.runningCount > 0 &&
+			recipient.agent
+		) {
+			recipient.pendingSteerMessage = `[MAILBOX] You got a message from ${fromAgentId}. Subject: "${subject}". Use the team_read_mailbox tool to read it at your convenience.`;
+		}
 		return { ...message };
 	}
 
@@ -1279,15 +1297,14 @@ export class AgentTeamsRuntime {
 		fromAgentId: string,
 		subject: string,
 		body: string,
-		options?: { includeLead?: boolean; taskId?: string },
+		options?: { taskId?: string },
 	): TeamMailboxMessage[] {
-		const includeLead = options?.includeLead ?? false;
 		const messages: TeamMailboxMessage[] = [];
 		for (const member of this.members.values()) {
 			if (member.agentId === fromAgentId) {
 				continue;
 			}
-			if (!includeLead && member.role === "lead") {
+			if (member.role === "lead") {
 				continue;
 			}
 			messages.push(
@@ -1526,7 +1543,7 @@ export class AgentTeamsRuntime {
 			this.appendMissionLog({
 				agentId,
 				kind: "done",
-				summary: `Run completed after ${event.iterations} iteration(s)`,
+				summary: `Completed a delegated run (${event.iterations} iterations)`,
 			});
 			return;
 		}
@@ -1636,6 +1653,23 @@ export class AgentTeamsRuntime {
 			kind: "progress",
 			summary,
 		});
+	}
+
+	private buildMailboxNotification(messages: TeamMailboxMessage[]): string {
+		if (messages.length === 0) {
+			return "";
+		}
+		const lines: string[] = [
+			`[MAILBOX] You have ${messages.length} unread message(s):`,
+		];
+		for (const msg of messages) {
+			lines.push(
+				`--- Message from ${msg.fromAgentId} | subject: ${msg.subject} ---`,
+			);
+			lines.push(msg.body);
+		}
+		lines.push("---");
+		return lines.join("\n");
 	}
 
 	private emitEvent(event: TeamEvent): void {

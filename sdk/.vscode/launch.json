@@ -44,6 +44,23 @@
 			}
 		},
 		{
+			"name": "Launch RPC Server",
+			"type": "bun",
+			"request": "launch",
+			"cwd": "${workspaceFolder}/apps/cli",
+			"runtime": "bun",
+			"runtimeArgs": ["--conditions=development"],
+			"program": "${workspaceFolder}/apps/cli/src/index.ts",
+			"args": ["rpc", "start"],
+			"env": {
+				"CLINE_BUILD_ENV": "development",
+				"CLINE_DEBUG_PORT_BASE": "9230"
+			},
+			"presentation": {
+				"hidden": true
+			}
+		},
+		{
 			"name": "Attach RPC Runtime (9230)",
 			"type": "bun",
 			"request": "attach",
@@ -89,6 +106,10 @@
 		}
 	],
 	"compounds": [
+		{
+			"name": "Launch RPC Server Debugger",
+			"configurations": ["Launch RPC Server", "Attach RPC Runtime (9230)"]
+		},
 		{
 			"name": "Launch CLI Debugger",
 			"configurations": [

@@ -2,6 +2,43 @@ import { z } from "zod";
 import type { Tool, ToolContext } from "../llms/tools";
 import { zodToJsonSchema } from "../parse/zod";
 
+function normalizeToolInputSchema(
+	inputSchema: Record<string, unknown>,
+): Record<string, unknown> {
+	if (typeof inputSchema.type === "string") {
+		return inputSchema;
+	}
+	if (
+		"properties" in inputSchema ||
+		"required" in inputSchema ||
+		"additionalProperties" in inputSchema
+	) {
+		return {
+			type: "object",
+			...inputSchema,
+		};
+	}
+	for (const key of ["oneOf", "anyOf", "allOf"] as const) {
+		const branches = inputSchema[key];
+		if (!Array.isArray(branches) || branches.length === 0) {
+			continue;
+		}
+		const allObjectBranches = branches.every(
+			(branch) =>
+				branch &&
+				typeof branch === "object" &&
+				(branch as Record<string, unknown>).type === "object",
+		);
+		if (allObjectBranches) {
+			return {
+				type: "object",
+				...inputSchema,
+			};
+		}
+	}
+	return inputSchema;
+}
+
 export function createTool<TInput, TOutput>(config: {
 	name: string;
 	description: string;
@@ -29,10 +66,11 @@ export function createTool<TInput, TOutput>(config: {
 	retryable?: boolean;
 	maxRetries?: number;
 }): Tool<TInput, TOutput> {
-	const inputSchema =
+	const inputSchema = normalizeToolInputSchema(
 		config.inputSchema instanceof z.ZodType
 			? zodToJsonSchema(config.inputSchema)
-			: config.inputSchema;
+			: config.inputSchema,
+	);
 
 	return {
 		name: config.name,

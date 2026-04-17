@@ -73,6 +73,35 @@ describe("handleEvent text formatting", () => {
 		expect(output).toMatch(/\[run_commands\].*\n.*\[read_files\]/s);
 	});
 
+	it("prints tool errors inline", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "team_task",
+				input: { action: "create", title: "Draft haiku" },
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "team_task",
+				error:
+					'✖ Field "status" is not allowed when action=create\n  → at status',
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toContain(`\x1b[36m[team_task]\x1b[0m create`);
+		expect(output).toContain("error:");
+		expect(output).toContain(
+			'Field "status" is not allowed when action=create',
+		);
+		expect(output).toContain("→ at status");
+	});
+
 	it("suppresses heartbeat-only team progress messages", () => {
 		handleTeamEvent({
 			type: "run_progress",

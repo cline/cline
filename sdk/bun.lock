@@ -141,19 +141,6 @@
         "typescript": "^5",
       },
     },
-    "apps/examples/cline-sdk": {
-      "name": "cline-sdk-examples",
-      "version": "0.1.0",
-      "dependencies": {
-        "@clinebot/agents": "workspace:*",
-        "@clinebot/core": "workspace:*",
-        "@clinebot/llms": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/node": "^22.10.5",
-        "typescript": "^5.7.3",
-      },
-    },
     "apps/examples/slack-bot": {
       "name": "cline-sdk-slack-bot-example",
       "version": "0.1.0",
@@ -1606,8 +1593,6 @@
     "cli-width": ["cli-width@4.1.0", "", {}, "sha512-ouuZd4/dm2Sw5Gmqy6bGyNNNe1qt9RpmxveLSO7KcgsTnU7RXfsw+/bukWGo1abgBiMAic068rclZsO4IWmmxQ=="],
 
     "client-only": ["client-only@0.0.1", "", {}, "sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA=="],
-
-    "cline-sdk-examples": ["cline-sdk-examples@workspace:apps/examples/cline-sdk"],
 
     "cline-sdk-portable-agents": ["cline-sdk-portable-agents@workspace:apps/examples/subagent-plugin"],
 
@@ -3089,8 +3074,6 @@
 
     "ajv-formats/ajv": ["ajv@8.18.0", "", { "dependencies": { "fast-deep-equal": "^3.1.3", "fast-uri": "^3.0.1", "json-schema-traverse": "^1.0.0", "require-from-string": "^2.0.2" } }, "sha512-PlXPeEWMXMZ7sPYOHqmDyCJzcfNrUr3fGNKtezX14ykXOEIvyK81d+qydx89KY5O71FKMPaQ2vBfBFI5NHR63A=="],
 
-    "cline-sdk-examples/@types/node": ["@types/node@22.19.17", "", { "dependencies": { "undici-types": "~6.21.0" } }, "sha512-wGdMcf+vPYM6jikpS/qhg6WiqSV/OhG+jeeHT/KlVqxYfD40iYJf9/AE1uQxVWFvU7MipKRkRv8NSHiCGgPr8Q=="],
-
     "cline-sdk-portable-agents/@clinebot/agents": ["@clinebot/agents@0.0.34", "", { "dependencies": { "@clinebot/llms": "0.0.34", "zod": "^4.3.6" } }, "sha512-ok8PhdKlakprNYOjE/K82ULBYuX93KrltMKEgx8M0r043L86gpHzxNz1MCghVrZ0MFuJdovCLMMrAMu6dNPyvw=="],
 
     "cline-sdk-portable-agents/@clinebot/core": ["@clinebot/core@0.0.34", "", { "dependencies": { "@clinebot/agents": "0.0.34", "@clinebot/llms": "0.0.34", "@opentelemetry/api": "^1.9.0", "@opentelemetry/api-logs": "^0.214.0", "@opentelemetry/exporter-logs-otlp-http": "^0.214.0", "@opentelemetry/exporter-metrics-otlp-http": "^0.214.0", "@opentelemetry/exporter-trace-otlp-http": "^0.214.0", "@opentelemetry/resources": "^2.6.1", "@opentelemetry/sdk-logs": "^0.214.0", "@opentelemetry/sdk-metrics": "^2.6.1", "@opentelemetry/sdk-trace-base": "^2.6.1", "@opentelemetry/sdk-trace-node": "^2.6.1", "@opentelemetry/semantic-conventions": "^1.40.0", "jiti": "^1.21.7", "nanoid": "^5.1.7", "node-machine-id": "^1.1.12", "simple-git": "^3.32.3", "yaml": "^2.8.2", "zod": "^4.3.6" } }, "sha512-wcJWf1Dc3v++9aOCjP57JUkYxZyiJy1RW3nsu35QN4a/n35O4jF+Uyg6qsLtgendFZhc97qbbFZXbaDDRjyZtw=="],
@@ -3296,8 +3279,6 @@
     "accepts/mime-types/mime-db": ["mime-db@1.54.0", "", {}, "sha512-aU5EJuIN2WDemCcAp2vFBfp/m4EAhWJnUNSSw0ixs7/kXbd6Pg64EmwJkNdFhB8aWt1sH2CTXrLxo/iAGV3oPQ=="],
 
     "ajv-formats/ajv/json-schema-traverse": ["json-schema-traverse@1.0.0", "", {}, "sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug=="],
-
-    "cline-sdk-examples/@types/node/undici-types": ["undici-types@6.21.0", "", {}, "sha512-iwDZqg0QAGrg9Rav5H4n0M64c3mkR59cJ6wQp+7C4nI0gsmExaedaYLNO44eT4AtBBwjbTiGPMlt2Md0T9H9JQ=="],
 
     "cline-sdk-portable-agents/@clinebot/core/@clinebot/agents": ["@clinebot/agents@workspace:packages/agents"],
 

@@ -707,7 +707,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						if (pending) parts.push(`Unfinished tasks: ${pending}`);
 						if (activeRunSummary)
 							parts.push(`Active runs: ${activeRunSummary}`);
-						return `[SYSTEM] You still have team obligations. ${parts.join(". ")}. Use team_run_task to delegate work, or team_task with action=complete to mark tasks done, or team_await_run / team_await_all_runs to wait for active runs. Do NOT stop until all tasks are completed.`;
+						return `[SYSTEM] You still have team obligations. ${parts.join(". ")}. Use team_run_task to delegate work, or team_task with action=complete to mark tasks done, or team_await_runs to wait for active runs. Do NOT stop until all tasks are completed.`;
 					}
 					return undefined;
 				}

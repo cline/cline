@@ -133,6 +133,216 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		});
 	});
 
+	it("prepends unread mailbox notification to teammate message", async () => {
+		let routedMessage: string | undefined;
+		createAgentMock.mockReturnValueOnce({
+			abort: vi.fn(),
+			run: vi.fn(async (message) => {
+				routedMessage = message;
+				return {
+					text: "Task completed",
+					iterations: 1,
+					finishReason: "end_turn",
+					durationMs: 100,
+					usage: {
+						inputTokens: 10,
+						outputTokens: 20,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+					messages: [],
+				};
+			}),
+			continue: vi.fn(),
+			canStartRun: vi.fn(() => true),
+			getAgentId: vi.fn(() => "teammate-1"),
+			getConversationId: vi.fn(() => "conv-1"),
+			getMessages: vi.fn(() => []),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+		});
+
+		runtime.spawnTeammate({
+			agentId: "alice",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Helper teammate",
+				tools: [],
+			},
+		});
+
+		// Send message from lead to alice
+		runtime.sendMessage(
+			"lead",
+			"alice",
+			"Status check",
+			"How is your work going?",
+		);
+
+		// Route task to alice
+		await runtime.routeToTeammate("alice", "Complete your task");
+
+		// Verify the routed message includes mailbox notification
+		expect(routedMessage).toBeDefined();
+		expect(routedMessage).toContain("[MAILBOX]");
+		expect(routedMessage).toContain("You have 1 unread message(s)");
+		expect(routedMessage).toContain(
+			"Message from lead | subject: Status check",
+		);
+		expect(routedMessage).toContain("How is your work going?");
+		expect(routedMessage).toContain("Complete your task");
+
+		// Verify message is marked as read
+		const unreadAfter = runtime.listMailbox("alice", { unreadOnly: true });
+		expect(unreadAfter).toHaveLength(0);
+	});
+
+	it("does not prepend notification when no unread mail", async () => {
+		let routedMessage: string | undefined;
+		createAgentMock.mockReturnValueOnce({
+			abort: vi.fn(),
+			run: vi.fn(async (message) => {
+				routedMessage = message;
+				return {
+					text: "Task completed",
+					iterations: 1,
+					finishReason: "end_turn",
+					durationMs: 100,
+					usage: {
+						inputTokens: 10,
+						outputTokens: 20,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+					messages: [],
+				};
+			}),
+			continue: vi.fn(),
+			canStartRun: vi.fn(() => true),
+			getAgentId: vi.fn(() => "teammate-1"),
+			getConversationId: vi.fn(() => "conv-1"),
+			getMessages: vi.fn(() => []),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+		});
+
+		runtime.spawnTeammate({
+			agentId: "bob",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Helper teammate",
+				tools: [],
+			},
+		});
+
+		// Route task to bob with no prior messages
+		await runtime.routeToTeammate("bob", "Complete your task");
+
+		// Verify the routed message does not contain mailbox notification
+		expect(routedMessage).toBeDefined();
+		expect(routedMessage).toBe("Complete your task");
+		expect(routedMessage).not.toContain("[MAILBOX]");
+	});
+
+	it("queues steer message notification when recipient is running", () => {
+		let consumePendingMessage: (() => string | undefined) | undefined;
+		createAgentMock.mockImplementationOnce((config) => {
+			consumePendingMessage = config.consumePendingUserMessage;
+			return {
+				abort: vi.fn(),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+		});
+
+		runtime.spawnTeammate({
+			agentId: "charlie",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Helper teammate",
+				tools: [],
+			},
+		});
+
+		// Simulate teammate is running by incrementing runningCount
+		const runtimeMembers = (
+			runtime as unknown as { members: Map<string, { runningCount: number }> }
+		).members;
+		const member = runtimeMembers.get("charlie");
+		if (member) {
+			member.runningCount = 1;
+		}
+
+		// Send message from lead while charlie is running
+		runtime.sendMessage("lead", "charlie", "urgent update", "Fix the bug now!");
+
+		// Verify steer message is queued
+		expect(consumePendingMessage).toBeDefined();
+		const steerMsg = consumePendingMessage?.();
+		expect(steerMsg).toBeDefined();
+		expect(steerMsg).toContain("[MAILBOX]");
+		expect(steerMsg).toContain("lead");
+		expect(steerMsg).toContain("urgent update");
+		expect(steerMsg).toContain("team_read_mailbox");
+
+		// Verify consuming again returns undefined
+		expect(consumePendingMessage?.()).toBeUndefined();
+	});
+
+	it("does not queue steer message when recipient is idle", () => {
+		let consumePendingMessage: (() => string | undefined) | undefined;
+		createAgentMock.mockImplementationOnce((config) => {
+			consumePendingMessage = config.consumePendingUserMessage;
+			return {
+				abort: vi.fn(),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+		});
+
+		runtime.spawnTeammate({
+			agentId: "diana",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Helper teammate",
+				tools: [],
+			},
+		});
+
+		// Send message from lead while diana is idle (runningCount = 0)
+		runtime.sendMessage("lead", "diana", "hello", "Hi there");
+
+		// Verify no steer message is queued
+		expect(consumePendingMessage?.()).toBeUndefined();
+
+		// Message should still be in mailbox for next route
+		const mailbox = runtime.listMailbox("diana", { unreadOnly: true });
+		expect(mailbox).toHaveLength(1);
+		expect(mailbox[0].subject).toBe("hello");
+	});
+
 	it("includes tool and run error details in run_progress activity", async () => {
 		const events: TeamEvent[] = [];
 		let wrappedOnEvent: ((event: AgentEvent) => void) | undefined;
@@ -144,7 +354,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 					wrappedOnEvent?.({
 						type: "content_end",
 						contentType: "tool",
-						toolName: "team_log_update",
+						toolName: "team_mission_log",
 						error: "RPC backend returned 500 while appending mission log",
 					});
 					wrappedOnEvent?.({
@@ -188,7 +398,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			expect.objectContaining({
 				type: TeamMessageType.RunProgress,
 				message:
-					"tool_team_log_update_error: RPC backend returned 500 while appending mission log",
+					"tool_team_mission_log_error: RPC backend returned 500 while appending mission log",
 			}),
 		);
 		expect(events).toContainEqual(

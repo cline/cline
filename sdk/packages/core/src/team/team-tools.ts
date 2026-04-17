@@ -4,12 +4,11 @@ import {
 	TEAM_AWAIT_TIMEOUT_MS,
 	TEAM_RUN_MESSAGE_PREVIEW_LIMIT,
 	TEAM_RUN_TEXT_PREVIEW_LIMIT,
+	TEAM_TASK_IGNORED_FIELDS_BY_ACTION,
 	type TeamAttachOutcomeFragmentInput,
 	TeamAttachOutcomeFragmentInputSchema,
-	type TeamAwaitAllRunsInput,
-	TeamAwaitAllRunsInputSchema,
-	type TeamAwaitRunInput,
-	TeamAwaitRunInputSchema,
+	type TeamAwaitRunsInput,
+	TeamAwaitRunsInputSchema,
 	type TeamBroadcastInput,
 	TeamBroadcastInputSchema,
 	type TeamCancelRunInput,
@@ -24,8 +23,8 @@ import {
 	TeamListOutcomesInputSchema,
 	type TeamListRunsInput,
 	TeamListRunsInputSchema,
-	type TeamLogUpdateInput,
-	TeamLogUpdateInputSchema,
+	type TeamMissionLogInput,
+	TeamMissionLogInputSchema,
 	type TeamReadMailboxInput,
 	TeamReadMailboxInputSchema,
 	type TeamReviewOutcomeFragmentInput,
@@ -111,6 +110,24 @@ function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
 		error: run.error,
 		resultSummary: summarizeRunResult(run),
 	};
+}
+
+function assertAwaitedRunSucceeded(run: TeamRunRecord): void {
+	if (run.status === "failed") {
+		throw new Error(
+			`Run "${run.id}" failed${run.error ? `: ${run.error}` : ""}`,
+		);
+	}
+	if (run.status === "cancelled") {
+		throw new Error(
+			`Run "${run.id}" was cancelled${run.error ? `: ${run.error}` : ""}`,
+		);
+	}
+	if (run.status === "interrupted") {
+		throw new Error(
+			`Run "${run.id}" was interrupted${run.error ? `: ${run.error}` : ""}`,
+		);
+	}
 }
 
 export type TeamTeammateRuntimeConfig = DelegatedAgentRuntimeConfig;
@@ -311,12 +328,26 @@ export function createAgentTeamsTools(
 		createTool<TeamTaskInput, TeamTaskToolResult>({
 			name: "team_task",
 			description:
-				"Manage shared team tasks. Use action=create|list|claim|complete|block.",
+				"Manage shared team tasks with action-specific payloads. " +
+				"create requires title and description, with optional dependsOn and assignee. " +
+				"list accepts optional status, assignee. " +
+				"claim requires taskId. complete requires taskId and summary. block requires taskId and reason. " +
+				"Do not include fields from other actions.",
 			inputSchema: zodToJsonSchema(TeamTaskInputSchema),
 			execute: async (input) => {
 				const validatedInput = validateWithZod(TeamTaskInputSchema, input);
 				switch (validatedInput.action) {
 					case "create": {
+						const ignoredFieldSet = new Set(
+							TEAM_TASK_IGNORED_FIELDS_BY_ACTION.create ?? [],
+						);
+						const ignoredFields = Object.entries(
+							input as Record<string, unknown>,
+						)
+							.filter(
+								([field, value]) => ignoredFieldSet.has(field) && value != null,
+							)
+							.map(([field]) => field);
 						const task = options.runtime.createTask({
 							title: validatedInput.title!,
 							description: validatedInput.description!,
@@ -328,6 +359,12 @@ export function createAgentTeamsTools(
 							action: "create",
 							taskId: task.id,
 							status: task.status,
+							...(ignoredFields.length > 0
+								? {
+										ignoredFields,
+										note: `Ignored fields for action=create: ${ignoredFields.join(", ")}`,
+									}
+								: {}),
 						};
 					}
 					case "list":
@@ -336,8 +373,6 @@ export function createAgentTeamsTools(
 							tasks: options.runtime.listTaskItems({
 								status: validatedInput.status,
 								assignee: validatedInput.assignee,
-								unassignedOnly: validatedInput.unassignedOnly,
-								readyOnly: validatedInput.readyOnly,
 							}),
 						};
 					case "claim": {
@@ -485,44 +520,19 @@ export function createAgentTeamsTools(
 	);
 
 	tools.push(
-		createTool<TeamAwaitRunInput, TeamRunToolSummary>({
-			name: "team_await_run",
+		createTool<TeamAwaitRunsInput, TeamRunToolSummary | TeamRunToolSummary[]>({
+			name: "team_await_runs",
 			description:
-				"Wait for one async run by runId. Uses a long timeout for legitimate teammate work.",
-			inputSchema: zodToJsonSchema(TeamAwaitRunInputSchema),
+				"Wait for async teammate runs. Provide runId to wait for one run, or omit it to wait for all active async runs. Uses a long timeout for legitimate teammate work.",
+			inputSchema: zodToJsonSchema(TeamAwaitRunsInputSchema),
 			timeoutMs: TEAM_AWAIT_TIMEOUT_MS,
 			execute: async (input) => {
-				const validatedInput = validateWithZod(TeamAwaitRunInputSchema, input);
-				const run = await options.runtime.awaitRun(validatedInput.runId);
-				if (run.status === "failed") {
-					throw new Error(
-						`Run "${run.id}" failed${run.error ? `: ${run.error}` : ""}`,
-					);
+				const validatedInput = validateWithZod(TeamAwaitRunsInputSchema, input);
+				if (validatedInput.runId) {
+					const run = await options.runtime.awaitRun(validatedInput.runId);
+					assertAwaitedRunSucceeded(run);
+					return summarizeRun(run);
 				}
-				if (run.status === "cancelled") {
-					throw new Error(
-						`Run "${run.id}" was cancelled${run.error ? `: ${run.error}` : ""}`,
-					);
-				}
-				if (run.status === "interrupted") {
-					throw new Error(
-						`Run "${run.id}" was interrupted${run.error ? `: ${run.error}` : ""}`,
-					);
-				}
-				return summarizeRun(run);
-			},
-		}) as Tool,
-	);
-
-	tools.push(
-		createTool<TeamAwaitAllRunsInput, TeamRunToolSummary[]>({
-			name: "team_await_all_runs",
-			description:
-				"Wait for all active async runs to complete. Uses a long timeout for legitimate teammate work.",
-			inputSchema: zodToJsonSchema(TeamAwaitAllRunsInputSchema),
-			timeoutMs: TEAM_AWAIT_TIMEOUT_MS,
-			execute: async (input) => {
-				validateWithZod(TeamAwaitAllRunsInputSchema, input);
 				const runs = await options.runtime.awaitAllRuns();
 				const failedRuns = runs.filter((run) =>
 					["failed", "cancelled", "interrupted"].includes(run.status),
@@ -546,7 +556,7 @@ export function createAgentTeamsTools(
 	tools.push(
 		createTool<TeamSendMessageInput, { id: string; toAgentId: string }>({
 			name: "team_send_message",
-			description: "Send a direct mailbox message to one teammate.",
+			description: "Send a mailbox message to a specific teammate.",
 			inputSchema: zodToJsonSchema(TeamSendMessageInputSchema),
 			execute: async (input) => {
 				const validatedInput = validateWithZod(
@@ -568,7 +578,7 @@ export function createAgentTeamsTools(
 	tools.push(
 		createTool<TeamBroadcastInput, { delivered: number }>({
 			name: "team_broadcast",
-			description: "Broadcast a mailbox message to all teammates.",
+			description: "Broadcast a message to all teammates.",
 			inputSchema: zodToJsonSchema(TeamBroadcastInputSchema),
 			execute: async (input) => {
 				const validatedInput = validateWithZod(TeamBroadcastInputSchema, input);
@@ -578,7 +588,6 @@ export function createAgentTeamsTools(
 					validatedInput.body,
 					{
 						taskId: validatedInput.taskId ?? undefined,
-						includeLead: validatedInput.includeLead ?? undefined,
 					},
 				);
 				return { delivered: messages.length };
@@ -601,7 +610,6 @@ export function createAgentTeamsTools(
 				);
 				return options.runtime.listMailbox(options.requesterId, {
 					unreadOnly: validatedInput.unreadOnly,
-					limit: validatedInput.limit,
 					markRead: true,
 				});
 			},
@@ -609,12 +617,15 @@ export function createAgentTeamsTools(
 	);
 
 	tools.push(
-		createTool<TeamLogUpdateInput, { id: string }>({
-			name: "team_log_update",
-			description: "Append a mission log update for this agent.",
-			inputSchema: zodToJsonSchema(TeamLogUpdateInputSchema),
+		createTool<TeamMissionLogInput, { id: string }>({
+			name: "team_mission_log",
+			description: "Append a mission log update for your team.",
+			inputSchema: zodToJsonSchema(TeamMissionLogInputSchema),
 			execute: async (input) => {
-				const validatedInput = validateWithZod(TeamLogUpdateInputSchema, input);
+				const validatedInput = validateWithZod(
+					TeamMissionLogInputSchema,
+					input,
+				);
 				const entry = options.runtime.appendMissionLog({
 					agentId: options.requesterId,
 					taskId: validatedInput.taskId || undefined,
