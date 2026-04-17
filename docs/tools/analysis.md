@@ -9,7 +9,7 @@ Tools for data retrieval, watershed characterisation, and hydrological analysis.
 !!! info "Source-specific vs source-agnostic"
     **Data tools** (source-specific) fetch from a particular data system and are honest about their limits:
     `delineate_watershed` (USGS NLDI), `fetch_streamflow_data` (USGS NWIS),
-    `fetch_forcing_data` (GridMET / CONUS only), `extract_camels_attributes` (671 CAMELS-US gauges).
+    `fetch_forcing_data` (GridMET / CONUS only).
 
     **Analysis tools** (source-agnostic) work on any data already in the session:
     `extract_hydrological_signatures`, `extract_geomorphic_parameters`, `compute_twi`, `create_cn_grid`.
@@ -218,29 +218,6 @@ Retrieve basin-averaged daily climate data from the GridMET dataset (CONUS only)
 
 !!! note
     GridMET covers the contiguous United States (CONUS) only. For other regions, retrieve forcing data via `mcp_python` using ERA5, MSWEP, or other global datasets and store in the session.
-
----
-
-## `extract_camels_attributes`
-
-Retrieve the full CAMELS-US attribute set for a gauge from the 671-basin benchmark dataset.
-
-**Parameters:**
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `session_id` | str | Yes | Research session identifier |
-| `gauge_id` | str | No | 8-digit USGS station number. Resolved from `session.site_id` if omitted. |
-
-**Returns:** Topographic, climatic, soil, vegetation, hydrological, and geological attributes (~60 variables).
-
-**Data source:** CAMELS-US via [pygeohydro](https://hyriver.readthedocs.io/en/latest/pygeohydro.html)
-
-!!! note
-    Only available for the 671 gauges in the CAMELS-US dataset. Returns an error for gauges not in CAMELS.
-
-!!! info "Subprocess isolation"
-    This tool runs the CAMELS extractor in a separate child process. External API calls inside the extractor cannot crash the MCP server — the server stays alive even if the extraction fails or times out (180s limit).
 
 ---
 

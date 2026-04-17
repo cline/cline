@@ -268,43 +268,6 @@ Requires `watershed` to be cached.
 
 ---
 
-## CAMELS Tools
-
-### `extract_camels_attributes`
-
-Extracts the full CAMELS-US attribute set (70+ attributes) for a gauge via `pygeohydro`.
-
-**Parameters**
-
-| Name | Type | Default | Description |
-|------|------|---------|-------------|
-| `gauge_id` | str | required | USGS NWIS site ID (must be in CAMELS-671 set) |
-
-> CAMELS covers 671 CONUS gauges. For non-CAMELS gauges, use the individual tools.
-
-**Returns** (selected fields)
-
-```json
-{
-  "p_mean": 3.47,
-  "pet_mean": 2.15,
-  "aridity": 0.62,
-  "p_seasonality": 0.18,
-  "frac_snow": 0.21,
-  "high_prec_freq": 11.2,
-  "elev_mean": 412.0,
-  "slope_mean": 12.3,
-  "area_gages2": 770.4,
-  "soil_depth_pelletier": 1.82,
-  "soil_porosity": 0.44,
-  "frac_forest": 0.78,
-  "lai_max": 4.2,
-  "geol_permeability": -13.1
-}
-```
-
----
-
 ## Modelling Tools
 
 ### `train_hydro_model`
@@ -327,7 +290,7 @@ Calibrates a rainfall–runoff model for a gauge.
 | `learning_rate` | float | `0.05` | Optimizer learning rate |
 
 **Prerequisites**: `watershed` and `forcing` must be cached in the session.
-Streamflow is fetched automatically from CAMELS for 671 CONUS gauges; for others, `streamflow` must also be cached.
+For CAMELS-671 gauges, CAMELS benchmark streamflow is used automatically; for other gauges, `streamflow` must also be cached via `fetch_streamflow_data`.
 
 **Returns**
 

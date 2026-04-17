@@ -48,9 +48,9 @@ For non-USGS data, the AI can write standalone scripts using your local data fil
 
 ### Which gauges work with the LSTM model?
 
-The NeuralHydrology LSTM (`framework="lstm"` in `train_hydro_model`) requires CAMELS static catchment attributes. These are available for the **671 CONUS gauges** in the CAMELS-US dataset. The tool will error if `extract_camels_attributes` has not been run first for the target gauge.
+The NeuralHydrology LSTM (`framework="neuralhydrology"` in `train_hydro_model`) uses CAMELS static catchment attributes automatically for the **671 CONUS gauges** in the CAMELS-US dataset. Ensure `fetch_streamflow_data` has been called first. For non-CAMELS gauges, LSTM training is possible but static attribute embedding is limited.
 
-The differentiable HBV-light model (`framework="hbv"`) has no such restriction — it needs only watershed geometry and GridMET forcing data, which are available for any USGS gauge in CONUS.
+The differentiable HBV-light model (`framework="hbv"`) works for any USGS gauge in CONUS — it needs only watershed geometry and GridMET forcing data. For CAMELS-671 gauges, the CAMELS benchmark streamflow record is used automatically as training data.
 
 ### What date ranges are available for forcing data?
 

@@ -13,9 +13,7 @@ AI-Hydro follows a natural research pipeline:
 ```
 1. Start session   →  2. Watershed   →  3. Streamflow   →  4. Forcing
                                                                    ↓
-                      8. Export      ←  7. Signatures   ←  5. CAMELS attrs
-                                            ↑
-                                      6. Train model
+                      7. Export      ←  6. Signatures   ←  5. Train model
 ```
 
 Each step caches its result in a **HydroSession** so nothing is re-fetched if you continue later.
@@ -40,7 +38,7 @@ AI-Hydro will call `start_session("01031500")` and respond with something like:
 
 ```
 Session started for gauge 01031500.
-  Status: 8 pending (watershed, streamflow, signatures, geomorphic, camels, forcing, twi, model)
+  Status: 7 pending (watershed, streamflow, signatures, geomorphic, forcing, twi, model)
   Next suggested step: delineate_watershed
 ```
 
@@ -113,7 +111,7 @@ Train a differentiable HBV model for this watershed.
 ```
 
 The AI calls `train_hydro_model("01031500", framework="hbv", epochs=500, n_restarts=3)`.
-Streamflow is automatically pulled from the CAMELS dataset via `pygeohydro`.
+HBV uses the streamflow already cached in the session. For CAMELS-US gauges the CAMELS benchmark record is used automatically; for other gauges `fetch_streamflow_data` must have been called first.
 
 ```
 HBV calibration complete (3 restarts × 500 epochs):
@@ -141,7 +139,7 @@ Show me a summary of what we've computed so far.
 Session 01031500 — Piscataquis River near Dover-Foxcroft, ME
   Updated: 2026-03-06
 
-  Computed (6): watershed, streamflow, signatures, forcing, camels, model
+  Computed (5): watershed, streamflow, signatures, forcing, model
   Pending  (2): geomorphic, twi
 
   Key findings:
@@ -167,8 +165,7 @@ Watershed delineation for USGS gauge 01031500 (Piscataquis River near
 Dover-Foxcroft, ME; 769 km²) was performed using the USGS NLDI and
 NHDPlus v2 dataset. Basin-averaged precipitation and temperature forcing
 (2000–2010) were extracted from GridMET (Abatzoglou, 2013). Streamflow
-data were obtained from the CAMELS dataset (Newman et al., 2015; Addor
-et al., 2017). A differentiable HBV-light model (Seibert, 1997) was
+Streamflow data were obtained from the CAMELS dataset (Newman et al., 2015; Addor et al., 2017). A differentiable HBV-light model (Seibert, 1997) was
 calibrated using the Adam optimiser with cosine annealing (3 restarts,
 500 epochs each), achieving NSE = 0.638 and KGE = 0.644 on the test
 period (2007–2010). All computations performed with AI-Hydro v1.0.0-alpha

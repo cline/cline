@@ -69,10 +69,10 @@ Precipitation (P)
 
 A Long Short-Term Memory network trained via the [NeuralHydrology](https://neuralhydrology.readthedocs.io/) framework. Requires more data (~10+ years) and compute than HBV-light but captures complex non-linear rainfall-runoff dynamics.
 
-**Architecture:** Single-layer LSTM with static attribute embedding (uses CAMELS attributes as static inputs if available).
+**Architecture:** Single-layer LSTM with static attribute embedding (CAMELS catchment attributes used as static inputs for the 671 CAMELS-US gauges).
 
 !!! warning "Data requirement"
-    LSTM training requires `extract_camels_attributes` to have been called for the gauge. Use HBV-light for non-CAMELS gauges.
+    LSTM training requires `fetch_streamflow_data` to have been called. For the 671 CAMELS-US gauges, CAMELS static attributes are used automatically. Use HBV-light for non-CAMELS gauges or short-record basins.
 
 ---
 

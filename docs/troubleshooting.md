@@ -141,12 +141,10 @@ Install the relevant extra:
 | `fetch_streamflow_data`, `fetch_forcing_data`, `fetch_lulc_data`, `fetch_soil_data` | `pip install aihydro-tools[data]` |
 | `delineate_watershed`, `extract_hydrological_signatures`, `extract_geomorphic_parameters`, `compute_twi`, `create_cn_grid` | `pip install aihydro-tools[analysis]` |
 | `train_hydro_model`, `get_model_results` | `pip install aihydro-tools[modelling]` |
-| `extract_camels_attributes` | `pip install camels-attrs` |
-
 Or install everything at once:
 
 ```bash
-pip install aihydro-tools[all] && pip install camels-attrs
+pip install aihydro-tools[all]
 ```
 
 ---
@@ -182,31 +180,21 @@ All analysis tools work fully on Python 3.10, 3.11, and 3.12.
 
 ---
 
-## LSTM Model Fails — Missing CAMELS Attributes
+## LSTM Model Fails — Missing Static Attributes
 
 ### Symptom
 
-`train_hydro_model` with `framework="lstm"` errors or returns poor results citing missing static attributes.
+`train_hydro_model` with `framework="neuralhydrology"` errors or returns poor results citing missing static attributes.
 
 ### Cause
 
-The NeuralHydrology LSTM requires CAMELS static catchment attributes as model inputs. These must be fetched before training.
+The NeuralHydrology LSTM uses CAMELS static catchment attributes for the 671 CAMELS-US gauges. Outside this set, static attribute embedding is unavailable.
 
 ### Fix
 
-Run `extract_camels_attributes` for the gauge first:
+For **CAMELS-671 gauges**, CAMELS attributes are fetched automatically — ensure `fetch_streamflow_data` has been called and the gauge is in the CAMELS-US benchmark set.
 
-```
-Extract CAMELS attributes for gauge 01031500, then train the LSTM model.
-```
-
-Or in sequence:
-
-1. `extract_camels_attributes(gauge_id="01031500")`
-2. `train_hydro_model(gauge_id="01031500", framework="lstm", ...)`
-
-!!! note
-    CAMELS attributes are available for **671 CONUS gauges** only. For gauges outside this set, use `framework="hbv"` — the differentiable HBV-light model has no CAMELS dependency.
+For **non-CAMELS gauges**, use `framework="hbv"` — the differentiable HBV-light model has no CAMELS dependency and works for any USGS gauge in CONUS.
 
 ---
 

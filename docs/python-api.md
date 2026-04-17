@@ -108,18 +108,6 @@ print(data["tmax_mean_C"])    # mean daily max temperature
 print(data["timeseries"]["prcp_mm"]["2005-04-15"])  # 12.3 mm
 ```
 
-### CAMELS Attributes
-
-```python
-from ai_hydro.tools.camels import extract_camels_attributes
-
-result = extract_camels_attributes("01031500")
-attrs = result["data"]
-print(attrs["aridity"])       # 0.62
-print(attrs["frac_forest"])   # 0.78
-print(attrs["soil_porosity"]) # 0.44
-```
-
 ### Geomorphic Parameters
 
 ```python
@@ -171,7 +159,7 @@ from ai_hydro.session import HydroSession
 # Load existing session or create new
 session = HydroSession.load("01031500")
 print(session.computed())  # ['watershed', 'forcing', 'model']
-print(session.pending())   # ['streamflow', 'signatures', 'geomorphic', 'camels', 'twi']
+print(session.pending())   # ['streamflow', 'signatures', 'geomorphic', 'twi']
 
 # Attach a result
 from ai_hydro.tools.watershed import delineate_watershed

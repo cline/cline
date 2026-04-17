@@ -39,7 +39,6 @@ Each tier survives across VS Code sessions, restarts, and days or weeks between 
 | `twi` | TWI raster path and statistics |
 | `cn` | Curve number grid path |
 | `forcing` | GridMET data path and variable list |
-| `camels` | CAMELS-US attribute set |
 | `model` | Model type, performance metrics, parameter set |
 | `notes` | Researcher-added text notes |
 

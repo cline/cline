@@ -107,12 +107,12 @@ python setup_mcp.py --check
 Expected output:
 ```
 [OK] Server starts successfully
-[OK] 16 tools registered:
+[OK] 15 tools registered:
      delineate_watershed, fetch_streamflow_data, extract_hydrological_signatures,
      extract_geomorphic_parameters, compute_twi, create_cn_grid,
-     fetch_forcing_data, extract_camels_attributes,
-     train_hydro_model, get_model_results, start_session, get_session_summary,
-     clear_session, add_note, export_session, sync_research_context
+     fetch_forcing_data, train_hydro_model, get_model_results,
+     start_session, get_session_summary, clear_session, add_note,
+     export_session, sync_research_context
 ```
 
 ---

@@ -17,7 +17,7 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 ### Analysis improvements
 - **PNG diagnostic outputs** — three new tools now save publication-quality figures automatically when `workspace_dir` is set: watershed boundary map (`delineate_watershed`), daily hydrograph with 30-day rolling mean (`fetch_streamflow_data`), log-scale flow duration curve with signature table (`extract_hydrological_signatures`).
 - **New `analysis/plots.py` module** — headless matplotlib plots using Agg backend; `@_mpl_required` decorator silently skips if matplotlib unavailable.
-- **`extract_camels_attributes` crash fix** — now runs in an isolated subprocess so any crash or hang (180s timeout) cannot kill the MCP server.
+- **`extract_camels_attributes` removed** — the incomplete per-site attribute extractor has been dropped. CAMELS-US data continues to be used internally by `train_hydro_model` for the 671 benchmark gauges. A dedicated `camels-attrs` MCP server will be released as a community plugin.
 
 ### Session architecture
 - **Lean session JSON** — watershed GeoJSON geometry is no longer stored inline in the session JSON (was 200–800 KB per gauge). Stored at `~/.aihydro/sessions/<gauge_id>.geojson`; session stores only the path. `_get_session_geometry()` reads from file transparently.

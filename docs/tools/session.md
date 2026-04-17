@@ -53,7 +53,6 @@ Session: piscataquis-snowmelt-2020  (USGS 01031500)
 ○ twi            — not computed
 ○ cn             — not computed
 ✓ forcing        — GridMET 2000–2024
-✓ camels         — attributes extracted
 ✓ model          — HBV-light, NSE val: 0.79
 ```
 
