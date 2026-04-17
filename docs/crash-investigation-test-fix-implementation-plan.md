@@ -390,7 +390,7 @@ This workstream targets the main file-edit pipeline.
 
 #### What to test
 
-- [ ] `write_to_file` on huge file content
+- [x] `write_to_file` on huge file content
 - [x] `replace_in_file` against huge original content
 - [ ] `apply_patch` against multiple large files
 - [x] manual approval payload generation for huge edits
