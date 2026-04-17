@@ -68,4 +68,41 @@ describe("FocusChainManager lifecycle guards", () => {
 		assert.equal(close.calledOnce, true)
 		assert.equal((manager as any).focusChainFileWatcher, undefined)
 	})
+
+	it("does not accumulate watcher references across repeated dispose cycles", () => {
+		const closes: sinon.SinonStub[] = []
+
+		for (let i = 0; i < 5; i++) {
+			const close = sinon.stub()
+			closes.push(close)
+			const manager = new FocusChainManager({
+				taskId: `task-${i}`,
+				taskState: {
+					currentFocusChainChecklist: null,
+					todoListWasUpdatedByUser: false,
+					apiRequestCount: 0,
+					apiRequestsSinceLastTodoUpdate: 0,
+					didRespondToPlanAskBySwitchingMode: false,
+				} as any,
+				mode: "act" as any,
+				stateManager: {
+					getGlobalSettingsKey: () => "act",
+				} as any,
+				postStateToWebview: sinon.stub().resolves(),
+				say: sinon.stub().resolves(undefined),
+				focusChainSettings: {
+					enabled: true,
+					remindClineInterval: 5,
+				} as any,
+			})
+
+			;(manager as any).focusChainFileWatcher = { close }
+			manager.dispose()
+			assert.equal((manager as any).focusChainFileWatcher, undefined)
+		}
+
+		for (const close of closes) {
+			assert.equal(close.calledOnce, true)
+		}
+	})
 })

@@ -291,4 +291,31 @@ describe("FileContextTracker", () => {
 		expect(watcherB.close.calledOnce).to.be.true
 		expect(((tracker as any).fileWatchers as Map<string, any>).size).to.equal(0)
 	})
+
+	it("does not accumulate tracked watchers across repeated setup and dispose cycles", async () => {
+		const createdWatchers: Array<{ close: sinon.SinonStub; on: sinon.SinonStub }> = []
+		chokidarWatchStub.callsFake(() => {
+			const watcher = {
+				close: sandbox.stub().resolves(),
+				on: sandbox.stub(),
+			}
+			watcher.on.returns(watcher)
+			createdWatchers.push(watcher)
+			return watcher as any
+		})
+
+		for (let cycle = 0; cycle < 5; cycle++) {
+			const cycleTracker = new FileContextTracker({} as Controller, `${taskId}-${cycle}`)
+			await cycleTracker.trackFileContext(`src/file-${cycle}.ts`, "read_tool")
+			await cycleTracker.trackFileContext(`src/file-${cycle}-b.ts`, "read_tool")
+			expect(((cycleTracker as any).fileWatchers as Map<string, any>).size).to.equal(2)
+			await cycleTracker.dispose()
+			expect(((cycleTracker as any).fileWatchers as Map<string, any>).size).to.equal(0)
+		}
+
+		expect(createdWatchers).to.have.lengthOf(10)
+		for (const watcher of createdWatchers) {
+			expect(watcher.close.calledOnce).to.be.true
+		}
+	})
 })
