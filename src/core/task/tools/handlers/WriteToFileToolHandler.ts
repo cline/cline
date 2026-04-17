@@ -19,6 +19,7 @@ import type { ToolValidator } from "../ToolValidator"
 import type { TaskConfig } from "../types/TaskConfig"
 import type { StronglyTypedUIHelpers } from "../types/UIHelpers"
 import { captureAccepted, captureRejected, getModelInfo } from "../utils/AiOutputTelemetry"
+import { validateFileEditSafety } from "../utils/LargeEditGuards"
 import { applyModelContentFixes } from "../utils/ModelContentProcessor"
 import { ToolDisplayUtils } from "../utils/ToolDisplayUtils"
 import { ToolResultUtils } from "../utils/ToolResultUtils"
@@ -572,6 +573,36 @@ export class WriteToFileToolHandler implements IFullyManagedTool {
 			newContent = applyModelContentFixes(newContent, config.api.getModel().id, resolvedPath)
 		} else {
 			// can't happen, since we already checked for content/diff above. but need to do this for type error
+			return
+		}
+
+		try {
+			validateFileEditSafety(newContent, {
+				relPath: resolvedPath,
+				operation: fileExists ? "edit" : "write",
+			})
+		} catch (error) {
+			if (block.partial) {
+				return
+			}
+
+			config.taskState.consecutiveMistakeCount++
+			const errorResponse = formatResponse.toolError((error as Error).message)
+			ToolResultUtils.pushToolResult(
+				errorResponse,
+				block,
+				config.taskState.userMessageContent,
+				ToolDisplayUtils.getToolDescription,
+				config.coordinator,
+				config.taskState.toolUseIdMap,
+			)
+			if (!config.enableParallelToolCalling) {
+				config.taskState.didAlreadyUseTool = true
+			}
+			if (config.services.diffViewProvider.isEditing) {
+				await config.services.diffViewProvider.revertChanges()
+				await config.services.diffViewProvider.reset()
+			}
 			return
 		}
 

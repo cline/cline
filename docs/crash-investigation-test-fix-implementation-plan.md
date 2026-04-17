@@ -760,7 +760,7 @@ The team should not attack everything at once. The best sequence is:
 
 - [x] PatchParser stress tests
 - [x] diff reconstruction stress tests
-- [ ] large-file edit pipeline tests
+- [x] large-file edit pipeline tests
 
 ### Phase 3 — Confirm state growth hazards
 
@@ -802,8 +802,8 @@ The system currently has some caps in isolated places, but the main crash-prone 
 
 Add limits for:
 
-- [ ] maximum file-edit size,
-- [ ] maximum single-line size for file-edit tools,
+- [x] maximum file-edit size,
+- [x] maximum single-line size for file-edit tools,
 - [ ] maximum patch-search block size,
 - [ ] maximum state snapshot size,
 - [ ] maximum MCP notification backlog length,
@@ -940,17 +940,17 @@ This section is designed to be worked through directly.
 
 - [ ] Confirm full-state rebroadcast candidate
 - [ ] Confirm message persistence churn candidate
-- [ ] Confirm large-file edit amplification candidate
-- [ ] Confirm base64 diff URI candidate
+- [x] Confirm large-file edit amplification candidate
+- [x] Confirm base64 diff URI candidate
 - [x] Confirm PatchParser/diff quadratic candidate
 - [ ] Confirm MCP pending notification backlog candidate
 - [ ] Confirm teardown/watcher leak candidate
 
 ### Fix implementation
 
-- [ ] Add explicit caps to dangerous payload paths
+- [x] Add explicit caps to dangerous payload paths
 - [ ] Refactor hot paths to reduce full snapshot work
-- [ ] Replace risky diff transport mechanics
+- [x] Replace risky diff transport mechanics
 - [ ] Bound queues and error accumulation
 - [ ] Harden abort and teardown sequencing
 

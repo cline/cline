@@ -2,6 +2,11 @@ import { DiffViewProvider } from "@integrations/editor/DiffViewProvider"
 import * as path from "path"
 import * as vscode from "vscode"
 import { DecorationController } from "@/hosts/vscode/DecorationController"
+import {
+	getDiffOriginalContentIdFromUriPath,
+	registerDiffOriginalContent,
+	unregisterDiffOriginalContent,
+} from "@/hosts/vscode/diff/originalContentRegistry"
 import { NotebookDiffView } from "@/hosts/vscode/NotebookDiffView"
 import { Logger } from "@/shared/services/Logger"
 import { arePathsEqual } from "@/utils/path"
@@ -10,6 +15,7 @@ export const DIFF_VIEW_URI_SCHEME = "cline-diff"
 
 export class VscodeDiffViewProvider extends DiffViewProvider {
 	private activeDiffEditor?: vscode.TextEditor
+	private currentOriginalContentId?: string
 
 	private fadedOverlayController?: DecorationController
 	private activeLineController?: DecorationController
@@ -49,6 +55,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			)
 
 		if (diffTab && diffTab.input instanceof vscode.TabInputTextDiff) {
+			this.currentOriginalContentId = getDiffOriginalContentIdFromUriPath(diffTab.input.original.path)
 			// Use already open diff editor.
 			this.activeDiffEditor = await vscode.window.showTextDocument(diffTab.input.modified, {
 				preserveFocus: true,
@@ -58,6 +65,9 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			this.activeDiffEditor = await new Promise<vscode.TextEditor>((resolve, reject) => {
 				const fileName = path.basename(uri.fsPath)
 				const fileExists = this.editType === "modify"
+				const originalContentId = registerDiffOriginalContent(this.originalContent ?? "")
+				this.currentOriginalContentId = originalContentId
+				const originalUri = vscode.Uri.from({ scheme: DIFF_VIEW_URI_SCHEME, path: `/${originalContentId}` })
 				const disposable = vscode.window.onDidChangeActiveTextEditor((editor) => {
 					if (editor && arePathsEqual(editor.document.uri.fsPath, uri.fsPath)) {
 						disposable.dispose()
@@ -66,11 +76,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				})
 				vscode.commands.executeCommand(
 					"vscode.diff",
-					vscode.Uri.parse(
-						`${DIFF_VIEW_URI_SCHEME}:${fileName.replace(/%/g, "%25").replace(/#/g, "%23").replace(/\?/g, "%3F")}`,
-					).with({
-						query: Buffer.from(this.originalContent ?? "").toString("base64"),
-					}),
+					originalUri,
 					uri,
 					`${fileName}: ${fileExists ? "Original ↔ Cline's Changes" : "New File"} (Editable)`,
 					{
@@ -80,6 +86,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 				// This may happen on very slow machines ie project idx
 				setTimeout(() => {
 					disposable.dispose()
+					unregisterDiffOriginalContent(originalContentId)
+					if (this.currentOriginalContentId === originalContentId) {
+						this.currentOriginalContentId = undefined
+					}
 					reject(new Error("Failed to open diff editor, please try again..."))
 				}, 10_000)
 			})
@@ -190,7 +200,7 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		return this.activeDiffEditor.document.getText()
 	}
 
-	protected override async saveDocument(): Promise<Boolean> {
+	protected override async saveDocument(): Promise<boolean> {
 		if (!this.activeDiffEditor) {
 			return false
 		}
@@ -207,6 +217,10 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 			.flatMap((tg) => tg.tabs)
 			.filter((tab) => tab.input instanceof vscode.TabInputTextDiff && tab.input?.original?.scheme === DIFF_VIEW_URI_SCHEME)
 		for (const tab of tabs) {
+			if (!(tab.input instanceof vscode.TabInputTextDiff)) {
+				continue
+			}
+			unregisterDiffOriginalContent(getDiffOriginalContentIdFromUriPath(tab.input.original.path))
 			// trying to close dirty views results in save popup
 			if (!tab.isDirty) {
 				try {
@@ -225,6 +239,8 @@ export class VscodeDiffViewProvider extends DiffViewProvider {
 		}
 
 		this.activeDiffEditor = undefined
+		unregisterDiffOriginalContent(this.currentOriginalContentId)
+		this.currentOriginalContentId = undefined
 		this.fadedOverlayController = undefined
 		this.activeLineController = undefined
 	}

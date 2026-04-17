@@ -40,6 +40,10 @@ import {
 import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
+import {
+	getDiffOriginalContentIdFromUriPath,
+	getRegisteredDiffOriginalContent,
+} from "./hosts/vscode/diff/originalContentRegistry"
 import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
 import {
 	disposeVscodeCommentReviewController,
@@ -153,7 +157,7 @@ export async function activate(context: vscode.ExtensionContext) {
 	*/
 	const diffContentProvider = new (class implements vscode.TextDocumentContentProvider {
 		provideTextDocumentContent(uri: vscode.Uri): string {
-			return Buffer.from(uri.query, "base64").toString("utf-8")
+			return getRegisteredDiffOriginalContent(getDiffOriginalContentIdFromUriPath(uri.path))
 		}
 	})()
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
