@@ -45,12 +45,7 @@ describe("mcp limits", () => {
 			const watcherA = { close: () => undefined }
 			const watcherB = { close: () => undefined }
 			let closed = 0
-			const hub = Object.create(McpHub.prototype) as McpHub & {
-				fileWatchers: Map<string, { close: () => void }>
-				settingsWatcher?: { close: () => Promise<void> }
-				connections: Array<{ server: { name: string } }>
-				deleteConnection: (name: string) => Promise<void>
-			}
+			const hub = Object.create(McpHub.prototype) as any
 
 			hub.fileWatchers = new Map([
 				[
@@ -85,18 +80,12 @@ describe("mcp limits", () => {
 
 	it("bounds noisy queued notifications and flushes them when a task callback is registered", () => {
 		const droppedEvents: Array<{ serverName: string; droppedCount: number; retainedCount: number }> = []
-		const hub = Object.create(McpHub.prototype) as McpHub & {
-			pendingNotifications: Array<{ serverName: string; level: string; message: string; timestamp: number }>
-			notificationCallback?: (serverName: string, level: string, message: string) => void
-			telemetryService: {
-				captureMcpNotificationDropped: (serverName: string, droppedCount: number, retainedCount: number) => void
-			}
-		}
+		const hub = Object.create(McpHub.prototype) as any
 
 		hub.pendingNotifications = []
 		hub.notificationCallback = undefined
 		hub.telemetryService = {
-			captureMcpNotificationDropped: (serverName, droppedCount, retainedCount) => {
+			captureMcpNotificationDropped: (serverName: string, droppedCount: number, retainedCount: number) => {
 				droppedEvents.push({ serverName, droppedCount, retainedCount })
 			},
 		}
@@ -110,7 +99,7 @@ describe("mcp limits", () => {
 		assert.equal(droppedEvents.length, 3)
 
 		const delivered: string[] = []
-		hub.setNotificationCallback((_serverName, _level, message) => {
+		hub.setNotificationCallback((_serverName: string, _level: string, message: string) => {
 			delivered.push(message)
 		})
 
@@ -126,14 +115,10 @@ describe("mcp limits", () => {
 
 	it("bounds repeated MCP server stderr accumulation and records truncation telemetry", () => {
 		const truncatedEvents: Array<{ serverName: string; originalLength: number; retainedLength: number }> = []
-		const hub = Object.create(McpHub.prototype) as McpHub & {
-			telemetryService: {
-				captureMcpErrorTruncated: (serverName: string, originalLength: number, retainedLength: number) => void
-			}
-		}
+		const hub = Object.create(McpHub.prototype) as any
 
 		hub.telemetryService = {
-			captureMcpErrorTruncated: (serverName, originalLength, retainedLength) => {
+			captureMcpErrorTruncated: (serverName: string, originalLength: number, retainedLength: number) => {
 				truncatedEvents.push({ serverName, originalLength, retainedLength })
 			},
 		}

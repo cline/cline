@@ -312,10 +312,15 @@ describe("disk - atomic writes", () => {
 
 			await saveClineMessages(taskId, messages)
 			const reloaded = await getSavedClineMessages(taskId)
+			const firstMessage = reloaded[0]
+			const lastMessage = reloaded[1_199]
 
 			reloaded.should.have.length(1_200)
-			reloaded[0]?.text.should.equal(messages[0]?.text)
-			reloaded[1_199]?.text.should.equal(messages[1_199]?.text)
+			if (firstMessage?.text === undefined || lastMessage?.text === undefined) {
+				throw new Error("Expected first and last reloaded messages to include text")
+			}
+			firstMessage.text.should.equal(messages[0]?.text)
+			lastMessage.text.should.equal(messages[1_199]?.text)
 
 			const taskDir = await ensureTaskDirectoryExists(taskId)
 			const raw = await fs.readFile(path.join(taskDir, "ui_messages.json"), "utf8")

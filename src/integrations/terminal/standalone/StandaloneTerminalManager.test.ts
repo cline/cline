@@ -25,7 +25,7 @@ class FakeBackgroundProcess extends EventEmitter<TerminalProcessEvents> {
 
 	asResultPromise(): TerminalProcessResultPromise {
 		const promise = Promise.resolve() as TerminalProcessResultPromise
-		const process = this as FakeBackgroundProcess & Partial<TerminalProcessResultPromise>
+		const process = this as unknown as FakeBackgroundProcess & Partial<TerminalProcessResultPromise>
 		process.then = promise.then.bind(promise)
 		process.catch = promise.catch.bind(promise)
 		process.finally = promise.finally.bind(promise)

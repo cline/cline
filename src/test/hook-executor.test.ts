@@ -455,7 +455,12 @@ setTimeout(() => {
 			// Should have at least one hook message
 			messages.length.should.be.greaterThan(0)
 			const hookMessage = messages.find((m) => m.say === "hook_status")
-			hookMessage.should.not.equal(undefined)
+			if (!hookMessage) {
+				throw new Error("Expected hook_status message to be created")
+			}
+			if (hookMessage.say !== "hook_status") {
+				throw new Error(`Expected hook_status message, got ${hookMessage.say}`)
+			}
 		})
 
 		it("should update hook message to completed status on success", async function () {

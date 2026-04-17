@@ -104,7 +104,7 @@ export class FileEditProvider extends DiffViewProvider {
 		return this.getDocumentText()
 	}
 
-	protected async saveDocument(): Promise<Boolean> {
+	protected async saveDocument(): Promise<boolean> {
 		if (!this.absolutePath || !this.documentContent) {
 			return false
 		}
