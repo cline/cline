@@ -666,9 +666,9 @@ Original file content is encoded into a URI query string for diff presentation.
 
 **Test plan**
 
-- [ ] open diff editor with progressively larger original files
-- [ ] record URI size and memory impact
-- [ ] detect threshold where behavior fails or becomes unstable
+- [x] open diff editor with progressively larger original files
+- [x] record URI size and memory impact
+- [x] detect threshold where behavior fails or becomes unstable
 
 **Likely fix direction**
 
@@ -785,12 +785,12 @@ The team should not attack everything at once. The best sequence is:
 
 ### Phase 5 — Implement architecture fixes
 
-- [ ] add caps and fail-fast protections
+- [x] add caps and fail-fast protections
 - [ ] reduce full-state broadcasting
 - [ ] reduce full-array persistence churn
-- [ ] replace risky diff transport patterns
-- [ ] bound queues and error accumulation
-- [ ] harden teardown semantics
+- [x] replace risky diff transport patterns
+- [x] bound queues and error accumulation
+- [x] harden teardown semantics
 
 ### Phase 6 — Run regression and soak validation
 
@@ -834,8 +834,8 @@ Examples:
 - [ ] do not compute full task directory size on every message mutation,
 - [ ] do not repeatedly stringify enormous full-state snapshots if only a small delta changed,
 - [x] do not rewrite task history when the derived item has not changed,
-- [ ] do not compute expensive whole-document diffs unless needed,
-- [ ] do not store oversized model-facing artifacts when summaries are enough.
+- [x] do not compute expensive whole-document diffs unless needed,
+- [x] do not store oversized model-facing artifacts when summaries are enough.
 
 ### Requirement 3 — Make teardown deterministic
 
