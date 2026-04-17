@@ -408,6 +408,7 @@ This workstream targets the main file-edit pipeline.
 #### Likely fixes
 
 - [x] Add file-size and line-size limits for edit tools.
+- [x] Enforce shared large-edit byte caps in file-provider operations used by write/apply edit flows.
 - [x] Short-circuit oversized edits with a clear user-visible error.
 - [x] Avoid returning full final file content for oversized files.
 - [x] Use summary output instead of full content in approval messages for large files.
