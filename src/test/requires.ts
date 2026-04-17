@@ -21,4 +21,4 @@ Module.prototype.require = function (path: string) {
 }
 
 // Required to have access to String.prototype.toPosix
-import "../utils/path"
+require("../utils/path")
