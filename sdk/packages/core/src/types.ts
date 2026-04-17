@@ -64,8 +64,6 @@ export {
 	parseWorkflowConfigFromMarkdown,
 	RULES_CONFIG_DIRECTORY_NAME,
 	resolveAgentTools,
-	resolveDocumentsRulesDirectoryPath,
-	resolveDocumentsWorkflowsDirectoryPath,
 	resolveRulesConfigSearchPaths,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,

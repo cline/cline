@@ -2,8 +2,6 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join } from "node:path";
 import {
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveDocumentsRulesDirectoryPath,
-	resolveDocumentsWorkflowsDirectoryPath,
 	resolveRulesConfigSearchPaths as resolveRulesConfigSearchPathsFromShared,
 	resolveSkillsConfigSearchPaths as resolveSkillsConfigSearchPathsFromShared,
 	resolveWorkflowsConfigSearchPaths as resolveWorkflowsConfigSearchPathsFromShared,
@@ -25,8 +23,6 @@ const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
 
 export {
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveDocumentsRulesDirectoryPath,
-	resolveDocumentsWorkflowsDirectoryPath,
 	SKILLS_CONFIG_DIRECTORY_NAME,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 };

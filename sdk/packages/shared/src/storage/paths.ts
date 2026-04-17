@@ -102,28 +102,17 @@ export function resolveDocumentsClineDirectoryPath(): string {
 	return join(HOME_DIR, "Documents", "Cline");
 }
 
-export function resolveDocumentsExtensionsPath(subpath: string): string {
-	return join(resolveDocumentsClineDirectoryPath(), subpath);
-}
+type DocumentsExtensionName =
+	| "Agents"
+	| "Hooks"
+	| "Rules"
+	| "Workflows"
+	| "Plugins";
 
-export function resolveDocumentsAgentConfigDirectoryPath(): string {
-	return join(resolveDocumentsClineDirectoryPath(), "Agents");
-}
-
-export function resolveDocumentsHooksDirectoryPath(): string {
-	return join(resolveDocumentsClineDirectoryPath(), "Hooks");
-}
-
-export function resolveDocumentsRulesDirectoryPath(): string {
-	return join(resolveDocumentsClineDirectoryPath(), "Rules");
-}
-
-export function resolveDocumentsWorkflowsDirectoryPath(): string {
-	return join(resolveDocumentsClineDirectoryPath(), "Workflows");
-}
-
-export function resolveDocumentsPluginsDirectoryPath(): string {
-	return join(resolveDocumentsClineDirectoryPath(), "Plugins");
+export function resolveDocumentsExtensionPath(
+	name: DocumentsExtensionName,
+): string {
+	return join(resolveDocumentsClineDirectoryPath(), name);
 }
 
 export function resolveClineDataDir(): string {
@@ -148,6 +137,14 @@ export function resolveTeamDataDir(): string {
 		return explicitDir;
 	}
 	return join(resolveClineDataDir(), "teams");
+}
+
+export function resolveDbDataDir(): string {
+	const explicitDir = process.env.CLINE_DB_DATA_DIR?.trim();
+	if (explicitDir) {
+		return explicitDir;
+	}
+	return join(resolveClineDataDir(), "db");
 }
 
 export function resolveProviderSettingsPath(): string {
@@ -196,7 +193,7 @@ export function resolveAgentsConfigDirPath(): string {
 
 export function resolveAgentConfigSearchPaths(): string[] {
 	return [
-		resolveDocumentsAgentConfigDirectoryPath(),
+		resolveDocumentsExtensionPath("Agents"),
 		resolveAgentsConfigDirPath(),
 	];
 }
@@ -205,7 +202,7 @@ export function resolveHooksConfigSearchPaths(
 	workspacePath?: string,
 ): string[] {
 	const hooks = [
-		resolveDocumentsHooksDirectoryPath(),
+		resolveDocumentsExtensionPath("Hooks"),
 		join(resolveClineDataDir(), HOOKS_CONFIG_DIRECTORY_NAME),
 	];
 	if (workspacePath) {
@@ -243,7 +240,7 @@ export function resolveRulesConfigSearchPaths(
 		...workspaceAgentsFile,
 		...wsPaths,
 		join(resolveClineDataDir(), RULES_CONFIG_DIRECTORY_NAME),
-		resolveDocumentsRulesDirectoryPath(),
+		resolveDocumentsExtensionPath("Rules"),
 	]);
 }
 
@@ -255,7 +252,7 @@ export function resolveWorkflowsConfigSearchPaths(
 			? join(workspacePath, ".clinerules", WORKFLOWS_CONFIG_DIRECTORY_NAME)
 			: "",
 		join(resolveClineDataDir(), WORKFLOWS_CONFIG_DIRECTORY_NAME),
-		resolveDocumentsWorkflowsDirectoryPath(),
+		resolveDocumentsExtensionPath("Workflows"),
 	]);
 }
 
@@ -265,7 +262,7 @@ export function resolvePluginConfigSearchPaths(
 	return dedupePaths([
 		workspacePath ? join(workspacePath, ".cline", PLUGINS_DIRECTORY_NAME) : "",
 		join(resolveClineDir(), PLUGINS_DIRECTORY_NAME),
-		resolveDocumentsPluginsDirectoryPath(),
+		resolveDocumentsExtensionPath("Plugins"),
 	]);
 }
 

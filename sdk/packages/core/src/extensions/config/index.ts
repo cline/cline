@@ -17,7 +17,6 @@ export {
 	resolveAgentConfigSearchPaths,
 	resolveAgentsConfigDirPath,
 	resolveAgentTools,
-	resolveDocumentsAgentConfigDirectoryPath,
 	toPartialAgentConfig,
 } from "./agent-config-loader";
 export {
@@ -26,7 +25,6 @@ export {
 	type HookConfigFileEntry,
 	HookConfigFileName,
 	listHookConfigFiles,
-	resolveDocumentsHooksDirectoryPath,
 	resolveHooksConfigSearchPaths,
 	toHookConfigFileName,
 } from "./hooks-config-loader";
@@ -71,8 +69,6 @@ export {
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,
 	RULES_CONFIG_DIRECTORY_NAME,
-	resolveDocumentsRulesDirectoryPath,
-	resolveDocumentsWorkflowsDirectoryPath,
 	resolveRulesConfigSearchPaths,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,

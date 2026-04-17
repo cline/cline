@@ -5,6 +5,7 @@ import {
 	CLINE_MCP_SETTINGS_FILE_NAME,
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,
+	resolveDbDataDir,
 	resolveMcpSettingsPath,
 	resolveProviderSettingsPath,
 	resolveSessionDataDir,
@@ -13,6 +14,7 @@ import {
 
 type EnvSnapshot = {
 	CLINE_DATA_DIR: string | undefined;
+	CLINE_DB_DATA_DIR: string | undefined;
 	CLINE_MCP_SETTINGS_PATH: string | undefined;
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
@@ -22,6 +24,7 @@ type EnvSnapshot = {
 function captureEnv(): EnvSnapshot {
 	return {
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
+		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
@@ -31,6 +34,7 @@ function captureEnv(): EnvSnapshot {
 
 function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
+	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
 	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
 	process.env.CLINE_PROVIDER_SETTINGS_PATH =
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
@@ -66,6 +70,14 @@ describe("storage path resolution", () => {
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 
 		expect(resolveTeamDataDir()).toBe(join("/tmp/cline-data", "teams"));
+	});
+
+	it("falls back to CLINE_DATA_DIR/db for sqlite storage", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_DB_DATA_DIR;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveDbDataDir()).toBe(join("/tmp/cline-data", "db"));
 	});
 
 	it("falls back to CLINE_DATA_DIR/settings/providers.json for provider settings", () => {

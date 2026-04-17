@@ -2,6 +2,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool, ToolContext } from "@clinebot/shared";
+import { resolveDocumentsExtensionPath } from "@clinebot/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
@@ -12,7 +13,6 @@ import {
 	resolveAgentConfigSearchPaths,
 	resolveAgentsConfigDirPath,
 	resolveAgentTools,
-	resolveDocumentsAgentConfigDirectoryPath,
 	toPartialAgentConfig,
 } from "./agent-config-loader";
 
@@ -46,7 +46,7 @@ describe("agent config YAML loader", () => {
 	it("includes documents and settings search paths", () => {
 		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
 		expect(resolveAgentConfigSearchPaths()).toEqual([
-			resolveDocumentsAgentConfigDirectoryPath(),
+			resolveDocumentsExtensionPath("Agents"),
 			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
 		]);
 	});
@@ -56,7 +56,7 @@ describe("agent config YAML loader", () => {
 		const definition = createAgentConfigDefinition();
 		expect(definition.type).toBe("agent");
 		expect(definition.directories).toEqual([
-			resolveDocumentsAgentConfigDirectoryPath(),
+			resolveDocumentsExtensionPath("Agents"),
 			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
 		]);
 		expect(definition.includeFile?.("agent.yaml", "/tmp/agent.yaml")).toBe(

@@ -19,7 +19,7 @@
 
 ## Storage
 
-Tables are created in the same SQLite DB as sessions (`~/.cline/data/sessions/sessions.db` by default):
+Tables are created in the same SQLite DB as sessions (`~/.cline/data/db/sessions.db` by default):
 
 - `schedules`
 - `schedule_executions`

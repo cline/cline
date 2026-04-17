@@ -10,14 +10,10 @@ import {
 	type SqliteDb,
 	toBoolInt,
 } from "@clinebot/shared/db";
-import { resolveSessionDataDir } from "@clinebot/shared/storage";
+import { resolveDbDataDir } from "@clinebot/shared/storage";
 import type { SessionStatus } from "../types/common";
 import type { SessionRecord } from "../types/sessions";
 import type { SessionStore } from "../types/storage";
-
-function defaultSessionsDir(): string {
-	return resolveSessionDataDir();
-}
 
 export interface SqliteSessionStoreOptions {
 	sessionsDir?: string;
@@ -28,7 +24,7 @@ export class SqliteSessionStore implements SessionStore {
 	private db: SqliteDb | undefined;
 
 	constructor(options: SqliteSessionStoreOptions = {}) {
-		this.sessionsDirPath = options.sessionsDir ?? defaultSessionsDir();
+		this.sessionsDirPath = options.sessionsDir ?? resolveDbDataDir();
 	}
 
 	init(): void {

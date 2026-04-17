@@ -46,13 +46,9 @@ function atomicWriteJson(path: string, value: unknown): void {
 	renameSync(tempPath, path);
 }
 
-function defaultSessionsDir(): string {
-	return resolveSessionDataDir();
-}
-
 class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 	constructor(
-		private readonly sessionsDirPath: string = defaultSessionsDir(),
+		private readonly sessionsDirPath: string = resolveSessionDataDir(),
 	) {}
 
 	ensureSessionsDir(): string {

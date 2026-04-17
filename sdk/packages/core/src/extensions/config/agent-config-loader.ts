@@ -2,7 +2,6 @@ import {
 	AGENT_CONFIG_DIRECTORY_NAME,
 	resolveAgentConfigSearchPaths as resolveAgentConfigSearchPathsFromShared,
 	resolveAgentsConfigDirPath as resolveAgentsConfigDirPathFromShared,
-	resolveDocumentsAgentConfigDirectoryPath,
 } from "@clinebot/shared/storage";
 import {
 	type AgentYamlConfig,
@@ -38,10 +37,7 @@ export type AgentConfigWatcherEvent = UnifiedConfigWatcherEvent<
 	AgentYamlConfig
 >;
 
-export {
-	AGENT_CONFIG_DIRECTORY_NAME,
-	resolveDocumentsAgentConfigDirectoryPath,
-};
+export { AGENT_CONFIG_DIRECTORY_NAME };
 
 export function resolveAgentsConfigDirPath(): string {
 	return resolveAgentsConfigDirPathFromShared();

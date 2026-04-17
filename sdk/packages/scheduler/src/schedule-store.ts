@@ -8,7 +8,7 @@ import {
 	nowIso,
 	type SqliteDb,
 } from "@clinebot/shared/db";
-import { resolveSessionDataDir } from "@clinebot/shared/storage";
+import { resolveDbDataDir } from "@clinebot/shared/storage";
 import { getNextCronRun } from "./cron";
 import type {
 	CreateScheduleInput,
@@ -23,7 +23,7 @@ import type {
 } from "./types";
 
 function defaultSessionsDbPath(): string {
-	return join(resolveSessionDataDir(), "sessions.db");
+	return join(resolveDbDataDir(), "sessions.db");
 }
 
 function parseJsonObject(

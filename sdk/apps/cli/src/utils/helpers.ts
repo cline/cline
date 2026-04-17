@@ -489,6 +489,7 @@ export function configureSandboxEnvironment(options: {
 	process.env.CLINE_SANDBOX = "1";
 	process.env.CLINE_SANDBOX_DATA_DIR = dataDir;
 	process.env.CLINE_DATA_DIR = dataDir;
+	process.env.CLINE_DB_DATA_DIR = join(dataDir, "db");
 	process.env.CLINE_SESSION_DATA_DIR = join(dataDir, "sessions");
 	process.env.CLINE_TEAM_DATA_DIR = join(dataDir, "teams");
 	process.env.CLINE_PROVIDER_SETTINGS_PATH = join(

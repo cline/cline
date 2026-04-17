@@ -1,8 +1,6 @@
 import type { ITelemetryService } from "@clinebot/shared";
-import {
-	listHookConfigFiles,
-	resolveDocumentsHooksDirectoryPath,
-} from "../extensions/config/hooks-config-loader";
+import { resolveDocumentsExtensionPath } from "@clinebot/shared/storage";
+import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
 import type { enrichPromptWithMentions } from "../input";
 import {
 	captureHookDiscovery,
@@ -57,7 +55,7 @@ export function captureHookDiscoveryTelemetry(
 	telemetry: ITelemetryService | undefined,
 	options: { workspacePath: string },
 ): void {
-	const globalHooksDir = resolveDocumentsHooksDirectoryPath();
+	const globalHooksDir = resolveDocumentsExtensionPath("Hooks");
 	const entries = listHookConfigFiles(options.workspacePath);
 	const counts = new Map<string, { global: number; workspace: number }>();
 	for (const entry of entries) {

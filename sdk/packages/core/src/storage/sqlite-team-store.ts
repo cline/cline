@@ -6,12 +6,12 @@ import {
 	type TeamTeammateSpec,
 } from "@clinebot/shared";
 import { loadSqliteDb, nowIso, type SqliteDb } from "@clinebot/shared/db";
-import { resolveTeamDataDir } from "@clinebot/shared/storage";
+import { resolveDbDataDir } from "@clinebot/shared/storage";
 import type { TeamEvent } from "../team";
 import type { TeamStore } from "../types/storage";
 
 function defaultTeamDir(): string {
-	return resolveTeamDataDir();
+	return resolveDbDataDir();
 }
 
 function sanitizeTeamName(name: string): string {
