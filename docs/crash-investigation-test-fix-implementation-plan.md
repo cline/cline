@@ -968,7 +968,7 @@ This section is designed to be worked through directly.
 
 - [x] Rerun all deterministic repros
 - [x] Rerun constrained-heap repros
-- [ ] Rerun create/cancel churn tests
+- [x] Rerun create/cancel churn tests
 - [ ] Rerun long-horizon soak tests
 - [x] Capture before/after measurements
 - [x] Update crash-candidate matrix status
@@ -990,7 +990,7 @@ The initiative is complete only when:
 - [ ] every high-priority candidate has at least one reproducible test,
 - [ ] confirmed candidates have fixes or explicit deferrals,
 - [ ] the extension has explicit size and resource guardrails in the highest-risk paths,
-- [ ] teardown stability has been tested under churn,
+- [x] teardown stability has been tested under churn,
 - [ ] nightly soak coverage exists for long-horizon risks,
 - [ ] the crash-candidate matrix is current,
 - [ ] and the team can explain the remaining residual risk.

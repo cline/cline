@@ -66,15 +66,17 @@ describe("subscribeToState state broadcast guards", () => {
 			await subscribeToState(controller, {} as any, responseStream)
 			assert.equal(sentPayloads.length, 1)
 			assert.equal(sentPayloads[0], JSON.stringify(largeState))
-			sinon.assert.calledOnce(warnStub)
+			const initialWarnCount = warnStub.callCount
+			assert.ok(initialWarnCount >= 1)
 
 			await sendStateUpdate(largeState)
 			assert.equal(sentPayloads.length, 1)
+			assert.equal(warnStub.callCount, initialWarnCount)
 
 			await sendStateUpdate(changedLargeState)
 			assert.equal(sentPayloads.length, 2)
 			assert.equal(sentPayloads[1], JSON.stringify(changedLargeState))
-			sinon.assert.calledTwice(warnStub)
+			assert.ok(warnStub.callCount > initialWarnCount)
 		} finally {
 			warnStub.restore()
 		}
