@@ -157,14 +157,7 @@ describe("mcp limits", () => {
 
 	it("re-establishes stdio file watchers across repeated settings refreshes", async () => {
 		const closedWatchers: string[] = []
-		const hub = Object.create(McpHub.prototype) as McpHub & {
-			fileWatchers: Map<string, { close: () => void }>
-			connections: Array<{ server: { name: string; config: string; tools?: any[] } }>
-			isConnecting: boolean
-			deleteConnection: (name: string) => Promise<void>
-			connectToServer: (name: string, config: any, source: "rpc" | "internal") => Promise<void>
-			setupFileWatcher: (name: string, config: any) => void
-		}
+		const hub = Object.create(McpHub.prototype) as any
 
 		const serverConfig = {
 			type: "stdio",
@@ -216,5 +209,55 @@ describe("mcp limits", () => {
 
 		assert.equal(watcherIndex, 3)
 		assert.deepEqual(closedWatchers, ["initial", "watcher-0", "watcher-1"])
+	})
+
+	it("restarts MCP connections repeatedly without leaving restart state stuck", async () => {
+		const hub = Object.create(McpHub.prototype) as any
+
+		const serverConfig = {
+			type: "stdio",
+			command: "node",
+			args: ["build/index.js"],
+			disabled: false,
+			autoApprove: [],
+			timeout: 60,
+		}
+
+		const connection = {
+			server: {
+				name: "server-a",
+				config: JSON.stringify(serverConfig),
+				status: "connected",
+				error: "previous error",
+			},
+		}
+
+		let deleteCalls = 0
+		let connectCalls = 0
+		hub.connections = [connection]
+		hub.isConnecting = false
+		hub.deleteConnection = async (name: string) => {
+			assert.equal(name, "server-a")
+			deleteCalls++
+		}
+		hub.connectToServer = async (name: string, config: any, source: "rpc" | "internal") => {
+			assert.equal(name, "server-a")
+			assert.equal(source, "rpc")
+			assert.equal(config.command, "node")
+			connectCalls++
+		}
+		hub.readAndValidateMcpSettingsFile = async () => ({ mcpServers: { "server-a": serverConfig } })
+		hub.getSortedMcpServers = (serverOrder: string[]) => serverOrder.map((name) => ({ name }))
+
+		for (let cycle = 0; cycle < 2; cycle++) {
+			const servers = await hub.restartConnectionRPC("server-a")
+			assert.deepEqual(servers, [{ name: "server-a" }])
+			assert.equal(connection.server.status, "connecting")
+			assert.equal(connection.server.error, "")
+			assert.equal(hub.isConnecting, false)
+		}
+
+		assert.equal(deleteCalls, 2)
+		assert.equal(connectCalls, 2)
 	})
 })

@@ -28,6 +28,14 @@ describe("performTaskAbortCleanup", () => {
 					events.push("closeBrowser")
 				},
 			},
+			diffViewProvider: {
+				revertChanges: async () => {
+					events.push("diffRevert")
+				},
+				reset: async () => {
+					events.push("diffReset")
+				},
+			},
 			browserSession: {
 				dispose: async () => {
 					events.push("browserSession")
@@ -60,7 +68,15 @@ describe("performTaskAbortCleanup", () => {
 		})
 
 		await flushMicrotasks()
-		assert.deepStrictEqual(events, ["closeBrowser", "browserSession", "clineIgnore:start", "fileTracker:start", "focusChain"])
+		assert.deepStrictEqual(events, [
+			"closeBrowser",
+			"diffRevert",
+			"diffReset",
+			"browserSession",
+			"clineIgnore:start",
+			"fileTracker:start",
+			"focusChain",
+		])
 
 		let settled = false
 		void cleanupPromise.then(() => {
@@ -79,6 +95,8 @@ describe("performTaskAbortCleanup", () => {
 
 		assert.deepStrictEqual(events, [
 			"closeBrowser",
+			"diffRevert",
+			"diffReset",
 			"browserSession",
 			"clineIgnore:start",
 			"fileTracker:start",
@@ -91,6 +109,8 @@ describe("performTaskAbortCleanup", () => {
 
 	it("cleans up all resources across repeated abort cycles without drift", async () => {
 		const closeBrowserCalls: string[] = []
+		const diffReverts: string[] = []
+		const diffResets: string[] = []
 		const browserDisposals: string[] = []
 		const ignoreDisposals: string[] = []
 		const trackerDisposals: string[] = []
@@ -102,6 +122,14 @@ describe("performTaskAbortCleanup", () => {
 				urlContentFetcher: {
 					closeBrowser: async () => {
 						closeBrowserCalls.push(`closeBrowser-${cycle}`)
+					},
+				},
+				diffViewProvider: {
+					revertChanges: async () => {
+						diffReverts.push(`diffRevert-${cycle}`)
+					},
+					reset: async () => {
+						diffResets.push(`diffReset-${cycle}`)
 					},
 				},
 				browserSession: {
@@ -140,6 +168,8 @@ describe("performTaskAbortCleanup", () => {
 			"closeBrowser-4",
 		])
 		assert.deepStrictEqual(browserDisposals, ["browser-0", "browser-1", "browser-2", "browser-3", "browser-4"])
+		assert.deepStrictEqual(diffReverts, ["diffRevert-0", "diffRevert-1", "diffRevert-2", "diffRevert-3", "diffRevert-4"])
+		assert.deepStrictEqual(diffResets, ["diffReset-0", "diffReset-1", "diffReset-2", "diffReset-3", "diffReset-4"])
 		assert.deepStrictEqual(ignoreDisposals, ["ignore-0", "ignore-1", "ignore-2", "ignore-3", "ignore-4"])
 		assert.deepStrictEqual(trackerDisposals, ["tracker-0", "tracker-1", "tracker-2", "tracker-3", "tracker-4"])
 		assert.deepStrictEqual(focusDisposals, ["focus-0", "focus-1", "focus-2", "focus-3", "focus-4"])
@@ -160,6 +190,14 @@ describe("performTaskAbortCleanup", () => {
 			urlContentFetcher: {
 				closeBrowser: async () => {
 					events.push("closeBrowser")
+				},
+			},
+			diffViewProvider: {
+				revertChanges: async () => {
+					events.push("diffRevert")
+				},
+				reset: async () => {
+					events.push("diffReset")
 				},
 			},
 			browserSession: {
@@ -192,7 +230,15 @@ describe("performTaskAbortCleanup", () => {
 		})
 
 		await flushMicrotasks()
-		assert.deepStrictEqual(events, ["closeBrowser", "browserSession", "clineIgnore", "fileTracker", "focusChain:start"])
+		assert.deepStrictEqual(events, [
+			"closeBrowser",
+			"diffRevert",
+			"diffReset",
+			"browserSession",
+			"clineIgnore",
+			"fileTracker",
+			"focusChain:start",
+		])
 
 		let settled = false
 		void cleanupPromise.then(() => {
@@ -206,6 +252,8 @@ describe("performTaskAbortCleanup", () => {
 
 		assert.deepStrictEqual(events, [
 			"closeBrowser",
+			"diffRevert",
+			"diffReset",
 			"browserSession",
 			"clineIgnore",
 			"fileTracker",

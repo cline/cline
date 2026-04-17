@@ -2,6 +2,10 @@ export interface TaskAbortCleanupDependencies {
 	urlContentFetcher?: {
 		closeBrowser?: () => void | Promise<void>
 	}
+	diffViewProvider?: {
+		revertChanges?: () => void | Promise<void>
+		reset?: () => void | Promise<void>
+	}
 	browserSession: {
 		dispose: () => Promise<void>
 	}
@@ -21,6 +25,8 @@ export interface TaskAbortCleanupDependencies {
 
 export async function performTaskAbortCleanup(deps: TaskAbortCleanupDependencies): Promise<void> {
 	await Promise.resolve(deps.urlContentFetcher?.closeBrowser?.())
+	await Promise.resolve(deps.diffViewProvider?.revertChanges?.())
+	await Promise.resolve(deps.diffViewProvider?.reset?.())
 	await deps.browserSession.dispose()
 	await Promise.all([
 		deps.clineIgnoreController.dispose(),

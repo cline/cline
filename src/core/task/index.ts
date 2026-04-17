@@ -1643,13 +1643,11 @@ export class Task {
 
 			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
-			// need to await for when we want to make sure directories/files are reverted before
-			// re-starting the task from a checkpoint
-			await this.diffViewProvider.revertChanges()
 			// Clear the notification callback when task is aborted
 			this.mcpHub.clearNotificationCallback()
 			await performTaskAbortCleanup({
 				urlContentFetcher: this.urlContentFetcher,
+				diffViewProvider: this.diffViewProvider,
 				browserSession: this.browserSession,
 				clineIgnoreController: this.clineIgnoreController,
 				fileContextTracker: this.fileContextTracker,

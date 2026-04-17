@@ -517,7 +517,7 @@ This workstream targets the MCP subsystem as a long-running background source of
 - [x] noisy notification stream with no active task callback
 - [x] repeated server stderr/error output
 - [x] repeated MCP settings file changes
-- [ ] repeated server restart cycles
+- [x] repeated server restart cycles
 
 #### Failure oracles
 
