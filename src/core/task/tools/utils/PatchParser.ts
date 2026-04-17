@@ -145,11 +145,16 @@ export class PatchParser {
 
 			if (newIndex === -1) {
 				const ctxText = nextChunkContext.join("\n")
+				const [earlierIndex] = findContext(fileLines, nextChunkContext, 0, eof)
+				const mayBeOutOfOrder = earlierIndex !== -1 && earlierIndex < index
 				// Add warning but continue - skip this chunk
 				this.addWarning({
 					path: this.currentPath || _path,
 					chunkIndex: action.chunks.length,
-					message: `Could not find matching context (similarity: ${similarity.toFixed(2)}). Chunk skipped.`,
+					message: mayBeOutOfOrder
+						? `Could not find matching context after line ${index} (similarity: ${similarity.toFixed(2)}). ` +
+							`A matching context exists earlier in the file, so SEARCH/REPLACE chunks may be out of order. Chunk skipped.`
+						: `Could not find matching context (similarity: ${similarity.toFixed(2)}). Chunk skipped.`,
 					context: ctxText.length > 200 ? `${ctxText.substring(0, 200)}...` : ctxText,
 				})
 				// Move patch index forward to skip this chunk, but keep file position
