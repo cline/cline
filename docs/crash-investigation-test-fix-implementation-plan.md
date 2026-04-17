@@ -428,15 +428,15 @@ This workstream addresses architectural patterns likely to produce crashes even 
 
 #### Tasks
 
-- [ ] Write a focused integration test around large diff-editor open operations.
-- [ ] Measure URI length and memory cost for large inputs.
-- [ ] Replace base64-in-URI transport with a safer mechanism.
+- [x] Write a focused integration test around large diff-editor open operations.
+- [x] Measure URI length and memory cost for large inputs.
+- [x] Replace base64-in-URI transport with a safer mechanism.
 
 #### Preferred fix directions
 
 - [ ] Use a temporary file for original-content snapshots.
-- [ ] Or use an in-memory registry keyed by short ID instead of embedding the content directly in the URI.
-- [ ] Ensure the virtual-document provider resolves content from a bounded source.
+- [x] Or use an in-memory registry keyed by short ID instead of embedding the content directly in the URI.
+- [x] Ensure the virtual-document provider resolves content from a bounded source.
 
 #### Why this matters
 
@@ -465,7 +465,7 @@ Even if one task only leaks a little, many create/cancel/clear cycles can accumu
 
 #### What to test
 
-- [ ] create task -> cancel task, repeated N times
+- [x] create task -> cancel task, repeated N times
 - [ ] create task -> open diff -> cancel before completion, repeated N times
 - [ ] task with tracked files -> abort -> ensure watcher count returns to baseline
 - [ ] task with focus-chain enabled -> abort -> ensure focus-chain watcher is gone
@@ -774,7 +774,7 @@ The team should not attack everything at once. The best sequence is:
 
 ### Phase 4 — Confirm teardown and backlog risks
 
-- [ ] watcher leak churn tests
+- [x] watcher leak churn tests
 - [x] MCP noisy-server tests
 - [x] cancellation/restart churn tests
 

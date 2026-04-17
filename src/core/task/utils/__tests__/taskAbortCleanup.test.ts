@@ -88,4 +88,67 @@ describe("performTaskAbortCleanup", () => {
 			"presentationScheduler",
 		])
 	})
+
+	it("cleans up all resources across repeated abort cycles without drift", async () => {
+		const closeBrowserCalls: string[] = []
+		const browserDisposals: string[] = []
+		const ignoreDisposals: string[] = []
+		const trackerDisposals: string[] = []
+		const focusDisposals: string[] = []
+		const presentationDisposals: string[] = []
+
+		for (let cycle = 0; cycle < 5; cycle++) {
+			await performTaskAbortCleanup({
+				urlContentFetcher: {
+					closeBrowser: async () => {
+						closeBrowserCalls.push(`closeBrowser-${cycle}`)
+					},
+				},
+				browserSession: {
+					dispose: async () => {
+						browserDisposals.push(`browser-${cycle}`)
+					},
+				},
+				clineIgnoreController: {
+					dispose: async () => {
+						ignoreDisposals.push(`ignore-${cycle}`)
+					},
+				},
+				fileContextTracker: {
+					dispose: async () => {
+						trackerDisposals.push(`tracker-${cycle}`)
+					},
+				},
+				focusChainManager: {
+					dispose: async () => {
+						focusDisposals.push(`focus-${cycle}`)
+					},
+				},
+				presentationScheduler: {
+					dispose: async () => {
+						presentationDisposals.push(`presentation-${cycle}`)
+					},
+				},
+			})
+		}
+
+		assert.deepStrictEqual(closeBrowserCalls, [
+			"closeBrowser-0",
+			"closeBrowser-1",
+			"closeBrowser-2",
+			"closeBrowser-3",
+			"closeBrowser-4",
+		])
+		assert.deepStrictEqual(browserDisposals, ["browser-0", "browser-1", "browser-2", "browser-3", "browser-4"])
+		assert.deepStrictEqual(ignoreDisposals, ["ignore-0", "ignore-1", "ignore-2", "ignore-3", "ignore-4"])
+		assert.deepStrictEqual(trackerDisposals, ["tracker-0", "tracker-1", "tracker-2", "tracker-3", "tracker-4"])
+		assert.deepStrictEqual(focusDisposals, ["focus-0", "focus-1", "focus-2", "focus-3", "focus-4"])
+		assert.deepStrictEqual(presentationDisposals, [
+			"presentation-0",
+			"presentation-1",
+			"presentation-2",
+			"presentation-3",
+			"presentation-4",
+		])
+	})
 })
