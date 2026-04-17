@@ -1,0 +1,29 @@
+{
+	"extends": "../tsconfig.json",
+	"compilerOptions": {
+		"paths": {
+			"@/*": ["./*"],
+			"@clinebot/agents": ["../../../packages/agents/src/index.ts"],
+			"@clinebot/core": ["../../../packages/core/src/index.ts"],
+			"@clinebot/llms": ["../../../packages/llms/src/index.ts"],
+			"@clinebot/rpc": ["../../../packages/rpc/src/index.ts"],
+			"@clinebot/shared": ["../../../packages/shared/src/index.ts"],
+			"@clinebot/shared/storage": [
+				"../../../packages/shared/src/storage/index.ts"
+			],
+			"@clinebot/shared/db": ["../../../packages/shared/src/db/index.ts"],
+			"@clinebot/shared/*": [
+				"../../../packages/shared/src/*",
+				"../../../packages/shared/src/*/index.ts"
+			]
+		}
+	},
+	"include": [
+		"next-env.d.ts",
+		"**/*.ts",
+		"**/*.tsx",
+		".next/types/**/*.ts",
+		".next/dev/types/**/*.ts"
+	],
+	"exclude": ["node_modules"]
+}

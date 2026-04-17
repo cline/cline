@@ -24,6 +24,11 @@ import { enrichPromptWithMentions } from "../input";
 import { createCheckpointHooks } from "../runtime/checkpoint-hooks";
 import { mergeAgentHooks } from "../runtime/hook-file-hooks";
 import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
+import {
+	OAuthReauthRequiredError,
+	type RuntimeOAuthResolution,
+	RuntimeOAuthTokenManager,
+} from "../runtime/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../runtime/session-runtime";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { createSpawnAgentTool, type TeamEvent } from "../team";
@@ -48,11 +53,6 @@ import type { CoreSessionEvent } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
 import type { FileSessionService } from "./file-session-service";
 import type { RpcCoreSessionService } from "./rpc-session-service";
-import {
-	OAuthReauthRequiredError,
-	type RuntimeOAuthResolution,
-	RuntimeOAuthTokenManager,
-} from "./runtime-oauth-token-manager";
 import {
 	type AgentEventContext,
 	buildTelemetryAgentIdentity,

@@ -127,7 +127,7 @@ vi.mock("@clinebot/core", async () => {
 		},
 	};
 });
-vi.mock("./commands/auth", () => authMocks);
+vi.mock("./utils/provider-auth", () => authMocks);
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));

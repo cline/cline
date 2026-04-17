@@ -4,7 +4,7 @@ import type {
 	InteractiveConfigData,
 	InteractiveConfigItem,
 	InteractiveConfigTab,
-} from "../../runtime/interactive-config";
+} from "../interactive-config";
 
 export const CONFIG_TABS: InteractiveConfigTab[] = [
 	"tools",

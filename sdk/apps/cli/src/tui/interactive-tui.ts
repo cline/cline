@@ -8,28 +8,32 @@ import React, {
 	useRef,
 	useState,
 } from "react";
-import {
-	type ChatEntry,
-	ChatMessageList,
-	makeToolEndEntry,
-	makeToolStartEntry,
-} from "../tui/components/ChatMessage";
-import {
-	CONFIG_TABS,
-	ConfigView,
-	getVisibleWindow,
-	resolveActiveConfigItems,
-} from "../tui/components/ConfigView";
-import { InputBox, type QueuedPromptItem } from "../tui/components/InputBox";
-import { MentionMenu } from "../tui/components/MentionMenu";
-import { SlashMenu } from "../tui/components/SlashMenu";
-import { StatusBar } from "../tui/components/StatusBar";
-import { WelcomeView } from "../tui/components/WelcomeView";
+import type {
+	PendingPromptSnapshot,
+	PendingPromptSubmittedEvent,
+} from "../runtime/session-events";
 import { resolveStatusNoticeLabel } from "../utils/events";
 import { truncate } from "../utils/helpers";
 import { appendInputHistory, loadInputHistory } from "../utils/input-history";
 import { type RepoStatus, readRepoStatus } from "../utils/repo-status";
 import type { Config } from "../utils/types";
+import {
+	type ChatEntry,
+	ChatMessageList,
+	makeToolEndEntry,
+	makeToolStartEntry,
+} from "./components/ChatMessage";
+import {
+	CONFIG_TABS,
+	ConfigView,
+	getVisibleWindow,
+	resolveActiveConfigItems,
+} from "./components/ConfigView";
+import { InputBox, type QueuedPromptItem } from "./components/InputBox";
+import { MentionMenu } from "./components/MentionMenu";
+import { SlashMenu } from "./components/SlashMenu";
+import { StatusBar } from "./components/StatusBar";
+import { WelcomeView } from "./components/WelcomeView";
 import type {
 	InteractiveConfigData,
 	InteractiveConfigTab,
@@ -38,10 +42,6 @@ import {
 	type InteractiveSlashCommand,
 	searchWorkspaceFilesForMention,
 } from "./interactive-welcome";
-import type {
-	PendingPromptSnapshot,
-	PendingPromptSubmittedEvent,
-} from "./session-events";
 
 interface InteractiveTurnResult {
 	usage: {
@@ -56,10 +56,10 @@ interface InteractiveTurnResult {
 
 interface InteractiveTuiProps {
 	config: Config;
-	welcomeLine?: string;
 	initialView?: "chat" | "config";
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
+	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadConfigData: () => Promise<InteractiveConfigData>;
 	subscribeToEvents: (handlers: {
 		onAgentEvent: (event: AgentEvent) => void;
@@ -225,6 +225,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	// Input & submission
 	const [input, setInput] = useState("");
+	const [cursorIndex, setCursorIndex] = useState(0);
 	const [inputHistory, setInputHistory] = useState<string[]>(() =>
 		loadInputHistory(),
 	);
@@ -240,6 +241,10 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		config.toolPolicies["*"]?.autoApprove !== false,
 	);
 	const [queuedPrompts, setQueuedPrompts] = useState<QueuedPromptItem[]>([]);
+	const [welcomeLine, setWelcomeLine] = useState<string | undefined>(undefined);
+	const [isWelcomeLinePending, setIsWelcomeLinePending] = useState(
+		Boolean(props.loadWelcomeLine),
+	);
 
 	// File mention completion
 	const [fileMentionResults, setFileMentionResults] = useState<string[]>([]);
@@ -425,6 +430,34 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	useEffect(() => {
 		refreshRepoStatus();
 	}, [refreshRepoStatus]);
+
+	useEffect(() => {
+		if (!props.loadWelcomeLine) {
+			setIsWelcomeLinePending(false);
+			return;
+		}
+		let cancelled = false;
+		setIsWelcomeLinePending(true);
+		void props
+			.loadWelcomeLine()
+			.then((nextWelcomeLine) => {
+				if (cancelled) {
+					return;
+				}
+				setWelcomeLine(nextWelcomeLine?.trim() || undefined);
+				setIsWelcomeLinePending(false);
+			})
+			.catch(() => {
+				if (cancelled) {
+					return;
+				}
+				setWelcomeLine(undefined);
+				setIsWelcomeLinePending(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [props.loadWelcomeLine]);
 
 	useEffect(() => {
 		if (!mentionInfo.inMentionMode) {
@@ -775,11 +808,15 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const requestExit = useCallback(() => {
 		setInput("");
+		setCursorIndex(0);
 		setIsExitRequested(true);
 	}, []);
 
 	const submitPrompt = useCallback(
 		async (prompt: string, delivery?: "queue" | "steer") => {
+			if (!prompt.trim()) {
+				return;
+			}
 			setHasSubmitted(true);
 			if (!delivery) {
 				setIsRunning(true);
@@ -789,6 +826,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			}
 			appendEntry({ kind: "user_submitted", text: prompt, delivery });
 			setInput("");
+			setCursorIndex(0);
 			if (!delivery) {
 				appendInputHistory(prompt);
 				setInputHistory((prev) => [prompt, ...prev]);
@@ -903,7 +941,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			if (key.return) {
 				const selected = activeConfigItems[configSelectedIndex];
 				if (selected && configTab === "skills") {
-					setInput(`/${selected.name} `);
+					const nextInput = `/${selected.name} `;
+					setInput(nextInput);
+					setCursorIndex(nextInput.length);
 					closeConfigView();
 				}
 				return;
@@ -930,26 +970,30 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			if (hasMentionMenu) {
 				const selectedPath = mentionResults[fileMentionSelectedIndex];
 				if (selectedPath) {
-					setInput((prev) =>
-						insertMention(
+					setInput((prev) => {
+						const nextInput = insertMention(
 							prev,
 							extractMentionQuery(prev).atIndex,
 							selectedPath,
-						),
-					);
+						);
+						setCursorIndex(nextInput.length);
+						return nextInput;
+					});
 				}
 				return;
 			}
 			if (hasSlashMenu) {
 				const selectedCommand = slashResults[slashSelectedIndex];
 				if (selectedCommand) {
-					setInput((prev) =>
-						insertSlashCommand(
+					setInput((prev) => {
+						const nextInput = insertSlashCommand(
 							prev,
 							extractSlashQuery(prev).slashIndex,
 							selectedCommand.name,
-						),
-					);
+						);
+						setCursorIndex(nextInput.length);
+						return nextInput;
+					});
 				}
 				return;
 			}
@@ -1003,26 +1047,30 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			if (hasMentionMenu) {
 				const selectedPath = mentionResults[fileMentionSelectedIndex];
 				if (selectedPath) {
-					setInput((prev) =>
-						insertMention(
+					setInput((prev) => {
+						const nextInput = insertMention(
 							prev,
 							extractMentionQuery(prev).atIndex,
 							selectedPath,
-						),
-					);
+						);
+						setCursorIndex(nextInput.length);
+						return nextInput;
+					});
 				}
 				return;
 			}
 			if (hasSlashMenu) {
 				const selectedCommand = slashResults[slashSelectedIndex];
 				if (selectedCommand) {
-					setInput((prev) =>
-						insertSlashCommand(
+					setInput((prev) => {
+						const nextInput = insertSlashCommand(
 							prev,
 							extractSlashQuery(prev).slashIndex,
 							selectedCommand.name,
-						),
-					);
+						);
+						setCursorIndex(nextInput.length);
+						return nextInput;
+					});
 				}
 				return;
 			}
@@ -1042,9 +1090,28 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			return;
 		}
 
-		if (key.backspace || key.delete) {
+		const isBackwardDelete =
+			key.backspace ||
+			value === "\u007f" ||
+			value === "\b" ||
+			(key.ctrl && value === "h") ||
+			(key.delete && !value.includes("\u001b"));
+		const isForwardDelete = key.delete && value.includes("\u001b");
+		if (isBackwardDelete || isForwardDelete) {
 			setHistoryIndex(-1);
-			setInput((prev) => prev.slice(0, -1));
+			if (isBackwardDelete) {
+				setInput((prev) => {
+					if (cursorIndex <= 0) {
+						return prev;
+					}
+					return prev.slice(0, cursorIndex - 1) + prev.slice(cursorIndex);
+				});
+				setCursorIndex((prev) => Math.max(0, prev - 1));
+				return;
+			}
+			setInput(
+				(prev) => prev.slice(0, cursorIndex) + prev.slice(cursorIndex + 1),
+			);
 			return;
 		}
 
@@ -1064,7 +1131,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			if ((input === "" || historyIndex >= 0) && inputHistory.length > 0) {
 				setHistoryIndex((prev) => {
 					const next = Math.min(prev + 1, inputHistory.length - 1);
-					setInput(inputHistory[next] ?? "");
+					const nextInput = inputHistory[next] ?? "";
+					setInput(nextInput);
+					setCursorIndex(nextInput.length);
 					return next;
 				});
 				return;
@@ -1088,7 +1157,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			if (historyIndex >= 0) {
 				setHistoryIndex((prev) => {
 					const next = prev - 1;
-					setInput(next < 0 ? "" : (inputHistory[next] ?? ""));
+					const nextInput = next < 0 ? "" : (inputHistory[next] ?? "");
+					setInput(nextInput);
+					setCursorIndex(nextInput.length);
 					return next;
 				});
 				return;
@@ -1104,6 +1175,11 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		}
 
 		if (key.leftArrow || key.rightArrow) {
+			setCursorIndex((prev) =>
+				key.leftArrow
+					? Math.max(0, prev - 1)
+					: Math.min(input.length, prev + 1),
+			);
 			return;
 		}
 
@@ -1114,9 +1190,18 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			!value.includes("\u001b")
 		) {
 			setHistoryIndex(-1);
-			setInput((prev) => prev + value);
+			setInput((prev) => {
+				const nextInput =
+					prev.slice(0, cursorIndex) + value + prev.slice(cursorIndex);
+				return nextInput;
+			});
+			setCursorIndex((prev) => prev + value.length);
 		}
 	});
+
+	useEffect(() => {
+		setCursorIndex((prev) => Math.min(prev, input.length));
+	}, [input]);
 
 	const visibleEntries = useMemo(
 		() => entries.slice(-maxVisibleLines),
@@ -1147,6 +1232,8 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				mode: uiMode,
 				mouseOffsetX,
 				mouseOffsetY,
+				welcomeLine,
+				welcomeLinePending: isWelcomeLinePending,
 			})
 		: null;
 
@@ -1156,7 +1243,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const renderInputBox =
 		!isConfigViewOpen && !isExitRequested
-			? React.createElement(InputBox, { input, queuedPrompts })
+			? React.createElement(InputBox, { input, cursorIndex, queuedPrompts })
 			: null;
 
 	const renderConfigView = isConfigViewOpen

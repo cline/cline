@@ -138,6 +138,23 @@ export interface SpawnTeammateOptions {
 	config: TeamMemberConfig;
 }
 
+function isAbortLikeError(error: unknown): boolean {
+	if (
+		typeof DOMException !== "undefined" &&
+		error instanceof DOMException &&
+		error.name === "AbortError"
+	) {
+		return true;
+	}
+	if (!(error instanceof Error)) {
+		return false;
+	}
+	return (
+		error.name === "AbortError" ||
+		error.message.toLowerCase().includes("aborted")
+	);
+}
+
 // =============================================================================
 // AgentTeam
 // =============================================================================
@@ -872,7 +889,13 @@ export class AgentTeamsRuntime {
 		if (!member || member.role !== "teammate") {
 			throw new Error(`Teammate "${agentId}" was not found`);
 		}
-		member.agent?.abort();
+		try {
+			member.agent?.abort();
+		} catch (error) {
+			if (!isAbortLikeError(error)) {
+				throw error;
+			}
+		}
 		member.status = "stopped";
 		this.emitEvent({ type: TeamMessageType.TeammateShutdown, agentId, reason });
 	}
@@ -1475,7 +1498,13 @@ export class AgentTeamsRuntime {
 
 		for (const member of this.members.values()) {
 			if (member.role === "teammate") {
-				member.agent?.abort();
+				try {
+					member.agent?.abort();
+				} catch (error) {
+					if (!isAbortLikeError(error)) {
+						throw error;
+					}
+				}
 			}
 		}
 

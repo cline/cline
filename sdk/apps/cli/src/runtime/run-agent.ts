@@ -7,6 +7,7 @@ import {
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import { createCliCore } from "../session/session";
+import { resolveClineWelcomeLine } from "../tui/interactive-welcome";
 import {
 	askQuestionInTerminal,
 	requestToolApproval,
@@ -30,7 +31,6 @@ import {
 	CLI_DEFAULT_LOOP_DETECTION,
 } from "./defaults";
 import { describeAbortSource, resolveMistakeLimitDecision } from "./format";
-import { resolveClineWelcomeLine } from "./interactive-welcome";
 import { buildUserInputMessage } from "./prompt";
 import { subscribeToAgentEvents } from "./session-events";
 

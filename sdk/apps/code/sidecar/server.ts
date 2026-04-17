@@ -1,4 +1,4 @@
-import type { DesktopTransportRequest } from "../lib/desktop-transport";
+import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { sendEvent } from "./context";
 import {

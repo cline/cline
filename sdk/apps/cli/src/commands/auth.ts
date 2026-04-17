@@ -3,7 +3,7 @@ import {
 	createOAuthClientCallbacks,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
-	Llms,
+	type Llms,
 	listLocalProviders,
 	type ProviderSettingsManager,
 	saveLocalProviderSettings,
@@ -12,21 +12,29 @@ import { Command } from "commander";
 import { Box, render, Text, useApp, useInput } from "ink";
 import open from "open";
 import React, { useEffect, useMemo, useState } from "react";
+import {
+	getPersistedProviderApiKey,
+	isOAuthProvider,
+	normalizeAuthProviderId,
+	normalizeProviderId,
+	type OAuthCredentials,
+	toProviderApiKey,
+} from "../utils/provider-auth";
+
+export {
+	getPersistedProviderApiKey,
+	isOAuthProvider,
+	normalizeAuthProviderId,
+	normalizeProviderId,
+	toProviderApiKey,
+};
+export type { OAuthCredentials };
 
 const c = {
 	reset: "\x1b[0m",
 	dim: "\x1b[2m",
 	cyan: "\x1b[36m",
 	green: "\x1b[32m",
-};
-
-export type OAuthCredentials = {
-	access: string;
-	refresh: string;
-	expires: number;
-	accountId?: string;
-	email?: string;
-	metadata?: Record<string, unknown>;
 };
 
 type CoreOAuthApi = {
@@ -110,56 +118,6 @@ async function getCoreOAuthApi(): Promise<CoreOAuthApi> {
 		});
 	}
 	return cachedCoreOAuthApi;
-}
-
-export function normalizeProviderId(providerId: string): string {
-	return Llms.normalizeProviderId(providerId.trim());
-}
-
-export function normalizeAuthProviderId(providerId: string): string {
-	const normalized = providerId.trim().toLowerCase();
-	if (normalized === "codex" || normalized === "openai-codex") {
-		return "openai-codex";
-	}
-	return normalizeProviderId(normalized);
-}
-
-export function isOAuthProvider(providerId: string): boolean {
-	return (
-		providerId === "cline" ||
-		providerId === "oca" ||
-		providerId === "openai-codex"
-	);
-}
-
-export function toProviderApiKey(
-	providerId: string,
-	credentials: Pick<OAuthCredentials, "access">,
-): string {
-	if (providerId === "cline") {
-		return `workos:${credentials.access}`;
-	}
-	return credentials.access;
-}
-
-export function getPersistedProviderApiKey(
-	providerId: string,
-	settings?: Llms.ProviderSettings,
-): string | undefined {
-	// OAuth access token takes priority (most recent credential)
-	const accessToken = settings?.auth?.accessToken?.trim();
-	if (accessToken) {
-		return toProviderApiKey(providerId, { access: accessToken });
-	}
-	const shorthandKey = settings?.apiKey?.trim();
-	if (shorthandKey) {
-		return shorthandKey;
-	}
-	const authKey = settings?.auth?.apiKey?.trim();
-	if (authKey) {
-		return authKey;
-	}
-	return undefined;
 }
 
 /**
