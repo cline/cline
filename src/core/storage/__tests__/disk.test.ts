@@ -10,10 +10,13 @@ import { HostProvider } from "@/hosts/host-provider"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import {
 	ensureStateDirectoryExists,
+	ensureTaskDirectoryExists,
 	getAllHooksDirs,
+	getSavedClineMessages,
 	getTaskHistoryStateFilePath,
 	getWorkspaceHooksDirs,
 	readTaskHistoryFromState,
+	saveClineMessages,
 	setRuntimeHooksDir,
 	writeTaskHistoryToState,
 } from "../disk"
@@ -295,6 +298,29 @@ describe("disk - atomic writes", () => {
 
 	afterEach(async () => {
 		sandbox.restore()
+	})
+
+	describe("saveClineMessages and getSavedClineMessages", () => {
+		it("round-trips large ui_messages histories without truncation", async () => {
+			const taskId = `large-history-${Date.now()}`
+			const messages = Array.from({ length: 1_200 }, (_, i) => ({
+				ts: i + 1,
+				type: "say",
+				say: "text",
+				text: `message-${i}-${"payload-".repeat(64)}`,
+			})) as any
+
+			await saveClineMessages(taskId, messages)
+			const reloaded = await getSavedClineMessages(taskId)
+
+			reloaded.should.have.length(1_200)
+			reloaded[0]?.text.should.equal(messages[0]?.text)
+			reloaded[1_199]?.text.should.equal(messages[1_199]?.text)
+
+			const taskDir = await ensureTaskDirectoryExists(taskId)
+			const raw = await fs.readFile(path.join(taskDir, "ui_messages.json"), "utf8")
+			raw.length.should.be.greaterThan(100_000)
+		})
 	})
 
 	describe("writeTaskHistoryToState and readTaskHistoryFromState", () => {
