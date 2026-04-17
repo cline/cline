@@ -515,7 +515,7 @@ This workstream targets the MCP subsystem as a long-running background source of
 #### What to test
 
 - [x] noisy notification stream with no active task callback
-- [ ] repeated server stderr/error output
+- [x] repeated server stderr/error output
 - [ ] repeated MCP settings file changes
 - [ ] repeated server restart cycles
 

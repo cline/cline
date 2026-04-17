@@ -123,4 +123,35 @@ describe("mcp limits", () => {
 		;(hub as any).dispatchOrQueueNotification("server-a", "warning", "live-message")
 		assert.deepEqual(delivered.at(-1), "live-message")
 	})
+
+	it("bounds repeated MCP server stderr accumulation and records truncation telemetry", () => {
+		const truncatedEvents: Array<{ serverName: string; originalLength: number; retainedLength: number }> = []
+		const hub = Object.create(McpHub.prototype) as McpHub & {
+			telemetryService: {
+				captureMcpErrorTruncated: (serverName: string, originalLength: number, retainedLength: number) => void
+			}
+		}
+
+		hub.telemetryService = {
+			captureMcpErrorTruncated: (serverName, originalLength, retainedLength) => {
+				truncatedEvents.push({ serverName, originalLength, retainedLength })
+			},
+		}
+
+		const connection = {
+			server: {
+				name: "server-a",
+				error: "",
+			},
+		} as any
+
+		for (let i = 0; i < 6; i++) {
+			;(hub as any).appendErrorMessage(connection, `error-${i}-` + "x".repeat(MAX_MCP_SERVER_ERROR_CHARS / 2))
+		}
+
+		assert.ok(connection.server.error.length <= MAX_MCP_SERVER_ERROR_CHARS)
+		assert.ok(connection.server.error.includes("truncated"))
+		assert.ok(truncatedEvents.length >= 1)
+		assert.equal(truncatedEvents.at(-1)?.serverName, "server-a")
+	})
 })
