@@ -301,7 +301,7 @@ underlying patterns that caused them are relevant.
   **Reference**: `DefaultSessionManager` constructor options at `packages/core/src/session/default-session-manager.ts:138-151`. `SessionManager` interface at `packages/core/src/session/session-manager.ts:57-73`. `RuntimeOAuthTokenManager` in `packages/core/src/session/`. `RuntimeBuilder` interface in `packages/core/src/runtime/`.
 
 ### S6-10: DefaultRuntimeBuilder loads MCP tools once — no file watching
-- **Status**: 🔴 Blocker (anticipated)
+- **Status**: 🟢 Verified Fixed
 - **Description**: The SDK's `DefaultRuntimeBuilder.loadConfiguredMcpTools()` reads MCP settings from `CLINE_MCP_SETTINGS_PATH` (or default path) **once** at session start. It creates an `InMemoryMcpManager`, connects all servers, and returns tools. There is **no file watching** — changes to the MCP settings file after session start are not detected.
 - **Root cause**: The SDK's MCP integration was designed for CLI/batch use where sessions are short-lived. The VSCode extension's `McpHub` watches the settings file, supports dynamic connect/disconnect, provides real-time server status to the webview, and supports the MCP Marketplace.
 - **Impact**: Users cannot add/remove/restart MCP servers without restarting the extension. MCP server status in the webview will be stale. MCP Marketplace installs won't take effect until next session.
@@ -332,7 +332,7 @@ underlying patterns that caused them are relevant.
 - **Verification**: Send a message, verify the webview shows messages in the chat view and the task appears in history.
 
 ### S6-14: VscodeRuntimeBuilder for MCP tool bridging
-- **Status**: 🔵 Awaiting Verification (now wired into VscodeSessionHost)
+- **Status**: 🟢 Verified Fixed
 - **Description**: The SDK's `DefaultRuntimeBuilder.loadConfiguredMcpTools()` only supports stdio transport. SSE and streamableHttp MCP servers are filtered out, causing "Unsupported MCP transport" errors. The classic `McpHub` already supports all three transports.
 - **Root cause**: The SDK's `InMemoryMcpManager` with `createDefaultMcpServerClientFactory()` only creates stdio clients. The VSCode extension's `McpHub` has its own connection management that supports stdio, SSE, and streamableHttp.
 - **Fix applied**: Created `src/sdk/vscode-runtime-builder.ts` with:
@@ -387,7 +387,7 @@ underlying patterns that caused them are relevant.
 - **Evidence**: Debug harness session on 2026-04-16.
 
 ### S6-20: MCP tools panel is empty / MCP tools not available to agent
-- **Status**: 🔵 Implemented (needs interactive verification)
+- **Status**: 🟢 Verified Fixed
 - **Description**: Two related issues: (1) The MCP tools panel in the sidebar shows no tools, even when MCP servers are configured. (2) The SDK's DefaultSessionBuilder does not support dynamic MCP tools — tools are loaded once at session build time, so adding/removing MCP servers mid-session had no effect.
 - **Root cause**: The VscodeRuntimeBuilder already bridges McpHub → SDK tools at session start, but there was no mechanism to reload tools when the McpHub's server list changed after session creation.
 - **Fix**: Implemented a tool-list-change detection and session restart mechanism:
@@ -520,11 +520,19 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - S6-7: Credits/payment history don't load immediately
 
 ### S6-28: MCP tool reload messages appear twice in chat
-- **Status**: 🟡 Minor
-- **Description**: When saving the MCP settings file (triggering a tool list change), the info messages "MCP tools changed — reloading tools for this session..." and "MCP tools reloaded successfully." each appear TWICE in the chat. The tool reload itself works correctly — only the messages are duplicated.
-- **Root cause**: Likely the `emitSessionEvents()` call pushes messages to the partial message stream via the gRPC bridge, AND the `postStateToWebview()` call also includes the messages in the state's `clineMessages` array. The webview may be rendering from both sources without deduplicating these non-streaming messages. Alternatively, the `notifyWebviewOfServerChanges()` in McpHub may fire twice (once per server status change) causing `checkToolListChanged()` to detect the change twice in rapid succession.
-- **Fix needed**: Investigate whether the callback fires twice (add logging to `checkToolListChanged`) or whether the message rendering is the issue. If the callback fires twice, add a debounce or guard. If it's rendering, ensure the webview deduplicates by timestamp.
+- **Status**: 🟢 Verified Fixed
+- **Description**: When saving the MCP settings file (triggering a tool list change), the info messages "MCP tools changed — reloading tools for this session..." and "MCP tools reloaded successfully." each appeared TWICE in the chat. The tool reload itself worked correctly — only the messages were duplicated.
+- **Root cause**: `notifyWebviewOfServerChanges()` in McpHub fires multiple times in quick succession when a server connects (status change → tools discovered → etc.). Each call triggered `checkToolListChanged()` which detected the fingerprint change and fired the callback. The callback fired multiple times before the fingerprint was updated, causing duplicate messages.
+- **Fix applied**: Added 300ms debounce to `checkToolListChanged()` in `McpHub.ts`. The method now: (1) quick-checks the fingerprint — if unchanged, returns immediately without scheduling a timer, (2) if changed, debounces via `setTimeout(300ms)` to coalesce rapid-fire changes, (3) after the debounce, `fireToolListChangeIfNeeded()` re-checks the fingerprint and fires the callback only if it actually changed.
 - **Verification**: Save MCP settings file, verify each message appears exactly once.
+
+### S6-30: Follow-up messages silently dropped after task completion
+- **Status**: 🟢 Verified Fixed
+- **Description**: After a task completed, typing a follow-up message and pressing Enter (or clicking Send) did nothing. The message appeared in the textarea but was never sent. The `ui.send_message` gRPC method worked (bypassing the webview's `handleSendMessage`), but DOM-level input was broken.
+- **Root cause**: The webview's `handleSendMessage()` in `useMessageHandlers.ts` requires `clineAsk` to be set to send follow-up messages. The classic extension emits `ask: "completion_result"` when a task completes, which sets `clineAsk` in the webview. The SDK's message translator was emitting `say: "completion_result"` (a display-only message) instead of `ask: "completion_result"` (which enables the follow-up input). Without the ask message, `handleSendMessage()` fell through to the "task is running" check (which was false since the task was complete), and the message was silently dropped (`messageSent` stayed `false`).
+- **Fix applied**: Changed `src/sdk/message-translator.ts` to emit `type: "ask", ask: "completion_result"` instead of `type: "say", say: "completion_result"` for the `done` agent event. Only the ask is emitted (not both say+ask) to avoid duplicate "Task Completed" displays in the webview.
+- **Verification**: Debug harness test on 2026-04-17: (1) Sent "Say hello" via `ui.send_message`, task completed. (2) Typed "Now say goodbye" via `ui.react_input` with `submit: true`. (3) Follow-up inference ran and returned "Goodbye! 👋". (4) Also tested MCP tools in follow-up turns — `kb_search` worked correctly.
+- **Evidence**: Debug harness session on 2026-04-17.
 
 ### S6-29: "New Task" button broken after MCP tool reload
 - **Status**: 🔴 Blocker
