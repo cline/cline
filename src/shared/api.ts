@@ -83,7 +83,6 @@ export interface ModelInfo {
     supportsThinkingLevel?: boolean; // Whether the model supports thinking level (low/high)
     requiresStrictSchema?: boolean; // Whether the model requires strict schema (no temp/top_p when thinking)
   };
-  supportsComputerUse?: boolean; // Whether the model supports computer use
   supportsGlobalEndpoint?: boolean; // Whether the model supports a global endpoint with Vertex AI
   cacheWritesPrice?: number;
   cacheReadsPrice?: number;
@@ -309,7 +308,6 @@ export const anthropicModels = {
     supportsImages: true,
     supportsPromptCache: true,
     supportsReasoning: true,
-    supportsComputerUse: true,
     inputPrice: 5.0,
     outputPrice: 25.0,
     cacheWritesPrice: 6.25,
@@ -325,7 +323,6 @@ export const anthropicModels = {
     supportsImages: true,
     supportsPromptCache: true,
     supportsReasoning: true,
-    supportsComputerUse: true,
     inputPrice: 5.0,
     outputPrice: 25.0,
     cacheWritesPrice: 6.25,
