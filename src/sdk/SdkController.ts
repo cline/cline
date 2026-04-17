@@ -578,24 +578,33 @@ export class Controller {
 		if (this.activeSession) {
 			const { sessionManager, unsubscribe, sessionId } = this.activeSession
 
+			// Clear the reference FIRST so that any re-entrant calls
+			// (e.g., from event handlers triggered during stop/dispose)
+			// see no active session and don't try to stop it again.
+			this.activeSession = undefined
+
 			// Unsubscribe from events
 			unsubscribe()
 
-			// Stop the session (best-effort)
+			// Stop and dispose the session (best-effort, with timeout).
+			// The stop()/dispose() calls can hang if the session is in
+			// an unexpected state (e.g., after MCP tool restart created
+			// a session that was never sent a prompt). Use a timeout to
+			// prevent blocking the UI.
+			const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | void> =>
+				Promise.race([promise, new Promise<void>((resolve) => setTimeout(resolve, ms))])
+
 			try {
-				await sessionManager.stop(sessionId)
+				await withTimeout(sessionManager.stop(sessionId), 3000)
 			} catch (error) {
 				Logger.warn("[SdkController] Error stopping session during clear:", error)
 			}
 
-			// Dispose the session manager instance
 			try {
-				await sessionManager.dispose("clearTask")
+				await withTimeout(sessionManager.dispose("clearTask"), 3000)
 			} catch (error) {
 				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
 			}
-
-			this.activeSession = undefined
 		}
 
 		// Clear the task proxy
