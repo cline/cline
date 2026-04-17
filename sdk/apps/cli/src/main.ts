@@ -24,6 +24,12 @@ import {
 	writeErr,
 	writeln,
 } from "./utils/output";
+import {
+	ensureOAuthProviderApiKey,
+	getPersistedProviderApiKey,
+	isOAuthProvider,
+	normalizeProviderId,
+} from "./utils/provider-auth";
 import { ensureCliRpcRuntimeAddress } from "./utils/rpc-runtime";
 import {
 	enableTeamsForPrompt,
@@ -711,12 +717,6 @@ export async function runCli(): Promise<void> {
 	};
 	registerDisposable(stopUserInstructionWatcher);
 	try {
-		const {
-			normalizeProviderId,
-			isOAuthProvider,
-			getPersistedProviderApiKey,
-			ensureOAuthProviderApiKey,
-		} = await import("./commands/auth");
 		const lastUsedProviderSettings =
 			providerSettingsManager.getLastUsedProviderSettings();
 		const provider = normalizeProviderId(

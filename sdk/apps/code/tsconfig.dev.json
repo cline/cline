@@ -15,5 +15,7 @@
 				"../../packages/shared/src/*/index.ts"
 			]
 		}
-	}
+	},
+	"include": ["sidecar/**/*.ts", "scripts/**/*.ts", "global.d.ts", "bun.mts"],
+	"exclude": ["node_modules", "webview"]
 }

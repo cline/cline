@@ -12,6 +12,12 @@ import {
 	formatPreviewMessageText,
 	getLastSessionPreviewMessages,
 } from "../session/session-message-summary";
+import { loadInteractiveConfigData } from "../tui/interactive-config";
+import { InteractiveTui } from "../tui/interactive-tui";
+import {
+	listInteractiveSlashCommands,
+	resolveClineWelcomeLine,
+} from "../tui/interactive-welcome";
 import {
 	askQuestionInTerminal,
 	requestToolApproval,
@@ -37,12 +43,6 @@ import {
 	CLI_DEFAULT_CHECKPOINT_CONFIG,
 	CLI_DEFAULT_LOOP_DETECTION,
 } from "./defaults";
-import { loadInteractiveConfigData } from "./interactive-config";
-import { InteractiveTui } from "./interactive-tui";
-import {
-	listInteractiveSlashCommands,
-	resolveClineWelcomeLine,
-} from "./interactive-welcome";
 import { buildUserInputMessage } from "./prompt";
 import {
 	getUIEventEmitter,
@@ -75,11 +75,6 @@ export async function runInteractive(
 		process.exit(1);
 	}
 
-	const clineWelcomeLine = await resolveClineWelcomeLine({
-		config,
-		clineApiBaseUrl: options?.clineApiBaseUrl,
-		clineProviderSettings: options?.clineProviderSettings,
-	});
 	const initialRepoStatus = await readRepoStatus(config.cwd);
 	void prewarmFileIndex(config.cwd);
 	const workflowSlashCommands = listInteractiveSlashCommands(
@@ -393,10 +388,15 @@ export async function runInteractive(
 	const inkApp = render(
 		React.createElement(InteractiveTui, {
 			config,
-			welcomeLine: clineWelcomeLine ?? undefined,
 			initialView: options?.initialView ?? "chat",
 			initialRepoStatus,
 			workflowSlashCommands,
+			loadWelcomeLine: async () =>
+				await resolveClineWelcomeLine({
+					config,
+					clineApiBaseUrl: options?.clineApiBaseUrl,
+					clineProviderSettings: options?.clineProviderSettings,
+				}),
 			loadConfigData: async () =>
 				loadInteractiveConfigData({
 					watcher: userInstructionWatcher,

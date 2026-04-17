@@ -3,16 +3,16 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
-		"dev:web": "next dev -p 3125 --turbo",
+		"dev:web": "next dev webview -p 3125 --turbo",
 		"dev:sidecar": "bun run sidecar/index.ts",
 		"dev": "tauri dev",
 		"build": "bun run bun.mts",
 		"build:sidecar": "mkdir -p dist/sidecar && bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun",
 		"build:sidecar:bin": "mkdir -p src-tauri/bin && bun build ./sidecar/index.ts --compile --outfile ./src-tauri/bin/code-sidecar",
 		"build:binary": "tauri build",
-		"start": "next start",
+		"start": "next start webview",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
-		"clean": "rm -rf .next out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
+		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.2.0",

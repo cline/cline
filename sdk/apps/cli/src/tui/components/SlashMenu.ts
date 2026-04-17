@@ -1,6 +1,6 @@
 import { Box, Text } from "ink";
 import React from "react";
-import type { InteractiveSlashCommand } from "../../runtime/interactive-welcome";
+import type { InteractiveSlashCommand } from "../interactive-welcome";
 import type { VisibleWindow } from "./ConfigView";
 
 interface SlashMenuProps {

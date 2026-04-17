@@ -1,6 +1,6 @@
 import type { AgentMode } from "@clinebot/core";
 import { Box, Text } from "ink";
-import React, { memo } from "react";
+import React, { memo, useEffect, useState } from "react";
 
 interface WelcomeViewProps {
 	providerId: string;
@@ -8,6 +8,8 @@ interface WelcomeViewProps {
 	mode: AgentMode;
 	mouseOffsetX: number;
 	mouseOffsetY: number;
+	welcomeLine?: string;
+	welcomeLinePending?: boolean;
 }
 
 const CLINE_LOGO = [
@@ -30,6 +32,7 @@ const CLINE_LOGO = [
 ] as const;
 
 function WelcomeViewComponent(props: WelcomeViewProps): React.ReactElement {
+	const [showWelcomePlaceholder, setShowWelcomePlaceholder] = useState(true);
 	const horizontalShift = Math.max(-4, Math.min(4, props.mouseOffsetX));
 	const shiftedLogo = CLINE_LOGO.map((line) => {
 		if (horizontalShift === 0) {
@@ -40,6 +43,19 @@ function WelcomeViewComponent(props: WelcomeViewProps): React.ReactElement {
 		}
 		return line.slice(Math.abs(horizontalShift));
 	});
+
+	useEffect(() => {
+		if (!props.welcomeLinePending) {
+			setShowWelcomePlaceholder(true);
+			return;
+		}
+		const interval = setInterval(() => {
+			setShowWelcomePlaceholder((current) => !current);
+		}, 450);
+		return () => {
+			clearInterval(interval);
+		};
+	}, [props.welcomeLinePending]);
 
 	return React.createElement(
 		Box,
@@ -66,6 +82,23 @@ function WelcomeViewComponent(props: WelcomeViewProps): React.ReactElement {
 				"What can I do for you?",
 			),
 		),
+		props.welcomeLine
+			? React.createElement(
+					Box,
+					{ marginBottom: 1 },
+					React.createElement(Text, { color: "gray" }, props.welcomeLine),
+				)
+			: props.welcomeLinePending
+				? React.createElement(
+						Box,
+						{ marginBottom: 1 },
+						React.createElement(
+							Text,
+							{ color: showWelcomePlaceholder ? "gray" : "blackBright" },
+							"Loading account details...",
+						),
+					)
+				: null,
 	);
 }
 

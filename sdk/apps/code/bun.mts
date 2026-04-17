@@ -1,7 +1,7 @@
 import { $ } from "bun";
 
 const main = async () => {
-	await $`next build`;
+	await $`next build`.cwd("webview");
 	await $`mkdir -p dist/sidecar`;
 	await $`bun build ./sidecar/index.ts --outfile ./dist/sidecar/index.js --target bun`;
 };

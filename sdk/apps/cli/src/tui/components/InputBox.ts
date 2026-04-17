@@ -1,5 +1,5 @@
 import { Box, Text } from "ink";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { truncate } from "../../utils/helpers";
 
 export interface QueuedPromptItem {
@@ -10,13 +10,30 @@ export interface QueuedPromptItem {
 
 interface InputBoxProps {
 	input: string;
+	cursorIndex: number;
 	queuedPrompts: QueuedPromptItem[];
 }
 
 export function InputBox({
 	input,
+	cursorIndex,
 	queuedPrompts,
 }: InputBoxProps): React.ReactElement {
+	const [showCursor, setShowCursor] = useState(true);
+
+	useEffect(() => {
+		setShowCursor(true);
+		const timer = setInterval(() => {
+			setShowCursor((current) => !current);
+		}, 530);
+		return () => clearInterval(timer);
+	}, []);
+
+	const clampedCursorIndex = Math.max(0, Math.min(cursorIndex, input.length));
+	const beforeCursor = input.slice(0, clampedCursorIndex);
+	const cursorCharacter = input[clampedCursorIndex] ?? " ";
+	const afterCursor = input.slice(clampedCursorIndex + 1);
+
 	return React.createElement(
 		Box,
 		{ flexDirection: "column" },
@@ -61,7 +78,18 @@ export function InputBox({
 				Text,
 				null,
 				React.createElement(Text, { color: "green" }, "> "),
-				input,
+				beforeCursor,
+				showCursor
+					? React.createElement(
+							Text,
+							{
+								backgroundColor: "green",
+								color: "black",
+							},
+							cursorCharacter,
+						)
+					: React.createElement(Text, null, cursorCharacter),
+				afterCursor,
 			),
 		),
 	);
