@@ -540,6 +540,13 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Verification**: Debug harness test on 2026-04-17: (1) Sent "Say hello briefly", task completed. (2) Toggled kamibiki MCP server off via UI. (3) "MCP tools changed" + "MCP tools reloaded" messages appeared (no "Thinking..." state). (4) Typed "Say goodbye" via `ui.react_input` — follow-up inference ran and returned "Goodbye! 👋".
 - **Evidence**: Debug harness session on 2026-04-17.
 
+### S6-31: Conversation history lost after MCP tool changes (session recreated)
+- **Status**: 🔴 Blocker
+- **Description**: After MCP tool changes (e.g., enabling/disabling an MCP server), the SDK session is recreated and the agent loses all prior conversation history. For example: say "hello" → toggle an MCP tool (triggers session recreation) → ask the agent what the first message was — it has no knowledge of the "hello" message.
+- **Root cause**: Likely `restartSessionForMcpTools()` in `SdkController.ts` creates a brand new session without carrying over the prior conversation history / messages from the previous session. The classic extension preserved conversation context across MCP reloads because it only rebuilt the tool list without recreating the session. The SDK adapter may be calling `sessionManager.start()` (new session) instead of updating tools on the existing session.
+- **Fix**: Not yet attempted. Needs investigation into whether the SDK supports hot-reloading tools on an existing session (check `update()` or `send()` with updated config), or whether we need to pass `initialMessages` from the previous session when starting a new one.
+- **Verification**: Debug harness test: (1) Send "Say hello briefly" (2) Toggle an MCP server (3) Send "What was the first thing I said?" — agent should recall "hello"
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢
