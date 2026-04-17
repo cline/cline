@@ -994,10 +994,10 @@ This section is designed to be worked through directly.
 
 The initiative is complete only when:
 
-- [ ] every currently known high-priority crash candidate has a formal hypothesis,
+- [x] every currently known high-priority crash candidate has a formal hypothesis,
 - [ ] every high-priority candidate has at least one reproducible test,
 - [ ] confirmed candidates have fixes or explicit deferrals,
-- [ ] the extension has explicit size and resource guardrails in the highest-risk paths,
+- [x] the extension has explicit size and resource guardrails in the highest-risk paths,
 - [x] teardown stability has been tested under churn,
 - [x] nightly soak coverage exists for long-horizon risks,
 - [x] the crash-candidate matrix is current,
