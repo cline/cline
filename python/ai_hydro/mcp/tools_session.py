@@ -1,7 +1,7 @@
 """
 Session management MCP tools (8 tools).
 
-Start, query, clear, annotate, sync, export, and discover research sessions and tools.
+Start, query, clear, annotate, sync, export, and discover research sessions.
 """
 from __future__ import annotations
 
@@ -13,8 +13,8 @@ from pathlib import Path
 
 from ai_hydro.mcp.app import mcp
 from ai_hydro.mcp.helpers import (
+    _normalize_session_id,
     _tool_error_to_dict,
-    _validate_gauge_id,
     _workspace_write,
 )
 
@@ -22,57 +22,57 @@ log = logging.getLogger("ai_hydro.mcp")
 
 
 @mcp.tool()
-def start_session(gauge_id: str, workspace_dir: str | None = None) -> dict:
+def start_session(
+    session_id: str | None = None,
+    workspace_dir: str | None = None,
+) -> dict:
     """
-    Start or resume a research session for a USGS gauge.
+    Start or resume a research session.
 
-    Creates a new session if one does not exist, or returns the existing
-    session summary if already started. Pass workspace_dir so that all
-    subsequent tool calls automatically save output files to the VS Code
-    workspace — no agent write_file calls needed.
+    A session is the persistent memory for a study — it stores all computed
+    results across tool calls. The session_id can be anything meaningful:
+    a slug ("piscataquis-snowmelt-2000-2020"), a USGS gauge number used as
+    a shorthand ("01031500"), a UUID, or any unique label. If omitted, one
+    is auto-generated ("hydro-<8hex>").
+
+    The session is completely independent of data source — it stores results
+    from USGS tools, CSV data, remote sensing outputs, or anything else.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID, e.g. '01031500'
+    session_id : str, optional
+        Unique identifier for this research session. Auto-generated if omitted.
     workspace_dir : str, optional
-        Absolute path to the VS Code workspace folder. When provided,
-        all MCP tools will save their output files there automatically.
+        Absolute path to the VS Code workspace folder. When provided, all MCP
+        tools save output files there automatically. Pass once — remembered for
+        all subsequent tool calls on this session.
 
     Returns
     -------
-    dict with keys:
-        gauge_id      : the gauge
-        workspace_dir : path where files will be saved (if set)
-        computed      : list of already-computed result slots
-        pending       : list of not-yet-computed result slots
-        notes         : researcher annotations attached to this session
-        created_at, updated_at : ISO timestamps
+    dict with session_id, site_name, site_id, computed, pending, workspace_dir,
+    mcp_python (the correct interpreter for scripts), and available_packages.
     """
     try:
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session_id = _normalize_session_id(session_id)
+        session = HydroSession.load(session_id)
         if workspace_dir:
             session.workspace_dir = workspace_dir
         session.save()
         summary = session.summary()
         summary["workspace_dir"] = session.workspace_dir
-
-        # Expose the MCP server's Python environment so agents can write
-        # scripts that use the same interpreter and installed packages.
         summary["mcp_python"] = sys.executable
         pip_path = Path(sys.executable).parent / "pip"
         summary["mcp_pip"] = str(pip_path) if pip_path.exists() else f"{sys.executable} -m pip"
         try:
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "list", "--format=json"],
-                capture_output=True, text=True, timeout=10
+                capture_output=True, text=True, timeout=10,
             )
             pkgs = json.loads(result.stdout) if result.returncode == 0 else []
             summary["available_packages"] = {p["name"]: p["version"] for p in pkgs}
         except Exception:
             summary["available_packages"] = {}
-
         return summary
     except Exception as e:
         log.error("start_session failed: %s", e)
@@ -80,22 +80,23 @@ def start_session(gauge_id: str, workspace_dir: str | None = None) -> dict:
 
 
 @mcp.tool()
-def get_session_summary(gauge_id: str) -> dict:
+def get_session_summary(session_id: str) -> dict:
     """
     Return what has been computed and what still needs computing.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID
+    session_id : str
+        Research session identifier.
 
     Returns
     -------
-    dict with computed/pending slot lists and researcher notes
+    dict with session_id, site_name, site_id, computed/pending slot lists,
+    researcher notes, and has_interpretation flag.
     """
     try:
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
         summary = session.summary()
         summary["workspace_dir"] = session.workspace_dir
         return summary
@@ -105,57 +106,42 @@ def get_session_summary(gauge_id: str) -> dict:
 
 
 @mcp.tool()
-def clear_session(gauge_id: str, slots: list[str] | None = None) -> dict:
+def clear_session(session_id: str, slots: list[str] | None = None) -> dict:
     """
     Clear cached results from a session to force re-computation.
 
-    Use when you need to re-run analysis with different parameters,
-    or when source data has changed and you want fresh results.
-    Notes and workspace_dir are always preserved.
+    Notes, workspace_dir, site_name, and interpretation are always preserved.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID
+    session_id : str
+        Research session identifier.
     slots : list[str], optional
-        Specific slots to clear. Valid values:
-        watershed, streamflow, signatures, geomorphic, camels, forcing, twi, cn, model.
-        Notes and workspace_dir cannot be cleared via this tool — they are always preserved.
-        Default: clears ALL data slots (keeps workspace_dir and notes).
-
-    Returns
-    -------
-    dict with:
-        cleared      : list of slot names that were actually cleared
-        computed     : remaining computed slots after clearing
-        pending      : pending slots after clearing
-        workspace_dir: unchanged workspace path
+        Specific slots to clear: watershed, streamflow, signatures, geomorphic,
+        camels, forcing, twi, cn, model.
+        Omit to clear ALL data slots.
 
     Examples
     --------
-    >>> clear_session('01031500')                          # reset everything
-    >>> clear_session('01031500', ['streamflow'])          # re-fetch streamflow only
-    >>> clear_session('01031500', ['signatures', 'twi'])   # recompute derived results
+    >>> clear_session('piscataquis-study')                        # reset all
+    >>> clear_session('piscataquis-study', ['streamflow'])        # re-fetch only
+    >>> clear_session('01031500', ['signatures', 'twi'])          # recompute
     """
     try:
         from ai_hydro.session import HydroSession
         from ai_hydro.session.store import _COMMON_SLOTS as _RESULT_SLOTS
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
         to_clear = slots if slots else list(_RESULT_SLOTS)
-        # Validate slot names
         invalid = [s for s in to_clear if s not in _RESULT_SLOTS]
         if invalid:
-            note_hint = (
-                " (notes are always preserved and cannot be cleared via slots)"
+            hint = (
+                " (notes are always preserved)"
                 if "notes" in invalid else ""
             )
             return {
                 "error": True,
                 "code": "INVALID_SLOTS",
-                "message": (
-                    f"Unknown slots: {invalid}. "
-                    f"Valid: {list(_RESULT_SLOTS)}{note_hint}"
-                ),
+                "message": f"Unknown slots: {invalid}. Valid: {list(_RESULT_SLOTS)}{hint}",
             }
         cleared = []
         for slot in to_clear:
@@ -173,24 +159,20 @@ def clear_session(gauge_id: str, slots: list[str] | None = None) -> dict:
 
 
 @mcp.tool()
-def add_note(gauge_id: str, note: str) -> dict:
+def add_note(session_id: str, note: str) -> dict:
     """
     Add a researcher annotation to the session.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID
+    session_id : str
+        Research session identifier.
     note : str
-        Annotation text to attach
-
-    Returns
-    -------
-    dict with updated session summary
+        Annotation text (hypothesis, anomaly, decision, observation).
     """
     try:
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
         session.notes.append(note)
         session.save()
         return session.summary()
@@ -201,75 +183,54 @@ def add_note(gauge_id: str, note: str) -> dict:
 
 @mcp.tool()
 def sync_research_context(
-    gauge_id: str,
+    session_id: str,
     interpretation: str | None = None,
     site_name: str | None = None,
 ) -> dict:
     """
-    Two-phase tool: retrieve session data for LLM reasoning, then store
-    the LLM-authored scientific interpretation back into the session.
+    Two-phase tool for LLM-authored scientific interpretation.
 
-    This is the primary mechanism for making research.md genuinely useful —
-    not a template of formatted numbers, but a real scientific summary written
-    by the foundation model and loaded into every future conversation.
+    research.md has two sections:
+    - Skeleton (Python-generated, always current): computed/pending/notes.
+    - Scientific context (LLM-authored): your interpretation, stored here.
 
-    Phase 1 — call with no interpretation (discovery):
-        Returns the full raw session data across all computed slots.
-        Read the numbers, reason about patterns, contradictions, and what
-        the hydrology is telling you. Then call Phase 2.
+    Phase 1 — call with only session_id:
+        Returns full raw session data across all computed slots. Read every
+        value, look for cross-slot patterns, contradictions with researcher
+        notes, and what the science is telling you. Then call Phase 2.
 
-    Phase 2 — call with your interpretation (store):
-        Pass your scientific summary as `interpretation`. It is stored in
-        the session and embedded in research.md immediately. Every future
-        conversation will open with your understanding pre-loaded.
+    Phase 2 — call with interpretation + site_name:
+        Stores your scientific prose in the session. Embedded in research.md
+        immediately. Pre-loaded into every future conversation.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID (or site identifier)
+    session_id : str
+        Research session identifier.
     interpretation : str, optional
-        Scientific summary authored by the model (Phase 2). Should cover:
-        basin behaviour, cross-slot patterns, anomalies, contradictions
-        between computed results and researcher notes, and research priorities.
-        3-6 sentences. Plain prose, no bullet points.
+        3-6 sentences of scientific prose (Phase 2). Cover: what the data
+        shows, cross-slot patterns, contradictions with notes, priorities.
+        Write flowing prose — no bullet points.
     site_name : str, optional
-        Short descriptive name for this research session, e.g.
-        'piscataquis-snowmelt-signatures-2000-2020'. Stored as the session
-        display name in research.md and export filenames.
-
-    Returns
-    -------
-    Phase 1: dict with session_data (all computed slot values), computed,
-             pending, notes, and an _instruction guiding the model.
-    Phase 2: dict confirming what was written and where.
+        Short descriptive slug: 'piscataquis-snowmelt-signatures-2000-2020'.
+        Used as the session display name in research.md and export filenames.
 
     Examples
     --------
-    # Phase 1: get raw data
-    >>> sync_research_context('01031500')
-
-    # Phase 2: store interpretation after reasoning
-    >>> sync_research_context(
+    >>> sync_research_context('01031500')   # Phase 1: get raw data
+    >>> sync_research_context(              # Phase 2: store interpretation
     ...     '01031500',
     ...     site_name='piscataquis-surface-flow-2000-2020',
-    ...     interpretation=(
-    ...         "The Piscataquis shows surface-flow dominance (BFI=0.16) "
-    ...         "despite humid New England climate, likely driven by shallow "
-    ...         "glacial till. Runoff ratio 0.60 is high; FDC slope suggests "
-    ...         "moderate flashiness. HBV trained but no validation split — "
-    ...         "rerun before interpreting NSE. TWI analysis is highest priority."
-    ...     )
+    ...     interpretation='The Piscataquis shows surface-flow dominance...'
     ... )
     """
     try:
-        from pathlib import Path
         from ai_hydro.session import HydroSession
         from ai_hydro.session.store import _REPO_ROOT, _RULES_DIR_NAME
         from ai_hydro.mcp.tools_docs import _write_tools_md, _list_tools_sync
 
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
 
-        # Phase 2: store interpretation and/or site_name, regenerate research.md
         if interpretation is not None or site_name is not None:
             if interpretation is not None:
                 session.interpretation = interpretation.strip()
@@ -281,6 +242,7 @@ def sync_research_context(
             research_md_path = base / _RULES_DIR_NAME / "research.md"
             return {
                 "stored": True,
+                "session_id": session_id,
                 "site_name": session.site_name,
                 "interpretation_length": len(session.interpretation),
                 "research_md": str(research_md_path),
@@ -292,13 +254,12 @@ def sync_research_context(
                 ),
             }
 
-        # Phase 1: return full raw session data for LLM reasoning
         session_data = session.raw_session_data()
         tools_path = _write_tools_md()
-
         return {
-            "gauge_id": gauge_id,
+            "session_id": session_id,
             "site_name": session.site_name or None,
+            "site_id": session.site_id or None,
             "computed": session.computed(),
             "pending": session.pending(),
             "notes": session.notes,
@@ -306,14 +267,14 @@ def sync_research_context(
             "session_data": session_data,
             "n_tools": len(_list_tools_sync()),
             "_instruction": (
-                "You have received the full computed session data above. "
+                "You have received the full computed session data. "
                 "Read every slot carefully — look for cross-slot patterns, "
                 "contradictions between computed values and researcher notes, "
-                "what the hydrology is telling you, and what should be done next. "
+                "what the science is telling you, and what should be done next. "
                 "Then call sync_research_context again with: "
-                "(1) interpretation=<your 3-6 sentence scientific prose summary> "
-                "(2) site_name=<short-descriptive-slug e.g. 'piscataquis-surface-flow-2000-2020'>. "
-                "Do not use bullet points in the interpretation — write flowing scientific prose."
+                "(1) interpretation=<your 3-6 sentence scientific prose> "
+                "(2) site_name=<short-descriptive-slug>. "
+                "Write flowing prose — no bullet points."
             ),
         }
     except Exception as e:
@@ -326,20 +287,9 @@ def list_available_tools() -> dict:
     """
     List all MCP tools currently registered on this AI-Hydro server.
 
-    Returns every registered tool with its name, description, and parameter
-    schema. Includes both built-in tools and any community plugin tools
-    discovered via the aihydro.tools entry point.
-
-    Call this at the start of a session to discover what capabilities are
-    available — especially useful when community plugins have been installed.
-
-    Returns
-    -------
-    dict with keys:
-        tools      : list of {name, description, parameters} dicts
-        n_tools    : total count of registered tools
-        mcp_python : Python interpreter running the MCP server
-        note       : guidance on installing additional plugins
+    Includes built-in tools and any community plugin tools discovered via
+    the aihydro.tools entry point. Always prefer this over documentation
+    for an accurate picture of what is installed.
     """
     try:
         from ai_hydro.mcp.tools_docs import _list_tools_sync
@@ -375,94 +325,185 @@ def list_available_tools() -> dict:
 
 
 @mcp.tool()
-def export_session(gauge_id: str, format: str = "json") -> dict:
+def export_session(
+    session_id: str,
+    format: str = "capsule",
+) -> dict:
     """
-    Export the full session provenance to a file.
+    Export session as a reproducible research capsule or individual file.
 
-    The export is SAVED TO DISK (not returned inline) to avoid flooding
-    the context window. The response contains the file path + a compact
-    summary.
+    All output is SAVED TO DISK — never returned inline.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID
+    session_id : str
+        Research session identifier.
     format : str
-        'json'    — full session as JSON (saved to file)
-        'bibtex'  — combined BibTeX for all computed results
-        'methods' — plain-text methods paragraph per computed tool
-
-    Returns
-    -------
-    dict with:
-        file_saved : path where the export was written
-        summary    : compact text preview of the export
+        'capsule' (default) — full reproducible research package (folder):
+            README.md       — overview + LLM interpretation (if available)
+            methods.md      — provenance table for every computed analysis
+            citations.bib   — BibTeX for all data sources
+            session.json    — complete provenance record
+            data/           — JSON/GeoJSON/TIF files from workspace
+            figures/        — PNG/HTML figures from workspace
+            environment.yml — Python environment specification
+        'bibtex' — BibTeX references only
+        'json'   — raw session JSON only
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        import shutil
+        from datetime import datetime
 
-        ext = {"json": ".json", "bibtex": ".bib", "methods": ".txt"}.get(format, ".txt")
-        filename = f"session_{gauge_id}_{format}{ext}"
+        session = HydroSession.load(session_id)
+        today = datetime.now().strftime("%Y-%m-%d")
+        slug = session.site_name or session.site_id or session_id
+        files_written: list[str] = []
 
-        if format == "bibtex":
-            content = session.cite_all()
-        elif format == "methods":
-            lines = [f"Methods for gauge {gauge_id}:"]
-            for slot in session.computed():
-                result = getattr(session, slot)
-                if result:
-                    meta = result.get("meta", {})
-                    tool = meta.get("tool", slot)
-                    params = meta.get("params", {})
-                    sources = [s.get("name", "") for s in meta.get("sources", [])]
-                    computed_at = meta.get("computed_at", "")[:10]
-                    params_str = ", ".join(f"{k}={v!r}" for k, v in params.items())
-                    sources_str = ", ".join(sources) if sources else "undocumented"
-                    lines.append(
-                        f"\n{slot.upper()}: Computed using {tool} with parameters "
-                        f"[{params_str}]. Data from: {sources_str}. Date: {computed_at}."
-                    )
-            content = "\n".join(lines)
-        else:
-            content = session.to_json()
+        if format in ("bibtex", "json"):
+            content = session.cite_all() if format == "bibtex" else session.to_json()
+            ext = ".bib" if format == "bibtex" else ".json"
+            fname = f"session_{session_id}_{format}{ext}"
+            saved = _workspace_write(session_id, fname, content)
+            if not saved:
+                d = Path.home() / ".aihydro" / "exports"
+                d.mkdir(parents=True, exist_ok=True)
+                p = d / fname
+                p.write_text(content)
+                saved = str(p)
+            return {"session_id": session_id, "format": format, "file_saved": saved,
+                    "computed": session.computed()}
 
-        # Save to workspace (or ~/.aihydro/exports/ if no workspace)
-        saved = _workspace_write(gauge_id, filename, content)
-        if not saved:
-            export_dir = Path.home() / ".aihydro" / "exports"
-            export_dir.mkdir(parents=True, exist_ok=True)
-            out_path = export_dir / filename
-            with open(out_path, "w") as f:
-                f.write(content) if isinstance(content, str) else json.dump(content, f, indent=2)
-            saved = str(out_path)
+        # Capsule
+        base = Path(session.workspace_dir) if session.workspace_dir else Path.home() / ".aihydro" / "exports"
+        capsule_dir = base / f"capsule_{slug}_{today}"
+        (capsule_dir / "data").mkdir(parents=True, exist_ok=True)
+        (capsule_dir / "figures").mkdir(parents=True, exist_ok=True)
 
-        # Return compact summary — NOT the full content
-        summary_parts = [
-            f"Gauge: {gauge_id}",
-            f"Format: {format}",
-            f"Computed slots: {session.computed()}",
-            f"Pending slots: {session.pending()}",
-            f"File size: {len(content):,} chars",
+        # README.md
+        display = session.site_name or session.site_id or session_id
+        name_str = ""
+        if session.watershed:
+            gname = session.watershed.get("data", {}).get("gauge_name", "")
+            if gname:
+                name_str = f" — {gname}"
+        readme = [
+            f"# Research Capsule: {display}{name_str}",
+            f"**Session ID**: {session_id}",
         ]
-        if format == "bibtex":
-            n_refs = content.count("@")
-            summary_parts.append(f"References: {n_refs}")
-        elif format == "methods":
-            # Methods text is small enough to include inline
-            summary_parts.append(f"Content:\n{content}")
+        if session.site_id:
+            readme.append(f"**Site**: {session.site_id}" +
+                          (f" ({session.site_type})" if session.site_type else ""))
+        readme += [f"**Exported**: {today}", f"**Platform**: AI-Hydro", "",
+                   "## Computed Analyses"]
+        for slot in session.computed():
+            result = session.get(slot)
+            computed_at = (result.get("meta", {}).get("computed_at", "")[:10]
+                           if result else "") or "—"
+            readme.append(f"- **{slot}** (computed {computed_at})")
+        if session.pending():
+            readme += ["", "## Pending", ", ".join(session.pending())]
+        if session.notes:
+            readme += ["", "## Researcher Notes"] + [f"- {n}" for n in session.notes]
+        if session.interpretation:
+            readme += ["", "## Scientific Summary", session.interpretation]
+        else:
+            readme += ["", "## Scientific Summary",
+                       "_Not yet authored. Call `sync_research_context` to generate._"]
+        readme += ["", f"> Generated by AI-Hydro on {today}."]
+        (capsule_dir / "README.md").write_text("\n".join(readme))
+        files_written.append(str(capsule_dir / "README.md"))
 
+        # methods.md — provenance table
+        methods = ["# Methods", "", "## Provenance", "",
+                   "| Analysis | Tool | Parameters | Data Source | Date |",
+                   "|----------|------|-----------|-------------|------|"]
+        for slot in session.computed():
+            result = session.get(slot)
+            if not result:
+                continue
+            meta = result.get("meta", {})
+            tool = meta.get("tool", slot)
+            params = "; ".join(f"{k}={v}" for k, v in meta.get("params", {}).items()) or "—"
+            sources = ", ".join(
+                s.get("name", s.get("url", "")) for s in meta.get("sources", [])
+                if s.get("name") or s.get("url")
+            ) or "—"
+            date = meta.get("computed_at", "")[:10] or "—"
+            methods.append(f"| {slot} | `{tool}` | {params} | {sources} | {date} |")
+        methods += ["", "## Methods Prose", "",
+                    "_Provenance table above contains all computational metadata. "
+                    "Call `sync_research_context` to generate publication-quality "
+                    "methods prose, then paste it here._",
+                    "", "<!-- Paste LLM-authored methods prose below -->"]
+        (capsule_dir / "methods.md").write_text("\n".join(methods))
+        files_written.append(str(capsule_dir / "methods.md"))
+
+        # citations.bib
+        (capsule_dir / "citations.bib").write_text(session.cite_all())
+        files_written.append(str(capsule_dir / "citations.bib"))
+
+        # session.json
+        (capsule_dir / "session.json").write_text(session.to_json())
+        files_written.append(str(capsule_dir / "session.json"))
+
+        # Copy workspace files
+        if session.workspace_dir:
+            ws = Path(session.workspace_dir)
+            for f in ws.iterdir():
+                if not f.is_file():
+                    continue
+                if f.suffix in (".json", ".geojson", ".csv", ".tif", ".tiff"):
+                    dest = capsule_dir / "data" / f.name
+                    shutil.copy2(f, dest)
+                    files_written.append(str(dest))
+                elif f.suffix in (".png", ".html", ".svg"):
+                    dest = capsule_dir / "figures" / f.name
+                    shutil.copy2(f, dest)
+                    files_written.append(str(dest))
+
+        # environment.yml
+        (capsule_dir / "environment.yml").write_text(_build_environment_yml(slug))
+        files_written.append(str(capsule_dir / "environment.yml"))
+
+        needs_interp = not session.interpretation
         return {
-            "gauge_id": gauge_id,
-            "format": format,
-            "file_saved": saved,
-            "summary": "\n".join(summary_parts),
+            "session_id": session_id,
+            "site_name": session.site_name or None,
+            "capsule_dir": str(capsule_dir),
+            "files": files_written,
+            "n_files": len(files_written),
+            "computed": session.computed(),
             "_note": (
-                f"Full export saved to {saved}. "
-                "Content NOT included in this response to preserve context window."
+                "NEXT: call sync_research_context to author the scientific "
+                "interpretation, then export again to embed it in README.md."
+                if needs_interp else
+                "Scientific interpretation included. Add prose to methods.md."
             ),
         }
     except Exception as e:
         log.error("export_session failed: %s", e)
         return _tool_error_to_dict(e)
+
+
+def _build_environment_yml(name: str) -> str:
+    import subprocess as _sp
+    try:
+        r = _sp.run(["conda", "env", "export", "--no-builds"],
+                    capture_output=True, text=True, timeout=15)
+        if r.returncode == 0 and r.stdout.strip():
+            lines = r.stdout.splitlines()
+            if lines and lines[0].startswith("name:"):
+                lines[0] = f"name: {name}"
+            return "\n".join(lines)
+    except Exception:
+        pass
+    return (
+        f"name: {name}\nchannels:\n  - conda-forge\n  - defaults\n"
+        "dependencies:\n  - python>=3.10\n  - pip\n  - pip:\n"
+        "    - aihydro-tools[all]\n    - dataretrieval\n    - pynhd\n"
+        "    - pygeohydro\n    - pygridmet\n    - py3dep\n    - pysheds\n"
+        "    - rasterio\n    - geopandas\n    - xarray\n    - matplotlib\n"
+        "    - pandas\n    - numpy\n    - scipy\n    - torch\n"
+        "# Pin versions for full reproducibility.\n"
+    )

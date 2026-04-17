@@ -3,6 +3,24 @@ Analysis MCP tools (9 tools).
 
 Watershed delineation, streamflow, signatures, geomorphic parameters,
 TWI, curve number grid, forcing data, CAMELS attributes, and library reference.
+
+Tool parameter conventions
+--------------------------
+session_id : str
+    Research session identity — any string (slug, UUID, gauge ID used as a
+    shorthand, or anything meaningful to the study). Keyed in HydroSession.
+    Auto-generated "hydro-<8hex>" if not supplied.
+
+gauge_id : str  (USGS-specific data tools only)
+    8-digit USGS station number, e.g. '01031500'. Only required by tools that
+    fetch data from USGS NWIS / NLDI (delineate_watershed, fetch_streamflow_data,
+    extract_camels_attributes). After the first USGS call the gauge ID is stored
+    in session.site_id so subsequent tools can resolve it automatically.
+
+Source-agnostic analysis tools (extract_hydrological_signatures,
+extract_geomorphic_parameters, compute_twi, create_cn_grid, fetch_forcing_data)
+have NO gauge_id parameter — they work on session geometry and time-series data
+regardless of where that data came from.
 """
 from __future__ import annotations
 
@@ -18,11 +36,12 @@ from ai_hydro.mcp.helpers import (
     _cached_response,
     _ensure_session,
     _get_session_geometry,
+    _normalize_session_id,
     _result_to_dict,
     _session_store,
     _strip_forcing_arrays,
     _tool_error_to_dict,
-    _validate_gauge_id,
+    _validate_usgs_gauge_id,
     _workspace_write,
 )
 
@@ -102,23 +121,63 @@ def _run_camels_extractor_subprocess(gauge_id: str, timeout: int = 180) -> dict:
         ) from exc
 
 
+def _resolve_usgs_gauge(session_id: str, gauge_id: str | None, session) -> str:
+    """
+    Resolve the 8-digit USGS station number for a session.
+
+    Resolution order:
+    1. ``gauge_id`` parameter (explicit)
+    2. ``session.site_id`` (set by a previous USGS tool call)
+    3. ``session_id`` itself, if it passes USGS format validation (backward compat)
+
+    Raises ValueError with a clear recovery message if none of the above work.
+    """
+    if gauge_id:
+        return _validate_usgs_gauge_id(gauge_id)
+    if session.site_id:
+        try:
+            return _validate_usgs_gauge_id(session.site_id)
+        except ValueError:
+            pass
+    # Backward compat: if the caller used the gauge ID as session_id
+    try:
+        return _validate_usgs_gauge_id(session_id)
+    except ValueError:
+        pass
+    raise ValueError(
+        f"No USGS gauge_id found for session '{session_id}'. "
+        "Pass gauge_id='01031500' (8-digit USGS station number) explicitly. "
+        "Find gauge IDs at https://waterdata.usgs.gov/"
+    )
+
+
 # ============================================================================
 # Tool: Watershed Delineation
 # ============================================================================
 
 @mcp.tool()
-def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict:
+def delineate_watershed(
+    session_id: str,
+    gauge_id: str | None = None,
+    workspace_dir: str | None = None,
+) -> dict:
     """
     Delineate watershed boundary for a USGS stream gauge.
 
     Retrieves the standardized watershed polygon from USGS NLDI and gauge
-    metadata from NWIS. No separate start_session call needed — pass
-    workspace_dir here and the session is created automatically.
+    metadata from NWIS. After delineation the gauge ID is stored in
+    session.site_id so downstream tools (signatures, geomorphic, TWI)
+    resolve it automatically.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID, e.g. '01031500'
+    session_id : str
+        Research session identifier — any string (slug, UUID, basin name,
+        or gauge ID used as shorthand). Created automatically if new.
+    gauge_id : str, optional
+        8-digit USGS station number, e.g. '01031500'. If omitted the tool
+        checks session.site_id set by a previous call. At least one must
+        resolve to a valid USGS ID.
     workspace_dir : str, optional
         Absolute path to the VS Code workspace folder. Files are saved
         here automatically. Pass once — remembered for all future tool calls.
@@ -136,11 +195,15 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
 
     Examples
     --------
-    >>> delineate_watershed('01031500', workspace_dir='/path/to/workspace')
+    >>> delineate_watershed('piscataquis-2020', gauge_id='01031500',
+    ...                     workspace_dir='/path/to/workspace')
+    >>> delineate_watershed('01031500')  # gauge ID as session_id (backward compat)
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
-        session = _ensure_session(gauge_id, workspace_dir)
+        session_id = _normalize_session_id(session_id)
+        session = _ensure_session(session_id, workspace_dir)
+        resolved_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
+
         # Cache hit — skip the expensive USGS API call
         if session.watershed is not None:
             ws_data = session.watershed["data"]
@@ -155,9 +218,13 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
             else:
                 geojson = ws_data.get("geometry_geojson")
             if geojson and session.workspace_dir:
-                ws_geojson = Path(session.workspace_dir) / f"watershed_{gauge_id}.geojson"
+                ws_geojson = (
+                    Path(session.workspace_dir) / f"watershed_{resolved_gauge_id}.geojson"
+                )
                 if not ws_geojson.exists():
-                    saved = _workspace_write(gauge_id, f"watershed_{gauge_id}.geojson", geojson)
+                    saved = _workspace_write(
+                        session_id, f"watershed_{resolved_gauge_id}.geojson", geojson
+                    )
                     if saved:
                         files_saved.append(saved)
             return {
@@ -171,17 +238,18 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
                     "downstream tools ready. Call clear_session to recompute."
                 ),
             }
+
         from ai_hydro.analysis.watershed import delineate_watershed as _fn
-        result = _fn(gauge_id=gauge_id)
+        result = _fn(gauge_id=resolved_gauge_id)
         d = _result_to_dict(result)
         geojson = d["data"]["geometry_geojson"]
         files_saved = []
 
-        # Always save geometry to ~/.aihydro/sessions/<gauge_id>.geojson so the
+        # Always save geometry to ~/.aihydro/sessions/<session_id>.geojson so the
         # path is stable and independent of workspace_dir. This keeps the session
-        # JSON lean (stores a path, not 200-800KB of coordinates).
+        # JSON lean (stores a path, not 200-800 KB of coordinates).
         from ai_hydro.session.store import _SESSIONS_DIR
-        sessions_geojson = _SESSIONS_DIR / f"{gauge_id}.geojson"
+        sessions_geojson = _SESSIONS_DIR / f"{session_id}.geojson"
         _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
         with open(sessions_geojson, "w") as _f:
             json.dump(geojson, _f)
@@ -193,12 +261,22 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
             **{k: v for k, v in d["data"].items() if k != "geometry_geojson"},
             "geometry_geojson_path": str(sessions_geojson),
         }
-        _session_store(gauge_id, "watershed", d_lean)
+        _session_store(session_id, "watershed", d_lean)
+
+        # Persist gauge metadata in session so downstream tools don't need gauge_id
+        from ai_hydro.session import HydroSession
+        _sess_upd = HydroSession.load(session_id)
+        if not _sess_upd.site_id:
+            _sess_upd.site_id = resolved_gauge_id
+            _sess_upd.site_type = "usgs_gauge"
+            _sess_upd.save()
 
         # Also write to workspace for user-visible copy
         ws = session.workspace_dir or workspace_dir
         if ws:
-            saved = _workspace_write(gauge_id, f"watershed_{gauge_id}.geojson", geojson)
+            saved = _workspace_write(
+                session_id, f"watershed_{resolved_gauge_id}.geojson", geojson
+            )
             if saved:
                 files_saved.append(saved)
             # Watershed boundary map PNG
@@ -209,7 +287,7 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
                 gauge_lon=d["data"].get("gauge_lon", 0.0),
                 gauge_name=d["data"].get("gauge_name", ""),
                 output_dir=ws,
-                gauge_id=gauge_id,
+                gauge_id=resolved_gauge_id,
             )
             if png:
                 files_saved.append(png)
@@ -220,9 +298,12 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
             "data": compact,
             "meta": d.get("meta", {}),
             "_files_saved": files_saved,
-            "_note": "geometry_geojson saved to file (not in session JSON). "
-                     "Downstream tools (signatures, geomorphic, twi, forcing) "
-                     "load it automatically — no need to pass it manually.",
+            "_note": (
+                f"geometry_geojson saved to file (not in session JSON). "
+                f"gauge_id '{resolved_gauge_id}' stored in session.site_id. "
+                "Downstream tools (signatures, geomorphic, twi, forcing) "
+                "load it automatically — no need to pass gauge_id again."
+            ),
         }
     except Exception as e:
         log.error("delineate_watershed failed: %s", e)
@@ -235,9 +316,10 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
 
 @mcp.tool()
 def fetch_streamflow_data(
-    gauge_id: str,
-    start_date: str,
-    end_date: str,
+    session_id: str,
+    gauge_id: str | None = None,
+    start_date: str = "",
+    end_date: str = "",
     interval: str = "daily",
 ) -> dict:
     """
@@ -248,8 +330,12 @@ def fetch_streamflow_data(
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID, e.g. '01031500'
+    session_id : str
+        Research session identifier. Must match the session used in
+        delineate_watershed so results are co-located.
+    gauge_id : str, optional
+        8-digit USGS station number, e.g. '01031500'. Resolved automatically
+        from session.site_id if omitted (set by delineate_watershed).
     start_date : str
         Start date in YYYY-MM-DD format
     end_date : str
@@ -269,13 +355,17 @@ def fetch_streamflow_data(
 
     Examples
     --------
+    >>> fetch_streamflow_data('piscataquis-2020', gauge_id='01031500',
+    ...                       start_date='2000-01-01', end_date='2020-12-31')
     >>> fetch_streamflow_data('01031500', '2000-01-01', '2020-12-31')
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
-        # Cache-hit check — same gauge + date range + interval already computed
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession as _HS
-        session = _HS.load(gauge_id)
+        session = _HS.load(session_id)
+        resolved_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
+
+        # Cache-hit check — same gauge + date range + interval already computed
         if session.streamflow is not None:
             cached_params = session.streamflow.get("meta", {}).get("params", {})
             if (cached_params.get("start_date") == start_date
@@ -288,15 +378,30 @@ def fetch_streamflow_data(
                     "_cached": True,
                     "_note": "Streamflow already cached. Full time series on disk.",
                 }
+
         from ai_hydro.data.streamflow import fetch_streamflow_data as _fn
-        result = _fn(gauge_id=gauge_id, start_date=start_date,
-                     end_date=end_date, interval=interval)
+        result = _fn(
+            gauge_id=resolved_gauge_id,
+            start_date=start_date,
+            end_date=end_date,
+            interval=interval,
+        )
         d = _result_to_dict(result)
-        _session_store(gauge_id, "streamflow", d)
+        _session_store(session_id, "streamflow", d)
+
+        # Persist gauge metadata if not already set
+        if not session.site_id:
+            session.site_id = resolved_gauge_id
+            session.site_type = "usgs_gauge"
+            session.save()
+
         files_saved: list[str] = []
-        saved = _workspace_write(gauge_id, f"streamflow_{gauge_id}.json", d["data"])
+        saved = _workspace_write(
+            session_id, f"streamflow_{resolved_gauge_id}.json", d["data"]
+        )
         if saved:
             files_saved.append(saved)
+
         # Strip raw arrays from response — saved to disk, not needed in context
         data = d["data"]
         q_vals = data.get("q_cms", [])
@@ -308,6 +413,7 @@ def fetch_streamflow_data(
                 compact["q_max_cms"] = round(max(valid), 4)
                 compact["q_min_cms"] = round(min(valid), 4)
                 compact["n_missing"] = len(q_vals) - len(valid)
+
         # Hydrograph PNG
         ws = session.workspace_dir
         if ws and data.get("dates") and q_vals:
@@ -316,11 +422,12 @@ def fetch_streamflow_data(
                 dates=data["dates"],
                 q_cms=q_vals,
                 gauge_name=data.get("gauge_name", ""),
-                gauge_id=gauge_id,
+                gauge_id=resolved_gauge_id,
                 output_dir=ws,
             )
             if png:
                 files_saved.append(png)
+
         return {
             "data": compact,
             "meta": d.get("meta", {}),
@@ -341,24 +448,26 @@ def fetch_streamflow_data(
 
 @mcp.tool()
 def extract_hydrological_signatures(
-    gauge_id: str,
+    session_id: str,
     start_date: str = "1989-10-01",
     end_date: str = "2009-09-30",
 ) -> dict:
     """
-    Extract 17 CAMELS-style hydrological signatures for a USGS gauge.
+    Extract 17 CAMELS-style hydrological signatures from a session's streamflow.
 
     Computes flow statistics, baseflow index, runoff ratio, streamflow
     elasticity, high/low flow event characteristics, flow timing, and
     flow duration curve slope — all following CAMELS methodology.
 
     Watershed geometry and area are loaded automatically from the session
-    (set by delineate_watershed). No need to pass geometry.
+    (set by delineate_watershed). For USGS gauges the USGS station number
+    is resolved from session.site_id.
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID. delineate_watershed must have been called first.
+    session_id : str
+        Research session identifier. delineate_watershed must have been
+        called for this session first.
     start_date : str
         Analysis start date (default: CAMELS period 1989-10-01)
     end_date : str
@@ -374,28 +483,33 @@ def extract_hydrological_signatures(
 
     Examples
     --------
-    >>> extract_hydrological_signatures('01031500')
+    >>> extract_hydrological_signatures('piscataquis-2020')
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
         if session.signatures is not None:
             return _cached_response("signatures", session)
-        watershed_geojson = _get_session_geometry(gauge_id)
+        watershed_geojson = _get_session_geometry(session_id)
         area_km2 = session.watershed["data"]["area_km2"]
+        # The underlying function fetches streamflow from USGS NWIS if not cached;
+        # resolve gauge_id from session.site_id for USGS gauges.
+        usgs_gauge_id = session.site_id or session_id
         from ai_hydro.analysis.signatures import extract_hydrological_signatures as _fn
         result = _fn(
-            gauge_id=gauge_id,
+            gauge_id=usgs_gauge_id,
             watershed_geojson=watershed_geojson,
             area_km2=area_km2,
             start_date=start_date,
             end_date=end_date,
         )
         d = _result_to_dict(result)
-        _session_store(gauge_id, "signatures", d)
+        _session_store(session_id, "signatures", d)
         files_saved: list[str] = []
-        saved = _workspace_write(gauge_id, f"signatures_{gauge_id}.json", d["data"])
+        saved = _workspace_write(
+            session_id, f"signatures_{session_id}.json", d["data"]
+        )
         if saved:
             files_saved.append(saved)
         # FDC + signature summary PNG — needs q_cms from the streamflow slot
@@ -407,7 +521,7 @@ def extract_hydrological_signatures(
                 png = plot_flow_duration_curve(
                     q_cms=q_vals,
                     signatures=d["data"],
-                    gauge_id=gauge_id,
+                    gauge_id=session_id,
                     output_dir=ws,
                 )
                 if png:
@@ -425,7 +539,7 @@ def extract_hydrological_signatures(
 
 @mcp.tool()
 def extract_geomorphic_parameters(
-    gauge_id: str,
+    session_id: str,
     dem_resolution: int = 30,
 ) -> dict:
     """
@@ -439,8 +553,9 @@ def extract_geomorphic_parameters(
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID. delineate_watershed must have been called first.
+    session_id : str
+        Research session identifier. delineate_watershed must have been
+        called for this session first.
     dem_resolution : int
         DEM resolution in meters (default: 30)
 
@@ -454,15 +569,15 @@ def extract_geomorphic_parameters(
 
     Examples
     --------
-    >>> extract_geomorphic_parameters('01031500')
+    >>> extract_geomorphic_parameters('piscataquis-2020')
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
         if session.geomorphic is not None:
             return _cached_response("geomorphic", session)
-        watershed_geojson = _get_session_geometry(gauge_id)
+        watershed_geojson = _get_session_geometry(session_id)
         ws_data = session.watershed["data"]
         outlet_lat = ws_data["gauge_lat"]
         outlet_lon = ws_data["gauge_lon"]
@@ -474,8 +589,10 @@ def extract_geomorphic_parameters(
             dem_resolution=dem_resolution,
         )
         d = _result_to_dict(result)
-        _session_store(gauge_id, "geomorphic", d)
-        saved = _workspace_write(gauge_id, f"geomorphic_{gauge_id}.json", d["data"])
+        _session_store(session_id, "geomorphic", d)
+        saved = _workspace_write(
+            session_id, f"geomorphic_{session_id}.json", d["data"]
+        )
         if saved:
             d["_file_saved"] = saved
         return d
@@ -490,7 +607,7 @@ def extract_geomorphic_parameters(
 
 @mcp.tool()
 async def compute_twi(
-    gauge_id: str,
+    session_id: str,
     resolution: int = 30,
     create_map: bool = True,
     ctx: Context | None = None,
@@ -506,15 +623,16 @@ async def compute_twi(
     delineate_watershed). No geometry needed.
 
     When workspace_dir is set (via delineate_watershed), saves:
-    - twi_<gauge_id>.json          — statistics
-    - twi_<gauge_id>.tif           — GeoTIFF raster (if create_map=True)
-    - twi_<gauge_id>_map.png       — static map (if create_map=True)
-    - twi_<gauge_id>_map.html      — interactive Leaflet map (if create_map=True)
+    - twi_<session_id>.json          — statistics
+    - twi_<session_id>.tif           — GeoTIFF raster (if create_map=True)
+    - twi_<session_id>_map.png       — static map (if create_map=True)
+    - twi_<session_id>_map.html      — interactive Leaflet map (if create_map=True)
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID. delineate_watershed must have been called first.
+    session_id : str
+        Research session identifier. delineate_watershed must have been
+        called for this session first.
     resolution : int
         DEM resolution in meters (default: 30)
     create_map : bool
@@ -530,16 +648,16 @@ async def compute_twi(
 
     Examples
     --------
-    >>> compute_twi('01031500')              # statistics + maps
-    >>> compute_twi('01031500', create_map=False)  # statistics only
+    >>> compute_twi('piscataquis-2020')
+    >>> compute_twi('piscataquis-2020', create_map=False)
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
         if session.twi is not None:
             return _cached_response("twi", session)
-        watershed_geojson = _get_session_geometry(gauge_id)
+        watershed_geojson = _get_session_geometry(session_id)
         workspace = session.workspace_dir
         viz_failed: str | None = None
 
@@ -549,39 +667,40 @@ async def compute_twi(
         # Try full visualization path if workspace is known and create_map requested
         if create_map and workspace:
             try:
-                # Convert GeoJSON dict -> Shapely geometry (compute_twi expects shapely/GDF)
                 from shapely.geometry import shape as _shape
                 watershed_shapely = _shape(watershed_geojson)
                 from ai_hydro.analysis.twi import compute_twi as _fn_full
 
-                # Run CPU-bound computation in a thread to keep event loop alive
                 result = await asyncio.to_thread(
                     _fn_full,
                     watershed_shapely,
                     resolution=resolution,
                     save_outputs=True,
                     output_dir=workspace,
-                    output_prefix=f"twi_{gauge_id}",
+                    output_prefix=f"twi_{session_id}",
                     create_visualizations=True,
                 )
 
                 if ctx:
                     await ctx.report_progress(progress=10, total=10)
 
-                # Use files_saved list built by compute_twi()
                 files = result.get("files_saved", [])
-                # Strip large arrays (numpy) but keep scalar stats + files_saved
                 _EXCLUDE = {"twi_array", "well_drained_mask", "moderate_mask", "saturated_mask"}
                 stats = {k: v for k, v in result.items() if k not in _EXCLUDE}
-                d = {"data": {**stats, "files_saved": files},
-                     "meta": {"tool": "ai_hydro.analysis.twi.compute_twi",
-                               "params": {"resolution": resolution,
-                                          "create_map": create_map}}}
-                _session_store(gauge_id, "twi", d)
+                d = {
+                    "data": {**stats, "files_saved": files},
+                    "meta": {
+                        "tool": "ai_hydro.analysis.twi.compute_twi",
+                        "params": {"resolution": resolution, "create_map": create_map},
+                    },
+                }
+                _session_store(session_id, "twi", d)
                 d["_files_saved"] = files
                 return d
             except Exception as viz_err:
-                log.warning("TWI full computation failed, falling back to stats only: %s", viz_err)
+                log.warning(
+                    "TWI full computation failed, falling back to stats only: %s", viz_err
+                )
                 viz_failed = str(viz_err)
 
         # Fallback: statistics only (workspace missing, create_map=False,
@@ -591,14 +710,14 @@ async def compute_twi(
             _fn, watershed_geojson=watershed_geojson, resolution=resolution
         )
         d = _result_to_dict(result)
-        _session_store(gauge_id, "twi", d)
-        saved = _workspace_write(gauge_id, f"twi_{gauge_id}.json", d["data"])
+        _session_store(session_id, "twi", d)
+        saved = _workspace_write(session_id, f"twi_{session_id}.json", d["data"])
         if saved:
             d["_file_saved"] = saved
         if not workspace:
             d["_note"] = (
                 "No workspace directory set — statistics only, no map files saved. "
-                "Call delineate_watershed(gauge_id, workspace_dir=<path>) to enable file output."
+                "Call delineate_watershed(session_id, workspace_dir=<path>) to enable file output."
             )
         elif viz_failed:
             d["_visualization_warning"] = (
@@ -621,7 +740,7 @@ async def compute_twi(
 
 @mcp.tool()
 async def create_cn_grid(
-    gauge_id: str,
+    session_id: str,
     year: int = 2019,
     resolution: int = 30,
     create_map: bool = True,
@@ -630,15 +749,27 @@ async def create_cn_grid(
     """Create an NRCS Curve Number grid for the watershed.
 
     Combines NLCD land cover with Polaris soil properties to produce
-    a spatially distributed CN grid.  Requires watershed to be delineated
+    a spatially distributed CN grid. Requires watershed to be delineated
     first (run delineate_watershed).
 
     Returns CN statistics, zone percentages, LULC + soil breakdowns,
     and saves GeoTIFF / NetCDF / PNG / HTML to the workspace.
+
+    Parameters
+    ----------
+    session_id : str
+        Research session identifier. delineate_watershed must have been
+        called for this session first.
+    year : int
+        NLCD land cover year (default: 2019)
+    resolution : int
+        Grid resolution in meters (default: 30)
+    create_map : bool
+        Generate PNG + interactive HTML map (default: True)
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
-        session = _ensure_session(gauge_id)
+        session_id = _normalize_session_id(session_id)
+        session = _ensure_session(session_id)
 
         # Cache hit
         if session.cn is not None:
@@ -650,8 +781,7 @@ async def create_cn_grid(
                 "_workspace_dir": session.workspace_dir,
             }
 
-        # Need watershed geometry
-        watershed_geojson = _get_session_geometry(gauge_id)
+        watershed_geojson = _get_session_geometry(session_id)
         workspace = session.workspace_dir or str(Path.home() / ".aihydro" / "cache")
 
         if ctx:
@@ -663,7 +793,7 @@ async def create_cn_grid(
         )
 
         watershed_shapely = _shape(watershed_geojson)
-        output_dir = str(Path(workspace) / f"cn_grid_{gauge_id}")
+        output_dir = str(Path(workspace) / f"cn_grid_{session_id}")
 
         result = await asyncio.to_thread(
             _fn,
@@ -673,13 +803,12 @@ async def create_cn_grid(
             save_outputs=True,
             output_dir=output_dir,
             create_visualizations=create_map,
-            output_prefix=f"cn_{gauge_id}",
+            output_prefix=f"cn_{session_id}",
         )
 
         if ctx:
             await ctx.report_progress(progress=7, total=7)
 
-        # Filter: exclude xarray DataArray, GeoDataFrame, shapely geom, matplotlib figure
         stats = result.get("statistics", {})
         zones = result.get("cn_zones", {})
         lulc = result.get("lulc_stats", {})
@@ -703,7 +832,7 @@ async def create_cn_grid(
                 "params": {"year": year, "resolution": resolution, "create_map": create_map},
             },
         }
-        _session_store(gauge_id, "cn", d)
+        _session_store(session_id, "cn", d)
         d["_files_saved"] = list(file_paths.values())
         return d
 
@@ -718,14 +847,14 @@ async def create_cn_grid(
 
 @mcp.tool()
 async def fetch_forcing_data(
-    gauge_id: str,
+    session_id: str,
     start_date: str,
     end_date: str,
     variables: list[str] | None = None,
     ctx: Context | None = None,
 ) -> dict:
     """
-    Fetch basin-averaged daily forcing data from GridMET.
+    Fetch basin-averaged daily forcing data from GridMET (CONUS only).
 
     Retrieves precipitation, temperature, wind, humidity, and solar
     radiation for a watershed. Essential for hydrological modelling input.
@@ -735,8 +864,9 @@ async def fetch_forcing_data(
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID. delineate_watershed must have been called first.
+    session_id : str
+        Research session identifier. delineate_watershed must have been
+        called for this session first.
     start_date : str
         Start date YYYY-MM-DD
     end_date : str
@@ -755,13 +885,14 @@ async def fetch_forcing_data(
 
     Examples
     --------
-    >>> fetch_forcing_data('01031500', '2000-01-01', '2010-12-31')
+    >>> fetch_forcing_data('piscataquis-2020', '2000-01-01', '2010-12-31')
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
-        # Cache-hit check — same gauge + date range already computed
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession as _HS2
-        session = _HS2.load(gauge_id)
+        session = _HS2.load(session_id)
+
+        # Cache-hit check — same session + date range already computed
         if session.forcing is not None:
             cached_params = session.forcing.get("meta", {}).get("params", {})
             if (cached_params.get("start_date") == start_date
@@ -773,13 +904,13 @@ async def fetch_forcing_data(
                     "_cached": True,
                     "_note": "Forcing data already cached. Full daily arrays on disk.",
                 }
-        watershed_geojson = _get_session_geometry(gauge_id)
+
+        watershed_geojson = _get_session_geometry(session_id)
         from ai_hydro.data.forcing import fetch_forcing_data_result as _fn
 
         if ctx:
             await ctx.report_progress(progress=0, total=2)
 
-        # Run the network-bound GridMET download in a thread
         result = await asyncio.to_thread(
             _fn,
             watershed_geojson=watershed_geojson,
@@ -792,9 +923,8 @@ async def fetch_forcing_data(
             await ctx.report_progress(progress=2, total=2)
 
         d = _result_to_dict(result)
-        _session_store(gauge_id, "forcing", d)
-        saved = _workspace_write(gauge_id, f"forcing_{gauge_id}.json", d["data"])
-        # Strip large daily arrays — saved to disk, not needed in context
+        _session_store(session_id, "forcing", d)
+        saved = _workspace_write(session_id, f"forcing_{session_id}.json", d["data"])
         compact = _strip_forcing_arrays(d["data"])
         return {
             "data": compact,
@@ -816,7 +946,10 @@ async def fetch_forcing_data(
 # ============================================================================
 
 @mcp.tool()
-def extract_camels_attributes(gauge_id: str) -> dict:
+def extract_camels_attributes(
+    session_id: str,
+    gauge_id: str | None = None,
+) -> dict:
     """
     Extract 60+ CAMELS-style catchment attributes for a USGS gauge.
 
@@ -826,8 +959,13 @@ def extract_camels_attributes(gauge_id: str) -> dict:
 
     Parameters
     ----------
-    gauge_id : str
-        8-digit USGS gauge ID, e.g. '01031500'
+    session_id : str
+        Research session identifier. The USGS gauge ID is resolved from
+        session.site_id (set by delineate_watershed) unless gauge_id is
+        supplied explicitly.
+    gauge_id : str, optional
+        8-digit USGS station number, e.g. '01031500'. Resolved from
+        session.site_id if omitted.
 
     Returns
     -------
@@ -841,8 +979,8 @@ def extract_camels_attributes(gauge_id: str) -> dict:
 
     Examples
     --------
-    >>> extract_camels_attributes('01031500')
-    >>> extract_camels_attributes('09380000')  # Colorado River
+    >>> extract_camels_attributes('piscataquis-2020')
+    >>> extract_camels_attributes('01031500')  # gauge ID as session_id
 
     Notes
     -----
@@ -862,24 +1000,27 @@ def extract_camels_attributes(gauge_id: str) -> dict:
         }
 
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession as _HS3
-        _sess = _HS3.load(gauge_id)
-        if _sess.camels is not None:
-            return _cached_response("camels", _sess)
+        session = _HS3.load(session_id)
+        resolved_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
+
+        if session.camels is not None:
+            return _cached_response("camels", session)
+
         from ai_hydro.core import HydroResult, HydroMeta, DataSource
         from ai_hydro.mcp.tools_docs import _get_camels_attrs_version
 
         # Run in isolated subprocess — extract_all() can crash the process
         # on some environments; a child crash won't kill the MCP server.
-        clean = _run_camels_extractor_subprocess(gauge_id)
+        clean = _run_camels_extractor_subprocess(resolved_gauge_id)
 
         result = HydroResult(
             data=clean,
             meta=HydroMeta(
                 tool="camels_attrs.CamelsExtractor.extract_all",
                 version=_get_camels_attrs_version(),
-                gauge_id=gauge_id,
+                gauge_id=resolved_gauge_id,
                 sources=[
                     DataSource(
                         name="USGS NLDI / NWIS / GridMET / STATSGO / MODIS / GLHYMPS",
@@ -896,12 +1037,14 @@ def extract_camels_attributes(gauge_id: str) -> dict:
                         ),
                     )
                 ],
-                params={"gauge_id": gauge_id},
+                params={"gauge_id": resolved_gauge_id},
             ),
         )
         d = _result_to_dict(result)
-        _session_store(gauge_id, "camels", d)
-        saved = _workspace_write(gauge_id, f"camels_{gauge_id}.json", d["data"])
+        _session_store(session_id, "camels", d)
+        saved = _workspace_write(
+            session_id, f"camels_{resolved_gauge_id}.json", d["data"]
+        )
         if saved:
             d["_file_saved"] = saved
         return d

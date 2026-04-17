@@ -4,10 +4,10 @@ Project, Literature, and Researcher Profile MCP tools (v1.2).
 10 tools across three groups:
 
 PROJECT MANAGEMENT (4)
-  start_project          — create / resume a named research project
-  get_project_summary    — overview of all gauges, journal, literature
-  add_gauge_to_project   — associate a gauge session with a project
-  search_experiments     — full-text search across all gauge sessions
+  start_project            — create / resume a named research project
+  get_project_summary      — overview of all sessions, journal, literature
+  add_session_to_project   — associate any research session with a project
+  search_experiments       — full-text search across all project sessions
 
 LITERATURE (3)
   index_literature       — scan a folder of papers → build searchable index
@@ -130,7 +130,7 @@ def get_project_summary(project_name: str) -> dict:
 
         project = ProjectSession.load(project_name)
         summary = project.summary()
-        summary["gauge_summaries"] = project.gauge_summaries()
+        summary["session_summaries"] = project.session_summaries()
         summary["recent_journal"] = project.journal[-5:] if project.journal else []
         summary["notes"] = project.notes
 
@@ -152,44 +152,46 @@ def get_project_summary(project_name: str) -> dict:
 
 
 @mcp.tool()
-def add_gauge_to_project(project_name: str, gauge_id: str) -> dict:
+def add_session_to_project(project_name: str, session_id: str) -> dict:
     """
-    Associate a USGS gauge session with a project.
+    Associate a research session with a project.
 
-    This creates the link between a project and an existing (or future) gauge
-    session. The gauge session does not need to exist yet — you can pre-register
-    gauges you plan to study.
+    This creates the link between a project and an existing (or future)
+    research session. The session does not need to exist yet — you can
+    pre-register sessions you plan to study. Sessions can represent any
+    research context: USGS gauges, GRDC stations, ungauged basins, or any
+    other hydrological study.
 
     Parameters
     ----------
     project_name : str
         Project name as given to start_project.
-    gauge_id : str
-        8-digit USGS gauge ID, e.g. '01109000'.
+    session_id : str
+        Research session identifier (any string — slug, gauge ID, UUID).
 
     Returns
     -------
-    dict with updated project gauge list.
+    dict with updated project session list.
     """
     try:
         from ai_hydro.session.project import ProjectSession
 
         project = ProjectSession.load(project_name)
-        added = project.add_gauge(gauge_id)
+        added = project.add_session(session_id)
         project.save()
 
         return {
             "project": project_name,
-            "gauge_id": gauge_id,
+            "session_id": session_id,
             "added": added,
-            "all_gauges": project.gauge_ids,
+            "all_sessions": project.session_ids,
             "message": (
-                f"Gauge {gauge_id} {'added to' if added else 'already in'} "
+                f"Session '{session_id}' {'added to' if added else 'already in'} "
                 f"project '{project_name}'."
             ),
         }
     except Exception as e:
-        log.error("add_gauge_to_project failed: %s", e)
+        log.error("add_session_to_project failed: %s", e)
         return _tool_error_to_dict(e)
 
 
@@ -197,7 +199,7 @@ def add_gauge_to_project(project_name: str, gauge_id: str) -> dict:
 def search_experiments(
     project_name: str,
     query: str,
-    compare_gauges: bool = False,
+    compare_sessions: bool = False,
 ) -> dict:
     """
     Search across all gauge sessions in a project.
@@ -217,7 +219,7 @@ def search_experiments(
         Project name.
     query : str
         Search term to match against stored results (case-insensitive).
-    compare_gauges : bool, optional
+    compare_sessions : bool, optional
         If True, include a side-by-side comparison table. Default False.
 
     Returns
@@ -236,13 +238,13 @@ def search_experiments(
         result: dict = {
             "project": project_name,
             "query": query,
-            "n_gauges_searched": len(project.gauge_ids),
+            "n_sessions_searched": len(project.session_ids),
             "n_matches": len(matches),
             "matches": matches,
         }
 
-        if compare_gauges:
-            result["comparison"] = project.compare_gauges()
+        if compare_sessions:
+            result["comparison"] = project.compare_sessions()
 
         return result
     except Exception as e:

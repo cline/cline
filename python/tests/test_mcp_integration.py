@@ -48,7 +48,7 @@ class TestToolRegistration:
         "get_model_results",
         # Project management (5)
         "start_project",
-        "add_gauge_to_project",
+        "add_session_to_project",
         "get_project_summary",
         "add_journal_entry",
         "search_experiments",
@@ -110,22 +110,33 @@ class TestToolRegistration:
 class TestHelpers:
     """Test shared MCP helper functions."""
 
-    def test_validate_gauge_id_pads_short(self):
-        from ai_hydro.mcp.helpers import _validate_gauge_id
-        assert _validate_gauge_id("1031500") == "01031500"
+    def test_validate_usgs_gauge_id_pads_short(self):
+        from ai_hydro.mcp.helpers import _validate_usgs_gauge_id
+        assert _validate_usgs_gauge_id("1031500") == "01031500"
 
-    def test_validate_gauge_id_accepts_8_digit(self):
-        from ai_hydro.mcp.helpers import _validate_gauge_id
-        assert _validate_gauge_id("01031500") == "01031500"
+    def test_validate_usgs_gauge_id_accepts_8_digit(self):
+        from ai_hydro.mcp.helpers import _validate_usgs_gauge_id
+        assert _validate_usgs_gauge_id("01031500") == "01031500"
 
-    def test_validate_gauge_id_rejects_alpha(self):
-        from ai_hydro.mcp.helpers import _validate_gauge_id
-        with pytest.raises(ValueError, match="Invalid gauge_id"):
-            _validate_gauge_id("abc12345")
+    def test_validate_usgs_gauge_id_rejects_alpha(self):
+        from ai_hydro.mcp.helpers import _validate_usgs_gauge_id
+        with pytest.raises(ValueError, match="Invalid USGS gauge_id"):
+            _validate_usgs_gauge_id("abc12345")
 
-    def test_validate_gauge_id_strips_whitespace(self):
-        from ai_hydro.mcp.helpers import _validate_gauge_id
-        assert _validate_gauge_id("  01031500  ") == "01031500"
+    def test_validate_usgs_gauge_id_strips_whitespace(self):
+        from ai_hydro.mcp.helpers import _validate_usgs_gauge_id
+        assert _validate_usgs_gauge_id("  01031500  ") == "01031500"
+
+    def test_normalize_session_id_accepts_any_string(self):
+        from ai_hydro.mcp.helpers import _normalize_session_id
+        assert _normalize_session_id("piscataquis-2020") == "piscataquis-2020"
+        assert _normalize_session_id("01031500") == "01031500"
+
+    def test_normalize_session_id_auto_generates(self):
+        from ai_hydro.mcp.helpers import _normalize_session_id
+        result = _normalize_session_id(None)
+        assert result.startswith("hydro-")
+        assert len(result) == len("hydro-") + 8
 
     def test_result_to_dict_passthrough(self):
         from ai_hydro.mcp.helpers import _result_to_dict
@@ -182,18 +193,18 @@ class TestSessionWiring:
     """Test that session load/store/ensure helpers work correctly."""
 
     def test_ensure_session_creates_new(self, tmp_path):
-        """_ensure_session should create a new session for unknown gauge."""
+        """_ensure_session should create a new session for an unknown session_id."""
         from ai_hydro.mcp.helpers import _ensure_session
         with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path):
-            session = _ensure_session("99999999")
-            assert session.gauge_id == "99999999"
+            session = _ensure_session("my-research-session")
+            assert session.session_id == "my-research-session"
 
     def test_ensure_session_sets_workspace(self, tmp_path):
         """_ensure_session should store workspace_dir on first call."""
         from ai_hydro.mcp.helpers import _ensure_session
         ws = str(tmp_path / "workspace")
         with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path):
-            session = _ensure_session("99999999", workspace_dir=ws)
+            session = _ensure_session("my-research-session", workspace_dir=ws)
             assert session.workspace_dir == ws
 
     def test_session_store_caches_result(self, tmp_path):
@@ -233,12 +244,12 @@ class TestToolSmoke:
     """Smoke-test individual tools with mocked backends."""
 
     def test_start_session_creates_session(self, tmp_path):
-        """start_session should return a summary dict."""
+        """start_session should return a summary dict with session_id."""
         from ai_hydro.mcp.tools_session import start_session
         with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
              patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
-            result = start_session("01031500")
-            assert result["gauge_id"] == "01031500"
+            result = start_session("piscataquis-2020")
+            assert result["session_id"] == "piscataquis-2020"
             assert "computed" in result
             assert "pending" in result
 
@@ -305,18 +316,21 @@ class TestToolSmoke:
             result = get_model_results("01031500")
             assert result["model_trained"] is False
 
-    def test_delineate_watershed_invalid_gauge(self):
-        """delineate_watershed with invalid gauge should return error."""
+    def test_delineate_watershed_invalid_gauge(self, tmp_path):
+        """delineate_watershed with invalid USGS gauge_id should return error."""
         from ai_hydro.mcp.tools_analysis import delineate_watershed
-        result = delineate_watershed("not_a_gauge")
-        assert result["error"] is True
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            # Pass an invalid USGS gauge_id — session_id is fine, gauge_id is not
+            result = delineate_watershed("my-test-session", gauge_id="not_a_gauge")
+            assert result["error"] is True
 
     def test_start_session_exposes_mcp_python(self, tmp_path):
         """start_session should return mcp_python, mcp_pip, available_packages."""
         from ai_hydro.mcp.tools_session import start_session
         with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
              patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
-            result = start_session("01031500")
+            result = start_session("piscataquis-2020")
             assert "mcp_python" in result
             assert result["mcp_python"].endswith("python") or "python" in result["mcp_python"]
             assert "mcp_pip" in result

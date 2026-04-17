@@ -12,8 +12,8 @@ from pathlib import Path
 
 from ai_hydro.mcp.app import mcp, Context
 from ai_hydro.mcp.helpers import (
+    _normalize_session_id,
     _tool_error_to_dict,
-    _validate_gauge_id,
 )
 
 log = logging.getLogger("ai_hydro.mcp")
@@ -21,7 +21,7 @@ log = logging.getLogger("ai_hydro.mcp")
 
 @mcp.tool()
 async def train_hydro_model(
-    gauge_id: str,
+    session_id: str,
     framework: str = "hbv",
     model: str = "cudalstm",
     train_start: str = "2000-10-01",
@@ -41,10 +41,13 @@ async def train_hydro_model(
 
     Requires the session to have cached: watershed, forcing.
     Streamflow is fetched automatically from CAMELS (35-year record) for
-    the 671 CONUS CAMELS gauges, or from the session cache otherwise.
+    the 671 CONUS CAMELS gauges (requires session.site_id to be set),
+    or from the session streamflow cache otherwise.
 
     Parameters
     ----------
+    session_id : str
+        Research session identifier. Must have watershed and forcing cached.
     framework : str
         'hbv'             — differentiable HBV-light (built-in, recommended).
                             Pure PyTorch, no extra install. 12 calibrated
@@ -68,9 +71,9 @@ async def train_hydro_model(
     NSE > 0.75 = excellent  |  0.5-0.75 = satisfactory  |  < 0.5 = poor
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
 
         # For HBV, only watershed + forcing are strictly required
         # (streamflow is pulled from CAMELS automatically)
@@ -105,11 +108,16 @@ async def train_hydro_model(
         if ctx:
             await ctx.report_progress(progress=0, total=2)
 
+        # Resolve the USGS gauge ID for CAMELS streamflow fetching —
+        # use session.site_id if set (e.g. USGS gauge), fall back to session_id
+        # (the underlying functions use this for CAMELS lookup).
+        usgs_gauge_id = session.site_id or session_id
+
         if fw in ("hbv", "hbvlight", "differentiable", "hydrodl2"):
             from ai_hydro.modelling.conceptual.hbv import train_hbv_light
             result = await asyncio.to_thread(
                 train_hbv_light,
-                gauge_id=gauge_id,
+                gauge_id=usgs_gauge_id,
                 session=session,
                 output_dir=output_dir,
                 train_start=train_start,
@@ -124,7 +132,7 @@ async def train_hydro_model(
             from ai_hydro.modelling.neural.lstm import train_neural_hydrology
             result = await asyncio.to_thread(
                 train_neural_hydrology,
-                gauge_id=gauge_id,
+                gauge_id=usgs_gauge_id,
                 session=session,
                 output_dir=output_dir,
                 model=model,
@@ -188,28 +196,33 @@ async def train_hydro_model(
 
 
 @mcp.tool()
-def get_model_results(gauge_id: str) -> dict:
+def get_model_results(session_id: str) -> dict:
     """
-    Return the cached model training results for a gauge.
+    Return the cached model training results for a session.
 
     If no model has been trained, returns a clear message with instructions.
     Use train_hydro_model to train a model first.
+
+    Parameters
+    ----------
+    session_id : str
+        Research session identifier.
 
     Returns
     -------
     dict with framework, model_type, nse, kge, rmse, model_dir, and metadata.
     """
     try:
-        gauge_id = _validate_gauge_id(gauge_id)
+        session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession
-        session = HydroSession.load(gauge_id)
+        session = HydroSession.load(session_id)
 
         if session.model is None:
             return {
                 "error": False,
                 "model_trained": False,
                 "message": (
-                    f"No model trained yet for gauge {gauge_id}. "
+                    f"No model trained yet for session '{session_id}'. "
                     "Call train_hydro_model to train one."
                 ),
                 "prerequisite_status": {

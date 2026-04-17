@@ -2,10 +2,17 @@
 AI-Hydro Research Session (HydroSession)
 ==========================================
 
-Persistent research state across MCP tool calls in a single session.
-Eliminates redundant API calls by caching results per gauge.
+Persistent research state across MCP tool calls.
 
-Storage: ~/.aihydro/sessions/<gauge_id>.json
+The primary key is ``session_id`` — any string the researcher or LLM chooses.
+It can be a slug ("piscataquis-snowmelt-2020"), a UUID, a USGS gauge number
+used as a shorthand ("01031500"), or anything else meaningful to the study.
+
+``site_id`` and ``site_type`` are optional metadata describing the data source
+(e.g., a USGS gauge number, GRDC station, DEM tile). They are NOT the session
+identity — the session identity is ``session_id``.
+
+Storage: ~/.aihydro/sessions/<session_id>.json
 
 Dynamic slots
 -------------
@@ -22,14 +29,10 @@ from pathlib import Path
 from typing import Any
 
 _SESSIONS_DIR = Path.home() / ".aihydro" / "sessions"
-# Fallback rules dir when session has no workspace_dir set.
-# In monorepo dev: store.py is 4 levels deep → repo root is the VS Code workspace.
-# In installed (PyPI) use: workspace_dir on the session is the correct target.
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _RULES_DIR_NAME = ".aihydrorules"
 
 # Common slot names corresponding to built-in MCP tools.
-# Plugins may add more — these are just the well-known ones.
 _COMMON_SLOTS = (
     "watershed",
     "streamflow",
@@ -44,32 +47,48 @@ _COMMON_SLOTS = (
 
 
 class HydroSession:
-    """Persistent research state for a single USGS gauge across tool calls."""
+    """Persistent research state for a single study across tool calls."""
 
-    def __init__(self, gauge_id: str) -> None:
-        self.gauge_id: str = gauge_id
-        self.site_name: str = ""            # LLM-generated or user-set display name
-        self.workspace_dir: str | None = None   # VS Code workspace path
+    def __init__(self, session_id: str) -> None:
+        self.session_id: str = session_id
+        # Display name — LLM-generated slug describing the research
+        # e.g. "piscataquis-snowmelt-signatures-2000-2020"
+        self.site_name: str = ""
+        # Data source identifier — e.g. USGS gauge "01031500", GRDC "6335060"
+        # Optional: may be empty for remote sensing, CSV, or ungauged studies
+        self.site_id: str = ""
+        # Data source type — "usgs_gauge" | "grdc_station" | "ungauged" | "csv" | ...
+        self.site_type: str = ""
+        self.workspace_dir: str | None = None
         self._slots: dict[str, dict | None] = {}
         self.notes: list[str] = []
-        self.interpretation: str = ""       # LLM-authored scientific summary
+        # LLM-authored scientific interpretation — written via sync_research_context
+        self.interpretation: str = ""
         self.created_at: str = datetime.now(timezone.utc).isoformat()
         self.updated_at: str = self.created_at
+
+    # ------------------------------------------------------------------
+    # Backward-compat property: gauge_id → site_id (or session_id)
+    # Kept so legacy callers that read session.gauge_id still work.
+    # ------------------------------------------------------------------
+
+    @property
+    def gauge_id(self) -> str:
+        """Backward-compat alias — returns site_id if set, else session_id."""
+        return self.site_id or self.session_id
 
     # ------------------------------------------------------------------
     # Dynamic slot access
     # ------------------------------------------------------------------
 
     def set(self, slot: str, value: dict | None) -> None:
-        """Store a result under the given slot name."""
         self._slots[slot] = value
 
     def get(self, slot: str) -> dict | None:
-        """Retrieve a stored result by slot name."""
         return self._slots.get(slot)
 
     # ------------------------------------------------------------------
-    # Backward-compat property accessors (used by mcp_server.py)
+    # Backward-compat property accessors for the 9 common slots
     # ------------------------------------------------------------------
 
     @property
@@ -149,30 +168,33 @@ class HydroSession:
     # ------------------------------------------------------------------
 
     @classmethod
-    def _path(cls, gauge_id: str) -> Path:
-        return _SESSIONS_DIR / f"{gauge_id}.json"
+    def _path(cls, session_id: str) -> Path:
+        return _SESSIONS_DIR / f"{session_id}.json"
 
     @classmethod
-    def load(cls, gauge_id: str) -> HydroSession:
+    def load(cls, session_id: str) -> HydroSession:
         """Load an existing session, or return a new empty one."""
-        path = cls._path(gauge_id)
+        path = cls._path(session_id)
         if not path.exists():
-            return cls(gauge_id)
+            return cls(session_id)
         with open(path) as f:
             raw = json.load(f)
-        session = cls(gauge_id)
-        # Load all known + any extra keys stored on disk
+        session = cls(session_id)
         _META_KEYS = {
-            "gauge_id", "site_name", "workspace_dir", "notes",
-            "created_at", "updated_at", "interpretation",
+            "session_id", "site_name", "site_id", "site_type",
+            "workspace_dir", "notes", "created_at", "updated_at", "interpretation",
+            # legacy keys — kept for loading old session files
+            "gauge_id",
         }
         for key, val in raw.items():
             if key in _META_KEYS:
                 continue
-            # Any dict-valued key is treated as a slot
             if isinstance(val, dict) or val is None:
                 session.set(key, val)
         session.site_name = raw.get("site_name", "")
+        # Support legacy "gauge_id" key in old session files
+        session.site_id = raw.get("site_id", "") or raw.get("gauge_id", "")
+        session.site_type = raw.get("site_type", "")
         session.workspace_dir = raw.get("workspace_dir")
         session.notes = raw.get("notes", [])
         session.interpretation = raw.get("interpretation", "")
@@ -181,17 +203,18 @@ class HydroSession:
         return session
 
     def save(self) -> None:
-        """Persist session to disk and refresh .clinerules/research.md."""
         self.updated_at = datetime.now(timezone.utc).isoformat()
         _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
-        with open(self._path(self.gauge_id), "w") as f:
+        with open(self._path(self.session_id), "w") as f:
             json.dump(self._to_raw(), f, indent=2)
         self.write_research_context()
 
     def _to_raw(self) -> dict:
         raw: dict[str, Any] = {
-            "gauge_id": self.gauge_id,
+            "session_id": self.session_id,
             "site_name": self.site_name,
+            "site_id": self.site_id,
+            "site_type": self.site_type,
             "workspace_dir": self.workspace_dir,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
@@ -207,11 +230,6 @@ class HydroSession:
     # ------------------------------------------------------------------
 
     def write_workspace_file(self, filename: str, content: Any) -> str | None:
-        """
-        Write content as JSON to workspace_dir/<filename>.
-
-        Returns the absolute path written, or None if workspace_dir is not set.
-        """
         if not self.workspace_dir:
             return None
         out_path = Path(self.workspace_dir) / filename
@@ -228,18 +246,17 @@ class HydroSession:
     # ------------------------------------------------------------------
 
     def computed(self) -> list[str]:
-        """List of slot names that have been computed."""
         return [k for k, v in self._slots.items() if v is not None]
 
     def pending(self) -> list[str]:
-        """List of common slot names not yet computed."""
         return [s for s in _COMMON_SLOTS if self.get(s) is None]
 
     def summary(self) -> dict:
-        """Return a compact summary suitable for agent reasoning."""
         return {
-            "gauge_id": self.gauge_id,
+            "session_id": self.session_id,
             "site_name": self.site_name,
+            "site_id": self.site_id,
+            "site_type": self.site_type,
             "computed": self.computed(),
             "pending": self.pending(),
             "notes": self.notes,
@@ -249,58 +266,58 @@ class HydroSession:
         }
 
     def to_json(self) -> str:
-        """Serialize the full session for agent reasoning."""
         return json.dumps(self._to_raw(), indent=2)
 
     def cite_all(self) -> str:
-        """Combined BibTeX for every computed result that carries citations."""
         entries: list[str] = []
         for slot in self.computed():
             result = self.get(slot)
             if not result:
                 continue
-            meta = result.get("meta", {})
-            for src in meta.get("sources", []):
+            for src in result.get("meta", {}).get("sources", []):
                 citation = src.get("citation")
                 if citation and citation not in entries:
                     entries.append(citation)
         if not entries:
-            return f"% No citations available for gauge {self.gauge_id}"
+            return f"% No citations available for session {self.session_id}"
         return "\n\n".join(entries)
 
+    def raw_session_data(self) -> dict:
+        """All computed slot data as a flat dict — for LLM reasoning."""
+        data: dict = {}
+        for slot in self.computed():
+            result = self.get(slot)
+            if result:
+                data[slot] = result.get("data", {})
+        return data
+
     # ------------------------------------------------------------------
-    # .clinerules/research.md sync
+    # research.md sync
     # ------------------------------------------------------------------
 
     def write_research_context(self) -> None:
         """
         Write research.md to .aihydrorules/ for VS Code context injection.
 
-        Structure:
-          Section 1 — Python skeleton (always current, written on every save):
-            site identity, computed/pending slots, researcher notes, profile.
-          Section 2 — LLM interpretation (written only via sync_research_context):
-            scientific summary authored by the foundation model; persisted in
-            session.interpretation and re-injected here on every save.
-
-        This separation means the agent always has fresh structural state AND
-        accumulated scientific understanding from prior reasoning.
+        Section 1 — Python skeleton (always current on every save):
+            site identity, computed/pending slots, researcher notes.
+        Section 2 — LLM interpretation (written via sync_research_context):
+            scientific summary authored by the foundation model.
         """
-        display = self.site_name or self.gauge_id
-        name_str = self._site_name_str()
-
+        display = self.site_name or self.site_id or self.session_id
+        name_str = self._display_name_str()
         computed = self.computed()
         pending  = self.pending()
 
-        # ------------------------------------------------------------------
-        # Section 1: structural skeleton — Python-generated, always accurate
-        # ------------------------------------------------------------------
         lines: list[str] = [
             "# Research Session",
-            f"**Site**: {display}{name_str}",
-            f"**Updated**: {self.updated_at[:10]}",
-            "",
+            f"**Session**: {display}{name_str}",
+            f"**ID**: {self.session_id}",
         ]
+        if self.site_id:
+            lines.append(f"**Site**: {self.site_id}" +
+                         (f" ({self.site_type})" if self.site_type else ""))
+        lines += [f"**Updated**: {self.updated_at[:10]}", ""]
 
         if computed:
             lines.append(f"**Computed** ({len(computed)}): " + ", ".join(computed))
@@ -314,7 +331,6 @@ class HydroSession:
                 lines.append(f"- {note}")
             lines.append("")
 
-        # Researcher profile
         try:
             from ai_hydro.session.persona import ResearcherProfile
             profile = ResearcherProfile.load()
@@ -324,9 +340,6 @@ class HydroSession:
         except Exception:
             pass
 
-        # ------------------------------------------------------------------
-        # Section 2: LLM-authored interpretation — present after sync call
-        # ------------------------------------------------------------------
         if self.interpretation:
             lines.append("## Scientific Context")
             lines.append(self.interpretation)
@@ -348,26 +361,10 @@ class HydroSession:
         research_md.parent.mkdir(parents=True, exist_ok=True)
         research_md.write_text("\n".join(lines))
 
-    def _site_name_str(self) -> str:
-        """Return parenthetical site name from watershed metadata if available."""
+    def _display_name_str(self) -> str:
+        """Parenthetical station name from watershed metadata if available."""
         if self.watershed:
-            name = self.watershed.get("data", {}).get("gauge_name")
-            if name:
+            name = self.watershed.get("data", {}).get("gauge_name", "")
+            if name and name not in (self.site_name, self.site_id, self.session_id):
                 return f" ({name})"
         return ""
-
-    def raw_session_data(self) -> dict:
-        """
-        Return all computed slot data as a flat dict for LLM reasoning.
-
-        Designed to be passed to the foundation model by sync_research_context
-        so the model has everything it needs to write a scientific interpretation.
-        Keys are slot names; values are the data sub-dicts (not the full
-        HydroResult wrapper with meta).
-        """
-        data: dict = {}
-        for slot in self.computed():
-            result = self.get(slot)
-            if result:
-                data[slot] = result.get("data", {})
-        return data
