@@ -1114,11 +1114,21 @@ export class Controller {
 				text: "MCP tools reloaded successfully. You can continue your conversation.",
 				partial: false,
 			}
+			// Emit ask:"completion_result" so the webview knows the agent is
+			// idle and enables the follow-up input. Without this, the webview
+			// stays in "Thinking..." state because clineAsk is not set (S6-30).
+			const completionAsk: ClineMessage = {
+				ts: Date.now() + 1,
+				type: "ask",
+				ask: "completion_result",
+				text: "",
+				partial: false,
+			}
 			if (this.task?.messageStateHandler) {
-				this.task.messageStateHandler.addMessages([successMessage])
+				this.task.messageStateHandler.addMessages([successMessage, completionAsk])
 				this.debouncedSaveClineMessages()
 			}
-			this.emitSessionEvents([successMessage], {
+			this.emitSessionEvents([successMessage, completionAsk], {
 				type: "status",
 				payload: { sessionId: startResult.sessionId, status: "idle" },
 			})
