@@ -356,7 +356,7 @@ The next highest-value area is the combination of message growth, persistence, a
 - [ ] Replace full-state updates with delta or paged updates.
 - [ ] Keep only recent message windows in hot UI state.
 - [ ] Change persistence from rewrite-heavy to append/coalesce-heavy where safe.
-- [ ] Remove expensive operations from per-message save paths.
+- [x] Remove expensive operations from per-message save paths.
 - [x] Add payload-size telemetry thresholds and warnings.
 - [x] Suppress duplicate serialized state broadcasts to existing subscribers.
 - [x] Skip telemetry/warning work for no-op duplicate state rebroadcasts.
@@ -984,7 +984,7 @@ This section is designed to be worked through directly.
 #### Handoff summary
 
 - **Confirmed / mitigated candidates:** state rebroadcast growth, message persistence churn, large-file edit amplification, base64 diff URI transport, patch/diff nonlinear blowups, MCP backlog/error accumulation, and abort/cleanup watcher races all now have concrete repro coverage and targeted mitigations.
-- **Notable fixes landed:** large edit byte caps and summarization, patch/diff fail-fast thresholds, duplicate state rebroadcast suppression, task-history no-op suppression, in-memory diff original-content registry, bounded MCP queues/error accumulation, awaited abort cleanup, generated large-file fixtures, and reusable crash-investigation PR/nightly/soak test entrypoints.
+- **Notable fixes landed:** large edit byte caps and summarization, patch/diff fail-fast thresholds, duplicate state rebroadcast suppression, task-history no-op suppression, no-op message-update persistence skipping, explicit API-history save paths for cancellation flows, in-memory diff original-content registry, bounded MCP queues/error accumulation, awaited abort cleanup, generated large-file fixtures, and reusable crash-investigation PR/nightly/soak test entrypoints.
 - **Still-open candidates / residual work:** delta or paged state transport, lower-churn persistence strategies, chunked/direct large-file edit modes, optional temp-file diff transport alternative, broader patch heuristics work, and further soak profiles for large-file edit runs and noisier long-horizon scenarios.
 - **Architectural follow-ups:** reduce full-state broadcasting, reduce rewrite-heavy persistence on hot paths, inventory remaining background resource ownership, and decide how far to push long-horizon nightly soak coverage versus targeted resource-budget regressions.
 

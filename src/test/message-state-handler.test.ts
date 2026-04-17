@@ -129,6 +129,41 @@ describe("MessageStateHandler Mutex Protection", () => {
 		handler.getClineMessages()[1_499]?.text?.should.equal(`updated-24-${"y".repeat(256)}`)
 	})
 
+	it("should skip save and event emission for no-op updateClineMessage calls", async () => {
+		const taskState = new TaskState()
+		let savedMessagesCalls = 0
+		let emittedChanges = 0
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async () => [],
+			getTaskDirectorySize: async () => 4096,
+			getCurrentWorkingDirectory: async () => "/tmp/project",
+			ensureTaskDirectoryExists: async () => "/tmp/project/.cline/tasks/test-task-id",
+			saveClineMessages: async () => {
+				savedMessagesCalls += 1
+			},
+			saveApiConversationHistory: async () => {},
+		})
+
+		handler.on("clineMessagesChanged", () => {
+			emittedChanges += 1
+		})
+
+		const originalMessage = createTestMessage("stable-text")
+		handler.setApiConversationHistory([{ role: "user", content: "hello", ts: Date.now() }] as any)
+		handler.setClineMessages([originalMessage])
+		emittedChanges = 0
+
+		await handler.updateClineMessage(0, { text: "stable-text" })
+
+		savedMessagesCalls.should.equal(0)
+		emittedChanges.should.equal(0)
+		handler.getClineMessages()[0]?.text?.should.equal("stable-text")
+	})
+
 	it("should reuse cached task directory size across repeated addToClineMessages churn on a large history", async function () {
 		this.timeout(5_000)
 
@@ -413,6 +448,60 @@ describe("MessageStateHandler Mutex Protection", () => {
 		history[0].role.should.equal("user")
 		history[1].role.should.equal("assistant")
 		history[2].role.should.equal("user")
+	})
+
+	it("should skip overwriteApiConversationHistory when passed the same array reference", async () => {
+		const taskState = new TaskState()
+		let saveApiCalls = 0
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async () => [],
+			saveClineMessages: async () => {},
+			saveApiConversationHistory: async () => {
+				saveApiCalls += 1
+			},
+		})
+
+		const history = [{ role: "user" as const, content: "same-ref", ts: Date.now() }]
+		handler.setApiConversationHistory(history)
+
+		await handler.overwriteApiConversationHistory(history)
+
+		saveApiCalls.should.equal(0)
+		handler.getApiConversationHistory().should.equal(history)
+	})
+
+	it("should save current API conversation history without requiring overwrite", async () => {
+		const taskState = new TaskState()
+		let saveApiCalls = 0
+		let savedHistory: any[] | undefined
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async () => [],
+			saveClineMessages: async () => {},
+			saveApiConversationHistory: async (_taskId, messages) => {
+				saveApiCalls += 1
+				savedHistory = messages as any[]
+			},
+		})
+
+		const history = [
+			{ role: "user" as const, content: "msg-1", ts: Date.now() },
+			{ role: "assistant" as const, content: "msg-2", ts: Date.now() + 1 },
+		]
+		handler.setApiConversationHistory(history)
+
+		await handler.saveApiConversationHistory()
+
+		saveApiCalls.should.equal(1)
+		should.exist(savedHistory)
+		savedHistory!.should.equal(history)
 	})
 
 	/**

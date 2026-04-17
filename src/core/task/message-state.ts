@@ -235,9 +235,18 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		})
 	}
 
+	async saveApiConversationHistory(): Promise<void> {
+		return await this.withStateLock(async () => {
+			await this.saveApiConversationHistoryFn(this.taskId, this.apiConversationHistory)
+		})
+	}
+
 	async overwriteApiConversationHistory(newHistory: ClineStorageMessage[]): Promise<void> {
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
+			if (Object.is(this.apiConversationHistory, newHistory)) {
+				return
+			}
 			this.apiConversationHistory = newHistory
 			await this.saveApiConversationHistoryFn(this.taskId, this.apiConversationHistory)
 		})
@@ -294,18 +303,28 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 				throw new Error(`Invalid message index: ${index}`)
 			}
 
+			const currentMessage = this.clineMessages[index]
+			const updateEntries = Object.entries(updates) as Array<[keyof ClineMessage, ClineMessage[keyof ClineMessage]]>
+			if (updateEntries.length === 0) {
+				return
+			}
+			const hasActualChange = updateEntries.some(([key, value]) => !Object.is(currentMessage[key], value))
+			if (!hasActualChange) {
+				return
+			}
+
 			// Capture previous state before mutation
-			const previousMessage = { ...this.clineMessages[index] }
+			const previousMessage = { ...currentMessage }
 
 			// Apply updates to the message
-			Object.assign(this.clineMessages[index], updates)
+			Object.assign(currentMessage, updates)
 
 			this.emitClineMessagesChanged({
 				type: "update",
 				messages: this.clineMessages,
 				index,
 				previousMessage,
-				message: this.clineMessages[index],
+				message: currentMessage,
 			})
 
 			// Save changes and update history

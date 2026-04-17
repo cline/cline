@@ -980,7 +980,7 @@ export class Task {
 
 		// Save conversation state to disk
 		await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-		await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
+		await this.messageStateHandler.saveApiConversationHistory()
 
 		// Update UI
 		await this.postStateToWebview()
@@ -1043,7 +1043,7 @@ export class Task {
 			this.taskState.didFinishAbortingStream = true
 			// Save BOTH files so Controller.cancelTask() can find the task
 			await this.messageStateHandler.saveClineMessagesAndUpdateHistory()
-			await this.messageStateHandler.overwriteApiConversationHistory(this.messageStateHandler.getApiConversationHistory())
+			await this.messageStateHandler.saveApiConversationHistory()
 			await this.postStateToWebview()
 		}
 
