@@ -394,8 +394,8 @@ This workstream targets the main file-edit pipeline.
 - [ ] `replace_in_file` against huge original content
 - [ ] `apply_patch` against multiple large files
 - [x] manual approval payload generation for huge edits
-- [ ] `saveChanges()` behavior with giant pre-save/post-save content
-- [ ] `scrollToFirstDiff()` on very large file diffs
+- [x] `saveChanges()` behavior with giant pre-save/post-save content
+- [x] `scrollToFirstDiff()` on very large file diffs
 
 #### Failure oracles
 

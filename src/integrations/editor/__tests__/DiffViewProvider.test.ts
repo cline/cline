@@ -1,13 +1,18 @@
 import * as assert from "assert"
 import { describe, it } from "mocha"
+import sinon from "sinon"
+import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "../DiffViewProvider"
 
 class TestBoundaryDiffViewProvider extends DiffViewProvider {
-	public documentText: string = ""
+	public documentText = ""
 	public truncatedAt: number | undefined
+	public scrolledToLine: number | undefined
 
 	async openDiffEditor(): Promise<void> {}
-	async scrollEditorToLine(line: number): Promise<void> {}
+	async scrollEditorToLine(line: number): Promise<void> {
+		this.scrolledToLine = line
+	}
 	async scrollAnimation(startLine: number, endLine: number): Promise<void> {}
 
 	async truncateDocument(lineNumber: number): Promise<void> {
@@ -26,7 +31,7 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 		return this.documentText
 	}
 
-	async saveDocument(): Promise<Boolean> {
+	async saveDocument(): Promise<boolean> {
 		return true
 	}
 	async closeAllDiffViews(): Promise<void> {}
@@ -61,6 +66,66 @@ class TestBoundaryDiffViewProvider extends DiffViewProvider {
 		this.documentText = initialContent
 		this.originalContent = initialContent
 		this.truncatedAt = undefined
+		this.scrolledToLine = undefined
+	}
+}
+
+class SaveChangesTestDiffViewProvider extends DiffViewProvider {
+	public documentText = ""
+	public saved = false
+	public showedFile = false
+	public closedDiffs = false
+	public postSaveContent = ""
+
+	async openDiffEditor(): Promise<void> {}
+	async scrollEditorToLine(_line: number): Promise<void> {}
+	async scrollAnimation(_startLine: number, _endLine: number): Promise<void> {}
+	async truncateDocument(_lineNumber: number): Promise<void> {}
+	async getDocumentLineCount(): Promise<number> {
+		return this.documentText.split("\n").length
+	}
+	async getDocumentText(): Promise<string | undefined> {
+		return this.documentText
+	}
+	async saveDocument(): Promise<boolean> {
+		this.saved = true
+		this.documentText = this.postSaveContent
+		return true
+	}
+	async closeAllDiffViews(): Promise<void> {
+		this.closedDiffs = true
+	}
+	async resetDiffView(): Promise<void> {}
+	async replaceText(
+		content: string,
+		_rangeToReplace: { startLine: number; endLine: number },
+		_currentLine: number | undefined,
+	): Promise<void> {
+		this.documentText = content
+	}
+	override async showFile(_absolutePath: string): Promise<void> {
+		this.showedFile = true
+	}
+
+	public setupForSave(args: {
+		relPath: string
+		absolutePath: string
+		originalContent: string
+		newContent: string
+		preSaveContent: string
+		postSaveContent: string
+	}) {
+		this.isEditing = true
+		this.editType = "modify"
+		;(this as any).relPath = args.relPath
+		;(this as any).absolutePath = args.absolutePath
+		this.originalContent = args.originalContent
+		this.documentText = args.preSaveContent
+		this.postSaveContent = args.postSaveContent
+		;(this as any).newContent = args.newContent
+		this.saved = false
+		this.showedFile = false
+		this.closedDiffs = false
 	}
 }
 
@@ -190,6 +255,59 @@ describe("DiffViewProvider content finalization with isFinal=true", () => {
 	})
 })
 
+describe("DiffViewProvider scrollToFirstDiff", () => {
+	it("scrolls to the first changed line in a very large diff", async () => {
+		const provider = new TestBoundaryDiffViewProvider()
+		const original = Array.from({ length: 5_000 }, (_, i) => `line${i + 1}`).join("\n")
+		provider.setup(original)
+
+		const changed = original.replace("line4501", "line4501-edited")
+		provider.documentText = changed
+
+		await provider.scrollToFirstDiff()
+
+		assert.strictEqual(provider.scrolledToLine, 4_500)
+	})
+})
+
+describe("DiffViewProvider saveChanges", () => {
+	it("handles giant pre-save/post-save content without dropping final content metadata", async () => {
+		const sandbox = sinon.createSandbox()
+		const provider = new SaveChangesTestDiffViewProvider()
+		const base = Array.from({ length: 1_200 }, (_, i) => `line${i + 1}-${"payload".repeat(16)}`).join("\n")
+		const newContent = `${base}\ncline-tail`
+		const preSaveContent = `${base}\nuser-tail`
+		const postSaveContent = `${base}\nautoformatted-tail`
+		sandbox.stub(HostProvider, "workspace").value({
+			getDiagnostics: async () => ({ fileDiagnostics: [] }),
+		})
+
+		try {
+			provider.setupForSave({
+				relPath: "big.ts",
+				absolutePath: "/tmp/big.ts",
+				originalContent: base,
+				newContent,
+				preSaveContent,
+				postSaveContent,
+			})
+
+			const result = await provider.saveChanges()
+
+			assert.strictEqual(provider.saved, true)
+			assert.strictEqual(provider.showedFile, true)
+			assert.strictEqual(provider.closedDiffs, true)
+			assert.ok(result.finalContent)
+			assert.ok(result.finalContent!.includes("autoformatted-tail"))
+			assert.ok(result.userEdits)
+			assert.ok(result.autoFormattingEdits)
+			assert.strictEqual(result.newProblemsMessage, "")
+		} finally {
+			sandbox.restore()
+		}
+	})
+})
+
 describe("DiffViewProvider Update Throttling", () => {
 	// Tests for the throttling added in PR #8785 to prevent performance issues
 	// during streaming, especially with large files like notebooks.
@@ -199,7 +317,7 @@ describe("DiffViewProvider Update Throttling", () => {
 	// Only the final line (without trailing newline) is deferred until isFinal=true.
 
 	class ThrottleTestDiffViewProvider extends DiffViewProvider {
-		public documentText: string = ""
+		public documentText = ""
 		public replaceTextCallCount = 0
 
 		async openDiffEditor(): Promise<void> {}
@@ -215,7 +333,7 @@ describe("DiffViewProvider Update Throttling", () => {
 			return this.documentText
 		}
 
-		async saveDocument(): Promise<Boolean> {
+		async saveDocument(): Promise<boolean> {
 			return true
 		}
 		async closeAllDiffViews(): Promise<void> {}
