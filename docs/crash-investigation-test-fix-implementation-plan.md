@@ -358,6 +358,7 @@ The next highest-value area is the combination of message growth, persistence, a
 - [ ] Remove expensive operations from per-message save paths.
 - [x] Add payload-size telemetry thresholds and warnings.
 - [x] Suppress duplicate serialized state broadcasts to existing subscribers.
+- [x] Skip no-op task-history rewrites when the computed history item is unchanged.
 
 #### Why this matters
 
@@ -825,6 +826,7 @@ Examples:
 
 - [ ] do not compute full task directory size on every message mutation,
 - [ ] do not repeatedly stringify enormous full-state snapshots if only a small delta changed,
+- [x] do not rewrite task history when the derived item has not changed,
 - [ ] do not compute expensive whole-document diffs unless needed,
 - [ ] do not store oversized model-facing artifacts when summaries are enough.
 

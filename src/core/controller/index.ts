@@ -19,6 +19,7 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
 import { fileExistsAtPath } from "@utils/fs"
 import axios from "axios"
+import deepEqual from "fast-deep-equal"
 import fs from "fs/promises"
 import open from "open"
 import pWaitFor from "p-wait-for"
@@ -1041,6 +1042,9 @@ export class Controller {
 		const history = this.stateManager.getGlobalStateKey("taskHistory")
 		const existingItemIndex = history.findIndex((h) => h.id === item.id)
 		if (existingItemIndex !== -1) {
+			if (deepEqual(history[existingItemIndex], item)) {
+				return history
+			}
 			history[existingItemIndex] = item
 		} else {
 			history.push(item)
