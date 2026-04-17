@@ -309,11 +309,11 @@ Start with pure or nearly pure code where failures are cheap to reproduce.
 
 #### Likely fixes
 
-- [ ] Add explicit maximum search block size.
+- [x] Add explicit maximum search block size.
 - [ ] Add maximum line-length guardrails.
 - [ ] Disable Levenshtein fallback above safe thresholds.
 - [ ] Replace quadratic similarity checks with cheaper heuristics.
-- [ ] Fail fast with clear error messages instead of trying to process absurdly large patches.
+- [x] Fail fast with clear error messages instead of trying to process absurdly large patches.
 
 #### Why this matters
 
@@ -804,7 +804,7 @@ Add limits for:
 
 - [x] maximum file-edit size,
 - [x] maximum single-line size for file-edit tools,
-- [ ] maximum patch-search block size,
+- [x] maximum patch-search block size,
 - [ ] maximum state snapshot size,
 - [ ] maximum MCP notification backlog length,
 - [ ] maximum accumulated server error text length.

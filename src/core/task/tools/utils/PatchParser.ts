@@ -140,6 +140,7 @@ export class PatchParser {
 			}
 
 			const [nextChunkContext, chunks, endPatchIndex, eof] = peek(this.lines, this.index)
+			assertPatchSearchBlockWithinBudget(nextChunkContext, this.currentPath || _path)
 			const [newIndex, fuzz, similarity] = findContext(fileLines, nextChunkContext, index, eof)
 
 			if (newIndex === -1) {
@@ -212,7 +213,24 @@ export class PatchParser {
 /**
  * Calculate similarity between two strings (0-1 range)
  */
+export const MAX_PATCH_SEARCH_BLOCK_BYTES = 256 * 1024
 const MAX_LEVENSHTEIN_SIMILARITY_CHARS = 512
+
+function getUtf8ByteLength(value: string): number {
+	return Buffer.byteLength(value, "utf8")
+}
+
+function assertPatchSearchBlockWithinBudget(context: string[], path: string): void {
+	const contextText = context.join("\n")
+	const contextBytes = getUtf8ByteLength(contextText)
+	if (contextBytes <= MAX_PATCH_SEARCH_BLOCK_BYTES) {
+		return
+	}
+
+	throw new DiffError(
+		`Patch search block for ${path} is too large (${contextBytes.toLocaleString()} bytes). Maximum supported size is ${MAX_PATCH_SEARCH_BLOCK_BYTES.toLocaleString()} bytes.`,
+	)
+}
 
 function calculateSimilarity(str1: string, str2: string): number {
 	const longer = str1.length > str2.length ? str1 : str2

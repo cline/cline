@@ -1,6 +1,6 @@
 import { expect } from "chai"
 import { DiffError, type PatchAction, PatchActionType } from "@/shared/Patch"
-import { PatchParser } from "../PatchParser"
+import { MAX_PATCH_SEARCH_BLOCK_BYTES, PatchParser } from "../PatchParser"
 
 describe("PatchParser", () => {
 	describe("Parsing Logic", () => {
@@ -1161,6 +1161,25 @@ describe("PatchParser", () => {
 	})
 
 	describe("Partial Matching and Warnings", () => {
+		it("rejects oversized patch search blocks before fuzzy matching", () => {
+			const oversizedContextLine = "x".repeat(MAX_PATCH_SEARCH_BLOCK_BYTES + 1)
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: big.ts",
+				"@@",
+				` ${oversizedContextLine}`,
+				"-old",
+				"+new",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"big.ts": `${oversizedContextLine}\nold`,
+			})
+
+			expect(() => parser.parse()).to.throw(DiffError, /Patch search block for big\.ts is too large/)
+		})
+
 		it("should skip invalid chunks and add warnings", () => {
 			const patchLines = [
 				"*** Begin Patch",

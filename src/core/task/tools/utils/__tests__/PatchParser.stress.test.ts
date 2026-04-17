@@ -1,8 +1,9 @@
+import { performance } from "node:perf_hooks"
 import { expect } from "chai"
 import { describe, it } from "mocha"
 import { PatchActionType } from "@/shared/Patch"
 import { measureAsyncOperation } from "@/test/stress-utils"
-import { PatchParser } from "../PatchParser"
+import { MAX_PATCH_SEARCH_BLOCK_BYTES, PatchParser } from "../PatchParser"
 
 function makeRepeatedFile(lineCount: number, payloadWidth: number): string {
 	return Array.from({ length: lineCount }, (_, i) => {
@@ -47,5 +48,33 @@ describe("PatchParser stress", () => {
 		expect(measured.result.patch.actions["stress.ts"]?.type).to.equal(PatchActionType.UPDATE)
 		expect(measured.result.patch.actions["stress.ts"]?.chunks).to.be.an("array")
 		expect(measured.result.patch.warnings).to.be.undefined
+	})
+
+	it("fails fast when a patch search block exceeds the configured byte budget", async function () {
+		this.timeout(10_000)
+
+		const oversizedContextLine = "x".repeat(MAX_PATCH_SEARCH_BLOCK_BYTES + 1)
+		const patchLines = [
+			"*** Begin Patch",
+			"*** Update File: stress.ts",
+			"@@",
+			` ${oversizedContextLine}`,
+			"-old",
+			"+new",
+			"*** End Patch",
+		]
+
+		const parser = new PatchParser(patchLines, { "stress.ts": `${oversizedContextLine}\nold` })
+		const startedAt = performance.now()
+
+		try {
+			parser.parse()
+			expect.fail("Expected PatchParser to reject oversized search block")
+		} catch (error) {
+			const durationMs = performance.now() - startedAt
+			expect(durationMs).to.be.lessThan(1_000)
+			expect(error).to.be.instanceOf(Error)
+			expect((error as Error).message).to.match(/Patch search block for stress\.ts is too large/)
+		}
 	})
 })
