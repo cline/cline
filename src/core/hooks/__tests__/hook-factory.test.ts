@@ -557,7 +557,11 @@ console.log(JSON.stringify({
 			result.contextModification?.should.equal("Global hook only")
 		})
 
-		it("should block if workspace hook blocks even when global allows", async () => {
+		it("should block if workspace hook blocks even when global allows", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			// Create allowing global hook
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node

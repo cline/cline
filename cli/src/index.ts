@@ -5,6 +5,7 @@
 import type { ChildProcess } from "node:child_process"
 import { exit } from "node:process"
 import type { ApiProvider } from "@shared/api"
+import { getKanbanServiceStatus, installKanbanLaunchAgent, uninstallKanbanLaunchAgent } from "@shared/services/kanban-service"
 import { Command } from "commander"
 import { render } from "ink"
 import React from "react"
@@ -44,6 +45,7 @@ import {
 	type KanbanMigrationAction,
 	LEGACY_TUI_FLAG,
 	markKanbanMigrationAnnouncementShown,
+	resolveCommandFullPath,
 	resolveKanbanInstallCommand,
 	shouldLaunchKanbanByDefault,
 	shouldShowKanbanMigrationAnnouncementForCurrentUser,
@@ -1029,10 +1031,68 @@ program
 	.option("-v, --verbose", "Show verbose output")
 	.action((options) => checkForUpdates(CLI_VERSION, { verbose: options.verbose, includeKanban: true }))
 
-program
+const kanbanCommand = program
 	.command("kanban")
 	.description(`Run ${KANBAN_LAUNCH_COMMAND}`)
 	.action(() => runKanbanAlias())
+
+const kanbanServiceCommand = kanbanCommand.command("service").description("Manage Kanban auto-start service (macOS launchd)")
+
+const persistKanbanAutoStart = async (enabled: boolean): Promise<void> => {
+	const ctx = await initializeCli({ enableAuth: false })
+	try {
+		StateManager.get().setGlobalState("kanbanAutoStartEnabled", enabled)
+		await StateManager.get().flushPendingState()
+	} finally {
+		await disposeCliContext(ctx)
+	}
+}
+
+kanbanServiceCommand
+	.command("install")
+	.description("Install Kanban as a login service so it starts automatically on login")
+	.action(async () => {
+		try {
+			const kanbanBinaryPath = resolveCommandFullPath("kanban")
+			if (!kanbanBinaryPath) {
+				printWarning("Kanban binary not found in PATH. Install it first with: npm install -g kanban")
+				exit(1)
+			}
+			await installKanbanLaunchAgent(kanbanBinaryPath)
+			await persistKanbanAutoStart(true)
+			printInfo(`Kanban launch agent installed. Binary: ${kanbanBinaryPath}`)
+		} catch (error) {
+			printWarning(`Failed to install Kanban service: ${error instanceof Error ? error.message : String(error)}`)
+			exit(1)
+		}
+	})
+
+kanbanServiceCommand
+	.command("uninstall")
+	.description("Remove Kanban login service")
+	.action(async () => {
+		try {
+			await uninstallKanbanLaunchAgent()
+			await persistKanbanAutoStart(false)
+			printInfo("Kanban launch agent removed.")
+		} catch (error) {
+			printWarning(`Failed to uninstall Kanban service: ${error instanceof Error ? error.message : String(error)}`)
+			exit(1)
+		}
+	})
+
+kanbanServiceCommand
+	.command("status")
+	.description("Show Kanban service status")
+	.action(async () => {
+		const status = await getKanbanServiceStatus()
+		if (!status.installed) {
+			printInfo("Kanban service is not installed. Run 'cline kanban service install' to set it up.")
+			return
+		}
+		printInfo(`Kanban service: installed, loaded: ${status.loaded ? "yes" : "no"}`)
+		if (status.kanbanBinaryPath) printInfo(`Binary: ${status.kanbanBinaryPath}`)
+	})
 
 // Dev command with subcommands
 const devCommand = program.command("dev").description("Developer tools and utilities")

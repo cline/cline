@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { getCurrentPlatform } from "@/utils/platformUtils"
 import Section from "../Section"
 import SettingsSlider from "../SettingsSlider"
 import { updateSetting } from "../utils/settingsHandlers"
@@ -113,6 +114,13 @@ const editorFeatures: FeatureToggle[] = [
 		description: "Enables git worktree management for running parallel Cline tasks.",
 		stateKey: "worktreesEnabled",
 		settingKey: "worktreesEnabled",
+	},
+	{
+		id: "kanban-auto-start",
+		label: "Kanban Auto-Start",
+		description: "Automatically start Kanban when you log in to your Mac.",
+		stateKey: "kanbanAutoStartEnabled",
+		settingKey: "kanbanAutoStartEnabled",
 	},
 ]
 
@@ -227,6 +235,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		doubleCheckCompletionEnabled,
 		lazyTeammateModeEnabled,
 		showFeatureTips,
+		kanbanAutoStartEnabled,
 	} = useExtensionState()
 
 	const handleFocusChainIntervalChange = useCallback(
@@ -250,6 +259,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
 		worktreesEnabled: worktreesEnabled?.user,
+		kanbanAutoStartEnabled,
 		enableParallelToolCalling,
 		backgroundEditEnabled,
 		doubleCheckCompletionEnabled,
@@ -261,6 +271,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const featureVisibility: Record<string, boolean | undefined> = {
 		clineWebToolsEnabled: clineWebToolsEnabled?.featureFlag,
 		worktreesEnabled: worktreesEnabled?.featureFlag,
+		kanbanAutoStartEnabled: getCurrentPlatform() === "mac",
 	}
 
 	// Handler for feature toggle changes, supports nested settings like focusChainSettings

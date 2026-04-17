@@ -110,6 +110,7 @@ export interface ExtensionState {
 	doubleCheckCompletionEnabled?: boolean
 	lazyTeammateModeEnabled?: boolean
 	showFeatureTips?: boolean
+	kanbanAutoStartEnabled?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
 	openAiCodexIsAuthenticated?: boolean
