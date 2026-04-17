@@ -747,8 +747,9 @@ export async function runCli(): Promise<void> {
 				providerSettingsManager,
 				io: { writeln, writeErr },
 			});
-			selectedProviderSettings = oauthResult.selectedProviderSettings;
-			apiKey = oauthResult.apiKey;
+			selectedProviderSettings =
+				oauthResult?.selectedProviderSettings ?? selectedProviderSettings;
+			apiKey = oauthResult?.apiKey ?? apiKey;
 		}
 
 		let knownModels: Config["knownModels"];
