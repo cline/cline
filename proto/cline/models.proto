@@ -688,4 +688,7 @@ message ModelsApiConfiguration {
   optional string gemini_act_mode_thinking_level = 239;
   optional string act_mode_cline_model_id = 240;
   optional OpenRouterModelInfo act_mode_cline_model_info = 241;
+  // Region decoupling for Plan/Act modes
+  optional string plan_vertex_region = 242;
+  optional string act_vertex_region = 243;
 }
