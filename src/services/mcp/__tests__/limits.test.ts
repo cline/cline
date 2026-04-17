@@ -154,4 +154,67 @@ describe("mcp limits", () => {
 		assert.ok(truncatedEvents.length >= 1)
 		assert.equal(truncatedEvents.at(-1)?.serverName, "server-a")
 	})
+
+	it("re-establishes stdio file watchers across repeated settings refreshes", async () => {
+		const closedWatchers: string[] = []
+		const hub = Object.create(McpHub.prototype) as McpHub & {
+			fileWatchers: Map<string, { close: () => void }>
+			connections: Array<{ server: { name: string; config: string; tools?: any[] } }>
+			isConnecting: boolean
+			deleteConnection: (name: string) => Promise<void>
+			connectToServer: (name: string, config: any, source: "rpc" | "internal") => Promise<void>
+			setupFileWatcher: (name: string, config: any) => void
+		}
+
+		const serverConfig = {
+			type: "stdio",
+			command: "node",
+			args: ["build/index.js"],
+			disabled: false,
+			autoApprove: [],
+			timeout: 60,
+		}
+
+		hub.fileWatchers = new Map([
+			[
+				"server-a",
+				{
+					close: () => {
+						closedWatchers.push("initial")
+					},
+				},
+			],
+		])
+		hub.connections = [
+			{
+				server: {
+					name: "server-a",
+					config: JSON.stringify(serverConfig),
+					tools: [],
+				},
+			},
+		]
+		hub.isConnecting = false
+		hub.deleteConnection = async () => undefined
+		hub.connectToServer = async () => undefined
+
+		let watcherIndex = 0
+		hub.setupFileWatcher = (name: string) => {
+			const watcherId = `watcher-${watcherIndex++}`
+			hub.fileWatchers.set(name, {
+				close: () => {
+					closedWatchers.push(watcherId)
+				},
+			})
+		}
+
+		for (let cycle = 0; cycle < 3; cycle++) {
+			await hub.updateServerConnectionsRPC({ "server-a": serverConfig as any })
+			assert.equal(hub.fileWatchers.size, 1)
+			assert.equal(hub.isConnecting, false)
+		}
+
+		assert.equal(watcherIndex, 3)
+		assert.deepEqual(closedWatchers, ["initial", "watcher-0", "watcher-1"])
+	})
 })

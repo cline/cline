@@ -863,13 +863,13 @@ export class McpHub {
 		// Update or add servers
 		for (const [name, config] of Object.entries(newServers)) {
 			const currentConnection = this.connections.find((conn) => conn.server.name === name)
+			if (config.type === "stdio") {
+				this.setupFileWatcher(name, config)
+			}
 
 			if (!currentConnection) {
 				// New server
 				try {
-					if (config.type === "stdio") {
-						this.setupFileWatcher(name, config)
-					}
 					await this.connectToServer(name, config, "rpc")
 				} catch (error) {
 					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
@@ -877,9 +877,6 @@ export class McpHub {
 			} else if (this.configsRequireRestart(JSON.parse(currentConnection.server.config), config)) {
 				// Existing server with changed connection config (excludes Cline-specific settings)
 				try {
-					if (config.type === "stdio") {
-						this.setupFileWatcher(name, config)
-					}
 					await this.deleteConnection(name) // Don't clear OAuth - just reconnecting with new config
 					await this.connectToServer(name, config, "rpc")
 					Logger.log(`Reconnected MCP server with updated config: ${name}`)
@@ -931,13 +928,13 @@ export class McpHub {
 		// Update or add servers
 		for (const [name, config] of Object.entries(newServers)) {
 			const currentConnection = this.connections.find((conn) => conn.server.name === name)
+			if (config.type === "stdio") {
+				this.setupFileWatcher(name, config)
+			}
 
 			if (!currentConnection) {
 				// New server
 				try {
-					if (config.type === "stdio") {
-						this.setupFileWatcher(name, config)
-					}
 					await this.connectToServer(name, config, "internal")
 					connectionChangesOccurred = true
 				} catch (error) {
@@ -951,9 +948,6 @@ export class McpHub {
 					currentConnection.server.error = ""
 					await this.notifyWebviewOfServerChanges()
 
-					if (config.type === "stdio") {
-						this.setupFileWatcher(name, config)
-					}
 					await this.deleteConnection(name)
 					await this.connectToServer(name, config, "internal")
 					Logger.log(`Reconnected MCP server with updated config: ${name}`)
