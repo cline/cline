@@ -14,7 +14,7 @@
 //   We must convert SDK tool names (read_files, editor, run_commands, etc.)
 //   and their inputs to this format.
 // - SDK "agent_event" content_end → ClineMessage with partial=false
-// - SDK "agent_event" done → ClineMessage say="completion_result"
+// - SDK "agent_event" done → ClineMessage ask="completion_result"
 // - SDK "agent_event" error → ClineMessage say="error"
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
@@ -537,11 +537,18 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete
+			// Agent turn is complete — emit ask:"completion_result" to enable
+			// the follow-up input in the webview. The classic extension emits
+			// this ask type which sets `clineAsk` in the webview. Without it,
+			// handleSendMessage() won't send follow-up messages because it
+			// requires `clineAsk` to be set (or the task to be "running").
+			// NOTE: We emit ONLY the ask, not a separate say. The webview's
+			// ChatRow renders the completion text from the ask message. Emitting
+			// both causes duplicate "Task Completed" displays.
 			messages.push({
 				ts: state.nextTs(),
-				type: "say",
-				say: "completion_result",
+				type: "ask",
+				ask: "completion_result",
 				text: event.text ?? "",
 				partial: false,
 			})
