@@ -31,6 +31,30 @@ If not, write a Python script and note the gap.
 4. **`start_session` is optional** — only needed if you want to check what's
    already been computed before running anything.
 
+5. **`sync_research_context` is MANDATORY as the last step** — any task that
+   calls 2 or more MCP tools MUST end with `sync_research_context`.
+   Write it into the plan before you start executing, not after.
+
+---
+
+## Planning rule — always end with sync_research_context
+
+When you build a todo list for a hydrological research task, the final item
+MUST be:
+
+```
+- [ ] Update research.md (sync_research_context)
+```
+
+This step writes your scientific interpretation to `.aihydrorules/research.md`
+so it persists across conversations. It takes two calls:
+  - Call 1: `sync_research_context(session_id)` — returns raw session data
+  - Call 2: `sync_research_context(session_id, site_name=..., interpretation=...)` — writes to research.md
+
+Write 3–5 sentences covering: what the data shows, patterns across results,
+and what the logical next step is. This is the only record that survives
+between conversations — do not skip it.
+
 ---
 
 ## Rules
@@ -72,7 +96,7 @@ fetch_forcing_data("01031500", "2000-01-01", "2010-12-31")
 
 # Analysis tools: gauge_id only
 extract_hydrological_signatures("01031500")
-extract_camels_attributes("01031500")
+fetch_camels_us("01031500")
 extract_geomorphic_parameters("01031500")
 compute_twi("01031500")
 
@@ -86,4 +110,12 @@ get_model_results("01031500")
 # Session management
 get_session_summary("01031500")   # what's computed vs pending
 export_session("01031500", format="methods")   # paper-ready paragraph
+
+# ── ALWAYS THE LAST STEP ──────────────────────────────────────────────────────
+sync_research_context("01031500")  # Call 1: returns raw data
+sync_research_context(             # Call 2: writes interpretation to research.md
+    "01031500",
+    site_name="Piscataquis River near Dover-Foxcroft, ME",
+    interpretation="<3-5 sentences of scientific prose here>"
+)
 ```
