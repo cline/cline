@@ -6,7 +6,9 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
-## [0.1.5] — 2026-04-16
+## [Unreleased / 0.1.5-next]
+
+These changes are documented ahead of the next packaged extension release.
 
 ### Platform vision
 - **LLM interpretation layer** — `research.md` now has two sections: a Python-generated structural skeleton (always current) and an LLM-authored scientific context section written by the foundation model via `sync_research_context`. Deleted all template-based Python interpretation logic (`_key_findings()`, "suggested next step").

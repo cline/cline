@@ -1,6 +1,6 @@
 site_name: AI-Hydro
 site_url: https://ai-hydro.github.io/AI-Hydro/
-site_description: An open platform for AI-driven hydrological research — watershed analysis, streamflow retrieval, model calibration, and reproducible provenance in a single conversation.
+site_description: Open infrastructure for autonomous hydrological and earth science research — validated tools, reproducible workflows, and provenance-aware AI agents.
 site_author: Mohammad Galib
 
 repo_name: AI-Hydro/AI-Hydro
@@ -8,6 +8,22 @@ repo_url: https://github.com/AI-Hydro/AI-Hydro
 edit_uri: edit/main/docs/
 
 copyright: Copyright &copy; 2026 Mohammad Galib — Apache 2.0
+
+exclude_docs: |
+  cline-cli/
+  enterprise-solutions/
+  exploring-clines-tools/
+  features/
+  getting-started/installing-cline.mdx
+  getting-started/selecting-your-model.mdx
+  getting-started/your-first-project.mdx
+  introduction/
+  mcp/
+  model-config/
+  more-info/
+  prompting/
+  provider-config/
+  running-models-locally/
 
 # ── Theme ─────────────────────────────────────────────────────────────────────
 theme:

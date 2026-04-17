@@ -137,7 +137,7 @@ Output is written to `~/.aihydro/sessions/<gauge_id>_methods.txt` to preserve th
 
 ### `sync_research_context`
 
-Refresh the `.clinerules/research.md` file that injects session context into every conversation.
+Refresh the `.aihydrorules/research.md` file that injects session context into every conversation.
 
 ---
 

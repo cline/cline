@@ -4,7 +4,7 @@ description: AI-Hydro system architecture — VS Code extension, MCP server, Pyt
 
 # Architecture
 
-AI-Hydro is built on three layers: the VS Code extension (agent interface), the MCP server (tool execution), and the Python backend (domain computation + session persistence).
+AI-Hydro is designed as an open platform for autonomous hydrological and earth science research. Its architecture separates agent interaction, tool orchestration, and domain computation so that AI models can reason over trustworthy scientific workflows instead of improvising brittle scripts from scratch.
 
 ---
 
@@ -100,7 +100,7 @@ geomorphic · model · notes"]
         PS -->|contains| HS
     end
 
-    HS -->|appended to| RMD[".clinerules/research.md
+    HS -->|appended to| RMD[".aihydrorules/research.md
 auto-injected into
 every conversation"]
 
@@ -137,7 +137,7 @@ sequenceDiagram
 ## Layer 1 — VS Code Extension
 
 **Language:** TypeScript  
-**Base:** Fork of [Cline](https://github.com/cline/cline) (Apache 2.0)
+**Lineage:** Built on top of the open-source [Cline](https://github.com/cline/cline) base (Apache 2.0), then specialized for hydrological and earth science research workflows
 
 Responsibilities:
 - Renders the chat interface and tool call log

@@ -56,9 +56,9 @@ Configure your provider and API key in the extension settings panel:
 
 AI-Hydro uses `.aihydrorules` files to inject persistent context into every conversation. These are placed in your workspace root or home directory.
 
-The most important auto-generated file is `.clinerules/research.md` — written by `sync_research_context` — which injects your current session state, project context, and researcher profile into every conversation automatically.
+The most important auto-generated file is `.aihydrorules/research.md` — written by `sync_research_context` — which injects your current session state, project context, and researcher profile into every conversation automatically.
 
-```markdown title=".clinerules/research.md (auto-generated)"
+```markdown title=".aihydrorules/research.md (auto-generated)"
 # AI-Hydro Research Context
 
 ## Active Sessions

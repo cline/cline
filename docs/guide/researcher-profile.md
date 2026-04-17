@@ -97,9 +97,9 @@ Clear my researcher observations — I want a fresh start.
 
 ## Profile in research.md
 
-The profile is also appended to `.clinerules/research.md` in your workspace on every session save — so even if an agent doesn't call `get_researcher_profile`, the persona context is injected automatically via the rules file.
+The profile is also appended to `.aihydrorules/research.md` in your workspace on every session save — so even if an agent doesn't call `get_researcher_profile`, the persona context is injected automatically via the rules file.
 
-```markdown title=".clinerules/research.md (excerpt)"
+```markdown title=".aihydrorules/research.md (excerpt)"
 ## Researcher Profile
 - **Name:** Mohammad Galib
 - **Role:** PhD Researcher — Purdue University

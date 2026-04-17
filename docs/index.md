@@ -7,19 +7,22 @@ hide:
 
 # AI-Hydro
 
-<p class="tagline">Intelligent Hydrological Computing</p>
+<p class="tagline">Open Infrastructure For Autonomous Hydrological Research</p>
 
-<div class="install-block">pip install aihydro-tools[all]</div>
+<p style="color: #94a3b8; font-size: 1rem; max-width: 820px; margin: 0 auto 1.25rem;">
+  AI-Hydro is an open platform for hydrology and earth science research where AI agents can use validated tools,
+  structured workflows, and reproducible provenance to carry out real computational work end to end.
+</p>
 
-<p style="color: #94a3b8; font-size: 0.95rem;">
-  The first hydrology platform built for reproducibility-first AI research —<br>
-  every analysis step automatically recorded, citable, and reusable.
+<p style="color: #7dd3fc; font-size: 0.95rem; max-width: 780px; margin: 0 auto 1.5rem;">
+  The goal is simple: spend less time writing glue code, wrangling fragmented data sources, and stitching together brittle workflows,
+  and more time on the science itself.
 </p>
 
 [Get Started](getting-started/installation.md){ .md-button .md-button--primary }
 [View on GitHub](https://github.com/AI-Hydro/AI-Hydro){ .md-button }
-[Watch on YouTube](https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw){ .md-button }
-[Follow on X](https://x.com/aihydro){ .md-button }
+[Read the Architecture](architecture.md){ .md-button }
+[Contribute Plugins](plugins/overview.md){ .md-button }
 
 </div>
 
@@ -42,29 +45,71 @@ hide:
 ---
 
 !!! tip "Project Status"
-    AI-Hydro is in active **beta** (v0.1.x). Core APIs are stable; new tools and features are being added regularly. Not yet recommended for production pipelines without pinned versions.
+    AI-Hydro is in active **beta**. The platform is already useful for real research workflows, but it is still evolving quickly. Pin versions for serious projects and expect new tools, better outputs, and broader data/model support over time.
 
 ---
 
-## Who Is This For?
+## Why AI-Hydro Exists
 
-AI-Hydro is built for **hydrology PhD students, computational hydrologists, and research groups** who need reproducible, well-documented workflows — without spending half their time writing data-fetching glue code or debugging format mismatches between libraries.
+Hydrology and earth science have strong computational building blocks:
 
-If you work with USGS gauges, CAMELS catchments, or any watershed-scale analysis and want an AI agent that can orchestrate the full pipeline and record everything it does, this is for you.
+- excellent Python libraries
+- benchmark datasets like CAMELS
+- public APIs for streamflow, terrain, land cover, and forcing data
+- mature modeling systems
+
+But the research workflow is still fragmented.
+
+Researchers still spend too much of their time:
+
+- retrieving data from scattered systems
+- wrangling formats between libraries
+- writing one-off scripts
+- debugging brittle workflows
+- reconstructing provenance after the fact
+
+At the same time, general-purpose AI models are becoming increasingly capable, but they are not enough on their own for trustworthy scientific work. Without validated tools and structured context, they hallucinate methods, misuse domain libraries, and produce plausible-looking but unreliable workflows.
+
+**AI-Hydro is built to close that gap.**
+
+It gives AI agents a domain-specific research environment:
+
+- validated hydrology and geospatial tools
+- persistent research session state
+- provenance-aware outputs
+- extensible plugin architecture
+- a workflow layer above fragmented domain packages
+
+The point is not just AI assistance.  
+The point is to build the open infrastructure required for increasingly autonomous, reproducible scientific research.
 
 ---
 
-## The Problem
+## What Researchers Should Get Back
 
-Hydrological research today involves a fragmented cycle: downloading data from scattered federal APIs, wrangling formats, writing processing scripts, calibrating models, and documenting provenance — **often spending more time on plumbing than on science.**
+AI-Hydro is built for researchers who want to focus on:
 
-This friction compounds a deeper structural failure: fewer than 7% of published computational hydrology studies provide sufficient code, data, and workflow documentation for independent replication, a rate that has barely moved despite a decade of open-science advocacy.
+- scientific questions
+- interpretation
+- hypothesis generation
+- model criticism
+- uncertainty reasoning
+- comparison across basins, regions, and scales
 
-**AI-Hydro addresses this directly** — not by making AI the hero, but by making **reproducibility automatic**. Every tool call is recorded with its data source, parameters, and timestamp. The AI agent is the interface; provenance is the product.
+not on:
+
+- data plumbing
+- repetitive coding
+- workflow assembly
+- manual provenance bookkeeping
+- re-explaining context across sessions
+
+In other words, the aim is not to replace scientists.  
+It is to reduce the accidental burdens that keep computational science from feeling like science.
 
 ---
 
-## What AI-Hydro Can Do
+## What AI-Hydro Can Do Today
 
 <div class="feature-grid" markdown>
 
@@ -73,7 +118,7 @@ This friction compounds a deeper structural failure: fewer than 7% of published 
 
 ### Watershed Analysis
 
-Delineate watersheds, fetch streamflow, extract hydrological signatures, characterize geomorphology — all from a USGS gauge ID, in one conversation.
+Delineate watersheds, retrieve streamflow, compute hydrological signatures, derive terrain metrics, and characterize basin form from a single conversation.
 
 [→ Analysis tools](tools/analysis.md)
 </div>
@@ -83,7 +128,7 @@ Delineate watersheds, fetch streamflow, extract hydrological signatures, charact
 
 ### Hydrological Modelling
 
-Calibrate differentiable conceptual models or train deep learning rainfall-runoff models. Results cached with full provenance.
+Calibrate differentiable conceptual models or train rainfall-runoff deep learning models with session-aware inputs and cached outputs.
 
 [→ Modelling tools](tools/modelling.md)
 </div>
@@ -91,19 +136,19 @@ Calibrate differentiable conceptual models or train deep learning rainfall-runof
 <div class="feature-card" markdown>
 <div class="icon">📁</div>
 
-### Project Workspace
+### Persistent Research State
 
-Organise research across multiple gauges, regions, and topics. Search across all your experiments in one command.
+Sessions, projects, and researcher context persist across conversations so the platform remembers what was computed, why it matters, and what comes next.
 
-[→ Project workspace](guide/project-session.md)
+[→ Sessions & Provenance](guide/sessions.md)
 </div>
 
 <div class="feature-card" markdown>
 <div class="icon">📚</div>
 
-### Literature Module
+### Literature-Aware Workflows
 
-Drop your PDFs into a folder. Index them. Ask the agent to synthesise across your own paper collection — no vector database required.
+Index your own PDFs, search them, and let the agent synthesize findings against your active project and computed results.
 
 [→ Literature module](guide/literature.md)
 </div>
@@ -113,7 +158,7 @@ Drop your PDFs into a folder. Index them. Ask the agent to synthesise across you
 
 ### Researcher Profile
 
-The agent learns who you are — your expertise, preferred models, active projects — and tailors responses accordingly across every session.
+The platform learns your expertise, preferred methods, active projects, and reporting style so results become more context-aware over time.
 
 [→ Researcher profile](guide/researcher-profile.md)
 </div>
@@ -123,7 +168,7 @@ The agent learns who you are — your expertise, preferred models, active projec
 
 ### Community Plugins
 
-Any Python package can register domain tools via entry points. Flood frequency, sediment transport, groundwater, remote sensing — community-built and auto-discovered.
+Any Python package can register domain tools. Flood frequency, sediment, groundwater, snow, remote sensing, and more can become agent-usable through the plugin system.
 
 [→ Plugin guide](plugins/overview.md)
 </div>
@@ -132,89 +177,115 @@ Any Python package can register domain tools via entry points. Flood frequency, 
 
 ---
 
-## Quick Example
+## A Typical Workflow
 
-```
-You: Delineate the watershed for USGS gauge 01031500, extract hydrological
-     signatures, and calibrate a differentiable HBV model on GridMET forcing.
+```text
+You:
+  Delineate the watershed for USGS gauge 01031500, retrieve the last 20 years
+  of streamflow, extract hydrological signatures, and calibrate an HBV-light model.
 
 AI-Hydro:
-  ✓ Watershed delineated — 1,247 km² (NHDPlus, NLDI)
-  ✓ Streamflow fetched — 14,975 daily records (2000–2024, USGS NWIS)
-  ✓ Hydrological signatures extracted — BFI: 0.52, runoff ratio: 0.41, ...
-  ✓ HBV-light calibrated — NSE: 0.81, KGE: 0.78 (validation period)
-  ✓ Session saved → ~/.aihydro/sessions/01031500.json
+  ✓ Session started
+  ✓ Watershed delineated — 1,247 km²
+  ✓ Streamflow retrieved — 7,300+ daily observations
+  ✓ Signatures extracted — BFI, runoff ratio, FDC slope, variability, seasonality
+  ✓ GridMET forcing retrieved
+  ✓ HBV-light calibrated — NSE and KGE stored with provenance
+  ✓ Session context written for future conversations
 ```
 
-No code written. No data downloaded manually. Full provenance recorded automatically.
+No manual API choreography.  
+No ad hoc script chain.  
+No disconnected outputs.
+
+Every major step is recorded with data source, parameters, timing, and reusable session state.
 
 ---
 
-## Why AI-Hydro?
+## Why This Is Different
 
-| | AI-Hydro | Writing scripts yourself | HydroMT | NeuralHydrology |
-|--|--|--|--|--|
-| **Reproducibility** | Automatic — every step recorded | Manual — only if you remember | Partial — config files | Manual |
-| **AI-native workflow** | Yes — natural language → computation | No | No | No |
-| **MCP / agent integration** | Yes | No | No | No |
-| **Session persistence** | Yes — survives restarts | No | Partial | No |
-| **Researcher memory** | Yes — profile + project state | No | No | No |
-| **Built-in data access** | USGS, GridMET, 3DEP, NLCD, CAMELS | DIY | Config-driven | CAMELS only |
-| **Community extensible** | Yes — Python entry points | N/A | Yes — plugins | No |
-| **Learning curve** | Low — describe intent | High | Medium | High |
+| | AI-Hydro | Writing scripts yourself | Single-purpose hydro package |
+|--|--|--|--|
+| **Natural language to computation** | Yes | No | No |
+| **Built-in provenance** | Yes | Manual | Usually partial |
+| **Persistent research state** | Yes | No | Usually no |
+| **Agent tool orchestration** | Yes | No | No |
+| **Community-extensible domain tools** | Yes | N/A | Sometimes |
+| **Focus on hydrology workflows** | Yes | Depends on user | Usually narrow |
 
-AI-Hydro is **not a replacement** for HydroMT or NeuralHydrology — it can call them as standalone scripts. It is the orchestration and provenance layer that sits above domain tools.
+AI-Hydro is not trying to replace domain libraries like HyRiver, HydroMT, NeuralHydrology, or other hydrology packages.
+
+It sits above them as a research orchestration layer:
+
+- where tools become agent-usable
+- where workflows become reproducible
+- where sessions become persistent
+- and where outputs remain scientifically traceable
 
 ---
 
-## Installation
+## Community Vision
+
+The long-term vision is larger than the current built-in toolset.
+
+AI-Hydro is being built as an **open platform**, not a closed assistant:
+
+- built-in tools for common hydrology workflows
+- community-contributed plugins for new domains
+- agent-readable scientific knowledge
+- reusable, provenance-aware research workflows
+
+If Codex, Claude Code, and Cursor are becoming operating environments for software engineering, AI-Hydro is asking:
+
+**what would the equivalent look like for hydrology and earth science?**
+
+That is the direction of this project.
+
+---
+
+## Get Started
 
 === "VS Code Extension"
 
-    Search **AI-Hydro** in the VS Code Extensions panel, or install from the [Marketplace](https://marketplace.visualstudio.com/items?itemName=aihydro.ai-hydro).
+    Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=aihydro.ai-hydro) and connect your preferred AI provider.
 
-    The extension auto-detects `aihydro-mcp` on startup — no manual server configuration needed.
+    The extension auto-detects `aihydro-mcp` on startup, so the hydrology tool server becomes available without manual JSON configuration.
 
-=== "Python Package Only"
+=== "Python Package"
 
     ```bash
     pip install aihydro-tools[all]
     aihydro-mcp --diagnose
     ```
 
-    Use with any MCP-compatible client (Claude Desktop, custom agents, etc.).
+    Use the MCP server with the VS Code extension or any MCP-compatible client.
 
 ---
 
-## Supported AI Models
+## Open Foundations
 
-AI-Hydro works with any provider that supports tool/function calling. No model-specific code — switching providers is a single setting change.
+AI-Hydro builds on open-source agent and scientific computing foundations.
+The extension originated from the [Cline](https://github.com/cline/cline) codebase (Apache 2.0), but the platform is being extended into a domain-specific environment for hydrological and earth science research.
 
-| Provider | Supported models |
-|----------|-----------------|
-| **Anthropic** | Claude Sonnet, Claude Opus (any released version) |
-| **OpenAI** | GPT-4o, GPT-4o mini, o3, o4-mini and later |
-| **Google** | Gemini 2.0 Flash, Gemini 2.5 Pro and later |
-| **AWS Bedrock** | Claude on Bedrock, any Bedrock model with tool use |
-| **Azure OpenAI** | GPT models via Azure endpoint |
-| **Local** | Ollama, LM Studio (models with tool-call support) |
-| **OpenRouter** | Any model via OpenRouter API |
+The Python backend builds on the scientific Python ecosystem, including:
+
+- `fastmcp`
+- `pynhd`
+- `pygeohydro`
+- `pygridmet`
+- `py3dep`
+- `hydrofunctions`
+- `pydantic`
+
+If you use AI-Hydro in your research, see [Citing AI-Hydro](citing.md) for platform and data-source citations.
 
 ---
 
-## Built on Open Source
+## Where To Next
 
-AI-Hydro is a domain-specific fork of [Cline](https://github.com/cline/cline) (Apache 2.0).
-The Python backend is built on the scientific Python ecosystem:
-
-| Package | Role |
-|---------|------|
-| [fastmcp](https://github.com/jlowin/fastmcp) | MCP server framework |
-| [hydrofunctions](https://hydrofunctions.readthedocs.io/) | USGS NWIS streamflow retrieval |
-| [pynhd](https://hyriver.readthedocs.io/en/latest/pynhd.html) | NHDPlus watershed delineation |
-| [pygeohydro](https://hyriver.readthedocs.io/en/latest/pygeohydro.html) | NLCD, CAMELS, geospatial data |
-| [pygridmet](https://hyriver.readthedocs.io/en/latest/pygridmet.html) | GridMET climate forcing |
-| [py3dep](https://hyriver.readthedocs.io/en/latest/py3dep.html) | 3DEP DEM and terrain analysis |
-| [pydantic](https://docs.pydantic.dev/) | Data validation |
-
-If you use AI-Hydro in your research, see **[Citing AI-Hydro](citing.md)** for BibTeX entries for the platform and all data sources.
+- [Installation](getting-started/installation.md)
+- [Quickstart](getting-started/quickstart.md)
+- [Architecture](architecture.md)
+- [Tool Reference](tools/index.md)
+- [Plugin Overview](plugins/overview.md)
+- [Contributing](contributing.md)
