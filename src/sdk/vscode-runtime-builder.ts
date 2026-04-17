@@ -93,6 +93,54 @@ function mcpToolNameTransform(input: { serverName: string; toolName: string }): 
 }
 
 // ---------------------------------------------------------------------------
+// attempt_completion tool
+// ---------------------------------------------------------------------------
+
+/**
+ * Create the attempt_completion tool for the SDK agent.
+ *
+ * In the classic extension, attempt_completion was a built-in tool that
+ * triggered the green "Task Completed" rectangle in the webview. The SDK
+ * doesn't have this tool built-in, so we register it as a custom tool.
+ *
+ * The tool's execute function is a no-op — it just returns a success
+ * message. The actual UI behavior (green rectangle, follow-up input) is
+ * handled by the message translator when it sees content_start/content_end
+ * events with toolName === "attempt_completion".
+ */
+function createAttemptCompletionTool(): Tool {
+	return createTool({
+		name: "attempt_completion",
+		description:
+			"Once you've completed the user's task, use this tool to present the result to the user. " +
+			"The user may provide feedback if they are not satisfied, which you can use to make improvements and try again.",
+		inputSchema: {
+			type: "object",
+			properties: {
+				result: {
+					type: "string",
+					description: "A clear, brief summary of the final result of the task.",
+				},
+				command: {
+					type: "string",
+					description:
+						"An optional terminal command to showcase the result (e.g. open a dev server). " +
+						"Do not use commands like echo or cat that merely print text.",
+				},
+			},
+			required: ["result"],
+		},
+		execute: async (input: unknown) => {
+			// No-op: the message translator handles the UI display.
+			// We return the result text so it appears in the agent event stream.
+			const parsedInput = input && typeof input === "object" ? (input as Record<string, unknown>) : {}
+			const result = typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."
+			return result
+		},
+	})
+}
+
+// ---------------------------------------------------------------------------
 // VscodeRuntimeBuilder
 // ---------------------------------------------------------------------------
 
@@ -131,7 +179,8 @@ export class VscodeRuntimeBuilder {
 	 * Build the runtime tools for a session.
 	 *
 	 * Delegates to DefaultRuntimeBuilder for builtin tools, then adds
-	 * MCP tools from the classic McpHub's connected servers.
+	 * MCP tools from the classic McpHub's connected servers, plus the
+	 * attempt_completion tool for task completion UI.
 	 */
 	async build(input: Parameters<DefaultRuntimeBuilder["build"]>[0]) {
 		// 1. Build builtin tools using the default builder
@@ -147,10 +196,15 @@ export class VscodeRuntimeBuilder {
 		// 3. Load MCP tools from the classic McpHub
 		const mcpTools = await this.loadMcpToolsFromHub()
 
-		// 4. Combine
-		const allTools = [...builtinTools, ...mcpTools]
+		// 4. Create the attempt_completion tool
+		const completionTool = createAttemptCompletionTool()
 
-		Logger.log(`[VscodeRuntimeBuilder] Built runtime: ${builtinTools.length} builtin + ${mcpTools.length} MCP tools`)
+		// 5. Combine
+		const allTools = [...builtinTools, completionTool, ...mcpTools]
+
+		Logger.log(
+			`[VscodeRuntimeBuilder] Built runtime: ${builtinTools.length} builtin + 1 completion + ${mcpTools.length} MCP tools`,
+		)
 
 		return {
 			...defaultRuntime,
