@@ -3,6 +3,7 @@ import * as coreApi from "@core/api"
 import * as skills from "@core/context/instructions/user-instructions/skills"
 import { PromptRegistry } from "@core/prompts/system-prompt"
 import type { TaskConfig } from "@core/task/tools/types/TaskConfig"
+import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
@@ -36,7 +37,31 @@ function initializeHostProvider() {
 	)
 }
 
-function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
+function createRemoteSkillEntry(
+	name: string,
+	description: string,
+	options: { alwaysEnabled?: boolean } = {},
+): GlobalInstructionsFile {
+	return {
+		name,
+		alwaysEnabled: options.alwaysEnabled ?? false,
+		contents: `---
+name: ${name}
+description: ${description}
+---
+Instructions for ${name}.`,
+	}
+}
+
+function createTaskConfig(
+	nativeToolCallEnabled: boolean,
+	options: {
+		globalSkillsToggles?: Record<string, boolean>
+		localSkillsToggles?: Record<string, boolean>
+		remoteSkillsToggles?: Record<string, boolean>
+		remoteGlobalSkills?: GlobalInstructionsFile[]
+	} = {},
+): TaskConfig {
 	return {
 		taskId: "task-1",
 		ulid: "ulid-1",
@@ -71,9 +96,29 @@ function createTaskConfig(nativeToolCallEnabled: boolean): TaskConfig {
 					if (key === "customPrompt") {
 						return undefined
 					}
+					if (key === "globalSkillsToggles") {
+						return options.globalSkillsToggles
+					}
 					return undefined
 				},
-				getGlobalStateKey: (key: string) => (key === "nativeToolCallEnabled" ? nativeToolCallEnabled : undefined),
+				getGlobalStateKey: (key: string) => {
+					if (key === "nativeToolCallEnabled") {
+						return nativeToolCallEnabled
+					}
+					if (key === "remoteSkillsToggles") {
+						return options.remoteSkillsToggles
+					}
+					return undefined
+				},
+				getWorkspaceStateKey: (key: string) => {
+					if (key === "localSkillsToggles") {
+						return options.localSkillsToggles
+					}
+					return undefined
+				},
+				getRemoteConfigSettings: () => ({
+					remoteGlobalSkills: options.remoteGlobalSkills ?? [],
+				}),
 				getApiConfiguration: () => ({
 					actModeApiProvider: "anthropic",
 					planModeApiProvider: "anthropic",
@@ -376,7 +421,9 @@ describe("SubagentRunner", () => {
 		assert.equal(createMessage.callCount, 2)
 	})
 
-	it("retries initial stream failures before failing", async () => {
+	it("retries initial stream failures before failing", async function () {
+		this.timeout(8_000)
+
 		const createMessage = sinon.stub()
 		createMessage.onFirstCall().callsFake(async function* () {
 			yield* []
@@ -407,12 +454,8 @@ describe("SubagentRunner", () => {
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const clock = sinon.useFakeTimers()
 		const runner = new SubagentRunner(createTaskConfig(false))
-		const runPromise = runner.run("List files", () => {})
-		await clock.runAllAsync()
-		const result = await runPromise
-		clock.restore()
+		const result = await runner.run("List files", () => {})
 
 		assert.equal(result.status, "failed")
 		assert.equal(createMessage.callCount, 3)
@@ -503,15 +546,17 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["allowed-skill"])
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([
-			{ name: "allowed-skill", description: "Allowed", path: "/skills/allowed/SKILL.md", source: "project" },
-			{ name: "other-skill", description: "Other", path: "/skills/other/SKILL.md", source: "project" },
-		])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const runner = new SubagentRunner(createTaskConfig(false))
+		const runner = new SubagentRunner(
+			createTaskConfig(false, {
+				remoteGlobalSkills: [
+					createRemoteSkillEntry("allowed-skill", "Allowed"),
+					createRemoteSkillEntry("other-skill", "Other"),
+				],
+			}),
+		)
 		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
@@ -543,10 +588,9 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(undefined)
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon.stub(skills, "getAvailableSkills").returns([
-			{ name: "alpha-skill", description: "Alpha", path: "/skills/alpha/SKILL.md", source: "project" },
-			{ name: "beta-skill", description: "Beta", path: "/skills/beta/SKILL.md", source: "project" },
+		sinon.stub(skills, "discoverAvailableSkills").resolves([
+			{ name: "alpha-skill", description: "Alpha", path: "remote:alpha-skill", source: "global" },
+			{ name: "beta-skill", description: "Beta", path: "remote:beta-skill", source: "global" },
 		])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
@@ -584,19 +628,89 @@ describe("SubagentRunner", () => {
 			return "system prompt"
 		})
 		sinon.stub(SubagentBuilder.prototype, "getConfiguredSkills").returns(["present-skill", "missing-skill"])
-		sinon.stub(skills, "discoverSkills").resolves([])
-		sinon
-			.stub(skills, "getAvailableSkills")
-			.returns([{ name: "present-skill", description: "Present", path: "/skills/present/SKILL.md", source: "project" }])
 		stubApiHandler(createMessage)
 		initializeHostProvider()
 
-		const runner = new SubagentRunner(createTaskConfig(false))
+		const runner = new SubagentRunner(
+			createTaskConfig(false, {
+				remoteGlobalSkills: [createRemoteSkillEntry("present-skill", "Present")],
+			}),
+		)
 		const result = await runner.run("Run task", () => {})
 
 		assert.equal(result.status, "completed")
 		assert.equal(createMessage.callCount, 1)
 		sinon.assert.calledWith(warnStub, "[SubagentRunner] Configured skill 'missing-skill' not found for subagent run.")
+	})
+
+	it("includes enabled remote skills in subagent context and preserves configured remote names", async () => {
+		const createMessage = sinon.stub().callsFake(async function* () {
+			yield {
+				type: "tool_calls",
+				tool_call: {
+					function: {
+						id: "toolu_subagent_remote_skills_1",
+						name: ClineDefaultTool.ATTEMPT,
+						arguments: JSON.stringify({ result: "done" }),
+					},
+				},
+			}
+		})
+
+		const remoteGlobalSkills = [
+			createRemoteSkillEntry("remote-enabled", "Enabled remote skill"),
+			createRemoteSkillEntry("remote-disabled", "Disabled remote skill"),
+			createRemoteSkillEntry("remote-locked", "Always enabled remote skill", { alwaysEnabled: true }),
+		]
+
+		const promptRegistry = PromptRegistry.getInstance()
+		sinon.stub(promptRegistry, "get").callsFake(async (context) => {
+			assert.ok(context.skills)
+			assert.deepEqual(
+				context.skills.map((skill) => skill.name),
+				["remote-enabled", "remote-locked"],
+			)
+			promptRegistry.nativeTools = undefined
+			return "system prompt"
+		})
+		sinon
+			.stub(SubagentBuilder.prototype, "getConfiguredSkills")
+			.returns(["remote-enabled", "remote-disabled", "remote-locked"])
+		sinon.stub(skills, "discoverSkills").callsFake(async (_cwd, remoteEntries) => {
+			assert.deepEqual(remoteEntries, remoteGlobalSkills)
+			return [
+				{ name: "remote-enabled", description: "Enabled remote skill", path: "remote:remote-enabled", source: "global" },
+				{
+					name: "remote-disabled",
+					description: "Disabled remote skill",
+					path: "remote:remote-disabled",
+					source: "global",
+				},
+				{
+					name: "remote-locked",
+					description: "Always enabled remote skill",
+					path: "remote:remote-locked",
+					source: "global",
+				},
+			]
+		})
+		sinon.stub(skills, "getAvailableSkills").callsFake((availableSkills) => availableSkills)
+		stubApiHandler(createMessage)
+		initializeHostProvider()
+
+		const runner = new SubagentRunner(
+			createTaskConfig(false, {
+				remoteGlobalSkills,
+				remoteSkillsToggles: {
+					"remote-disabled": false,
+					"remote-locked": false,
+				},
+			}),
+		)
+		const result = await runner.run("Run task", () => {})
+
+		assert.equal(result.status, "completed")
+		assert.equal(createMessage.callCount, 1)
 	})
 
 	it("includes workspace metadata only in the initial user message", async () => {

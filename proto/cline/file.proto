@@ -295,8 +295,9 @@ message DeleteHookResponse {
 message SkillInfo {
   string name = 1; // Name of the skill (matches directory name)
   string description = 2; // Description from SKILL.md frontmatter
-  string path = 3; // Full path to SKILL.md file
+  string path = 3; // Full path to SKILL.md file (or "remote:<name>" for remote skills)
   bool enabled = 4; // Whether the skill is enabled
+  bool always_enabled = 5; // Whether the skill is always enabled (remote only, user cannot toggle off)
 }
 
 // Response for refreshSkills operation
@@ -309,6 +310,7 @@ message RefreshedSkills {
 message SkillsToggles {
   map<string, bool> global_skills_toggles = 1;
   map<string, bool> local_skills_toggles = 2;
+  map<string, bool> remote_skills_toggles = 3;
 }
 
 // Request to toggle a skill
