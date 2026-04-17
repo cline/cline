@@ -392,7 +392,7 @@ This workstream targets the main file-edit pipeline.
 
 - [x] `write_to_file` on huge file content
 - [x] `replace_in_file` against huge original content
-- [ ] `apply_patch` against multiple large files
+- [x] `apply_patch` against multiple large files
 - [x] manual approval payload generation for huge edits
 - [x] `saveChanges()` behavior with giant pre-save/post-save content
 - [x] `scrollToFirstDiff()` on very large file diffs
