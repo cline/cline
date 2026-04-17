@@ -468,8 +468,8 @@ Even if one task only leaks a little, many create/cancel/clear cycles can accumu
 
 - [x] create task -> cancel task, repeated N times
 - [ ] create task -> open diff -> cancel before completion, repeated N times
-- [ ] task with tracked files -> abort -> ensure watcher count returns to baseline
-- [ ] task with focus-chain enabled -> abort -> ensure focus-chain watcher is gone
+- [x] task with tracked files -> abort -> ensure watcher count returns to baseline
+- [x] task with focus-chain enabled -> abort -> ensure focus-chain watcher is gone
 - [ ] task with active hook process -> abort -> ensure registry count returns to baseline
 - [ ] repeated background command start/cancel loops
 - [x] component-level watcher disposal and duplicate-watcher regression tests

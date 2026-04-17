@@ -151,4 +151,67 @@ describe("performTaskAbortCleanup", () => {
 			"presentation-4",
 		])
 	})
+
+	it("awaits async focus-chain cleanup before abort cleanup resolves", async () => {
+		const focusDeferred = createDeferred()
+		const events: string[] = []
+
+		const cleanupPromise = performTaskAbortCleanup({
+			urlContentFetcher: {
+				closeBrowser: async () => {
+					events.push("closeBrowser")
+				},
+			},
+			browserSession: {
+				dispose: async () => {
+					events.push("browserSession")
+				},
+			},
+			clineIgnoreController: {
+				dispose: async () => {
+					events.push("clineIgnore")
+				},
+			},
+			fileContextTracker: {
+				dispose: async () => {
+					events.push("fileTracker")
+				},
+			},
+			focusChainManager: {
+				dispose: async () => {
+					events.push("focusChain:start")
+					await focusDeferred.promise
+					events.push("focusChain:end")
+				},
+			},
+			presentationScheduler: {
+				dispose: async () => {
+					events.push("presentationScheduler")
+				},
+			},
+		})
+
+		await flushMicrotasks()
+		assert.deepStrictEqual(events, ["closeBrowser", "browserSession", "clineIgnore", "fileTracker", "focusChain:start"])
+
+		let settled = false
+		void cleanupPromise.then(() => {
+			settled = true
+		})
+		await flushMicrotasks()
+		assert.equal(settled, false)
+
+		focusDeferred.resolve()
+		await cleanupPromise
+
+		assert.deepStrictEqual(events, [
+			"closeBrowser",
+			"browserSession",
+			"clineIgnore",
+			"fileTracker",
+			"focusChain:start",
+			"focusChain:end",
+			"presentationScheduler",
+		])
+	})
 })
