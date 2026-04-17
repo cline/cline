@@ -551,10 +551,10 @@ Some failures are only visible after sustained operation.
 
 - [ ] 10,000 incremental message updates
 - [x] 1,000 repeated state broadcasts with growing conversation
-- [ ] repeated diff-edit open/update/reset cycles
+- [x] repeated diff-edit open/update/reset cycles
 - [x] 1,000 create/cancel task cycles
-- [ ] noisy MCP notification run
-- [ ] large-file edit run under reduced heap
+- [x] noisy MCP notification run
+- [x] large-file edit run under reduced heap
 
 #### Recommended CI strategy
 
