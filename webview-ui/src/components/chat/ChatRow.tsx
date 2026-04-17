@@ -1029,26 +1029,6 @@ export const ChatRowContent = memo(
 								text={text || ""}
 							/>
 						)
-					case "shell_integration_warning":
-						return (
-							<div className="flex flex-col bg-warning/20 p-2 rounded-xs border border-error">
-								<div className="flex items-center mb-1">
-									<TriangleAlertIcon className="mr-2 size-2 stroke-3 text-error" />
-									<span className="font-medium text-foreground">Shell Integration Unavailable</span>
-								</div>
-								<div className="text-foreground opacity-80">
-									Cline may have trouble viewing the command's output. Please update VSCode (
-									<code>CMD/CTRL + Shift + P</code> → "Update") and make sure you're using a supported shell:
-									zsh, bash, fish, or PowerShell (<code>CMD/CTRL + Shift + P</code> → "Terminal: Select Default
-									Profile").
-									<a
-										className="px-1"
-										href="https://github.com/cline/cline/wiki/Troubleshooting-%E2%80%90-Shell-Integration-Unavailable">
-										Still having trouble?
-									</a>
-								</div>
-							</div>
-						)
 					case "error_retry":
 						try {
 							const retryInfo = JSON.parse(message.text || "{}")
@@ -1102,20 +1082,6 @@ export const ChatRowContent = memo(
 						return <InvisibleSpacer />
 					case "subagent":
 						return <SubagentStatusRow isLast={isLast} lastModifiedMessage={lastModifiedMessage} message={message} />
-					case "shell_integration_warning_with_suggestion":
-						return (
-							<div className="flex flex-col bg-link/10 p-2 rounded-xs border border-link/30">
-								<div className="flex items-center mb-1">
-									<LightbulbIcon className="mr-1.5 size-2 text-link" />
-									<span className="font-medium text-foreground">Shell integration issues</span>
-								</div>
-								<div className="text-foreground opacity-80">
-									Cline now uses background terminal execution by default. If you still see shell integration
-									warnings, try updating VSCode and confirming you are using a supported shell such as zsh,
-									bash, fish, or PowerShell.
-								</div>
-							</div>
-						)
 					case "task_progress":
 						return <InvisibleSpacer /> // task_progress messages should be displayed in TaskHeader only, not in chat
 					default:

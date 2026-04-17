@@ -19,7 +19,6 @@ import type {
 	CommandExecutorCallbacks,
 	CommandExecutorConfig,
 	ITerminalManager,
-	ShellIntegrationWarningTracker,
 	TerminalProcessResultPromise,
 } from "./types"
 
@@ -43,12 +42,6 @@ export class CommandExecutor {
 
 	// Flag to track if the current command was cancelled externally
 	private wasCancelledExternally = false
-
-	// Track shell integration warnings to determine when to show background terminal suggestion
-	private shellIntegrationWarningTracker: ShellIntegrationWarningTracker = {
-		timestamps: [],
-		lastSuggestionShown: undefined,
-	}
 
 	constructor(config: CommandExecutorConfig, callbacks: CommandExecutorCallbacks) {
 		this.cwd = config.cwd
@@ -128,7 +121,6 @@ export class CommandExecutor {
 						return { logFilePath: backgroundCmd.logFilePath }
 					}
 				: undefined,
-			showShellIntegrationSuggestion: this.shouldShowBackgroundTerminalSuggestion(),
 			terminalType: useStandalone ? "standalone" : "vscode",
 		})
 
@@ -217,40 +209,5 @@ export class CommandExecutor {
 	getBackgroundCommandSummary(): string | undefined {
 		const summary = this.standaloneManager.getBackgroundCommandsSummary()
 		return summary || undefined
-	}
-
-	/**
-	 * Determines whether to show the background terminal suggestion.
-	 * Shows suggestion if there have been 3+ shell integration warnings in the last hour,
-	 * and we haven't shown the suggestion in the last hour.
-	 *
-	 * @returns true if the suggestion should be shown, false otherwise
-	 */
-	private shouldShowBackgroundTerminalSuggestion(): boolean {
-		const oneHourAgo = Date.now() - 60 * 60 * 1000
-
-		// Clean old timestamps (older than 1 hour)
-		this.shellIntegrationWarningTracker.timestamps = this.shellIntegrationWarningTracker.timestamps.filter(
-			(ts) => ts > oneHourAgo,
-		)
-
-		// Add current warning
-		this.shellIntegrationWarningTracker.timestamps.push(Date.now())
-
-		// Check if we've shown suggestion recently (within last hour)
-		if (
-			this.shellIntegrationWarningTracker.lastSuggestionShown &&
-			Date.now() - this.shellIntegrationWarningTracker.lastSuggestionShown < 60 * 60 * 1000
-		) {
-			return false
-		}
-
-		// Show suggestion if 3+ warnings in last hour
-		if (this.shellIntegrationWarningTracker.timestamps.length >= 3) {
-			this.shellIntegrationWarningTracker.lastSuggestionShown = Date.now()
-			return true
-		}
-
-		return false
 	}
 }

@@ -164,8 +164,6 @@ export type ClineSay =
 	| "command"
 	| "command_output"
 	| "tool"
-	| "shell_integration_warning"
-	| "shell_integration_warning_with_suggestion"
 	| "browser_action_launch"
 	| "browser_action"
 	| "browser_action_result"

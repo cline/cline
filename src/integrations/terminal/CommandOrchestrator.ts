@@ -58,7 +58,6 @@ export async function orchestrateCommandExecution(
 	const {
 		timeoutSeconds,
 		onOutputLine,
-		showShellIntegrationSuggestion,
 		onProceedWhileRunning,
 		terminalType = "vscode",
 		suppressUserInteraction = false,
@@ -461,14 +460,6 @@ export async function orchestrateCommandExecution(
 	})
 	process.once("error", () => {
 		releaseAnyPendingCommandOutputAsk()
-	})
-
-	process.once("no_shell_integration", async () => {
-		if (showShellIntegrationSuggestion) {
-			await say("shell_integration_warning_with_suggestion")
-		} else {
-			await say("shell_integration_warning")
-		}
 	})
 
 	// Handle timeout if specified, or wait for process to complete
