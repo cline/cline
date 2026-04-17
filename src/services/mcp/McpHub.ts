@@ -44,6 +44,7 @@ import { expandEnvironmentVariables } from "@/utils/envExpansion"
 import { getServerAuthHash } from "@/utils/mcpAuth"
 import { TelemetryService } from "../telemetry/TelemetryService"
 import { DEFAULT_REQUEST_TIMEOUT_MS } from "./constants"
+import { appendBoundedMcpError, enqueuePendingMcpNotification, PendingMcpNotification } from "./limits"
 import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
@@ -84,12 +85,7 @@ export class McpHub {
 	private static mcpServerKeys = new Map<string, string>()
 
 	// Store notifications for display in chat
-	private pendingNotifications: Array<{
-		serverName: string
-		level: string
-		message: string
-		timestamp: number
-	}> = []
+	private pendingNotifications: PendingMcpNotification[] = []
 
 	// Callback for sending notifications to active task
 	private notificationCallback?: (serverName: string, level: string, message: string) => void
@@ -628,7 +624,7 @@ export class McpHub {
 					} else {
 						// Fallback: store for later retrieval
 						//Logger.log(`[MCP Debug] No active task, storing notification: ${message}`)
-						this.pendingNotifications.push({
+						this.pendingNotifications = enqueuePendingMcpNotification(this.pendingNotifications, {
 							serverName: name,
 							level,
 							message,
@@ -670,8 +666,7 @@ export class McpHub {
 	}
 
 	private appendErrorMessage(connection: McpConnection, error: string) {
-		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
-		connection.server.error = newError //.slice(0, 800)
+		connection.server.error = appendBoundedMcpError(connection.server.error, error)
 	}
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {

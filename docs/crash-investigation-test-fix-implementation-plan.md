@@ -771,7 +771,7 @@ The team should not attack everything at once. The best sequence is:
 ### Phase 4 — Confirm teardown and backlog risks
 
 - [ ] watcher leak churn tests
-- [ ] MCP noisy-server tests
+- [x] MCP noisy-server tests
 - [x] cancellation/restart churn tests
 
 ### Phase 5 — Implement architecture fixes
@@ -943,7 +943,7 @@ This section is designed to be worked through directly.
 - [x] Confirm large-file edit amplification candidate
 - [x] Confirm base64 diff URI candidate
 - [x] Confirm PatchParser/diff quadratic candidate
-- [ ] Confirm MCP pending notification backlog candidate
+- [x] Confirm MCP pending notification backlog candidate
 - [x] Confirm teardown/watcher leak candidate
 
 ### Fix implementation
@@ -951,7 +951,7 @@ This section is designed to be worked through directly.
 - [x] Add explicit caps to dangerous payload paths
 - [x] Refactor hot paths to reduce full snapshot work
 - [x] Replace risky diff transport mechanics
-- [ ] Bound queues and error accumulation
+- [x] Bound queues and error accumulation
 - [x] Harden abort and teardown sequencing
 
 ### Validation
