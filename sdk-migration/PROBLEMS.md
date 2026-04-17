@@ -561,6 +561,13 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Fix**: Not yet attempted. The error handler in `SdkController` (or the message translator's error event handler) needs to detect insufficient-balance errors (check for 402 status, "insufficient balance" text, or SDK-specific error types) and emit `ask: "api_req_failed"` with the appropriate structured payload that the webview expects for rendering the buy-credits UI.
 - **Verification**: Log in with an account that has no credits, attempt inference, verify the buy-credits buttons and provider-switch options appear instead of raw error text.
 
+### S6-34: Cancel during generation doesn't show "Resume task" and follow-ups don't display
+- **Status**: 🔴 Blocker
+- **Description**: Two related issues when cancelling during active generation: (1) After hitting "Cancel" while the agent is streaming, the button does not change to "Resume task" — it stays in a stuck state without the expected resume option. (2) If the user sends another message after cancelling, the message does not display in the chat panel (though it may be sent to the backend).
+- **Root cause**: The classic extension emits `ask: "resume_task"` when a task is cancelled mid-generation, which tells the webview to show the "Resume task" button and enables the follow-up input. The SDK adapter's `cancelTask()` likely calls `sessionManager.abort()` or `sessionManager.stop()` but doesn't emit the `ask: "resume_task"` message afterward. Without this ask message, the webview doesn't know the task is in a resumable state — the button state is wrong and `handleSendMessage()` doesn't handle the follow-up correctly. The follow-up message not displaying is likely the same root cause as S6-30 — the webview's `clineAsk` is not set to a value that enables message sending/display.
+- **Fix**: Not yet attempted. After `cancelTask()` successfully aborts the session, emit `ask: "resume_task"` (or `ask: "resume_completed_task"` depending on whether the task had completed) to the message state handler and partial message stream. This mirrors the classic extension's behavior in `Task.abortTask()` which emits the resume ask message. Also need to ensure the follow-up message handler works correctly when resuming from a cancelled state.
+- **Verification**: Debug harness test: (1) Send a message that triggers long generation (2) Hit Cancel during streaming (3) Verify "Resume task" button appears (4) Send a follow-up message (5) Verify it displays in chat and triggers inference
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢
