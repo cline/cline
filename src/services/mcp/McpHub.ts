@@ -100,6 +100,11 @@ export class McpHub {
 	// Fingerprint of the last tool list snapshot, used to detect actual tool list changes
 	// vs. mere status updates (e.g., error messages appended).
 	private lastToolFingerprint = ""
+	// Debounce timer for tool list change checks. When a server connects,
+	// notifyWebviewOfServerChanges() fires multiple times in quick succession
+	// (status change, tools discovered, etc.). Without debouncing, the callback
+	// fires multiple times causing duplicate messages (S6-28).
+	private toolListChangeDebounceTimer?: ReturnType<typeof setTimeout>
 
 	constructor(
 		getMcpServersPath: () => Promise<string>,
@@ -1650,8 +1655,41 @@ export class McpHub {
 	/**
 	 * Check if the tool list has changed and fire the callback if so.
 	 * Called internally after server connection changes settle.
+	 *
+	 * Debounced: when a server connects, notifyWebviewOfServerChanges()
+	 * fires multiple times in quick succession (status change → tools
+	 * discovered → etc.). Without debouncing, the callback fires for
+	 * each intermediate state, causing duplicate messages (S6-28).
+	 * The 300ms debounce coalesces these into a single callback.
 	 */
 	private checkToolListChanged(): void {
+		if (!this.toolListChangeCallback) {
+			return
+		}
+
+		// Quick-check: if the fingerprint hasn't changed, skip the debounce entirely.
+		// This avoids scheduling timers for the many notifyWebviewOfServerChanges()
+		// calls that don't actually change the tool list (e.g., error messages).
+		const currentFingerprint = this.computeToolFingerprint()
+		if (currentFingerprint === this.lastToolFingerprint) {
+			return
+		}
+
+		// Fingerprint changed — debounce to coalesce rapid-fire changes
+		if (this.toolListChangeDebounceTimer) {
+			clearTimeout(this.toolListChangeDebounceTimer)
+		}
+		this.toolListChangeDebounceTimer = setTimeout(() => {
+			this.toolListChangeDebounceTimer = undefined
+			this.fireToolListChangeIfNeeded()
+		}, 300)
+	}
+
+	/**
+	 * Fire the tool list change callback if the fingerprint has changed.
+	 * Called after the debounce timer expires.
+	 */
+	private fireToolListChangeIfNeeded(): void {
 		if (!this.toolListChangeCallback) {
 			return
 		}
