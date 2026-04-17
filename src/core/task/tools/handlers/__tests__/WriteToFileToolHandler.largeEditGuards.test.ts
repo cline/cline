@@ -1,4 +1,5 @@
 import { strict as assert } from "node:assert"
+import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import { afterEach, beforeEach, describe, it } from "mocha"
@@ -21,7 +22,7 @@ function createConfig(tmpDir: string) {
 		revertChanges: sinon.stub().resolves(),
 		reset: sinon.stub().resolves(),
 		scrollToFirstDiff: sinon.stub().resolves(),
-		getOriginalContentForLLM: sinon.stub().returns(""),
+		getOriginalContentForLLM: sinon.stub().callsFake(() => diffViewProvider.originalContent),
 	}
 
 	const callbacks = {
@@ -134,10 +135,43 @@ describe("WriteToFileToolHandler large edit guards", () => {
 		assert.equal(taskState.consecutiveMistakeCount, 1)
 		assert.equal(taskState.didAlreadyUseTool, false)
 		assert.equal(taskState.userMessageContent.length, 1)
-		assert.match(taskState.userMessageContent[0].text, /edit payload is too large/)
+		const oversizedWriteMessage = taskState.userMessageContent[0] as any
+		assert.match(oversizedWriteMessage.text, /edit payload is too large/)
 		sinon.assert.notCalled(diffViewProvider.open)
 		sinon.assert.notCalled(diffViewProvider.update)
 		sinon.assert.notCalled(diffViewProvider.saveChanges)
 		sinon.assert.notCalled(diffViewProvider.revertChanges)
+	})
+
+	it("summarizes huge original file content when replace_in_file diff construction fails", async () => {
+		const { config, taskState, diffViewProvider } = createConfig(tmpDir)
+		const handler = new WriteToFileToolHandler(new ToolValidator({ validateAccess: () => true } as any))
+		const relPath = "big.ts"
+		const absolutePath = path.join(tmpDir, relPath)
+		const hugeOriginal = "x".repeat(70 * 1024)
+
+		await fs.mkdir(tmpDir, { recursive: true })
+		await fs.writeFile(absolutePath, hugeOriginal, "utf8")
+		diffViewProvider.originalContent = hugeOriginal
+
+		const result = await handler.execute(config, {
+			type: "tool_use",
+			name: "replace_in_file",
+			params: {
+				path: relPath,
+				diff: "<<<<<<< SEARCH\nnot-present\n=======\nreplacement\n>>>>>>> REPLACE",
+			},
+			partial: false,
+		} as any)
+
+		assert.equal(result, "")
+		assert.equal(taskState.consecutiveMistakeCount, 1)
+		assert.equal(taskState.userMessageContent.length, 1)
+		const diffFailureMessage = taskState.userMessageContent[0] as any
+		assert.match(diffFailureMessage.text, /omitted from tool payload/)
+		assert.doesNotMatch(diffFailureMessage.text, /<file_content path="big\.ts">/)
+		sinon.assert.calledOnce(diffViewProvider.open)
+		sinon.assert.calledOnce(diffViewProvider.reset)
+		sinon.assert.notCalled(diffViewProvider.saveChanges)
 	})
 })

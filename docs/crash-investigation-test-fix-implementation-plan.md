@@ -391,7 +391,7 @@ This workstream targets the main file-edit pipeline.
 #### What to test
 
 - [ ] `write_to_file` on huge file content
-- [ ] `replace_in_file` against huge original content
+- [x] `replace_in_file` against huge original content
 - [ ] `apply_patch` against multiple large files
 - [x] manual approval payload generation for huge edits
 - [x] `saveChanges()` behavior with giant pre-save/post-save content
@@ -412,7 +412,7 @@ This workstream targets the main file-edit pipeline.
 - [x] Short-circuit oversized edits with a clear user-visible error.
 - [x] Avoid returning full final file content for oversized files.
 - [x] Use summary output instead of full content in approval messages for large files, including oversized patch input approval payloads.
-- [x] Use summary output instead of full original-file echoes in edit failure messages for large files.
+- [x] Use summary output instead of full original-file echoes in edit failure messages for large files, including replace-in-file diff failures.
 - [ ] Consider chunked or direct file-edit modes for large content.
 
 #### Why this matters
