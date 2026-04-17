@@ -341,7 +341,7 @@ The next highest-value area is the combination of message growth, persistence, a
 - [x] Full `postStateToWebview()` calls with large `clineMessages`
 - [x] Webview-side repeated `JSON.parse(response.stateJson)` under large payloads
 - [x] Repeated save/reload cycles on large `ui_messages.json`
-- [ ] Long task histories with large per-message text bodies
+- [x] Long task histories with large per-message text bodies
 
 #### Failure oracles
 

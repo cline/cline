@@ -172,6 +172,50 @@ describe("MessageStateHandler Mutex Protection", () => {
 			?.text?.should.equal(`added-39-${"z".repeat(128)}`)
 	})
 
+	it("should save long histories with large per-message text bodies without dropping messages", async function () {
+		this.timeout(5_000)
+
+		const taskState = new TaskState()
+		let savedMessagesCalls = 0
+		let updatedHistoryItem: any
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async (historyItem) => {
+				updatedHistoryItem = historyItem
+				return []
+			},
+			getTaskDirectorySize: async () => 16_384,
+			getCurrentWorkingDirectory: async () => "/tmp/project",
+			ensureTaskDirectoryExists: async () => "/tmp/project/.cline/tasks/test-task-id",
+			saveClineMessages: async () => {
+				savedMessagesCalls += 1
+			},
+			saveApiConversationHistory: async () => {},
+		})
+
+		const body = "payload-".repeat(1_024)
+		const clineMessages = Array.from({ length: 180 }, (_, i) => createTestMessage(`message-${i}-${body}`))
+		const apiHistory = Array.from({ length: 180 }, (_, i) => ({
+			role: (i % 2 === 0 ? "user" : "assistant") as "user" | "assistant",
+			content: `history-${i}-${body}`,
+			ts: i + 1,
+		}))
+
+		handler.setApiConversationHistory(apiHistory as any)
+		handler.setClineMessages(clineMessages)
+		await handler.saveClineMessagesAndUpdateHistory()
+
+		savedMessagesCalls.should.equal(1)
+		handler.getClineMessages().length.should.equal(180)
+		handler.getClineMessages()[179]?.text?.should.equal(`message-179-${body}`)
+		should.exist(updatedHistoryItem)
+		updatedHistoryItem.task.should.equal(`message-0-${body}`)
+		updatedHistoryItem.size.should.equal(16_384)
+	})
+
 	/**
 	 * Helper to create a test ClineMessage
 	 */
