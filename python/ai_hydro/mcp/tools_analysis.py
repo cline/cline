@@ -1,8 +1,8 @@
 """
-Analysis MCP tools (8 tools).
+Analysis MCP tools (9 tools).
 
 Watershed delineation, streamflow, signatures, geomorphic parameters,
-TWI, curve number grid, forcing data, and library reference.
+TWI, curve number grid, forcing data, CAMELS-US attributes, and library reference.
 
 Tool parameter conventions
 --------------------------
@@ -862,6 +862,168 @@ async def fetch_forcing_data(
         }
     except Exception as e:
         log.error("fetch_forcing_data failed: %s", e)
+        return _tool_error_to_dict(e)
+
+
+# ============================================================================
+# Tool: CAMELS-US Catchment Attributes
+# ============================================================================
+
+@mcp.tool()
+def fetch_camels_us(
+    session_id: str,
+    gauge_id: str | None = None,
+) -> dict:
+    """
+    Fetch CAMELS-US static catchment attributes for a benchmark gauge.
+
+    Returns the full set of CAMELS-US attributes — topography, climate
+    indices, soil properties, vegetation cover, geology, and hydrological
+    signatures — for any of the 671 CONUS benchmark gauges.
+
+    Uses pygeohydro.get_camels() internally. No extra package or API key
+    required beyond aihydro-tools[data].
+
+    Parameters
+    ----------
+    session_id : str
+        Research session identifier.
+    gauge_id : str, optional
+        8-digit USGS gauge ID. Defaults to session.site_id (set automatically
+        by delineate_watershed or fetch_streamflow_data).
+
+    Returns
+    -------
+    dict with:
+        data.gauge_id          : USGS station ID
+        data.in_camels         : True if gauge is in the 671-gauge CAMELS set
+        data.n_attributes      : number of attribute columns returned
+        data.attributes        : flat dict of all ~60 CAMELS attribute values
+        data.attribute_groups  : same attributes grouped by theme
+                                 (topography, climate, hydrology, soil,
+                                  vegetation, geology)
+
+    Notes
+    -----
+    If the gauge is not in the CAMELS-671 set, returns in_camels=False.
+    Use extract_geomorphic_parameters and extract_hydrological_signatures
+    to derive equivalent attributes from DEM and streamflow instead.
+
+    Examples
+    --------
+    >>> fetch_camels_us('piscataquis-2020')
+    >>> fetch_camels_us('my-session', gauge_id='01031500')
+    """
+    try:
+        import math
+
+        session_id = _normalize_session_id(session_id)
+        from ai_hydro.session import HydroSession
+        session = HydroSession.load(session_id)
+
+        if session.camels is not None:
+            return {
+                "data": session.camels.get("data", {}),
+                "meta": session.camels.get("meta", {}),
+                "_cached": True,
+            }
+
+        usgs_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
+
+        try:
+            import pygeohydro as gh
+        except ImportError:
+            return {
+                "error": True,
+                "code": "DEPENDENCY_ERROR",
+                "message": "pygeohydro is required to fetch CAMELS-US attributes.",
+                "recovery": "pip install aihydro-tools[data]",
+            }
+
+        attr_df, _ = gh.get_camels()
+
+        # Normalize index to zero-padded 8-char strings for lookup
+        idx_list = [str(i).zfill(8) for i in attr_df.index]
+        gauge_norm = usgs_gauge_id.zfill(8)
+
+        if gauge_norm not in idx_list:
+            return {
+                "data": {
+                    "gauge_id":       usgs_gauge_id,
+                    "in_camels":      False,
+                    "attributes":     {},
+                    "n_camels_gauges": len(idx_list),
+                },
+                "meta": {"tool": "fetch_camels_us"},
+                "_note": (
+                    f"Gauge {usgs_gauge_id} is not in the CAMELS-671 benchmark set. "
+                    "CAMELS covers 671 minimally-disturbed CONUS gauges. "
+                    "Use extract_geomorphic_parameters + extract_hydrological_signatures "
+                    "to derive equivalent attributes from the DEM and streamflow record."
+                ),
+            }
+
+        row = attr_df.iloc[idx_list.index(gauge_norm)]
+
+        attrs: dict = {}
+        for col, val in row.items():
+            if col == "geometry":
+                continue
+            try:
+                v = float(val)
+                attrs[col] = None if math.isnan(v) else round(v, 6)
+            except (TypeError, ValueError):
+                attrs[col] = str(val) if val is not None else None
+
+        GROUPS: dict[str, list[str]] = {
+            "topography": ["elev_mean", "slope_mean", "area_gages2", "area_geospa_fabric"],
+            "climate":    ["p_mean", "pet_mean", "aridity", "frac_snow", "p_seasonality",
+                          "high_prec_freq", "high_prec_dur", "low_prec_freq", "low_prec_dur"],
+            "hydrology":  ["q_mean", "runoff_ratio", "stream_elas", "slope_fdc",
+                          "baseflow_index", "hfd_mean", "q5", "q95"],
+            "soil":       ["soil_depth_pelletier", "soil_depth_statsgo", "soil_porosity",
+                          "soil_conductivity", "max_water_content",
+                          "sand_frac", "silt_frac", "clay_frac"],
+            "vegetation": ["frac_forest", "lai_max", "lai_diff", "gvf_max", "gvf_diff"],
+            "geology":    ["geol_1st_class", "glim_1st_class_frac", "geol_2nd_class",
+                          "carbonate_rocks_frac", "geol_porostiy", "geol_permeability"],
+        }
+        grouped = {
+            grp: {k: attrs[k] for k in keys if k in attrs}
+            for grp, keys in GROUPS.items()
+        }
+
+        data = {
+            "gauge_id":         usgs_gauge_id,
+            "in_camels":        True,
+            "n_attributes":     len(attrs),
+            "attributes":       attrs,
+            "attribute_groups": grouped,
+        }
+        d = {
+            "data": data,
+            "meta": {
+                "tool":     "fetch_camels_us",
+                "source":   "CAMELS-US via pygeohydro.get_camels()",
+                "citation": (
+                    "Addor, N., Newman, A. J., Mizukami, N., & Clark, M. P. (2017). "
+                    "The CAMELS data set: catchment attributes and meteorology for "
+                    "large-sample studies. Hydrology and Earth System Sciences, 21."
+                ),
+            },
+        }
+        _session_store(session_id, "camels", d)
+        saved = _workspace_write(session_id, f"camels_{usgs_gauge_id}.json", data)
+        d["_file_saved"] = saved
+        d["_note"] = (
+            f"CAMELS-US: {len(attrs)} attributes for gauge {usgs_gauge_id} "
+            "(topography, climate, hydrology, soil, vegetation, geology). "
+            "Cached in session slot 'camels'. Saved to workspace."
+        )
+        return d
+
+    except Exception as e:
+        log.error("fetch_camels_us failed: %s", e)
         return _tool_error_to_dict(e)
 
 

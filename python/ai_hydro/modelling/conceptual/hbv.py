@@ -236,29 +236,58 @@ def train_hbv_light(
     N_P = len(_HBV_BOUNDS)
     best_global, best_raw = float("inf"), None
 
+    # ── Set up model directory + training log (before training starts) ────
+    model_dir = output_dir / f"hbv_{gauge_id}"
+    model_dir.mkdir(parents=True, exist_ok=True)
+    log_path = model_dir / "training.log"
+
+    per_restart_train_nse: list[float] = []
+
     log.info("Training HBV-light: %d epochs x %d restarts", epochs, n_restarts)
-    for trial in range(n_restarts):
-        raw = torch.nn.Parameter(torch.randn(N_P, dtype=torch.float64) * 0.3)
-        opt   = torch.optim.Adam([raw], lr=learning_rate)
-        sched = torch.optim.lr_scheduler.CosineAnnealingLR(
-            opt, T_max=epochs, eta_min=learning_rate * 0.01
+    with open(log_path, "w", buffering=1) as log_fh:
+        log_fh.write(
+            f"HBV-light  gauge={gauge_id}  epochs={epochs}  "
+            f"restarts={n_restarts}  lr={learning_rate}\n"
+            + "-" * 60 + "\n"
         )
-        best_t, best_r = float("inf"), raw.detach().clone()
-        for ep in range(epochs):
-            opt.zero_grad()
-            qp   = _hbv_simulate(P_tr, T_tr, ET_tr, raw, warm_up=warm_up)
-            loss = _nse_loss(qp, tr_Q[warm_up:])
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_([raw], 2.0)
-            opt.step(); sched.step()
-            lv = float(loss)
-            if lv < best_t:
-                best_t = lv
-                best_r = raw.detach().clone()
-        log.info("Trial %d: best train NSE ~ %.4f", trial + 1, 1 - best_t)
-        if best_t < best_global:
-            best_global = best_t
-            best_raw    = best_r.clone()
+
+        for trial in range(n_restarts):
+            raw = torch.nn.Parameter(torch.randn(N_P, dtype=torch.float64) * 0.3)
+            opt   = torch.optim.Adam([raw], lr=learning_rate)
+            sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+                opt, T_max=epochs, eta_min=learning_rate * 0.01
+            )
+            best_t, best_r = float("inf"), raw.detach().clone()
+            for ep in range(epochs):
+                opt.zero_grad()
+                qp   = _hbv_simulate(P_tr, T_tr, ET_tr, raw, warm_up=warm_up)
+                loss = _nse_loss(qp, tr_Q[warm_up:])
+                loss.backward()
+                torch.nn.utils.clip_grad_norm_([raw], 2.0)
+                opt.step(); sched.step()
+                lv = float(loss)
+                if lv < best_t:
+                    best_t = lv
+                    best_r = raw.detach().clone()
+                # Log every 5 epochs
+                if (ep + 1) % 5 == 0 or ep == 0:
+                    nse_now = 1.0 - lv
+                    log_fh.write(
+                        f"[{trial+1}/{n_restarts}] ep {ep+1:4d}/{epochs}"
+                        f"  loss={lv:.4f}  NSE={nse_now:+.4f}\n"
+                    )
+
+            trial_nse = round(1.0 - best_t, 4)
+            per_restart_train_nse.append(trial_nse)
+            log_fh.write(
+                f"[{trial+1}/{n_restarts}] DONE  best_train_NSE={trial_nse:+.4f}\n\n"
+            )
+            log.info("Trial %d: best train NSE ~ %.4f", trial + 1, trial_nse)
+            if best_t < best_global:
+                best_global = best_t
+                best_raw    = best_r.clone()
+
+        log_fh.write("Training complete.\n")
 
     # ── Evaluate on test set ───────────────────────────────────────────
     with torch.no_grad():
@@ -272,8 +301,6 @@ def train_hbv_light(
     nse, kge, rmse = _compute_metrics(o, p)
 
     # ── Save checkpoint ────────────────────────────────────────────────
-    model_dir = output_dir / f"hbv_{gauge_id}"
-    model_dir.mkdir(parents=True, exist_ok=True)
     checkpoint = {
         "gauge_id":    gauge_id,
         "raw_params":  best_raw.tolist(),
@@ -294,18 +321,20 @@ def train_hbv_light(
              1 - best_global, nse or 0, kge or 0)
 
     return {
-        "framework":       "hbv-light",
-        "model_type":      "hbv",
-        "model_dir":       str(model_dir),
-        "data_source":     "CAMELS+GridMET" if using_camels else "USGS+GridMET",
-        "device":          "cpu",
-        "train_period":    [train_start, train_end],
-        "test_period":     [test_start,  test_end],
-        "epochs_trained":  epochs * n_restarts,
-        "warm_up_days":    warm_up,
-        "nse":             nse,
-        "kge":             kge,
-        "rmse":            rmse,
-        "train_nse":       round(float(1 - best_global), 4),
-        "calibrated_params": cal_params,
+        "framework":             "hbv-light",
+        "model_type":            "hbv",
+        "model_dir":             str(model_dir),
+        "training_log":          str(log_path),
+        "data_source":           "CAMELS+GridMET" if using_camels else "USGS+GridMET",
+        "device":                "cpu",
+        "train_period":          [train_start, train_end],
+        "test_period":           [test_start,  test_end],
+        "epochs_trained":        epochs * n_restarts,
+        "warm_up_days":          warm_up,
+        "nse":                   nse,
+        "kge":                   kge,
+        "rmse":                  rmse,
+        "train_nse":             round(float(1 - best_global), 4),
+        "per_restart_train_nse": per_restart_train_nse,
+        "calibrated_params":     cal_params,
     }

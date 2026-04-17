@@ -25,9 +25,10 @@ class TestToolRegistration:
     """Verify that importing ai_hydro.mcp registers all expected tools."""
 
     EXPECTED_TOOLS = {
-        # Analysis (8)
+        # Analysis (9)
         "delineate_watershed",
         "fetch_streamflow_data",
+        "fetch_camels_us",
         "extract_hydrological_signatures",
         "extract_geomorphic_parameters",
         "compute_twi",
@@ -343,7 +344,7 @@ class TestToolSmoke:
         from ai_hydro.mcp.app import mcp
         tools = asyncio.run(mcp.list_tools())
         names = {t.name for t in tools}
-        assert len(tools) >= 27
+        assert len(tools) >= 28
         assert "delineate_watershed" in names
         assert "start_session" in names
         assert "get_library_reference" in names
