@@ -6,6 +6,7 @@ import {
 	MAX_MCP_SERVER_ERROR_CHARS,
 	MAX_PENDING_MCP_NOTIFICATIONS,
 } from "../limits"
+import { McpHub } from "../McpHub"
 
 describe("mcp limits", () => {
 	it("caps pending notifications by dropping the oldest entries", () => {
@@ -37,5 +38,48 @@ describe("mcp limits", () => {
 		assert.equal(appended.truncated, true)
 		assert.ok(appended.value.includes("truncated"))
 		assert.ok(appended.value.endsWith("b".repeat(100).slice(-Math.min(100, appended.value.length))))
+	})
+
+	it("closes all MCP file watchers during repeated teardown cycles", async () => {
+		for (let cycle = 0; cycle < 5; cycle++) {
+			const watcherA = { close: () => undefined }
+			const watcherB = { close: () => undefined }
+			let closed = 0
+			const hub = Object.create(McpHub.prototype) as McpHub & {
+				fileWatchers: Map<string, { close: () => void }>
+				settingsWatcher?: { close: () => Promise<void> }
+				connections: Array<{ server: { name: string } }>
+				deleteConnection: (name: string) => Promise<void>
+			}
+
+			hub.fileWatchers = new Map([
+				[
+					"server-a",
+					{
+						close: () => {
+							closed += 1
+							watcherA.close()
+						},
+					},
+				],
+				[
+					"server-b",
+					{
+						close: () => {
+							closed += 1
+							watcherB.close()
+						},
+					},
+				],
+			])
+			hub.settingsWatcher = { close: async () => undefined }
+			hub.connections = []
+			hub.deleteConnection = async () => undefined
+
+			await hub.dispose()
+
+			assert.equal(closed, 2)
+			assert.equal(hub.fileWatchers.size, 0)
+		}
 	})
 })

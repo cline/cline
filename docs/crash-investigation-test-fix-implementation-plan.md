@@ -528,7 +528,7 @@ This workstream targets the MCP subsystem as a long-running background source of
 - [x] cap `pendingNotifications` queue length,
 - [x] cap or summarize accumulated error strings,
 - [x] add telemetry when truncation/drop occurs,
-- [ ] ensure watchers are removed deterministically.
+- [x] ensure watchers are removed deterministically.
 
 ---
 
