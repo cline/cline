@@ -479,10 +479,10 @@ Even if one task only leaks a little, many create/cancel/clear cycles can accumu
 
 #### Likely fixes
 
-- [ ] Await all async disposals in `abortTask()`.
-- [ ] Centralize teardown sequencing.
-- [ ] Add explicit cleanup assertions in test-only code.
-- [ ] Make background resources idempotently disposable.
+- [x] Await all async disposals in `abortTask()`.
+- [x] Centralize teardown sequencing.
+- [x] Add explicit cleanup assertions in test-only code.
+- [x] Make background resources idempotently disposable.
 
 #### Important note
 
@@ -840,8 +840,8 @@ Developers should:
 
 - [ ] inventory all watcher/process/session/timer resources,
 - [ ] confirm who owns each one,
-- [ ] ensure abort/clear/dispose paths await cleanup where necessary,
-- [ ] add tests that verify cleanup baselines.
+- [x] ensure abort/clear/dispose paths await cleanup where necessary,
+- [x] add tests that verify cleanup baselines.
 
 ### Requirement 4 — Use the same repro after every fix
 

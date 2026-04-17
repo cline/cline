@@ -23,13 +23,15 @@ If a file is modified outside of Cline, we detect and track this change to preve
 This is used when restoring a task (non-git "checkpoint" restore), and mid-task.
 */
 export class FileContextTracker {
+	private static readonly RECENT_CLINE_EDIT_TTL_MS = 30_000
+	private static readonly MAX_RECENT_CLINE_EDIT_ENTRIES = 1_000
 	private controller: Controller
 	readonly taskId: string
 
 	// File tracking and watching
 	private fileWatchers = new Map<string, FSWatcher>()
 	private recentlyModifiedFiles = new Set<string>()
-	private recentlyEditedByCline = new Set<string>()
+	private recentlyEditedByCline = new Map<string, number>()
 
 	constructor(controller: Controller, taskId: string) {
 		this.controller = controller
@@ -66,8 +68,7 @@ export class FileContextTracker {
 
 		// Track file changes
 		watcher.on("change", () => {
-			if (this.recentlyEditedByCline.has(filePath)) {
-				this.recentlyEditedByCline.delete(filePath) // This was an edit by Cline, no need to inform Cline
+			if (this.consumeRecentClineEditMarker(filePath)) {
 			} else {
 				this.recentlyModifiedFiles.add(filePath) // This was a user edit, we will inform Cline
 				this.trackFileContext(filePath, "user_edited") // Update the task metadata with file tracking
@@ -175,7 +176,33 @@ export class FileContextTracker {
 	 * Marks a file as edited by Cline to prevent false positives in file watchers
 	 */
 	markFileAsEditedByCline(filePath: string): void {
-		this.recentlyEditedByCline.add(filePath)
+		this.pruneExpiredRecentClineEdits()
+		this.recentlyEditedByCline.set(filePath, Date.now() + FileContextTracker.RECENT_CLINE_EDIT_TTL_MS)
+		if (this.recentlyEditedByCline.size > FileContextTracker.MAX_RECENT_CLINE_EDIT_ENTRIES) {
+			const oldestKey = this.recentlyEditedByCline.keys().next().value
+			if (oldestKey) {
+				this.recentlyEditedByCline.delete(oldestKey)
+			}
+		}
+	}
+
+	private consumeRecentClineEditMarker(filePath: string): boolean {
+		this.pruneExpiredRecentClineEdits()
+		const expiresAt = this.recentlyEditedByCline.get(filePath)
+		if (!expiresAt) {
+			return false
+		}
+		this.recentlyEditedByCline.delete(filePath)
+		return expiresAt > Date.now()
+	}
+
+	private pruneExpiredRecentClineEdits(): void {
+		const now = Date.now()
+		for (const [trackedPath, expiresAt] of this.recentlyEditedByCline) {
+			if (expiresAt <= now) {
+				this.recentlyEditedByCline.delete(trackedPath)
+			}
+		}
 	}
 
 	/**
@@ -185,6 +212,7 @@ export class FileContextTracker {
 		const closePromises = Array.from(this.fileWatchers.values()).map((watcher) => watcher.close())
 		await Promise.all(closePromises)
 		this.fileWatchers.clear()
+		this.recentlyEditedByCline.clear()
 	}
 
 	/**

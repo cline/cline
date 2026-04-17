@@ -61,6 +61,18 @@ describe("FileContextTracker", () => {
 		sandbox.restore()
 	})
 
+	it("should expire stale Cline edit markers so they do not grow forever", async () => {
+		const clock = sandbox.useFakeTimers()
+
+		tracker.markFileAsEditedByCline(filePath)
+		clock.tick(31_000)
+		tracker.markFileAsEditedByCline("src/another-file.ts")
+
+		const recentEdits = (tracker as any).recentlyEditedByCline as Map<string, number>
+		expect(recentEdits.has(filePath)).to.be.false
+		expect(recentEdits.has("src/another-file.ts")).to.be.true
+	})
+
 	it("should add a record when a file is read by a tool", async () => {
 		await tracker.trackFileContext(filePath, "read_tool")
 
@@ -234,11 +246,13 @@ describe("FileContextTracker", () => {
 	it("should dispose file watchers when dispose is called", async () => {
 		// Track a file to set up the watcher
 		await tracker.trackFileContext(filePath, "read_tool")
+		tracker.markFileAsEditedByCline(filePath)
 
 		// Call dispose
 		await tracker.dispose()
 
 		// Verify the watcher was closed
 		expect(mockFileSystemWatcher.close.called).to.be.true
+		expect(((tracker as any).recentlyEditedByCline as Map<string, number>).size).to.equal(0)
 	})
 })

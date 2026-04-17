@@ -15,6 +15,7 @@ export const env = {
 export const version = "1.103.0"
 
 export const workspace = {
+	workspaceFolders: [],
 	getConfiguration: (section?: string) => {
 		return {
 			get: (key: string, defaultValue?: any) => {
