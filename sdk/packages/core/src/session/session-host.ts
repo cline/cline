@@ -199,11 +199,15 @@ function createLocalBackend(options: ClineCoreOptions): SessionBackend {
 		return new CoreSessionService(store, {
 			messagesArtifactUploader: options.messagesArtifactUploader,
 		});
-	} catch (error) {
-		console.warn(
-			"SQLite session persistence unavailable, falling back to file-based session storage.",
-			error,
-		);
+	} catch {
+		// Fallback to file-based session service if SQLite is unavailable (e.g. due to missing native bindings on certain platforms)
+		options.telemetry?.capture({
+			event: "session_backend_fallback",
+			properties: {
+				requestedBackend: "sqlite",
+				fallbackBackend: "file",
+			},
+		});
 		return new FileSessionService(undefined, {
 			messagesArtifactUploader: options.messagesArtifactUploader,
 		});

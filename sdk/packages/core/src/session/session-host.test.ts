@@ -60,7 +60,23 @@ describe("resolveSessionBackend", () => {
 		});
 
 		const backend = await resolveSessionBackend({ backendMode: "local" });
-		expect(backend).toBeInstanceOf(FileSessionService);
+		expect(backend.constructor.name).toBe("FileSessionService");
+	});
+
+	it("silently falls back to file session storage when node:sqlite is unavailable", async () => {
+		const { resolveSessionBackend } = await import("./session-host");
+		sqliteInitMock.mockImplementation(() => {
+			const error = new Error(
+				"No such built-in module: node:sqlite",
+			) as Error & {
+				code?: string;
+			};
+			error.code = "ERR_UNKNOWN_BUILTIN_MODULE";
+			throw error;
+		});
+
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		expect(backend.constructor.name).toBe("FileSessionService");
 	});
 
 	it("connects to the ensured rpc address when the sidecar relocates ports", async () => {

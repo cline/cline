@@ -1,6 +1,7 @@
 import { mkdirSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname } from "node:path";
+import { getErrorCode, getErrorMessage } from "../parse/error";
 
 export type SqliteStatement = {
 	run: (...params: unknown[]) => { changes?: number };
@@ -56,12 +57,8 @@ export function isSqliteBusyError(error: unknown): boolean {
 	if (!error || typeof error !== "object") {
 		return false;
 	}
-	const message =
-		"message" in error && typeof error.message === "string"
-			? error.message
-			: String(error);
-	const code =
-		"code" in error && typeof error.code === "string" ? error.code : "";
+	const message = getErrorMessage(error);
+	const code = getErrorCode(error);
 	return (
 		code === "SQLITE_BUSY" ||
 		code === "SQLITE_LOCKED" ||
@@ -153,7 +150,11 @@ export function loadSqliteDb(filePath: string): SqliteDb {
 		const msg =
 			typeof warning === "string" ? warning : (warning?.message ?? "");
 		if (msg.includes("SQLite")) return;
-		return (originalEmit as Function).call(process, warning, ...args);
+		return (originalEmit as (...args: unknown[]) => void).call(
+			process,
+			warning,
+			...args,
+		);
 	}) as typeof process.emitWarning;
 
 	try {
