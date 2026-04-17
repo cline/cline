@@ -1,20 +1,18 @@
 """
-Project, Literature, and Researcher Profile MCP tools (v1.2).
+Project, Literature, and Researcher Profile MCP tools.
 
-10 tools across three groups:
-
-PROJECT MANAGEMENT (4)
+PROJECT MANAGEMENT
   start_project            — create / resume a named research project
   get_project_summary      — overview of all sessions, journal, literature
   add_session_to_project   — associate any research session with a project
   search_experiments       — full-text search across all project sessions
 
-LITERATURE (3)
+LITERATURE
   index_literature       — scan a folder of papers → build searchable index
   search_literature      — query the index; returns excerpts for agent synthesis
   add_journal_entry      — log a timestamped research note to the project journal
 
-RESEARCHER PROFILE (3)
+RESEARCHER PROFILE
   get_researcher_profile     — return the persistent researcher persona
   update_researcher_profile  — update specific fields (agent or user driven)
   log_researcher_observation — agent logs an observation about the researcher

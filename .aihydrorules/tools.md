@@ -3,7 +3,7 @@
 > Auto-generated from the live MCP server — do not edit manually.
 > Run `sync_research_context` or restart the server to refresh.
 
-**26 tools registered**
+**28 tools registered**
 
 ---
 
@@ -46,6 +46,9 @@ Fetch basin-averaged daily forcing data from GridMET.
 ### `fetch_streamflow_data`
 Fetch USGS streamflow time series for a gauge.
 
+### `get_library_reference`
+Look up field-name gotchas, API quirks, and copy-paste patterns for a core hydrological Python library.
+
 ### `get_model_results`
 Return the cached model training results for a gauge.
 
@@ -60,6 +63,9 @@ Return what has been computed and what still needs computing.
 
 ### `index_literature`
 Scan a folder of research papers and build a searchable index.
+
+### `list_available_tools`
+List all MCP tools currently registered on this AI-Hydro server.
 
 ### `log_researcher_observation`
 Log an agent observation about the researcher.
