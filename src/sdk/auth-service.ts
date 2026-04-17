@@ -396,21 +396,21 @@ export class AuthService {
 	 * Returns the current auth state for the webview.
 	 */
 	getInfo(): AuthState {
-		let user: InstanceType<typeof UserInfo> | null = null
 		if (this._clineAuthInfo && this._authenticated) {
 			const userInfo = this._clineAuthInfo.userInfo
 			userInfo.appBaseUrl = ClineEnv.config().appBaseUrl
 
-			user = UserInfo.create({
+			const user = UserInfo.create({
 				uid: userInfo?.id,
 				displayName: userInfo?.displayName,
 				email: userInfo?.email,
 				photoUrl: undefined,
 				appBaseUrl: userInfo?.appBaseUrl,
 			})
+			return AuthState.create({ user })
 		}
 
-		return AuthState.create({ user })
+		return AuthState.create({})
 	}
 
 	// ---- Login flows ----
