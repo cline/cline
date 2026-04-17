@@ -190,6 +190,14 @@ describe("FileContextTracker", () => {
 		expect(mockFileSystemWatcher.on.called).to.be.true
 	})
 
+	it("should not create duplicate watchers when the same file is tracked repeatedly", async () => {
+		await tracker.trackFileContext(filePath, "read_tool")
+		await tracker.trackFileContext(filePath, "file_mentioned")
+
+		expect(chokidarWatchStub.calledOnce).to.be.true
+		expect(((tracker as any).fileWatchers as Map<string, any>).size).to.equal(1)
+	})
+
 	it("should track user edits when file watcher detects changes", async () => {
 		// First track the file to set up the watcher
 		await tracker.trackFileContext(filePath, "read_tool")
@@ -254,5 +262,33 @@ describe("FileContextTracker", () => {
 		// Verify the watcher was closed
 		expect(mockFileSystemWatcher.close.called).to.be.true
 		expect(((tracker as any).recentlyEditedByCline as Map<string, number>).size).to.equal(0)
+	})
+
+	it("should close every tracked watcher during dispose", async () => {
+		const watcherA = {
+			close: sandbox.stub().resolves(),
+			on: sandbox.stub(),
+		}
+		watcherA.on.returns(watcherA)
+
+		const watcherB = {
+			close: sandbox.stub().resolves(),
+			on: sandbox.stub(),
+		}
+		watcherB.on.returns(watcherB)
+
+		chokidarWatchStub.onFirstCall().returns(watcherA as any)
+		chokidarWatchStub.onSecondCall().returns(watcherB as any)
+
+		await tracker.trackFileContext("src/file-a.ts", "read_tool")
+		await tracker.trackFileContext("src/file-b.ts", "read_tool")
+
+		expect(((tracker as any).fileWatchers as Map<string, any>).size).to.equal(2)
+
+		await tracker.dispose()
+
+		expect(watcherA.close.calledOnce).to.be.true
+		expect(watcherB.close.calledOnce).to.be.true
+		expect(((tracker as any).fileWatchers as Map<string, any>).size).to.equal(0)
 	})
 })

@@ -37,4 +37,35 @@ describe("FocusChainManager lifecycle guards", () => {
 
 		clock.restore()
 	})
+
+	it("closes the file watcher when disposed", () => {
+		const close = sinon.stub()
+		const manager = new FocusChainManager({
+			taskId: "task-2",
+			taskState: {
+				currentFocusChainChecklist: null,
+				todoListWasUpdatedByUser: false,
+				apiRequestCount: 0,
+				apiRequestsSinceLastTodoUpdate: 0,
+				didRespondToPlanAskBySwitchingMode: false,
+			} as any,
+			mode: "act" as any,
+			stateManager: {
+				getGlobalSettingsKey: () => "act",
+			} as any,
+			postStateToWebview: sinon.stub().resolves(),
+			say: sinon.stub().resolves(undefined),
+			focusChainSettings: {
+				enabled: true,
+				remindClineInterval: 5,
+			} as any,
+		})
+
+		;(manager as any).focusChainFileWatcher = { close }
+
+		manager.dispose()
+
+		assert.equal(close.calledOnce, true)
+		assert.equal((manager as any).focusChainFileWatcher, undefined)
+	})
 })

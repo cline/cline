@@ -470,6 +470,7 @@ Even if one task only leaks a little, many create/cancel/clear cycles can accumu
 - [ ] task with focus-chain enabled -> abort -> ensure focus-chain watcher is gone
 - [ ] task with active hook process -> abort -> ensure registry count returns to baseline
 - [ ] repeated background command start/cancel loops
+- [x] component-level watcher disposal and duplicate-watcher regression tests
 
 #### Failure oracles
 
