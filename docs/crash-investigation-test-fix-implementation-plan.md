@@ -758,8 +758,8 @@ The team should not attack everything at once. The best sequence is:
 
 ### Phase 2 — Confirm deterministic hotspots first
 
-- [ ] PatchParser stress tests
-- [ ] diff reconstruction stress tests
+- [x] PatchParser stress tests
+- [x] diff reconstruction stress tests
 - [ ] large-file edit pipeline tests
 
 ### Phase 3 — Confirm state growth hazards
@@ -942,7 +942,7 @@ This section is designed to be worked through directly.
 - [ ] Confirm message persistence churn candidate
 - [ ] Confirm large-file edit amplification candidate
 - [ ] Confirm base64 diff URI candidate
-- [ ] Confirm PatchParser/diff quadratic candidate
+- [x] Confirm PatchParser/diff quadratic candidate
 - [ ] Confirm MCP pending notification backlog candidate
 - [ ] Confirm teardown/watcher leak candidate
 
@@ -961,7 +961,7 @@ This section is designed to be worked through directly.
 - [ ] Rerun create/cancel churn tests
 - [ ] Rerun long-horizon soak tests
 - [x] Capture before/after measurements
-- [ ] Update crash-candidate matrix status
+- [x] Update crash-candidate matrix status
 
 ### Handoff
 

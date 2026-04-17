@@ -212,15 +212,70 @@ export class PatchParser {
 /**
  * Calculate similarity between two strings (0-1 range)
  */
+const MAX_LEVENSHTEIN_SIMILARITY_CHARS = 512
+
 function calculateSimilarity(str1: string, str2: string): number {
 	const longer = str1.length > str2.length ? str1 : str2
 	const shorter = str1.length > str2.length ? str2 : str1
 	if (longer.length === 0) {
 		return 1.0
 	}
+	if (longer.length > MAX_LEVENSHTEIN_SIMILARITY_CHARS) {
+		return calculateLineSimilarityFromStrings(str1, str2)
+	}
 
 	const editDistance = levenshteinDistance(shorter, longer)
 	return (longer.length - editDistance) / longer.length
+}
+
+function calculateLineSimilarityFromStrings(str1: string, str2: string): number {
+	return calculateLineSimilarityFromArrays(str1.split("\n"), str2.split("\n"))
+}
+
+function calculateLineSimilarityFromArrays(lines1: string[], lines2: string[]): number {
+	const maxLineCount = Math.max(lines1.length, lines2.length)
+	if (maxLineCount === 0) {
+		return 1
+	}
+
+	let matchedWeight = 0
+	let totalWeight = 0
+	for (let i = 0; i < maxLineCount; i++) {
+		const left = lines1[i] ?? ""
+		const right = lines2[i] ?? ""
+		const weight = Math.max(left.length, right.length, 1)
+		if (left === right) {
+			matchedWeight += weight
+		}
+		totalWeight += weight
+	}
+
+	return totalWeight === 0 ? 1 : matchedWeight / totalWeight
+}
+
+function matchWindowAt(lines: string[], context: string[], startIdx: number): boolean {
+	for (let j = 0; j < context.length; j++) {
+		if ((lines[startIdx + j] ?? "") !== context[j]) {
+			return false
+		}
+	}
+	return true
+}
+
+function windowLineSimilarityAt(lines: string[], context: string[], startIdx: number): number {
+	let matchedWeight = 0
+	let totalWeight = 0
+	for (let j = 0; j < context.length; j++) {
+		const left = lines[startIdx + j] ?? ""
+		const right = context[j] ?? ""
+		const weight = Math.max(left.length, right.length, 1)
+		if (left === right) {
+			matchedWeight += weight
+		}
+		totalWeight += weight
+	}
+
+	return totalWeight === 0 ? 1 : matchedWeight / totalWeight
 }
 
 /**
@@ -260,57 +315,50 @@ function findContext(lines: string[], context: string[], start: number, eof: boo
 	if (context.length === 0) {
 		return [start, 0, 1.0]
 	}
+	if (context.length > lines.length) {
+		return [-1, 0, 0]
+	}
 
 	let bestSimilarity = 0
+	const canonicalLines = lines.map((line) => canonicalize(line))
+	const trailingTrimmedLines = canonicalLines.map((line) => line.trimEnd())
+	const fullyTrimmedLines = canonicalLines.map((line) => line.trim())
+	const canonicalContextLines = context.map((line) => canonicalize(line))
+	const trailingTrimmedContextLines = canonicalContextLines.map((line) => line.trimEnd())
+	const fullyTrimmedContextLines = canonicalContextLines.map((line) => line.trim())
+	const canonicalContext = canonicalContextLines.join("\n")
+	const maxStartIndex = lines.length - context.length
 
 	const findCore = (startIdx: number): [number, number, number] => {
+		const boundedStartIdx = Math.min(Math.max(0, startIdx), maxStartIndex)
 		// Pass 1: exact equality after canonicalization
-		const canonicalContext = canonicalize(context.join("\n"))
-		for (let i = startIdx; i < lines.length; i++) {
-			const segment = canonicalize(lines.slice(i, i + context.length).join("\n"))
-			if (segment === canonicalContext) {
+		for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
+			if (matchWindowAt(canonicalLines, canonicalContextLines, i)) {
 				return [i, 0, 1.0]
-			}
-			// Track best similarity for reporting
-			const similarity = calculateSimilarity(segment, canonicalContext)
-			if (similarity > bestSimilarity) {
-				bestSimilarity = similarity
 			}
 		}
 
 		// Pass 2: ignore trailing whitespace
-		for (let i = startIdx; i < lines.length; i++) {
-			const segment = canonicalize(
-				lines
-					.slice(i, i + context.length)
-					.map((s) => s.trimEnd())
-					.join("\n"),
-			)
-			const ctx = canonicalize(context.map((s) => s.trimEnd()).join("\n"))
-			if (segment === ctx) {
+		for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
+			if (matchWindowAt(trailingTrimmedLines, trailingTrimmedContextLines, i)) {
 				return [i, 1, 1.0]
 			}
 		}
 
 		// Pass 3: ignore all surrounding whitespace
-		for (let i = startIdx; i < lines.length; i++) {
-			const segment = canonicalize(
-				lines
-					.slice(i, i + context.length)
-					.map((s) => s.trim())
-					.join("\n"),
-			)
-			const ctx = canonicalize(context.map((s) => s.trim()).join("\n"))
-			if (segment === ctx) {
+		for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
+			if (matchWindowAt(fullyTrimmedLines, fullyTrimmedContextLines, i)) {
 				return [i, 100, 1.0]
 			}
 		}
 
 		// Pass 4: Partial matching with similarity threshold (66% match = 2/3 lines)
 		const SIMILARITY_THRESHOLD = 0.66
-		for (let i = startIdx; i < lines.length; i++) {
-			const segment = canonicalize(lines.slice(i, i + context.length).join("\n"))
-			const similarity = calculateSimilarity(segment, canonicalContext)
+		for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
+			const similarity =
+				canonicalContext.length > MAX_LEVENSHTEIN_SIMILARITY_CHARS
+					? windowLineSimilarityAt(canonicalLines, canonicalContextLines, i)
+					: calculateSimilarity(canonicalLines.slice(i, i + context.length).join("\n"), canonicalContext)
 			if (similarity >= SIMILARITY_THRESHOLD) {
 				return [i, 1000, similarity]
 			}
