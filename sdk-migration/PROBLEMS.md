@@ -577,3 +577,10 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Verification**: How to verify (test name, harness command)
 - **Evidence**: Test output, screenshot, etc. (required for 🟢)
 -->
+
+### S6-35: Inference cost not displayed in task
+- **Status**: 🟡 Minor
+- **Description**: During and after inference, the cost/token usage is not displayed in the task's chat view. The classic extension shows token counts (input/output/cache) and cost in the `api_req_started` message block. The SDK adapter emits `api_req_started` messages but likely doesn't populate the cost/token fields, or the `usage` event from the SDK isn't being translated into the format the webview expects.
+- **Root cause**: The SDK emits `usage` events (with `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `totalCost`) via `agent_event` with `type: "usage"`. The message translator likely creates `api_req_started` messages without the cost JSON payload, or doesn't update them with final usage data when the `usage` event arrives. The webview's `ApiRequestRow` component expects `api_req_started` messages to have a `text` field containing JSON with `{tokensIn, tokensOut, cacheReads, cacheWrites, cost}`.
+- **Fix**: Not yet attempted. The message translator needs to: (1) emit `api_req_started` at the beginning of each API request with initial data, and (2) update it with cost/token data when the SDK's `usage` event arrives (or at `iteration_end`/`done`). The update should match the JSON format that `ApiRequestRow` expects.
+- **Verification**: Send a message, verify that token counts and cost appear in the collapsible API request row in the chat.
