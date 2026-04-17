@@ -1,8 +1,8 @@
 """
-Analysis MCP tools (9 tools).
+Analysis MCP tools (8 tools).
 
 Watershed delineation, streamflow, signatures, geomorphic parameters,
-TWI, curve number grid, forcing data, CAMELS attributes, and library reference.
+TWI, curve number grid, forcing data, and library reference.
 
 Tool parameter conventions
 --------------------------
@@ -13,9 +13,9 @@ session_id : str
 
 gauge_id : str  (USGS-specific data tools only)
     8-digit USGS station number, e.g. '01031500'. Only required by tools that
-    fetch data from USGS NWIS / NLDI (delineate_watershed, fetch_streamflow_data,
-    extract_camels_attributes). After the first USGS call the gauge ID is stored
-    in session.site_id so subsequent tools can resolve it automatically.
+    fetch data from USGS NWIS / NLDI (delineate_watershed, fetch_streamflow_data).
+    After the first USGS call the gauge ID is stored in session.site_id so
+    subsequent tools can resolve it automatically.
 
 Source-agnostic analysis tools (extract_hydrological_signatures,
 extract_geomorphic_parameters, compute_twi, create_cn_grid, fetch_forcing_data)
@@ -27,8 +27,6 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
-import subprocess
-import sys
 from pathlib import Path
 
 from ai_hydro.mcp.app import mcp, Context
@@ -46,80 +44,6 @@ from ai_hydro.mcp.helpers import (
 )
 
 log = logging.getLogger("ai_hydro.mcp")
-
-# Script run in an isolated child process by _run_camels_extractor_subprocess.
-# A crash inside CamelsExtractor.extract_all() will only kill the child, not
-# the MCP server.
-_CAMELS_SUBPROCESS_SCRIPT = """\
-import sys, json
-from camels_attrs import CamelsExtractor
-gauge_id = sys.argv[1]
-extractor = CamelsExtractor(gauge_id)
-attrs = extractor.extract_all()
-clean = {}
-for k, v in attrs.items():
-    try:
-        clean[k] = float(v) if v is not None else None
-    except (TypeError, ValueError):
-        clean[k] = str(v) if v is not None else None
-print(json.dumps(clean))
-"""
-
-
-def _run_camels_extractor_subprocess(gauge_id: str, timeout: int = 180) -> dict:
-    """
-    Run CamelsExtractor.extract_all() in a separate subprocess.
-
-    extract_all() fetches data from many external APIs and has been observed to
-    crash the Python process in some environments. Running it in a child process
-    ensures any crash is isolated and the MCP server stays alive.
-
-    Parameters
-    ----------
-    gauge_id : str
-        8-digit USGS gauge identifier.
-    timeout : int
-        Maximum seconds to wait (default: 180 — extract_all is slow).
-
-    Returns
-    -------
-    dict
-        JSON-serialisable attribute mapping.
-
-    Raises
-    ------
-    RuntimeError
-        If the child exits non-zero or times out.
-    """
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", _CAMELS_SUBPROCESS_SCRIPT, gauge_id],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        raise RuntimeError(
-            f"CamelsExtractor timed out after {timeout}s for gauge {gauge_id}. "
-            "The CAMELS attribute extraction makes many external API calls — "
-            "check your network connection and try again."
-        )
-
-    if result.returncode != 0:
-        stderr_snippet = result.stderr.strip()[:600]
-        raise RuntimeError(
-            f"CamelsExtractor subprocess exited with code {result.returncode} "
-            f"for gauge {gauge_id}. stderr: {stderr_snippet}"
-        )
-
-    try:
-        return json.loads(result.stdout.strip())
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(
-            f"CamelsExtractor returned non-JSON output for gauge {gauge_id}: "
-            f"{result.stdout[:200]}"
-        ) from exc
-
 
 def _resolve_usgs_gauge(session_id: str, gauge_id: str | None, session) -> str:
     """
@@ -938,119 +862,6 @@ async def fetch_forcing_data(
         }
     except Exception as e:
         log.error("fetch_forcing_data failed: %s", e)
-        return _tool_error_to_dict(e)
-
-
-# ============================================================================
-# Tool: CAMELS Attributes (via camels-attrs package)
-# ============================================================================
-
-@mcp.tool()
-def extract_camels_attributes(
-    session_id: str,
-    gauge_id: str | None = None,
-) -> dict:
-    """
-    Extract 60+ CAMELS-style catchment attributes for a USGS gauge.
-
-    Retrieves topographic, climate, soil, vegetation, geological, and
-    hydrological attributes following the CAMELS dataset methodology.
-    Uses the camels-attrs package (pip install camels-attrs).
-
-    Parameters
-    ----------
-    session_id : str
-        Research session identifier. The USGS gauge ID is resolved from
-        session.site_id (set by delineate_watershed) unless gauge_id is
-        supplied explicitly.
-    gauge_id : str, optional
-        8-digit USGS station number, e.g. '01031500'. Resolved from
-        session.site_id if omitted.
-
-    Returns
-    -------
-    dict with 60+ attributes across categories:
-        Topographic (7): elev_mean, slope_mean, area_gages2, ...
-        Climate (13): p_mean, pet_mean, aridity, frac_snow, ...
-        Soil (9): soil_depth, soil_porosity, soil_conductivity, ...
-        Vegetation (13): frac_forest, lai_max, gvf_max, ...
-        Geological (7): geol_permeability, carbonate_rocks_frac, ...
-        Hydrological (17): q_mean, baseflow_index, runoff_ratio, ...
-
-    Examples
-    --------
-    >>> extract_camels_attributes('piscataquis-2020')
-    >>> extract_camels_attributes('01031500')  # gauge ID as session_id
-
-    Notes
-    -----
-    Requires: pip install camels-attrs
-    See: https://github.com/AI-Hydro/camels-attrs
-    """
-    # Check package availability before spawning subprocess for a friendlier message.
-    try:
-        import camels_attrs as _camels_check  # noqa: F401
-    except ImportError:
-        return {
-            "error": True,
-            "code": "DEPENDENCY_ERROR",
-            "message": "camels-attrs package not installed.",
-            "recovery": "pip install camels-attrs",
-            "tool": "camels_attrs.CamelsExtractor",
-        }
-
-    try:
-        session_id = _normalize_session_id(session_id)
-        from ai_hydro.session import HydroSession as _HS3
-        session = _HS3.load(session_id)
-        resolved_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
-
-        if session.camels is not None:
-            return _cached_response("camels", session)
-
-        from ai_hydro.core import HydroResult, HydroMeta, DataSource
-        from ai_hydro.mcp.tools_docs import _get_camels_attrs_version
-
-        # Run in isolated subprocess — extract_all() can crash the process
-        # on some environments; a child crash won't kill the MCP server.
-        clean = _run_camels_extractor_subprocess(resolved_gauge_id)
-
-        result = HydroResult(
-            data=clean,
-            meta=HydroMeta(
-                tool="camels_attrs.CamelsExtractor.extract_all",
-                version=_get_camels_attrs_version(),
-                gauge_id=resolved_gauge_id,
-                sources=[
-                    DataSource(
-                        name="USGS NLDI / NWIS / GridMET / STATSGO / MODIS / GLHYMPS",
-                        url="https://github.com/AI-Hydro/camels-attrs",
-                        citation=(
-                            "@article{Addor2017,\n"
-                            "  title={The CAMELS data set: catchment attributes and "
-                            "meteorology for large-sample studies},\n"
-                            "  author={Addor, Nans and Newman, Andrew J and "
-                            "Mizukami, Naoki and Clark, Martyn P},\n"
-                            "  journal={Hydrology and Earth System Sciences},\n"
-                            "  volume={21}, number={10}, pages={5293--5313}, year={2017}\n"
-                            "}"
-                        ),
-                    )
-                ],
-                params={"gauge_id": resolved_gauge_id},
-            ),
-        )
-        d = _result_to_dict(result)
-        _session_store(session_id, "camels", d)
-        saved = _workspace_write(
-            session_id, f"camels_{resolved_gauge_id}.json", d["data"]
-        )
-        if saved:
-            d["_file_saved"] = saved
-        return d
-
-    except Exception as e:
-        log.error("extract_camels_attributes failed: %s", e)
         return _tool_error_to_dict(e)
 
 

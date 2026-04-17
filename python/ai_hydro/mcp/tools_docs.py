@@ -21,15 +21,6 @@ def _get_version() -> str:
         return "unknown"
 
 
-def _get_camels_attrs_version() -> str:
-    """Return the installed camels-attrs package version."""
-    try:
-        from importlib.metadata import version
-        return version("camels-attrs")
-    except Exception:
-        return "unknown"
-
-
 def _list_tools_sync() -> list:
     """Return the list of registered MCP tools (sync wrapper)."""
     import asyncio

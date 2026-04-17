@@ -25,7 +25,7 @@ class TestToolRegistration:
     """Verify that importing ai_hydro.mcp registers all expected tools."""
 
     EXPECTED_TOOLS = {
-        # Analysis (9)
+        # Analysis (8)
         "delineate_watershed",
         "fetch_streamflow_data",
         "extract_hydrological_signatures",
@@ -33,7 +33,6 @@ class TestToolRegistration:
         "compute_twi",
         "create_cn_grid",
         "fetch_forcing_data",
-        "extract_camels_attributes",
         "get_library_reference",
         # Session (8)
         "start_session",
@@ -344,7 +343,7 @@ class TestToolSmoke:
         from ai_hydro.mcp.app import mcp
         tools = asyncio.run(mcp.list_tools())
         names = {t.name for t in tools}
-        assert len(tools) >= 28
+        assert len(tools) >= 27
         assert "delineate_watershed" in names
         assert "start_session" in names
         assert "get_library_reference" in names
@@ -380,7 +379,3 @@ class TestVersionHelpers:
         assert isinstance(v, str)
         assert len(v) > 0
 
-    def test_get_camels_attrs_version_returns_string(self):
-        from ai_hydro.mcp.tools_docs import _get_camels_attrs_version
-        v = _get_camels_attrs_version()
-        assert isinstance(v, str)
