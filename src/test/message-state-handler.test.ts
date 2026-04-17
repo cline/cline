@@ -129,6 +129,49 @@ describe("MessageStateHandler Mutex Protection", () => {
 		handler.getClineMessages()[1_499]?.text?.should.equal(`updated-24-${"y".repeat(256)}`)
 	})
 
+	it("should reuse cached task directory size across repeated addToClineMessages churn on a large history", async function () {
+		this.timeout(5_000)
+
+		const taskState = new TaskState()
+		let nowMs = 1_000
+		let taskDirSizeCalls = 0
+		let savedMessagesCalls = 0
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async () => [],
+			now: () => nowMs,
+			getTaskDirectorySize: async () => {
+				taskDirSizeCalls += 1
+				return 8192
+			},
+			getCurrentWorkingDirectory: async () => "/tmp/project",
+			ensureTaskDirectoryExists: async () => "/tmp/project/.cline/tasks/test-task-id",
+			saveClineMessages: async () => {
+				savedMessagesCalls += 1
+			},
+			saveApiConversationHistory: async () => {},
+		})
+
+		handler.setApiConversationHistory([{ role: "user", content: "hello", ts: Date.now() }])
+		handler.setClineMessages(Array.from({ length: 1_000 }, (_, i) => createTestMessage(`baseline-${i}-${"x".repeat(128)}`)))
+
+		for (let i = 0; i < 40; i++) {
+			await handler.addToClineMessages(createTestMessage(`added-${i}-${"z".repeat(128)}`))
+			nowMs += 100
+		}
+
+		taskDirSizeCalls.should.equal(1)
+		savedMessagesCalls.should.equal(40)
+		handler.getClineMessages().length.should.equal(1_040)
+		handler
+			.getClineMessages()
+			.at(-1)
+			?.text?.should.equal(`added-39-${"z".repeat(128)}`)
+	})
+
 	/**
 	 * Helper to create a test ClineMessage
 	 */

@@ -336,7 +336,7 @@ The next highest-value area is the combination of message growth, persistence, a
 
 #### What to test
 
-- [ ] Repeated `addToClineMessages()` with thousands of messages
+- [x] Repeated `addToClineMessages()` with thousands of messages
 - [x] Repeated `updateClineMessage()` on large histories
 - [ ] Full `postStateToWebview()` calls with large `clineMessages`
 - [ ] Webview-side repeated `JSON.parse(response.stateJson)` under large payloads
