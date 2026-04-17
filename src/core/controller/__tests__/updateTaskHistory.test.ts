@@ -1,7 +1,8 @@
 import { strict as assert } from "node:assert"
-import { describe, it } from "mocha"
+import { afterEach, describe, it } from "mocha"
 import sinon from "sinon"
 import { Controller } from "../index"
+import { resetStateSubscriptionsForTest, subscribeToState } from "../state/subscribeToState"
 
 describe("Controller.updateTaskHistory", () => {
 	it("skips persisting when the incoming task history item is unchanged", async () => {
@@ -93,6 +94,10 @@ describe("Controller.updateTaskHistory", () => {
 })
 
 describe("Controller.dispose", () => {
+	afterEach(() => {
+		resetStateSubscriptionsForTest()
+	})
+
 	it("awaits MCP hub disposal before resolving", async () => {
 		const events: string[] = []
 		let resolveMcpDispose!: () => void
@@ -130,5 +135,51 @@ describe("Controller.dispose", () => {
 		await disposePromise
 
 		assert.deepStrictEqual(events, ["clearTask", "mcpDispose:start", "mcpDispose:end"])
+	})
+
+	it("postStateToWebview skips building state when there are no active subscribers", async () => {
+		let stateCalls = 0
+		const controllerLike = {
+			getStateToPostToWebview: async () => {
+				stateCalls += 1
+				return { mode: "act", clineMessages: [] }
+			},
+		} as any
+
+		await Controller.prototype.postStateToWebview.call(controllerLike)
+
+		assert.equal(stateCalls, 0)
+	})
+
+	it("postStateToWebview broadcasts large clineMessages snapshots through the controller path", async () => {
+		const payloads: string[] = []
+		const responseStream = async ({ stateJson }: { stateJson: string }) => {
+			payloads.push(stateJson)
+		}
+
+		const initialLargeState = {
+			mode: "act",
+			clineMessages: [{ ts: 1, type: "say", say: "text", text: "x".repeat(512 * 1024) }],
+		} as any
+		const changedLargeState = {
+			mode: "act",
+			clineMessages: [{ ts: 2, type: "say", say: "text", text: "y".repeat(512 * 1024) }],
+		} as any
+
+		const getStateToPostToWebview = sinon.stub()
+		getStateToPostToWebview.onFirstCall().resolves(initialLargeState)
+		getStateToPostToWebview.onSecondCall().resolves(changedLargeState)
+
+		const controllerLike = { getStateToPostToWebview } as any
+
+		await subscribeToState(controllerLike, {} as any, responseStream)
+		assert.equal(payloads.length, 1)
+		assert.equal(payloads[0], JSON.stringify(initialLargeState))
+
+		await Controller.prototype.postStateToWebview.call(controllerLike)
+
+		assert.equal(payloads.length, 2)
+		assert.equal(payloads[1], JSON.stringify(changedLargeState))
+		sinon.assert.calledTwice(getStateToPostToWebview)
 	})
 })
