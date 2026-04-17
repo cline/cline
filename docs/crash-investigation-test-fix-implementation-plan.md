@@ -312,6 +312,7 @@ Start with pure or nearly pure code where failures are cheap to reproduce.
 - [x] Add explicit maximum search block size.
 - [x] Add maximum line-length guardrails.
 - [x] Disable expensive partial-similarity fallback above safe work thresholds.
+- [x] Skip oversized diff fallback scans when near-match search work exceeds safe thresholds.
 - [ ] Replace quadratic similarity checks with cheaper heuristics.
 - [x] Fail fast with clear error messages instead of trying to process absurdly large patches.
 

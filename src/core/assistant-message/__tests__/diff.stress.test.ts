@@ -1,7 +1,7 @@
 import { expect } from "chai"
 import { describe, it } from "mocha"
 import { measureAsyncOperation, measureUtf8Bytes } from "@/test/stress-utils"
-import { constructNewFileContent, MAX_DIFF_LINE_BYTES } from "../diff"
+import { constructNewFileContent, MAX_DIFF_FALLBACK_WORK_UNITS, MAX_DIFF_LINE_BYTES } from "../diff"
 
 function makeLargeOriginalContent(blockCount: number): string {
 	return Array.from({ length: blockCount }, (_, i) => {
@@ -76,6 +76,37 @@ describe("constructNewFileContent stress", () => {
 		} catch (error) {
 			expect(Date.now() - startedAt).to.be.lessThan(1_000)
 			expect((error as Error).message).to.match(/SEARCH\/REPLACE payload contains a line that is too large/)
+		}
+	})
+
+	it("skips oversized fallback matching work for giant near-match multi-line searches", async function () {
+		this.timeout(10_000)
+
+		const original = Array.from({ length: 3_000 }, (_, i) => {
+			return [`section ${i}`, "    begin", `    payload ${i}`, "    end"].join("\n")
+		}).join("\n")
+
+		const diff = [
+			"------- SEARCH",
+			...Array.from({ length: 64 }, (_, i) => `begin ${i}`),
+			"payload 90",
+			"end 90",
+			"=======",
+			"begin",
+			"payload 90 updated",
+			"end",
+			"+++++++ REPLACE",
+		].join("\n")
+
+		expect((3_000 - 66 + 1) * 66).to.be.greaterThan(MAX_DIFF_FALLBACK_WORK_UNITS)
+
+		const startedAt = Date.now()
+		try {
+			await constructNewFileContent(diff, original, true, "v1")
+			expect.fail("Expected constructNewFileContent to fail once oversized fallback work is skipped")
+		} catch (error) {
+			expect(Date.now() - startedAt).to.be.lessThan(1_000)
+			expect((error as Error).message).to.match(/does not match anything in the file/)
 		}
 	})
 })

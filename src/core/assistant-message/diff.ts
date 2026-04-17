@@ -3,6 +3,7 @@ const SEARCH_BLOCK_END = "======="
 const REPLACE_BLOCK_END = "+++++++ REPLACE"
 
 export const MAX_DIFF_LINE_BYTES = 200 * 1024
+export const MAX_DIFF_FALLBACK_WORK_UNITS = 50_000
 
 function getLargestLineBytes(content: string): number {
 	let largest = 0
@@ -23,6 +24,12 @@ function formatBytes(bytes: number): string {
 		return `${(bytes / 1024).toFixed(1)} KB`
 	}
 	return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function exceedsDiffFallbackWorkBudget(originalLineCount: number, searchLineCount: number, startLineNum: number): boolean {
+	const candidateWindowCount = Math.max(0, originalLineCount - searchLineCount - startLineNum + 1)
+	const workUnits = candidateWindowCount * Math.max(searchLineCount, 1)
+	return workUnits > MAX_DIFF_FALLBACK_WORK_UNITS
 }
 
 function assertDiffLineLengthsWithinBudget(diffContent: string, originalContent: string): void {
@@ -107,6 +114,10 @@ function lineTrimmedFallbackMatch(originalContent: string, searchContent: string
 	while (currentIndex < startIndex && startLineNum < originalLines.length) {
 		currentIndex += originalLines[startLineNum].length + 1 // +1 for \n
 		startLineNum++
+	}
+
+	if (exceedsDiffFallbackWorkBudget(originalLines.length, searchLines.length, startLineNum)) {
+		return false
 	}
 
 	// For each possible starting position in original content
@@ -196,6 +207,10 @@ function blockAnchorFallbackMatch(originalContent: string, searchContent: string
 	while (currentIndex < startIndex && startLineNum < originalLines.length) {
 		currentIndex += originalLines[startLineNum].length + 1
 		startLineNum++
+	}
+
+	if (exceedsDiffFallbackWorkBudget(originalLines.length, searchLines.length, startLineNum)) {
+		return false
 	}
 
 	// Look for matching start and end anchors
