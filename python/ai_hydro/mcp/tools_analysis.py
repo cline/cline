@@ -873,46 +873,59 @@ async def fetch_forcing_data(
 def fetch_camels_us(
     session_id: str,
     gauge_id: str | None = None,
+    gauge_ids: list[str] | None = None,
 ) -> dict:
     """
-    Fetch CAMELS-US static catchment attributes for a benchmark gauge.
+    Fetch CAMELS-US static catchment attributes — one gauge, many, or all 671.
 
-    Returns the full set of CAMELS-US attributes — topography, climate
-    indices, soil properties, vegetation cover, geology, and hydrological
-    signatures — for any of the 671 CONUS benchmark gauges.
-
-    Uses pygeohydro.get_camels() internally. No extra package or API key
-    required beyond aihydro-tools[data].
+    pygeohydro.get_camels() downloads all 671 CONUS benchmark gauges in one
+    network call, so there is no performance penalty for requesting multiple
+    gauges at once.
 
     Parameters
     ----------
     session_id : str
         Research session identifier.
     gauge_id : str, optional
-        8-digit USGS gauge ID. Defaults to session.site_id (set automatically
-        by delineate_watershed or fetch_streamflow_data).
+        Single 8-digit USGS gauge ID. Defaults to session.site_id. Result is
+        cached in the session 'camels' slot for downstream use.
+    gauge_ids : list[str], optional
+        List of 8-digit USGS gauge IDs for bulk retrieval (regional studies,
+        benchmark comparisons). Pass an empty list [] to return all 671 gauges.
+        Result is NOT cached in session — it is saved directly to workspace.
 
     Returns
     -------
-    dict with:
+    Single-gauge mode (gauge_id):
         data.gauge_id          : USGS station ID
-        data.in_camels         : True if gauge is in the 671-gauge CAMELS set
-        data.n_attributes      : number of attribute columns returned
-        data.attributes        : flat dict of all ~60 CAMELS attribute values
-        data.attribute_groups  : same attributes grouped by theme
-                                 (topography, climate, hydrology, soil,
-                                  vegetation, geology)
+        data.in_camels         : True/False
+        data.n_attributes      : number of attribute columns (~60)
+        data.attributes        : flat dict of all CAMELS attribute values
+        data.attribute_groups  : attributes grouped by theme (topography,
+                                 climate, hydrology, soil, vegetation, geology)
+
+    Multi-gauge mode (gauge_ids):
+        data.mode              : "multi"
+        data.n_requested       : number of gauges requested
+        data.n_found           : number in CAMELS
+        data.not_in_camels     : list of IDs not found
+        data.gauges            : {gauge_id: {in_camels, attributes,
+                                             attribute_groups}, ...}
 
     Notes
     -----
-    If the gauge is not in the CAMELS-671 set, returns in_camels=False.
-    Use extract_geomorphic_parameters and extract_hydrological_signatures
-    to derive equivalent attributes from DEM and streamflow instead.
+    CAMELS covers 671 minimally-disturbed CONUS gauges (1980-2014 record).
+    For gauges outside CAMELS, use extract_geomorphic_parameters +
+    extract_hydrological_signatures to derive equivalent attributes.
+
+    Citation: Addor et al. (2017), HESS 21.
 
     Examples
     --------
-    >>> fetch_camels_us('piscataquis-2020')
-    >>> fetch_camels_us('my-session', gauge_id='01031500')
+    >>> fetch_camels_us('piscataquis-2020')                       # session gauge
+    >>> fetch_camels_us('study', gauge_id='01031500')             # explicit single
+    >>> fetch_camels_us('maine', gauge_ids=['01031500','01013500']) # two gauges
+    >>> fetch_camels_us('all-camels', gauge_ids=[])               # all 671
     """
     try:
         import math
@@ -920,15 +933,6 @@ def fetch_camels_us(
         session_id = _normalize_session_id(session_id)
         from ai_hydro.session import HydroSession
         session = HydroSession.load(session_id)
-
-        if session.camels is not None:
-            return {
-                "data": session.camels.get("data", {}),
-                "meta": session.camels.get("meta", {}),
-                "_cached": True,
-            }
-
-        usgs_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
 
         try:
             import pygeohydro as gh
@@ -940,40 +944,15 @@ def fetch_camels_us(
                 "recovery": "pip install aihydro-tools[data]",
             }
 
-        attr_df, _ = gh.get_camels()
-
-        # Normalize index to zero-padded 8-char strings for lookup
-        idx_list = [str(i).zfill(8) for i in attr_df.index]
-        gauge_norm = usgs_gauge_id.zfill(8)
-
-        if gauge_norm not in idx_list:
-            return {
-                "data": {
-                    "gauge_id":       usgs_gauge_id,
-                    "in_camels":      False,
-                    "attributes":     {},
-                    "n_camels_gauges": len(idx_list),
-                },
-                "meta": {"tool": "fetch_camels_us"},
-                "_note": (
-                    f"Gauge {usgs_gauge_id} is not in the CAMELS-671 benchmark set. "
-                    "CAMELS covers 671 minimally-disturbed CONUS gauges. "
-                    "Use extract_geomorphic_parameters + extract_hydrological_signatures "
-                    "to derive equivalent attributes from the DEM and streamflow record."
-                ),
-            }
-
-        row = attr_df.iloc[idx_list.index(gauge_norm)]
-
-        attrs: dict = {}
-        for col, val in row.items():
-            if col == "geometry":
-                continue
-            try:
-                v = float(val)
-                attrs[col] = None if math.isnan(v) else round(v, 6)
-            except (TypeError, ValueError):
-                attrs[col] = str(val) if val is not None else None
+        _META = {
+            "tool":     "fetch_camels_us",
+            "source":   "CAMELS-US via pygeohydro.get_camels()",
+            "citation": (
+                "Addor, N., Newman, A. J., Mizukami, N., & Clark, M. P. (2017). "
+                "The CAMELS data set: catchment attributes and meteorology for "
+                "large-sample studies. Hydrology and Earth System Sciences, 21."
+            ),
+        }
 
         GROUPS: dict[str, list[str]] = {
             "topography": ["elev_mean", "slope_mean", "area_gages2", "area_geospa_fabric"],
@@ -988,30 +967,107 @@ def fetch_camels_us(
             "geology":    ["geol_1st_class", "glim_1st_class_frac", "geol_2nd_class",
                           "carbonate_rocks_frac", "geol_porostiy", "geol_permeability"],
         }
-        grouped = {
-            grp: {k: attrs[k] for k in keys if k in attrs}
-            for grp, keys in GROUPS.items()
-        }
 
+        def _row_to_attrs(row) -> dict:
+            out: dict = {}
+            for col, val in row.items():
+                if col == "geometry":
+                    continue
+                try:
+                    v = float(val)
+                    out[col] = None if math.isnan(v) else round(v, 6)
+                except (TypeError, ValueError):
+                    out[col] = str(val) if val is not None else None
+            return out
+
+        def _group(attrs: dict) -> dict:
+            return {
+                grp: {k: attrs[k] for k in keys if k in attrs}
+                for grp, keys in GROUPS.items()
+            }
+
+        # ── Fetch the full dataset once ────────────────────────────────
+        attr_df, _ = gh.get_camels()
+        idx_list = [str(i).zfill(8) for i in attr_df.index]
+
+        # ── MULTI-GAUGE MODE ───────────────────────────────────────────
+        if gauge_ids is not None:
+            targets = (
+                idx_list if len(gauge_ids) == 0          # [] → all 671
+                else [g.strip().zfill(8) for g in gauge_ids]
+            )
+            gauges_out: dict = {}
+            not_found: list[str] = []
+            for gid in targets:
+                if gid not in idx_list:
+                    not_found.append(gid)
+                    gauges_out[gid] = {"in_camels": False, "attributes": {}, "attribute_groups": {}}
+                else:
+                    row = attr_df.iloc[idx_list.index(gid)]
+                    attrs = _row_to_attrs(row)
+                    gauges_out[gid] = {
+                        "in_camels":        True,
+                        "n_attributes":     len(attrs),
+                        "attributes":       attrs,
+                        "attribute_groups": _group(attrs),
+                    }
+
+            data = {
+                "mode":          "multi",
+                "n_requested":   len(targets),
+                "n_found":       len(targets) - len(not_found),
+                "not_in_camels": not_found,
+                "gauges":        gauges_out,
+            }
+            saved = _workspace_write(session_id, "camels_multi.json", data)
+            return {
+                "data": data,
+                "meta": _META,
+                "_file_saved": saved,
+                "_note": (
+                    f"CAMELS-US: {data['n_found']}/{data['n_requested']} gauges found. "
+                    f"Attributes saved to workspace as camels_multi.json."
+                    + (f" Not in CAMELS: {not_found}" if not_found else "")
+                ),
+            }
+
+        # ── SINGLE-GAUGE MODE ──────────────────────────────────────────
+        if session.camels is not None:
+            return {
+                "data": session.camels.get("data", {}),
+                "meta": session.camels.get("meta", {}),
+                "_cached": True,
+            }
+
+        usgs_gauge_id = _resolve_usgs_gauge(session_id, gauge_id, session)
+        gauge_norm = usgs_gauge_id.zfill(8)
+
+        if gauge_norm not in idx_list:
+            return {
+                "data": {
+                    "gauge_id":        usgs_gauge_id,
+                    "in_camels":       False,
+                    "attributes":      {},
+                    "n_camels_gauges": len(idx_list),
+                },
+                "meta": _META,
+                "_note": (
+                    f"Gauge {usgs_gauge_id} is not in the CAMELS-671 benchmark set. "
+                    "Use extract_geomorphic_parameters + extract_hydrological_signatures "
+                    "to derive equivalent attributes from DEM and streamflow."
+                ),
+            }
+
+        row = attr_df.iloc[idx_list.index(gauge_norm)]
+        attrs = _row_to_attrs(row)
         data = {
             "gauge_id":         usgs_gauge_id,
             "in_camels":        True,
             "n_attributes":     len(attrs),
             "attributes":       attrs,
-            "attribute_groups": grouped,
+            "attribute_groups": _group(attrs),
         }
-        d = {
-            "data": data,
-            "meta": {
-                "tool":     "fetch_camels_us",
-                "source":   "CAMELS-US via pygeohydro.get_camels()",
-                "citation": (
-                    "Addor, N., Newman, A. J., Mizukami, N., & Clark, M. P. (2017). "
-                    "The CAMELS data set: catchment attributes and meteorology for "
-                    "large-sample studies. Hydrology and Earth System Sciences, 21."
-                ),
-            },
-        }
+        d = {"data": data, "meta": _META}
         _session_store(session_id, "camels", d)
         saved = _workspace_write(session_id, f"camels_{usgs_gauge_id}.json", data)
         d["_file_saved"] = saved
