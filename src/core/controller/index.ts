@@ -173,7 +173,7 @@ export class Controller {
 		}
 
 		await this.clearTask()
-		this.mcpHub.dispose()
+		await this.mcpHub.dispose()
 
 		Logger.error("Controller disposed")
 	}

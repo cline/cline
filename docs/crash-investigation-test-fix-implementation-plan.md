@@ -487,6 +487,7 @@ Even if one task only leaks a little, many create/cancel/clear cycles can accumu
 - [x] Centralize teardown sequencing.
 - [x] Add explicit cleanup assertions in test-only code.
 - [x] Make background resources idempotently disposable.
+- [x] Await controller-level MCP cleanup during controller disposal.
 
 #### Important note
 

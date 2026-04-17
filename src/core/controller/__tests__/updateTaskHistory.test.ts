@@ -91,3 +91,44 @@ describe("Controller.updateTaskHistory", () => {
 		sinon.assert.calledOnceWithExactly(stateManager.setGlobalState, "taskHistory", history)
 	})
 })
+
+describe("Controller.dispose", () => {
+	it("awaits MCP hub disposal before resolving", async () => {
+		const events: string[] = []
+		let resolveMcpDispose!: () => void
+		const mcpDisposePromise = new Promise<void>((resolve) => {
+			resolveMcpDispose = resolve
+		})
+
+		const controllerLike = {
+			remoteConfigTimer: undefined,
+			clearTask: async () => {
+				events.push("clearTask")
+			},
+			mcpHub: {
+				dispose: async () => {
+					events.push("mcpDispose:start")
+					await mcpDisposePromise
+					events.push("mcpDispose:end")
+				},
+			},
+		} as any
+
+		const disposePromise = Controller.prototype.dispose.call(controllerLike)
+		await Promise.resolve()
+
+		assert.deepStrictEqual(events, ["clearTask", "mcpDispose:start"])
+
+		let settled = false
+		void disposePromise.then(() => {
+			settled = true
+		})
+		await Promise.resolve()
+		assert.equal(settled, false)
+
+		resolveMcpDispose()
+		await disposePromise
+
+		assert.deepStrictEqual(events, ["clearTask", "mcpDispose:start", "mcpDispose:end"])
+	})
+})
