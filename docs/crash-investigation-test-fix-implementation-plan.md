@@ -409,6 +409,7 @@ This workstream targets the main file-edit pipeline.
 - [ ] Short-circuit oversized edits with a clear user-visible error.
 - [x] Avoid returning full final file content for oversized files.
 - [x] Use summary output instead of full content in approval messages for large files.
+- [x] Use summary output instead of full original-file echoes in edit failure messages for large files.
 - [ ] Consider chunked or direct file-edit modes for large content.
 
 #### Why this matters

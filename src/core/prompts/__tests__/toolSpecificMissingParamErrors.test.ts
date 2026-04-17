@@ -65,3 +65,18 @@ describe("formatResponse.executeCommandMissingCommandError", () => {
 		result.should.not.containEql("Reminder: Instructions for Tool Use")
 	})
 })
+
+describe("formatResponse.diffError", () => {
+	it("should include full file content for small files", () => {
+		const result = formatResponse.diffError("src/index.ts", "line1\nline2")
+		result.should.containEql('<file_content path="src/index.ts">')
+		result.should.containEql("line1\nline2")
+	})
+
+	it("should summarize oversized original content instead of embedding it fully", () => {
+		const hugeContent = "x".repeat(70 * 1024)
+		const result = formatResponse.diffError("src/huge.ts", hugeContent)
+		result.should.not.containEql('<file_content path="src/huge.ts">')
+		result.should.containEql("Original file content for 'src/huge.ts' omitted from tool payload")
+	})
+})
