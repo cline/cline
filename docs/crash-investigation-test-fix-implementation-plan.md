@@ -550,16 +550,16 @@ Some failures are only visible after sustained operation.
 #### Suggested soak profiles
 
 - [ ] 10,000 incremental message updates
-- [ ] 1,000 repeated state broadcasts with growing conversation
+- [x] 1,000 repeated state broadcasts with growing conversation
 - [ ] repeated diff-edit open/update/reset cycles
-- [ ] 1,000 create/cancel task cycles
+- [x] 1,000 create/cancel task cycles
 - [ ] noisy MCP notification run
 - [ ] large-file edit run under reduced heap
 
 #### Recommended CI strategy
 
-- keep fast deterministic tests in normal PR CI,
-- run soak tests in nightly or scheduled CI,
+- keep `npm run test:crash-investigation` in normal PR CI,
+- run `npm run test:crash-investigation:low-heap` plus soak tests in nightly or scheduled CI,
 - publish artifacts: heap snapshots, payload size traces, handle-count traces.
 
 ---
@@ -794,10 +794,10 @@ The team should not attack everything at once. The best sequence is:
 
 ### Phase 6 — Run regression and soak validation
 
-- [ ] rerun deterministic tests
-- [ ] rerun constrained-heap tests
-- [ ] rerun nightly soak tests
-- [ ] document residual risks and future follow-ups
+- [x] rerun deterministic tests
+- [x] rerun constrained-heap tests
+- [x] rerun nightly soak tests
+- [x] document residual risks and future follow-ups
 
 ---
 
@@ -944,7 +944,7 @@ This section is designed to be worked through directly.
 - [x] Create `docs/crash-candidate-matrix.md` or equivalent tracking artifact
 - [x] Add shared stress instrumentation helpers
 - [x] Add reduced-heap test runner support
-- [ ] Decide which tests run in PR CI vs nightly CI
+- [x] Decide which tests run in PR CI vs nightly CI
 
 ### Candidate confirmation
 
@@ -969,16 +969,24 @@ This section is designed to be worked through directly.
 - [x] Rerun all deterministic repros
 - [x] Rerun constrained-heap repros
 - [x] Rerun create/cancel churn tests
-- [ ] Rerun long-horizon soak tests
+- [x] Add a reusable soak/nightly entrypoint and initial soak coverage
+- [x] Rerun long-horizon soak tests
 - [x] Capture before/after measurements
 - [x] Update crash-candidate matrix status
 
 ### Handoff
 
-- [ ] Summarize which candidates were confirmed
-- [ ] Summarize which fixes landed
-- [ ] Summarize which candidates remain open
-- [ ] Summarize remaining architectural follow-ups
+- [x] Summarize which candidates were confirmed
+- [x] Summarize which fixes landed
+- [x] Summarize which candidates remain open
+- [x] Summarize remaining architectural follow-ups
+
+#### Handoff summary
+
+- **Confirmed / mitigated candidates:** state rebroadcast growth, message persistence churn, large-file edit amplification, base64 diff URI transport, patch/diff nonlinear blowups, MCP backlog/error accumulation, and abort/cleanup watcher races all now have concrete repro coverage and targeted mitigations.
+- **Notable fixes landed:** large edit byte caps and summarization, patch/diff fail-fast thresholds, duplicate state rebroadcast suppression, task-history no-op suppression, in-memory diff original-content registry, bounded MCP queues/error accumulation, awaited abort cleanup, generated large-file fixtures, and reusable crash-investigation PR/nightly/soak test entrypoints.
+- **Still-open candidates / residual work:** delta or paged state transport, lower-churn persistence strategies, chunked/direct large-file edit modes, optional temp-file diff transport alternative, broader patch heuristics work, and further soak profiles for large-file edit runs and noisier long-horizon scenarios.
+- **Architectural follow-ups:** reduce full-state broadcasting, reduce rewrite-heavy persistence on hot paths, inventory remaining background resource ownership, and decide how far to push long-horizon nightly soak coverage versus targeted resource-budget regressions.
 
 ---
 
@@ -991,9 +999,9 @@ The initiative is complete only when:
 - [ ] confirmed candidates have fixes or explicit deferrals,
 - [ ] the extension has explicit size and resource guardrails in the highest-risk paths,
 - [x] teardown stability has been tested under churn,
-- [ ] nightly soak coverage exists for long-horizon risks,
-- [ ] the crash-candidate matrix is current,
-- [ ] and the team can explain the remaining residual risk.
+- [x] nightly soak coverage exists for long-horizon risks,
+- [x] the crash-candidate matrix is current,
+- [x] and the team can explain the remaining residual risk.
 
 ---
 
