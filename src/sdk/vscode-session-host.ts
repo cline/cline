@@ -14,6 +14,7 @@
 import {
 	type CoreSessionEvent,
 	DefaultSessionManager,
+	type HookEventPayload,
 	resolveSessionBackend,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
@@ -174,8 +175,19 @@ export class VscodeSessionHost implements SessionManager {
 		return this.inner.readTranscript(sessionId, maxChars)
 	}
 
-	async readHooks(sessionId: string, limit?: number): Promise<unknown[]> {
-		return this.inner.readHooks(sessionId, limit)
+	async update(
+		sessionId: string,
+		updates: {
+			prompt?: string | null
+			metadata?: Record<string, unknown> | null
+			title?: string | null
+		},
+	): Promise<{ updated: boolean }> {
+		return this.inner.update(sessionId, updates)
+	}
+
+	async handleHookEvent(payload: HookEventPayload): Promise<void> {
+		return this.inner.handleHookEvent(payload)
 	}
 
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
