@@ -6,6 +6,29 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
+## [0.1.5] — 2026-04-16
+
+### Platform vision
+- **LLM interpretation layer** — `research.md` now has two sections: a Python-generated structural skeleton (always current) and an LLM-authored scientific context section written by the foundation model via `sync_research_context`. Deleted all template-based Python interpretation logic (`_key_findings()`, "suggested next step").
+- **`sync_research_context` redesigned** — now a two-phase tool: Phase 1 returns all raw session data for LLM reasoning; Phase 2 accepts `interpretation` (scientific prose) and `site_name` (descriptive slug) and embeds them permanently in `research.md`.
+- **`site_name` field** — sessions now carry a human-readable display name set by the LLM, separate from the raw gauge ID.
+- **`raw_session_data()` method** — `HydroSession` now exposes all computed slot values as a flat dict for LLM consumption — every key from every slot, not a 3-key template.
+
+### Analysis improvements
+- **PNG diagnostic outputs** — three new tools now save publication-quality figures automatically when `workspace_dir` is set: watershed boundary map (`delineate_watershed`), daily hydrograph with 30-day rolling mean (`fetch_streamflow_data`), log-scale flow duration curve with signature table (`extract_hydrological_signatures`).
+- **New `analysis/plots.py` module** — headless matplotlib plots using Agg backend; `@_mpl_required` decorator silently skips if matplotlib unavailable.
+- **`extract_camels_attributes` crash fix** — now runs in an isolated subprocess so any crash or hang (180s timeout) cannot kill the MCP server.
+
+### Session architecture
+- **Lean session JSON** — watershed GeoJSON geometry is no longer stored inline in the session JSON (was 200–800 KB per gauge). Stored at `~/.aihydro/sessions/<gauge_id>.geojson`; session stores only the path. `_get_session_geometry()` reads from file transparently.
+- **`_get_session_geometry()` hardened** — tries `geometry_geojson_path` (new), then `geometry_geojson`, `geometry`, `geojson` (legacy fallback). Clear recovery instructions on failure.
+- **Project workspace auto-detection** — `ProjectSession.save()` now finds `workspace_dir` from any associated gauge session automatically; project `research.md` writes to the correct workspace instead of repo root.
+
+### Fixed
+- Timedelta warning from pygridmet downgraded from `log.error` to `log.warning` with pandas 2.x explanation — not a failure, NaN fallback is correct behaviour.
+- TWI visualization: static map and interactive map now in separate `try/except` blocks — a failed interactive map no longer suppresses the static PNG.
+- `print()` calls in TWI visualization paths replaced with `log.warning()` (invisible in MCP context).
+
 ## [0.1.4] — 2026-04-15
 
 ### Added

@@ -48,9 +48,11 @@ class HydroSession:
 
     def __init__(self, gauge_id: str) -> None:
         self.gauge_id: str = gauge_id
+        self.site_name: str = ""            # LLM-generated or user-set display name
         self.workspace_dir: str | None = None   # VS Code workspace path
         self._slots: dict[str, dict | None] = {}
         self.notes: list[str] = []
+        self.interpretation: str = ""       # LLM-authored scientific summary
         self.created_at: str = datetime.now(timezone.utc).isoformat()
         self.updated_at: str = self.created_at
 
@@ -160,15 +162,20 @@ class HydroSession:
             raw = json.load(f)
         session = cls(gauge_id)
         # Load all known + any extra keys stored on disk
+        _META_KEYS = {
+            "gauge_id", "site_name", "workspace_dir", "notes",
+            "created_at", "updated_at", "interpretation",
+        }
         for key, val in raw.items():
-            if key in ("gauge_id", "workspace_dir", "notes",
-                       "created_at", "updated_at"):
+            if key in _META_KEYS:
                 continue
             # Any dict-valued key is treated as a slot
             if isinstance(val, dict) or val is None:
                 session.set(key, val)
+        session.site_name = raw.get("site_name", "")
         session.workspace_dir = raw.get("workspace_dir")
         session.notes = raw.get("notes", [])
+        session.interpretation = raw.get("interpretation", "")
         session.created_at = raw.get("created_at", session.created_at)
         session.updated_at = raw.get("updated_at", session.updated_at)
         return session
@@ -184,10 +191,12 @@ class HydroSession:
     def _to_raw(self) -> dict:
         raw: dict[str, Any] = {
             "gauge_id": self.gauge_id,
+            "site_name": self.site_name,
             "workspace_dir": self.workspace_dir,
             "created_at": self.created_at,
             "updated_at": self.updated_at,
             "notes": self.notes,
+            "interpretation": self.interpretation,
         }
         for slot, val in self._slots.items():
             raw[slot] = val
@@ -230,9 +239,11 @@ class HydroSession:
         """Return a compact summary suitable for agent reasoning."""
         return {
             "gauge_id": self.gauge_id,
+            "site_name": self.site_name,
             "computed": self.computed(),
             "pending": self.pending(),
             "notes": self.notes,
+            "has_interpretation": bool(self.interpretation),
             "created_at": self.created_at,
             "updated_at": self.updated_at,
         }
@@ -263,23 +274,33 @@ class HydroSession:
 
     def write_research_context(self) -> None:
         """
-        Write a human-readable session digest to .aihydrorules/research.md.
+        Write research.md to .aihydrorules/ for VS Code context injection.
 
-        Location: workspace_dir/.aihydrorules/research.md when workspace_dir
-        is set (installed use), otherwise repo-root/.aihydrorules/research.md
-        (monorepo dev). The extension auto-loads this file into every
-        conversation, giving the agent immediate awareness of research state
-        without any explicit tool call.
+        Structure:
+          Section 1 — Python skeleton (always current, written on every save):
+            site identity, computed/pending slots, researcher notes, profile.
+          Section 2 — LLM interpretation (written only via sync_research_context):
+            scientific summary authored by the foundation model; persisted in
+            session.interpretation and re-injected here on every save.
+
+        This separation means the agent always has fresh structural state AND
+        accumulated scientific understanding from prior reasoning.
         """
+        display = self.site_name or self.gauge_id
+        name_str = self._site_name_str()
+
+        computed = self.computed()
+        pending  = self.pending()
+
+        # ------------------------------------------------------------------
+        # Section 1: structural skeleton — Python-generated, always accurate
+        # ------------------------------------------------------------------
         lines: list[str] = [
-            "# Current Research Session",
-            f"**Gauge**: {self.gauge_id}{self._gauge_name_str()}",
+            "# Research Session",
+            f"**Site**: {display}{name_str}",
             f"**Updated**: {self.updated_at[:10]}",
             "",
         ]
-
-        computed = self.computed()
-        pending = self.pending()
 
         if computed:
             lines.append(f"**Computed** ({len(computed)}): " + ", ".join(computed))
@@ -287,129 +308,66 @@ class HydroSession:
             lines.append(f"**Pending** ({len(pending)}): " + ", ".join(pending))
         lines.append("")
 
-        # Key findings from each computed slot
-        findings = self._key_findings()
-        if findings:
-            lines.append("## Key findings")
-            lines.extend(findings)
-            lines.append("")
-
-        # Researcher notes
         if self.notes:
-            lines.append("## Notes")
+            lines.append("## Researcher Notes")
             for note in self.notes:
                 lines.append(f"- {note}")
             lines.append("")
 
-        if pending:
-            lines.append("## Suggested next step")
-            lines.append(f"Run `{pending[0]}` — call the corresponding MCP tool.")
-            lines.append("")
-
-        # Append researcher profile context if available
+        # Researcher profile
         try:
             from ai_hydro.session.persona import ResearcherProfile
             profile = ResearcherProfile.load()
             if not profile.is_blank():
-                lines.append("")
                 lines.append(profile.to_context_string())
+                lines.append("")
         except Exception:
             pass
 
-        lines.append("")
+        # ------------------------------------------------------------------
+        # Section 2: LLM-authored interpretation — present after sync call
+        # ------------------------------------------------------------------
+        if self.interpretation:
+            lines.append("## Scientific Context")
+            lines.append(self.interpretation)
+            lines.append("")
+        else:
+            lines.append(
+                "_No scientific interpretation yet — call `sync_research_context` "
+                "to generate one._"
+            )
+            lines.append("")
+
         lines.append(
-            "> *Auto-generated by HydroSession — do not edit manually.*"
+            "> *Skeleton auto-generated by HydroSession. "
+            "Scientific context authored by Claude via `sync_research_context`.*"
         )
 
-        # Write to workspace_dir/.aihydrorules/research.md when workspace is
-        # known (installed use), else fall back to repo root (monorepo dev).
         base = Path(self.workspace_dir) if self.workspace_dir else _REPO_ROOT
         research_md = base / _RULES_DIR_NAME / "research.md"
         research_md.parent.mkdir(parents=True, exist_ok=True)
         research_md.write_text("\n".join(lines))
 
-    def _gauge_name_str(self) -> str:
-        """Pull gauge name from cached watershed result if available."""
+    def _site_name_str(self) -> str:
+        """Return parenthetical site name from watershed metadata if available."""
         if self.watershed:
             name = self.watershed.get("data", {}).get("gauge_name")
             if name:
                 return f" ({name})"
         return ""
 
-    def _key_findings(self) -> list[str]:
-        """Extract a few key metrics from each computed slot."""
-        findings: list[str] = []
+    def raw_session_data(self) -> dict:
+        """
+        Return all computed slot data as a flat dict for LLM reasoning.
 
-        def _get(slot: str, *keys: str) -> Any:
+        Designed to be passed to the foundation model by sync_research_context
+        so the model has everything it needs to write a scientific interpretation.
+        Keys are slot names; values are the data sub-dicts (not the full
+        HydroResult wrapper with meta).
+        """
+        data: dict = {}
+        for slot in self.computed():
             result = self.get(slot)
-            if not result:
-                return None
-            data = result.get("data", {})
-            for k in keys:
-                if k in data:
-                    return data[k]
-            return None
-
-        if self.watershed:
-            area = _get("watershed", "area_km2")
-            huc = _get("watershed", "huc_02")
-            if area is not None:
-                findings.append(f"- **Watershed area**: {area:.1f} km²" +
-                                 (f"  (HUC-02: {huc})" if huc else ""))
-
-        if self.streamflow:
-            n = _get("streamflow", "n_days")
-            if n:
-                findings.append(f"- **Streamflow record**: {n:,} days")
-
-        if self.signatures:
-            bfi = _get("signatures", "baseflow_index")
-            rr = _get("signatures", "runoff_ratio")
-            qm = _get("signatures", "q_mean")
-            if bfi is not None:
-                findings.append(f"- **Baseflow index**: {bfi:.2f}")
-            if rr is not None:
-                findings.append(f"- **Runoff ratio**: {rr:.2f}")
-            if qm is not None:
-                findings.append(f"- **Mean discharge**: {qm:.3f} mm/d")
-
-        if self.camels:
-            p = _get("camels", "p_mean")
-            ar = _get("camels", "aridity")
-            el = _get("camels", "elev_mean")
-            if p is not None:
-                findings.append(f"- **Mean precip**: {p:.1f} mm/d")
-            if ar is not None:
-                findings.append(f"- **Aridity index**: {ar:.2f}")
-            if el is not None:
-                findings.append(f"- **Mean elevation**: {el:.0f} m")
-
-        if self.twi:
-            twi_m = _get("twi", "twi_mean")
-            if twi_m is not None:
-                findings.append(f"- **Mean TWI**: {twi_m:.2f}")
-
-        if self.cn:
-            cn_mean = _get("cn", "cn_mean")
-            high_pct = _get("cn", "percent_high_cn")
-            if cn_mean is not None:
-                findings.append(f"- **Mean CN**: {cn_mean:.1f}")
-            if high_pct is not None:
-                findings.append(f"- **High CN area**: {high_pct:.1f}%")
-
-        if self.model:
-            result = self.model
-            data = result.get("data", result)  # model slot stores the dict directly
-            fw  = data.get("framework", "")
-            mt  = data.get("model_type", "")
-            nse = data.get("nse")
-            kge = data.get("kge")
-            label = f"{fw} {mt}".strip() or "model"
-            parts = []
-            if nse is not None:
-                parts.append(f"NSE={nse:.3f}")
-            if kge is not None:
-                parts.append(f"KGE={kge:.3f}")
-            findings.append(f"- **{label}**: " + (", ".join(parts) if parts else "trained"))
-
-        return findings
+            if result:
+                data[slot] = result.get("data", {})
+        return data

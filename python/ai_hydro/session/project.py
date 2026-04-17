@@ -118,12 +118,26 @@ class ProjectSession:
             return []
         return [d.name for d in _PROJECTS_DIR.iterdir() if d.is_dir()]
 
+    def _get_workspace_dir(self) -> str | None:
+        """Return workspace_dir from the first associated gauge session that has one."""
+        from ai_hydro.session.store import HydroSession
+        for gid in self.gauge_ids:
+            try:
+                s = HydroSession.load(gid)
+                if s.workspace_dir:
+                    return s.workspace_dir
+            except Exception:
+                continue
+        return None
+
     def save(self) -> None:
         self.updated_at = datetime.now(timezone.utc).isoformat()
         self._dir(self.name).mkdir(parents=True, exist_ok=True)
         with open(self._path(self.name), "w") as f:
             json.dump(self._to_raw(), f, indent=2)
-        self.write_research_context()
+        # Auto-detect workspace from associated gauge sessions so project context
+        # is written to the correct .aihydrorules/research.md (not repo root).
+        self.write_research_context(workspace_dir=self._get_workspace_dir())
 
     def _to_raw(self) -> dict:
         return {

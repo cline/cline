@@ -36,9 +36,15 @@ def _get_session_geometry(gauge_id: str) -> dict:
     """
     Return the watershed GeoJSON dict from the cached session.
 
+    Supports both storage forms:
+    - New (v1.3+): session stores ``geometry_geojson_path`` → reads from file
+    - Legacy: session stores full ``geometry_geojson`` dict inline
+
     Raises RuntimeError if watershed has not been delineated yet or if the
-    geometry key is missing (e.g., partially-written session).
+    geometry cannot be loaded from any known location.
     """
+    import json
+    from pathlib import Path
     try:
         from ai_hydro.session import HydroSession
         session = HydroSession.load(gauge_id)
@@ -48,19 +54,34 @@ def _get_session_geometry(gauge_id: str) -> dict:
                 "Run delineate_watershed first."
             )
         ws_data = session.watershed.get("data", {})
-        # Support both current and any legacy key names
+
+        # Preferred: path reference — load geometry from file (lean session JSON)
+        geojson_path = ws_data.get("geometry_geojson_path")
+        if geojson_path:
+            p = Path(geojson_path)
+            if p.exists():
+                with open(p) as f:
+                    return json.load(f)
+            # Path stored but file missing — fall through to legacy keys
+            log.warning(
+                "geometry_geojson_path points to missing file %s; "
+                "trying legacy inline storage for gauge %s", geojson_path, gauge_id
+            )
+
+        # Legacy fallback: geometry stored inline in session JSON
         geojson = (
             ws_data.get("geometry_geojson")
             or ws_data.get("geometry")
             or ws_data.get("geojson")
         )
-        if geojson is None:
-            raise RuntimeError(
-                f"Watershed geometry missing from session for gauge {gauge_id}. "
-                "The session may be corrupted. Run: "
-                f"clear_session('{gauge_id}', ['watershed']) then delineate_watershed again."
-            )
-        return geojson
+        if geojson is not None:
+            return geojson
+
+        raise RuntimeError(
+            f"Watershed geometry missing from session for gauge {gauge_id}. "
+            "The session may be corrupted. Run: "
+            f"clear_session('{gauge_id}', ['watershed']) then delineate_watershed again."
+        )
     except RuntimeError:
         raise
     except Exception as exc:

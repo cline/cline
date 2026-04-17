@@ -143,21 +143,29 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
         session = _ensure_session(gauge_id, workspace_dir)
         # Cache hit — skip the expensive USGS API call
         if session.watershed is not None:
-            compact = {k: v for k, v in session.watershed["data"].items()
-                       if k != "geometry_geojson"}
-            # Ensure GeoJSON file exists in current workspace
-            geojson = session.watershed["data"].get("geometry_geojson")
-            saved = None
+            ws_data = session.watershed["data"]
+            compact = {k: v for k, v in ws_data.items() if k != "geometry_geojson"}
+            files_saved: list[str] = []
+            # Ensure workspace copy exists; try path-ref first, then legacy inline geojson
+            geojson_path_on_disk = ws_data.get("geometry_geojson_path")
+            geojson = None
+            if geojson_path_on_disk and Path(geojson_path_on_disk).exists():
+                with open(geojson_path_on_disk) as _f:
+                    geojson = json.load(_f)
+            else:
+                geojson = ws_data.get("geometry_geojson")
             if geojson and session.workspace_dir:
-                geojson_path = Path(session.workspace_dir) / f"watershed_{gauge_id}.geojson"
-                if not geojson_path.exists():
+                ws_geojson = Path(session.workspace_dir) / f"watershed_{gauge_id}.geojson"
+                if not ws_geojson.exists():
                     saved = _workspace_write(gauge_id, f"watershed_{gauge_id}.geojson", geojson)
+                    if saved:
+                        files_saved.append(saved)
             return {
                 "data": compact,
                 "meta": session.watershed.get("meta", {}),
                 "_cached": True,
                 "_workspace_dir": session.workspace_dir,
-                "_file_saved": saved,
+                "_files_saved": files_saved or None,
                 "_note": (
                     "Watershed already in session — GeoJSON on disk, "
                     "downstream tools ready. Call clear_session to recompute."
@@ -166,23 +174,37 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
         from ai_hydro.analysis.watershed import delineate_watershed as _fn
         result = _fn(gauge_id=gauge_id)
         d = _result_to_dict(result)
-        # Store full result (including geometry) in session FIRST
-        _session_store(gauge_id, "watershed", d)
-        files_saved: list[str] = []
-        # Save GeoJSON file — geometry never needs to pass through LLM
-        geojson_path = _workspace_write(
-            gauge_id,
-            f"watershed_{gauge_id}.geojson",
-            d["data"]["geometry_geojson"],
-        )
-        if geojson_path:
-            files_saved.append(geojson_path)
-        # Watershed boundary map PNG
-        ws = session.workspace_dir
+        geojson = d["data"]["geometry_geojson"]
+        files_saved = []
+
+        # Always save geometry to ~/.aihydro/sessions/<gauge_id>.geojson so the
+        # path is stable and independent of workspace_dir. This keeps the session
+        # JSON lean (stores a path, not 200-800KB of coordinates).
+        from ai_hydro.session.store import _SESSIONS_DIR
+        sessions_geojson = _SESSIONS_DIR / f"{gauge_id}.geojson"
+        _SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+        with open(sessions_geojson, "w") as _f:
+            json.dump(geojson, _f)
+        files_saved.append(str(sessions_geojson))
+
+        # Replace full geojson with path reference in session slot
+        d_lean = dict(d)
+        d_lean["data"] = {
+            **{k: v for k, v in d["data"].items() if k != "geometry_geojson"},
+            "geometry_geojson_path": str(sessions_geojson),
+        }
+        _session_store(gauge_id, "watershed", d_lean)
+
+        # Also write to workspace for user-visible copy
+        ws = session.workspace_dir or workspace_dir
         if ws:
+            saved = _workspace_write(gauge_id, f"watershed_{gauge_id}.geojson", geojson)
+            if saved:
+                files_saved.append(saved)
+            # Watershed boundary map PNG
             from ai_hydro.analysis.plots import plot_watershed_map
             png = plot_watershed_map(
-                geojson=d["data"]["geometry_geojson"],
+                geojson=geojson,
                 gauge_lat=d["data"].get("gauge_lat", 0.0),
                 gauge_lon=d["data"].get("gauge_lon", 0.0),
                 gauge_name=d["data"].get("gauge_name", ""),
@@ -191,13 +213,14 @@ def delineate_watershed(gauge_id: str, workspace_dir: str | None = None) -> dict
             )
             if png:
                 files_saved.append(png)
+
         # Strip geometry from agent response — it's large and already on disk
         compact = {k: v for k, v in d["data"].items() if k != "geometry_geojson"}
         return {
             "data": compact,
             "meta": d.get("meta", {}),
             "_files_saved": files_saved,
-            "_note": "geometry_geojson stored in session and saved to file. "
+            "_note": "geometry_geojson saved to file (not in session JSON). "
                      "Downstream tools (signatures, geomorphic, twi, forcing) "
                      "load it automatically — no need to pass it manually.",
         }

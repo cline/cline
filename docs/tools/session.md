@@ -17,9 +17,11 @@ Initialise or resume a research session for a USGS gauge.
 
 If a session already exists, it is loaded without clearing any cached results. Calling `start_session` on an existing session is safe and idempotent.
 
-As of v0.1.4 the response also includes:
+The response includes:
 
-- `mcp_python` — the Python interpreter running the MCP server (use this as the interpreter for any Python scripts you write)
+- `site_name` — LLM-set display name for this session (set via `sync_research_context`)
+- `has_interpretation` — whether a scientific interpretation has been authored yet
+- `mcp_python` — the Python interpreter running the MCP server
 - `mcp_pip` — corresponding pip path
 - `available_packages` — dict of `{package_name: version}` for all installed packages
 
@@ -115,13 +117,43 @@ achieving NSE = 0.79 on the validation period (2018–2024).
 
 ## `sync_research_context`
 
-Refresh `.aihydrorules/research.md` and `.aihydrorules/tools.md` from the current session and server state.
+Two-phase tool for generating a **LLM-authored scientific interpretation** of the current session and embedding it into `.aihydrorules/research.md` for automatic context injection.
 
-Call this after computing new results to ensure the agent has the latest context injected automatically in future conversations.
+`research.md` has two sections:
+
+- **Skeleton** (Python-generated, always current) — site identity, computed/pending slots, researcher notes
+- **Scientific context** (LLM-authored) — basin behaviour, cross-slot patterns, anomalies, research priorities
+
+The skeleton is refreshed automatically on every tool call. The scientific context is only written when you explicitly call this tool.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `gauge_id` | str | Yes | USGS gauge ID |
+| `interpretation` | str | No | Your scientific prose summary (Phase 2) |
+| `site_name` | str | No | Short descriptive slug for this session, e.g. `"piscataquis-surface-flow-2000-2020"` |
+
+**Workflow — call twice:**
+
+**Phase 1** — call with only `gauge_id`. Returns `session_data` containing all computed slot values (every key from every slot, not a template summary). Read it, reason about patterns and contradictions, then:
+
+**Phase 2** — call again with `interpretation` (3–6 sentences of scientific prose) and `site_name`. Stored in the session and embedded in `research.md` immediately. Every future conversation opens with your understanding pre-loaded.
 
 ```
-Sync my research context.
+# Phase 1: retrieve raw session data
+sync_research_context('01031500')
+
+# Phase 2: store your interpretation
+sync_research_context(
+    '01031500',
+    site_name='piscataquis-surface-flow-2000-2020',
+    interpretation='The Piscataquis shows surface-flow dominance (BFI=0.16) ...'
+)
 ```
+
+!!! tip
+    Call this after any major analysis milestone (e.g., after `extract_hydrological_signatures`, after `train_hydro_model`). The interpretation accumulates across calls — each Phase 2 overwrites the previous interpretation, so write a complete summary each time.
 
 ---
 

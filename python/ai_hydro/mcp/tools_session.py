@@ -200,41 +200,121 @@ def add_note(gauge_id: str, note: str) -> dict:
 
 
 @mcp.tool()
-def sync_research_context(gauge_id: str) -> dict:
+def sync_research_context(
+    gauge_id: str,
+    interpretation: str | None = None,
+    site_name: str | None = None,
+) -> dict:
     """
-    Refresh .aihydrorules/research.md and .aihydrorules/tools.md.
+    Two-phase tool: retrieve session data for LLM reasoning, then store
+    the LLM-authored scientific interpretation back into the session.
 
-    research.md  — current session state (what is computed / pending).
-    tools.md     — auto-generated list of ALL registered MCP tools with
-                   their descriptions and parameters, derived directly from
-                   the live server.  Community-added tools appear here
-                   automatically without any manual documentation updates.
+    This is the primary mechanism for making research.md genuinely useful —
+    not a template of formatted numbers, but a real scientific summary written
+    by the foundation model and loaded into every future conversation.
 
-    Call this at the start of a session or after adding new tools.
+    Phase 1 — call with no interpretation (discovery):
+        Returns the full raw session data across all computed slots.
+        Read the numbers, reason about patterns, contradictions, and what
+        the hydrology is telling you. Then call Phase 2.
+
+    Phase 2 — call with your interpretation (store):
+        Pass your scientific summary as `interpretation`. It is stored in
+        the session and embedded in research.md immediately. Every future
+        conversation will open with your understanding pre-loaded.
 
     Parameters
     ----------
     gauge_id : str
-        8-digit USGS gauge ID
+        8-digit USGS gauge ID (or site identifier)
+    interpretation : str, optional
+        Scientific summary authored by the model (Phase 2). Should cover:
+        basin behaviour, cross-slot patterns, anomalies, contradictions
+        between computed results and researcher notes, and research priorities.
+        3-6 sentences. Plain prose, no bullet points.
+    site_name : str, optional
+        Short descriptive name for this research session, e.g.
+        'piscataquis-snowmelt-signatures-2000-2020'. Stored as the session
+        display name in research.md and export filenames.
 
     Returns
     -------
-    dict with paths written and tool count
+    Phase 1: dict with session_data (all computed slot values), computed,
+             pending, notes, and an _instruction guiding the model.
+    Phase 2: dict confirming what was written and where.
+
+    Examples
+    --------
+    # Phase 1: get raw data
+    >>> sync_research_context('01031500')
+
+    # Phase 2: store interpretation after reasoning
+    >>> sync_research_context(
+    ...     '01031500',
+    ...     site_name='piscataquis-surface-flow-2000-2020',
+    ...     interpretation=(
+    ...         "The Piscataquis shows surface-flow dominance (BFI=0.16) "
+    ...         "despite humid New England climate, likely driven by shallow "
+    ...         "glacial till. Runoff ratio 0.60 is high; FDC slope suggests "
+    ...         "moderate flashiness. HBV trained but no validation split — "
+    ...         "rerun before interpreting NSE. TWI analysis is highest priority."
+    ...     )
+    ... )
     """
     try:
         from pathlib import Path
         from ai_hydro.session import HydroSession
         from ai_hydro.session.store import _REPO_ROOT, _RULES_DIR_NAME
         from ai_hydro.mcp.tools_docs import _write_tools_md, _list_tools_sync
+
         session = HydroSession.load(gauge_id)
-        session.write_research_context()
+
+        # Phase 2: store interpretation and/or site_name, regenerate research.md
+        if interpretation is not None or site_name is not None:
+            if interpretation is not None:
+                session.interpretation = interpretation.strip()
+            if site_name is not None:
+                session.site_name = site_name.strip()
+            session.save()
+            tools_path = _write_tools_md()
+            base = Path(session.workspace_dir) if session.workspace_dir else _REPO_ROOT
+            research_md_path = base / _RULES_DIR_NAME / "research.md"
+            return {
+                "stored": True,
+                "site_name": session.site_name,
+                "interpretation_length": len(session.interpretation),
+                "research_md": str(research_md_path),
+                "tools_md": str(tools_path),
+                "n_tools": len(_list_tools_sync()),
+                "_note": (
+                    "Interpretation stored. research.md updated — your scientific "
+                    "context will be pre-loaded into every future conversation."
+                ),
+            }
+
+        # Phase 1: return full raw session data for LLM reasoning
+        session_data = session.raw_session_data()
         tools_path = _write_tools_md()
-        base = Path(session.workspace_dir) if session.workspace_dir else _REPO_ROOT
-        research_md_path = base / _RULES_DIR_NAME / "research.md"
+
         return {
-            "research_md": str(research_md_path),
-            "tools_md": str(tools_path),
+            "gauge_id": gauge_id,
+            "site_name": session.site_name or None,
+            "computed": session.computed(),
+            "pending": session.pending(),
+            "notes": session.notes,
+            "has_interpretation": bool(session.interpretation),
+            "session_data": session_data,
             "n_tools": len(_list_tools_sync()),
+            "_instruction": (
+                "You have received the full computed session data above. "
+                "Read every slot carefully — look for cross-slot patterns, "
+                "contradictions between computed values and researcher notes, "
+                "what the hydrology is telling you, and what should be done next. "
+                "Then call sync_research_context again with: "
+                "(1) interpretation=<your 3-6 sentence scientific prose summary> "
+                "(2) site_name=<short-descriptive-slug e.g. 'piscataquis-surface-flow-2000-2020'>. "
+                "Do not use bullet points in the interpretation — write flowing scientific prose."
+            ),
         }
     except Exception as e:
         log.error("sync_research_context failed: %s", e)

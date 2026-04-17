@@ -17,8 +17,16 @@ Delineate the upstream watershed for a USGS gauge using NHDPlus and the USGS NLD
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `gauge_id` | str | Yes | USGS gauge ID (e.g., `"01031500"`) |
+| `workspace_dir` | str | No | Absolute path to workspace — all output files saved here automatically. Pass once; remembered for all subsequent tools. |
 
-**Returns:** Watershed polygon geometry, area (km²), perimeter (km), centroid coordinates, bounding box.
+**Returns:** Watershed area (km²), gauge coordinates, HUC-02 code, bounding box. Geometry is stored in session and saved to disk — never passed through the LLM context.
+
+**Files saved automatically (when `workspace_dir` set):**
+
+| File | Description |
+|------|-------------|
+| `watershed_<id>.geojson` | Full watershed polygon (WGS84) |
+| `watershed_<id>_map.png` | Boundary map with gauge location marker |
 
 **Data source:** USGS NLDI / NHDPlus via [pynhd](https://hyriver.readthedocs.io/en/latest/pynhd.html)
 
@@ -43,7 +51,14 @@ Retrieve daily discharge time series from the USGS National Water Information Sy
 
 **Returns:** Daily discharge array (m³/s), date range, record count, missing-data statistics.
 
-**Data source:** USGS NWIS via [hydrofunctions](https://hydrofunctions.readthedocs.io/)
+**Files saved automatically (when workspace set):**
+
+| File | Description |
+|------|-------------|
+| `streamflow_<id>.json` | Full time series with dates and discharge values |
+| `hydrograph_<id>.png` | Daily hydrograph with 30-day rolling mean overlay |
+
+**Data source:** USGS NWIS via [dataretrieval](https://doi-usgs.github.io/dataretrieval-python/)
 
 ---
 
@@ -59,14 +74,24 @@ Compute 15+ flow statistics from the cached streamflow record.
 |-----------|-------------|
 | `baseflow_index` (BFI) | Fraction of streamflow from baseflow (Eckhardt filter) |
 | `runoff_ratio` | Mean annual runoff / mean annual precipitation |
-| `mean_annual_discharge` | m³/s |
-| `cv_daily_discharge` | Coefficient of variation of daily discharge |
-| `q5`, `q25`, `q50`, `q75`, `q95` | Flow duration curve percentiles |
-| `fdc_slope` | Slope of FDC between Q33 and Q66 |
-| `high_flow_freq` | Days per year above 9× median flow |
-| `low_flow_freq` | Days per year below 0.2× mean flow |
-| `recession_constant` | Mean daily recession rate |
-| `rising_limb_density` | Rise events per unit time |
+| `q_mean` | Mean daily discharge (mm/day) |
+| `q_cv` | Coefficient of variation of daily discharge |
+| `q5`, `q95` | High-flow (5% exceedance) and low-flow (95% exceedance) |
+| `slope_fdc` | Slope of FDC between Q33 and Q66 — flashiness indicator |
+| `high_q_freq` | Days per year above 9× median flow |
+| `low_q_freq` | Days per year below 0.2× mean flow |
+| `high_q_dur` | Mean duration of high-flow events (days) |
+| `low_q_dur` | Mean duration of low-flow events (days) |
+| `zero_q_freq` | Fraction of days with zero flow |
+| `hfd_mean` | Half-flow date — day of year by which 50% of annual flow has passed |
+| `stream_elas` | Streamflow elasticity to precipitation |
+
+**Files saved automatically (when workspace set):**
+
+| File | Description |
+|------|-------------|
+| `signatures_<id>.json` | All computed signatures with metadata |
+| `fdc_<id>.png` | Log-scale flow duration curve + signature summary table |
 
 ---
 
@@ -150,6 +175,9 @@ Retrieve the full CAMELS-US attribute set for a gauge from the 671-basin benchma
 
 !!! note
     Only available for the 671 gauges in the CAMELS-US dataset. Returns an error for gauges not in CAMELS.
+
+!!! info "Subprocess isolation"
+    This tool runs the CAMELS extractor in a separate child process. External API calls inside the extractor cannot crash the MCP server — the server stays alive even if the extraction fails or times out (180s limit).
 
 ---
 
