@@ -93,6 +93,12 @@ export class StandaloneTerminalManager implements ITerminalManager {
 	/** Map of background command ID to timeout handle */
 	private backgroundTimeouts: Map<string, NodeJS.Timeout> = new Map()
 
+	private clearBackgroundCommandTracking(id: string): void {
+		this.backgroundTimeouts.delete(id)
+		this.logStreams.delete(id)
+		this.backgroundCommands.delete(id)
+	}
+
 	/**
 	 * Run a command in the specified terminal.
 	 * @param terminalInfo The terminal to run the command in
@@ -457,6 +463,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		process.on("completed", (details) => {
 			// Guard: Skip if already handled by timeout
 			if (backgroundCommand.status !== "running") {
+				this.clearBackgroundCommandTracking(id)
 				return
 			}
 			const timeout = this.backgroundTimeouts.get(id)
@@ -482,12 +489,14 @@ export class StandaloneTerminalManager implements ITerminalManager {
 				backgroundCommand.status = "completed"
 			}
 			logStream.end()
+			this.clearBackgroundCommandTracking(id)
 		})
 
 		// Listen for errors - clear timeout
 		process.on("error", (error: Error) => {
 			// Guard: Skip if already handled by timeout
 			if (backgroundCommand.status !== "running") {
+				this.clearBackgroundCommandTracking(id)
 				return
 			}
 			const timeout = this.backgroundTimeouts.get(id)
@@ -502,6 +511,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 				backgroundCommand.exitCode = Number.parseInt(exitCodeMatch[1], 10)
 			}
 			logStream.end()
+			this.clearBackgroundCommandTracking(id)
 		})
 
 		this.backgroundCommands.set(id, backgroundCommand)
@@ -559,7 +569,6 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		if (logStream) {
 			logStream.write("\n[CANCELLED] Command cancelled by user\n")
 			logStream.end()
-			this.logStreams.delete(id)
 		}
 
 		// Terminate process
@@ -568,6 +577,7 @@ export class StandaloneTerminalManager implements ITerminalManager {
 		}
 
 		command.status = "error"
+		this.clearBackgroundCommandTracking(id)
 		return true
 	}
 
