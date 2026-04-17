@@ -16,10 +16,13 @@ description: "Learn how to configure and use Anthropic Claude models with Cline.
 
 Cline supports the following Anthropic Claude models:
 
+#### Claude Opus 4.7 Series
+-   `claude-opus-4-7` - Most capable Opus model, best for complex reasoning and long-horizon tasks
+-   `claude-opus-4-7:1m` - 1M context window variant
+
 #### Claude 4.6 Series
 -   `claude-sonnet-4-6` - Latest Sonnet with extended thinking support
 -   `claude-sonnet-4-6:1m` - 1M context window variant with tiered pricing
-
 
 #### Claude 4.5 Series
 -   `claude-sonnet-4-5-20250929` (Recommended) - Stable default Sonnet with reasoning support
@@ -29,9 +32,9 @@ Cline supports the following Anthropic Claude models:
 -   `claude-haiku-4-5-20251001` - Fast, affordable model with reasoning support
 -   `claude-sonnet-4-20250514` - High-performance coding and reasoning
 -   `claude-sonnet-4-20250514:1m` - 1M context window variant
--   `claude-opus-4-6` - Most capable model in the Claude 4 family
+-   `claude-opus-4-6` - Previous Opus generation
 -   `claude-opus-4-6:1m` - 1M context window variant
--   `claude-opus-4-5-20251101` - Previous Opus generation
+-   `claude-opus-4-5-20251101` - Earlier Opus release
 -   `claude-opus-4-1-20250805` - Earlier Opus release
 -   `claude-opus-4-20250514` - Original Opus 4
 
@@ -74,3 +77,4 @@ For comprehensive details on how extended thinking works, including API examples
 -   **Context Window:** Claude models have large context windows (200,000 tokens), allowing you to include a significant amount of code and context in your prompts.
 -   **Pricing:** Refer to the [Anthropic Pricing](https://www.anthropic.com/pricing) page for the latest pricing information.
 -   **Rate Limits:** Anthropic has strict rate limits based on [usage tiers](https://docs.anthropic.com/en/api/rate-limits#requirements-to-advance-tier). If you're repeatedly hitting rate limits, consider contacting Anthropic sales or accessing Claude through a different provider like [OpenRouter](/provider-config/openrouter) or [Requesty](/provider-config/requesty).
+

@@ -55,6 +55,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	previousRemoteMCPServers: { default: undefined as Array<{ name: string; url: string }> | undefined },
 	remoteGlobalRules: { default: undefined as GlobalInstructionsFile[] | undefined },
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
+	remoteGlobalSkills: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
 	otlpMetricsHeaders: { default: undefined as Record<string, string> | undefined },
@@ -89,6 +90,7 @@ const GLOBAL_STATE_FIELDS = {
 	nativeToolCallEnabled: { default: true as boolean },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
+	remoteSkillsToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },

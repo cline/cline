@@ -1,4 +1,5 @@
 import { ModelInfo, requestyDefaultModelId, requestyDefaultModelInfo } from "@shared/api"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
 import { toRequestyServiceStringUrl } from "@/shared/clients/requesty"
@@ -72,18 +73,28 @@ export class RequestyHandler implements ApiHandler {
 		const reasoningArgs = model.id.startsWith("openai/o") ? reasoning : {}
 
 		const thinkingBudget = this.options.thinkingBudgetTokens || 0
+		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
+		const adaptiveThinking = isAdaptiveThinkingModel
+			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, thinkingBudget)
+			: undefined
 		const thinking =
 			thinkingBudget > 0
 				? { thinking: { type: "enabled", budget_tokens: thinkingBudget } }
 				: { thinking: { type: "disabled" } }
-		const thinkingArgs =
-			model.id.includes("claude-opus-4-6") ||
-			model.id.includes("claude-sonnet-4-6") ||
-			model.id.includes("claude-4.6-sonnet") ||
-			model.id.includes("claude-3-7-sonnet") ||
-			model.id.includes("claude-sonnet-4") ||
-			model.id.includes("claude-opus-4") ||
-			model.id.includes("claude-opus-4-1")
+		const supportsLegacyClaudeThinking =
+			!isAdaptiveThinkingModel &&
+			(model.id.includes("claude-3-7-sonnet") ||
+				model.id.includes("claude-4.6-sonnet") ||
+				model.id.includes("claude-sonnet-4") ||
+				model.id.includes("claude-opus-4"))
+		const thinkingArgs = isAdaptiveThinkingModel
+			? adaptiveThinking?.enabled
+				? {
+						thinking: { type: "adaptive" },
+						...(adaptiveThinking.effort ? { output_config: { effort: adaptiveThinking.effort } } : {}),
+					}
+				: {}
+			: supportsLegacyClaudeThinking
 				? thinking
 				: {}
 
@@ -91,7 +102,7 @@ export class RequestyHandler implements ApiHandler {
 			model: model.id,
 			max_tokens: model.info.maxTokens || undefined,
 			messages: openAiMessages,
-			temperature: 0,
+			...(isAdaptiveThinkingModel ? {} : { temperature: 0 }),
 			stream: true,
 			stream_options: { include_usage: true },
 			...reasoningArgs,

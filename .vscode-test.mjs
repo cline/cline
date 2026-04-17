@@ -1,5 +1,6 @@
 import { defineConfig } from "@vscode/test-cli"
 import path from "path"
+const vscodeTestVersion = process.env.VSCODE_TEST_VERSION ?? "stable"
 
 export default defineConfig({
 	files: "{out/**/*.test.js,src/**/*.test.js,!src/test/e2e/**/*.test.js,!out/src/test/e2e/**/*.test.js}",
@@ -12,7 +13,7 @@ export default defineConfig({
 		require: ["./test-setup.js"],
 	},
 	workspaceFolder: "test-workspace",
-	version: "stable",
+	version: vscodeTestVersion,
 	extensionDevelopmentPath: path.resolve("./"),
 	launchArgs: ["--disable-extensions"],
 })

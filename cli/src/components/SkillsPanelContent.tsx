@@ -6,7 +6,7 @@
 import { exec } from "node:child_process"
 import os from "node:os"
 import { Box, Text, useInput } from "ink"
-import React, { useCallback, useEffect, useMemo, useState } from "react"
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import type { Controller } from "@/core/controller"
 import { refreshSkills } from "@/core/controller/file/refreshSkills"
 import { toggleSkill } from "@/core/controller/file/toggleSkill"
@@ -38,6 +38,14 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	const [localSkills, setLocalSkills] = useState<SkillInfo[]>([])
 	const [selectedIndex, setSelectedIndex] = useState(0)
 	const [isLoading, setIsLoading] = useState(true)
+	const inputStateRef = useRef({
+		isLoading: true,
+		selectedIndex: 0,
+		skillEntries: [] as Array<{ skill: SkillInfo; isGlobal: boolean }>,
+	})
+	const handleToggleRef = useRef<() => Promise<void>>(async () => {})
+	const handleUseRef = useRef<() => void>(() => {})
+	const openMarketplaceRef = useRef<() => void>(() => {})
 
 	// Load skills on mount
 	useEffect(() => {
@@ -58,8 +66,12 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 	// Build flat list of skills with source info (global first, then local, alphabetical within each)
 	const skillEntries = useMemo(() => {
 		const entries: { skill: SkillInfo; isGlobal: boolean }[] = []
-		globalSkills.forEach((skill) => entries.push({ skill, isGlobal: true }))
-		localSkills.forEach((skill) => entries.push({ skill, isGlobal: false }))
+		globalSkills.forEach((skill) => {
+			entries.push({ skill, isGlobal: true })
+		})
+		localSkills.forEach((skill) => {
+			entries.push({ skill, isGlobal: false })
+		})
 		return entries.sort((a, b) => {
 			if (a.isGlobal !== b.isGlobal) return a.isGlobal ? -1 : 1
 			return a.skill.name.localeCompare(b.skill.name)
@@ -117,6 +129,14 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 			}
 		})
 	}, [])
+	handleToggleRef.current = handleToggle
+	handleUseRef.current = handleUse
+	openMarketplaceRef.current = openMarketplace
+	inputStateRef.current = {
+		isLoading,
+		selectedIndex,
+		skillEntries,
+	}
 
 	// Total items = skills + 1 for marketplace link
 	const totalItems = skillEntries.length + 1
@@ -132,6 +152,14 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 				return
 			}
 
+			const { isLoading, selectedIndex, skillEntries } = inputStateRef.current
+			if (isLoading) {
+				return
+			}
+
+			const totalItems = skillEntries.length + 1
+			const isMarketplaceSelected = selectedIndex === skillEntries.length
+
 			// Navigation
 			if (key.upArrow || input === "k") {
 				setSelectedIndex((i) => (i > 0 ? i - 1 : totalItems - 1))
@@ -145,14 +173,14 @@ export const SkillsPanelContent: React.FC<SkillsPanelContentProps> = ({ controll
 			// Actions
 			if (isEnterKey(input, key)) {
 				if (isMarketplaceSelected) {
-					openMarketplace()
+					openMarketplaceRef.current()
 				} else {
-					handleUse()
+					handleUseRef.current()
 				}
 				return
 			}
 			if (input === " " && !isMarketplaceSelected) {
-				handleToggle()
+				void handleToggleRef.current()
 				return
 			}
 		},
@@ -248,7 +276,7 @@ const SkillRow: React.FC<{ skill: SkillInfo; isSelected: boolean }> = ({ skill, 
 			{skill.description && (
 				<Box marginLeft={4}>
 					<Text color="gray">
-						{skill.description.length > 60 ? skill.description.slice(0, 57) + "..." : skill.description}
+						{skill.description.length > 60 ? `${skill.description.slice(0, 57)}...` : skill.description}
 					</Text>
 				</Box>
 			)}
