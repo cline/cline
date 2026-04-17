@@ -130,6 +130,7 @@ import { TaskState } from "./TaskState"
 import { ToolExecutor } from "./ToolExecutor"
 import { detectAvailableCliTools, extractProviderDomainFromUrl, updateApiReqMsg } from "./utils"
 import { buildUserFeedbackContent } from "./utils/buildUserFeedbackContent"
+import { performTaskAbortCleanup } from "./utils/taskAbortCleanup"
 
 export type ToolResponse = ClineToolResponseContent
 
@@ -1642,19 +1643,19 @@ export class Task {
 
 			// PHASE 7: Clean up resources
 			this.terminalManager.disposeAll()
-			this.urlContentFetcher.closeBrowser()
-			await this.browserSession.dispose()
-			this.clineIgnoreController.dispose()
-			this.fileContextTracker.dispose()
 			// need to await for when we want to make sure directories/files are reverted before
 			// re-starting the task from a checkpoint
 			await this.diffViewProvider.revertChanges()
 			// Clear the notification callback when task is aborted
 			this.mcpHub.clearNotificationCallback()
-			if (this.FocusChainManager) {
-				this.FocusChainManager.dispose()
-			}
-			await this.presentationScheduler.dispose()
+			await performTaskAbortCleanup({
+				urlContentFetcher: this.urlContentFetcher,
+				browserSession: this.browserSession,
+				clineIgnoreController: this.clineIgnoreController,
+				fileContextTracker: this.fileContextTracker,
+				focusChainManager: this.FocusChainManager,
+				presentationScheduler: this.presentationScheduler,
+			})
 		} finally {
 			// Release task folder lock
 			if (this.taskLockAcquired) {
