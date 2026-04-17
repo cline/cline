@@ -133,6 +133,50 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		});
 	});
 
+	it("swallows abort-like shutdown errors from teammates", () => {
+		const events: TeamEvent[] = [];
+		createAgentMock.mockReturnValueOnce({
+			abort: vi.fn(() => {
+				throw new DOMException("This operation was aborted", "AbortError");
+			}),
+			run: vi.fn(),
+			continue: vi.fn(),
+			canStartRun: vi.fn(() => true),
+			getAgentId: vi.fn(() => "teammate-1"),
+			getConversationId: vi.fn(() => "conv-1"),
+			getMessages: vi.fn(() => []),
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			onTeamEvent: (event) => events.push(event),
+		});
+
+		runtime.spawnTeammate({
+			agentId: "python-poet",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Write concise Python-focused haiku",
+				tools: [],
+			},
+		});
+
+		expect(() =>
+			runtime.shutdownTeammate("python-poet", "manual_restart"),
+		).not.toThrow();
+		expect(runtime.getSnapshot().members).toContainEqual(
+			expect.objectContaining({
+				agentId: "python-poet",
+				status: "stopped",
+			}),
+		);
+		expect(events).toContainEqual({
+			type: TeamMessageType.TeammateShutdown,
+			agentId: "python-poet",
+			reason: "manual_restart",
+		});
+	});
+
 	it("prepends unread mailbox notification to teammate message", async () => {
 		let routedMessage: string | undefined;
 		createAgentMock.mockReturnValueOnce({
