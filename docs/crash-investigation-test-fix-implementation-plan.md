@@ -406,8 +406,8 @@ This workstream targets the main file-edit pipeline.
 
 #### Likely fixes
 
-- [ ] Add file-size and line-size limits for edit tools.
-- [ ] Short-circuit oversized edits with a clear user-visible error.
+- [x] Add file-size and line-size limits for edit tools.
+- [x] Short-circuit oversized edits with a clear user-visible error.
 - [x] Avoid returning full final file content for oversized files.
 - [x] Use summary output instead of full content in approval messages for large files.
 - [x] Use summary output instead of full original-file echoes in edit failure messages for large files.
