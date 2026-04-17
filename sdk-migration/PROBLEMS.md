@@ -514,8 +514,6 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 
 ### 🟡 Lower Priority:
 - S6-17: Cancel button state
-- S6-28: MCP tool reload messages appear twice
-- S6-29: "New Task" button broken after MCP tool reload
 - S6-2: OCA and Codex OAuth flows not yet verified
 - S6-7: Credits/payment history don't load immediately
 
@@ -534,12 +532,13 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Verification**: Debug harness test on 2026-04-17: (1) Sent "Say hello" via `ui.send_message`, task completed. (2) Typed "Now say goodbye" via `ui.react_input` with `submit: true`. (3) Follow-up inference ran and returned "Goodbye! 👋". (4) Also tested MCP tools in follow-up turns — `kb_search` worked correctly.
 - **Evidence**: Debug harness session on 2026-04-17.
 
-### S6-29: "New Task" button broken after MCP tool reload
-- **Status**: 🔴 Blocker
-- **Description**: After an MCP tool reload (triggered by saving the MCP settings file), clicking the "New Task" (+) button does nothing. The button appears clickable but no new task is created and the view doesn't change.
-- **Root cause**: Unknown — possibly the session restart in `restartSessionForMcpTools()` leaves the controller in a state where `clearTask()` or `initTask()` doesn't work correctly. The `activeSession` may be in an unexpected state, or the gRPC handler for new task creation may be checking a condition that fails after the restart.
-- **Fix needed**: Investigate the gRPC handler for new task creation (`newTask` handler) and trace what happens when it's called after an MCP tool restart. Check if `clearTask()` succeeds and whether `initTask()` is reached.
-- **Verification**: After MCP tool reload, click "New Task" button, verify a new task is created and the chat view shows the input.
+### S6-29: MCP tool reload leaves UI in "Thinking..." state, blocking follow-ups
+- **Status**: 🟢 Verified Fixed
+- **Description**: After an MCP tool reload (triggered by toggling a server in the MCP panel), the chat showed "MCP tools changed" and "MCP tools reloaded" info messages but the UI was left in a "Thinking..." state. Follow-up messages could not be sent because the webview's `handleSendMessage()` requires `clineAsk` to be set.
+- **Root cause**: `restartSessionForMcpTools()` emitted `say: "info"` messages for the reload status but did NOT emit `ask: "completion_result"` afterward. Without the ask message, `clineAsk` was not set in the webview, so `handleSendMessage()` silently dropped follow-up input.
+- **Fix applied**: After the success info message in `restartSessionForMcpTools()`, emit an `ask: "completion_result"` message with empty text. This tells the webview the agent is idle and enables the follow-up input.
+- **Verification**: Debug harness test on 2026-04-17: (1) Sent "Say hello briefly", task completed. (2) Toggled kamibiki MCP server off via UI. (3) "MCP tools changed" + "MCP tools reloaded" messages appeared (no "Thinking..." state). (4) Typed "Say goodbye" via `ui.react_input` — follow-up inference ran and returned "Goodbye! 👋".
+- **Evidence**: Debug harness session on 2026-04-17.
 
 <!-- Template:
 ### [ID] Title
