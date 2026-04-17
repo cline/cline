@@ -214,6 +214,7 @@ export class PatchParser {
  * Calculate similarity between two strings (0-1 range)
  */
 export const MAX_PATCH_SEARCH_BLOCK_BYTES = 256 * 1024
+export const MAX_PATCH_SEARCH_LINE_BYTES = 200 * 1024
 const MAX_LEVENSHTEIN_SIMILARITY_CHARS = 512
 
 function getUtf8ByteLength(value: string): number {
@@ -221,6 +222,20 @@ function getUtf8ByteLength(value: string): number {
 }
 
 function assertPatchSearchBlockWithinBudget(context: string[], path: string): void {
+	let largestLineBytes = 0
+	for (const line of context) {
+		const lineBytes = getUtf8ByteLength(line)
+		if (lineBytes > largestLineBytes) {
+			largestLineBytes = lineBytes
+		}
+	}
+	if (largestLineBytes > MAX_PATCH_SEARCH_LINE_BYTES) {
+		throw new DiffError(
+			`Patch search block for ${path} contains a line that is too large (${largestLineBytes.toLocaleString()} bytes). ` +
+				`Maximum supported line size is ${MAX_PATCH_SEARCH_LINE_BYTES.toLocaleString()} bytes.`,
+		)
+	}
+
 	const contextText = context.join("\n")
 	const contextBytes = getUtf8ByteLength(contextText)
 	if (contextBytes <= MAX_PATCH_SEARCH_BLOCK_BYTES) {

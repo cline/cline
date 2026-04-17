@@ -3,7 +3,7 @@ import { expect } from "chai"
 import { describe, it } from "mocha"
 import { PatchActionType } from "@/shared/Patch"
 import { measureAsyncOperation } from "@/test/stress-utils"
-import { MAX_PATCH_SEARCH_BLOCK_BYTES, PatchParser } from "../PatchParser"
+import { MAX_PATCH_SEARCH_LINE_BYTES, PatchParser } from "../PatchParser"
 
 function makeRepeatedFile(lineCount: number, payloadWidth: number): string {
 	return Array.from({ length: lineCount }, (_, i) => {
@@ -53,18 +53,19 @@ describe("PatchParser stress", () => {
 	it("fails fast when a patch search block exceeds the configured byte budget", async function () {
 		this.timeout(10_000)
 
-		const oversizedContextLine = "x".repeat(MAX_PATCH_SEARCH_BLOCK_BYTES + 1)
+		const safeLine = "x".repeat(32 * 1024)
+		const oversizedContextLines = Array.from({ length: 9 }, () => safeLine)
 		const patchLines = [
 			"*** Begin Patch",
 			"*** Update File: stress.ts",
 			"@@",
-			` ${oversizedContextLine}`,
+			...oversizedContextLines.map((line) => ` ${line}`),
 			"-old",
 			"+new",
 			"*** End Patch",
 		]
 
-		const parser = new PatchParser(patchLines, { "stress.ts": `${oversizedContextLine}\nold` })
+		const parser = new PatchParser(patchLines, { "stress.ts": `${oversizedContextLines.join("\n")}\nold` })
 		const startedAt = performance.now()
 
 		try {
@@ -75,6 +76,34 @@ describe("PatchParser stress", () => {
 			expect(durationMs).to.be.lessThan(1_000)
 			expect(error).to.be.instanceOf(Error)
 			expect((error as Error).message).to.match(/Patch search block for stress\.ts is too large/)
+		}
+	})
+
+	it("fails fast when a patch search line exceeds the configured line budget", async function () {
+		this.timeout(10_000)
+
+		const oversizedLine = "x".repeat(MAX_PATCH_SEARCH_LINE_BYTES + 1)
+		const patchLines = [
+			"*** Begin Patch",
+			"*** Update File: stress.ts",
+			"@@",
+			` ${oversizedLine}`,
+			"-old",
+			"+new",
+			"*** End Patch",
+		]
+
+		const parser = new PatchParser(patchLines, { "stress.ts": "context\nold" })
+		const startedAt = performance.now()
+
+		try {
+			parser.parse()
+			expect.fail("Expected PatchParser to reject oversized search line")
+		} catch (error) {
+			const durationMs = performance.now() - startedAt
+			expect(durationMs).to.be.lessThan(1_000)
+			expect(error).to.be.instanceOf(Error)
+			expect((error as Error).message).to.match(/contains a line that is too large/)
 		}
 	})
 })
