@@ -356,7 +356,7 @@ The next highest-value area is the combination of message growth, persistence, a
 - [ ] Keep only recent message windows in hot UI state.
 - [ ] Change persistence from rewrite-heavy to append/coalesce-heavy where safe.
 - [ ] Remove expensive operations from per-message save paths.
-- [ ] Add payload-size telemetry thresholds and warnings.
+- [x] Add payload-size telemetry thresholds and warnings.
 
 #### Why this matters
 
@@ -766,7 +766,7 @@ The team should not attack everything at once. The best sequence is:
 
 - [x] message-state churn tests
 - [x] state broadcast / webview parse tests
-- [ ] payload-size instrumentation thresholds
+- [x] payload-size instrumentation thresholds
 
 ### Phase 4 — Confirm teardown and backlog risks
 
@@ -805,7 +805,7 @@ Add limits for:
 - [x] maximum file-edit size,
 - [x] maximum single-line size for file-edit tools,
 - [x] maximum patch-search block size,
-- [ ] maximum state snapshot size,
+- [x] maximum state snapshot size warning threshold,
 - [ ] maximum MCP notification backlog length,
 - [ ] maximum accumulated server error text length.
 

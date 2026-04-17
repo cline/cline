@@ -1,10 +1,10 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { State } from "@shared/proto/cline/state"
-import { telemetryService } from "@/services/telemetry"
 import { ExtensionState } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import { getRequestRegistry, StreamingResponseHandler } from "../grpc-handler"
 import { Controller } from "../index"
+import { recordStateSnapshotTelemetry, serializeStateSnapshot } from "./stateSnapshot"
 
 // Keep track of active state subscriptions
 const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
@@ -41,9 +41,9 @@ export async function subscribeToState(
 
 	// Send the initial state
 	const initialState = await controller.getStateToPostToWebview()
-	const initialStateJson = JSON.stringify(initialState)
+	const { stateJson: initialStateJson, sizeBytes } = serializeStateSnapshot(initialState)
 
-	recordStateSizeTelemetry(Buffer.byteLength(initialStateJson, "utf8"))
+	recordStateSizeTelemetry(sizeBytes)
 
 	try {
 		await responseStream(
@@ -68,14 +68,17 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 	}
 
 	let stateJson: string
+	let sizeBytes: number
 	try {
-		stateJson = JSON.stringify(state)
+		const serialized = serializeStateSnapshot(state)
+		stateJson = serialized.stateJson
+		sizeBytes = serialized.sizeBytes
 	} catch (error) {
 		Logger.error("Error serializing state update:", error)
 		return
 	}
 
-	recordStateSizeTelemetry(Buffer.byteLength(stateJson, "utf8"))
+	recordStateSizeTelemetry(sizeBytes)
 
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {
@@ -95,5 +98,5 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 }
 
 function recordStateSizeTelemetry(sizeBytes: number): void {
-	telemetryService.captureGrpcResponseSize(sizeBytes, "cline.StateService", "subscribeToState")
+	recordStateSnapshotTelemetry(sizeBytes, "subscribeToState")
 }
