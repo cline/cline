@@ -1,3 +1,4 @@
+import { parseRemoteSkillEntries } from "@core/context/instructions/user-instructions/skills"
 import { RefreshedSkills, SkillInfo } from "@shared/proto/cline/file"
 import fs from "fs/promises"
 import path from "path"
@@ -95,6 +96,28 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 	const globalToggles = controller.stateManager.getGlobalSettingsKey("globalSkillsToggles") || {}
 	for (const skill of globalSkills) {
 		skill.enabled = globalToggles[skill.path] !== false
+	}
+
+	// Add remote skills from remote config.
+	// Precedence: remote (enterprise) > disk-global (user) > project (workspace).
+	// Remote entries are appended to globalSkills[] and split into the dedicated "Enterprise Skills"
+	// section by the UI. The toggle store distinguishes them by the "remote:" path prefix.
+	const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
+	const remoteSkillsToggles = controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
+	const validatedRemoteSkills = parseRemoteSkillEntries(remoteConfigSettings.remoteGlobalSkills || [])
+
+	for (const entry of validatedRemoteSkills) {
+		const enabled = entry.alwaysEnabled || remoteSkillsToggles[entry.name] !== false
+
+		globalSkills.push(
+			SkillInfo.create({
+				name: entry.name,
+				description: entry.description,
+				path: `remote:${entry.name}`,
+				enabled,
+				alwaysEnabled: entry.alwaysEnabled,
+			}),
+		)
 	}
 
 	// Get local toggles and apply them
