@@ -460,7 +460,7 @@ describe("translateSessionEvent — agent_event content_end", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — agent_event done", () => {
-	it("translates done event to completion_result message", () => {
+	it("translates done event to ask completion_result with empty text (no green rectangle)", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -475,12 +475,71 @@ describe("translateSessionEvent — agent_event done", () => {
 			},
 		}
 
+		// When attempt_completion was NOT called, the done event emits
+		// ask:"completion_result" with empty text (renders as InvisibleSpacer,
+		// no green rectangle) to enable follow-up input.
 		const result = translateSessionEvent(event, state)
 		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0].say).toBe("completion_result")
-		expect(result.messages[0].text).toBe("Task completed successfully")
+		expect(result.messages[0].ask).toBe("completion_result")
+		expect(result.messages[0].text).toBe("")
 		expect(result.messages[0].partial).toBe(false)
 		expect(result.turnComplete).toBe(true)
+	})
+
+	it("suppresses done completion_result when attempt_completion was already seen", () => {
+		const state = new MessageTranslatorState()
+
+		// Simulate attempt_completion being called (content_start)
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "attempt_completion",
+						input: { result: "All done!" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// Simulate content_end for attempt_completion
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "attempt_completion",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		// Now the done event should NOT emit any messages
+		const doneResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "done",
+						reason: "completed",
+						text: "All done!",
+						iterations: 1,
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(doneResult.messages).toHaveLength(0)
+		expect(doneResult.turnComplete).toBe(true)
 	})
 })
 
@@ -633,7 +692,8 @@ describe("translateSessionEvent — full streaming flow", () => {
 		expect(endResult.messages[0].partial).toBe(false)
 		expect(endResult.messages[0].text).toBe("Hello world!")
 
-		// 3. Done
+		// 3. Done — without attempt_completion, emits ask:"completion_result"
+		// with empty text (no green rectangle, just enables follow-up input)
 		const doneResult = translateSessionEvent(
 			{
 				type: "agent_event",
@@ -645,7 +705,8 @@ describe("translateSessionEvent — full streaming flow", () => {
 			state,
 		)
 		expect(doneResult.messages).toHaveLength(1)
-		expect(doneResult.messages[0].say).toBe("completion_result")
+		expect(doneResult.messages[0].ask).toBe("completion_result")
+		expect(doneResult.messages[0].text).toBe("")
 		expect(doneResult.turnComplete).toBe(true)
 	})
 

@@ -14,7 +14,9 @@
 //   We must convert SDK tool names (read_files, editor, run_commands, etc.)
 //   and their inputs to this format.
 // - SDK "agent_event" content_end → ClineMessage with partial=false
-// - SDK "agent_event" done → ClineMessage ask="completion_result"
+// - SDK "agent_event" content_start (tool: attempt_completion) → ClineMessage say="completion_result"
+// - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage ask="completion_result"
+// - SDK "agent_event" done → ClineMessage ask="completion_result" (only if attempt_completion not seen)
 // - SDK "agent_event" error → ClineMessage say="error"
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
@@ -139,6 +141,19 @@ export class MessageTranslatorState {
 		return ts
 	}
 
+	/** Whether attempt_completion tool was called in this turn */
+	private attemptCompletionSeen = false
+
+	/** Mark that attempt_completion was called */
+	setAttemptCompletionSeen(): void {
+		this.attemptCompletionSeen = true
+	}
+
+	/** Check if attempt_completion was called in this turn */
+	wasAttemptCompletionSeen(): boolean {
+		return this.attemptCompletionSeen
+	}
+
 	/** Reset all streaming state (new turn) */
 	reset(): void {
 		this.streamingTextTs = undefined
@@ -146,6 +161,7 @@ export class MessageTranslatorState {
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
+		this.attemptCompletionSeen = false
 	}
 }
 
@@ -359,6 +375,25 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// (content_end doesn't carry the input)
 					state.setStreamingToolContext(toolName, input)
 
+					// attempt_completion is handled specially — it triggers
+					// the green "Task Completed" rectangle in the webview.
+					// In the classic extension, this was the ONLY way to show
+					// the completion UI. We emit say:"completion_result" here
+					// (partial) and ask:"completion_result" at content_end.
+					if (toolName === "attempt_completion") {
+						state.setAttemptCompletionSeen()
+						const parsedInput = parseToolInput(input)
+						const resultText = getStringField(parsedInput, "result") ?? ""
+						messages.push({
+							ts: state.getStreamingToolTs(),
+							type: "say",
+							say: "completion_result",
+							text: resultText,
+							partial: true,
+						})
+						break
+					}
+
 					// run_commands uses say="command" (not say="tool")
 					// because the webview renders commands differently
 					if (toolName === "run_commands") {
@@ -425,6 +460,40 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
+
+					// attempt_completion → emit ask:"completion_result" to
+					// finalize the green "Task Completed" rectangle and enable
+					// follow-up input. The say:"completion_result" was emitted
+					// at content_start (partial); now we emit the ask version
+					// which the webview uses to enable the follow-up textarea.
+					if (toolName === "attempt_completion") {
+						const storedInput = state.getStreamingToolInput()
+						const ts = state.clearStreamingTool()
+						const parsedInput = parseToolInput(storedInput)
+						const resultText = getStringField(parsedInput, "result") ?? ""
+						// Finalize the say:"completion_result" (non-partial)
+						// This renders the green "Task Completed" rectangle.
+						messages.push({
+							ts,
+							type: "say",
+							say: "completion_result",
+							text: resultText,
+							partial: false,
+						})
+						// Emit ask:"completion_result" with EMPTY text to enable
+						// follow-up input without rendering a second green rectangle.
+						// The webview's ChatRow renders ask:"completion_result" with
+						// empty text as an InvisibleSpacer, but still sets clineAsk
+						// which enables the follow-up textarea.
+						messages.push({
+							ts: state.nextTs(),
+							type: "ask",
+							ask: "completion_result",
+							text: "",
+							partial: false,
+						})
+						break
+					}
 
 					// run_commands → say="command_output" for the result
 					if (toolName === "run_commands") {
@@ -537,21 +606,32 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "done": {
-			// Agent turn is complete — emit ask:"completion_result" to enable
-			// the follow-up input in the webview. The classic extension emits
-			// this ask type which sets `clineAsk` in the webview. Without it,
-			// handleSendMessage() won't send follow-up messages because it
-			// requires `clineAsk` to be set (or the task to be "running").
-			// NOTE: We emit ONLY the ask, not a separate say. The webview's
-			// ChatRow renders the completion text from the ask message. Emitting
-			// both causes duplicate "Task Completed" displays.
-			messages.push({
-				ts: state.nextTs(),
-				type: "ask",
-				ask: "completion_result",
-				text: event.text ?? "",
-				partial: false,
-			})
+			// Agent turn is complete. In the classic extension, the green
+			// "Task Completed" rectangle was ONLY shown when the agent
+			// explicitly called the attempt_completion tool. The done event
+			// just signals the turn ended.
+			//
+			// If attempt_completion was already handled (via content_start/
+			// content_end for that tool), we already emitted both
+			// say:"completion_result" and ask:"completion_result" there.
+			// We do NOT emit another completion_result here to avoid
+			// duplicate green rectangles.
+			//
+			// If attempt_completion was NOT called (e.g., the agent just
+			// responded with text), we still need to emit
+			// ask:"completion_result" to enable the follow-up input in
+			// the webview. But we emit it with empty text so the webview
+			// renders an invisible spacer (no green rectangle) while still
+			// setting clineAsk for follow-up messages.
+			if (!state.wasAttemptCompletionSeen()) {
+				messages.push({
+					ts: state.nextTs(),
+					type: "ask",
+					ask: "completion_result",
+					text: "",
+					partial: false,
+				})
+			}
 			break
 		}
 
