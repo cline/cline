@@ -1,6 +1,7 @@
 import * as assert from "assert"
 import { describe, it } from "mocha"
 import sinon from "sinon"
+import { formatResponse } from "@/core/prompts/responses"
 import { HostProvider } from "@/hosts/host-provider"
 import { DiffViewProvider } from "../DiffViewProvider"
 
@@ -302,6 +303,40 @@ describe("DiffViewProvider saveChanges", () => {
 			assert.ok(result.userEdits)
 			assert.ok(result.autoFormattingEdits)
 			assert.strictEqual(result.newProblemsMessage, "")
+		} finally {
+			sandbox.restore()
+		}
+	})
+
+	it("summarizes oversized auto-formatting diffs instead of building giant pretty patches", async () => {
+		const sandbox = sinon.createSandbox()
+		const provider = new SaveChangesTestDiffViewProvider()
+		const giantTail = "x".repeat(80_000)
+		const base = "header\nbody"
+		const newContent = `${base}\ncline-tail`
+		const preSaveContent = `${base}\n${giantTail}`
+		const postSaveContent = `${base}\n${giantTail}formatted`
+		const prettyPatchStub = sandbox.stub(formatResponse, "createPrettyPatch")
+		sandbox.stub(HostProvider, "workspace").value({
+			getDiagnostics: async () => ({ fileDiagnostics: [] }),
+		})
+
+		try {
+			provider.setupForSave({
+				relPath: "big.ts",
+				absolutePath: "/tmp/big.ts",
+				originalContent: base,
+				newContent,
+				preSaveContent,
+				postSaveContent,
+			})
+
+			const result = await provider.saveChanges()
+
+			assert.ok(result.autoFormattingEdits)
+			assert.match(result.autoFormattingEdits!, /omitted from tool payload/)
+			assert.strictEqual(prettyPatchStub.callCount, 1)
+			assert.ok(result.finalContent!.includes("formatted"))
 		} finally {
 			sandbox.restore()
 		}

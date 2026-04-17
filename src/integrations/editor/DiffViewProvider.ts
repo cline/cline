@@ -2,9 +2,9 @@ import { formatResponse } from "@core/prompts/responses"
 import { workspaceResolver } from "@core/workspace"
 import { createDirectoriesForFile } from "@utils/fs"
 import { getCwd } from "@utils/path"
-import * as diff from "diff"
 import * as fs from "fs/promises"
 import * as iconv from "iconv-lite"
+import { shouldSummarizeEditDisplayContent } from "@/core/task/tools/utils/LargeEditGuards"
 import { HostProvider } from "@/hosts/host-provider"
 import { diagnosticsToProblemsString, getNewDiagnostics } from "@/integrations/diagnostics"
 import { DiagnosticSeverity, FileDiagnostics } from "@/shared/proto/index.cline"
@@ -22,7 +22,7 @@ export abstract class DiffViewProvider {
 	private preDiagnostics: FileDiagnostics[] = []
 	protected relPath?: string
 	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
+	protected fileEncoding = "utf8"
 	private streamedLines: string[] = []
 	private newContent?: string
 
@@ -158,7 +158,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>
 
 	/**
 	 * Closes all open diff views.
@@ -383,11 +383,20 @@ export abstract class DiffViewProvider {
 		let autoFormattingEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedPostSaveContent) {
 			// auto-formatting was done by the editor
-			autoFormattingEdits = formatResponse.createPrettyPatch(
-				this.relPath.toPosix(),
-				normalizedPreSaveContent,
-				normalizedPostSaveContent,
-			)
+			if (
+				shouldSummarizeEditDisplayContent(normalizedPreSaveContent) ||
+				shouldSummarizeEditDisplayContent(normalizedPostSaveContent)
+			) {
+				autoFormattingEdits =
+					`[Auto-formatting edits for '${this.relPath.toPosix()}' omitted from tool payload: ` +
+					`pre-save or post-save content exceeded safe diff display thresholds. Review the saved file content for the final result.]`
+			} else {
+				autoFormattingEdits = formatResponse.createPrettyPatch(
+					this.relPath.toPosix(),
+					normalizedPreSaveContent,
+					normalizedPostSaveContent,
+				)
+			}
 		}
 
 		// Strip notebook outputs to reduce context size (outputs aren't needed for editing)
@@ -451,16 +460,14 @@ export abstract class DiffViewProvider {
 			return
 		}
 		const currentContent = (await this.getDocumentText()) || ""
-		const diffs = diff.diffLines(this.originalContent || "", currentContent)
-		let lineCount = 0
-		for (const part of diffs) {
-			if (part.added || part.removed) {
-				// Found the first diff, scroll to it
-				this.scrollEditorToLine(lineCount)
+		const originalLines = (this.originalContent || "").split("\n")
+		const currentLines = currentContent.split("\n")
+		const maxComparableLength = Math.max(originalLines.length, currentLines.length)
+
+		for (let i = 0; i < maxComparableLength; i++) {
+			if (originalLines[i] !== currentLines[i]) {
+				await this.scrollEditorToLine(i)
 				return
-			}
-			if (!part.removed) {
-				lineCount += part.count || 0
 			}
 		}
 	}

@@ -87,3 +87,25 @@ export function getSafeEditDisplayContent(
 		wasSummarized: true,
 	}
 }
+
+export function shouldSummarizeEditDisplayContent(
+	content: string | undefined,
+	{
+		maxDisplayBytes = MAX_FILE_EDIT_DISPLAY_BYTES,
+		maxLineBytes = MAX_FILE_EDIT_LINE_BYTES,
+	}: {
+		maxDisplayBytes?: number
+		maxLineBytes?: number
+	} = {},
+): boolean {
+	if (content === undefined) {
+		return false
+	}
+
+	const contentBytes = Buffer.byteLength(content, "utf8")
+	if (contentBytes > maxDisplayBytes) {
+		return true
+	}
+
+	return getLargestLineBytes(content) > maxLineBytes
+}

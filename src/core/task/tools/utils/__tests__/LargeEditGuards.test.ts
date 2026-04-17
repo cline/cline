@@ -6,6 +6,7 @@ import {
 	MAX_FILE_EDIT_CONTENT_BYTES,
 	MAX_FILE_EDIT_DISPLAY_BYTES,
 	MAX_FILE_EDIT_LINE_BYTES,
+	shouldSummarizeEditDisplayContent,
 	validateFileEditSafety,
 } from "../LargeEditGuards"
 
@@ -71,5 +72,13 @@ describe("LargeEditGuards", () => {
 
 		result.wasSummarized.should.equal(true)
 		result.text!.should.match(/largest line/)
+	})
+
+	it("detects when display content should be summarized", () => {
+		shouldSummarizeEditDisplayContent("small", { maxDisplayBytes: 16, maxLineBytes: 16 }).should.equal(false)
+		shouldSummarizeEditDisplayContent("x".repeat(MAX_FILE_EDIT_DISPLAY_BYTES + 1)).should.equal(true)
+		shouldSummarizeEditDisplayContent("x".repeat(MAX_FILE_EDIT_LINE_BYTES + 1), {
+			maxDisplayBytes: MAX_FILE_EDIT_LINE_BYTES + 32,
+		}).should.equal(true)
 	})
 })
