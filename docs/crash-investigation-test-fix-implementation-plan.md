@@ -359,6 +359,7 @@ The next highest-value area is the combination of message growth, persistence, a
 - [ ] Remove expensive operations from per-message save paths.
 - [x] Add payload-size telemetry thresholds and warnings.
 - [x] Suppress duplicate serialized state broadcasts to existing subscribers.
+- [x] Skip telemetry/warning work for no-op duplicate state rebroadcasts.
 - [x] Skip no-op task-history rewrites when the computed history item is unchanged.
 
 #### Why this matters

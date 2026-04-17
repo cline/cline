@@ -13,6 +13,10 @@ export function hasActiveStateSubscribers(): boolean {
 	return activeStateSubscriptions.size > 0
 }
 
+export function resetStateSubscriptionsForTest(): void {
+	activeStateSubscriptions.clear()
+}
+
 /**
  * Subscribe to state updates
  * @param controller The controller instance
@@ -79,13 +83,16 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 		return
 	}
 
+	const subscribersNeedingUpdate = Array.from(activeStateSubscriptions.entries()).filter(
+		([_responseStream, lastStateJson]) => lastStateJson !== stateJson,
+	)
+	if (subscribersNeedingUpdate.length === 0) {
+		return
+	}
+
 	recordStateSizeTelemetry(sizeBytes)
 
-	const promises = Array.from(activeStateSubscriptions.entries()).map(async ([responseStream, lastStateJson]) => {
-		if (lastStateJson === stateJson) {
-			return
-		}
-
+	const promises = subscribersNeedingUpdate.map(async ([responseStream]) => {
 		try {
 			await responseStream(
 				{
