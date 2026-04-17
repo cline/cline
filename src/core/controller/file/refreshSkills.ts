@@ -100,8 +100,8 @@ export async function refreshSkills(controller: Controller): Promise<RefreshedSk
 
 	// Add remote skills from remote config.
 	// Precedence: remote (enterprise) > disk-global (user) > project (workspace).
-	// Remote entries are appended to globalSkills[] and rendered under "Global Skills" in the UI.
-	// The toggle store distinguishes them by the "remote:" path prefix.
+	// Remote entries are appended to globalSkills[] and split into the dedicated "Enterprise Skills"
+	// section by the UI. The toggle store distinguishes them by the "remote:" path prefix.
 	const remoteConfigSettings = controller.stateManager.getRemoteConfigSettings()
 	const remoteSkillsToggles = controller.stateManager.getGlobalStateKey("remoteSkillsToggles") || {}
 	const validatedRemoteSkills = parseRemoteSkillEntries(remoteConfigSettings.remoteGlobalSkills || [])

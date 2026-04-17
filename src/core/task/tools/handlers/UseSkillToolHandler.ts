@@ -1,5 +1,5 @@
 import type { ToolUse } from "@core/assistant-message"
-import { discoverSkills, getAvailableSkills, getSkillContent } from "@core/context/instructions/user-instructions/skills"
+import { discoverAvailableSkills, getSkillContent } from "@core/context/instructions/user-instructions/skills"
 import type { SkillMetadata } from "@shared/skills"
 import { telemetryService } from "@/services/telemetry"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -37,23 +37,12 @@ export class UseSkillToolHandler implements IToolHandler, IPartialBlockHandler {
 
 		// Discover skills on-demand (lazy loading)
 		const remoteSkillEntries = config.services.stateManager.getRemoteConfigSettings().remoteGlobalSkills || []
-		const allSkills = await discoverSkills(config.cwd, remoteSkillEntries)
-		const resolvedSkills = getAvailableSkills(allSkills)
-
-		// Filter by toggle state
 		const stateManager = config.services.stateManager
-		const globalSkillsToggles = stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
-		const localSkillsToggles = stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
-		const remoteSkillsToggles = stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {}
-		const availableSkills = resolvedSkills.filter((skill) => {
-			if (skill.path.startsWith("remote:")) {
-				const name = skill.path.replace("remote:", "")
-				const entry = remoteSkillEntries.find((e) => e.name === name)
-				if (entry?.alwaysEnabled) return true
-				return remoteSkillsToggles[name] !== false
-			}
-			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
-			return toggles[skill.path] !== false
+		const availableSkills = await discoverAvailableSkills(config.cwd, {
+			remoteSkillEntries,
+			globalSkillsToggles: stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {},
+			localSkillsToggles: stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {},
+			remoteSkillsToggles: stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {},
 		})
 
 		if (availableSkills.length === 0) {

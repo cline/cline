@@ -109,7 +109,7 @@ import { Logger } from "@/shared/services/Logger"
 import { Session } from "@/shared/services/Session"
 import { RuleContextBuilder } from "../context/instructions/user-instructions/RuleContextBuilder"
 import { ensureLocalClineDirExists } from "../context/instructions/user-instructions/rule-helpers"
-import { discoverSkills, getAvailableSkills } from "../context/instructions/user-instructions/skills"
+import { discoverAvailableSkills } from "../context/instructions/user-instructions/skills"
 import { refreshWorkflowToggles } from "../context/instructions/user-instructions/workflows"
 import { Controller } from "../controller"
 import { executeHook } from "../hooks/hook-executor"
@@ -1941,22 +1941,11 @@ export class Task {
 
 		// Discover and filter available skills
 		const remoteSkillEntries = this.stateManager.getRemoteConfigSettings().remoteGlobalSkills || []
-		const allSkills = await discoverSkills(this.cwd, remoteSkillEntries)
-		const resolvedSkills = getAvailableSkills(allSkills)
-
-		// Filter skills by toggle state (enabled by default)
-		const globalSkillsToggles = this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {}
-		const localSkillsToggles = this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {}
-		const remoteSkillsToggles = this.stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {}
-		const availableSkills = resolvedSkills.filter((skill) => {
-			if (skill.path.startsWith("remote:")) {
-				const name = skill.path.replace("remote:", "")
-				const entry = remoteSkillEntries.find((e) => e.name === name)
-				if (entry?.alwaysEnabled) return true
-				return remoteSkillsToggles[name] !== false
-			}
-			const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
-			return toggles[skill.path] !== false
+		const availableSkills = await discoverAvailableSkills(this.cwd, {
+			remoteSkillEntries,
+			globalSkillsToggles: this.stateManager.getGlobalSettingsKey("globalSkillsToggles") ?? {},
+			localSkillsToggles: this.stateManager.getWorkspaceStateKey("localSkillsToggles") ?? {},
+			remoteSkillsToggles: this.stateManager.getGlobalStateKey("remoteSkillsToggles") ?? {},
 		})
 
 		// Snapshot editor tabs so prompt tools can decide whether to include

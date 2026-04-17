@@ -18,6 +18,13 @@ export interface ValidatedRemoteSkill {
 	contents: string
 }
 
+export interface SkillToggleState {
+	globalSkillsToggles?: Record<string, boolean>
+	localSkillsToggles?: Record<string, boolean>
+	remoteSkillsToggles?: Record<string, boolean>
+	remoteSkillEntries?: GlobalInstructionsFile[]
+}
+
 /**
  * Parse and validate remote skill entries from GlobalInstructionsFile[].
  *
@@ -161,7 +168,7 @@ export async function discoverSkills(cwd: string, remoteSkillEntries?: GlobalIns
 		}
 	}
 
-	// Remote skills: validated via parseRemoteSkillEntries (entry.name must match frontmatter.name)
+	// Remote skills: validated via parseRemoteSkillEntries and keyed by frontmatter.name.
 	const remoteSkills: SkillMetadata[] = parseRemoteSkillEntries(remoteSkillEntries || []).map((entry) => ({
 		name: entry.name,
 		description: entry.description,
@@ -193,6 +200,34 @@ export function getAvailableSkills(skills: SkillMetadata[]): SkillMetadata[] {
 	}
 
 	return result
+}
+
+export function filterEnabledSkills(skills: SkillMetadata[], toggleState: SkillToggleState = {}): SkillMetadata[] {
+	const globalSkillsToggles = toggleState.globalSkillsToggles ?? {}
+	const localSkillsToggles = toggleState.localSkillsToggles ?? {}
+	const remoteSkillsToggles = toggleState.remoteSkillsToggles ?? {}
+	const remoteSkillMap = new Map(
+		parseRemoteSkillEntries(toggleState.remoteSkillEntries || []).map((entry) => [entry.name, entry]),
+	)
+
+	return skills.filter((skill) => {
+		if (skill.path.startsWith("remote:")) {
+			const name = skill.path.replace("remote:", "")
+			const entry = remoteSkillMap.get(name)
+			if (entry?.alwaysEnabled) {
+				return true
+			}
+			return remoteSkillsToggles[name] !== false
+		}
+
+		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
+		return toggles[skill.path] !== false
+	})
+}
+
+export async function discoverAvailableSkills(cwd: string, toggleState: SkillToggleState = {}): Promise<SkillMetadata[]> {
+	const allSkills = await discoverSkills(cwd, toggleState.remoteSkillEntries)
+	return filterEnabledSkills(getAvailableSkills(allSkills), toggleState)
 }
 
 /**
