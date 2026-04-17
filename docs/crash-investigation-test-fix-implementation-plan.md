@@ -357,6 +357,7 @@ The next highest-value area is the combination of message growth, persistence, a
 - [ ] Change persistence from rewrite-heavy to append/coalesce-heavy where safe.
 - [ ] Remove expensive operations from per-message save paths.
 - [x] Add payload-size telemetry thresholds and warnings.
+- [x] Suppress duplicate serialized state broadcasts to existing subscribers.
 
 #### Why this matters
 

@@ -7,7 +7,7 @@ import { Controller } from "../index"
 import { recordStateSnapshotTelemetry, serializeStateSnapshot } from "./stateSnapshot"
 
 // Keep track of active state subscriptions
-const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
+const activeStateSubscriptions = new Map<StreamingResponseHandler<State>, string>()
 
 export function hasActiveStateSubscribers(): boolean {
 	return activeStateSubscriptions.size > 0
@@ -27,7 +27,7 @@ export async function subscribeToState(
 	requestId?: string,
 ): Promise<void> {
 	// Add this subscription to the active subscriptions
-	activeStateSubscriptions.add(responseStream)
+	activeStateSubscriptions.set(responseStream, "")
 
 	// Register cleanup when the connection is closed
 	const cleanup = () => {
@@ -52,6 +52,7 @@ export async function subscribeToState(
 			},
 			false, // Not the last message
 		)
+		activeStateSubscriptions.set(responseStream, initialStateJson)
 	} catch (error) {
 		Logger.error("Error sending initial state:", error)
 		activeStateSubscriptions.delete(responseStream)
@@ -80,7 +81,11 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 
 	recordStateSizeTelemetry(sizeBytes)
 
-	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
+	const promises = Array.from(activeStateSubscriptions.entries()).map(async ([responseStream, lastStateJson]) => {
+		if (lastStateJson === stateJson) {
+			return
+		}
+
 		try {
 			await responseStream(
 				{
@@ -88,6 +93,7 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 				},
 				false, // Not the last message
 			)
+			activeStateSubscriptions.set(responseStream, stateJson)
 		} catch (error) {
 			Logger.error("Error sending state update:", error)
 			activeStateSubscriptions.delete(responseStream)
