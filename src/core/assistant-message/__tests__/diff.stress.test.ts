@@ -10,6 +10,25 @@ function makeLargeOriginalContent(blockCount: number): string {
 }
 
 describe("constructNewFileContent stress", () => {
+	it("handles large empty-search whole-file replacement within a bounded time budget", async function () {
+		this.timeout(10_000)
+
+		const original = makeLargeOriginalContent(220)
+		const replacement = Array.from({ length: 220 }, (_, i) => {
+			return [`function rewritten${i}() {`, `  return "${`rewritten-${i}-`.repeat(12)}"`, `}`].join("\n")
+		}).join("\n\n")
+		const diff = ["------- SEARCH", "=======", replacement, "+++++++ REPLACE"].join("\n")
+
+		const measured = await measureAsyncOperation("diff whole-file replace stress", async () => {
+			return constructNewFileContent(diff, original, true, "v1")
+		})
+
+		expect(measureUtf8Bytes(original)).to.be.greaterThan(10_000)
+		expect(measured.durationMs).to.be.lessThan(5_000)
+		expect(measured.result.newContent).to.equal(`${replacement}\n`)
+		expect(measured.result.matchIndices).to.deep.equal([0])
+	})
+
 	it("handles many ordered replacements in a large file within a bounded time budget", async function () {
 		this.timeout(10_000)
 

@@ -297,7 +297,7 @@ Start with pure or nearly pure code where failures are cheap to reproduce.
 - [x] Many repeated chunks in one patch
 - [ ] Out-of-order replacement edge cases
 - [x] Pathological line lengths
-- [ ] Empty-search whole-file replace behavior under huge content
+- [x] Empty-search whole-file replace behavior under huge content
 
 #### Failure oracles
 

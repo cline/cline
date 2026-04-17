@@ -387,12 +387,9 @@ async function constructNewFileContentV1(
 					searchMatchIndex = 0
 					searchEndIndex = 0
 				} else {
-					// ERROR: Empty search block with non-empty file indicates malformed SEARCH marker
-					throw new Error(
-						"Empty SEARCH block detected with non-empty file. This usually indicates a malformed SEARCH marker.\n" +
-							"Please ensure your SEARCH marker follows the correct format:\n" +
-							"- Use '------- SEARCH' (7+ dashes + space + SEARCH)\n",
-					)
+					// Whole-file replacement scenario: replace the entire current file.
+					searchMatchIndex = 0
+					searchEndIndex = originalContent.length
 				}
 			} else {
 				// Add check for inefficient full-file search
