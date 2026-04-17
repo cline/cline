@@ -369,6 +369,168 @@ class TestToolSmoke:
         assert "pynhd" in result["available_refs"]
 
 
+# ── Lean session storage + synopsis ─────────────────────────────────────────
+
+class TestLeanSession:
+    """Verify that raw time-series arrays are stripped from the session JSON
+    and that synopsis_for_llm() returns only scalar summaries."""
+
+    def test_lean_slot_strips_large_lists(self):
+        """_lean_slot should remove lists > 50 items and add {key}_n counts."""
+        from ai_hydro.session.store import _lean_slot
+        val = {
+            "data": {
+                "dates": list(range(3652)),
+                "q_cms": [1.0] * 3652,
+                "n_days": 3652,
+                "gauge_name": "Test Gauge",
+            },
+            "meta": {"tool": "fetch_streamflow_data"},
+        }
+        lean = _lean_slot(val)
+        assert "dates" not in lean["data"]
+        assert "q_cms" not in lean["data"]
+        assert lean["data"]["dates_n"] == 3652
+        assert lean["data"]["q_cms_n"] == 3652
+        assert lean["data"]["n_days"] == 3652        # scalars preserved
+        assert lean["data"]["gauge_name"] == "Test Gauge"
+        assert lean["meta"]["tool"] == "fetch_streamflow_data"  # meta untouched
+
+    def test_lean_slot_keeps_short_lists(self):
+        """Lists ≤ 50 items should be kept verbatim."""
+        from ai_hydro.session.store import _lean_slot
+        val = {
+            "data": {
+                "variables": ["prcp_mm", "tmax_C", "tmin_C"],
+                "train_period": ["2000-10-01", "2007-09-30"],
+            },
+            "meta": {},
+        }
+        lean = _lean_slot(val)
+        assert lean["data"]["variables"] == ["prcp_mm", "tmax_C", "tmin_C"]
+        assert lean["data"]["train_period"] == ["2000-10-01", "2007-09-30"]
+
+    def test_lean_slot_preserves_private_keys(self):
+        """_data_file and other _ keys must survive stripping."""
+        from ai_hydro.session.store import _lean_slot
+        val = {
+            "data": {
+                "_data_file": "/workspace/streamflow_01031500.json",
+                "q_cms": [1.0] * 3652,
+                "n_days": 3652,
+            },
+            "meta": {},
+        }
+        lean = _lean_slot(val)
+        assert lean["data"]["_data_file"] == "/workspace/streamflow_01031500.json"
+        assert "q_cms" not in lean["data"]
+
+    def test_session_json_is_lean_after_save(self, tmp_path):
+        """Saved session.json must not contain large list arrays."""
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("test-lean")
+            s.streamflow = {
+                "data": {"dates": list(range(3652)), "q_cms": [1.0] * 3652,
+                         "n_days": 3652},
+                "meta": {"tool": "fetch_streamflow_data"},
+            }
+            s.save()
+            # Read raw JSON — must not contain the big arrays
+            raw_json = (tmp_path / "test-lean.json").read_text()
+            data = json.loads(raw_json)
+            sf_data = data["streamflow"]["data"]
+            assert "dates" not in sf_data
+            assert "q_cms" not in sf_data
+            assert sf_data["dates_n"] == 3652
+            assert sf_data["n_days"] == 3652
+
+    def test_session_json_size_is_small(self, tmp_path):
+        """A session with 3652-day streamflow should fit in < 10 KB on disk."""
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("test-size")
+            s.streamflow = {
+                "data": {"dates": list(range(3652)), "q_cms": [1.0] * 3652,
+                         "n_days": 3652},
+                "meta": {"tool": "fetch_streamflow_data"},
+            }
+            s.save()
+            size_bytes = (tmp_path / "test-size.json").stat().st_size
+            assert size_bytes < 10_000, (
+                f"Session JSON is {size_bytes} bytes — lean storage should be < 10 KB"
+            )
+
+    def test_synopsis_for_llm_no_arrays(self, tmp_path):
+        """synopsis_for_llm must never return lists > 50 items."""
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("test-synopsis")
+            s.streamflow = {
+                "data": {"dates": ["2020-01-01"] * 3652,
+                         "q_cms": [1.0] * 3652, "n_days": 3652},
+                "meta": {"tool": "fetch_streamflow_data",
+                         "computed_at": "2026-04-17T10:00:00"},
+            }
+            s.signatures = {
+                "data": {"q_mean": 5.2, "bfi": 0.4, "runoff_ratio": 0.6},
+                "meta": {"tool": "extract_hydrological_signatures",
+                         "computed_at": "2026-04-17T11:00:00"},
+            }
+            synopsis = s.synopsis_for_llm()
+            # Check streamflow synopsis
+            sf = synopsis["streamflow"]
+            assert "dates" not in sf
+            assert "q_cms" not in sf
+            assert sf["dates_n"] == 3652
+            assert sf["n_days"] == 3652
+            # Check signatures — all scalars, no stripping needed
+            sig = synopsis["signatures"]
+            assert sig["q_mean"] == 5.2
+            assert sig["bfi"] == 0.4
+            # No list longer than 50 anywhere in the synopsis
+            for slot_data in synopsis.values():
+                for k, v in slot_data.items():
+                    if isinstance(v, list):
+                        assert len(v) <= 50, (
+                            f"synopsis_for_llm returned list of {len(v)} items "
+                            f"in slot {slot_data} key {k}"
+                        )
+
+    def test_sync_reminder_fires_at_2_slots(self, tmp_path):
+        """_sync_reminder should return a string once 2+ slots are computed."""
+        from ai_hydro.mcp.helpers import _sync_reminder
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("test-remind")
+            s.watershed = {"data": {"area_km2": 100}, "meta": {}}
+            s.save()
+            assert _sync_reminder("test-remind") is None  # only 1 slot
+            s2 = HydroSession.load("test-remind")
+            s2.streamflow = {"data": {"n_days": 365}, "meta": {}}
+            s2.save()
+            reminder = _sync_reminder("test-remind")
+            assert reminder is not None
+            assert "sync_research_context" in reminder
+
+    def test_sync_reminder_silent_after_interpretation(self, tmp_path):
+        """_sync_reminder should return None once interpretation is written."""
+        from ai_hydro.mcp.helpers import _sync_reminder
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("test-interpreted")
+            s.watershed = {"data": {"area_km2": 100}, "meta": {}}
+            s.streamflow = {"data": {"n_days": 365}, "meta": {}}
+            s.interpretation = "The basin shows strong baseflow dominance."
+            s.save()
+            assert _sync_reminder("test-interpreted") is None
+
+
 # ── Version helpers ──────────────────────────────────────────────────────────
 
 class TestVersionHelpers:

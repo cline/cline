@@ -32,6 +32,11 @@ _SESSIONS_DIR = Path.home() / ".aihydro" / "sessions"
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _RULES_DIR_NAME = ".aihydrorules"
 
+# Lists longer than this are stripped from the session JSON on disk.
+# They are replaced by a ``{key}_n`` count key so the record stays
+# interpretable without the full array.
+_ARRAY_STRIP_THRESHOLD = 50
+
 # Common slot names corresponding to built-in MCP tools.
 _COMMON_SLOTS = (
     "watershed",
@@ -44,6 +49,41 @@ _COMMON_SLOTS = (
     "cn",
     "model",
 )
+
+
+def _lean_slot(val: Any) -> Any:
+    """
+    Return a disk-safe (lean) copy of a slot value.
+
+    Strips any list longer than ``_ARRAY_STRIP_THRESHOLD`` from the ``data``
+    sub-dict, replacing it with a ``{key}_n`` count key so the record stays
+    interpretable. The ``meta`` sub-dict and scalar ``data`` values are kept
+    verbatim. Private keys (``_data_file`` etc.) are preserved.
+
+    The in-memory ``_slots`` dict is never modified — stripping only happens
+    when serialising to JSON via ``_to_raw()``.
+    """
+    if val is None:
+        return None
+    if not isinstance(val, dict):
+        return val
+    # Model slot may store data directly (no data/meta wrapper) — handle both
+    if "data" not in val:
+        # Flat dict (legacy model slot) — strip large lists in-place copy
+        lean: dict = {}
+        for k, v in val.items():
+            if isinstance(v, list) and len(v) > _ARRAY_STRIP_THRESHOLD:
+                lean[f"{k}_n"] = len(v)
+            else:
+                lean[k] = v
+        return lean
+    lean_data: dict = {}
+    for k, v in val["data"].items():
+        if isinstance(v, list) and len(v) > _ARRAY_STRIP_THRESHOLD:
+            lean_data[f"{k}_n"] = len(v)
+        else:
+            lean_data[k] = v
+    return {**val, "data": lean_data}
 
 
 class HydroSession:
@@ -222,7 +262,7 @@ class HydroSession:
             "interpretation": self.interpretation,
         }
         for slot, val in self._slots.items():
-            raw[slot] = val
+            raw[slot] = _lean_slot(val)
         return raw
 
     # ------------------------------------------------------------------
@@ -282,14 +322,63 @@ class HydroSession:
             return f"% No citations available for session {self.session_id}"
         return "\n\n".join(entries)
 
-    def raw_session_data(self) -> dict:
-        """All computed slot data as a flat dict — for LLM reasoning."""
-        data: dict = {}
+    def synopsis_for_llm(self) -> dict:
+        """
+        Concise per-slot summaries for LLM reasoning — never returns raw arrays.
+
+        Each slot becomes a flat dict of scalars + short lists only.
+        Large time-series arrays are replaced by their element count so the LLM
+        knows they exist without being overwhelmed by the data.
+
+        Returned by ``sync_research_context`` Phase 1 so the LLM can reason
+        across all computed results before writing an interpretation.
+        """
+        out: dict = {}
         for slot in self.computed():
             result = self.get(slot)
-            if result:
-                data[slot] = result.get("data", {})
-        return data
+            if not result:
+                continue
+            data = result.get("data", {})
+            meta = result.get("meta", {})
+            synopsis: dict = {}
+            # Flat scalars and short lists only; strip large arrays
+            for k, v in data.items():
+                if k.startswith("_"):
+                    continue  # private implementation keys
+                if isinstance(v, list):
+                    if len(v) > _ARRAY_STRIP_THRESHOLD:
+                        synopsis[f"{k}_n"] = len(v)
+                    else:
+                        synopsis[k] = v
+                elif isinstance(v, dict):
+                    # Keep nested dicts (e.g. attribute_groups, calibrated_params)
+                    # but strip any large list values inside them
+                    synopsis[k] = {
+                        dk: (dv if not (isinstance(dv, list) and
+                                        len(dv) > _ARRAY_STRIP_THRESHOLD)
+                             else f"[{len(dv)} items]")
+                        for dk, dv in v.items()
+                    }
+                else:
+                    synopsis[k] = v
+            # Attach lightweight provenance
+            computed_at = meta.get("computed_at", "")
+            synopsis["_computed_at"] = computed_at[:10] if computed_at else None
+            synopsis["_tool"] = meta.get("tool", slot)
+            if meta.get("params"):
+                synopsis["_params"] = meta["params"]
+            out[slot] = synopsis
+        return out
+
+    def raw_session_data(self) -> dict:
+        """
+        Backward-compat alias → synopsis_for_llm().
+
+        Returns lean per-slot summaries (no raw arrays).
+        Previously returned the full data dict including arrays;
+        callers that needed raw arrays should load from ``_data_file``.
+        """
+        return self.synopsis_for_llm()
 
     # ------------------------------------------------------------------
     # research.md sync

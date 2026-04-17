@@ -153,6 +153,30 @@ def _ensure_session(session_id: str, workspace_dir: str | None = None):
 # Response helpers
 # ---------------------------------------------------------------------------
 
+def _sync_reminder(session_id: str) -> str | None:
+    """
+    Return a mandatory reminder to call sync_research_context when ≥2 slots
+    are computed and no interpretation has been written yet.
+
+    Injected into every analysis tool response so the LLM cannot miss it.
+    Returns None when not yet relevant (< 2 computed, or already interpreted).
+    """
+    try:
+        from ai_hydro.session import HydroSession
+        session = HydroSession.load(session_id)
+        n = len(session.computed())
+        if n >= 2 and not session.interpretation:
+            return (
+                f"[{n} analyses complete, no interpretation yet] "
+                f"When ALL planned steps are done, your FINAL action MUST be "
+                f"sync_research_context('{session_id}'). "
+                "Skip this and the science disappears between conversations."
+            )
+    except Exception:
+        pass
+    return None
+
+
 def _tool_error_to_dict(e: Exception) -> dict:
     if hasattr(e, "to_dict"):
         return e.to_dict()
@@ -161,7 +185,7 @@ def _tool_error_to_dict(e: Exception) -> dict:
 
 def _cached_response(slot: str, session, *, extra: dict | None = None) -> dict:
     result = getattr(session, slot)
-    return {
+    r: dict = {
         "data": result.get("data", {}),
         "meta": result.get("meta", {}),
         "_cached": True,
@@ -171,6 +195,10 @@ def _cached_response(slot: str, session, *, extra: dict | None = None) -> dict:
         ),
         **(extra or {}),
     }
+    reminder = _sync_reminder(session.session_id)
+    if reminder:
+        r["_sync_required"] = reminder
+    return r
 
 
 def _strip_forcing_arrays(data: dict) -> dict:

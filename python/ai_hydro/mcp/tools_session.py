@@ -254,7 +254,7 @@ def sync_research_context(
                 ),
             }
 
-        session_data = session.raw_session_data()
+        synopsis = session.synopsis_for_llm()
         tools_path = _write_tools_md()
         return {
             "session_id": session_id,
@@ -264,13 +264,17 @@ def sync_research_context(
             "pending": session.pending(),
             "notes": session.notes,
             "has_interpretation": bool(session.interpretation),
-            "session_data": session_data,
+            "session_synopsis": synopsis,
             "n_tools": len(_list_tools_sync()),
+            "_note": (
+                "Raw time-series arrays are stored on disk (see _data_file in each slot). "
+                "This response contains scientific summaries only — no array data."
+            ),
             "_instruction": (
-                "You have received the full computed session data. "
+                "You have received a scientific synopsis of all computed session data. "
                 "Read every slot carefully — look for cross-slot patterns, "
                 "contradictions between computed values and researcher notes, "
-                "what the science is telling you, and what should be done next. "
+                "what the science is telling you, and what the logical next step is. "
                 "Then call sync_research_context again with: "
                 "(1) interpretation=<your 3-6 sentence scientific prose> "
                 "(2) site_name=<short-descriptive-slug>. "
@@ -487,23 +491,87 @@ def export_session(
 
 
 def _build_environment_yml(name: str) -> str:
+    """
+    Build a minimal, reproducible environment.yml.
+
+    Strategy (in priority order):
+    1. ``conda env export --from-history`` — only explicitly installed packages,
+       avoiding the 400-line full-environment dump of ``--no-builds``.
+    2. Minimal hand-crafted YAML — used when conda is unavailable or the
+       ``--from-history`` output is suspiciously short (< 5 lines).
+    """
     import subprocess as _sp
+
+    def _curated() -> str:
+        # Get installed versions of core packages for pinning
+        versions: dict = {}
+        try:
+            import importlib.metadata as _imeta
+            for pkg in ("aihydro-tools", "numpy", "pandas", "scipy",
+                        "torch", "rasterio", "geopandas"):
+                try:
+                    versions[pkg] = _imeta.version(pkg)
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        def _pin(pkg: str, fallback: str = "") -> str:
+            v = versions.get(pkg)
+            return f"    - {pkg}=={v}" if v else (
+                f"    - {pkg}>={fallback}" if fallback else f"    - {pkg}"
+            )
+
+        lines = [
+            f"name: {name}",
+            "channels:",
+            "  - conda-forge",
+            "  - defaults",
+            "dependencies:",
+            "  - python>=3.10",
+            "  - pip",
+            "  - pip:",
+            _pin("aihydro-tools", "1.4.0"),
+            "    - dataretrieval",
+            "    - pynhd",
+            "    - pygeohydro",
+            "    - pygridmet",
+            "    - py3dep",
+            "    - pysheds",
+            _pin("rasterio", "1.3"),
+            _pin("geopandas", "0.14"),
+            _pin("xarray", ""),
+            _pin("numpy", "1.26"),
+            _pin("pandas", "2.0"),
+            _pin("scipy", "1.11"),
+            _pin("torch", "2.0"),
+            "    - matplotlib",
+            "# Re-create with: conda env create -f environment.yml",
+            "# Pin all versions for full reproducibility with: pip freeze > requirements.txt",
+        ]
+        return "\n".join(lines)
+
     try:
-        r = _sp.run(["conda", "env", "export", "--no-builds"],
-                    capture_output=True, text=True, timeout=15)
+        r = _sp.run(
+            ["conda", "env", "export", "--from-history"],
+            capture_output=True, text=True, timeout=15,
+        )
         if r.returncode == 0 and r.stdout.strip():
             lines = r.stdout.splitlines()
-            if lines and lines[0].startswith("name:"):
-                lines[0] = f"name: {name}"
-            return "\n".join(lines)
+            # from-history output is only meaningful if it lists actual packages
+            # (sometimes it returns just name/channels/prefix with no deps)
+            has_deps = any(
+                line.strip() and not line.startswith(("name:", "channels:",
+                                                       "dependencies:", "prefix:", "-"))
+                for line in lines
+            )
+            if len(lines) >= 8 or has_deps:
+                if lines and lines[0].startswith("name:"):
+                    lines[0] = f"name: {name}"
+                # Strip the absolute prefix line — breaks portability
+                lines = [l for l in lines if not l.startswith("prefix:")]
+                return "\n".join(lines)
     except Exception:
         pass
-    return (
-        f"name: {name}\nchannels:\n  - conda-forge\n  - defaults\n"
-        "dependencies:\n  - python>=3.10\n  - pip\n  - pip:\n"
-        "    - aihydro-tools[all]\n    - dataretrieval\n    - pynhd\n"
-        "    - pygeohydro\n    - pygridmet\n    - py3dep\n    - pysheds\n"
-        "    - rasterio\n    - geopandas\n    - xarray\n    - matplotlib\n"
-        "    - pandas\n    - numpy\n    - scipy\n    - torch\n"
-        "# Pin versions for full reproducibility.\n"
-    )
+
+    return _curated()

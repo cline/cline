@@ -38,6 +38,7 @@ from ai_hydro.mcp.helpers import (
     _result_to_dict,
     _session_store,
     _strip_forcing_arrays,
+    _sync_reminder,
     _tool_error_to_dict,
     _validate_usgs_gauge_id,
     _workspace_write,
@@ -218,7 +219,7 @@ def delineate_watershed(
 
         # Strip geometry from agent response — it's large and already on disk
         compact = {k: v for k, v in d["data"].items() if k != "geometry_geojson"}
-        return {
+        resp: dict = {
             "data": compact,
             "meta": d.get("meta", {}),
             "_files_saved": files_saved,
@@ -229,6 +230,10 @@ def delineate_watershed(
                 "load it automatically — no need to pass gauge_id again."
             ),
         }
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            resp["_sync_required"] = reminder
+        return resp
     except Exception as e:
         log.error("delineate_watershed failed: %s", e)
         return _tool_error_to_dict(e)
@@ -311,7 +316,6 @@ def fetch_streamflow_data(
             interval=interval,
         )
         d = _result_to_dict(result)
-        _session_store(session_id, "streamflow", d)
 
         # Persist gauge metadata if not already set
         if not session.site_id:
@@ -326,10 +330,17 @@ def fetch_streamflow_data(
         if saved:
             files_saved.append(saved)
 
+        # Record the data file path in the slot so downstream tools (FDC plot,
+        # model training) can reload raw arrays without re-fetching from USGS.
+        if saved:
+            d["data"]["_data_file"] = saved
+        _session_store(session_id, "streamflow", d)
+
         # Strip raw arrays from response — saved to disk, not needed in context
         data = d["data"]
         q_vals = data.get("q_cms", [])
-        compact = {k: v for k, v in data.items() if k not in ("dates", "q_cms")}
+        compact = {k: v for k, v in data.items()
+                   if k not in ("dates", "q_cms") and not k.startswith("_")}
         if q_vals:
             valid = [v for v in q_vals if v is not None and isinstance(v, (int, float))]
             if valid:
@@ -337,6 +348,8 @@ def fetch_streamflow_data(
                 compact["q_max_cms"] = round(max(valid), 4)
                 compact["q_min_cms"] = round(min(valid), 4)
                 compact["n_missing"] = len(q_vals) - len(valid)
+        if saved:
+            compact["_data_file"] = saved
 
         # Hydrograph PNG
         ws = session.workspace_dir
@@ -352,15 +365,20 @@ def fetch_streamflow_data(
             if png:
                 files_saved.append(png)
 
-        return {
+        resp: dict = {
             "data": compact,
             "meta": d.get("meta", {}),
             "_files_saved": files_saved,
             "_note": (
-                f"Full time series ({compact.get('n_days', '?')} records) saved to file. "
-                "Raw dates/q_cms arrays stripped from response to prevent context overflow."
+                f"Full time series ({compact.get('n_days', '?')} records) saved to "
+                f"{saved or 'session'}. Raw dates/q_cms arrays are NOT in the session JSON "
+                "or this response — load from _data_file when needed."
             ),
         }
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            resp["_sync_required"] = reminder
+        return resp
     except Exception as e:
         log.error("fetch_streamflow_data failed: %s", e)
         return _tool_error_to_dict(e)
@@ -436,10 +454,21 @@ def extract_hydrological_signatures(
         )
         if saved:
             files_saved.append(saved)
-        # FDC + signature summary PNG — needs q_cms from the streamflow slot
+        # FDC + signature summary PNG
+        # q_cms may have been stripped from the session JSON (lean storage);
+        # try reloading from the on-disk data file recorded during streamflow fetch.
         ws = session.workspace_dir
         if ws and session.streamflow:
             q_vals = session.streamflow.get("data", {}).get("q_cms")
+            if not q_vals:
+                data_file = session.streamflow.get("data", {}).get("_data_file")
+                if data_file and Path(data_file).exists():
+                    try:
+                        import json as _json
+                        with open(data_file) as _f:
+                            q_vals = _json.load(_f).get("q_cms")
+                    except Exception:
+                        q_vals = None
             if q_vals:
                 from ai_hydro.analysis.plots import plot_flow_duration_curve
                 png = plot_flow_duration_curve(
@@ -451,6 +480,9 @@ def extract_hydrological_signatures(
                 if png:
                     files_saved.append(png)
         d["_files_saved"] = files_saved
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            d["_sync_required"] = reminder
         return d
     except Exception as e:
         log.error("extract_hydrological_signatures failed: %s", e)
@@ -519,6 +551,9 @@ def extract_geomorphic_parameters(
         )
         if saved:
             d["_file_saved"] = saved
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            d["_sync_required"] = reminder
         return d
     except Exception as e:
         log.error("extract_geomorphic_parameters failed: %s", e)
@@ -620,6 +655,9 @@ async def compute_twi(
                 }
                 _session_store(session_id, "twi", d)
                 d["_files_saved"] = files
+                reminder = _sync_reminder(session_id)
+                if reminder:
+                    d["_sync_required"] = reminder
                 return d
             except Exception as viz_err:
                 log.warning(
@@ -648,6 +686,10 @@ async def compute_twi(
                 f"Full TWI computation failed ({viz_failed[:200]}); "
                 "statistics computed via fallback. No map files generated."
             )
+
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            d["_sync_required"] = reminder
 
         if ctx:
             await ctx.report_progress(progress=10, total=10)
@@ -758,6 +800,9 @@ async def create_cn_grid(
         }
         _session_store(session_id, "cn", d)
         d["_files_saved"] = list(file_paths.values())
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            d["_sync_required"] = reminder
         return d
 
     except Exception as e:
@@ -847,19 +892,29 @@ async def fetch_forcing_data(
             await ctx.report_progress(progress=2, total=2)
 
         d = _result_to_dict(result)
-        _session_store(session_id, "forcing", d)
         saved = _workspace_write(session_id, f"forcing_{session_id}.json", d["data"])
+        # Record data file path in slot so train_hydro_model can reload arrays
+        if saved:
+            d["data"]["_data_file"] = saved
+        _session_store(session_id, "forcing", d)
         compact = _strip_forcing_arrays(d["data"])
-        return {
+        if saved:
+            compact["_data_file"] = saved
+        resp: dict = {
             "data": compact,
             "meta": d.get("meta", {}),
             "_file_saved": saved,
             "_note": (
                 f"Forcing data ({compact.get('n_days', '?')} records, "
-                f"{compact.get('n_variables', '?')} variables) saved to file. "
-                "Raw daily arrays stripped from response to prevent context overflow."
+                f"{compact.get('n_variables', '?')} variables) saved to "
+                f"{saved or 'session'}. Raw daily arrays are NOT in the session JSON "
+                "or this response — load from _data_file when needed."
             ),
         }
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            resp["_sync_required"] = reminder
+        return resp
     except Exception as e:
         log.error("fetch_forcing_data failed: %s", e)
         return _tool_error_to_dict(e)
@@ -1020,7 +1075,7 @@ def fetch_camels_us(
                 "gauges":        gauges_out,
             }
             saved = _workspace_write(session_id, "camels_multi.json", data)
-            return {
+            resp: dict = {
                 "data": data,
                 "meta": _META,
                 "_file_saved": saved,
@@ -1030,6 +1085,10 @@ def fetch_camels_us(
                     + (f" Not in CAMELS: {not_found}" if not_found else "")
                 ),
             }
+            reminder = _sync_reminder(session_id)
+            if reminder:
+                resp["_sync_required"] = reminder
+            return resp
 
         # ── SINGLE-GAUGE MODE ──────────────────────────────────────────
         if session.camels is not None:
@@ -1076,6 +1135,9 @@ def fetch_camels_us(
             "(topography, climate, hydrology, soil, vegetation, geology). "
             "Cached in session slot 'camels'. Saved to workspace."
         )
+        reminder = _sync_reminder(session_id)
+        if reminder:
+            d["_sync_required"] = reminder
         return d
 
     except Exception as e:
