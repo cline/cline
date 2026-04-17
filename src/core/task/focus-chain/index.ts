@@ -404,7 +404,7 @@ export class FocusChainManager {
 	 * @requires No parameters needed
 	 * @returns void - Cleans up timers and watchers, no return value
 	 */
-	public dispose() {
+	public async dispose() {
 		this.disposed = true
 		if (this.fileUpdateDebounceTimer) {
 			clearTimeout(this.fileUpdateDebounceTimer)
@@ -412,7 +412,7 @@ export class FocusChainManager {
 		}
 
 		if (this.focusChainFileWatcher) {
-			this.focusChainFileWatcher.close()
+			await Promise.resolve(this.focusChainFileWatcher.close())
 			this.focusChainFileWatcher = undefined
 		}
 	}

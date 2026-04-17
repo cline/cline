@@ -489,6 +489,7 @@ Even if one task only leaks a little, many create/cancel/clear cycles can accumu
 - [x] Add explicit cleanup assertions in test-only code.
 - [x] Make background resources idempotently disposable.
 - [x] Await controller-level MCP cleanup during controller disposal.
+- [x] Await focus-chain watcher cleanup during focus-chain disposal.
 
 #### Important note
 
