@@ -403,7 +403,9 @@ const ClineRulesToggleModal: React.FC = () => {
 					setLocalSkillsToggles(response.localSkillsToggles)
 				}
 				// Update local skills state
-				if (isGlobal) {
+				if (skillPath.startsWith("remote:")) {
+					setGlobalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
+				} else if (isGlobal) {
 					setGlobalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
 				} else {
 					setLocalSkills((prev) => prev.map((s) => (s.path === skillPath ? { ...s, enabled } : s)))
@@ -780,11 +782,36 @@ const ClineRulesToggleModal: React.FC = () => {
 							</>
 						) : currentView === "skills" ? (
 							<>
+								{/* Enterprise Skills Section (remote) */}
+								{globalSkills.some((s) => s.path.startsWith("remote:")) && (
+									<div className="mb-3">
+										<div className="text-sm font-normal mb-2">Enterprise Skills</div>
+										<div className="flex flex-col gap-0">
+											{globalSkills
+												.filter((s) => s.path.startsWith("remote:"))
+												.sort((a, b) => a.name.localeCompare(b.name))
+												.map((skill) => (
+													<RuleRow
+														alwaysEnabled={skill.alwaysEnabled}
+														enabled={skill.enabled}
+														isGlobal={true}
+														isRemote={true}
+														key={skill.path}
+														rulePath={skill.name}
+														ruleType="skill"
+														toggleRule={(_path, enabled) => toggleSkill(true, skill.path, enabled)}
+													/>
+												))}
+										</div>
+									</div>
+								)}
+
 								{/* Global Skills Section */}
 								<div className="mb-3">
 									<div className="text-sm font-normal mb-2">Global Skills</div>
 									<div className="flex flex-col gap-0">
 										{globalSkills
+											.filter((s) => !s.path.startsWith("remote:"))
 											.sort((a, b) => a.name.localeCompare(b.name))
 											.map((skill) => (
 												<RuleRow
@@ -793,7 +820,7 @@ const ClineRulesToggleModal: React.FC = () => {
 													key={skill.path}
 													rulePath={skill.path}
 													ruleType="skill"
-													toggleRule={(path, enabled) => toggleSkill(true, path, enabled)}
+													toggleRule={(_path, enabled) => toggleSkill(true, skill.path, enabled)}
 												/>
 											))}
 										<NewRuleRow isGlobal={true} ruleType="skill" />
