@@ -207,6 +207,32 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(provider.histograms[0].attributes.is_remote_workspace, true)
 	})
 
+	it("captureMcpNotificationDropped emits an MCP queue-drop telemetry event", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureMcpNotificationDropped("server-a", 3, 200)
+
+		const event = provider.logs.find((entry) => entry.event === "task.mcp_notification_dropped")
+		assert.ok(event)
+		assert.strictEqual(event?.properties?.serverName, "server-a")
+		assert.strictEqual(event?.properties?.droppedCount, 3)
+		assert.strictEqual(event?.properties?.retainedCount, 200)
+	})
+
+	it("captureMcpErrorTruncated emits an MCP error truncation telemetry event", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureMcpErrorTruncated("server-b", 40000, 32000)
+
+		const event = provider.logs.find((entry) => entry.event === "task.mcp_error_truncated")
+		assert.ok(event)
+		assert.strictEqual(event?.properties?.serverName, "server-b")
+		assert.strictEqual(event?.properties?.originalLength, 40000)
+		assert.strictEqual(event?.properties?.retainedLength, 32000)
+	})
+
 	it("captureConversationTurnEvent emits counters with cache and cost", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)

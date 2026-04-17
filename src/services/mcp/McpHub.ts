@@ -624,12 +624,20 @@ export class McpHub {
 					} else {
 						// Fallback: store for later retrieval
 						//Logger.log(`[MCP Debug] No active task, storing notification: ${message}`)
-						this.pendingNotifications = enqueuePendingMcpNotification(this.pendingNotifications, {
+						const enqueueResult = enqueuePendingMcpNotification(this.pendingNotifications, {
 							serverName: name,
 							level,
 							message,
 							timestamp: Date.now(),
 						})
+						this.pendingNotifications = enqueueResult.queue
+						if (enqueueResult.droppedCount > 0) {
+							this.telemetryService.captureMcpNotificationDropped(
+								name,
+								enqueueResult.droppedCount,
+								this.pendingNotifications.length,
+							)
+						}
 					}
 				})
 				//Logger.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
@@ -666,7 +674,15 @@ export class McpHub {
 	}
 
 	private appendErrorMessage(connection: McpConnection, error: string) {
-		connection.server.error = appendBoundedMcpError(connection.server.error, error)
+		const appendResult = appendBoundedMcpError(connection.server.error, error)
+		connection.server.error = appendResult.value
+		if (appendResult.truncated) {
+			this.telemetryService.captureMcpErrorTruncated(
+				connection.server.name,
+				appendResult.originalLength,
+				appendResult.retainedLength,
+			)
+		}
 	}
 
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {

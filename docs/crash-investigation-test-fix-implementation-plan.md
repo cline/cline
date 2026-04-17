@@ -521,9 +521,9 @@ This workstream targets the MCP subsystem as a long-running background source of
 
 #### Likely fixes
 
-- [ ] cap `pendingNotifications` queue length,
-- [ ] cap or summarize accumulated error strings,
-- [ ] add telemetry when truncation/drop occurs,
+- [x] cap `pendingNotifications` queue length,
+- [x] cap or summarize accumulated error strings,
+- [x] add telemetry when truncation/drop occurs,
 - [ ] ensure watchers are removed deterministically.
 
 ---
@@ -806,8 +806,8 @@ Add limits for:
 - [x] maximum single-line size for file-edit tools,
 - [x] maximum patch-search block size,
 - [x] maximum state snapshot size warning threshold,
-- [ ] maximum MCP notification backlog length,
-- [ ] maximum accumulated server error text length.
+- [x] maximum MCP notification backlog length,
+- [x] maximum accumulated server error text length.
 
 Each limit should:
 

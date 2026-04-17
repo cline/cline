@@ -9,28 +9,58 @@ export interface PendingMcpNotification {
 	timestamp: number
 }
 
+export interface PendingMcpNotificationEnqueueResult {
+	queue: PendingMcpNotification[]
+	droppedCount: number
+}
+
+export interface BoundedMcpErrorResult {
+	value: string
+	truncated: boolean
+	originalLength: number
+	retainedLength: number
+}
+
 export function enqueuePendingMcpNotification(
 	queue: PendingMcpNotification[],
 	notification: PendingMcpNotification,
 	maxNotifications: number = MAX_PENDING_MCP_NOTIFICATIONS,
-): PendingMcpNotification[] {
+): PendingMcpNotificationEnqueueResult {
 	const nextQueue = [...queue, notification]
 	if (nextQueue.length <= maxNotifications) {
-		return nextQueue
+		return {
+			queue: nextQueue,
+			droppedCount: 0,
+		}
 	}
-	return nextQueue.slice(nextQueue.length - maxNotifications)
+	const droppedCount = nextQueue.length - maxNotifications
+	return {
+		queue: nextQueue.slice(nextQueue.length - maxNotifications),
+		droppedCount,
+	}
 }
 
 export function appendBoundedMcpError(
 	existingError: string | undefined,
 	newError: string,
 	maxChars: number = MAX_MCP_SERVER_ERROR_CHARS,
-): string {
+): BoundedMcpErrorResult {
 	const combined = existingError ? `${existingError}\n${newError}` : newError
 	if (combined.length <= maxChars) {
-		return combined
+		return {
+			value: combined,
+			truncated: false,
+			originalLength: combined.length,
+			retainedLength: combined.length,
+		}
 	}
 
 	const tailBudget = Math.max(0, maxChars - MCP_ERROR_TRUNCATION_MARKER.length)
-	return `${MCP_ERROR_TRUNCATION_MARKER}${combined.slice(-tailBudget)}`
+	const value = `${MCP_ERROR_TRUNCATION_MARKER}${combined.slice(-tailBudget)}`
+	return {
+		value,
+		truncated: true,
+		originalLength: combined.length,
+		retainedLength: value.length,
+	}
 }

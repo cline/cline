@@ -248,6 +248,10 @@ export class TelemetryService {
 			TOOL_USED: "task.tool_used",
 			// Tracks when MCP tools are used
 			MCP_TOOL_CALLED: "task.mcp_tool_called",
+			// Tracks when bounded MCP notification queues drop older entries
+			MCP_NOTIFICATION_DROPPED: "task.mcp_notification_dropped",
+			// Tracks when accumulated MCP server error text is truncated to stay within budget
+			MCP_ERROR_TRUNCATED: "task.mcp_error_truncated",
 			// Tracks when a historical task is loaded from storage
 			HISTORICAL_LOADED: "task.historical_loaded",
 			// Tracks when the retry button is clicked for failed operations
@@ -1085,6 +1089,28 @@ export class TelemetryService {
 				errorMessage,
 				argumentKeys,
 				isNativeToolCall,
+			},
+		})
+	}
+
+	public captureMcpNotificationDropped(serverName: string, droppedCount: number, retainedCount: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_NOTIFICATION_DROPPED,
+			properties: {
+				serverName,
+				droppedCount,
+				retainedCount,
+			},
+		})
+	}
+
+	public captureMcpErrorTruncated(serverName: string, originalLength: number, retainedLength: number) {
+		this.capture({
+			event: TelemetryService.EVENTS.TASK.MCP_ERROR_TRUNCATED,
+			properties: {
+				serverName,
+				originalLength,
+				retainedLength,
 			},
 		})
 	}

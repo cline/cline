@@ -23,17 +23,19 @@ describe("mcp limits", () => {
 			timestamp: 999,
 		})
 
-		assert.equal(updated.length, MAX_PENDING_MCP_NOTIFICATIONS)
-		assert.equal(updated[0]?.serverName, "server-1")
-		assert.equal(updated.at(-1)?.serverName, "server-new")
+		assert.equal(updated.queue.length, MAX_PENDING_MCP_NOTIFICATIONS)
+		assert.equal(updated.droppedCount, 1)
+		assert.equal(updated.queue[0]?.serverName, "server-1")
+		assert.equal(updated.queue.at(-1)?.serverName, "server-new")
 	})
 
 	it("keeps accumulated MCP server error text within the configured budget", () => {
 		const existing = "a".repeat(MAX_MCP_SERVER_ERROR_CHARS - 10)
 		const appended = appendBoundedMcpError(existing, "b".repeat(100))
 
-		assert.ok(appended.length <= MAX_MCP_SERVER_ERROR_CHARS)
-		assert.ok(appended.includes("truncated"))
-		assert.ok(appended.endsWith("b".repeat(100).slice(-Math.min(100, appended.length))))
+		assert.ok(appended.value.length <= MAX_MCP_SERVER_ERROR_CHARS)
+		assert.equal(appended.truncated, true)
+		assert.ok(appended.value.includes("truncated"))
+		assert.ok(appended.value.endsWith("b".repeat(100).slice(-Math.min(100, appended.value.length))))
 	})
 })
