@@ -294,7 +294,7 @@ Start with pure or nearly pure code where failures are cheap to reproduce.
 
 - [x] Huge single-line SEARCH/REPLACE blocks
 - [x] Very large near-match contexts that trigger similarity fallback
-- [ ] Many repeated chunks in one patch
+- [x] Many repeated chunks in one patch
 - [ ] Out-of-order replacement edge cases
 - [x] Pathological line lengths
 - [ ] Empty-search whole-file replace behavior under huge content

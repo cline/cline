@@ -13,6 +13,38 @@ function makeRepeatedFile(lineCount: number, payloadWidth: number): string {
 }
 
 describe("PatchParser stress", () => {
+	it("parses many repeated exact-match chunks in a single patch without stalling", async function () {
+		this.timeout(10_000)
+
+		const chunkCount = 120
+		const original = Array.from({ length: chunkCount }, (_, i) => {
+			return [`function block${i}() {`, `  old${i}()`, `}`].join("\n")
+		}).join("\n")
+
+		const patchLines = [
+			"*** Begin Patch",
+			"*** Update File: stress.ts",
+			...Array.from({ length: chunkCount }, (_, i) => [
+				"@@",
+				` function block${i}() {`,
+				`-  old${i}()`,
+				`+  new${i}()`,
+				" }",
+			]).flat(),
+			"*** End Patch",
+		]
+
+		const measured = await measureAsyncOperation("PatchParser repeated chunk stress", async () => {
+			const parser = new PatchParser(patchLines, { "stress.ts": original })
+			return parser.parse()
+		})
+
+		expect(measured.durationMs).to.be.lessThan(2_000)
+		expect(measured.result.patch.actions["stress.ts"]?.type).to.equal(PatchActionType.UPDATE)
+		expect(measured.result.patch.actions["stress.ts"]?.chunks).to.have.lengthOf(chunkCount)
+		expect(measured.result.patch.warnings).to.be.undefined
+	})
+
 	it("handles large near-match contexts without failing while reporting fuzzy matches", async function () {
 		this.timeout(10_000)
 
