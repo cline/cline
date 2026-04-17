@@ -52,6 +52,21 @@ export interface MeasuredAsyncOperation<TResult> {
 	diff: ProcessResourceDiff
 }
 
+export interface StressFailureReport {
+	label: string
+	timestampMs: number
+	durationMs: number
+	before: ProcessResourceSnapshot
+	after: ProcessResourceSnapshot
+	diff: ProcessResourceDiff
+	error?: {
+		name: string
+		message: string
+	}
+	eventLoopLag?: EventLoopLagStats
+	annotations?: Record<string, string | number | boolean>
+}
+
 function toMemorySnapshot(memoryUsage: NodeJS.MemoryUsage): MemorySnapshot {
 	return {
 		heapUsed: memoryUsage.heapUsed,
@@ -192,5 +207,34 @@ export async function measureAsyncOperation<TResult>(
 		before,
 		after,
 		diff: diffProcessResourceSnapshots(before, after),
+	}
+}
+
+export function createStressFailureReport<TResult>(
+	measured: MeasuredAsyncOperation<TResult>,
+	options?: {
+		error?: unknown
+		eventLoopLag?: EventLoopLagStats
+		annotations?: Record<string, string | number | boolean>
+	},
+): StressFailureReport {
+	const error = options?.error
+	const normalizedError = error
+		? {
+				name: error instanceof Error ? error.name : "UnknownError",
+				message: error instanceof Error ? error.message : String(error),
+			}
+		: undefined
+
+	return {
+		label: measured.label,
+		timestampMs: measured.after.timestampMs,
+		durationMs: measured.durationMs,
+		before: measured.before,
+		after: measured.after,
+		diff: measured.diff,
+		error: normalizedError,
+		eventLoopLag: options?.eventLoopLag,
+		annotations: options?.annotations,
 	}
 }

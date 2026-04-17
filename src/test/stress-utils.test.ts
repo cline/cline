@@ -2,6 +2,7 @@ import { describe, it } from "mocha"
 import "should"
 import {
 	assertUtf8ByteBudget,
+	createStressFailureReport,
 	diffProcessResourceSnapshots,
 	measureAsyncOperation,
 	measureUtf8Bytes,
@@ -86,5 +87,36 @@ describe("stress-utils", () => {
 		stats.p50Ms.should.be.greaterThanOrEqual(0)
 		stats.p95Ms.should.be.greaterThanOrEqual(0)
 		stats.p99Ms.should.be.greaterThanOrEqual(0)
+	})
+
+	it("createStressFailureReport should produce a stable structured failure payload", async function () {
+		this.timeout(5000)
+
+		const measured = await measureAsyncOperation("failing operation", async () => 42)
+		const report = createStressFailureReport(measured, {
+			error: new Error("boom"),
+			annotations: {
+				testCase: "stress-utils",
+				iteration: 1,
+			},
+		})
+
+		report.label.should.equal("failing operation")
+		report.timestampMs.should.equal(measured.after.timestampMs)
+		report.durationMs.should.equal(measured.durationMs)
+		report.before.should.deepEqual(measured.before)
+		report.after.should.deepEqual(measured.after)
+		report.diff.should.deepEqual(measured.diff)
+		report.error.should.deepEqual({ name: "Error", message: "boom" })
+		report.annotations.should.deepEqual({ testCase: "stress-utils", iteration: 1 })
+	})
+
+	it("createStressFailureReport should normalize non-Error failures", async function () {
+		this.timeout(5000)
+
+		const measured = await measureAsyncOperation("string failure", async () => "ok")
+		const report = createStressFailureReport(measured, { error: "plain failure" })
+
+		report.error.should.deepEqual({ name: "UnknownError", message: "plain failure" })
 	})
 })

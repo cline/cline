@@ -235,7 +235,7 @@ Before writing many candidate-specific tests, add shared instrumentation so fail
   - [x] payload byte-size assertions
 - [x] Add helpers for running specific tests with reduced Node heap settings.
 - [x] Add a test convention for resource-budget assertions.
-- [ ] Add a standard failure report shape for stress tests.
+- [x] Add a standard failure report shape for stress tests.
 
 #### Why this matters
 
