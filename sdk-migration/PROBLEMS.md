@@ -554,6 +554,13 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Fix**: Not yet attempted. Likely needs to be fixed alongside S6-31 — ensuring the session restart properly resets all state flags and the webview receives a clean state update that enables New Task and Delete buttons.
 - **Verification**: Debug harness test: (1) Send "Say hello" (2) Toggle an MCP server (3) Verify "New Task" button is clickable and delete button is enabled
 
+### S6-33: Insufficient credits shows raw error text instead of buy-credits UI
+- **Status**: 🔴 Blocker
+- **Description**: When attempting inference with no credits (negative balance), the chat displays the raw error text "Insufficient balance. Your Cline Credits balance is $-0.14" followed by "Thinking..." that spins forever. The classic extension shows an interactive error state with buttons to buy credits, switch providers, etc. The SDK error is displayed as plain text with no actionable UI.
+- **Root cause**: The SDK throws an error (or emits an error event) when the API returns a 402/insufficient-balance response. The `SdkController` or message translator doesn't distinguish this error type from generic API errors. In the classic extension, `attemptApiRequest()` catches balance errors specifically and emits `ask: "api_req_failed"` with structured error info that the webview's `ChatRow.tsx` renders with buy-credits buttons and provider-switching options. The SDK adapter just displays the error text as a `say: "error"` message, which has no interactive UI.
+- **Fix**: Not yet attempted. The error handler in `SdkController` (or the message translator's error event handler) needs to detect insufficient-balance errors (check for 402 status, "insufficient balance" text, or SDK-specific error types) and emit `ask: "api_req_failed"` with the appropriate structured payload that the webview expects for rendering the buy-credits UI.
+- **Verification**: Log in with an account that has no credits, attempt inference, verify the buy-credits buttons and provider-switch options appear instead of raw error text.
+
 <!-- Template:
 ### [ID] Title
 - **Status**: 🔴/🟡/🔵/🟢
