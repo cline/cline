@@ -271,8 +271,8 @@ Each candidate should include:
 
 - [x] Create the initial crash-candidate matrix.
 - [x] Seed it with the currently known candidates from this document.
-- [ ] Add owner/severity/status columns if the team will actively manage it.
-- [ ] Keep it updated as each candidate moves from “suspected” to “confirmed”, “fixed”, or “not reproducible”.
+- [x] Add owner/severity/status columns if the team will actively manage it.
+- [x] Keep it updated as each candidate moves from “suspected” to “confirmed”, “fixed”, or “not reproducible”.
 
 #### Why this matters
 
@@ -589,10 +589,10 @@ The controller builds a state object containing the full `clineMessages` array, 
 
 **Test plan**
 
-- [ ] seed a synthetic task with very large `clineMessages`
-- [ ] repeatedly post state
-- [ ] measure payload size, time, and memory
-- [ ] assert state-update budget
+- [x] seed a synthetic task with very large `clineMessages`
+- [x] repeatedly post state
+- [x] measure payload size, time, and memory
+- [x] assert state-update budget
 
 **Likely fix direction**
 
@@ -615,9 +615,9 @@ Every add/update/delete in `MessageStateHandler` can trigger full message persis
 
 **Test plan**
 
-- [ ] benchmark repeated mutations as message counts grow
-- [ ] assert that latency growth stays below acceptable threshold
-- [ ] run under reduced heap
+- [x] benchmark repeated mutations as message counts grow
+- [x] assert that latency growth stays below acceptable threshold
+- [x] run under reduced heap
 
 **Likely fix direction**
 
@@ -742,9 +742,9 @@ Not all async cleanup appears to be awaited during task abort, and several subsy
 
 **Test plan**
 
-- [ ] repeated task create/cancel loops
-- [ ] track watchers/handles before and after
-- [ ] assert stable cleanup baseline
+- [x] repeated task create/cancel loops
+- [x] track watchers/handles before and after
+- [x] assert stable cleanup baseline
 
 **Likely fix direction**
 
