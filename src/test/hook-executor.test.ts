@@ -6,6 +6,7 @@ import * as path from "path"
 import * as sinon from "sinon"
 import { hookFileName } from "../core/hooks/__tests__/test-utils"
 import { HookDiscoveryCache } from "../core/hooks/HookDiscoveryCache"
+import { HookProcessRegistry } from "../core/hooks/HookProcessRegistry"
 import { executeHook } from "../core/hooks/hook-executor"
 import { StateManager } from "../core/storage/StateManager"
 import { MessageStateHandler } from "../core/task/message-state"
@@ -68,6 +69,7 @@ setTimeout(() => {
 		// Reset the hook discovery cache before each test
 		// This ensures tests get a fresh cache and can discover newly created hooks
 		HookDiscoveryCache.resetForTesting()
+		HookProcessRegistry.resetForTesting()
 
 		// Create temporary directory for test hooks
 		baseTempDir = await fs.mkdtemp(path.join(os.tmpdir(), "hook-test-"))
@@ -90,6 +92,9 @@ setTimeout(() => {
 	})
 
 	afterEach(async () => {
+		await HookProcessRegistry.terminateAll()
+		HookProcessRegistry.resetForTesting()
+
 		// Clean up temporary directory (including entire base directory)
 		try {
 			await fs.rm(baseTempDir, { recursive: true, force: true })
@@ -244,6 +249,9 @@ setTimeout(() => {
 			let capturedAbortController: AbortController | null = null
 			let setHookCalled = false
 			let clearHookCalled = false
+			let activeCountDuringExecution = 0
+
+			HookProcessRegistry.getActiveCount().should.equal(0)
 
 			const result = await executeHook({
 				hookName: "TaskStart",
@@ -264,6 +272,7 @@ setTimeout(() => {
 					// Give the spawned hook process enough time to become fully active,
 					// especially on slower Windows/PowerShell CI runners, before aborting.
 					setTimeout(() => {
+						activeCountDuringExecution = Math.max(activeCountDuringExecution, HookProcessRegistry.getActiveCount())
 						capturedAbortController?.abort()
 					}, abortDelayMs)
 				},
@@ -280,6 +289,8 @@ setTimeout(() => {
 			setHookCalled.should.equal(true)
 			// clearHookCalled should be true after abort
 			clearHookCalled.should.equal(true)
+			activeCountDuringExecution.should.be.greaterThanOrEqual(1)
+			HookProcessRegistry.getActiveCount().should.equal(0)
 		})
 
 		it("should not allow cancellation for non-cancellable hooks", async function () {
@@ -444,7 +455,7 @@ setTimeout(() => {
 			// Should have at least one hook message
 			messages.length.should.be.greaterThan(0)
 			const hookMessage = messages.find((m) => m.say === "hook_status")
-			should.exist(hookMessage)
+			hookMessage.should.not.equal(undefined)
 		})
 
 		it("should update hook message to completed status on success", async function () {
