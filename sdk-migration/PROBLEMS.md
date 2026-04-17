@@ -542,10 +542,17 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 
 ### S6-31: Conversation history lost after MCP tool changes (session recreated)
 - **Status**: 🔴 Blocker
-- **Description**: After MCP tool changes (e.g., enabling/disabling an MCP server), the SDK session is recreated and the agent loses all prior conversation history. For example: say "hello" → toggle an MCP tool (triggers session recreation) → ask the agent what the first message was — it has no knowledge of the "hello" message.
+- **Description**: After MCP tool changes (e.g., enabling/disabling an MCP server), the SDK session is recreated and the agent loses all prior conversation history. For example: say "hello" → toggle an MCP tool (triggers session recreation) → ask the agent what the first thing we said to it was — it has no knowledge of the "hello" message.
 - **Root cause**: Likely `restartSessionForMcpTools()` in `SdkController.ts` creates a brand new session without carrying over the prior conversation history / messages from the previous session. The classic extension preserved conversation context across MCP reloads because it only rebuilt the tool list without recreating the session. The SDK adapter may be calling `sessionManager.start()` (new session) instead of updating tools on the existing session.
 - **Fix**: Not yet attempted. Needs investigation into whether the SDK supports hot-reloading tools on an existing session (check `update()` or `send()` with updated config), or whether we need to pass `initialMessages` from the previous session when starting a new one.
 - **Verification**: Debug harness test: (1) Send "Say hello briefly" (2) Toggle an MCP server (3) Send "What was the first thing I said?" — agent should recall "hello"
+
+### S6-32: "New Task" button and task delete disabled after MCP tool change
+- **Status**: 🔴 Blocker
+- **Description**: After an MCP tool change (e.g., toggling a server), the "New Task" button stops working and the current task's "Delete" button becomes disabled. The UI appears stuck in a state where the user cannot start a new task or delete the current one.
+- **Root cause**: Likely related to S6-31 — `restartSessionForMcpTools()` recreates the session but may leave the webview state in an inconsistent condition. The task proxy or state flags (e.g., `isStreaming`, `taskStatus`) may not be properly reset after the session restart, causing the webview to think a task is still in progress (disabling New Task) and that the current task cannot be deleted. The `completion_result` ask message emitted after restart may not fully reset the webview's button states.
+- **Fix**: Not yet attempted. Likely needs to be fixed alongside S6-31 — ensuring the session restart properly resets all state flags and the webview receives a clean state update that enables New Task and Delete buttons.
+- **Verification**: Debug harness test: (1) Send "Say hello" (2) Toggle an MCP server (3) Verify "New Task" button is clickable and delete button is enabled
 
 <!-- Template:
 ### [ID] Title
