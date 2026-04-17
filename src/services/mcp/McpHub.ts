@@ -685,6 +685,28 @@ export class McpHub {
 		}
 	}
 
+	private dispatchOrQueueNotification(serverName: string, level: string, message: string): void {
+		if (this.notificationCallback) {
+			this.notificationCallback(serverName, level, message)
+			return
+		}
+
+		const enqueueResult = enqueuePendingMcpNotification(this.pendingNotifications, {
+			serverName,
+			level,
+			message,
+			timestamp: Date.now(),
+		})
+		this.pendingNotifications = enqueueResult.queue
+		if (enqueueResult.droppedCount > 0) {
+			this.telemetryService.captureMcpNotificationDropped(
+				serverName,
+				enqueueResult.droppedCount,
+				this.pendingNotifications.length,
+			)
+		}
+	}
+
 	private async fetchToolsList(serverName: string): Promise<McpTool[]> {
 		try {
 			const connection = this.connections.find((conn) => conn.server.name === serverName)
@@ -1592,6 +1614,12 @@ export class McpHub {
 	 */
 	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
 		this.notificationCallback = callback
+		if (this.pendingNotifications.length > 0) {
+			const notifications = this.getPendingNotifications()
+			for (const notification of notifications) {
+				callback(notification.serverName, notification.level, notification.message)
+			}
+		}
 		//Logger.log("[MCP Debug] Notification callback set")
 	}
 

@@ -82,4 +82,45 @@ describe("mcp limits", () => {
 			assert.equal(hub.fileWatchers.size, 0)
 		}
 	})
+
+	it("bounds noisy queued notifications and flushes them when a task callback is registered", () => {
+		const droppedEvents: Array<{ serverName: string; droppedCount: number; retainedCount: number }> = []
+		const hub = Object.create(McpHub.prototype) as McpHub & {
+			pendingNotifications: Array<{ serverName: string; level: string; message: string; timestamp: number }>
+			notificationCallback?: (serverName: string, level: string, message: string) => void
+			telemetryService: {
+				captureMcpNotificationDropped: (serverName: string, droppedCount: number, retainedCount: number) => void
+			}
+		}
+
+		hub.pendingNotifications = []
+		hub.notificationCallback = undefined
+		hub.telemetryService = {
+			captureMcpNotificationDropped: (serverName, droppedCount, retainedCount) => {
+				droppedEvents.push({ serverName, droppedCount, retainedCount })
+			},
+		}
+
+		for (let i = 0; i < MAX_PENDING_MCP_NOTIFICATIONS + 3; i++) {
+			;(hub as any).dispatchOrQueueNotification("server-a", "info", `message-${i}`)
+		}
+
+		assert.equal(hub.pendingNotifications.length, MAX_PENDING_MCP_NOTIFICATIONS)
+		assert.equal(hub.pendingNotifications[0]?.message, "message-3")
+		assert.equal(droppedEvents.length, 3)
+
+		const delivered: string[] = []
+		hub.setNotificationCallback((_serverName, _level, message) => {
+			delivered.push(message)
+		})
+
+		assert.equal(hub.pendingNotifications.length, 0)
+		assert.deepEqual(
+			delivered,
+			Array.from({ length: MAX_PENDING_MCP_NOTIFICATIONS }, (_, i) => `message-${i + 3}`),
+		)
+
+		;(hub as any).dispatchOrQueueNotification("server-a", "warning", "live-message")
+		assert.deepEqual(delivered.at(-1), "live-message")
+	})
 })

@@ -514,7 +514,7 @@ This workstream targets the MCP subsystem as a long-running background source of
 
 #### What to test
 
-- [ ] noisy notification stream with no active task callback
+- [x] noisy notification stream with no active task callback
 - [ ] repeated server stderr/error output
 - [ ] repeated MCP settings file changes
 - [ ] repeated server restart cycles
@@ -713,8 +713,8 @@ Notifications are stored when no task callback is attached, and the storage queu
 
 **Test plan**
 
-- [ ] simulate noisy server with no active task
-- [ ] assert queue length and memory do not grow without bound
+- [x] simulate noisy server with no active task
+- [x] assert queue length and memory do not grow without bound
 
 **Likely fix direction**
 
