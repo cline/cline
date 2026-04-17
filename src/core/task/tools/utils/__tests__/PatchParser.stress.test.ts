@@ -3,7 +3,7 @@ import { expect } from "chai"
 import { describe, it } from "mocha"
 import { PatchActionType } from "@/shared/Patch"
 import { measureAsyncOperation } from "@/test/stress-utils"
-import { MAX_PATCH_SEARCH_LINE_BYTES, PatchParser } from "../PatchParser"
+import { MAX_PARTIAL_MATCH_WORK_UNITS, MAX_PATCH_SEARCH_LINE_BYTES, PatchParser } from "../PatchParser"
 
 function makeRepeatedFile(lineCount: number, payloadWidth: number): string {
 	return Array.from({ length: lineCount }, (_, i) => {
@@ -105,5 +105,32 @@ describe("PatchParser stress", () => {
 			expect(error).to.be.instanceOf(Error)
 			expect((error as Error).message).to.match(/contains a line that is too large/)
 		}
+	})
+
+	it("skips expensive partial matching on giant repeated contexts without stalling", async function () {
+		this.timeout(10_000)
+
+		const original = Array.from({ length: 3_000 }, (_, i) => `const row${i} = repeatedValue(${i})`).join("\n")
+		const patchLines = [
+			"*** Begin Patch",
+			"*** Update File: stress.ts",
+			"@@",
+			...Array.from({ length: 64 }, (_, i) => ` const row${i} = repeatedVALUE(${i})`),
+			"-const row64 = repeatedVALUE(64)",
+			"+const row64 = updatedValue(64)",
+			"*** End Patch",
+		]
+
+		const parser = new PatchParser(patchLines, { "stress.ts": original })
+		const startedAt = performance.now()
+		const result = parser.parse()
+		const durationMs = performance.now() - startedAt
+
+		expect((3_000 - 65 + 1) * 65).to.be.greaterThan(MAX_PARTIAL_MATCH_WORK_UNITS)
+		expect(durationMs).to.be.lessThan(1_000)
+		expect(result.patch.actions["stress.ts"]?.type).to.equal(PatchActionType.UPDATE)
+		expect(result.patch.actions["stress.ts"]?.chunks).to.have.lengthOf(0)
+		expect(result.patch.warnings).to.have.lengthOf(1)
+		expect(result.patch.warnings?.[0]?.message).to.match(/Could not find matching context/)
 	})
 })

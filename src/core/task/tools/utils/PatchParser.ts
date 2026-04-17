@@ -216,6 +216,7 @@ export class PatchParser {
 export const MAX_PATCH_SEARCH_BLOCK_BYTES = 256 * 1024
 export const MAX_PATCH_SEARCH_LINE_BYTES = 200 * 1024
 const MAX_LEVENSHTEIN_SIMILARITY_CHARS = 512
+export const MAX_PARTIAL_MATCH_WORK_UNITS = 50_000
 
 function getUtf8ByteLength(value: string): number {
 	return Buffer.byteLength(value, "utf8")
@@ -361,6 +362,7 @@ function findContext(lines: string[], context: string[], start: number, eof: boo
 	const fullyTrimmedContextLines = canonicalContextLines.map((line) => line.trim())
 	const canonicalContext = canonicalContextLines.join("\n")
 	const maxStartIndex = lines.length - context.length
+	const partialMatchWorkUnits = (maxStartIndex + 1) * Math.max(context.length, 1)
 
 	const findCore = (startIdx: number): [number, number, number] => {
 		const boundedStartIdx = Math.min(Math.max(0, startIdx), maxStartIndex)
@@ -386,17 +388,19 @@ function findContext(lines: string[], context: string[], start: number, eof: boo
 		}
 
 		// Pass 4: Partial matching with similarity threshold (66% match = 2/3 lines)
-		const SIMILARITY_THRESHOLD = 0.66
-		for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
-			const similarity =
-				canonicalContext.length > MAX_LEVENSHTEIN_SIMILARITY_CHARS
-					? windowLineSimilarityAt(canonicalLines, canonicalContextLines, i)
-					: calculateSimilarity(canonicalLines.slice(i, i + context.length).join("\n"), canonicalContext)
-			if (similarity >= SIMILARITY_THRESHOLD) {
-				return [i, 1000, similarity]
-			}
-			if (similarity > bestSimilarity) {
-				bestSimilarity = similarity
+		if (partialMatchWorkUnits <= MAX_PARTIAL_MATCH_WORK_UNITS) {
+			const SIMILARITY_THRESHOLD = 0.66
+			for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
+				const similarity =
+					canonicalContext.length > MAX_LEVENSHTEIN_SIMILARITY_CHARS
+						? windowLineSimilarityAt(canonicalLines, canonicalContextLines, i)
+						: calculateSimilarity(canonicalLines.slice(i, i + context.length).join("\n"), canonicalContext)
+				if (similarity >= SIMILARITY_THRESHOLD) {
+					return [i, 1000, similarity]
+				}
+				if (similarity > bestSimilarity) {
+					bestSimilarity = similarity
+				}
 			}
 		}
 

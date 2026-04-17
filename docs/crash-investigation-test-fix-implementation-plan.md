@@ -293,7 +293,7 @@ Start with pure or nearly pure code where failures are cheap to reproduce.
 #### What to test
 
 - [x] Huge single-line SEARCH/REPLACE blocks
-- [ ] Very large near-match contexts that trigger similarity fallback
+- [x] Very large near-match contexts that trigger similarity fallback
 - [ ] Many repeated chunks in one patch
 - [ ] Out-of-order replacement edge cases
 - [x] Pathological line lengths
@@ -311,7 +311,7 @@ Start with pure or nearly pure code where failures are cheap to reproduce.
 
 - [x] Add explicit maximum search block size.
 - [x] Add maximum line-length guardrails.
-- [ ] Disable Levenshtein fallback above safe thresholds.
+- [x] Disable expensive partial-similarity fallback above safe work thresholds.
 - [ ] Replace quadratic similarity checks with cheaper heuristics.
 - [x] Fail fast with clear error messages instead of trying to process absurdly large patches.
 
