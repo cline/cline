@@ -51,3 +51,4 @@ site/
 python/cache/
 **/__pycache__/
 **/*.pyc
+docs/TEST_PROMPTS.md
