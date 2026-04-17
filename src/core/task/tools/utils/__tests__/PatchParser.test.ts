@@ -1244,5 +1244,34 @@ describe("PatchParser", () => {
 			// Should have 1 warning for skipped chunk
 			expect(result.patch.warnings).to.have.lengthOf(1)
 		})
+
+		it("should warn clearly when chunks appear out of file order", () => {
+			const patchLines = [
+				"*** Begin Patch",
+				"*** Update File: test.ts",
+				"@@",
+				" function second() {",
+				"-  old2()",
+				"+  new2()",
+				" }",
+				"@@",
+				" function first() {",
+				"-  old1()",
+				"+  new1()",
+				" }",
+				"*** End Patch",
+			]
+
+			const parser = new PatchParser(patchLines, {
+				"test.ts": "function first() {\n  old1()\n}\nfunction second() {\n  old2()\n}",
+			})
+			const result = parser.parse()
+
+			expect(result.patch.actions["test.ts"]).to.exist
+			expect(result.patch.actions["test.ts"].chunks).to.have.lengthOf(1)
+			expect(result.patch.actions["test.ts"].chunks[0].origIndex).to.equal(4)
+			expect(result.patch.warnings).to.have.lengthOf(1)
+			expect(result.patch.warnings?.[0]?.message).to.match(/chunks may be out of order/i)
+		})
 	})
 })

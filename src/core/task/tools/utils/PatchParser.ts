@@ -370,7 +370,10 @@ function findContext(lines: string[], context: string[], start: number, eof: boo
 	const partialMatchWorkUnits = (maxStartIndex + 1) * Math.max(context.length, 1)
 
 	const findCore = (startIdx: number): [number, number, number] => {
-		const boundedStartIdx = Math.min(Math.max(0, startIdx), maxStartIndex)
+		if (startIdx > maxStartIndex) {
+			return [-1, 0, bestSimilarity]
+		}
+		const boundedStartIdx = Math.max(0, startIdx)
 		// Pass 1: exact equality after canonicalization
 		for (let i = boundedStartIdx; i <= maxStartIndex; i++) {
 			if (matchWindowAt(canonicalLines, canonicalContextLines, i)) {
