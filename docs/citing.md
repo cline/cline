@@ -14,11 +14,11 @@ If you use AI-Hydro in your research, please cite the platform and the underlyin
 
 ```bibtex
 @software{aihydro_extension_2026,
-  title   = {AI-Hydro: An Open Platform for End-to-End AI-Automated
-             Hydrological Research (VS Code Extension)},
+  title   = {AI-Hydro: An Open Platform for Autonomous Hydrological and
+             Earth Science Research},
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},
-  version = {0.1.3},
+  version = {0.1.4},
   doi     = {10.5281/zenodo.19597664},
   url     = {https://doi.org/10.5281/zenodo.19597664},
   license = {Apache-2.0}
@@ -29,7 +29,7 @@ If you use AI-Hydro in your research, please cite the platform and the underlyin
 
 ```bibtex
 @software{aihydro_tools_2026,
-  title   = {aihydro-tools: Python MCP Server for AI-Automated
+  title   = {aihydro-tools: An Open Python MCP Server for Autonomous
              Hydrological Research},
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},

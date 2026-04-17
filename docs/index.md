@@ -23,6 +23,7 @@ hide:
 [View on GitHub](https://github.com/AI-Hydro/AI-Hydro){ .md-button }
 [Read the Architecture](architecture.md){ .md-button }
 [Contribute Plugins](plugins/overview.md){ .md-button }
+[How To Contribute](contributing.md){ .md-button }
 
 </div>
 
@@ -240,6 +241,13 @@ If Codex, Claude Code, and Cursor are becoming operating environments for softwa
 **what would the equivalent look like for hydrology and earth science?**
 
 That is the direction of this project.
+
+If you want to help build it:
+
+- [Contributing guide](contributing.md)
+- [Plugin overview](plugins/overview.md)
+- [AI-Hydro DOI](https://doi.org/10.5281/zenodo.19597664)
+- [aihydro-tools DOI](https://doi.org/10.5281/zenodo.19597589)
 
 ---
 

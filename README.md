@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <em>An open platform for AI-driven research automation in hydrology and geospatial sciences.</em>
+  <em>An open platform for autonomous hydrological and earth science research.</em>
 </p>
 
 <p align="center">
@@ -26,7 +26,7 @@
   <a href="https://github.com/AI-Hydro/AI-Hydro"><strong>GitHub</strong></a> &middot;
   <a href="https://pypi.org/project/aihydro-tools/"><strong>PyPI</strong></a> &middot;
   <a href="https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/"><strong>Quick Start</strong></a> &middot;
-  <a href="https://ai-hydro.github.io/AI-Hydro/tools-reference/"><strong>Tools Reference</strong></a> ·
+  <a href="https://ai-hydro.github.io/AI-Hydro/tools/"><strong>Tools Reference</strong></a> ·
   <a href="https://www.youtube.com/channel/UC8RWDhJm61i2tlV9mt982cw"><strong>YouTube</strong></a> ·
   <a href="https://x.com/aihydro"><strong>X / Twitter</strong></a> ·
   <a href="https://github.com/AI-Hydro/AI-Hydro/issues"><strong>Issues</strong></a>
@@ -92,12 +92,13 @@ sediment_yield  = "my_package.tools:sediment_tool"
 Install the package, restart the server, and those tools are immediately available to every AI model connected to AI-Hydro. We envision a growing ecosystem of community-contributed tools spanning:
 
 - Flood frequency and extreme event analysis
-- Sediment transport and geomorphology
 - Groundwater modelling and well analysis
-- Remote sensing and land surface classification
 - Water quality and nutrient cycling
 - Snow hydrology and glaciology
-- Irrigation scheduling and water resources management
+- Hydraulic modelling and flood mapping
+- Remote sensing-derived hydrology workflows
+
+See the [Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/) to contribute a tool or knowledge plugin, or go directly to the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) for the full contribution workflow.
 
 ---
 
@@ -117,7 +118,7 @@ Install the package, restart the server, and those tools are immediately availab
 | **Modelling**    | `get_model_results` — Retrieve cached NSE / KGE / RMSE                                                                  |
 | **Session**      | `start_session`, `get_session_summary`, `clear_session`, `add_note`, `export_session`, `sync_research_context` |
 
-See the [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools-reference/) for full parameters, examples, and return schemas.
+See the [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools/) for full parameters, examples, and return schemas.
 
 ---
 
@@ -297,7 +298,7 @@ Full architecture details: [Architecture](https://ai-hydro.github.io/AI-Hydro/ar
 | ------------------------------------------------- | -------------------------------------- |
 | [Installation Guide](https://ai-hydro.github.io/AI-Hydro/getting-started/installation/) | Platform-specific install guide |
 | [Quick Start](https://ai-hydro.github.io/AI-Hydro/getting-started/quickstart/) | First research session walkthrough |
-| [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools-reference/) | All tools with parameters and examples |
+| [Tools Reference](https://ai-hydro.github.io/AI-Hydro/tools/) | All tools with parameters and examples |
 | [Architecture](https://ai-hydro.github.io/AI-Hydro/architecture/) | System design and data flow |
 | [Contributing](https://ai-hydro.github.io/AI-Hydro/contributing/) | How to contribute |
 
@@ -305,11 +306,11 @@ Full architecture details: [Architecture](https://ai-hydro.github.io/AI-Hydro/ar
 
 ## Contributing Tools
 
-We welcome contributions from the hydrology and geospatial sciences community. There are two paths depending on your goals:
+We welcome contributions from the hydrology and geospatial sciences community. There are three practical contribution tracks, grouped into two implementation routes:
 
 **Path A: Standalone MCP Server** — Build an independent MCP server for a full sub-domain toolkit (flood frequency analysis, hydraulic modelling, etc.). Your server runs as its own process with its own dependencies and gets registered alongside the core `ai-hydro` server. Best for complex toolkits or when you need full dependency isolation.
 
-**Path B: Entry Point Plugin** — Extend the existing `aihydro-tools` server by registering tool functions via Python entry points. Your tools load into the same process with full access to HydroSession, cached data, and shared helpers. Best for single tools or small extensions.
+**Paths B/C: Entry-Point & Knowledge Plugins** — Extend the existing `aihydro-tools` server by registering Python entry points. Path B adds executable tool functions with full HydroSession access; Path C adds knowledge/reference cards that help agents use external scientific libraries correctly. Best for single tools, lightweight extensions, and library-specific guidance.
 
 ```toml
 # Path B — just add this to your pyproject.toml
@@ -319,22 +320,22 @@ my_tool = "my_package.tools:my_tool_function"
 
 Install, restart the server, and your tool is immediately available to every AI model.
 
-See **[Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/)** for complete walkthroughs of both paths, including the data contract, session integration, and testing.
+See **[Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/)** for complete walkthroughs of all three plugin paths, including the data contract, session integration, and testing.
 
-### High-Priority Contribution Areas
+### Priority Contribution Areas
 
-We're actively looking for community tools in these domains:
+We are especially interested in contributions that fit the current platform architecture cleanly and can be exposed as reliable, reproducible tools:
 
 - Flood frequency analysis and extreme event statistics
-- Sediment transport and reservoir sedimentation
 - Groundwater modelling, well analysis, and recharge estimation
-- Remote sensing workflows (MODIS snow cover, Landsat ET, SAR soil moisture)
 - Water quality and nutrient cycling
 - Snow hydrology and glaciology
-- Irrigation scheduling and water resources management
 - Hydraulic modelling and 2D flood mapping
+- Remote sensing-derived hydrology workflows
 
-See the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) for the step-by-step new tool guide and Python-specific development setup.
+Knowledge-plugin contributions are also highly valuable for libraries such as `swmmio`, `hecras`, `nlmod`, `oggm`, `snowpack`, and `pywr`.
+
+See the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) for the step-by-step tool and knowledge-plugin workflow, or open an [issue](https://github.com/AI-Hydro/AI-Hydro/issues) if you want to discuss a contribution idea before implementing it.
 
 ---
 
@@ -342,13 +343,16 @@ See the [Contributing Guide](https://ai-hydro.github.io/AI-Hydro/contributing/) 
 
 If you use AI-Hydro in your research, please cite:
 
+- Extension DOI: [10.5281/zenodo.19597664](https://doi.org/10.5281/zenodo.19597664)
+- Python MCP server DOI: [10.5281/zenodo.19597589](https://doi.org/10.5281/zenodo.19597589)
+
 ```bibtex
 @software{aihydro_extension_2026,
-  title   = {AI-Hydro: An Open Platform for End-to-End AI-Automated
-             Hydrological Research (VS Code Extension)},
+  title   = {AI-Hydro: An Open Platform for Autonomous Hydrological and
+             Earth Science Research},
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},
-  version = {0.1.3},
+  version = {0.1.4},
   doi     = {10.5281/zenodo.19597664},
   url     = {https://doi.org/10.5281/zenodo.19597664}
 }
@@ -358,7 +362,7 @@ For the Python MCP server package, cite:
 
 ```bibtex
 @software{aihydro_tools_2026,
-  title   = {aihydro-tools: Python MCP Server for AI-Automated
+  title   = {aihydro-tools: An Open Python MCP Server for Autonomous
              Hydrological Research},
   author  = {Galib, Mohammad and Merwade, Venkatesh},
   year    = {2026},

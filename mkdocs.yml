@@ -162,7 +162,7 @@ nav:
 
   - Plugins:
     - Overview: plugins/overview.md
-    - Entry-Point Plugin (Path B): plugins/entry-point.md
+    - Entry-Point & Knowledge Plugins (Paths B/C): plugins/entry-point.md
     - Standalone MCP Server (Path A): plugins/standalone-server.md
     - Data Contract: plugins/data-contract.md
 

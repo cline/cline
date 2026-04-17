@@ -1,10 +1,15 @@
 ---
-description: Build an AI-Hydro entry-point plugin in Python. Complete aihydro-snowmelt example with pyproject.toml, tool function, session integration, and PyPI publishing.
+description: Build AI-Hydro entry-point tool plugins and knowledge plugins in Python. Includes complete examples for Path B tool plugins and Path C library reference plugins.
 ---
 
-# Path B: Entry-Point Plugin
+# Paths B/C: Entry-Point & Knowledge Plugins
 
-Register a new tool into the `aihydro-mcp` server process via Python entry points. The simplest path — no separate server, no additional process, full HydroSession access.
+Register new tools or knowledge cards into the `aihydro-mcp` server process via Python entry points. These are the lightest-weight plugin paths: no separate server, no extra process, and automatic discovery on startup.
+
+Use:
+
+- **Path B** when you want to add executable tools
+- **Path C** when you want to add library or workflow knowledge without writing a tool
 
 ---
 

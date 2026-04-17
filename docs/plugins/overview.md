@@ -1,10 +1,12 @@
 ---
-description: Extend AI-Hydro with community hydrology tools. Two plugin paths: Python entry-point plugins and standalone MCP servers. Flood frequency, sediment transport, groundwater, and more.
+description: Extend AI-Hydro with community hydrology tools and knowledge. Three plugin paths: standalone MCP servers, entry-point tool plugins, and knowledge plugins.
 ---
 
 # Plugin Overview
 
-AI-Hydro is a platform, not a closed product. The most impactful contributions are new domain tools — knowledge that currently lives in papers and custom scripts, packaged so any AI agent can discover and use it.
+AI-Hydro is a platform, not a closed product. The most impactful contributions are new domain tools and knowledge layers that make trusted hydrology workflows usable by AI agents.
+
+If you want to contribute a plugin, start here, then continue to the full [Contributing Guide](../contributing.md).
 
 ---
 
@@ -22,25 +24,41 @@ AI-Hydro is a platform, not a closed product. The most impactful contributions a
 
 ---
 
-## High-Priority Contribution Areas
+## Priority Contribution Areas
 
-The following domains have the highest demand from the community and no current built-in tools:
+The best contributions are the ones that map cleanly onto AI-Hydro's current architecture and can be exposed as reliable tools or knowledge cards.
+
+### Strong candidates for tool plugins or standalone servers
 
 - **Flood frequency analysis** — L-moments, GEV fitting, return period estimation
-- **Sediment transport** — rating curves, suspended load, reservoir sedimentation
 - **Groundwater** — well analysis, aquifer characterisation, recharge estimation
-- **Remote sensing** — MODIS snow cover, Landsat ET, SAR soil moisture
 - **Water quality** — nutrient loading, temperature modelling, DO
 - **Snow hydrology** — SWE retrieval, melt modelling, snowpack depletion curves
-- **Irrigation & water resources** — consumptive use, irrigation scheduling, reservoir operations
 - **Hydraulic modelling** — 1D/2D flood mapping, HEC-RAS integration
+- **Remote sensing workflows** — hydrology-relevant retrievals that can be wrapped into clear computational steps
+
+### Strong candidates for knowledge plugins
+
+- `swmmio`
+- `hecras`
+- `nlmod`
+- `oggm`
+- `snowpack`
+- `pywr`
+
+### What makes a contribution especially valuable
+
+- It wraps a method that researchers already trust but agents cannot yet use reliably.
+- It has clear inputs, outputs, units, and provenance expectations.
+- It reduces repeated data wrangling or brittle script glue.
+- It helps agents use existing domain libraries correctly.
 
 ---
 
 ## Getting Started
 
-→ [Path B: Entry-Point Plugin](entry-point.md) — fastest to implement, recommended for single tools
-→ [Path A: Standalone MCP Server](standalone-server.md) — for full toolkits with heavy dependencies
+→ [Paths B/C: Entry-Point & Knowledge Plugins](entry-point.md) — fastest to implement, recommended for single tools or library reference cards  
+→ [Path A: Standalone MCP Server](standalone-server.md) — for full toolkits with heavy dependencies  
 → [Data Contract](data-contract.md) — `HydroResult` / `HydroMeta` spec all tools must follow
 
 ---

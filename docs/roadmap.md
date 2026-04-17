@@ -11,9 +11,9 @@ description: AI-Hydro project roadmap — current beta status, known limitations
 
 ---
 
-## Current Version — v0.1.3
+## Current Version — v0.1.4
 
-**Extension:** v0.1.3 · **Python backend:** aihydro-tools v1.2.1
+**Extension:** v0.1.4 · **Python backend:** aihydro-tools v1.2.1
 
 ### What's stable
 - All 26 built-in MCP tools (analysis, modelling, session, project, literature, persona)
