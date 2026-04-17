@@ -14,6 +14,9 @@ Create or resume a named research project.
 |-----------|------|-------------|
 | `name` | str | Project name (used as directory name) |
 | `description` | str | Optional — project scope and goals |
+| `topics` | list[str] | Optional — topic tags, e.g. `["LSTM", "ungauged basins"]` |
+
+Unlike sessions (which are tied to a specific study), a project can cover any hydrological topic — ungauged basins, remote sensing, global datasets, conceptual work — with no data source required.
 
 ```
 Start a project called "Pacific Northwest Basins" focused on
@@ -24,7 +27,7 @@ snowmelt-driven runoff across Oregon and Washington.
 
 ### `get_project_summary`
 
-Return an overview of the active project: gauges, computation status, journal, and literature index.
+Return an overview of the active project: associated sessions, computation status, journal, and literature index.
 
 ```
 Give me a summary of my New England Basins project.
@@ -32,30 +35,33 @@ Give me a summary of my New England Basins project.
 
 ---
 
-### `add_gauge_to_project`
+### `add_session_to_project`
 
-Associate a USGS gauge's HydroSession with the active project.
+Associate a research session with a project.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `gauge_id` | str | USGS gauge ID to add |
-| `project_name` | str | Optional — defaults to active project |
+| `session_id` | str | Research session identifier (any string) |
+| `project_name` | str | Project name |
+
+Sessions can represent USGS gauges, GRDC stations, ungauged basins, remote-sensing studies, or anything else.
 
 ---
 
 ### `search_experiments`
 
-Full-text search across all gauge sessions in a project.
+Full-text search across all research sessions in a project.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `query` | str | Search terms |
-| `project_name` | str | Optional — defaults to active project |
+| `project_name` | str | Project name |
+| `compare_sessions` | bool | Optional — include a side-by-side metric comparison (default: False) |
 
 ```
-Which gauges in my project have a baseflow index above 0.6?
+Which sessions in my project have a baseflow index above 0.6?
 Show me all basins where I ran the LSTM model.
-Which gauges have missing streamflow data?
+Which sessions have missing streamflow data?
 ```
 
 ---

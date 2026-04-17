@@ -6,17 +6,31 @@ description: Reference for AI-Hydro analysis tools: delineate_watershed, fetch_s
 
 Tools for data retrieval, watershed characterisation, and hydrological analysis.
 
+!!! info "Source-specific vs source-agnostic"
+    **Data tools** (source-specific) fetch from a particular data system and are honest about their limits:
+    `delineate_watershed` (USGS NLDI), `fetch_streamflow_data` (USGS NWIS),
+    `fetch_forcing_data` (GridMET / CONUS only), `extract_camels_attributes` (671 CAMELS-US gauges).
+
+    **Analysis tools** (source-agnostic) work on any data already in the session:
+    `extract_hydrological_signatures`, `extract_geomorphic_parameters`, `compute_twi`, `create_cn_grid`.
+
+    For data not covered by built-in tools (GRDC, CWC, BOM, user CSV, remote sensing), write a Python
+    script via `mcp_python` and store the result in the session with `session.set(slot, data)`.
+
 ---
 
 ## `delineate_watershed`
 
 Delineate the upstream watershed for a USGS gauge using NHDPlus and the USGS NLDI API.
 
+After delineation, the gauge ID is stored in `session.site_id` so all downstream tools resolve it automatically — you do not need to pass `gauge_id` again.
+
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gauge_id` | str | Yes | USGS gauge ID (e.g., `"01031500"`) |
+| `session_id` | str | Yes | Research session identifier — any string (slug, UUID, gauge ID used as shorthand) |
+| `gauge_id` | str | No | 8-digit USGS station number, e.g. `"01031500"`. Resolved from `session.site_id` if omitted. |
 | `workspace_dir` | str | No | Absolute path to workspace — all output files saved here automatically. Pass once; remembered for all subsequent tools. |
 
 **Returns:** Watershed area (km²), gauge coordinates, HUC-02 code, bounding box. Geometry is stored in session and saved to disk — never passed through the LLM context.
@@ -25,14 +39,19 @@ Delineate the upstream watershed for a USGS gauge using NHDPlus and the USGS NLD
 
 | File | Description |
 |------|-------------|
-| `watershed_<id>.geojson` | Full watershed polygon (WGS84) |
-| `watershed_<id>_map.png` | Boundary map with gauge location marker |
+| `watershed_<gauge_id>.geojson` | Full watershed polygon (WGS84) |
+| `watershed_<gauge_id>_map.png` | Boundary map with gauge location marker |
 
 **Data source:** USGS NLDI / NHDPlus via [pynhd](https://hyriver.readthedocs.io/en/latest/pynhd.html)
 
-**Example:**
+**Examples:**
 ```
-Delineate the watershed for gauge 01031500.
+# New study — create a named session
+delineate_watershed('piscataquis-snowmelt-2020', gauge_id='01031500',
+                    workspace_dir='/path/to/workspace')
+
+# gauge ID used directly as session_id (backward compatible)
+delineate_watershed('01031500', workspace_dir='/path/to/workspace')
 ```
 
 ---
@@ -45,9 +64,11 @@ Retrieve daily discharge time series from the USGS National Water Information Sy
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gauge_id` | str | Yes | USGS gauge ID |
-| `start_date` | str | No | ISO date, e.g. `"2000-01-01"` (default: 20 years ago) |
-| `end_date` | str | No | ISO date (default: today) |
+| `session_id` | str | Yes | Research session identifier |
+| `gauge_id` | str | No | 8-digit USGS station number. Resolved from `session.site_id` if omitted (set by `delineate_watershed`). |
+| `start_date` | str | Yes | ISO date, e.g. `"2000-01-01"` |
+| `end_date` | str | Yes | ISO date, e.g. `"2020-12-31"` |
+| `interval` | str | No | `"daily"` (default) or `"hourly"` |
 
 **Returns:** Daily discharge array (m³/s), date range, record count, missing-data statistics.
 
@@ -55,8 +76,8 @@ Retrieve daily discharge time series from the USGS National Water Information Sy
 
 | File | Description |
 |------|-------------|
-| `streamflow_<id>.json` | Full time series with dates and discharge values |
-| `hydrograph_<id>.png` | Daily hydrograph with 30-day rolling mean overlay |
+| `streamflow_<gauge_id>.json` | Full time series with dates and discharge values |
+| `hydrograph_<gauge_id>.png` | Daily hydrograph with 30-day rolling mean overlay |
 
 **Data source:** USGS NWIS via [dataretrieval](https://doi-usgs.github.io/dataretrieval-python/)
 
@@ -64,9 +85,17 @@ Retrieve daily discharge time series from the USGS National Water Information Sy
 
 ## `extract_hydrological_signatures`
 
-Compute 15+ flow statistics from the cached streamflow record.
+Compute 15+ flow statistics from the session's streamflow record.
 
-**Requires:** `fetch_streamflow_data` to have been called first.
+**Requires:** `delineate_watershed` (and ideally `fetch_streamflow_data`) to have been called for this session first.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | str | Yes | Research session identifier |
+| `start_date` | str | No | Analysis start (default: `"1989-10-01"`, CAMELS period) |
+| `end_date` | str | No | Analysis end (default: `"2009-09-30"`, CAMELS period) |
 
 **Signatures returned:**
 
@@ -90,8 +119,8 @@ Compute 15+ flow statistics from the cached streamflow record.
 
 | File | Description |
 |------|-------------|
-| `signatures_<id>.json` | All computed signatures with metadata |
-| `fdc_<id>.png` | Log-scale flow duration curve + signature summary table |
+| `signatures_<session_id>.json` | All computed signatures with metadata |
+| `fdc_<session_id>.png` | Log-scale flow duration curve + signature summary table |
 
 ---
 
@@ -99,7 +128,14 @@ Compute 15+ flow statistics from the cached streamflow record.
 
 Compute 28 basin morphometry metrics from the watershed geometry and DEM.
 
-**Requires:** `delineate_watershed` to have been called first.
+**Requires:** `delineate_watershed` to have been called for this session first.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | str | Yes | Research session identifier |
+| `dem_resolution` | int | No | DEM resolution in metres (default: 30) |
 
 **Selected parameters:**
 
@@ -124,14 +160,17 @@ Compute the Topographic Wetness Index (TWI) raster from the 3DEP DEM.
 
 `TWI = ln(α / tan(β))` where α is specific catchment area and β is local slope.
 
+**Requires:** `delineate_watershed` to have been called for this session first.
+
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gauge_id` | str | Yes | USGS gauge ID |
-| `resolution` | int | No | DEM resolution in metres (default: 10) |
+| `session_id` | str | Yes | Research session identifier |
+| `resolution` | int | No | DEM resolution in metres (default: 30) |
+| `create_map` | bool | No | Generate PNG + interactive HTML map (default: True) |
 
-**Returns:** TWI raster path, mean TWI, standard deviation, high-wetness area fraction.
+**Returns:** TWI statistics (mean, std, percentiles, high-wetness area fraction). Raster and map files written to workspace.
 
 **Data source:** 3DEP via py3dep + [xrspatial](https://xarray-spatial.readthedocs.io/)
 
@@ -141,7 +180,18 @@ Compute the Topographic Wetness Index (TWI) raster from the 3DEP DEM.
 
 Generate a NRCS Curve Number grid by combining NLCD land cover and Polaris soil texture data.
 
-**Returns:** CN raster path, mean CN, area-weighted CN statistics by land cover class.
+**Requires:** `delineate_watershed` to have been called for this session first.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | str | Yes | Research session identifier |
+| `year` | int | No | NLCD land cover year (default: 2019) |
+| `resolution` | int | No | Grid resolution in metres (default: 30) |
+| `create_map` | bool | No | Generate PNG + interactive HTML map (default: True) |
+
+**Returns:** Mean CN, area-weighted CN statistics by land cover class, soil group percentages.
 
 **Data sources:** NLCD (land cover) + Polaris (soil texture) via pygeohydro
 
@@ -149,25 +199,38 @@ Generate a NRCS Curve Number grid by combining NLCD land cover and Polaris soil 
 
 ## `fetch_forcing_data`
 
-Retrieve basin-averaged daily climate data from the GridMET dataset.
+Retrieve basin-averaged daily climate data from the GridMET dataset (CONUS only).
+
+**Requires:** `delineate_watershed` to have been called for this session first.
 
 **Parameters:**
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gauge_id` | str | Yes | USGS gauge ID |
-| `start_date` | str | No | ISO date |
-| `end_date` | str | No | ISO date |
+| `session_id` | str | Yes | Research session identifier |
+| `start_date` | str | Yes | ISO date |
+| `end_date` | str | Yes | ISO date |
+| `variables` | list[str] | No | Subset of GridMET variables (default: all). Options: `pr`, `tmmx`, `tmmn`, `srad`, `vs`, `rmax`, `rmin`, `pet`, `erc` |
 
 **Variables returned:** precipitation, tmax, tmin, reference ET (PET), solar radiation, wind speed, humidity.
 
 **Data source:** [GridMET](https://www.climatologylab.org/gridmet.html) via [pygridmet](https://hyriver.readthedocs.io/en/latest/pygridmet.html)
+
+!!! note
+    GridMET covers the contiguous United States (CONUS) only. For other regions, retrieve forcing data via `mcp_python` using ERA5, MSWEP, or other global datasets and store in the session.
 
 ---
 
 ## `extract_camels_attributes`
 
 Retrieve the full CAMELS-US attribute set for a gauge from the 671-basin benchmark dataset.
+
+**Parameters:**
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `session_id` | str | Yes | Research session identifier |
+| `gauge_id` | str | No | 8-digit USGS station number. Resolved from `session.site_id` if omitted. |
 
 **Returns:** Topographic, climatic, soil, vegetation, hydrological, and geological attributes (~60 variables).
 

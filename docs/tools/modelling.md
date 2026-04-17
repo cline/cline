@@ -20,7 +20,7 @@ For HBV, streamflow is fetched automatically from CAMELS for the 671 CONUS CAMEL
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `gauge_id` | str | — | USGS gauge ID |
+| `session_id` | str | — | Research session identifier |
 | `framework` | str | `"hbv"` | `"hbv"` (differentiable HBV-light) or `"neuralhydrology"` (LSTM) |
 | `model` | str | `"cudalstm"` | NeuralHydrology only: `"cudalstm"`, `"ealstm"`, `"transformer"` |
 | `train_start` | str | `"2000-10-01"` | Training period start (YYYY-MM-DD) |
@@ -84,7 +84,7 @@ Retrieve cached model performance metrics and parameter sets.
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gauge_id` | str | Yes | USGS gauge ID |
+| `session_id` | str | Yes | Research session identifier |
 
 **Returns:**
 
@@ -99,9 +99,9 @@ Retrieve cached model performance metrics and parameter sets.
 
 **Example:**
 ```
-What were the model results for gauge 01031500?
+What were the model results for session piscataquis-2020?
 ```
 
 ```
-Compare model performance across all gauges in my project.
+Compare model performance across all sessions in my project.
 ```

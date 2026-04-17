@@ -1,6 +1,6 @@
 # Session Tools
 
-Tools for managing per-gauge research sessions, exporting results, synchronising context, and discovering available tools.
+Tools for managing research sessions, exporting results, synchronising context, and discovering available tools.
 
 See [Sessions & Provenance](../guide/sessions.md) for a full explanation of how the session system works.
 
@@ -8,18 +8,24 @@ See [Sessions & Provenance](../guide/sessions.md) for a full explanation of how 
 
 ## `start_session`
 
-Initialise or resume a research session for a USGS gauge.
+Initialise or resume a research session.
+
+A session is the persistent memory for a study — it stores all computed results across tool calls and conversations. The `session_id` can be anything meaningful: a slug (`"piscataquis-snowmelt-2020"`), a USGS gauge number used as shorthand (`"01031500"`), a UUID, or any label. If omitted, one is auto-generated (`"hydro-<8hex>"`).
+
+Sessions are completely independent of data source — they store results from USGS tools, CSV data, remote sensing outputs, or anything else.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `gauge_id` | str | USGS gauge ID |
+| `session_id` | str (optional) | Any unique identifier for this study. Auto-generated if omitted. |
 | `workspace_dir` | str (optional) | Absolute path to the VS Code workspace folder |
 
 If a session already exists, it is loaded without clearing any cached results. Calling `start_session` on an existing session is safe and idempotent.
 
 The response includes:
 
-- `site_name` — LLM-set display name for this session (set via `sync_research_context`)
+- `session_id` — the active session identifier
+- `site_name` — LLM-set display name (set via `sync_research_context`)
+- `site_id` — data source identifier (set when USGS tools are used)
 - `has_interpretation` — whether a scientific interpretation has been authored yet
 - `mcp_python` — the Python interpreter running the MCP server
 - `mcp_pip` — corresponding pip path
@@ -31,15 +37,15 @@ This makes it safe to write Python scripts without guessing interpreter paths or
 
 ## `get_session_summary`
 
-Return an overview of all computed and pending analysis slots for a gauge.
+Return an overview of all computed and pending analysis slots for a session.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `gauge_id` | str | USGS gauge ID |
+| `session_id` | str | Research session identifier |
 
 **Example output:**
 ```
-Session: 01031500
+Session: piscataquis-snowmelt-2020  (USGS 01031500)
 ✓ watershed      — 1,247 km², delineated 2026-04-10
 ✓ streamflow     — 2000–2024, 9,131 records
 ✓ signatures     — 15 statistics computed
@@ -59,11 +65,11 @@ Reset one or more slots, or the entire session.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `gauge_id` | str | USGS gauge ID |
+| `session_id` | str | Research session identifier |
 | `slots` | list[str] | Optional — list of slot names to clear (e.g., `["streamflow", "signatures"]`). Omit to clear all. |
 
 ```
-Clear the streamflow slot for gauge 01031500 — I want to re-fetch with
+Clear the streamflow slot for session piscataquis-2020 — I want to re-fetch with
 a longer date range starting from 1980.
 ```
 
@@ -78,13 +84,13 @@ Attach a free-text research note to the session.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `gauge_id` | str | USGS gauge ID |
+| `session_id` | str | Research session identifier |
 | `note` | str | Note text |
 
 Notes are stored in the session JSON and appear in `get_session_summary`. Use them for hypotheses, anomalies, or decisions you want the agent to recall later.
 
 ```
-Note for 01031500: The high BFI is consistent with the fractured bedrock
+Note for piscataquis-2020: The high BFI is consistent with the fractured bedrock
 geology visible in the NLCD. Worth investigating with isotope data.
 ```
 
@@ -92,25 +98,34 @@ geology visible in the NLCD. Worth investigating with isotope data.
 
 ## `export_session`
 
-Export the session as a citable methods paragraph, JSON data file, or BibTeX references.
+Export the session as a citable methods paragraph, JSON data file, BibTeX references, or a full reproducible research capsule.
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `gauge_id` | str | USGS gauge ID |
-| `format` | str | `"json"` (default), `"methods"` (prose paragraph), or `"bibtex"` |
+| `session_id` | str | Research session identifier |
+| `format` | str | `"json"` (default), `"methods"` (prose paragraph), `"bibtex"`, or `"capsule"` |
 
-Output is written to disk at `~/.aihydro/sessions/<gauge_id>_export.<ext>` to preserve the context window.
+**`capsule` format** produces a complete reproducible research package in `workspace_dir/capsule_<session_id>/`:
 
-**Text export example:**
 ```
-Watershed boundaries for USGS gauge 01031500 were delineated using the
-NHDPlus dataset via the USGS NLDI API (USGS, 2024), accessed 2026-04-10.
-Daily streamflow records (2000–2024) were retrieved from the USGS National
-Water Information System (USGS NWIS). Hydrological signatures were computed
-following Addor et al. (2018). Climate forcing data were obtained from the
-GridMET dataset (Abatzoglou, 2013). A differentiable HBV-light model was
-calibrated using the differentiable HBV-light implementation in aihydro-tools,
-achieving NSE = 0.79 on the validation period (2018–2024).
+capsule_piscataquis-2020/
+├── README.md          — session summary and file index
+├── methods.md         — auto-generated methods paragraph
+├── citations.bib      — all data source citations
+├── session.json       — full raw session data
+├── data/              — all computed result JSON files
+├── figures/           — all saved PNGs (hydrograph, FDC, maps)
+└── environment.yml    — conda environment spec
+```
+
+**Methods export example:**
+```
+Watershed boundaries for USGS gauge 01031500 (Piscataquis River) were delineated
+using the NHDPlus dataset via the USGS NLDI API (USGS, 2024). Daily streamflow
+records (2000–2024) were retrieved from USGS NWIS. Hydrological signatures were
+computed following Addor et al. (2018). Climate forcing data were obtained from
+GridMET (Abatzoglou, 2013). A differentiable HBV-light model was calibrated via
+gradient descent, achieving NSE = 0.79 on the validation period.
 ```
 
 ---
@@ -130,23 +145,23 @@ The skeleton is refreshed automatically on every tool call. The scientific conte
 
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
-| `gauge_id` | str | Yes | USGS gauge ID |
+| `session_id` | str | Yes | Research session identifier |
 | `interpretation` | str | No | Your scientific prose summary (Phase 2) |
-| `site_name` | str | No | Short descriptive slug for this session, e.g. `"piscataquis-surface-flow-2000-2020"` |
+| `site_name` | str | No | Short descriptive slug, e.g. `"piscataquis-surface-flow-2000-2020"` |
 
 **Workflow — call twice:**
 
-**Phase 1** — call with only `gauge_id`. Returns `session_data` containing all computed slot values (every key from every slot, not a template summary). Read it, reason about patterns and contradictions, then:
+**Phase 1** — call with only `session_id`. Returns `session_data` containing all computed slot values (every key from every slot, not a template summary). Read it, reason about patterns and contradictions, then:
 
 **Phase 2** — call again with `interpretation` (3–6 sentences of scientific prose) and `site_name`. Stored in the session and embedded in `research.md` immediately. Every future conversation opens with your understanding pre-loaded.
 
 ```
 # Phase 1: retrieve raw session data
-sync_research_context('01031500')
+sync_research_context('piscataquis-2020')
 
 # Phase 2: store your interpretation
 sync_research_context(
-    '01031500',
+    'piscataquis-2020',
     site_name='piscataquis-surface-flow-2000-2020',
     interpretation='The Piscataquis shows surface-flow dominance (BFI=0.16) ...'
 )
