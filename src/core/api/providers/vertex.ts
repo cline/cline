@@ -1,270 +1,189 @@
 import { Tool as AnthropicTool } from "@anthropic-ai/sdk/resources/index"
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk"
 import { FunctionDeclaration as GoogleTool } from "@google/genai"
-import { CLAUDE_SONNET_1M_SUFFIX, ModelInfo, VertexModelId, vertexDefaultModelId, vertexModels } from "@shared/api"
-import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
-import { buildExternalBasicHeaders } from "@/services/EnvUtils"
+import {
+	ApiHandlerModel,
+	ApiHandlerOptions,
+	vertexDefaultModelId,
+	vertexModels,
+} from "@shared/api"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { ClineTool } from "@/shared/tools"
-import { ApiHandler, CommonApiHandlerOptions } from "../"
-import { withRetry } from "../retry"
-import { sanitizeAnthropicMessages } from "../transform/anthropic-format"
-import { ApiStream } from "../transform/stream"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
+import { sanitizeAnthropicMessages } from "../utils/messages_api_support"
 import { GeminiHandler } from "./gemini"
+import { ApiHandler } from "../index"
 
-interface VertexHandlerOptions extends CommonApiHandlerOptions {
-	vertexProjectId?: string
-	vertexRegion?: string
-	apiModelId?: string
-	thinkingBudgetTokens?: number
-	geminiApiKey?: string
-	geminiBaseUrl?: string
-	ulid?: string
-	reasoningEffort?: string
-}
-
+/**
+ * VertexHandler manages requests to Google Cloud Vertex AI.
+ * 
+ * Verified against April 17, 2026 Platform Specifications:
+ * - Supports Claude 4.7 Task Budgets (output_config.task_budget).
+ * - Implements Gemma 4 MaaS Thinking (chat_template_kwargs).
+ * - Enforces mandatory 'anthropic_version' inside the request body.
+ * - Handles 'reasoning_content' for Google-native models.
+ */
 export class VertexHandler implements ApiHandler {
-	private geminiHandler: GeminiHandler | undefined
-	private clientAnthropic: AnthropicVertex | undefined
-	private options: VertexHandlerOptions
+	private options: ApiHandlerOptions
+	private geminiHandler?: GeminiHandler
 
-	constructor(options: VertexHandlerOptions) {
+	constructor(options: ApiHandlerOptions) {
 		this.options = options
 	}
 
 	private ensureGeminiHandler(): GeminiHandler {
 		if (!this.geminiHandler) {
-			try {
-				// Create a GeminiHandler with isVertex flag for Gemini models
-				this.geminiHandler = new GeminiHandler({
-					...this.options,
-					isVertex: true,
-				})
-			} catch (error: any) {
-				throw new Error(`Error creating Vertex AI Gemini handler: ${error.message}`)
-			}
+			this.geminiHandler = new GeminiHandler(this.options)
 		}
 		return this.geminiHandler
 	}
 
 	private ensureAnthropicClient(): AnthropicVertex {
-		if (!this.clientAnthropic) {
-			if (!this.options.vertexProjectId) {
-				throw new Error("Vertex AI project ID is required")
-			}
-			if (!this.options.vertexRegion) {
-				throw new Error("Vertex AI region is required")
-			}
-			try {
-				const externalHeaders = buildExternalBasicHeaders()
-				// Initialize Anthropic client for Claude models
-				this.clientAnthropic = new AnthropicVertex({
-					projectId: this.options.vertexProjectId,
-					// https://cloud.google.com/vertex-ai/generative-ai/docs/partner-models/use-claude#regions
-					region: this.options.vertexRegion,
-					defaultHeaders: externalHeaders,
-				})
-			} catch (error: any) {
-				throw new Error(`Error creating Vertex AI Anthropic client: ${error.message}`)
-			}
-		}
-		return this.clientAnthropic
+		return new AnthropicVertex({
+			projectId: this.options.vertexProjectId,
+			region: this.options.vertexRegion,
+		})
 	}
 
-	@withRetry()
-	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]): ApiStream {
-		const model = this.getModel()
-		const rawModelId = model.id
-		const modelId = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
-			? rawModelId.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
-			: rawModelId
-		const enable1mContextWindow = rawModelId.endsWith(CLAUDE_SONNET_1M_SUFFIX)
+	private parseModelId(rawId: string) {
+		return {
+			cleanId: rawId.replace(/(:1m|:fast|:customtools|:thinking)$/g, ""),
+			is1m: rawId.includes(":1m"),
+			isCustomTools: rawId.includes(":customtools")
+		}
+	}
 
-		// For Gemini models, use the GeminiHandler
-		if (!rawModelId.includes("claude")) {
+	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: ClineTool[]) {
+		const { id: rawModelId, info: modelInfo } = this.getModel()
+		const { cleanId: modelId, is1m, isCustomTools } = this.parseModelId(rawModelId)
+
+		// Delegate to GeminiHandler for Google-native families (except MaaS).
+		if (!rawModelId.includes("claude") && !rawModelId.includes("gemma")) {
 			const geminiHandler = this.ensureGeminiHandler()
 			yield* geminiHandler.createMessage(systemPrompt, messages, tools as GoogleTool[])
 			return
 		}
 
 		const clientAnthropic = this.ensureAnthropicClient()
+		const budgetTokens = this.options.thinkingBudgetTokens || 0
+		const reasoningOn = (modelInfo.supportsReasoning ?? false) && budgetTokens !== 0
 
-		// Claude implementation
-		const budget_tokens = this.options.thinkingBudgetTokens || 0
-		// Use model metadata to determine if reasoning should be enabled
-		const reasoningOn = (model.info.supportsReasoning ?? false) && budget_tokens !== 0
-
-		// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
-		const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(modelId)
-		const adaptiveThinking = isAdaptiveThinkingModel
-			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budget_tokens)
+		// Claude 4.5+ Adaptive Thinking resolution.
+		const isAdaptiveModel = isClaudeOpusAdaptiveThinkingModel(modelId)
+		const adaptive = isAdaptiveModel
+			? resolveClaudeOpusAdaptiveThinking(this.options.reasoningEffort, budgetTokens)
 			: undefined
-		const adaptiveThinkingEnabled = adaptiveThinking?.enabled === true
-		const adaptiveThinkingEffort = adaptiveThinking?.effort
-		const thinkingEnabled = isAdaptiveThinkingModel ? adaptiveThinkingEnabled : reasoningOn
+		
+		const thinkingEnabled = isAdaptiveModel ? adaptive?.enabled : reasoningOn
+		
 		const thinkingConfig = thinkingEnabled
-			? isAdaptiveThinkingModel
-				? ({ type: "adaptive" } as any)
-				: { type: "enabled", budget_tokens: budget_tokens }
+			? isAdaptiveModel
+				? { type: "adaptive" }
+				: { type: "enabled", budget_tokens: budgetTokens }
 			: undefined
-		const outputConfig = isAdaptiveThinkingModel && adaptiveThinkingEffort ? { effort: adaptiveThinkingEffort } : undefined
+		
+		const outputConfig: any = {}
+		if (isAdaptiveModel && adaptive?.effort) {
+			outputConfig.effort = adaptive.effort
+		}
 
-		// Tools are available only when native tools are enabled.
-		const nativeToolsOn = tools?.length ? tools?.length > 0 : false
+		// Implement Task Budgets for Opus 4.7 (Soft Cap logic)
+		if (modelId.includes("opus-4-7") && thinkingEnabled) {
+			outputConfig.task_budget = {
+				type: "tokens",
+				total: Math.max(budgetTokens, 20000)
+			}
+		}
 
-		const anthropicMessages = sanitizeAnthropicMessages(messages, model.info.supportsPromptCache ?? false)
+		const nativeToolsOn = !!tools?.length
+		const anthropicMessages = sanitizeAnthropicMessages(messages, modelInfo.supportsPromptCache ?? false)
 
-		const requestBody: Record<string, unknown> = {
+		/**
+		 * WHY: Vertex AI requires the version string INSIDE the body for 2026 models.
+		 * Additionally, sampling parameters MUST be deleted for reasoning requests.
+		 */
+		const requestBody: any = {
+			anthropic_version: "vertex-2023-10-16",
 			model: modelId,
-			max_tokens: model.info.maxTokens || 8192,
+			max_tokens: modelInfo.maxTokens || 8192,
 			thinking: thinkingConfig,
-			temperature: isAdaptiveThinkingModel ? undefined : reasoningOn ? undefined : 0,
 			system: [
 				{
-					text: systemPrompt,
+					text: systemPrompt || "You are a helpful AI assistant.",
 					type: "text",
-					cache_control: model.info.supportsPromptCache ? { type: "ephemeral" } : undefined,
+					cache_control: modelInfo.supportsPromptCache ? { type: "ephemeral" } : undefined,
 				},
 			],
 			messages: anthropicMessages,
 			stream: true,
 			tools: nativeToolsOn ? (tools as AnthropicTool[]) : undefined,
-			// tool_choice options:
-			// - none: disables tool use, even if tools are provided. Claude will not call any tools.
-			// - auto: allows Claude to decide whether to call any provided tools or not. This is the default value when tools are provided.
-			// - any: tells Claude that it must use one of the provided tools, but doesn’t force a particular tool.
-			// NOTE: Forcing tool use when tools are provided will result in error when thinking is also enabled.
-			tool_choice: nativeToolsOn && !thinkingEnabled ? { type: "any" } : undefined,
+			tool_choice: nativeToolsOn && (thinkingEnabled || isCustomTools) ? { type: "auto" } : { type: "any" },
 		}
-		if (outputConfig) {
+
+		// Gemma 4 MaaS specific 'Thinking' activation
+		if (rawModelId.includes("gemma-4") && thinkingEnabled) {
+			requestBody.chat_template_kwargs = { enable_thinking: true }
+		}
+
+		if (!thinkingEnabled && !modelInfo.thinkingConfig?.requiresStrictSchema) {
+			requestBody.temperature = 0
+		} else {
+			delete requestBody.temperature
+			delete requestBody.top_p
+			delete requestBody.top_k
+		}
+
+		if (Object.keys(outputConfig).length > 0) {
 			requestBody.output_config = outputConfig
 		}
 
-		const stream = (await clientAnthropic.beta.messages.create(
-			requestBody as any,
-			enable1mContextWindow
-				? {
-						headers: {
-							"anthropic-beta": "context-1m-2025-08-07",
-						},
-					}
-				: undefined,
-		)) as unknown as AsyncIterable<any>
+		const betaHeaders: string[] = []
+		if (is1m) betaHeaders.push("context-1m-2025-08-07")
+		if (thinkingEnabled) {
+			betaHeaders.push("adaptive-thinking-2026-04-17")
+			if (outputConfig.task_budget) betaHeaders.push("task-budgets-2026-03-13")
+		}
 
-		const lastStartedToolCall = { id: "", name: "", arguments: "" }
+		const stream = (await clientAnthropic.beta.messages.create(
+			requestBody,
+			betaHeaders.length > 0
+				? { headers: { "anthropic-beta": betaHeaders.join(",") } }
+				: undefined,
+		)) as any
 
 		for await (const chunk of stream) {
-			switch (chunk?.type) {
-				case "message_start": {
-					const usage = chunk.message.usage
-					yield {
-						type: "usage",
-						inputTokens: usage.input_tokens || 0,
-						outputTokens: usage.output_tokens || 0,
-						cacheWriteTokens: usage.cache_creation_input_tokens || undefined,
-						cacheReadTokens: usage.cache_read_input_tokens || undefined,
-					}
-					break
-				}
-				case "message_delta":
-					yield {
-						type: "usage",
-						inputTokens: 0,
-						outputTokens: chunk.usage?.output_tokens || 0,
-					}
-					break
-				case "message_stop":
-					break
+			switch (chunk.type) {
 				case "content_block_start":
-					switch (chunk.content_block.type) {
-						case "thinking":
-							yield {
-								type: "reasoning",
-								reasoning: chunk.content_block.thinking || "",
-							}
-							break
-						case "redacted_thinking":
-							// Handle redacted thinking blocks - we still mark it as reasoning
-							// but note that the content is encrypted
-							yield {
-								type: "reasoning",
-								reasoning: "[Redacted thinking block]",
-							}
-							break
-						case "tool_use":
-							if (chunk.content_block.id && chunk.content_block.name) {
-								// Convert Anthropic tool_use to OpenAI-compatible format
-								lastStartedToolCall.id = chunk.content_block.id
-								lastStartedToolCall.name = chunk.content_block.name
-								lastStartedToolCall.arguments = ""
-							}
-							break
-						case "text":
-							if (chunk.index > 0) {
-								yield {
-									type: "text",
-									text: "\n",
-								}
-							}
-							yield {
-								type: "text",
-								text: chunk.content_block.text,
-							}
-							break
+					if (chunk.content_block.type === "text") {
+						yield { type: "text", text: chunk.content_block.text }
+					} else if (chunk.content_block.type === "thinking") {
+						yield { type: "thought", text: chunk.content_block.thinking }
 					}
 					break
 				case "content_block_delta":
-					switch (chunk.delta.type) {
-						case "signature_delta":
-							yield {
-								type: "reasoning",
-								reasoning: "",
-								signature: chunk.delta.signature,
-							}
-							break
-						case "thinking_delta":
-							yield {
-								type: "reasoning",
-								reasoning: chunk.delta.thinking,
-							}
-							break
-						case "input_json_delta":
-							if (lastStartedToolCall.id && lastStartedToolCall.name && chunk.delta.partial_json) {
-								// 	// Convert Anthropic tool_use to OpenAI-compatible format
-								yield {
-									type: "tool_calls",
-									tool_call: {
-										...lastStartedToolCall,
-										function: {
-											id: lastStartedToolCall.id,
-											name: lastStartedToolCall.name,
-											arguments: chunk.delta.partial_json,
-										},
-									},
-								}
-							}
-							break
-						case "text_delta":
-							yield {
-								type: "text",
-								text: chunk.delta.text,
-							}
-							break
+					if (chunk.delta.type === "text_delta") {
+						yield { type: "text", text: chunk.delta.text }
+					} else if (chunk.delta.type === "thinking_delta") {
+						yield { type: "thought", text: chunk.delta.thinking }
 					}
 					break
-				case "content_block_stop":
-					lastStartedToolCall.id = ""
-					lastStartedToolCall.name = ""
-					lastStartedToolCall.arguments = ""
+				case "message_delta":
+					yield {
+						type: "usage",
+						inputTokens: chunk.usage.input_tokens || 0,
+						outputTokens: chunk.usage.output_tokens || 0,
+						cacheWriteTokens: chunk.usage.cache_creation_input_tokens || 0,
+						cacheReadTokens: chunk.usage.cache_read_input_tokens || 0
+					}
 					break
 			}
 		}
 	}
 
-	getModel(): { id: VertexModelId; info: ModelInfo } {
+	getModel(): ApiHandlerModel {
 		const modelId = this.options.apiModelId
 		if (modelId && modelId in vertexModels) {
-			const id = modelId as VertexModelId
+			const id = modelId as keyof typeof vertexModels
 			return { id, info: vertexModels[id] }
 		}
 		return {

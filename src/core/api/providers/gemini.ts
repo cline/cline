@@ -36,8 +36,10 @@ interface GeminiHandlerOptions extends CommonApiHandlerOptions {
 function mapReasoningEffortToGeminiThinkingLevel(effort: string): ThinkingLevel {
 	switch (effort) {
 		case "low":
-		case "medium":
 			return ThinkingLevel.LOW
+		case "medium":
+			// Fallback to string if SDK enum is outdated for the April 2026 release
+			return (ThinkingLevel as any).MEDIUM || "MEDIUM"
 		case "high":
 		case "xhigh":
 			return ThinkingLevel.HIGH
@@ -173,10 +175,19 @@ export class GeminiHandler implements ApiHandler {
 			// Add base URL if configured
 			httpOptions: this.options.geminiBaseUrl ? { baseUrl: this.options.geminiBaseUrl } : undefined,
 			systemInstruction: systemPrompt,
-			// Set temperature (default to 0)
-			// Gemini 3 recommends 1.0
-			temperature: info.temperature ?? 1,
 			...(maxOutputTokens !== undefined ? { maxOutputTokens } : {}),
+		}
+
+		/**
+		 * Apply strict schema compliance for Vertex AI reasoning models.
+		 * WHY: Vertex AI REJECTS requests containing temperature when thinkingLevel 
+		 * or thinkingBudget is active.
+		 */
+		const isReasoningActive = thinkingLevel !== undefined || thinkingBudget > 0
+		if (!isReasoningActive && !info.thinkingConfig?.requiresStrictSchema) {
+			requestConfig.temperature = info.temperature ?? 1
+		} else {
+			// delete is used implicitly here by not assigning the key to requestConfig
 		}
 
 		// Add thinking config only if the model supports it

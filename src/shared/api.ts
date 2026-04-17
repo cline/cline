@@ -172,6 +172,7 @@ export const anthropicModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
+		supportsComputerUse: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -183,6 +184,7 @@ export const anthropicModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
+		supportsComputerUse: true,
 		inputPrice: 3.0,
 		outputPrice: 15.0,
 		cacheWritesPrice: 3.75,
@@ -301,10 +303,15 @@ export const anthropicModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
+		supportsComputerUse: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
+		thinkingConfig: {
+			requiresStrictSchema: true,
+			supportsThinkingLevel: true,
+		},
 	},
 	"claude-opus-4-7:1m": {
 		maxTokens: 128_000,
@@ -312,11 +319,72 @@ export const anthropicModels = {
 		supportsImages: true,
 		supportsPromptCache: true,
 		supportsReasoning: true,
+		supportsComputerUse: true,
 		inputPrice: 5.0,
 		outputPrice: 25.0,
 		cacheWritesPrice: 6.25,
 		cacheReadsPrice: 0.5,
 		tiers: CLAUDE_OPUS_1M_TIERS,
+		thinkingConfig: {
+			requiresStrictSchema: true,
+			supportsThinkingLevel: true,
+		},
+	},
+	/** 
+	 * Gemma 4 26B MaaS (Model-as-a-Service).
+	 * Optimized for agentic planning with 256K context.
+	 */
+	"gemma-4-26b-a4b-it-maas@001": {
+		maxTokens: 8192,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.15,
+		outputPrice: 0.6,
+		description: "Google Gemma 4 26B (MoE) optimized for instruction following and agentic workflows.",
+	},
+	/**
+	 * Gemini 3.1 Pro optimized for custom tool orchestration.
+	 * Recommended for heavy search/file-write loops in Cline.
+	 */
+	"gemini-3.1-pro-preview-customtools": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 2.0,
+		outputPrice: 12.0,
+		cacheWritesPrice: 2.5,
+		cacheReadsPrice: 0.2,
+		thinkingConfig: {
+			requiresStrictSchema: true,
+			supportsThinkingLevel: true,
+		},
+	},
+	/** 
+	 * Gemini 3.1 Flash-Lite. 
+	 * Released March 31, 2026. Optimized for massive throughput.
+	 */
+	"gemini-3.1-flash-lite-preview": {
+		maxTokens: 65_536,
+		contextWindow: 1_048_576,
+		supportsImages: true,
+		supportsPromptCache: true,
+		inputPrice: 0.1,
+		outputPrice: 0.4,
+		cacheReadsPrice: 0.01,
+	},
+	/**
+	 * Gemma 4 31B Dense.
+	 * Released April 2, 2026. Flagship open-weights reasoning.
+	 */
+	"gemma-4-31b-dense": {
+		maxTokens: 8192,
+		contextWindow: 262_144,
+		supportsImages: true,
+		supportsPromptCache: false,
+		inputPrice: 0.3,
+		outputPrice: 1.2,
 	},
 	"claude-opus-4-5-20251101": {
 		maxTokens: 64_000,

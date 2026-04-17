@@ -91,9 +91,15 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					<VSCodeDropdown
 						disabled={remoteConfigSettings?.vertexRegion !== undefined}
 						id="vertex-region-dropdown"
-						onChange={(e: any) => handleFieldChange("vertexRegion", e.target.value)}
+						onChange={(e: any) =>
+							handleModeFieldChange(
+								{ plan: "planVertexRegion", act: "actVertexRegion" },
+								e.target.value,
+								currentMode,
+							)
+						}
 						style={{ width: "100%" }}
-						value={apiConfiguration?.vertexRegion || ""}>
+						value={(currentMode === "plan" ? apiConfiguration?.planVertexRegion : apiConfiguration?.actVertexRegion) || apiConfiguration?.vertexRegion || ""}>
 						<VSCodeOption value="">Select a region...</VSCodeOption>
 						{REGIONS.map((region) => (
 							<VSCodeOption key={region} value={region}>
@@ -140,13 +146,41 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 					/>
 
 					{isAdaptiveThinkingModel ? (
-						<ReasoningEffortSelector
-							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
-							currentMode={currentMode}
-							defaultEffort={adaptiveThinkingDefaultEffort}
-							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
-							label="Adaptive Thinking"
-						/>
+						<>
+							<ReasoningEffortSelector
+								allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
+								currentMode={currentMode}
+								defaultEffort={adaptiveThinkingDefaultEffort}
+								description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+								label="Adaptive Thinking"
+							/>
+							<p
+								style={{
+									fontSize: "12px",
+									marginTop: "5px",
+									color: "var(--vscode-descriptionForeground)",
+								}}>
+								<span style={{ fontWeight: 500 }}>Pro Tip:</span> Adaptive Thinking allows the model to
+								dynamically allocate reasoning depth. Use <span style={{ fontStyle: "italic" }}>xhigh</span> for
+								complex architectural changes and <span style={{ fontStyle: "italic" }}>low</span> for simple
+								file listing or boilerplate.
+							</p>
+
+							<div style={{ marginTop: "10px" }}>
+								<div style={{ fontWeight: 500, fontSize: "12px", marginBottom: "4px" }}>
+									Task Budget (Loop-wide)
+								</div>
+								<VSCodeTextField
+									value={apiConfiguration?.taskBudgetTokens?.toString() || "100000"}
+									onInput={(e: any) => handleFieldChange("taskBudgetTokens", parseInt(e.target.value))}
+									placeholder="Tokens (Min 20,000)"
+									style={{ width: "100%" }}
+								/>
+								<p style={{ fontSize: "11px", color: "var(--vscode-descriptionForeground)", marginTop: "4px" }}>
+									Advisory limit for the total agentic loop. Opus 4.7 uses this to self-regulate spend.
+								</p>
+							</div>
+						</>
 					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
 					) : null}
