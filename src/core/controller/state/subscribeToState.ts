@@ -9,6 +9,10 @@ import { Controller } from "../index"
 // Keep track of active state subscriptions
 const activeStateSubscriptions = new Set<StreamingResponseHandler<State>>()
 
+export function hasActiveStateSubscribers(): boolean {
+	return activeStateSubscriptions.size > 0
+}
+
 /**
  * Subscribe to state updates
  * @param controller The controller instance
@@ -59,6 +63,10 @@ export async function subscribeToState(
  * @param state The state to send
  */
 export async function sendStateUpdate(state: ExtensionState): Promise<void> {
+	if (!hasActiveStateSubscribers()) {
+		return
+	}
+
 	let stateJson: string
 	try {
 		stateJson = JSON.stringify(state)

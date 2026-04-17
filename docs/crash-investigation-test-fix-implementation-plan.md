@@ -764,8 +764,8 @@ The team should not attack everything at once. The best sequence is:
 
 ### Phase 3 — Confirm state growth hazards
 
-- [ ] message-state churn tests
-- [ ] state broadcast / webview parse tests
+- [x] message-state churn tests
+- [x] state broadcast / webview parse tests
 - [ ] payload-size instrumentation thresholds
 
 ### Phase 4 — Confirm teardown and backlog risks
@@ -938,8 +938,8 @@ This section is designed to be worked through directly.
 
 ### Candidate confirmation
 
-- [ ] Confirm full-state rebroadcast candidate
-- [ ] Confirm message persistence churn candidate
+- [x] Confirm full-state rebroadcast candidate
+- [x] Confirm message persistence churn candidate
 - [x] Confirm large-file edit amplification candidate
 - [x] Confirm base64 diff URI candidate
 - [x] Confirm PatchParser/diff quadratic candidate
@@ -949,7 +949,7 @@ This section is designed to be worked through directly.
 ### Fix implementation
 
 - [x] Add explicit caps to dangerous payload paths
-- [ ] Refactor hot paths to reduce full snapshot work
+- [x] Refactor hot paths to reduce full snapshot work
 - [x] Replace risky diff transport mechanics
 - [ ] Bound queues and error accumulation
 - [ ] Harden abort and teardown sequencing

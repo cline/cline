@@ -57,7 +57,7 @@ import { sendMcpMarketplaceCatalogEvent } from "./mcp/subscribeToMcpMarketplaceC
 import { getClineOnboardingModels } from "./models/getClineOnboardingModels"
 import { appendClineStealthModels } from "./models/refreshOpenRouterModels"
 import { checkCliInstallation } from "./state/checkCliInstallation"
-import { sendStateUpdate } from "./state/subscribeToState"
+import { hasActiveStateSubscribers, sendStateUpdate } from "./state/subscribeToState"
 import { sendChatButtonClickedEvent } from "./ui/subscribeToChatButtonClicked"
 
 /*
@@ -838,6 +838,9 @@ export class Controller {
 	}
 
 	async postStateToWebview() {
+		if (!hasActiveStateSubscribers()) {
+			return
+		}
 		const state = await this.getStateToPostToWebview()
 		await sendStateUpdate(state)
 	}

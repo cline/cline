@@ -24,6 +24,72 @@ describe("MessageStateHandler Mutex Protection", () => {
 		})
 	}
 
+	it("should reuse cached task directory size across rapid consecutive saves", async () => {
+		const taskState = new TaskState()
+		let nowMs = 1_000
+		let taskDirSizeCalls = 0
+		let savedMessagesCalls = 0
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async () => [],
+			now: () => nowMs,
+			getTaskDirectorySize: async () => {
+				taskDirSizeCalls += 1
+				return 1234
+			},
+			getCurrentWorkingDirectory: async () => "/tmp/project",
+			ensureTaskDirectoryExists: async () => "/tmp/project/.cline/tasks/test-task-id",
+			saveClineMessages: async () => {
+				savedMessagesCalls += 1
+			},
+			saveApiConversationHistory: async () => {},
+		})
+
+		handler.setApiConversationHistory([{ role: "user", content: "hello", ts: Date.now() }])
+		handler.setClineMessages([createTestMessage("task"), createTestMessage("one")])
+		await handler.saveClineMessagesAndUpdateHistory()
+		nowMs += 100
+		handler.setClineMessages([createTestMessage("task"), createTestMessage("one"), createTestMessage("two")])
+		await handler.saveClineMessagesAndUpdateHistory()
+
+		taskDirSizeCalls.should.equal(1)
+		savedMessagesCalls.should.equal(2)
+	})
+
+	it("should recompute task directory size after the cache TTL expires", async () => {
+		const taskState = new TaskState()
+		let nowMs = 1_000
+		let taskDirSizeCalls = 0
+
+		const handler = new MessageStateHandler({
+			taskId: "test-task-id",
+			ulid: "test-ulid",
+			taskState,
+			updateTaskHistory: async () => [],
+			now: () => nowMs,
+			getTaskDirectorySize: async () => {
+				taskDirSizeCalls += 1
+				return 1234 + taskDirSizeCalls
+			},
+			getCurrentWorkingDirectory: async () => "/tmp/project",
+			ensureTaskDirectoryExists: async () => "/tmp/project/.cline/tasks/test-task-id",
+			saveClineMessages: async () => {},
+			saveApiConversationHistory: async () => {},
+		})
+
+		handler.setApiConversationHistory([{ role: "user", content: "hello", ts: Date.now() }])
+		handler.setClineMessages([createTestMessage("task"), createTestMessage("one")])
+		await handler.saveClineMessagesAndUpdateHistory()
+		nowMs += 6_000
+		handler.setClineMessages([createTestMessage("task"), createTestMessage("one"), createTestMessage("two")])
+		await handler.saveClineMessagesAndUpdateHistory()
+
+		taskDirSizeCalls.should.equal(2)
+	})
+
 	/**
 	 * Helper to create a test ClineMessage
 	 */

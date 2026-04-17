@@ -14,6 +14,8 @@ import { getCwd, getDesktopDir } from "@/utils/path"
 import { ensureTaskDirectoryExists, saveApiConversationHistory, saveClineMessages } from "../storage/disk"
 import { TaskState } from "./TaskState"
 
+const TASK_DIRECTORY_SIZE_CACHE_TTL_MS = 5_000
+
 // Event types for clineMessages changes
 export type ClineMessageChangeType = "add" | "update" | "delete" | "set"
 
@@ -43,6 +45,12 @@ interface MessageStateHandlerParams {
 	updateTaskHistory: (historyItem: HistoryItem) => Promise<HistoryItem[]>
 	taskState: TaskState
 	checkpointManagerErrorMessage?: string
+	now?: () => number
+	getTaskDirectorySize?: (taskDir: string) => Promise<number>
+	getCurrentWorkingDirectory?: () => Promise<string>
+	ensureTaskDirectoryExists?: (taskId: string) => Promise<string>
+	saveClineMessages?: (taskId: string, messages: ClineMessage[]) => Promise<void>
+	saveApiConversationHistory?: (taskId: string, messages: ClineStorageMessage[]) => Promise<void>
 }
 
 export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents> {
@@ -54,6 +62,16 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	private taskId: string
 	private ulid: string
 	private taskState: TaskState
+	private readonly now: () => number
+	private readonly getTaskDirectorySize: (taskDir: string) => Promise<number>
+	private readonly getCurrentWorkingDirectory: () => Promise<string>
+	private readonly ensureTaskDirectoryExistsFn: (taskId: string) => Promise<string>
+	private readonly saveClineMessagesFn: (taskId: string, messages: ClineMessage[]) => Promise<void>
+	private readonly saveApiConversationHistoryFn: (taskId: string, messages: ClineStorageMessage[]) => Promise<void>
+	private hasCachedTaskDirSize = false
+	private cachedTaskDirSize = 0
+	private lastTaskDirSizeComputedAt = 0
+	private pendingTaskDirSizePromise?: Promise<number>
 
 	// Mutex to prevent concurrent state modifications (RC-4)
 	// Protects against data loss from race conditions when multiple
@@ -68,6 +86,40 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		this.taskState = params.taskState
 		this.taskIsFavorited = params.taskIsFavorited ?? false
 		this.updateTaskHistory = params.updateTaskHistory
+		this.now = params.now ?? (() => Date.now())
+		this.getTaskDirectorySize =
+			params.getTaskDirectorySize ??
+			(async (taskDir: string) => {
+				return await getFolderSize.loose(taskDir)
+			})
+		this.getCurrentWorkingDirectory = params.getCurrentWorkingDirectory ?? (() => getCwd(getDesktopDir()))
+		this.ensureTaskDirectoryExistsFn = params.ensureTaskDirectoryExists ?? ensureTaskDirectoryExists
+		this.saveClineMessagesFn = params.saveClineMessages ?? saveClineMessages
+		this.saveApiConversationHistoryFn = params.saveApiConversationHistory ?? saveApiConversationHistory
+	}
+
+	private async getCachedTaskDirectorySize(taskDir: string): Promise<number> {
+		const currentTime = this.now()
+		if (this.pendingTaskDirSizePromise) {
+			return await this.pendingTaskDirSizePromise
+		}
+		if (this.hasCachedTaskDirSize && currentTime - this.lastTaskDirSizeComputedAt < TASK_DIRECTORY_SIZE_CACHE_TTL_MS) {
+			return this.cachedTaskDirSize
+		}
+
+		this.pendingTaskDirSizePromise = (async () => {
+			try {
+				const size = await this.getTaskDirectorySize(taskDir)
+				this.hasCachedTaskDirSize = true
+				this.cachedTaskDirSize = size
+				this.lastTaskDirSizeComputedAt = this.now()
+				return size
+			} finally {
+				this.pendingTaskDirSizePromise = undefined
+			}
+		})()
+
+		return await this.pendingTaskDirSizePromise
 	}
 
 	/**
@@ -119,7 +171,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 	 */
 	private async saveClineMessagesAndUpdateHistoryInternal(): Promise<void> {
 		try {
-			await saveClineMessages(this.taskId, this.clineMessages)
+			await this.saveClineMessagesFn(this.taskId, this.clineMessages)
 
 			// combined as they are in ChatView
 			const apiMetrics = getApiMetrics(combineApiRequests(combineCommandSequences(this.clineMessages.slice(1))))
@@ -132,16 +184,16 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 					)
 				]
 			const lastModelInfo = [...this.apiConversationHistory].reverse().find((msg) => msg.modelInfo !== undefined)
-			const taskDir = await ensureTaskDirectoryExists(this.taskId)
+			const taskDir = await this.ensureTaskDirectoryExistsFn(this.taskId)
 			let taskDirSize = 0
 			try {
 				// getFolderSize.loose silently ignores errors
 				// returns # of bytes, size/1000/1000 = MB
-				taskDirSize = await getFolderSize.loose(taskDir)
+				taskDirSize = await this.getCachedTaskDirectorySize(taskDir)
 			} catch (error) {
 				Logger.error("Failed to get task directory size:", taskDir, error)
 			}
-			const cwd = await getCwd(getDesktopDir())
+			const cwd = await this.getCurrentWorkingDirectory()
 			await this.updateTaskHistory({
 				id: this.taskId,
 				ulid: this.ulid,
@@ -179,7 +231,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory.push(message)
-			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+			await this.saveApiConversationHistoryFn(this.taskId, this.apiConversationHistory)
 		})
 	}
 
@@ -187,7 +239,7 @@ export class MessageStateHandler extends EventEmitter<MessageStateHandlerEvents>
 		// Protect with mutex to prevent concurrent modifications from corrupting data (RC-4)
 		return await this.withStateLock(async () => {
 			this.apiConversationHistory = newHistory
-			await saveApiConversationHistory(this.taskId, this.apiConversationHistory)
+			await this.saveApiConversationHistoryFn(this.taskId, this.apiConversationHistory)
 		})
 	}
 
