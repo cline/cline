@@ -1544,9 +1544,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							{/* + button — opens PlusPopup (files & auto-approve) */}
-							<div
-								ref={plusButtonRef}
-								style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+							<div className="relative inline-flex min-w-0 max-w-full items-center" ref={plusButtonRef}>
 								<Tooltip>
 									<TooltipContent>Add files &amp; auto-approve</TooltipContent>
 									<TooltipTrigger>
@@ -1579,7 +1577,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</div>
 
 							{/* @ button — opens AddContextModal directly */}
-							<div ref={atButtonRef} style={{ position: "relative", display: "inline-flex", alignItems: "center" }}>
+							<div className="relative inline-flex min-w-0 max-w-full items-center" ref={atButtonRef}>
 								<Tooltip>
 									<TooltipContent>Add context (@)</TooltipContent>
 									<TooltipTrigger>
