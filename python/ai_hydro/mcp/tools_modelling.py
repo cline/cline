@@ -160,8 +160,10 @@ async def train_hydro_model(
         if ctx:
             await ctx.report_progress(progress=2, total=2)
 
-        # Cache result in session
+        # Cache result in session + add HBV citation
         session.model = result
+        from ai_hydro.citations import citation_keys_for_tool
+        session.add_citations(citation_keys_for_tool("train_hydro_model"))
         session.save()
 
         # Add performance summary to response

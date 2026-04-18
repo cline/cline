@@ -69,12 +69,23 @@ def _result_to_dict(result: Any) -> dict:
 # Session management
 # ---------------------------------------------------------------------------
 
-def _session_store(session_id: str, slot: str, result_dict: dict) -> None:
-    """Cache a tool result in HydroSession and refresh research.md."""
+def _session_store(
+    session_id: str, slot: str, result_dict: dict, *, tool_name: str | None = None
+) -> None:
+    """Cache a tool result in HydroSession and refresh research.md.
+
+    If ``tool_name`` is provided, Tier 1 data-source citations for that tool
+    are added to the session in the same save() call (zero extra file writes).
+    """
     try:
         from ai_hydro.session import HydroSession
         session = HydroSession.load(session_id)
         setattr(session, slot, result_dict)
+        if tool_name:
+            from ai_hydro.citations import citation_keys_for_tool
+            keys = citation_keys_for_tool(tool_name)
+            if keys:
+                session.add_citations(keys)
         session.save()
     except Exception as exc:
         log.debug("Session store skipped (%s): %s", slot, exc)

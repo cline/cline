@@ -106,6 +106,9 @@ class HydroSession:
         self.interpretation: str = ""
         self.created_at: str = datetime.now(timezone.utc).isoformat()
         self.updated_at: str = self.created_at
+        # Citation keys accumulated as tools run (Tier 1 data sources + Tier 3 plugins).
+        # Tier 2 platform citations are injected at export time, not stored here.
+        self._citations: set[str] = set()
 
     # ------------------------------------------------------------------
     # Backward-compat property: gauge_id → site_id (or session_id)
@@ -223,6 +226,7 @@ class HydroSession:
         _META_KEYS = {
             "session_id", "site_name", "site_id", "site_type",
             "workspace_dir", "notes", "created_at", "updated_at", "interpretation",
+            "_citations",
             # legacy keys — kept for loading old session files
             "gauge_id",
         }
@@ -240,6 +244,7 @@ class HydroSession:
         session.interpretation = raw.get("interpretation", "")
         session.created_at = raw.get("created_at", session.created_at)
         session.updated_at = raw.get("updated_at", session.updated_at)
+        session._citations = set(raw.get("_citations", []))
         return session
 
     def save(self) -> None:
@@ -260,6 +265,7 @@ class HydroSession:
             "updated_at": self.updated_at,
             "notes": self.notes,
             "interpretation": self.interpretation,
+            "_citations": sorted(self._citations),
         }
         for slot, val in self._slots.items():
             raw[slot] = _lean_slot(val)
@@ -308,19 +314,26 @@ class HydroSession:
     def to_json(self) -> str:
         return json.dumps(self._to_raw(), indent=2)
 
+    # ------------------------------------------------------------------
+    # Citation management
+    # ------------------------------------------------------------------
+
+    def add_citations(self, keys: list[str]) -> None:
+        """Accumulate citation keys (no auto-save — caller must call save())."""
+        self._citations.update(keys)
+
+    def get_citations(self) -> set[str]:
+        """Return the set of accumulated Tier 1 citation keys."""
+        return set(self._citations)
+
+    def export_bibtex(self) -> str:
+        """Build a ready-to-use .bib string (Tier 1 collected + Tier 2 platform)."""
+        from ai_hydro.citations import build_bibtex
+        return build_bibtex(self._citations)
+
     def cite_all(self) -> str:
-        entries: list[str] = []
-        for slot in self.computed():
-            result = self.get(slot)
-            if not result:
-                continue
-            for src in result.get("meta", {}).get("sources", []):
-                citation = src.get("citation")
-                if citation and citation not in entries:
-                    entries.append(citation)
-        if not entries:
-            return f"% No citations available for session {self.session_id}"
-        return "\n\n".join(entries)
+        """Backward-compat alias → export_bibtex()."""
+        return self.export_bibtex()
 
     def synopsis_for_llm(self) -> dict:
         """

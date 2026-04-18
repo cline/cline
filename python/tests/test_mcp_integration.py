@@ -542,3 +542,144 @@ class TestVersionHelpers:
         assert isinstance(v, str)
         assert len(v) > 0
 
+
+# ── Citation system ───────────────────────────────────────────────────────────
+
+class TestCitationRegistry:
+    """Verify the three-tier citation registry and BibTeX builder."""
+
+    def test_all_known_keys_non_empty(self):
+        from ai_hydro.citations import all_known_keys
+        keys = all_known_keys()
+        assert len(keys) >= 10, "Expected at least 10 citation entries"
+
+    def test_platform_citations_always_in_bibtex(self):
+        from ai_hydro.citations import build_bibtex, PLATFORM_CITATIONS
+        bib = build_bibtex(set())
+        for key in PLATFORM_CITATIONS:
+            assert key in bib, f"Platform citation '{key}' missing from empty-key build"
+
+    def test_build_bibtex_includes_requested_keys(self):
+        from ai_hydro.citations import build_bibtex
+        bib = build_bibtex({"usgs_nwis", "abatzoglou2013gridmet"})
+        assert "usgs_nwis" in bib
+        assert "abatzoglou2013gridmet" in bib
+        assert "waterdata.usgs.gov" in bib
+        assert "10.1002/joc.3413" in bib
+
+    def test_build_bibtex_skips_unknown_keys(self):
+        from ai_hydro.citations import build_bibtex
+        bib = build_bibtex({"nonexistent_key_xyz"})
+        assert "nonexistent_key_xyz" not in bib
+        # Platform citations still present
+        assert "aihydro2026" in bib
+
+    def test_tool_citations_map_known_tools(self):
+        from ai_hydro.citations import citation_keys_for_tool, all_known_keys
+        known = set(all_known_keys())
+        for tool in ("delineate_watershed", "fetch_streamflow_data",
+                     "fetch_forcing_data", "extract_camels_attributes",
+                     "train_hydro_model", "create_cn_grid"):
+            keys = citation_keys_for_tool(tool)
+            assert len(keys) > 0, f"No citation keys for tool '{tool}'"
+            for k in keys:
+                assert k in known, f"Unknown citation key '{k}' for tool '{tool}'"
+
+    def test_tool_with_no_citations_returns_empty(self):
+        from ai_hydro.citations import citation_keys_for_tool
+        assert citation_keys_for_tool("nonexistent_tool") == []
+
+    def test_build_bibtex_header_present(self):
+        from ai_hydro.citations import build_bibtex
+        bib = build_bibtex(set(), header=True)
+        assert "AI-Hydro" in bib
+        assert bib.startswith("%")
+
+    def test_build_bibtex_no_duplicate_entries(self):
+        from ai_hydro.citations import build_bibtex, PLATFORM_CITATIONS
+        # Pass platform keys explicitly — BibTeX entry key should appear exactly once
+        bib = build_bibtex(set(PLATFORM_CITATIONS))
+        assert bib.count("@software{aihydro2026") == 1
+        assert bib.count("@software{aihydro_tools2026") == 1
+
+    def test_register_plugin_citation(self):
+        from ai_hydro.citations import (
+            register_plugin_citation, citation_keys_for_tool, build_bibtex,
+            _PLUGIN_ENTRIES, _PLUGIN_TOOL_MAP,
+        )
+        bibtex = "@software{test_plugin_2026, author={Test}, title={Test Plugin}}"
+        register_plugin_citation("test_plugin_2026", bibtex, ["my_plugin_tool"])
+        assert "test_plugin_2026" in _PLUGIN_ENTRIES
+        assert "my_plugin_tool" in _PLUGIN_TOOL_MAP
+        keys = citation_keys_for_tool("my_plugin_tool")
+        assert "test_plugin_2026" in keys
+        bib = build_bibtex({"test_plugin_2026"})
+        assert "Test Plugin" in bib
+        # Cleanup to avoid polluting other tests
+        del _PLUGIN_ENTRIES["test_plugin_2026"]
+        del _PLUGIN_TOOL_MAP["my_plugin_tool"]
+
+
+class TestSessionCitations:
+    """Verify citation accumulation and bibtex export on HydroSession."""
+
+    def test_add_citations_accumulates(self, tmp_path):
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("cite-test-1")
+            s.add_citations(["usgs_nwis"])
+            s.add_citations(["abatzoglou2013gridmet", "usgs_nwis"])  # duplicate
+            assert s.get_citations() == {"usgs_nwis", "abatzoglou2013gridmet"}
+
+    def test_citations_survive_save_reload(self, tmp_path):
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("cite-test-2")
+            s.add_citations(["usgs_nwis", "nhd_nhdplus"])
+            s.save()
+            reloaded = HydroSession.load("cite-test-2")
+            assert "usgs_nwis" in reloaded.get_citations()
+            assert "nhd_nhdplus" in reloaded.get_citations()
+
+    def test_export_bibtex_includes_platform(self, tmp_path):
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("cite-test-3")
+            s.add_citations(["usgs_nwis"])
+            bib = s.export_bibtex()
+            assert "aihydro2026" in bib       # Tier 2
+            assert "aihydro_tools2026" in bib # Tier 2
+            assert "usgs_nwis" in bib         # Tier 1
+
+    def test_citations_empty_session_still_has_platform(self, tmp_path):
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("cite-test-4")
+            bib = s.export_bibtex()
+            assert "aihydro2026" in bib
+            assert "aihydro_tools2026" in bib
+
+    def test_session_store_adds_citations(self, tmp_path):
+        from ai_hydro.mcp.helpers import _session_store
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            slot_data = {"data": {"area_km2": 500}, "meta": {}}
+            _session_store("cite-test-5", "watershed", slot_data,
+                           tool_name="delineate_watershed")
+            s = HydroSession.load("cite-test-5")
+            citations = s.get_citations()
+            assert "nhd_nhdplus" in citations
+            assert "usgs_3dep" in citations
+
+    def test_cite_all_is_alias_for_export_bibtex(self, tmp_path):
+        from ai_hydro.session import HydroSession
+        with patch("ai_hydro.session.store._SESSIONS_DIR", tmp_path), \
+             patch("ai_hydro.session.store._REPO_ROOT", tmp_path):
+            s = HydroSession("cite-test-6")
+            s.add_citations(["usgs_nwis"])
+            assert s.cite_all() == s.export_bibtex()

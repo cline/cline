@@ -240,6 +240,15 @@ def sync_research_context(
             tools_path = _write_tools_md()
             base = Path(session.workspace_dir) if session.workspace_dir else _REPO_ROOT
             research_md_path = base / _RULES_DIR_NAME / "research.md"
+
+            # Write citations.bib to workspace
+            citations_path: str | None = None
+            bib = session.export_bibtex()
+            if bib:
+                saved = _workspace_write(session_id, "citations.bib", bib)
+                citations_path = saved
+
+            n_citations = len(session.get_citations())
             return {
                 "stored": True,
                 "session_id": session_id,
@@ -248,9 +257,13 @@ def sync_research_context(
                 "research_md": str(research_md_path),
                 "tools_md": str(tools_path),
                 "n_tools": len(_list_tools_sync()),
+                "citations_bib": citations_path,
+                "n_data_source_citations": n_citations,
                 "_note": (
                     "Interpretation stored. research.md updated — your scientific "
-                    "context will be pre-loaded into every future conversation."
+                    "context will be pre-loaded into every future conversation. "
+                    f"citations.bib written with {n_citations} data-source entries "
+                    "+ 2 platform citations (AI-Hydro + aihydro-tools)."
                 ),
             }
 
@@ -365,7 +378,7 @@ def export_session(
         files_written: list[str] = []
 
         if format in ("bibtex", "json"):
-            content = session.cite_all() if format == "bibtex" else session.to_json()
+            content = session.export_bibtex() if format == "bibtex" else session.to_json()
             ext = ".bib" if format == "bibtex" else ".json"
             fname = f"session_{session_id}_{format}{ext}"
             saved = _workspace_write(session_id, fname, content)
@@ -444,7 +457,7 @@ def export_session(
         files_written.append(str(capsule_dir / "methods.md"))
 
         # citations.bib
-        (capsule_dir / "citations.bib").write_text(session.cite_all())
+        (capsule_dir / "citations.bib").write_text(session.export_bibtex())
         files_written.append(str(capsule_dir / "citations.bib"))
 
         # session.json

@@ -186,7 +186,7 @@ def delineate_watershed(
             **{k: v for k, v in d["data"].items() if k != "geometry_geojson"},
             "geometry_geojson_path": str(sessions_geojson),
         }
-        _session_store(session_id, "watershed", d_lean)
+        _session_store(session_id, "watershed", d_lean, tool_name="delineate_watershed")
 
         # Persist gauge metadata in session so downstream tools don't need gauge_id
         from ai_hydro.session import HydroSession
@@ -334,7 +334,7 @@ def fetch_streamflow_data(
         # model training) can reload raw arrays without re-fetching from USGS.
         if saved:
             d["data"]["_data_file"] = saved
-        _session_store(session_id, "streamflow", d)
+        _session_store(session_id, "streamflow", d, tool_name="fetch_streamflow_data")
 
         # Strip raw arrays from response — saved to disk, not needed in context
         data = d["data"]
@@ -447,7 +447,7 @@ def extract_hydrological_signatures(
             end_date=end_date,
         )
         d = _result_to_dict(result)
-        _session_store(session_id, "signatures", d)
+        _session_store(session_id, "signatures", d, tool_name="extract_hydrological_signatures")
         files_saved: list[str] = []
         saved = _workspace_write(
             session_id, f"signatures_{session_id}.json", d["data"]
@@ -545,7 +545,7 @@ def extract_geomorphic_parameters(
             dem_resolution=dem_resolution,
         )
         d = _result_to_dict(result)
-        _session_store(session_id, "geomorphic", d)
+        _session_store(session_id, "geomorphic", d, tool_name="extract_geomorphic_parameters")
         saved = _workspace_write(
             session_id, f"geomorphic_{session_id}.json", d["data"]
         )
@@ -653,7 +653,7 @@ async def compute_twi(
                         "params": {"resolution": resolution, "create_map": create_map},
                     },
                 }
-                _session_store(session_id, "twi", d)
+                _session_store(session_id, "twi", d, tool_name="compute_twi")
                 d["_files_saved"] = files
                 reminder = _sync_reminder(session_id)
                 if reminder:
@@ -672,7 +672,7 @@ async def compute_twi(
             _fn, watershed_geojson=watershed_geojson, resolution=resolution
         )
         d = _result_to_dict(result)
-        _session_store(session_id, "twi", d)
+        _session_store(session_id, "twi", d, tool_name="compute_twi")
         saved = _workspace_write(session_id, f"twi_{session_id}.json", d["data"])
         if saved:
             d["_file_saved"] = saved
@@ -798,7 +798,7 @@ async def create_cn_grid(
                 "params": {"year": year, "resolution": resolution, "create_map": create_map},
             },
         }
-        _session_store(session_id, "cn", d)
+        _session_store(session_id, "cn", d, tool_name="create_cn_grid")
         d["_files_saved"] = list(file_paths.values())
         reminder = _sync_reminder(session_id)
         if reminder:
@@ -896,7 +896,7 @@ async def fetch_forcing_data(
         # Record data file path in slot so train_hydro_model can reload arrays
         if saved:
             d["data"]["_data_file"] = saved
-        _session_store(session_id, "forcing", d)
+        _session_store(session_id, "forcing", d, tool_name="fetch_forcing_data")
         compact = _strip_forcing_arrays(d["data"])
         if saved:
             compact["_data_file"] = saved
@@ -1127,7 +1127,7 @@ def fetch_camels_us(
             "attribute_groups": _group(attrs),
         }
         d = {"data": data, "meta": _META}
-        _session_store(session_id, "camels", d)
+        _session_store(session_id, "camels", d, tool_name="extract_camels_attributes")
         saved = _workspace_write(session_id, f"camels_{usgs_gauge_id}.json", data)
         d["_file_saved"] = saved
         d["_note"] = (
