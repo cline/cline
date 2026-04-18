@@ -44,7 +44,7 @@ from ai_hydro.mcp.tools_docs import _write_tools_md  # noqa: E402
 def main():
     """Entry point for the ``aihydro-mcp`` console script (pyproject.toml)."""
     log.info("Starting AI-Hydro MCP server...")
-    # Auto-generate .clinerules/tools.md on every startup
+    # Auto-generate .aihydrorules/tools.md on every startup
     try:
         _write_tools_md()
     except Exception as _e:

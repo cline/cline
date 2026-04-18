@@ -16,7 +16,7 @@ class ToolRegistry:
     """
     Registry for managing hydrological tools across three tiers:
     - Tier 1: External libraries (pysheds, rasterio, etc.)
-    - Tier 2: Wrapper functions (ai_hydro.hydrocatch, etc.)
+    - Tier 2: Wrapper functions (ai_hydro.analysis, ai_hydro.data, etc.)
     - Tier 3: Complete workflows (ai_hydro.workflows)
     """
     

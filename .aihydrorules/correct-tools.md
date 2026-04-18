@@ -1,6 +1,6 @@
 # AI-Hydro Tool Usage — Behavioral Rules
 
-> The full list of available tools is in `.clinerules/tools.md` (auto-generated).
+> The full list of available tools is in `.aihydrorules/tools.md` (auto-generated).
 > This file contains only stable behavioral rules — it never needs updating
 > when new tools are added.
 

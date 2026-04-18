@@ -1,0 +1,47 @@
+name: Forbidden Strings
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for forbidden strings
+        shell: bash
+        run: |
+          FORBIDDEN=(
+            "extract_camels_attributes"
+            "hydrocatch"
+            "delineate_autobuffer_bbox"
+            "AI_HYDRO_PLATFORM_ROADMAP"
+            "\.clinerules"
+          )
+
+          EXCLUDE_ARGS=(
+            "--glob=!node_modules/**"
+            "--glob=!out/**"
+            "--glob=!CHANGELOG.md"
+            "--glob=!docs/changelog.md"
+            "--glob=!local-docs/**"
+          )
+
+          FAILED=0
+          for term in "${FORBIDDEN[@]}"; do
+            matches=$(rg -l "$term" "${EXCLUDE_ARGS[@]}" . 2>/dev/null || true)
+            if [ -n "$matches" ]; then
+              echo "❌ FORBIDDEN STRING '$term' found in:"
+              echo "$matches"
+              FAILED=1
+            fi
+          done
+
+          if [ "$FAILED" -eq 1 ]; then
+            exit 1
+          fi
+
+          echo "✅ No forbidden strings found."

@@ -157,7 +157,7 @@ def register(ide: str) -> None:
         "\n    clear_session              — reset cached slots"
         "\n    add_note                   — attach researcher annotation"
         "\n    export_session             — full provenance export (json/bibtex/methods)"
-        "\n    sync_research_context      — refresh .clinerules with session state"
+        "\n    sync_research_context      — refresh .aihydrorules with session state"
         "\n"
         "\n  Modelling (2):"
         "\n    train_hydro_model          — differentiable HBV-light or LSTM"

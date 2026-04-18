@@ -40,7 +40,7 @@
 	"complete_workflows": {
 		"camels_attribute_extraction": {
 			"description": "Extract all CAMELS attributes for a gauge",
-			"workflow": "ai_hydro.workflows.camels_extraction",
+			"workflow": "fetch_camels_us",
 			"steps": [
 				"Delineate watershed boundary",
 				"Extract topographic attributes",
@@ -53,7 +53,7 @@
 				"Compute hydrological signatures",
 				"Aggregate all attributes"
 			],
-			"usage": "from ai_hydro.workflows.camels_extraction import extract_camels_attributes\nresult = extract_camels_attributes('01031500', '2010-01-01', '2020-12-31')"
+			"usage": "use_mcp_tool(server='ai-hydro', tool='fetch_camels_us', arguments={'gauge_id': '01031500'})"
 		},
 
 		"watershed_characterization": {

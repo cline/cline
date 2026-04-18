@@ -1,7 +1,7 @@
 """
 Documentation and version utilities for the MCP server.
 
-Generates .clinerules/tools.md from the live tool registry and
+Generates .aihydrorules/tools.md from the live tool registry and
 provides version introspection helpers.
 """
 from __future__ import annotations

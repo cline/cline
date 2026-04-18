@@ -99,7 +99,7 @@ All session management, file saving, and caching is handled automatically by MCP
 **Python Package** (`python/ai_hydro/`) — modular analysis, data, modelling, and session layers.
 **External Data** — USGS NWIS, NHDPlus, GridMET, 3DEP, CAMELS via pygeohydro.
 
-See `.clinerules/correct-tools.md` for the complete behavioral rules.
+See `.aihydrorules/correct-tools.md` for the complete behavioral rules.
 
 ## Development Workflow
 
@@ -153,7 +153,7 @@ AI-Hydro uses an **instruction-based MCP-first fallback system**. This is NOT au
 
 | Source | Location | Purpose |
 |--------|----------|---------|
-| Workspace rules | `.clinerules/correct-tools.md` | Loaded at conversation start |
+| Workspace rules | `.aihydrorules/correct-tools.md` | Loaded at conversation start |
 | FastMCP instructions | `python/ai_hydro/mcp/app.py` | Embedded in MCP server handshake |
 
 ### Example
@@ -171,7 +171,7 @@ User: "Plot the hydrograph with a 7-day moving average"
 For detailed information, see:
 - **docs/architecture.md** - System architecture and data flow
 - **docs/tools-reference.md** - All MCP tools reference
-- **.clinerules/correct-tools.md** - Tool usage rules (MCP-first fallback)
+- **.aihydrorules/correct-tools.md** - Tool usage rules (MCP-first fallback)
 - **README.md** - Project overview and setup
 
 ## Contributing to AI-Hydro

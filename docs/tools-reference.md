@@ -395,7 +395,7 @@ Exports session data in various formats.
 
 ### `sync_research_context`
 
-Manually refreshes the `.clinerules/research.md` file, which gives the AI automatic awareness of the current session state at the start of each conversation.
+Manually refreshes the `.aihydrorules/research.md` file, which gives the AI automatic awareness of the current session state at the start of each conversation.
 
 ```python
 sync_research_context(gauge_id="01031500")
