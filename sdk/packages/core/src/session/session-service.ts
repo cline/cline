@@ -9,7 +9,10 @@ import {
 } from "node:fs";
 import { join } from "node:path";
 import type { TeamTeammateSpec } from "@clinebot/shared";
-import { resolveTeamDataDir } from "@clinebot/shared/storage";
+import {
+	resolveSessionDataDir,
+	resolveTeamDataDir,
+} from "@clinebot/shared/storage";
 import type { SqliteSessionStore } from "../storage/sqlite-session-store";
 import type { AgentTeamsRuntime, TeamEvent } from "../team";
 import type { SessionSource, SessionStatus } from "../types/common";
@@ -385,10 +388,16 @@ export class FileTeamPersistenceStore {
 }
 
 class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
-	constructor(private readonly store: SqliteSessionStore) {}
+	constructor(
+		private readonly store: SqliteSessionStore,
+		private readonly sessionsDirPath: string = resolveSessionDataDir(),
+	) {}
 
 	ensureSessionsDir(): string {
-		return this.store.ensureSessionsDir();
+		if (!existsSync(this.sessionsDirPath)) {
+			mkdirSync(this.sessionsDirPath, { recursive: true });
+		}
+		return this.sessionsDirPath;
 	}
 
 	async upsertSession(row: SessionRow): Promise<void> {
@@ -625,10 +634,14 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 	constructor(
 		private readonly store: SqliteSessionStore,
 		options: {
+			sessionArtifactsDir?: string;
 			messagesArtifactUploader?: SessionMessagesArtifactUploader;
 		} = {},
 	) {
-		super(new LocalSessionPersistenceAdapter(store), options);
+		super(
+			new LocalSessionPersistenceAdapter(store, options.sessionArtifactsDir),
+			options,
+		);
 	}
 
 	createRootSession(input: CreateRootSessionInput): void {

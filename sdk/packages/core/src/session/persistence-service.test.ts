@@ -20,12 +20,17 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	it("reconciles dead running sessions into failed manifests with terminal markers", async () => {
-		const sessionsDir = mkdtempSync(join(tmpdir(), "stale-session-reconcile-"));
-		tempDirs.push(sessionsDir);
+		const dbDir = mkdtempSync(join(tmpdir(), "stale-session-reconcile-db-"));
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "stale-session-reconcile-sessions-"),
+		);
+		tempDirs.push(dbDir, sessionsDir);
 
-		const store = new SqliteSessionStore({ sessionsDir });
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
 		stores.push(store);
-		const service = new CoreSessionService(store);
+		const service = new CoreSessionService(store, {
+			sessionArtifactsDir: sessionsDir,
+		});
 		const sessionId = "stale-root-session";
 		const artifacts = await service.createRootSessionWithArtifacts({
 			sessionId,
@@ -83,12 +88,15 @@ describe("UnifiedSessionPersistenceService", () => {
 	}, 15_000);
 
 	it("persists teammate task metadata in the file envelope and usage on messages", async () => {
+		const dbDir = mkdtempSync(join(tmpdir(), "team-task-messages-db-"));
 		const sessionsDir = mkdtempSync(join(tmpdir(), "team-task-messages-"));
-		tempDirs.push(sessionsDir);
+		tempDirs.push(dbDir, sessionsDir);
 
-		const store = new SqliteSessionStore({ sessionsDir });
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
 		stores.push(store);
-		const service = new CoreSessionService(store);
+		const service = new CoreSessionService(store, {
+			sessionArtifactsDir: sessionsDir,
+		});
 		const rootSessionId = "root-session";
 		await service.createRootSessionWithArtifacts({
 			sessionId: rootSessionId,
@@ -201,13 +209,15 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	it("uploads messages after persisting them when a messages uploader is configured", async () => {
+		const dbDir = mkdtempSync(join(tmpdir(), "messages-upload-db-"));
 		const sessionsDir = mkdtempSync(join(tmpdir(), "messages-upload-"));
-		tempDirs.push(sessionsDir);
+		tempDirs.push(dbDir, sessionsDir);
 
-		const store = new SqliteSessionStore({ sessionsDir });
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
 		stores.push(store);
 		const uploadMessagesFile = vi.fn(async () => {});
 		const service = new CoreSessionService(store, {
+			sessionArtifactsDir: sessionsDir,
 			messagesArtifactUploader: {
 				uploadMessagesFile,
 			},
@@ -257,12 +267,15 @@ describe("UnifiedSessionPersistenceService", () => {
 	});
 
 	it("deletes the full root session directory even when artifact paths are stale", async () => {
+		const dbDir = mkdtempSync(join(tmpdir(), "delete-root-session-dir-db-"));
 		const sessionsDir = mkdtempSync(join(tmpdir(), "delete-root-session-dir-"));
-		tempDirs.push(sessionsDir);
+		tempDirs.push(dbDir, sessionsDir);
 
-		const store = new SqliteSessionStore({ sessionsDir });
+		const store = new SqliteSessionStore({ sessionsDir: dbDir });
 		stores.push(store);
-		const service = new CoreSessionService(store);
+		const service = new CoreSessionService(store, {
+			sessionArtifactsDir: sessionsDir,
+		});
 		const sessionId = "root-session-delete";
 		const artifacts = await service.createRootSessionWithArtifacts({
 			sessionId,
