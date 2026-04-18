@@ -69,3 +69,63 @@
 		margin: calc(var(--design-unit) * 1px) 0;
 	}
 }
+
+/* ============================================================
+   Cline UI Design Tokens — Toolbar Popups & Controls
+   ============================================================ */
+:root {
+	/* Popup / modal surfaces */
+	--popup-bg: #1c1c1c;
+	--popup-border: 0.5px solid #333;
+	--popup-radius: 10px;
+	--popup-item-padding: 7px 11px;
+	--popup-item-hover-bg: #242424;
+	--popup-item-separator: 0.5px solid #222;
+	--popup-appear-duration: 0.18s;
+
+	/* Segmented control (Plan / Act) */
+	--segment-container-bg: #252525;
+	--segment-container-border: 0.5px solid #333;
+	--segment-container-radius: 5px;
+	--segment-divider: 0.5px solid #333;
+	--segment-font-size: 9.5px;
+	--segment-plan-active-bg: #78500a;
+	--segment-plan-active-color: #fcd34d;
+	--segment-act-active-bg: #1d4ed8;
+	--segment-act-active-color: #ffffff;
+	--segment-inactive-color: #555;
+
+	/* Toggle */
+	--toggle-on-bg: #2563eb;
+	--toggle-off-bg: #2e2e2e;
+	--toggle-thumb-on-color: #ffffff;
+	--toggle-thumb-off-color: #555555;
+	--toggle-width: 28px;
+	--toggle-height: 16px;
+	--toggle-thumb-size: 11px;
+
+	/* Scrollbar (accordions) */
+	--scrollbar-width: 4px;
+	--scrollbar-track-bg: #1a1a1a;
+	--scrollbar-thumb-bg: #3a3a3a;
+	--scrollbar-thumb-hover-bg: #4a4a4a;
+	--scrollbar-radius: 2px;
+
+	/* Typography in popups */
+	--popup-text-primary: #ccc;
+	--popup-text-child: #888;
+	--popup-text-meta: #444;
+	--popup-text-muted: #555;
+	--popup-font-size: 10.5px;
+
+	/* Icons in popups */
+	--popup-icon-stroke: #aaa;
+	--popup-icon-opacity: 0.55;
+	--popup-icon-size: 13px;
+
+	/* Model selector */
+	--model-selector-hover-bg: #252525;
+	--model-selector-hover-border: 0.5px solid #333;
+	--model-selector-active-bg: #2a2a2a;
+	--model-selector-active-border: 0.5px solid #555;
+}

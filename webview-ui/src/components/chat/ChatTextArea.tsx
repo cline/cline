@@ -5,7 +5,7 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon } from "lucide-react"
+import { PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -43,6 +43,9 @@ import {
 } from "@/utils/slash-commands"
 import ClineRulesToggleModal from "../cline-rules/ClineRulesToggleModal"
 import ServersToggleModal from "./ServersToggleModal"
+import AddContextModal from "./toolbar-popups/AddContextModal"
+import ModelSelectorDropdown from "./toolbar-popups/ModelSelectorDropdown"
+import PlusPopup from "./toolbar-popups/PlusPopup"
 
 const { MAX_IMAGES_AND_FILES_PER_MESSAGE } = CHAT_CONSTANTS
 
@@ -258,6 +261,11 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [fileSearchResults, setFileSearchResults] = useState<SearchResult[]>([])
 		const [searchLoading, setSearchLoading] = useState(false)
 		const [, metaKeyChar] = useMetaKeyDetection(platform)
+		const [plusPopupOpen, setPlusPopupOpen] = useState(false)
+		const [addContextOpen, setAddContextOpen] = useState(false)
+		const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
+		const plusButtonRef = useRef<HTMLDivElement>(null)
+		const modelButtonRef = useRef<HTMLDivElement>(null)
 
 		// Fetch git commits when Git is selected or when typing a hash
 		useEffect(() => {
@@ -1534,58 +1542,83 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
-							<Tooltip>
-								<TooltipContent>Add Context</TooltipContent>
-								<TooltipTrigger>
-									<VSCodeButton
-										appearance="icon"
-										aria-label="Add Context"
-										className="p-0 m-0 flex items-center"
-										data-testid="context-button"
-										onClick={handleContextButtonClick}>
-										<ButtonContainer>
-											<AtSignIcon size={12} />
-										</ButtonContainer>
-									</VSCodeButton>
-								</TooltipTrigger>
-							</Tooltip>
-
-							<Tooltip>
-								<TooltipContent>Add Files & Images</TooltipContent>
-								<TooltipTrigger>
-									<VSCodeButton
-										appearance="icon"
-										aria-label="Add Files & Images"
-										className="p-0 m-0 flex items-center"
-										data-testid="files-button"
-										disabled={shouldDisableFilesAndImages}
-										onClick={() => {
-											if (!shouldDisableFilesAndImages) {
-												onSelectFilesAndImages()
-											}
-										}}>
-										<ButtonContainer>
-											<PlusIcon size={13} />
-										</ButtonContainer>
-									</VSCodeButton>
-								</TooltipTrigger>
-							</Tooltip>
+							{/* + button — opens PlusPopup (context / files / auto-approve) */}
+							<div ref={plusButtonRef} style={{ position: "relative" }}>
+								<Tooltip>
+									<TooltipContent>Add context, files & auto-approve</TooltipContent>
+									<TooltipTrigger>
+										<VSCodeButton
+											appearance="icon"
+											aria-label="Add Context / Files"
+											className="p-0 m-0 flex items-center"
+											data-testid="plus-button"
+											onClick={() => {
+												setPlusPopupOpen((v) => !v)
+												setAddContextOpen(false)
+											}}>
+											<ButtonContainer>
+												<PlusIcon size={13} />
+											</ButtonContainer>
+										</VSCodeButton>
+									</TooltipTrigger>
+								</Tooltip>
+								<PlusPopup
+									anchorRef={plusButtonRef}
+									isOpen={plusPopupOpen}
+									onAddContext={() => {
+										setPlusPopupOpen(false)
+										setAddContextOpen(true)
+									}}
+									onAddFilesAndImages={() => {
+										setPlusPopupOpen(false)
+										if (!shouldDisableFilesAndImages) {
+											onSelectFilesAndImages()
+										}
+									}}
+									onClose={() => setPlusPopupOpen(false)}
+								/>
+								<AddContextModal
+									anchorRef={plusButtonRef}
+									isOpen={addContextOpen}
+									onClose={() => setAddContextOpen(false)}
+									onInsertMention={(value) => {
+										if (textAreaRef.current) {
+											const pos = textAreaRef.current.selectionStart
+											const { newValue, mentionIndex } = insertMentionDirectly(
+												textAreaRef.current.value,
+												pos,
+												value,
+											)
+											setInputValue(newValue)
+											const newCursor = mentionIndex + value.length + 2
+											setIntendedCursorPosition(newCursor)
+											setTimeout(() => textAreaRef.current?.focus(), 0)
+										}
+									}}
+								/>
+							</div>
 
 							<ServersToggleModal />
 
 							<ClineRulesToggleModal />
 
-							<ModelContainer>
+							<ModelContainer ref={modelButtonRef} style={{ position: "relative" }}>
 								<ModelButtonWrapper>
 									<ModelDisplayButton
 										disabled={false}
-										onClick={handleModelButtonClick}
+										isActive={modelDropdownOpen}
+										onClick={() => setModelDropdownOpen((v) => !v)}
 										role="button"
 										tabIndex={0}
-										title="Open API Settings">
+										title="Switch model">
 										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
 									</ModelDisplayButton>
 								</ModelButtonWrapper>
+								<ModelSelectorDropdown
+									anchorRef={modelButtonRef}
+									isOpen={modelDropdownOpen}
+									onClose={() => setModelDropdownOpen(false)}
+								/>
 							</ModelContainer>
 						</ButtonGroup>
 					</div>
@@ -1610,6 +1643,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
 										)}
+										key={m}
 										onMouseLeave={() => setShownTooltipMode(null)}
 										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
 										role="switch">
