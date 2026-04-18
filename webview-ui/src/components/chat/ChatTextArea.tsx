@@ -1591,7 +1591,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 												setPlusPopupOpen(false)
 											}}>
 											<ButtonContainer>
-												<AtSignIcon size={13} />
+												<AtSignIcon size={12} />
 											</ButtonContainer>
 										</VSCodeButton>
 									</TooltipTrigger>

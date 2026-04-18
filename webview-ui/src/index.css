@@ -82,11 +82,11 @@ body,
 	--segment-act-active-color: #ffffff;
 	--segment-inactive-color: #555;
 
-	/* Toggle */
-	--toggle-on-bg: var(--vscode-button-background, #2563eb);
-	--toggle-off-bg: var(--vscode-input-background, #2e2e2e);
-	--toggle-thumb-on-color: var(--vscode-button-foreground, #ffffff);
-	--toggle-thumb-off-color: var(--vscode-descriptionForeground, #555555);
+	/* Toggle — intentional brand colours */
+	--toggle-on-bg: #2563eb;
+	--toggle-off-bg: #2e2e2e;
+	--toggle-thumb-on-color: #ffffff;
+	--toggle-thumb-off-color: #555555;
 	--toggle-width: 28px;
 	--toggle-height: 16px;
 	--toggle-thumb-size: 11px;
@@ -103,7 +103,7 @@ body,
 	--popup-text-child: var(--vscode-descriptionForeground, #888888);
 	--popup-text-meta: var(--vscode-descriptionForeground, #666666);
 	--popup-text-muted: var(--vscode-descriptionForeground, #555555);
-	--popup-font-size: var(--vscode-font-size, 10.5px);
+	--popup-font-size: 10.5px;
 
 	/* Shortcut badge */
 	--popup-shortcut-bg: var(--vscode-badge-background, rgba(255, 255, 255, 0.06));

@@ -63,7 +63,7 @@ const ModelInfo = styled.div`
 
 const ModelName = styled.div`
 	color: var(--popup-text-primary);
-	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
+	font-size: var(--popup-font-size, 10.5px);
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
