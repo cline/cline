@@ -36,7 +36,7 @@ Never use Python to replicate something an MCP tool already does.
 delineate_watershed("01031500", workspace_dir="/path/to/workspace")
 fetch_streamflow_data("01031500", "2000-01-01", "2020-12-31")
 extract_hydrological_signatures("01031500")
-extract_camels_attributes("01031500")
+fetch_camels_us("01031500")
 extract_geomorphic_parameters("01031500")
 compute_twi("01031500")               # statistics + PNG map + interactive HTML
 fetch_forcing_data("01031500", "2000-01-01", "2020-12-31")

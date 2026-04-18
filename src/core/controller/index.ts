@@ -11,7 +11,6 @@ import { AiHydroAccountService } from "@services/account/AiHydroAccountService"
 import { geoFormatConverter } from "@services/geo/GeoFormatConverter"
 import { GeoConversionError } from "@services/geo/types"
 import { McpHub } from "@services/mcp/McpHub"
-import { RagService } from "@services/rag/RagService"
 import { ApiProvider, ModelInfo } from "@shared/api"
 import { ChatContent } from "@shared/ChatContent"
 import { ExtensionState, Platform } from "@shared/ExtensionMessage"
@@ -68,7 +67,6 @@ export class Controller {
 	task?: Task
 
 	mcpHub: McpHub
-	ragService: RagService
 	accountService: AiHydroAccountService
 	authService: AuthService
 	ocaAuthService: OcaAuthService
@@ -140,7 +138,6 @@ export class Controller {
 		PromptRegistry.getInstance() // Ensure prompts and tools are registered
 		HostProvider.get().logToChannel("AiHydroProvider instantiated")
 		this.stateManager = StateManager.get()
-		this.ragService = new RagService(context)
 
 		// Initialize workspace GeoJSON file scanner
 		this.initializeFileScanner()
