@@ -17,13 +17,13 @@ const PopupWrapper = styled.div`
 	bottom: calc(100% + 8px);
 	left: 0;
 	width: 240px;
-	background: var(--popup-bg, #1c1c1c);
-	border: var(--popup-border, 0.5px solid #333);
+	background: var(--popup-bg);
+	border: var(--popup-border);
 	border-radius: var(--popup-radius, 10px);
 	overflow: hidden;
 	z-index: 200;
 	animation: ${popupAppear} var(--popup-appear-duration, 0.18s) ease forwards;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.4));
 `
 
 const Row = styled.div<{ $active?: boolean }>`
@@ -32,16 +32,16 @@ const Row = styled.div<{ $active?: boolean }>`
 	gap: 9px;
 	padding: var(--popup-item-padding, 7px 11px);
 	cursor: pointer;
-	border-bottom: var(--popup-item-separator, 0.5px solid #222);
+	border-bottom: var(--popup-item-separator);
 	transition: background 0.12s;
-	background: ${(p) => (p.$active ? "var(--popup-item-hover-bg, #242424)" : "transparent")};
+	background: ${(p) => (p.$active ? "var(--popup-item-hover-bg)" : "transparent")};
 
 	&:last-child {
 		border-bottom: none;
 	}
 
 	&:hover {
-		background: var(--popup-item-hover-bg, #242424);
+		background: var(--popup-item-hover-bg);
 	}
 `
 
@@ -52,26 +52,28 @@ const RowIcon = styled.div`
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	opacity: 0.55;
-	color: var(--popup-icon-stroke, #aaa);
+	opacity: var(--popup-icon-opacity, 0.6);
+	color: var(--popup-icon-stroke);
+	font-size: 13px;
 `
 
 const RowLabel = styled.span`
-	color: var(--popup-text-primary, #ccc);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-primary);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	flex: 1;
 `
 
-const RowAction = styled.span`
-	color: var(--popup-text-meta, #444);
-	font-size: 14px;
-	font-weight: 300;
+const RowAction = styled.i`
+	color: var(--popup-text-meta);
+	font-size: 12px;
+	opacity: 0.7;
 `
 
-const ChevronIcon = styled.svg<{ $open: boolean }>`
-	width: 12px;
-	height: 12px;
+const ChevronIcon = styled.i<{ $open: boolean }>`
 	flex-shrink: 0;
+	font-size: 12px;
+	opacity: 0.5;
+	color: var(--popup-text-muted);
 	transition: transform 0.2s;
 	transform: rotate(${(p) => (p.$open ? "90deg" : "0deg")});
 `
@@ -85,20 +87,20 @@ const AccordionContent = styled.div<{ $open: boolean }>`
 const SubScroll = styled.div`
 	overflow-y: auto;
 	max-height: 220px;
-	background: #161616;
+	background: var(--popup-sub-bg);
 
 	&::-webkit-scrollbar {
 		width: var(--scrollbar-width, 4px);
 	}
 	&::-webkit-scrollbar-track {
-		background: var(--scrollbar-track-bg, #1a1a1a);
+		background: var(--scrollbar-track-bg, transparent);
 	}
 	&::-webkit-scrollbar-thumb {
-		background: var(--scrollbar-thumb-bg, #3a3a3a);
+		background: var(--scrollbar-thumb-bg);
 		border-radius: var(--scrollbar-radius, 2px);
 	}
 	&::-webkit-scrollbar-thumb:hover {
-		background: var(--scrollbar-thumb-hover-bg, #4a4a4a);
+		background: var(--scrollbar-thumb-hover-bg);
 	}
 `
 
@@ -107,7 +109,7 @@ const SubItem = styled.div`
 	align-items: flex-start;
 	gap: 8px;
 	padding: 8px 11px 8px 22px;
-	border-bottom: 0.5px solid #1e1e1e;
+	border-bottom: var(--popup-sub-separator);
 	cursor: pointer;
 	transition: background 0.12s;
 
@@ -116,7 +118,7 @@ const SubItem = styled.div`
 	}
 
 	&:hover {
-		background: #1e1e1e;
+		background: var(--popup-sub-hover);
 	}
 `
 
@@ -129,7 +131,8 @@ const SubItemIcon = styled.div`
 	flex-shrink: 0;
 	margin-top: 2px;
 	opacity: 0.4;
-	color: var(--popup-icon-stroke, #aaa);
+	color: var(--popup-icon-stroke);
+	font-size: 11px;
 `
 
 const SubItemInfo = styled.div`
@@ -138,8 +141,8 @@ const SubItemInfo = styled.div`
 `
 
 const SubItemName = styled.div`
-	color: var(--popup-text-primary, #bbb);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-primary);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	line-height: 1.4;
 	overflow: hidden;
 	text-overflow: ellipsis;
@@ -147,78 +150,23 @@ const SubItemName = styled.div`
 `
 
 const SubItemMeta = styled.div`
-	color: var(--popup-text-meta, #444);
+	color: var(--popup-text-meta);
 	font-size: 8.5px;
 	margin-top: 1px;
 `
 
-const SubItemAdd = styled.span`
-	color: var(--popup-text-meta, #444);
-	font-size: 14px;
-	font-weight: 300;
+const SubItemAdd = styled.i`
+	color: var(--popup-text-meta);
+	font-size: 12px;
 	flex-shrink: 0;
-	transition: color 0.12s;
+	opacity: 0.7;
+	transition: opacity 0.12s;
 
 	&:hover {
-		color: #aaa;
+		opacity: 1;
+		color: var(--popup-text-primary);
 	}
 `
-
-// ─── SVG Icons ────────────────────────────────────────────────────────────────
-const UrlIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<circle cx="7" cy="7" r="5" stroke="currentColor" strokeWidth="1.2" />
-		<path d="M7 5v2l1.5 1.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1" />
-	</svg>
-)
-
-const ProblemsIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<path d="M2 11L5 3l2 5 2-3 2 6" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" />
-	</svg>
-)
-
-const TerminalIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<rect height="8" rx="1.5" stroke="currentColor" strokeWidth="1.2" width="10" x="2" y="3" />
-		<path d="M4.5 6.5l2 2-2 2" stroke="currentColor" strokeLinecap="round" strokeWidth="1" />
-	</svg>
-)
-
-const GitIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<circle cx="4" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
-		<circle cx="10" cy="10" r="1.5" stroke="currentColor" strokeWidth="1.1" />
-		<circle cx="7" cy="4" r="1.5" stroke="currentColor" strokeWidth="1.1" />
-		<path d="M4 8.5V6l3-2 3 2v2.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.1" />
-	</svg>
-)
-
-const CommitDotIcon = () => (
-	<svg fill="none" height="11" viewBox="0 0 12 12" width="11">
-		<circle cx="6" cy="6" r="2" stroke="currentColor" strokeWidth="1.1" />
-		<path d="M6 1v3M6 8v3" stroke="currentColor" strokeLinecap="round" strokeWidth="1" />
-	</svg>
-)
-
-const FolderIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<path d="M2 4h3l1 1.5h6v6H2z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" />
-	</svg>
-)
-
-const SmallFolderIcon = () => (
-	<svg fill="none" height="11" viewBox="0 0 12 12" width="11">
-		<path d="M2 3h2.5l1 1.5h4.5v5H2z" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.1" />
-	</svg>
-)
-
-const FileIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<rect height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" width="10" x="2" y="1.5" />
-		<path d="M4.5 5h5M4.5 7.5h3.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1" />
-	</svg>
-)
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface GitCommitEntry {
@@ -322,7 +270,7 @@ const AddContextModal: React.FC<AddContextModalProps> = ({ isOpen, onClose, onIn
 			{/* URL */}
 			<Row onClick={() => insert("url")}>
 				<RowIcon>
-					<UrlIcon />
+					<i aria-hidden="true" className="codicon codicon-link" />
 				</RowIcon>
 				<RowLabel>Paste URL to fetch contents</RowLabel>
 			</Row>
@@ -330,48 +278,46 @@ const AddContextModal: React.FC<AddContextModalProps> = ({ isOpen, onClose, onIn
 			{/* Problems */}
 			<Row onClick={() => insert("problems")}>
 				<RowIcon>
-					<ProblemsIcon />
+					<i aria-hidden="true" className="codicon codicon-warning" />
 				</RowIcon>
 				<RowLabel>Problems</RowLabel>
-				<RowAction>+</RowAction>
+				<RowAction aria-hidden="true" className="codicon codicon-add" />
 			</Row>
 
 			{/* Terminal */}
 			<Row onClick={() => insert("terminal")}>
 				<RowIcon>
-					<TerminalIcon />
+					<i aria-hidden="true" className="codicon codicon-terminal" />
 				</RowIcon>
 				<RowLabel>Terminal</RowLabel>
-				<RowAction>+</RowAction>
+				<RowAction aria-hidden="true" className="codicon codicon-add" />
 			</Row>
 
 			{/* Git Commits */}
 			<Row $active={openAccordion === "git"} onClick={() => toggleAccordion("git")}>
 				<RowIcon>
-					<GitIcon />
+					<i aria-hidden="true" className="codicon codicon-git-commit" />
 				</RowIcon>
 				<RowLabel>Git Commits</RowLabel>
-				<ChevronIcon $open={openAccordion === "git"} fill="none" viewBox="0 0 12 12">
-					<path d="M4.5 2.5l4 4-4 4" stroke="#444" strokeLinecap="round" strokeWidth="1.3" />
-				</ChevronIcon>
+				<ChevronIcon $open={openAccordion === "git"} aria-hidden="true" className="codicon codicon-chevron-right" />
 			</Row>
 			<AccordionContent $open={openAccordion === "git"}>
 				<SubScroll>
 					{/* Working changes */}
 					<SubItem onClick={() => insert("git:HEAD")}>
 						<SubItemIcon>
-							<CommitDotIcon />
+							<i aria-hidden="true" className="codicon codicon-circle-small-filled" />
 						</SubItemIcon>
 						<SubItemInfo>
 							<SubItemName>Working changes</SubItemName>
 							<SubItemMeta>Current uncommitted changes</SubItemMeta>
 						</SubItemInfo>
-						<SubItemAdd>+</SubItemAdd>
+						<SubItemAdd aria-hidden="true" className="codicon codicon-add" />
 					</SubItem>
 					{gitCommits.map((c) => (
 						<SubItem key={c.hash} onClick={() => insert(c.hash)}>
 							<SubItemIcon>
-								<CommitDotIcon />
+								<i aria-hidden="true" className="codicon codicon-circle-small-filled" />
 							</SubItemIcon>
 							<SubItemInfo>
 								<SubItemName>{c.subject}</SubItemName>
@@ -379,7 +325,7 @@ const AddContextModal: React.FC<AddContextModalProps> = ({ isOpen, onClose, onIn
 									{c.shortHash} · {c.author} · {c.date}
 								</SubItemMeta>
 							</SubItemInfo>
-							<SubItemAdd>+</SubItemAdd>
+							<SubItemAdd aria-hidden="true" className="codicon codicon-add" />
 						</SubItem>
 					))}
 				</SubScroll>
@@ -388,24 +334,22 @@ const AddContextModal: React.FC<AddContextModalProps> = ({ isOpen, onClose, onIn
 			{/* Add Folder */}
 			<Row $active={openAccordion === "folder"} onClick={() => toggleAccordion("folder")}>
 				<RowIcon>
-					<FolderIcon />
+					<i aria-hidden="true" className="codicon codicon-folder" />
 				</RowIcon>
 				<RowLabel>Add Folder</RowLabel>
-				<ChevronIcon $open={openAccordion === "folder"} fill="none" viewBox="0 0 12 12">
-					<path d="M4.5 2.5l4 4-4 4" stroke="#444" strokeLinecap="round" strokeWidth="1.3" />
-				</ChevronIcon>
+				<ChevronIcon $open={openAccordion === "folder"} aria-hidden="true" className="codicon codicon-chevron-right" />
 			</Row>
 			<AccordionContent $open={openAccordion === "folder"}>
 				<SubScroll>
 					{folders.map((f) => (
 						<SubItem key={f.path} onClick={() => insert(f.path)}>
 							<SubItemIcon>
-								<SmallFolderIcon />
+								<i aria-hidden="true" className="codicon codicon-folder" />
 							</SubItemIcon>
 							<SubItemInfo>
 								<SubItemName>{f.label} /</SubItemName>
 							</SubItemInfo>
-							<SubItemAdd>+</SubItemAdd>
+							<SubItemAdd aria-hidden="true" className="codicon codicon-add" />
 						</SubItem>
 					))}
 				</SubScroll>
@@ -414,12 +358,10 @@ const AddContextModal: React.FC<AddContextModalProps> = ({ isOpen, onClose, onIn
 			{/* Add File */}
 			<Row onClick={() => insert("file")}>
 				<RowIcon>
-					<FileIcon />
+					<i aria-hidden="true" className="codicon codicon-file" />
 				</RowIcon>
 				<RowLabel>Add File</RowLabel>
-				<ChevronIcon $open={false} fill="none" viewBox="0 0 12 12">
-					<path d="M4.5 2.5l4 4-4 4" stroke="#444" strokeLinecap="round" strokeWidth="1.3" />
-				</ChevronIcon>
+				<ChevronIcon $open={false} aria-hidden="true" className="codicon codicon-chevron-right" />
 			</Row>
 		</PopupWrapper>
 	)

@@ -16,13 +16,13 @@ const PopupWrapper = styled.div`
 	bottom: calc(100% + 8px);
 	left: 0;
 	width: 230px;
-	background: var(--popup-bg, #1c1c1c);
-	border: var(--popup-border, 0.5px solid #333);
+	background: var(--popup-bg);
+	border: var(--popup-border);
 	border-radius: var(--popup-radius, 10px);
 	overflow: hidden;
 	z-index: 200;
 	animation: ${popupAppear} var(--popup-appear-duration, 0.18s) ease forwards;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.4));
 `
 
 const PopupItem = styled.div<{ $active?: boolean }>`
@@ -31,16 +31,16 @@ const PopupItem = styled.div<{ $active?: boolean }>`
 	gap: 9px;
 	padding: var(--popup-item-padding, 7px 11px);
 	cursor: pointer;
-	border-bottom: var(--popup-item-separator, 0.5px solid #222);
+	border-bottom: var(--popup-item-separator);
 	transition: background 0.12s;
-	background: ${(p) => (p.$active ? "var(--popup-item-hover-bg, #242424)" : "transparent")};
+	background: ${(p) => (p.$active ? "var(--popup-item-hover-bg)" : "transparent")};
 
 	&:last-child {
 		border-bottom: none;
 	}
 
 	&:hover {
-		background: var(--popup-item-hover-bg, #242424);
+		background: var(--popup-item-hover-bg);
 	}
 `
 
@@ -51,28 +51,30 @@ const ItemIcon = styled.div`
 	align-items: center;
 	justify-content: center;
 	flex-shrink: 0;
-	opacity: var(--popup-icon-opacity, 0.55);
-	color: var(--popup-icon-stroke, #aaa);
+	opacity: var(--popup-icon-opacity, 0.6);
+	color: var(--popup-icon-stroke);
+	font-size: 13px;
 `
 
 const ItemLabel = styled.span`
-	color: var(--popup-text-primary, #ccc);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-primary);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	flex: 1;
 `
 
 const ItemShortcut = styled.span`
-	color: var(--popup-text-meta, #444);
+	color: var(--popup-shortcut-color);
 	font-size: 9px;
-	background: #252525;
+	background: var(--popup-shortcut-bg);
 	border-radius: 3px;
 	padding: 1px 5px;
 `
 
-const ChevronIcon = styled.svg<{ $open: boolean }>`
-	width: 12px;
-	height: 12px;
+const ChevronIcon = styled.i<{ $open: boolean }>`
 	flex-shrink: 0;
+	font-size: 12px;
+	opacity: 0.5;
+	color: var(--popup-text-muted);
 	transition: transform 0.2s;
 	transform: rotate(${(p) => (p.$open ? "180deg" : "0deg")});
 `
@@ -82,7 +84,7 @@ const AccordionContent = styled.div<{ $open: boolean }>`
 	overflow: hidden;
 	max-height: ${(p) => (p.$open ? "600px" : "0")};
 	transition: max-height 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-	background: #161616;
+	background: var(--popup-sub-bg);
 `
 
 const AaParentRow = styled.div`
@@ -90,12 +92,12 @@ const AaParentRow = styled.div`
 	align-items: center;
 	gap: 9px;
 	padding: 7px 11px;
-	border-bottom: 0.5px solid #1e1e1e;
+	border-bottom: var(--popup-sub-separator);
 	cursor: pointer;
 	transition: background 0.12s;
 
 	&:hover {
-		background: #1e1e1e;
+		background: var(--popup-sub-hover);
 	}
 `
 
@@ -107,13 +109,13 @@ const AaParentIcon = styled.div`
 	justify-content: center;
 	flex-shrink: 0;
 	opacity: 0.5;
-	color: var(--popup-icon-stroke, #aaa);
+	color: var(--popup-icon-stroke);
 	font-size: 12px;
 `
 
 const AaLabel = styled.span`
-	color: var(--popup-text-primary, #ccc);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-primary);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	flex: 1;
 `
 
@@ -122,18 +124,18 @@ const AaChildRow = styled.div`
 	align-items: center;
 	gap: 9px;
 	padding: 6px 11px 6px 30px;
-	border-bottom: 0.5px solid #1a1a1a;
+	border-bottom: var(--popup-sub-separator);
 	cursor: pointer;
 	transition: background 0.12s;
 
 	&:hover {
-		background: #1a1a1a;
+		background: var(--popup-sub-hover);
 	}
 `
 
 const AaChildLabel = styled.span`
-	color: var(--popup-text-child, #888);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-child);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	flex: 1;
 `
 
@@ -142,12 +144,12 @@ const NotifRow = styled.div`
 	align-items: center;
 	gap: 9px;
 	padding: 7px 11px;
-	border-top: 0.5px solid #222;
+	border-top: var(--popup-sub-separator);
 `
 
 const NotifLabel = styled.span`
-	color: var(--popup-text-primary, #ccc);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-primary);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	flex: 1;
 `
 
@@ -163,7 +165,7 @@ const ToggleWrapper = styled.div<{ $on: boolean }>`
 const ToggleTrack = styled.div<{ $on: boolean }>`
 	position: absolute;
 	inset: 0;
-	background: ${(p) => (p.$on ? "var(--toggle-on-bg, #2563eb)" : "var(--toggle-off-bg, #2e2e2e)")};
+	background: ${(p) => (p.$on ? "var(--toggle-on-bg)" : "var(--toggle-off-bg)")};
 	border-radius: 8px;
 	transition: background 0.2s;
 `
@@ -174,32 +176,13 @@ const ToggleThumb = styled.div<{ $on: boolean }>`
 	left: ${(p) => (p.$on ? "14.5px" : "2.5px")};
 	width: var(--toggle-thumb-size, 11px);
 	height: var(--toggle-thumb-size, 11px);
-	background: ${(p) => (p.$on ? "var(--toggle-thumb-on-color, #fff)" : "var(--toggle-thumb-off-color, #555)")};
+	background: ${(p) => (p.$on ? "var(--toggle-thumb-on-color)" : "var(--toggle-thumb-off-color)")};
 	border-radius: 50%;
-	transition: left 0.2s, background 0.2s;
+	transition:
+		left 0.2s,
+		background 0.2s;
 	pointer-events: none;
 `
-
-// ─── SVG Icons ───────────────────────────────────────────────────────────────
-const ContextIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<path d="M2 4h10M2 7h7M2 10h5" stroke="currentColor" strokeLinecap="round" strokeWidth="1.3" />
-	</svg>
-)
-
-const FilesIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<rect height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2" width="10" x="2" y="1.5" />
-		<path d="M4.5 5h5M4.5 7.5h3.5" stroke="currentColor" strokeLinecap="round" strokeWidth="1" />
-	</svg>
-)
-
-const AutoApproveIcon = () => (
-	<svg fill="none" height="13" viewBox="0 0 14 14" width="13">
-		<circle cx="7" cy="7" r="5.5" stroke="currentColor" strokeWidth="1.2" />
-		<path d="M4.5 7l2 2 3-3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.2" />
-	</svg>
-)
 
 // ─── Toggle Component ─────────────────────────────────────────────────────────
 const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (e: React.MouseEvent) => void }) => (
@@ -253,7 +236,7 @@ const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, on
 			{/* Add context */}
 			<PopupItem onClick={handleAddContext}>
 				<ItemIcon>
-					<ContextIcon />
+					<i aria-hidden="true" className="codicon codicon-mention" />
 				</ItemIcon>
 				<ItemLabel>Add context</ItemLabel>
 				<ItemShortcut>@</ItemShortcut>
@@ -262,7 +245,7 @@ const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, on
 			{/* Add files & images */}
 			<PopupItem onClick={handleAddFiles}>
 				<ItemIcon>
-					<FilesIcon />
+					<i aria-hidden="true" className="codicon codicon-file-add" />
 				</ItemIcon>
 				<ItemLabel>Add files &amp; images</ItemLabel>
 			</PopupItem>
@@ -270,12 +253,10 @@ const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, on
 			{/* Auto-approve header */}
 			<PopupItem $active={aaOpen} onClick={() => setAaOpen((v) => !v)}>
 				<ItemIcon>
-					<AutoApproveIcon />
+					<i aria-hidden="true" className="codicon codicon-shield" />
 				</ItemIcon>
 				<ItemLabel>Auto-approve</ItemLabel>
-				<ChevronIcon $open={aaOpen} fill="none" viewBox="0 0 12 12">
-					<path d="M2 4.5l4 4 4-4" stroke="#555" strokeLinecap="round" strokeWidth="1.3" />
-				</ChevronIcon>
+				<ChevronIcon $open={aaOpen} aria-hidden="true" className="codicon codicon-chevron-down" />
 			</PopupItem>
 
 			{/* Auto-approve accordion */}
@@ -289,7 +270,7 @@ const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, on
 									updateAction(action, !enabled).catch((e) => console.error("Auto-approve toggle error:", e))
 								}>
 								<AaParentIcon>
-									<i className={`codicon ${action.icon}`} />
+									<i aria-hidden="true" className={`codicon ${action.icon}`} />
 								</AaParentIcon>
 								<AaLabel>{action.label}</AaLabel>
 								<Toggle

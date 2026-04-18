@@ -1611,7 +1611,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 										role="button"
 										tabIndex={0}
 										title="Switch model">
-										<ModelButtonContent className="text-xs">{modelDisplayName}</ModelButtonContent>
+										<ModelButtonContent className="text-xs">
+											{modelDisplayName}
+											<i
+												aria-hidden="true"
+												className="codicon codicon-chevron-down"
+												style={{ fontSize: 9, marginLeft: 3, opacity: 0.6, flexShrink: 0 }}
+											/>
+										</ModelButtonContent>
 									</ModelDisplayButton>
 								</ModelButtonWrapper>
 								<ModelSelectorDropdown

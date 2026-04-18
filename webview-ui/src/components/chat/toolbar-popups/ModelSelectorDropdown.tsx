@@ -16,22 +16,22 @@ const PopupWrapper = styled.div`
 	bottom: calc(100% + 8px);
 	right: 0;
 	width: 215px;
-	background: var(--popup-bg, #1c1c1c);
-	border: var(--popup-border, 0.5px solid #333);
+	background: var(--popup-bg);
+	border: var(--popup-border);
 	border-radius: var(--popup-radius, 10px);
 	overflow: hidden;
 	z-index: 200;
 	animation: ${popupAppear} var(--popup-appear-duration, 0.18s) ease forwards;
-	box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+	box-shadow: 0 8px 24px var(--vscode-widget-shadow, rgba(0, 0, 0, 0.4));
 `
 
 const Header = styled.div`
 	padding: 6px 11px;
-	border-bottom: 0.5px solid #252525;
+	border-bottom: var(--popup-header-separator);
 `
 
 const HeaderTitle = styled.div`
-	color: var(--popup-text-muted, #444);
+	color: var(--popup-text-muted);
 	font-size: 8.5px;
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
@@ -44,7 +44,7 @@ const ModelRow = styled.div<{ $isSelected?: boolean }>`
 	gap: 9px;
 	padding: var(--popup-item-padding, 7px 11px);
 	cursor: pointer;
-	border-bottom: var(--popup-item-separator, 0.5px solid #1e1e1e);
+	border-bottom: var(--popup-item-separator);
 	transition: background 0.12s;
 
 	&:last-child {
@@ -52,7 +52,7 @@ const ModelRow = styled.div<{ $isSelected?: boolean }>`
 	}
 
 	&:hover {
-		background: #252525;
+		background: var(--model-selector-hover-bg);
 	}
 `
 
@@ -62,21 +62,21 @@ const ModelInfo = styled.div`
 `
 
 const ModelName = styled.div`
-	color: var(--popup-text-primary, #ccc);
-	font-size: var(--popup-font-size, 10.5px);
+	color: var(--popup-text-primary);
+	font-size: var(--popup-font-size, var(--vscode-font-size, 11px));
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 `
 
 const ModelSub = styled.div`
-	color: var(--popup-text-muted, #555);
+	color: var(--popup-text-muted);
 	font-size: 8.5px;
 	margin-top: 1px;
 `
 
-const CheckMark = styled.span<{ $visible: boolean }>`
-	color: #fff;
+const CheckMark = styled.i<{ $visible: boolean }>`
+	color: var(--popup-checkmark-color);
 	font-size: 11px;
 	visibility: ${(p) => (p.$visible ? "visible" : "hidden")};
 	flex-shrink: 0;
@@ -87,21 +87,21 @@ const SettingsLink = styled.div`
 	align-items: center;
 	justify-content: space-between;
 	padding: 6px 11px;
-	border-top: 0.5px solid #252525;
+	border-top: var(--popup-header-separator);
 	cursor: pointer;
 	transition: background 0.12s;
 
 	&:hover {
-		background: #252525;
+		background: var(--model-selector-hover-bg);
 	}
 `
 
 const SettingsLinkText = styled.span`
-	color: var(--popup-text-muted, #555);
+	color: var(--popup-text-muted);
 	font-size: 9px;
 
 	${SettingsLink}:hover & {
-		color: #888;
+		color: var(--popup-text-child);
 	}
 `
 
@@ -121,7 +121,6 @@ interface ModelSelectorDropdownProps {
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 /** Build a curated short list for the current provider */
 function getProviderModels(provider: string, selectedModelId: string): ModelEntry[] {
-	// Common Anthropic models
 	if (provider === "anthropic" || provider === "cline") {
 		return [
 			{ id: "claude-opus-4-5", label: "claude-opus-4-5", subtitle: "Most intelligent" },
@@ -141,7 +140,7 @@ function getProviderModels(provider: string, selectedModelId: string): ModelEntr
 			{ id: "gemini-2.0-flash", label: "gemini-2.0-flash", subtitle: "Faster" },
 		]
 	}
-	// Fallback: just show currently selected
+	// Fallback: show currently selected
 	return [{ id: selectedModelId, label: selectedModelId, subtitle: "Current model" }]
 }
 
@@ -151,7 +150,6 @@ const ModelSelectorDropdown: React.FC<ModelSelectorDropdownProps> = ({ isOpen, o
 	const { apiConfiguration, mode, navigateToSettingsModelPicker } = useExtensionState()
 
 	const { selectedProvider, selectedModelId } = normalizeApiConfiguration(apiConfiguration, mode)
-
 	const models = getProviderModels(selectedProvider, selectedModelId)
 
 	// Close on outside click
@@ -168,7 +166,6 @@ const ModelSelectorDropdown: React.FC<ModelSelectorDropdownProps> = ({ isOpen, o
 
 	const handleSelectModel = useCallback(
 		(_modelId: string) => {
-			// Navigate to settings with the model picker open so user can confirm
 			navigateToSettingsModelPicker({ targetSection: "api-config" })
 			onClose()
 		},
@@ -193,11 +190,11 @@ const ModelSelectorDropdown: React.FC<ModelSelectorDropdownProps> = ({ isOpen, o
 						<ModelName>{m.label}</ModelName>
 						{m.subtitle && <ModelSub>{m.subtitle}</ModelSub>}
 					</ModelInfo>
-					<CheckMark $visible={m.id === selectedModelId}>✓</CheckMark>
+					<CheckMark $visible={m.id === selectedModelId} aria-hidden="true" className="codicon codicon-check" />
 				</ModelRow>
 			))}
 			<SettingsLink onClick={handleOpenSettings}>
-				<SettingsLinkText>All models & providers →</SettingsLinkText>
+				<SettingsLinkText>All models &amp; providers →</SettingsLinkText>
 			</SettingsLink>
 		</PopupWrapper>
 	)

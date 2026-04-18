@@ -1,89 +1,76 @@
-/* Import external CSS files */
-@import url("../../node_modules/@vscode/codicons/dist/codicon.css");
-@import url("../node_modules/@fontsource/azeret-mono/index.css");
-
-/* Tailwind CSS */
-@import "tailwindcss";
 @import "./theme.css";
-@plugin "tailwindcss-animate";
-@custom-variant dark (&:is(.dark *));
 
-/**
- * The default styles for each defined element.
- * This ensures all the elements are rendered with the expected styles consistently without affecting by the parent element / host.
- */
-@layer base {
-	* {
-		@apply border-border outline-ring/50 text-base;
-	}
-	body {
-		@apply bg-background text-foreground;
-	}
-	p {
-		@apply my-0 py-0 text-inherit leading-5 block line-clamp-3;
-		margin-block-start: 1em;
-		margin-block-end: 1em;
-		margin-inline-start: 0px;
-		margin-inline-end: 0px;
-		unicode-bidi: isolate;
-	}
-	span {
-		@apply leading-5;
-		font-size: inherit;
-		color: inherit;
-	}
-	pre {
-		@apply bg-code;
-	}
-	code {
-		@apply bg-code;
-	}
-	h1 {
-		font-size: var(--text-lg);
-		font-weight: var(--font-weight-semibold);
-	}
-	h2 {
-		font-size: var(--text-md);
-		font-weight: var(--font-weight-semibold);
-	}
-	h3 {
-		font-size: var(--text-sm);
-		font-weight: var(--font-weight-semibold);
-	}
-	h4 {
-		font-size: var(--text-base);
-		font-weight: var(--font-weight-bold);
-	}
-	a {
-		@apply text-link hover:text-link-hover;
-		font-size: inherit;
-	}
-	ol {
-		@apply list-decimal pl-3;
-	}
-	ul {
-		@apply list-disc pl-3;
-	}
-	[role="radio"],
-	[role="checkbox"] {
-		margin: calc(var(--design-unit) * 1px) 0;
-	}
+/* Base Styles */
+html,
+body,
+#root {
+	height: 100%;
+	width: 100%;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
 }
 
-/* ============================================================
-   Cline UI Design Tokens — Toolbar Popups & Controls
-   ============================================================ */
+/* Override scrollbar defaults for VS Code */
+::-webkit-scrollbar {
+	width: 6px;
+	height: 6px;
+}
+
+::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+	background: var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.4));
+	border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+	background: var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.6));
+}
+
+/* Mention highlight style */
+.mention-context-textarea-highlight {
+	background-color: color-mix(in srgb, var(--vscode-focusBorder) 25%, transparent);
+	color: var(--vscode-foreground);
+	border-radius: 2px;
+}
+
+/* VSCode icon button */
+.input-icon-button {
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	opacity: 0.7;
+	transition: opacity 0.1s;
+}
+
+.input-icon-button:hover {
+	opacity: 1;
+}
+
+.input-icon-button.disabled {
+	opacity: 0.3;
+	cursor: not-allowed;
+}
+
+/* ─── Popup / toolbar design tokens ───────────────────────────────────────── */
 :root {
 	/* Popup / modal surfaces */
-	--popup-bg: #1c1c1c;
-	--popup-border: 0.5px solid #333;
+	--popup-bg: var(--vscode-menu-background, #1c1c1c);
+	--popup-border: 0.5px solid var(--vscode-menu-border, rgba(255, 255, 255, 0.08));
 	--popup-radius: 10px;
 	--popup-item-padding: 7px 11px;
-	--popup-item-hover-bg: #242424;
-	--popup-item-separator: 0.5px solid #222;
+	--popup-item-hover-bg: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.04));
+	--popup-item-separator: 0.5px solid var(--vscode-menu-separatorBackground, rgba(255, 255, 255, 0.06));
 	--popup-appear-duration: 0.18s;
 
-	/* Segmented control (Plan / Act) */
+	/* Sub-surface (accordion content, slightly inset) */
+	--popup-sub-bg: var(--vscode-editor-background, #161616);
+	--popup-sub-separator: 0.5px solid var(--vscode-panel-border, rgba(255, 255, 255, 0.04));
+	--popup-sub-hover: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.03));
+
+	/* Segmented control (Plan / Act) — intentional brand colours, kept as-is */
 	--segment-container-bg: #252525;
 	--segment-container-border: 0.5px solid #333;
 	--segment-container-radius: 5px;
@@ -96,36 +83,44 @@
 	--segment-inactive-color: #555;
 
 	/* Toggle */
-	--toggle-on-bg: #2563eb;
-	--toggle-off-bg: #2e2e2e;
-	--toggle-thumb-on-color: #ffffff;
-	--toggle-thumb-off-color: #555555;
+	--toggle-on-bg: var(--vscode-button-background, #2563eb);
+	--toggle-off-bg: var(--vscode-input-background, #2e2e2e);
+	--toggle-thumb-on-color: var(--vscode-button-foreground, #ffffff);
+	--toggle-thumb-off-color: var(--vscode-descriptionForeground, #555555);
 	--toggle-width: 28px;
 	--toggle-height: 16px;
 	--toggle-thumb-size: 11px;
 
 	/* Scrollbar (accordions) */
 	--scrollbar-width: 4px;
-	--scrollbar-track-bg: #1a1a1a;
-	--scrollbar-thumb-bg: #3a3a3a;
-	--scrollbar-thumb-hover-bg: #4a4a4a;
+	--scrollbar-track-bg: transparent;
+	--scrollbar-thumb-bg: var(--vscode-scrollbarSlider-background, rgba(128, 128, 128, 0.3));
+	--scrollbar-thumb-hover-bg: var(--vscode-scrollbarSlider-hoverBackground, rgba(128, 128, 128, 0.5));
 	--scrollbar-radius: 2px;
 
 	/* Typography in popups */
-	--popup-text-primary: #ccc;
-	--popup-text-child: #888;
-	--popup-text-meta: #444;
-	--popup-text-muted: #555;
-	--popup-font-size: 10.5px;
+	--popup-text-primary: var(--vscode-menu-foreground, #cccccc);
+	--popup-text-child: var(--vscode-descriptionForeground, #888888);
+	--popup-text-meta: var(--vscode-descriptionForeground, #666666);
+	--popup-text-muted: var(--vscode-descriptionForeground, #555555);
+	--popup-font-size: var(--vscode-font-size, 10.5px);
+
+	/* Shortcut badge */
+	--popup-shortcut-bg: var(--vscode-badge-background, rgba(255, 255, 255, 0.06));
+	--popup-shortcut-color: var(--vscode-badge-foreground, #888888);
 
 	/* Icons in popups */
-	--popup-icon-stroke: #aaa;
-	--popup-icon-opacity: 0.55;
+	--popup-icon-stroke: var(--vscode-icon-foreground, #aaaaaa);
+	--popup-icon-opacity: 0.6;
 	--popup-icon-size: 13px;
 
+	/* Checkmark / selection indicator */
+	--popup-checkmark-color: var(--vscode-foreground, #cccccc);
+
+	/* Model selector separator */
+	--popup-header-separator: 0.5px solid var(--vscode-menu-separatorBackground, rgba(255, 255, 255, 0.08));
+
 	/* Model selector */
-	--model-selector-hover-bg: #252525;
-	--model-selector-hover-border: 0.5px solid #333;
-	--model-selector-active-bg: #2a2a2a;
-	--model-selector-active-border: 0.5px solid #555;
+	--model-selector-hover-bg: var(--vscode-list-hoverBackground, rgba(255, 255, 255, 0.04));
+	--model-selector-active-bg: var(--vscode-list-activeSelectionBackground, rgba(255, 255, 255, 0.06));
 }
