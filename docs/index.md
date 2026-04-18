@@ -44,6 +44,18 @@ hide:
 
 ---
 
+<div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;border-radius:8px;margin:1.5rem 0;">
+  <iframe
+    src="https://www.youtube.com/embed/8YEQmEkid90"
+    title="What if an AI Agent Could Run Your Entire Hydrology Study? — AI-Hydro Introduction"
+    style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowfullscreen>
+  </iframe>
+</div>
+
+---
+
 !!! tip "Project Status"
     AI-Hydro is in active **beta**. The platform is already useful for real research workflows, but it is still evolving quickly. Pin versions for serious projects and expect new tools, better outputs, and broader data/model support over time.
 

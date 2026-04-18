@@ -32,6 +32,12 @@
   <a href="https://github.com/AI-Hydro/AI-Hydro/issues"><strong>Issues</strong></a>
 </p>
 
+<p align="center">
+  <a href="https://www.youtube.com/watch?v=8YEQmEkid90">
+    ▶&nbsp;&nbsp;<strong>Watch the intro — What if an AI Agent Could Run Your Entire Hydrology Study?</strong>
+  </a>
+</p>
+
 ---
 
 ## The Vision
