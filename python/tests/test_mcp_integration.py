@@ -578,7 +578,7 @@ class TestCitationRegistry:
         from ai_hydro.citations import citation_keys_for_tool, all_known_keys
         known = set(all_known_keys())
         for tool in ("delineate_watershed", "fetch_streamflow_data",
-                     "fetch_forcing_data", "extract_camels_attributes",
+                     "fetch_forcing_data", "fetch_camels_us",
                      "train_hydro_model", "create_cn_grid"):
             keys = citation_keys_for_tool(tool)
             assert len(keys) > 0, f"No citation keys for tool '{tool}'"

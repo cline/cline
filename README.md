@@ -40,6 +40,10 @@
 
 ---
 
+> **Built on [Cline](https://github.com/cline/cline)'s proven agent loop** (Apache 2.0), specialized for hydrology and earth science research. The agent core is Cline; the domain layer — tools, session memory, provenance, and the Python backend — is AI-Hydro.
+
+---
+
 ## The Vision
 
 Hydrological research today involves a fragmented cycle: downloading data from scattered federal APIs, wrangling formats, writing processing scripts, calibrating models, and documenting provenance — often spending more time on plumbing than on science. As foundation models become increasingly capable at reasoning over scientific problems, there is an opportunity to fundamentally change how computational hydrology is done.
@@ -119,7 +123,7 @@ See the [Plugin Guide](https://ai-hydro.github.io/AI-Hydro/plugins/overview/) to
 | **Terrain**      | `compute_twi` — Topographic Wetness Index from 3DEP DEM                                                                 |
 | **Curve Number** | `create_cn_grid` — NRCS CN grid from NLCD land cover + Polaris soils                                                    |
 | **Forcing**      | `fetch_forcing_data` — GridMET basin-averaged climate (prcp, tmax, tmin, PET, srad, wind)                               |
-| **CAMELS**       | `extract_camels_attributes` — Full CAMELS-US attribute set via pygeohydro                                               |
+| **CAMELS**       | `fetch_camels_us` — Full CAMELS-US attribute set (671 CONUS gauges) via pygeohydro                                      |
 | **Modelling**    | `train_hydro_model` — Differentiable HBV-light or NeuralHydrology LSTM                                                  |
 | **Modelling**    | `get_model_results` — Retrieve cached NSE / KGE / RMSE                                                                  |
 | **Session**      | `start_session`, `get_session_summary`, `clear_session`, `add_note`, `export_session`, `sync_research_context` |

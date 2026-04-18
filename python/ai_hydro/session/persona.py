@@ -26,7 +26,7 @@ _PROFILE_PATH = Path.home() / ".aihydro" / "researcher.json"
 
 # Project root: python/ai_hydro/session/persona.py → up 4 levels
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
-_RESEARCH_MD = _PROJECT_ROOT / ".clinerules" / "research.md"
+_RESEARCH_MD = _PROJECT_ROOT / ".aihydrorules" / "research.md"
 
 
 class ResearcherProfile:
@@ -206,7 +206,7 @@ class ResearcherProfile:
     def to_context_string(self) -> str:
         """
         Format the profile as a markdown block for injection into the
-        agent's context (e.g. in .clinerules/research.md).
+        agent's context (e.g. in .aihydrorules/research.md).
         """
         if self.is_blank():
             return (

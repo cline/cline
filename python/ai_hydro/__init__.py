@@ -23,19 +23,20 @@ Run the MCP server to expose all tools to any MCP-compatible agent:
 Or add to Claude Code:
     {"mcpServers": {"ai-hydro": {"command": "python", "args": ["python/mcp_server.py"]}}}
 
-Tools
------
-- delineate_watershed       Watershed boundary + gauge metadata
-- fetch_streamflow_data     USGS daily discharge time series
-- extract_hydrological_signatures  17 CAMELS-style flow signatures
+Tools (MCP server: ai-hydro)
+-----------------------------
+- delineate_watershed              Watershed boundary + gauge metadata
+- fetch_streamflow_data            USGS daily discharge time series
+- extract_hydrological_signatures  15+ CAMELS-style flow signatures
 - extract_geomorphic_parameters    28 basin morphometry metrics
-- compute_twi               Topographic Wetness Index
-- fetch_forcing_data        Basin-averaged GridMET forcing
-- extract_camels_attributes 60+ CAMELS attributes (via camels-attrs)
+- compute_twi                      Topographic Wetness Index
+- fetch_forcing_data               Basin-averaged GridMET forcing
+- fetch_camels_us                  60+ CAMELS-US catchment attributes
+- train_hydro_model                Differentiable HBV-light or LSTM
 
 Architecture
 ------------
-See AI_HYDRO_PLATFORM_ROADMAP.md for full architecture and community model.
+See docs/architecture.md or https://ai-hydro.github.io/AI-Hydro/architecture/
 """
 
 try:

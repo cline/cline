@@ -179,7 +179,7 @@ TOOL_CITATIONS: dict[str, list[str]] = {
     "fetch_forcing_data":              ["abatzoglou2013gridmet"],
     "fetch_lulc_data":                 ["nlcd2021"],
     "fetch_soil_data":                 ["chaney2019polaris"],
-    "extract_camels_attributes":       ["addor2017camels"],
+    "fetch_camels_us":                 ["addor2017camels"],
     "train_hydro_model":               ["seibert2012hbv"],
 }
 

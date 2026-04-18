@@ -1127,7 +1127,7 @@ def fetch_camels_us(
             "attribute_groups": _group(attrs),
         }
         d = {"data": data, "meta": _META}
-        _session_store(session_id, "camels", d, tool_name="extract_camels_attributes")
+        _session_store(session_id, "camels", d, tool_name="fetch_camels_us")
         saved = _workspace_write(session_id, f"camels_{usgs_gauge_id}.json", data)
         d["_file_saved"] = saved
         d["_note"] = (

@@ -19,7 +19,7 @@ Tools
   Analysis (8):
     delineate_watershed, fetch_streamflow_data, extract_hydrological_signatures,
     extract_geomorphic_parameters, compute_twi, create_cn_grid, fetch_forcing_data,
-    extract_camels_attributes
+    fetch_camels_us
   Session (6):
     start_session, get_session_summary, clear_session, add_note,
     export_session, sync_research_context
@@ -149,7 +149,7 @@ def register(ide: str) -> None:
         "\n    compute_twi                — Topographic Wetness Index statistics"
         "\n    create_cn_grid             — NRCS Curve Number grid"
         "\n    fetch_forcing_data         — basin-averaged GridMET forcing data"
-        "\n    extract_camels_attributes  — 60+ CAMELS attributes (via camels-attrs)"
+        "\n    fetch_camels_us  — 60+ CAMELS attributes (via camels-attrs)"
         "\n"
         "\n  Session (6):"
         "\n    start_session              — create/resume research session"
@@ -199,7 +199,7 @@ def check() -> None:
         "delineate_watershed", "fetch_streamflow_data",
         "extract_hydrological_signatures", "extract_geomorphic_parameters",
         "compute_twi", "create_cn_grid", "fetch_forcing_data",
-        "extract_camels_attributes",
+        "fetch_camels_us",
         "start_session", "get_session_summary", "clear_session",
         "add_note", "export_session", "sync_research_context",
         "train_hydro_model", "get_model_results",
