@@ -196,12 +196,11 @@ const Toggle = ({ checked, onChange }: { checked: boolean; onChange: (e: React.M
 interface PlusPopupProps {
 	isOpen: boolean
 	onClose: () => void
-	onAddContext: () => void
 	onAddFilesAndImages: () => void
 	anchorRef: React.RefObject<HTMLElement | null>
 }
 
-const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, onAddFilesAndImages }) => {
+const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddFilesAndImages }) => {
 	const [aaOpen, setAaOpen] = useState(true) // expanded by default
 	const popupRef = useRef<HTMLDivElement>(null)
 
@@ -219,11 +218,6 @@ const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, on
 		return () => document.removeEventListener("mousedown", handleClick)
 	}, [isOpen, onClose])
 
-	const handleAddContext = useCallback(() => {
-		onClose()
-		onAddContext()
-	}, [onClose, onAddContext])
-
 	const handleAddFiles = useCallback(() => {
 		onClose()
 		onAddFilesAndImages()
@@ -233,15 +227,6 @@ const PlusPopup: React.FC<PlusPopupProps> = ({ isOpen, onClose, onAddContext, on
 
 	return (
 		<PopupWrapper ref={popupRef}>
-			{/* Add context */}
-			<PopupItem onClick={handleAddContext}>
-				<ItemIcon>
-					<i aria-hidden="true" className="codicon codicon-mention" />
-				</ItemIcon>
-				<ItemLabel>Add context</ItemLabel>
-				<ItemShortcut>@</ItemShortcut>
-			</PopupItem>
-
 			{/* Add files & images */}
 			<PopupItem onClick={handleAddFiles}>
 				<ItemIcon>

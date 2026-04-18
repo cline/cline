@@ -265,6 +265,7 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [addContextOpen, setAddContextOpen] = useState(false)
 		const [modelDropdownOpen, setModelDropdownOpen] = useState(false)
 		const plusButtonRef = useRef<HTMLDivElement>(null)
+		const atButtonRef = useRef<HTMLDivElement>(null)
 		const modelButtonRef = useRef<HTMLDivElement>(null)
 
 		// Fetch git commits when Git is selected or when typing a hash
@@ -1542,14 +1543,14 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 					<div className="relative flex-1 min-w-0 h-5">
 						{/* ButtonGroup - always in DOM but visibility controlled */}
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
-							{/* + button — opens PlusPopup (context / files / auto-approve) */}
+							{/* + button — opens PlusPopup (files & auto-approve) */}
 							<div ref={plusButtonRef} style={{ position: "relative" }}>
 								<Tooltip>
-									<TooltipContent>Add context, files & auto-approve</TooltipContent>
+									<TooltipContent>Add files &amp; auto-approve</TooltipContent>
 									<TooltipTrigger>
 										<VSCodeButton
 											appearance="icon"
-											aria-label="Add Context / Files"
+											aria-label="Add Files / Auto-approve"
 											className="p-0 m-0 flex items-center"
 											data-testid="plus-button"
 											onClick={() => {
@@ -1565,10 +1566,6 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								<PlusPopup
 									anchorRef={plusButtonRef}
 									isOpen={plusPopupOpen}
-									onAddContext={() => {
-										setPlusPopupOpen(false)
-										setAddContextOpen(true)
-									}}
 									onAddFilesAndImages={() => {
 										setPlusPopupOpen(false)
 										if (!shouldDisableFilesAndImages) {
@@ -1577,8 +1574,34 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 									}}
 									onClose={() => setPlusPopupOpen(false)}
 								/>
+							</div>
+
+							{/* @ button — opens AddContextModal directly */}
+							<div ref={atButtonRef} style={{ position: "relative" }}>
+								<Tooltip>
+									<TooltipContent>Add context (@)</TooltipContent>
+									<TooltipTrigger>
+										<VSCodeButton
+											appearance="icon"
+											aria-label="Add Context"
+											className="p-0 m-0 flex items-center"
+											data-testid="at-button"
+											onClick={() => {
+												setAddContextOpen((v) => !v)
+												setPlusPopupOpen(false)
+											}}>
+											<ButtonContainer>
+												<i
+													aria-hidden="true"
+													className="codicon codicon-mention"
+													style={{ fontSize: 13 }}
+												/>
+											</ButtonContainer>
+										</VSCodeButton>
+									</TooltipTrigger>
+								</Tooltip>
 								<AddContextModal
-									anchorRef={plusButtonRef}
+									anchorRef={atButtonRef}
 									isOpen={addContextOpen}
 									onClose={() => setAddContextOpen(false)}
 									onInsertMention={(value) => {
