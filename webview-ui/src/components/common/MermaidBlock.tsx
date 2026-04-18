@@ -129,7 +129,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 		if (!containerRef.current) {
 			return
 		}
-		const svgEl = containerRef.current.querySelector("svg")
+		const svgEl = containerRef.current.querySelector<SVGSVGElement>("svg")
 		if (!svgEl) {
 			return
 		}
@@ -157,7 +157,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 			{isLoading && <LoadingMessage>Generating mermaid diagram...</LoadingMessage>}
 			<ButtonContainer>
 				<StyledVSCodeButton aria-label="Copy Code" onClick={handleCopyCode} title="Copy Code">
-					<span className="codicon codicon-copy"></span>
+					<span className="codicon codicon-copy" />
 				</StyledVSCodeButton>
 			</ButtonContainer>
 			<SvgContainer $isLoading={isLoading} onClick={handleClick} ref={containerRef} />
@@ -165,7 +165,7 @@ export default function MermaidBlock({ code }: MermaidBlockProps) {
 	)
 }
 
-async function svgToPng(svgEl: SVGElement): Promise<string> {
+async function svgToPng(svgEl: SVGSVGElement): Promise<string> {
 	console.log("svgToPng function called")
 	// Clone the SVG to avoid modifying the original
 	const svgClone = svgEl.cloneNode(true) as SVGElement
