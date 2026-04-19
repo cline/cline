@@ -10,30 +10,37 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ---
 
-## [Unreleased / 0.1.5-next]
+## [Unreleased]
 
-These changes are documented ahead of the next packaged extension release.
+---
 
-### Platform vision
-- **LLM interpretation layer** — `research.md` now has two sections: a Python-generated structural skeleton (always current) and an LLM-authored scientific context section written by the foundation model via `sync_research_context`. Deleted all template-based Python interpretation logic (`_key_findings()`, "suggested next step").
-- **`sync_research_context` redesigned** — now a two-phase tool: Phase 1 returns all raw session data for LLM reasoning; Phase 2 accepts `interpretation` (scientific prose) and `site_name` (descriptive slug) and embeds them permanently in `research.md`.
-- **`site_name` field** — sessions now carry a human-readable display name set by the LLM, separate from the raw gauge ID.
-- **`raw_session_data()` method** — `HydroSession` now exposes all computed slot values as a flat dict for LLM consumption — every key from every slot, not a 3-key template.
+## [0.1.5] — 2026-04-18
 
-### Analysis improvements
-- **PNG diagnostic outputs** — three new tools now save publication-quality figures automatically when `workspace_dir` is set: watershed boundary map (`delineate_watershed`), daily hydrograph with 30-day rolling mean (`fetch_streamflow_data`), log-scale flow duration curve with signature table (`extract_hydrological_signatures`).
-- **New `analysis/plots.py` module** — headless matplotlib plots using Agg backend; `@_mpl_required` decorator silently skips if matplotlib unavailable.
-- **`extract_camels_attributes` removed** — the incomplete per-site attribute extractor has been dropped. CAMELS-US data continues to be used internally by `train_hydro_model` for the 671 benchmark gauges. A dedicated `camels-attrs` MCP server will be released as a community plugin.
+### Added
+- **Three-tier citation system** — every tool call automatically accumulates BibTeX citations for the data sources it uses (USGS NWIS, NHDPlus, 3DEP, GridMET, NLCD, POLARIS, CAMELS-US, HBV). `sync_research_context` writes a ready-to-use `citations.bib` to the workspace; `export_session` embeds citations in every export format. Platform citations (AI-Hydro + aihydro-tools Zenodo DOIs) are always included. Plugin packages can register Tier 3 citations via `register_plugin_citation()`.
+
+### Platform
+- **LLM interpretation layer** — `research.md` now has two sections: a Python-generated structural skeleton (always current) and an LLM-authored scientific context section written by the foundation model via `sync_research_context`. Deleted all template-based Python interpretation logic.
+- **`sync_research_context` redesigned** — two-phase tool: Phase 1 returns raw session data for LLM reasoning; Phase 2 accepts `interpretation` (scientific prose) and `site_name` and writes permanently to `research.md`.
+- **`site_name` field** — sessions carry a human-readable display name set by the LLM, separate from the raw gauge ID.
+
+### Analysis
+- **PNG diagnostic outputs** — watershed boundary map, daily hydrograph with 30-day rolling mean, and log-scale flow duration curve are saved automatically when `workspace_dir` is set.
+- **New `analysis/plots.py` module** — headless matplotlib plots via Agg backend; silently skips if matplotlib is unavailable.
 
 ### Session architecture
-- **Lean session JSON** — watershed GeoJSON geometry is no longer stored inline in the session JSON (was 200–800 KB per gauge). Stored at `~/.aihydro/sessions/<gauge_id>.geojson`; session stores only the path. `_get_session_geometry()` reads from file transparently.
-- **`_get_session_geometry()` hardened** — tries `geometry_geojson_path` (new), then `geometry_geojson`, `geometry`, `geojson` (legacy fallback). Clear recovery instructions on failure.
-- **Project workspace auto-detection** — `ProjectSession.save()` now finds `workspace_dir` from any associated gauge session automatically; project `research.md` writes to the correct workspace instead of repo root.
+- **Lean session JSON** — watershed GeoJSON geometry stored at `~/.aihydro/sessions/<gauge_id>.geojson` (was embedded inline, 200–800 KB per gauge).
+- **Project workspace auto-detection** — `ProjectSession.save()` finds `workspace_dir` from any associated gauge session automatically.
 
 ### Fixed
-- Timedelta warning from pygridmet downgraded from `log.error` to `log.warning` with pandas 2.x explanation — not a failure, NaN fallback is correct behaviour.
-- TWI visualization: static map and interactive map now in separate `try/except` blocks — a failed interactive map no longer suppresses the static PNG.
-- `print()` calls in TWI visualization paths replaced with `log.warning()` (invisible in MCP context).
+- `.aihydrorules/research.md` path corrected throughout (was `.clinerules/research.md` in `session/persona.py` and `session.py` shadow file)
+- Shadow `ai_hydro/session.py` deleted — was silently writing to the wrong path when imported
+- `fetch_streamflow_data` quickstart example corrected to use `start_date=`/`end_date=` kwargs (positional args caused USGS validation failure)
+- Windows PATH table: `Scripts\aihydro-mcp.exe` was mangled to `Scriptsihydro-mcp.exe` (bell char)
+- VSIX install example version bumped `0.1.2` → `0.1.5`
+- `faq.md` `setup_mcp.py` commands now include `cd python &&` (script is not at repo root)
+- CI forbidden-strings guard added — blocks PRs reintroducing stale tool names, deprecated module paths, or `.clinerules` references
+- Dead code removed: `RagService.ts`, two commented RAG blocks in `task/index.ts`, stale Cline documentation directories
 
 ## [0.1.4] — 2026-04-15
 
