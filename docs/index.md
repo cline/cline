@@ -176,7 +176,7 @@ Index your own PDFs, search them, and let the agent synthesize findings against 
 
 ### Researcher Profile
 
-The platform learns your expertise, preferred methods, active projects, and reporting style so results become more context-aware over time.
+The platform stores your stated expertise, preferred methods, active projects, and reporting style across sessions, so the agent re-loads that context every conversation instead of you re-explaining it.
 
 [→ Researcher profile](guide/researcher-profile.md)
 

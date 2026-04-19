@@ -11,9 +11,9 @@ All tools are exposed via the [Model Context Protocol (MCP)](https://modelcontex
 | [Analysis Tools](analysis.md) | 9 tools | Data retrieval, watershed, signatures, terrain, library reference |
 | [Modelling Tools](modelling.md) | 2 tools | HBV-light, LSTM calibration and results |
 | [Project & Literature](project.md) | 10 tools | Projects, literature indexing, researcher persona |
-| [Session Tools](session.md) | 8 tools | Session management, export, tool discovery, provenance |
+| [Session Tools](session.md) | 7 tools | Session management, export, tool discovery, provenance |
 
-**Total: 29 built-in tools.** Community plugins add more — call `list_available_tools()` for the live count.
+**Total: 28 built-in tools.** Community plugins add more — call `list_available_tools()` at runtime for the live count on your installation.
 
 ---
 

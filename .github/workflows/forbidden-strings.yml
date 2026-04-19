@@ -32,6 +32,11 @@ jobs:
             # names (hydrocatch) so agents learn what NOT to do; must mention them.
             "--glob=!knowledge/instructions/general_guidelines.json"
             "--glob=!knowledge/instructions/common_pitfalls.json"
+            # Defensive ignore — keep .clinerules/ in .vscodeignore so any legacy
+            # rules folder a contributor still has locally never ships in the VSIX.
+            "--glob=!.vscodeignore"
+            # The guard itself necessarily contains the banned strings as patterns.
+            "--glob=!.github/workflows/forbidden-strings.yml"
           )
 
           FAILED=0

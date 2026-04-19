@@ -16,7 +16,7 @@ description: AI-Hydro project roadmap — current beta status, known limitations
 **Extension:** v0.1.4 · **Python backend:** aihydro-tools v1.2.1
 
 ### What's stable
-- All 26 built-in MCP tools (analysis, modelling, session, project, literature, persona)
+- All 28 built-in MCP tools (analysis, modelling, session, project, literature, persona)
 - HydroSession, ProjectSession, ResearcherProfile persistence
 - Plugin entry-point system (`aihydro.tools`)
 - VS Code extension auto-registration

@@ -410,4 +410,4 @@ After creating a YAML workflow:
 
 ---
 
-**Questions?** See `docs/architecture.md` and `docs/tools-reference.md` for more details.
+**Questions?** See `docs/architecture.md` and `docs/tools/index.md` for more details.

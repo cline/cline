@@ -31,8 +31,8 @@ Delineate watershed boundary for a USGS stream gauge.
 ### `export_session`
 Export the full session provenance to a file.
 
-### `extract_camels_attributes`
-Extract 60+ CAMELS-style catchment attributes for a USGS gauge.
+### `fetch_camels_us`
+Fetch the 60+ CAMELS-US static catchment attributes for a USGS gauge.
 
 ### `extract_geomorphic_parameters`
 Extract 28 geomorphic parameters for a watershed.

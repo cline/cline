@@ -26,7 +26,7 @@ Closes #<!-- issue number -->
 
 ### Documentation
 
-- [ ] `docs/tools-reference.md` updated (if new tool added)
+- [ ] `docs/tools/` updated (analysis.md / modelling.md / project.md / session.md as appropriate, plus the count in `docs/tools/index.md`)
 - [ ] `python/mcp_server.py` tool docstring is clear and accurate
 - [ ] No breaking changes to existing tool return schemas, OR migration notes added below
 

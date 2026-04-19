@@ -108,7 +108,7 @@ See `.aihydrorules/correct-tools.md` for the complete behavioral rules.
 1. **Create the analysis function** in the appropriate `python/ai_hydro/` subpackage (data/, analysis/, modelling/)
 2. **Add the MCP tool wrapper** as a `@mcp.tool()` function in `python/ai_hydro/mcp/tools_*.py`
 3. **Update tests** in `python/tests/test_mcp_integration.py`
-4. **Update documentation** in `docs/tools-reference.md` and this file
+4. **Update documentation** in the appropriate `docs/tools/*.md` page (analysis, modelling, project, session) and this file
 5. **(Optional)** Register as a plugin via `[project.entry-points."aihydro.tools"]` in `pyproject.toml`
 
 ### Testing
@@ -170,7 +170,7 @@ User: "Plot the hydrograph with a 7-day moving average"
 
 For detailed information, see:
 - **docs/architecture.md** - System architecture and data flow
-- **docs/tools-reference.md** - All MCP tools reference
+- **docs/tools/** - Per-category MCP tools reference (analysis, modelling, project, session)
 - **.aihydrorules/correct-tools.md** - Tool usage rules (MCP-first fallback)
 - **README.md** - Project overview and setup
 

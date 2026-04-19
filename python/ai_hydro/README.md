@@ -546,7 +546,7 @@ except ImportError as e:
 ## Resources
 
 - **Architecture**: See `docs/architecture.md`
-- **Tools Reference**: See `docs/tools-reference.md`
+- **Tools Reference**: See `docs/tools/index.md` (and per-category pages under `docs/tools/`)
 - **Contributing**: See `CONTRIBUTING.md`
 
 ---

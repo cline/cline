@@ -101,10 +101,10 @@ Compute 15+ flow statistics from the session's streamflow record.
 
 | Signature | Description |
 |-----------|-------------|
-| `baseflow_index` (BFI) | Fraction of streamflow from baseflow (Eckhardt filter) |
+| `baseflow_index` (BFI) | Fraction of streamflow from baseflow (Lyne–Hollick recursive digital filter, α=0.925, 3 passes) |
 | `runoff_ratio` | Mean annual runoff / mean annual precipitation |
 | `q_mean` | Mean daily discharge (mm/day) |
-| `q_cv` | Coefficient of variation of daily discharge |
+| `flow_variability` | Coefficient of variation of daily discharge (σ/μ) |
 | `q5`, `q95` | High-flow (5% exceedance) and low-flow (95% exceedance) |
 | `slope_fdc` | Slope of FDC between Q33 and Q66 — flashiness indicator |
 | `high_q_freq` | Days per year above 9× median flow |
@@ -172,7 +172,7 @@ Compute the Topographic Wetness Index (TWI) raster from the 3DEP DEM.
 
 **Returns:** TWI statistics (mean, std, percentiles, high-wetness area fraction). Raster and map files written to workspace.
 
-**Data source:** 3DEP via py3dep + [xrspatial](https://xarray-spatial.readthedocs.io/)
+**Data source:** 3DEP DEM via [py3dep](https://hyriver.readthedocs.io/en/latest/py3dep.html); flow direction and accumulation via [pysheds](https://github.com/mdbartos/pysheds) (D8 algorithm)
 
 ---
 

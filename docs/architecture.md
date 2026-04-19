@@ -26,7 +26,7 @@ JSON-RPC over stdio"]
     subgraph MCP["aihydro-mcp (Python / FastMCP)"]
         direction TB
         TOOLS["Tool Registry
-26 built-in tools"]
+28 built-in tools"]
         PLUGINS["Plugin Discovery
 entry_points('aihydro.tools')"]
         TOOLS --- PLUGINS

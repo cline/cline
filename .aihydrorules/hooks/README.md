@@ -1,16 +1,16 @@
-# Cline Hooks Documentation
+# AI-Hydro Hooks Documentation
 
 ## Overview
 
-Cline hooks allow you to execute custom scripts at specific points in the agentic workflow. Hooks can be placed in either:
-- **Global hooks directory**: `~/Documents/Cline/Rules/Hooks/` (applies to all workspaces)
-- **Workspace hooks directory**: `.clinerules/hooks/` (applies to specific workspace)
+AI-Hydro inherits Cline's hook system, which executes custom scripts at specific points in the agentic workflow. Hooks can be placed in either:
+- **Global hooks directory**: `~/Documents/AI-Hydro/Rules/Hooks/` (applies to all workspaces)
+- **Workspace hooks directory**: `.aihydrorules/hooks/` (applies to specific workspace)
 
 Hooks run automatically when enabled.
 
 ## Enabling Hooks
 
-1. Open Cline settings in VSCode
+1. Open AI-Hydro settings in VS Code
 2. Navigate to the Feature Settings section
 3. Check the "Enable Hooks" checkbox
 4. Hooks must be executable files (on Unix/Linux/macOS use `chmod +x hookname`)
@@ -20,18 +20,18 @@ Hooks run automatically when enabled.
 ### PreToolUse Hook
 - **When**: Runs BEFORE a tool is executed
 - **Purpose**: Validate parameters, block execution, or add context
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/PreToolUse` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/PreToolUse` (all platforms)
+- **Global Location**: `~/Documents/AI-Hydro/Rules/Hooks/PreToolUse` (all platforms)
+- **Workspace Location**: `.aihydrorules/hooks/PreToolUse` (all platforms)
 
 ### PostToolUse Hook
 - **When**: Runs AFTER a tool completes
 - **Purpose**: Observe results, track patterns, or add context
-- **Global Location**: `~/Documents/Cline/Rules/Hooks/PostToolUse` (all platforms)
-- **Workspace Location**: `.clinerules/hooks/PostToolUse` (all platforms)
+- **Global Location**: `~/Documents/AI-Hydro/Rules/Hooks/PostToolUse` (all platforms)
+- **Workspace Location**: `.aihydrorules/hooks/PostToolUse` (all platforms)
 
 ## Cross-Platform Hook Format
 
-Cline uses a git-style approach for hooks that works consistently across all platforms:
+AI-Hydro uses a git-style approach for hooks that works consistently across all platforms:
 
 ### Hook Files (All Platforms)
 - **No file extensions**: Hooks are named exactly `PreToolUse` or `PostToolUse` (no `.bat`, `.cmd`, `.sh` etc.)
@@ -253,7 +253,7 @@ Cline supports two levels of hooks:
 - **Priority**: Execute FIRST, before workspace hooks
 
 ### Workspace Hooks
-- **Location**: `.clinerules/hooks/` in each workspace root
+- **Location**: `.aihydrorules/hooks/` in each workspace root
 - **Scope**: Apply only to the specific workspace
 - **Use Case**: Project-specific rules, team conventions, repository requirements
 - **Priority**: Execute AFTER global hooks
@@ -311,7 +311,7 @@ echo '{"shouldContinue": true}'
 **Workspace Hook** (applies to specific project):
 ```bash
 #!/usr/bin/env bash
-# .clinerules/hooks/PreToolUse
+# .aihydrorules/hooks/PreToolUse
 # Project rule: Only TypeScript files
 input=$(cat)
 tool_name=$(echo "$input" | jq -r '.preToolUse.toolName')
@@ -329,7 +329,7 @@ echo '{"shouldContinue": true}'
 
 ## Multi-Root Workspaces
 
-If you have multiple workspace roots, you can place hooks in each root's `.clinerules/hooks/` directory. All hooks (global and workspace) may execute concurrently. Their results will be combined:
+If you have multiple workspace roots, you can place hooks in each root's `.aihydrorules/hooks/` directory. All hooks (global and workspace) may execute concurrently. Their results will be combined:
 
 - **shouldContinue**: If ANY hook returns false, execution is blocked
 - **contextModification**: All context modifications are concatenated

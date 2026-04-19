@@ -102,7 +102,7 @@ Export the session as a citable methods paragraph, JSON data file, BibTeX refere
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `session_id` | str | Research session identifier |
-| `format` | str | `"json"` (default), `"methods"` (prose paragraph), `"bibtex"`, or `"capsule"` |
+| `format` | str | `"capsule"` (default — full reproducible bundle), `"json"`, `"methods"` (prose paragraph), or `"bibtex"` |
 
 **`capsule` format** produces a complete reproducible research package in `workspace_dir/capsule_<session_id>/`:
 
