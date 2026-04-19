@@ -280,7 +280,10 @@ If you want to help build it:
 
 === "Python Package"
 
-    ``bash     pip install aihydro-tools[all]     aihydro-mcp --diagnose     ``
+    ```bash
+    pip install aihydro-tools[all]
+    aihydro-mcp --diagnose
+    ```
 
     Use the MCP server with the VS Code extension or any MCP-compatible client.
 

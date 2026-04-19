@@ -10,13 +10,13 @@ the CAMELS methodology.
 
 Main Function
 -------------
-extract_camels_attributes(gauge_id, ...) -> dict
+fetch_camels_attributes(gauge_id, ...) -> dict
     Complete CAMELS-like attribute extraction for any USGS gauge
 
 Example
 -------
->>> from ai_hydro.workflows import extract_camels_attributes
->>> result = extract_camels_attributes('01031500')
+>>> from ai_hydro.workflows import fetch_camels_attributes
+>>> result = fetch_camels_attributes('01031500')
 >>> print(f"Extracted {len(result['attributes'])} attributes")
 >>> print(f"Watershed area: {result['attributes']['area_km2']:.1f} km²")
 """
@@ -27,7 +27,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-def extract_camels_attributes(
+def fetch_camels_attributes(
     gauge_id: str,
     climate_dates: Tuple[str, str] = ("2000-01-01", "2020-12-31"),
     hydro_dates: Tuple[str, str] = ("1989-10-01", "2009-09-30"),
@@ -105,13 +105,13 @@ def extract_camels_attributes(
     Examples
     --------
     >>> # Simple extraction
-    >>> result = extract_camels_attributes('01031500')
+    >>> result = fetch_camels_attributes('01031500')
     >>> attrs = result['attributes']
     >>> print(f"Elevation: {attrs['elev_mean']:.1f}m")
     >>> print(f"Aridity: {attrs['aridity']:.2f}")
     
     >>> # With custom date ranges and file export
-    >>> result = extract_camels_attributes(
+    >>> result = fetch_camels_attributes(
     ...     '01031500',
     ...     climate_dates=("2010-01-01", "2020-12-31"),
     ...     save_results=True,
@@ -331,7 +331,7 @@ if __name__ == "__main__":
     # Test with a known gauge
     test_gauge = "01031500"  # Penobscot River, Maine
     
-    result = extract_camels_attributes(
+    result = fetch_camels_attributes(
         test_gauge,
         save_results=True,
         output_dir="./test_camels_output"

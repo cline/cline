@@ -15,7 +15,7 @@ No. The `aihydro-mcp` server is a standalone process that any MCP-compatible cli
 To register the server with Claude Code CLI:
 
 ```bash
-python setup_mcp.py --ide claude-code
+cd python && python setup_mcp.py --ide claude-code
 ```
 
 ### Is AI-Hydro free?
@@ -115,7 +115,7 @@ Python **3.13** — core tools work; `extract_geomorphic_parameters` requires a 
 Yes, with one caveat: automatic PATH detection for `aihydro-mcp` on Windows can sometimes fail after `pip install`. If the VS Code extension does not detect the server automatically, run:
 
 ```bash
-python setup_mcp.py --ide vscode
+cd python && python setup_mcp.py --ide vscode
 ```
 
 Or configure the server manually in the extension settings using `python -m ai_hydro.mcp` as the command.

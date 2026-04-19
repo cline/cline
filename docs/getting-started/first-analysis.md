@@ -59,7 +59,7 @@ Fetch 20 years of daily streamflow (2000-2024) and extract hydrological signatur
 
 This runs two tool calls in sequence:
 
-1. `fetch_streamflow_data("01031500", "2000-01-01", "2024-12-31")` → 9,131 daily records from USGS NWIS
+1. `fetch_streamflow_data("01031500", start_date="2000-01-01", end_date="2024-12-31")` → 9,131 daily records from USGS NWIS
 2. `extract_hydrological_signatures("01031500")` → 15+ flow statistics
 
 **Key signatures returned:**

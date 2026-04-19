@@ -48,6 +48,7 @@ paper.md
 branding.md
 site/
 .cache/
+cache/
 python/cache/
 **/__pycache__/
 **/*.pyc

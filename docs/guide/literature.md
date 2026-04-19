@@ -42,7 +42,7 @@ Supported formats: **PDF**, **txt**, **md**
 Index the literature folder for the New England Basins project.
 ```
 
-The agent calls `index_literature(project_name="New England Basins")` and builds `literature_index.md` with one entry per document:
+The agent calls `index_literature(project_name="new_england_basins")` and builds `literature_index.md` with one entry per document:
 
 ```markdown title="literature_index.md"
 ## kratzert2018_lstm.pdf

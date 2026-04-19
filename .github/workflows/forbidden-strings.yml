@@ -28,6 +28,10 @@ jobs:
             "--glob=!CHANGELOG.md"
             "--glob=!docs/changelog.md"
             "--glob=!local-docs/**"
+            # Intentional pedagogical content — these JSON files document deprecated
+            # names (hydrocatch) so agents learn what NOT to do; must mention them.
+            "--glob=!knowledge/instructions/general_guidelines.json"
+            "--glob=!knowledge/instructions/common_pitfalls.json"
           )
 
           FAILED=0

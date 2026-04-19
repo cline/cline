@@ -77,7 +77,7 @@ On first activation, the extension automatically detects `aihydro-mcp` on your P
 !!! tip "Manual VSIX install"
     If you downloaded a `.vsix` release file:
     ```bash
-    code --install-extension ai-hydro-0.1.2.vsix
+    code --install-extension ai-hydro-0.1.4.vsix
     ```
 
 ---
@@ -103,7 +103,7 @@ If `aihydro-mcp` is not found after install:
 | macOS/Linux (user) | `~/.local/bin/aihydro-mcp` |
 | macOS with Conda | `~/miniconda3/bin/aihydro-mcp` |
 | macOS with Homebrew Python | `/opt/homebrew/bin/aihydro-mcp` |
-| Windows (user) | `%APPDATA%\Python\Python3XX\Scriptsihydro-mcp.exe` |
+| Windows (user) | `%APPDATA%\Python\Python3XX\Scripts\aihydro-mcp.exe` |
 
 **Universal fallback** — works regardless of PATH:
 
