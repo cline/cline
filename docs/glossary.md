@@ -102,7 +102,7 @@ The HyRiver and related Python libraries AI-Hydro builds on for USGS streamflow,
 
 ### Researcher Profile
 
-A persistent persona (`~/.aihydro/profile/profile.json`) recording your stated expertise, preferred providers, and recurring research focus. Auto-loaded into every conversation so you don't repeat yourself.
+A persistent persona (`~/.aihydro/researcher.json`) recording your stated expertise, preferred providers, and recurring research focus. Auto-loaded into every conversation so you don't repeat yourself.
 
 ### Runoff ratio
 
@@ -118,4 +118,4 @@ See **Capsule export**.
 
 ### USGS gauge ID
 
-8-digit (or longer for some sub-codes) identifier for a USGS streamflow station — e.g. `01031500`. Used as the canonical handle for sessions: `start_session("01031500")` → folder `~/.aihydro/sessions/01031500/`.
+8-digit (or longer for some sub-codes) identifier for a USGS streamflow station — e.g. `01031500`. Used as the canonical handle for sessions: `start_session("01031500")` → file `~/.aihydro/sessions/01031500.json`.
