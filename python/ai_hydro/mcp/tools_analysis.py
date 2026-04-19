@@ -46,6 +46,27 @@ from ai_hydro.mcp.helpers import (
 
 log = logging.getLogger("ai_hydro.mcp")
 
+
+def _bounds_to_wgs84(bounds: list, crs_str: str) -> list:
+    """
+    Convert [west, south, east, north] bounds to EPSG:4326 if needed.
+    Falls back to returning bounds unchanged if pyproj is unavailable or
+    CRS is already geographic.
+    """
+    try:
+        from pyproj import CRS, Transformer
+        src_crs = CRS.from_user_input(crs_str or "EPSG:4326")
+        if src_crs.is_geographic:
+            return bounds  # already lat/lon
+        wgs84 = CRS.from_epsg(4326)
+        transformer = Transformer.from_crs(src_crs, wgs84, always_xy=True)
+        west, south = transformer.transform(bounds[0], bounds[1])
+        east, north = transformer.transform(bounds[2], bounds[3])
+        return [west, south, east, north]
+    except Exception:
+        return bounds  # best-effort fallback
+
+
 def _resolve_usgs_gauge(session_id: str, gauge_id: str | None, session) -> str:
     """
     Resolve the 8-digit USGS station number for a session.
@@ -217,6 +238,34 @@ def delineate_watershed(
             if png:
                 files_saved.append(png)
 
+        # Push watershed boundary to map panel (non-fatal if VS Code not open)
+        from ai_hydro.mcp.map_events import push_layer, push_gauge_point
+        geojson_for_map = geojson if geojson else {}
+        push_layer(
+            layer_id=f"watershed_{resolved_gauge_id}",
+            name=f"Watershed: {d['data'].get('gauge_name', resolved_gauge_id)}",
+            geojson=geojson_for_map,
+            layer_type="polygon",
+            style_preset="watershed",
+            auto_zoom=True,
+            open_map=True,
+            metadata={
+                "gauge_id": resolved_gauge_id,
+                "area_km2": str(round(d["data"].get("area_km2", 0), 1)),
+                "source": "USGS NLDI",
+            },
+        )
+        lat = d["data"].get("gauge_lat")
+        lon = d["data"].get("gauge_lon")
+        if lat is not None and lon is not None:
+            push_gauge_point(
+                layer_id=f"gauge_{resolved_gauge_id}",
+                name=f"Gauge: {d['data'].get('gauge_name', resolved_gauge_id)}",
+                lat=lat,
+                lon=lon,
+                metadata={"gauge_id": resolved_gauge_id, "source": "USGS NWIS"},
+            )
+
         # Strip geometry from agent response — it's large and already on disk
         compact = {k: v for k, v in d["data"].items() if k != "geometry_geojson"}
         resp: dict = {
@@ -227,7 +276,8 @@ def delineate_watershed(
                 f"geometry_geojson saved to file (not in session JSON). "
                 f"gauge_id '{resolved_gauge_id}' stored in session.site_id. "
                 "Downstream tools (signatures, geomorphic, twi, forcing) "
-                "load it automatically — no need to pass gauge_id again."
+                "load it automatically — no need to pass gauge_id again. "
+                "Watershed boundary and gauge point pushed to AI-Hydro map."
             ),
         }
         reminder = _sync_reminder(session_id)
@@ -655,6 +705,39 @@ async def compute_twi(
                 }
                 _session_store(session_id, "twi", d, tool_name="compute_twi")
                 d["_files_saved"] = files
+
+                # Push raster tile to map panel if TWI array + bounds are available
+                try:
+                    from ai_hydro.mcp.map_events import push_raster_layer
+                    from ai_hydro.analysis.plots import plot_raster_tile
+                    twi_arr = result.get("twi_array")
+                    raw_bounds = result.get("bounds")  # native CRS bounds from rioxarray
+                    # Convert bounds to WGS84 if needed
+                    raw_crs = result.get("crs", "")
+                    if twi_arr is not None and raw_bounds is not None:
+                        bounds_wgs84 = _bounds_to_wgs84(raw_bounds, raw_crs)
+                        tile_result = plot_raster_tile(
+                            array=twi_arr,
+                            bounds_wgs84=bounds_wgs84,
+                            output_dir=workspace,
+                            name=f"twi_{session_id}",
+                            colormap="viridis_r",
+                        )
+                        if tile_result:
+                            tile_path, tile_bounds = tile_result
+                            push_raster_layer(
+                                layer_id=f"twi_{session_id}",
+                                name=f"TWI: {session_id}",
+                                png_path=tile_path,
+                                bounds_wgs84=tile_bounds,
+                                colormap="viridis_r",
+                                opacity=0.70,
+                                auto_zoom=False,
+                                metadata={"session_id": session_id, "source": "pysheds + py3dep"},
+                            )
+                except Exception as _map_err:
+                    log.debug("TWI map push failed (non-fatal): %s", _map_err)
+
                 reminder = _sync_reminder(session_id)
                 if reminder:
                     d["_sync_required"] = reminder
@@ -800,6 +883,41 @@ async def create_cn_grid(
         }
         _session_store(session_id, "cn", d, tool_name="create_cn_grid")
         d["_files_saved"] = list(file_paths.values())
+
+        # Push CN raster tile to map (non-fatal)
+        try:
+            cn_array = result.get("cn_array")
+            cn_bounds = result.get("bounds")
+            cn_crs = result.get("crs", "")
+            if cn_array is not None and cn_bounds is not None:
+                from ai_hydro.mcp.map_events import push_raster_layer
+                from ai_hydro.analysis.plots import plot_raster_tile
+                bounds_wgs84 = _bounds_to_wgs84(
+                    list(cn_bounds) if not isinstance(cn_bounds, list) else cn_bounds,
+                    cn_crs,
+                )
+                tile_result = plot_raster_tile(
+                    array=cn_array,
+                    bounds_wgs84=bounds_wgs84,
+                    output_dir=output_dir,
+                    name=f"cn_{session_id}",
+                    colormap="YlOrRd",
+                )
+                if tile_result:
+                    tile_path, tile_bounds = tile_result
+                    push_raster_layer(
+                        layer_id=f"cn_{session_id}",
+                        name=f"Curve Number: {session_id}",
+                        png_path=tile_path,
+                        bounds_wgs84=tile_bounds,
+                        colormap="YlOrRd",
+                        opacity=0.70,
+                        auto_zoom=False,
+                        metadata={"session_id": session_id, "source": "NLCD + POLARIS"},
+                    )
+        except Exception as _map_err:
+            log.debug("CN grid map push failed (non-fatal): %s", _map_err)
+
         reminder = _sync_reminder(session_id)
         if reminder:
             d["_sync_required"] = reminder
@@ -1198,4 +1316,110 @@ def get_library_reference(library: str) -> dict:
         return ref
     except Exception as e:
         log.error("get_library_reference failed: %s", e)
+        return _tool_error_to_dict(e)
+
+
+# ============================================================================
+# Tool: show_on_map
+# ============================================================================
+
+@mcp.tool()
+def show_on_map(
+    geojson: str,
+    name: str = "Layer",
+    layer_id: str | None = None,
+    layer_type: str = "polygon",
+    style_preset: str = "default",
+    fill_color: str | None = None,
+    stroke_color: str | None = None,
+    fill_opacity: float | None = None,
+    auto_zoom: bool = True,
+) -> dict:
+    """
+    Push any GeoJSON geometry directly onto the AI-Hydro map panel.
+
+    Use this to visualize custom geometries, study area boundaries,
+    analysis outputs, or any spatial data the agent generates.
+    The map panel opens automatically if it is not already visible.
+
+    Parameters
+    ----------
+    geojson : str
+        GeoJSON FeatureCollection, Feature, or Geometry as a JSON string.
+        Must be valid GeoJSON in EPSG:4326 (longitude/latitude degrees).
+    name : str
+        Display name shown in the Layers panel (default: 'Layer').
+    layer_id : str, optional
+        Unique layer key. Re-sending the same ID replaces the existing
+        layer. Auto-generated if not provided.
+    layer_type : str
+        Geometry type hint: 'polygon', 'line', 'point', or 'raster'.
+        Controls the icon in the Layers panel (default: 'polygon').
+    style_preset : str
+        Colour theme: 'watershed' (blue), 'flowlines' (light blue),
+        'gauge' (orange point), or 'default' (mid blue).
+    fill_color : str, optional
+        Hex fill colour override, e.g. '#FF5733'. Overrides preset.
+    stroke_color : str, optional
+        Hex outline colour override. Overrides preset.
+    fill_opacity : float, optional
+        Fill opacity 0.0–1.0. Overrides preset.
+    auto_zoom : bool
+        Fit the map to this layer's bounding box (default: True).
+
+    Returns
+    -------
+    dict:
+        ok     : True if the layer event was queued for the map.
+        layer_id : The layer ID used (auto-generated or provided).
+        message  : Human-readable status.
+
+    Examples
+    --------
+    >>> show_on_map(watershed_geojson_string, name='My AOI')
+    >>> show_on_map(river_geojson, name='Main Stem', layer_type='line',
+    ...             style_preset='flowlines')
+    """
+    try:
+        import uuid as _uuid
+        from ai_hydro.mcp.map_events import push_layer
+
+        # Validate JSON before pushing
+        try:
+            json.loads(geojson)
+        except json.JSONDecodeError as jde:
+            return {"ok": False, "error": f"Invalid GeoJSON: {jde}"}
+
+        lid = layer_id or f"layer_{_uuid.uuid4().hex[:8]}"
+
+        style_override: dict = {}
+        if fill_color:
+            style_override["fillColor"] = fill_color
+        if stroke_color:
+            style_override.update({"color": stroke_color, "strokeColor": stroke_color})
+        if fill_opacity is not None:
+            style_override["fillOpacity"] = fill_opacity
+
+        ok = push_layer(
+            layer_id=lid,
+            name=name,
+            geojson=geojson,
+            layer_type=layer_type,
+            style_preset=style_preset,
+            style_override=style_override or None,
+            auto_zoom=auto_zoom,
+            open_map=True,
+        )
+
+        return {
+            "ok": ok,
+            "layer_id": lid,
+            "message": (
+                f"Layer '{name}' queued for map display."
+                if ok else
+                "Map event could not be written — VS Code extension may not be running."
+            ),
+        }
+    except Exception as e:
+        log.error("show_on_map failed: %s", e)
         return _tool_error_to_dict(e)

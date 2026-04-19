@@ -25,7 +25,7 @@ class TestToolRegistration:
     """Verify that importing ai_hydro.mcp registers all expected tools."""
 
     EXPECTED_TOOLS = {
-        # Analysis (9)
+        # Analysis (10)
         "delineate_watershed",
         "fetch_streamflow_data",
         "fetch_camels_us",
@@ -35,6 +35,7 @@ class TestToolRegistration:
         "create_cn_grid",
         "fetch_forcing_data",
         "get_library_reference",
+        "show_on_map",
         # Session (8)
         "start_session",
         "get_session_summary",
@@ -683,3 +684,203 @@ class TestSessionCitations:
             s = HydroSession("cite-test-6")
             s.add_citations(["usgs_nwis"])
             assert s.cite_all() == s.export_bibtex()
+
+
+# ── Map event writer tests ───────────────────────────────────────────────────
+
+class TestMapEventWriter:
+    """Verify the Python → VS Code map event pipeline."""
+
+    def test_push_layer_creates_event_file(self, tmp_path):
+        from unittest.mock import patch
+        from ai_hydro.mcp.map_events import push_layer, _MAP_EVENTS_DIR
+
+        geojson = '{"type":"FeatureCollection","features":[]}'
+        with patch("ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path):
+            ok = push_layer("test-layer", "Test Layer", geojson)
+
+        assert ok is True
+        files = list(tmp_path.glob("*.json"))
+        assert len(files) == 1
+        event = json.loads(files[0].read_text())
+        assert event["id"] == "test-layer"
+        assert event["name"] == "Test Layer"
+        assert event["geojson"] == geojson
+        assert event["autoZoom"] is True
+        assert event["openMap"] is True
+
+    def test_push_layer_applies_watershed_preset(self, tmp_path):
+        from ai_hydro.mcp.map_events import push_layer, STYLES
+
+        geojson = '{"type":"FeatureCollection","features":[]}'
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path
+        ):
+            push_layer("ws-layer", "WS", geojson, style_preset="watershed")
+
+        event = json.loads(list(tmp_path.glob("*.json"))[0].read_text())
+        assert event["style"]["fillColor"] == STYLES["watershed"]["fillColor"]
+
+    def test_push_layer_style_override(self, tmp_path):
+        from ai_hydro.mcp.map_events import push_layer
+
+        geojson = '{"type":"FeatureCollection","features":[]}'
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path
+        ):
+            push_layer(
+                "ov-layer", "Override", geojson,
+                style_override={"fillColor": "#FF0000"},
+            )
+
+        event = json.loads(list(tmp_path.glob("*.json"))[0].read_text())
+        assert event["style"]["fillColor"] == "#FF0000"
+
+    def test_push_layer_dict_geojson(self, tmp_path):
+        """Dict GeoJSON is serialised to a string in the event file."""
+        from ai_hydro.mcp.map_events import push_layer
+
+        geojson_dict = {"type": "FeatureCollection", "features": []}
+        with __import__("unittest.mock", fromlist=["patch"]).patch(
+            "ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path
+        ):
+            ok = push_layer("dict-layer", "Dict", geojson_dict)
+
+        assert ok is True
+        event = json.loads(list(tmp_path.glob("*.json"))[0].read_text())
+        parsed_back = json.loads(event["geojson"])
+        assert parsed_back["type"] == "FeatureCollection"
+
+    def test_push_layer_returns_false_on_permission_error(self, tmp_path):
+        from ai_hydro.mcp.map_events import push_layer
+        from unittest.mock import patch
+
+        with patch("ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path / "nonexistent_readonly"):
+            with patch("pathlib.Path.mkdir", side_effect=PermissionError("read-only")):
+                ok = push_layer("fail-layer", "Fail", "{}")
+
+        assert ok is False
+
+    def test_show_on_map_tool_smoke(self, tmp_path):
+        """show_on_map tool returns ok=True for valid GeoJSON."""
+        from ai_hydro.mcp import mcp
+        import asyncio
+        from unittest.mock import patch
+
+        geojson = '{"type":"FeatureCollection","features":[]}'
+        with patch("ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path):
+            result = asyncio.run(
+                mcp.call_tool("show_on_map", {"geojson": geojson, "name": "Test AOI"})
+            )
+
+        assert result is not None
+
+    def test_show_on_map_rejects_invalid_json(self, tmp_path):
+        """show_on_map returns ok=False for malformed GeoJSON."""
+        from ai_hydro.mcp import mcp
+        import asyncio
+        from unittest.mock import patch
+        import json as _json
+
+        with patch("ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path):
+            result_raw = asyncio.run(
+                mcp.call_tool("show_on_map", {"geojson": "not-json"})
+            )
+        # FastMCP ≥ 2.x: call_tool returns a ToolResult with .content list
+        # FastMCP < 2.x: returns a list of TextContent directly
+        if hasattr(result_raw, "content"):
+            text = result_raw.content[0].text if result_raw.content else "{}"
+        elif result_raw:
+            text = result_raw[0].text
+        else:
+            text = "{}"
+        result = _json.loads(text)
+        assert result.get("ok") is False
+
+
+# ── Raster map event tests ───────────────────────────────────────────────────
+
+class TestRasterMapEvents:
+    """Verify the raster tile + push_raster_layer pipeline."""
+
+    def test_push_raster_layer_creates_event_file(self, tmp_path):
+        from ai_hydro.mcp.map_events import push_raster_layer
+        from unittest.mock import patch
+
+        fake_png = tmp_path / "twi_tile.png"
+        fake_png.write_bytes(b"\x89PNG\r\n")  # minimal PNG header
+
+        with patch("ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path / "events"):
+            ok = push_raster_layer(
+                layer_id="twi_test",
+                name="TWI: test",
+                png_path=str(fake_png),
+                bounds_wgs84=[-72.5, 45.0, -71.5, 46.0],
+                colormap="viridis_r",
+            )
+
+        assert ok is True
+        events = list((tmp_path / "events").glob("*.json"))
+        assert len(events) == 1
+        event = json.loads(events[0].read_text())
+        assert event["id"] == "twi_test"
+        assert event["layerType"] == "raster"
+        assert event["raster"]["path"] == str(fake_png)
+        assert event["raster"]["bounds"] == [-72.5, 45.0, -71.5, 46.0]
+        assert event["raster"]["colormap"] == "viridis_r"
+        assert event["metadata"]["raster_bounds"] == json.dumps([-72.5, 45.0, -71.5, 46.0])
+
+    def test_push_raster_layer_returns_false_on_error(self, tmp_path):
+        from ai_hydro.mcp.map_events import push_raster_layer
+        from unittest.mock import patch
+
+        with patch("ai_hydro.mcp.map_events._MAP_EVENTS_DIR", tmp_path / "events"):
+            with patch("pathlib.Path.mkdir", side_effect=PermissionError("read-only")):
+                ok = push_raster_layer(
+                    layer_id="fail", name="Fail",
+                    png_path="/nonexistent/tile.png",
+                    bounds_wgs84=[0, 0, 1, 1],
+                )
+        assert ok is False
+
+    def test_plot_raster_tile_produces_clean_png(self, tmp_path):
+        """plot_raster_tile should save a decoration-free PNG and return path + bounds."""
+        try:
+            import numpy as np
+            from ai_hydro.analysis.plots import plot_raster_tile
+        except ImportError:
+            pytest.skip("matplotlib or numpy not available")
+
+        arr = np.random.rand(50, 60).astype(float)
+        arr[0, 0] = float("nan")  # nodata pixel
+
+        result = plot_raster_tile(
+            array=arr,
+            bounds_wgs84=[-72.5, 45.0, -71.5, 46.0],
+            output_dir=str(tmp_path),
+            name="twi_test",
+            colormap="viridis",
+        )
+
+        assert result is not None
+        tile_path, bounds = result
+        assert Path(tile_path).exists()
+        assert tile_path.endswith("_tile.png")
+        assert bounds == [-72.5, 45.0, -71.5, 46.0]
+        # File should be a valid PNG (starts with PNG magic bytes)
+        data = Path(tile_path).read_bytes()
+        assert data[:4] == b"\x89PNG"
+
+    def test_bounds_to_wgs84_geographic_passthrough(self):
+        """Geographic CRS bounds should pass through unchanged."""
+        from ai_hydro.mcp.tools_analysis import _bounds_to_wgs84
+        bounds = [-72.5, 45.0, -71.5, 46.0]
+        result = _bounds_to_wgs84(bounds, "EPSG:4326")
+        assert result == bounds
+
+    def test_bounds_to_wgs84_invalid_crs_fallback(self):
+        """Invalid CRS string should return original bounds (non-fatal)."""
+        from ai_hydro.mcp.tools_analysis import _bounds_to_wgs84
+        bounds = [100000, 5000000, 200000, 5100000]
+        result = _bounds_to_wgs84(bounds, "INVALID_CRS_XYZ")
+        assert result == bounds

@@ -327,3 +327,79 @@ def plot_flow_duration_curve(
     plt.close()
     log.info("FDC plot saved: %s", out_path)
     return out_path
+
+
+# ---------------------------------------------------------------------------
+# Plot 4: Raster tile — clean georeferenced PNG for map overlay
+# ---------------------------------------------------------------------------
+
+@_mpl_required
+def plot_raster_tile(
+    array: "np.ndarray",
+    bounds_wgs84: list,
+    output_dir: str,
+    name: str,
+    colormap: str = "viridis",
+    nodata_alpha: bool = True,
+) -> Optional[tuple]:
+    """
+    Save a clean, decoration-free PNG suitable for use as a map tile overlay.
+
+    No axes, no title, no colorbar — just the colormap applied to the data
+    array with NaN cells rendered as transparent (alpha=0). The returned
+    bounds tuple is the geographic extent in WGS84 ready for deck.gl
+    BitmapLayer: [west, south, east, north].
+
+    Parameters
+    ----------
+    array       : 2D float numpy array (NaN = nodata).
+    bounds_wgs84: [west, south, east, north] in decimal degrees.
+    output_dir  : Directory to write the PNG.
+    name        : Output filename stem (no extension).
+    colormap    : matplotlib colormap name (default: 'viridis').
+    nodata_alpha: Render NaN cells as fully transparent (default: True).
+
+    Returns
+    -------
+    (path, bounds_list) — PNG path and WGS84 bounds, or None on failure.
+    """
+    from matplotlib.colors import Normalize
+
+    arr = np.asarray(array, dtype=float)
+
+    valid = arr[np.isfinite(arr)]
+    if len(valid) == 0:
+        log.warning("plot_raster_tile: no valid pixels for %s", name)
+        return None
+
+    vmin, vmax = float(np.percentile(valid, 2)), float(np.percentile(valid, 98))
+    if vmin == vmax:
+        vmax = vmin + 1.0
+
+    norm = Normalize(vmin=vmin, vmax=vmax)
+    cmap = plt.get_cmap(colormap)
+
+    rgba = cmap(norm(arr))  # shape (H, W, 4), values 0–1
+
+    if nodata_alpha:
+        alpha_mask = np.isfinite(arr).astype(float)
+        rgba[..., 3] = alpha_mask
+
+    # Flip vertically — raster row 0 is north, image row 0 is top
+    rgba_flipped = rgba[::-1, :, :]
+
+    os.makedirs(output_dir, exist_ok=True)
+    out_path = os.path.join(output_dir, f"{name}_tile.png")
+
+    fig, ax = plt.subplots(
+        figsize=(rgba_flipped.shape[1] / 100, rgba_flipped.shape[0] / 100),
+        dpi=100,
+    )
+    ax.imshow(rgba_flipped, aspect="auto", interpolation="nearest")
+    ax.axis("off")
+    plt.subplots_adjust(left=0, right=1, top=1, bottom=0)
+    plt.savefig(out_path, dpi=100, bbox_inches="tight", pad_inches=0, transparent=True)
+    plt.close()
+
+    log.info("Raster tile saved: %s  bounds=%s", out_path, bounds_wgs84)
+    return out_path, bounds_wgs84

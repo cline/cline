@@ -1,5 +1,6 @@
 import { Anthropic } from "@anthropic-ai/sdk"
 import { buildApiHandler } from "@core/api"
+import { MapEventWatcher } from "@core/map/MapEventWatcher"
 import { tryAcquireTaskLockWithRetry } from "@core/task/TaskLockUtils"
 import { detectWorkspaceRoots } from "@core/workspace/detection"
 import { FileScanner, WorkspaceGeoJsonFile } from "@core/workspace/FileScanner"
@@ -88,9 +89,10 @@ export class Controller {
 	// Timer for periodic remote config fetching
 	private remoteConfigTimer?: NodeJS.Timeout
 
-	// Map layer storage and streaming
+	// Map layer storage, streaming, and Python event bridge
 	private mapLayers: Map<string, MapLayer> = new Map()
 	private mapLayerSubscribers: Set<(layer: MapLayer) => void> = new Set()
+	private mapEventWatcher: MapEventWatcher
 
 	// Public getter for workspace manager with lazy initialization - To get workspaces when task isn't initialized (Used by file mentions)
 	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
@@ -141,6 +143,10 @@ export class Controller {
 
 		// Initialize workspace GeoJSON file scanner
 		this.initializeFileScanner()
+
+		// Start watching ~/.aihydro/map_events/ for layers pushed by Python tools
+		this.mapEventWatcher = new MapEventWatcher(this)
+		this.mapEventWatcher.start()
 		StateManager.get().registerCallbacks({
 			onPersistenceError: async ({ error }: PersistenceErrorEvent) => {
 				console.error("[Controller] Cache persistence failed, recovering:", error)
@@ -199,6 +205,9 @@ export class Controller {
 			clearInterval(this.remoteConfigTimer)
 			this.remoteConfigTimer = undefined
 		}
+
+		// Stop map event watcher
+		this.mapEventWatcher.stop()
 
 		// Dispose file scanner
 		if (this.fileScanner) {

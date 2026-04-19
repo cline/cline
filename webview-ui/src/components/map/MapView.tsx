@@ -1,5 +1,5 @@
 import type { MapViewState } from "@deck.gl/core"
-import { GeoJsonLayer } from "@deck.gl/layers"
+import { BitmapLayer, GeoJsonLayer } from "@deck.gl/layers"
 import DeckGL from "@deck.gl/react"
 import type { MapLayer } from "@shared/proto/cline/map"
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
@@ -282,12 +282,16 @@ export const MapView: React.FC<MapViewProps> = ({ width, height, mapStyle = "dar
 	// Tooltip shown on hover — surfaces feature properties + layer name
 	const getTooltip = useCallback(
 		({ object, layer: deckLayer }: any) => {
-			if (!object) return null
+			if (!object) {
+				return null
+			}
 			const matched = layers.find((l) => l.id === deckLayer?.id)
 			const name = matched?.name || deckLayer?.id || ""
 			const props = (object.properties || {}) as Record<string, unknown>
 			const entries = Object.entries(props).filter(([k]) => !k.startsWith("_"))
-			if (!name && entries.length === 0) return null
+			if (!name && entries.length === 0) {
+				return null
+			}
 			const shown = entries.slice(0, 8)
 			const extra = entries.length - shown.length
 			return {
@@ -304,21 +308,38 @@ export const MapView: React.FC<MapViewProps> = ({ width, height, mapStyle = "dar
 		[layers],
 	)
 
+	const hexToRgb = (hex: string): [number, number, number] => {
+		const parsedHex = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+		return parsedHex ? [parseInt(parsedHex[1], 16), parseInt(parsedHex[2], 16), parseInt(parsedHex[3], 16)] : [0, 102, 204]
+	}
+
 	const deckLayers = useMemo(
 		() =>
 			layers
 				.filter((layer) => visibleLayerIds.has(layer.id))
 				.map((layer) => {
 					try {
+						// Raster layers — rendered as BitmapLayer using the pre-encoded data URL
+						if (layer.layerType === "raster") {
+							const dataUrl = layer.metadata?.raster_data_url ?? ""
+							const boundsRaw = layer.metadata?.raster_bounds
+							if (!dataUrl || !boundsRaw) {
+								return null
+							}
+							const bounds = JSON.parse(boundsRaw) as [number, number, number, number]
+							const opacity = parseFloat(layer.metadata?.raster_opacity ?? "0.75")
+							return new BitmapLayer({
+								id: layer.id,
+								image: dataUrl,
+								bounds, // [west, south, east, north]
+								opacity,
+								pickable: false,
+							})
+						}
+
+						// Vector layers — GeoJsonLayer
 						const geojson = JSON.parse(layer.geojson)
 						const style = layer.style
-
-						const hexToRgb = (hex: string): [number, number, number] => {
-							const parsedHex = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
-							return parsedHex
-								? [parseInt(parsedHex[1], 16), parseInt(parsedHex[2], 16), parseInt(parsedHex[3], 16)]
-								: [0, 102, 204]
-						}
 
 						const fillColor = style?.fillColor ? hexToRgb(style.fillColor) : [0, 102, 204]
 						const strokeColor = style?.color ? hexToRgb(style.color) : [0, 51, 102]
@@ -332,14 +353,12 @@ export const MapView: React.FC<MapViewProps> = ({ width, height, mapStyle = "dar
 							stroked: true,
 							filled: true,
 							extruded: false,
-							// Pixel-space line widths — consistent at all zoom levels
 							lineWidthUnits: "pixels" as const,
 							lineWidthMinPixels: 1,
 							lineWidthMaxPixels: 20,
 							getLineWidth: strokeWidth,
 							getFillColor: [fillColor[0], fillColor[1], fillColor[2], fillOpacity],
 							getLineColor: [strokeColor[0], strokeColor[1], strokeColor[2], 255],
-							// Point features: fixed-pixel circles
 							pointRadiusUnits: "pixels" as const,
 							pointRadiusMinPixels: 3,
 							pointRadiusMaxPixels: 16,

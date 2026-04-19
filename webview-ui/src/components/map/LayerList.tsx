@@ -96,6 +96,18 @@ export const LayerList: React.FC<LayerListProps> = ({
 
 	// Get layer color for visual indicator
 	const getLayerColor = (layer: MapLayer): string => {
+		if (layer.layerType === "raster") {
+			// Show a gradient swatch representative of the colormap
+			const cmap = layer.metadata?.raster_colormap ?? "viridis"
+			const gradients: Record<string, string> = {
+				viridis: "linear-gradient(to right, #440154, #31688e, #35b779, #fde725)",
+				viridis_r: "linear-gradient(to right, #fde725, #35b779, #31688e, #440154)",
+				YlOrRd: "linear-gradient(to right, #ffffb2, #fecc5c, #fd8d3c, #e31a1c)",
+				Blues: "linear-gradient(to right, #f7fbff, #6baed6, #2171b5, #084594)",
+				RdYlGn: "linear-gradient(to right, #d73027, #fee08b, #1a9850)",
+			}
+			return gradients[cmap] ?? "linear-gradient(to right, #440154, #fde725)"
+		}
 		return layer.style?.fillColor || layer.style?.color || "#0066CC"
 	}
 
@@ -185,7 +197,7 @@ export const LayerList: React.FC<LayerListProps> = ({
 									<div style={{ display: "flex", alignItems: "center", gap: "6px", marginBottom: "8px" }}>
 										<div
 											style={{
-												width: "14px",
+												width: layer.layerType === "raster" ? "28px" : "14px",
 												height: "14px",
 												borderRadius: "2px",
 												background: layerColor,

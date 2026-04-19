@@ -12,6 +12,22 @@ The companion Python package (`aihydro-tools`) has its own changelog at
 
 ## [Unreleased]
 
+### Map — Raster layer support
+- **`plot_raster_tile()`** — new function in `analysis/plots.py` that renders a 2D numpy array as a clean, decoration-free PNG (no axes, no title) with NaN cells transparent. Returns `(path, bounds)` ready for `push_raster_layer()`. Colourmap percentile-clipping (P2–P98) prevents outlier wash-out.
+- **`push_raster_layer()`** in `map_events.py` — writes a raster event file containing the tile PNG path and WGS84 bounds. The TypeScript watcher reads the PNG, base64-encodes it into a data URL, and passes it to deck.gl `BitmapLayer`.
+- **`_bounds_to_wgs84()`** — helper that reprojects raster bounds from any CRS to EPSG:4326 via pyproj; falls back silently if pyproj is unavailable.
+- **`compute_twi` auto-push** — after successful TWI computation, pushes `viridis_r` tile to map as layer `twi_<session_id>`.
+- **`create_cn_grid` auto-push** — pushes `YlOrRd` CN tile as layer `cn_<session_id>`.
+- **`BitmapLayer` in `MapView.tsx`** — raster layers routed through deck.gl `BitmapLayer`; vector layers through `GeoJsonLayer` as before.
+- **Gradient colour swatches** in `LayerList.tsx` — raster layers show a wider gradient swatch matching their colourmap instead of a solid-colour square.
+- **5 new tests** in `TestRasterMapEvents` covering `push_raster_layer`, error handling, tile PNG generation, and `_bounds_to_wgs84`.
+
+### Map — Python ↔ VS Code layer bridge
+- **`MapEventWatcher`** — new TypeScript class polls `~/.aihydro/map_events/` every 600 ms and forwards layer events to the map panel via `controller.addMapLayer()`. Starts on extension activation; stops on dispose. No Mapbox token or internet required.
+- **`delineate_watershed` auto-push** — watershed boundary polygon and gauge station point are pushed to the map automatically after every successful delineation. Map panel opens side-by-side if closed.
+- **`show_on_map` MCP tool** — explicit tool for pushing any GeoJSON geometry to the map. Accepts style presets (`watershed`, `flowlines`, `gauge`, `default`) and per-key overrides (`fill_color`, `stroke_color`, `fill_opacity`). Returns `ok`, `layer_id`, and a status message.
+- **`docs/guide/map.md`** — new documentation page covering basemaps, layer management, the `show_on_map` tool, format support, and the Python↔map bridge architecture.
+
 ---
 
 ## [0.1.5] — 2026-04-18
