@@ -20,9 +20,9 @@ cd python && python setup_mcp.py --ide claude-code
 
 ### Is AI-Hydro free?
 
-The extension and Python package are free and open source (Apache 2.0). You pay only for your AI provider's API usage — AI-Hydro does not add any charges on top. Claude Sonnet via the Anthropic API costs roughly $3/MTok input, $15/MTok output. A typical research session (delineation + signatures + HBV calibration) uses well under 100K tokens.
+The extension and Python package are free and open source (Apache 2.0). You pay only your AI provider — AI-Hydro adds no charges on top. A typical research session (delineation + signatures + HBV calibration) uses well under 100K tokens, so per-session API cost is small for any modern frontier model.
 
-If you use **Claude Code** at $20/month (Pro) or $100/month (Max), the included usage covers extensive AI-Hydro sessions with no per-token charges.
+If you already pay for a flat-rate plan such as **Claude Pro/Max** or **ChatGPT Plus**, the included usage covers many AI-Hydro sessions with no per-token billing. For local-only use, point AI-Hydro at **Ollama** or **LM Studio** and pay nothing per token. See [Models & Providers](guide/providers.md) for the current recommended model and live pricing links.
 
 ### How do I verify my installation?
 

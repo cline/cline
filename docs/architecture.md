@@ -53,13 +53,6 @@ sessions/<gauge>.json"]
     HS -->|provenance metadata| PROV["HydroResult
 { data, meta }"]
     PROV --> LLM
-
-    style EXT fill:#0f0f1e,stroke:#00a3ff,color:#e0f0ff
-    style MCP fill:#0f0f1e,stroke:#00a3ff,color:#e0f0ff
-    style SESSION fill:#0f0f1e,stroke:#7dd3fc,color:#e0f0ff
-    style APIS fill:#1a1a2e,stroke:#94a3b8,color:#94a3b8
-    style ML fill:#1a1a2e,stroke:#94a3b8,color:#94a3b8
-    style PROV fill:#1a1a2e,stroke:#00ddff,color:#00ddff
 ```
 
 **The flow in plain English:**
@@ -103,9 +96,6 @@ geomorphic · model · notes"]
     HS -->|appended to| RMD[".aihydrorules/research.md
 auto-injected into
 every conversation"]
-
-    style MEMORY fill:#0f0f1e,stroke:#00a3ff,color:#e0f0ff
-    style RMD fill:#1a1a2e,stroke:#00ddff,color:#00ddff
 ```
 
 Each tier survives VS Code restarts, new conversations, and weeks between sessions. The researcher never re-explains their context — it is always present.

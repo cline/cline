@@ -1,3 +1,7 @@
+---
+description: Contribute to AI-Hydro — guidelines for tool plugins, knowledge plugins, and core fixes. Includes good first contributions, code style, and reporting issues.
+---
+
 # Contributing
 
 AI-Hydro is being built as open infrastructure for autonomous hydrological research.
@@ -29,7 +33,7 @@ correctly is often more valuable than wrapping it.
 | Type | What you build | Path |
 |------|---------------|------|
 | **Tool plugin** | A new callable MCP tool — new data source, analysis method, or model wrapper | [Path A](plugins/standalone-server.md) or [Path B](plugins/entry-point.md) |
-| **Knowledge plugin** | Field-name mappings, API gotchas, and code patterns for a library | [Path C](plugins/entry-point.md#knowledge-plugins) |
+| **Knowledge plugin** | Field-name mappings, API gotchas, and code patterns for a library | [Path C](plugins/entry-point.md#path-c-knowledge-plugin) |
 | **Core contribution** | Bug fix, new feature, or improvement to the built-in tools or extension | Fork and PR |
 
 See the [Plugin Guide](plugins/overview.md) for complete walkthroughs.

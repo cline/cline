@@ -1,3 +1,7 @@
+---
+description: AI-Hydro session MCP tools — start_session, get_session_summary, clear_session, add_note, export_session (capsule/methods/json/bibtex), sync_research_context, list_available_tools.
+---
+
 # Session Tools
 
 Tools for managing research sessions, exporting results, synchronising context, and discovering available tools.

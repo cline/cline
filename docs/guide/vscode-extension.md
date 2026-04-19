@@ -1,3 +1,7 @@
+---
+description: The AI-Hydro VS Code extension — chat interface, MCP auto-registration, supported AI providers, keyboard shortcuts, and .aihydroignore configuration.
+---
+
 # VS Code Extension
 
 The AI-Hydro VS Code extension is the primary interface for interacting with the platform. It embeds a full AI agent with direct access to the MCP tool server.
@@ -35,20 +39,9 @@ No manual JSON editing required.
 
 ## Supported AI Providers
 
-Configure your provider and API key in the extension settings panel:
+Configure your provider and API key in the extension settings panel. See the dedicated [Models & Providers](providers.md) page for the current recommended model and the full provider matrix.
 
-| Provider | Models | Notes |
-|----------|--------|-------|
-| Anthropic | Claude Sonnet 4.6, Opus 4.6 | Recommended starting point |
-| OpenAI | GPT-5.4, GPT-5.4 mini, o3-pro | |
-| Google Gemini | Gemini 3.1 Pro, 2.5 Flash | |
-| AWS Bedrock | Claude on Bedrock | Enterprise / VPC deployments |
-| Azure OpenAI | GPT models via Azure | |
-| Ollama / LM Studio | Local models | No API key needed |
-| OpenRouter | Any supported model | Single API key for all providers |
-
-!!! tip "Recommended model"
-    **Claude Sonnet 4.6** offers the best balance of speed, reasoning quality, and cost for hydrological research workflows. Use **Opus 4.6** for complex multi-step analyses.
+At a glance, AI-Hydro supports every provider the underlying agent supports — Anthropic, OpenAI, Google Gemini, AWS Bedrock, Azure OpenAI, OpenRouter, Ollama, LM Studio, and others — including local models for fully offline use.
 
 ---
 

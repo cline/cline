@@ -20,27 +20,18 @@ hide:
 
 [Get Started](getting-started/installation.md){ .md-button .md-button--primary }
 [View on GitHub](https://github.com/AI-Hydro/AI-Hydro){ .md-button }
-[Read the Architecture](architecture.md){ .md-button }
-[Contribute Plugins](plugins/overview.md){ .md-button }
-[How To Contribute](contributing.md){ .md-button }
 
 </div>
 
-<p align="center">
-  <a href="https://marketplace.visualstudio.com/items?itemName=aihydro.ai-hydro"><img src="https://img.shields.io/visual-studio-marketplace/v/aihydro.ai-hydro?label=VS%20Code%20Marketplace&color=0078d7" alt="Marketplace" /></a>
-   
-  <a href="https://pypi.org/project/aihydro-tools/"><img src="https://img.shields.io/pypi/v/aihydro-tools?color=3775a9&label=PyPI" alt="PyPI" /></a>
-   
-  <a href="https://pypi.org/project/aihydro-tools/"><img src="https://static.pepy.tech/badge/aihydro-tools" alt="Downloads" /></a>
-   
-  <a href="https://pypi.org/project/aihydro-tools/"><img src="https://img.shields.io/pypi/pyversions/aihydro-tools" alt="Python" /></a>
-   
-  <a href="https://github.com/AI-Hydro/AI-Hydro/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-green" alt="License" /></a>
-   
-  <a href="https://github.com/AI-Hydro/AI-Hydro/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/AI-Hydro/AI-Hydro/docs.yml?label=docs" alt="Docs" /></a>
-   
-  <a href="https://doi.org/10.5281/zenodo.19597664"><img src="https://img.shields.io/badge/DOI-10.5281%2Fzenodo.19597664-blue" alt="DOI" /></a>
-</p>
+<div class="badge-row" markdown>
+[![Marketplace](https://img.shields.io/visual-studio-marketplace/v/aihydro.ai-hydro?label=VS%20Code%20Marketplace&color=0078d7)](https://marketplace.visualstudio.com/items?itemName=aihydro.ai-hydro)
+[![PyPI](https://img.shields.io/pypi/v/aihydro-tools?color=3775a9&label=PyPI)](https://pypi.org/project/aihydro-tools/)
+[![Downloads](https://static.pepy.tech/badge/aihydro-tools)](https://pypi.org/project/aihydro-tools/)
+[![Python](https://img.shields.io/pypi/pyversions/aihydro-tools)](https://pypi.org/project/aihydro-tools/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-green)](https://github.com/AI-Hydro/AI-Hydro/blob/main/LICENSE)
+[![Docs](https://img.shields.io/github/actions/workflow/status/AI-Hydro/AI-Hydro/docs.yml?label=docs)](https://github.com/AI-Hydro/AI-Hydro/actions/workflows/docs.yml)
+[![DOI](https://img.shields.io/badge/DOI-10.5281%2Fzenodo.19597664-blue)](https://doi.org/10.5281/zenodo.19597664)
+</div>
 
 ---
 

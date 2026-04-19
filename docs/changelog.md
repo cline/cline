@@ -1,3 +1,7 @@
+---
+description: AI-Hydro VS Code extension changelog — release notes, breaking changes, new tools, and bug fixes for every published version.
+---
+
 # Changelog
 
 All notable changes to the AI-Hydro VS Code extension are documented here.

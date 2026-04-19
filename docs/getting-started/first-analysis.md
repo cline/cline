@@ -10,21 +10,23 @@ A complete walkthrough of a multi-step hydrological research session — watersh
 
 ## The Scenario
 
-We'll analyse **USGS gauge 01031500** (Androscoggin River at Rumford, Maine) — a moderately sized New England basin used in CAMELS-US.
+We'll analyse **USGS gauge 01031500** (Piscataquis River near Dover-Foxcroft, Maine) — a moderately sized New England basin in the CAMELS-US benchmark set.
 
 ---
 
 ## Step 1 — Start a Project
 
 ```
-Start a new project called "New England Basins" and add gauge 01031500 to it.
+Start a new project named new_england_basins (description: "New England headwater
+basins, CAMELS subset") and add gauge 01031500 to it.
 ```
 
-This creates a `ProjectSession` that will organise this gauge alongside others you add later.
+The `name` field becomes a directory, so it must match `^[a-zA-Z0-9_-]{1,64}$` — use slugs (`new_england_basins`, `pnw-snowmelt-2026`), not free text. The agent stores a friendlier display name separately via `sync_research_context` if you want one.
 
 ```json title="~/.aihydro/projects/new_england_basins/project.json (excerpt)"
 {
-  "name": "New England Basins",
+  "name": "new_england_basins",
+  "description": "New England headwater basins, CAMELS subset",
   "gauge_ids": ["01031500"],
   "created_at": "2026-04-10T09:00:00Z"
 }
@@ -62,15 +64,18 @@ This runs two tool calls in sequence:
 1. `fetch_streamflow_data("01031500", start_date="2000-01-01", end_date="2024-12-31")` → 9,131 daily records from USGS NWIS
 2. `extract_hydrological_signatures("01031500")` → 15+ flow statistics
 
-**Key signatures returned:**
+**Key signatures returned** (illustrative values — your run will differ):
 
-| Signature | Value | Interpretation |
-|-----------|-------|----------------|
-| Baseflow Index (BFI) | 0.52 | Moderate groundwater contribution |
-| Runoff ratio | 0.41 | 41% of precipitation becomes runoff |
-| Q5 / Q95 ratio | 28.4 | Moderate flow variability |
-| Recession constant | 0.97 | Slow recession — storage-rich basin |
-| Mean annual discharge | 37.2 m³/s | |
+| Field (as returned) | Value | Interpretation |
+|---|---|---|
+| `baseflow_index` (Lyne–Hollick) | 0.52 | Moderate baseflow contribution |
+| `runoff_ratio` | 0.41 | 41% of precipitation becomes runoff |
+| `q_mean` | 1.04 mm/day | Mean daily specific discharge |
+| `flow_variability` (CV) | 1.18 | Moderate day-to-day variability |
+| `slope_fdc` (Q33–Q66) | 1.6 | Mid-range flashiness |
+| `high_q_freq` | 8.4 days/yr | Days above 9× median |
+| `low_q_dur` | 5.7 days | Mean low-flow event length |
+| `hfd_mean` | day 121 (≈May 1) | Half-flow date — snowmelt-dominated |
 
 ---
 

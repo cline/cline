@@ -1,3 +1,7 @@
+---
+description: AI-Hydro project, literature, and persona MCP tools — start_project, search_experiments, index_literature, search_literature, researcher profile management.
+---
+
 # Project, Literature & Persona Tools
 
 Tools for multi-basin project management, literature synthesis, and researcher memory.

@@ -1,5 +1,5 @@
 ---
-description: AI-Hydro ResearcherProfile: a persistent researcher persona that learns your expertise, preferred models, and research focus across sessions.
+description: AI-Hydro ResearcherProfile — a persistent researcher persona that stores your stated expertise, preferred providers, and research focus across sessions.
 ---
 
 # Researcher Profile

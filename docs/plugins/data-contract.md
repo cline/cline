@@ -1,3 +1,7 @@
+---
+description: AI-Hydro plugin data contract — every tool returns a HydroResult with structured data plus HydroMeta provenance (tool, version, source, parameters, timestamp).
+---
+
 # Data Contract
 
 All AI-Hydro tools must follow the `HydroResult` / `HydroMeta` data contract. This ensures that every tool produces provenance-tracked, session-compatible results.

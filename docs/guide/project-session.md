@@ -1,3 +1,7 @@
+---
+description: AI-Hydro ProjectSession — organise multi-gauge research, run cross-session experiment search, and keep a project-level journal across many studies.
+---
+
 # Project Workspace
 
 A `ProjectSession` organises research that spans multiple gauges, regions, or topics — not tied to a single USGS gauge ID.

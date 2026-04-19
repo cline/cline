@@ -1,3 +1,7 @@
+---
+description: Build a standalone MCP server for AI-Hydro — full sub-domain toolkits with dependency isolation, registered alongside aihydro-mcp via the extension settings.
+---
+
 # Path A: Standalone MCP Server
 
 Build an independent MCP server for a full sub-domain toolkit. Runs as a separate process with full dependency isolation — ideal for heavy dependencies (HEC-RAS, SWMM, R packages) or complete toolkits.

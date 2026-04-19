@@ -138,8 +138,8 @@ Install the relevant extra:
 
 | Tools affected | Extra to install |
 |---|---|
-| `fetch_streamflow_data`, `fetch_forcing_data`, `fetch_lulc_data`, `fetch_soil_data` | `pip install aihydro-tools[data]` |
-| `delineate_watershed`, `extract_hydrological_signatures`, `extract_geomorphic_parameters`, `compute_twi`, `create_cn_grid` | `pip install aihydro-tools[analysis]` |
+| `fetch_streamflow_data`, `fetch_forcing_data`, `fetch_camels_us` | `pip install aihydro-tools[data]` |
+| `delineate_watershed`, `extract_hydrological_signatures`, `extract_geomorphic_parameters`, `compute_twi`, `create_cn_grid` (NLCD + Polaris are accessed inside `create_cn_grid`) | `pip install aihydro-tools[analysis]` |
 | `train_hydro_model`, `get_model_results` | `pip install aihydro-tools[modelling]` |
 Or install everything at once:
 

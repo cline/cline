@@ -78,6 +78,21 @@
 	margin-bottom: 1.5rem;
 }
 
+/* ── Badge row (hero) ─────────────────────────────────────────────────────── */
+
+.badge-row {
+	display: flex;
+	flex-wrap: wrap;
+	justify-content: center;
+	gap: 0.5rem;
+	margin: 1rem 0 2rem;
+}
+
+.badge-row img {
+	display: inline-block;
+	vertical-align: middle;
+}
+
 /* ── Feature grid ─────────────────────────────────────────────────────────── */
 
 .feature-grid {

@@ -54,7 +54,7 @@ Every result slot contains a `meta` object:
     "data": { "area_km2": 1247.3, ... },
     "meta": {
       "tool": "delineate_watershed",
-      "version": "1.2.0",
+      "version": "1.2.1",
       "source": "USGS NLDI / NHDPlus",
       "retrieved_at": "2026-04-10T09:14:22Z",
       "parameters": { "gauge_id": "01031500" }
@@ -127,13 +127,20 @@ Note: the high BFI likely reflects the fractured bedrock geology of this basin.
 
 ### `export_session`
 
-Generate a manuscript-ready methods paragraph.
+Export the session in one of four formats. Default is `"capsule"` — a complete reproducible research bundle written to `<workspace_dir>/capsule_<session_id>/`.
+
+| `format` | Output |
+|---|---|
+| `"capsule"` (default) | Folder containing `README.md`, `methods.md`, `citations.bib`, `session.json`, `data/`, `figures/`, `environment.yml` |
+| `"methods"` | Single prose methods paragraph with embedded citations |
+| `"json"` | Raw session JSON |
+| `"bibtex"` | Just the data-source citations |
 
 ```
 Export the session for gauge 01031500 as a methods paragraph.
 ```
 
-Output is written to `~/.aihydro/sessions/<gauge_id>_methods.txt` to preserve the context window.
+The full file paths are returned to the agent; the data is not echoed back into the chat, so the context window stays small even for large sessions.
 
 ### `sync_research_context`
 

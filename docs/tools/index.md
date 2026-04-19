@@ -1,3 +1,7 @@
+---
+description: AI-Hydro built-in MCP tools — 28 hydrology tools for analysis, modelling, sessions, projects, and literature, all returning provenance-tracked HydroResult objects.
+---
+
 # Tool Reference
 
 All tools are exposed via the [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) and can be called by any compatible AI agent. The agent decides which tools to call — you describe what you want to understand, and the agent orchestrates the right sequence.
