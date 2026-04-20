@@ -2084,6 +2084,7 @@ export class Task {
 
 				const isAuthError = clineError.isErrorType(ClineErrorType.Auth)
 				const isSpendLimitError = clineError.isErrorType(ClineErrorType.SpendLimit)
+				const quotaExceeded = clineError.isErrorType(ClineErrorType.QuotaExceeded)
 
 				// Check if this is a Cline provider insufficient credits error - don't auto-retry these
 				const isClineProviderInsufficientCredits = (() => {
@@ -2100,12 +2101,13 @@ export class Task {
 
 				let response: ClineAskResponse
 				// Skip auto-retry for Cline provider insufficient credits, auth errors, or spend limit errors
-				if (
+				const shouldRetry =
 					!isClineProviderInsufficientCredits &&
 					!isAuthError &&
 					!isSpendLimitError &&
+					!quotaExceeded &&
 					this.taskState.autoRetryAttempts < 3
-				) {
+				if (shouldRetry) {
 					// Auto-retry enabled with max 3 attempts: automatically approve the retry
 					this.taskState.autoRetryAttempts++
 
@@ -2156,7 +2158,8 @@ export class Task {
 					await setTimeoutPromise(delay)
 				} else {
 					// Show error_retry with failed flag to indicate all retries exhausted (but not for insufficient credits or spend limit)
-					if (!isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError) {
+					const showRetry = !isClineProviderInsufficientCredits && !isAuthError && !isSpendLimitError && !quotaExceeded
+					if (showRetry) {
 						await this.say(
 							"error_retry",
 							JSON.stringify({

@@ -115,6 +115,18 @@ describe("ErrorRow", () => {
 			expect(screen.getByText("Request ID: req_123456")).toBeInTheDocument()
 		})
 
+		it("renders quota exceeded error", async () => {
+			const mockClineError = {
+				isErrorType: vi.fn((type) => type === "quotaexceeded"),
+			}
+
+			const { ClineError } = await import("../../../../src/services/error/ClineError")
+			vi.mocked(ClineError.parse).mockReturnValue(mockClineError as any)
+
+			render(<ErrorRow apiRequestFailedMessage="Quota exceeded" errorType="error" message="" />)
+			expect(screen.getByText("Quota exceeded")).toBeInTheDocument()
+		})
+
 		it("renders friendly logged-out message and sign in button when user is not signed in", async () => {
 			const mockClineError = {
 				message: "Authentication failed",

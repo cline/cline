@@ -70,6 +70,10 @@ const ErrorRow = memo(({ message, errorType, apiRequestFailedMessage, apiReqStre
 						)
 					}
 
+					if (clineError?.isErrorType(ClineErrorType.QuotaExceeded)) {
+						return <p className="m-0 whitespace-pre-wrap text-error wrap-anywhere">{errorMessage}</p>
+					}
+
 					if (clineError?.isErrorType(ClineErrorType.Auth) && isClineProvider) {
 						return !clineUser ? (
 							// User is using Cline provider and is not logged in
