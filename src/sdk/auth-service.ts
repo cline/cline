@@ -831,7 +831,22 @@ export class AuthService {
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))
 	}
 
-	// ---- Provider-specific auth stubs ----
+	// ---- Provider-specific auth callbacks ----
+
+	/**
+	 * Shared helper: set a provider's API key and switch both plan/act modes to it.
+	 */
+	private setProviderApiKey(provider: ApiProvider, apiKeyField: string, apiKey: string): void {
+		const stateManager = StateManager.get()
+		const currentApiConfiguration = stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: provider,
+			actModeApiProvider: provider,
+			[apiKeyField]: apiKey,
+		}
+		stateManager.setApiConfiguration(updatedConfig)
+	}
 
 	/**
 	 * Handle OpenRouter OAuth callback.
@@ -858,29 +873,20 @@ export class AuthService {
 			throw error
 		}
 
-		const openrouter: ApiProvider = "openrouter"
-		const stateManager = StateManager.get()
-		const currentApiConfiguration = stateManager.getApiConfiguration()
-		const updatedConfig = {
-			...currentApiConfiguration,
-			planModeApiProvider: openrouter,
-			actModeApiProvider: openrouter,
-			openRouterApiKey: apiKey,
-		}
-		stateManager.setApiConfiguration(updatedConfig)
+		this.setProviderApiKey("openrouter", "openRouterApiKey", apiKey)
 	}
 
 	/**
 	 * Handle Requesty OAuth callback.
 	 */
-	async handleRequestyCallback(_code: string): Promise<void> {
-		Logger.warn("[SdkAuthService] handleRequestyCallback not yet implemented")
+	async handleRequestyCallback(code: string): Promise<void> {
+		this.setProviderApiKey("requesty", "requestyApiKey", code)
 	}
 
 	/**
 	 * Handle Hicap OAuth callback.
 	 */
-	async handleHicapCallback(_code: string): Promise<void> {
-		Logger.warn("[SdkAuthService] handleHicapCallback not yet implemented")
+	async handleHicapCallback(code: string): Promise<void> {
+		this.setProviderApiKey("hicap", "hicapApiKey", code)
 	}
 }
