@@ -10,12 +10,14 @@
 
 import type { OAuthCredentials } from "@clinebot/core"
 import { createOAuthClientCallbacks, loginClineOAuth, loginOcaOAuth, loginOpenAICodex, refreshClineToken } from "@clinebot/core"
+import type { ApiProvider } from "@shared/api"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import type { EmptyRequest, String } from "@shared/proto/cline/common"
 import axios from "axios"
 import { ClineEnv } from "@/config"
 import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
+import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
@@ -834,9 +836,38 @@ export class AuthService {
 	/**
 	 * Handle OpenRouter OAuth callback.
 	 */
-	async handleOpenRouterCallback(_code: string): Promise<void> {
-		// OpenRouter uses a different OAuth flow — will be implemented when needed
-		Logger.warn("[SdkAuthService] handleOpenRouterCallback not yet implemented")
+	async handleOpenRouterCallback(code: string): Promise<void> {
+		let apiKey: string
+		try {
+			const response = await fetch("https://openrouter.ai/api/v1/auth/keys", {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ code }),
+			})
+			if (!response.ok) {
+				throw new Error(`OpenRouter API responded with status ${response.status}`)
+			}
+			const data = (await response.json()) as { key?: string }
+			if (data?.key) {
+				apiKey = data.key
+			} else {
+				throw new Error("Invalid response from OpenRouter API")
+			}
+		} catch (error) {
+			Logger.error("[SdkAuthService] Error exchanging code for API key:", error)
+			throw error
+		}
+
+		const openrouter: ApiProvider = "openrouter"
+		const stateManager = StateManager.get()
+		const currentApiConfiguration = stateManager.getApiConfiguration()
+		const updatedConfig = {
+			...currentApiConfiguration,
+			planModeApiProvider: openrouter,
+			actModeApiProvider: openrouter,
+			openRouterApiKey: apiKey,
+		}
+		stateManager.setApiConfiguration(updatedConfig)
 	}
 
 	/**
