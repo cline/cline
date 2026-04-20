@@ -822,11 +822,12 @@ export function groupLowStakesTools(groupedMessages: (ClineMessage | ClineMessag
 			continue
 		}
 
-		// Text - once a tool group is active, ignore additional text so it
-		// doesn't continue mutating the text row rendered above the group.
+		// Text - if a low-stakes tool group is active, finalize it first,
+		// then render the text as a normal chat row. This ensures post-tool
+		// summaries (common in SDK/native-tool-call flows) are visible.
 		if (messageType === "text") {
 			if (hasTools) {
-				continue
+				commitToolGroup()
 			}
 			flushPending()
 			result.push(message)

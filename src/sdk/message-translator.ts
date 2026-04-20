@@ -347,19 +347,32 @@ function parseToolInput(input: unknown): Record<string, unknown> | undefined {
 	return undefined
 }
 
-/** Extract the first file path from a read_files input */
-function extractFirstFilePath(input: Record<string, unknown> | undefined): string {
-	if (!input) return ""
+/** Extract file paths from a read_files/read_file input */
+function extractFilePaths(input: Record<string, unknown> | undefined): string[] {
+	if (!input) return []
 	const files = input.files
 	if (Array.isArray(files) && files.length > 0) {
-		const first = files[0]
-		if (typeof first === "string") return first
-		if (typeof first === "object" && first !== null) {
-			return ((first as Record<string, unknown>).path as string) ?? ""
+		const paths = files
+			.map((f) => {
+				if (typeof f === "string") return f
+				if (typeof f === "object" && f !== null) {
+					return ((f as Record<string, unknown>).path as string) ?? ""
+				}
+				return ""
+			})
+			.filter(Boolean)
+		if (paths.length > 0) {
+			return paths
 		}
 	}
-	// Fallback: check for path or file_path fields
-	return (input.path as string) ?? (input.file_path as string) ?? ""
+	const singlePath =
+		(input.path as string) ?? (input.file_path as string) ?? (input.filePath as string) ?? (input.filename as string) ?? ""
+	return singlePath ? [singlePath] : []
+}
+
+/** Extract the first file path from a read_files input */
+function extractFirstFilePath(input: Record<string, unknown> | undefined): string {
+	return extractFilePaths(input)[0] ?? ""
 }
 
 /** Get a string field from a parsed input object */
@@ -596,6 +609,27 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// doesn't carry the input (S6-24 fix)
 					const storedInput = state.getStreamingToolInput()
 					const ts = state.clearStreamingTool()
+
+					// Special handling: read_files may read multiple files in one tool call.
+					// Emit one readFile UI message per file so the tool group summary and
+					// list reflect what was actually read.
+					if (toolName === "read_files" || toolName === "read_file") {
+						const parsedInput = parseToolInput(storedInput)
+						const filePaths = extractFilePaths(parsedInput)
+						if (filePaths.length > 1) {
+							filePaths.forEach((filePath, index) => {
+								messages.push({
+									ts: index === 0 ? ts : state.nextTs(),
+									type: "say",
+									say: "tool",
+									text: JSON.stringify({ tool: "readFile", path: filePath } satisfies ClineSayTool),
+									partial: false,
+								})
+							})
+							break
+						}
+					}
+
 					const sayTool = sdkToolToClineSayTool(toolName, storedInput)
 					// If there's an error, include it in the tool message
 					if (event.error) {
