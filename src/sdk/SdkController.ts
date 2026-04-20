@@ -9,7 +9,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { CoreSessionEvent } from "@clinebot/core"
+import type { CoreSessionEvent, SessionManager, StartSessionResult } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
@@ -286,6 +286,132 @@ export class Controller {
 		)
 	}
 
+	// ---- Session helpers (shared by initTask, resumeSessionFromTask, restartSessionForMcpTools, etc.) ----
+
+	/**
+	 * Load conversation history for an old session, to be passed as
+	 * `initialMessages` when creating a replacement session.
+	 *
+	 * Tries the SDK's own persistence (SQLite/file) first via
+	 * `sessionManager.readMessages()`, then falls back to the classic
+	 * `api_conversation_history.json` for pre-SDK tasks.
+	 *
+	 * @param reader  An object with a `readMessages(id)` method — typically
+	 *                a `VscodeSessionHost` or the old `sessionManager`.
+	 * @param taskId  The session/task ID whose messages to load.
+	 */
+	private async loadInitialMessages(
+		reader: { readMessages(id: string): Promise<unknown[]> },
+		taskId: string,
+	): Promise<unknown[] | undefined> {
+		// 1. Try SDK-persisted messages (SQLite / file-backed session store)
+		try {
+			const sdkMessages = await reader.readMessages(taskId)
+			if (sdkMessages.length > 0) {
+				Logger.log(`[SdkController] Loaded ${sdkMessages.length} SDK-persisted messages for task: ${taskId}`)
+				return sdkMessages
+			}
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to read SDK-persisted messages:", error)
+		}
+
+		// 2. Fallback: classic api_conversation_history.json (pre-SDK tasks)
+		try {
+			const { getSavedApiConversationHistory } = await import("@core/storage/disk")
+			const apiHistory = await getSavedApiConversationHistory(taskId)
+			if (apiHistory.length > 0) {
+				Logger.log(`[SdkController] Loaded ${apiHistory.length} classic API messages for task: ${taskId}`)
+				return apiHistory as unknown[]
+			}
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to read classic API conversation history:", error)
+		}
+
+		return undefined
+	}
+
+	/**
+	 * Create a new VscodeSessionHost, subscribe to events, start a session,
+	 * and wire up `this.activeSession`.
+	 *
+	 * This is the common session-bootstrap sequence shared by `initTask`,
+	 * `resumeSessionFromTask`, `reinitExistingTaskFromId`, and
+	 * `restartSessionForMcpTools`.
+	 *
+	 * @returns The `StartSessionResult` from the SDK.
+	 */
+	private async startNewSession(
+		startInput: Parameters<VscodeSessionHost["start"]>[0],
+	): Promise<{ startResult: StartSessionResult; sessionManager: SessionManager }> {
+		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
+			this.handleSessionEvent(event)
+		})
+
+		const startResult = await sessionManager.start(startInput)
+
+		this.activeSession = {
+			sessionId: startResult.sessionId,
+			sessionManager,
+			unsubscribe,
+			startResult,
+			isRunning: true,
+		}
+
+		return { startResult, sessionManager }
+	}
+
+	/**
+	 * Fire-and-forget: send a prompt to the active session.
+	 *
+	 * `sessionManager.send()` blocks until the agent turn completes, but
+	 * events stream in real-time via the subscription. We do NOT await the
+	 * send — the caller (gRPC handler / UI) needs to return immediately.
+	 */
+	private fireAndForgetSend(
+		sessionManager: SessionManager,
+		sessionId: string,
+		prompt: string,
+		images?: string[],
+		files?: string[],
+	): void {
+		sessionManager
+			.send({
+				sessionId,
+				prompt,
+				userImages: images,
+				userFiles: files,
+			})
+			.then(() => {
+				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
+				if (this.activeSession) {
+					this.activeSession.isRunning = false
+				}
+				this.postStateToWebview().catch((err) => {
+					Logger.error("[SdkController] Failed to post state after turn:", err)
+				})
+			})
+			.catch((error) => {
+				Logger.error("[SdkController] Agent turn failed:", error)
+				this.emitSessionEvents(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Agent error: ${error instanceof Error ? error.message : String(error)}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId, status: "error" } },
+				)
+				if (this.activeSession) {
+					this.activeSession.isRunning = false
+				}
+				this.postStateToWebview().catch(() => {})
+			})
+	}
+
 	// ---- Task lifecycle (Step 4) ----
 
 	async initTask(
@@ -318,16 +444,6 @@ export class Controller {
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
 
-			// Create VscodeSessionHost instance (wraps DefaultSessionManager
-			// with VscodeRuntimeBuilder + VscodeOAuthTokenManager)
-			Logger.log("[SdkController] Creating VscodeSessionHost...")
-			const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-
-			// Subscribe to session events BEFORE starting
-			const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
-				this.handleSessionEvent(event)
-			})
-
 			// Build start input — NO prompt, so start() returns immediately
 			// (session creation only, no inference yet)
 			const startInput = buildStartSessionInput(config, {
@@ -340,25 +456,13 @@ export class Controller {
 				mode,
 			})
 
-			// Start the session (returns immediately since no prompt)
-			Logger.log("[SdkController] Starting session (no prompt — fast return)...")
-			const startResult = await sessionManager.start(startInput)
-
-			// Track the active session
-			this.activeSession = {
-				sessionId: startResult.sessionId,
-				sessionManager,
-				unsubscribe,
-				startResult,
-				isRunning: true,
-			}
+			// Create host, subscribe, start session, wire activeSession
+			const { startResult, sessionManager } = await this.startNewSession(startInput)
 
 			// Create a task proxy for gRPC handlers
 			this.task = createTaskProxy(
 				startResult.sessionId,
-				// onAskResponse callback
 				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
-				// onCancelTask callback
 				() => this.cancelTask(),
 			)
 
@@ -368,8 +472,6 @@ export class Controller {
 
 			// Emit initial task message — must be added to messageStateHandler
 			// so that getStateToPostToWebview() includes it in clineMessages.
-			// Without this, the state update would have empty clineMessages and
-			// the webview would lose the task message (S6-22 fix).
 			const taskMessage: ClineMessage = {
 				ts: Date.now(),
 				type: "say",
@@ -377,64 +479,18 @@ export class Controller {
 				text: task ?? "",
 				partial: false,
 			}
-			// Add to message state handler FIRST so state includes it
 			this.task.messageStateHandler.addMessages([taskMessage])
-			// Then emit to listeners (bridge pushes via partial message stream)
 			this.emitSessionEvents([taskMessage], {
 				type: "status",
 				payload: { sessionId: startResult.sessionId, status: "running" },
 			})
 
-			// Post state update — now includes the task message in clineMessages
 			await this.postStateToWebview()
 
-			// Now send the prompt to start inference (fire-and-forget).
-			// sessionManager.send() blocks until the agent turn completes, but events
-			// stream in real-time via the subscription we set up above.
-			// We do NOT await this — the gRPC handler needs to return immediately.
+			// Send the prompt to start inference (fire-and-forget)
 			if (task?.trim()) {
 				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
-				Logger.log(
-					`[SdkController] Config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}, apiKeyPrefix=${config.apiKey?.substring(0, 15)}`,
-				)
-				const sendStartTime = Date.now()
-				sessionManager
-					.send({
-						sessionId: startResult.sessionId,
-						prompt: task,
-						userImages: images,
-						userFiles: files,
-					})
-					.then((result) => {
-						Logger.log(
-							`[SdkController] Agent turn completed for session: ${startResult.sessionId}, result=${JSON.stringify(result)?.substring(0, 200)}`,
-						)
-						if (this.activeSession) {
-							this.activeSession.isRunning = false
-						}
-						this.postStateToWebview().catch((err) => {
-							Logger.error("[SdkController] Failed to post state after turn:", err)
-						})
-					})
-					.catch((error) => {
-						Logger.error("[SdkController] Agent turn failed:", error)
-						this.emitSessionEvents(
-							[
-								{
-									ts: Date.now(),
-									type: "say",
-									say: "error",
-									text: `Agent error: ${error instanceof Error ? error.message : String(error)}`,
-									partial: false,
-								},
-							],
-							{ type: "status", payload: { sessionId: startResult.sessionId, status: "error" } },
-						)
-						if (this.activeSession) {
-							this.activeSession.isRunning = false
-						}
-						this.postStateToWebview().catch(() => {})
-					})
+				this.fireAndForgetSend(sessionManager, startResult.sessionId, task, images, files)
 			}
 
 			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
@@ -486,30 +542,20 @@ export class Controller {
 				mode: "act", // Default to act mode for resumed tasks
 			})
 
-			// Create VscodeSessionHost instance
-			const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+			// Create a temporary session host to read old messages before
+			// starting the new session (start() overwrites the session row)
+			const tempManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+			const initialMessages = await this.loadInitialMessages(tempManager, taskId)
+			await tempManager.dispose("readMessages")
 
-			// Subscribe to events
-			const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
-				this.handleSessionEvent(event)
-			})
-
-			// For resumption, we start a new session with the same config
-			// and let the SDK's persistence layer handle loading history.
-			// The SDK will use the sessionId to find existing session data.
-			const startResult = await sessionManager.start({
+			// Start a new session with the old conversation history
+			const { startResult } = await this.startNewSession({
 				config,
-				prompt: `[TASK RESUMPTION] Resuming task: ${historyItem.task}`,
 				interactive: true,
+				...(initialMessages
+					? { initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"] }
+					: {}),
 			})
-
-			this.activeSession = {
-				sessionId: startResult.sessionId,
-				sessionManager,
-				unsubscribe,
-				startResult,
-				isRunning: true,
-			}
 
 			// Create a task proxy for gRPC handlers
 			this.task = createTaskProxy(
@@ -723,45 +769,8 @@ export class Controller {
 		// Reset translator state for new turn
 		this.messageTranslatorState.reset()
 
-		// Fire-and-forget: send the follow-up message without awaiting.
-		// Events stream in real-time via the subscription.
-		sessionManager
-			.send({
-				sessionId,
-				prompt: prompt ?? "",
-				userImages: images,
-				userFiles: files,
-			})
-			.then(() => {
-				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
-				if (this.activeSession) {
-					this.activeSession.isRunning = false
-				}
-				this.postStateToWebview().catch((err) => {
-					Logger.error("[SdkController] Failed to post state after askResponse turn:", err)
-				})
-			})
-			.catch((error) => {
-				Logger.error("[SdkController] Failed to send message:", error)
-				this.emitSessionEvents(
-					[
-						{
-							ts: Date.now(),
-							type: "say",
-							say: "error",
-							text: `Failed to send message: ${error instanceof Error ? error.message : String(error)}`,
-							partial: false,
-						},
-					],
-					{ type: "status", payload: { sessionId, status: "error" } },
-				)
-				if (this.activeSession) {
-					this.activeSession.isRunning = false
-				}
-				this.postStateToWebview().catch(() => {})
-			})
-
-		Logger.log(`[SdkController] Message sent (fire-and-forget) to session: ${sessionId}`)
+		// Fire-and-forget send
+		this.fireAndForgetSend(sessionManager, sessionId, prompt ?? "", images, files)
 	}
 
 	/**
@@ -778,100 +787,49 @@ export class Controller {
 	private async resumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
 
-		// ── Task 2: Look up the HistoryItem for cwd and metadata ──
+		// Look up the HistoryItem for cwd and metadata
 		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === taskId)
 		const cwd = historyItem?.cwdOnTaskInitialization ?? process.cwd()
 
-		// ── Task 3: Build a new session config ──
+		// Build a new session config, reusing the old task ID
 		const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 		const config = await buildSessionConfig({ cwd, mode })
-		// Reuse the old task ID as the session ID so history item linkage is preserved
 		config.sessionId = taskId
 
-		// ── Task 4: Create VscodeSessionHost and subscribe to events ──
-		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
-			this.handleSessionEvent(event)
-		})
-
-		// ── Task 1: Load conversation history ──
-		// The SDK persists messages to its own storage (SQLite/file) during
-		// runTurn(). For SDK-created tasks, api_conversation_history.json
-		// does NOT exist — only ui_messages.json is written by the controller.
-		// So we read from the SDK's persistence via readMessages() first,
-		// then fall back to the classic api_conversation_history.json for
-		// tasks created by the classic (non-SDK) controller.
-		// IMPORTANT: Read BEFORE start() since start() with the same sessionId
-		// will overwrite the session row/manifest.
-		let initialMessages: Parameters<typeof sessionManager.start>[0]["initialMessages"]
-		try {
-			const sdkMessages = await sessionManager.readMessages(taskId)
-			if (sdkMessages.length > 0) {
-				initialMessages = sdkMessages
-				Logger.log(`[SdkController] Loaded ${sdkMessages.length} SDK-persisted messages for task: ${taskId}`)
-			}
-		} catch (error) {
-			Logger.warn("[SdkController] Failed to read SDK-persisted messages:", error)
-		}
-
-		// Fallback: try classic api_conversation_history.json (for pre-SDK tasks)
-		if (!initialMessages || initialMessages.length === 0) {
-			try {
-				const { getSavedApiConversationHistory } = await import("@core/storage/disk")
-				const apiHistory = await getSavedApiConversationHistory(taskId)
-				if (apiHistory.length > 0) {
-					// Cast is safe: Anthropic.MessageParam and LlmsProviders.Message
-					// are structurally compatible ({role, content} with compatible content types)
-					initialMessages = apiHistory as unknown as typeof initialMessages
-					Logger.log(`[SdkController] Loaded ${apiHistory.length} classic API messages for task: ${taskId}`)
-				}
-			} catch (error) {
-				Logger.warn("[SdkController] Failed to read classic API conversation history:", error)
-			}
-		}
+		// Load conversation history BEFORE start() (which overwrites the session row).
+		// Use a temporary session host for reading, then dispose it.
+		const tempManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+		const initialMessages = await this.loadInitialMessages(tempManager, taskId)
+		await tempManager.dispose("readMessages")
 
 		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
 
-		// ── Task 5: Start the session with initialMessages ──
-		// Pass the old conversation history as initialMessages so the agent
-		// has full context. The SDK's executeAgentTurn will see
-		// agent.getMessages().length > 0 and call agent.continue() instead of
-		// agent.run(), correctly appending to the existing conversation.
-		const startInput: Parameters<typeof sessionManager.start>[0] = {
+		// Start a new session with the old conversation history
+		const { startResult, sessionManager } = await this.startNewSession({
 			config,
 			interactive: true,
-			...(initialMessages && initialMessages.length > 0 ? { initialMessages } : {}),
-		}
+			...(initialMessages
+				? { initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"] }
+				: {}),
+		})
 
-		const startResult = await sessionManager.start(startInput)
-
-		// ── Task 6: Wire up the activeSession ──
-		this.activeSession = {
-			sessionId: startResult.sessionId,
-			sessionManager,
-			unsubscribe,
-			startResult,
-			isRunning: true,
-		}
-
-		// Update task proxy's session ID if it changed (shouldn't, since we set config.sessionId)
+		// Update task proxy's session ID if it changed
 		if (this.task && this.task.taskId !== startResult.sessionId) {
 			this.task.taskId = startResult.sessionId
 		}
 
-		// Reset translator state for the new turn
 		this.messageTranslatorState.reset()
 
-		// ── Task 8: Update the HistoryItem ──
+		// Update the HistoryItem
 		if (historyItem) {
 			historyItem.ts = Date.now()
 			historyItem.modelId = config.modelId
 			await this.updateTaskHistory(historyItem)
 		}
 
-		// ── Task 9: Emit the user's message to the webview ──
+		// Emit the user's message to the webview
 		if (prompt?.trim()) {
 			const userMessage: ClineMessage = {
 				ts: Date.now(),
@@ -892,8 +850,8 @@ export class Controller {
 
 		await this.postStateToWebview()
 
-		// ── Task 7: Send the user's follow-up message (fire-and-forget) ──
-		// ── Task 10: Edge case — if no conversation history and no prompt, use summary ──
+		// Send the follow-up message (fire-and-forget), or use a resumption
+		// summary if there's no conversation history and no prompt
 		const effectivePrompt =
 			prompt?.trim() ||
 			((!initialMessages || initialMessages.length === 0) && historyItem
@@ -901,47 +859,10 @@ export class Controller {
 				: "")
 
 		if (effectivePrompt) {
-			const sid = startResult.sessionId
-			sessionManager
-				.send({
-					sessionId: sid,
-					prompt: effectivePrompt,
-					userImages: images,
-					userFiles: files,
-				})
-				.then(() => {
-					Logger.log(`[SdkController] Resumed turn completed for session: ${sid}`)
-					if (this.activeSession) {
-						this.activeSession.isRunning = false
-					}
-					this.postStateToWebview().catch((err) => {
-						Logger.error("[SdkController] Failed to post state after resumed turn:", err)
-					})
-				})
-				.catch((error) => {
-					Logger.error("[SdkController] Resumed turn failed:", error)
-					this.emitSessionEvents(
-						[
-							{
-								ts: Date.now(),
-								type: "say",
-								say: "error",
-								text: `Failed to resume: ${error instanceof Error ? error.message : String(error)}`,
-								partial: false,
-							},
-						],
-						{ type: "status", payload: { sessionId: sid, status: "error" } },
-					)
-					if (this.activeSession) {
-						this.activeSession.isRunning = false
-					}
-					this.postStateToWebview().catch(() => {})
-				})
-
-			Logger.log(`[SdkController] Resume message sent (fire-and-forget) to session: ${sid}`)
+			this.fireAndForgetSend(sessionManager, startResult.sessionId, effectivePrompt, images, files)
 		} else {
-			// No prompt and we have API history — session is ready but idle
-			this.activeSession.isRunning = false
+			// No prompt and we have history — session is ready but idle
+			this.activeSession!.isRunning = false
 			Logger.log(`[SdkController] Session resumed (idle, no prompt) for task: ${taskId}`)
 		}
 	}
@@ -1368,33 +1289,33 @@ export class Controller {
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({ cwd, mode })
 
-			// 2. Create a new VscodeSessionHost with fresh MCP tools
-			const newManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+			// 2. Read conversation history from the OLD session BEFORE tearing it down.
+			// Without this, the new session starts with zero context and the LLM
+			// loses memory of the entire conversation.
+			const initialMessages = await this.loadInitialMessages(oldManager, oldSessionId)
 
-			// 3. Subscribe to events on the new manager
-			const newUnsubscribe = newManager.subscribe((event: CoreSessionEvent) => {
-				this.handleSessionEvent(event)
-			})
-
-			// 4. Start a new session (no prompt — just create it)
-			const startInput = buildStartSessionInput(config, { cwd, mode })
-			const startResult = await newManager.start(startInput)
-
-			// 5. Tear down the old session
+			// 3. Tear down the old session BEFORE starting the new one, so
+			// startNewSession() doesn't overwrite this.activeSession while the
+			// old subscription is still active.
 			oldUnsubscribe()
 			oldManager.stop(oldSessionId).catch(() => {})
 			oldManager.dispose("mcpToolRestart").catch(() => {})
 
-			// 6. Update active session
-			this.activeSession = {
-				sessionId: startResult.sessionId,
-				sessionManager: newManager,
-				unsubscribe: newUnsubscribe,
-				startResult,
-				isRunning: false,
+			// 4. Start a new session with the old conversation history
+			const startInput = buildStartSessionInput(config, { cwd, mode })
+			const { startResult } = await this.startNewSession({
+				...startInput,
+				...(initialMessages
+					? { initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"] }
+					: {}),
+			})
+
+			// Session is idle after restart (no prompt was sent)
+			if (this.activeSession) {
+				this.activeSession.isRunning = false
 			}
 
-			// 7. Update the task proxy's session ID (keep existing messages)
+			// Update the task proxy's session ID (keep existing messages)
 			if (this.task) {
 				this.task.taskId = startResult.sessionId
 			}
