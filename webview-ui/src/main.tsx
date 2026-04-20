@@ -3,9 +3,12 @@ import { createRoot } from "react-dom/client"
 import "./main.css"
 import "./index.css"
 import App from "./App.tsx"
+import WebviewErrorBoundary from "./components/common/WebviewErrorBoundary"
 
 createRoot(document.getElementById("root")!).render(
 	<StrictMode>
-		<App />
+		<WebviewErrorBoundary>
+			<App />
+		</WebviewErrorBoundary>
 	</StrictMode>,
 )

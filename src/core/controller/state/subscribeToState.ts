@@ -39,7 +39,9 @@ export async function subscribeToState(
 	const initialState = await controller.getStateToPostToWebview()
 	const initialStateJson = JSON.stringify(initialState)
 
-	recordStateSizeTelemetry(Buffer.byteLength(initialStateJson, "utf8"))
+	const initialStateSize = Buffer.byteLength(initialStateJson, "utf8")
+	recordStateSizeTelemetry(initialStateSize)
+	logLargeStatePayload(initialState, initialStateSize, "initial")
 
 	try {
 		await responseStream(
@@ -67,7 +69,9 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 		return
 	}
 
-	recordStateSizeTelemetry(Buffer.byteLength(stateJson, "utf8"))
+	const stateSize = Buffer.byteLength(stateJson, "utf8")
+	recordStateSizeTelemetry(stateSize)
+	logLargeStatePayload(state, stateSize, "update")
 
 	const promises = Array.from(activeStateSubscriptions).map(async (responseStream) => {
 		try {
@@ -88,4 +92,16 @@ export async function sendStateUpdate(state: ExtensionState): Promise<void> {
 
 function recordStateSizeTelemetry(sizeBytes: number): void {
 	telemetryService.captureGrpcResponseSize(sizeBytes, "cline.StateService", "subscribeToState")
+}
+
+function logLargeStatePayload(state: ExtensionState, sizeBytes: number, phase: "initial" | "update"): void {
+	const LARGE_STATE_WARNING_BYTES = 1024 * 1024
+
+	if (sizeBytes < LARGE_STATE_WARNING_BYTES) {
+		return
+	}
+
+	Logger.warn(
+		`[StateService] Large ${phase} payload (${(sizeBytes / (1024 * 1024)).toFixed(2)} MiB, messages=${state.clineMessages.length}, taskHistory=${state.taskHistory.length})`,
+	)
 }

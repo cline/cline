@@ -30,6 +30,9 @@ import { McpServiceClient, ModelsServiceClient, StateServiceClient, UiServiceCli
 
 export interface ExtensionStateContextType extends ExtensionState {
 	didHydrateState: boolean
+	webviewBootstrapStatus: "hydrating" | "hydrated" | "degraded"
+	webviewBootstrapError?: string
+	webviewBootstrapAttempt: number
 	showWelcome: boolean
 	onboardingModels: OnboardingModelGroup | undefined
 	clineModels: Record<string, ModelInfo> | null
@@ -118,6 +121,8 @@ export interface ExtensionStateContextType extends ExtensionState {
 
 	// Event callbacks
 	onRelinquishControl: (callback: () => void) => () => void
+	retryWebviewBootstrap: () => void
+	reloadWebview: () => void
 }
 
 export const ExtensionStateContext = createContext<ExtensionStateContextType | undefined>(undefined)
@@ -125,6 +130,10 @@ export const ExtensionStateContext = createContext<ExtensionStateContextType | u
 export const ExtensionStateContextProvider: React.FC<{
 	children: React.ReactNode
 }> = ({ children }) => {
+	const HYDRATION_TIMEOUT_MS = 8000
+	const MAX_BOOTSTRAP_AUTO_RETRIES = 2
+	const BOOTSTRAP_RETRY_DELAY_MS = 1000
+
 	// UI view state
 	const [showMcp, setShowMcp] = useState(false)
 	const [mcpTab, setMcpTab] = useState<McpViewTab | undefined>(undefined)
@@ -293,6 +302,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	})
 	const [expandTaskHeader, setExpandTaskHeader] = useState(true)
 	const [didHydrateState, setDidHydrateState] = useState(false)
+	const [webviewBootstrapStatus, setWebviewBootstrapStatus] = useState<"hydrating" | "hydrated" | "degraded">("hydrating")
+	const [webviewBootstrapError, setWebviewBootstrapError] = useState<string | undefined>(undefined)
+	const [webviewBootstrapAttempt, setWebviewBootstrapAttempt] = useState(0)
 
 	const [showWelcome, setShowWelcome] = useState(false)
 	const [onboardingModels, setOnboardingModels] = useState<OnboardingModelGroup | undefined>(undefined)
@@ -337,9 +349,178 @@ export const ExtensionStateContextProvider: React.FC<{
 	const liteLlmModelsUnsubscribeRef = useRef<(() => void) | null>(null)
 	const workspaceUpdatesUnsubscribeRef = useRef<(() => void) | null>(null)
 	const relinquishControlUnsubscribeRef = useRef<(() => void) | null>(null)
+	const hydrationTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const bootstrapRetryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const didHydrateStateRef = useRef(false)
+	const bootstrapAttemptRef = useRef(0)
+	const showWelcomeRef = useRef(false)
 
 	// Add ref for callbacks
 	const relinquishControlCallbacks = useRef<Set<() => void>>(new Set())
+
+	useEffect(() => {
+		didHydrateStateRef.current = didHydrateState
+	}, [didHydrateState])
+
+	useEffect(() => {
+		showWelcomeRef.current = showWelcome
+	}, [showWelcome])
+
+	const clearBootstrapTimers = useCallback(() => {
+		if (hydrationTimeoutRef.current) {
+			clearTimeout(hydrationTimeoutRef.current)
+			hydrationTimeoutRef.current = null
+		}
+		if (bootstrapRetryTimeoutRef.current) {
+			clearTimeout(bootstrapRetryTimeoutRef.current)
+			bootstrapRetryTimeoutRef.current = null
+		}
+	}, [])
+
+	const reloadWebview = useCallback(() => {
+		window.location.reload()
+	}, [])
+
+	const startStateHydration = useCallback(
+		(reason = "initial") => {
+			clearBootstrapTimers()
+
+			if (stateSubscriptionRef.current) {
+				stateSubscriptionRef.current()
+				stateSubscriptionRef.current = null
+			}
+
+			const nextAttempt = bootstrapAttemptRef.current + 1
+			bootstrapAttemptRef.current = nextAttempt
+			setWebviewBootstrapAttempt(nextAttempt)
+			setWebviewBootstrapStatus("hydrating")
+			setWebviewBootstrapError(undefined)
+
+			if (!didHydrateStateRef.current) {
+				setDidHydrateState(false)
+			}
+
+			console.log(`[WEBVIEW] Starting initial state hydration attempt ${nextAttempt} (${reason})`)
+
+			const scheduleRetry = (retryReason: string) => {
+				if (
+					didHydrateStateRef.current ||
+					bootstrapRetryTimeoutRef.current ||
+					bootstrapAttemptRef.current >= MAX_BOOTSTRAP_AUTO_RETRIES
+				) {
+					return
+				}
+
+				bootstrapRetryTimeoutRef.current = setTimeout(() => {
+					bootstrapRetryTimeoutRef.current = null
+					startStateHydration(retryReason)
+				}, BOOTSTRAP_RETRY_DELAY_MS)
+			}
+
+			stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
+				onResponse: (response) => {
+					if (response.stateJson) {
+						try {
+							const stateData = JSON.parse(response.stateJson) as ExtensionState
+							setState((prevState) => {
+								// Versioning logic for autoApprovalSettings
+								const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
+								const currentVersion = prevState.autoApprovalSettings?.version ?? 1
+								const shouldUpdateAutoApproval = incomingVersion > currentVersion
+								// HACK: Preserve clineMessages if currentTaskItem is the same
+								if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
+									stateData.clineMessages = stateData.clineMessages?.length
+										? stateData.clineMessages
+										: prevState.clineMessages
+								}
+
+								const newState = {
+									...stateData,
+									autoApprovalSettings: shouldUpdateAutoApproval
+										? stateData.autoApprovalSettings
+										: prevState.autoApprovalSettings,
+								}
+
+								// Update welcome screen state based on API configuration if welcome view not in progress
+								if (!newState.welcomeViewCompleted && !showWelcomeRef.current) {
+									setShowWelcome(true)
+									setOnboardingModels(newState.onboardingModels)
+								} else if (newState.welcomeViewCompleted) {
+									setShowWelcome(false)
+									setOnboardingModels(undefined)
+								}
+
+								didHydrateStateRef.current = true
+								setDidHydrateState(true)
+								setWebviewBootstrapStatus("hydrated")
+								setWebviewBootstrapError(undefined)
+								clearBootstrapTimers()
+
+								return newState
+							})
+						} catch (error) {
+							console.error("Error parsing state JSON:", error)
+							console.log("[DEBUG] ERR getting state", error)
+
+							if (!didHydrateStateRef.current) {
+								setWebviewBootstrapStatus("degraded")
+								setWebviewBootstrapError(
+									`Received invalid initial state payload on attempt ${nextAttempt}. ${error instanceof Error ? error.message : String(error)}`,
+								)
+								scheduleRetry("parse-error")
+							}
+						}
+					}
+					console.log('[DEBUG] ended "got subscribed state"')
+				},
+				onError: (error) => {
+					console.error("Error in state subscription:", error)
+
+					if (!didHydrateStateRef.current) {
+						setWebviewBootstrapStatus("degraded")
+						setWebviewBootstrapError(
+							`State subscription failed before the webview finished loading. ${error instanceof Error ? error.message : String(error)}`,
+						)
+						scheduleRetry("state-subscription-error")
+					}
+				},
+				onComplete: () => {
+					console.log("State subscription completed")
+				},
+			})
+
+			UiServiceClient.initializeWebview(EmptyRequest.create({}))
+				.then(() => {
+					console.log("[DEBUG] Webview initialization completed via gRPC")
+				})
+				.catch((error) => {
+					console.error("Failed to initialize webview via gRPC:", error)
+
+					if (!didHydrateStateRef.current) {
+						setWebviewBootstrapStatus("degraded")
+						setWebviewBootstrapError(
+							`Webview initialization failed before the first state arrived. ${error instanceof Error ? error.message : String(error)}`,
+						)
+						scheduleRetry("initialize-webview-error")
+					}
+				})
+
+			hydrationTimeoutRef.current = setTimeout(() => {
+				if (!didHydrateStateRef.current) {
+					const timeoutMessage = `Timed out waiting for the initial Cline state after ${HYDRATION_TIMEOUT_MS / 1000} seconds (attempt ${nextAttempt}).`
+					console.error(`[WEBVIEW] ${timeoutMessage}`)
+					setWebviewBootstrapStatus("degraded")
+					setWebviewBootstrapError(timeoutMessage)
+					scheduleRetry("hydration-timeout")
+				}
+			}, HYDRATION_TIMEOUT_MS)
+		},
+		[clearBootstrapTimers],
+	)
+
+	const retryWebviewBootstrap = useCallback(() => {
+		startStateHydration("manual-retry")
+	}, [startStateHydration])
 
 	// Create hook function
 	const onRelinquishControl = useCallback((callback: () => void) => {
@@ -352,58 +533,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 	// Subscribe to state updates and UI events using the gRPC streaming API
 	useEffect(() => {
-		// Set up state subscription
-		stateSubscriptionRef.current = StateServiceClient.subscribeToState(EmptyRequest.create({}), {
-			onResponse: (response) => {
-				if (response.stateJson) {
-					try {
-						const stateData = JSON.parse(response.stateJson) as ExtensionState
-						setState((prevState) => {
-							// Versioning logic for autoApprovalSettings
-							const incomingVersion = stateData.autoApprovalSettings?.version ?? 1
-							const currentVersion = prevState.autoApprovalSettings?.version ?? 1
-							const shouldUpdateAutoApproval = incomingVersion > currentVersion
-							// HACK: Preserve clineMessages if currentTaskItem is the same
-							if (stateData.currentTaskItem?.id === prevState.currentTaskItem?.id) {
-								stateData.clineMessages = stateData.clineMessages?.length
-									? stateData.clineMessages
-									: prevState.clineMessages
-							}
-
-							const newState = {
-								...stateData,
-								autoApprovalSettings: shouldUpdateAutoApproval
-									? stateData.autoApprovalSettings
-									: prevState.autoApprovalSettings,
-							}
-
-							// Update welcome screen state based on API configuration if welcome view not in progress
-							if (!newState.welcomeViewCompleted && !showWelcome) {
-								setShowWelcome(true)
-								setOnboardingModels(newState.onboardingModels)
-							} else if (newState.welcomeViewCompleted) {
-								setShowWelcome(false)
-								setOnboardingModels(undefined)
-							}
-
-							setDidHydrateState(true)
-
-							return newState
-						})
-					} catch (error) {
-						console.error("Error parsing state JSON:", error)
-						console.log("[DEBUG] ERR getting state", error)
-					}
-				}
-				console.log('[DEBUG] ended "got subscribed state"')
-			},
-			onError: (error) => {
-				console.error("Error in state subscription:", error)
-			},
-			onComplete: () => {
-				console.log("State subscription completed")
-			},
-		})
+		startStateHydration("initial")
 
 		// Subscribe to MCP button clicked events with webview type
 		mcpButtonUnsubscribeRef.current = UiServiceClient.subscribeToMcpButtonClicked(
@@ -581,15 +711,6 @@ export const ExtensionStateContextProvider: React.FC<{
 			},
 		})
 
-		// Initialize webview using gRPC
-		UiServiceClient.initializeWebview(EmptyRequest.create({}))
-			.then(() => {
-				console.log("[DEBUG] Webview initialization completed via gRPC")
-			})
-			.catch((error) => {
-				console.error("Failed to initialize webview via gRPC:", error)
-			})
-
 		// Set up account button clicked subscription
 		accountButtonClickedSubscriptionRef.current = UiServiceClient.subscribeToAccountButtonClicked(EmptyRequest.create(), {
 			onResponse: () => {
@@ -630,6 +751,7 @@ export const ExtensionStateContextProvider: React.FC<{
 
 		// Clean up subscriptions when component unmounts
 		return () => {
+			clearBootstrapTimers()
 			if (stateSubscriptionRef.current) {
 				stateSubscriptionRef.current()
 				stateSubscriptionRef.current = null
@@ -687,7 +809,7 @@ export const ExtensionStateContextProvider: React.FC<{
 				mcpServersSubscriptionRef.current = null
 			}
 		}
-	}, [])
+	}, [clearBootstrapTimers, startStateHydration])
 
 	const refreshOpenRouterModels = useCallback(() => {
 		ModelsServiceClient.refreshOpenRouterModelsRpc(EmptyRequest.create({}))
@@ -786,6 +908,9 @@ export const ExtensionStateContextProvider: React.FC<{
 	const contextValue: ExtensionStateContextType = {
 		...state,
 		didHydrateState,
+		webviewBootstrapStatus,
+		webviewBootstrapError,
+		webviewBootstrapAttempt,
 		showWelcome,
 		onboardingModels,
 		clineModels,
@@ -917,6 +1042,8 @@ export const ExtensionStateContextProvider: React.FC<{
 		refreshHicapModels,
 		refreshLiteLlmModels,
 		onRelinquishControl,
+		retryWebviewBootstrap,
+		reloadWebview,
 		setUserInfo: (userInfo?: UserInfo) => setState((prevState) => ({ ...prevState, userInfo })),
 		expandTaskHeader,
 		setExpandTaskHeader,

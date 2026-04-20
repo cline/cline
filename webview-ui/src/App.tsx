@@ -1,8 +1,9 @@
-import type { Boolean, EmptyRequest } from "@shared/proto/cline/common"
+import type { Boolean as BooleanResponse, EmptyRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useState } from "react"
 import AccountView from "./components/account/AccountView"
 import ChatView from "./components/chat/ChatView"
 import ClineKanbanLaunchModal, { CLINE_KANBAN_MODAL_DISMISS_ID } from "./components/common/ClineKanbanLaunchModal"
+import WebviewStatus from "./components/common/WebviewStatus"
 import HistoryView from "./components/history/HistoryView"
 import McpView from "./components/mcp/configuration/McpConfigurationView"
 import OnboardingView from "./components/onboarding/OnboardingView"
@@ -17,6 +18,9 @@ import { StateServiceClient, UiServiceClient } from "./services/grpc-client"
 const AppContent = () => {
 	const {
 		didHydrateState,
+		webviewBootstrapAttempt,
+		webviewBootstrapError,
+		webviewBootstrapStatus,
 		showWelcome,
 		shouldShowAnnouncement,
 		dismissedBanners,
@@ -38,6 +42,8 @@ const AppContent = () => {
 		hideAccount,
 		hideWorktrees,
 		hideAnnouncement,
+		reloadWebview,
+		retryWebviewBootstrap,
 	} = useExtensionState()
 	const [showKanbanModal, setShowKanbanModal] = useState(false)
 	const [hasShownKanbanModal, setHasShownKanbanModal] = useState(false)
@@ -47,7 +53,7 @@ const AppContent = () => {
 	const showUpdateAnnouncementModal = useCallback(() => {
 		setShowAnnouncement(true)
 		UiServiceClient.onDidShowAnnouncement({} as EmptyRequest)
-			.then((response: Boolean) => {
+			.then((response: BooleanResponse) => {
 				setShouldShowAnnouncement(response.value)
 			})
 			.catch((error) => {
@@ -96,7 +102,28 @@ const AppContent = () => {
 	}, [])
 
 	if (!didHydrateState) {
-		return null
+		return (
+			<WebviewStatus
+				description={
+					webviewBootstrapStatus === "degraded"
+						? "The webview did not receive its initial state correctly. You can retry the connection or reload just this webview."
+						: "Waiting for the extension to send the initial Cline state…"
+				}
+				details={
+					webviewBootstrapStatus === "degraded"
+						? [webviewBootstrapError, `Attempts: ${webviewBootstrapAttempt}`]
+								.filter((value): value is string => Boolean(value))
+								.join("\n")
+						: webviewBootstrapAttempt > 1
+							? `Connection attempt ${webviewBootstrapAttempt}`
+							: undefined
+				}
+				isLoading={webviewBootstrapStatus !== "degraded"}
+				onReload={reloadWebview}
+				onRetry={retryWebviewBootstrap}
+				title={webviewBootstrapStatus === "degraded" ? "Cline is having trouble loading" : "Loading Cline"}
+			/>
+		)
 	}
 
 	if (showWelcome) {
