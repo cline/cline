@@ -850,7 +850,12 @@ export class Controller {
 	}
 
 	async handleMcpOAuthCallback(serverHash: string, code: string, state: string | null): Promise<void> {
-		await this.authService.handleMcpOAuthCallback(serverHash, code, state)
+		try {
+			await this.mcpHub.completeOAuth(serverHash, code, state)
+			await this.postStateToWebview()
+		} catch (error) {
+			Logger.error("Failed to complete MCP OAuth:", error)
+		}
 	}
 
 	// ---- MCP marketplace (Step 7) ----
