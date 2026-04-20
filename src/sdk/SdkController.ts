@@ -631,6 +631,31 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		// If the user is viewing an old task (this.task is set by showTaskWithId)
+		// but there's no active SDK session, we need to resume the session first.
+		if (!this.activeSession && this.task) {
+			Logger.log(`[SdkController] askResponse: No active session but task exists (${this.task.taskId}), resuming...`)
+			try {
+				await this.resumeSessionFromTask(this.task.taskId, prompt, images, files)
+			} catch (error) {
+				Logger.error("[SdkController] Failed to resume session from task:", error)
+				this.emitSessionEvents(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Failed to resume task: ${error instanceof Error ? error.message : String(error)}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
+				)
+				await this.postStateToWebview()
+			}
+			return
+		}
+
 		if (!this.activeSession) {
 			Logger.error("[SdkController] askResponse: No active session")
 			return
@@ -681,6 +706,188 @@ export class Controller {
 			})
 
 		Logger.log(`[SdkController] Message sent (fire-and-forget) to session: ${sessionId}`)
+	}
+
+	/**
+	 * Resume an old task by spinning up a new SDK session with the old
+	 * conversation history as initialMessages, then sending the user's
+	 * follow-up message.
+	 *
+	 * This handles the case where the user clicked on an old task
+	 * (showTaskWithId loaded UI messages into this.task) and then typed
+	 * a follow-up message. Since showTaskWithId does NOT create an
+	 * activeSession, we need to create one here with the full API
+	 * conversation history so the model has context.
+	 */
+	private async resumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
+
+		// ── Task 2: Look up the HistoryItem for cwd and metadata ──
+		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+		const historyItem = history.find((item) => item.id === taskId)
+		const cwd = historyItem?.cwdOnTaskInitialization ?? process.cwd()
+
+		// ── Task 3: Build a new session config ──
+		const modeValue = this.stateManager.getGlobalSettingsKey("mode")
+		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
+		const config = await buildSessionConfig({ cwd, mode })
+		// Reuse the old task ID as the session ID so history item linkage is preserved
+		config.sessionId = taskId
+
+		// ── Task 4: Create VscodeSessionHost and subscribe to events ──
+		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
+			this.handleSessionEvent(event)
+		})
+
+		// ── Task 1: Load conversation history ──
+		// The SDK persists messages to its own storage (SQLite/file) during
+		// runTurn(). For SDK-created tasks, api_conversation_history.json
+		// does NOT exist — only ui_messages.json is written by the controller.
+		// So we read from the SDK's persistence via readMessages() first,
+		// then fall back to the classic api_conversation_history.json for
+		// tasks created by the classic (non-SDK) controller.
+		// IMPORTANT: Read BEFORE start() since start() with the same sessionId
+		// will overwrite the session row/manifest.
+		let initialMessages: Parameters<typeof sessionManager.start>[0]["initialMessages"]
+		try {
+			const sdkMessages = await sessionManager.readMessages(taskId)
+			if (sdkMessages.length > 0) {
+				initialMessages = sdkMessages
+				Logger.log(`[SdkController] Loaded ${sdkMessages.length} SDK-persisted messages for task: ${taskId}`)
+			}
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to read SDK-persisted messages:", error)
+		}
+
+		// Fallback: try classic api_conversation_history.json (for pre-SDK tasks)
+		if (!initialMessages || initialMessages.length === 0) {
+			try {
+				const { getSavedApiConversationHistory } = await import("@core/storage/disk")
+				const apiHistory = await getSavedApiConversationHistory(taskId)
+				if (apiHistory.length > 0) {
+					// Cast is safe: Anthropic.MessageParam and LlmsProviders.Message
+					// are structurally compatible ({role, content} with compatible content types)
+					initialMessages = apiHistory as unknown as typeof initialMessages
+					Logger.log(`[SdkController] Loaded ${apiHistory.length} classic API messages for task: ${taskId}`)
+				}
+			} catch (error) {
+				Logger.warn("[SdkController] Failed to read classic API conversation history:", error)
+			}
+		}
+
+		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
+
+		// ── Task 5: Start the session with initialMessages ──
+		// Pass the old conversation history as initialMessages so the agent
+		// has full context. The SDK's executeAgentTurn will see
+		// agent.getMessages().length > 0 and call agent.continue() instead of
+		// agent.run(), correctly appending to the existing conversation.
+		const startInput: Parameters<typeof sessionManager.start>[0] = {
+			config,
+			interactive: true,
+			...(initialMessages && initialMessages.length > 0 ? { initialMessages } : {}),
+		}
+
+		const startResult = await sessionManager.start(startInput)
+
+		// ── Task 6: Wire up the activeSession ──
+		this.activeSession = {
+			sessionId: startResult.sessionId,
+			sessionManager,
+			unsubscribe,
+			startResult,
+			isRunning: true,
+		}
+
+		// Update task proxy's session ID if it changed (shouldn't, since we set config.sessionId)
+		if (this.task && this.task.taskId !== startResult.sessionId) {
+			this.task.taskId = startResult.sessionId
+		}
+
+		// Reset translator state for the new turn
+		this.messageTranslatorState.reset()
+
+		// ── Task 8: Update the HistoryItem ──
+		if (historyItem) {
+			historyItem.ts = Date.now()
+			historyItem.modelId = config.modelId
+			await this.updateTaskHistory(historyItem)
+		}
+
+		// ── Task 9: Emit the user's message to the webview ──
+		if (prompt?.trim()) {
+			const userMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "user_feedback",
+				text: prompt,
+				partial: false,
+			}
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([userMessage])
+				this.debouncedSaveClineMessages()
+			}
+			this.emitSessionEvents([userMessage], {
+				type: "status",
+				payload: { sessionId: startResult.sessionId, status: "running" },
+			})
+		}
+
+		await this.postStateToWebview()
+
+		// ── Task 7: Send the user's follow-up message (fire-and-forget) ──
+		// ── Task 10: Edge case — if no conversation history and no prompt, use summary ──
+		const effectivePrompt =
+			prompt?.trim() ||
+			((!initialMessages || initialMessages.length === 0) && historyItem
+				? `[TASK RESUMPTION] Resuming task: ${historyItem.task}`
+				: "")
+
+		if (effectivePrompt) {
+			const sid = startResult.sessionId
+			sessionManager
+				.send({
+					sessionId: sid,
+					prompt: effectivePrompt,
+					userImages: images,
+					userFiles: files,
+				})
+				.then(() => {
+					Logger.log(`[SdkController] Resumed turn completed for session: ${sid}`)
+					if (this.activeSession) {
+						this.activeSession.isRunning = false
+					}
+					this.postStateToWebview().catch((err) => {
+						Logger.error("[SdkController] Failed to post state after resumed turn:", err)
+					})
+				})
+				.catch((error) => {
+					Logger.error("[SdkController] Resumed turn failed:", error)
+					this.emitSessionEvents(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Failed to resume: ${error instanceof Error ? error.message : String(error)}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId: sid, status: "error" } },
+					)
+					if (this.activeSession) {
+						this.activeSession.isRunning = false
+					}
+					this.postStateToWebview().catch(() => {})
+				})
+
+			Logger.log(`[SdkController] Resume message sent (fire-and-forget) to session: ${sid}`)
+		} else {
+			// No prompt and we have API history — session is ready but idle
+			this.activeSession.isRunning = false
+			Logger.log(`[SdkController] Session resumed (idle, no prompt) for task: ${taskId}`)
+		}
 	}
 
 	/**
