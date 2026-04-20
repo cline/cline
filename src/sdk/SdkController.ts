@@ -872,12 +872,14 @@ export class Controller {
 		await this.postStateToWebview()
 	}
 
-	async handleRequestyCallback(_code: string): Promise<void> {
-		stubWarn("handleRequestyCallback")
+	async handleRequestyCallback(code: string): Promise<void> {
+		await this.authService.handleRequestyCallback(code)
+		await this.postStateToWebview()
 	}
 
-	async handleHicapCallback(_code: string): Promise<void> {
-		stubWarn("handleHicapCallback")
+	async handleHicapCallback(code: string): Promise<void> {
+		await this.authService.handleHicapCallback(code)
+		await this.postStateToWebview()
 	}
 
 	async readOpenRouterModels(): Promise<Record<string, ModelInfo> | undefined> {
