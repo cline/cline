@@ -427,6 +427,51 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(endTool.path).toBe("/src/config.ts")
 	})
 
+	it("content_end for read_files emits one tool message per file when multiple files are read", () => {
+		const state = new MessageTranslatorState()
+
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+						input: { files: [{ path: "/src/README.md" }, { path: "/src/package.json" }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+
+		expect(endResult.messages).toHaveLength(2)
+		const first = JSON.parse(endResult.messages[0].text!)
+		const second = JSON.parse(endResult.messages[1].text!)
+		expect(first.tool).toBe("readFile")
+		expect(second.tool).toBe("readFile")
+		expect(first.path).toBe("/src/README.md")
+		expect(second.path).toBe("/src/package.json")
+	})
+
 	it("content_end without prior content_start still works (graceful fallback)", () => {
 		const state = new MessageTranslatorState()
 
