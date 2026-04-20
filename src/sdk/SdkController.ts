@@ -867,8 +867,9 @@ export class Controller {
 
 	// ---- Provider auth callbacks (Step 6) ----
 
-	async handleOpenRouterCallback(_code: string): Promise<void> {
-		stubWarn("handleOpenRouterCallback")
+	async handleOpenRouterCallback(code: string): Promise<void> {
+		await this.authService.handleOpenRouterCallback(code)
+		await this.postStateToWebview()
 	}
 
 	async handleRequestyCallback(_code: string): Promise<void> {
