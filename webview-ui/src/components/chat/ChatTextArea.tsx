@@ -5,7 +5,6 @@ import { PlanActMode, TogglePlanActModeRequest } from "@shared/proto/cline/state
 import { type SlashCommand } from "@shared/slashCommands"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
-import { AtSignIcon, PlusIcon } from "lucide-react"
 import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
@@ -129,16 +128,6 @@ const ButtonGroup = styled.div`
 	gap: 4px;
 	flex: 1;
 	min-width: 0;
-`
-
-const ButtonContainer = styled.div`
-	display: flex;
-	align-items: center;
-	gap: 3px;
-	font-size: 10px;
-	white-space: nowrap;
-	min-width: 0;
-	width: 100%;
 `
 
 const ModelContainer = styled.div`
@@ -1545,24 +1534,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						<ButtonGroup className="absolute top-0 left-0 right-0 ease-in-out w-full h-5 z-10 flex items-center">
 							{/* + button — opens PlusPopup (files & auto-approve) */}
 							<div className="relative inline-flex min-w-0 max-w-full items-center" ref={plusButtonRef}>
-								<Tooltip>
-									<TooltipContent>Add files &amp; auto-approve</TooltipContent>
-									<TooltipTrigger>
-										<VSCodeButton
-											appearance="icon"
-											aria-label="Add Files / Auto-approve"
-											className="p-0 m-0 flex items-center"
-											data-testid="plus-button"
-											onClick={() => {
-												setPlusPopupOpen((v) => !v)
-												setAddContextOpen(false)
-											}}>
-											<ButtonContainer>
-												<PlusIcon size={13} />
-											</ButtonContainer>
-										</VSCodeButton>
-									</TooltipTrigger>
-								</Tooltip>
+								<div className="inline-flex w-full items-center">
+									<Tooltip>
+										<TooltipContent>Add files &amp; auto-approve</TooltipContent>
+										<TooltipTrigger>
+											<VSCodeButton
+												appearance="icon"
+												aria-label="Add Files / Auto-approve"
+												className="p-0 m-0 flex items-center"
+												data-testid="plus-button"
+												onClick={() => {
+													setPlusPopupOpen((v) => !v)
+													setAddContextOpen(false)
+												}}>
+												<i className="codicon codicon-add" style={{ fontSize: "12.5px" }} />
+											</VSCodeButton>
+										</TooltipTrigger>
+									</Tooltip>
+								</div>
 								<PlusPopup
 									anchorRef={plusButtonRef}
 									isOpen={plusPopupOpen}
@@ -1578,24 +1567,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 
 							{/* @ button — opens AddContextModal directly */}
 							<div className="relative inline-flex min-w-0 max-w-full items-center" ref={atButtonRef}>
-								<Tooltip>
-									<TooltipContent>Add context (@)</TooltipContent>
-									<TooltipTrigger>
-										<VSCodeButton
-											appearance="icon"
-											aria-label="Add Context"
-											className="p-0 m-0 flex items-center"
-											data-testid="at-button"
-											onClick={() => {
-												setAddContextOpen((v) => !v)
-												setPlusPopupOpen(false)
-											}}>
-											<ButtonContainer>
-												<AtSignIcon size={12} />
-											</ButtonContainer>
-										</VSCodeButton>
-									</TooltipTrigger>
-								</Tooltip>
+								<div className="inline-flex w-full items-center">
+									<Tooltip>
+										<TooltipContent>Add context (@)</TooltipContent>
+										<TooltipTrigger>
+											<VSCodeButton
+												appearance="icon"
+												aria-label="Add Context"
+												className="p-0 m-0 flex items-center"
+												data-testid="at-button"
+												onClick={() => {
+													setAddContextOpen((v) => !v)
+													setPlusPopupOpen(false)
+												}}>
+												<i className="codicon codicon-mention" style={{ fontSize: "12.5px" }} />
+											</VSCodeButton>
+										</TooltipTrigger>
+									</Tooltip>
+								</div>
 								<AddContextModal
 									anchorRef={atButtonRef}
 									isOpen={addContextOpen}

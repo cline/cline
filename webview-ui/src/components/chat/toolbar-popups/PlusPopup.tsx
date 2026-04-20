@@ -123,7 +123,7 @@ const AaChildRow = styled.div`
 	display: flex;
 	align-items: center;
 	gap: 9px;
-	padding: 6px 11px 6px 30px;
+	padding: 6px 11px 6px 34px;
 	border-bottom: var(--popup-sub-separator);
 	cursor: pointer;
 	transition: background 0.12s;
