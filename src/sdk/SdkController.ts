@@ -1288,6 +1288,10 @@ export class Controller {
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({ cwd, mode })
+			// Preserve the existing task/session ID so currentTaskItem continues
+			// to resolve from taskHistory and the webview doesn't flash back to
+			// a blank/new-task state after MCP server toggles.
+			config.sessionId = oldSessionId
 
 			// 2. Read conversation history from the OLD session BEFORE tearing it down.
 			// Without this, the new session starts with zero context and the LLM
@@ -1315,9 +1319,13 @@ export class Controller {
 				this.activeSession.isRunning = false
 			}
 
-			// Update the task proxy's session ID (keep existing messages)
-			if (this.task) {
-				this.task.taskId = startResult.sessionId
+			// Keep the existing task proxy ID aligned with taskHistory.
+			// If the SDK returned a different ID despite requesting oldSessionId,
+			// keep the current task ID stable for webview state continuity.
+			if (startResult.sessionId !== oldSessionId) {
+				Logger.warn(
+					`[SdkController] MCP tool restart returned a new session ID (${startResult.sessionId}); preserving task ID ${oldSessionId} for UI continuity`,
+				)
 			}
 
 			// Emit success message
