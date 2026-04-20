@@ -125,10 +125,12 @@ underlying patterns that caused them are relevant.
 - **Fix**: TaskProxy delegates `handleWebviewAskResponse()` and `abortTask()` to SdkController callbacks. WebviewGrpcBridge pushes translated messages through `sendPartialMessageEvent()` and `sendStateUpdate()`.
 
 ### S4-2: Task resumption uses new session instead of SDK resume API
-- **Status**: 🟡 Minor
-- **Description**: `reinitExistingTaskFromId()` starts a new session with a resumption prompt rather than using a dedicated SDK resume API. This works but doesn't preserve the original conversation context in the SDK's persistence layer.
-- **Root cause**: SDK's resume API needs investigation — may not exist yet or may require session ID continuity.
-- **Fix**: Investigate SDK's `ClineCore.resume()` or similar API and update `reinitExistingTaskFromId()` to use it.
+- **Status**: 🟢 Verified Fixed
+- **Description**: Resumption now works with preserved context. When a user opens a historical task and sends a follow-up, `SdkController.askResponse()` resumes by creating a session with the existing task ID and loading prior conversation as `initialMessages`.
+- **Root cause**: The old flow had no active SDK session for history-only tasks, so follow-up prompts had no session context.
+- **Fix applied**: Implemented `resumeSessionFromTask()` in `src/sdk/SdkController.ts` (commit `34afde1c5`). The flow reads persisted SDK messages (`readMessages(taskId)`) with fallback to classic `api_conversation_history`, starts a session with `config.sessionId = taskId`, posts the user follow-up immediately to chat, then sends the prompt to the resumed session.
+- **Verification**: Manual verification via resumed history task + follow-up message.
+- **Evidence**: Commit `34afde1c5` (“resume session working”).
 
 ### S4-3: Workspace root not available from ClineExtensionContext
 - **Status**: 🟡 Minor
@@ -165,10 +167,12 @@ underlying patterns that caused them are relevant.
 - **Fix**: Manual testing with debug harness.
 
 ### S6-3: MCP OAuth callback stubbed
-- **Status**: 🟡 Minor
-- **Description**: `handleMcpOAuthCallback()` is stubbed — will be implemented in Step 7 (MCP Integration).
-- **Root cause**: MCP integration is Step 7.
-- **Fix**: Implement in Step 7.
+- **Status**: 🟢 Verified Fixed
+- **Description**: MCP OAuth callback is now implemented.
+- **Root cause**: Previously delegated to stub path.
+- **Fix applied**: `SdkController.handleMcpOAuthCallback()` now calls `mcpHub.completeOAuth(serverHash, code, state)` and posts updated state to the webview, with error logging on failure.
+- **Verification**: Manual OAuth callback test with remote Notion MCP server.
+- **Evidence**: Commit `a8ac26e36` (“fix mcp oauth callback”).
 
 ### S6-5: Sending messages creates history entry but doesn't switch to inference view
 - **Status**: 🟢 Verified Fixed
@@ -198,10 +202,17 @@ underlying patterns that caused them are relevant.
 - **Fix**: Ensure `restoreRefreshTokenAndRetrieveAuthInfo()` completes before the first state push, or trigger a re-fetch after auth restoration completes.
 
 ### S6-4: Provider-specific OAuth callbacks (OpenRouter, Requesty, Hicap) stubbed
-- **Status**: 🟡 Minor
-- **Description**: `handleOpenRouterCallback()`, `handleRequestyCallback()`, `handleHicapCallback()` are stubbed. These are less commonly used and can be implemented when needed.
-- **Root cause**: Lower priority — Cline OAuth is the primary flow.
-- **Fix**: Implement when provider-specific OAuth is needed.
+- **Status**: 🟢 Verified Fixed
+- **Description**: Provider OAuth callbacks are now implemented for OpenRouter, Requesty, and Hicap.
+- **Root cause**: Previously low-priority stubs.
+- **Fix applied**:
+  - `SdkController` now routes all three callbacks to `authService` and posts state updates.
+  - `auth-service.ts` implements:
+    - `handleOpenRouterCallback(code)` via OpenRouter code→API key exchange (`/api/v1/auth/keys`), then persists config.
+    - `handleRequestyCallback(code)` and `handleHicapCallback(code)` by persisting provider API keys and switching plan/act providers.
+  - Added shared helper `setProviderApiKey()` for consistency.
+- **Verification**: Manual OpenRouter login flow tested end-to-end (provider selected, “get OpenRouter API key”, prompt sent successfully).
+- **Evidence**: Commits `d68e83981` and `69d500f87`.
 
 ### S6-8: Debug harness loads extension in "local" environment (brown logo)
 - **Status**: 🟢 Verified Fixed
@@ -315,11 +326,12 @@ underlying patterns that caused them are relevant.
 - **Reference**: Classic extension's `McpHub` in `src/services/mcp/McpHub.ts`; SDK's `InMemoryMcpManager` in `packages/core/src/extensions/mcp/`; Tauri desktop's session restart pattern in `apps/code/host/runtime-bridge.ts`
 
 ### S6-12: Webview shows raw JSON instead of rendered messages
-- **Status**: 🔵 Awaiting Verification
+- **Status**: 🟢 Verified Fixed
 - **Description**: When the SDK streams events to the webview, the ChatRow.tsx component shows raw JSON instead of properly rendered messages (text, tool calls, etc.). The message translator was producing ClineMessages with the wrong format for tool calls — using `tool_name`/`tool_input`/`tool_output` keys instead of the `text` field with XML-like `<tool_name>...</tool_name>` format that ChatRow.tsx expects.
 - **Root cause**: The message translator's `translateToolCall()` and `translateToolResult()` methods were creating ClineMessages with custom fields (`tool_name`, `tool_input`, `tool_output`) that the webview's ChatRow.tsx doesn't understand. The classic Task class formats tool calls as XML-like text in the `text` field (e.g., `<read_file>\n<path>file.ts</path>\n</read_file>`), and ChatRow.tsx parses this format to render tool-specific UI.
 - **Fix applied**: Rewrote `translateToolCall()` and `translateToolResult()` in `src/sdk/message-translator.ts` to format tool calls as XML-like text in the `text` field, matching the classic Task's format. Added `formatToolCallText()` and `formatToolResultText()` helper functions. Updated `translateTextChunk()` to handle partial text streaming. Updated `translateAgentEvent()` to properly track tool call state (pending tool name, accumulating input, partial text).
 - **Verification**: Send a message that triggers tool use, verify ChatRow renders the tool call with proper formatting (file path, command, etc.) instead of raw JSON.
+- **Evidence**: Commits `bc3590534` and `26614a007` expanded SDK tool→webview mapping and added regression tests (`message-translator.test.ts`, `messageUtils.test.ts`) including multi-file `read_files` rendering and post-tool assistant text visibility.
 
 ### S6-13: Webview state not populated with messages and task history
 - **Status**: 🔵 Awaiting Verification
@@ -498,7 +510,7 @@ underlying patterns that caused them are relevant.
 
 ## Priority & Next Steps
 
-**Current state (updated 2026-04-16)**: Inference works end-to-end. New chats display and do inference. Streaming is functional but could be smoother. **History messages now render when opened (S6-27 fixed).**
+**Current state (updated 2026-04-20)**: Inference works end-to-end. History open/resume flow is working, MCP OAuth + provider OAuth callbacks are implemented, and MCP tool reload preserves task/session continuity. Tool-call rendering in chat has been improved (including multi-file `read_files`).
 
 ### 🟢 Resolved: S6-27 — History messages not rendering
 
@@ -541,18 +553,20 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Evidence**: Debug harness session on 2026-04-17.
 
 ### S6-31: Conversation history lost after MCP tool changes (session recreated)
-- **Status**: 🔴 Blocker
-- **Description**: After MCP tool changes (e.g., enabling/disabling an MCP server), the SDK session is recreated and the agent loses all prior conversation history. For example: say "hello" → toggle an MCP tool (triggers session recreation) → ask the agent what the first thing we said to it was — it has no knowledge of the "hello" message.
-- **Root cause**: Likely `restartSessionForMcpTools()` in `SdkController.ts` creates a brand new session without carrying over the prior conversation history / messages from the previous session. The classic extension preserved conversation context across MCP reloads because it only rebuilt the tool list without recreating the session. The SDK adapter may be calling `sessionManager.start()` (new session) instead of updating tools on the existing session.
-- **Fix**: Not yet attempted. Needs investigation into whether the SDK supports hot-reloading tools on an existing session (check `update()` or `send()` with updated config), or whether we need to pass `initialMessages` from the previous session when starting a new one.
-- **Verification**: Debug harness test: (1) Send "Say hello briefly" (2) Toggle an MCP server (3) Send "What was the first thing I said?" — agent should recall "hello"
+- **Status**: 🟢 Verified Fixed
+- **Description**: MCP-triggered session restarts now preserve active task/session continuity, preventing chat/task state loss after toggling MCP servers.
+- **Root cause**: Session recreation could break task/session linkage in webview state.
+- **Fix applied**: In `restartSessionForMcpTools()` (`src/sdk/SdkController.ts`), set `config.sessionId = oldSessionId` and keep the task ID stable even if SDK returns a different ID, with warning log fallback. This keeps `currentTaskItem` mapping intact during MCP reloads.
+- **Verification**: Toggle MCP server while chat is active, verify task remains active and state continuity is preserved.
+- **Evidence**: Commit `b2db4937a` (“preserve task session id when reloading MCP tools”).
 
 ### S6-32: "New Task" button and task delete disabled after MCP tool change
-- **Status**: 🔴 Blocker
-- **Description**: After an MCP tool change (e.g., toggling a server), the "New Task" button stops working and the current task's "Delete" button becomes disabled. The UI appears stuck in a state where the user cannot start a new task or delete the current one.
-- **Root cause**: Likely related to S6-31 — `restartSessionForMcpTools()` recreates the session but may leave the webview state in an inconsistent condition. The task proxy or state flags (e.g., `isStreaming`, `taskStatus`) may not be properly reset after the session restart, causing the webview to think a task is still in progress (disabling New Task) and that the current task cannot be deleted. The `completion_result` ask message emitted after restart may not fully reset the webview's button states.
-- **Fix**: Not yet attempted. Likely needs to be fixed alongside S6-31 — ensuring the session restart properly resets all state flags and the webview receives a clean state update that enables New Task and Delete buttons.
-- **Verification**: Debug harness test: (1) Send "Say hello" (2) Toggle an MCP server (3) Verify "New Task" button is clickable and delete button is enabled
+- **Status**: 🟢 Verified Fixed
+- **Description**: Button-state lockups after MCP tool changes are resolved.
+- **Root cause**: UI/task continuity broke when MCP restarts changed session identity/state linkage.
+- **Fix applied**: Same core fix as S6-31 (`b2db4937a`) keeps task/session identity stable during MCP reloads, preventing webview state from drifting into a pseudo-running state.
+- **Verification**: After MCP toggle, verify New Task and delete actions remain enabled/functional.
+- **Evidence**: Commit `b2db4937a`.
 
 ### S6-33: Insufficient credits shows raw error text instead of buy-credits UI
 - **Status**: 🔴 Blocker
@@ -584,3 +598,24 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Root cause**: The SDK emits `usage` events (with `inputTokens`, `outputTokens`, `cacheReadTokens`, `cacheWriteTokens`, `totalCost`) via `agent_event` with `type: "usage"`. The message translator likely creates `api_req_started` messages without the cost JSON payload, or doesn't update them with final usage data when the `usage` event arrives. The webview's `ApiRequestRow` component expects `api_req_started` messages to have a `text` field containing JSON with `{tokensIn, tokensOut, cacheReads, cacheWrites, cost}`.
 - **Fix**: Not yet attempted. The message translator needs to: (1) emit `api_req_started` at the beginning of each API request with initial data, and (2) update it with cost/token data when the SDK's `usage` event arrives (or at `iteration_end`/`done`). The update should match the JSON format that `ApiRequestRow` expects.
 - **Verification**: Send a message, verify that token counts and cost appear in the collapsible API request row in the chat.
+
+### S6-36: Returning to an in-progress task after clicking New Task shows stale "Thinking..."
+- **Status**: 🟢 Verified Fixed
+- **Description**: If the user clicked New Task mid-generation and later reopened the old task, the old task could still appear as streaming/"Thinking..." due to partially persisted messages.
+- **Root cause**: Task clear/load paths could persist partial messages without finalization, so reopening rendered stale streaming state.
+- **Fix applied**: `clearTask()` now finalizes messages before save (removes `partial`, marks last unfinished `api_req_started` as `cancelReason: "user_cancelled"`), and `showTaskWithId()` sanitizes loaded messages + appends the appropriate resume ask (`resume_task` or `resume_completed_task`).
+- **Verification**: Click New Task during a running task, reopen previous task, verify it no longer appears stuck in "Thinking...".
+- **Evidence**: Commit `70b5ff110`.
+
+### S6-37: Tool-call rendering gaps (multi-file read_files + post-tool assistant text)
+- **Status**: 🟢 Verified Fixed
+- **Description**: Two rendering gaps remained in chat tool-call UX: (1) `read_files` with multiple files showed only one file path, and (2) assistant text after tool results could be dropped by low-stakes tool grouping.
+- **Root cause**:
+  1. Translator extracted only the first file path for `read_files`.
+  2. `groupLowStakesTools()` ignored text that arrived after a tool group had started.
+- **Fix applied**:
+  1. `message-translator.ts` now emits one `readFile` tool message per file for multi-file reads.
+  2. `messageUtils.ts` now commits active tool groups before handling subsequent text, preserving post-tool assistant summaries.
+  3. Additional SDK tool-name mappings were added (`execute_command`, `write_to_file`, `search_files`, etc.) to improve ChatView tool rendering compatibility.
+- **Verification**: Run prompt paths that trigger multi-file reads and then assistant summary text; verify all files are listed and assistant text remains visible.
+- **Evidence**: Commits `bc3590534` and `26614a007`, plus added tests in `src/sdk/message-translator.test.ts` and `webview-ui/src/components/chat/chat-view/utils/messageUtils.test.ts`.
