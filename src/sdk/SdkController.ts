@@ -766,6 +766,31 @@ export class Controller {
 		const { sessionManager, sessionId } = this.activeSession
 		this.activeSession.isRunning = true
 
+		// Mirror classic behavior: render the user's follow-up message immediately
+		// so it appears in the chat timeline before assistant streaming begins.
+		const hasPrompt = !!prompt?.trim()
+		const hasImages = !!images?.length
+		const hasFiles = !!files?.length
+		if (hasPrompt || hasImages || hasFiles) {
+			const userMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "user_feedback",
+				text: prompt ?? "",
+				images,
+				files,
+				partial: false,
+			}
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([userMessage])
+				this.debouncedSaveClineMessages()
+			}
+			this.emitSessionEvents([userMessage], {
+				type: "status",
+				payload: { sessionId, status: "running" },
+			})
+		}
+
 		// Reset translator state for new turn
 		this.messageTranslatorState.reset()
 
