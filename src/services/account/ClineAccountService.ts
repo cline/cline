@@ -3,6 +3,7 @@ import type {
 	FeaturebaseTokenResponse,
 	OrganizationBalanceResponse,
 	OrganizationUsageTransaction,
+	OverbudgetStatus,
 	PaymentTransaction,
 	UsageTransaction,
 	UserResponse,
@@ -230,6 +231,27 @@ export class ClineAccountService {
 			return data.items
 		} catch (error) {
 			Logger.error("Failed to fetch active organization transactions (RPC):", error)
+			return undefined
+		}
+	}
+
+	/**
+	 * RPC variant that fetches the overbudget status for the given org.
+	 * Returns undefined when the feature is not enabled (403/404) or on failure
+	 * so that spend-control checks never block tasks on transient errors.
+	 */
+	async fetchOverbudgetStatusRPC(organizationId: string): Promise<OverbudgetStatus | undefined> {
+		try {
+			return await this.authenticatedRequest<OverbudgetStatus>(`/api/v1/organizations/${organizationId}/budget/overbudget`)
+		} catch (error) {
+			// 403/404 = non-enterprise org, expected for most users
+			if (axios.isAxiosError(error)) {
+				const status = error.response?.status
+				if (status === 403 || status === 404) {
+					return undefined
+				}
+			}
+			Logger.error("Failed to fetch overbudget status (RPC):", error)
 			return undefined
 		}
 	}

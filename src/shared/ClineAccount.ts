@@ -85,3 +85,47 @@ export interface OrganizationUsageTransaction {
 
 // Used in cline.ts provider and in webview-ui/src/components/chat/ChatRow.tsx to display the login button
 export const CLINE_ACCOUNT_AUTH_ERROR_MESSAGE = "Unauthorized: Please sign in to Cline before trying again."
+
+// ---------------------------------------------------------------------------
+// Spend control (third-party API spend limits)
+// ---------------------------------------------------------------------------
+
+/**
+ * Source of the effective limits for a user.
+ * - "none": no limits apply
+ * - "org_default": org-wide defaults apply to this user
+ * - "user_override": a per-user override has been set
+ */
+export type LimitSource = "none" | "org_default" | "user_override"
+
+/**
+ * Effective budget limits for a user within an organization.
+ * All USD amounts. `null` means the limit is not set.
+ */
+export interface EffectiveLimits {
+	monthlyLimitUsd: number | null
+	dailyLimitUsd: number | null
+	orgMonthlyUsd: number | null
+	source: LimitSource
+}
+
+/**
+ * A user's current-period spend (for the active org).
+ * ISO-8601 timestamps for reset times.
+ */
+export interface BudgetUserCurrentPeriod {
+	monthlySpendUsd: number
+	dailySpendUsd: number
+	monthResetsAt?: string
+	dayResetsAt?: string
+}
+
+/**
+ * Payload returned by the backend overbudget check endpoint.
+ * See: GET /api/v1/organizations/{orgId}/budget/overbudget
+ */
+export interface OverbudgetStatus {
+	overbudget: boolean
+	limits: EffectiveLimits
+	usage: BudgetUserCurrentPeriod
+}
