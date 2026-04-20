@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import WebviewErrorBoundary from "./WebviewErrorBoundary"
 
 const ThrowingComponent = () => {
@@ -7,6 +7,14 @@ const ThrowingComponent = () => {
 }
 
 describe("WebviewErrorBoundary", () => {
+	beforeEach(() => {
+		vi.spyOn(console, "error").mockImplementation(() => {})
+	})
+
+	afterEach(() => {
+		vi.restoreAllMocks()
+	})
+
 	it("renders children when no error is thrown", () => {
 		render(
 			<WebviewErrorBoundary>
