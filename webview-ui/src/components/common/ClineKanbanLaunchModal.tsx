@@ -1,12 +1,14 @@
-import { EmptyRequest } from "@shared/proto/cline/common"
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton, VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import React, { useState } from "react"
+import React, { useEffect, useMemo, useState } from "react"
 import kanbanDemoVideoMp4 from "@/assets/cline_kanban_demo.mp4"
 import kanbanDemoVideoWebm from "@/assets/cline_kanban_demo.webm"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { StateServiceClient } from "@/services/grpc-client"
+import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
+import { FileServiceClient, StateServiceClient } from "@/services/grpc-client"
 
 const INSTALL_COMMAND = "npm install -g cline"
+const COPIED_TIMEOUT = 1500
 const resolveAssetSrc = (src: string) => (src.startsWith("/src/") ? new URL(src, import.meta.url).toString() : src)
 const kanbanDemoMp4Src = resolveAssetSrc(kanbanDemoVideoMp4)
 const kanbanDemoWebmSrc = resolveAssetSrc(kanbanDemoVideoWebm)
@@ -20,12 +22,37 @@ interface ClineKanbanLaunchModalProps {
 
 export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ open, onClose }) => {
 	const [doNotShowAgain, setDoNotShowAgain] = useState(false)
+	const [isInstalling, setIsInstalling] = useState(false)
+	const [copied, setCopied] = useState(false)
+
+	const isVsCode = useMemo(() => PLATFORM_CONFIG.type === PlatformType.VSCODE, [])
+
+	useEffect(() => {
+		if (open) {
+			setCopied(false)
+			setIsInstalling(false)
+		}
+	}, [open])
 
 	const handleAction = async () => {
+		if (isVsCode) {
+			setIsInstalling(true)
+			try {
+				await StateServiceClient.installClineCli({})
+			} catch (error) {
+				console.error("Failed to run CLI install command:", error)
+			} finally {
+				setIsInstalling(false)
+			}
+			return
+		}
+
 		try {
-			await StateServiceClient.installClineCli(EmptyRequest.create({}))
+			await FileServiceClient.copyToClipboard(StringRequest.create({ value: INSTALL_COMMAND }))
+			setCopied(true)
+			setTimeout(() => setCopied(false), COPIED_TIMEOUT)
 		} catch (error) {
-			console.error("Failed to launch CLI install command:", error)
+			console.error("Failed to copy CLI install command:", error)
 		}
 	}
 
@@ -66,7 +93,15 @@ export const ClineKanbanLaunchModal: React.FC<ClineKanbanLaunchModalProps> = ({ 
 							{INSTALL_COMMAND}
 						</code>
 						<div className="mt-3">
-							<VSCodeButton onClick={handleAction}>Run in terminal</VSCodeButton>
+							<VSCodeButton disabled={isInstalling} onClick={handleAction}>
+								{isVsCode
+									? isInstalling
+										? "Running install command..."
+										: "Run in terminal"
+									: copied
+										? "Copied"
+										: "Copy command"}
+							</VSCodeButton>
 						</div>
 					</div>
 
