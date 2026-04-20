@@ -12,7 +12,7 @@ import * as path from "node:path"
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
-import type { ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
 import type { Settings } from "@shared/storage/state-keys"
@@ -607,14 +607,70 @@ export class Controller {
 			}
 		}
 
-		// Clear the task proxy
+		// Finalize messages on disk before clearing the task proxy.
+		// This ensures that when the user navigates back to this task,
+		// the messages don't still appear as "streaming" with partial=true.
 		if (this.task) {
+			const taskId = this.task.taskId
+			const messages = this.task.messageStateHandler.getClineMessages()
+			if (taskId && messages.length > 0) {
+				// Clear partial flags and update last api_req_started with cancel reason
+				const finalizedMessages = this.finalizeMessagesForSave(messages)
+				try {
+					const { saveClineMessages } = await import("@core/storage/disk")
+					await saveClineMessages(taskId, finalizedMessages)
+				} catch (err) {
+					Logger.error("[SdkController] Failed to save finalized messages during clearTask:", err)
+				}
+			}
+
+			// Cancel any pending debounced save (the finalized save above supersedes it)
+			if (this.saveClineMessagesTimer) {
+				clearTimeout(this.saveClineMessagesTimer)
+				this.saveClineMessagesTimer = undefined
+			}
+
 			this.task.messageStateHandler.clear()
 			this.task = undefined
 		}
 
 		// Reset translator state
 		this.messageTranslatorState.reset()
+	}
+
+	/**
+	 * Finalize messages for saving to disk when a task is being cleared.
+	 * - Strips `partial` flags so the UI doesn't show a streaming/cancel state
+	 * - Updates the last `api_req_started` with a cancel reason if it has no cost
+	 */
+	private finalizeMessagesForSave(messages: ClineMessage[]): ClineMessage[] {
+		return messages.map((msg, index) => {
+			const updated = { ...msg }
+
+			// Clear partial flag
+			if (updated.partial) {
+				delete updated.partial
+			}
+
+			// If this is the last api_req_started without a cost, mark it as user_cancelled
+			if (updated.type === "say" && updated.say === "api_req_started") {
+				try {
+					const info: ClineApiReqInfo = JSON.parse(updated.text || "{}")
+					if (info.cost === undefined && info.cancelReason === undefined) {
+						// Check if this is the last api_req_started in the list
+						const isLast = !messages.slice(index + 1).some((m) => m.type === "say" && m.say === "api_req_started")
+						if (isLast) {
+							info.cancelReason = "user_cancelled"
+							updated.text = JSON.stringify(info)
+						}
+					}
+				} catch {
+					// ignore parse errors
+				}
+			}
+
+			return updated
+		})
 	}
 
 	async handleTaskCreation(prompt: string): Promise<void> {
@@ -956,10 +1012,32 @@ export class Controller {
 			// - readUiMessages: ~/.cline/data/tasks/<id>/ui_messages.json
 			// saveClineMessages writes to the HostProvider path, so we must read from there too.
 			const { getSavedClineMessages } = await import("@core/storage/disk")
-			const messages = await getSavedClineMessages(taskId)
+			const rawMessages = await getSavedClineMessages(taskId)
+
+			// Sanitize loaded messages: strip partial flags and clean up incomplete api requests.
+			// Messages may have been saved mid-stream if the task was interrupted.
+			const messages = this.finalizeMessagesForSave(rawMessages)
+
 			if (messages.length > 0) {
-				this.task.messageStateHandler.addMessages(messages)
-				Logger.log(`[SdkController] Loaded ${messages.length} messages for task: ${taskId}`)
+				// Determine whether to show "Resume Task" or "Start New Task" button
+				const lastRelevantMessage = [...messages]
+					.reverse()
+					.find((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
+				const isCompletedTask = lastRelevantMessage?.ask === "completion_result"
+				const resumeAsk = isCompletedTask ? "resume_completed_task" : "resume_task"
+
+				// Remove any old resume messages then append a fresh one
+				const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
+				const resumeMessage: ClineMessage = {
+					ts: Date.now(),
+					type: "ask",
+					ask: resumeAsk,
+					text: "",
+				}
+				cleanedMessages.push(resumeMessage)
+
+				this.task.messageStateHandler.addMessages(cleanedMessages)
+				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId} (with ${resumeAsk})`)
 
 				// Also push each message through the partial message stream.
 				// The webview receives messages from two sources:
@@ -969,7 +1047,7 @@ export class Controller {
 				// of any timing issues with the state update. The webview deduplicates
 				// by timestamp, so duplicate pushes are harmless.
 				const { pushMessageToWebview } = await import("./webview-grpc-bridge")
-				for (const msg of messages) {
+				for (const msg of cleanedMessages) {
 					await pushMessageToWebview(msg)
 				}
 			} else {
