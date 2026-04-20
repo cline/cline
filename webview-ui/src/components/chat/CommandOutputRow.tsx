@@ -1,13 +1,19 @@
 import { COMMAND_OUTPUT_STRING, COMMAND_REQ_APP_STRING } from "@shared/combineCommandSequences"
 import { ClineMessage } from "@shared/ExtensionMessage"
+import { AskResponseRequest } from "@shared/proto/cline/task"
 import { StringRequest } from "@shared/proto/cline/common"
-import { memo, useEffect, useRef } from "react"
-import { Button } from "@/components/ui/button"
+import { ChevronRight } from "lucide-react"
+import { memo, useEffect, useRef, useState } from "react"
+import { ACTION_METADATA } from "@/components/chat/auto-approve-menu/constants"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
 import { cn } from "@/lib/utils"
-import { FileServiceClient } from "@/services/grpc-client"
+import { FileServiceClient, TaskServiceClient } from "@/services/grpc-client"
 import CodeBlock from "../common/CodeBlock"
-import ExpandHandle from "./ExpandHandle"
 
+/**
+ * Displays the command output content with optional log file link
+ */
 export const CommandOutputContent = memo(
 	({
 		output,
@@ -20,18 +26,13 @@ export const CommandOutputContent = memo(
 		onToggle: () => void
 		isContainerExpanded: boolean
 	}) => {
-		const outputLines = output.split("\n")
-		const lineCount = outputLines.length
+		const lineCount = output.split("\n").length
 		const shouldAutoShow = lineCount <= 5
 		const outputRef = useRef<HTMLDivElement>(null)
 
-		// Auto-scroll to bottom when output changes (only when showing limited output)
 		useEffect(() => {
 			if (!isOutputFullyExpanded && outputRef.current) {
-				// Direct scrollTop manipulation
 				outputRef.current.scrollTop = outputRef.current.scrollHeight
-
-				// Another attempt with more delay (for slower renders) to ensure scrolling works
 				setTimeout(() => {
 					if (outputRef.current) {
 						outputRef.current.scrollTop = outputRef.current.scrollHeight
@@ -40,28 +41,22 @@ export const CommandOutputContent = memo(
 			}
 		}, [output, isOutputFullyExpanded])
 
-		// Don't render anything if container is collapsed
 		if (!isContainerExpanded) {
 			return null
 		}
 
-		// Check if output contains a log file path indicator
 		const logFilePathMatch = output.match(/📋 Output is being logged to: ([^\n]+)/)
 		const logFilePath = logFilePathMatch ? logFilePathMatch[1].trim() : null
 
-		// Render output with clickable log file path
 		const renderOutput = () => {
 			if (!logFilePath) {
 				return <CodeBlock forceWrap={true} source={`${"```"}shell\n${output}\n${"```"}`} />
 			}
 
-			// Split output into parts: before log path, log path line, after log path
 			const logPathLineStart = output.indexOf("📋 Output is being logged to:")
 			const logPathLineEnd = output.indexOf("\n", logPathLineStart)
 			const beforeLogPath = output.substring(0, logPathLineStart)
 			const afterLogPath = logPathLineEnd !== -1 ? output.substring(logPathLineEnd) : ""
-
-			// Extract just the filename from the full path for display
 			const fileName = logFilePath.split("/").pop() || logFilePath
 
 			return (
@@ -85,20 +80,13 @@ export const CommandOutputContent = memo(
 
 		return (
 			<div
-				className={cn("w-full relative pb-0 overflow-visible border-t border-editor-group-border bg-code rounded-sm", {
-					"rounded-b-none": lineCount > 5,
-				})}>
-				<div
-					className={cn("text-white scroll-smooth bg-code overflow-y-auto", {
-						"max-h-[75px]": !shouldAutoShow && !isOutputFullyExpanded,
-						"max-h-[200px]": !shouldAutoShow && isOutputFullyExpanded,
-						"overflow-y-visible": shouldAutoShow,
-					})}
-					ref={outputRef}>
-					<div className="bg-code">{renderOutput()}</div>
-				</div>
-				{/* Show notch only if there's more than 5 lines */}
-				{lineCount > 5 && <ExpandHandle isExpanded={isOutputFullyExpanded} onToggle={onToggle} />}
+				className={cn("text-white scroll-smooth bg-code overflow-y-auto", {
+					"max-h-[75px]": !shouldAutoShow && !isOutputFullyExpanded,
+					"max-h-[200px]": !shouldAutoShow && isOutputFullyExpanded,
+					"overflow-y-visible": shouldAutoShow,
+				})}
+				ref={outputRef}>
+				<div className="bg-code">{renderOutput()}</div>
 			</div>
 		)
 	},
@@ -106,163 +94,237 @@ export const CommandOutputContent = memo(
 
 CommandOutputContent.displayName = "CommandOutputContent"
 
-export const CommandOutputRow = memo(
-	({
-		message,
-		isCommandExecuting = false,
-		isCommandPending = false,
-		isCommandCompleted = false,
-		isBackgroundExec = false, // vscodeTerminalExecutionMode === "backgroundExec"
-		onCancelCommand,
-		icon,
-		title,
-		isOutputFullyExpanded,
-		setIsOutputFullyExpanded,
-	}: {
-		message: ClineMessage
-		isCommandExecuting?: boolean
-		isCommandPending?: boolean
-		isCommandCompleted?: boolean
-		isBackgroundExec?: boolean
-		onCancelCommand?: () => void
-		icon?: JSX.Element | null
-		title?: JSX.Element | null
-		isOutputFullyExpanded: boolean
-		setIsOutputFullyExpanded: (expanded: boolean) => void
-	}) => {
-		const splitMessage = (text: string) => {
-			const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
-			if (outputIndex === -1) {
-				return { command: text, output: "" }
-			}
-			return {
-				command: text.slice(0, outputIndex).trim(),
-				output: text
-					.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
-					.trim()
-					.split("")
-					.map((char) => {
-						switch (char) {
-							case "\t":
-								return "→   "
-							case "\b":
-								return "⌫"
-							case "\f":
-								return "⏏"
-							case "\v":
-								return "⇳"
-							default:
-								return char
-						}
-					})
-					.join(""),
-			}
+interface CommandOutputRowProps {
+	message: ClineMessage
+	isCommandExecuting?: boolean
+	isCommandPending?: boolean
+	isCommandCompleted?: boolean
+	isBackgroundExec?: boolean
+	onCancelCommand?: () => void
+	isOutputFullyExpanded: boolean
+	setIsOutputFullyExpanded: (expanded: boolean) => void
+}
+
+/**
+ * Displays a CLI command card with:
+ * - Header with terminal icon
+ * - Command text
+ * - Collapsible output section
+ * - Footer with auto-approve dropdown and action buttons
+ */
+export const CommandOutputRow = memo(({
+	message,
+	isCommandExecuting = false,
+	isCommandPending = false,
+	isCommandCompleted = false,
+	isBackgroundExec = false,
+	onCancelCommand,
+	isOutputFullyExpanded,
+	setIsOutputFullyExpanded,
+}: CommandOutputRowProps) => {
+	const { isChecked, updateAction } = useAutoApproveActions()
+	const [isOutputExpanded, setIsOutputExpanded] = useState(false)
+
+	// Find the executeSafeCommands action from metadata for the auto-approve dropdown
+	const safeCommandsAction = ACTION_METADATA.find((a) => a.id === "executeSafeCommands")
+
+	// If command is pending, it wasn't auto-approved, so show "Ask Every Time"
+	// Otherwise show the current global setting
+	const autoApprove = isCommandPending
+		? false
+		: safeCommandsAction
+			? isChecked(safeCommandsAction)
+			: false
+
+	// Parse the message text to extract command and output
+	const splitMessage = (text: string) => {
+		const outputIndex = text.indexOf(COMMAND_OUTPUT_STRING)
+		if (outputIndex === -1) {
+			return { command: text, output: "" }
 		}
+		return {
+			command: text.slice(0, outputIndex).trim(),
+			output: text
+				.slice(outputIndex + COMMAND_OUTPUT_STRING.length)
+				.trim()
+				.split("")
+				.map((char) => {
+					switch (char) {
+						case "\t":
+							return "→   "
+						case "\b":
+							return "⌫"
+						case "\f":
+							return "⏏"
+						case "\v":
+							return "⇳"
+						default:
+							return char
+					}
+				})
+				.join(""),
+		}
+	}
 
-		const { command: rawCommand, output } = splitMessage(message.text || "")
+	const { command: rawCommand, output } = splitMessage(message.text || "")
+	const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
+	const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
+	const showCancelButton =
+		(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
 
-		const requestsApproval = rawCommand.endsWith(COMMAND_REQ_APP_STRING)
-		const command = requestsApproval ? rawCommand.slice(0, -COMMAND_REQ_APP_STRING.length) : rawCommand
-		const showCancelButton =
-			(isCommandExecuting || isCommandPending) && typeof onCancelCommand === "function" && isBackgroundExec
+	// Determine status display based on command state
+	const getStatusDisplay = () => {
+		if (isCommandExecuting) {
+			return { text: "Running", color: "text-description", showCheck: false }
+		}
+		if (isCommandPending) {
+			return { text: "Pending", color: "text-editor-warning-foreground", showCheck: false }
+		}
+		if (isCommandCompleted || (output.length > 0 && !isCommandExecuting && !isCommandPending)) {
+			return { text: "Success", color: "text-success", showCheck: true }
+		}
+		return { text: "Skipped", color: "text-description", showCheck: false }
+	}
 
-		const commandHeader = (
-			<div className="flex items-center gap-2.5 mb-3">
-				{icon}
-				{title}
+	const status = getStatusDisplay()
+
+	return (
+		<div className="rounded-sm border border-editor-group-border overflow-hidden">
+			{/* Header */}
+			<div className="flex items-center gap-2 px-3 py-2 border-b border-editor-group-border/50">
+				<i className="codicon codicon-terminal text-description" />
+				<span className="text-sm text-foreground">Run CLI Command</span>
 			</div>
-		)
 
-		return (
-			<>
-				{commandHeader}
-				<div
-					className="bg-code rounded-sm border border-editor-group-border"
-					style={{
-						transition: "all 0.3s ease-in-out",
-					}}>
-					{command && (
-						<div className="bg-code flex items-center justify-between px-2 py-2.5 border-b border-editor-group-border rounded-sm rounded-b-none overflow-hidden">
-							<div className="flex items-center gap-2 flex-1 m-w-0">
-								<div
-									className={cn("bg-description rounded-full w-2 h-2 shrink-0", {
-										"bg-success animate-pulse": isCommandExecuting,
-										"bg-editor-warning-foreground": isCommandPending,
-									})}
-								/>
-								<span
-									className={cn("text-description font-medium text-base shrink-0", {
-										"text-success": isCommandExecuting,
-										"text-editor-warning-foreground": isCommandPending,
-									})}>
-									{getCommandStatusText(isCommandExecuting, isCommandPending, isCommandCompleted)}
-								</span>
-							</div>
-							<div className="flex items-center gap-2 shrink-0">
-								{showCancelButton && (
-									<Button
-										onClick={(e) => {
-											e.stopPropagation()
-											if (isBackgroundExec) {
-												onCancelCommand?.()
-											} else {
-												// For regular terminal mode, show a message
-												alert(
-													"This command is running in the VSCode terminal. You can manually stop it using Ctrl+C in the terminal, or switch to Background Execution mode in settings for cancellable commands.",
-												)
-											}
-										}}
-										size="sm"
-										variant="secondary">
-										{isBackgroundExec ? "cancel" : "stop"}
-									</Button>
-								)}
-							</div>
+			{/* Command text */}
+			<div className="px-3 pt-3 pb-1.5 bg-code">
+				<pre className="font-mono text-sm whitespace-pre-wrap break-words m-0 text-link">{command}</pre>
+			</div>
+
+			{/* Command Output accordion */}
+			{output.length > 0 && (
+				<div>
+					<button
+						className={cn("flex items-center gap-1.5 w-full px-3 text-left", {
+							"py-2": !isOutputExpanded,
+							"pt-2 pb-1": isOutputExpanded,
+						})}
+						onClick={() => setIsOutputExpanded(!isOutputExpanded)}
+						type="button">
+						<ChevronRight
+							className={cn("text-description transition-transform", {
+								"rotate-90": isOutputExpanded,
+							})}
+							size={14}
+						/>
+						<span className="text-description text-sm">Command Output</span>
+					</button>
+					{isOutputExpanded && (
+						<div>
+							<CommandOutputContent
+								isContainerExpanded={true}
+								isOutputFullyExpanded={isOutputFullyExpanded}
+								onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
+								output={output}
+							/>
 						</div>
 					)}
+				</div>
+			)}
 
-					<div className="bg-code opacity-60 text-sm">
-						<CodeBlock forceWrap={true} source={`${"```"}shell\n${command}\n${"```"}`} />
-					</div>
-
-					{output.length > 0 && (
-						<CommandOutputContent
-							isContainerExpanded={true}
-							isOutputFullyExpanded={isOutputFullyExpanded}
-							onToggle={() => setIsOutputFullyExpanded(!isOutputFullyExpanded)}
-							output={output}
-						/>
+			{/* Footer bar with auto-approve dropdown and action buttons */}
+			<div className="flex items-center justify-between px-3 h-10 mt-2 bg-toolbar-hover/65">
+				{/* Left side: Auto-approve dropdown */}
+				<div className="flex items-center gap-2">
+					<Select
+						value={autoApprove ? "auto" : "ask"}
+						onValueChange={(value) => {
+							if (!safeCommandsAction) return
+							updateAction(safeCommandsAction, value === "auto")
+						}}>
+						<SelectTrigger
+							className="h-7 border-0 bg-transparent px-0 shadow-none text-sm text-foreground hover:text-description [&_svg]:opacity-100 [&_svg]:text-description"
+							showIcon={true}>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem className="text-sm" value="ask">
+								Ask Every Time
+							</SelectItem>
+							<SelectItem className="text-sm" value="auto">
+								Auto-approve
+							</SelectItem>
+						</SelectContent>
+					</Select>
+					{requestsApproval && isCommandPending && (
+						<span className="text-xs text-editor-warning-foreground flex items-center gap-1.5">
+							<i className="codicon codicon-warning text-[11px]" />
+							Requires approval
+						</span>
 					)}
 				</div>
-				{requestsApproval && (
-					<div className="flex items-center gap-2.5 p-2 text-[12px] text-editor-warning-foreground">
-						<i className="codicon codicon-warning" />
-						<span>The model has determined this command requires explicit approval.</span>
-					</div>
-				)}
-			</>
-		)
-	},
-)
+
+				{/* Right side: Action buttons or status */}
+				<div className="flex items-center gap-2">
+					{/* Pending state: Cancel/Run buttons */}
+					{isCommandPending && (
+						<>
+							<button
+								className="text-sm text-foreground hover:text-description transition-colors"
+								onClick={(e) => {
+									e.stopPropagation()
+									TaskServiceClient.askResponse(
+										AskResponseRequest.create({ responseType: "noButtonClicked" }),
+									)
+								}}
+								type="button">
+								Cancel
+							</button>
+							<button
+								className="px-2.5 py-1 text-sm bg-button-background text-button-foreground rounded-sm hover:bg-button-hover-background transition-colors"
+								onClick={(e) => {
+									e.stopPropagation()
+									TaskServiceClient.askResponse(
+										AskResponseRequest.create({ responseType: "yesButtonClicked" }),
+									)
+								}}
+								type="button">
+								Run
+							</button>
+						</>
+					)}
+
+					{/* Executing state: Spinner + optional Cancel */}
+					{isCommandExecuting && (
+						<>
+							<i className="codicon codicon-loading codicon-modifier-spin text-sm text-description" />
+							{showCancelButton ? (
+								<button
+									className="text-sm text-foreground hover:text-description transition-colors"
+									onClick={(e) => {
+										e.stopPropagation()
+										onCancelCommand?.()
+									}}
+									type="button">
+									Cancel
+								</button>
+							) : (
+								<span className="text-sm text-description">Cancel</span>
+							)}
+						</>
+					)}
+
+					{/* Completed state: Status indicator */}
+					{!isCommandPending && !isCommandExecuting && (
+						<div className="flex items-center gap-1.5">
+							{status.showCheck && <i className="codicon codicon-check text-sm text-success" />}
+							<span className={cn("text-sm", status.color)}>{status.text}</span>
+						</div>
+					)}
+				</div>
+			</div>
+		</div>
+	)
+})
 
 CommandOutputRow.displayName = "CommandOutputRow"
-
-const CommandStatusMap = {
-	executing: "Running",
-	pending: "Pending",
-	completed: "Completed",
-	skipped: "Skipped",
-}
-
-function getCommandStatusText(isExecuting: boolean, isPending: boolean, isCompleted: boolean): string {
-	if (isExecuting) {
-		return CommandStatusMap.executing
-	}
-	if (isPending) {
-		return CommandStatusMap.pending
-	}
-	if (isCompleted) {
-		return CommandStatusMap.completed
-	}
-	return CommandStatusMap.skipped
-}
