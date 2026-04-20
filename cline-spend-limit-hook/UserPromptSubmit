@@ -1,0 +1,27 @@
+#!/bin/bash
+# Cline spend-limit hook — blocks a turn when the user is over budget.
+# Runs before any LLM API call, so no tokens are spent when blocked.
+#
+# Env detection:
+#   Reads ~/.cline/endpoints.json (same file the extension uses for on-premise
+#   mode / env override). Falls back to prod (https://api.cline.bot) if missing.
+
+INPUT=$(cat)
+USER_ID=$(echo "$INPUT" | jq -r '.userId')
+
+# Detect API base URL the same way the extension does.
+BASE="https://api.cline.bot"
+if [[ -f "$HOME/.cline/endpoints.json" ]]; then
+  OVERRIDE=$(jq -r '.apiBaseUrl // empty' "$HOME/.cline/endpoints.json" 2>/dev/null)
+  [[ -n "$OVERRIDE" ]] && BASE="$OVERRIDE"
+fi
+
+RESP=$(curl -fsS --max-time 3 \
+  "$BASE/api/v1/users/$USER_ID/budget/overbudget") \
+  || { echo '{"cancel":false}'; exit 0; }   # fail open on network errors
+
+if [[ "$(echo "$RESP" | jq -r '.data.overbudget')" == "true" ]]; then
+  echo '{"cancel":true,"errorMessage":"Spend limit reached"}'
+else
+  echo '{"cancel":false}'
+fi
