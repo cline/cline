@@ -23,6 +23,7 @@
 
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { AgentEvent } from "@clinebot/shared"
+import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type { ClineApiReqInfo, ClineMessage, ClineSay, ClineSayTool } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 
@@ -177,24 +178,28 @@ export class MessageTranslatorState {
  * `say === "tool"`, so the text MUST be valid ClineSayTool JSON.
  *
  * SDK tool names → classic tool names:
- *   read_files       → readFile
- *   editor           → editedExistingFile / newFileCreated
- *   apply_patch      → editedExistingFile
- *   run_commands     → (uses say="command", NOT say="tool")
- *   search_codebase  → searchFiles
- *   fetch_web_content → webFetch
- *   skills           → useSkill
- *   ask_question     → (not a visual tool — handled as text)
- *   MCP tools        → (passed through with tool name as-is)
+ *   read_files/read_file               → readFile
+ *   list_files                         → listFilesTopLevel / listFilesRecursive
+ *   list_code_definition_names         → listCodeDefinitionNames
+ *   editor/replace_in_file             → editedExistingFile
+ *   write_to_file                      → newFileCreated
+ *   apply_patch                        → editedExistingFile
+ *   delete_file                        → fileDeleted
+ *   run_commands/execute_command       → (uses say="command", NOT say="tool")
+ *   search_codebase/search_files       → searchFiles
+ *   fetch_web_content/web_fetch        → webFetch
+ *   web_search                         → webSearch
+ *   skills/use_skill                   → useSkill
+ *   ask_question/ask_followup_question → (not a visual tool — handled as text)
+ *   MCP tools                          → (passed through with tool name as-is)
  */
 function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
 	// Parse input if it's a string (some SDK tools pass stringified JSON)
 	const parsedInput = parseToolInput(input)
 
 	switch (toolName) {
-		case "read_files": {
-			// SDK input: { files: [{ path, start_line?, end_line? }] }
-			// Classic format: { tool: "readFile", path: "file.ts" }
+		case "read_files":
+		case "read_file": {
 			const filePath = extractFirstFilePath(parsedInput)
 			return {
 				tool: "readFile",
@@ -202,23 +207,52 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			}
 		}
 
-		case "editor": {
-			// SDK input: { path, old_text?, new_text?, insert_line? }
-			// Classic format: { tool: "editedExistingFile"|"newFileCreated", path, content/diff }
+		case "list_files": {
+			const dirPath = getStringField(parsedInput, "path") ?? ""
+			const recursive = getBooleanField(parsedInput, "recursive") ?? false
+			return {
+				tool: recursive ? "listFilesRecursive" : "listFilesTopLevel",
+				path: dirPath,
+			}
+		}
+
+		case "list_code_definition_names": {
+			const dirPath = getStringField(parsedInput, "path") ?? ""
+			return {
+				tool: "listCodeDefinitionNames",
+				path: dirPath,
+			}
+		}
+
+		case "editor":
+		case "replace_in_file": {
 			const filePath = getStringField(parsedInput, "path") ?? ""
-			const newText = getStringField(parsedInput, "new_text")
-			const oldText = getStringField(parsedInput, "old_text")
-			// If there's old_text, it's an edit; otherwise it's a create
-			const isEdit = !!oldText
+			const newText =
+				getStringField(parsedInput, "new_text") ??
+				getStringField(parsedInput, "new_str") ??
+				getStringField(parsedInput, "content")
+			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
+			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
+			const isEdit = toolName === "replace_in_file" || !!oldText
 			return {
 				tool: isEdit ? "editedExistingFile" : "newFileCreated",
 				path: filePath,
 				content: newText,
+				diff: patch,
+			}
+		}
+
+		case "write_to_file": {
+			const filePath = getStringField(parsedInput, "path") ?? ""
+			const content = getStringField(parsedInput, "content") ?? getStringField(parsedInput, "new_text")
+			return {
+				tool: "newFileCreated",
+				path: filePath,
+				content,
 			}
 		}
 
 		case "apply_patch": {
-			// SDK input: { path, patch }
 			const filePath = getStringField(parsedInput, "path") ?? ""
 			const patch = getStringField(parsedInput, "patch")
 			return {
@@ -228,17 +262,31 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			}
 		}
 
-		case "search_codebase": {
-			// SDK input: { queries: ["regex1", ...] }
-			const queries = getArrayField(parsedInput, "queries")
+		case "delete_file": {
+			const filePath = getStringField(parsedInput, "path") ?? ""
 			return {
-				tool: "searchFiles",
-				regex: queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? "",
+				tool: "fileDeleted",
+				path: filePath,
 			}
 		}
 
-		case "fetch_web_content": {
-			// SDK input: { url }
+		case "search_codebase":
+		case "search_files": {
+			const queries = getArrayField(parsedInput, "queries")
+			const regex =
+				queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? getStringField(parsedInput, "regex") ?? ""
+			const path = getStringField(parsedInput, "path")
+			const filePattern = getStringField(parsedInput, "file_pattern") ?? getStringField(parsedInput, "filePattern")
+			return {
+				tool: "searchFiles",
+				regex,
+				path,
+				filePattern,
+			}
+		}
+
+		case "fetch_web_content":
+		case "web_fetch": {
 			const url = getStringField(parsedInput, "url") ?? ""
 			return {
 				tool: "webFetch",
@@ -246,8 +294,16 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			}
 		}
 
-		case "skills": {
-			// SDK input: { skill_name }
+		case "web_search": {
+			const query = getStringField(parsedInput, "query") ?? getStringField(parsedInput, "q") ?? ""
+			return {
+				tool: "webSearch",
+				path: query,
+			}
+		}
+
+		case "skills":
+		case "use_skill": {
 			const skillName = getStringField(parsedInput, "skill_name") ?? getStringField(parsedInput, "name") ?? ""
 			return {
 				tool: "useSkill",
@@ -257,8 +313,6 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		default: {
 			// MCP tools and unknown tools — pass through with the raw tool name.
-			// The webview will render a generic tool display.
-			// Try to extract a path from the input for display.
 			const filePath =
 				getStringField(parsedInput, "path") ??
 				getStringField(parsedInput, "url") ??
@@ -321,6 +375,14 @@ function getArrayField(input: Record<string, unknown> | undefined, field: string
 	if (!input) return undefined
 	const value = input[field]
 	if (Array.isArray(value)) return value.map(String)
+	return undefined
+}
+
+/** Get a boolean field from a parsed input object */
+function getBooleanField(input: Record<string, unknown> | undefined, field: string): boolean | undefined {
+	if (!input) return undefined
+	const value = input[field]
+	if (typeof value === "boolean") return value
 	return undefined
 }
 
@@ -394,12 +456,16 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
-					// run_commands uses say="command" (not say="tool")
+					// command tools use say="command" (not say="tool")
 					// because the webview renders commands differently
-					if (toolName === "run_commands") {
+					if (toolName === "run_commands" || toolName === "execute_command") {
 						const parsedInput = parseToolInput(input)
 						const commands = getArrayField(parsedInput, "commands")
-						const commandText = commands?.join(" && ") ?? getStringField(parsedInput, "commands") ?? ""
+						const commandText =
+							commands?.join(" && ") ??
+							getStringField(parsedInput, "commands") ??
+							getStringField(parsedInput, "command") ??
+							""
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -495,16 +561,32 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 						break
 					}
 
-					// run_commands → say="command_output" for the result
-					if (toolName === "run_commands") {
+					// command tools finalize as say="command" with commandCompleted=true.
+					// We keep the same timestamp to replace the streaming partial command row
+					// in-place, so it doesn't disappear (command_output rows are filtered out
+					// by combineCommandSequences in the chat pipeline).
+					if (toolName === "run_commands" || toolName === "execute_command") {
+						const storedInput = state.getStreamingToolInput()
+						const parsedInput = parseToolInput(storedInput)
+						const commands = getArrayField(parsedInput, "commands")
+						const commandText =
+							commands?.join(" && ") ??
+							getStringField(parsedInput, "commands") ??
+							getStringField(parsedInput, "command") ??
+							""
+						const outputStr = event.error
+							? `Error: ${event.error}`
+							: typeof event.output === "string"
+								? event.output
+								: JSON.stringify(event.output ?? "")
 						const ts = state.clearStreamingTool()
-						const outputStr = typeof event.output === "string" ? event.output : JSON.stringify(event.output ?? "")
 						messages.push({
 							ts,
 							type: "say",
-							say: "command_output",
-							text: event.error ? `Error: ${event.error}` : outputStr,
+							say: "command",
+							text: outputStr ? `${commandText}\n${COMMAND_OUTPUT_STRING}\n${outputStr}` : commandText,
 							partial: false,
+							commandCompleted: true,
 						})
 						break
 					}
