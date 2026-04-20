@@ -252,7 +252,7 @@ describe("translateSessionEvent — agent_event content_end", () => {
 				event: {
 					type: "content_end",
 					contentType: "tool",
-					toolName: "execute_command",
+					toolName: "read_files",
 					toolCallId: "call-1",
 					error: "Command not found",
 				} as AgentEvent,
