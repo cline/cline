@@ -1,5 +1,6 @@
 import { ANTHROPIC_FAST_MODE_SUFFIX, anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
@@ -7,22 +8,18 @@ import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 // Anthropic models that support thinking/reasoning mode
 export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
-	"claude-opus-4-6",
-	`claude-opus-4-6${ANTHROPIC_FAST_MODE_SUFFIX}`,
-	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
-	`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}${ANTHROPIC_FAST_MODE_SUFFIX}`,
 	"claude-sonnet-4-6",
 	`claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
 	"claude-3-7-sonnet-20250219",
 	"claude-sonnet-4-20250514",
 	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
-	"claude-opus-4-5-20251101",
 	"claude-opus-4-20250514",
 	"claude-opus-4-1-20250805",
 	"claude-sonnet-4-5-20250929",
@@ -45,9 +42,13 @@ interface AnthropicProviderProps {
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
+	const adaptiveThinkingDefaultEffort =
+		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
 	// Helper function for model switching
 	const handleModelChange = (modelId: string) => {
@@ -128,9 +129,17 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 						selectedModelId={selectedModelId}
 					/>
 
-					{SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) && (
+					{isAdaptiveThinkingModel ? (
+						<ReasoningEffortSelector
+							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
+							currentMode={currentMode}
+							defaultEffort={adaptiveThinkingDefaultEffort}
+							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+							label="Adaptive Thinking"
+						/>
+					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
-					)}
+					) : null}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>

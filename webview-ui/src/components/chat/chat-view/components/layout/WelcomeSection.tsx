@@ -218,12 +218,6 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 					navigateToSettings("features")
 					break
 
-				case BannerActionType.InstallCli:
-					StateServiceClient.installClineCli({}).catch((error) =>
-						console.error("Failed to initiate CLI installation:", error),
-					)
-					break
-
 				default:
 					console.warn("Unknown banner action:", action.action)
 			}

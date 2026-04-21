@@ -3,11 +3,13 @@ import {
 	CLAUDE_SONNET_1M_SUFFIX,
 	ModelInfo,
 	openRouterClaudeOpus461mModelId,
+	openRouterClaudeOpus471mModelId,
 	openRouterClaudeSonnet41mModelId,
 	openRouterClaudeSonnet451mModelId,
 	openRouterClaudeSonnet461mModelId,
 } from "@shared/api"
 import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { shouldSkipReasoningForModel, supportsReasoningEffortForModel } from "@utils/model-utils"
 import OpenAI from "openai"
 import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
@@ -34,7 +36,8 @@ export async function createVercelAIGatewayStream(
 		model.id === openRouterClaudeSonnet41mModelId ||
 		model.id === openRouterClaudeSonnet451mModelId ||
 		model.id === openRouterClaudeSonnet461mModelId ||
-		model.id === openRouterClaudeOpus461mModelId
+		model.id === openRouterClaudeOpus461mModelId ||
+		model.id === openRouterClaudeOpus471mModelId
 	if (isClaude1m) {
 		// remove the custom :1m suffix, to create the model id the API expects
 		model.id = model.id.slice(0, -CLAUDE_SONNET_1M_SUFFIX.length)
@@ -89,6 +92,16 @@ export async function createVercelAIGatewayStream(
 	let temperature: number | undefined = model.info?.temperature ?? 0
 	let topP: number | undefined
 
+	// Claude Opus 4.5+ uses adaptive thinking instead of budgeted extended thinking.
+	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(model.id)
+	const adaptiveThinking = isAdaptiveThinkingModel
+		? resolveClaudeOpusAdaptiveThinking(reasoningEffort, thinkingBudgetTokens)
+		: undefined
+	if (isAdaptiveThinkingModel) {
+		temperature = undefined
+		topP = undefined
+	}
+
 	// R1 format conversion for DeepSeek and similar reasoning models
 	const requiresR1Format =
 		model.id.startsWith("deepseek/deepseek-r1") ||
@@ -108,10 +121,11 @@ export async function createVercelAIGatewayStream(
 	const supportsReasoningEffort = supportsReasoningEffortForModel(model.id)
 
 	// Reasoning/thinking budget configuration
-	let reasoning: { max_tokens: number } | undefined
+	let reasoning: Record<string, unknown> | undefined
 
 	// Check if it's an Anthropic Claude model that supports thinking
-	const isClaudeThinkingModel = model.id.startsWith("anthropic/claude") && model.info?.thinkingConfig
+	const isClaudeThinkingModel =
+		!isAdaptiveThinkingModel && model.id.startsWith("anthropic/claude") && model.info?.thinkingConfig
 
 	if (isClaudeThinkingModel) {
 		// For Claude models, match OpenRouter behavior: check even if thinkingBudgetTokens is 0
@@ -129,9 +143,14 @@ export async function createVercelAIGatewayStream(
 	const normalizedReasoningEffort = reasoningEffort !== undefined ? normalizeOpenaiReasoningEffort(reasoningEffort) : undefined
 	const reasoningEffortValue = supportsReasoningEffort ? normalizedReasoningEffort : undefined
 	// Skip reasoning for models that don't support it (e.g., devstral, grok-4), or when effort explicitly disables it.
-	const includeReasoning = !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
-	const reasoningPayload =
-		reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined)
+	const includeReasoning = isAdaptiveThinkingModel
+		? !!adaptiveThinking?.enabled
+		: !shouldSkipReasoningForModel(model.id) && reasoningEffortValue !== "none"
+	const reasoningPayload = isAdaptiveThinkingModel
+		? adaptiveThinking?.enabled
+			? { enabled: true }
+			: undefined
+		: (reasoning ?? (reasoningEffortValue && reasoningEffortValue !== "none" ? { effort: reasoningEffortValue } : undefined))
 
 	const requestPayload: Record<string, unknown> = {
 		model: model.id,
@@ -143,6 +162,7 @@ export async function createVercelAIGatewayStream(
 		stream_options: { include_usage: true },
 		include_reasoning: includeReasoning,
 		...(reasoningPayload ? { reasoning: reasoningPayload } : {}),
+		...(isAdaptiveThinkingModel && adaptiveThinking?.effort ? { verbosity: adaptiveThinking.effort } : {}),
 		...getOpenAIToolParams(tools),
 	}
 
