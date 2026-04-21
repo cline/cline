@@ -620,6 +620,22 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
   2. `messageUtils.ts` now commits active tool groups before handling subsequent text, preserving post-tool assistant summaries.
   3. Additional SDK tool-name mappings were added (`execute_command`, `write_to_file`, `search_files`, etc.) to improve ChatView tool rendering compatibility.
 - **Verification**: Run prompt paths that trigger multi-file reads and then assistant summary text; verify all files are listed and assistant text remains visible.
+
+### S6-41: Command output shows raw JSON instead of formatted shell output
+- **Status**: 🟢 Verified Fixed
+- **Description**: Command output in the chat showed raw JSON like `[{"query":"ls","result":"file1\nfile2","success":true}]` instead of the classic extension's formatted shell output with code blocks and scrollable content. The classic format shows the command in a shell code block followed by the output in another shell code block, separated by "Output:".
+- **Root cause**: Two issues:
+  1. In `src/sdk/message-translator.ts`, the command content_end handler (line ~630) received `event.output` as a `ToolOperationResult[]` (the SDK's structured output format: `[{query, result, success, error?}]`). When `event.output` was not a string, the code fell through to `JSON.stringify(event.output)`, producing the raw JSON array in the chat.
+  2. The webview's `CommandOutputRow.tsx` checks `isBackgroundExec` (from `vscodeTerminalExecutionMode === "backgroundExec"`) for proper rendering with cancel buttons, status indicators, etc. The SDK always uses background execution (bash executor spawns child processes directly), but the default `vscodeTerminalExecutionMode` from globalState was `"vscodeTerminal"`, causing the webview to render commands with the wrong UI mode.
+- **Fix applied**:
+  1. Added `extractToolOutputText()` helper in `src/sdk/message-translator.ts` that extracts raw text from the SDK's structured `ToolOperationResult[]` format. For each result: if `result.result` is a non-empty string, use it; if `result.error` is a non-empty string, use it. Join multiple results with newlines. Falls back to `JSON.stringify` only for truly unknown formats.
+  2. Updated the command content_end handler to use `extractToolOutputText(event.output)` instead of the old ternary with `JSON.stringify`.
+  3. Overrode `vscodeTerminalExecutionMode` to `"backgroundExec"` in `SdkController.getStateToPostToWebview()` so the webview's `CommandOutputRow` renders with the correct background-exec UI.
+- **Verification**: 15 new unit tests pass in `src/sdk/message-translator.test.ts`:
+  - `extractToolOutputText` tests: null/undefined, string passthrough, single ToolOperationResult, multiple results, error results, mixed success/error, plain string arrays, unknown object fallback, empty array, empty-result skipping.
+  - `command content_end output formatting` tests: ToolOperationResult[] produces raw text (not JSON), string output passes through, error output formatted correctly.
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 50 tests pass (35 existing + 15 new). Zero new TypeScript compilation errors.
+
 - **Evidence**: Commits `bc3590534` and `26614a007`, plus added tests in `src/sdk/message-translator.test.ts` and `webview-ui/src/components/chat/chat-view/utils/messageUtils.test.ts`.
 
 
