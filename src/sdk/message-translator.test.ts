@@ -1273,3 +1273,177 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 		})
 	})
 })
+
+// ---------------------------------------------------------------------------
+// S6-39: fetch_web_content renders URL (SDK input: { requests: [{ url, prompt }] })
+// S6-40: skills tool renders skill name (SDK input: { skill: "name" })
+// ---------------------------------------------------------------------------
+
+describe("sdkToolToClineSayTool — fetch_web_content and skills (S6-39, S6-40)", () => {
+	it("S6-39: fetch_web_content extracts URL from SDK requests array", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "fetch_web_content",
+					toolCallId: "c1",
+					input: { requests: [{ url: "https://example.com/docs", prompt: "Summarize" }] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("webFetch")
+		expect(tool.path).toBe("https://example.com/docs")
+	})
+
+	it("S6-39: content_end preserves URL from content_start", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "fetch_web_content",
+						toolCallId: "c1",
+						input: { requests: [{ url: "https://example.com", prompt: "Read" }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: { type: "content_end", contentType: "tool", toolName: "fetch_web_content", toolCallId: "c1" } as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("webFetch")
+		expect(endTool.path).toBe("https://example.com")
+	})
+
+	it("S6-39: classic web_fetch with flat url field still works", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "web_fetch",
+					toolCallId: "c1",
+					input: { url: "https://classic.com", prompt: "Read" },
+				} as AgentEvent,
+			},
+		}
+		const tool = JSON.parse(translateSessionEvent(event, state).messages[0].text!)
+		expect(tool.tool).toBe("webFetch")
+		expect(tool.path).toBe("https://classic.com")
+	})
+
+	it("S6-39: multiple requests extracts first URL", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "fetch_web_content",
+					toolCallId: "c1",
+					input: { requests: [{ url: "https://first.com", prompt: "p1" }, { url: "https://second.com", prompt: "p2" }] },
+				} as AgentEvent,
+			},
+		}
+		const tool = JSON.parse(translateSessionEvent(event, state).messages[0].text!)
+		expect(tool.path).toBe("https://first.com")
+	})
+
+	it("S6-40: skills tool extracts name from SDK 'skill' field", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "skills",
+					toolCallId: "c1",
+					input: { skill: "commit", args: null },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("useSkill")
+		expect(tool.path).toBe("commit")
+	})
+
+	it("S6-40: skills content_end preserves skill name from content_start", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "skills",
+						toolCallId: "c1",
+						input: { skill: "review-pr", args: "123" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: { type: "content_end", contentType: "tool", toolName: "skills", toolCallId: "c1" } as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("useSkill")
+		expect(endTool.path).toBe("review-pr")
+	})
+
+	it("S6-40: classic use_skill with skill_name field still works", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "use_skill",
+					toolCallId: "c1",
+					input: { skill_name: "kanban" },
+				} as AgentEvent,
+			},
+		}
+		const tool = JSON.parse(translateSessionEvent(event, state).messages[0].text!)
+		expect(tool.tool).toBe("useSkill")
+		expect(tool.path).toBe("kanban")
+	})
+})
