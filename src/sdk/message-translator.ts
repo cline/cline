@@ -287,7 +287,18 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "fetch_web_content":
 		case "web_fetch": {
-			const url = getStringField(parsedInput, "url") ?? ""
+			// The SDK's fetch_web_content uses { requests: [{ url, prompt }] }
+			// while the classic web_fetch uses { url, prompt } directly.
+			let url = getStringField(parsedInput, "url") ?? ""
+			if (!url && parsedInput) {
+				const requests = parsedInput.requests
+				if (Array.isArray(requests) && requests.length > 0) {
+					const firstRequest = requests[0]
+					if (typeof firstRequest === "object" && firstRequest !== null) {
+						url = (firstRequest as Record<string, unknown>).url as string ?? ""
+					}
+				}
+			}
 			return {
 				tool: "webFetch",
 				path: url,
@@ -304,7 +315,13 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "skills":
 		case "use_skill": {
-			const skillName = getStringField(parsedInput, "skill_name") ?? getStringField(parsedInput, "name") ?? ""
+			// The SDK's skills tool uses { skill: "name", args?: "..." }
+			// while the classic use_skill uses { skill_name: "name" }.
+			const skillName =
+				getStringField(parsedInput, "skill_name") ??
+				getStringField(parsedInput, "skill") ??
+				getStringField(parsedInput, "name") ??
+				""
 			return {
 				tool: "useSkill",
 				path: skillName,
