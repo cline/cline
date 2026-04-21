@@ -1476,7 +1476,7 @@ export class McpHub {
 				JSON.stringify({ mcpServers: { ...settings.mcpServers, [serverName]: serverConfig } }, null, 2),
 			)
 
-			await this.updateServerConnectionsRPC(settings.mcpServers)
+			await this.updateServerConnectionsRPC(settings.mcpServers as Record<string, McpServerConfig>)
 
 			const serverOrder = Object.keys(settings.mcpServers || {})
 			return this.getSortedMcpServers(serverOrder)
