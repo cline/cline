@@ -269,7 +269,11 @@ function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | 
  * StateManager.buildApiHandlerSettings) which both failed silently.
  */
 export async function buildSessionConfig(input: SessionConfigInput): Promise<CoreSessionConfig> {
-	const cwd = input.cwd || process.cwd()
+	let cwd = input.cwd
+	if (!cwd) {
+		Logger.warn("[SessionFactory] No cwd provided, falling back to process.cwd() — this is likely wrong in VSCode")
+		cwd = process.cwd()
+	}
 	const workspaceRoot = input.workspaceRoot ?? cwd
 	const mode: Mode = input.mode ?? "act"
 	const sdkLogger = createSdkLogger()

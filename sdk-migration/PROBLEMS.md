@@ -133,10 +133,12 @@ underlying patterns that caused them are relevant.
 - **Evidence**: Commit `34afde1c5` (“resume session working”).
 
 ### S4-3: Workspace root not available from ClineExtensionContext
-- **Status**: 🟡 Minor
-- **Description**: `ClineExtensionContext` doesn't have a `workspaceRoot` property. The SdkController falls back to `process.cwd()` for the session's working directory. In VSCode, the workspace root is available from the VSCode extension context but not from the shared `ClineExtensionContext` type.
+- **Status**: 🟢 Verified Fixed
+- **Description**: `ClineExtensionContext` doesn't have a `workspaceRoot` property. The SdkController fell back to `process.cwd()` for the session's working directory, which in VSCode returns the extension host's directory — NOT the user's workspace.
 - **Root cause**: The shared context type was designed for CLI/ACP use and doesn't include VSCode-specific workspace info.
-- **Fix**: Add workspace root resolution in the host-specific initialization (VSCode host, CLI host) and pass it to the SdkController.
+- **Fix applied**: Added `SdkController.getWorkspaceRoot()` private method that resolves the workspace root via `HostProvider.workspace.getWorkspacePaths()` (which calls `vscode.workspace.workspaceFolders[0].uri.fsPath` under the hood), falling back to `process.cwd()` only when no workspace folder is open. Replaced all 4 `process.cwd()` calls in SdkController (in `initTask()`, `reinitExistingTaskFromId()`, `resumeSessionFromTask()`, `restartSessionForMcpTools()`) with `await this.getWorkspaceRoot()`. Also added a defensive warning log in `buildSessionConfig()` for the `process.cwd()` fallback path. See S6-38 for the full fix entry.
+- **Verification**: TypeScript compiles with 0 new errors (5 pre-existing SDK type errors). All `process.cwd()` calls replaced with host-aware workspace resolution.
+- **Evidence**: Code review — `HostProvider.workspace.getWorkspacePaths()` delegates to the same `vscode.workspace.workspaceFolders` API used in `common.ts:131` and throughout the classic extension.
 
 ### Step 6: Auth & Account Flows — Completed
 
@@ -619,6 +621,21 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
   3. Additional SDK tool-name mappings were added (`execute_command`, `write_to_file`, `search_files`, etc.) to improve ChatView tool rendering compatibility.
 - **Verification**: Run prompt paths that trigger multi-file reads and then assistant summary text; verify all files are listed and assistant text remains visible.
 - **Evidence**: Commits `bc3590534` and `26614a007`, plus added tests in `src/sdk/message-translator.test.ts` and `webview-ui/src/components/chat/chat-view/utils/messageUtils.test.ts`.
+
+
+### S6-38: Cline doesn't know the user's working directory (process.cwd() fallback)
+- **Status**: 🟢 Verified Fixed
+- **Description**: The SdkController used `process.cwd()` as the working directory in 4 places (in `initTask()`, `reinitExistingTaskFromId()`, `resumeSessionFromTask()`, `restartSessionForMcpTools()`). In VSCode, `process.cwd()` returns the extension host's directory (e.g., `/Applications/Visual Studio Code.app/...`), not the user's workspace. This meant Cline couldn't find files in the user's project without being told the path explicitly. Related to S4-3 which was marked minor but is actually a blocker.
+- **Root cause**: The shared `ClineExtensionContext` type doesn't have a `workspaceRoot` property (designed for CLI/ACP). The SdkController had no way to resolve the user's workspace root and fell back to `process.cwd()`.
+- **Fix applied**:
+  1. Added `SdkController.getWorkspaceRoot()` private async method that resolves the workspace root via `HostProvider.workspace.getWorkspacePaths()` — which delegates to `vscode.workspace.workspaceFolders[0].uri.fsPath` in VSCode. Falls back to `process.cwd()` only when no workspace folder is open.
+  2. Replaced all 4 `process.cwd()` calls in `SdkController.ts` with `await this.getWorkspaceRoot()`.
+  3. Added a defensive warning log in `buildSessionConfig()` (`cline-session-factory.ts`) for the `process.cwd()` fallback path, so it's immediately obvious if the workspace root is ever missing.
+- **Files changed**:
+  - `src/sdk/SdkController.ts` — Added `getWorkspaceRoot()`, replaced 4 call sites
+  - `src/sdk/cline-session-factory.ts` — Added warning log for missing cwd fallback
+- **Verification**: TypeScript compiles with 0 new errors (5 pre-existing SDK type errors). `grep -n 'process.cwd()' src/sdk/SdkController.ts` shows only the fallback in `getWorkspaceRoot()`. The `HostProvider.workspace.getWorkspacePaths()` API is the same one used in `common.ts:131` (`checkWorktreeAutoOpen`) and is known to work correctly.
+- **Evidence**: Code diff shows 34 insertions, 5 deletions across 2 files. All direct `process.cwd()` usages replaced with host-aware workspace resolution.
 
 ### S6-45: React warns about `isActive` prop forwarded to DOM element
 - **Status**: 🟢 Verified Fixed
