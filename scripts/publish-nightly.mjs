@@ -16,7 +16,7 @@
  * 6. Restores the original package.json
  *
  * Channels:
- *   By default, the extension is published to the STABLE channel of
+ *   By default, the extension is published to the RELEASE channel of
  *   `cline-nightly` (this is what the scheduled daily nightly workflow
  *   uses). Pass --pre-release to instead publish to the pre-release
  *   channel of `cline-nightly` (used for manual publishes from feature
@@ -25,17 +25,17 @@
  *   Note on version ordering: because VS Code serves pre-release users
  *   whichever version is highest across *both* channels, the pre-release
  *   build only stays selected while its version number is greater than
- *   the latest stable nightly. Since both channels use
+ *   the latest release nightly. Since both channels use
  *   `major.minor.<unix-timestamp>`, the most recently published build
  *   wins. When this script is used for a manual pre-release publish, the
- *   scheduled stable nightly workflow will eventually publish a newer
- *   timestamp and pull pre-release users forward onto stable — which is
+ *   scheduled release nightly workflow will eventually publish a newer
+ *   timestamp and pull pre-release users forward onto release — which is
  *   the desired behavior once an experimental branch is abandoned, but
  *   means ongoing previews require re-publishing from the branch at
- *   least as often as the scheduled stable nightly runs.
+ *   least as often as the scheduled release nightly runs.
  *
  * Usage:
- *   npm run publish:marketplace:nightly                    # stable channel
+ *   npm run publish:marketplace:nightly                    # release channel
  *   npm run publish:marketplace:nightly -- --pre-release   # pre-release channel
  *   npm run publish:marketplace:nightly -- --dry-run       # package only
  *
@@ -450,7 +450,7 @@ class NightlyPublisher {
 	 */
 	async run({ isDryRun = false, isPreRelease = false } = {}) {
 		try {
-			const channelLabel = isPreRelease ? " (pre-release channel)" : " (stable channel)"
+			const channelLabel = isPreRelease ? " (pre-release channel)" : " (release channel)"
 			log.info(`Starting nightly publish process${channelLabel}${isDryRun ? " (dry run)" : ""}`)
 
 			// Step 1: Check dependencies
@@ -526,6 +526,12 @@ process.on("SIGTERM", () => {
 const args = process.argv.slice(2)
 const isDryRun = args.includes("--dry-run") || args.includes("-n")
 const isPreRelease = args.includes("--pre-release")
+const knownFlags = ["--dry-run", "-n", "--pre-release", "--help", "-h"]
+const unknownArgs = args.filter((a) => !knownFlags.includes(a))
+if (unknownArgs.length > 0) {
+	log.error(`Unknown argument(s): ${unknownArgs.join(", ")}. Run with --help for usage.`)
+	process.exit(1)
+}
 const showHelp = args.includes("--help") || args.includes("-h")
 
 if (showHelp) {
@@ -537,7 +543,7 @@ Usage:
 
 Options:
   --pre-release    Publish to the pre-release channel of cline-nightly.
-                   Default is the stable channel (used by the scheduled
+                   Default is the release channel (used by the scheduled
                    nightly workflow).
   --dry-run, -n    Run without actually publishing (package only)
   --help, -h       Show this help message
@@ -547,7 +553,7 @@ Environment variables:
   OVSX_PAT         Personal Access Token for OpenVSX Registry
 
 Examples:
-  npm run publish:marketplace:nightly                      # Stable channel publish
+  npm run publish:marketplace:nightly                      # Release channel publish
   npm run publish:marketplace:nightly -- --pre-release     # Pre-release channel publish
   npm run publish:marketplace:nightly -- --dry-run         # Package only
   VSCE_PAT="token" npm run publish:marketplace:nightly     # Publish to VS Code only
