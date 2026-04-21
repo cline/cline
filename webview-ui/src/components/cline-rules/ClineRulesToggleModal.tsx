@@ -855,11 +855,11 @@ const ClineRulesToggleModal: React.FC = () => {
 	)
 }
 
-const StyledTabButton = styled.button<{ isActive: boolean }>`
+const StyledTabButton = styled.button<{ $isActive: boolean }>`
 	background: none;
 	border: none;
-	border-bottom: 2px solid ${(props) => (props.isActive ? "var(--vscode-foreground)" : "transparent")};
-	color: ${(props) => (props.isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
+	border-bottom: 2px solid ${(props) => (props.$isActive ? "var(--vscode-foreground)" : "transparent")};
+	color: ${(props) => (props.$isActive ? "var(--vscode-foreground)" : "var(--vscode-descriptionForeground)")};
 	padding: 8px 12px;
 	cursor: pointer;
 	font-size: 13px;
@@ -881,7 +881,7 @@ export const TabButton = ({
 	isActive: boolean
 	onClick: () => void
 }) => (
-	<StyledTabButton aria-pressed={isActive} isActive={isActive} onClick={onClick}>
+	<StyledTabButton $isActive={isActive} aria-pressed={isActive} onClick={onClick}>
 		{children}
 	</StyledTabButton>
 )
