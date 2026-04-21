@@ -38,6 +38,7 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 		cwd: "/tmp/workspace",
 		workspaceRoot: "/tmp/workspace",
 		systemPrompt: "",
+		mode: "act",
 		enableTools: true,
 		enableSpawnAgent: false,
 		enableAgentTeams: false,
@@ -50,7 +51,7 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 // ---------------------------------------------------------------------------
 
 describe("buildStartSessionInput", () => {
-	it("builds input with prompt", () => {
+	it("does not forward the prompt to start()", () => {
 		const config = makeBaseConfig()
 		const input = {
 			prompt: "Hello, world!",
@@ -60,7 +61,7 @@ describe("buildStartSessionInput", () => {
 		const result = buildStartSessionInput(config, input)
 
 		expect(result.config).toBe(config)
-		expect(result.prompt).toBe("Hello, world!")
+		expect(result.prompt).toBeUndefined()
 		expect(result.interactive).toBe(true)
 		expect(result.userImages).toBeUndefined()
 		expect(result.userFiles).toBeUndefined()

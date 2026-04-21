@@ -9,7 +9,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { CoreSessionEvent, SessionManager, StartSessionResult } from "@clinebot/core"
+import { type CoreSessionEvent, type RuntimeHost, type StartSessionResult } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
@@ -21,6 +21,7 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
 import { ensureMcpServersDirectoryExists, GlobalFileNames } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
+import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { McpHub } from "@/services/mcp/McpHub"
@@ -280,11 +281,29 @@ export class Controller {
 	 * Update task usage in history after a turn completes.
 	 */
 	private updateTaskUsage(usage: { tokensIn: number; tokensOut: number; totalCost?: number }): void {
-		// Will be fully wired in Step 5 when gRPC handlers are implemented.
-		// For now, just log the usage.
 		Logger.log(
 			`[SdkController] Task usage: tokensIn=${usage.tokensIn}, tokensOut=${usage.tokensOut}, cost=${usage.totalCost ?? 0}`,
 		)
+
+		const taskId = this.task?.taskId ?? this.activeSession?.sessionId
+		if (!taskId) {
+			return
+		}
+
+		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
+		const historyItem = history.find((item) => item.id === taskId)
+		if (!historyItem) {
+			return
+		}
+
+		historyItem.tokensIn = usage.tokensIn
+		historyItem.tokensOut = usage.tokensOut
+		historyItem.totalCost = usage.totalCost ?? 0
+		historyItem.ts = Date.now()
+
+		this.updateTaskHistory(historyItem).catch((error) => {
+			Logger.error("[SdkController] Failed to persist task usage:", error)
+		})
 	}
 
 	// ---- Session helpers (shared by initTask, resumeSessionFromTask, restartSessionForMcpTools, etc.) ----
@@ -355,7 +374,7 @@ export class Controller {
 	 */
 	private async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
-	): Promise<{ startResult: StartSessionResult; sessionManager: SessionManager }> {
+	): Promise<{ startResult: StartSessionResult; sessionManager: RuntimeHost }> {
 		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
 		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			this.handleSessionEvent(event)
@@ -382,7 +401,7 @@ export class Controller {
 	 * send — the caller (gRPC handler / UI) needs to return immediately.
 	 */
 	private fireAndForgetSend(
-		sessionManager: SessionManager,
+		sessionManager: RuntimeHost,
 		sessionId: string,
 		prompt: string,
 		images?: string[],
@@ -1421,7 +1440,7 @@ export class Controller {
 
 	// ---- Workspace (kept from classic) ----
 
-	async ensureWorkspaceManager(): Promise<unknown> {
+	async ensureWorkspaceManager(): Promise<WorkspaceRootManager | undefined> {
 		stubWarn("ensureWorkspaceManager")
 		return undefined
 	}
