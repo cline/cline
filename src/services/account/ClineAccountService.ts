@@ -3,6 +3,7 @@ import type {
 	FeaturebaseTokenResponse,
 	OrganizationBalanceResponse,
 	OrganizationUsageTransaction,
+	OverbudgetStatus,
 	PaymentTransaction,
 	UsageTransaction,
 	UserRemoteConfigDiscoveryResponse,
@@ -261,6 +262,43 @@ export class ClineAccountService {
 		)
 		// Backend returns 200 with data: null when no org has remote config
 		return data ?? undefined
+	}
+
+	/**
+	 * Submits a spend limit increase request to the user's org admin.
+	 * Called when the user hits a SPEND_LIMIT_EXCEEDED (429) error and clicks "Request Increase".
+	 * @returns void — the backend records the request; errors are logged and swallowed
+	 */
+	async submitLimitIncreaseRequestRPC(): Promise<void> {
+		try {
+			await this.authenticatedRequest<void>("/api/v1/users/me/budget/request", {
+				method: "POST",
+			})
+		} catch (error) {
+			Logger.error("Failed to submit limit increase request (RPC):", error)
+			throw error
+		}
+	}
+
+	/**
+	 * RPC variant that fetches the overbudget status for the given org.
+	 * Returns undefined when the feature is not enabled (403/404) or on failure
+	 * so that spend-control checks never block tasks on transient errors.
+	 */
+	async fetchOverbudgetStatusRPC(organizationId: string): Promise<OverbudgetStatus | undefined> {
+		try {
+			return await this.authenticatedRequest<OverbudgetStatus>(`/api/v1/organizations/${organizationId}/budget/overbudget`)
+		} catch (error) {
+			// 403/404 = non-enterprise org, expected for most users
+			if (axios.isAxiosError(error)) {
+				const status = error.response?.status
+				if (status === 403 || status === 404) {
+					return undefined
+				}
+			}
+			Logger.error("Failed to fetch overbudget status (RPC):", error)
+			return undefined
+		}
 	}
 
 	/**

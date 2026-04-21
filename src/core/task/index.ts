@@ -91,6 +91,7 @@ import {
 	StandaloneTerminalManager,
 } from "@/integrations/terminal"
 import { ClineError, ClineErrorType, ErrorService } from "@/services/error"
+import { ThirdPartySpendLimitService } from "@/services/spend-limit/ThirdPartySpendLimitService"
 import { telemetryService } from "@/services/telemetry"
 import { ClineClient } from "@/shared/cline"
 import {
@@ -1720,6 +1721,51 @@ export class Task {
 		return { model, providerId, customPrompt, mode }
 	}
 
+	/**
+	 * Enforces third-party (non-Cline) spend limits locally before dispatching
+	 * an API request. Throws a ClineError shaped like the Cline-provider 429
+	 * so the existing SpendLimitError UI handles it with no webview changes.
+	 */
+	private async checkThirdPartySpendLimit(providerId: string | undefined): Promise<void> {
+		// Cline provider has server-side enforcement.
+		if (providerId === "cline") {
+			return
+		}
+
+		const svc = ThirdPartySpendLimitService.getInstance()
+		await svc.fetchIfNeeded()
+
+		const status = svc.getStatus()
+		if (!status?.overbudget) {
+			return
+		}
+
+		// Daily limit takes precedence over monthly when both are set, since
+		// it will reset sooner.
+		const hitDaily = status.limits.dailyLimitUsd != null
+		const budgetPeriod: "daily" | "monthly" = hitDaily ? "daily" : "monthly"
+		const limitUsd = hitDaily ? status.limits.dailyLimitUsd : status.limits.monthlyLimitUsd
+		const spentUsd = hitDaily ? status.usage.dailySpendUsd : status.usage.monthlySpendUsd
+		const resetsAt = hitDaily ? status.usage.dayResetsAt : status.usage.monthResetsAt
+
+		const formattedLimit = typeof limitUsd === "number" ? `$${limitUsd.toFixed(2)} ` : ""
+		const message = `Your organization's ${formattedLimit}${budgetPeriod} spend limit has been reached.`
+
+		throw ClineError.transform({
+			status: 429,
+			code: "SPEND_LIMIT_EXCEEDED",
+			message,
+			details: {
+				code: "SPEND_LIMIT_EXCEEDED",
+				budget_period: budgetPeriod,
+				limit_usd: limitUsd,
+				spent_usd: spentUsd,
+				resets_at: resetsAt,
+				message,
+			},
+		})
+	}
+
 	private async writePromptMetadataArtifacts(params: { systemPrompt: string; providerInfo: ApiProviderInfo }): Promise<void> {
 		const enabledFlag = process.env.CLINE_WRITE_PROMPT_ARTIFACTS?.toLowerCase()
 		const enabled = enabledFlag === "1" || enabledFlag === "true" || enabledFlag === "yes"
@@ -1846,6 +1892,9 @@ export class Task {
 		})
 
 		const providerInfo = this.getCurrentProviderInfo()
+
+		// Block overbudget third-party requests before they reach the provider.
+		await this.checkThirdPartySpendLimit(providerInfo.providerId)
 		const host = await HostProvider.env.getHostVersion({})
 		const ide = host?.platform || "Unknown"
 		const isCliEnvironment = host.clineType === ClineClient.Cli

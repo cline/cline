@@ -316,6 +316,14 @@ export class AuthService {
 			if (this._clineAuthInfo) {
 				this._authenticated = true
 				await this.sendAuthStatusUpdate()
+
+				// Warm the third-party spend-limit cache so the status is ready
+				// before the user's first task. Fire-and-forget; failures are
+				// fully handled inside the service (logged, not thrown).
+				// Dynamic import to avoid a hard dependency cycle with task layer.
+				import("../spend-limit/ThirdPartySpendLimitService")
+					.then(({ ThirdPartySpendLimitService }) => ThirdPartySpendLimitService.getInstance().fetchIfNeeded())
+					.catch((err) => Logger.debug(`[SpendControl] Cache-warm on login failed: ${err}`))
 			} else {
 				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
