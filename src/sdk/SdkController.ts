@@ -1258,13 +1258,19 @@ export class Controller {
 		// For now, we import the classic getStateToPostToWebview logic.
 		try {
 			const { getStateToPostToWebview: classicGetState } = await import("@core/controller/state/getStateToPostToWebview")
-			return await classicGetState({
+			const state = await classicGetState({
 				task: this.task,
 				stateManager: this.stateManager,
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
+			// SDK always uses background execution (bash executor spawns child
+			// processes directly). Override so the webview's CommandOutputRow
+			// renders with the correct background-exec UI (cancel button, log
+			// file links, proper status text).
+			state.vscodeTerminalExecutionMode = "backgroundExec"
+			return state
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error

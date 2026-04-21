@@ -1,7 +1,12 @@
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { AgentEvent } from "@clinebot/shared"
 import { describe, expect, it } from "vitest"
-import { historyItemToSessionFields, MessageTranslatorState, translateSessionEvent } from "./message-translator"
+import {
+	extractToolOutputText,
+	historyItemToSessionFields,
+	MessageTranslatorState,
+	translateSessionEvent,
+} from "./message-translator"
 
 // ---------------------------------------------------------------------------
 // MessageTranslatorState
@@ -1071,5 +1076,200 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 
 		// All timestamps should be identical
 		expect(new Set(timestamps).size).toBe(1)
+	})
+
+	// ---------------------------------------------------------------------------
+	// extractToolOutputText
+	// ---------------------------------------------------------------------------
+
+	describe("extractToolOutputText", () => {
+		it("returns empty string for null/undefined", () => {
+			expect(extractToolOutputText(null)).toBe("")
+			expect(extractToolOutputText(undefined)).toBe("")
+		})
+
+		it("returns string output as-is", () => {
+			expect(extractToolOutputText("hello world\nline 2")).toBe("hello world\nline 2")
+		})
+
+		it("returns empty string for empty string", () => {
+			expect(extractToolOutputText("")).toBe("")
+		})
+
+		it("extracts result text from ToolOperationResult array (single command)", () => {
+			const output = [{ query: "ls -la", result: "file1\nfile2\nfile3", success: true }]
+			expect(extractToolOutputText(output)).toBe("file1\nfile2\nfile3")
+		})
+
+		it("extracts result text from ToolOperationResult array (multiple commands)", () => {
+			const output = [
+				{ query: "echo hello", result: "hello", success: true },
+				{ query: "echo world", result: "world", success: true },
+			]
+			expect(extractToolOutputText(output)).toBe("hello\nworld")
+		})
+
+		it("extracts error text from failed ToolOperationResult", () => {
+			const output = [{ query: "bad-command", result: "", error: "Command failed: not found", success: false }]
+			expect(extractToolOutputText(output)).toBe("Command failed: not found")
+		})
+
+		it("extracts mixed success and error results", () => {
+			const output = [
+				{ query: "echo ok", result: "ok", success: true },
+				{ query: "fail", result: "", error: "Command failed: exit 1", success: false },
+			]
+			expect(extractToolOutputText(output)).toBe("ok\nCommand failed: exit 1")
+		})
+
+		it("handles array of plain strings", () => {
+			expect(extractToolOutputText(["line 1", "line 2"])).toBe("line 1\nline 2")
+		})
+
+		it("falls back to JSON.stringify for unknown structured output", () => {
+			expect(extractToolOutputText({ foo: "bar" })).toBe('{"foo":"bar"}')
+		})
+
+		it("falls back to JSON.stringify for empty array", () => {
+			expect(extractToolOutputText([])).toBe("[]")
+		})
+
+		it("skips ToolOperationResult entries with empty result and no error", () => {
+			const output = [
+				{ query: "noop", result: "", success: true },
+				{ query: "echo hi", result: "hi", success: true },
+			]
+			expect(extractToolOutputText(output)).toBe("hi")
+		})
+	})
+
+	// ---------------------------------------------------------------------------
+	// command content_end — output formatting
+	// ---------------------------------------------------------------------------
+
+	describe("translateSessionEvent — command content_end output formatting", () => {
+		it("formats ToolOperationResult[] as raw text, not JSON", () => {
+			const state = new MessageTranslatorState()
+			const startEvent: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						input: { commands: ["ls -la"] },
+					} as AgentEvent,
+				},
+			}
+			translateSessionEvent(startEvent, state)
+
+			const endEvent: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						output: [{ query: "ls -la", result: "total 42\nfile1\nfile2", success: true }],
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(endEvent, state)
+			expect(result.messages).toHaveLength(1)
+			const msg = result.messages[0]
+			expect(msg.say).toBe("command")
+			expect(msg.text).toContain("ls -la")
+			expect(msg.text).toContain("Output:")
+			expect(msg.text).toContain("total 42")
+			// Should NOT contain JSON artifacts
+			expect(msg.text).not.toContain('"query"')
+			expect(msg.text).not.toContain('"success"')
+		})
+
+		it("formats string output directly", () => {
+			const state = new MessageTranslatorState()
+			translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c2",
+							input: { commands: ["echo hello"] },
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_end",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c2",
+							output: "hello\n",
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const msg = result.messages[0]
+			expect(msg.text).toContain("echo hello")
+			expect(msg.text).toContain("Output:")
+			expect(msg.text).toContain("hello")
+		})
+
+		it("formats error output", () => {
+			const state = new MessageTranslatorState()
+			translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_start",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c3",
+							input: { commands: ["bad-cmd"] },
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const result = translateSessionEvent(
+				{
+					type: "agent_event",
+					payload: {
+						sessionId: "s1",
+						event: {
+							type: "content_end",
+							contentType: "tool",
+							toolName: "run_commands",
+							toolCallId: "c3",
+							error: "command not found",
+						} as AgentEvent,
+					},
+				},
+				state,
+			)
+
+			const msg = result.messages[0]
+			expect(msg.text).toContain("Error: command not found")
+		})
 	})
 })
