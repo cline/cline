@@ -22,8 +22,8 @@ export abstract class DiffViewProvider {
 	private preDiagnostics: FileDiagnostics[] = []
 	protected relPath?: string
 	protected absolutePath?: string
-	protected fileEncoding: string = "utf8"
-	private originalHadBom = false
+	protected fileEncoding = "utf8"
+	protected originalHadBom = false
 	private streamedLines: string[] = []
 	private newContent?: string
 
@@ -161,7 +161,7 @@ export abstract class DiffViewProvider {
 	 *
 	 * @returns true if the file was saved.
 	 */
-	protected abstract saveDocument(): Promise<Boolean>
+	protected abstract saveDocument(): Promise<boolean>
 
 	/**
 	 * Closes all open diff views.
@@ -355,12 +355,6 @@ export abstract class DiffViewProvider {
 			}
 		}
 
-		// Re-add BOM if the original file had one — update() strips it to prevent
-		// duplication during streaming, but we need to preserve it in the final save.
-		if (this.originalHadBom && !this.newContent.startsWith("\ufeff")) {
-			this.newContent = "\ufeff" + this.newContent
-		}
-
 		await this.saveDocument()
 		// get text after save in case there is any auto-formatting done by the editor
 		const postSaveContent = (await this.getDocumentText()) || ""
@@ -372,12 +366,27 @@ export abstract class DiffViewProvider {
 		const newProblemsMessage =
 			newProblems.length > 0 ? `\n\nNew problems detected after saving the file:\n${newProblems}` : ""
 
+		// Strip any leading BOM so the comparison below isn't thrown off by it:
+		// update() strips the BOM from incoming content before populating the document,
+		// while the host editor may re-add it (or not) on save. Comparing BOM-stripped
+		// strings avoids false "user edited Cline's output" reports on BOM files.
+		const stripBom = (s: string) => (s.startsWith("\ufeff") ? s.slice(1) : s)
+
 		// If the edited content has different EOL characters, we don't want to show a diff with all the EOL differences.
 		const newContentEOL = this.newContent.includes("\r\n") ? "\r\n" : "\n"
-		const normalizedPreSaveContent = preSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
-		const normalizedPostSaveContent = postSaveContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
+		const normalizedPreSaveContent =
+			stripBom(preSaveContent)
+				.replace(/\r\n|\n/g, newContentEOL)
+				.trimEnd() + newContentEOL // trimEnd to fix issue where editor adds in extra new line automatically
+		const normalizedPostSaveContent =
+			stripBom(postSaveContent)
+				.replace(/\r\n|\n/g, newContentEOL)
+				.trimEnd() + newContentEOL // this is the final content we return to the model to use as the new baseline for future edits
 		// just in case the new content has a mix of varying EOL characters
-		const normalizedNewContent = this.newContent.replace(/\r\n|\n/g, newContentEOL).trimEnd() + newContentEOL
+		const normalizedNewContent =
+			stripBom(this.newContent)
+				.replace(/\r\n|\n/g, newContentEOL)
+				.trimEnd() + newContentEOL
 
 		let userEdits: string | undefined
 		if (normalizedPreSaveContent !== normalizedNewContent) {
