@@ -6,6 +6,7 @@
 
 import {
 	ClineCore,
+	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	type HookEventPayload,
 	type SendSessionInput,
@@ -51,7 +52,7 @@ export class VscodeSessionHost implements SessionHost {
 				| undefined,
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
-				applyToStartSessionInput: async (input: StartSessionInput): Promise<StartSessionInput> => {
+				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
 					const extraTools = await createVscodeExtraTools(options.mcpHub)
 					return {
 						...input,
@@ -69,8 +70,10 @@ export class VscodeSessionHost implements SessionHost {
 		return new VscodeSessionHost(inner)
 	}
 
-	async start(input: StartSessionInput): Promise<StartSessionResult> {
-		return this.inner.start(input)
+	async start(input: StartSessionInput): Promise<StartSessionResult>
+	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
+	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
+		return this.inner.start(input as ClineCoreStartInput)
 	}
 
 	async send(input: SendSessionInput) {
@@ -117,10 +120,6 @@ export class VscodeSessionHost implements SessionHost {
 
 	async readMessages(sessionId: string) {
 		return this.inner.readMessages(sessionId)
-	}
-
-	async readTranscript(sessionId: string, maxChars?: number): Promise<string> {
-		return this.inner.readTranscript(sessionId, maxChars)
 	}
 
 	async update(
