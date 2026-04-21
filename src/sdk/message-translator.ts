@@ -399,6 +399,44 @@ function getBooleanField(input: Record<string, unknown> | undefined, field: stri
 	return undefined
 }
 
+/**
+ * Extract raw text output from an SDK tool's output.
+ *
+ * The SDK's run_commands tool returns `ToolOperationResult[]` where each
+ * result has `{ query, result, success, error? }`. The `result` field
+ * contains the raw terminal output as a string. If the output is already
+ * a string, it is returned as-is. If it's an array of ToolOperationResult
+ * objects, extract and join the text from each result.
+ */
+export function extractToolOutputText(output: unknown): string {
+	if (output == null) return ""
+	if (typeof output === "string") return output
+
+	// Handle ToolOperationResult[] from SDK tools (run_commands, search_codebase, etc.)
+	if (Array.isArray(output)) {
+		const parts: string[] = []
+		for (const item of output) {
+			if (typeof item === "string") {
+				parts.push(item)
+			} else if (typeof item === "object" && item !== null) {
+				const record = item as Record<string, unknown>
+				// ToolOperationResult has { query, result, success, error? }
+				if ("result" in record && typeof record.result === "string" && record.result) {
+					parts.push(record.result)
+				} else if ("error" in record && typeof record.error === "string" && record.error) {
+					parts.push(record.error)
+				}
+			}
+		}
+		if (parts.length > 0) {
+			return parts.join("\n")
+		}
+	}
+
+	// Fallback for unknown structured output
+	return JSON.stringify(output)
+}
+
 // ---------------------------------------------------------------------------
 // Agent event translation
 // ---------------------------------------------------------------------------
@@ -587,11 +625,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							getStringField(parsedInput, "commands") ??
 							getStringField(parsedInput, "command") ??
 							""
-						const outputStr = event.error
-							? `Error: ${event.error}`
-							: typeof event.output === "string"
-								? event.output
-								: JSON.stringify(event.output ?? "")
+						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
 						const ts = state.clearStreamingTool()
 						messages.push({
 							ts,
