@@ -9,7 +9,13 @@
 // This matches the CLI's pattern (see apps/cli/src/runtime/interactive-welcome.ts).
 
 import type { OAuthCredentials } from "@clinebot/core"
-import { createOAuthClientCallbacks, loginClineOAuth, loginOcaOAuth, loginOpenAICodex, refreshClineToken } from "@clinebot/core"
+import {
+	createOAuthClientCallbacks,
+	getValidClineCredentials,
+	loginClineOAuth,
+	loginOcaOAuth,
+	loginOpenAICodex,
+} from "@clinebot/core"
 import type { ApiProvider } from "@shared/api"
 import { AuthState, UserInfo } from "@shared/proto/cline/account"
 import type { EmptyRequest, String } from "@shared/proto/cline/common"
@@ -257,6 +263,31 @@ export class AuthService {
 		}
 	}
 
+	private toOAuthCredentials(authInfo: ClineAuthInfo): OAuthCredentials {
+		return {
+			access: authInfo.idToken,
+			refresh: authInfo.refreshToken ?? "",
+			expires: authInfo.expiresAt ? authInfo.expiresAt * 1000 : 0,
+			accountId: authInfo.userInfo.id || undefined,
+			email: authInfo.userInfo.email || undefined,
+		}
+	}
+
+	private async resolveValidClineCredentials(
+		authInfo: ClineAuthInfo,
+		options?: { forceRefresh?: boolean },
+	): Promise<OAuthCredentials | null> {
+		if (options?.forceRefresh && !authInfo.refreshToken) {
+			return null
+		}
+
+		return getValidClineCredentials(
+			this.toOAuthCredentials(authInfo),
+			{ apiBaseUrl: ClineEnv.config().apiBaseUrl },
+			{ forceRefresh: options?.forceRefresh },
+		)
+	}
+
 	// ---- Public API (used by gRPC handlers) ----
 
 	/**
@@ -291,8 +322,8 @@ export class AuthService {
 	}
 
 	/**
-	 * Refresh the access token using the SDK's refreshClineToken().
-	 * Persists refreshed credentials to providers.json.
+	 * Refresh the access token using the SDK's shared Cline credential validator.
+	 * Persists refreshed credentials to providers.json when credentials change.
 	 */
 	private async refreshAccessToken(): Promise<boolean> {
 		if (this._refreshPromise) {
@@ -306,24 +337,30 @@ export class AuthService {
 
 		this._refreshPromise = (async () => {
 			try {
-				const apiBaseUrl = ClineEnv.config().apiBaseUrl
 				const currentInfo = this._clineAuthInfo
-				if (!currentInfo?.refreshToken) {
+				if (!currentInfo) {
 					return undefined
 				}
-				const newCredentials = await refreshClineToken(
-					{
-						access: currentInfo.idToken,
-						refresh: currentInfo.refreshToken,
-						expires: currentInfo.expiresAt ? currentInfo.expiresAt * 1000 : 0,
-						accountId: currentInfo.userInfo.id,
-						email: currentInfo.userInfo.email,
-					},
-					{ apiBaseUrl },
-				)
+				const newCredentials = await this.resolveValidClineCredentials(currentInfo, { forceRefresh: true })
+				if (!newCredentials) {
+					this._clineAuthInfo = null
+					this._authenticated = false
+					clearClineCredentials()
+					setImmediate(() => {
+						this.sendAuthStatusUpdate().catch(() => {})
+					})
+					return undefined
+				}
 
-				// Update auth info with new credentials
-				const userInfo = await this.fetchUserInfoFromApi(newCredentials.access)
+				const credentialsChanged =
+					newCredentials.access !== currentInfo.idToken ||
+					newCredentials.refresh !== (currentInfo.refreshToken ?? "") ||
+					(newCredentials.expires ? newCredentials.expires / 1000 : undefined) !== currentInfo.expiresAt ||
+					(newCredentials.accountId ?? "") !== currentInfo.userInfo.id
+
+				const userInfo = credentialsChanged
+					? await this.fetchUserInfoFromApi(newCredentials.access)
+					: currentInfo.userInfo
 				this._clineAuthInfo = {
 					idToken: newCredentials.access,
 					refreshToken: newCredentials.refresh,
@@ -334,33 +371,24 @@ export class AuthService {
 				}
 				this._authenticated = true
 
-				// Persist refreshed credentials to providers.json
-				writeClineCredentials({
-					accessToken: newCredentials.access,
-					refreshToken: newCredentials.refresh,
-					expiresAt: newCredentials.expires,
-					accountId: this._clineAuthInfo.userInfo.id,
-				})
-
-				// Push auth state update
-				setImmediate(() => {
-					this.sendAuthStatusUpdate().catch((err) => {
-						Logger.error("[SdkAuthService] Error sending auth status update after refresh:", err)
+				if (credentialsChanged) {
+					writeClineCredentials({
+						accessToken: newCredentials.access,
+						refreshToken: newCredentials.refresh,
+						expiresAt: newCredentials.expires,
+						accountId: this._clineAuthInfo.userInfo.id,
 					})
-				})
+
+					setImmediate(() => {
+						this.sendAuthStatusUpdate().catch((err) => {
+							Logger.error("[SdkAuthService] Error sending auth status update after refresh:", err)
+						})
+					})
+				}
 
 				return this._clineAuthInfo.idToken
 			} catch (error) {
 				Logger.error("[SdkAuthService] Token refresh failed:", error)
-				// If it's a permanent failure (invalid token), clear auth state
-				if (error instanceof Error && (error.message.includes("401") || error.message.includes("400"))) {
-					this._clineAuthInfo = null
-					this._authenticated = false
-					clearClineCredentials()
-					setImmediate(() => {
-						this.sendAuthStatusUpdate().catch(() => {})
-					})
-				}
 				return undefined
 			} finally {
 				this._refreshPromise = null
@@ -721,8 +749,7 @@ export class AuthService {
 				return
 			}
 
-			// Build a minimal ClineAuthInfo from providers.json tokens
-			this._clineAuthInfo = {
+			const restoredAuthInfo: ClineAuthInfo = {
 				idToken: creds.accessToken,
 				refreshToken: creds.refreshToken,
 				expiresAt: creds.expiresAt ? creds.expiresAt / 1000 : undefined, // providers.json uses ms, we use seconds
@@ -734,17 +761,35 @@ export class AuthService {
 				},
 				provider: "cline",
 			}
-			this._authenticated = true
 
-			// Try to refresh the token if it's expired
-			const expiresAt = this._clineAuthInfo.expiresAt
-			if (expiresAt) {
-				const currentTime = Date.now() / 1000
-				const bufferSeconds = 5 * 60
-				if (currentTime + bufferSeconds >= expiresAt && creds.refreshToken) {
-					await this.refreshAccessToken()
-				}
+			const validCredentials = await this.resolveValidClineCredentials(restoredAuthInfo)
+			if (!validCredentials) {
+				this._authenticated = false
+				this._clineAuthInfo = null
+				clearClineCredentials()
+				await this.sendAuthStatusUpdate()
+				return
 			}
+
+			writeClineCredentials({
+				accessToken: validCredentials.access,
+				refreshToken: validCredentials.refresh,
+				expiresAt: validCredentials.expires,
+				accountId: validCredentials.accountId ?? restoredAuthInfo.userInfo.id,
+			})
+
+			this._clineAuthInfo = {
+				idToken: validCredentials.access,
+				refreshToken: validCredentials.refresh,
+				expiresAt: validCredentials.expires ? validCredentials.expires / 1000 : undefined,
+				userInfo: {
+					...restoredAuthInfo.userInfo,
+					id: validCredentials.accountId ?? restoredAuthInfo.userInfo.id,
+					email: validCredentials.email ?? restoredAuthInfo.userInfo.email,
+				},
+				provider: restoredAuthInfo.provider,
+			}
+			this._authenticated = true
 
 			// Fetch full user info from the API (the key step — fills in
 			// email, displayName, organizations that providers.json doesn't store)
