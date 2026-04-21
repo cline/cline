@@ -693,3 +693,19 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
   3. **`src/sdk/SdkController.ts`**: Updated `fireAndForgetSend()` `.catch()` to check `isAbortError()` first — if true, log at debug level and return early without emitting error events to the UI.
 - **Verification**: Debug harness test: (1) Start a task with long generation. (2) Cancel during streaming. (3) Verify no `AbortError` in the developer console. (4) Verify the "Resume task" button appears. (5) Send a follow-up message and verify it works.
 - **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit`). All 126 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`).
+
+### S6-39: 'Cline Fetched Content from this URL' tool call appears blank (no URL)
+- **Status**: 🟢 Verified Fixed
+- **Description**: When the agent uses `fetch_web_content`, the tool call in the chat showed "Cline fetched content from this URL:" but the URL was blank — no URL was rendered in the display area.
+- **Root cause**: The SDK's `fetch_web_content` tool uses `{ requests: [{ url, prompt }] }` as its input format (array of request objects), but `sdkToolToClineSayTool()` in `src/sdk/message-translator.ts` only checked for a top-level `url` field via `getStringField(parsedInput, "url")`. Since the URL is nested inside `requests[0].url`, the extraction returned `""`, leaving `tool.path` empty and the webview rendering blank.
+- **Fix applied**: Updated the `fetch_web_content`/`web_fetch` case in `sdkToolToClineSayTool()` to also extract the URL from `parsedInput.requests[0].url` when the top-level `url` field is missing. This handles both the SDK format (`{ requests: [{ url, prompt }] }`) and the classic format (`{ url, prompt }`).
+- **Verification**: 7 new unit tests in `src/sdk/message-translator.test.ts` — S6-39 tests cover: SDK requests array URL extraction, content_end preserving URL from content_start, classic web_fetch backward compat, multiple requests extracting first URL. All 57 tests pass.
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.
+
+### S6-40: 'Cline Loaded the skill' tool call appears blank (no skill name)
+- **Status**: 🟢 Verified Fixed
+- **Description**: When the agent uses the `skills` tool, the tool call in the chat showed "Cline loaded the skill:" but the skill name was blank — no name was rendered.
+- **Root cause**: The SDK's `skills` tool uses `{ skill: "name", args?: "..." }` as its input format, but `sdkToolToClineSayTool()` only checked for `skill_name` and `name` fields. The SDK's field is just `skill`, so the extraction returned `""`, leaving `tool.path` empty.
+- **Fix applied**: Added `getStringField(parsedInput, "skill")` to the fallback chain in the `skills`/`use_skill` case, between `skill_name` (classic) and `name` (generic fallback). This handles all three input formats.
+- **Verification**: 3 new unit tests in `src/sdk/message-translator.test.ts` — S6-40 tests cover: SDK `skill` field extraction, content_end preserving skill name, classic `skill_name` backward compat. All 57 tests pass.
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.
