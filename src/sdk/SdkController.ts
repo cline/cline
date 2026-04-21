@@ -165,6 +165,31 @@ export class Controller {
 		Logger.log("[SdkController] Disposed")
 	}
 
+	// ---- Workspace root resolution ----
+
+	/**
+	 * Get the user's workspace root directory.
+	 *
+	 * In VSCode this resolves to `vscode.workspace.workspaceFolders[0]` via
+	 * `HostProvider.workspace.getWorkspacePaths()`. Falls back to
+	 * `process.cwd()` only when no workspace folder is open (e.g. when the
+	 * user opens VSCode without a folder).
+	 *
+	 * The classic extension used `vscode.workspace.workspaceFolders[0].uri.fsPath`
+	 * directly; using HostProvider keeps this host-agnostic.
+	 */
+	private async getWorkspaceRoot(): Promise<string> {
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			if (paths.length > 0 && paths[0]) {
+				return paths[0]
+			}
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to get workspace paths, falling back to process.cwd():", error)
+		}
+		return process.cwd()
+	}
+
 	// ---- Message persistence ----
 
 	/**
@@ -459,7 +484,7 @@ export class Controller {
 			await this.clearTask()
 
 			// Build session config from current state
-			const cwd = process.cwd()
+			const cwd = await this.getWorkspaceRoot()
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
@@ -568,7 +593,7 @@ export class Controller {
 			}
 
 			// Build session config from the history item's context
-			const cwd = historyItem.cwdOnTaskInitialization ?? process.cwd()
+			const cwd = historyItem.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
 			const config = await buildSessionConfig({
 				cwd,
 				mode: "act", // Default to act mode for resumed tasks
@@ -847,7 +872,7 @@ export class Controller {
 		// Look up the HistoryItem for cwd and metadata
 		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === taskId)
-		const cwd = historyItem?.cwdOnTaskInitialization ?? process.cwd()
+		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
 
 		// Build a new session config, reusing the old task ID
 		const modeValue = this.stateManager.getGlobalSettingsKey("mode")
@@ -1341,7 +1366,7 @@ export class Controller {
 
 		try {
 			// 1. Build fresh session config (same provider/model/mode)
-			const cwd = process.cwd()
+			const cwd = await this.getWorkspaceRoot()
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({ cwd, mode })
