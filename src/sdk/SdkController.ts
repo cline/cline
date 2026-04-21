@@ -51,6 +51,17 @@ function stubWarn(name: string): void {
 	Logger.warn(`[SdkController] STUB: ${name} not yet implemented`)
 }
 
+/**
+ * Check if an error is an AbortError — the expected result of calling
+ * AbortController.abort() during task cancellation.
+ */
+function isAbortError(error: unknown): boolean {
+	if (error instanceof Error) {
+		return error.name === "AbortError" || error.message.toLowerCase().includes("aborted")
+	}
+	return false
+}
+
 // ---------------------------------------------------------------------------
 // Event listener type
 // ---------------------------------------------------------------------------
@@ -449,6 +460,13 @@ export class Controller {
 				})
 			})
 			.catch((error: unknown) => {
+				// AbortError is expected when the user cancels a running task.
+				// The cancelTask() method handles emitting the appropriate UI
+				// messages, so we just silently absorb the error here.
+				if (isAbortError(error)) {
+					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					return
+				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				this.emitSessionEvents(
 					[
@@ -647,30 +665,39 @@ export class Controller {
 			return
 		}
 
+		const { sessionManager, sessionId } = this.activeSession
+
 		try {
-			const { sessionManager, sessionId } = this.activeSession
 			await sessionManager.abort(sessionId)
-			this.activeSession.isRunning = false
-
-			// Emit cancellation message
-			this.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "info",
-						text: "Task cancelled",
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId, status: "cancelled" } },
-			)
-
-			await this.postStateToWebview()
-			Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 		} catch (error) {
-			Logger.error("[SdkController] Failed to cancel task:", error)
+			// AbortError is the expected result of AbortController.abort() — suppress it.
+			if (!isAbortError(error)) {
+				Logger.error("[SdkController] Failed to abort session:", error)
+			} else {
+				Logger.debug(`[SdkController] AbortError during cancelTask (expected): ${sessionId}`)
+			}
 		}
+
+		this.activeSession.isRunning = false
+
+		// Emit resume_task ask so the webview shows the "Resume task" button
+		// and enables follow-up message input. This mirrors the classic
+		// extension's behavior in Task.abortTask().
+		const resumeMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "resume_task",
+			text: "",
+			partial: false,
+		}
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([resumeMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([resumeMessage], { type: "status", payload: { sessionId, status: "cancelled" } })
+
+		await this.postStateToWebview()
+		Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {

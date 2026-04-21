@@ -95,7 +95,19 @@ export class VscodeSessionHost implements SessionHost {
 	}
 
 	async abort(sessionId: string, reason?: unknown): Promise<void> {
-		return this.inner.abort(sessionId, reason)
+		try {
+			return await this.inner.abort(sessionId, reason)
+		} catch (error) {
+			// AbortError is expected when cancelling a running task —
+			// AbortController.abort() fires synchronously and may cause
+			// listeners to throw. Suppress it here so callers don't
+			// need to handle it.
+			if (error instanceof Error && (error.name === "AbortError" || error.message.toLowerCase().includes("aborted"))) {
+				Logger.debug(`[VscodeSessionHost] AbortError during abort (expected): ${sessionId}`)
+				return
+			}
+			throw error
+		}
 	}
 
 	async stop(sessionId: string): Promise<void> {
