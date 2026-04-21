@@ -619,3 +619,11 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
   3. Additional SDK tool-name mappings were added (`execute_command`, `write_to_file`, `search_files`, etc.) to improve ChatView tool rendering compatibility.
 - **Verification**: Run prompt paths that trigger multi-file reads and then assistant summary text; verify all files are listed and assistant text remains visible.
 - **Evidence**: Commits `bc3590534` and `26614a007`, plus added tests in `src/sdk/message-translator.test.ts` and `webview-ui/src/components/chat/chat-view/utils/messageUtils.test.ts`.
+
+### S6-45: React warns about `isActive` prop forwarded to DOM element
+- **Status**: 🟢 Verified Fixed
+- **Description**: React console warning: "React does not recognize the `isActive` prop on a DOM element." The `StyledTabButton` in `ClineRulesToggleModal.tsx` passed `isActive` as a styled-components prop, which was forwarded to the underlying `<button>` DOM element.
+- **Root cause**: styled-components forwards all props to the DOM unless filtered. The `isActive` prop was used only for CSS interpolation but leaked to the DOM.
+- **Fix applied**: Renamed `isActive` to `$isActive` (styled-components transient prop prefix) in the `StyledTabButton` type, CSS interpolations, and JSX usage. The dollar-sign prefix tells styled-components to consume the prop for styling without forwarding it to the DOM. The public `TabButton` component API is unchanged.
+- **Verification**: Open the Cline Rules modal — no React console warning about `isActive` on a DOM element.
+- **Evidence**: TypeScript compiles cleanly. The `McpConfigurationView.tsx` version of `StyledTabButton` already used `shouldForwardProp` to filter `isActive` — this fix aligns the `ClineRulesToggleModal.tsx` version using the more idiomatic transient prop approach.
