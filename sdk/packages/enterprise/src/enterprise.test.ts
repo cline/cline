@@ -332,6 +332,7 @@ describe("sdk-enterprise", () => {
 					cwd: workspacePath,
 					workspaceRoot: workspacePath,
 					systemPrompt: "You are concise.",
+					mode: "act",
 					enableTools: true,
 					enableSpawnAgent: false,
 					enableAgentTeams: false,
@@ -341,7 +342,7 @@ describe("sdk-enterprise", () => {
 			});
 
 			expect(startInput.config.extensions).toHaveLength(1);
-			expect(startInput.userInstructionWatcher).toBeUndefined();
+			expect(startInput.localRuntime?.userInstructionWatcher).toBeUndefined();
 			expect(startInput.config.telemetry).toBeDefined();
 			expect(startInput.config.sessionId).toBeDefined();
 			expect(startInput.sessionMetadata).toMatchObject({
@@ -498,7 +499,6 @@ describe("sdk-enterprise", () => {
 					enableSpawn: false,
 					enableTeams: false,
 					isSubagent: false,
-					transcriptPath: "/tmp/session-123.log",
 					messagesPath: "/tmp/session-123.messages.json",
 					updatedAt: "2026-04-10T19:00:00.000Z",
 					metadata: startInput.sessionMetadata,
@@ -532,7 +532,6 @@ describe("sdk-enterprise", () => {
 					enableSpawn: false,
 					enableTeams: false,
 					isSubagent: false,
-					transcriptPath: "/tmp/session-123.log",
 					messagesPath: "/tmp/session-123.messages.json",
 					updatedAt: "2026-04-10T19:00:00.000Z",
 					metadata: startInput.sessionMetadata,

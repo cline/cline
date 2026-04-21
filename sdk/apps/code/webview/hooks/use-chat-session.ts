@@ -172,7 +172,7 @@ export function useChatSession() {
 	const [activeAssistantMessageId, setActiveAssistantMessageId] = useState<
 		string | null
 	>(null);
-	const [_hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
+	const [hydratedHistorySessionId, setHydratedHistorySessionId] = useState<
 		string | null
 	>(null);
 	const [pendingToolApprovals, setPendingToolApprovals] = useState<
@@ -750,6 +750,18 @@ export function useChatSession() {
 			}
 			const parsed = validation.parsed;
 
+			if (activeSessionId && hydratedHistorySessionId === activeSessionId) {
+				try {
+					activeSessionId = await startSession({
+						...parsed,
+						sessionId: activeSessionId,
+					});
+				} catch (err) {
+					setErrorState(errorMessage(err), activeSessionId);
+					return;
+				}
+			}
+
 			if (!activeSessionId) {
 				try {
 					activeSessionId = await startSession(parsed);
@@ -1004,6 +1016,7 @@ export function useChatSession() {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
+			hydratedHistorySessionId,
 			materializeToolMessagesFromResult,
 			refreshSessionDiffSummary,
 			sessionId,
@@ -1134,13 +1147,6 @@ export function useChatSession() {
 
 	const reset = useCallback(async () => {
 		const activeSessionId = sessionId;
-		if (activeSessionId) {
-			try {
-				await postSession({ action: "reset", sessionId: activeSessionId });
-			} catch {
-				// Best-effort reset path.
-			}
-		}
 		setSessionId(null);
 		setStatus("idle");
 		setIsHydratingSession(false);
@@ -1150,6 +1156,10 @@ export function useChatSession() {
 		setRawTranscript("");
 		setError(null);
 		resetCounters();
+		setConfig((prev) => ({
+			...prev,
+			sessionId: undefined,
+		}));
 		activeSessionIdRef.current = null;
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
@@ -1157,6 +1167,13 @@ export function useChatSession() {
 		setPendingToolApprovals([]);
 		setPromptsInQueue([]);
 		clearLiveToolRefs();
+		if (activeSessionId) {
+			try {
+				await postSession({ action: "reset", sessionId: activeSessionId });
+			} catch {
+				// Best-effort reset path.
+			}
+		}
 	}, [
 		sessionId,
 		clearAbortFallbackTimeout,
@@ -1177,6 +1194,7 @@ export function useChatSession() {
 			setSessionId(session.sessionId);
 			setConfig((prev) => ({
 				...prev,
+				sessionId: session.sessionId,
 				provider: session.provider || prev.provider,
 				model: session.model || prev.model,
 				workspaceRoot: session.workspaceRoot || prev.workspaceRoot,
@@ -1223,24 +1241,6 @@ export function useChatSession() {
 						content: session.prompt.trim(),
 						createdAt: Date.now(),
 					});
-				}
-				try {
-					const transcript = await desktopClient.invoke<string>(
-						"read_session_transcript",
-						{ sessionId: session.sessionId, maxChars: 20000 },
-					);
-					const text = transcript.trim();
-					if (text) {
-						synthesized.push({
-							id: makeId("history_assistant"),
-							sessionId: session.sessionId,
-							role: "assistant",
-							content: text,
-							createdAt: Date.now(),
-						});
-					}
-				} catch {
-					// Ignore transcript fallback failures.
 				}
 				void refreshPromptsInQueue(session.sessionId);
 				applyHydratedMessages(synthesized, session.status);

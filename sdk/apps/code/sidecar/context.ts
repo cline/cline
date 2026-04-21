@@ -4,7 +4,7 @@ import { dirname } from "node:path";
 import {
 	type CoreSessionEvent,
 	CoreSessionService,
-	DefaultSessionManager,
+	LocalRuntimeHost,
 	ProviderSettingsManager,
 	SqliteSessionStore,
 	setHomeDirIfUnset,
@@ -383,7 +383,7 @@ export async function initializeSessionManager(
 	const sessionService = new CoreSessionService(store);
 	const providerSettingsManager = new ProviderSettingsManager();
 
-	const sessionManager = new DefaultSessionManager({
+	const sessionManager = new LocalRuntimeHost({
 		sessionService,
 		providerSettingsManager,
 		defaultToolExecutors: {

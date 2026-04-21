@@ -1,7 +1,7 @@
 import type { AgentConfig, Tool } from "@clinebot/shared";
 import YAML from "yaml";
 import { z } from "zod";
-import { ALL_DEFAULT_TOOL_NAMES, type DefaultToolName } from "../../tools";
+import { ALL_DEFAULT_TOOL_NAMES, type DefaultToolName } from "../tools/";
 
 const AgentConfigFrontmatterSchema = z.object({
 	name: z.string().trim().min(1),

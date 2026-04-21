@@ -11,7 +11,7 @@ import {
 import { getValidOpenAICodexCredentials } from "../auth/codex";
 import { getValidOcaCredentials } from "../auth/oca";
 import { decodeJwtPayload } from "../auth/utils";
-import { ProviderSettingsManager } from "../storage/provider-settings-manager";
+import { ProviderSettingsManager } from "../services/storage/provider-settings-manager";
 
 const DEFAULT_CLINE_API_BASE_URL = "https://api.cline.bot";
 const WORKOS_TOKEN_PREFIX = "workos:";

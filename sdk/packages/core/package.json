@@ -15,15 +15,10 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
-		"./node": {
-			"development": "./src/index.ts",
-			"types": "./dist/index.d.ts",
-			"import": "./dist/index.js"
-		},
 		"./telemetry": {
-			"development": "./src/telemetry/index.ts",
-			"types": "./dist/telemetry/index.d.ts",
-			"import": "./dist/telemetry/index.js"
+			"development": "./src/services/telemetry/index.ts",
+			"types": "./dist/services/telemetry/index.d.ts",
+			"import": "./dist/services/telemetry/index.js"
 		}
 	},
 	"scripts": {

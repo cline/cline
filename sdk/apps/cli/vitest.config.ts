@@ -11,7 +11,7 @@ export default defineConfig({
 				find: /^@clinebot\/core\/telemetry$/,
 				replacement: resolve(
 					rootDir,
-					"../../packages/core/src/telemetry/index.ts",
+					"../../packages/core/src/services/telemetry/index.ts",
 				),
 			},
 			{

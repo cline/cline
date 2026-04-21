@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import { createBuiltinTools } from "../tools";
+import { createBuiltinTools } from "../extensions/tools";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
 
 type LegacyConfig = {

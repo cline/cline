@@ -2,8 +2,8 @@ import {
 	type AgentHooks,
 	CoreSessionService,
 	createPersistentSubprocessHooks,
-	DefaultSessionManager,
 	type Llms,
+	LocalRuntimeHost,
 	type PersistentSubprocessHookControl,
 	SqliteSessionStore,
 } from "@clinebot/core";
@@ -286,7 +286,7 @@ class RpcRuntimeHookService {
 export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 	const RPC_SESSION_COMPONENT = "rpc-runtime-session";
 	const processId = process.pid.toString();
-	const sessionManager = new DefaultSessionManager({
+	const sessionManager = new LocalRuntimeHost({
 		sessionService: new CoreSessionService(new SqliteSessionStore(), {
 			messagesArtifactUploader: createCliMessagesArtifactUploader(),
 		}),
@@ -371,7 +371,13 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 					runtimeClientId,
 					sessionId,
 				});
-			const started = await sessionManager.start(startedConfig.sessionInput);
+			const started = await sessionManager.start({
+				...startedConfig.sessionInput,
+				config: {
+					...startedConfig.sessionInput.config,
+					mode: startedConfig.sessionInput.config.mode ?? "act",
+				},
+			});
 			runtimeLogger.log("RPC runtime session started", {
 				sessionId: started.sessionId,
 				mode: startedConfig.mode,
@@ -384,7 +390,6 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 				startResult: {
 					sessionId: started.sessionId,
 					manifestPath: started.manifestPath,
-					transcriptPath: started.transcriptPath,
 					messagesPath: started.messagesPath,
 				},
 			};
@@ -447,9 +452,16 @@ export function createRpcRuntimeHandlers(): RpcRuntimeHandlers {
 						| undefined,
 					hooks: hookService.hooks,
 				});
-				const restoredStarted = await sessionManager.start(
-					restoredConfig.sessionInput,
-				);
+				const restoredSessionConfig = restoredConfig.sessionInput.config;
+				const restoredStarted = await sessionManager.start({
+					...restoredConfig.sessionInput,
+					config: {
+						...restoredSessionConfig,
+						mode: restoredSessionConfig.mode ?? "act",
+					} as typeof restoredSessionConfig & {
+						mode: NonNullable<typeof restoredSessionConfig.mode>;
+					},
+				});
 				hookService.registerSession(restoredStarted.sessionId);
 				runtimeLogger.log(
 					"RPC runtime session restored after missing session",

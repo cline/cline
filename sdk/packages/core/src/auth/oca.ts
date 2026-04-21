@@ -6,7 +6,7 @@ import {
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
-} from "../telemetry/core-events";
+} from "../services/telemetry/core-events";
 import { BoundedTtlCache } from "./bounded-ttl-cache";
 import { startLocalOAuthServer } from "./server";
 import type {

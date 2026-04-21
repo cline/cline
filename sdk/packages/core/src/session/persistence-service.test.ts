@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { SqliteSessionStore } from "../storage/sqlite-session-store";
+import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import { SessionSource } from "../types/common";
 import { CoreSessionService } from "./session-service";
 
@@ -75,16 +75,12 @@ describe("UnifiedSessionPersistenceService", () => {
 			(manifest.metadata as Record<string, unknown>).terminal_marker_at,
 		).toBeTruthy();
 
-		expect(existsSync(artifacts.transcriptPath)).toBe(true);
 		const globalHookLog = process.env.CLINE_HOOKS_LOG_PATH ?? "";
 		if (globalHookLog && existsSync(globalHookLog)) {
 			const hookContent = readFileSync(globalHookLog, "utf8");
 			expect(hookContent).toContain('"hookName":"session_shutdown"');
 			expect(hookContent).toContain('"reason":"failed_external_process_exit"');
 		}
-		expect(readFileSync(artifacts.transcriptPath, "utf8")).toContain(
-			"[shutdown] failed_external_process_exit",
-		);
 	}, 15_000);
 
 	it("persists teammate task metadata in the file envelope and usage on messages", async () => {
@@ -201,11 +197,6 @@ describe("UnifiedSessionPersistenceService", () => {
 			cost: 0.123,
 		});
 		expect(row?.messagesPath).toBe(path);
-		expect(row?.transcriptPath).toBeTruthy();
-		expect(row?.transcriptPath).toContain(
-			join(sessionsDir, rootSessionId, "java-haiku-agent__"),
-		);
-		expect(row?.transcriptPath).toMatch(/\.log$/);
 	});
 
 	it("uploads messages after persisting them when a messages uploader is configured", async () => {

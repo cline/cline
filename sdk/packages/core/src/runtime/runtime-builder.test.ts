@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
-import { TelemetryService } from "../telemetry/TelemetryService";
+import { TelemetryService } from "../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
 

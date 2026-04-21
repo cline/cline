@@ -16,13 +16,6 @@ import {
 	registerMcpServersFromSettingsFile,
 	resolveDefaultMcpSettingsPath,
 } from "../extensions/mcp";
-import { createLocalTeamStore } from "../storage/team-store";
-import {
-	AgentTeamsRuntime,
-	bootstrapAgentTeams,
-	createDelegatedAgentConfigProvider,
-	type TeamEvent,
-} from "../team";
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
@@ -32,7 +25,14 @@ import {
 	type ToolExecutors,
 	ToolPresets,
 	type ToolRoutingRule,
-} from "../tools";
+} from "../extensions/tools";
+import {
+	AgentTeamsRuntime,
+	bootstrapAgentTeams,
+	createDelegatedAgentConfigProvider,
+	type TeamEvent,
+} from "../extensions/tools/team";
+import { createLocalTeamStore } from "../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../types/config";
 import type {
 	RuntimeBuilder,

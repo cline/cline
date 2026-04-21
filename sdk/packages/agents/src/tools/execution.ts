@@ -90,6 +90,12 @@ export async function executeTool(
 	const timeoutMs = tool.timeoutMs ?? 30000;
 	let timeoutId: ReturnType<typeof setTimeout> | undefined;
 	let abortHandler: (() => void) | undefined;
+	const toolPromise = Promise.resolve().then(() =>
+		tool.execute(input, context, onChange),
+	);
+	// Keep a rejection handler attached to the underlying tool promise so a
+	// timeout/abort winning the race does not leave a late rejection unhandled.
+	void toolPromise.catch(() => undefined);
 
 	// Create a timeout promise
 	const timeoutPromise = new Promise<never>((_, reject) => {
@@ -114,10 +120,7 @@ export async function executeTool(
 
 	try {
 		// Execute with timeout and optional abort
-		const promises: Promise<unknown>[] = [
-			tool.execute(input, context, onChange),
-			timeoutPromise,
-		];
+		const promises: Promise<unknown>[] = [toolPromise, timeoutPromise];
 		if (abortPromise) {
 			promises.push(abortPromise);
 		}

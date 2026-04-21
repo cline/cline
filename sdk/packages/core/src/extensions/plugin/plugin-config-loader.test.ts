@@ -168,10 +168,12 @@ describe("plugin-config-loader", () => {
 				cwd: root,
 			});
 
-			expect(loaded.extensions.map((plugin) => plugin.name)).toEqual([
-				"duplicate-plugin",
-			]);
-			expect(loaded.extensions[0]?.manifest.capabilities).toEqual(["commands"]);
+			// Filter to only our test plugins to ignore any discovered system plugins
+			const testPlugins = loaded.extensions.filter(
+				(plugin) => plugin.name === "duplicate-plugin",
+			);
+			expect(testPlugins).toHaveLength(1);
+			expect(testPlugins[0]?.manifest.capabilities).toEqual(["commands"]);
 			expect(loaded.failures).toHaveLength(1);
 			expect(loaded.warnings).toHaveLength(1);
 			expect(loaded.warnings[0]?.overriddenPluginPath).toBe(first);

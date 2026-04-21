@@ -9,12 +9,12 @@ import type {
 	Tool,
 } from "@clinebot/shared";
 import type { UserInstructionConfigWatcher } from "../extensions/config";
+import type { ToolExecutors } from "../extensions/tools";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,
 	TeamEvent,
-} from "../team";
-import type { ToolExecutors } from "../tools";
+} from "../extensions/tools/team";
 import type { CoreSessionConfig } from "../types/config";
 
 export interface BuiltRuntime {

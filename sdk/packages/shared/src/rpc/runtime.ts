@@ -47,7 +47,6 @@ export interface RpcChatStartSessionRequest extends RpcChatRuntimeConfigBase {
 export interface RpcChatStartSessionArtifacts {
 	sessionId: string;
 	manifestPath: string;
-	transcriptPath: string;
 	messagesPath: string;
 }
 

@@ -4,6 +4,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
 	Sidebar,
 	SidebarInset,
 	SidebarProvider,
@@ -15,6 +25,7 @@ import { DiffView } from "@/components/views/chat/diff-view";
 import { SettingsView } from "@/components/views/settings/settings-view";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	getSessionMetadataTitle,
@@ -91,6 +102,11 @@ export default function Home() {
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
 			const historyThreadId = `session_${deletedSessionId}`;
+			const deletedWasActive =
+				activeThreadId === deletedThreadId ||
+				activeThreadId === historyThreadId;
+			const fallback = deletedWasActive ? { id: makeThreadId() } : null;
+			let emptyFallbackId: string | null = null;
 			setThreads((prev) => {
 				const next = prev.filter(
 					(thread) =>
@@ -98,21 +114,22 @@ export default function Home() {
 						thread.id !== historyThreadId &&
 						thread.historySession?.sessionId !== deletedSessionId,
 				);
-				const deletedWasActive =
-					activeThreadId === deletedThreadId ||
-					activeThreadId === historyThreadId;
-				if (deletedWasActive) {
-					const fallback = { id: makeThreadId() };
-					setActiveThreadId(fallback.id);
+				if (fallback) {
 					return [...next, fallback];
 				}
 				if (next.length === 0) {
-					const fallback = { id: makeThreadId() };
-					setActiveThreadId(fallback.id);
-					return [fallback];
+					emptyFallbackId = makeThreadId();
+					return [{ id: emptyFallbackId }];
 				}
 				return next;
 			});
+			if (fallback) {
+				setActiveThreadId(fallback.id);
+				return;
+			}
+			if (emptyFallbackId) {
+				setActiveThreadId(emptyFallbackId);
+			}
 		},
 		[activeThreadId],
 	);
@@ -136,6 +153,22 @@ export default function Home() {
 		},
 		[],
 	);
+
+	useEffect(() => {
+		return desktopClient.subscribe("session_deleted", (payload) => {
+			if (!payload || typeof payload !== "object") {
+				return;
+			}
+			const sessionId =
+				typeof (payload as { sessionId?: unknown }).sessionId === "string"
+					? (payload as { sessionId: string }).sessionId.trim()
+					: "";
+			if (!sessionId) {
+				return;
+			}
+			handleDeleteSession(sessionId);
+		});
+	}, [handleDeleteSession]);
 
 	const activeHistorySessionId =
 		threads.find((thread) => thread.id === activeThreadId)?.historySession
@@ -227,6 +260,7 @@ function ChatThreadPane({
 	const [pendingAttachments, setPendingAttachments] = useState<File[]>([]);
 	const [showDiffView, setShowDiffView] = useState(false);
 	const [deletingSession, setDeletingSession] = useState(false);
+	const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
 	const [renamingSession, setRenamingSession] = useState(false);
 	const [manualTitle, setManualTitle] = useState("");
 	const [dismissedHistorySessionId, setDismissedHistorySessionId] = useState<
@@ -578,23 +612,43 @@ function ChatThreadPane({
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
 
+	const requestDeleteSession = useCallback(() => {
+		console.error(
+			`[webview:delete] handler activeSessionToDelete=${activeSessionToDelete ?? "null"} deletingSession=${deletingSession}`,
+		);
+		if (!activeSessionToDelete || deletingSession) {
+			return;
+		}
+		console.error(
+			`[webview:delete] confirm sessionId=${activeSessionToDelete}`,
+		);
+		setDeleteConfirmOpen(true);
+	}, [activeSessionToDelete, deletingSession]);
+
 	const handleDeleteSession = useCallback(async () => {
 		if (!activeSessionToDelete || deletingSession) {
 			return;
 		}
-		if (!window.confirm("Delete this session permanently?")) {
-			return;
-		}
-
 		setDeletingSession(true);
 		try {
+			console.error(
+				`[webview:delete] invoke delete_chat_session sessionId=${activeSessionToDelete}`,
+			);
 			const deleted = await desktopClient.invoke<boolean>(
 				"delete_chat_session",
 				{
 					sessionId: activeSessionToDelete,
 				},
 			);
+			console.error(
+				`[webview:delete] invoke result sessionId=${activeSessionToDelete} deleted=${deleted}`,
+			);
 			if (!deleted) {
+				toast({
+					variant: "destructive",
+					title: "Delete failed",
+					description: "The session could not be removed from local history.",
+				});
 				return;
 			}
 			setDismissedHistorySessionId(activeSessionToDelete);
@@ -613,9 +667,21 @@ function ChatThreadPane({
 			setPendingAttachments([]);
 			setShowDiffView(false);
 			void reset();
-		} catch {
-			// Keep current state when deletion fails.
+		} catch (error) {
+			console.error(
+				`[webview:delete] invoke error sessionId=${activeSessionToDelete} error=${error instanceof Error ? error.message : String(error)}`,
+			);
+			const description =
+				error instanceof Error
+					? error.message
+					: "The session could not be removed from local history.";
+			toast({
+				variant: "destructive",
+				title: "Delete failed",
+				description,
+			});
 		} finally {
+			setDeleteConfirmOpen(false);
 			setDeletingSession(false);
 		}
 	}, [
@@ -747,7 +813,7 @@ function ChatThreadPane({
 							additions: summary.additions,
 							deletions: summary.deletions,
 						}}
-						onDeleteSession={() => void handleDeleteSession()}
+						onDeleteSession={requestDeleteSession}
 						onNewThread={onNewThread}
 						onOpenDiff={() => {
 							if (hasDiffChanges) {
@@ -870,6 +936,41 @@ function ChatThreadPane({
 					/>
 				</div>
 			</div>
+			<AlertDialog
+				open={deleteConfirmOpen}
+				onOpenChange={(open) => {
+					if (deletingSession) {
+						return;
+					}
+					if (!open) {
+						console.error(
+							`[webview:delete] cancelled sessionId=${activeSessionToDelete ?? "null"}`,
+						);
+					}
+					setDeleteConfirmOpen(open);
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete Session?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This session will be removed from local history.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={deletingSession}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							disabled={deletingSession}
+							onClick={() => void handleDeleteSession()}
+						>
+							{deletingSession ? "Deleting..." : "Delete"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</WorkspaceProvider>
 	);
 }

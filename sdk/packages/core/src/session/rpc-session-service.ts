@@ -1,12 +1,12 @@
 import { existsSync, mkdirSync } from "node:fs";
 import { RpcSessionClient, type RpcSessionRow } from "@clinebot/rpc";
+import type { SessionMessagesArtifactUploader } from "../types/session";
 import type {
 	PersistedSessionUpdateInput,
 	SessionPersistenceAdapter,
 } from "./persistence-service";
 import { UnifiedSessionPersistenceService } from "./persistence-service";
 import type { SessionRow } from "./session-service";
-import type { SessionMessagesArtifactUploader } from "./utils/types";
 
 // ── Adapter ──────────────────────────────────────────────────────────
 

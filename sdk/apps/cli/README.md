@@ -44,7 +44,7 @@ bun cli/dist/index.js "your prompt"
 
 Dev runtime note:
 
-- Distinct host ID resolution is handled by `@clinebot/core/node` `createSessionHost(...)`.
+- Distinct host ID resolution is handled by `@clinebot/core` `createRuntimeHost(...)`.
 - When no explicit `distinctId` is provided, core uses `node-machine-id` first and only persists a generated fallback at `<session-data-dir>/machine-id` if machine ID lookup is unavailable.
 
 ## Publishing

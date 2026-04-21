@@ -1,3 +1,4 @@
+import type { SessionHistoryRecord } from "@clinebot/core";
 import {
 	formatDisplayUserInput,
 	formatHumanReadableDate,
@@ -6,7 +7,6 @@ import {
 import { Box, Text, useInput } from "ink";
 import React, { useMemo, useState } from "react";
 import { deleteSession } from "../../session/session";
-import type { HistoryListRow } from "../../session/session-history-rows";
 import { formatUsd } from "../../utils/output";
 
 function formatHistoryTitle(
@@ -19,7 +19,7 @@ function formatHistoryTitle(
 	return truncateStr(normalized.replace(/\s+/g, " "), 40);
 }
 
-function formatCheckpointSummary(row: HistoryListRow): string {
+function formatCheckpointSummary(row: SessionHistoryRecord): string {
 	const checkpoint = row.metadata?.checkpoint;
 	const count = checkpoint?.history?.length ?? 0;
 	const latestRun = checkpoint?.latest?.runCount;
@@ -32,7 +32,9 @@ function formatCheckpointSummary(row: HistoryListRow): string {
 	return ` - checkpoints:${count}`;
 }
 
-export function formatCheckpointBadge(row: HistoryListRow): string | undefined {
+export function formatCheckpointBadge(
+	row: SessionHistoryRecord,
+): string | undefined {
 	const checkpoint = row.metadata?.checkpoint;
 	const count = checkpoint?.history?.length ?? 0;
 	const latestRun = checkpoint?.latest?.runCount;
@@ -46,7 +48,7 @@ export function formatCheckpointBadge(row: HistoryListRow): string | undefined {
 }
 
 export function formatCheckpointDetail(
-	row: HistoryListRow,
+	row: SessionHistoryRecord,
 ): string | undefined {
 	const checkpoint = row.metadata?.checkpoint;
 	const count = checkpoint?.history?.length ?? 0;
@@ -66,7 +68,7 @@ export function formatCheckpointDetail(
 	return `Checkpoint ${shortRef}${latestRun} created ${created}. ${count} total. Restore with: clite checkpoint restore latest --session-id ${row.sessionId}`;
 }
 
-export function formatHistoryListLine(row: HistoryListRow): string {
+export function formatHistoryListLine(row: SessionHistoryRecord): string {
 	const title = formatHistoryTitle(row.metadata?.title, row.prompt);
 	if (!title) return "";
 	const cost = formatUsd(row.metadata?.totalCost ?? 0, 2);
@@ -80,7 +82,7 @@ export function formatHistoryListLine(row: HistoryListRow): string {
 }
 
 export interface HistoryListViewProps {
-	rows: HistoryListRow[];
+	rows: SessionHistoryRecord[];
 	onSelect: (sessionId: string) => void;
 	onExit: () => void;
 }

@@ -1,5 +1,5 @@
-import { deleteSession, updateSession } from "../session/session";
-import { listHistoryRows } from "../session/session-history-rows";
+import type { SessionHistoryRecord } from "@clinebot/core";
+import { deleteSession, listSessions, updateSession } from "../session/session";
 import { writeln } from "../utils/output";
 import type { CliOutputMode } from "../utils/types";
 
@@ -112,7 +112,7 @@ export async function runHistoryList(input: {
 	};
 	const limit = Number.isFinite(input.limit) ? input.limit : 200;
 
-	const hydratedRows = await listHistoryRows(limit);
+	const hydratedRows = await listSessions(limit);
 	if (hydratedRows.length === 0) {
 		if (input.outputMode === "json") {
 			process.stdout.write(JSON.stringify([]));
@@ -137,7 +137,7 @@ export async function runHistoryList(input: {
 	return new Promise((resolve) => {
 		const { unmount } = render(
 			React.createElement(HistoryListView, {
-				rows: hydratedRows,
+				rows: hydratedRows as SessionHistoryRecord[],
 				onSelect: (sessionId) => {
 					unmount();
 					resolve(sessionId);

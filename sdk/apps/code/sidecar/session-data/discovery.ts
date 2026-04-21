@@ -1,4 +1,6 @@
-import { existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { SqliteSessionStore } from "@clinebot/core";
 import { readSessionManifest, sharedSessionDataDir } from "../paths";
 import type { JsonRecord } from "../types";
 import {
@@ -44,6 +46,7 @@ export function discoverChatSessions(
 	limit = 300,
 ): unknown[] {
 	const out: JsonRecord[] = [];
+	const store = new SqliteSessionStore();
 	for (const [sessionId, session] of ctx.liveSessions.entries()) {
 		if (!session.busy && !session.prompt && session.messages.length === 0) {
 			continue;
@@ -82,6 +85,14 @@ export function discoverChatSessions(
 			// Skip subagent / team-task child sessions — they are shown
 			// under their parent, not as top-level sidebar entries.
 			if (sessionId.includes("__teamtask__") || sessionId.includes("__sub__")) {
+				continue;
+			}
+			if (!store.get(sessionId)) {
+				try {
+					rmSync(join(base, sessionId), { recursive: true, force: true });
+				} catch {
+					// Ignore cleanup failures and keep orphaned artifacts hidden.
+				}
 				continue;
 			}
 			const manifest = readSessionManifest(sessionId) ?? {};

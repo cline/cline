@@ -465,7 +465,6 @@ export class ClineGatewayRuntime {
 				? {
 						sessionId: safeString(result.startResult.sessionId),
 						manifestPath: safeString(result.startResult.manifestPath),
-						transcriptPath: safeString(result.startResult.transcriptPath),
 						messagesPath: safeString(result.startResult.messagesPath),
 					}
 				: undefined,

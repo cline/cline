@@ -42,9 +42,11 @@ describe("plugin chat commands", () => {
 		});
 		const reply = vi.fn(async () => undefined);
 
-		expect(pluginSlashCommands).toEqual([
-			{ name: "echo", description: "Echo input" },
-		]);
+		// Filter to only our test plugin to ignore any discovered system plugins
+		const testCommands = pluginSlashCommands.filter(
+			(cmd) => cmd.name === "echo",
+		);
+		expect(testCommands).toEqual([{ name: "echo", description: "Echo input" }]);
 
 		const handled = await host.handle("/echo hello plugin", {
 			enabled: true,

@@ -36,7 +36,6 @@ export function toMessage(row: RpcSessionRow): SessionRecord {
 		conversationId: row.conversationId ?? "",
 		isSubagent: row.isSubagent,
 		prompt: row.prompt ?? "",
-		transcriptPath: row.transcriptPath,
 		messagesPath: row.messagesPath ?? "",
 		updatedAt: row.updatedAt,
 		metadata: toProtoStruct(row.metadata),
@@ -69,7 +68,6 @@ export function fromMessage(message: SessionRecord__Output): RpcSessionRow {
 		isSubagent: message.isSubagent === true,
 		prompt: message.prompt || undefined,
 		metadata: fromProtoStruct(message.metadata),
-		transcriptPath: message.transcriptPath ?? "",
 		messagesPath: message.messagesPath || undefined,
 		updatedAt: message.updatedAt ?? "",
 	};

@@ -1,4 +1,3 @@
-import { appendFileSync } from "node:fs";
 import { registerDisposable } from "@clinebot/shared";
 import { nowIso } from "./helpers";
 import type { ActiveCliSession, CliOutputMode } from "./types";
@@ -145,13 +144,6 @@ export function emitJsonLine(
 			throw error;
 		}
 	}
-	if (activeCliSession) {
-		try {
-			appendFileSync(activeCliSession.transcriptPath, line, "utf8");
-		} catch {
-			// Best-effort transcript persistence for desktop discovery.
-		}
-	}
 }
 
 export function write(text: string): void {
@@ -160,13 +152,6 @@ export function write(text: string): void {
 	} catch (error) {
 		if (!isBrokenPipeError(error)) {
 			throw error;
-		}
-	}
-	if (activeCliSession) {
-		try {
-			appendFileSync(activeCliSession.transcriptPath, text, "utf8");
-		} catch {
-			// Best-effort transcript persistence for desktop discovery.
 		}
 	}
 }
@@ -184,17 +169,6 @@ export function writeErr(text: string): void {
 		return;
 	}
 	console.error(`${c.red}error:${c.reset} ${text}`);
-	if (activeCliSession) {
-		try {
-			appendFileSync(
-				activeCliSession.transcriptPath,
-				`error: ${text}\n`,
-				"utf8",
-			);
-		} catch {
-			// Best-effort transcript persistence for desktop discovery.
-		}
-	}
 }
 
 // =============================================================================

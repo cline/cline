@@ -19,6 +19,7 @@ export const OAUTH_MANAGED_PROVIDERS = new Set([
 const CLINE_DEFAULT_MODEL = "anthropic/claude-sonnet-4.6";
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
+	sessionId: undefined,
 	workspaceRoot: "",
 	cwd: "",
 	provider: "cline",

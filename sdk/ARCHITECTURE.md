@@ -151,18 +151,22 @@ Design rules:
 
 ### Local In-Process Runtime
 
-1. Host constructs a runtime through `@clinebot/core`.
-2. `@clinebot/core` resolves provider config, tools, watchers, hooks, and telemetry.
-3. `@clinebot/core` creates an `Agent` from `@clinebot/agents`.
-4. `@clinebot/agents` runs the loop using `@clinebot/llms` handlers.
-5. `@clinebot/core` persists state, artifacts, and metadata.
+1. Host constructs a `RuntimeHost` through `@clinebot/core`.
+2. `@clinebot/core` selects `LocalRuntimeHost` through `packages/core/src/runtime/host.ts`.
+3. Hosts normalize broad local config into `RuntimeSessionConfig` plus `localRuntime` overrides before calling `RuntimeHost.start(...)`.
+4. `@clinebot/core` prepares a local bootstrap artifact from `localRuntime`, then builds the runtime from it.
+5. `@clinebot/core` creates an `Agent` from `@clinebot/agents`.
+6. `@clinebot/agents` runs the loop using `@clinebot/llms` handlers.
+7. `@clinebot/core` persists state, artifacts, and metadata.
 
 ### RPC-Backed Runtime
 
-1. Host connects to or ensures an RPC runtime.
-2. `@clinebot/rpc` brokers sessions, events, approvals, and schedules.
-3. `@clinebot/core` still owns common session persistence logic.
-4. `@clinebot/scheduler` runs behind RPC for schedule-triggered execution.
+1. Host constructs a `RuntimeHost` through `@clinebot/core`.
+2. `@clinebot/core` selects `RpcRuntimeHost` through `packages/core/src/runtime/host.ts`.
+3. `RpcRuntimeHost` translates start/turn/lifecycle calls into RPC requests and adapts remote events back into the shared `RuntimeHost` event contract.
+4. The remote runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
+5. `@clinebot/rpc` brokers sessions, events, approvals, and schedules.
+6. `@clinebot/scheduler` runs behind RPC for schedule-triggered execution.
 
 ### Enterprise-Managed Runtime
 
@@ -172,7 +176,8 @@ Design rules:
 4. Enterprise materializes managed rules/workflows/skills under workspace-local `.cline/<plugin>/`.
 5. Enterprise optionally derives telemetry config or telemetry services.
 6. Hosts pass the prepared result into `@clinebot/core` through the generic `prepare` seam.
-7. `@clinebot/core` consumes watcher/extension/telemetry inputs generically.
+7. Enterprise applies extensions and telemetry through `localRuntime.configOverrides`, not the transport-safe `RuntimeSessionConfig`.
+8. `@clinebot/core` consumes the prepared local overrides during local bootstrap.
 
 This keeps enterprise-specific behavior above the published orchestration layer.
 
@@ -209,6 +214,23 @@ Design implication:
 Design implication:
 
 - higher-level integrations should prefer feeding those seams rather than patching agent internals directly.
+- the local runtime bootstrap lives in `packages/core/src/services/local-runtime-bootstrap.ts` and feeds the builder rather than bypassing it
+
+### 2a. Runtime Host Boundary
+
+Core exposes one shared execution boundary: `RuntimeHost`.
+
+Concrete implementations:
+
+- `LocalRuntimeHost` for in-process execution
+- `RpcRuntimeHost` for RPC-backed execution
+
+Design implication:
+
+- host selection happens in `packages/core/src/runtime/host.ts`
+- `ClineCore` delegates uniformly to `RuntimeHost` and does not branch on local vs RPC behavior
+- transport-specific translation belongs inside concrete hosts, not in top-level orchestration
+- `RuntimeHost` inputs stay transport-safe, while `ClineCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
 
 ## Logging
 
@@ -224,7 +246,7 @@ Naming clarity:
 
 The agent and other call sites route former `info` / `warn` semantics through `log` (warnings include `severity: "warn"` in metadata). Errors prefer `error` when implemented; otherwise `log` with `severity: "error"` is used as a fallback.
 
-### 2a. Session Startup Bootstrap
+### 2b. Session Startup Bootstrap
 
 `ClineCore.create(...)` exposes a generic `prepare(input)` hook.
 

@@ -7,8 +7,32 @@ export {
 export type {
 	ClineCore,
 	ClineCoreOptions,
+	ClineCoreStartInput,
 } from "../ClineCore";
-export { DefaultSessionManager } from "./default-session-manager";
+export type { SessionBackend } from "../runtime/host";
+export {
+	createRuntimeHost,
+	resolveSessionBackend,
+} from "../runtime/host";
+export type {
+	LocalRuntimeConfigOverrides,
+	LocalRuntimeStartOptions,
+	RuntimeHost,
+	RuntimeHost as SessionHost,
+	RuntimeHostMode,
+	RuntimeSessionConfig,
+	SendSessionInput,
+	SessionAccumulatedUsage,
+	StartSessionInput,
+	StartSessionResult,
+} from "../runtime/runtime-host";
+export { splitCoreSessionConfig } from "../runtime/runtime-host";
+export {
+	generateWorkspaceInfo,
+	normalizeWorkspacePath,
+} from "../services/workspace-manifest";
+export { LocalRuntimeHost } from "../transports/local";
+export { RpcRuntimeHost } from "../transports/rpc";
 export { RpcCoreSessionService } from "./rpc-session-service";
 export {
 	deriveSubsessionStatus,
@@ -16,18 +40,6 @@ export {
 	makeTeamTaskSubSessionId,
 	sanitizeSessionToken,
 } from "./session-graph";
-export type {
-	SessionBackend,
-	SessionHost,
-} from "./session-host";
-export { createSessionHost, resolveSessionBackend } from "./session-host";
-export type {
-	SendSessionInput,
-	SessionAccumulatedUsage,
-	SessionManager,
-	StartSessionInput,
-	StartSessionResult,
-} from "./session-manager";
 export type { SessionManifest } from "./session-manifest";
 export type {
 	CreateRootSessionWithArtifactsInput,
@@ -39,7 +51,3 @@ export type {
 	WorkspaceManagerEvent,
 } from "./workspace-manager";
 export { InMemoryWorkspaceManager } from "./workspace-manager";
-export {
-	generateWorkspaceInfo,
-	normalizeWorkspacePath,
-} from "./workspace-manifest";

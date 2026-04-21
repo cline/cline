@@ -16,6 +16,7 @@ import type {
 import {
 	addLocalProvider,
 	ClineAccountService,
+	ClineCore,
 	createUserInstructionConfigWatcher,
 	ensureCustomProvidersLoaded,
 	executeRpcClineAccountAction,
@@ -38,20 +39,15 @@ import { RpcSessionClient } from "@clinebot/rpc";
 import { broadcastEvent } from "./context";
 import {
 	findArtifactUnderDir,
+	readSessionManifest,
 	resolveMcpSettingsPath,
 	rootSessionIdFrom,
 	sessionLogPath,
 	sharedSessionDataDir,
 } from "./paths";
-import {
-	readSessionHooks,
-	readSessionTranscript,
-} from "./session-data/artifacts";
+import { readSessionHooks } from "./session-data/artifacts";
 import { normalizeSessionTitle } from "./session-data/common";
-import {
-	discoverChatSessions,
-	mergeDiscoveredSessionLists,
-} from "./session-data/discovery";
+import { discoverChatSessions } from "./session-data/discovery";
 import { readSessionMessages } from "./session-data/messages";
 import { searchWorkspaceFiles } from "./session-data/search";
 import type {
@@ -90,6 +86,20 @@ function ensureMcpSettingsFile(): string {
 		writeMcpServersMap({});
 	}
 	return path;
+}
+
+function removePathIfExists(
+	path: string,
+	options?: { recursive?: boolean },
+): boolean {
+	if (!path || !existsSync(path)) {
+		return false;
+	}
+	rmSync(path, {
+		force: true,
+		recursive: options?.recursive === true,
+	});
+	return true;
 }
 
 // ---------------------------------------------------------------------------
@@ -430,12 +440,6 @@ export async function handleCommand(
 			typeof args?.maxMessages === "number" ? args.maxMessages : 800,
 		);
 	}
-	if (command === "read_session_transcript") {
-		return await readSessionTranscript(
-			String(args?.sessionId ?? ""),
-			typeof args?.maxChars === "number" ? args.maxChars : undefined,
-		);
-	}
 	if (command === "read_session_hooks") {
 		return await readSessionHooks(
 			String(args?.sessionId ?? ""),
@@ -490,16 +494,24 @@ export async function handleCommand(
 		);
 	}
 	if (command === "list_cli_sessions") {
-		// CLI sessions require the CLI binary — return empty in sidecar mode
-		return [];
+		const core = await ClineCore.create();
+		try {
+			return await core.list(
+				typeof args?.limit === "number" ? args.limit : 300,
+			);
+		} finally {
+			await core.dispose("code_sidecar_list_cli_sessions");
+		}
 	}
 	if (command === "list_discovered_sessions") {
-		const limit = typeof args?.limit === "number" ? args.limit : 300;
-		return mergeDiscoveredSessionLists(
-			discoverChatSessions(ctx, limit),
-			[], // no CLI sessions in sidecar mode
-			limit,
-		);
+		const core = await ClineCore.create();
+		try {
+			return await core.list(
+				typeof args?.limit === "number" ? args.limit : 300,
+			);
+		} finally {
+			await core.dispose("code_sidecar_list_discovered_sessions");
+		}
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -515,65 +527,100 @@ export async function handleCommand(
 	if (command === "delete_chat_session" || command === "delete_cli_session") {
 		const sessionId = String(args?.sessionId ?? args?.session_id ?? "").trim();
 		if (!sessionId) throw new Error("session id is required");
+		console.error(
+			`[sidecar:delete] request command=${command} sessionId=${sessionId}`,
+		);
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
+		const manifest = readSessionManifest(sessionId);
 		let deleted = false;
-		if (ctx.sessionManager) {
-			deleted = await ctx.sessionManager.delete(sessionId);
-		} else {
-			const backend = await resolveSessionBackend({ backendMode: "local" });
-			const deleteSession = (
-				backend as {
-					deleteSession: (
-						sessionId: string,
-						cascade?: boolean,
-					) => Promise<boolean | { deleted: boolean }>;
-				}
-			).deleteSession.bind(backend);
-			const deleteResult = await deleteSession(sessionId, true);
-			deleted =
-				typeof deleteResult === "boolean" ? deleteResult : deleteResult.deleted;
+		let deleteError: Error | null = null;
+		try {
+			if (ctx.sessionManager) {
+				deleted = await ctx.sessionManager.delete(sessionId);
+			} else {
+				const backend = await resolveSessionBackend({ backendMode: "local" });
+				const deleteSession = (
+					backend as {
+						deleteSession: (
+							sessionId: string,
+							cascade?: boolean,
+						) => Promise<boolean | { deleted: boolean }>;
+					}
+				).deleteSession.bind(backend);
+				const deleteResult = await deleteSession(sessionId, true);
+				deleted =
+					typeof deleteResult === "boolean"
+						? deleteResult
+						: deleteResult.deleted;
+			}
+		} catch (error) {
+			deleteError = error instanceof Error ? error : new Error(String(error));
+		}
+		if (store.delete(sessionId, true)) {
+			deleted = true;
 		}
 		ctx.liveSessions.delete(sessionId);
 		const directoryCandidates = new Set<string>([
 			join(sharedSessionDataDir(), sessionId),
 		]);
-		for (const path of [row?.transcriptPath, row?.messagesPath]) {
+		for (const path of [
+			row?.messagesPath,
+			typeof manifest?.messages_path === "string"
+				? manifest.messages_path
+				: null,
+		]) {
 			if (typeof path === "string" && path.trim().length > 0) {
 				directoryCandidates.add(dirname(path));
 			}
 		}
 		for (const path of [sessionLogPath(sessionId)]) {
-			if (existsSync(path)) {
-				rmSync(path, { recursive: true, force: true });
+			if (removePathIfExists(path, { recursive: true })) {
 				deleted = true;
 			}
 		}
 		for (const dir of directoryCandidates) {
-			if (existsSync(dir)) {
-				rmSync(dir, { recursive: true, force: true });
+			if (removePathIfExists(dir, { recursive: true })) {
 				deleted = true;
 			}
 		}
-		for (const path of [row?.transcriptPath, row?.messagesPath].filter(
-			(v): v is string => typeof v === "string" && v.length > 0,
-		)) {
-			if (existsSync(path)) {
-				rmSync(path, { force: true });
+		for (const path of [
+			row?.messagesPath,
+			typeof manifest?.messages_path === "string"
+				? manifest.messages_path
+				: null,
+			join(sharedSessionDataDir(), sessionId, `${sessionId}.json`),
+		].filter((v): v is string => typeof v === "string" && v.length > 0)) {
+			if (removePathIfExists(path)) {
 				deleted = true;
 			}
 		}
-		for (const suffix of ["messages.json", "log"]) {
+		for (const suffix of ["messages.json"]) {
 			const fileName = `${sessionId}.${suffix}`;
 			const found = findArtifactUnderDir(
 				join(sharedSessionDataDir(), rootSessionIdFrom(sessionId)),
 				fileName,
 				4,
 			);
-			if (found && existsSync(found)) {
-				rmSync(found, { force: true });
+			if (found && removePathIfExists(found)) {
 				deleted = true;
 			}
+		}
+		if (!deleted && deleteError) {
+			console.error(
+				`[sidecar:delete] failed sessionId=${sessionId} error=${deleteError.message}`,
+			);
+			throw deleteError;
+		}
+		console.error(
+			`[sidecar:delete] result sessionId=${sessionId} deleted=${deleted}`,
+		);
+		if (deleted) {
+			broadcastEvent(ctx, "session_deleted", {
+				sessionId,
+				command,
+				deleted: true,
+			});
 		}
 		return deleted;
 	}

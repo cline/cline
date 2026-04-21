@@ -2,15 +2,9 @@ export type { WorkspaceInfo, WorkspaceManifest } from "@clinebot/shared";
 export {
 	ClineCore,
 	type ClineCoreOptions,
+	type ClineCoreStartInput,
 	type RpcOptions,
 } from "./ClineCore";
-export type {
-	ChatMessage,
-	ChatSessionConfig,
-	ChatSessionStatus,
-	ChatSummary,
-	ChatViewState,
-} from "./chat/chat-schema";
 export type {
 	LoadAgentPluginFromPathOptions,
 	ResolveAgentPluginPathsOptions,
@@ -72,6 +66,16 @@ export {
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./extensions/config";
+export type { SessionBackend } from "./runtime/host";
+export type {
+	RuntimeHost,
+	RuntimeHost as SessionHost,
+	RuntimeHostMode,
+	SendSessionInput,
+	SessionAccumulatedUsage,
+	StartSessionInput,
+	StartSessionResult,
+} from "./runtime/runtime-host";
 export type {
 	BuiltRuntime as RuntimeEnvironment,
 	RuntimeBuilder,
@@ -83,14 +87,6 @@ export type {
 	SubprocessSandboxOptions,
 } from "./runtime/subprocess-sandbox";
 export { SubprocessSandbox } from "./runtime/subprocess-sandbox";
-export type { SessionHost } from "./session/session-host";
-export type {
-	SendSessionInput,
-	SessionAccumulatedUsage,
-	SessionManager,
-	StartSessionInput,
-	StartSessionResult,
-} from "./session/session-manager";
 export type { SessionManifest } from "./session/session-manifest";
 export type {
 	CreateRootSessionWithArtifactsInput,
@@ -100,6 +96,13 @@ export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,
 } from "./session/workspace-manager";
+export type {
+	ChatMessage,
+	ChatSessionConfig,
+	ChatSessionStatus,
+	ChatSummary,
+	ChatViewState,
+} from "./types/chat-schema";
 export type { SessionSource, SessionStatus } from "./types/common";
 export type {
 	CoreAgentMode,
@@ -114,5 +117,11 @@ export type {
 	SessionTeamProgressEvent,
 	SessionToolEvent,
 } from "./types/events";
-export type { SessionRecord, SessionRef } from "./types/sessions";
+export type { SessionMessagesArtifactUploader } from "./types/session";
+export type {
+	SessionHistoryMetadata,
+	SessionHistoryRecord,
+	SessionRecord,
+	SessionRef,
+} from "./types/sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./types/storage";

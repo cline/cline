@@ -5,15 +5,21 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
+import type { ToolExecutors } from "./extensions/tools";
+import { hydrateSessionHistory } from "./runtime/history";
+import type { SessionBackend } from "./runtime/host";
+import { createRuntimeHost } from "./runtime/host";
+import type {
+	LocalRuntimeStartOptions,
+	RuntimeHost,
+	RuntimeHostMode,
+	StartSessionInput,
+	StartSessionResult,
+} from "./runtime/runtime-host";
+import { splitCoreSessionConfig } from "./runtime/runtime-host";
 import type { TeamToolsFactory } from "./runtime/session-runtime";
-import {
-	createSessionHost,
-	type SessionBackend,
-	type SessionHost,
-} from "./session/session-host";
-import type { StartSessionInput } from "./session/session-manager";
-import type { SessionMessagesArtifactUploader } from "./session/utils/types";
-import type { ToolExecutors } from "./tools";
+import type { CoreSessionConfig } from "./types/config";
+import type { SessionMessagesArtifactUploader } from "./types/session";
 
 /** Advanced options for connecting to or spawning the Cline RPC server. */
 export interface RpcOptions {
@@ -38,6 +44,14 @@ export interface RpcOptions {
 	connectDelayMs?: number;
 }
 
+export type { RuntimeHostMode };
+
+export interface ClineCoreStartInput
+	extends Omit<StartSessionInput, "config" | "localRuntime"> {
+	config: CoreSessionConfig;
+	localRuntime?: LocalRuntimeStartOptions;
+}
+
 export interface ClineCoreOptions {
 	/**
 	 * A human-readable name for this SDK client (e.g. `"my-app"`, `"acme-bot"`).
@@ -57,7 +71,7 @@ export interface ClineCoreOptions {
 	 * - `"rpc"` — requires an RPC runtime server; throws if one is not reachable.
 	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
 	 */
-	backendMode?: "auto" | "rpc" | "local";
+	backendMode?: RuntimeHostMode;
 	/**
 	 * RPC server connection options. Only relevant when `backendMode` is `"auto"` or `"rpc"`.
 	 */
@@ -113,11 +127,10 @@ export interface ClineCoreOptions {
 	/**
 	 * Optional hook invoked before each session starts.
 	 * Use this to prepare workspace-scoped runtime state and then return an
-	 * adapter that mutates the `StartSessionInput` generically before core
-	 * builds the runtime.
+	 * adapter that mutates the shared session input before core starts the run.
 	 */
 	prepare?: (
-		input: StartSessionInput,
+		input: ClineCoreStartInput,
 	) =>
 		| Promise<StartSessionBootstrap | undefined>
 		| StartSessionBootstrap
@@ -126,8 +139,8 @@ export interface ClineCoreOptions {
 
 export interface StartSessionBootstrap {
 	applyToStartSessionInput(
-		input: StartSessionInput,
-	): Promise<StartSessionInput> | StartSessionInput;
+		input: ClineCoreStartInput,
+	): Promise<ClineCoreStartInput> | ClineCoreStartInput;
 	dispose?(): Promise<void> | void;
 }
 
@@ -142,12 +155,11 @@ export interface StartSessionBootstrap {
  * const session = await cline.start({ ... });
  * ```
  */
-export class ClineCore implements SessionHost {
+export class ClineCore implements RuntimeHost {
 	readonly clientName: string | undefined;
 	readonly runtimeAddress: string | undefined;
-	private readonly host: SessionHost;
+	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
-	private readonly teamToolsFactory: TeamToolsFactory | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
 		StartSessionBootstrap
@@ -155,17 +167,15 @@ export class ClineCore implements SessionHost {
 	private readonly unsubscribeBootstrapCleanup: () => void;
 
 	private constructor(
-		host: SessionHost,
+		host: RuntimeHost,
 		clientName: string | undefined,
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
-		teamToolsFactory: TeamToolsFactory | undefined,
 	) {
 		this.clientName = clientName;
 		this.runtimeAddress = runtimeAddress;
 		this.host = host;
 		this.prepare = prepare;
-		this.teamToolsFactory = teamToolsFactory;
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -175,13 +185,12 @@ export class ClineCore implements SessionHost {
 	}
 
 	static async create(options: ClineCoreOptions = {}): Promise<ClineCore> {
-		const host = await createSessionHost(options);
+		const host = await createRuntimeHost(options);
 		return new ClineCore(
 			host,
 			options.clientName,
 			host.runtimeAddress,
 			options.prepare,
-			options.teamToolsFactory,
 		);
 	}
 
@@ -194,16 +203,61 @@ export class ClineCore implements SessionHost {
 		await Promise.resolve(bootstrap.dispose?.());
 	}
 
-	start: SessionHost["start"] = async (input) => {
-		const inputWithFactory: StartSessionInput = this.teamToolsFactory
-			? { teamToolsFactory: this.teamToolsFactory, ...input }
-			: input;
-		const bootstrap = await this.prepare?.(inputWithFactory);
+	private toClineCoreStartInput(
+		input: StartSessionInput | ClineCoreStartInput,
+	): ClineCoreStartInput {
+		const config = input.config as CoreSessionConfig;
+		return "providerId" in config
+			? {
+					...input,
+					config: {
+						...config,
+						...(input.localRuntime?.configOverrides ?? {}),
+					},
+					localRuntime: input.localRuntime
+						? {
+								...input.localRuntime,
+								configOverrides: input.localRuntime.configOverrides,
+							}
+						: undefined,
+				}
+			: (input as ClineCoreStartInput);
+	}
+
+	private normalizeStartInput(input: ClineCoreStartInput): StartSessionInput {
+		const split = splitCoreSessionConfig(input.config);
+		const localRuntime =
+			split.localRuntime || input.localRuntime
+				? {
+						...(split.localRuntime ?? {}),
+						...(input.localRuntime ?? {}),
+						configOverrides: {
+							...(split.localRuntime?.configOverrides ?? {}),
+							...(input.localRuntime?.configOverrides ?? {}),
+						},
+					}
+				: undefined;
+		return {
+			...input,
+			...split,
+			...(localRuntime ? { localRuntime } : {}),
+		};
+	}
+
+	start(input: StartSessionInput): Promise<StartSessionResult>;
+	start(input: ClineCoreStartInput): Promise<StartSessionResult>;
+	async start(
+		input: StartSessionInput | ClineCoreStartInput,
+	): Promise<StartSessionResult> {
+		const clineCoreInput = this.toClineCoreStartInput(input);
+		const bootstrap = await this.prepare?.(clineCoreInput);
 		try {
-			const effectiveInput = bootstrap
-				? await bootstrap.applyToStartSessionInput(inputWithFactory)
-				: inputWithFactory;
-			const result = await this.host.start(effectiveInput);
+			const preparedInput = bootstrap
+				? await bootstrap.applyToStartSessionInput(clineCoreInput)
+				: clineCoreInput;
+			const result = await this.host.start(
+				this.normalizeStartInput(preparedInput),
+			);
 			if (bootstrap) {
 				const activeSession = await this.host.get(result.sessionId);
 				if (activeSession) {
@@ -217,16 +271,16 @@ export class ClineCore implements SessionHost {
 			await Promise.resolve(bootstrap?.dispose?.());
 			throw error;
 		}
-	};
-	send: SessionHost["send"] = (...args) => this.host.send(...args);
-	getAccumulatedUsage: SessionHost["getAccumulatedUsage"] = (...args) =>
+	}
+	send: RuntimeHost["send"] = (...args) => this.host.send(...args);
+	getAccumulatedUsage: RuntimeHost["getAccumulatedUsage"] = (...args) =>
 		this.host.getAccumulatedUsage(...args);
-	abort: SessionHost["abort"] = (...args) => this.host.abort(...args);
-	stop: SessionHost["stop"] = async (sessionId) => {
+	abort: RuntimeHost["abort"] = (...args) => this.host.abort(...args);
+	stop: RuntimeHost["stop"] = async (sessionId) => {
 		await this.host.stop(sessionId);
 		await this.disposeSessionBootstrap(sessionId);
 	};
-	dispose: SessionHost["dispose"] = async (...args) => {
+	dispose: RuntimeHost["dispose"] = async (...args) => {
 		try {
 			await this.host.dispose(...args);
 		} finally {
@@ -237,24 +291,23 @@ export class ClineCore implements SessionHost {
 			);
 		}
 	};
-	get: SessionHost["get"] = (...args) => this.host.get(...args);
-	list: SessionHost["list"] = (...args) => this.host.list(...args);
-	delete: SessionHost["delete"] = async (sessionId) => {
+	get: RuntimeHost["get"] = (...args) => this.host.get(...args);
+	list: RuntimeHost["list"] = async (limit = 200) =>
+		await hydrateSessionHistory(this.host, await this.host.list(limit));
+	delete: RuntimeHost["delete"] = async (sessionId) => {
 		const deleted = await this.host.delete(sessionId);
 		if (deleted) {
 			await this.disposeSessionBootstrap(sessionId);
 		}
 		return deleted;
 	};
-	update: SessionHost["update"] = (...args) => this.host.update(...args);
-	readMessages: SessionHost["readMessages"] = (...args) =>
+	update: RuntimeHost["update"] = (...args) => this.host.update(...args);
+	readMessages: RuntimeHost["readMessages"] = (...args) =>
 		this.host.readMessages(...args);
-	readTranscript: SessionHost["readTranscript"] = (...args) =>
-		this.host.readTranscript(...args);
-	handleHookEvent: SessionHost["handleHookEvent"] = (...args) =>
+	handleHookEvent: RuntimeHost["handleHookEvent"] = (...args) =>
 		this.host.handleHookEvent(...args);
-	subscribe: SessionHost["subscribe"] = (...args) =>
+	subscribe: RuntimeHost["subscribe"] = (...args) =>
 		this.host.subscribe(...args);
-	updateSessionModel: SessionHost["updateSessionModel"] = (...args) =>
+	updateSessionModel: RuntimeHost["updateSessionModel"] = (...args) =>
 		this.host.updateSessionModel?.(...args) ?? Promise.resolve();
 }

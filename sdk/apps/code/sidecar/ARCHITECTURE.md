@@ -31,14 +31,14 @@ Event:    { "type": "event", "event": { "name": string, "payload": unknown } }
 
 ## Key Design Decisions
 
-### 1. Chat Sessions — In-Process via DefaultSessionManager
+### 1. Chat Sessions — In-Process via LocalRuntimeHost
 
-Instead of spawning a separate runtime bridge process, we use `DefaultSessionManager` directly:
+Instead of spawning a separate runtime bridge process, we use `LocalRuntimeHost` directly:
 
 ```typescript
-import { DefaultSessionManager } from "@clinebot/core";
+import { LocalRuntimeHost } from "@clinebot/core";
 
-const sessionManager = new DefaultSessionManager({
+const sessionManager = new LocalRuntimeHost({
   sessionService,   // CoreSessionService
   fileService,      // FileSessionService  
   telemetry,        // ITelemetryService (optional)
@@ -121,7 +121,7 @@ Supported commands:
 
 | Command | Implementation |
 |---------|---------------|
-| `chat_session_command` | `DefaultSessionManager` in-process |
+| `chat_session_command` | `LocalRuntimeHost` in-process |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
 | `save_provider_settings` | `saveLocalProviderSettings` |
@@ -130,7 +130,6 @@ Supported commands:
 | `list_chat_sessions` | `SqliteSessionStore` + file discovery |
 | `list_discovered_sessions` | Merged discovery |
 | `read_session_messages` | Session data readers |
-| `read_session_transcript` | Session data readers |
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession` |

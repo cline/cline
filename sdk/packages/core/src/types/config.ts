@@ -15,8 +15,8 @@ import type {
 	SessionWorkspaceConfig,
 	Tool,
 } from "@clinebot/shared";
-import type { TeamEvent } from "../team";
-import type { ToolRoutingRule } from "../tools/model-tool-routing";
+import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
+import type { TeamEvent } from "../extensions/tools/team";
 
 export type CoreAgentMode = AgentMode;
 

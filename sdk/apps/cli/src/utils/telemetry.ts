@@ -1,5 +1,7 @@
-import { TelemetryLoggerSink } from "@clinebot/core";
-import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
+import {
+	createConfiguredTelemetryService,
+	TelemetryLoggerSink,
+} from "@clinebot/core";
 import {
 	type BasicLogger,
 	createClineTelemetryServiceConfig,

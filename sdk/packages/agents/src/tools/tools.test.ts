@@ -194,6 +194,54 @@ describe("tools utilities", () => {
 		expect(getEventListeners(controller.signal, "abort")).toHaveLength(0);
 	});
 
+	it("does not leak late tool rejections after an abort wins the race", async () => {
+		const controller = new AbortController();
+		const context: ToolContext = {
+			...baseContext,
+			abortSignal: controller.signal,
+		};
+		const unhandled: unknown[] = [];
+		const onUnhandled = (reason: unknown) => {
+			unhandled.push(reason);
+		};
+		process.on("unhandledRejection", onUnhandled);
+
+		try {
+			const tool = createTool({
+				name: "abortable",
+				description: "abortable",
+				inputSchema: { type: "object", properties: {} },
+				execute: async (_input, toolContext) =>
+					await new Promise((_, reject) => {
+						toolContext.abortSignal?.addEventListener(
+							"abort",
+							() => {
+								setTimeout(() => {
+									reject(
+										new DOMException(
+											"This operation was aborted",
+											"AbortError",
+										),
+									);
+								}, 0);
+							},
+							{ once: true },
+						);
+					}),
+			});
+
+			const resultPromise = executeTool(tool, {}, context);
+			controller.abort();
+			const result = await resultPromise;
+
+			expect(result.error).toBe("Tool execution was aborted");
+			await new Promise((resolve) => setTimeout(resolve, 10));
+			expect(unhandled).toEqual([]);
+		} finally {
+			process.off("unhandledRejection", onUnhandled);
+		}
+	});
+
 	it("executes parallel and sequential calls with observer + authorizer", async () => {
 		const successTool = createTool({
 			name: "success",

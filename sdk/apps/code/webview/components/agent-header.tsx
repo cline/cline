@@ -77,6 +77,11 @@ export function AgentHeader({
 		}
 	};
 
+	const triggerDeleteSession = () => {
+		console.error("[webview:delete] menu click");
+		onDeleteSession?.();
+	};
+
 	return (
 		<header className="flex h-12 items-center justify-between border-b border-border bg-card px-4">
 			{/* Left: thread title */}
@@ -153,7 +158,7 @@ export function AgentHeader({
 						<DropdownMenuItem
 							className="text-destructive focus:text-destructive"
 							disabled={!canDeleteSession || deletingSession}
-							onSelect={() => onDeleteSession?.()}
+							onClick={triggerDeleteSession}
 						>
 							<Trash2 className="size-4" />
 							<span>{deletingSession ? "Deleting..." : "Delete session"}</span>

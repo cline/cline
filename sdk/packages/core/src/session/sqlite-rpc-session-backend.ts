@@ -12,7 +12,7 @@ import {
 	nowIso,
 	toBoolInt,
 } from "@clinebot/shared/db";
-import { SqliteSessionStore } from "../storage/sqlite-session-store";
+import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 
 export interface SqliteRpcSessionBackendOptions {
 	sessionsDir?: string;
@@ -62,7 +62,7 @@ export class SqliteRpcSessionBackend implements RpcSessionBackend {
 				toBoolInt(row.isSubagent),
 				row.prompt ?? null,
 				row.metadata ? JSON.stringify(row.metadata) : null,
-				row.transcriptPath,
+				"",
 				"",
 				row.messagesPath ?? null,
 				row.updatedAt || nowIso(),
@@ -75,7 +75,7 @@ export class SqliteRpcSessionBackend implements RpcSessionBackend {
 			`SELECT session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
-				metadata_json, transcript_path, hook_path, messages_path, updated_at
+				metadata_json, hook_path, messages_path, updated_at
 			 FROM sessions WHERE session_id = ?`,
 			[sessionId],
 		);
@@ -121,7 +121,6 @@ export class SqliteRpcSessionBackend implements RpcSessionBackend {
 				}
 				return undefined;
 			})(),
-			transcriptPath: asString(row.transcript_path),
 			messagesPath: asOptionalString(row.messages_path),
 			updatedAt: asString(row.updated_at) || nowIso(),
 		};

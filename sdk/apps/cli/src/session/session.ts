@@ -2,6 +2,7 @@ import type {
 	AgentConfig,
 	BasicLogger,
 	HookEventPayload,
+	SessionHistoryRecord,
 	SessionRecord,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -56,7 +57,9 @@ async function withCliCore<T>(
 	}
 }
 
-export async function listSessions(limit = 200): Promise<unknown[]> {
+export async function listSessions(
+	limit = 200,
+): Promise<SessionHistoryRecord[]> {
 	return await withCliCore(async (core) => await core.list(limit));
 }
 

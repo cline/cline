@@ -1,44 +1,8 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { sessionLogPath, sharedSessionLogPath } from "../paths";
 import type { JsonRecord } from "../types";
 import { parseF64Value, parseU64Value } from "./common";
-
-export async function readSessionTranscript(
-	sessionId: string,
-	maxChars?: number,
-): Promise<string> {
-	const jsonlPath = sessionLogPath(sessionId);
-	const sharedPath = sharedSessionLogPath(sessionId);
-	if (!existsSync(jsonlPath) && !existsSync(sharedPath)) {
-		return "";
-	}
-	const isJsonl = existsSync(jsonlPath);
-	const raw = readFileSync(isJsonl ? jsonlPath : sharedPath, "utf8");
-	let out = "";
-	if (isJsonl) {
-		for (const line of raw.split("\n")) {
-			if (!line.trim()) {
-				continue;
-			}
-			try {
-				const parsed = JSON.parse(line) as { chunk?: string };
-				if (typeof parsed.chunk === "string") {
-					out += parsed.chunk;
-				}
-			} catch {
-				// Ignore malformed lines.
-			}
-		}
-	} else {
-		out = raw;
-	}
-	if (typeof maxChars === "number" && maxChars > 0 && out.length > maxChars) {
-		return out.slice(-maxChars);
-	}
-	return out;
-}
 
 function resolveGlobalHookLogPath(): string {
 	const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim();

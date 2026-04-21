@@ -52,7 +52,7 @@ Desktop transport envelope:
 ## Data + Storage
 
 - Session artifacts are written under `~/.cline/data/sessions/<sessionId>/` (or `CLINE_SESSION_DATA_DIR`).
-- Core files include `<sessionId>.messages.json`, `<sessionId>.hooks.jsonl`, and `<sessionId>.log`.
+- Core files include `<sessionId>.messages.json` and `<sessionId>.hooks.jsonl`.
 
 ## Troubleshooting
 

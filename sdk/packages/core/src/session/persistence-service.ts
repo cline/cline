@@ -1,6 +1,7 @@
 import {
 	appendFileSync,
 	existsSync,
+	mkdirSync,
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
@@ -11,11 +12,37 @@ import { resolveRootSessionId } from "@clinebot/shared";
 import { ensureHookLogDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import type {
+	SubAgentEndContext,
+	SubAgentStartContext,
+} from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
-import { deleteCheckpointRefs } from "../runtime/checkpoint-hooks";
-import type { SubAgentEndContext, SubAgentStartContext } from "../team";
+import { deleteCheckpointRefs } from "../hooks/checkpoint-hooks";
+import {
+	nowIso,
+	SessionArtifacts,
+	unlinkIfExists,
+} from "../services/session-artifacts";
+import {
+	buildManifestFromRow,
+	buildMessagesFilePayload,
+	deriveTitleFromPrompt,
+	normalizeStoredMessagesForPersistence,
+	normalizeTitle,
+	resolveMessagesFileContext,
+	resolveMetadataWithTitle,
+	sanitizeMetadata,
+	withLatestAssistantTurnMetadata,
+	withOccRetry,
+	writeEmptyMessagesFile,
+} from "../services/session-data";
 import { SessionSource, type SessionStatus } from "../types/common";
-import { nowIso, SessionArtifacts, unlinkIfExists } from "./session-artifacts";
+import type {
+	PersistedSessionUpdateInput,
+	SessionMessagesArtifactUploader,
+	SessionPersistenceAdapter,
+	StoredMessageWithMetadata,
+} from "../types/session";
 import {
 	deriveSubsessionStatus,
 	makeSubSessionId,
@@ -31,25 +58,6 @@ import type {
 	SessionRow,
 	UpsertSubagentInput,
 } from "./session-service";
-import {
-	buildManifestFromRow,
-	buildMessagesFilePayload,
-	deriveTitleFromPrompt,
-	normalizeStoredMessagesForPersistence,
-	normalizeTitle,
-	resolveMessagesFileContext,
-	resolveMetadataWithTitle,
-	sanitizeMetadata,
-	withLatestAssistantTurnMetadata,
-	withOccRetry,
-	writeEmptyMessagesFile,
-} from "./utils/helpers";
-import type {
-	PersistedSessionUpdateInput,
-	SessionMessagesArtifactUploader,
-	SessionPersistenceAdapter,
-	StoredMessageWithMetadata,
-} from "./utils/types";
 
 export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
@@ -125,6 +133,7 @@ export class UnifiedSessionPersistenceService {
 		manifestPath: string,
 		manifest: SessionManifest,
 	): void {
+		mkdirSync(dirname(manifestPath), { recursive: true });
 		writeFileSync(
 			manifestPath,
 			`${JSON.stringify(SessionManifestSchema.parse(manifest), null, 2)}\n`,
@@ -162,7 +171,7 @@ export class UnifiedSessionPersistenceService {
 
 	private async resolveArtifactPath(
 		sessionId: string,
-		kind: "transcriptPath" | "messagesPath",
+		kind: "messagesPath",
 		fallback: (id: string) => string,
 	): Promise<string> {
 		const row = await this.adapter.getSession(sessionId);
@@ -197,7 +206,6 @@ export class UnifiedSessionPersistenceService {
 		const providedId = input.sessionId.trim();
 		const sessionId =
 			providedId.length > 0 ? providedId : `${Date.now()}_${nanoid(5)}`;
-		const transcriptPath = this.artifacts.sessionTranscriptPath(sessionId);
 		const messagesPath = this.artifacts.sessionMessagesPath(sessionId);
 		const manifestPath = this.artifacts.sessionManifestPath(sessionId);
 
@@ -251,7 +259,6 @@ export class UnifiedSessionPersistenceService {
 			isSubagent: false,
 			prompt: manifest.prompt ?? null,
 			metadata: sanitizeMetadata(manifest.metadata),
-			transcriptPath,
 			hookPath: "",
 			messagesPath,
 			updatedAt: nowIso(),
@@ -259,7 +266,7 @@ export class UnifiedSessionPersistenceService {
 
 		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
 		this.writeManifestFile(manifestPath, manifest);
-		return { manifestPath, transcriptPath, messagesPath, manifest };
+		return { manifestPath, messagesPath, manifest };
 	}
 
 	// ── Session status updates ────────────────────────────────────────
@@ -272,14 +279,14 @@ export class UnifiedSessionPersistenceService {
 		let endedAt: string | undefined;
 		const result = await withOccRetry(
 			() => this.adapter.getSession(sessionId),
-			async (statusLock) => {
+			async (row) => {
 				endedAt = nowIso();
 				return this.adapter.updateSession({
 					sessionId,
 					status,
 					endedAt,
 					exitCode: typeof exitCode === "number" ? exitCode : null,
-					expectedStatusLock: statusLock,
+					expectedStatusLock: row.statusLock,
 				});
 			},
 			OCC_MAX_RETRIES,
@@ -397,7 +404,6 @@ export class UnifiedSessionPersistenceService {
 			conversationId?: string | null;
 			prompt: string;
 			startedAt: string;
-			transcriptPath: string;
 			messagesPath: string;
 		},
 	): SessionRow {
@@ -426,7 +432,6 @@ export class UnifiedSessionPersistenceService {
 			isSubagent: true,
 			prompt: opts.prompt,
 			metadata: resolveMetadataWithTitle({ prompt: opts.prompt }),
-			transcriptPath: opts.transcriptPath,
 			hookPath: "",
 			messagesPath: opts.messagesPath,
 			updatedAt: opts.startedAt,
@@ -535,19 +540,6 @@ export class UnifiedSessionPersistenceService {
 		);
 	}
 
-	async appendSubagentTranscriptLine(
-		subSessionId: string,
-		line: string,
-	): Promise<void> {
-		if (!line.trim()) return;
-		const path = await this.resolveArtifactPath(
-			subSessionId,
-			"transcriptPath",
-			(id) => this.artifacts.sessionTranscriptPath(id),
-		);
-		appendFileSync(path, `${line}\n`, "utf8");
-	}
-
 	async persistSessionMessages(
 		sessionId: string,
 		messages: LlmsProviders.Message[],
@@ -568,6 +560,7 @@ export class UnifiedSessionPersistenceService {
 			systemPrompt,
 		});
 		const contents = `${JSON.stringify(payload, null, 2)}\n`;
+		mkdirSync(dirname(path), { recursive: true });
 		writeFileSync(path, contents, "utf8");
 		if (!this.messagesArtifactUploader) {
 			return;
@@ -645,8 +638,10 @@ export class UnifiedSessionPersistenceService {
 
 		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
 		const startedAt = nowIso();
-		const { transcriptPath, messagesPath } =
-			this.artifacts.subagentArtifactPaths(sessionId, agentId);
+		const { messagesPath } = this.artifacts.subagentArtifactPaths(
+			sessionId,
+			agentId,
+		);
 
 		await this.adapter.upsertSession(
 			this.buildSubsessionRow(root, {
@@ -656,12 +651,10 @@ export class UnifiedSessionPersistenceService {
 				agentId,
 				prompt: message || `Team task for ${agentId}`,
 				startedAt,
-				transcriptPath,
 				messagesPath,
 			}),
 		);
 		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
-		await this.appendSubagentTranscriptLine(sessionId, `[start] ${message}`);
 
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key) ?? [];
@@ -673,7 +666,7 @@ export class UnifiedSessionPersistenceService {
 		rootSessionId: string,
 		agentId: string,
 		status: SessionStatus,
-		summary?: string,
+		_summary?: string,
 		result?: AgentResult,
 		messages?: LlmsProviders.Message[],
 	): Promise<void> {
@@ -694,10 +687,6 @@ export class UnifiedSessionPersistenceService {
 		if (persistedMessages) {
 			await this.persistSessionMessages(sessionId, persistedMessages);
 		}
-		await this.appendSubagentTranscriptLine(
-			sessionId,
-			summary ?? `[done] ${status}`,
-		);
 		await this.applySubagentStatusBySessionId(sessionId, status);
 		this.teamTaskLastHeartbeatBySession.delete(sessionId);
 		this.teamTaskLastProgressLineBySession.delete(sessionId);
@@ -737,7 +726,6 @@ export class UnifiedSessionPersistenceService {
 					: `[progress] ${trimmed}`;
 		if (this.teamTaskLastProgressLineBySession.get(sessionId) === line) return;
 		this.teamTaskLastProgressLineBySession.set(sessionId, line);
-		await this.appendSubagentTranscriptLine(sessionId, line);
 	}
 
 	// ── SubAgent lifecycle ────────────────────────────────────────────
@@ -754,10 +742,6 @@ export class UnifiedSessionPersistenceService {
 			rootSessionId,
 		});
 		if (!subSessionId) return;
-		await this.appendSubagentTranscriptLine(
-			subSessionId,
-			`[start] ${context.input.task}`,
-		);
 		await this.applySubagentStatusBySessionId(subSessionId, "running");
 	}
 
@@ -775,15 +759,10 @@ export class UnifiedSessionPersistenceService {
 		if (!subSessionId) return;
 
 		if (context.error) {
-			await this.appendSubagentTranscriptLine(
-				subSessionId,
-				`[error] ${context.error.message}`,
-			);
 			await this.applySubagentStatusBySessionId(subSessionId, "failed");
 			return;
 		}
 		const reason = context.result?.finishReason ?? "completed";
-		await this.appendSubagentTranscriptLine(subSessionId, `[done] ${reason}`);
 		await this.applySubagentStatusBySessionId(
 			subSessionId,
 			reason === "aborted" ? "cancelled" : "completed",
@@ -865,12 +844,6 @@ export class UnifiedSessionPersistenceService {
 					"utf8",
 				);
 			}
-			appendFileSync(
-				latest.transcriptPath,
-				`[shutdown] ${reason} (pid=${latest.pid})\n`,
-				"utf8",
-			);
-
 			return {
 				...latest,
 				status: "failed",
@@ -938,7 +911,6 @@ export class UnifiedSessionPersistenceService {
 			await Promise.allSettled(
 				children.map(async (child) => {
 					await deleteCheckpointRefs(child.cwd, child.sessionId);
-					unlinkIfExists(child.transcriptPath);
 					unlinkIfExists(child.messagesPath);
 					unlinkIfExists(
 						this.artifacts.sessionManifestPath(child.sessionId, false),
@@ -950,7 +922,6 @@ export class UnifiedSessionPersistenceService {
 
 		await deleteCheckpointRefs(row.cwd, id);
 
-		unlinkIfExists(row.transcriptPath);
 		unlinkIfExists(row.messagesPath);
 		unlinkIfExists(this.artifacts.sessionManifestPath(id, false));
 		if (row.isSubagent) {
@@ -959,7 +930,7 @@ export class UnifiedSessionPersistenceService {
 			const candidateDirs = new Set<string>([
 				this.artifacts.sessionArtifactsDir(id),
 			]);
-			for (const path of [row.transcriptPath, row.messagesPath]) {
+			for (const path of [row.messagesPath]) {
 				if (typeof path === "string" && path.trim().length > 0) {
 					candidateDirs.add(dirname(path));
 				}

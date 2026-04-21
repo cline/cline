@@ -46,10 +46,6 @@ export function sharedSessionArtifactPath(
 	return join(sharedSessionDataDir(), sessionId, `${sessionId}.${suffix}`);
 }
 
-export function sharedSessionLogPath(sessionId: string): string {
-	return sharedSessionArtifactPath(sessionId, "log");
-}
-
 export function sharedSessionMessagesPath(sessionId: string): string {
 	return sharedSessionArtifactPath(sessionId, "messages.json");
 }

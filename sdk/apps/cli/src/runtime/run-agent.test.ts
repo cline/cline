@@ -110,7 +110,6 @@ describe("runAgent", () => {
 		sessionManagerMocks.start.mockResolvedValue({
 			sessionId: "session-1",
 			manifestPath: "/tmp/manifest.json",
-			transcriptPath: "/tmp/transcript.jsonl",
 			messagesPath: "/tmp/messages.json",
 			manifest: {
 				session_id: "session-1",
@@ -182,7 +181,6 @@ describe("runAgent", () => {
 		sessionManagerMocks.start.mockResolvedValue({
 			sessionId: "session-1",
 			manifestPath: "/tmp/manifest.json",
-			transcriptPath: "/tmp/transcript.jsonl",
 			messagesPath: "/tmp/messages.json",
 			manifest: {
 				session_id: "session-1",

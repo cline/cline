@@ -193,11 +193,11 @@ All optional. Environment variables override defaults:
 
 ## How It Works
 
-Under the hood, each subagent is a full Cline SDK session created via `createSessionHost`. When you call `start_subagent`:
+Under the hood, each subagent is a full Cline SDK session created via `ClineCore.create(...)`. When you call `start_subagent`:
 
 1. The plugin resolves the agent preset. If none is provided, it uses `phantom` by default, then merges provider/model/instruction overrides and creates a new session.
 2. The first user message is sent to the session in the background — the tool returns the session ID immediately.
 3. When the subagent finishes (or fails), the result is stored in memory and optionally pushed back to the parent session as a "steer" message.
 4. The parent agent can poll with `get_subagent` or just wait for the notification.
 
-The session manager connection is resilient: if the initial connection fails, subsequent calls retry instead of permanently failing. Malformed agent/skill definition files are skipped gracefully without crashing the plugin.
+The runtime host connection is resilient: if the initial connection fails, subsequent calls retry instead of permanently failing. Malformed agent/skill definition files are skipped gracefully without crashing the plugin.

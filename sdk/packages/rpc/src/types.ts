@@ -116,7 +116,6 @@ export interface RpcSessionRow {
 	isSubagent: boolean;
 	prompt?: string;
 	metadata?: Record<string, unknown>;
-	transcriptPath: string;
 	messagesPath?: string;
 	updatedAt: string;
 }

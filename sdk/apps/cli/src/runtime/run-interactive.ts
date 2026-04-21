@@ -3,6 +3,7 @@ import {
 	type Llms,
 	prewarmFileIndex,
 	SessionSource,
+	type TeamEvent,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import { render } from "ink";
@@ -44,6 +45,10 @@ import {
 	CLI_DEFAULT_LOOP_DETECTION,
 } from "./defaults";
 import { buildUserInputMessage } from "./prompt";
+import type {
+	PendingPromptSnapshot,
+	PendingPromptSubmittedEvent,
+} from "./session-events";
 import {
 	getUIEventEmitter,
 	subscribeToAgentEvents,
@@ -130,17 +135,17 @@ export async function runInteractive(
 
 	const uiEvents = getUIEventEmitter();
 
-	const onAgentEvent = (event: AgentEvent) => {
+	const onAgentEvent = (event: AgentEvent): void => {
 		uiEvents.emit("agent", event);
 	};
 	const unsubscribeAgent = subscribeToAgentEvents(sessionManager, onAgentEvent);
 	const unsubscribePendingPrompts = subscribeToPendingPromptEvents(
 		sessionManager,
 		{
-			onPendingPrompts: (event) => {
+			onPendingPrompts: (event: PendingPromptSnapshot): void => {
 				uiEvents.emit("pending-prompts", event);
 			},
-			onPendingPromptSubmitted: (event) => {
+			onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent): void => {
 				uiEvents.emit("pending-prompt-submitted", event);
 			},
 		},
@@ -233,7 +238,6 @@ export async function runInteractive(
 	) => {
 		setActiveCliSession({
 			manifestPath: started.manifestPath,
-			transcriptPath: started.transcriptPath,
 			messagesPath: started.messagesPath,
 			manifest: started.manifest,
 		});
@@ -259,15 +263,17 @@ export async function runInteractive(
 				cwd: chatCommandState.cwd,
 				workspaceRoot: chatCommandState.workspaceRoot,
 				hooks: runtimeHooks.hooks,
-				onTeamEvent: (event) => {
+				onTeamEvent: (event: TeamEvent): void => {
 					uiEvents.emit("team", event);
 				},
 				onConsecutiveMistakeLimitReached: resolveMistakeLimitDecision,
 			},
 			interactive: true,
 			initialMessages: initial,
-			userInstructionWatcher,
-			onTeamRestored: () => {},
+			localRuntime: {
+				userInstructionWatcher,
+				onTeamRestored: () => {},
+			},
 		});
 		applyStartedSession(started);
 	};
@@ -295,15 +301,17 @@ export async function runInteractive(
 				cwd: chatCommandState.cwd,
 				workspaceRoot: chatCommandState.workspaceRoot,
 				hooks: runtimeHooks.hooks,
-				onTeamEvent: (event) => {
+				onTeamEvent: (event: TeamEvent): void => {
 					uiEvents.emit("team", event);
 				},
 				onConsecutiveMistakeLimitReached: resolveMistakeLimitDecision,
 			},
 			interactive: true,
 			initialMessages: initial,
-			userInstructionWatcher,
-			onTeamRestored: () => {},
+			localRuntime: {
+				userInstructionWatcher,
+				onTeamRestored: () => {},
+			},
 		});
 		applyStartedSession(started);
 	};

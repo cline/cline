@@ -207,7 +207,7 @@ const SCHEMA_STATEMENTS = [
 		is_subagent INTEGER NOT NULL DEFAULT 0,
 		prompt TEXT,
 		metadata_json TEXT,
-		transcript_path TEXT NOT NULL,
+		transcript_path TEXT NOT NULL DEFAULT '',
 		hook_path TEXT NOT NULL,
 		messages_path TEXT,
 		updated_at TEXT NOT NULL
@@ -315,6 +315,11 @@ const LEGACY_MIGRATIONS: Array<{
 		sql: "ALTER TABLE sessions ADD COLUMN metadata_json TEXT;",
 	},
 	{
+		table: "sessions",
+		column: "transcript_path",
+		sql: "ALTER TABLE sessions ADD COLUMN transcript_path TEXT NOT NULL DEFAULT '';",
+	},
+	{
 		table: "schedules",
 		column: "claim_token",
 		sql: "ALTER TABLE schedules ADD COLUMN claim_token TEXT;",
@@ -370,6 +375,7 @@ export function ensureSessionSchema(
 					"UPDATE sessions SET workspace_root = cwd WHERE workspace_root IS NULL OR workspace_root = '';",
 				);
 			}
+			columnCache.delete(migration.table);
 		}
 	}
 }

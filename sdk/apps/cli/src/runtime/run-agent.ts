@@ -6,6 +6,7 @@ import {
 	SessionSource,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
+import type { ConsecutiveMistakeLimitContext } from "@clinebot/shared";
 import { createCliCore } from "../session/session";
 import { resolveClineWelcomeLine } from "../tui/interactive-welcome";
 import {
@@ -163,7 +164,7 @@ export async function runAgent(
 	let reasoningChunkCount = 0;
 	let redactedReasoningChunkCount = 0;
 
-	const onAgentEvent = (event: AgentEvent) => {
+	const onAgentEvent = (event: AgentEvent): void => {
 		if (event.type === "content_start" && event.contentType === "reasoning") {
 			reasoningChunkCount += 1;
 			if (event.redacted) {
@@ -246,19 +247,21 @@ export async function runAgent(
 				checkpoint: config.checkpoint ?? CLI_DEFAULT_CHECKPOINT_CONFIG,
 				hooks: runtimeHooks.hooks,
 				onTeamEvent: handleTeamEvent,
-				onConsecutiveMistakeLimitReached: (context) =>
-					resolveMistakeLimitDecision(config, context),
+				onConsecutiveMistakeLimitReached: async (
+					context: ConsecutiveMistakeLimitContext,
+				) => resolveMistakeLimitDecision(config, context),
 			},
 			prompt: userInput,
 			interactive: false,
-			userInstructionWatcher,
-			onTeamRestored: () => emitTeamRestored(config),
+			localRuntime: {
+				userInstructionWatcher,
+				onTeamRestored: () => emitTeamRestored(config),
+			},
 		});
 
 		activeSessionId = started.sessionId;
 		setActiveCliSession({
 			manifestPath: started.manifestPath,
-			transcriptPath: started.transcriptPath,
 			messagesPath: started.messagesPath,
 			manifest: started.manifest,
 		});

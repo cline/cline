@@ -21,24 +21,26 @@ npm install @clinebot/core
 ## Entry Points
 
 - `@clinebot/core`: core contracts, shared utilities, and Node/server helpers for building hosts and runtimes
-- `@clinebot/core/node`: optional alias for the same Node/server runtime surface
 
 ## Typical Usage
 
 Most host apps should start with `@clinebot/core`.
 
 ```ts
-import { createSessionHost } from "@clinebot/core";
+import { ClineCore } from "@clinebot/core";
 
-const host = await createSessionHost({});
+const cline = await ClineCore.create({});
 
-const result = await host.start({
+const result = await cline.start({
 	config: {
 		providerId: "anthropic",
 		modelId: "claude-sonnet-4-6",
 		apiKey: process.env.ANTHROPIC_API_KEY ?? "",
 		cwd: process.cwd(),
+		mode: "act",
 		enableTools: true,
+		enableSpawnAgent: false,
+		enableAgentTeams: false,
 		systemPrompt: "You are a concise assistant.",
 	},
 	prompt: "Summarize this project.",
@@ -46,7 +48,7 @@ const result = await host.start({
 });
 
 console.log(result.result?.text);
-await host.dispose();
+await cline.dispose();
 ```
 
 ## Session Bootstrap
@@ -54,7 +56,8 @@ await host.dispose();
 `ClineCore.create(...)` also accepts `prepare(input)`.
 
 Use it when a host needs to prepare workspace-scoped runtime state before each
-session starts, then apply watcher/extensions/telemetry inputs generically.
+session starts, then apply watcher/extensions/telemetry inputs through
+`localRuntime.configOverrides` without widening the shared host contract.
 
 ## Main APIs
 
@@ -62,8 +65,9 @@ session starts, then apply watcher/extensions/telemetry inputs generically.
 
 Use `@clinebot/core` for host-facing runtime assembly:
 
-- `createSessionHost(...)`
-- `DefaultSessionManager`
+- `ClineCore.create(...)`
+- `createRuntimeHost(...)`
+- `LocalRuntimeHost`
 - `DefaultRuntimeBuilder`
 
 ### Default Tools

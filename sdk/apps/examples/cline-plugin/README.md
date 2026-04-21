@@ -57,13 +57,14 @@ Then pass it to the agent:
 ```ts
 import plugin from "./index";
 
-const host = await createSessionHost({});
+const host = await ClineCore.create({});
 await host.start({
   config: {
     providerId: "anthropic",
     modelId: "claude-sonnet-4-6",
     apiKey: process.env.ANTHROPIC_API_KEY ?? "",
     cwd: process.cwd(),
+    mode: "act",
     enableTools: true,
     enableSpawnAgent: false,
     enableAgentTeams: false,

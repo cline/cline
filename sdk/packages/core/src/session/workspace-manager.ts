@@ -7,7 +7,7 @@ import {
 import {
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
-} from "./workspace-manifest";
+} from "../services/workspace-manifest";
 
 export interface WorkspaceManagerEvent {
 	type: "workspace_added" | "workspace_switched";

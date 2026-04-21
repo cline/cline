@@ -35,7 +35,7 @@ class MockAgentTeamsRuntime {
 	shutdownTeammate = vi.fn();
 }
 
-vi.mock("../team", () => ({
+vi.mock("../extensions/tools/team", () => ({
 	AgentTeamsRuntime: MockAgentTeamsRuntime,
 	bootstrapAgentTeams: bootstrapAgentTeamsMock,
 	createDelegatedAgentConfigProvider: (config: Record<string, unknown>) => {
@@ -59,13 +59,16 @@ vi.mock("../team", () => ({
 	},
 }));
 
-vi.mock("../default-tools", () => ({
+vi.mock("../extensions/tools", () => ({
 	ALL_DEFAULT_TOOL_NAMES: [],
 	createBuiltinTools: createBuiltinToolsMock,
 	ToolPresets: {
 		development: {},
 		readonly: {},
 	},
+	resolveToolPresetName: () => "development",
+	resolveToolRoutingConfig: () => [],
+	DEFAULT_MODEL_TOOL_ROUTING_RULES: [],
 }));
 
 let teamStoreInstance: MockTeamStore | undefined;
@@ -100,7 +103,7 @@ class MockTeamStore {
 	persistRuntime = vi.fn();
 }
 
-vi.mock("../storage/team-store", () => ({
+vi.mock("../services/storage/team-store", () => ({
 	createLocalTeamStore: () => new MockTeamStore(),
 }));
 

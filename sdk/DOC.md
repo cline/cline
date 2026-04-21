@@ -131,7 +131,7 @@ Primary role: stateful orchestration over the stateless agent runtime.
 Important exported areas:
 
 - `ClineCore`
-- session host/session manager types
+- `RuntimeHost`, `LocalRuntimeHost`, `RpcRuntimeHost`, and `createRuntimeHost`
 - runtime builder
 - config watchers/loaders
 - config-side watcher projection helpers
@@ -176,6 +176,14 @@ Core owns:
 - checkpoint hooks when `CLINE_CHECKPOINT=true`
 - default context compaction injection for root sessions
 
+Runtime boundary notes:
+
+- `ClineCore.start(...)` is the ergonomic app-facing entrypoint and accepts the broad `CoreSessionConfig`
+- `RuntimeHost` is the lower-level transport-safe execution contract used beneath `ClineCore`
+- `LocalRuntimeHost` owns local in-process execution and local session persistence behavior
+- `RpcRuntimeHost` owns RPC request translation, remote event adaptation, and remote lifecycle proxying
+- host selection happens in `createRuntimeHost(...)`
+
 ### Context Compaction
 
 Core provides a built-in default compaction policy for root sessions.
@@ -212,12 +220,17 @@ Use it when a higher-level integration needs to prepare workspace-scoped runtime
 state before core starts a session, then attach the result through existing
 generic seams.
 
+`prepare(input)` runs on the broad `ClineCoreStartInput` before core normalizes
+that input into the lower-level `RuntimeHost` contract. This means integrations
+should mutate `input.config` directly for app-facing concerns such as
+extensions, telemetry, or a generated session id.
+
 The returned bootstrap can:
 
-- transform the `StartSessionInput`
-- attach a `UserInstructionConfigWatcher`
-- add extensions
-- provide telemetry
+- transform the app-facing start input
+- attach local runtime bootstrap state
+- add extensions through `input.config.extensions`
+- provide telemetry through `input.config.telemetry`
 - register cleanup with `dispose()`
 
 ### Interactive Queueing

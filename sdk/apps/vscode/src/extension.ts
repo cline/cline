@@ -4,11 +4,11 @@ import {
 	type BasicLogger,
 	buildWorkspaceMetadata,
 	ClineCore,
+	type CoreSessionEvent,
 	type ITelemetryService,
 	Llms,
 	ProviderSettingsManager,
 	type RpcProviderModel,
-	type SessionHost,
 	type ToolPolicy,
 } from "@clinebot/core";
 import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
@@ -143,7 +143,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 	private readonly logger: BasicLogger;
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly providerSettingsManager = new ProviderSettingsManager();
-	private host: SessionHost | undefined;
+	private host: ClineCore | undefined;
 	private stopSessionSubscription: (() => void) | undefined;
 	private sessionId: string | undefined;
 	private startConfig: StartConfig | undefined;
@@ -592,7 +592,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		if (!host) {
 			return;
 		}
-		this.stopSessionSubscription = host.subscribe((event) => {
+		this.stopSessionSubscription = host.subscribe((event: CoreSessionEvent) => {
 			if (
 				event.type !== "agent_event" ||
 				event.payload.sessionId !== sessionId
@@ -730,7 +730,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		this.stopSessionSubscription = undefined;
 	}
 
-	private async getSessionHost(): Promise<SessionHost> {
+	private async getSessionHost(): Promise<ClineCore> {
 		if (!this.host) {
 			this.host = await ClineCore.create({
 				backendMode: "local",

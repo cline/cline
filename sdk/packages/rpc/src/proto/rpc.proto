@@ -96,11 +96,10 @@ message SessionRecord {
   string conversation_id = 21;
   bool is_subagent = 22;
   string prompt = 23;
-  string transcript_path = 24;
-  string hook_path = 25;
-  string messages_path = 26;
-  string updated_at = 27;
-  google.protobuf.Struct metadata = 28;
+  string hook_path = 24;
+  string messages_path = 25;
+  string updated_at = 26;
+  google.protobuf.Struct metadata = 27;
 }
 
 message EnsureSessionRequest {
@@ -309,9 +308,8 @@ message RuntimeTurnResult {
 message RuntimeStartResult {
   string session_id = 1;
   string manifest_path = 2;
-  string transcript_path = 3;
-  string hook_path = 4;
-  string messages_path = 5;
+  string hook_path = 3;
+  string messages_path = 4;
 }
 
 message StartRuntimeSessionRequest {

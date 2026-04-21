@@ -4,8 +4,9 @@ import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import {
 	buildWorkspaceMetadata,
-	type DefaultSessionManager,
+	type LocalRuntimeHost,
 	SessionSource,
+	splitCoreSessionConfig,
 } from "@clinebot/core";
 import { buildClineSystemPrompt } from "@clinebot/shared";
 import { emitChunk, nowMs, sendEvent } from "./context";
@@ -183,6 +184,7 @@ function createLiveSession(
 
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 	return {
+		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
 		modelId: config.model ?? config.modelId ?? "",
 		mode: config.mode ?? "act",
@@ -270,7 +272,7 @@ function sendPromptsInQueueSnapshot(
 	});
 }
 
-function getSessionManager(ctx: SidecarContext): DefaultSessionManager {
+function getSessionManager(ctx: SidecarContext): LocalRuntimeHost {
 	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
 	return ctx.sessionManager;
 }
@@ -291,7 +293,7 @@ async function handleStart(
 		systemPrompt,
 	};
 	// Note: do NOT pass `prompt` to manager.start() here. When a prompt is
-	// provided to start(), DefaultSessionManager runs the full agent turn
+	// provided to start(), the local runtime host runs the full agent turn
 	// synchronously inside start(). We always start the session idle and let
 	// the frontend call the separate "send" action to dispatch the prompt.
 	// This avoids a double-execution bug where start() would run the turn AND
@@ -300,7 +302,7 @@ async function handleStart(
 		`[sidecar:handleStart] calling manager.start provider=${coreConfig.providerId} model=${coreConfig.modelId}`,
 	);
 	const startResult = await manager.start({
-		config: coreConfig as any,
+		...splitCoreSessionConfig(coreConfig as any),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		toolPolicies: resolveToolPolicies(request.config),
@@ -519,11 +521,13 @@ async function handleRestoreCheckpoint(
 	await applyCheckpointToWorktree(cwd, checkpoint);
 	const manager = getSessionManager(ctx);
 	const startResult = await manager.start({
-		config: buildCoreSessionConfig({
-			...request.config,
-			systemPrompt: await resolveSystemPrompt(request.config),
-			initialMessages: restoredMessages,
-		}) as any,
+		...splitCoreSessionConfig(
+			buildCoreSessionConfig({
+				...request.config,
+				systemPrompt: await resolveSystemPrompt(request.config),
+				initialMessages: restoredMessages,
+			}) as any,
+		),
 		source: SessionSource.DESKTOP,
 		interactive: true,
 		initialMessages: restoredMessages as any[],

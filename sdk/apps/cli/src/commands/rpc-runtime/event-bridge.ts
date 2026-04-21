@@ -1,6 +1,6 @@
 import type {
 	AgentEvent,
-	DefaultSessionManager,
+	LocalRuntimeHost,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/core";
@@ -135,7 +135,7 @@ function publishFromAgentEvent(input: {
 }
 
 export function subscribeRuntimeEventBridge(input: {
-	sessionManager: DefaultSessionManager;
+	sessionManager: LocalRuntimeHost;
 	eventClient: RpcSessionClient;
 }): () => void {
 	return input.sessionManager.subscribe((coreEvent) => {

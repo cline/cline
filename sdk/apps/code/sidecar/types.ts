@@ -67,7 +67,7 @@ export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
 	wsClients: Set<any>;
 	pendingApprovals: Map<string, PendingToolApproval>;
-	sessionManager: import("@clinebot/core").DefaultSessionManager | null;
+	sessionManager: import("@clinebot/core").LocalRuntimeHost | null;
 	workspaceRoot: string;
 	unsubscribeSessionEvents: (() => void) | null;
 };

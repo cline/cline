@@ -1,6 +1,6 @@
 import {
+	type ClineCoreStartInput,
 	createConfiguredTelemetryService,
-	type StartSessionInput,
 } from "@clinebot/core";
 import {
 	createClineTelemetryServiceConfig,
@@ -60,8 +60,9 @@ export async function prepareEnterpriseCoreIntegration(
 		prepared,
 		extensions,
 		telemetry,
-		applyToStartSessionInput(input: StartSessionInput): StartSessionInput {
+		applyToStartSessionInput(input: ClineCoreStartInput): ClineCoreStartInput {
 			const existingExtensions = input.config.extensions ?? [];
+			const existingTelemetry = input.config.telemetry;
 			const sessionId = blobUploadMetadataTemplate
 				? input.config.sessionId?.trim() || createSessionId()
 				: input.config.sessionId;
@@ -89,7 +90,7 @@ export async function prepareEnterpriseCoreIntegration(
 					...input.config,
 					...(sessionId ? { sessionId } : {}),
 					extensions: [...existingExtensions, ...extensions],
-					telemetry: telemetry ?? input.config.telemetry,
+					telemetry: telemetry ?? existingTelemetry,
 				},
 			};
 		},

@@ -1,6 +1,6 @@
 import type {
+	ClineCoreStartInput,
 	CreateOpenTelemetryTelemetryServiceOptions,
-	StartSessionInput,
 } from "@clinebot/core";
 import type {
 	AgentExtension,
@@ -233,8 +233,8 @@ export interface PrepareEnterpriseCoreIntegrationOptions
 
 export interface PreparedEnterpriseCoreIntegration {
 	prepared: PreparedEnterpriseRuntime;
-	extensions: NonNullable<StartSessionInput["config"]["extensions"]>;
+	extensions: AgentExtension[];
 	telemetry?: ITelemetryService;
-	applyToStartSessionInput(input: StartSessionInput): StartSessionInput;
+	applyToStartSessionInput(input: ClineCoreStartInput): ClineCoreStartInput;
 	dispose(): Promise<void>;
 }

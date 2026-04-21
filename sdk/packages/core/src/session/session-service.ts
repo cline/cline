@@ -13,17 +13,17 @@ import {
 	resolveSessionDataDir,
 	resolveTeamDataDir,
 } from "@clinebot/shared/storage";
-import type { SqliteSessionStore } from "../storage/sqlite-session-store";
-import type { AgentTeamsRuntime, TeamEvent } from "../team";
+import type { AgentTeamsRuntime, TeamEvent } from "../extensions/tools/team";
+import { nowIso } from "../services/session-artifacts";
+import type { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import type { SessionSource, SessionStatus } from "../types/common";
+import type { SessionMessagesArtifactUploader } from "../types/session";
 import type {
 	PersistedSessionUpdateInput,
 	SessionPersistenceAdapter,
 } from "./persistence-service";
 import { UnifiedSessionPersistenceService } from "./persistence-service";
-import { nowIso } from "./session-artifacts";
 import type { SessionManifest } from "./session-manifest";
-import type { SessionMessagesArtifactUploader } from "./utils/types";
 
 export interface SessionRow {
 	sessionId: string;
@@ -50,7 +50,6 @@ export interface SessionRow {
 	isSubagent: boolean;
 	prompt?: string | null;
 	metadata?: Record<string, unknown> | null;
-	transcriptPath: string;
 	hookPath?: string;
 	messagesPath?: string | null;
 	updatedAt: string;
@@ -72,7 +71,6 @@ export interface CreateRootSessionInput {
 	enableTeams: boolean;
 	prompt?: string;
 	metadata?: Record<string, unknown>;
-	transcriptPath: string;
 	messagesPath: string;
 }
 
@@ -96,7 +94,6 @@ export interface CreateRootSessionWithArtifactsInput {
 
 export interface RootSessionArtifacts {
 	manifestPath: string;
-	transcriptPath: string;
 	messagesPath: string;
 	manifest: SessionManifest;
 }
@@ -137,7 +134,6 @@ const SESSION_SELECT_COLUMNS = `
 	is_subagent    AS isSubagent,
 	prompt,
 	metadata_json  AS metadata,
-	transcript_path AS transcriptPath,
 	hook_path       AS hookPath,
 	messages_path   AS messagesPath,
 	updated_at      AS updatedAt`;
@@ -433,7 +429,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				row.isSubagent ? 1 : 0,
 				row.prompt ?? null,
 				stringifyMetadata(row.metadata),
-				row.transcriptPath,
+				"",
 				row.hookPath ?? "",
 				row.messagesPath ?? null,
 				row.updatedAt,
@@ -677,7 +673,7 @@ export class CoreSessionService extends UnifiedSessionPersistenceService {
 				0,
 				input.prompt ?? null,
 				input.metadata ? JSON.stringify(input.metadata) : null,
-				input.transcriptPath,
+				"",
 				"",
 				input.messagesPath,
 				nowIso(),

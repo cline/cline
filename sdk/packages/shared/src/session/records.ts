@@ -33,7 +33,6 @@ export interface SessionRuntimeRecordShape extends SessionLineage {
 	enableTeams: boolean;
 	prompt?: string;
 	metadata?: Record<string, unknown>;
-	transcriptPath?: string;
 	hookPath?: string;
 	messagesPath?: string;
 	updatedAt: string;

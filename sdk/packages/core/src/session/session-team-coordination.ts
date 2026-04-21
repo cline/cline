@@ -3,13 +3,13 @@ import {
 	type AgentResult,
 	formatUserInputBlock,
 } from "@clinebot/shared";
-import type { TeamEvent } from "../team";
+import type { TeamEvent } from "../extensions/tools/team";
 import {
 	buildTeamProgressSummary,
 	toTeamProgressLifecycleEvent,
-} from "../team";
+} from "../extensions/tools/team";
 import type { CoreSessionEvent } from "../types/events";
-import type { ActiveSession, TeamRunUpdate } from "./utils/types";
+import type { ActiveSession, TeamRunUpdate } from "../types/session";
 
 export function trackTeamRunState(
 	session: ActiveSession,

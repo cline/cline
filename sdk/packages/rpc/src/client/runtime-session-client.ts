@@ -41,7 +41,6 @@ export class RuntimeSessionClient {
 				? {
 						sessionId: response.startResult.sessionId ?? "",
 						manifestPath: response.startResult.manifestPath ?? "",
-						transcriptPath: response.startResult.transcriptPath ?? "",
 						messagesPath: response.startResult.messagesPath ?? "",
 					}
 				: undefined;

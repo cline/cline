@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { AgentTeamsRuntime } from "../team";
+import { AgentTeamsRuntime } from "../extensions/tools/team";
 import { FileTeamPersistenceStore } from "./session-service";
 
 describe("FileTeamPersistenceStore", () => {

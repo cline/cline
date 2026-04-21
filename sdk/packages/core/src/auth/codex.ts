@@ -13,7 +13,7 @@ import {
 	captureAuthStarted,
 	captureAuthSucceeded,
 	identifyAccount,
-} from "../telemetry/core-events";
+} from "../services/telemetry/core-events";
 import { startLocalOAuthServer } from "./server";
 import type {
 	OAuthCredentials,

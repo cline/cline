@@ -72,7 +72,7 @@ These allow host clients (for example code/code apps) to share one implementatio
 
 - `startRpcServer(...)` now requires a `sessionBackend` implementation via `RpcServerOptions`.
 - Session persistence contracts live in `RpcSessionBackend` / `RpcSessionRow` / `RpcSessionUpdateInput`.
-- `@clinebot/core/node` provides a ready-to-use SQLite backend (`createSqliteRpcSessionBackend`).
+- `@clinebot/core` provides a ready-to-use SQLite backend (`createSqliteRpcSessionBackend`).
 - Scheduled execution orchestration is provided via `@clinebot/scheduler` and is hosted inside the same RPC server process.
 - Runtime shutdown can now include host cleanup via optional `RpcRuntimeHandlers.dispose()`, which `startRpcServer(...)/stopRpcServer()` invokes during server stop.
 

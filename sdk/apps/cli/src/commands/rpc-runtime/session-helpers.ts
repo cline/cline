@@ -3,7 +3,7 @@ import { homedir, tmpdir } from "node:os";
 import { basename, join } from "node:path";
 import {
 	type AgentHooks,
-	type DefaultSessionManager,
+	type ClineCore,
 	Llms,
 	type RpcChatMessage,
 	type RpcChatRunTurnRequest,
@@ -93,7 +93,7 @@ export async function buildSessionStartInput(input: {
 	hooks?: AgentHooks;
 }): Promise<{
 	mode: "act" | "plan" | "yolo";
-	sessionInput: Parameters<DefaultSessionManager["start"]>[0];
+	sessionInput: Parameters<ClineCore["start"]>[0];
 }> {
 	const { config } = input;
 	const mode = resolveMode(config);

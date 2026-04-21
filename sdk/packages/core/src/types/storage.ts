@@ -1,5 +1,5 @@
 import type { TeamRuntimeState, TeamTeammateSpec } from "@clinebot/shared";
-import type { TeamEvent } from "../team";
+import type { TeamEvent } from "../extensions/tools/team";
 import type { SessionStatus } from "./common";
 import type { SessionRecord } from "./sessions";
 
@@ -51,11 +51,6 @@ export interface TeamStore {
 }
 
 export interface ArtifactStore {
-	appendTranscript(sessionId: string, text: string): Promise<void> | void;
 	appendHook(sessionId: string, payload: unknown): Promise<void> | void;
 	writeMessages(sessionId: string, messages: unknown[]): Promise<void> | void;
-	readTranscript(
-		sessionId: string,
-		maxChars?: number,
-	): Promise<string> | string;
 }

@@ -479,69 +479,6 @@ export function AgentSidebar({
 		}
 	}, [isCollapsed, searchOpen]);
 
-	useEffect(() => {
-		const handleTitleUpdated = (event: Event) => {
-			const detail = (event as SessionTitleUpdatedEvent).detail;
-			const sessionId = detail?.sessionId?.trim();
-			if (!sessionId) {
-				return;
-			}
-			const nextTitle = detail.title.trim();
-			setSessions((current) =>
-				updateSessionById(current, sessionId, (session) => ({
-					...session,
-					metadata: {
-						...(session.metadata ?? {}),
-						title: nextTitle || undefined,
-					},
-				})),
-			);
-			setThreads((current) =>
-				updateThreadById(current, sessionId, (thread) => ({
-					...thread,
-					title: nextTitle || `Session ${sessionId.slice(-6)}`,
-				})),
-			);
-		};
-
-		const handleSessionDeleted = (event: Event) => {
-			const detail = (event as SessionDeletedEvent).detail;
-			const sessionId = detail?.sessionId?.trim();
-			if (!sessionId) {
-				return;
-			}
-			usageLoadingRef.current.delete(sessionId);
-			titleLoadingRef.current.delete(sessionId);
-			usageHydratedStatusRef.current.delete(sessionId);
-			messageHydratedStatusRef.current.delete(sessionId);
-			setSessions((current) =>
-				current.filter((session) => session.sessionId !== sessionId),
-			);
-			setThreads((current) =>
-				current.filter((thread) => thread.id !== sessionId),
-			);
-		};
-
-		window.addEventListener(
-			"cline:session-title-updated",
-			handleTitleUpdated as EventListener,
-		);
-		window.addEventListener(
-			"cline:session-deleted",
-			handleSessionDeleted as EventListener,
-		);
-		return () => {
-			window.removeEventListener(
-				"cline:session-title-updated",
-				handleTitleUpdated as EventListener,
-			);
-			window.removeEventListener(
-				"cline:session-deleted",
-				handleSessionDeleted as EventListener,
-			);
-		};
-	}, []);
-
 	const refreshSessions = useCallback(async () => {
 		const limit = fetchLimitRef.current;
 		setIsLoadingHistory(true);
@@ -744,6 +681,91 @@ export function AgentSidebar({
 				});
 		}
 	}, [sessions]);
+
+	useEffect(() => {
+		const handleTitleUpdated = (event: Event) => {
+			const detail = (event as SessionTitleUpdatedEvent).detail;
+			const sessionId = detail?.sessionId?.trim();
+			if (!sessionId) {
+				return;
+			}
+			const nextTitle = detail.title.trim();
+			setSessions((current) =>
+				updateSessionById(current, sessionId, (session) => ({
+					...session,
+					metadata: {
+						...(session.metadata ?? {}),
+						title: nextTitle || undefined,
+					},
+				})),
+			);
+			setThreads((current) =>
+				updateThreadById(current, sessionId, (thread) => ({
+					...thread,
+					title: nextTitle || `Session ${sessionId.slice(-6)}`,
+				})),
+			);
+		};
+
+		const handleSessionDeleted = (event: Event) => {
+			const detail = (event as SessionDeletedEvent).detail;
+			const sessionId = detail?.sessionId?.trim();
+			if (!sessionId) {
+				return;
+			}
+			usageLoadingRef.current.delete(sessionId);
+			titleLoadingRef.current.delete(sessionId);
+			usageHydratedStatusRef.current.delete(sessionId);
+			messageHydratedStatusRef.current.delete(sessionId);
+			setSessions((current) =>
+				current.filter((session) => session.sessionId !== sessionId),
+			);
+			setThreads((current) =>
+				current.filter((thread) => thread.id !== sessionId),
+			);
+			void refreshSessions();
+		};
+
+		window.addEventListener(
+			"cline:session-title-updated",
+			handleTitleUpdated as EventListener,
+		);
+		window.addEventListener(
+			"cline:session-deleted",
+			handleSessionDeleted as EventListener,
+		);
+		const unsubscribeTransportDelete = desktopClient.subscribe(
+			"session_deleted",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				const sessionId =
+					typeof (payload as { sessionId?: unknown }).sessionId === "string"
+						? (payload as { sessionId: string }).sessionId.trim()
+						: "";
+				if (!sessionId) {
+					return;
+				}
+				handleSessionDeleted(
+					new CustomEvent("cline:session-deleted", {
+						detail: { sessionId },
+					}),
+				);
+			},
+		);
+		return () => {
+			window.removeEventListener(
+				"cline:session-title-updated",
+				handleTitleUpdated as EventListener,
+			);
+			window.removeEventListener(
+				"cline:session-deleted",
+				handleSessionDeleted as EventListener,
+			);
+			unsubscribeTransportDelete();
+		};
+	}, [refreshSessions]);
 
 	useEffect(() => {
 		const recent = sessions.slice(0, 24);
