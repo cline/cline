@@ -578,10 +578,10 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Verification**: Log in with an account that has no credits, attempt inference, verify the buy-credits buttons and provider-switch options appear instead of raw error text.
 
 ### S6-34: Cancel during generation doesn't show "Resume task" and follow-ups don't display
-- **Status**: 🔴 Blocker
+- **Status**: 🔵 Awaiting Verification
 - **Description**: Two related issues when cancelling during active generation: (1) After hitting "Cancel" while the agent is streaming, the button does not change to "Resume task" — it stays in a stuck state without the expected resume option. (2) If the user sends another message after cancelling, the message does not display in the chat panel (though it may be sent to the backend).
-- **Root cause**: The classic extension emits `ask: "resume_task"` when a task is cancelled mid-generation, which tells the webview to show the "Resume task" button and enables the follow-up input. The SDK adapter's `cancelTask()` likely calls `sessionManager.abort()` or `sessionManager.stop()` but doesn't emit the `ask: "resume_task"` message afterward. Without this ask message, the webview doesn't know the task is in a resumable state — the button state is wrong and `handleSendMessage()` doesn't handle the follow-up correctly. The follow-up message not displaying is likely the same root cause as S6-30 — the webview's `clineAsk` is not set to a value that enables message sending/display.
-- **Fix**: Not yet attempted. After `cancelTask()` successfully aborts the session, emit `ask: "resume_task"` (or `ask: "resume_completed_task"` depending on whether the task had completed) to the message state handler and partial message stream. This mirrors the classic extension's behavior in `Task.abortTask()` which emits the resume ask message. Also need to ensure the follow-up message handler works correctly when resuming from a cancelled state.
+- **Root cause**: The classic extension emits `ask: "resume_task"` when a task is cancelled mid-generation, which tells the webview to show the "Resume task" button and enables the follow-up input. The SDK adapter's `cancelTask()` called `sessionManager.abort()` but didn't emit `ask: "resume_task"` afterward. Instead it emitted `say: "info"` with "Task cancelled", which doesn't set `clineAsk` in the webview. Without the ask message, `handleSendMessage()` doesn't handle follow-up correctly.
+- **Fix applied**: Changed `cancelTask()` in `src/sdk/SdkController.ts` to emit `ask: "resume_task"` instead of `say: "info"`. The resume message is added to both `messageStateHandler` (for state updates) and emitted via `emitSessionEvents()` (for the partial message stream). This mirrors the classic extension's `Task.abortTask()` behavior. Also persists the message to disk via `debouncedSaveClineMessages()`. See also S6-46 for the related AbortError suppression.
 - **Verification**: Debug harness test: (1) Send a message that triggers long generation (2) Hit Cancel during streaming (3) Verify "Resume task" button appears (4) Send a follow-up message (5) Verify it displays in chat and triggers inference
 
 <!-- Template:
@@ -679,3 +679,17 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
   - TypeScript compiles with 0 new errors (5 pre-existing).
   - Extension builds successfully with fixes in the bundle.
 - **Evidence**: Fix verified via `npx vitest run` (SDK workspace tests) and `npx tsc --noEmit` (extension).
+
+### S6-46: Unhandled AbortError thrown when cancelling a running task
+- **Status**: 🔵 Awaiting Verification
+- **Description**: When the user cancels a running task, an unhandled `AbortError: This operation was aborted` appears in the VSCode developer console. The error propagates from `ClineCore.abort()` → `DefaultSessionManager.abort()` → `VscodeSessionHost.abort()` → `SdkController.cancelTask()` → gRPC handler → extension host. Additionally, the fire-and-forget `send()` promise rejects with `AbortError` when the abort signal fires, which was being logged as `Logger.error` and emitting an error event to the UI.
+- **Root cause**: Three compounding issues:
+  1. `VscodeSessionHost.abort()` directly proxied `this.inner.abort()` with no error handling. The SDK's `ClineCore.abort()` calls `AbortController.abort()` which can throw synchronously.
+  2. `SdkController.cancelTask()` had a try/catch but logged all errors at `Logger.error` level, including `AbortError` which is expected behavior.
+  3. `SdkController.fireAndForgetSend()` `.catch()` handler treated all errors equally — logging at error level and emitting error events to the UI, even for `AbortError` which should be silently absorbed since `cancelTask()` handles the UI state.
+- **Fix applied**:
+  1. **`src/sdk/vscode-session-host.ts`**: Wrapped `this.inner.abort()` in try/catch that suppresses `AbortError` (checks `error.name === "AbortError"` or `error.message` containing "aborted") and re-throws other errors. Logs at `Logger.debug` level.
+  2. **`src/sdk/SdkController.ts`**: Added `isAbortError()` helper function. Restructured `cancelTask()` to: (a) wrap `sessionManager.abort()` in its own try/catch that suppresses `AbortError` at debug level, (b) always proceed with cancellation cleanup regardless of abort error, (c) emit `ask: "resume_task"` instead of `say: "info"` to fix S6-34 simultaneously.
+  3. **`src/sdk/SdkController.ts`**: Updated `fireAndForgetSend()` `.catch()` to check `isAbortError()` first — if true, log at debug level and return early without emitting error events to the UI.
+- **Verification**: Debug harness test: (1) Start a task with long generation. (2) Cancel during streaming. (3) Verify no `AbortError` in the developer console. (4) Verify the "Resume task" button appears. (5) Send a follow-up message and verify it works.
+- **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit`). All 126 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`).
