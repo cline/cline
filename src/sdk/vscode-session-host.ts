@@ -6,12 +6,11 @@
 
 import {
 	ClineCore,
-	type ClineCoreStartInput,
 	type CoreSessionEvent,
 	type HookEventPayload,
-	type RuntimeHost,
 	type SendSessionInput,
 	type SessionAccumulatedUsage,
+	type SessionHost,
 	type SessionRecord,
 	type StartSessionInput,
 	type StartSessionResult,
@@ -35,7 +34,7 @@ export interface VscodeSessionHostOptions {
 	}) => Promise<{ approved: boolean; reason?: string }>
 }
 
-export class VscodeSessionHost implements RuntimeHost {
+export class VscodeSessionHost implements SessionHost {
 	readonly runtimeAddress: string | undefined
 	private readonly inner: ClineCore
 
@@ -51,8 +50,8 @@ export class VscodeSessionHost implements RuntimeHost {
 				| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)
 				| undefined,
 			distinctId: getDistinctId() || undefined,
-			prepare: () => ({
-				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
+			prepare: async () => ({
+				applyToStartSessionInput: async (input: StartSessionInput): Promise<StartSessionInput> => {
 					const extraTools = await createVscodeExtraTools(options.mcpHub)
 					return {
 						...input,
@@ -70,9 +69,7 @@ export class VscodeSessionHost implements RuntimeHost {
 		return new VscodeSessionHost(inner)
 	}
 
-	async start(input: StartSessionInput): Promise<StartSessionResult>
-	async start(input: ClineCoreStartInput): Promise<StartSessionResult>
-	async start(input: StartSessionInput | ClineCoreStartInput): Promise<StartSessionResult> {
+	async start(input: StartSessionInput): Promise<StartSessionResult> {
 		return this.inner.start(input)
 	}
 
@@ -120,6 +117,10 @@ export class VscodeSessionHost implements RuntimeHost {
 
 	async readMessages(sessionId: string) {
 		return this.inner.readMessages(sessionId)
+	}
+
+	async readTranscript(sessionId: string, maxChars?: number): Promise<string> {
+		return this.inner.readTranscript(sessionId, maxChars)
 	}
 
 	async update(

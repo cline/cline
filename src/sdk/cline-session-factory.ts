@@ -8,7 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import { type ClineCoreStartInput, type CoreSessionConfig, type RuntimeHost, type StartSessionResult } from "@clinebot/core"
+import { type CoreSessionConfig, type SessionHost, type StartSessionInput, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -50,7 +50,7 @@ export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
 	/** The runtime host instance managing this session (VscodeSessionHost) */
-	sessionManager: RuntimeHost
+	sessionManager: SessionHost
 	/** Unsubscribe function for session events */
 	unsubscribe: () => void
 	/** The start result from the session */
@@ -402,7 +402,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
  * inference, preventing the gRPC handler from blocking until the first
  * agent turn completes.
  */
-export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
+export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): StartSessionInput {
 	return {
 		config,
 		// Do NOT pass prompt here — start() should return immediately.
