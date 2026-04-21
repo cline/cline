@@ -1,4 +1,4 @@
-import type * as LlmsProviders from "@clinebot/llms";
+import type { ModelInfo } from "@clinebot/llms";
 import type {
 	AgentConfig,
 	AgentHooks,
@@ -17,6 +17,7 @@ import type {
 } from "@clinebot/shared";
 import type { ToolRoutingRule } from "../extensions/tools/model-tool-routing";
 import type { TeamEvent } from "../extensions/tools/team";
+import type { ProviderConfig } from "./provider-settings";
 
 export type CoreAgentMode = AgentMode;
 
@@ -26,8 +27,8 @@ export interface CoreModelConfig {
 	apiKey?: string;
 	baseUrl?: string;
 	headers?: Record<string, string>;
-	providerConfig?: LlmsProviders.ProviderConfig;
-	knownModels?: Record<string, LlmsProviders.ModelInfo>;
+	providerConfig?: ProviderConfig;
+	knownModels?: Record<string, ModelInfo>;
 	/**
 	 * Request model-side thinking/reasoning when supported.
 	 */
@@ -35,7 +36,7 @@ export interface CoreModelConfig {
 	/**
 	 * Explicit reasoning effort override for capable models.
 	 */
-	reasoningEffort?: LlmsProviders.ProviderConfig["reasoningEffort"];
+	reasoningEffort?: ProviderConfig["reasoningEffort"];
 }
 
 export interface CoreRuntimeFeatures {
@@ -55,7 +56,7 @@ export interface CoreCompactionContext {
 	model: {
 		id: string;
 		provider: string;
-		info?: LlmsProviders.ModelInfo;
+		info?: ModelInfo;
 	};
 	contextWindowTokens: number;
 	triggerTokens: number;
@@ -73,8 +74,8 @@ export interface CoreCompactionSummarizerConfig {
 	apiKey?: string;
 	baseUrl?: string;
 	headers?: Record<string, string>;
-	knownModels?: Record<string, LlmsProviders.ModelInfo>;
-	providerConfig?: LlmsProviders.ProviderConfig;
+	knownModels?: Record<string, ModelInfo>;
+	providerConfig?: ProviderConfig;
 	maxOutputTokens?: number;
 }
 

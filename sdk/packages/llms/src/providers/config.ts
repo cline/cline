@@ -6,7 +6,7 @@
  */
 
 import type { BasicLogger, ExtensionContext } from "@clinebot/shared";
-import type { ModelInfo, ProviderClient } from "../model/types";
+import type { ModelInfo, ProviderClient } from "../catalog/types";
 import {
 	BUILT_IN_PROVIDER,
 	BUILT_IN_PROVIDER_IDS,

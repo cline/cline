@@ -1,19 +1,15 @@
+import type { ApiHandler } from "@clinebot/llms";
 import {
-	getProviderCollection,
-	hasProvider,
-	registerModel as registerModelInCatalog,
-	registerProvider as registerProviderInCatalog,
-} from "../gateway/model-registry";
-import {
-	registerAsyncHandler,
-	registerHandler,
-} from "../provider/factory-registry";
-import { BUILT_IN_PROVIDER_IDS } from "../provider/ids";
-import {
-	type ApiHandler,
+	BUILT_IN_PROVIDER_IDS,
 	createHandler as createProviderHandler,
 	createHandlerAsync as createProviderHandlerAsync,
-} from "../providers";
+	getProviderCollection,
+	hasProvider,
+	registerAsyncHandler,
+	registerHandler,
+	registerModel as registerModelInCatalog,
+	registerProvider as registerProviderInCatalog,
+} from "@clinebot/llms";
 import {
 	ConfiguredProviderRegistry,
 	toBuiltInProviderSummary,
@@ -27,7 +23,7 @@ import type {
 	RegisteredProviderSummary,
 	RegisterModelInput,
 	RegisterProviderInput,
-} from "./types";
+} from "./runtime-types";
 
 export class DefaultLlmsSdk implements LlmsSdk {
 	private readonly configuredProviders = new ConfiguredProviderRegistry();
@@ -50,24 +46,20 @@ export class DefaultLlmsSdk implements LlmsSdk {
 
 	registerProvider(input: RegisterProviderInput): void {
 		registerProviderInCatalog(input.collection);
-
 		if (input.handlerFactory && input.asyncHandlerFactory) {
 			throw new Error(
 				`Provider "${input.collection.provider.id}" cannot register both sync and async handlers.`,
 			);
 		}
-
 		if (input.handlerFactory) {
 			registerHandler(input.collection.provider.id, input.handlerFactory);
 		}
-
 		if (input.asyncHandlerFactory) {
 			registerAsyncHandler(
 				input.collection.provider.id,
 				input.asyncHandlerFactory,
 			);
 		}
-
 		this.configuredProviders.register({
 			id: input.collection.provider.id,
 			models: input.exposeModels ?? Object.keys(input.collection.models),
@@ -83,7 +75,6 @@ export class DefaultLlmsSdk implements LlmsSdk {
 		if (!defaultModel) {
 			throw new Error(`Provider "${input.id}" must define a default model.`);
 		}
-
 		registerProviderInCatalog({
 			provider: {
 				id: input.id,
@@ -98,7 +89,6 @@ export class DefaultLlmsSdk implements LlmsSdk {
 			},
 			models: input.models,
 		});
-
 		this.configuredProviders.register({
 			id: input.id,
 			models: exposedModels,
@@ -129,7 +119,6 @@ export class DefaultLlmsSdk implements LlmsSdk {
 				getProviderCollection(providerId),
 			),
 		);
-
 		return collections
 			.filter(
 				(collection): collection is NonNullable<typeof collection> =>
@@ -154,15 +143,12 @@ export class DefaultLlmsSdk implements LlmsSdk {
 		for (const provider of config.providers) {
 			this.configuredProviders.registerSelectionConfig(provider);
 		}
-
 		for (const model of config.models ?? []) {
 			this.registerModel(model);
 		}
-
 		for (const provider of config.customProviders ?? []) {
 			this.registerProvider(provider);
 		}
-
 		for (const provider of this.configuredProviders.list()) {
 			const providerExists = hasProvider(provider.id);
 			const routedProviderId = this.configuredProviders.createHandlerConfig({

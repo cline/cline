@@ -4,7 +4,6 @@ import { describe, it } from "vitest";
 import * as LlmsProviders from "./providers";
 
 type ProviderConfig = import("./providers").ProviderConfig;
-type ProviderSettings = import("./providers").ProviderSettings;
 
 interface StoredProviderSettingsEntryLike {
 	settings?: unknown;
@@ -36,6 +35,30 @@ interface LiveProviderEntryLike {
 interface LiveRunMetrics {
 	usageSeen: boolean;
 	toolCallCount: number;
+}
+
+function toProviderConfig(settingsInput: unknown): ProviderConfig {
+	const settings =
+		settingsInput && typeof settingsInput === "object"
+			? (settingsInput as Record<string, unknown>)
+			: {};
+	const provider = settings.provider;
+	if (typeof provider !== "string" || provider.trim().length === 0) {
+		throw new Error("live provider entry must include a provider string");
+	}
+	const config: ProviderConfig = {
+		providerId: provider,
+	};
+	if (typeof settings.model === "string") {
+		config.modelId = settings.model;
+	}
+	if (typeof settings.apiKey === "string") {
+		config.apiKey = settings.apiKey;
+	}
+	if (typeof settings.baseUrl === "string") {
+		config.baseUrl = settings.baseUrl;
+	}
+	return config;
 }
 
 const LIVE_TEST_ENABLED = process.env.LLMS_LIVE_TOOL_TESTS === "1";
@@ -73,9 +96,7 @@ function toTarget(
 	settingsInput: unknown,
 	entry?: LiveProviderEntryLike,
 ): ProviderTarget {
-	const parsed = LlmsProviders.ProviderSettingsSchema.parse(
-		settingsInput,
-	) as ProviderSettings;
+	const config = toProviderConfig(settingsInput);
 	const runsCandidate = entry?.runs;
 	const runs =
 		typeof runsCandidate === "number" &&
@@ -89,8 +110,8 @@ function toTarget(
 			: {};
 
 	return {
-		label: `${label} (${parsed.provider})`,
-		config: LlmsProviders.toProviderConfig(parsed),
+		label: `${label} (${config.providerId})`,
+		config,
 		systemPrompt:
 			typeof entry?.systemPrompt === "string"
 				? entry.systemPrompt

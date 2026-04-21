@@ -6,18 +6,7 @@ import type {
 	GatewayStreamRequest,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
-import type { ModelInfo } from "../model/types";
-import {
-	type ApiHandler,
-	type ApiStream,
-	type ApiStreamChunk,
-	type HandlerModelInfo,
-	type Message,
-	normalizeProviderId,
-	type ProviderConfig,
-	resolveRoutingProviderId,
-	type ToolDefinition,
-} from "../provider/types";
+import type { ModelInfo } from "../catalog/types";
 import {
 	createAnthropicProvider,
 	createBedrockProvider,
@@ -32,11 +21,22 @@ import {
 	createVertexProvider,
 } from "./ai-sdk";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
-import { createGateway } from "./index";
+import { createGateway } from "./gateway";
 import {
 	getProviderCollection,
 	getProviderCollectionSync,
 } from "./model-registry";
+import {
+	type ApiHandler,
+	type ApiStream,
+	type ApiStreamChunk,
+	type HandlerModelInfo,
+	type Message,
+	normalizeProviderId,
+	type ProviderConfig,
+	resolveRoutingProviderId,
+	type ToolDefinition,
+} from "./types";
 
 const BUILTIN_PROVIDER_MAP = new Map(
 	BUILTIN_PROVIDER_REGISTRATIONS.map((registration) => [

@@ -1,4 +1,4 @@
-import { Llms } from "@clinebot/core";
+import { Llms, type ProviderSettings } from "@clinebot/core";
 
 export type OAuthCredentials = {
 	access: string;
@@ -41,7 +41,7 @@ export function toProviderApiKey(
 
 export function getPersistedProviderApiKey(
 	providerId: string,
-	settings?: Llms.ProviderSettings,
+	settings?: ProviderSettings,
 ): string | undefined {
 	const accessToken = settings?.auth?.accessToken?.trim();
 	if (accessToken) {

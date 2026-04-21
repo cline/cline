@@ -23,7 +23,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
 import { Agent } from "@clinebot/agents";
-import * as providers from "@clinebot/llms";
+import { ProviderSettingsSchema, toProviderConfig } from "@clinebot/core";
 import {
 	Chat,
 	ConsoleLogger,
@@ -253,8 +253,8 @@ function parseProviderConfigFromDisk(filePathInput: string): {
 			firstEntry[1];
 		const maybeStoredEntry = chosenValue as StoredProviderSettingsEntryLike;
 		const rawSettings = maybeStoredEntry.settings ?? chosenValue;
-		const settings = providers.ProviderSettingsSchema.parse(rawSettings);
-		const config = providers.toProviderConfig(settings);
+		const settings = ProviderSettingsSchema.parse(rawSettings);
+		const config = toProviderConfig(settings);
 		return {
 			providerId: config.providerId,
 			modelId: config.modelId,
@@ -268,8 +268,8 @@ function parseProviderConfigFromDisk(filePathInput: string): {
 		if (!parsed.length) {
 			throw new Error(`Provider settings array is empty in ${filePath}.`);
 		}
-		const settings = providers.ProviderSettingsSchema.parse(parsed[0]);
-		const config = providers.toProviderConfig(settings);
+		const settings = ProviderSettingsSchema.parse(parsed[0]);
+		const config = toProviderConfig(settings);
 		return {
 			providerId: config.providerId,
 			modelId: config.modelId,
@@ -279,8 +279,8 @@ function parseProviderConfigFromDisk(filePathInput: string): {
 		};
 	}
 
-	const settings = providers.ProviderSettingsSchema.parse(parsed);
-	const config = providers.toProviderConfig(settings);
+	const settings = ProviderSettingsSchema.parse(parsed);
+	const config = toProviderConfig(settings);
 	return {
 		providerId: config.providerId,
 		modelId: config.modelId,

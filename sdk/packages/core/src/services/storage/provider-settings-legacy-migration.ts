@@ -1,10 +1,12 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@clinebot/llms";
-import * as LlmsProviders from "@clinebot/llms";
 import { resolveClineDataDir } from "@clinebot/shared/storage";
-import type { ProviderSettings } from "../../types/provider-settings";
-import { emptyStoredProviderSettings } from "../../types/provider-settings";
+import {
+	emptyStoredProviderSettings,
+	type ProviderSettings,
+	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
+} from "../../types/provider-settings";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
 
 type LegacyMode = "plan" | "act";
@@ -659,7 +661,7 @@ function buildLegacyProviderSettings(
 		...(timeout ? { timeout } : {}),
 		...providerSpecific,
 	};
-	const parsed = LlmsProviders.ProviderSettingsSchema.safeParse(settings);
+	const parsed = ProviderSettingsSchema.safeParse(settings);
 	if (!parsed.success) {
 		return undefined;
 	}

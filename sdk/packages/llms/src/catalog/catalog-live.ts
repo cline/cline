@@ -1,4 +1,4 @@
-import { MODELS_DEV_PROVIDER_KEY_MAP } from "../gateway/provider-keys";
+import { MODELS_DEV_PROVIDER_KEY_MAP } from "../providers/provider-keys";
 import type { ModelInfo } from "./types";
 
 export interface ModelsDevModel {

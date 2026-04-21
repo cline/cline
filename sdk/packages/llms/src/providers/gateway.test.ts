@@ -1,7 +1,7 @@
 import type { AgentMessage, AgentModelEvent } from "@clinebot/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { normalizeModelsDevProviderModels } from "../model/catalog-live";
-import { createGateway } from "./index";
+import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
+import { createGateway } from "./gateway";
 
 const streamTextSpy = vi.fn();
 const openaiCompatibleFactorySpy = vi.fn();
@@ -18,6 +18,11 @@ const anthropicSpy = vi.fn((modelId: string) => ({
 	family: "anthropic",
 }));
 const googleSpy = vi.fn((modelId: string) => ({ modelId, family: "google" }));
+const codexExecFactorySpy = vi.fn();
+const codexExecSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "openai-codex",
+}));
 
 vi.mock("ai", () => ({
 	streamText: (input: unknown) => streamTextSpy(input),
@@ -42,6 +47,13 @@ vi.mock("@ai-sdk/anthropic", () => ({
 
 vi.mock("@ai-sdk/google", () => ({
 	createGoogleGenerativeAI: () => (modelId: string) => googleSpy(modelId),
+}));
+
+vi.mock("ai-sdk-provider-codex-cli", () => ({
+	createCodexExec: (config: unknown) => {
+		codexExecFactorySpy(config);
+		return (modelId: string) => codexExecSpy(modelId);
+	},
 }));
 
 async function* makeStreamParts(parts: unknown[]) {
@@ -85,6 +97,8 @@ describe("sdk-gateway", () => {
 		openaiResponsesSpy.mockReset();
 		anthropicSpy.mockReset();
 		googleSpy.mockReset();
+		codexExecFactorySpy.mockReset();
+		codexExecSpy.mockReset();
 		googleSpy.mockImplementation((modelId: string) => ({
 			modelId,
 			family: "google",
@@ -100,6 +114,10 @@ describe("sdk-gateway", () => {
 		anthropicSpy.mockImplementation((modelId: string) => ({
 			modelId,
 			family: "anthropic",
+		}));
+		codexExecSpy.mockImplementation((modelId: string) => ({
+			modelId,
+			family: "openai-codex",
 		}));
 		if (originalOpenRouterApiKey === undefined) {
 			delete process.env.OPENROUTER_API_KEY;
@@ -822,6 +840,44 @@ describe("sdk-gateway", () => {
 						providerOptions: expect.anything(),
 					}),
 				}),
+			}),
+		);
+	});
+
+	it("does not pass extra tools to the OpenAI Codex provider", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-codex",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5-codex",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		expect(codexExecSpy).toHaveBeenCalledWith("gpt-5-codex");
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: undefined,
 			}),
 		);
 	});

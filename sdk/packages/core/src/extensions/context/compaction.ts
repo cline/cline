@@ -1,4 +1,3 @@
-import type * as LlmsProviders from "@clinebot/llms";
 import type {
 	CoreCompactionConfig,
 	CoreCompactionContext,
@@ -6,6 +5,7 @@ import type {
 	CoreCompactionStrategy,
 	CoreSessionConfig,
 } from "../../types/config";
+import type { ProviderConfig } from "../../types/provider-settings";
 import { runAgenticCompaction } from "./agentic-compaction";
 import { runBasicCompaction } from "./basic-compaction";
 import {
@@ -41,7 +41,7 @@ type EstimateMessageTokens = ReturnType<typeof createTokenEstimator>;
 
 type BuiltinCompactionStrategyOptions = {
 	context: CoreCompactionContext;
-	providerConfig: LlmsProviders.ProviderConfig;
+	providerConfig: ProviderConfig;
 	compaction: CoreCompactionConfig | undefined;
 	estimateMessageTokens: EstimateMessageTokens;
 	logger: Pick<CoreSessionConfig, "logger">["logger"];
@@ -129,7 +129,7 @@ export function createContextCompactionPrepareTurn(
 		({
 			providerId: config.providerId,
 			modelId: config.modelId,
-		} as LlmsProviders.ProviderConfig);
+		} as ProviderConfig);
 	const estimateMessageTokens = createTokenEstimator();
 	const strategy = userCompaction?.strategy ?? "basic";
 	const runBuiltinStrategy = BUILTIN_COMPACTION_STRATEGIES[strategy];

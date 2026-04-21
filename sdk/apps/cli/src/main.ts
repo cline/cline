@@ -691,8 +691,8 @@ export async function runCli(): Promise<void> {
 	// should only load when the CLI is actually starting an agent session.
 	const providerSettingsManager = await createProviderSettingsManager();
 	const {
+		coreServer,
 		coreServer: {
-			Llms,
 			createTeamName,
 			createUserInstructionConfigWatcher,
 			loadRulesForSystemPromptFromWatcher,
@@ -755,7 +755,7 @@ export async function runCli(): Promise<void> {
 		let knownModels: Config["knownModels"];
 		if (args.liveModelCatalog) {
 			try {
-				const resolvedProviderConfig = await Llms.resolveProviderConfig(
+				const resolvedProviderConfig = await coreServer.resolveProviderConfig(
 					provider,
 					{
 						loadLatestOnInit: true,

@@ -4,7 +4,6 @@ import { describe, it } from "vitest";
 import * as LlmsProviders from "./providers";
 
 type ProviderConfig = import("./providers").ProviderConfig;
-type ProviderSettings = import("./providers").ProviderSettings;
 
 interface StoredProviderSettingsEntryLike {
 	settings?: unknown;
@@ -52,14 +51,56 @@ interface LiveRunMetrics {
 	thoughtsTokenCountMax: number;
 }
 
+function toProviderConfig(settingsInput: unknown): ProviderConfig {
+	const settings =
+		settingsInput && typeof settingsInput === "object"
+			? (settingsInput as Record<string, unknown>)
+			: {};
+	const provider = settings.provider;
+	if (typeof provider !== "string" || provider.trim().length === 0) {
+		throw new Error("live provider entry must include a provider string");
+	}
+	const config: ProviderConfig = {
+		providerId: provider,
+	};
+	if (typeof settings.model === "string") {
+		config.modelId = settings.model;
+	}
+	if (typeof settings.apiKey === "string") {
+		config.apiKey = settings.apiKey;
+	}
+	if (typeof settings.baseUrl === "string") {
+		config.baseUrl = settings.baseUrl;
+	}
+	if (
+		settings.reasoning &&
+		typeof settings.reasoning === "object" &&
+		!Array.isArray(settings.reasoning)
+	) {
+		const reasoning = settings.reasoning as Record<string, unknown>;
+		if (typeof reasoning.enabled === "boolean") {
+			config.thinking = reasoning.enabled;
+		}
+		if (typeof reasoning.effort === "string" && reasoning.effort !== "none") {
+			config.reasoningEffort = reasoning.effort as
+				| "low"
+				| "medium"
+				| "high"
+				| "xhigh";
+		}
+		if (typeof reasoning.budgetTokens === "number") {
+			config.thinkingBudgetTokens = reasoning.budgetTokens;
+		}
+	}
+	return config;
+}
+
 function toTarget(
 	label: string,
 	settingsInput: unknown,
 	entry?: LiveProviderEntryLike,
 ): ProviderTarget {
-	const parsed = LlmsProviders.ProviderSettingsSchema.parse(
-		settingsInput,
-	) as ProviderSettings;
+	const config = toProviderConfig(settingsInput);
 	const runsCandidate = entry?.runs;
 	const runs =
 		typeof runsCandidate === "number" &&
@@ -73,8 +114,8 @@ function toTarget(
 			: {};
 
 	return {
-		label: `${label} (${parsed.provider})`,
-		config: LlmsProviders.toProviderConfig(parsed),
+		label: `${label} (${config.providerId})`,
+		config,
 		systemPrompt:
 			typeof entry?.systemPrompt === "string"
 				? entry.systemPrompt

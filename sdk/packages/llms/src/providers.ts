@@ -1,48 +1,53 @@
-export { resolveProviderConfig } from "./provider/defaults";
 export {
 	type ApiHandler,
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	type BuiltInProviderId,
+	type HandlerFactory,
+	isBuiltInProviderId,
+	type LazyHandlerFactory,
 	normalizeProviderId,
 	type ProviderCapability,
 	type ProviderConfig,
 	type ProviderId,
-} from "./provider/types";
+} from "./providers/types";
 
 import {
 	createGatewayApiHandler,
 	createGatewayApiHandlerAsync,
-} from "./gateway/compat";
+} from "./providers/compat";
 import {
 	getRegisteredHandler,
 	getRegisteredHandlerAsync,
 	hasRegisteredHandler,
 	isRegisteredHandlerAsync,
-} from "./provider/factory-registry";
+} from "./providers/factory-registry";
 import {
 	type ApiHandler,
 	normalizeProviderId,
 	type ProviderConfig,
-} from "./provider/types";
+} from "./providers/types";
 
 export {
-	type ApiStreamChunk,
-	type ContentBlock,
-	type FileContent,
-	type HandlerModelInfo,
-	type ImageContent,
-	type Message,
-	type MessageRole,
-	type MessageWithMetadata,
-	type ProviderSettings,
-	ProviderSettingsSchema,
-	parseSettings,
-	type RedactedThinkingContent,
-	type TextContent,
-	type ThinkingContent,
-	type ToolDefinition,
-	type ToolResultContent,
-	type ToolUseContent,
-	toProviderConfig,
-} from "./provider/types";
+	registerAsyncHandler,
+	registerHandler,
+} from "./providers/factory-registry";
+export type {
+	ApiStreamChunk,
+	ContentBlock,
+	FileContent,
+	HandlerModelInfo,
+	ImageContent,
+	Message,
+	MessageRole,
+	MessageWithMetadata,
+	RedactedThinkingContent,
+	TextContent,
+	ThinkingContent,
+	ToolDefinition,
+	ToolResultContent,
+	ToolUseContent,
+} from "./providers/types";
 
 function withNormalizedProviderId(config: ProviderConfig): ProviderConfig {
 	const providerId = normalizeProviderId(config.providerId);

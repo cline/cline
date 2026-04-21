@@ -1,4 +1,3 @@
-import type * as LlmsProviders from "@clinebot/llms";
 import {
 	type ITelemetryService,
 	isOAuthProviderId,
@@ -12,6 +11,7 @@ import { getValidOpenAICodexCredentials } from "../auth/codex";
 import { getValidOcaCredentials } from "../auth/oca";
 import { decodeJwtPayload } from "../auth/utils";
 import { ProviderSettingsManager } from "../services/storage/provider-settings-manager";
+import type { ProviderSettings } from "../types/provider-settings";
 
 const DEFAULT_CLINE_API_BASE_URL = "https://api.cline.bot";
 const WORKOS_TOKEN_PREFIX = "workos:";
@@ -51,12 +51,12 @@ function readExpiryFromToken(accessToken: string): number | null {
 }
 
 function deriveCredentialExpiry(
-	settings: LlmsProviders.ProviderSettings,
+	settings: ProviderSettings,
 	normalizedAccessToken: string,
 ): number {
 	const explicitExpiry = (
 		settings.auth as
-			| (LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number })
+			| (ProviderSettings["auth"] & { expiresAt?: number })
 			| undefined
 	)?.expiresAt;
 	if (
@@ -78,7 +78,7 @@ function deriveCredentialExpiry(
 
 function toCredentials(
 	providerId: ManagedOAuthProviderId,
-	settings: LlmsProviders.ProviderSettings,
+	settings: ProviderSettings,
 ): ClineOAuthCredentials | null {
 	const rawAccess = settings.auth?.accessToken?.trim();
 	const refreshToken = settings.auth?.refreshToken?.trim();
@@ -99,18 +99,14 @@ function toCredentials(
 }
 
 function authSettingsEqual(
-	a: LlmsProviders.ProviderSettings["auth"] | undefined,
-	b: LlmsProviders.ProviderSettings["auth"] | undefined,
+	a: ProviderSettings["auth"] | undefined,
+	b: ProviderSettings["auth"] | undefined,
 ): boolean {
 	const aExpiry = (
-		a as
-			| (LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number })
-			| undefined
+		a as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
 	)?.expiresAt;
 	const bExpiry = (
-		b as
-			| (LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number })
-			| undefined
+		b as (ProviderSettings["auth"] & { expiresAt?: number }) | undefined
 	)?.expiresAt;
 	return (
 		a?.accessToken === b?.accessToken &&
@@ -219,9 +215,9 @@ export class RuntimeOAuthTokenManager {
 			accessToken: persistedAccessToken,
 			refreshToken: nextCredentials.refresh,
 			accountId: nextCredentials.accountId,
-		} as LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number };
+		} as ProviderSettings["auth"] & { expiresAt?: number };
 		nextAuth.expiresAt = nextCredentials.expires;
-		const nextSettings: LlmsProviders.ProviderSettings = {
+		const nextSettings: ProviderSettings = {
 			...settings,
 			auth: nextAuth,
 		};
@@ -243,7 +239,7 @@ export class RuntimeOAuthTokenManager {
 
 	private async resolveCredentials(
 		providerId: ManagedOAuthProviderId,
-		settings: LlmsProviders.ProviderSettings,
+		settings: ProviderSettings,
 		currentCredentials: ClineOAuthCredentials,
 		forceRefresh: boolean,
 	): Promise<ClineOAuthCredentials | null> {

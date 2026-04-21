@@ -2,6 +2,7 @@ import type {
 	AgentMode,
 	CoreSessionConfig,
 	Llms,
+	ProviderSettings,
 	RpcChatRuntimeLoggerConfig,
 	SessionLineage,
 	SessionManifest,
@@ -11,7 +12,7 @@ import type {
 export type CliOutputMode = "text" | "json";
 export type CliAgentMode = AgentMode;
 export type CliReasoningEffort = NonNullable<
-	NonNullable<Llms.ProviderSettings["reasoning"]>["effort"]
+	NonNullable<ProviderSettings["reasoning"]>["effort"]
 >;
 
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {

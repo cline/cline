@@ -1,4 +1,20 @@
 export {
+	getGeneratedModelsForProvider,
+	getGeneratedProviderModels,
+} from "./catalog/catalog.generated-access";
+export {
+	fetchModelsDevProviderModels,
+	sortModelsByReleaseDate,
+} from "./catalog/catalog-live";
+export type {
+	ModelCollection,
+	ModelInfo,
+	ProviderCapability,
+	ProviderClient,
+	ProviderInfo,
+	ProviderProtocol,
+} from "./catalog/types";
+export {
 	getAllProviders,
 	getModelsForProvider,
 	getProvider,
@@ -10,11 +26,4 @@ export {
 	registerProvider,
 	resetRegistry,
 	unregisterProvider,
-} from "./gateway/model-registry";
-export { getGeneratedModelsForProvider } from "./model/catalog.generated-access";
-export type {
-	ModelCollection,
-	ModelInfo,
-	ProviderCapability,
-	ProviderInfo,
-} from "./model/types";
+} from "./providers/model-registry";

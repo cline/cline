@@ -5,7 +5,7 @@ import {
 	emptyStoredProviderSettings,
 	type ProviderConfig,
 	type ProviderSettings,
-	ProviderSettingsSchema,
+	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
 	type ProviderTokenSource,
 	type StoredProviderSettings,
 	StoredProviderSettingsSchema,

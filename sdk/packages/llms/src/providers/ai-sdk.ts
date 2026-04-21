@@ -15,7 +15,6 @@ import {
 import { streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
-import type { ProviderFactoryResult } from "./providers/types";
 import {
 	applyPromptCacheToLastTextPart,
 	buildAnthropicCompatibleReasoningOptions,
@@ -28,6 +27,7 @@ import {
 	createEphemeralCacheControl,
 	toProviderOptionsKey,
 } from "./routing/utils";
+import type { ProviderFactoryResult } from "./vendors/types";
 
 interface AiSdkStreamPart {
 	type?: string;
@@ -736,63 +736,57 @@ async function createProviderModule(
 ): Promise<ProviderFactoryResult> {
 	switch (kind) {
 		case "openai": {
-			const { createOpenAIProviderModule } = await import("./providers/openai");
+			const { createOpenAIProviderModule } = await import("./vendors/openai");
 			return createOpenAIProviderModule(config, context);
 		}
 		case "openai-compatible": {
 			const { createOpenAICompatibleProviderModule } = await import(
-				"./providers/openai-compatible"
+				"./vendors/openai-compatible"
 			);
 			return createOpenAICompatibleProviderModule(config, context);
 		}
 		case "anthropic": {
 			const { createAnthropicProviderModule } = await import(
-				"./providers/anthropic"
+				"./vendors/anthropic"
 			);
 			return createAnthropicProviderModule(config, context);
 		}
 		case "google": {
-			const { createGoogleProviderModule } = await import("./providers/google");
+			const { createGoogleProviderModule } = await import("./vendors/google");
 			return createGoogleProviderModule(config, context);
 		}
 		case "vertex": {
-			const { createVertexProviderModule } = await import("./providers/vertex");
+			const { createVertexProviderModule } = await import("./vendors/vertex");
 			return createVertexProviderModule(config, context);
 		}
 		case "bedrock": {
-			const { createBedrockProviderModule } = await import(
-				"./providers/bedrock"
-			);
+			const { createBedrockProviderModule } = await import("./vendors/bedrock");
 			return createBedrockProviderModule(config);
 		}
 		case "mistral": {
-			const { createMistralProviderModule } = await import(
-				"./providers/mistral"
-			);
+			const { createMistralProviderModule } = await import("./vendors/mistral");
 			return createMistralProviderModule(config);
 		}
 		case "claude-code": {
 			const { createClaudeCodeProviderModule } = await import(
-				"./providers/community"
+				"./vendors/community"
 			);
 			return createClaudeCodeProviderModule(config);
 		}
 		case "openai-codex": {
 			const { createOpenAICodexProviderModule } = await import(
-				"./providers/community"
+				"./vendors/community"
 			);
 			return createOpenAICodexProviderModule(config);
 		}
 		case "opencode": {
 			const { createOpenCodeProviderModule } = await import(
-				"./providers/community"
+				"./vendors/community"
 			);
 			return createOpenCodeProviderModule(config);
 		}
 		case "dify": {
-			const { createDifyProviderModule } = await import(
-				"./providers/community"
-			);
+			const { createDifyProviderModule } = await import("./vendors/community");
 			return createDifyProviderModule(config);
 		}
 	}
@@ -811,12 +805,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
+				const tools =
+					kind === "openai-codex" ? undefined : toAiSdkTools(request);
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: (shouldUseAnthropicPromptCache(request, context)
 						? buildCachedAiSdkMessages(request, context, request.systemPrompt)
 						: toAiSdkMessages(request.messages, request.systemPrompt)) as never,
-					tools: toAiSdkTools(request) as never,
+					tools: tools as never,
 					temperature: request.temperature,
 					maxOutputTokens: request.maxTokens,
 					abortSignal: request.signal,

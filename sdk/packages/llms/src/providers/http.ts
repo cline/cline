@@ -2,7 +2,7 @@ import type {
 	GatewayProviderSettings,
 	GatewayResolvedProviderConfig,
 } from "@clinebot/shared";
-import { normalizeProviderId } from "../provider/ids";
+import { normalizeProviderId } from "./ids";
 
 export function ensureFetch(fetchImpl?: typeof fetch): typeof fetch {
 	const resolved = fetchImpl ?? globalThis.fetch;

@@ -14,7 +14,6 @@
 		"src/index.browser.ts",
 		"src/models.ts",
 		"src/providers.ts",
-		"src/providers.browser.ts",
-		"src/runtime.ts"
+		"src/providers.browser.ts"
 	]
 }

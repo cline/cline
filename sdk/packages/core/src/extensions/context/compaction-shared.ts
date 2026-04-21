@@ -1,9 +1,10 @@
-import type * as LlmsProviders from "@clinebot/llms";
+import type { ToolResultContent } from "@clinebot/llms";
 import type { MessageWithMetadata } from "@clinebot/shared";
 import type {
 	CoreCompactionContext,
 	CoreCompactionSummarizerConfig,
 } from "../../types/config";
+import type { ProviderConfig } from "../../types/provider-settings";
 
 export const DEFAULT_CONTEXT_WINDOW_TOKENS = 200_000;
 export const DEFAULT_THRESHOLD_RATIO = 0.95;
@@ -41,7 +42,7 @@ export function truncateText(text: string, limit: number): string {
 }
 
 export function flattenToolResultContent(
-	content: LlmsProviders.ToolResultContent["content"],
+	content: ToolResultContent["content"],
 ): string {
 	if (typeof content === "string") {
 		return truncateText(content, TOOL_RESULT_CHAR_LIMIT);
@@ -404,9 +405,9 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 }
 
 export function resolveSummarizerConfig(options: {
-	activeProviderConfig: LlmsProviders.ProviderConfig;
+	activeProviderConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
-}): LlmsProviders.ProviderConfig {
+}): ProviderConfig {
 	const summarizer = options.summarizer;
 	if (!summarizer) {
 		return {

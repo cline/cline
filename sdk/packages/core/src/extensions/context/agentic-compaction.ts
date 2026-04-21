@@ -1,4 +1,3 @@
-import type * as LlmsProviders from "@clinebot/llms";
 import { createHandler } from "@clinebot/llms";
 import type { BasicLogger } from "@clinebot/shared";
 import type {
@@ -6,6 +5,7 @@ import type {
 	CoreCompactionResult,
 	CoreCompactionSummarizerConfig,
 } from "../../types/config";
+import type { ProviderConfig } from "../../types/provider-settings";
 import {
 	buildSummaryMessage,
 	buildSummaryRequest,
@@ -20,7 +20,7 @@ import {
 } from "./compaction-shared";
 
 async function generateSummary(options: {
-	providerConfig: LlmsProviders.ProviderConfig;
+	providerConfig: ProviderConfig;
 	request: string;
 	logger?: BasicLogger;
 }): Promise<string> {
@@ -48,7 +48,7 @@ async function generateSummary(options: {
 
 export async function runAgenticCompaction(options: {
 	context: CoreCompactionContext;
-	providerConfig: LlmsProviders.ProviderConfig;
+	providerConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
 	preserveRecentTokens: number;
 	estimateMessageTokens: EstimateMessageTokens;

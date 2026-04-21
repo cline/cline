@@ -64,36 +64,6 @@ export type {
 	ToolResultContent,
 	ToolUseContent,
 } from "./messages";
-// Settings types and functions (Zod-based validation)
-export {
-	type AuthSettings,
-	AuthSettingsSchema,
-	type AwsSettings,
-	AwsSettingsSchema,
-	type AzureSettings,
-	AzureSettingsSchema,
-	createProviderConfig,
-	type GcpSettings,
-	GcpSettingsSchema,
-	type ModelCatalogSettings,
-	ModelCatalogSettingsSchema,
-	type OcaSettings,
-	OcaSettingsSchema,
-	// Schemas
-	ProviderIdSchema,
-	// Types
-	type ProviderSettings,
-	ProviderSettingsSchema,
-	// Functions
-	parseSettings,
-	type ReasoningSettings,
-	ReasoningSettingsSchema,
-	type SapSettings,
-	SapSettingsSchema,
-	safeCreateProviderConfig,
-	safeParseSettings,
-	toProviderConfig,
-} from "./settings";
 // Stream types
 export type {
 	ApiStream,

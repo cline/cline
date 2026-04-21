@@ -1,5 +1,4 @@
 import * as LlmsModels from "@clinebot/llms";
-import * as LlmsProviders from "@clinebot/llms";
 import type {
 	RpcAddProviderActionRequest,
 	RpcOAuthProviderId,
@@ -12,6 +11,12 @@ import { createOAuthClientCallbacks } from "../../auth/client";
 import { loginClineOAuth } from "../../auth/cline";
 import { loginOpenAICodex } from "../../auth/codex";
 import { loginOcaOAuth } from "../../auth/oca";
+import { resolveProviderConfig } from "../../llms/provider-defaults";
+import type {
+	ModelInfo,
+	ProviderConfig,
+	ProviderSettings,
+} from "../../llms/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
 	readModelsFile,
@@ -87,7 +92,7 @@ function stableColor(id: string): string {
 }
 
 function toSortedRpcProviderModels(
-	modelMap: Record<string, LlmsProviders.ModelInfo>,
+	modelMap: Record<string, ModelInfo>,
 ): RpcProviderModel[] {
 	return Object.entries(modelMap)
 		.sort(([a], [b]) => a.localeCompare(b))
@@ -163,14 +168,14 @@ async function fetchModelIdsFromSource(
 
 async function resolveProviderModelMap(
 	providerId: string,
-	config?: LlmsProviders.ProviderConfig,
-): Promise<Record<string, LlmsProviders.ModelInfo>> {
+	config?: ProviderConfig,
+): Promise<Record<string, ModelInfo>> {
 	const registeredModels = await LlmsModels.getModelsForProvider(providerId);
 	if (!config) {
 		return registeredModels;
 	}
 
-	const resolved = await LlmsProviders.resolveProviderConfig(
+	const resolved = await resolveProviderConfig(
 		providerId,
 		{
 			loadPrivateOnAuth: true,
@@ -548,7 +553,7 @@ export async function listLocalProviders(
 
 export async function getLocalProviderModels(
 	providerId: string,
-	config?: LlmsProviders.ProviderConfig,
+	config?: ProviderConfig,
 ): Promise<{ providerId: string; models: RpcProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
@@ -642,7 +647,7 @@ function toProviderApiKey(
 
 export async function loginLocalProvider(
 	providerId: RpcOAuthProviderId,
-	existing: LlmsProviders.ProviderSettings | undefined,
+	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 ): Promise<{
 	access: string;
@@ -672,27 +677,27 @@ export async function loginLocalProvider(
 export function saveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
 	providerId: RpcOAuthProviderId,
-	existing: LlmsProviders.ProviderSettings | undefined,
+	existing: ProviderSettings | undefined,
 	credentials: {
 		access: string;
 		refresh: string;
 		expires: number;
 		accountId?: string;
 	},
-): LlmsProviders.ProviderSettings {
+): ProviderSettings {
 	const auth = {
 		...(existing?.auth ?? {}),
 		accessToken: toProviderApiKey(providerId, credentials),
 		refreshToken: credentials.refresh,
 		accountId: credentials.accountId,
 		expiresAt: credentials.expires,
-	} as LlmsProviders.ProviderSettings["auth"] & { expiresAt?: number };
+	} as ProviderSettings["auth"] & { expiresAt?: number };
 
-	const merged: LlmsProviders.ProviderSettings = {
+	const merged: ProviderSettings = {
 		...(existing ?? {
-			provider: providerId as LlmsProviders.ProviderSettings["provider"],
+			provider: providerId as ProviderSettings["provider"],
 		}),
-		provider: providerId as LlmsProviders.ProviderSettings["provider"],
+		provider: providerId as ProviderSettings["provider"],
 		auth,
 	};
 	manager.saveProviderSettings(merged, { tokenSource: "oauth" });
@@ -700,7 +705,7 @@ export function saveLocalProviderOAuthCredentials(
 }
 
 export function resolveLocalClineAuthToken(
-	settings: LlmsProviders.ProviderSettings | undefined,
+	settings: ProviderSettings | undefined,
 ): string | undefined {
 	const token = settings?.auth?.accessToken?.trim() || settings?.apiKey?.trim();
 	return token && token.length > 0 ? token : undefined;

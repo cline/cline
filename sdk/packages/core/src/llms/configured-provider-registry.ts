@@ -1,15 +1,11 @@
-import type {
-	ProviderCapability as ModelProviderCapability,
-	ProviderInfo,
-} from "../model/types";
-import type { ProviderConfig } from "../providers";
+import type { ProviderConfig } from "./provider-settings";
 import type {
 	BuiltInProviderSummary,
 	CreateHandlerInput,
 	ProviderConfigDefaults,
 	ProviderSelectionConfig,
 	RegisteredProviderSummary,
-} from "./types";
+} from "./runtime-types";
 
 interface ConfiguredProviderRecord {
 	id: string;
@@ -38,16 +34,13 @@ function resolveApiKey(
 	if (apiKey) {
 		return apiKey;
 	}
-
 	if (!apiKeyEnv) {
 		return undefined;
 	}
-
 	const runtimeProcess = globalThis.process;
 	if (!runtimeProcess?.env) {
 		return undefined;
 	}
-
 	return runtimeProcess.env[apiKeyEnv];
 }
 
@@ -63,20 +56,22 @@ function assertNonEmptyModels(
 }
 
 export function toBuiltInProviderSummary(input: {
-	collection: {
-		provider: Pick<
-			ProviderInfo,
-			| "id"
-			| "name"
-			| "description"
-			| "protocol"
-			| "baseUrl"
-			| "capabilities"
-			| "env"
-			| "defaultModelId"
-		>;
-		models: Record<string, unknown>;
-	};
+	collection: BuiltInProviderSummary["id"] extends string
+		? {
+				provider: Pick<
+					import("@clinebot/llms").ProviderInfo,
+					| "id"
+					| "name"
+					| "description"
+					| "protocol"
+					| "baseUrl"
+					| "capabilities"
+					| "env"
+					| "defaultModelId"
+				>;
+				models: Record<string, unknown>;
+			}
+		: never;
 }): BuiltInProviderSummary {
 	const models = Object.keys(input.collection.models);
 	return {
@@ -85,9 +80,7 @@ export function toBuiltInProviderSummary(input: {
 		description: input.collection.provider.description,
 		protocol: input.collection.provider.protocol,
 		baseUrl: input.collection.provider.baseUrl,
-		capabilities: input.collection.provider.capabilities as
-			| ModelProviderCapability[]
-			| undefined,
+		capabilities: input.collection.provider.capabilities,
 		env: input.collection.provider.env,
 		models,
 		defaultModel: input.collection.provider.defaultModelId,
@@ -100,7 +93,6 @@ export class ConfiguredProviderRegistry {
 
 	register(input: RegisterConfiguredProviderInput): void {
 		assertNonEmptyModels(input.id, input.models);
-
 		const defaultModel = input.defaultModel ?? input.models[0];
 		if (!defaultModel) {
 			throw new Error(`Provider "${input.id}" must define a default model.`);
@@ -110,7 +102,6 @@ export class ConfiguredProviderRegistry {
 				`Default model "${defaultModel}" is not included in configured models for "${input.id}".`,
 			);
 		}
-
 		const existing = this.providers.get(input.id);
 		this.providers.set(input.id, {
 			id: input.id,
@@ -151,20 +142,17 @@ export class ConfiguredProviderRegistry {
 			});
 			return;
 		}
-
 		existing.models.add(modelId);
 	}
 
 	createHandlerConfig(input: CreateHandlerInput): ProviderConfig {
 		const provider = this.require(input.providerId);
 		const modelId = input.modelId ?? provider.defaultModel;
-
 		if (!provider.models.has(modelId)) {
 			throw new Error(
 				`Model "${modelId}" is not configured for provider "${input.providerId}".`,
 			);
 		}
-
 		return {
 			providerId: input.providerId,
 			modelId,
@@ -200,7 +188,6 @@ export class ConfiguredProviderRegistry {
 				`Provider "${providerId}" is not configured in this SDK instance.`,
 			);
 		}
-
 		return provider;
 	}
 }

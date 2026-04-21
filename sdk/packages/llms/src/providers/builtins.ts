@@ -6,14 +6,14 @@ import type {
 	GatewayProviderSettings,
 	JsonValue,
 } from "@clinebot/shared";
-import { getGeneratedModelsForProvider } from "../model/catalog.generated-access";
+import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import type {
 	ModelCollection,
 	ModelInfo,
 	ProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
-} from "../model/types";
+} from "../catalog/types";
 
 export const DEFAULT_INTERNAL_OCA_BASE_URL =
 	"https://code-internal.aiservice.us-chicago-1.oci.oraclecloud.com/20250206/app/litellm";

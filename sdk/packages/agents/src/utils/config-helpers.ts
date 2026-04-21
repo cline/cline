@@ -22,19 +22,10 @@ export function resolveKnownModelsFromConfig(
 	if (config.knownModels) {
 		return config.knownModels;
 	}
-
-	try {
-		const providerConfig = LlmsProviders.toProviderConfig({
-			provider: config.providerId,
-			model: config.modelId,
-			apiKey: config.apiKey,
-			baseUrl: config.baseUrl,
-			headers: config.headers,
-		});
-		return providerConfig.knownModels;
-	} catch {
-		return undefined;
-	}
+	return (
+		LlmsProviders.MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
+		undefined
+	);
 }
 
 export function createHandlerFromConfig(

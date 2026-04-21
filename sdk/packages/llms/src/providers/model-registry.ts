@@ -1,4 +1,8 @@
-import type { ModelCollection, ModelInfo, ProviderInfo } from "../model/types";
+import type {
+	ModelCollection,
+	ModelInfo,
+	ProviderInfo,
+} from "../catalog/types";
 import { BUILTIN_PROVIDER_COLLECTION_LIST } from "./builtins";
 
 function buildInitialRegistry(): Map<string, ModelCollection> {

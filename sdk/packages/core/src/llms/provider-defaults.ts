@@ -1,38 +1,22 @@
-/**
- * Provider Configurations
- *
- * Pre-configured settings for all supported OpenAI-compatible providers.
- * Model data is sourced from @clinebot/models (the single registry).
- */
 /** biome-ignore-all lint/style/noNonNullAssertion: static */
 
-import { BUILTIN_PROVIDER_COLLECTION_LIST } from "../gateway/builtins";
-import { resolveProviderModelCatalogKeys } from "../gateway/provider-keys";
-import {
-	fetchModelsDevProviderModels,
-	sortModelsByReleaseDate,
-} from "../model/catalog-live";
-import type {
-	ProviderCapability as CatalogProviderCapability,
-	ModelInfo,
-	ProviderClient,
-	ProviderProtocol,
-} from "../model/types";
+import * as Llms from "@clinebot/llms";
 import type {
 	ModelCatalogConfig,
+	ModelInfo,
 	ProviderCapability,
 	ProviderConfig,
-} from "./types";
+} from "./provider-settings";
 
 export interface BuiltInProviderManifest {
 	id: string;
 	baseUrl: string;
 	modelId: string;
 	knownModels?: Record<string, ModelInfo>;
-	capabilities?: CatalogProviderCapability[];
+	capabilities?: Llms.CatalogProviderCapability[];
 	env?: readonly string[];
-	client: ProviderClient;
-	protocol?: ProviderProtocol;
+	client: Llms.ProviderClient;
+	protocol?: Llms.ProviderProtocol;
 }
 
 function cloneKnownModels(
@@ -60,19 +44,20 @@ function isOpenAICompatibleManifest(
 	}
 }
 
-const BUILTIN_PROVIDER_MANIFESTS: BuiltInProviderManifest[] =
-	BUILTIN_PROVIDER_COLLECTION_LIST.map((collection) => ({
-		id: collection.provider.id,
-		baseUrl: collection.provider.baseUrl ?? "",
-		modelId: collection.provider.defaultModelId,
-		knownModels: cloneKnownModels(collection.models),
-		capabilities: collection.provider.capabilities
-			? [...collection.provider.capabilities]
-			: undefined,
-		env: collection.provider.env ? [...collection.provider.env] : undefined,
-		client: collection.provider.client,
-		protocol: collection.provider.protocol,
-	}));
+const BUILTIN_PROVIDER_MANIFESTS: BuiltInProviderManifest[] = Object.values(
+	Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID,
+).map((collection) => ({
+	id: collection.provider.id,
+	baseUrl: collection.provider.baseUrl ?? "",
+	modelId: collection.provider.defaultModelId,
+	knownModels: cloneKnownModels(collection.models),
+	capabilities: collection.provider.capabilities
+		? [...collection.provider.capabilities]
+		: undefined,
+	env: collection.provider.env ? [...collection.provider.env] : undefined,
+	client: collection.provider.client,
+	protocol: collection.provider.protocol,
+}));
 
 const BUILTIN_PROVIDER_MANIFESTS_BY_ID: Record<
 	string,
@@ -98,22 +83,15 @@ function getOpenAICompatibleProviderManifests(): Record<
 	);
 }
 
-/**
- * Provider defaults for OpenAI-compatible providers
- */
 export interface ProviderDefaults {
-	/** Base URL for the API */
 	baseUrl: string;
-	/** Default model ID */
 	modelId: string;
-	/** Known models with their info */
 	knownModels?: Record<string, ModelInfo>;
-	/** Capabilities this provider supports */
 	capabilities?: ProviderCapability[];
 }
 
 function toRuntimeCapabilities(
-	capabilities: readonly CatalogProviderCapability[] = [],
+	capabilities: readonly Llms.CatalogProviderCapability[] = [],
 ): ProviderCapability[] | undefined {
 	const next = capabilities.flatMap((capability) => {
 		switch (capability) {
@@ -151,17 +129,10 @@ const PRIVATE_MODELS_IN_FLIGHT = new Map<
 	Promise<Record<string, ModelInfo>>
 >();
 
-let generatedModelsLoader:
-	| Promise<Record<string, Record<string, ModelInfo>>>
-	| undefined;
-
 async function loadGeneratedProviderModels(): Promise<
 	Record<string, Record<string, ModelInfo>>
 > {
-	generatedModelsLoader ??= import("../model/catalog.generated-access").then(
-		({ getGeneratedProviderModels }) => getGeneratedProviderModels(),
-	);
-	return generatedModelsLoader;
+	return Llms.getGeneratedProviderModels();
 }
 
 async function mergeKnownModels(
@@ -172,14 +143,14 @@ async function mergeKnownModels(
 	userKnownModels: Record<string, ModelInfo> = {},
 ): Promise<Record<string, ModelInfo>> {
 	const generatedProviderModels = await loadGeneratedProviderModels();
-	const generatedKeys = resolveProviderModelCatalogKeys(providerId);
+	const generatedKeys = Llms.resolveProviderModelCatalogKeys(providerId);
 	const generated = Object.assign(
 		{},
 		...generatedKeys.map(
 			(generatedKey) => generatedProviderModels[generatedKey] ?? {},
 		),
 	);
-	return sortModelsByReleaseDate({
+	return Llms.sortModelsByReleaseDate({
 		...generated,
 		...defaultKnownModels,
 		...liveModels,
@@ -457,6 +428,20 @@ async function fetchLiteLlmPrivateModels(
 	return models;
 }
 
+type PrivateProviderModelFetcher = (
+	config: ProviderConfig,
+	token: string,
+) => Promise<Record<string, ModelInfo>>;
+
+const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
+	string,
+	PrivateProviderModelFetcher
+> = {
+	baseten: fetchBasetenPrivateModels,
+	hicap: fetchHicapPrivateModels,
+	litellm: fetchLiteLlmPrivateModels,
+};
+
 async function fetchPrivateProviderModels(
 	providerId: string,
 	config: ProviderConfig,
@@ -472,20 +457,6 @@ async function fetchPrivateProviderModels(
 	}
 	return fetcher(config, token);
 }
-
-type PrivateProviderModelFetcher = (
-	config: ProviderConfig,
-	token: string,
-) => Promise<Record<string, ModelInfo>>;
-
-const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
-	string,
-	PrivateProviderModelFetcher
-> = {
-	baseten: fetchBasetenPrivateModels,
-	hicap: fetchHicapPrivateModels,
-	litellm: fetchLiteLlmPrivateModels,
-};
 
 function shouldLoadPrivateModels(
 	providerId: string,
@@ -543,7 +514,7 @@ async function getPrivateProviderModels(
 async function fetchLiveModelsCatalog(
 	url: string,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
-	return fetchModelsDevProviderModels(url);
+	return Llms.fetchModelsDevProviderModels(url);
 }
 
 export async function getLiveModelsCatalog(
@@ -607,17 +578,9 @@ function toRuntimeProviderDefaults(
 	);
 }
 
-/**
- * All OpenAI-compatible provider configurations
- *
- * Model data is sourced from @clinebot/models to maintain a single source of truth.
- */
 export const OPENAI_COMPATIBLE_PROVIDERS: Record<string, ProviderDefaults> =
 	toRuntimeProviderDefaults(getOpenAICompatibleProviderManifests());
 
-/**
- * Get provider configuration by ID
- */
 export function getProviderConfig(
 	providerId: string,
 ): ProviderDefaults | undefined {
@@ -634,9 +597,6 @@ export function getProviderConfig(
 	};
 }
 
-/**
- * Resolve provider configuration and optionally merge live catalog metadata
- */
 export async function resolveProviderConfig(
 	providerId: string,
 	modelCatalog?: ModelCatalogConfig,

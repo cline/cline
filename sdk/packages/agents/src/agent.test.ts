@@ -16,28 +16,19 @@ type FakeHandler = {
 };
 
 const createHandlerMock = vi.fn<(config: unknown) => FakeHandler>();
-const toProviderConfigMock = vi.fn((settings: unknown) => {
-	const model =
-		typeof settings === "object" && settings !== null && "model" in settings
-			? settings.model
-			: undefined;
-
-	return {
-		knownModels:
-			typeof model === "string"
-				? {
-						[model]: {
-							id: model,
-							pricing: { input: 1, output: 1 },
-						},
-					}
-				: undefined,
-	};
-});
 
 vi.mock("@clinebot/llms", () => ({
 	createHandler: (config: unknown) => createHandlerMock(config),
-	toProviderConfig: (settings: unknown) => toProviderConfigMock(settings),
+	MODEL_COLLECTIONS_BY_PROVIDER_ID: {
+		anthropic: {
+			models: {
+				"mock-model": {
+					id: "mock-model",
+					pricing: { input: 1, output: 1 },
+				},
+			},
+		},
+	},
 }));
 
 async function* streamChunks(chunks: FakeChunk[]): AsyncGenerator<FakeChunk> {
@@ -95,7 +86,6 @@ describe("Agent", () => {
 		expect(result.usage.inputTokens).toBe(10);
 		expect(result.usage.outputTokens).toBe(5);
 		expect(events).toContain("done");
-		expect(toProviderConfigMock).toHaveBeenCalled();
 	});
 
 	it("keeps totalCost undefined when usage chunks omit cost", async () => {

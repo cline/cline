@@ -541,6 +541,70 @@ export {
 	ToolPresets,
 } from "./extensions/tools";
 export {
+	clearLiveModelsCatalogCache,
+	clearPrivateModelsCatalogCache,
+	DEFAULT_MODELS_CATALOG_URL,
+	getLiveModelsCatalog,
+	getProviderConfig,
+	OPENAI_COMPATIBLE_PROVIDERS,
+	resolveProviderConfig,
+} from "./llms/provider-defaults";
+export type {
+	AuthSettings,
+	AwsSettings,
+	AzureSettings,
+	BuiltInProviderId,
+	GcpSettings,
+	ModelCatalogConfig,
+	ModelCatalogSettings,
+	OcaSettings,
+	ProviderCapability,
+	ProviderConfig,
+	ProviderDefaultsConfig,
+	ProviderId,
+	ProviderSettings,
+	ReasoningSettings,
+	SapSettings,
+} from "./llms/provider-settings";
+export {
+	AuthSettingsSchema,
+	AwsSettingsSchema,
+	AzureSettingsSchema,
+	BUILT_IN_PROVIDER,
+	BUILT_IN_PROVIDER_IDS,
+	createProviderConfig,
+	GcpSettingsSchema,
+	isBuiltInProviderId,
+	ModelCatalogSettingsSchema,
+	normalizeProviderId,
+	OcaSettingsSchema,
+	ProviderIdSchema,
+	ProviderSettingsSchema,
+	parseSettings,
+	ReasoningSettingsSchema,
+	SapSettingsSchema,
+	safeCreateProviderConfig,
+	safeParseSettings,
+	toProviderConfig,
+} from "./llms/provider-settings";
+export {
+	defineLlmsConfig,
+	loadLlmsConfigFromFile,
+} from "./llms/runtime-config";
+export { createLlmsSdk, DefaultLlmsSdk } from "./llms/runtime-registry";
+export type {
+	BuiltInProviderSummary,
+	CreateHandlerInput,
+	LlmsConfig,
+	LlmsSdk,
+	ProviderConfigDefaults,
+	ProviderSelectionConfig,
+	RegisterBuiltinProviderInput,
+	RegisteredProviderSummary,
+	RegisterModelInput,
+	RegisterProviderInput,
+} from "./llms/runtime-types";
+export {
 	TelemetryService,
 	type TelemetryServiceOptions,
 } from "./services/telemetry/TelemetryService";

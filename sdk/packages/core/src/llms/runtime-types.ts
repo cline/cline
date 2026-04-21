@@ -1,18 +1,17 @@
 import type {
+	ApiHandler,
+	BuiltInProviderId,
+	HandlerFactory,
+	LazyHandlerFactory,
 	ModelCollection,
 	ModelInfo,
-	ProviderCapability as ModelProviderCapability,
+	CatalogProviderCapability as ModelProviderCapability,
 	ProviderClient,
+	ProviderConfig,
 	ProviderInfo,
 	ProviderProtocol,
-} from "../model/types";
-import type { HandlerFactory, LazyHandlerFactory } from "../provider/handler";
-import type { BuiltInProviderId } from "../provider/ids";
-import type {
-	ApiHandler,
-	ProviderCapability,
-	ProviderConfig,
-} from "../providers";
+} from "@clinebot/llms";
+import type { ProviderCapability } from "./provider-settings";
 
 export type ProviderConfigDefaults = Omit<
 	ProviderConfig,

@@ -18,12 +18,7 @@ const external = Object.keys({
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{
-		entrypoints: [
-			"./src/index.ts",
-			"./src/models.ts",
-			"./src/providers.ts",
-			"./src/runtime.ts",
-		],
+		entrypoints: ["./src/index.ts", "./src/models.ts", "./src/providers.ts"],
 		outdir: "./dist",
 		target: "node",
 		external,
