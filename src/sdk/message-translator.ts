@@ -295,7 +295,7 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 				if (Array.isArray(requests) && requests.length > 0) {
 					const firstRequest = requests[0]
 					if (typeof firstRequest === "object" && firstRequest !== null) {
-						url = (firstRequest as Record<string, unknown>).url as string ?? ""
+						url = ((firstRequest as Record<string, unknown>).url as string) ?? ""
 					}
 				}
 			}

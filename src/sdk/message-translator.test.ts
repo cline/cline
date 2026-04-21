@@ -1324,7 +1324,12 @@ describe("sdkToolToClineSayTool — fetch_web_content and skills (S6-39, S6-40)"
 				type: "agent_event",
 				payload: {
 					sessionId: "s1",
-					event: { type: "content_end", contentType: "tool", toolName: "fetch_web_content", toolCallId: "c1" } as AgentEvent,
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "fetch_web_content",
+						toolCallId: "c1",
+					} as AgentEvent,
 				},
 			},
 			state,
@@ -1365,7 +1370,12 @@ describe("sdkToolToClineSayTool — fetch_web_content and skills (S6-39, S6-40)"
 					contentType: "tool",
 					toolName: "fetch_web_content",
 					toolCallId: "c1",
-					input: { requests: [{ url: "https://first.com", prompt: "p1" }, { url: "https://second.com", prompt: "p2" }] },
+					input: {
+						requests: [
+							{ url: "https://first.com", prompt: "p1" },
+							{ url: "https://second.com", prompt: "p2" },
+						],
+					},
 				} as AgentEvent,
 			},
 		}
