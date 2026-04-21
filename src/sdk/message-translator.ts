@@ -708,8 +708,9 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			const apiReqInfo: ClineApiReqInfo = {
 				tokensIn: (usageEvent.inputTokens as number) ?? 0,
 				tokensOut: (usageEvent.outputTokens as number) ?? 0,
-				cacheWrites: (usageEvent.cacheWrites as number) ?? undefined,
-				cacheReads: (usageEvent.cacheReads as number) ?? undefined,
+				cacheWrites: (usageEvent.cacheWriteTokens as number) ?? undefined,
+				cacheReads: (usageEvent.cacheReadTokens as number) ?? undefined,
+				cost: (usageEvent.totalCost as number) ?? undefined,
 			}
 			messages.push({
 				ts: state.nextTs(),
@@ -823,6 +824,9 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 				result.usage = {
 					tokensIn: event.payload.event.inputTokens ?? 0,
 					tokensOut: event.payload.event.outputTokens ?? 0,
+					cacheWrites: event.payload.event.cacheWriteTokens ?? 0,
+					cacheReads: event.payload.event.cacheReadTokens ?? 0,
+					totalCost: event.payload.event.totalCost ?? 0,
 				}
 			}
 			break

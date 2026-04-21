@@ -8,13 +8,7 @@
 //
 // The factory does NOT handle UI concerns — that's the SdkController's job.
 
-import {
-	buildWorkspaceMetadata,
-	type CoreSessionConfig,
-	type SessionManager,
-	type StartSessionInput,
-	type StartSessionResult,
-} from "@clinebot/core"
+import { type ClineCoreStartInput, type CoreSessionConfig, type RuntimeHost, type StartSessionResult } from "@clinebot/core"
 import { buildClineSystemPrompt } from "@clinebot/shared"
 import type { ApiConfiguration } from "@shared/api"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -22,6 +16,8 @@ import { Logger } from "@shared/services/Logger"
 import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import { StateManager } from "@/core/storage/StateManager"
+import { ExtensionRegistryInfo } from "@/registry"
+import { getDistinctId } from "@/services/logging/distinctId"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { getProviderSettingsManager } from "./provider-migration"
 
@@ -53,14 +49,28 @@ export interface SessionConfigInput {
 export interface ActiveSession {
 	/** The session ID */
 	sessionId: string
-	/** The SessionManager instance managing this session (VscodeSessionHost) */
-	sessionManager: SessionManager
+	/** The runtime host instance managing this session (VscodeSessionHost) */
+	sessionManager: RuntimeHost
 	/** Unsubscribe function for session events */
 	unsubscribe: () => void
 	/** The start result from the session */
 	startResult?: StartSessionResult
 	/** Whether the session is currently running */
 	isRunning: boolean
+}
+
+function createSdkLogger() {
+	return {
+		debug: (message: string, metadata?: Record<string, unknown>) => {
+			Logger.debug(message, metadata)
+		},
+		log: (message: string, metadata?: Record<string, unknown>) => {
+			Logger.log(message, metadata)
+		},
+		error: (message: string, metadata?: Record<string, unknown>) => {
+			Logger.error(message, metadata)
+		},
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -262,6 +272,8 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const cwd = input.cwd || process.cwd()
 	const workspaceRoot = input.workspaceRoot ?? cwd
 	const mode: Mode = input.mode ?? "act"
+	const sdkLogger = createSdkLogger()
+	const distinctId = getDistinctId()
 
 	let providerId: string | undefined
 	let modelId: string | undefined
@@ -314,24 +326,21 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 
 	// Final defaults
-	providerId = providerId ?? "anthropic"
-	modelId = modelId ?? "claude-sonnet-4-6"
+	providerId = providerId ?? "cline"
+	modelId = modelId ?? "openai/gpt-5.4"
 	apiKey = apiKey ?? ""
 
-	// Build the system prompt using the SDK's prompt builder.
-	// This is required — the SDK does NOT have a fallback for empty system prompts.
-	// Both the CLI (apps/cli/src/runtime/prompt.ts) and the SDK's VSCode extension
-	// (apps/vscode/src/extension.ts) call buildClineSystemPrompt() before passing
-	// the config to the session manager.
+	// Build the system prompt using the shared prompt builder. Core still
+	// expects callers to provide a concrete systemPrompt, but the prompt builder
+	// can derive baseline workspace context from the root path and workspace
+	// name, so we avoid duplicating core's richer workspace metadata pass here.
 	let systemPrompt = ""
 	try {
 		const { basename } = await import("path")
-		const metadata = await buildWorkspaceMetadata(cwd)
 		systemPrompt = buildClineSystemPrompt({
 			ide: "VS Code",
-			workspaceRoot: cwd,
+			workspaceRoot,
 			workspaceName: basename(cwd),
-			metadata,
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
@@ -353,9 +362,27 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		enableTools: true,
 		enableSpawnAgent: input.taskSettings?.subagentsEnabled ?? false,
 		enableAgentTeams: false,
+		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",
 		thinking: false,
 		maxIterations: undefined,
+		logger: sdkLogger,
+		extensionContext: {
+			user: distinctId ? { distinctId } : undefined,
+			client: {
+				name: "cline-vscode",
+				version: ExtensionRegistryInfo.version,
+			},
+			workspace: {
+				rootPath: workspaceRoot,
+				cwd,
+				workspaceName: workspaceRoot.split(/[\\/]/).filter(Boolean).pop() ?? workspaceRoot,
+				ide: "VS Code",
+				platform: process.platform,
+				mode: mode === "plan" ? "plan" : "act",
+			},
+			logger: sdkLogger,
+		},
 	}
 
 	return config
@@ -369,14 +396,13 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
  * Build the StartSessionInput for a new task.
  *
  * IMPORTANT: We pass `interactive: true` but NO `prompt`. This creates the
- * session and returns immediately — the SDK's DefaultSessionManager.start()
- * checks `if (startInput.prompt?.trim())` and skips `runTurn()` when there's
- * no prompt. The caller should then call `core.send({ sessionId, prompt })`
+ * session and returns immediately — the runtime host only executes a turn when
+ * a prompt is sent. The caller should then call `core.send({ sessionId, prompt })`
  * to run the first turn. This cleanly separates session creation from
  * inference, preventing the gRPC handler from blocking until the first
  * agent turn completes.
  */
-export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): StartSessionInput {
+export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
 	return {
 		config,
 		// Do NOT pass prompt here — start() should return immediately.
