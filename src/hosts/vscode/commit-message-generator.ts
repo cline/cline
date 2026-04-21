@@ -75,11 +75,7 @@ export async function generateCommitMsg(controller: Controller, scm?: vscode.Sou
 		}
 
 		// If scm is provided, then the user specified one repository by clicking the "Source Control" menu button
-		if (scm) {
-			if (!scm.rootUri) {
-				throw new Error("Source Control root URI is unavailable")
-			}
-
+		if (scm?.rootUri) {
 			const repository = git.getRepository(scm.rootUri)
 
 			if (!repository) {
