@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1776404096994,
+	version: 1776756464314,
 	providers: {
 		aihubmix: {
 			"coding-glm-5.1": {
@@ -3982,7 +3982,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 0.3,
 					output: 2.5,
-					cacheRead: 0.075,
+					cacheRead: 0.03,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-03-20",
@@ -4005,7 +4005,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 1.25,
 					output: 10,
-					cacheRead: 0.31,
+					cacheRead: 0.125,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-03-20",
@@ -4278,6 +4278,27 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		huggingface: {
+			"moonshotai/Kimi-K2.6": {
+				id: "moonshotai/Kimi-K2.6",
+				name: "Kimi-K2.6",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.95,
+					output: 4,
+					cacheRead: 0.16,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-20",
+				family: "kimi",
+			},
 			"zai-org/GLM-5.1": {
 				id: "zai-org/GLM-5.1",
 				name: "GLM-5.1",
@@ -9252,6 +9273,21 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		ollama: {
+			"kimi-k2.6:cloud": {
+				id: "kimi-k2.6:cloud",
+				name: "kimi-k2.6:cloud",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: ["images", "tools", "reasoning"],
+				pricing: {
+					input: 0,
+					output: 0,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-20",
+				family: "kimi",
+			},
 			"gemma4:31b": {
 				id: "gemma4:31b",
 				name: "gemma4:31b",
@@ -10191,21 +10227,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				releaseDate: "2025-06-10",
 				family: "o-pro",
 			},
-			"codex-mini-latest": {
-				id: "codex-mini-latest",
-				name: "Codex Mini",
-				contextWindow: 200000,
-				maxTokens: 100000,
-				capabilities: ["tools", "reasoning", "prompt-cache"],
-				pricing: {
-					input: 1.5,
-					output: 6,
-					cacheRead: 0.375,
-					cacheWrite: 0,
-				},
-				releaseDate: "2025-05-16",
-				family: "gpt-codex-mini",
-			},
 			o3: {
 				id: "o3",
 				name: "o3",
@@ -10534,6 +10555,28 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"moonshotai/kimi-k2.6": {
+				id: "moonshotai/kimi-k2.6",
+				name: "Kimi K2.6",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.95,
+					output: 4,
+					cacheRead: 0.16,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-20",
+				family: "kimi",
+			},
 			"anthropic/claude-opus-4.7": {
 				id: "anthropic/claude-opus-4.7",
 				name: "Claude Opus 4.7",
@@ -12991,7 +13034,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 1.25,
 					output: 10,
-					cacheRead: 0.31,
+					cacheRead: 0.125,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-03-20",
@@ -13853,28 +13896,6 @@ export const GENERATED_PROVIDER_MODELS: {
 				releaseDate: "2025-06-17",
 				family: "gemini-flash",
 			},
-			"google/gemini-2.5-pro": {
-				id: "google/gemini-2.5-pro",
-				name: "Gemini 2.5 Pro",
-				contextWindow: 1048576,
-				maxTokens: 65536,
-				capabilities: [
-					"images",
-					"files",
-					"tools",
-					"reasoning",
-					"temperature",
-					"prompt-cache",
-				],
-				pricing: {
-					input: 1.25,
-					output: 10,
-					cacheRead: 0.31,
-					cacheWrite: 2.375,
-				},
-				releaseDate: "2025-06-17",
-				family: "gemini-pro",
-			},
 			"anthropic/claude-opus-4": {
 				id: "anthropic/claude-opus-4",
 				name: "Claude Opus 4",
@@ -13969,6 +13990,28 @@ export const GENERATED_PROVIDER_MODELS: {
 				},
 				releaseDate: "2025-04-14",
 				family: "gpt-mini",
+			},
+			"google/gemini-2.5-pro": {
+				id: "google/gemini-2.5-pro",
+				name: "Gemini 2.5 Pro",
+				contextWindow: 1048576,
+				maxTokens: 65536,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.25,
+					output: 10,
+					cacheRead: 0.31,
+					cacheWrite: 2.375,
+				},
+				releaseDate: "2025-03-20",
+				family: "gemini-pro",
 			},
 			"anthropic/claude-3-7-sonnet": {
 				id: "anthropic/claude-3-7-sonnet",
@@ -16954,7 +16997,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 0.3,
 					output: 2.5,
-					cacheRead: 0.075,
+					cacheRead: 0.03,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-03-20",
@@ -16977,7 +17020,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				pricing: {
 					input: 1.25,
 					output: 10,
-					cacheRead: 0.31,
+					cacheRead: 0.125,
 					cacheWrite: 0,
 				},
 				releaseDate: "2025-03-20",
@@ -17838,7 +17881,7 @@ export const GENERATED_PROVIDER_MODELS: {
 					cacheRead: 0.5,
 					cacheWrite: 6.25,
 				},
-				releaseDate: "2025-11-24",
+				releaseDate: "2025-11-01",
 				family: "claude-opus",
 			},
 			"claude-haiku-4-5@20251001": {
