@@ -287,7 +287,18 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "fetch_web_content":
 		case "web_fetch": {
-			const url = getStringField(parsedInput, "url") ?? ""
+			// The SDK's fetch_web_content uses { requests: [{ url, prompt }] }
+			// while the classic web_fetch uses { url, prompt } directly.
+			let url = getStringField(parsedInput, "url") ?? ""
+			if (!url && parsedInput) {
+				const requests = parsedInput.requests
+				if (Array.isArray(requests) && requests.length > 0) {
+					const firstRequest = requests[0]
+					if (typeof firstRequest === "object" && firstRequest !== null) {
+						url = ((firstRequest as Record<string, unknown>).url as string) ?? ""
+					}
+				}
+			}
 			return {
 				tool: "webFetch",
 				path: url,
@@ -304,7 +315,13 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "skills":
 		case "use_skill": {
-			const skillName = getStringField(parsedInput, "skill_name") ?? getStringField(parsedInput, "name") ?? ""
+			// The SDK's skills tool uses { skill: "name", args?: "..." }
+			// while the classic use_skill uses { skill_name: "name" }.
+			const skillName =
+				getStringField(parsedInput, "skill_name") ??
+				getStringField(parsedInput, "skill") ??
+				getStringField(parsedInput, "name") ??
+				""
 			return {
 				tool: "useSkill",
 				path: skillName,
@@ -397,6 +414,44 @@ function getBooleanField(input: Record<string, unknown> | undefined, field: stri
 	const value = input[field]
 	if (typeof value === "boolean") return value
 	return undefined
+}
+
+/**
+ * Extract raw text output from an SDK tool's output.
+ *
+ * The SDK's run_commands tool returns `ToolOperationResult[]` where each
+ * result has `{ query, result, success, error? }`. The `result` field
+ * contains the raw terminal output as a string. If the output is already
+ * a string, it is returned as-is. If it's an array of ToolOperationResult
+ * objects, extract and join the text from each result.
+ */
+export function extractToolOutputText(output: unknown): string {
+	if (output == null) return ""
+	if (typeof output === "string") return output
+
+	// Handle ToolOperationResult[] from SDK tools (run_commands, search_codebase, etc.)
+	if (Array.isArray(output)) {
+		const parts: string[] = []
+		for (const item of output) {
+			if (typeof item === "string") {
+				parts.push(item)
+			} else if (typeof item === "object" && item !== null) {
+				const record = item as Record<string, unknown>
+				// ToolOperationResult has { query, result, success, error? }
+				if ("result" in record && typeof record.result === "string" && record.result) {
+					parts.push(record.result)
+				} else if ("error" in record && typeof record.error === "string" && record.error) {
+					parts.push(record.error)
+				}
+			}
+		}
+		if (parts.length > 0) {
+			return parts.join("\n")
+		}
+	}
+
+	// Fallback for unknown structured output
+	return JSON.stringify(output)
 }
 
 // ---------------------------------------------------------------------------
@@ -587,11 +642,7 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							getStringField(parsedInput, "commands") ??
 							getStringField(parsedInput, "command") ??
 							""
-						const outputStr = event.error
-							? `Error: ${event.error}`
-							: typeof event.output === "string"
-								? event.output
-								: JSON.stringify(event.output ?? "")
+						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
 						const ts = state.clearStreamingTool()
 						messages.push({
 							ts,

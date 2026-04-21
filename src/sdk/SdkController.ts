@@ -51,6 +51,17 @@ function stubWarn(name: string): void {
 	Logger.warn(`[SdkController] STUB: ${name} not yet implemented`)
 }
 
+/**
+ * Check if an error is an AbortError — the expected result of calling
+ * AbortController.abort() during task cancellation.
+ */
+function isAbortError(error: unknown): boolean {
+	if (error instanceof Error) {
+		return error.name === "AbortError" || error.message.toLowerCase().includes("aborted")
+	}
+	return false
+}
+
 // ---------------------------------------------------------------------------
 // Event listener type
 // ---------------------------------------------------------------------------
@@ -163,6 +174,31 @@ export class Controller {
 		this.mcpHub?.dispose?.()
 		this.sessionEventListeners.clear()
 		Logger.log("[SdkController] Disposed")
+	}
+
+	// ---- Workspace root resolution ----
+
+	/**
+	 * Get the user's workspace root directory.
+	 *
+	 * In VSCode this resolves to `vscode.workspace.workspaceFolders[0]` via
+	 * `HostProvider.workspace.getWorkspacePaths()`. Falls back to
+	 * `process.cwd()` only when no workspace folder is open (e.g. when the
+	 * user opens VSCode without a folder).
+	 *
+	 * The classic extension used `vscode.workspace.workspaceFolders[0].uri.fsPath`
+	 * directly; using HostProvider keeps this host-agnostic.
+	 */
+	private async getWorkspaceRoot(): Promise<string> {
+		try {
+			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
+			if (paths.length > 0 && paths[0]) {
+				return paths[0]
+			}
+		} catch (error) {
+			Logger.warn("[SdkController] Failed to get workspace paths, falling back to process.cwd():", error)
+		}
+		return process.cwd()
 	}
 
 	// ---- Message persistence ----
@@ -424,6 +460,13 @@ export class Controller {
 				})
 			})
 			.catch((error: unknown) => {
+				// AbortError is expected when the user cancels a running task.
+				// The cancelTask() method handles emitting the appropriate UI
+				// messages, so we just silently absorb the error here.
+				if (isAbortError(error)) {
+					Logger.debug(`[SdkController] Agent turn aborted (expected): ${sessionId}`)
+					return
+				}
 				Logger.error("[SdkController] Agent turn failed:", error)
 				this.emitSessionEvents(
 					[
@@ -459,7 +502,7 @@ export class Controller {
 			await this.clearTask()
 
 			// Build session config from current state
-			const cwd = process.cwd()
+			const cwd = await this.getWorkspaceRoot()
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
@@ -568,7 +611,7 @@ export class Controller {
 			}
 
 			// Build session config from the history item's context
-			const cwd = historyItem.cwdOnTaskInitialization ?? process.cwd()
+			const cwd = historyItem.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
 			const config = await buildSessionConfig({
 				cwd,
 				mode: "act", // Default to act mode for resumed tasks
@@ -622,30 +665,39 @@ export class Controller {
 			return
 		}
 
+		const { sessionManager, sessionId } = this.activeSession
+
 		try {
-			const { sessionManager, sessionId } = this.activeSession
 			await sessionManager.abort(sessionId)
-			this.activeSession.isRunning = false
-
-			// Emit cancellation message
-			this.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "info",
-						text: "Task cancelled",
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId, status: "cancelled" } },
-			)
-
-			await this.postStateToWebview()
-			Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 		} catch (error) {
-			Logger.error("[SdkController] Failed to cancel task:", error)
+			// AbortError is the expected result of AbortController.abort() — suppress it.
+			if (!isAbortError(error)) {
+				Logger.error("[SdkController] Failed to abort session:", error)
+			} else {
+				Logger.debug(`[SdkController] AbortError during cancelTask (expected): ${sessionId}`)
+			}
 		}
+
+		this.activeSession.isRunning = false
+
+		// Emit resume_task ask so the webview shows the "Resume task" button
+		// and enables follow-up message input. This mirrors the classic
+		// extension's behavior in Task.abortTask().
+		const resumeMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "resume_task",
+			text: "",
+			partial: false,
+		}
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([resumeMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([resumeMessage], { type: "status", payload: { sessionId, status: "cancelled" } })
+
+		await this.postStateToWebview()
+		Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -847,7 +899,7 @@ export class Controller {
 		// Look up the HistoryItem for cwd and metadata
 		const history = (this.stateManager.getGlobalStateKey("taskHistory") as HistoryItem[] | undefined) || []
 		const historyItem = history.find((item) => item.id === taskId)
-		const cwd = historyItem?.cwdOnTaskInitialization ?? process.cwd()
+		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
 
 		// Build a new session config, reusing the old task ID
 		const modeValue = this.stateManager.getGlobalSettingsKey("mode")
@@ -1233,13 +1285,19 @@ export class Controller {
 		// For now, we import the classic getStateToPostToWebview logic.
 		try {
 			const { getStateToPostToWebview: classicGetState } = await import("@core/controller/state/getStateToPostToWebview")
-			return await classicGetState({
+			const state = await classicGetState({
 				task: this.task,
 				stateManager: this.stateManager,
 				mcpHub: this.mcpHub,
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
+			// SDK always uses background execution (bash executor spawns child
+			// processes directly). Override so the webview's CommandOutputRow
+			// renders with the correct background-exec UI (cancel button, log
+			// file links, proper status text).
+			state.vscodeTerminalExecutionMode = "backgroundExec"
+			return state
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
@@ -1341,7 +1399,7 @@ export class Controller {
 
 		try {
 			// 1. Build fresh session config (same provider/model/mode)
-			const cwd = process.cwd()
+			const cwd = await this.getWorkspaceRoot()
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({ cwd, mode })
