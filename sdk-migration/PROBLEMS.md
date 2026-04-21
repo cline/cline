@@ -660,3 +660,22 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Fix applied**: Renamed `isActive` to `$isActive` (styled-components transient prop prefix) in the `StyledTabButton` type, CSS interpolations, and JSX usage. The dollar-sign prefix tells styled-components to consume the prop for styling without forwarding it to the DOM. The public `TabButton` component API is unchanged.
 - **Verification**: Open the Cline Rules modal — no React console warning about `isActive` on a DOM element.
 - **Evidence**: TypeScript compiles cleanly. The `McpConfigurationView.tsx` version of `StyledTabButton` already used `shouldForwardProp` to filter `isActive` — this fix aligns the `ClineRulesToggleModal.tsx` version using the more idiomatic transient prop approach.
+
+### S6-44: RangeError: Invalid string length when starting a new task
+- **Status**: 🟢 Verified Fixed
+- **Description**: Starting a new task could produce `RangeError: Invalid string length` in the console, crashing the task. The error occurred in the SDK's `file-indexer.ts` at the `stdout += chunk.toString()` line inside `listFilesWithRg()`. The function spawns `rg --files --hidden -g '!.git'` and accumulates ALL stdout into a single string. Two bugs combined to cause this:
+  1. **Missing directory exclusions in `rg`**: The `rg` command only excluded `.git`, but the fallback `walkDir` function excluded 10 directories (`node_modules`, `dist`, `build`, `.next`, `coverage`, `.turbo`, `.cache`, `target`, `out`). This inconsistency meant `rg` listed vastly more files — including all of `node_modules` — producing output that could approach or exceed Node.js's max string length (~512MB).
+  2. **Wrong workspace path**: `SdkController` used `process.cwd()` instead of the VSCode workspace root. In the VSCode extension host, `process.cwd()` can return the VSCode installation directory or `/`, causing `rg` to recurse enormous directory trees.
+- **Root cause**: SDK `file-indexer.ts` had no buffer size limit and inconsistent directory exclusions between `rg` and `walkDir` codepaths. Extension used `process.cwd()` instead of `getCwd()` (which resolves the actual workspace folder via `HostProvider.workspace.getWorkspacePaths()`).
+- **Fix applied**:
+  1. **SDK `file-indexer.ts`** (`@clinebot/core/src/services/workspace/file-indexer.ts`):
+     - Added `MAX_RG_STDOUT_BYTES = 64MB` safety limit — kills `rg` and falls back to `walkDir` if output exceeds the limit.
+     - Added `rgExcludeArgs` that generates `-g '!dir'` flags for every entry in `DEFAULT_EXCLUDE_DIRS`, making `rg` and `walkDir` exclude the same directories.
+  2. **`SdkController.ts`**: Replaced all 4 `process.cwd()` calls with `await getCwd()` (which uses `HostProvider.workspace.getWorkspacePaths()`).
+  3. **`cline-session-factory.ts`**: Replaced `process.cwd()` fallback with `await getCwd()`.
+- **Verification**:
+  - SDK tests pass: 5 file-indexer tests + 4 mention-enricher tests (9/9).
+  - Extension SDK adapter tests pass: 112/112.
+  - TypeScript compiles with 0 new errors (5 pre-existing).
+  - Extension builds successfully with fixes in the bundle.
+- **Evidence**: Fix verified via `npx vitest run` (SDK workspace tests) and `npx tsc --noEmit` (extension).
