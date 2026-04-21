@@ -13,8 +13,6 @@ export enum BannerActionType {
 	ShowAccount = "show-account",
 	/** Set the active model */
 	SetModel = "set-model",
-	/** Trigger CLI installation flow */
-	InstallCli = "install-cli",
 }
 
 /**
