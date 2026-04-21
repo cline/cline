@@ -9,7 +9,7 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import { type CoreSessionEvent, type RuntimeHost, type StartSessionResult } from "@clinebot/core"
+import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
@@ -374,7 +374,7 @@ export class Controller {
 	 */
 	private async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
-	): Promise<{ startResult: StartSessionResult; sessionManager: RuntimeHost }> {
+	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
 		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
 		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			this.handleSessionEvent(event)
@@ -401,7 +401,7 @@ export class Controller {
 	 * send — the caller (gRPC handler / UI) needs to return immediately.
 	 */
 	private fireAndForgetSend(
-		sessionManager: RuntimeHost,
+		sessionManager: SessionHost,
 		sessionId: string,
 		prompt: string,
 		images?: string[],
@@ -423,7 +423,7 @@ export class Controller {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
 				})
 			})
-			.catch((error) => {
+			.catch((error: unknown) => {
 				Logger.error("[SdkController] Agent turn failed:", error)
 				this.emitSessionEvents(
 					[
