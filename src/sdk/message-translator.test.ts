@@ -300,6 +300,7 @@ describe("translateSessionEvent — agent_event content_end", () => {
 
 	it("content_end preserves tool input from content_start (S6-24 fix)", () => {
 		const state = new MessageTranslatorState()
+		const expectedDiff = "------- SEARCH\nconsole.log('world')\n=======\nconsole.log('hello')\n+++++++ REPLACE"
 
 		// 1. content_start with editor tool input
 		const startEvent: CoreSessionEvent = {
@@ -320,7 +321,8 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		const startTool = JSON.parse(startResult.messages[0].text!)
 		expect(startTool.tool).toBe("editedExistingFile")
 		expect(startTool.path).toBe("/src/app.ts")
-		expect(startTool.content).toBe("console.log('hello')")
+		// S6-48: when both old_text and new_text are provided, content is a search/replace diff
+		expect(startTool.content).toBe(expectedDiff)
 
 		// 2. content_end — should preserve the input from content_start
 		const endEvent: CoreSessionEvent = {
@@ -342,7 +344,7 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		// The finalized message should have the same content as the partial
 		expect(endTool.tool).toBe("editedExistingFile")
 		expect(endTool.path).toBe("/src/app.ts")
-		expect(endTool.content).toBe("console.log('hello')")
+		expect(endTool.content).toBe(expectedDiff)
 	})
 
 	it("content_end for newFileCreated preserves content from content_start (S6-24)", () => {
@@ -1666,5 +1668,172 @@ describe("sdkToolToClineSayTool — search_codebase (S6-47)", () => {
 		expect(tool.tool).toBe("searchFiles")
 		// Path should be undefined since SDK search_codebase has no path parameter
 		expect(tool.path).toBeUndefined()
+	})
+})
+
+// ---------------------------------------------------------------------------
+// S6-48: Editor diff rendering — search/replace format for old_text+new_text
+// ---------------------------------------------------------------------------
+
+describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
+	it("S6-48: editor with old_text and new_text builds search/replace diff in content", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-1",
+					input: { path: "/src/app.ts", old_text: "console.log('world')", new_text: "console.log('hello')" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.path).toBe("/src/app.ts")
+		expect(tool.content).toBe("------- SEARCH\nconsole.log('world')\n=======\nconsole.log('hello')\n+++++++ REPLACE")
+	})
+
+	it("S6-48: editor with only new_text keeps raw new_text in content", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-2",
+					input: { path: "/src/new-file.ts", new_text: "export const x = 1" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("newFileCreated")
+		expect(tool.content).toBe("export const x = 1")
+	})
+
+	it("S6-48: editor with old_str/new_str also builds search/replace diff", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-3",
+					input: { path: "/src/file.ts", old_str: "return false", new_str: "return true" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("editedExistingFile")
+		expect(tool.content).toBe("------- SEARCH\nreturn false\n=======\nreturn true\n+++++++ REPLACE")
+	})
+
+	it("S6-48: multiline old_text/new_text preserved in search/replace diff", () => {
+		const state = new MessageTranslatorState()
+		const oldText = "function foo() {\n\treturn 1\n}"
+		const newText = "function foo() {\n\treturn 2\n}"
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "editor",
+					toolCallId: "call-4",
+					input: { path: "/src/file.ts", old_text: oldText, new_text: newText },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.content).toBe(`------- SEARCH\n${oldText}\n=======\n${newText}\n+++++++ REPLACE`)
+		expect(tool.content).toContain("------- SEARCH")
+		expect(tool.content).toContain("+++++++ REPLACE")
+	})
+
+	// ---------------------------------------------------------------------------
+	// S6-48: apply_patch tool — content populated from SDK input field
+	// ---------------------------------------------------------------------------
+
+	describe("sdkToolToClineSayTool — apply_patch content (S6-48)", () => {
+		it("S6-48: apply_patch with SDK { input: '...' } populates both content and diff", () => {
+			const state = new MessageTranslatorState()
+			const patchContent = "*** Begin Patch\n*** Update File: src/file.ts\n@@\n-old\n+new\n*** End Patch"
+			const event: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "apply_patch",
+						toolCallId: "call-1",
+						input: { input: patchContent },
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(event, state)
+			const tool = JSON.parse(result.messages[0].text!)
+			expect(tool.tool).toBe("editedExistingFile")
+			expect(tool.content).toBe(patchContent)
+			expect(tool.diff).toBe(patchContent)
+		})
+
+		it("S6-48: apply_patch with classic { patch: '...' } populates both content and diff", () => {
+			const state = new MessageTranslatorState()
+			const patchContent = "*** Begin Patch\n*** Update File: src/file.ts\n@@\n-old\n+new\n*** End Patch"
+			const event: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "apply_patch",
+						toolCallId: "call-2",
+						input: { patch: patchContent },
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(event, state)
+			const tool = JSON.parse(result.messages[0].text!)
+			expect(tool.tool).toBe("editedExistingFile")
+			expect(tool.content).toBe(patchContent)
+			expect(tool.diff).toBe(patchContent)
+		})
+
+		it("S6-48: apply_patch prefers 'patch' field over 'input' field", () => {
+			const state = new MessageTranslatorState()
+			const event: CoreSessionEvent = {
+				type: "agent_event",
+				payload: {
+					sessionId: "session-1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "apply_patch",
+						toolCallId: "call-3",
+						input: { patch: "the-patch-content", input: "the-input-content" },
+					} as AgentEvent,
+				},
+			}
+			const result = translateSessionEvent(event, state)
+			const tool = JSON.parse(result.messages[0].text!)
+			expect(tool.content).toBe("the-patch-content")
+			expect(tool.diff).toBe("the-patch-content")
+		})
 	})
 })

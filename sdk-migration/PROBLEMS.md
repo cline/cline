@@ -797,4 +797,28 @@ The following classic tools have no equivalent in the SDK's built-in tool set or
   - path is undefined when SDK has no path param ✅
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts -- message-translator` — 65 tests pass (8 new). `npx tsc --noEmit` — 0 errors in changed files.
 
+
+
+### S6-48: File edit diffs show all green (no red deletions)
+- **Status**: 🟢 Verified Fixed
+- **Description**: When Cline edits an existing file, the diff shown in the chatview only showed green (additions) and never red (deletions). The entire file content appeared as additions, making it impossible to see what was actually changed.
+- **Root cause**: Three compounding issues in the SDK message translation pipeline:
+  1. **Editor tool**: The SDK's `editor` tool provides `old_text` and `new_text` fields. The message translator stored `new_text` into `content` and the `patch`/`diff` field into `diff`. But `ChatRow.tsx` passes `tool.content` to `DiffEditRow`'s `patch` prop. Since `content` was raw `new_text` (not a diff format), `DiffEditRow.parsePatch()` didn't recognize any known diff format and fell through to the fallback (lines 303-317) which treated the entire text as a new file, prefixing every line with `+ ` (green additions only).
+  2. **apply_patch tool**: The SDK sends `apply_patch` input as `{ input: '...' }`, but the translator only checked the `patch` field (not `input`). Also, the translator set `diff` but not `content`, so `ChatRow.tsx`'s condition `tool.content` was falsy, causing it to fall through to `CodeAccordian` instead of `DiffEditRow`.
+  3. **ChatRow.tsx**: The condition and prop used only `tool.content`, ignoring `tool.diff` even when it contained a valid patch.
+- **Fix applied**: Three files changed:
+  1. **`src/sdk/message-translator.ts`** — `editor`/`replace_in_file` case: When both `old_text` and `new_text` are provided, construct a search/replace diff in the format DiffEditRow expects (`------- SEARCH\n<old>\n=======\n<new>\n+++++++ REPLACE`) and store it in `content`. When only `new_text` is provided (new file), keep raw text as before.
+  2. **`src/sdk/message-translator.ts`** — `apply_patch` case: Also check the `input` field (SDK format) in addition to `patch` and `diff`. Populate both `content` and `diff` with the patch so `ChatRow.tsx` can render it.
+  3. **`webview-ui/src/components/chat/ChatRow.tsx`** — Changed condition from `tool.content` to `(tool.diff || tool.content)` and prop from `patch={tool.content}` to `patch={tool.diff || tool.content!}`, so `DiffEditRow` receives whichever field contains the diff.
+- **Verification**: 7 new unit tests in `src/sdk/message-translator.test.ts`:
+  - Editor with `old_text` + `new_text` → content is search/replace diff ✅
+  - Editor with only `new_text` → content is raw new_text (newFileCreated) ✅
+  - Editor with `old_str`/`new_str` variant → search/replace diff ✅
+  - Multiline old/new text preserved in diff ✅
+  - apply_patch with SDK `{ input: '...' }` → content and diff populated ✅
+  - apply_patch with classic `{ patch: '...' }` → content and diff populated ✅
+  - apply_patch prefers `patch` over `input` field ✅
+  - Updated existing S6-24 test to expect diff format when old_text+new_text present ✅
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 72 tests pass (7 new). `npx tsc --noEmit --skipLibCheck` — 0 errors.
+
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.
