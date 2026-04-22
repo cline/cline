@@ -1,5 +1,22 @@
 # cline
 
+## [2.16.0]
+
+### Added
+
+- Wire up remote `globalSkills` from enterprise remote config with full toggle support and system prompt integration — enterprise-managed skills now support `alwaysEnabled` enforcement
+- Add dedicated "Quota Exceeded" error message when Cline account spend caps are hit
+
+### Fixed
+
+- Fix OOM crashes during long conversations by setting `--max-old-space-size=8192` for the cline-core Node.js process (was defaulting to ~2 GB)
+- Show detailed error information instead of a generic caught error message
+- Update `axios` to 1.15.0 across all packages
+
+### Changed
+
+- Remove dead ACP terminal setter stubs as part of foreground terminal mode removal
+
 ## [2.15.0]
 
 ### Added
