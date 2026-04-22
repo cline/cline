@@ -58,10 +58,22 @@ cline rpc stop            # Stop it
 cline rpc status          # Check if running
 ```
 
+## MCP Servers
+
+```bash
+# Interactive MCP server management
+cline mcp
+```
+
+Provides a menu to add, edit, enable/disable, and delete MCP servers. Supports Local (stdio), Remote (SSE), and Remote (HTTP) transports.
+
 ## Scheduling
 
 ```bash
-# Create a scheduled agent
+# Interactive schedule management
+cline schedule
+
+# Or create directly with flags
 cline schedule create "Task name" \
   --cron "0 9 * * MON-FRI" \
   --prompt "What to do" \
@@ -82,12 +94,16 @@ cline schedule executions <schedule-id>
 ## Connectors
 
 ```bash
-# Connect to messaging platforms
+# Interactive connector setup wizard
+cline connect
+
+# Or connect a specific platform directly with flags
 cline connect telegram -m <BOT-ID> -k <BOT-TOKEN>
-cline connect slack
-cline connect gchat
-cline connect whatsapp
-cline connect linear
+cline connect slack --token <TOKEN> --signing-secret <SECRET> --base-url <URL>
+cline connect discord --app-id <ID> --token <TOKEN> --public-key <KEY> --base-url <URL>
+cline connect gchat --credentials <JSON> --base-url <URL>
+cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --base-url <URL>
+cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
 
 # With access control
 cline connect telegram -m <BOT-ID> -k <BOT-TOKEN> \
