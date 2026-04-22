@@ -1,9 +1,10 @@
 /**
  * Search Executor
  *
- * Built-in implementation for searching the codebase using regex.
+ * Built-in implementation for searching the codebase using ripgrep (if available) or regex.
  */
 
+import { spawn } from "node:child_process";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import type { ToolContext } from "@clinebot/shared";
@@ -118,6 +119,152 @@ interface SearchMatch {
 	context: string[];
 }
 
+let rgAvailable: boolean | null = null;
+
+function checkRipgrepAvailable(): Promise<boolean> {
+	if (rgAvailable !== null) {
+		return Promise.resolve(rgAvailable);
+	}
+
+	return new Promise((resolve) => {
+		const child = spawn("rg", ["--version"], {
+			stdio: ["ignore", "pipe", "pipe"],
+		});
+
+		child.on("close", (code) => {
+			rgAvailable = code === 0;
+			resolve(rgAvailable);
+		});
+
+		child.on("error", () => {
+			rgAvailable = false;
+			resolve(false);
+		});
+
+		setTimeout(() => {
+			if (!child.killed) {
+				child.kill("SIGTERM");
+			}
+			if (rgAvailable === null) {
+				rgAvailable = false;
+				resolve(false);
+			}
+		}, 1000);
+	});
+}
+
+function searchWithRipgrep(
+	query: string,
+	cwd: string,
+	maxResults: number,
+	contextLines: number,
+	timeoutMs: number = 5000,
+	abortSignal?: AbortSignal,
+): Promise<SearchMatch[] | null> {
+	return new Promise((resolve) => {
+		const child = spawn(
+			"rg",
+			["--json", `--context=${contextLines}`, "--max-count=1", "-i", query],
+			{
+				cwd,
+				stdio: ["ignore", "pipe", "pipe"],
+			},
+		);
+
+		let stdout = "";
+		let resolved = false;
+
+		const cleanup = () => {
+			if (!child.killed) {
+				child.kill("SIGTERM");
+			}
+		};
+
+		const timeout = setTimeout(() => {
+			if (!resolved) {
+				resolved = true;
+				cleanup();
+				resolve(null);
+			}
+		}, timeoutMs);
+
+		const finalize = (result: SearchMatch[] | null) => {
+			if (!resolved) {
+				resolved = true;
+				clearTimeout(timeout);
+				cleanup();
+				resolve(result);
+			}
+		};
+
+		if (abortSignal?.aborted) {
+			cleanup();
+			resolve(null);
+			return;
+		}
+
+		abortSignal?.addEventListener("abort", () => {
+			finalize(null);
+		});
+
+		child.stdout.on("data", (chunk: Buffer | string) => {
+			stdout += chunk.toString();
+		});
+
+		child.stderr.on("data", () => {
+			// Ignore stderr
+		});
+
+		child.on("close", (code: number | null) => {
+			if (code === 0 || code === 1) {
+				try {
+					const matches: SearchMatch[] = [];
+					const lines = stdout.split("\n").filter((line) => line.trim());
+
+					for (const line of lines) {
+						if (matches.length >= maxResults) break;
+
+						const json = JSON.parse(line);
+						if (json.type === "match") {
+							const matchData = json.data;
+							const contextLines: string[] = [];
+
+							if (json.data.submatches && json.data.submatches.length > 0) {
+								const submatch = json.data.submatches[0];
+								matches.push({
+									file: matchData.path.text,
+									line: matchData.line_number,
+									column: (submatch?.start ?? 0) + 1,
+									match: submatch?.match?.text ?? "",
+									context: contextLines,
+								});
+							}
+						} else if (json.type === "context" && matches.length > 0) {
+							const lastMatch = matches[matches.length - 1];
+							const prefix =
+								json.data.line_number === lastMatch.line ? ">" : " ";
+							lastMatch.context.push(
+								`${prefix} ${json.data.line_number}: ${json.data.lines?.text ?? json.data.line?.text ?? ""}`,
+							);
+						}
+					}
+
+					finalize(matches.length > 0 ? matches : null);
+				} catch {
+					finalize(null);
+				}
+				return;
+			}
+
+			finalize(null);
+		});
+
+		child.on("error", () => {
+			finalize(null);
+		});
+	});
+}
+
 function shouldIncludeFile(
 	relativePath: string,
 	excludeDirs: Set<string>,
@@ -173,9 +320,49 @@ export function createSearchExecutor(
 	return async (
 		query: string,
 		cwd: string,
-		_context: ToolContext,
+		context: ToolContext,
 	): Promise<string> => {
-		// Compile regex
+		// Check for abort before starting
+		if (context.abortSignal?.aborted) {
+			throw new Error("Search operation aborted");
+		}
+
+		// Try ripgrep first if available
+		const isRgAvailable = await checkRipgrepAvailable();
+		let rgMatches: SearchMatch[] | null = null;
+		if (isRgAvailable) {
+			rgMatches = await searchWithRipgrep(
+				query,
+				cwd,
+				maxResults,
+				contextLines,
+				5000,
+				context.abortSignal,
+			);
+		}
+
+		if (rgMatches) {
+			const resultLines: string[] = [
+				`Found ${rgMatches.length} result${rgMatches.length === 1 ? "" : "s"} for pattern: ${query}`,
+				"",
+			];
+
+			for (const match of rgMatches) {
+				resultLines.push(`${match.file}:${match.line}:${match.column}`);
+				resultLines.push(...match.context);
+				resultLines.push("");
+			}
+
+			if (rgMatches.length >= maxResults) {
+				resultLines.push(
+					`(Showing first ${maxResults} results. Refine your search for more specific results.)`,
+				);
+			}
+
+			return resultLines.join("\n");
+		}
+
+		// Fallback to manual regex search
 		let regex: RegExp;
 		try {
 			regex = new RegExp(query, "gim");
@@ -192,6 +379,11 @@ export function createSearchExecutor(
 
 		// Search files from the fast index.
 		for (const relativePath of fileList) {
+			// Check for abort signal
+			if (context.abortSignal?.aborted) {
+				throw new Error("Search operation aborted");
+			}
+
 			if (
 				!shouldIncludeFile(
 					relativePath,

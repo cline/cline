@@ -8,5 +8,5 @@
 		"rootDir": "./src",
 		"incremental": false
 	},
-	"include": ["src/index.ts", "src/telemetry/index.ts"]
+	"include": ["src/index.ts", "src/hub/index.ts", "src/telemetry/index.ts"]
 }

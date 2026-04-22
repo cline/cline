@@ -4,10 +4,10 @@ export {
 } from "./cline-account-service";
 export {
 	type ClineAccountOperations,
-	executeRpcClineAccountAction,
-	isRpcClineAccountActionRequest,
+	executeClineAccountAction,
+	isClineAccountActionRequest,
+	type ProviderActionExecutor,
 	RpcClineAccountService,
-	type RpcProviderActionExecutor,
 } from "./rpc";
 export type {
 	ClineAccountBalance,

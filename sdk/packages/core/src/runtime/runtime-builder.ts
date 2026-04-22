@@ -32,6 +32,10 @@ import {
 	createDelegatedAgentConfigProvider,
 	type TeamEvent,
 } from "../extensions/tools/team";
+import {
+	filterDisabledTools,
+	resolveDisabledToolNames,
+} from "../services/global-settings";
 import { createLocalTeamStore } from "../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../types/config";
 import type {
@@ -74,6 +78,13 @@ function filterToolsByPolicies(
 	);
 }
 
+function filterAvailableTools(
+	tools: Tool[],
+	toolPolicies: CoreSessionConfig["toolPolicies"],
+): Tool[] {
+	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+}
+
 export function createTeamName(): string {
 	return `team-${nanoid(5)}`;
 }
@@ -96,7 +107,7 @@ function createBuiltinToolsList(
 		toolRoutingRules ?? DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	);
 
-	return filterToolsByPolicies(
+	return filterAvailableTools(
 		createBuiltinTools({
 			cwd,
 			...preset,
@@ -478,8 +489,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		const globallyDisabledToolNames = resolveDisabledToolNames();
 		const tools: Tool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
+		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
 		const hasLocalSkills = hasSkillsFiles(config.cwd);
 		let teamToolsRegistered = false;
 		const watcherProvided = Boolean(sharedUserInstructionWatcher);
@@ -535,7 +548,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const teamStore = normalized.enableAgentTeams
 			? createLocalTeamStore()
 			: undefined;
-		const restoredTeam = teamStore?.loadRuntime(effectiveTeamName);
+		const restoredTeam = teamStore?.loadRuntime(teamStoreKey);
 		const restoredTeamState = restoredTeam?.state;
 		const restoredTeammateSpecs = restoredTeam?.teammates ?? [];
 		const teammateSpecs = new Map(
@@ -606,9 +619,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							if (event.type === "teammate_shutdown") {
 								teammateSpecs.delete(event.agentId);
 							}
-							teamStore.handleTeamEvent(effectiveTeamName, event);
+							teamStore.handleTeamEvent(teamStoreKey, event);
 							teamStore.persistRuntime(
-								effectiveTeamName,
+								teamStoreKey,
 								teamRuntime.exportState(),
 								Array.from(teammateSpecs.values()),
 							);
@@ -628,8 +641,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				}
 				teamToolsRegistered = true;
 
-				const factory = input.teamToolsFactory ?? bootstrapAgentTeams;
-				const teamBootstrap = factory({
+				const teamBootstrap = bootstrapAgentTeams({
 					runtime: teamRuntime,
 					leadAgentId: config.sessionId || "lead",
 					restoredFromPersistence: Boolean(restoredTeamState),
@@ -714,7 +726,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			: undefined;
 
 		return {
-			tools: filterToolsByPolicies(tools, config.toolPolicies),
+			tools: filterAvailableTools(tools, config.toolPolicies),
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,
@@ -726,7 +738,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			registerLeadAgent: (agent) => {
 				leadAgentInstance = agent;
 				if (pendingLeadTeamTools.length > 0) {
-					agent.addTools(pendingLeadTeamTools);
+					agent.addTools(
+						filterDisabledTools(pendingLeadTeamTools, [
+							...globallyDisabledToolNames,
+						]),
+					);
 				}
 			},
 			shutdown: async (reason: string) => {

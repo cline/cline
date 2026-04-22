@@ -19,19 +19,6 @@ function formatHistoryTitle(
 	return truncateStr(normalized.replace(/\s+/g, " "), 40);
 }
 
-function formatCheckpointSummary(row: SessionHistoryRecord): string {
-	const checkpoint = row.metadata?.checkpoint;
-	const count = checkpoint?.history?.length ?? 0;
-	const latestRun = checkpoint?.latest?.runCount;
-	if (count <= 0) {
-		return "";
-	}
-	if (typeof latestRun === "number" && Number.isFinite(latestRun)) {
-		return ` - checkpoints:${count} latest-run:${latestRun}`;
-	}
-	return ` - checkpoints:${count}`;
-}
-
 export function formatCheckpointBadge(
 	row: SessionHistoryRecord,
 ): string | undefined {
@@ -42,9 +29,9 @@ export function formatCheckpointBadge(
 		return undefined;
 	}
 	if (typeof latestRun === "number" && Number.isFinite(latestRun)) {
-		return `CP ${count} R${latestRun}`;
+		return `CP${count}R${latestRun}`;
 	}
-	return `CP ${count}`;
+	return `CP${count}`;
 }
 
 export function formatCheckpointDetail(
@@ -72,13 +59,25 @@ export function formatHistoryListLine(row: SessionHistoryRecord): string {
 	const title = formatHistoryTitle(row.metadata?.title, row.prompt);
 	if (!title) return "";
 	const cost = formatUsd(row.metadata?.totalCost ?? 0, 2);
-	const provider = truncateStr(
-		row.provider?.trim() || "(unknown-provider)",
-		20,
-	);
-	const model = truncateStr(row.model?.trim() || "(unknown-model)", 28);
-	const date = formatHumanReadableDate(row.startedAt);
-	return `${date} - ${cost} - ${provider}:${model} - ${title}${formatCheckpointSummary(row)} `;
+	const provider = truncateStr(row.provider?.trim() || "unknown", 20);
+	const model = truncateStr(row.model?.trim() || "", 28);
+
+	const checkpointCreatedAt = row.metadata?.checkpoint?.latest?.createdAt;
+	const timestamp =
+		typeof checkpointCreatedAt === "number" &&
+		Number.isFinite(checkpointCreatedAt)
+			? checkpointCreatedAt
+			: new Date(row.startedAt).getTime();
+	const date = new Date(timestamp);
+
+	const month = String(date.getUTCMonth() + 1).padStart(2, "0");
+	const day = String(date.getUTCDate()).padStart(2, "0");
+	const year = date.getUTCFullYear();
+	const hour = String(date.getUTCHours()).padStart(2, "0");
+	const minute = String(date.getUTCMinutes()).padStart(2, "0");
+	const dateStr = `${month}/${day}/${year}`;
+	const timeStr = `${hour}:${minute}`;
+	return `${dateStr} ${timeStr} ${provider}:${model} | ${cost} | ${title}`;
 }
 
 export interface HistoryListViewProps {

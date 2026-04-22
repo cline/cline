@@ -13,7 +13,7 @@ import type {
 import { cn } from "@/lib/utils";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
-import { primeExtensionsListsCache, RulesView } from "./extensions.view";
+import { primeExtensionsListsCache, RulesView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
 import {
 	ProviderDetailContent,

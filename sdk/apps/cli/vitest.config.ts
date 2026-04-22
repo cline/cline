@@ -35,8 +35,8 @@ export default defineConfig({
 				replacement: resolve(rootDir, "../../packages/core/src/index.ts"),
 			},
 			{
-				find: /^@clinebot\/rpc$/,
-				replacement: resolve(rootDir, "../../packages/rpc/src/index.ts"),
+				find: /^@clinebot\/hub$/,
+				replacement: resolve(rootDir, "../../packages/hub/src/index.ts"),
 			},
 			{
 				find: /^@clinebot\/shared$/,

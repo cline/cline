@@ -113,7 +113,7 @@ export async function runSubprocessEvent(
 ): Promise<RunSubprocessEventResult | undefined> {
 	const command = augmentNodeCommandForDebug(options.command, {
 		env: options.env,
-		debugRole: "hook-worker",
+		debugRole: "hook",
 	});
 	if (!Array.isArray(command) || command.length === 0) {
 		throw new Error("runSubprocessEvent requires a non-empty command");

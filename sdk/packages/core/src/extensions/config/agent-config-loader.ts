@@ -43,12 +43,14 @@ export function resolveAgentsConfigDirPath(): string {
 	return resolveAgentsConfigDirPathFromShared();
 }
 
-export function resolveAgentConfigSearchPaths(): string[] {
-	// Documents path first, then settings path so settings location takes precedence.
-	return resolveAgentConfigSearchPathsFromShared();
+export function resolveAgentConfigSearchPaths(
+	workspacePath?: string,
+): string[] {
+	return resolveAgentConfigSearchPathsFromShared(workspacePath);
 }
 
 export interface CreateAgentConfigWatcherOptions {
+	workspacePath?: string;
 	directoryPathOrPaths?: string | ReadonlyArray<string>;
 	debounceMs?: number;
 	emitParseErrors?: boolean;
@@ -56,6 +58,7 @@ export interface CreateAgentConfigWatcherOptions {
 
 function toDirectoryPaths(
 	directoryPathOrPaths?: string | ReadonlyArray<string>,
+	workspacePath?: string,
 ): string[] {
 	if (Array.isArray(directoryPathOrPaths)) {
 		return [...directoryPathOrPaths];
@@ -63,15 +66,16 @@ function toDirectoryPaths(
 	if (typeof directoryPathOrPaths === "string") {
 		return [directoryPathOrPaths];
 	}
-	return resolveAgentConfigSearchPaths();
+	return resolveAgentConfigSearchPaths(workspacePath);
 }
 
 export function createAgentConfigDefinition(
 	directoryPathOrPaths?: string | ReadonlyArray<string>,
+	workspacePath?: string,
 ): UnifiedConfigDefinition<"agent", AgentYamlConfig> {
 	return {
 		type: "agent",
-		directories: toDirectoryPaths(directoryPathOrPaths),
+		directories: toDirectoryPaths(directoryPathOrPaths, workspacePath),
 		includeFile: (fileName) => isAgentConfigYamlFile(fileName),
 		parseFile: (context) => parseAgentConfigFromYaml(context.content),
 		resolveId: (config) => normalizeAgentConfigName(config.name),
@@ -82,7 +86,12 @@ export function createAgentConfigWatcher(
 	options?: CreateAgentConfigWatcherOptions,
 ): AgentConfigWatcher {
 	return new UnifiedConfigFileWatcher(
-		[createAgentConfigDefinition(options?.directoryPathOrPaths)],
+		[
+			createAgentConfigDefinition(
+				options?.directoryPathOrPaths,
+				options?.workspacePath,
+			),
+		],
 		{
 			debounceMs: options?.debounceMs,
 			emitParseErrors: options?.emitParseErrors,
@@ -92,9 +101,10 @@ export function createAgentConfigWatcher(
 
 export async function readAgentConfigsFromDisk(
 	directoryPathOrPaths?: string | ReadonlyArray<string>,
+	workspacePath?: string,
 ): Promise<Map<string, AgentYamlConfig>> {
 	const watcher = new UnifiedConfigFileWatcher([
-		createAgentConfigDefinition(directoryPathOrPaths),
+		createAgentConfigDefinition(directoryPathOrPaths, workspacePath),
 	]);
 	await watcher.refreshAll();
 	const snapshot = watcher.getSnapshot("agent");

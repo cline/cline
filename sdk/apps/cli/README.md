@@ -91,8 +91,6 @@ clite -i
 clite -i -s "You are a pirate" "Tell me about the sea"
 clite -i "Let's work on this together. First, analyze the current state and suggest next steps."
 
-# Disable defaults tools, spawn(subagent), teams explicitly
-clite --no-tools --no-spawn --no-teams "Answer from general knowledge only"
 # Require approval before each tool call
 clite --autoapprove false "Inspect and modify this repository"
 # Explicitly enable auto-approval for all tools
@@ -105,15 +103,14 @@ cat file.txt | clite "Summarize this"
 clite --team-name my-team "Plan, implement, and verify release checklist"
 clite --team-name my-team "Continue yesterday's team workflow"
 
-# Show usage stats (tokens + estimated cost when available)
-clite -u --timings "Explain quantum computing"
+# Show usage stats (includes elapsed time, tokens, and estimated cost when available)
+clite -u "Explain quantum computing"
 
 # Override consecutive internal mistake limit for this run (default: 3)
 clite --max-consecutive-mistakes 5 "Fix failing tests"
 # Common with auto-approve/yolo-style runs
-clite --auto-approve-all --max-consecutive-mistakes 5 "Refactor this package"
+clite --autoapprove true --max-consecutive-mistakes 5 "Refactor this package"
 # Explicit yolo also enables submit_and_exit and disables spawn/team tools by default
-# Re-enable them explicitly with --spawn and/or --teams when needed
 clite --yolo --max-consecutive-mistakes 5 "Refactor this package"
 
 # Stream structured NDJSON output
@@ -204,23 +201,7 @@ clite config
 # For one-shot auto-exit behavior, pass a prompt argument.
 # Exit interactive mode with Ctrl+D (or Ctrl+C when idle).
 
-# INTERNAL: RPC gateway commands for host integration and runtime management
-# Start the RPC gateway server
-clite rpc start
-clite rpc start --address 127.0.0.1:4317
-# Check whether an RPC gateway is running
-clite rpc status
-clite rpc status --address 127.0.0.1:4317
-# Request RPC gateway shutdown
-clite rpc stop
-clite rpc stop --address 127.0.0.1:4317
-# Ensure a compatible runtime server is available (JSON output for host apps)
-clite rpc ensure --address 127.0.0.1:4317 --json
-# For new client to call to register with the RPC gateway
-clite rpc register --address 127.0.0.1:4317 --client-type desktop --client-id code-desktop
-clite rpc register --meta app=code --meta host=tauri
-
-# Schedule agents on cron-like intervals (runs through RPC server runtime)
+# Schedule agents on cron-like intervals
 clite schedule create "Daily code review" \
   --cron "0 9 * * MON-FRI" \
   --prompt "Review PRs opened yesterday and summarize issues." \
@@ -272,10 +253,9 @@ During OAuth login, `clite` tries to open the authorization URL in your default 
 - Sign in with OCA
 - Use your own API key (provider + model + optional base URL)
 
-RPC runtime note:
+Runtime note:
 
-- RPC chat payload parsers normalize invalid optional `maxIterations` values (including JSON `null`) to `undefined` so sessions do not terminate immediately with `finishReason="max_iterations"` at iteration 0.
-- RPC-backed sessions share one persistent hook service per local RPC runtime server. Direct local CLI runs still use one persistent `clite hook-worker` per CLI runtime.
+- Hook dispatch now runs in-process against the active runtime session instead of spinning up a separate `clite hook-worker` service.
 
 ## Options
 
@@ -297,23 +277,14 @@ RPC runtime note:
 | `--acp` | ACP (Agent Client Protocol) mode |
 | `--thinking` | Enable model reasoning when supported |
 | `--reasoning-effort <none\|low\|medium\|high\|xhigh>` | Set explicit model reasoning effort (default: `none`, or `medium` when `--thinking` is set) |
-| `-u, --usage` | Show token usage and estimated cost |
-| `--timings` | Show timing details |
+| `-u, --usage` | Show elapsed time, token usage, and estimated cost |
 | `--json` | Output NDJSON instead of styled text |
 | `--refresh-models` | Refresh the provider model catalog for this run |
 | `--sandbox` | Use isolated local state instead of `~/.cline` |
 | `--sandbox-dir <path>` | Sandbox state dir (default: `$CLINE_SANDBOX_DATA_DIR` or `/tmp/cline-sandbox`) |
-| `--no-tools` | Disable default tools |
-| `--no-spawn` | Disable `spawn_agent` |
-| `--no-teams` | Disable team tools/runtime |
-| `--auto-approve-all` | Skip tool approval prompts |
 | `--autoapprove [true\|false]` | Set tool auto-approval for all tools |
-| `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default unless `--spawn` / `--teams` are also passed |
-| `--tool-enable <name>` | Explicitly enable one tool |
-| `--tool-disable <name>` | Explicitly disable one tool |
+| `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
 | `--team-name <name>` | Override the runtime team state name |
-| `--mission-step-interval <n>` | Mission log update cadence in meaningful steps |
-| `--mission-time-interval-ms <ms>` | Mission log update cadence in milliseconds |
 | `-h, --help` | Show help (exits immediately) |
 | `-v, --verbose` | Show verbose runtime diagnostics |
 | `-V, --version` | Show version (exits immediately) |
@@ -323,20 +294,19 @@ RPC runtime note:
 Top-level commands:
 
 - `clite config` - Open the interactive config view
-- `clite task|t [options] <prompt>` - Legacy command alias for running a task
-- `clite history|h [options]` - Legacy command alias for listing history
+- `clite task|t [options] <prompt>` - Run a task with the given prompt
+- `clite history|h [options]` - List session history or manage saved sessions
+- `clite checkpoint [options]` - Inspect or restore session checkpoints
 - `clite version` - Show CLI version
 - `clite update [options]` - Reserved command; currently prints a not-implemented message
 - `clite auth <provider>` - Authenticate or seed provider credentials
 - `clite connect <adapter>` - Run a chat connector bridge (`telegram`, `gchat`, `whatsapp`)
 - `clite connect --stop [adapter]` - Stop connector bridge processes and their sessions
-- `clite list <workflows|rules|skills|agents|history|hooks|mcp>` - List configs, history, or hook paths
 - `clite schedule <command>` - Create and manage scheduled runs
-- `clite sessions <list|update|delete>` - Inspect or edit saved sessions
 - `clite dev log` - Open the CLI runtime log file
-- `clite doctor` - Inspect local CLI/RPC health and stale processes
+- `clite doctor` - Inspect local CLI health and stale processes
 - `clite hook` - Handle a hook payload from stdin
-- `clite rpc <command>` - Manage the local RPC runtime server
+- `clite hub` - Manage the local hub daemon
 
 Connector shortcuts:
 
@@ -346,11 +316,8 @@ Connector shortcuts:
 - `clite connect <adapter> --help` - Show adapter-specific options and examples
 - `--hook-command <command>` - Run a shell command for connector events
 
-RPC and schedule shortcuts:
+Schedule shortcuts:
 
-- `clite rpc <start|status|stop|ensure> [--address <host:port>]` - Manage the RPC server
-- `clite rpc register --client-type <type> --client-id <id>` - Register a client with the RPC server
-- `clite rpc ensure --json` - Ensure the current build's compatible RPC sidecar and print JSON
 - `clite schedule create <name> --cron "<expr>" --prompt "<text>" --workspace <path>` - Create a scheduled run
 - `clite schedule <create|list|get|update|pause|resume|delete|trigger|history|stats|active|upcoming|import|export>` - Manage schedules and execution history
 
@@ -367,13 +334,6 @@ Auth quick-setup flags:
 - `-k, --apikey <key>`
 - `-m, --modelid <id>`
 - `-b, --baseurl <url>` (OpenAI/OpenAI-compatible quick setup)
-
-MCP list examples:
-
-```bash
-clite list mcp
-clite list mcp --json
-```
 
 ## Tool Approval
 
@@ -396,7 +356,6 @@ Approve tool "<tool_name>" with input <preview>? [y/N]
 - Enter `y` or `yes` to approve.
 - Enter anything else (or press Enter) to reject.
 - If stdin/stdout is not a TTY, required-approval calls are denied in terminal mode.
-- RPC-backed prompt runs also honor required approvals: approval requests are relayed through RPC, prompted in the CLI TTY, and responded back to the runtime before tool execution continues.
 
 Desktop-integrated approval mode is also supported via env wiring:
 
@@ -404,25 +363,6 @@ Desktop-integrated approval mode is also supported via env wiring:
 - `CLINE_TOOL_APPROVAL_DIR=<path>`
 
 In desktop mode, CLI writes a request JSON file and waits for a matching decision JSON file.
-
-## RPC Server
-
-`clite rpc start` starts the `@clinebot/rpc` gRPC gateway.
-
-- Default address: `127.0.0.1:4317`
-- Override with `--address <host:port>` or `CLINE_RPC_ADDRESS`
-- Startup behavior: checks health first; if already running at that address, it prints the running server id and exits without starting a duplicate
-- Status check: `clite rpc status` prints running/not-running and returns exit code `0` when healthy (`1` when not running)
-- Shutdown: `clite rpc stop` requests graceful shutdown for the target address; `clite rpc start` can also be stopped with Ctrl+C / `SIGTERM`
-- Ensure: `clite rpc ensure` reuses the current build's compatible sidecar when possible; if an older or foreign listener is present it can launch a fresh sidecar on a new available port and report that effective address
-- Compatibility check: `rpc ensure` requires runtime chat methods including `StartRuntimeSession`, `SendRuntimeSession`, `AbortRuntimeSession`, and `StopRuntimeSession`.
-- Client registration: `clite rpc register --client-type <type> [--client-id <id>] [--meta key=value]...` registers host identity for RPC clients
-- Runtime APIs: `clite rpc start` wires server-side runtime handlers for `StartRuntimeSession`, `SendRuntimeSession`, and `AbortRuntimeSession` (used by `@clinebot/code` and CLI runtime actions)
-- Runtime event bridge: runtime handlers publish live `runtime.chat.*` events via RPC `PublishEvent`, so subscribed clients can consume real-time text/tool updates through `StreamEvents`
-- Team event bridge: runtime handlers also publish typed team progress/lifecycle events (`runtime.team.progress.v1`, `runtime.team.lifecycle.v1`) with status-board projections
-- Tool approval bridge: runtime handlers publish `approval.requested` and wait for RPC responses; CLI prompt runs consume these requests and return approval decisions through RPC.
-- CLI streaming: RPC-backed prompt runs subscribe to `runtime.chat.*` during each turn, so text/tool output is rendered incrementally in the terminal.
-- Prompt startup behavior: regular `clite "<prompt>"` runs try to connect directly to `CLINE_RPC_ADDRESS` first. If no server is running, one is spawned in the background and the CLI waits briefly for it to bind. If the background spawn fails, the CLI falls back to an in-process local runtime.
 
 ## Environment Variables
 
@@ -432,7 +372,6 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 - `CLINE_SANDBOX` - Set to `1` to force sandbox mode
 - `CLINE_SANDBOX_DATA_DIR` - Override sandbox state directory
 - `CLINE_TEAM_DATA_DIR` - Override team persistence directory
-- `CLINE_RPC_ADDRESS` - Address used by `clite rpc start` (default `127.0.0.1:4317`)
 - `CLINE_BUILD_ENV` - Runtime build mode for SDK-owned subprocess launches (`development` adds `node|bun --inspect=127.0.0.1:0 --enable-source-maps` by default; falls back to `NODE_ENV` or `--conditions=development`)
 - `CLINE_DEBUG_HOST` - Override the host used for development inspector listeners (default `127.0.0.1`)
 - `CLINE_DEBUG_PORT_BASE` - Override the base inspector port for development child processes; when unset, child processes use ephemeral inspector ports
@@ -454,7 +393,7 @@ For OAuth providers (`cline`, `openai-codex`, `oca`), authenticate explicitly wi
 
 - `CLINE_BUILD_ENV=development` enables debugger ports for SDK-owned spawned Node/Bun subprocesses.
 - By default, child processes use ephemeral inspector ports to avoid collisions.
-- Set `CLINE_DEBUG_PORT_BASE=9230` if you want deterministic role-based ports such as RPC `9230`, hook worker `9231`, plugin sandbox `9232`, connector child `9233`.
+- Set `CLINE_DEBUG_PORT_BASE=9230` if you want deterministic role-based ports such as hook worker `9231`, plugin sandbox `9232`, connector child `9233`.
 - Those ports do not apply to the top-level CLI when it is running under Bun. To debug the Bun CLI process itself, launch the real CLI entrypoint under Bun with an inspector port such as:
 
 ```bash
@@ -471,12 +410,10 @@ CLINE_BUILD_ENV=development bun --conditions=development --inspect-brk=6499 ./sr
 `clite` uses a `pino`-backed adapter that targets the core `BasicLogger` contract:
 
 - CLI runtime passes `logger` directly into local `@clinebot/core` sessions.
-- RPC-backed sessions include a serialized logger payload in `RpcChatStartSessionRequest.logger`; the RPC runtime reconstructs the same `pino` settings and injects them into core.
-- Hosts can attach stable runtime logger bindings (for example `clientId`, `clientType`, `clientApp`) through `RpcChatRuntimeLoggerConfig.bindings`.
-- `clite rpc register` and `clite rpc start` emit activation/registration log records so startup ownership is visible in logs.
-- Logger behavior is consistent between local and RPC runtime execution paths while preserving a transport-safe config boundary.
+- Hub-backed sessions include a serialized logger payload in `ChatStartSessionRequest.logger`; the runtime reconstructs the same `pino` settings and injects them into core.
+- Hosts can attach stable runtime logger bindings (for example `clientId`, `clientType`, `clientApp`) through `RuntimeLoggerConfig.bindings`.
 
-After login, OAuth credentials are persisted with `auth.expiresAt`, and `@clinebot/core` refreshes these tokens automatically during session turns (including long-lived RPC runtime sessions).
+After login, OAuth credentials are persisted with `auth.expiresAt`, and `@clinebot/core` refreshes these tokens automatically during session turns.
 
 On startup, `clite` also attempts a legacy settings import:
 
@@ -490,7 +427,7 @@ Custom provider registry notes:
 
 - Provider runtime settings continue to persist in `<CLINE_DATA_DIR>/settings/providers.json`.
 - User-added OpenAI-compatible provider model catalogs are persisted in `<CLINE_DATA_DIR>/settings/models.json` (or alongside `CLINE_PROVIDER_SETTINGS_PATH`).
-- `models.json` stores model lists by provider ID and is loaded by RPC runtime provider actions.
+- `models.json` stores model lists by provider ID and is loaded by the runtime provider actions.
 
 ## Features
 

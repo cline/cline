@@ -33,7 +33,7 @@ Desktop transport envelope:
 
 ## Settings: Routine
 
-- The Settings sidebar includes a `Routine` view for scheduler-backed automations.
+- The Settings sidebar includes a `Routine` view for hub-backed automations.
 - `Routine` lists all RPC schedules and shows status (`enabled`, `nextRunAt`, active execution).
 - From the UI you can open a create form and add, pause/resume, trigger-now, and delete schedules.
 - The view is wired to the same scheduler APIs used by `clite schedule` through Tauri commands and `scripts/routine-schedules.ts`.
@@ -43,7 +43,7 @@ Desktop transport envelope:
 - [`src-tauri/src/main.rs`](./apps/code/src-tauri/src/main.rs) - Tauri shell lifecycle, backend launch, and native-only commands
 - [`sidecar/index.ts`](./apps/code/sidecar/index.ts) - persistent Bun sidecar backend
 - [`sidecar/chat-session.ts`](./apps/code/sidecar/chat-session.ts) - in-process chat session runtime
-- [`scripts/routine-schedules.ts`](./apps/code/scripts/routine-schedules.ts) - RPC scheduler action bridge for Settings > Routine
+- [`scripts/routine-schedules.ts`](./apps/code/scripts/routine-schedules.ts) - Routine action bridge for Settings > Routine
 - [`lib/desktop-client.ts`](./apps/code/lib/desktop-client.ts) - typed desktop websocket client
 - [`hooks/use-chat-session.ts`](./apps/code/hooks/use-chat-session.ts) - UI chat session state + backend subscriptions
 - [`lib/chat-schema.ts`](./apps/code/lib/chat-schema.ts) - chat message schema used by the UI

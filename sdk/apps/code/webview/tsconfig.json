@@ -5,8 +5,8 @@
 			"@/*": ["./*"],
 			"@clinebot/agents": ["../../../packages/agents/src/index.ts"],
 			"@clinebot/core": ["../../../packages/core/src/index.ts"],
+			"@clinebot/hub": ["../../../packages/hub/src/index.ts"],
 			"@clinebot/llms": ["../../../packages/llms/src/index.ts"],
-			"@clinebot/rpc": ["../../../packages/rpc/src/index.ts"],
 			"@clinebot/shared": ["../../../packages/shared/src/index.ts"],
 			"@clinebot/shared/storage": [
 				"../../../packages/shared/src/storage/index.ts"

@@ -53,6 +53,15 @@ export {
 	type ToolPresetName,
 	ToolPresets,
 } from "./presets";
+export {
+	type BuiltinToolAvailabilityContext,
+	getCoreAcpToolNames,
+	getCoreBuiltinToolCatalog,
+	getCoreDefaultEnabledToolIds,
+	getCoreHeadlessToolNames,
+	resolveCoreSelectedToolIds,
+	type ToolCatalogEntry,
+} from "./runtime";
 // Schemas
 export {
 	type ApplyPatchInput,
@@ -78,6 +87,7 @@ export {
 	type WebFetchRequest,
 	WebFetchRequestSchema,
 } from "./schemas";
+export { TEAM_TOOL_NAMES } from "./team/team-tools";
 // Types
 export type {
 	ApplyPatchExecutor,

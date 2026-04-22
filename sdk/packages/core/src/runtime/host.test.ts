@@ -2,28 +2,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { FileSessionService } from "../session/file-session-service";
 
 const sqliteInitMock = vi.hoisted(() => vi.fn());
-const ensureRpcRuntimeAddressMock = vi.hoisted(() => vi.fn());
-const resolveRpcOwnerContextMock = vi.hoisted(() =>
-	vi.fn(() => ({
-		ownerId: "core-owner",
-		buildId: "core-build",
-		discoveryPath: "/tmp/rpc-owner.json",
-	})),
-);
-const rpcHealthByAddress = vi.hoisted(() => new Map<string, unknown>());
+const ensureCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
 
-vi.mock("@clinebot/rpc", () => ({
-	RPC_BUILD_VERSION: "rpc-build-test",
-	getRpcServerDefaultAddress: () => "ws://127.0.0.1:0",
-	getRpcServerHealth: vi.fn(async (address: string) => {
-		return rpcHealthByAddress.get(address);
-	}),
-}));
-
-vi.mock("./rpc-runtime-ensure", () => ({
-	ensureRpcRuntimeAddress: ensureRpcRuntimeAddressMock,
-	resolveRpcOwnerContext: resolveRpcOwnerContextMock,
-}));
+vi.mock("../hub/client", async () => {
+	const actual =
+		await vi.importActual<typeof import("../hub/client")>("../hub/client");
+	return {
+		...actual,
+		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,
+	};
+});
 
 vi.mock("../services/storage/sqlite-session-store", () => ({
 	SqliteSessionStore: class {
@@ -42,9 +30,7 @@ describe("runtime host resolution", () => {
 
 	afterEach(() => {
 		sqliteInitMock.mockReset();
-		ensureRpcRuntimeAddressMock.mockReset();
-		resolveRpcOwnerContextMock.mockClear();
-		rpcHealthByAddress.clear();
+		ensureCompatibleLocalHubUrlMock.mockReset();
 		logger.debug.mockReset();
 		logger.log.mockReset();
 		logger.error.mockReset();
@@ -79,84 +65,6 @@ describe("runtime host resolution", () => {
 		expect(backend.constructor.name).toBe("FileSessionService");
 	});
 
-	it("connects to the ensured rpc address when the sidecar relocates ports", async () => {
-		const { resolveSessionBackend } = await import("../runtime/host");
-		ensureRpcRuntimeAddressMock.mockResolvedValue({
-			address: "ws://127.0.0.1:12345",
-			action: "new-port",
-			owner: {
-				ownerId: "core-owner",
-				buildId: "core-build",
-				discoveryPath: "/tmp/rpc-owner.json",
-			},
-		});
-		rpcHealthByAddress.set("ws://127.0.0.1:12345", {
-			running: true,
-			serverId: "rpc-server",
-		});
-
-		const backend = await resolveSessionBackend({
-			backendMode: "auto",
-			rpc: {
-				address: "ws://127.0.0.1:4317",
-				connectAttempts: 1,
-				connectDelayMs: 0,
-			},
-		});
-
-		expect(ensureRpcRuntimeAddressMock).toHaveBeenCalledWith(
-			"ws://127.0.0.1:4317",
-			expect.objectContaining({
-				spawnIfNeeded: expect.any(Function),
-				resolveOwner: expect.any(Function),
-			}),
-		);
-		expect(backend).not.toBeInstanceOf(FileSessionService);
-	});
-
-	it("logs the rpc auto-start failure before falling back to local", async () => {
-		const { resolveSessionBackend } = await import("../runtime/host");
-		ensureRpcRuntimeAddressMock.mockRejectedValue(
-			new Error(
-				"failed to ensure rpc runtime at ws://127.0.0.1:4317: health probe reported no running server",
-			),
-		);
-
-		const backend = await resolveSessionBackend({
-			backendMode: "auto",
-			logger,
-			rpc: {
-				address: "ws://127.0.0.1:4317",
-				connectAttempts: 1,
-				connectDelayMs: 0,
-			},
-		});
-
-		expect(backend).not.toBeInstanceOf(FileSessionService);
-		expect(logger.log).toHaveBeenCalledWith(
-			"Ensuring RPC runtime for auto session backend",
-			{ address: "ws://127.0.0.1:4317" },
-		);
-		expect(logger.error).toHaveBeenCalledWith(
-			"RPC backend auto-start failed",
-			expect.objectContaining({
-				address: "ws://127.0.0.1:4317",
-				requestedAddress: "ws://127.0.0.1:4317",
-				error: expect.any(Error),
-			}),
-		);
-		expect(logger.log).toHaveBeenCalledWith(
-			"Falling back to local session backend",
-			{
-				requestedAddress: "ws://127.0.0.1:4317",
-				address: "ws://127.0.0.1:4317",
-				attempts: 1,
-				delayMs: 0,
-				severity: "warn",
-			},
-		);
-	});
-
 	it("honors env-managed local mode inside core backend resolution", async () => {
 		process.env.CLINE_SESSION_BACKEND_MODE = "local";
 		const { resolveSessionBackend } = await import("../runtime/host");
@@ -164,7 +72,6 @@ describe("runtime host resolution", () => {
 		const backend = await resolveSessionBackend({});
 
 		expect(backend).not.toBeInstanceOf(FileSessionService);
-		expect(ensureRpcRuntimeAddressMock).not.toHaveBeenCalled();
 	});
 
 	it("forces local backend when vcr is enabled", async () => {
@@ -174,57 +81,122 @@ describe("runtime host resolution", () => {
 		const backend = await resolveSessionBackend({});
 
 		expect(backend).not.toBeInstanceOf(FileSessionService);
-		expect(ensureRpcRuntimeAddressMock).not.toHaveBeenCalled();
 	});
 
-	it("forces a local runtime host when local-only host options are provided", async () => {
-		rpcHealthByAddress.set("ws://127.0.0.1:4317", {
-			running: true,
-			serverId: "rpc-server",
-		});
-		const { createRuntimeHost, LocalRuntimeHost } = await import("../index");
+	it("prefers a compatible local hub when backendMode is auto", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		const { HubRuntimeHost } = await import("../transports/hub");
+		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
+			"ws://127.0.0.1:4319/hub",
+		);
 
 		const host = await createRuntimeHost({
 			backendMode: "auto",
 			logger,
-			rpc: {
-				address: "ws://127.0.0.1:4317",
-				connectAttempts: 1,
-				connectDelayMs: 0,
+			hub: {
+				strategy: "prefer-hub",
 			},
-			teamToolsFactory: vi.fn(() => ({
-				tools: [],
-				restoredFromPersistence: false,
-				restoredTeammates: [],
-			})),
 		});
 
-		expect(host).toBeInstanceOf(LocalRuntimeHost);
-		expect(ensureRpcRuntimeAddressMock).not.toHaveBeenCalled();
+		expect(host).toBeInstanceOf(HubRuntimeHost);
+		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
+			endpoint: undefined,
+			strategy: "prefer-hub",
+		});
 		expect(logger.log).toHaveBeenCalledWith(
-			"Using local runtime host due to local-only options",
+			"Using discovered local hub runtime host",
 			{
-				configuredMode: "auto",
-				hasDefaultToolExecutors: false,
-				hasTeamToolsFactory: true,
+				url: "ws://127.0.0.1:4319/hub",
 			},
 		);
 	});
 
-	it("rejects rpc runtime mode when local-only host options are provided", async () => {
-		const { createRuntimeHost } = await import("../index");
+	it("falls back to local runtime when auto hub discovery fails", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		const { LocalRuntimeHost } = await import("../transports/local");
+		ensureCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
+
+		const host = await createRuntimeHost({
+			backendMode: "auto",
+			logger,
+		});
+
+		expect(host).toBeInstanceOf(LocalRuntimeHost);
+		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
+			endpoint: undefined,
+			strategy: "prefer-hub",
+		});
+		expect(logger.log).toHaveBeenCalledWith(
+			"Falling back to local runtime host",
+			{
+				reason: "compatible_hub_unavailable",
+				severity: "warn",
+			},
+		);
+	});
+
+	it("uses a hub runtime host when backendMode is hub", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		const { HubRuntimeHost } = await import("../transports/hub");
+		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
+			"ws://127.0.0.1:4319/hub",
+		);
+
+		const host = await createRuntimeHost({
+			backendMode: "hub",
+		});
+
+		expect(host).toBeInstanceOf(HubRuntimeHost);
+		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
+			strategy: "require-hub",
+		});
+	});
+
+	it("uses a remote runtime host when backendMode is remote", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		const { RemoteRuntimeHost } = await import("../transports/remote");
+
+		const host = await createRuntimeHost({
+			backendMode: "remote",
+			remote: {
+				endpoint: "https://remote.example.com/hub",
+			},
+			logger,
+		});
+
+		expect(host).toBeInstanceOf(RemoteRuntimeHost);
+		expect(ensureCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
+		expect(logger.log).toHaveBeenCalledWith("Using remote runtime host", {
+			endpoint: "https://remote.example.com/hub",
+		});
+	});
+
+	it("allows default tool executors in remote runtime mode", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		const { RemoteRuntimeHost } = await import("../transports/remote");
+
+		const host = await createRuntimeHost({
+			backendMode: "remote",
+			remote: {
+				endpoint: "https://remote.example.com/hub",
+			},
+			defaultToolExecutors: {
+				askQuestion: vi.fn(async () => "yes"),
+			},
+		});
+
+		expect(host).toBeInstanceOf(RemoteRuntimeHost);
+	});
+
+	it("requires a remote endpoint when backendMode is remote", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
 
 		await expect(
 			createRuntimeHost({
-				backendMode: "rpc",
-				teamToolsFactory: vi.fn(() => ({
-					tools: [],
-					restoredFromPersistence: false,
-					restoredTeammates: [],
-				})),
+				backendMode: "remote",
 			}),
 		).rejects.toThrow(
-			"RPC runtime mode does not support local-only runtime host options such as custom tool executors or team tools factories.",
+			"Remote runtime mode requires `remote.endpoint` to be configured.",
 		);
 	});
 });

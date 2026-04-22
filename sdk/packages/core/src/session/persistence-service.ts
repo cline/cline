@@ -1,85 +1,42 @@
-import {
-	appendFileSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-	writeFileSync,
-} from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
 import type * as LlmsProviders from "@clinebot/llms";
 import type { AgentResult } from "@clinebot/shared";
-import { resolveRootSessionId } from "@clinebot/shared";
-import { ensureHookLogDir } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
-import { z } from "zod";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
 } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
 import { deleteCheckpointRefs } from "../hooks/checkpoint-hooks";
-import {
-	nowIso,
-	SessionArtifacts,
-	unlinkIfExists,
-} from "../services/session-artifacts";
+import { nowIso, unlinkIfExists } from "../services/session-artifacts";
 import {
 	buildManifestFromRow,
-	buildMessagesFilePayload,
 	deriveTitleFromPrompt,
 	normalizeStoredMessagesForPersistence,
 	normalizeTitle,
-	resolveMessagesFileContext,
 	resolveMetadataWithTitle,
 	sanitizeMetadata,
 	withLatestAssistantTurnMetadata,
 	withOccRetry,
-	writeEmptyMessagesFile,
 } from "../services/session-data";
-import { SessionSource, type SessionStatus } from "../types/common";
+import type { SessionStatus } from "../types/common";
 import type {
 	PersistedSessionUpdateInput,
 	SessionMessagesArtifactUploader,
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
 } from "../types/session";
-import {
-	deriveSubsessionStatus,
-	makeSubSessionId,
-	makeTeamTaskSubSessionId,
-} from "./session-graph";
-import {
-	type SessionManifest,
-	SessionManifestSchema,
-} from "./session-manifest";
-import type {
-	CreateRootSessionWithArtifactsInput,
-	RootSessionArtifacts,
-	SessionRow,
-	UpsertSubagentInput,
-} from "./session-service";
+import { SessionManifestStore } from "./session-manifest-store";
+import type { SessionRow } from "./session-row";
+import { SubagentSessionManager } from "./subagent-session-manager";
 
 export type { PersistedSessionUpdateInput, SessionPersistenceAdapter };
 
-const SUBSESSION_SOURCE = SessionSource.SUBAGENT;
 const OCC_MAX_RETRIES = 4;
 
-const SpawnAgentInputSchema = z.looseObject({
-	task: z.string().optional(),
-	systemPrompt: z.string().optional(),
-});
-
-// ── Service ───────────────────────────────────────────────────────────
-
 export class UnifiedSessionPersistenceService {
-	private readonly teamTaskSessionsByAgent = new Map<string, string[]>();
-	private readonly teamTaskLastHeartbeatBySession = new Map<string, number>();
-	private readonly teamTaskLastProgressLineBySession = new Map<
-		string,
-		string
-	>();
-	protected readonly artifacts: SessionArtifacts;
-	private readonly messagesArtifactUploader?: SessionMessagesArtifactUploader;
+	private readonly manifestStore: SessionManifestStore;
+	private readonly subagents: SubagentSessionManager;
 	private static readonly STALE_REASON = "failed_external_process_exit";
 	private static readonly STALE_SOURCE = "stale_session_reconciler";
 	private static readonly TEAM_HEARTBEAT_LOG_INTERVAL_MS = 30_000;
@@ -90,23 +47,16 @@ export class UnifiedSessionPersistenceService {
 			messagesArtifactUploader?: SessionMessagesArtifactUploader;
 		} = {},
 	) {
-		this.artifacts = new SessionArtifacts(() => this.ensureSessionsDir());
-		this.messagesArtifactUploader = options.messagesArtifactUploader;
-	}
-
-	ensureSessionsDir(): string {
-		return this.adapter.ensureSessionsDir();
-	}
-
-	private initializeMessagesFile(
-		sessionId: string,
-		path: string,
-		startedAt: string,
-	): void {
-		writeEmptyMessagesFile(
-			path,
-			startedAt,
-			resolveMessagesFileContext(sessionId),
+		this.manifestStore = new SessionManifestStore(
+			adapter,
+			options.messagesArtifactUploader,
+		);
+		this.subagents = new SubagentSessionManager(
+			adapter,
+			this.manifestStore,
+			(messages, result, previousMessages) =>
+				this.toPersistedMessages(messages, result, previousMessages),
+			UnifiedSessionPersistenceService.TEAM_HEARTBEAT_LOG_INTERVAL_MS,
 		);
 	}
 
@@ -127,99 +77,45 @@ export class UnifiedSessionPersistenceService {
 				);
 	}
 
-	// ── Manifest I/O ──────────────────────────────────────────────────
+	ensureSessionsDir(): string {
+		return this.manifestStore.ensureSessionsDir();
+	}
 
-	private writeManifestFile(
+	writeSessionManifest(
 		manifestPath: string,
-		manifest: SessionManifest,
+		manifest: import("./session-manifest").SessionManifest,
 	): void {
-		mkdirSync(dirname(manifestPath), { recursive: true });
-		writeFileSync(
-			manifestPath,
-			`${JSON.stringify(SessionManifestSchema.parse(manifest), null, 2)}\n`,
-			"utf8",
-		);
+		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 	}
 
-	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {
-		this.writeManifestFile(manifestPath, manifest);
-	}
-
-	readSessionManifest(sessionId: string): SessionManifest | undefined {
-		return this.readManifestFile(sessionId).manifest;
-	}
-
-	private readManifestFile(sessionId: string): {
-		path: string;
-		manifest?: SessionManifest;
-	} {
-		const manifestPath = this.artifacts.sessionManifestPath(sessionId, false);
-		if (!existsSync(manifestPath)) return { path: manifestPath };
-		try {
-			return {
-				path: manifestPath,
-				manifest: SessionManifestSchema.parse(
-					JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest,
-				),
-			};
-		} catch {
-			return { path: manifestPath };
-		}
-	}
-
-	// ── Path resolution ───────────────────────────────────────────────
-
-	private async resolveArtifactPath(
+	readSessionManifest(
 		sessionId: string,
-		kind: "messagesPath",
-		fallback: (id: string) => string,
-	): Promise<string> {
-		const row = await this.adapter.getSession(sessionId);
-		const value = row?.[kind];
-		return typeof value === "string" && value.trim().length > 0
-			? value
-			: fallback(sessionId);
+	): import("./session-manifest").SessionManifest | undefined {
+		return this.manifestStore.readSessionManifest(sessionId);
 	}
-
-	// ── Team task queue ───────────────────────────────────────────────
-
-	private teamTaskQueueKey(rootSessionId: string, agentId: string): string {
-		return `${rootSessionId}::${agentId}`;
-	}
-
-	private activeTeamTaskSessionId(
-		rootSessionId: string,
-		parentAgentId: string,
-	): string | undefined {
-		const queue = this.teamTaskSessionsByAgent.get(
-			this.teamTaskQueueKey(rootSessionId, parentAgentId),
-		);
-		return queue?.at(-1);
-	}
-
-	// ── Root session ──────────────────────────────────────────────────
 
 	async createRootSessionWithArtifacts(
-		input: CreateRootSessionWithArtifactsInput,
-	): Promise<RootSessionArtifacts> {
+		input: import("./session-row").CreateRootSessionWithArtifactsInput,
+	): Promise<import("./session-row").RootSessionArtifacts> {
 		const startedAt = input.startedAt ?? nowIso();
 		const providedId = input.sessionId.trim();
 		const sessionId =
 			providedId.length > 0 ? providedId : `${Date.now()}_${nanoid(5)}`;
-		const messagesPath = this.artifacts.sessionMessagesPath(sessionId);
-		const manifestPath = this.artifacts.sessionManifestPath(sessionId);
-
+		const messagesPath =
+			this.manifestStore.artifacts.sessionMessagesPath(sessionId);
+		const manifestPath =
+			this.manifestStore.artifacts.sessionManifestPath(sessionId);
 		const metadata = resolveMetadataWithTitle({
 			metadata: input.metadata,
 			prompt: input.prompt,
 		});
-		const manifest = SessionManifestSchema.parse({
-			version: 1,
+		const manifest = {
+			version: 1 as const,
 			session_id: sessionId,
 			source: input.source,
 			pid: input.pid,
 			started_at: startedAt,
-			status: "running",
+			status: "running" as const,
 			interactive: input.interactive,
 			provider: input.provider,
 			model: input.model,
@@ -232,7 +128,7 @@ export class UnifiedSessionPersistenceService {
 			prompt: input.prompt?.trim() || undefined,
 			metadata,
 			messages_path: messagesPath,
-		});
+		};
 
 		await this.adapter.upsertSession({
 			sessionId,
@@ -264,12 +160,14 @@ export class UnifiedSessionPersistenceService {
 			updatedAt: nowIso(),
 		});
 
-		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
-		this.writeManifestFile(manifestPath, manifest);
+		this.manifestStore.initializeMessagesFile(
+			sessionId,
+			messagesPath,
+			startedAt,
+		);
+		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 		return { manifestPath, messagesPath, manifest };
 	}
-
-	// ── Session status updates ────────────────────────────────────────
 
 	async updateSessionStatus(
 		sessionId: string,
@@ -293,7 +191,10 @@ export class UnifiedSessionPersistenceService {
 		);
 		if (result.updated) {
 			if (status === "cancelled") {
-				await this.applyStatusToRunningChildSessions(sessionId, "cancelled");
+				await this.subagents.applyStatusToRunningChildSessions(
+					sessionId,
+					"cancelled",
+				);
 			}
 			return { updated: true, endedAt };
 		}
@@ -352,9 +253,8 @@ export class UnifiedSessionPersistenceService {
 			});
 			if (!changed.updated) continue;
 
-			const { path: manifestPath, manifest } = this.readManifestFile(
-				input.sessionId,
-			);
+			const { path: manifestPath, manifest } =
+				this.manifestStore.readManifestFile(input.sessionId);
 			if (manifest) {
 				if (input.prompt !== undefined) {
 					manifest.prompt = input.prompt ?? undefined;
@@ -366,410 +266,129 @@ export class UnifiedSessionPersistenceService {
 				if (nextTitle) manifestMeta.title = nextTitle;
 				manifest.metadata =
 					Object.keys(manifestMeta).length > 0 ? manifestMeta : undefined;
-				this.writeManifestFile(manifestPath, manifest);
+				this.manifestStore.writeSessionManifest(manifestPath, manifest);
 			}
 			return { updated: true };
 		}
 		return { updated: false };
 	}
 
-	// ── Spawn queue ───────────────────────────────────────────────────
-
-	async queueSpawnRequest(event: HookEventPayload): Promise<void> {
-		if (event.hookName !== "tool_call" || event.parent_agent_id !== null)
-			return;
-		if (event.tool_call?.name !== "spawn_agent") return;
-
-		const rootSessionId = resolveRootSessionId(event.sessionContext);
-		if (!rootSessionId) return;
-
-		const parsed = SpawnAgentInputSchema.safeParse(event.tool_call.input);
-		await this.adapter.enqueueSpawnRequest({
-			rootSessionId,
-			parentAgentId: event.agent_id,
-			task: parsed.success ? parsed.data.task : undefined,
-			systemPrompt: parsed.success ? parsed.data.systemPrompt : undefined,
-		});
+	queueSpawnRequest(event: HookEventPayload): Promise<void> {
+		return this.subagents.queueSpawnRequest(event);
 	}
 
-	// ── Subagent sessions ─────────────────────────────────────────────
-
-	private buildSubsessionRow(
-		root: SessionRow,
-		opts: {
-			sessionId: string;
-			parentSessionId: string;
-			parentAgentId: string;
-			agentId: string;
-			conversationId?: string | null;
-			prompt: string;
-			startedAt: string;
-			messagesPath: string;
-		},
-	): SessionRow {
-		return {
-			sessionId: opts.sessionId,
-			source: SUBSESSION_SOURCE,
-			pid: process.ppid,
-			startedAt: opts.startedAt,
-			endedAt: null,
-			exitCode: null,
-			status: "running",
-			statusLock: 0,
-			interactive: false,
-			provider: root.provider,
-			model: root.model,
-			cwd: root.cwd,
-			workspaceRoot: root.workspaceRoot,
-			teamName: root.teamName ?? null,
-			enableTools: root.enableTools,
-			enableSpawn: root.enableSpawn,
-			enableTeams: root.enableTeams,
-			parentSessionId: opts.parentSessionId,
-			parentAgentId: opts.parentAgentId,
-			agentId: opts.agentId,
-			conversationId: opts.conversationId ?? null,
-			isSubagent: true,
-			prompt: opts.prompt,
-			metadata: resolveMetadataWithTitle({ prompt: opts.prompt }),
-			hookPath: "",
-			messagesPath: opts.messagesPath,
-			updatedAt: opts.startedAt,
-		};
-	}
-
-	async upsertSubagentSession(
-		input: UpsertSubagentInput,
+	upsertSubagentSession(
+		input: import("./session-row").UpsertSubagentInput,
 	): Promise<string | undefined> {
-		const rootSessionId = input.rootSessionId;
-		if (!rootSessionId) return undefined;
-
-		const root = await this.adapter.getSession(rootSessionId);
-		if (!root) return undefined;
-
-		const sessionId = makeSubSessionId(rootSessionId, input.agentId);
-		const existing = await this.adapter.getSession(sessionId);
-		const startedAt = nowIso();
-		const artifactPaths = this.artifacts.subagentArtifactPaths(
-			sessionId,
-			input.agentId,
-			this.activeTeamTaskSessionId(rootSessionId, input.parentAgentId),
-		);
-
-		let prompt = input.prompt ?? existing?.prompt ?? undefined;
-		if (!prompt) {
-			prompt =
-				(await this.adapter.claimSpawnRequest(
-					rootSessionId,
-					input.parentAgentId,
-				)) ?? `Subagent run by ${input.parentAgentId}`;
-		}
-
-		if (!existing) {
-			await this.adapter.upsertSession(
-				this.buildSubsessionRow(root, {
-					sessionId,
-					parentSessionId: rootSessionId,
-					parentAgentId: input.parentAgentId,
-					agentId: input.agentId,
-					conversationId: input.conversationId,
-					prompt,
-					startedAt,
-					...artifactPaths,
-				}),
-			);
-			this.initializeMessagesFile(
-				sessionId,
-				artifactPaths.messagesPath,
-				startedAt,
-			);
-			return sessionId;
-		}
-
-		await this.adapter.updateSession({
-			sessionId,
-			setRunning: true,
-			parentSessionId: rootSessionId,
-			parentAgentId: input.parentAgentId,
-			agentId: input.agentId,
-			conversationId: input.conversationId,
-			prompt: existing.prompt ?? prompt ?? null,
-			metadata: resolveMetadataWithTitle({
-				metadata: existing.metadata ?? undefined,
-				prompt: existing.prompt ?? prompt ?? null,
-			}),
-			expectedStatusLock: existing.statusLock,
-		});
-		return sessionId;
+		return this.subagents.upsertSubagentSession(input);
 	}
 
-	async upsertSubagentSessionFromHook(
+	upsertSubagentSessionFromHook(
 		event: HookEventPayload,
 	): Promise<string | undefined> {
-		if (!event.parent_agent_id) return undefined;
-
-		const rootSessionId = resolveRootSessionId(event.sessionContext);
-		if (!rootSessionId) return undefined;
-
-		if (event.hookName === "session_shutdown") {
-			const sessionId = makeSubSessionId(rootSessionId, event.agent_id);
-			const existing = await this.adapter.getSession(sessionId);
-			return existing ? sessionId : undefined;
-		}
-		return await this.upsertSubagentSession({
-			agentId: event.agent_id,
-			parentAgentId: event.parent_agent_id,
-			conversationId: event.taskId,
-			rootSessionId,
-		});
+		return this.subagents.upsertSubagentSessionFromHook(event);
 	}
 
-	// ── Subagent audit / transcript ───────────────────────────────────
-
-	async appendSubagentHookAudit(
-		subSessionId: string,
+	appendSubagentHookAudit(
+		_subSessionId: string,
 		event: HookEventPayload,
 	): Promise<void> {
-		void subSessionId;
-		const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
-		const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
-		appendFileSync(
-			logPath,
-			`${JSON.stringify({ ts: nowIso(), ...event })}\n`,
-			"utf8",
-		);
+		this.subagents.appendSubagentHookAudit(event);
+		return Promise.resolve();
 	}
 
-	async persistSessionMessages(
+	persistSessionMessages(
 		sessionId: string,
 		messages: LlmsProviders.Message[],
 		systemPrompt?: string,
 	): Promise<void> {
-		const path = await this.resolveArtifactPath(
-			sessionId,
-			"messagesPath",
-			(id) => this.artifacts.sessionMessagesPath(id),
-		);
 		const normalizedMessages = normalizeStoredMessagesForPersistence(
 			messages as LlmsProviders.MessageWithMetadata[],
 		);
-		const payload = buildMessagesFilePayload({
-			updatedAt: nowIso(),
-			context: resolveMessagesFileContext(sessionId),
-			messages: normalizedMessages,
+		return this.manifestStore.persistSessionMessages(
+			sessionId,
+			normalizedMessages,
 			systemPrompt,
-		});
-		const contents = `${JSON.stringify(payload, null, 2)}\n`;
-		mkdirSync(dirname(path), { recursive: true });
-		writeFileSync(path, contents, "utf8");
-		if (!this.messagesArtifactUploader) {
-			return;
-		}
-		try {
-			const row = await this.adapter.getSession(sessionId);
-			await this.messagesArtifactUploader.uploadMessagesFile({
-				sessionId,
-				path,
-				contents,
-				row,
-			});
-		} catch (error) {
-			console.warn(
-				`Failed to upload persisted session messages for ${sessionId}`,
-				error,
-			);
-		}
-	}
-
-	// ── Subagent status ───────────────────────────────────────────────
-
-	async applySubagentStatus(
-		subSessionId: string,
-		event: HookEventPayload,
-	): Promise<void> {
-		await this.applySubagentStatusBySessionId(
-			subSessionId,
-			deriveSubsessionStatus(event),
 		);
 	}
 
-	async applySubagentStatusBySessionId(
+	applySubagentStatus(
+		subSessionId: string,
+		event: HookEventPayload,
+	): Promise<void> {
+		return this.subagents.applySubagentStatus(subSessionId, event);
+	}
+
+	applySubagentStatusBySessionId(
 		subSessionId: string,
 		status: SessionStatus,
 	): Promise<void> {
-		const row = await this.adapter.getSession(subSessionId);
-		if (!row) return;
-
-		const endedAt = status === "running" ? null : nowIso();
-		const exitCode = status === "running" ? null : status === "failed" ? 1 : 0;
-		await this.adapter.updateSession({
-			sessionId: subSessionId,
-			status,
-			endedAt,
-			exitCode,
-			expectedStatusLock: row.statusLock,
-		});
+		return this.subagents.applySubagentStatusBySessionId(subSessionId, status);
 	}
 
-	async applyStatusToRunningChildSessions(
+	applyStatusToRunningChildSessions(
 		parentSessionId: string,
 		status: Exclude<SessionStatus, "running">,
 	): Promise<void> {
-		if (!parentSessionId) return;
-		const rows = await this.adapter.listSessions({
-			limit: 2000,
+		return this.subagents.applyStatusToRunningChildSessions(
 			parentSessionId,
-			status: "running",
-		});
-		for (const row of rows) {
-			await this.applySubagentStatusBySessionId(row.sessionId, status);
-		}
+			status,
+		);
 	}
 
-	// ── Team tasks ────────────────────────────────────────────────────
-
-	async onTeamTaskStart(
+	onTeamTaskStart(
 		rootSessionId: string,
 		agentId: string,
 		message: string,
 	): Promise<void> {
-		const root = await this.adapter.getSession(rootSessionId);
-		if (!root) return;
-
-		const sessionId = makeTeamTaskSubSessionId(rootSessionId, agentId);
-		const startedAt = nowIso();
-		const { messagesPath } = this.artifacts.subagentArtifactPaths(
-			sessionId,
-			agentId,
-		);
-
-		await this.adapter.upsertSession(
-			this.buildSubsessionRow(root, {
-				sessionId,
-				parentSessionId: rootSessionId,
-				parentAgentId: "lead",
-				agentId,
-				prompt: message || `Team task for ${agentId}`,
-				startedAt,
-				messagesPath,
-			}),
-		);
-		this.initializeMessagesFile(sessionId, messagesPath, startedAt);
-
-		const key = this.teamTaskQueueKey(rootSessionId, agentId);
-		const queue = this.teamTaskSessionsByAgent.get(key) ?? [];
-		queue.push(sessionId);
-		this.teamTaskSessionsByAgent.set(key, queue);
+		return this.subagents.onTeamTaskStart(rootSessionId, agentId, message);
 	}
 
-	async onTeamTaskEnd(
+	onTeamTaskEnd(
 		rootSessionId: string,
 		agentId: string,
 		status: SessionStatus,
-		_summary?: string,
+		summary?: string,
 		result?: AgentResult,
 		messages?: LlmsProviders.Message[],
 	): Promise<void> {
-		const key = this.teamTaskQueueKey(rootSessionId, agentId);
-		const queue = this.teamTaskSessionsByAgent.get(key);
-		if (!queue || queue.length === 0) return;
-
-		const sessionId = queue.shift();
-		if (queue.length === 0) this.teamTaskSessionsByAgent.delete(key);
-		if (!sessionId) return;
-
-		const teammateMessages = result?.messages ?? messages;
-		const persistedMessages = this.toPersistedMessages(
-			teammateMessages,
+		return this.subagents.onTeamTaskEnd(
+			rootSessionId,
+			agentId,
+			status,
+			summary,
 			result,
 			messages,
 		);
-		if (persistedMessages) {
-			await this.persistSessionMessages(sessionId, persistedMessages);
-		}
-		await this.applySubagentStatusBySessionId(sessionId, status);
-		this.teamTaskLastHeartbeatBySession.delete(sessionId);
-		this.teamTaskLastProgressLineBySession.delete(sessionId);
 	}
 
-	async onTeamTaskProgress(
+	onTeamTaskProgress(
 		rootSessionId: string,
 		agentId: string,
 		progress: string,
 		options?: { kind?: "heartbeat" | "progress" | "text" },
 	): Promise<void> {
-		const key = this.teamTaskQueueKey(rootSessionId, agentId);
-		const sessionId = this.teamTaskSessionsByAgent.get(key)?.[0];
-		if (!sessionId) return;
-
-		const trimmed = progress.trim();
-		if (!trimmed) return;
-
-		const kind = options?.kind ?? "progress";
-		if (kind === "heartbeat") {
-			const now = Date.now();
-			const last = this.teamTaskLastHeartbeatBySession.get(sessionId) ?? 0;
-			if (
-				now - last <
-				UnifiedSessionPersistenceService.TEAM_HEARTBEAT_LOG_INTERVAL_MS
-			) {
-				return;
-			}
-			this.teamTaskLastHeartbeatBySession.set(sessionId, now);
-		}
-
-		const line =
-			kind === "heartbeat"
-				? "[progress] heartbeat"
-				: kind === "text"
-					? `[progress] text: ${trimmed}`
-					: `[progress] ${trimmed}`;
-		if (this.teamTaskLastProgressLineBySession.get(sessionId) === line) return;
-		this.teamTaskLastProgressLineBySession.set(sessionId, line);
-	}
-
-	// ── SubAgent lifecycle ────────────────────────────────────────────
-
-	async handleSubAgentStart(
-		rootSessionId: string,
-		context: SubAgentStartContext,
-	): Promise<void> {
-		const subSessionId = await this.upsertSubagentSession({
-			agentId: context.subAgentId,
-			parentAgentId: context.parentAgentId,
-			conversationId: context.conversationId,
-			prompt: context.input.task,
+		return this.subagents.onTeamTaskProgress(
 			rootSessionId,
-		});
-		if (!subSessionId) return;
-		await this.applySubagentStatusBySessionId(subSessionId, "running");
-	}
-
-	async handleSubAgentEnd(
-		rootSessionId: string,
-		context: SubAgentEndContext,
-	): Promise<void> {
-		const subSessionId = await this.upsertSubagentSession({
-			agentId: context.subAgentId,
-			parentAgentId: context.parentAgentId,
-			conversationId: context.conversationId,
-			prompt: context.input.task,
-			rootSessionId,
-		});
-		if (!subSessionId) return;
-
-		if (context.error) {
-			await this.applySubagentStatusBySessionId(subSessionId, "failed");
-			return;
-		}
-		const reason = context.result?.finishReason ?? "completed";
-		await this.applySubagentStatusBySessionId(
-			subSessionId,
-			reason === "aborted" ? "cancelled" : "completed",
+			agentId,
+			progress,
+			options,
 		);
 	}
 
-	// ── Stale session reconciliation ──────────────────────────────────
+	handleSubAgentStart(
+		rootSessionId: string,
+		context: SubAgentStartContext,
+	): Promise<void> {
+		return this.subagents.handleSubAgentStart(rootSessionId, context);
+	}
+
+	handleSubAgentEnd(
+		rootSessionId: string,
+		context: SubAgentEndContext,
+	): Promise<void> {
+		return this.subagents.handleSubAgentEnd(rootSessionId, context);
+	}
 
 	private isPidAlive(pid: number): boolean {
 		if (!Number.isFinite(pid) || pid <= 0) return false;
@@ -817,7 +436,10 @@ export class UnifiedSessionPersistenceService {
 			});
 			if (!changed.updated) continue;
 
-			await this.applyStatusToRunningChildSessions(latest.sessionId, "failed");
+			await this.subagents.applyStatusToRunningChildSessions(
+				latest.sessionId,
+				"failed",
+			);
 
 			const manifest = buildManifestFromRow(latest, {
 				status: "failed",
@@ -825,25 +447,17 @@ export class UnifiedSessionPersistenceService {
 				exitCode: 1,
 				metadata: nextMetadata,
 			});
-			const { path: manifestPath } = this.readManifestFile(latest.sessionId);
-			this.writeManifestFile(manifestPath, manifest);
-
-			{
-				const envPath = process.env.CLINE_HOOKS_LOG_PATH?.trim() || undefined;
-				const logPath = envPath ?? join(ensureHookLogDir(), "hooks.jsonl");
-				appendFileSync(
-					logPath,
-					`${JSON.stringify({
-						ts: detectedAt,
-						hookName: "session_shutdown",
-						reason,
-						sessionId: latest.sessionId,
-						pid: latest.pid,
-						source: UnifiedSessionPersistenceService.STALE_SOURCE,
-					})}\n`,
-					"utf8",
-				);
-			}
+			const { path: manifestPath } = this.manifestStore.readManifestFile(
+				latest.sessionId,
+			);
+			this.manifestStore.writeSessionManifest(manifestPath, manifest);
+			this.manifestStore.appendStaleSessionHookLog(
+				detectedAt,
+				latest.sessionId,
+				latest.pid,
+				reason,
+				UnifiedSessionPersistenceService.STALE_SOURCE,
+			);
 			return {
 				...latest,
 				status: "failed",
@@ -857,8 +471,6 @@ export class UnifiedSessionPersistenceService {
 		return await this.adapter.getSession(row.sessionId);
 	}
 
-	// ── List / reconcile / delete ─────────────────────────────────────
-
 	async listSessions(limit = 200): Promise<SessionRow[]> {
 		const requestedLimit = Math.max(1, Math.floor(limit));
 		const scanLimit = Math.min(requestedLimit * 5, 2000);
@@ -867,7 +479,7 @@ export class UnifiedSessionPersistenceService {
 		const rows = await this.adapter.listSessions({ limit: scanLimit });
 		return rows.slice(0, requestedLimit).map((row) => {
 			const meta = sanitizeMetadata(row.metadata ?? undefined);
-			const { manifest } = this.readManifestFile(row.sessionId);
+			const manifest = this.manifestStore.readSessionManifest(row.sessionId);
 			const manifestTitle = normalizeTitle(
 				typeof manifest?.metadata?.title === "string"
 					? (manifest.metadata.title as string)
@@ -913,9 +525,12 @@ export class UnifiedSessionPersistenceService {
 					await deleteCheckpointRefs(child.cwd, child.sessionId);
 					unlinkIfExists(child.messagesPath);
 					unlinkIfExists(
-						this.artifacts.sessionManifestPath(child.sessionId, false),
+						this.manifestStore.artifacts.sessionManifestPath(
+							child.sessionId,
+							false,
+						),
 					);
-					this.artifacts.removeSessionDirIfEmpty(child.sessionId);
+					this.manifestStore.artifacts.removeSessionDirIfEmpty(child.sessionId);
 				}),
 			);
 		}
@@ -923,12 +538,12 @@ export class UnifiedSessionPersistenceService {
 		await deleteCheckpointRefs(row.cwd, id);
 
 		unlinkIfExists(row.messagesPath);
-		unlinkIfExists(this.artifacts.sessionManifestPath(id, false));
+		unlinkIfExists(this.manifestStore.artifacts.sessionManifestPath(id, false));
 		if (row.isSubagent) {
-			this.artifacts.removeSessionDirIfEmpty(id);
+			this.manifestStore.artifacts.removeSessionDirIfEmpty(id);
 		} else {
 			const candidateDirs = new Set<string>([
-				this.artifacts.sessionArtifactsDir(id),
+				this.manifestStore.artifacts.sessionArtifactsDir(id),
 			]);
 			for (const path of [row.messagesPath]) {
 				if (typeof path === "string" && path.trim().length > 0) {
@@ -936,7 +551,7 @@ export class UnifiedSessionPersistenceService {
 				}
 			}
 			for (const dir of candidateDirs) {
-				this.artifacts.removeDir(dir);
+				this.manifestStore.artifacts.removeDir(dir);
 			}
 		}
 		return { deleted: true };

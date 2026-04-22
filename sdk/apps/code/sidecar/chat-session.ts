@@ -4,7 +4,10 @@ import { basename, join } from "node:path";
 import { promisify } from "node:util";
 import {
 	buildWorkspaceMetadata,
-	type LocalRuntimeHost,
+	type ClineCore,
+	createUserInstructionConfigWatcher,
+	loadRulesForSystemPromptFromWatcher,
+	mergeRulesForSystemPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
 } from "@clinebot/core";
@@ -179,7 +182,18 @@ function createLiveSession(
 		status: overrides?.status ?? "idle",
 		prompt: overrides?.prompt,
 		title: overrides?.title,
+		attachedViaHub: overrides?.attachedViaHub ?? false,
 	};
+}
+
+function isoTimestampToMs(
+	value: string | null | undefined,
+): number | undefined {
+	if (!value) {
+		return undefined;
+	}
+	const parsed = Date.parse(value);
+	return Number.isFinite(parsed) ? parsed : undefined;
 }
 
 function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
@@ -228,15 +242,30 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 			? "plan"
 			: "act";
 	const metadata = await buildWorkspaceMetadata(cwd);
+	let watcherRules: string | undefined;
+	const watcher = createUserInstructionConfigWatcher({
+		skills: { workspacePath: cwd },
+		rules: { workspacePath: cwd },
+		workflows: { workspacePath: cwd },
+	});
+	try {
+		await watcher.start();
+		watcherRules = loadRulesForSystemPromptFromWatcher(watcher);
+	} catch {
+		watcherRules = undefined;
+	} finally {
+		watcher.stop();
+	}
+	const inlineRules =
+		typeof config.rules === "string" && config.rules.trim().length > 0
+			? config.rules
+			: undefined;
 	return buildClineSystemPrompt({
 		ide: "Terminal Shell",
 		workspaceRoot: cwd,
 		workspaceName: basename(cwd),
 		metadata,
-		rules:
-			typeof config.rules === "string" && config.rules.trim().length > 0
-				? config.rules
-				: undefined,
+		rules: mergeRulesForSystemPrompt(watcherRules, inlineRules),
 		mode,
 		providerId: providerId || undefined,
 		overridePrompt:
@@ -272,7 +301,7 @@ function sendPromptsInQueueSnapshot(
 	});
 }
 
-function getSessionManager(ctx: SidecarContext): LocalRuntimeHost {
+function getSessionManager(ctx: SidecarContext): ClineCore {
 	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
 	return ctx.sessionManager;
 }
@@ -314,6 +343,76 @@ async function handleStart(
 	});
 	ctx.liveSessions.set(sessionId, session);
 	return { sessionId };
+}
+
+async function handleAttach(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) {
+		throw new Error("sessionId is required");
+	}
+
+	const manager = getSessionManager(ctx);
+	const session = await manager.get(sessionId);
+	if (!session) {
+		throw new Error(`Session ${sessionId} not found`);
+	}
+
+	const metadata =
+		session.metadata && typeof session.metadata === "object"
+			? (session.metadata as JsonRecord)
+			: undefined;
+	const existing = ctx.liveSessions.get(sessionId);
+	if (ctx.hubClient) {
+		await ctx.hubClient.command("session.attach", { sessionId }, sessionId);
+	}
+	const attachedConfig: JsonRecord = {
+		...(existing?.config ?? {}),
+		...(request.config ?? {}),
+		sessionId,
+		provider: session.provider || existing?.config.provider || "",
+		model: session.model || existing?.config.model || "",
+		cwd:
+			session.cwd ||
+			session.workspaceRoot ||
+			String(request.config?.cwd ?? "").trim() ||
+			String(existing?.config.cwd ?? "").trim(),
+		workspaceRoot:
+			session.workspaceRoot ||
+			session.cwd ||
+			String(request.config?.workspaceRoot ?? "").trim() ||
+			String(existing?.config.workspaceRoot ?? "").trim(),
+	};
+	ctx.liveSessions.set(
+		sessionId,
+		createLiveSession(attachedConfig, {
+			messages: existing?.messages ?? [],
+			promptsInQueue: existing?.promptsInQueue ?? [],
+			status: session.status,
+			prompt:
+				session.prompt ||
+				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
+				existing?.prompt,
+			title:
+				(typeof metadata?.title === "string" ? metadata.title : undefined) ||
+				existing?.title,
+			endedAt: isoTimestampToMs(session.endedAt),
+			attachedViaHub: true,
+		}),
+	);
+
+	return {
+		sessionId,
+		status: session.status,
+		provider: session.provider,
+		model: session.model,
+		cwd: session.cwd,
+		workspaceRoot: session.workspaceRoot,
+		prompt: session.prompt,
+		metadata,
+	};
 }
 
 async function handleSend(
@@ -598,6 +697,7 @@ const ACTION_HANDLERS: Record<
 	(ctx: SidecarContext, req: ChatSessionCommandRequest) => Promise<unknown>
 > = {
 	start: handleStart,
+	attach: handleAttach,
 	send: handleSend,
 	stop: handleStop,
 	abort: handleAbort,

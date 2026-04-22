@@ -9,6 +9,7 @@ import {
 	Copy,
 	FileEdit,
 	FileSearch,
+	GitBranch,
 	Loader2,
 	RotateCcw,
 	Search,
@@ -45,6 +46,7 @@ type ChatMessagesProps = {
 	onApproveToolApproval: (requestId: string) => void | Promise<void>;
 	onRejectToolApproval: (requestId: string) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
+	onForkSession?: () => void | Promise<void>;
 	onStartChat?: (prompt: string) => void;
 };
 
@@ -78,6 +80,7 @@ function ChatMessagesImpl({
 	onApproveToolApproval,
 	onRejectToolApproval,
 	onRestoreCheckpoint,
+	onForkSession,
 	onStartChat,
 }: ChatMessagesProps) {
 	const scrollAreaRef = useRef<HTMLDivElement | null>(null);
@@ -103,6 +106,8 @@ function ChatMessagesImpl({
 		Record<string, string>
 	>({});
 	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+	const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
+	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 
@@ -267,6 +272,35 @@ function ChatMessagesImpl({
 		[onRestoreCheckpoint],
 	);
 
+	const handleForkSession = useCallback(
+		async (messageId: string) => {
+			if (!onForkSession) {
+				return;
+			}
+			setForkingMessageId(messageId);
+			setForkErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(onForkSession());
+			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "Could not fork session.";
+				setForkErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setForkingMessageId((current) =>
+					current === messageId ? null : current,
+				);
+			}
+		},
+		[onForkSession],
+	);
+
 	return (
 		<div className="relative h-full min-h-0 min-w-0">
 			<div
@@ -325,6 +359,13 @@ function ChatMessagesImpl({
 									restoreError={checkpointErrors[message.id]}
 									restorePending={checkpointActions[message.id] === "undoing"}
 									wasCopied={copiedMessageId === message.id}
+									onForkSession={
+										onForkSession
+											? () => void handleForkSession(message.id)
+											: undefined
+									}
+									forkPending={forkingMessageId === message.id}
+									forkError={forkErrors[message.id]}
 								/>
 							))}
 						</div>
@@ -514,6 +555,9 @@ function MessageBubble({
 	restorePending = false,
 	restoreError,
 	wasCopied = false,
+	onForkSession,
+	forkPending = false,
+	forkError,
 }: {
 	message: ChatMessage;
 	isStreaming?: boolean;
@@ -523,6 +567,9 @@ function MessageBubble({
 	restorePending?: boolean;
 	restoreError?: string;
 	wasCopied?: boolean;
+	onForkSession?: () => void;
+	forkPending?: boolean;
+	forkError?: string;
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
@@ -607,6 +654,31 @@ function MessageBubble({
 							<div className="text-right text-xs text-destructive">
 								{restoreError}
 							</div>
+						) : null}
+					</div>
+				) : null}
+				{!isUser &&
+				!isError &&
+				message.role === "assistant" &&
+				onForkSession ? (
+					<div className="mt-1 flex items-center gap-1">
+						<Button
+							className="h-6 gap-1.5 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+							disabled={forkPending}
+							onClick={onForkSession}
+							size="sm"
+							title="Fork session — copy full message history into a new session"
+							type="button"
+							variant="ghost"
+						>
+							{forkPending ? (
+								<Loader2 className="h-3 w-3 animate-spin" />
+							) : (
+								<GitBranch className="h-3 w-3" />
+							)}
+						</Button>
+						{forkError ? (
+							<span className="text-[11px] text-destructive">{forkError}</span>
 						) : null}
 					</div>
 				) : null}

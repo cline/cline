@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@clinebot/llms";
-import type { RpcProviderCapability, RpcProviderModel } from "@clinebot/shared";
+import type { ProviderCapability, ProviderModel } from "@clinebot/shared";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
 
 export type StoredModelsFile = {
@@ -14,7 +14,7 @@ export type StoredModelsFile = {
 				name: string;
 				baseUrl: string;
 				defaultModelId?: string;
-				capabilities?: RpcProviderCapability[];
+				capabilities?: ProviderCapability[];
 				modelsSourceUrl?: string;
 			};
 			models: Record<
@@ -108,14 +108,14 @@ export async function writeModelsFile(
 	await writeFile(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
-export function toRpcProviderModel(
+export function toProviderModel(
 	modelId: string,
 	info: {
 		name?: string;
 		capabilities?: string[];
 		thinkingConfig?: unknown;
 	},
-): RpcProviderModel {
+): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
@@ -127,7 +127,7 @@ export function toRpcProviderModel(
 }
 
 function toProviderCapabilities(
-	capabilities: RpcProviderCapability[] | undefined,
+	capabilities: ProviderCapability[] | undefined,
 ): Array<"reasoning" | "prompt-cache" | "tools"> | undefined {
 	if (!capabilities || capabilities.length === 0) {
 		return undefined;
@@ -146,7 +146,7 @@ function toProviderCapabilities(
 }
 
 function toModelCapabilities(
-	capabilities: RpcProviderCapability[] | undefined,
+	capabilities: ProviderCapability[] | undefined,
 ): Array<
 	"streaming" | "tools" | "reasoning" | "prompt-cache" | "images" | "files"
 > {

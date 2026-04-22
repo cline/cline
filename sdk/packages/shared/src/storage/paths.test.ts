@@ -6,6 +6,7 @@ import {
 	resolveAgentsConfigDirPath,
 	resolveClineDataDir,
 	resolveDbDataDir,
+	resolveGlobalSettingsPath,
 	resolveMcpSettingsPath,
 	resolveProviderSettingsPath,
 	resolveSessionDataDir,
@@ -13,8 +14,10 @@ import {
 } from "./paths";
 
 type EnvSnapshot = {
+	CLINE_DIR: string | undefined;
 	CLINE_DATA_DIR: string | undefined;
 	CLINE_DB_DATA_DIR: string | undefined;
+	CLINE_GLOBAL_SETTINGS_PATH: string | undefined;
 	CLINE_MCP_SETTINGS_PATH: string | undefined;
 	CLINE_PROVIDER_SETTINGS_PATH: string | undefined;
 	CLINE_SESSION_DATA_DIR: string | undefined;
@@ -23,8 +26,10 @@ type EnvSnapshot = {
 
 function captureEnv(): EnvSnapshot {
 	return {
+		CLINE_DIR: process.env.CLINE_DIR,
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
 		CLINE_DB_DATA_DIR: process.env.CLINE_DB_DATA_DIR,
+		CLINE_GLOBAL_SETTINGS_PATH: process.env.CLINE_GLOBAL_SETTINGS_PATH,
 		CLINE_MCP_SETTINGS_PATH: process.env.CLINE_MCP_SETTINGS_PATH,
 		CLINE_PROVIDER_SETTINGS_PATH: process.env.CLINE_PROVIDER_SETTINGS_PATH,
 		CLINE_SESSION_DATA_DIR: process.env.CLINE_SESSION_DATA_DIR,
@@ -34,7 +39,9 @@ function captureEnv(): EnvSnapshot {
 
 function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
+	process.env.CLINE_DIR = snapshot.CLINE_DIR;
 	process.env.CLINE_DB_DATA_DIR = snapshot.CLINE_DB_DATA_DIR;
+	process.env.CLINE_GLOBAL_SETTINGS_PATH = snapshot.CLINE_GLOBAL_SETTINGS_PATH;
 	process.env.CLINE_MCP_SETTINGS_PATH = snapshot.CLINE_MCP_SETTINGS_PATH;
 	process.env.CLINE_PROVIDER_SETTINGS_PATH =
 		snapshot.CLINE_PROVIDER_SETTINGS_PATH;
@@ -90,6 +97,16 @@ describe("storage path resolution", () => {
 		);
 	});
 
+	it("falls back to CLINE_DATA_DIR/settings/global-settings.json for global settings", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		expect(resolveGlobalSettingsPath()).toBe(
+			join("/tmp/cline-data", "settings", "global-settings.json"),
+		);
+	});
+
 	it("falls back to CLINE_DATA_DIR/settings/cline_mcp_settings.json for MCP settings", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_MCP_SETTINGS_PATH;
@@ -100,12 +117,12 @@ describe("storage path resolution", () => {
 		);
 	});
 
-	it("falls back to CLINE_DATA_DIR/settings/.agents for agent configs", () => {
+	it("falls back to ~/.cline/.agents for agent configs", () => {
 		snapshot = captureEnv();
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		process.env.CLINE_DIR = "/tmp/home/.cline";
 
 		expect(resolveAgentsConfigDirPath()).toBe(
-			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
 		);
 	});
 });

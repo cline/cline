@@ -19,23 +19,20 @@ The workspace is organized as a layered runtime stack.
 flowchart LR
   shared["@clinebot/shared"]
   llms["@clinebot/llms"]
-  scheduler["@clinebot/scheduler"]
   agents["@clinebot/agents"]
-  rpc["@clinebot/rpc"]
   core["@clinebot/core"]
+  hub["@clinebot/hub"]
   enterprise["@clinebot/enterprise (internal)"]
   apps["Host Apps"]
 
   llms --> shared
-  scheduler --> shared
   agents --> llms
   agents --> shared
-  rpc --> scheduler
-  rpc --> shared
   core --> agents
   core --> llms
-  core --> rpc
   core --> shared
+  hub --> shared
+  core --> hub
   enterprise --> agents
   enterprise --> core
   enterprise --> shared
@@ -88,30 +85,18 @@ Design rule:
 
 - `agents` should not own persistent storage or host lifecycle concerns.
 
-### `@clinebot/scheduler`
+### `@clinebot/hub`
 
-Owns scheduled execution:
+Owns host-side hub access:
 
-- cron definitions
-- execution concurrency/limits
-- run history and schedule persistence
-
-Design rule:
-
-- scheduling stays separate from the interactive/runtime composition layer.
-
-### `@clinebot/rpc`
-
-Owns cross-process transport:
-
-- session/task/event routing
-- approvals
-- schedule execution gateway
-- runtime RPC contracts
+- local discovery and health probing
+- WebSocket client helpers
+- session-oriented hub client adapters
+- detached host bootstrap helpers
 
 Design rule:
 
-- RPC should expose and transport runtime capabilities, not re-own business logic that already belongs in `core`.
+- `@clinebot/hub` stays thin and client-oriented; the stateful hub implementation lives in `@clinebot/core`.
 
 ### `@clinebot/core`
 
@@ -120,6 +105,7 @@ Owns stateful orchestration:
 - runtime composition
 - session lifecycle
 - storage and persistence
+- hub server/runtime services
 - config watching/loading and watcher projections
 - default host tool assembly
 - plugin discovery/loading
@@ -159,14 +145,15 @@ Design rules:
 6. `@clinebot/agents` runs the loop using `@clinebot/llms` handlers.
 7. `@clinebot/core` persists state, artifacts, and metadata.
 
-### RPC-Backed Runtime
+### Hub-Backed Runtime
 
 1. Host constructs a `RuntimeHost` through `@clinebot/core`.
-2. `@clinebot/core` selects `RpcRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. `RpcRuntimeHost` translates start/turn/lifecycle calls into RPC requests and adapts remote events back into the shared `RuntimeHost` event contract.
-4. The remote runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
-5. `@clinebot/rpc` brokers sessions, events, approvals, and schedules.
-6. `@clinebot/scheduler` runs behind RPC for schedule-triggered execution.
+2. `@clinebot/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
+3. When no compatible local hub is already discovered, `@clinebot/core` can spawn a detached hub daemon and reconnect through discovery.
+4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
+5. The hub-hosted runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
+6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
+7. `@clinebot/hub` clients adapt command/reply and event streams back into host-facing APIs.
 
 ### Enterprise-Managed Runtime
 
@@ -223,14 +210,17 @@ Core exposes one shared execution boundary: `RuntimeHost`.
 Concrete implementations:
 
 - `LocalRuntimeHost` for in-process execution
-- `RpcRuntimeHost` for RPC-backed execution
+- `HubRuntimeHost` for shared local hub execution
+- `RemoteRuntimeHost` for explicit remote hub endpoints
 
 Design implication:
 
 - host selection happens in `packages/core/src/runtime/host.ts`
-- `ClineCore` delegates uniformly to `RuntimeHost` and does not branch on local vs RPC behavior
+- `ClineCore` delegates uniformly to `RuntimeHost` and does not branch on local vs hub behavior
 - transport-specific translation belongs inside concrete hosts, not in top-level orchestration
 - `RuntimeHost` inputs stay transport-safe, while `ClineCore.start(...)` is the app-facing facade that normalizes broad local config before delegation
+- `RuntimeSessionConfig` is transport-neutral across local, shared hub, and remote hub modes; host-local bootstrap concerns stay under `localRuntime`
+- client-local runtime behaviors that must survive hub mode, such as `defaultToolExecutors`, are attached at session start and proxied through hub capability requests instead of changing host selection
 
 ## Logging
 

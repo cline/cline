@@ -1,0 +1,1681 @@
+import http from "node:http";
+import { createServer as createNetServer } from "node:net";
+import { URL } from "node:url";
+import type {
+	HubClientRecord,
+	HubClientRegistration,
+	HubCommandEnvelope,
+	HubEventEnvelope,
+	HubReplyEnvelope,
+	SessionRecord as HubSessionRecord,
+	HubToolExecutorName,
+	JsonValue,
+	SessionParticipant,
+	TeamProgressProjectionEvent,
+	ToolApprovalRequest,
+	ToolContext,
+} from "@clinebot/shared";
+import { createSessionId } from "@clinebot/shared";
+import { WebSocketServer } from "ws";
+import type { ToolExecutors } from "../extensions/tools";
+import { parseHookEventPayload } from "../hooks";
+import type {
+	RuntimeHost,
+	RuntimeSessionConfig,
+} from "../runtime/runtime-host";
+import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
+import { CoreSessionService } from "../session/session-service";
+import { LocalRuntimeHost } from "../transports/local";
+import type { CoreSessionEvent } from "../types/events";
+import type { SessionRecord as LocalSessionRecord } from "../types/sessions";
+import { BrowserWebSocketHubAdapter } from "./browser-websocket";
+import {
+	clearHubDiscovery,
+	type HubOwnerContext,
+	type HubServerDiscoveryRecord,
+	probeHubServer,
+	readHubDiscovery,
+	resolveHubBuildId,
+	resolveHubOwnerContext,
+	withHubStartupLock,
+	writeHubDiscovery,
+} from "./discovery";
+import {
+	type NativeHubTransport,
+	NativeHubTransportAdapter,
+} from "./native-transport";
+import { HubScheduleCommandService } from "./schedule-command-service";
+import {
+	type HubScheduleRuntimeHandlers,
+	HubScheduleService,
+	type HubScheduleServiceOptions,
+} from "./schedule-service";
+
+type NodeWebSocketLike = {
+	send(data: string): void;
+	on(event: "message", listener: (data: unknown) => void): void;
+	on(event: "close", listener: () => void): void;
+	once(event: "close", listener: () => void): void;
+};
+
+type HubSessionState = {
+	createdByClientId: string;
+	participants: Map<string, SessionParticipant>;
+};
+
+function decodeSocketData(data: unknown): string {
+	if (typeof data === "string") {
+		return data;
+	}
+	if (data instanceof Uint8Array) {
+		return Buffer.from(data).toString();
+	}
+	if (data instanceof ArrayBuffer) {
+		return Buffer.from(data).toString();
+	}
+	if (Array.isArray(data)) {
+		return Buffer.concat(data.map((chunk) => Buffer.from(chunk))).toString();
+	}
+	return String(data);
+}
+
+function wrapWsSocket(socket: NodeWebSocketLike) {
+	return {
+		send(data: string): void {
+			socket.send(data);
+		},
+		addEventListener(
+			type: "message" | "close",
+			listener: (...args: never[]) => void,
+		): void {
+			if (type === "message") {
+				socket.on("message", (data: unknown) => {
+					(listener as (event: { data: string }) => void)({
+						data: decodeSocketData(data),
+					});
+				});
+				return;
+			}
+			socket.on("close", listener as () => void);
+		},
+		removeEventListener(): void {},
+	};
+}
+
+function mapLocalStatusToHubStatus(
+	status: LocalSessionRecord["status"],
+): HubSessionRecord["status"] {
+	switch (status) {
+		case "completed":
+			return "completed";
+		case "failed":
+			return "failed";
+		case "cancelled":
+			return "aborted";
+		default:
+			return "running";
+	}
+}
+
+function cloneSessionMetadata(
+	session: LocalSessionRecord,
+): Record<string, JsonValue | undefined> | undefined {
+	const metadata =
+		session.metadata && typeof session.metadata === "object"
+			? (JSON.parse(JSON.stringify(session.metadata)) as Record<
+					string,
+					JsonValue | undefined
+				>)
+			: ({} as Record<string, JsonValue | undefined>);
+	if (session.parentSessionId?.trim())
+		metadata.parentSessionId = session.parentSessionId;
+	if (session.parentAgentId?.trim())
+		metadata.parentAgentId = session.parentAgentId;
+	if (session.agentId?.trim()) metadata.agentId = session.agentId;
+	if (session.conversationId?.trim())
+		metadata.conversationId = session.conversationId;
+	if (session.messagesPath?.trim())
+		metadata.messagesPath = session.messagesPath;
+	if (session.prompt?.trim()) metadata.prompt = session.prompt;
+	return Object.keys(metadata).length > 0 ? metadata : undefined;
+}
+
+function toHubSessionRecord(
+	session: LocalSessionRecord,
+	state?: HubSessionState,
+): HubSessionRecord {
+	return {
+		sessionId: session.sessionId,
+		workspaceRoot: session.workspaceRoot,
+		cwd: session.cwd,
+		createdAt: Date.parse(session.startedAt),
+		updatedAt: Date.parse(session.updatedAt),
+		createdByClientId: state?.createdByClientId ?? "hub",
+		status: mapLocalStatusToHubStatus(session.status),
+		participants: state ? [...state.participants.values()] : [],
+		metadata: cloneSessionMetadata(session),
+		runtimeOptions: {
+			enableTools: session.enableTools,
+			enableSpawn: session.enableSpawn,
+			enableTeams: session.enableTeams,
+			mode:
+				typeof session.metadata?.mode === "string"
+					? (session.metadata.mode as "act" | "plan" | "yolo")
+					: undefined,
+			systemPrompt:
+				typeof session.metadata?.systemPrompt === "string"
+					? session.metadata.systemPrompt
+					: undefined,
+		},
+		runtimeSession: session.agentId
+			? {
+					agentId: session.agentId,
+					team: session.teamName ? { teamId: session.teamName } : undefined,
+				}
+			: undefined,
+	};
+}
+
+function eventNameForScheduleCommand(
+	command: HubCommandEnvelope["command"],
+): HubEventEnvelope["event"] | undefined {
+	switch (command) {
+		case "schedule.create":
+			return "schedule.created";
+		case "schedule.update":
+		case "schedule.enable":
+		case "schedule.disable":
+			return "schedule.updated";
+		case "schedule.delete":
+			return "schedule.deleted";
+		case "schedule.trigger":
+			return "schedule.triggered";
+		default:
+			return undefined;
+	}
+}
+
+function isHubToolExecutorName(value: unknown): value is HubToolExecutorName {
+	return (
+		value === "readFile" ||
+		value === "search" ||
+		value === "bash" ||
+		value === "webFetch" ||
+		value === "editor" ||
+		value === "applyPatch" ||
+		value === "skills" ||
+		value === "askQuestion" ||
+		value === "submit"
+	);
+}
+
+function serializeToolContext(context: ToolContext): Record<string, unknown> {
+	return {
+		agentId: context.agentId,
+		conversationId: context.conversationId,
+		iteration: context.iteration,
+		metadata: context.metadata,
+	};
+}
+
+function createCapabilityBackedToolExecutors(
+	targetClientId: string,
+	executors: HubToolExecutorName[],
+	requestCapability: (
+		sessionId: string,
+		capabilityName: string,
+		payload: Record<string, unknown>,
+		targetClientId: string,
+	) => Promise<Record<string, unknown> | undefined>,
+): Partial<ToolExecutors> {
+	const available = new Set(executors);
+	const invoke = async (
+		executor: HubToolExecutorName,
+		args: unknown[],
+		context: ToolContext,
+	): Promise<unknown> => {
+		const response = await requestCapability(
+			context.conversationId,
+			`tool_executor.${executor}`,
+			{
+				executor,
+				args,
+				context: serializeToolContext(context),
+			},
+			targetClientId,
+		);
+		return response?.result;
+	};
+
+	return {
+		...(available.has("readFile")
+			? {
+					readFile: async (request, context) =>
+						(await invoke("readFile", [request], context)) as Awaited<
+							ReturnType<NonNullable<ToolExecutors["readFile"]>>
+						>,
+				}
+			: {}),
+		...(available.has("search")
+			? {
+					search: async (query, cwd, context) =>
+						String((await invoke("search", [query, cwd], context)) ?? ""),
+				}
+			: {}),
+		...(available.has("bash")
+			? {
+					bash: async (command, cwd, context) =>
+						String((await invoke("bash", [command, cwd], context)) ?? ""),
+				}
+			: {}),
+		...(available.has("webFetch")
+			? {
+					webFetch: async (url, prompt, context) =>
+						String((await invoke("webFetch", [url, prompt], context)) ?? ""),
+				}
+			: {}),
+		...(available.has("editor")
+			? {
+					editor: async (input, cwd, context) =>
+						String((await invoke("editor", [input, cwd], context)) ?? ""),
+				}
+			: {}),
+		...(available.has("applyPatch")
+			? {
+					applyPatch: async (input, cwd, context) =>
+						String((await invoke("applyPatch", [input, cwd], context)) ?? ""),
+				}
+			: {}),
+		...(available.has("skills")
+			? {
+					skills: async (skill, args, context) =>
+						String((await invoke("skills", [skill, args], context)) ?? ""),
+				}
+			: {}),
+		...(available.has("askQuestion")
+			? {
+					askQuestion: async (question, options, context) =>
+						String(
+							(await invoke("askQuestion", [question, options], context)) ?? "",
+						),
+				}
+			: {}),
+		...(available.has("submit")
+			? {
+					submit: async (summary, verified, context) =>
+						String(
+							(await invoke("submit", [summary, verified], context)) ?? "",
+						),
+				}
+			: {}),
+	};
+}
+
+class HubServerTransport implements NativeHubTransport {
+	private readonly clients = new Map<string, HubClientRecord>();
+	private readonly listeners = new Map<
+		string,
+		Set<{ sessionId?: string; listener: (event: HubEventEnvelope) => void }>
+	>();
+	private readonly sessionState = new Map<string, HubSessionState>();
+	private readonly pendingApprovals = new Map<
+		string,
+		{
+			sessionId: string;
+			resolve: (result: { approved: boolean; reason?: string }) => void;
+		}
+	>();
+	private readonly pendingCapabilityRequests = new Map<
+		string,
+		{
+			sessionId: string;
+			capabilityName: string;
+			resolve: (result: {
+				ok: boolean;
+				payload?: Record<string, unknown>;
+				error?: string;
+			}) => void;
+		}
+	>();
+	private readonly schedules: HubScheduleService;
+	private readonly scheduleCommands: HubScheduleCommandService;
+	private readonly sessionHost: RuntimeHost;
+	private readonly hubId = createSessionId("hub_");
+
+	constructor(readonly options: HubWebSocketServerOptions) {
+		this.sessionHost =
+			options.sessionHost ??
+			new LocalRuntimeHost({
+				sessionService: new CoreSessionService(new SqliteSessionStore()),
+			});
+		this.schedules = new HubScheduleService({
+			...options.scheduleOptions,
+			runtimeHandlers: options.runtimeHandlers,
+			eventPublisher: (eventType, payload) => {
+				const mapped =
+					eventType === "schedule.execution.completed"
+						? "schedule.execution_completed"
+						: eventType === "schedule.execution.failed"
+							? "schedule.execution_failed"
+							: undefined;
+				if (!mapped) {
+					return;
+				}
+				this.publish({
+					version: "v1",
+					event: mapped,
+					eventId: createSessionId("hevt_"),
+					timestamp: Date.now(),
+					payload:
+						payload && typeof payload === "object"
+							? (payload as Record<string, unknown>)
+							: undefined,
+				});
+			},
+		});
+		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
+		this.sessionHost.subscribe((event) => {
+			void this.handleSessionEvent(event);
+		});
+	}
+
+	getHubId(): string {
+		return this.hubId;
+	}
+
+	async start(): Promise<void> {
+		await this.schedules.start();
+	}
+
+	async stop(): Promise<void> {
+		for (const approval of this.pendingApprovals.values()) {
+			approval.resolve({
+				approved: false,
+				reason: "Hub shutting down before approval was resolved.",
+			});
+		}
+		this.pendingApprovals.clear();
+		for (const pending of this.pendingCapabilityRequests.values()) {
+			pending.resolve({
+				ok: false,
+				error: "Hub shutting down before capability request was resolved.",
+			});
+		}
+		this.pendingCapabilityRequests.clear();
+		await this.sessionHost.dispose("hub_server_stop");
+		await this.schedules.dispose();
+	}
+
+	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
+		switch (envelope.command) {
+			case "client.register":
+				return this.handleClientRegister(envelope);
+			case "client.update":
+				return this.handleClientUpdate(envelope);
+			case "client.unregister":
+				return this.handleClientUnregister(envelope);
+			case "client.list":
+				return {
+					version: envelope.version,
+					requestId: envelope.requestId,
+					ok: true,
+					payload: { clients: [...this.clients.values()] },
+				};
+			case "session.create":
+				return await this.handleSessionCreate(envelope);
+			case "session.attach":
+				return await this.handleSessionAttach(envelope);
+			case "session.detach":
+				return await this.handleSessionDetach(envelope);
+			case "session.get":
+				return await this.handleSessionGet(envelope);
+			case "session.list":
+				return await this.handleSessionList(envelope);
+			case "session.update":
+				return await this.handleSessionUpdate(envelope);
+			case "session.delete":
+				return await this.handleSessionDelete(envelope);
+			case "session.hook":
+				return await this.handleSessionHook(envelope);
+			case "run.start":
+			case "session.send_input":
+				return await this.handleSessionInput(envelope);
+			case "run.abort":
+				return await this.handleRunAbort(envelope);
+			case "capability.request":
+				return await this.handleCapabilityRequest(envelope);
+			case "approval.respond":
+				return await this.handleApprovalRespond(envelope);
+			case "capability.respond":
+				return await this.handleCapabilityRespond(envelope);
+			default: {
+				const reply = await this.scheduleCommands.handleCommand(envelope);
+				if (reply.ok) {
+					const event = eventNameForScheduleCommand(envelope.command);
+					if (event) {
+						this.publish({
+							version: "v1",
+							event,
+							eventId: createSessionId("hevt_"),
+							timestamp: Date.now(),
+							payload: reply.payload,
+						});
+					}
+				}
+				return reply;
+			}
+		}
+	}
+
+	private handleClientRegister(envelope: HubCommandEnvelope): HubReplyEnvelope {
+		const payload = envelope.payload as HubClientRegistration | undefined;
+		const clientId =
+			payload?.clientId?.trim() ||
+			envelope.clientId?.trim() ||
+			createSessionId("client_");
+		this.clients.set(clientId, {
+			clientId,
+			clientType: payload?.clientType ?? "unknown",
+			displayName: payload?.displayName,
+			actorKind: payload?.actorKind ?? "client",
+			connectedAt: Date.now(),
+			lastSeenAt: Date.now(),
+			transport: payload?.transport ?? "native",
+			capabilities: payload?.capabilities ?? [],
+			metadata: payload?.metadata,
+			workspaceContext: payload?.workspaceContext,
+		});
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { clientId },
+		};
+	}
+
+	private handleClientUpdate(envelope: HubCommandEnvelope): HubReplyEnvelope {
+		const clientId = envelope.clientId?.trim();
+		const client = clientId ? this.clients.get(clientId) : undefined;
+		if (!clientId || !client) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "client_not_found",
+					message: "Client is not registered with this hub.",
+				},
+			};
+		}
+		const metadata =
+			envelope.payload?.metadata &&
+			typeof envelope.payload.metadata === "object" &&
+			!Array.isArray(envelope.payload.metadata)
+				? (envelope.payload.metadata as Record<string, JsonValue | undefined>)
+				: undefined;
+		client.lastSeenAt = Date.now();
+		if (metadata) {
+			client.metadata = JSON.parse(JSON.stringify(metadata)) as Record<
+				string,
+				JsonValue | undefined
+			>;
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+		};
+	}
+
+	private handleClientUnregister(
+		envelope: HubCommandEnvelope,
+	): HubReplyEnvelope {
+		const clientId = envelope.clientId?.trim();
+		if (clientId) {
+			this.clients.delete(clientId);
+			this.listeners.delete(clientId);
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+		};
+	}
+
+	private buildEvent(
+		event: HubEventEnvelope["event"],
+		payload?: Record<string, unknown>,
+		sessionId?: string,
+	): HubEventEnvelope {
+		return {
+			version: "v1",
+			event,
+			eventId: createSessionId("hevt_"),
+			sessionId,
+			timestamp: Date.now(),
+			payload,
+		};
+	}
+
+	private async readHubSessionRecord(
+		sessionId: string,
+	): Promise<HubSessionRecord | undefined> {
+		const session = await this.sessionHost.get(sessionId);
+		if (!session) {
+			return undefined;
+		}
+		return toHubSessionRecord(session, this.sessionState.get(sessionId));
+	}
+
+	private ensureSessionState(
+		sessionId: string,
+		clientId: string,
+		role: SessionParticipant["role"],
+	): HubSessionState {
+		const existing = this.sessionState.get(sessionId);
+		if (existing) {
+			if (!existing.participants.has(clientId)) {
+				existing.participants.set(clientId, {
+					clientId,
+					attachedAt: Date.now(),
+					role,
+				});
+			}
+			return existing;
+		}
+		const state: HubSessionState = {
+			createdByClientId: clientId,
+			participants: new Map([
+				[
+					clientId,
+					{
+						clientId,
+						attachedAt: Date.now(),
+						role,
+					},
+				],
+			]),
+		};
+		this.sessionState.set(sessionId, state);
+		return state;
+	}
+
+	private async requestCapability(
+		sessionId: string,
+		capabilityName: string,
+		payload: Record<string, unknown>,
+		targetClientId: string,
+	): Promise<Record<string, unknown> | undefined> {
+		const requestId = createSessionId("capreq_");
+		return await new Promise((resolve, reject) => {
+			this.pendingCapabilityRequests.set(requestId, {
+				sessionId,
+				capabilityName,
+				resolve: (result) => {
+					if (!result.ok) {
+						reject(
+							new Error(
+								result.error ||
+									`Capability ${capabilityName} was rejected by ${targetClientId}.`,
+							),
+						);
+						return;
+					}
+					resolve(result.payload);
+				},
+			});
+			this.publish(
+				this.buildEvent(
+					"capability.requested",
+					{
+						requestId,
+						targetClientId,
+						capabilityName,
+						payload,
+					},
+					sessionId,
+				),
+			);
+		});
+	}
+
+	private async handleSessionCreate(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const payload =
+			envelope.payload && typeof envelope.payload === "object"
+				? envelope.payload
+				: {};
+		const metadata =
+			payload.metadata && typeof payload.metadata === "object"
+				? JSON.parse(JSON.stringify(payload.metadata))
+				: {};
+		const sessionConfig =
+			payload.sessionConfig && typeof payload.sessionConfig === "object"
+				? (JSON.parse(
+						JSON.stringify(payload.sessionConfig),
+					) as Partial<RuntimeSessionConfig>)
+				: undefined;
+		const runtimeOptions =
+			payload.runtimeOptions && typeof payload.runtimeOptions === "object"
+				? (payload.runtimeOptions as Record<string, unknown>)
+				: {};
+		if (typeof sessionConfig?.mode === "string") {
+			metadata.mode = sessionConfig.mode;
+		} else if (typeof runtimeOptions.mode === "string") {
+			metadata.mode = runtimeOptions.mode;
+		}
+		if (typeof sessionConfig?.systemPrompt === "string") {
+			metadata.systemPrompt = sessionConfig.systemPrompt;
+		} else if (typeof runtimeOptions.systemPrompt === "string") {
+			metadata.systemPrompt = runtimeOptions.systemPrompt;
+		}
+		if (sessionConfig?.checkpoint?.enabled === true) {
+			metadata.checkpointEnabled = true;
+		} else if (runtimeOptions.checkpointEnabled === true) {
+			metadata.checkpointEnabled = true;
+		}
+		const modelSelection =
+			payload.modelSelection && typeof payload.modelSelection === "object"
+				? (payload.modelSelection as Record<string, unknown>)
+				: {};
+		const workspaceRoot =
+			typeof payload.workspaceRoot === "string" && payload.workspaceRoot.trim()
+				? payload.workspaceRoot.trim()
+				: typeof payload.cwd === "string" && payload.cwd.trim()
+					? payload.cwd.trim()
+					: "";
+		if (!workspaceRoot) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_session_create",
+					message: "session.create requires workspaceRoot or cwd",
+				},
+			};
+		}
+		const clientId = envelope.clientId?.trim() || "hub-client";
+		const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
+			? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
+			: [];
+		const started = await this.sessionHost.start({
+			source: typeof metadata.source === "string" ? metadata.source : undefined,
+			interactive: metadata.interactive !== false,
+			sessionMetadata:
+				Object.keys(metadata as Record<string, unknown>).length > 0
+					? (metadata as Record<string, unknown>)
+					: undefined,
+			initialMessages: Array.isArray(payload.initialMessages)
+				? (payload.initialMessages as never[])
+				: undefined,
+			localRuntime: {
+				modelCatalogDefaults: {
+					loadLatestOnInit: true,
+					loadPrivateOnAuth: true,
+				},
+				defaultToolExecutors: createCapabilityBackedToolExecutors(
+					clientId,
+					advertisedToolExecutors,
+					async (
+						sessionId,
+						capabilityName,
+						capabilityPayload,
+						targetClientId,
+					) =>
+						await this.requestCapability(
+							sessionId,
+							capabilityName,
+							capabilityPayload,
+							targetClientId,
+						),
+				),
+			},
+			requestToolApproval: async (request: ToolApprovalRequest) => {
+				return await this.requestToolApproval(request);
+			},
+			config: {
+				...(sessionConfig ?? {}),
+				providerId:
+					sessionConfig?.providerId ??
+					(typeof modelSelection.provider === "string"
+						? modelSelection.provider
+						: typeof metadata.provider === "string"
+							? metadata.provider
+							: "hub"),
+				modelId:
+					sessionConfig?.modelId ??
+					(typeof modelSelection.model === "string"
+						? modelSelection.model
+						: typeof metadata.model === "string"
+							? metadata.model
+							: "hub"),
+				apiKey:
+					sessionConfig?.apiKey ??
+					(typeof modelSelection.apiKey === "string"
+						? modelSelection.apiKey
+						: undefined),
+				cwd:
+					sessionConfig?.cwd ??
+					(typeof payload.cwd === "string" && payload.cwd.trim()
+						? payload.cwd.trim()
+						: workspaceRoot),
+				workspaceRoot: sessionConfig?.workspaceRoot ?? workspaceRoot,
+				systemPrompt:
+					sessionConfig?.systemPrompt ??
+					(typeof runtimeOptions.systemPrompt === "string"
+						? runtimeOptions.systemPrompt
+						: ""),
+				mode:
+					sessionConfig?.mode ??
+					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+						? runtimeOptions.mode
+						: "act"),
+				maxIterations:
+					sessionConfig?.maxIterations ??
+					(typeof runtimeOptions.maxIterations === "number"
+						? runtimeOptions.maxIterations
+						: undefined),
+				enableTools:
+					sessionConfig?.enableTools ?? runtimeOptions.enableTools !== false,
+				enableSpawnAgent:
+					sessionConfig?.enableSpawnAgent ??
+					runtimeOptions.enableSpawn !== false,
+				enableAgentTeams:
+					sessionConfig?.enableAgentTeams ??
+					runtimeOptions.enableTeams !== false,
+				checkpoint:
+					sessionConfig?.checkpoint ??
+					(runtimeOptions.checkpointEnabled === true
+						? { enabled: true }
+						: undefined),
+				teamName:
+					sessionConfig?.teamName ??
+					(typeof metadata.teamName === "string"
+						? metadata.teamName
+						: undefined),
+			},
+			toolPolicies:
+				payload.toolPolicies &&
+				typeof payload.toolPolicies === "object" &&
+				!Array.isArray(payload.toolPolicies)
+					? (JSON.parse(JSON.stringify(payload.toolPolicies)) as Record<
+							string,
+							{ autoApprove?: boolean; enabled?: boolean }
+						>)
+					: runtimeOptions.autoApproveTools === true
+						? { "*": { autoApprove: true } }
+						: undefined,
+		});
+		this.ensureSessionState(started.sessionId, clientId, "creator");
+		const session = await this.readHubSessionRecord(started.sessionId);
+		if (session) {
+			this.publish(
+				this.buildEvent("session.created", { session }, started.sessionId),
+			);
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { session },
+		};
+	}
+
+	private async handleSessionAttach(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		if (!sessionId) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_session_attach",
+					message: "session.attach requires a session id",
+				},
+			};
+		}
+		this.ensureSessionState(
+			sessionId,
+			envelope.clientId?.trim() || "hub-client",
+			"participant",
+		);
+		const session = await this.readHubSessionRecord(sessionId);
+		if (session) {
+			this.publish(this.buildEvent("session.attached", { session }, sessionId));
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: Boolean(session),
+			...(session
+				? { payload: { session } }
+				: {
+						error: {
+							code: "session_not_found",
+							message: `Unknown session: ${sessionId}`,
+						},
+					}),
+		};
+	}
+
+	private async handleSessionDetach(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		if (!sessionId) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_session_detach",
+					message: "session.detach requires a session id",
+				},
+			};
+		}
+		const clientId = envelope.clientId?.trim() || "hub-client";
+		const state = this.sessionState.get(sessionId);
+		if (state) {
+			state.participants.delete(clientId);
+			if (state.participants.size === 0) {
+				this.sessionState.delete(sessionId);
+			}
+		}
+		const session = await this.readHubSessionRecord(sessionId);
+		this.publish(
+			this.buildEvent(
+				"session.detached",
+				session ? { session, clientId } : { clientId },
+				sessionId,
+			),
+		);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+		};
+	}
+
+	private async handleSessionGet(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const session = await this.readHubSessionRecord(sessionId);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: Boolean(session),
+			...(session
+				? { payload: { session } }
+				: {
+						error: {
+							code: "session_not_found",
+							message: `Unknown session: ${sessionId}`,
+						},
+					}),
+		};
+	}
+
+	private async handleSessionList(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const limit =
+			typeof envelope.payload?.limit === "number"
+				? envelope.payload.limit
+				: 200;
+		const sessions = (await this.sessionHost.list(limit)).map((session) =>
+			toHubSessionRecord(session, this.sessionState.get(session.sessionId)),
+		);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { sessions },
+		};
+	}
+
+	private async handleSessionUpdate(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const metadata =
+			envelope.payload?.metadata &&
+			typeof envelope.payload.metadata === "object" &&
+			!Array.isArray(envelope.payload.metadata)
+				? (envelope.payload.metadata as Record<string, JsonValue | undefined>)
+				: undefined;
+		const updated = await this.sessionHost.update(sessionId, { metadata });
+		const session = await this.readHubSessionRecord(sessionId);
+		if (session) {
+			this.publish(this.buildEvent("session.updated", { session }, sessionId));
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: updated.updated,
+			payload: { updated: updated.updated, session },
+		};
+	}
+
+	private async handleSessionDelete(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const deleted = await this.sessionHost.delete(sessionId);
+		this.sessionState.delete(sessionId);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { deleted },
+		};
+	}
+
+	private async handleSessionInput(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const payload =
+			envelope.payload && typeof envelope.payload === "object"
+				? envelope.payload
+				: {};
+		const prompt =
+			typeof payload.prompt === "string"
+				? payload.prompt
+				: typeof payload.input === "string"
+					? payload.input
+					: "";
+		if (!prompt.trim()) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_session_input",
+					message: "session input requires a prompt string",
+				},
+			};
+		}
+		this.publish(this.buildEvent("run.started", undefined, sessionId));
+		const attachments =
+			payload.attachments &&
+			typeof payload.attachments === "object" &&
+			!Array.isArray(payload.attachments)
+				? (payload.attachments as Record<string, unknown>)
+				: undefined;
+		const result = await this.sessionHost.send({
+			sessionId,
+			prompt,
+			delivery:
+				payload.delivery === "queue" || payload.delivery === "steer"
+					? payload.delivery
+					: undefined,
+			userImages: Array.isArray(attachments?.userImages)
+				? (attachments.userImages as string[])
+				: undefined,
+		});
+		if (result) {
+			this.publish(
+				this.buildEvent(
+					"run.completed",
+					{ reason: result.finishReason, result },
+					sessionId,
+				),
+			);
+		}
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: result ? { result } : undefined,
+		};
+	}
+
+	private async handleRunAbort(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		await this.sessionHost.abort(sessionId, envelope.payload?.reason);
+		this.publish(
+			this.buildEvent(
+				"run.aborted",
+				typeof envelope.payload?.reason === "string"
+					? { reason: envelope.payload.reason }
+					: undefined,
+				sessionId,
+			),
+		);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { applied: true },
+		};
+	}
+
+	private async handleSessionHook(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const parsed = parseHookEventPayload(envelope.payload?.payload);
+		if (!parsed) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_hook_payload",
+					message: "session.hook requires a valid hook event payload",
+				},
+			};
+		}
+		await this.sessionHost.handleHookEvent(parsed);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { applied: true },
+		};
+	}
+
+	private async requestToolApproval(
+		request: ToolApprovalRequest,
+	): Promise<{ approved: boolean; reason?: string }> {
+		const approvalId = createSessionId("approval_");
+		return await new Promise((resolve) => {
+			this.pendingApprovals.set(approvalId, {
+				sessionId: request.conversationId,
+				resolve,
+			});
+			this.publish(
+				this.buildEvent(
+					"approval.requested",
+					{
+						approvalId,
+						toolCallId: request.toolCallId,
+						toolName: request.toolName,
+						inputJson: JSON.stringify(request.input ?? null),
+					},
+					request.conversationId,
+				),
+			);
+		});
+	}
+
+	private async handleApprovalRespond(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const approvalId =
+			typeof envelope.payload?.approvalId === "string"
+				? envelope.payload.approvalId.trim()
+				: "";
+		const pending = this.pendingApprovals.get(approvalId);
+		if (!pending) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "approval_not_found",
+					message: `Unknown approval: ${approvalId}`,
+				},
+			};
+		}
+		this.pendingApprovals.delete(approvalId);
+		const reason =
+			envelope.payload?.payload &&
+			typeof envelope.payload.payload === "object" &&
+			!Array.isArray(envelope.payload.payload) &&
+			typeof (envelope.payload.payload as Record<string, unknown>).reason ===
+				"string"
+				? ((envelope.payload.payload as Record<string, unknown>)
+						.reason as string)
+				: undefined;
+		pending.resolve({
+			approved: envelope.payload?.approved === true,
+			reason,
+		});
+		this.publish(
+			this.buildEvent(
+				"approval.resolved",
+				{ approvalId, approved: envelope.payload?.approved === true, reason },
+				pending.sessionId,
+			),
+		);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { approvalId, approved: envelope.payload?.approved === true },
+		};
+	}
+
+	private async handleCapabilityRequest(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const capabilityName =
+			typeof envelope.payload?.capabilityName === "string"
+				? envelope.payload.capabilityName.trim()
+				: "";
+		const targetClientId =
+			typeof envelope.payload?.targetClientId === "string"
+				? envelope.payload.targetClientId.trim()
+				: "";
+		if (!sessionId || !capabilityName || !targetClientId) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "invalid_capability_request",
+					message:
+						"capability.request requires sessionId, capabilityName, and targetClientId",
+				},
+			};
+		}
+		try {
+			const payload =
+				envelope.payload?.payload &&
+				typeof envelope.payload.payload === "object" &&
+				!Array.isArray(envelope.payload.payload)
+					? (envelope.payload.payload as Record<string, unknown>)
+					: {};
+			const response = await this.requestCapability(
+				sessionId,
+				capabilityName,
+				payload,
+				targetClientId,
+			);
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: true,
+				payload: response,
+			};
+		} catch (error) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "capability_request_failed",
+					message: error instanceof Error ? error.message : String(error),
+				},
+			};
+		}
+	}
+
+	private async handleCapabilityRespond(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const requestId =
+			typeof envelope.payload?.requestId === "string"
+				? envelope.payload.requestId.trim()
+				: "";
+		const pending = this.pendingCapabilityRequests.get(requestId);
+		if (!pending) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "capability_not_found",
+					message: `Unknown capability request: ${requestId}`,
+				},
+			};
+		}
+		this.pendingCapabilityRequests.delete(requestId);
+		const payload =
+			envelope.payload?.payload &&
+			typeof envelope.payload.payload === "object" &&
+			!Array.isArray(envelope.payload.payload)
+				? (envelope.payload.payload as Record<string, unknown>)
+				: undefined;
+		const error =
+			typeof envelope.payload?.error === "string"
+				? envelope.payload.error
+				: undefined;
+		const ok = envelope.payload?.ok === true;
+		pending.resolve({ ok, payload, error });
+		this.publish(
+			this.buildEvent(
+				"capability.resolved",
+				{
+					requestId,
+					capabilityName: pending.capabilityName,
+					targetClientId: envelope.clientId?.trim(),
+					ok,
+					payload,
+					error,
+				},
+				pending.sessionId,
+			),
+		);
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { requestId, ok },
+		};
+	}
+
+	private async handleSessionEvent(event: CoreSessionEvent): Promise<void> {
+		switch (event.type) {
+			case "chunk":
+				// Ignore raw agent chunks here. In this runtime they can contain
+				// serialized event envelopes rather than user-facing assistant text.
+				// Structured live content is forwarded via the "agent_event" branch.
+				return;
+			case "agent_event": {
+				const { sessionId, event: agentEvent } = event.payload;
+				if (agentEvent.type === "content_start") {
+					if (
+						agentEvent.contentType === "text" &&
+						typeof agentEvent.text === "string" &&
+						agentEvent.text.length > 0
+					) {
+						this.publish(
+							this.buildEvent(
+								"assistant.delta",
+								{ text: agentEvent.text },
+								sessionId,
+							),
+						);
+						return;
+					}
+					if (agentEvent.contentType === "reasoning") {
+						if (agentEvent.redacted && !agentEvent.reasoning) {
+							this.publish(
+								this.buildEvent(
+									"reasoning.delta",
+									{ text: "", redacted: true },
+									sessionId,
+								),
+							);
+							return;
+						}
+						if (
+							typeof agentEvent.reasoning === "string" &&
+							agentEvent.reasoning.length > 0
+						) {
+							this.publish(
+								this.buildEvent(
+									"reasoning.delta",
+									{
+										text: agentEvent.reasoning,
+										redacted: agentEvent.redacted === true,
+									},
+									sessionId,
+								),
+							);
+						}
+						return;
+					}
+					if (agentEvent.contentType === "tool") {
+						this.publish(
+							this.buildEvent(
+								"tool.started",
+								{
+									toolCallId: agentEvent.toolCallId,
+									toolName: agentEvent.toolName,
+									input: agentEvent.input,
+								},
+								sessionId,
+							),
+						);
+						return;
+					}
+				}
+				if (
+					agentEvent.type === "content_end" &&
+					agentEvent.contentType === "tool"
+				) {
+					this.publish(
+						this.buildEvent(
+							"tool.finished",
+							{
+								toolCallId: agentEvent.toolCallId,
+								toolName: agentEvent.toolName,
+								output: agentEvent.output,
+								error: agentEvent.error,
+							},
+							sessionId,
+						),
+					);
+				}
+				return;
+			}
+			case "hook":
+				if (event.payload.hookEventName === "tool_call") {
+					this.publish(
+						this.buildEvent(
+							"tool.started",
+							{ toolName: event.payload.toolName },
+							event.payload.sessionId,
+						),
+					);
+				} else if (event.payload.hookEventName === "tool_result") {
+					this.publish(
+						this.buildEvent(
+							"tool.finished",
+							{ toolName: event.payload.toolName },
+							event.payload.sessionId,
+						),
+					);
+				}
+				return;
+			case "team_progress": {
+				const projection: TeamProgressProjectionEvent = {
+					type: "team_progress_projection",
+					version: 1,
+					sessionId: event.payload.sessionId,
+					summary: event.payload.summary,
+					lastEvent: event.payload.lifecycle,
+				};
+				this.publish(
+					this.buildEvent(
+						"team.progress",
+						projection as unknown as Record<string, unknown>,
+						event.payload.sessionId,
+					),
+				);
+				return;
+			}
+			case "status": {
+				const session = await this.readHubSessionRecord(
+					event.payload.sessionId,
+				);
+				if (session) {
+					this.publish(
+						this.buildEvent(
+							"session.updated",
+							{ session },
+							event.payload.sessionId,
+						),
+					);
+				}
+				return;
+			}
+			case "ended":
+				this.publish(
+					this.buildEvent(
+						event.payload.reason === "aborted"
+							? "run.aborted"
+							: "run.completed",
+						{ reason: event.payload.reason },
+						event.payload.sessionId,
+					),
+				);
+				return;
+			default:
+				return;
+		}
+	}
+
+	subscribe(
+		clientId: string,
+		listener: (event: HubEventEnvelope) => void,
+		options?: { sessionId?: string },
+	): () => void {
+		const current = this.listeners.get(clientId) ?? new Set();
+		const entry = { sessionId: options?.sessionId, listener };
+		current.add(entry);
+		this.listeners.set(clientId, current);
+		return () => {
+			const listeners = this.listeners.get(clientId);
+			if (!listeners) {
+				return;
+			}
+			listeners.delete(entry);
+			if (listeners.size === 0) {
+				this.listeners.delete(clientId);
+			}
+		};
+	}
+
+	private publish(event: HubEventEnvelope): void {
+		for (const entries of this.listeners.values()) {
+			for (const entry of entries) {
+				if (entry.sessionId && entry.sessionId !== event.sessionId) {
+					continue;
+				}
+				entry.listener(event);
+			}
+		}
+	}
+}
+
+async function findAvailablePort(
+	host: string,
+	preferredPort: number,
+): Promise<number> {
+	const canBind = (port: number) =>
+		new Promise<boolean>((resolve) => {
+			const server = createNetServer();
+			server.once("error", () => resolve(false));
+			server.once("listening", () => server.close(() => resolve(true)));
+			server.listen({ host, port });
+		});
+
+	if (preferredPort > 0 && (await canBind(preferredPort))) {
+		return preferredPort;
+	}
+
+	return await new Promise<number>((resolve, reject) => {
+		const server = createNetServer();
+		server.once("error", reject);
+		server.listen({ host, port: 0 }, () => {
+			const address = server.address();
+			if (!address || typeof address === "string") {
+				server.close(() => reject(new Error("Failed to resolve hub port")));
+				return;
+			}
+			const port = address.port;
+			server.close((error) => {
+				if (error) {
+					reject(error);
+					return;
+				}
+				resolve(port);
+			});
+		});
+	});
+}
+
+export interface HubWebSocketServerOptions {
+	host?: string;
+	port?: number;
+	pathname?: string;
+	owner?: HubOwnerContext;
+	sessionHost?: RuntimeHost;
+	runtimeHandlers: HubScheduleRuntimeHandlers;
+	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
+}
+
+export interface HubWebSocketServer {
+	host: string;
+	port: number;
+	url: string;
+	close(): Promise<void>;
+}
+
+export interface EnsureHubWebSocketServerOptions
+	extends HubWebSocketServerOptions {}
+
+export interface EnsuredHubWebSocketServerResult {
+	server?: HubWebSocketServer;
+	url: string;
+	action: "reuse" | "started";
+}
+
+const SHARED_SERVERS = new Map<string, Promise<HubWebSocketServer>>();
+
+export async function startHubWebSocketServer(
+	options: HubWebSocketServerOptions,
+): Promise<HubWebSocketServer> {
+	const owner = options.owner ?? resolveHubOwnerContext();
+	const host = options.host ?? "127.0.0.1";
+	const pathname = options.pathname ?? "/hub";
+	const port = await findAvailablePort(host, options.port ?? 4319);
+	const url = new URL(`ws://${host}:${port}${pathname}`).toString();
+	const buildId = resolveHubBuildId();
+	const transport = new HubServerTransport(options);
+	await transport.start();
+	const adapter = new BrowserWebSocketHubAdapter(
+		new NativeHubTransportAdapter(transport),
+	);
+	const cleanup = new Set<() => void>();
+	const startedAt = new Date().toISOString();
+
+	const server = http.createServer((req, res) => {
+		if ((req.url ?? "/") === "/health") {
+			const body = JSON.stringify({
+				hubId: transport.getHubId(),
+				protocolVersion: "v1",
+				buildId,
+				host,
+				port,
+				url,
+				pid: process.pid,
+				startedAt,
+				updatedAt: new Date().toISOString(),
+			} satisfies HubServerDiscoveryRecord);
+			res.statusCode = 200;
+			res.setHeader("content-type", "application/json");
+			res.end(body);
+			return;
+		}
+		res.statusCode = 404;
+		res.end("Not found");
+	});
+	const wss = new WebSocketServer({ noServer: true });
+
+	server.on("upgrade", (request, socket, head) => {
+		const requestUrl = new URL(request.url ?? "/", `http://${host}:${port}`);
+		if (requestUrl.pathname !== pathname) {
+			socket.destroy();
+			return;
+		}
+		wss.handleUpgrade(request, socket, head, (websocket: NodeWebSocketLike) => {
+			const detach = adapter.attach(wrapWsSocket(websocket));
+			cleanup.add(detach);
+			websocket.once("close", () => {
+				detach();
+				cleanup.delete(detach);
+			});
+		});
+	});
+
+	await new Promise<void>((resolve, reject) => {
+		server.once("error", reject);
+		server.listen(port, host, () => resolve());
+	});
+
+	await writeHubDiscovery(owner.discoveryPath, {
+		hubId: transport.getHubId(),
+		protocolVersion: "v1",
+		buildId,
+		host,
+		port,
+		url,
+		pid: process.pid,
+		startedAt,
+		updatedAt: startedAt,
+	});
+
+	return {
+		host,
+		port,
+		url,
+		close: async () => {
+			for (const detach of cleanup) {
+				detach();
+			}
+			cleanup.clear();
+			await new Promise<void>((resolve, reject) => {
+				wss.close((error?: Error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve();
+				});
+			});
+			await new Promise<void>((resolve, reject) => {
+				server.close((error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve();
+				});
+			});
+			await transport.stop();
+			const current = await readHubDiscovery(owner.discoveryPath);
+			if (current?.url === url) {
+				await clearHubDiscovery(owner.discoveryPath);
+			}
+		},
+	};
+}
+
+export async function ensureHubWebSocketServer(
+	options: EnsureHubWebSocketServerOptions,
+): Promise<EnsuredHubWebSocketServerResult> {
+	const owner = options.owner ?? resolveHubOwnerContext();
+	const sharedKey = owner.discoveryPath;
+	const existing = SHARED_SERVERS.get(sharedKey);
+	if (existing) {
+		const server = await existing;
+		return { server, url: server.url, action: "reuse" };
+	}
+
+	return await withHubStartupLock(owner.discoveryPath, async () => {
+		const discovered = await readHubDiscovery(owner.discoveryPath);
+		if (discovered?.url) {
+			const healthy = await probeHubServer(discovered.url);
+			if (healthy?.url) {
+				return { url: healthy.url, action: "reuse" };
+			}
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+
+		const serverPromise = startHubWebSocketServer({ ...options, owner });
+		SHARED_SERVERS.set(sharedKey, serverPromise);
+		try {
+			const server = await serverPromise;
+			return { server, url: server.url, action: "started" };
+		} catch (error) {
+			SHARED_SERVERS.delete(sharedKey);
+			throw error;
+		}
+	});
+}

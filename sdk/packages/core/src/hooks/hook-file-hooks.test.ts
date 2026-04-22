@@ -127,7 +127,7 @@ describe("createHookConfigFileHooks", () => {
 
 	it("parses review control from hook output", async () => {
 		const { workspace } = await createWorkspaceWithHook(
-			"PreToolUse.ts",
+			"PreToolUse.js",
 			'console.log(\'HOOK_CONTROL\\t{"review":true,"context":"needs-review"}\')\n',
 		);
 		try {

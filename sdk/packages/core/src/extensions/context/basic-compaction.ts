@@ -33,9 +33,9 @@ function sanitizeMessageForBasic(
 		return text ? { ...message, content: text } : undefined;
 	}
 
-	// Preserve array structure: keep only text blocks with non-empty content.
+	// Preserve multimodal structure: trim text blocks, keep non-text blocks intact.
 	const kept = message.content.filter(
-		(block) => block.type === "text" && block.text.trim(),
+		(block) => block.type !== "text" || block.text.trim(),
 	);
 	if (kept.length === 0) {
 		return undefined;

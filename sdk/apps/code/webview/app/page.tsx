@@ -202,6 +202,7 @@ export default function Home() {
 									threadId={activeThread.id}
 									onDeleteSession={handleDeleteSession}
 									onNewThread={handleNewThread}
+									onOpenSession={handleOpenSession}
 								/>
 							</div>
 						) : null}
@@ -223,6 +224,7 @@ function ChatThreadPane({
 	onUpdateSessionMetadata,
 	onDeleteSession,
 	onNewThread,
+	onOpenSession,
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
@@ -232,6 +234,7 @@ function ChatThreadPane({
 	) => void;
 	onDeleteSession?: (sessionId: string, threadId?: string) => void;
 	onNewThread?: () => void;
+	onOpenSession?: (session: SessionHistoryItem) => void;
 }) {
 	const {
 		sessionId,
@@ -252,6 +255,7 @@ function ChatThreadPane({
 		approveToolApproval,
 		rejectToolApproval,
 		restoreCheckpoint,
+		forkSession,
 		reset,
 		abort,
 		hydrateSession,
@@ -598,6 +602,29 @@ function ChatThreadPane({
 		[rejectToolApproval],
 	);
 
+	const handleForkSession = useCallback(async () => {
+		const result = await forkSession();
+		// Open the forked session as a new thread in the sidebar.
+		if (onOpenSession) {
+			const forkedHistorySession: SessionHistoryItem = {
+				sessionId: result.newSessionId,
+				status: "completed",
+				provider: config.provider,
+				model: config.model,
+				cwd: config.cwd,
+				workspaceRoot: config.workspaceRoot,
+				startedAt: new Date().toISOString(),
+				metadata: {
+					fork: {
+						forkedFromSessionId: result.forkedFromSessionId,
+						forkedAt: new Date().toISOString(),
+					},
+				},
+			};
+			onOpenSession(forkedHistorySession);
+		}
+	}, [config, forkSession, onOpenSession]);
+
 	const visibleHistorySession =
 		historySession?.sessionId &&
 		historySession.sessionId === dismissedHistorySessionId
@@ -846,6 +873,7 @@ function ChatThreadPane({
 							onRestoreCheckpoint={(runCount) =>
 								void restoreCheckpoint(runCount)
 							}
+							onForkSession={handleForkSession}
 							pendingToolApprovals={pendingToolApprovals}
 							provider={config.provider}
 							sessionId={displayedSessionId}

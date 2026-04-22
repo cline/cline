@@ -36,7 +36,7 @@ describe("formatHistoryListLine", () => {
 					checkpoint: {
 						latest: {
 							ref: "abc123",
-							createdAt: 1_700_000_000_000,
+							createdAt: 1767196800000,
 							runCount: 3,
 						},
 						history: [
@@ -49,7 +49,9 @@ describe("formatHistoryListLine", () => {
 			}),
 		);
 
-		expect(line).toContain("checkpoints:3 latest-run:3");
+		expect(line).toContain(
+			"12/31/2025 16:00 mock-provider:mock-model | $0.25 | hello world",
+		);
 	});
 
 	it("formats a compact checkpoint badge summary in the line", () => {
@@ -61,7 +63,7 @@ describe("formatHistoryListLine", () => {
 					checkpoint: {
 						latest: {
 							ref: "abc123",
-							createdAt: 1_700_000_000_000,
+							createdAt: 1767196800000,
 							runCount: 3,
 						},
 						history: [
@@ -74,7 +76,10 @@ describe("formatHistoryListLine", () => {
 			}),
 		);
 
-		expect(line).toContain("checkpoints:3 latest-run:3");
+		expect(line).toContain(
+			"12/31/2025 16:00 mock-provider:mock-model | $0.25 | hello world",
+		);
+		expect(line).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/);
 	});
 
 	it("formats checkpoint detail text for the selected row footer", () => {
@@ -86,7 +91,7 @@ describe("formatHistoryListLine", () => {
 					checkpoint: {
 						latest: {
 							ref: "abc123def4567890",
-							createdAt: 1_700_000_000_000,
+							createdAt: 1767196800000,
 							runCount: 3,
 						},
 						history: [

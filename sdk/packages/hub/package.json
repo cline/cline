@@ -1,0 +1,33 @@
+{
+	"name": "@clinebot/hub",
+	"version": "0.0.35",
+	"description": "Hub discovery and client foundations for the hub-and-spoke SDK topology",
+	"type": "module",
+	"main": "./dist/index.js",
+	"types": "./dist/index.d.ts",
+	"engines": {
+		"node": ">=22"
+	},
+	"exports": {
+		".": {
+			"development": "./src/index.ts",
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist",
+		"src"
+	],
+	"scripts": {
+		"build": "bun build ./src/index.ts --outdir ./dist --target node --format esm && bunx tsc -p tsconfig.build.json",
+		"clean": "rm -rf dist node_modules",
+		"typecheck": "bunx tsc -p tsconfig.json --noEmit",
+		"test": "bunx vitest run --config vitest.config.ts",
+		"test:watch": "bunx vitest --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@clinebot/core": "workspace:*",
+		"@clinebot/shared": "workspace:*"
+	}
+}

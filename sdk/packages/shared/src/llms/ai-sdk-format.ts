@@ -85,7 +85,10 @@ export function formatMessagesForAiSdk(
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
 	const result: AiSdkMessage[] = [];
 
-	if (systemContent != null) {
+	if (
+		(typeof systemContent === "string" && systemContent.trim().length > 0) ||
+		(Array.isArray(systemContent) && systemContent.length > 0)
+	) {
 		result.push({ role: "system", content: systemContent });
 	}
 

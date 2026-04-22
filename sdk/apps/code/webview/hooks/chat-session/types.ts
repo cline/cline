@@ -10,6 +10,7 @@ export type AgentChunkEvent = {
 	stream: string;
 	chunk: string;
 	ts: number;
+	index?: number;
 };
 
 export type ReasoningDeltaEvent = {

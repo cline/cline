@@ -15,6 +15,11 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
+		"./hub": {
+			"development": "./src/hub/index.ts",
+			"types": "./dist/hub/index.d.ts",
+			"import": "./dist/hub/index.js"
+		},
 		"./telemetry": {
 			"development": "./src/services/telemetry/index.ts",
 			"types": "./dist/services/telemetry/index.d.ts",
@@ -28,6 +33,7 @@
 		"test": "bun run test:unit && bun run test:e2e",
 		"test:unit": "vitest run --config vitest.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
+		"verify:routines": "zsh -lc 'bunx vitest run src/hub/schedule-service.test.ts --config vitest.config.ts'",
 		"test:watch": "vitest --config vitest.config.ts"
 	},
 	"dependencies": {
@@ -48,18 +54,21 @@
 		"node-machine-id": "^1.1.12",
 		"nanoid": "^5.1.7",
 		"simple-git": "^3.32.3",
+		"ws": "^8.20.0",
 		"yaml": "^2.8.2",
 		"zod": "^4.3.6"
 	},
 	"devDependencies": {
-		"@clinebot/rpc": "workspace:*",
-		"@clinebot/shared": "workspace:*"
+		"@clinebot/shared": "workspace:*",
+		"@types/ws": "^8.18.1"
 	},
 	"engines": {
 		"node": ">=22"
 	},
 	"files": [
 		"dist",
-		"src"
+		"src",
+		"!src/**/*.test.ts",
+		"!src/**/*.e2e.test.ts"
 	]
 }

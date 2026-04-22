@@ -2,11 +2,12 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import {
-	ALL_DEFAULT_TOOL_NAMES,
+	type BuiltinToolAvailabilityContext,
 	createUserInstructionConfigWatcher,
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
+	listPluginTools,
 	type RuleConfig,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
@@ -18,6 +19,8 @@ import {
 	type WorkflowConfig,
 } from "@clinebot/core";
 import { Command } from "commander";
+import { getToolCatalog } from "../runtime/tools";
+import { loadInteractiveConfigData } from "../tui/interactive-config";
 import type { CliOutputMode } from "../utils/types";
 
 type ConfigIo = {
@@ -25,15 +28,9 @@ type ConfigIo = {
 	writeErr: (text: string) => void;
 };
 
-const TOOL_NAMES = [...ALL_DEFAULT_TOOL_NAMES];
-
-function resolveCliAgentConfigSearchPaths(): string[] {
-	const clineDataDir =
-		process.env.CLINE_DATA_DIR?.trim() || join(homedir(), ".cline", "data");
-	return [
-		join(homedir(), "Documents", "Cline", "Agents"),
-		join(clineDataDir, "settings", "agents"),
-	];
+function resolveCliAgentConfigSearchPaths(cwd: string): string[] {
+	const clineDir = process.env.CLINE_DIR?.trim() || join(homedir(), ".cline");
+	return [join(cwd, ".cline", "agents"), join(clineDir, "agents")];
 }
 
 async function runWorkflowsConfigCommand(
@@ -211,6 +208,7 @@ async function runSkillsConfigCommand(
 }
 
 async function runAgentsConfigCommand(
+	cwd: string,
 	outputMode: CliOutputMode,
 	io: ConfigIo,
 ): Promise<number> {
@@ -221,8 +219,8 @@ async function runAgentsConfigCommand(
 			path: string;
 		}
 	>();
-	const directories = resolveCliAgentConfigSearchPaths().filter((directory) =>
-		existsSync(directory),
+	const directories = resolveCliAgentConfigSearchPaths(cwd).filter(
+		(directory) => existsSync(directory),
 	);
 	for (const directory of directories) {
 		try {
@@ -390,27 +388,81 @@ async function runMcpConfigCommand(
 }
 
 async function runToolsConfigCommand(
+	cwd: string,
 	outputMode: CliOutputMode,
 	io: ConfigIo,
+	availabilityContext?: BuiltinToolAvailabilityContext,
 ): Promise<number> {
-	const tools = TOOL_NAMES.map((name) => ({
-		name,
-		type: "default" as const,
-	})).sort((a, b) => a.name.localeCompare(b.name));
+	const tools = getToolCatalog(availabilityContext);
+	const pluginTools = await listPluginTools({
+		workspacePath: cwd,
+		cwd,
+	});
 
 	if (outputMode === "json") {
-		process.stdout.write(JSON.stringify(tools));
+		process.stdout.write(
+			JSON.stringify([
+				...tools,
+				...pluginTools.map((tool) => ({
+					name: tool.name,
+					type: "plugin" as const,
+					pluginName: tool.pluginName,
+					path: tool.path,
+					source: tool.source,
+					enabled: tool.enabled,
+					description: tool.description,
+				})),
+			]),
+		);
 		return 0;
 	}
-	if (tools.length === 0) {
+	if (tools.length === 0 && pluginTools.length === 0) {
 		io.writeln("No tools found.");
 		return 0;
 	}
 	io.writeln("Available tools:");
 	for (const tool of tools) {
-		io.writeln(`  ${tool.name}`);
+		const defaultState = tool.defaultEnabled ? "enabled" : "disabled";
+		const names =
+			tool.headlessToolNames.length === 1 &&
+			tool.headlessToolNames[0] === tool.id
+				? ""
+				: ` -> ${tool.headlessToolNames.join(", ")}`;
+		io.writeln(`  ${tool.id} [default: ${defaultState}]${names}`);
+	}
+	if (pluginTools.length > 0) {
+		io.writeln();
+		io.writeln("Plugin tools:");
+		for (const tool of pluginTools) {
+			io.writeln(
+				`  ${tool.name} [plugin: ${tool.pluginName}] [${tool.enabled ? "enabled" : "disabled"}] (${tool.path})`,
+			);
+		}
 	}
 	return 0;
+}
+
+async function loadInteractiveConfigDataForCommand(
+	cwd: string,
+): Promise<Awaited<ReturnType<typeof loadInteractiveConfigData>>> {
+	const watcher = createUserInstructionConfigWatcher({
+		skills: { workspacePath: cwd },
+		rules: { workspacePath: cwd },
+		workflows: { workspacePath: cwd },
+	});
+	try {
+		await watcher.start();
+		return await loadInteractiveConfigData({
+			watcher,
+			cwd,
+			workspaceRoot: cwd,
+			availabilityContext: {
+				mode: "act",
+			},
+		});
+	} finally {
+		watcher.stop();
+	}
 }
 
 export function createConfigCommand(
@@ -430,6 +482,13 @@ export function createConfigCommand(
 		.exitOverride()
 		.action(async (target?: string) => {
 			if (!target) {
+				if (getOutputMode() === "json") {
+					process.stdout.write(
+						`${JSON.stringify(await loadInteractiveConfigDataForCommand(getCwd()))}\n`,
+					);
+					actionExitCode = 0;
+					return;
+				}
 				actionExitCode = undefined;
 				launchInteractiveConfigView();
 				return;
@@ -458,7 +517,11 @@ export function createConfigCommand(
 					);
 					break;
 				case "agents":
-					actionExitCode = await runAgentsConfigCommand(getOutputMode(), io);
+					actionExitCode = await runAgentsConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+					);
 					break;
 				case "plugins":
 					actionExitCode = await runPluginsConfigCommand(
@@ -478,7 +541,12 @@ export function createConfigCommand(
 					actionExitCode = await runMcpConfigCommand(getOutputMode(), io);
 					break;
 				case "tools":
-					actionExitCode = await runToolsConfigCommand(getOutputMode(), io);
+					actionExitCode = await runToolsConfigCommand(
+						getCwd(),
+						getOutputMode(),
+						io,
+						{ mode: "act" },
+					);
 					break;
 				default:
 					io.writeErr(

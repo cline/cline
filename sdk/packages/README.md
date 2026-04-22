@@ -9,21 +9,20 @@ This directory is the single documentation source for package-level responsibili
 
 | Package | Primary responsibility | Typical consumers | Internal deps |
 | --- | --- | --- | --- |
-| `@clinebot/shared` | Cross-package shared primitives (path resolution, session common types, indexing helpers) | `@clinebot/agents`, `@clinebot/core`, `@clinebot/rpc`, apps | None |
+| `@clinebot/shared` | Cross-package shared primitives (path resolution, session common types, indexing helpers) | `@clinebot/agents`, `@clinebot/core`, `@clinebot/hub`, apps | None |
 | `@clinebot/llms` | Model catalog + provider settings schema + handler creation SDK | `@clinebot/agents`, `@clinebot/core`, apps | None |
-| `@clinebot/scheduler` | Scheduled runtime execution service (cron, limits, execution history) | `@clinebot/rpc` | `@clinebot/shared` |
 | `@clinebot/agents` | Stateless agent runtime loop (tools, hooks, extensions, teams, streaming) | `@clinebot/core`, apps | `@clinebot/llms`, `@clinebot/shared` |
-| `@clinebot/rpc` | gRPC session/task/event/tool-approval/schedule gateway (server + client) | `@clinebot/core`, apps | `@clinebot/scheduler`, `@clinebot/shared` |
-| `@clinebot/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, shared persistence service with local+RPC adapters) | CLI/Desktop apps | `@clinebot/agents`, `@clinebot/llms`, `@clinebot/rpc`, `@clinebot/shared` |
+| `@clinebot/hub` | Hub discovery, hub client helpers, and session-oriented hub adapters | `@clinebot/core`, apps | `@clinebot/core`, `@clinebot/shared` |
+| `@clinebot/core` | Stateful runtime orchestration (runtime composition, session lifecycle/storage, local and hub runtime services) | CLI/Desktop apps | `@clinebot/agents`, `@clinebot/llms`, `@clinebot/shared` |
 | `@clinebot/enterprise` | Enterprise composition layer (identity resolution, remote control plane sync, policy materialization, telemetry configuration) | Apps with enterprise/org management | `@clinebot/agents`, `@clinebot/shared` |
 
 ## How Packages Work Together
 
 1. `@clinebot/llms` defines model/provider capabilities and builds concrete handlers.
 2. `@clinebot/agents` runs the agent loop on top of those handlers and tool execution primitives.
-3. `@clinebot/core` composes runtime behavior with persistent sessions/storage and optional RPC-backed session services.
-4. `@clinebot/scheduler` orchestrates cron-driven runtime execution with bounded concurrency and timeout limits.
-5. `@clinebot/rpc` exposes cross-process/session orchestration APIs when runtime and control-plane need decoupling.
+3. `@clinebot/core` composes runtime behavior with persistent sessions/storage and local or hub-backed runtime services.
+4. `@clinebot/core` hub services orchestrate scheduled runtime execution, execution history, and schedule command handling.
+5. `@clinebot/hub` exposes discovery and session-oriented client APIs when hosts need a shared daemon.
 6. `@clinebot/shared` provides the shared contracts and path/session primitives used across the stack.
 7. `@clinebot/enterprise` sits on top of `@clinebot/core` and `@clinebot/agents` to sync identity, fetch remote config bundles, materialize managed instructions to disk, and register the result as an `AgentExtension`.
 
@@ -32,8 +31,8 @@ This directory is the single documentation source for package-level responsibili
 - Put provider/model schema, cataloging, and handler wiring in `@clinebot/llms`.
 - Put loop/tool/hook/team execution behavior in `@clinebot/agents`.
 - Put persistence, session lifecycle, and runtime assembly in `@clinebot/core`.
-- Put scheduled execution and schedule persistence in `@clinebot/scheduler`.
-- Put network session routing and approval/event transport in `@clinebot/rpc`.
+- Put scheduled execution and schedule persistence in `@clinebot/core` hub services.
+- Put hub discovery, attach flows, and session-oriented client adapters in `@clinebot/hub`.
 - Put cross-package utility types and path/session constants in `@clinebot/shared`.
 - Put identity resolution, control plane sync, policy materialization, and enterprise telemetry in `@clinebot/enterprise`.
 

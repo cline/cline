@@ -7,7 +7,7 @@ import {
 	truncateSync,
 } from "node:fs";
 import { dirname, join } from "node:path";
-import type { BasicLogger, RpcChatRuntimeLoggerConfig } from "@clinebot/core";
+import type { BasicLogger, RuntimeLoggerConfig } from "@clinebot/core";
 import { resolveClineDataDir } from "@clinebot/core";
 import { registerDisposable } from "@clinebot/shared";
 import pino, {
@@ -27,14 +27,14 @@ const LOG_CLEANUP_INTERVAL_MS = 2 * 24 * 60 * 60 * 1000;
 export interface CliLoggerAdapter {
 	readonly pino: PinoLogger;
 	readonly core: BasicLogger;
-	readonly runtimeConfig: RpcChatRuntimeLoggerConfig;
+	readonly runtimeConfig: RuntimeLoggerConfig;
 	child(bindings: Record<string, unknown>): CliLoggerAdapter;
 }
 
 interface CreateCliLoggerAdapterInput {
 	runtime: "cli" | "rpc-runtime";
 	component?: string;
-	runtimeConfig?: RpcChatRuntimeLoggerConfig;
+	runtimeConfig?: RuntimeLoggerConfig;
 }
 
 const LOG_LEVELS: ReadonlySet<LevelWithSilent> = new Set([
@@ -57,8 +57,8 @@ function normalizeLogLevel(value: string | undefined): LevelWithSilent {
 
 function normalizeRuntimeConfig(input: {
 	runtime: "cli" | "rpc-runtime";
-	runtimeConfig?: RpcChatRuntimeLoggerConfig;
-}): Required<RpcChatRuntimeLoggerConfig> {
+	runtimeConfig?: RuntimeLoggerConfig;
+}): Required<RuntimeLoggerConfig> {
 	const base = input.runtimeConfig;
 	const defaultDestination = join(
 		resolveClineDataDir(),
@@ -90,7 +90,7 @@ function normalizeRuntimeConfig(input: {
 }
 
 function getOrCreatePinoLogger(
-	config: Required<RpcChatRuntimeLoggerConfig>,
+	config: Required<RuntimeLoggerConfig>,
 	runtime: "cli" | "rpc-runtime",
 ): PinoLogger {
 	if (!config.enabled) {
@@ -266,7 +266,7 @@ function createCoreLogger(logger: PinoLogger): BasicLogger {
 
 function createAdapterFromPino(
 	logger: PinoLogger,
-	runtimeConfig: Required<RpcChatRuntimeLoggerConfig>,
+	runtimeConfig: Required<RuntimeLoggerConfig>,
 ): CliLoggerAdapter {
 	return {
 		pino: logger,

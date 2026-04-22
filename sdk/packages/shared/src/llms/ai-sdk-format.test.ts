@@ -2,6 +2,38 @@ import { describe, expect, it } from "vitest";
 import { formatMessagesForAiSdk } from "./ai-sdk-format";
 
 describe("formatMessagesForAiSdk", () => {
+	it("omits empty system messages", () => {
+		const messages = formatMessagesForAiSdk("", [
+			{
+				role: "user",
+				content: [{ type: "text", text: "hey" }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "hey" }],
+			},
+		]);
+	});
+
+	it("omits whitespace-only system messages", () => {
+		const messages = formatMessagesForAiSdk("   \n\t  ", [
+			{
+				role: "user",
+				content: [{ type: "text", text: "hey" }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "hey" }],
+			},
+		]);
+	});
+
 	it("emits tool results as tool-role messages", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{

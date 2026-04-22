@@ -83,7 +83,6 @@ describe("buildConnectorStartRequest", () => {
 			io: { writeln: vi.fn(), writeErr: vi.fn() },
 			loggerConfig: { enabled: false, level: "info", destination: "stdout" },
 			systemRules: "Rules",
-			teamName: "telegram-test",
 		});
 
 		expect(request.provider).toBe("openrouter");

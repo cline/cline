@@ -170,6 +170,16 @@ describe("plugin-loader", () => {
 			"export default { name: 'duplicate-plugin', manifest: { capabilities: ['commands'] } };",
 			"utf8",
 		);
+		await writeFile(
+			join(dir, "targeted-plugin.mjs"),
+			[
+				"export default {",
+				"  name: 'targeted-plugin',",
+				"  manifest: { capabilities: ['tools'], providerIds: ['openai'], modelIds: ['gpt-5.4'] },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
 	});
 
 	afterAll(async () => {
@@ -288,5 +298,28 @@ describe("plugin-loader", () => {
 		expect(report.warnings[0]?.overriddenPluginPath).toBe(
 			join(dir, "duplicate-one.mjs"),
 		);
+	});
+
+	it("filters plugins by manifest providerIds and modelIds", async () => {
+		const report = await loadAgentPluginsFromPathsWithDiagnostics(
+			[join(dir, "plugin-a.mjs"), join(dir, "targeted-plugin.mjs")],
+			{
+				providerId: "openai",
+				modelId: "gpt-5.4",
+			},
+		);
+		expect(report.plugins.map((plugin) => plugin.name)).toEqual([
+			"plugin-a",
+			"targeted-plugin",
+		]);
+
+		const filtered = await loadAgentPluginsFromPathsWithDiagnostics(
+			[join(dir, "plugin-a.mjs"), join(dir, "targeted-plugin.mjs")],
+			{
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4.5",
+			},
+		);
+		expect(filtered.plugins.map((plugin) => plugin.name)).toEqual(["plugin-a"]);
 	});
 });

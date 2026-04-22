@@ -21,6 +21,24 @@ export type WebviewToolEvent = {
 	error?: string;
 };
 
+export type WebviewChatMessage = {
+	id: string;
+	role: "user" | "assistant" | "meta" | "error";
+	text: string;
+	reasoning?: string;
+	reasoningRedacted?: boolean;
+	toolEvents?: Array<{
+		id: string;
+		toolCallId?: string;
+		name: string;
+		text: string;
+		state: "input-available" | "output-available" | "output-error";
+		input?: unknown;
+		output?: unknown;
+		error?: string;
+	}>;
+};
+
 export type WebviewConfig = {
 	provider?: string;
 	model?: string;
@@ -34,6 +52,10 @@ export type WebviewConfig = {
 	autoApproveTools?: boolean;
 };
 
+export type WebviewChatAttachments = {
+	userImages?: string[];
+};
+
 export type WebviewDefaults = {
 	provider?: string;
 	model?: string;
@@ -41,17 +63,46 @@ export type WebviewDefaults = {
 	cwd: string;
 };
 
+export type WebviewSessionSummary = {
+	sessionId: string;
+	title?: string;
+	status?: string;
+	workspaceRoot?: string;
+	updatedAt?: number;
+};
+
 export type WebviewInboundMessage =
 	| { type: "ready" }
-	| { type: "send"; prompt: string; config?: WebviewConfig }
+	| {
+			type: "send";
+			prompt: string;
+			config?: WebviewConfig;
+			attachments?: WebviewChatAttachments;
+	  }
 	| { type: "abort" }
 	| { type: "reset" }
-	| { type: "loadModels"; providerId: string };
+	| { type: "loadModels"; providerId: string }
+	| { type: "attachSession"; sessionId: string }
+	| { type: "deleteSession"; sessionId: string }
+	| {
+			type: "updateSessionMetadata";
+			sessionId: string;
+			metadata: Record<string, unknown>;
+	  }
+	| { type: "forkSession" };
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
 	| { type: "error"; text: string }
 	| { type: "session_started"; sessionId: string }
+	| {
+			type: "session_hydrated";
+			sessionId: string;
+			status?: string;
+			providerId?: string;
+			modelId?: string;
+			messages: WebviewChatMessage[];
+	  }
 	| { type: "assistant_delta"; text: string }
 	| { type: "reasoning_delta"; text: string; redacted?: boolean }
 	| { type: "tool_event"; text: string; event?: WebviewToolEvent }
@@ -71,5 +122,12 @@ export type WebviewOutboundMessage =
 			}>;
 	  }
 	| { type: "models"; providerId: string; models: WebviewProviderModel[] }
+	| { type: "sessions"; sessions: WebviewSessionSummary[] }
 	| { type: "defaults"; defaults: WebviewDefaults }
-	| { type: "reset_done" };
+	| { type: "reset_done" }
+	| {
+			type: "fork_done";
+			forkedFromSessionId: string;
+			newSessionId: string;
+	  }
+	| { type: "fork_error"; text: string };

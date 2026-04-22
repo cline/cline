@@ -24,10 +24,7 @@ import type {
 	LocalRuntimeStartOptions,
 	StartSessionInput,
 } from "../runtime/runtime-host";
-import type {
-	RuntimeBuilderInput,
-	TeamToolsFactory,
-} from "../runtime/session-runtime";
+import type { RuntimeBuilderInput } from "../runtime/session-runtime";
 import type { CoreSessionConfig } from "../types/config";
 import {
 	type ProviderConfig,
@@ -35,6 +32,7 @@ import {
 	toProviderConfig,
 } from "../types/provider-settings";
 import { resolveWorkspacePath } from "./config";
+import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { buildWorkspaceMetadata } from "./workspace-manifest";
@@ -93,8 +91,16 @@ function resolveReasoningSettings(
 function buildProviderConfig(
 	config: CoreSessionConfig,
 	providerSettingsManager: ProviderSettingsManager,
+	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
 ): ProviderConfig {
 	const stored = providerSettingsManager.getProviderSettings(config.providerId);
+	const modelCatalog =
+		modelCatalogDefaults || stored?.modelCatalog
+			? {
+					...(modelCatalogDefaults ?? {}),
+					...(stored?.modelCatalog ?? {}),
+				}
+			: undefined;
 	const settings: ProviderSettings = {
 		...(stored ?? {}),
 		provider: config.providerId,
@@ -103,6 +109,7 @@ function buildProviderConfig(
 		baseUrl: config.baseUrl ?? stored?.baseUrl,
 		headers: config.headers ?? stored?.headers,
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
+		modelCatalog,
 	};
 	const providerConfig = toProviderConfig(settings);
 	if (config.knownModels) {
@@ -121,7 +128,6 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	providerSettingsManager: ProviderSettingsManager;
 	defaultTelemetry?: ITelemetryService;
 	defaultToolExecutors?: Partial<ToolExecutors>;
-	teamToolsFactory?: TeamToolsFactory;
 	defaultToolPolicies?: AgentConfig["toolPolicies"];
 	defaultRequestToolApproval?: (
 		request: ToolApprovalRequest,
@@ -159,7 +165,6 @@ export async function prepareLocalRuntimeBootstrap(
 		providerSettingsManager,
 		defaultTelemetry,
 		defaultToolExecutors,
-		teamToolsFactory,
 		defaultToolPolicies,
 		defaultRequestToolApproval,
 		onPluginEvent,
@@ -173,6 +178,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const configOverrides = localRuntime?.configOverrides as
 		| Partial<LocalRuntimeConfigOverrides>
 		| undefined;
+	const localConfig = configOverrides as Partial<CoreSessionConfig> | undefined;
 
 	const fileHooks = createHookConfigFileHooks({
 		cwd: input.config.cwd,
@@ -197,10 +203,12 @@ export async function prepareLocalRuntimeBootstrap(
 		| undefined;
 	try {
 		loadedPlugins = await resolveAndLoadAgentPlugins({
-			pluginPaths: configOverrides?.pluginPaths,
+			pluginPaths: localConfig?.pluginPaths,
 			workspacePath,
 			cwd: input.config.cwd,
 			onEvent: onPluginEvent,
+			providerId: input.config.providerId,
+			modelId: input.config.modelId,
 		});
 		logPluginDiagnostics(
 			loadedPlugins.failures,
@@ -216,7 +224,7 @@ export async function prepareLocalRuntimeBootstrap(
 
 	const extensions = mergeAgentExtensions(
 		configOverrides?.extensions,
-		loadedPlugins?.extensions,
+		filterExtensionToolRegistrations(loadedPlugins?.extensions),
 	);
 	const workspaceMetadata = await buildWorkspaceMetadata(input.config.cwd);
 	const baseConfig: CoreSessionConfig = {
@@ -229,6 +237,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const providerConfig = buildProviderConfig(
 		baseConfig,
 		providerSettingsManager,
+		localRuntime?.modelCatalogDefaults,
 	);
 	const hooks = mergeAgentHooks([
 		baseConfig.hooks,
@@ -249,9 +258,12 @@ export async function prepareLocalRuntimeBootstrap(
 		workspaceMetadata,
 		hooks,
 	};
-	const toolPolicies = input.toolPolicies ?? defaultToolPolicies;
+	const toolPolicies =
+		input.toolPolicies ?? baseConfig.toolPolicies ?? defaultToolPolicies;
 	const requestToolApproval =
 		input.requestToolApproval ?? defaultRequestToolApproval;
+	const effectiveToolExecutors =
+		localRuntime?.defaultToolExecutors ?? defaultToolExecutors;
 
 	return {
 		effectiveInput: input,
@@ -271,10 +283,9 @@ export async function prepareLocalRuntimeBootstrap(
 			createSpawnTool,
 			onTeamRestored: localRuntime?.onTeamRestored,
 			userInstructionWatcher: localRuntime?.userInstructionWatcher,
-			defaultToolExecutors,
+			defaultToolExecutors: effectiveToolExecutors,
 			logger: config.logger,
 			telemetry: config.telemetry,
-			teamToolsFactory,
 		},
 	};
 }

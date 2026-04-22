@@ -26,8 +26,6 @@ function collectWorkspaceAliases(root: string): Record<string, string> {
 		"@clinebot/agents": resolve(root, "packages/agents/src/index.ts"),
 		"@clinebot/core": resolve(root, "packages/core/src/index.ts"),
 		"@clinebot/llms": resolve(root, "packages/llms/src/index.ts"),
-		"@clinebot/rpc": resolve(root, "packages/rpc/src/index.ts"),
-		"@clinebot/scheduler": resolve(root, "packages/scheduler/src/index.ts"),
 		"@clinebot/shared": resolve(root, "packages/shared/src/index.ts"),
 		"@clinebot/shared/storage": resolve(
 			root,

@@ -101,6 +101,30 @@ function summarizeRunCommandsInput(input: unknown): string {
 	return "";
 }
 
+function formatAskQuestionInput(input: Record<string, unknown>): string {
+	const question =
+		typeof input.question === "string" ? input.question.trim() : "";
+	const options = Array.isArray(input.options)
+		? input.options
+				.map((option) => String(option).trim())
+				.filter((option) => option.length > 0)
+		: [];
+
+	if (!question && options.length === 0) {
+		return "";
+	}
+
+	const lines = ["The agent is waiting for your input."];
+	if (question) {
+		lines.push(question);
+	}
+	for (const [index, option] of options.entries()) {
+		lines.push(`${index + 1}. ${option}`);
+	}
+	lines.push("> Reply with an option number or type your answer.");
+	return lines.join("\n");
+}
+
 export function formatToolInput(toolName: string, input: unknown): string {
 	if (!input) {
 		return "";
@@ -117,6 +141,8 @@ export function formatToolInput(toolName: string, input: unknown): string {
 	const obj = input as Record<string, unknown>;
 
 	switch (toolName) {
+		case "ask_question":
+			return formatAskQuestionInput(obj);
 		case "read_files":
 			if (Array.isArray(obj.file_paths)) {
 				return truncate(obj.file_paths.join(", "), 120);

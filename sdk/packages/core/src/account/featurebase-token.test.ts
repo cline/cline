@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { ClineAccountService } from "./cline-account-service";
 import {
 	type ClineAccountOperations,
-	executeRpcClineAccountAction,
+	executeClineAccountAction,
 	RpcClineAccountService,
 } from "./rpc";
 
@@ -85,7 +85,7 @@ describe("ClineAccountService.fetchFeaturebaseToken", () => {
 	});
 });
 
-describe("executeRpcClineAccountAction - fetchFeaturebaseToken", () => {
+describe("executeClineAccountAction - fetchFeaturebaseToken", () => {
 	it("dispatches fetchFeaturebaseToken", async () => {
 		const service: ClineAccountOperations = {
 			fetchMe: vi.fn(async () => ({
@@ -112,7 +112,7 @@ describe("executeRpcClineAccountAction - fetchFeaturebaseToken", () => {
 			})),
 		};
 
-		const result = await executeRpcClineAccountAction(
+		const result = await executeClineAccountAction(
 			{ action: "clineAccount", operation: "fetchFeaturebaseToken" },
 			service,
 		);
@@ -143,7 +143,7 @@ describe("executeRpcClineAccountAction - fetchFeaturebaseToken", () => {
 			switchAccount: vi.fn(async () => {}),
 		};
 
-		const result = await executeRpcClineAccountAction(
+		const result = await executeClineAccountAction(
 			{ action: "clineAccount", operation: "fetchFeaturebaseToken" },
 			service,
 		);

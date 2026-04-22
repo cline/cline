@@ -2,17 +2,20 @@ import {
 	createDiscordAdapter,
 	type DiscordAdapter,
 } from "@chat-adapter/discord";
-import type { RpcChatStartSessionRequest } from "@clinebot/core";
+import type { ChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core";
-import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import { HubSessionClient } from "@clinebot/hub";
 import type {
 	ConnectDiscordOptions,
 	DiscordConnectorState,
 } from "@clinebot/shared";
 import { Chat, ConsoleLogger, type Thread, ThreadImpl } from "chat";
 import type { Command } from "commander";
-import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import { createCliLoggerAdapter } from "../../logging/adapter";
+import {
+	ensureCliHubServer,
+	parseHubEndpointOverride,
+} from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import {
@@ -93,13 +96,12 @@ async function buildDiscordStartRequest(
 	loggerConfig: Parameters<
 		typeof buildConnectorStartRequest
 	>[0]["loggerConfig"],
-): Promise<RpcChatStartSessionRequest> {
+): Promise<ChatStartSessionRequest> {
 	return buildConnectorStartRequest({
 		options,
 		io,
 		loggerConfig,
 		systemRules: DISCORD_SYSTEM_RULES,
-		teamName: `discord-${options.userName.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
 }
 
@@ -145,7 +147,7 @@ function resolveDiscordParticipant(
 async function persistDiscordThreadContext(input: {
 	thread: Thread<DiscordThreadState>;
 	bindingsPath: string;
-	baseStartRequest: RpcChatStartSessionRequest;
+	baseStartRequest: ChatStartSessionRequest;
 	rawMessage: unknown;
 	errorLabel: string;
 }): Promise<void> {
@@ -178,7 +180,7 @@ async function persistDiscordThreadContext(input: {
 
 async function deliverScheduledResult(input: {
 	bot: Chat;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	bindingsPath: string;
 	userName: string;
 	scheduleId: string;
@@ -535,21 +537,25 @@ class DiscordConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
-		process.env.CLINE_RPC_ADDRESS = rpcAddress;
+		const rpcAddress = await ensureCliHubServer(
+			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+			parseHubEndpointOverride(options.rpcAddress),
+		);
 
 		const clientId = `discord-${process.pid}-${Date.now()}`;
-		await registerRpcClient(rpcAddress, {
+		const client = new HubSessionClient({
+			address: rpcAddress,
 			clientId,
 			clientType: "cli",
+			displayName: "discord connector",
+			workspaceRoot: startRequest.workspaceRoot || startRequest.cwd,
+			cwd: startRequest.cwd,
 			metadata: {
 				transport: "discord",
 				applicationId: options.applicationId,
 				userName: options.userName,
 			},
-		}).catch(() => undefined);
-
-		const client = new RpcSessionClient({ address: rpcAddress });
+		});
 		this.writeConnectorState(statePath, {
 			userName: options.userName,
 			applicationId: options.applicationId,

@@ -1,6 +1,8 @@
 import type * as LlmsProviders from "@clinebot/llms";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { runBasicCompaction } from "./basic-compaction";
 import { createContextCompactionPrepareTurn } from "./compaction";
+import { createTokenEstimator } from "./compaction-shared";
 
 type FakeChunk = Record<string, unknown>;
 
@@ -418,6 +420,44 @@ describe("createContextCompactionPrepareTurn", () => {
 
 		expect(createHandlerMock).not.toHaveBeenCalled();
 		expect(result).toBeUndefined();
+	});
+
+	it("preserves user image blocks during basic compaction sanitization", () => {
+		const messages: LlmsProviders.Message[] = [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "  Most recent user turn  " },
+					{ type: "image", data: "abc", mediaType: "image/png" },
+				],
+			},
+		];
+
+		const result = runBasicCompaction({
+			context: {
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				iteration: 1,
+				messages,
+				model: {
+					id: "mock-model",
+					provider: "anthropic",
+					info: { id: "mock-model", contextWindow: 100 },
+				},
+				contextWindowTokens: 100,
+				triggerTokens: 100,
+				thresholdRatio: 1,
+				utilizationRatio: 0.1,
+			},
+			estimateMessageTokens: createTokenEstimator(),
+		});
+
+		expect(result?.messages).toBeDefined();
+		expect(result?.messages[0]?.content).toEqual([
+			{ type: "text", text: "Most recent user turn" },
+			{ type: "image", data: "abc", mediaType: "image/png" },
+		]);
 	});
 
 	it("does not compact when only pre-truncation messages exceed the threshold", async () => {

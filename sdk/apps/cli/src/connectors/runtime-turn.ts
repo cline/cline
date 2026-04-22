@@ -1,5 +1,5 @@
-import type { RpcChatRunTurnRequest } from "@clinebot/core";
-import type { RpcSessionClient } from "@clinebot/rpc";
+import type { ChatRunTurnRequest } from "@clinebot/core";
+import type { HubSessionClient } from "@clinebot/hub";
 import type { CliLoggerAdapter } from "../logging/adapter";
 
 export type PendingConnectorApproval = {
@@ -133,9 +133,9 @@ function resolveTextDelta(
 }
 
 export function createConnectorRuntimeTurnStream(input: {
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	sessionId: string;
-	request: RpcChatRunTurnRequest;
+	request: ChatRunTurnRequest;
 	clientId: string;
 	logger: CliLoggerAdapter;
 	transport: string;

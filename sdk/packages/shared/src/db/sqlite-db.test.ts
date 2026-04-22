@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -8,6 +9,16 @@ import {
 	loadSqliteDb,
 	withSqliteBusyRetry,
 } from "./sqlite-db";
+
+const require = createRequire(import.meta.url);
+const sqliteAvailable = (() => {
+	try {
+		require("node:sqlite");
+		return true;
+	} catch {
+		return false;
+	}
+})();
 
 describe("isSqliteBusyError", () => {
 	it("detects busy and locked sqlite errors by code", () => {
@@ -66,11 +77,15 @@ describe("withSqliteBusyRetry", () => {
 });
 
 describe("ensureSessionSchema", () => {
-	it("adds transcript_path back to legacy sessions tables when missing", () => {
-		const dir = mkdtempSync(join(tmpdir(), "sqlite-schema-migrate-"));
-		try {
-			const db = loadSqliteDb(join(dir, "sessions.db"));
-			db.exec(`CREATE TABLE sessions (
+	const sqliteIt = sqliteAvailable ? it : it.skip;
+
+	sqliteIt(
+		"adds transcript_path back to legacy sessions tables when missing",
+		() => {
+			const dir = mkdtempSync(join(tmpdir(), "sqlite-schema-migrate-"));
+			try {
+				const db = loadSqliteDb(join(dir, "sessions.db"));
+				db.exec(`CREATE TABLE sessions (
 				session_id TEXT PRIMARY KEY,
 				source TEXT NOT NULL,
 				pid INTEGER NOT NULL,
@@ -99,7 +114,7 @@ describe("ensureSessionSchema", () => {
 				messages_path TEXT,
 				updated_at TEXT NOT NULL
 			);`);
-			db.exec(`INSERT INTO sessions (
+				db.exec(`INSERT INTO sessions (
 				session_id, source, pid, started_at, ended_at, exit_code, status, status_lock, interactive,
 				provider, model, cwd, workspace_root, team_name, enable_tools, enable_spawn, enable_teams,
 				parent_session_id, parent_agent_id, agent_id, conversation_id, is_subagent, prompt,
@@ -111,29 +126,30 @@ describe("ensureSessionSchema", () => {
 				NULL, '', '/tmp/session-1.messages.json', '2026-04-21T00:00:00.000Z'
 			);`);
 
-			ensureSessionSchema(db, { includeLegacyMigrations: true });
+				ensureSessionSchema(db, { includeLegacyMigrations: true });
 
-			const columns = db
-				.prepare("PRAGMA table_info(sessions);")
-				.all()
-				.map((column) => String(column.name));
-			expect(columns).toContain("transcript_path");
-			expect(columns).toContain("messages_path");
+				const columns = db
+					.prepare("PRAGMA table_info(sessions);")
+					.all()
+					.map((column) => String(column.name));
+				expect(columns).toContain("transcript_path");
+				expect(columns).toContain("messages_path");
 
-			const row = db
-				.prepare(
-					"SELECT session_id, prompt, transcript_path, messages_path FROM sessions WHERE session_id = ?",
-				)
-				.get("session-1");
-			expect(row).toMatchObject({
-				session_id: "session-1",
-				prompt: "hello",
-				transcript_path: "",
-				messages_path: "/tmp/session-1.messages.json",
-			});
-			db.close?.();
-		} finally {
-			rmSync(dir, { recursive: true, force: true });
-		}
-	});
+				const row = db
+					.prepare(
+						"SELECT session_id, prompt, transcript_path, messages_path FROM sessions WHERE session_id = ?",
+					)
+					.get("session-1");
+				expect(row).toMatchObject({
+					session_id: "session-1",
+					prompt: "hello",
+					transcript_path: "",
+					messages_path: "/tmp/session-1.messages.json",
+				});
+				db.close?.();
+			} finally {
+				rmSync(dir, { recursive: true, force: true });
+			}
+		},
+	);
 });

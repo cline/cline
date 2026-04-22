@@ -16,10 +16,8 @@ import { nanoid } from "nanoid";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { splitCoreSessionConfig } from "../runtime/runtime-host";
 import type { SessionManifest } from "../session/session-manifest";
-import type {
-	RootSessionArtifacts,
-	SessionRow,
-} from "../session/session-service";
+import type { SessionRow } from "../session/session-row";
+import type { RootSessionArtifacts } from "../session/session-service";
 import type { SessionSource, SessionStatus } from "../types/common";
 import { LocalRuntimeHost as RuntimeHostUnderTest } from "./local";
 

@@ -1,4 +1,4 @@
-import type { RpcSaveProviderSettingsActionRequest } from "@clinebot/core";
+import type { SaveProviderSettingsActionRequest } from "@clinebot/core";
 import {
 	type ProviderSettingsManager,
 	saveLocalProviderSettings,
@@ -29,7 +29,7 @@ describe("saveLocalProviderSettings", () => {
 				providerId: "openai",
 				apiKey: null,
 				baseUrl: null,
-			} as unknown as RpcSaveProviderSettingsActionRequest,
+			} as unknown as SaveProviderSettingsActionRequest,
 		);
 
 		expect(save).toHaveBeenCalledTimes(1);
@@ -66,7 +66,7 @@ describe("saveLocalProviderSettings", () => {
 				providerId: "openai",
 				apiKey: "   ",
 				baseUrl: "",
-			} as RpcSaveProviderSettingsActionRequest,
+			} as SaveProviderSettingsActionRequest,
 		);
 
 		expect(save).toHaveBeenCalledTimes(1);
@@ -104,7 +104,7 @@ describe("saveLocalProviderSettings", () => {
 				action: "saveProviderSettings",
 				providerId: "cline",
 				apiKey: "manual-new",
-			} as RpcSaveProviderSettingsActionRequest,
+			} as SaveProviderSettingsActionRequest,
 		);
 
 		expect(save).toHaveBeenCalledTimes(1);

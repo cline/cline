@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AgentResult } from "@clinebot/shared";
+import type { AgentResult, BasicLogger } from "@clinebot/shared";
 import { setClineDir, setHomeDir } from "@clinebot/shared/storage";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
@@ -518,6 +518,96 @@ describe("LocalRuntimeHost", () => {
 		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
 		expect(writeSessionManifest).toHaveBeenCalledTimes(1);
 		expect(shutdown).toHaveBeenCalledTimes(1);
+	});
+
+	it("does not fail a completed run when shutdown cleanup throws", async () => {
+		const sessionId = "sess-cleanup-errors";
+		const manifest = createManifest(sessionId);
+		const createRootSessionWithArtifacts = vi.fn().mockResolvedValue({
+			manifestPath: "/tmp/manifest-cleanup-errors.json",
+			messagesPath: "/tmp/messages-cleanup-errors.json",
+			manifest,
+		});
+		const persistSessionMessages = vi.fn();
+		const updateSessionStatus = vi
+			.fn()
+			.mockRejectedValue(new Error("status write failed"));
+		const writeSessionManifest = vi.fn();
+		const listSessions = vi.fn().mockResolvedValue([]);
+		const deleteSession = vi.fn().mockResolvedValue({ deleted: true });
+		const logger: BasicLogger = { debug: vi.fn(), log: vi.fn() };
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts,
+			persistSessionMessages,
+			updateSessionStatus,
+			writeSessionManifest,
+			listSessions,
+			deleteSession,
+		};
+
+		const shutdown = vi
+			.fn()
+			.mockRejectedValue(new Error("runtime shutdown failed"));
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown,
+				logger,
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn(),
+			abort: vi.fn(),
+			shutdown: vi.fn().mockRejectedValue(new Error("agent shutdown failed")),
+			getMessages: vi.fn().mockReturnValue([]),
+			messages: [],
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		const started = await manager.start(
+			normalizeStartInput({
+				config: createConfig({ sessionId, logger }),
+				prompt: "hello",
+				interactive: false,
+			}),
+		);
+
+		expect(started.result?.finishReason).toBe("completed");
+		expect(updateSessionStatus).toHaveBeenCalledWith(sessionId, "completed", 0);
+		expect(agent.shutdown).toHaveBeenCalledWith("session_complete");
+		expect(shutdown).toHaveBeenCalledWith("session_complete");
+		expect(logger.log).toHaveBeenCalledWith(
+			"Session shutdown cleanup failed",
+			expect.objectContaining({
+				sessionId,
+				stage: "update_status",
+				severity: "warn",
+			}),
+		);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Session shutdown cleanup failed",
+			expect.objectContaining({
+				sessionId,
+				stage: "agent_shutdown",
+				severity: "warn",
+			}),
+		);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Session shutdown cleanup failed",
+			expect.objectContaining({
+				sessionId,
+				stage: "runtime_shutdown",
+				severity: "warn",
+			}),
+		);
 	});
 
 	it("preserves manifest metadata updates and persists total cost", async () => {
@@ -1300,6 +1390,10 @@ describe("LocalRuntimeHost", () => {
 		const persisted = persistSessionMessages.mock.calls[1]?.[1];
 		expect(persisted?.[1]).toMatchObject({
 			role: "assistant",
+			modelInfo: {
+				id: "claude-sonnet-4-6",
+				provider: "anthropic",
+			},
 			metrics: {
 				inputTokens: 33,
 				outputTokens: 12,
@@ -1634,6 +1728,107 @@ describe("LocalRuntimeHost", () => {
 					event.type === "pending_prompt_submitted" &&
 					"payload" in event &&
 					(event.payload as { prompt?: string }).prompt === "queued second"
+				);
+			}),
+		).toBe(true);
+	});
+
+	it("auto-queues sends to a running interactive session", async () => {
+		const sessionId = "sess-auto-queue";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-auto-queue.json",
+				messagesPath: "/tmp/messages-auto-queue.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let canStartRun = false;
+		const run = vi.fn().mockResolvedValue(createResult({ text: "first" }));
+		const continueFn = vi
+			.fn()
+			.mockResolvedValue(createResult({ text: "next" }));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: continueFn,
+					canStartRun: vi.fn(() => canStartRun),
+					abort: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+		const events: Array<unknown> = [];
+		manager.subscribe((event) => {
+			events.push(event);
+		});
+
+		await manager.start(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		await expect(
+			manager.send({ sessionId, prompt: "queued implicitly" }),
+		).resolves.toBeUndefined();
+
+		expect(run).not.toHaveBeenCalled();
+		expect(continueFn).not.toHaveBeenCalled();
+		const promptSnapshots = events
+			.filter((event) => {
+				return (
+					typeof event === "object" &&
+					event !== null &&
+					"type" in event &&
+					event.type === "pending_prompts"
+				);
+			})
+			.map((event) => (event as { payload: { prompts: unknown[] } }).payload);
+		expect(promptSnapshots.at(-1)).toEqual({
+			prompts: [
+				expect.objectContaining({
+					prompt: "queued implicitly",
+					delivery: "queue",
+					attachmentCount: 0,
+				}),
+			],
+			sessionId,
+		});
+
+		canStartRun = true;
+		await manager.send({ sessionId, prompt: "run now" });
+
+		expect(run).toHaveBeenCalledTimes(1);
+		expect(
+			events.some((event) => {
+				return (
+					typeof event === "object" &&
+					event !== null &&
+					"type" in event &&
+					event.type === "pending_prompt_submitted" &&
+					"payload" in event &&
+					(event.payload as { prompt?: string; delivery?: string }).prompt ===
+						"queued implicitly" &&
+					(event.payload as { delivery?: string }).delivery === "queue"
 				);
 			}),
 		).toBe(true);

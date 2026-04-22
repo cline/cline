@@ -1,15 +1,18 @@
-import type { RpcChatStartSessionRequest } from "@clinebot/core";
+import type { ChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core";
-import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import { HubSessionClient } from "@clinebot/hub";
 import type {
 	ConnectLinearOptions,
 	LinearConnectorState,
 } from "@clinebot/shared";
 import { type Adapter, Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
-import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
+import {
+	ensureCliHubServer,
+	parseHubEndpointOverride,
+} from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import {
@@ -107,7 +110,7 @@ async function buildLinearStartRequest(
 	loggerConfig: Parameters<
 		typeof buildConnectorStartRequest
 	>[0]["loggerConfig"],
-): Promise<RpcChatStartSessionRequest> {
+): Promise<ChatStartSessionRequest> {
 	return buildConnectorStartRequest({
 		options: {
 			...options,
@@ -116,7 +119,6 @@ async function buildLinearStartRequest(
 		io,
 		loggerConfig,
 		systemRules: LINEAR_SYSTEM_RULES,
-		teamName: `linear-${options.userName.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
 }
 
@@ -168,7 +170,7 @@ function resolveLinearParticipant(
 async function persistLinearThreadContext(input: {
 	thread: Thread<LinearThreadState>;
 	bindingsPath: string;
-	baseStartRequest: RpcChatStartSessionRequest;
+	baseStartRequest: ChatStartSessionRequest;
 	rawMessage: unknown;
 	errorLabel: string;
 }): Promise<void> {
@@ -201,7 +203,7 @@ async function persistLinearThreadContext(input: {
 
 async function deliverScheduledResult(input: {
 	bot: Chat;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	logger: CliLoggerAdapter;
 	bindingsPath: string;
 	userName: string;
@@ -579,20 +581,24 @@ class LinearConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
-		process.env.CLINE_RPC_ADDRESS = rpcAddress;
+		const rpcAddress = await ensureCliHubServer(
+			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+			parseHubEndpointOverride(options.rpcAddress),
+		);
 
 		const clientId = `linear-${process.pid}-${Date.now()}`;
-		await registerRpcClient(rpcAddress, {
+		const client = new HubSessionClient({
+			address: rpcAddress,
 			clientId,
 			clientType: "cli",
+			displayName: "linear connector",
+			workspaceRoot: startRequest.workspaceRoot || startRequest.cwd,
+			cwd: startRequest.cwd,
 			metadata: {
 				transport: "linear",
 				userName: options.userName,
 			},
-		}).catch(() => undefined);
-
-		const client = new RpcSessionClient({ address: rpcAddress });
+		});
 		this.writeConnectorState(statePath, {
 			userName: options.userName,
 			pid: process.pid,

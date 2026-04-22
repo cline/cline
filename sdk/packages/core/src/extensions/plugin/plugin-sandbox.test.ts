@@ -10,8 +10,6 @@ function createApiCapture() {
 	const api = {
 		registerTool: (tool: Tool) => tools.push(tool),
 		registerCommand: () => {},
-		registerShortcut: () => {},
-		registerFlag: () => {},
 		registerMessageBuilder: () => {},
 		registerProvider: () => {},
 	};
@@ -206,6 +204,16 @@ describe("plugin-sandbox", () => {
 		await writeFile(
 			join(dir, "plugin-duplicate-b.mjs"),
 			"export default { name: 'sandbox-duplicate', manifest: { capabilities: ['commands'] } };",
+			"utf8",
+		);
+		await writeFile(
+			join(dir, "plugin-targeted.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-targeted',",
+				"  manifest: { capabilities: ['tools'], providerIds: ['openai'], modelIds: ['gpt-5.4'] },",
+				"};",
+			].join("\n"),
 			"utf8",
 		);
 
@@ -420,4 +428,34 @@ describe("plugin-sandbox", () => {
 		} as ToolContext);
 		expect(result).toEqual({ echoed: "ok" });
 	});
+
+	it("filters sandbox plugins by manifest providerIds and modelIds", async () => {
+		const matched = await loadSandboxedPlugins({
+			pluginPaths: [join(dir, "plugin-targeted.mjs")],
+			providerId: "openai",
+			modelId: "gpt-5.4",
+			importTimeoutMs: 30_000,
+		});
+
+		try {
+			expect(matched.extensions?.map((extension) => extension.name)).toEqual([
+				"sandbox-targeted",
+			]);
+		} finally {
+			await matched.shutdown();
+		}
+
+		const filtered = await loadSandboxedPlugins({
+			pluginPaths: [join(dir, "plugin-targeted.mjs")],
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4.5",
+			importTimeoutMs: 30_000,
+		});
+
+		try {
+			expect(filtered.extensions).toEqual([]);
+		} finally {
+			await filtered.shutdown();
+		}
+	}, 15_000);
 });

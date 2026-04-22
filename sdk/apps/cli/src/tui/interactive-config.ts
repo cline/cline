@@ -1,19 +1,22 @@
-import { existsSync } from "node:fs";
-import { basename, extname } from "node:path";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { basename, extname, join } from "node:path";
 import {
-	ALL_DEFAULT_TOOL_NAMES,
-	createAgentConfigWatcher,
+	type BuiltinToolAvailabilityContext,
 	discoverPluginModulePaths,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
+	listPluginTools,
+	resolveAgentConfigSearchPaths,
 	resolveDefaultMcpSettingsPath,
 	resolveMcpServerRegistrations,
 	resolvePluginConfigSearchPaths,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
+import { getToolCatalog } from "../runtime/tools";
 
 export type InteractiveConfigTab =
 	| "tools"
+	| "workflows"
 	| "agents"
 	| "plugins"
 	| "hooks"
@@ -26,7 +29,12 @@ export interface InteractiveConfigItem {
 	name: string;
 	path: string;
 	enabled?: boolean;
-	source: "global" | "workspace";
+	source:
+		| "global"
+		| "workspace"
+		| "builtin"
+		| "global-plugin"
+		| "workspace-plugin";
 	description?: string;
 }
 
@@ -53,17 +61,84 @@ function detectSource(
 
 function toSorted<T extends InteractiveConfigItem>(items: T[]): T[] {
 	return [...items].sort((a, b) => {
+		const sourceRank = (source: InteractiveConfigItem["source"]): number => {
+			switch (source) {
+				case "workspace":
+				case "workspace-plugin":
+					return 0;
+				case "global":
+				case "global-plugin":
+					return 1;
+				case "builtin":
+					return 2;
+			}
+		};
 		if (a.source !== b.source) {
-			return a.source === "workspace" ? -1 : 1;
+			return sourceRank(a.source) - sourceRank(b.source);
 		}
 		return a.name.localeCompare(b.name);
 	});
+}
+
+function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
+	const agentsById = new Map<string, InteractiveConfigItem>();
+	const directories = resolveAgentConfigSearchPaths(workspaceRoot).filter(
+		(directory) => existsSync(directory),
+	);
+
+	for (const directory of directories) {
+		try {
+			const entries = readdirSync(directory, { withFileTypes: true });
+			for (const entry of entries) {
+				if (!entry.isFile()) {
+					continue;
+				}
+				const extension = extname(entry.name).toLowerCase();
+				if (extension !== ".yml" && extension !== ".yaml") {
+					continue;
+				}
+				const filePath = join(directory, entry.name);
+				const raw = readFileSync(filePath, "utf8");
+				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
+				const frontmatter = frontmatterMatch?.[1] ?? "";
+				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);
+				const descriptionMatch = frontmatter.match(
+					/^\s*description:\s*(.+?)\s*$/m,
+				);
+				const parsedName = nameMatch?.[1]?.replace(/^["']|["']$/g, "").trim();
+				const parsedDescription = descriptionMatch?.[1]
+					?.replace(/^["']|["']$/g, "")
+					.trim();
+				const name =
+					parsedName && parsedName.length > 0
+						? parsedName
+						: basename(entry.name, extension);
+				const id = name.toLowerCase();
+				if (agentsById.has(id)) {
+					continue;
+				}
+				agentsById.set(id, {
+					id,
+					name,
+					path: filePath,
+					enabled: true,
+					source: detectSource(filePath, workspaceRoot),
+					description: parsedDescription,
+				});
+			}
+		} catch {
+			// Best effort: keep listing other agent config roots.
+		}
+	}
+
+	return [...agentsById.values()];
 }
 
 export async function loadInteractiveConfigData(input: {
 	watcher?: UserInstructionConfigWatcher;
 	cwd: string;
 	workspaceRoot: string;
+	availabilityContext?: BuiltinToolAvailabilityContext;
 }): Promise<InteractiveConfigData> {
 	const workflows: InteractiveConfigItem[] = [];
 	const rules: InteractiveConfigItem[] = [];
@@ -127,25 +202,7 @@ export async function loadInteractiveConfigData(input: {
 		});
 	}
 
-	const agentWatcher = createAgentConfigWatcher();
-	try {
-		await agentWatcher.start();
-		for (const [id, record] of agentWatcher.getSnapshot("agent").entries()) {
-			const agent = record.item;
-			agents.push({
-				id,
-				name: agent.name,
-				path: record.filePath,
-				enabled: true,
-				source: detectSource(record.filePath, input.workspaceRoot),
-				description: agent.description,
-			});
-		}
-	} catch {
-		// Best effort: keep agents empty when watcher initialization fails.
-	} finally {
-		agentWatcher.stop();
-	}
+	agents.push(...loadAgentConfigItems(input.workspaceRoot));
 
 	const pluginDirectories = resolvePluginConfigSearchPaths(
 		input.workspaceRoot,
@@ -182,13 +239,33 @@ export async function loadInteractiveConfigData(input: {
 		}
 	}
 
-	for (const toolName of [...ALL_DEFAULT_TOOL_NAMES, "submit_and_exit"]) {
+	tools.push(
+		...getToolCatalog(input.availabilityContext).map((tool) => ({
+			id: tool.id,
+			name: tool.id,
+			path:
+				tool.headlessToolNames.length === 1 &&
+				tool.headlessToolNames[0] === tool.id
+					? tool.id
+					: tool.headlessToolNames.join(", "),
+			enabled: tool.defaultEnabled,
+			source: "builtin" as const,
+			description: tool.description,
+		})),
+	);
+	for (const pluginTool of await listPluginTools({
+		workspacePath: input.workspaceRoot,
+		cwd: input.cwd,
+		providerId: input.availabilityContext?.providerId,
+		modelId: input.availabilityContext?.modelId,
+	})) {
 		tools.push({
-			id: toolName,
-			name: toolName,
-			path: "(builtin)",
-			enabled: true,
-			source: "global",
+			id: `${pluginTool.pluginName}:${pluginTool.name}:${pluginTool.path}`,
+			name: pluginTool.name,
+			path: pluginTool.path,
+			enabled: pluginTool.enabled,
+			source: pluginTool.source,
+			description: pluginTool.description,
 		});
 	}
 

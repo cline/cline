@@ -84,13 +84,13 @@ The package also exports storage and settings helpers such as:
 
 - `ProviderSettingsManager`
 - `SqliteTeamStore`
-- SQLite RPC session backend helpers from `@clinebot/core`
+- SQLite-backed local session stores and artifacts through `@clinebot/core`
 
 ## Related Packages
 
 - `@clinebot/agents`: stateless agent loop and tool primitives
 - `@clinebot/llms`: provider/model configuration and handlers
-- `@clinebot/rpc`: remote session and runtime transport
+- `@clinebot/hub`: hub discovery and hub session clients
 
 ## More Examples
 

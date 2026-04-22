@@ -1,10 +1,10 @@
 import type {
-	RpcEnterpriseAuthenticateRequest,
-	RpcEnterpriseAuthenticateResponse,
-	RpcEnterpriseStatusRequest,
-	RpcEnterpriseStatusResponse,
-	RpcEnterpriseSyncRequest,
-	RpcEnterpriseSyncResponse,
+	EnterpriseAuthenticateRequest,
+	EnterpriseAuthenticateResponse,
+	EnterpriseStatusRequest,
+	EnterpriseStatusResponse,
+	EnterpriseSyncRequest,
+	EnterpriseSyncResponse,
 } from "@clinebot/shared";
 import { EnterpriseAuthService } from "../auth/service";
 import type {
@@ -23,14 +23,14 @@ import { RemoteConfigEnterpriseTelemetryAdapter } from "../telemetry/remote-conf
 
 export interface EnterpriseRpcHandlers {
 	enterpriseAuthenticate(
-		request: RpcEnterpriseAuthenticateRequest,
-	): Promise<RpcEnterpriseAuthenticateResponse>;
+		request: EnterpriseAuthenticateRequest,
+	): Promise<EnterpriseAuthenticateResponse>;
 	enterpriseSync(
-		request: RpcEnterpriseSyncRequest,
-	): Promise<RpcEnterpriseSyncResponse>;
+		request: EnterpriseSyncRequest,
+	): Promise<EnterpriseSyncResponse>;
 	enterpriseGetStatus(
-		request: RpcEnterpriseStatusRequest,
-	): Promise<RpcEnterpriseStatusResponse>;
+		request: EnterpriseStatusRequest,
+	): Promise<EnterpriseStatusResponse>;
 }
 
 export interface CreateEnterpriseRpcHandlersOptions
@@ -85,7 +85,7 @@ function countBundleInstructions(bundle: EnterpriseConfigBundle | undefined): {
 }
 
 function mapRoles(
-	claims: RpcEnterpriseAuthenticateResponse["claims"],
+	claims: EnterpriseAuthenticateResponse["claims"],
 	claimsMapper?: EnterpriseClaimsMapper,
 ): string[] {
 	if (!claims) {
@@ -108,9 +108,9 @@ function toRecord(
 
 function createRequestOptions(
 	request:
-		| RpcEnterpriseAuthenticateRequest
-		| RpcEnterpriseSyncRequest
-		| RpcEnterpriseStatusRequest,
+		| EnterpriseAuthenticateRequest
+		| EnterpriseSyncRequest
+		| EnterpriseStatusRequest,
 	options: CreateEnterpriseRpcHandlersOptions,
 ) {
 	const paths = resolveEnterprisePaths({
@@ -149,8 +149,8 @@ export function createEnterpriseRpcHandlers(
 	const providerId = resolveConfiguredProviderId(options);
 	return {
 		async enterpriseAuthenticate(
-			request: RpcEnterpriseAuthenticateRequest,
-		): Promise<RpcEnterpriseAuthenticateResponse> {
+			request: EnterpriseAuthenticateRequest,
+		): Promise<EnterpriseAuthenticateResponse> {
 			assertProviderId(request.providerId, options);
 			if (!options.identity) {
 				throw new Error("enterprise identity adapter is not configured");
@@ -175,8 +175,8 @@ export function createEnterpriseRpcHandlers(
 			};
 		},
 		async enterpriseSync(
-			request: RpcEnterpriseSyncRequest,
-		): Promise<RpcEnterpriseSyncResponse> {
+			request: EnterpriseSyncRequest,
+		): Promise<EnterpriseSyncResponse> {
 			assertProviderId(request.providerId, options);
 			const prepared = await prepareEnterpriseRuntime({
 				...options,
@@ -202,8 +202,8 @@ export function createEnterpriseRpcHandlers(
 			};
 		},
 		async enterpriseGetStatus(
-			request: RpcEnterpriseStatusRequest,
-		): Promise<RpcEnterpriseStatusResponse> {
+			request: EnterpriseStatusRequest,
+		): Promise<EnterpriseStatusResponse> {
 			assertProviderId(request.providerId, options);
 			const { bundleStore, tokenStore, telemetryAdapter } =
 				createRequestOptions(request, options);

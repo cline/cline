@@ -1,11 +1,4 @@
 export {
-	createPersistentSubprocessHooks,
-	PersistentHookClient,
-	type PersistentHookClientOptions,
-	type PersistentSubprocessHookControl,
-	type PersistentSubprocessHooksOptions,
-} from "./persistent";
-export {
 	createSubprocessHooks,
 	type HookEventName,
 	HookEventNameSchema,

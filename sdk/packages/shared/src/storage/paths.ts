@@ -11,7 +11,8 @@ import type { PluginManifest } from "..";
 
 const DEPRECATED_CONFIG_DIR = ".clinerules";
 const CLINE_CONFIG_DIR = ".cline";
-export const AGENT_CONFIG_DIRECTORY_NAME = ".agents";
+const LEGACY_AGENT_SKILLS_DIRECTORY_NAME = ".agents";
+export const AGENT_CONFIG_DIRECTORY_NAME = "agents";
 
 export const HOOKS_CONFIG_DIRECTORY_NAME = "hooks";
 export const SKILLS_CONFIG_DIRECTORY_NAME = "skills";
@@ -155,6 +156,14 @@ export function resolveProviderSettingsPath(): string {
 	return join(resolveClineDataDir(), "settings", "providers.json");
 }
 
+export function resolveGlobalSettingsPath(): string {
+	const explicitPath = process.env.CLINE_GLOBAL_SETTINGS_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveClineDataDir(), "settings", "global-settings.json");
+}
+
 export function resolveMcpSettingsPath(): string {
 	const explicitPath = process.env.CLINE_MCP_SETTINGS_PATH?.trim();
 	if (explicitPath) {
@@ -183,19 +192,23 @@ function getWorkspaceSkillDirectories(workspacePath?: string): string[] {
 	return [
 		DEPRECATED_CONFIG_DIR,
 		CLINE_CONFIG_DIR,
-		AGENT_CONFIG_DIRECTORY_NAME,
+		LEGACY_AGENT_SKILLS_DIRECTORY_NAME,
 	].map((dir) => join(workspacePath, dir, SKILLS_CONFIG_DIRECTORY_NAME));
 }
 
 export function resolveAgentsConfigDirPath(): string {
-	return join(resolveClineDataDir(), "settings", AGENT_CONFIG_DIRECTORY_NAME);
+	return join(resolveClineDir(), AGENT_CONFIG_DIRECTORY_NAME);
 }
 
-export function resolveAgentConfigSearchPaths(): string[] {
-	return [
-		resolveDocumentsExtensionPath("Agents"),
+export function resolveAgentConfigSearchPaths(
+	workspacePath?: string,
+): string[] {
+	return dedupePaths([
+		workspacePath
+			? join(workspacePath, CLINE_CONFIG_DIR, AGENT_CONFIG_DIRECTORY_NAME)
+			: "",
 		resolveAgentsConfigDirPath(),
-	];
+	]);
 }
 
 export function resolveHooksConfigSearchPaths(
@@ -220,7 +233,11 @@ export function resolveSkillsConfigSearchPaths(
 	return dedupePaths([
 		...getWorkspaceSkillDirectories(workspacePath),
 		join(resolveClineDir(), SKILLS_CONFIG_DIRECTORY_NAME),
-		join(HOME_DIR, AGENT_CONFIG_DIRECTORY_NAME, SKILLS_CONFIG_DIRECTORY_NAME),
+		join(
+			HOME_DIR,
+			LEGACY_AGENT_SKILLS_DIRECTORY_NAME,
+			SKILLS_CONFIG_DIRECTORY_NAME,
+		),
 	]);
 }
 

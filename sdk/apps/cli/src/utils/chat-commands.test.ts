@@ -91,6 +91,103 @@ describe("chat commands", () => {
 		);
 	});
 
+	it("runs /fork and replies with forked session ids", async () => {
+		const reply = vi.fn(async () => undefined);
+		const fork = vi.fn(async () => ({
+			forkedFromSessionId: "sess_original",
+			newSessionId: "sess_fork",
+		}));
+
+		const handled = await maybeHandleChatCommand("/fork", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+			fork,
+		});
+
+		expect(handled).toBe(true);
+		expect(fork).toHaveBeenCalledTimes(1);
+		expect(reply).toHaveBeenCalledWith(
+			"Forked session sess_original → new session sess_fork",
+		);
+	});
+
+	it("replies with failure message when fork returns undefined", async () => {
+		const reply = vi.fn(async () => undefined);
+		const fork = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/fork", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+			fork,
+		});
+
+		expect(handled).toBe(true);
+		expect(fork).toHaveBeenCalledTimes(1);
+		expect(reply).toHaveBeenCalledWith(
+			"Fork failed: could not read messages from the current session.",
+		);
+	});
+
+	it("surfaces thrown error message when fork throws", async () => {
+		const reply = vi.fn(async () => undefined);
+		const fork = vi.fn(async () => {
+			throw new Error("Cannot fork an empty session.");
+		});
+
+		const handled = await maybeHandleChatCommand("/fork", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+			fork,
+		});
+
+		expect(handled).toBe(true);
+		expect(fork).toHaveBeenCalledTimes(1);
+		expect(reply).toHaveBeenCalledWith("Cannot fork an empty session.");
+	});
+
+	it("ignores /fork when fork callback is not provided", async () => {
+		const reply = vi.fn(async () => undefined);
+
+		const handled = await maybeHandleChatCommand("/fork", {
+			enabled: true,
+			getState: async () => ({
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp",
+				workspaceRoot: "/tmp",
+			}),
+			setState: async () => undefined,
+			reply,
+			// No fork callback — command should not be available
+		});
+
+		// isAvailable returns false when fork is not defined, so the command
+		// is not matched and the handler returns false.
+		expect(handled).toBe(false);
+		expect(reply).not.toHaveBeenCalled();
+	});
+
 	it("runs /abort without disconnecting", async () => {
 		const abort = vi.fn(async () => undefined);
 		const reply = vi.fn(async () => undefined);

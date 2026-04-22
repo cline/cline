@@ -75,7 +75,7 @@ Behavior notes:
 
 ### Extensions vs Hooks
 
-- extensions register contributions such as tools, commands, shortcuts, flags, renderers, and providers
+- extensions register contributions such as tools, commands, message builders, renderers, and providers
 - hooks intercept lifecycle stages and can influence execution
 
 Use extensions for additive runtime surface.
@@ -91,38 +91,21 @@ Behavior:
 - hosts may also supply `prepareTurn` to rewrite message history or the system prompt before the turn is sent
 - this is the primary seam for host-owned context pipelines such as compaction
 
-## `@clinebot/scheduler`
+## `@clinebot/hub`
 
-Primary role: scheduled execution and bounded autonomous routines. Internally consumed by RPC.
-
-Important exported areas:
-
-- schedule store
-- scheduler service
-- cron helpers
-- concurrency/resource limiter
-
-Behavior notes:
-
-- scheduler enforces timeout and concurrency limits
-- scheduler is typically consumed behind RPC rather than directly by most host apps
-
-## `@clinebot/rpc`
-
-Primary role: cross-process runtime gateway.
+Primary role: host-side hub discovery and client access.
 
 Important exported areas:
 
-- RPC server startup
-- client helpers
-- runtime session APIs
-- approval/event routing
-- schedule gateway APIs
+- local hub discovery helpers
+- WebSocket hub client helpers
+- `HubSessionClient`
+- host-side ensure/start helpers
 
 Behavior notes:
 
-- RPC transports runtime/session capabilities across process boundaries
-- business logic should stay in lower packages where possible rather than being duplicated in the RPC layer
+- `@clinebot/hub` is intentionally thin and client-oriented
+- stateful hub runtime behavior lives in `@clinebot/core`
 
 ## `@clinebot/core`
 
@@ -131,7 +114,7 @@ Primary role: stateful orchestration over the stateless agent runtime.
 Important exported areas:
 
 - `ClineCore`
-- `RuntimeHost`, `LocalRuntimeHost`, `RpcRuntimeHost`, and `createRuntimeHost`
+- `RuntimeHost`, `LocalRuntimeHost`, `HubRuntimeHost`, `RemoteRuntimeHost`, and `createRuntimeHost`
 - runtime builder
 - config watchers/loaders
 - config-side watcher projection helpers
@@ -245,6 +228,7 @@ Behavior:
 - queued turns are stored as pending prompts
 - steer inserts at the front of the pending queue
 - attachments are preserved
+- interactive sessions automatically treat a new send as `delivery: "queue"` while a run is already in progress unless the caller explicitly requests another delivery mode
 - core emits queue-related events and should be treated as the source of truth
 
 ### Telemetry
@@ -756,25 +740,58 @@ The agent team runtime gives Cline the ability to spawn and coordinate multiple 
 
 #### Available Team Tools
 
+**Teammate Management:**
+
 | Tool | Description |
 |---|---|
-| `team_spawn_teammate` | Spawn a new teammate agent with a given role prompt |
-| `team_shutdown_teammate` | Shut down a running teammate by ID |
-| `team_run_task` | Delegate a task to a teammate — sync (wait for result) or async (background) |
-| `team_await_run` | Wait for a specific async run to complete |
-| `team_await_all_runs` | Wait for all active async runs to complete |
-| `team_cancel_run` | Cancel an in-progress async run |
-| `team_task` | Shared task board — create, list, claim, complete, or block tasks |
-| `team_send_message` | Send a direct mailbox message to one teammate |
-| `team_broadcast` | Broadcast a message to all teammates |
-| `team_read_mailbox` | Read incoming mailbox messages |
-| `team_log_update` | Append a progress entry to the shared mission log |
-| `team_status` | Snapshot of all teammates, task counts, mailbox, and mission log stats |
-| `team_create_outcome` | Create a converged team outcome document |
-| `team_attach_outcome_fragment` | Attach a content fragment to an outcome section |
-| `team_review_outcome_fragment` | Approve or reject an outcome fragment |
-| `team_finalize_outcome` | Finalize a completed outcome |
-| `team_list_outcomes` | List all team outcomes |
+| `team_spawn_teammate` | Spawn a new teammate agent with a given agentId and rolePrompt. Only the lead agent can spawn. |
+| `team_shutdown_teammate` | Shut down a running teammate by agentId. Only the lead agent can manage teammates. |
+| `team_status` | Return a snapshot of team members, task counts, mailbox, and mission log stats. |
+
+**Task Delegation:**
+
+| Tool | Description |
+|---|---|
+| `team_run_task` | Route a delegated task to a teammate. Choose sync (wait for result) or async (run in background). Sync mode only allows one call per agent per turn. |
+| `team_list_runs` | List teammate runs started with team_run_task in async mode, including live activity/progress fields. |
+| `team_await_runs` | Wait for async teammate runs. Provide runId to wait for one specific run, or omit it to wait for all active async runs. Uses a long timeout (1 hour). |
+| `team_cancel_run` | Cancel one async teammate run by runId. |
+
+**Task Board:**
+
+| Tool | Description |
+|---|---|
+| `team_task` | Manage shared team tasks with action-specific payloads. Actions: create (requires title and description, optional dependsOn and assignee), list (optional status and assignee filters), claim (mark task in_progress), complete (finish task with summary), block (mark as blocked with reason). |
+
+**Communication:**
+
+| Tool | Description |
+|---|---|
+| `team_send_message` | Send a mailbox message to a specific teammate with optional subject, body, and taskId. |
+| `team_broadcast` | Broadcast a message to all teammates with optional subject, body, and taskId. |
+| `team_read_mailbox` | Read the current agent's mailbox, with optional unreadOnly filter and automatic mark-as-read. |
+
+**Mission Log:**
+
+| Tool | Description |
+|---|---|
+| `team_mission_log` | Append a mission log update with kind (progress, handoff, blocked, decision, done, error), summary, optional evidence array, and nextAction. |
+
+**Outcomes:**
+
+| Tool | Description |
+|---|---|
+| `team_create_outcome` | Create a converged team outcome document with a title and optional requiredSections array (defaults to current_state, boundary_analysis, interface_proposal). |
+| `team_attach_outcome_fragment` | Attach a content fragment to an outcome section with optional sourceRunId. |
+| `team_review_outcome_fragment` | Review (approve/reject) one outcome fragment. |
+| `team_finalize_outcome` | Finalize a completed outcome. |
+| `team_list_outcomes` | List all team outcomes. |
+
+**Cleanup:**
+
+| Tool | Description |
+|---|---|
+| `team_cleanup` | Clean up the team runtime. Only the lead agent can run cleanup. Fails if teammates are still running. |
 
 ---
 

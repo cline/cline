@@ -3,7 +3,8 @@ export {
 	ClineCore,
 	type ClineCoreOptions,
 	type ClineCoreStartInput,
-	type RpcOptions,
+	type HubOptions,
+	type RemoteOptions,
 } from "./ClineCore";
 export type {
 	LoadAgentPluginFromPathOptions,
@@ -66,6 +67,18 @@ export {
 	UnifiedConfigFileWatcher,
 	WORKFLOWS_CONFIG_DIRECTORY_NAME,
 } from "./extensions/config";
+export type {
+	BuiltinToolAvailabilityContext,
+	ToolCatalogEntry,
+} from "./extensions/tools";
+export {
+	getCoreAcpToolNames,
+	getCoreBuiltinToolCatalog,
+	getCoreDefaultEnabledToolIds,
+	getCoreHeadlessToolNames,
+	resolveCoreSelectedToolIds,
+	TEAM_TOOL_NAMES,
+} from "./extensions/tools";
 export type { SessionBackend } from "./runtime/host";
 export type {
 	RuntimeHost,
@@ -87,7 +100,20 @@ export type {
 	SubprocessSandboxOptions,
 } from "./runtime/subprocess-sandbox";
 export { SubprocessSandbox } from "./runtime/subprocess-sandbox";
+export type { GlobalSettings } from "./services/global-settings";
+export {
+	filterDisabledTools,
+	filterExtensionToolRegistrations,
+	isToolDisabledGlobally,
+	readGlobalSettings,
+	resolveDisabledToolNames,
+	toggleDisabledTool,
+	writeGlobalSettings,
+} from "./services/global-settings";
+export type { PluginToolSummary } from "./services/plugin-tools";
+export { listPluginTools } from "./services/plugin-tools";
 export type { SessionManifest } from "./session/session-manifest";
+export type { SessionRow } from "./session/session-row";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,

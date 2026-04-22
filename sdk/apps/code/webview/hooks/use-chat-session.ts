@@ -37,7 +37,10 @@ import {
 	type SessionDiffSummary,
 	type SessionFileDiff,
 } from "@/lib/session-diff";
-import type { SessionHistoryItem } from "@/lib/session-history";
+import type {
+	SessionHistoryItem,
+	SessionHistoryStatus,
+} from "@/lib/session-history";
 
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 
@@ -114,6 +117,30 @@ function sortMessagesChronologically(messages: ChatMessage[]): ChatMessage[] {
 	});
 }
 
+function chunkCreatedAt(payload: AgentChunkEvent): number {
+	const ts = payload.ts || Date.now();
+	const index = payload.index ?? 0;
+	return ts * 1000 + index;
+}
+
+function mergeHydratedMessagesWithLive(options: {
+	hydrated: ChatMessage[];
+	current: ChatMessage[];
+	sessionId: string;
+	hydrationStartedAt: number;
+}): ChatMessage[] {
+	const { hydrated, current, sessionId, hydrationStartedAt } = options;
+	const liveDuringHydration = current.filter(
+		(message) =>
+			message.sessionId === sessionId &&
+			message.createdAt >= hydrationStartedAt,
+	);
+	if (liveDuringHydration.length === 0) {
+		return hydrated;
+	}
+	return sortMessagesChronologically([...hydrated, ...liveDuringHydration]);
+}
+
 function updateMessageById(
 	messages: ChatMessage[],
 	id: string,
@@ -179,6 +206,7 @@ export function useChatSession() {
 		ToolApprovalRequestItem[]
 	>([]);
 	const [promptsInQueue, setPromptsInQueue] = useState<PromptInQueue[]>([]);
+	const messagesRef = useRef<ChatMessage[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
@@ -198,6 +226,9 @@ export function useChatSession() {
 	useEffect(() => {
 		activeAssistantMessageIdRef.current = activeAssistantMessageId;
 	}, [activeAssistantMessageId]);
+	useEffect(() => {
+		messagesRef.current = messages;
+	}, [messages]);
 
 	// ---- Shared state reset helpers ----
 
@@ -495,7 +526,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "user",
 						content: userLabel,
-						createdAt: payload.ts || Date.now(),
+						createdAt: chunkCreatedAt(payload),
 					});
 				}
 				return;
@@ -511,7 +542,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: payload.ts || Date.now(),
+						createdAt: chunkCreatedAt(payload),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -530,7 +561,7 @@ export function useChatSession() {
 						sessionId: listeningSessionId,
 						role: "assistant",
 						content: "",
-						createdAt: payload.ts || Date.now(),
+						createdAt: chunkCreatedAt(payload),
 					});
 					activeAssistantMessageIdRef.current = assistantId;
 					setActiveAssistantMessageId(assistantId);
@@ -591,7 +622,7 @@ export function useChatSession() {
 						input: parsed.input,
 						output: null,
 					}),
-					createdAt: Date.now(),
+					createdAt: chunkCreatedAt(payload),
 					meta: { toolName, hookEventName: "tool_call_start" },
 				});
 				setToolCalls((prev) => prev + 1);
@@ -664,6 +695,60 @@ export function useChatSession() {
 			unsubscribeEvents();
 		};
 	}, [handleIncomingChunk]);
+
+	useEffect(() => {
+		const unsubscribeStatus = desktopClient.subscribe(
+			"chat_session_status",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				const record = payload as {
+					sessionId?: string;
+					status?: string;
+				};
+				const targetSessionId = record.sessionId?.trim();
+				if (
+					!targetSessionId ||
+					targetSessionId !== activeSessionIdRef.current
+				) {
+					return;
+				}
+				const nextStatus = record.status?.trim();
+				if (!nextStatus) {
+					return;
+				}
+				setStatus(nextStatus as ChatSessionStatus);
+			},
+		);
+		const unsubscribeEnded = desktopClient.subscribe(
+			"chat_session_ended",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				const record = payload as {
+					sessionId?: string;
+					reason?: string;
+				};
+				const targetSessionId = record.sessionId?.trim();
+				if (
+					!targetSessionId ||
+					targetSessionId !== activeSessionIdRef.current
+				) {
+					return;
+				}
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
+				clearLiveToolRefs();
+				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
+			},
+		);
+		return () => {
+			unsubscribeStatus();
+			unsubscribeEnded();
+		};
+	}, [clearLiveToolRefs]);
 
 	// ---- Shared: start a new session via RPC ----
 
@@ -1185,6 +1270,7 @@ export function useChatSession() {
 	const hydrateSession = useCallback(
 		async (session: SessionHistoryItem) => {
 			const requestId = hydrationRequestIdRef.current + 1;
+			const hydrationStartedAt = Date.now();
 			hydrationRequestIdRef.current = requestId;
 			setError(null);
 			setStatus("starting");
@@ -1212,14 +1298,57 @@ export function useChatSession() {
 				msgs: ChatMessage[],
 				sessionStatus: typeof session.status,
 			) => {
-				setMessages(msgs);
-				setRawTranscript(msgs.map((m) => m.content).join("\n\n"));
+				const mergedMessages = mergeHydratedMessagesWithLive({
+					hydrated: msgs,
+					current: messagesRef.current,
+					sessionId: session.sessionId,
+					hydrationStartedAt,
+				});
+				setMessages(mergedMessages);
+				setRawTranscript(mergedMessages.map((m) => m.content).join("\n\n"));
 				resetCounters();
 				setStatus(inferHydratedChatStatus(sessionStatus, msgs));
 				void refreshSessionDiffSummary(session.sessionId);
 			};
 
 			try {
+				const attached = await desktopClient.invoke<{
+					sessionId?: string;
+					status?: string;
+					provider?: string;
+					model?: string;
+					cwd?: string;
+					workspaceRoot?: string;
+					prompt?: string;
+				}>("chat_session_command", {
+					request: {
+						action: "attach",
+						sessionId: session.sessionId,
+						config: {
+							provider: session.provider,
+							model: session.model,
+							cwd: session.cwd,
+							workspaceRoot: session.workspaceRoot,
+						},
+					},
+				});
+				if (hydrationRequestIdRef.current !== requestId) return;
+				setConfig((prev) => ({
+					...prev,
+					sessionId: session.sessionId,
+					provider: attached?.provider || session.provider || prev.provider,
+					model: attached?.model || session.model || prev.model,
+					workspaceRoot:
+						attached?.workspaceRoot ||
+						session.workspaceRoot ||
+						prev.workspaceRoot,
+					cwd:
+						attached?.cwd ||
+						attached?.workspaceRoot ||
+						session.workspaceRoot ||
+						session.cwd ||
+						prev.cwd,
+				}));
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
 					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
@@ -1228,7 +1357,10 @@ export function useChatSession() {
 
 				if (historyMessages.length > 0) {
 					void refreshPromptsInQueue(session.sessionId);
-					applyHydratedMessages(historyMessages, session.status);
+					applyHydratedMessages(
+						historyMessages,
+						(attached?.status || session.status) as SessionHistoryStatus,
+					);
 					return;
 				}
 
@@ -1243,7 +1375,10 @@ export function useChatSession() {
 					});
 				}
 				void refreshPromptsInQueue(session.sessionId);
-				applyHydratedMessages(synthesized, session.status);
+				applyHydratedMessages(
+					synthesized,
+					(attached?.status || session.status) as SessionHistoryStatus,
+				);
 			} catch (err) {
 				if (hydrationRequestIdRef.current !== requestId) return;
 				const msg = errorMessage(err);
@@ -1264,6 +1399,45 @@ export function useChatSession() {
 			resetCounters,
 		],
 	);
+
+	const forkSession = useCallback(async (): Promise<{
+		newSessionId: string;
+		forkedFromSessionId: string;
+		messages: ChatMessage[];
+	}> => {
+		const activeSessionId = activeSessionIdRef.current;
+		if (!activeSessionId) {
+			throw new Error("No active session to fork.");
+		}
+		if (BUSY_STATUSES.has(status)) {
+			throw new Error("Wait for the current turn to finish before forking.");
+		}
+		const payload = (await postSession({
+			action: "fork",
+			sessionId: activeSessionId,
+			config,
+		})) as {
+			sessionId?: string;
+			forkedFromSessionId?: string;
+			messages?: ChatMessage[];
+		};
+		const newSessionId =
+			typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+		if (!newSessionId) {
+			throw new Error("Fork did not return a new session id.");
+		}
+		const forkedFromSessionId =
+			typeof payload.forkedFromSessionId === "string"
+				? payload.forkedFromSessionId
+				: activeSessionId;
+		const nextMessages = Array.isArray(payload.messages)
+			? (payload.messages as ChatMessage[])
+			: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+					sessionId: newSessionId,
+					maxMessages: MAX_MESSAGES,
+				});
+		return { newSessionId, forkedFromSessionId, messages: nextMessages };
+	}, [config, postSession, status]);
 
 	const steerPromptInQueue = useCallback(
 		async (promptId: string) => {
@@ -1322,6 +1496,7 @@ export function useChatSession() {
 		approveToolApproval,
 		rejectToolApproval,
 		restoreCheckpoint,
+		forkSession,
 		abort,
 		stop: abort,
 		reset,

@@ -1,4 +1,4 @@
-import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
+import type { ClineCore, NodeHubClient } from "@clinebot/core";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -10,6 +10,7 @@ export type ChatTurnAttachments = {
 export type ChatSessionCommandRequest = {
 	action:
 		| "start"
+		| "attach"
 		| "send"
 		| "stop"
 		| "abort"
@@ -43,6 +44,7 @@ export type LiveSession = {
 	status: string;
 	prompt?: string;
 	title?: string;
+	attachedViaHub?: boolean;
 };
 
 export type ToolApprovalRequestItem = {
@@ -58,16 +60,17 @@ export type ToolApprovalRequestItem = {
 };
 
 export type PendingToolApproval = {
-	request: ToolApprovalRequest;
-	resolve: (result: ToolApprovalResult) => void;
+	approvalId: string;
 	item: ToolApprovalRequestItem;
 };
 
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
+	streamIndices: Map<string, number>;
 	wsClients: Set<any>;
 	pendingApprovals: Map<string, PendingToolApproval>;
-	sessionManager: import("@clinebot/core").LocalRuntimeHost | null;
+	sessionManager: ClineCore | null;
+	hubClient: NodeHubClient | null;
 	workspaceRoot: string;
 	unsubscribeSessionEvents: (() => void) | null;
 };

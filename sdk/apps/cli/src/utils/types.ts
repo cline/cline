@@ -3,7 +3,7 @@ import type {
 	CoreSessionConfig,
 	Llms,
 	ProviderSettings,
-	RpcChatRuntimeLoggerConfig,
+	RuntimeLoggerConfig,
 	SessionLineage,
 	SessionManifest,
 	ToolPolicy,
@@ -18,16 +18,13 @@ export type CliReasoningEffort = NonNullable<
 export interface Config extends Omit<CoreSessionConfig, "apiKey" | "mode"> {
 	apiKey: string;
 	knownModels?: Record<string, Llms.ModelInfo>;
-	loggerConfig?: RpcChatRuntimeLoggerConfig;
+	loggerConfig?: RuntimeLoggerConfig;
 	verbose: boolean;
 	timeoutSeconds?: number;
 	sandbox: boolean;
 	sandboxDataDir?: string;
 	thinking: boolean;
-	missionLogIntervalSteps: number;
-	missionLogIntervalMs: number;
 	showUsage: boolean;
-	showTimings: boolean;
 	outputMode: CliOutputMode;
 	mode: CliAgentMode;
 	defaultToolAutoApprove: boolean;
@@ -74,7 +71,6 @@ export interface ParsedArgs {
 	verbose: boolean;
 	interactive: boolean;
 	showUsage: boolean;
-	showTimings: boolean;
 	outputMode: CliOutputMode;
 	mode: CliAgentMode;
 	yolo?: boolean;
@@ -90,9 +86,6 @@ export interface ParsedArgs {
 	configDir?: string;
 	hooksDir?: string;
 	acpMode: boolean;
-	enableSpawnAgent: boolean;
-	enableAgentTeams: boolean;
-	enableTools: boolean;
 	model?: string;
 	provider?: string;
 	taskId?: string;
@@ -101,8 +94,5 @@ export interface ParsedArgs {
 	invalidMaxConsecutiveMistakes?: string;
 	cwd?: string;
 	teamName?: string;
-	missionLogIntervalSteps?: number;
-	missionLogIntervalMs?: number;
 	defaultToolAutoApprove: boolean;
-	toolPolicies: Record<string, ToolPolicy>;
 }

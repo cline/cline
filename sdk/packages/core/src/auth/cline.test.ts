@@ -1,3 +1,4 @@
+import net from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ClineOAuthCredentials } from "./cline";
 import { getValidClineCredentials, loginClineOAuth } from "./cline";
@@ -6,6 +7,22 @@ const PROVIDER_OPTIONS = {
 	apiBaseUrl: "https://auth.example.com",
 };
 const ORIGINAL_FETCH = globalThis.fetch;
+const socketBindingSupported = await (async () => {
+	try {
+		const srv = net.createServer();
+		await new Promise<void>((resolve, reject) => {
+			srv.listen(0, "127.0.0.1", () => resolve());
+			srv.once("error", reject);
+		});
+		await new Promise<void>((resolve, reject) =>
+			srv.close((err) => (err ? reject(err) : resolve())),
+		);
+		return true;
+	} catch {
+		return false;
+	}
+})();
+const socketIt = socketBindingSupported ? it : it.skip;
 
 function createCredentials(
 	overrides: Partial<ClineOAuthCredentials> = {},
@@ -214,7 +231,7 @@ describe("auth/cline loginClineOAuth", () => {
 		});
 	});
 
-	it("uses legacy callback OAuth flow by default", async () => {
+	socketIt("uses legacy callback OAuth flow by default", async () => {
 		const fetchMock = vi.fn(async (_url: string, init?: RequestInit) => {
 			const body =
 				typeof init?.body === "string"

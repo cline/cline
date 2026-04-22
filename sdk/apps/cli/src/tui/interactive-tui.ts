@@ -36,6 +36,7 @@ import { StatusBar } from "./components/StatusBar";
 import { WelcomeView } from "./components/WelcomeView";
 import type {
 	InteractiveConfigData,
+	InteractiveConfigItem,
 	InteractiveConfigTab,
 } from "./interactive-config";
 import {
@@ -59,8 +60,12 @@ interface InteractiveTuiProps {
 	initialView?: "chat" | "config";
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
+	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
 	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadConfigData: () => Promise<InteractiveConfigData>;
+	onToggleConfigItem?: (
+		item: InteractiveConfigItem,
+	) => Promise<InteractiveConfigData | undefined>;
 	subscribeToEvents: (handlers: {
 		onAgentEvent: (event: AgentEvent) => void;
 		onTeamEvent: (event: TeamEvent) => void;
@@ -253,6 +258,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	// Slash command completion
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const [slashCommands, setSlashCommands] = useState<InteractiveSlashCommand[]>(
+		() => props.workflowSlashCommands ?? [],
+	);
 
 	const mouseOffsetX = 0;
 	const mouseOffsetY = 0;
@@ -318,10 +326,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	);
 	const mentionInfo = useMemo(() => extractMentionQuery(input), [input]);
 	const slashInfo = useMemo(() => extractSlashQuery(input), [input]);
-	const slashCommands = useMemo(
-		() => props.workflowSlashCommands ?? [],
-		[props.workflowSlashCommands],
-	);
 	const filteredSlashCommands = useMemo(() => {
 		if (!slashInfo.inSlashMode) {
 			return [];
@@ -412,7 +416,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const openConfigView = useCallback(() => {
 		setIsConfigViewOpen(true);
-		setConfigTab("skills");
+		setConfigTab("tools");
 		setConfigSelectedIndex(0);
 		loadConfig();
 	}, [loadConfig]);
@@ -428,8 +432,42 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 	}, [loadConfig, props.initialView]);
 
 	useEffect(() => {
+		setSlashCommands(props.workflowSlashCommands ?? []);
+	}, [props.workflowSlashCommands]);
+
+	useEffect(() => {
 		refreshRepoStatus();
 	}, [refreshRepoStatus]);
+
+	useEffect(() => {
+		if (!props.loadAdditionalSlashCommands) {
+			return;
+		}
+		let cancelled = false;
+		void props
+			.loadAdditionalSlashCommands()
+			.then((additionalCommands) => {
+				if (cancelled || additionalCommands.length === 0) {
+					return;
+				}
+				setSlashCommands((current) => {
+					const seen = new Set(current.map((command) => command.name));
+					const next = [...current];
+					for (const command of additionalCommands) {
+						if (seen.has(command.name)) {
+							continue;
+						}
+						seen.add(command.name);
+						next.push(command);
+					}
+					return next;
+				});
+			})
+			.catch(() => {});
+		return () => {
+			cancelled = true;
+		};
+	}, [props.loadAdditionalSlashCommands]);
 
 	useEffect(() => {
 		if (!props.loadWelcomeLine) {
@@ -847,7 +885,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				if (typeof result.usage.totalCost === "number") {
 					setLastTotalCost(result.usage.totalCost);
 				}
-				if (!result.commandOutput && (config.showTimings || config.showUsage)) {
+				if (!result.commandOutput && config.showUsage) {
 					const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
 					appendEntry({
 						kind: "done",
@@ -856,7 +894,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 							config.showUsage && typeof result.usage.totalCost === "number"
 								? result.usage.totalCost
 								: 0,
-						elapsed: config.showTimings ? elapsed : "",
+						elapsed,
 						iterations: result.iterations,
 					});
 				}
@@ -876,7 +914,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		},
 		[
 			appendEntry,
-			config.showTimings,
 			config.showUsage,
 			onSubmit,
 			onTurnErrorReported,
@@ -895,8 +932,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		}
 
 		if (isConfigViewOpen) {
-			const isShiftTab = (key.shift && key.tab) || value === "\u001b[Z";
-			const isTab = key.tab || value === "\t";
+			const currentTabIndex = CONFIG_TABS.indexOf(configTab);
 			if (key.escape || (key.ctrl && value === "d")) {
 				closeConfigView();
 				return;
@@ -905,24 +941,27 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				closeConfigView();
 				return;
 			}
-			if (isTab || isShiftTab) {
-				setConfigTab((prev) => {
-					const currentIndex = CONFIG_TABS.indexOf(prev);
-					if (currentIndex < 0) {
-						return CONFIG_TABS[0] ?? "tools";
-					}
-					const delta = isShiftTab ? -1 : 1;
-					const nextIndex =
-						(currentIndex + delta + CONFIG_TABS.length) % CONFIG_TABS.length;
-					return CONFIG_TABS[nextIndex] ?? prev;
-				});
+			if (key.leftArrow || key.rightArrow) {
+				const nextIndex =
+					currentTabIndex < 0
+						? 0
+						: key.leftArrow
+							? (currentTabIndex - 1 + CONFIG_TABS.length) % CONFIG_TABS.length
+							: (currentTabIndex + 1) % CONFIG_TABS.length;
+				setConfigTab(CONFIG_TABS[nextIndex] ?? "tools");
 				setConfigSelectedIndex(0);
 				return;
 			}
-			if (key.leftArrow || key.rightArrow) {
+			if (value >= "1" && value <= "8") {
+				const requestedIndex = Number.parseInt(value, 10) - 1;
+				const nextTab = CONFIG_TABS[requestedIndex];
+				if (nextTab) {
+					setConfigTab(nextTab);
+					setConfigSelectedIndex(0);
+				}
 				return;
 			}
-			if (key.upArrow) {
+			if (key.upArrow || value === "k") {
 				if (activeConfigItems.length > 0) {
 					setConfigSelectedIndex((prev) =>
 						prev > 0 ? prev - 1 : activeConfigItems.length - 1,
@@ -930,7 +969,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				}
 				return;
 			}
-			if (key.downArrow) {
+			if (key.downArrow || value === "j") {
 				if (activeConfigItems.length > 0) {
 					setConfigSelectedIndex((prev) =>
 						prev < activeConfigItems.length - 1 ? prev + 1 : 0,
@@ -940,6 +979,25 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 			}
 			if (key.return) {
 				const selected = activeConfigItems[configSelectedIndex];
+				if (
+					selected &&
+					configTab === "tools" &&
+					(selected.source === "workspace-plugin" ||
+						selected.source === "global-plugin")
+				) {
+					setIsLoadingConfig(true);
+					void props
+						.onToggleConfigItem?.(selected)
+						.then((nextData) => {
+							if (nextData) {
+								setConfigData(nextData);
+							}
+						})
+						.finally(() => {
+							setIsLoadingConfig(false);
+						});
+					return;
+				}
 				if (selected && configTab === "skills") {
 					const nextInput = `/${selected.name} `;
 					setInput(nextInput);

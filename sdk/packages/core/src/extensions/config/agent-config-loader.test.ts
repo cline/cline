@@ -2,7 +2,6 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool, ToolContext } from "@clinebot/shared";
-import { resolveDocumentsExtensionPath } from "@clinebot/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	AGENT_CONFIG_DIRECTORY_NAME,
@@ -30,34 +29,40 @@ function createMockTool(name: string): Tool {
 
 describe("agent config YAML loader", () => {
 	const envSnapshot = {
+		CLINE_DIR: process.env.CLINE_DIR,
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
+		HOME: process.env.HOME,
 	};
 	afterEach(() => {
+		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
 		process.env.CLINE_DATA_DIR = envSnapshot.CLINE_DATA_DIR;
+		process.env.HOME = envSnapshot.HOME;
 	});
 
-	it("resolves default agents settings directory from CLINE_DATA_DIR", () => {
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+	it("resolves default global agents directory from HOME", () => {
+		process.env.CLINE_DIR = "/tmp/home/.cline";
 		expect(resolveAgentsConfigDirPath()).toBe(
-			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
 		);
 	});
 
-	it("includes documents and settings search paths", () => {
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+	it("includes workspace and global search paths", () => {
+		process.env.CLINE_DIR = "/tmp/home/.cline";
 		expect(resolveAgentConfigSearchPaths()).toEqual([
-			resolveDocumentsExtensionPath("Agents"),
-			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
+		]);
+		expect(resolveAgentConfigSearchPaths("/tmp/workspace")).toEqual([
+			join("/tmp/workspace", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
 		]);
 	});
 
 	it("builds a reusable unified watcher definition with expected defaults", () => {
-		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		process.env.CLINE_DIR = "/tmp/home/.cline";
 		const definition = createAgentConfigDefinition();
 		expect(definition.type).toBe("agent");
 		expect(definition.directories).toEqual([
-			resolveDocumentsExtensionPath("Agents"),
-			join("/tmp/cline-data", "settings", AGENT_CONFIG_DIRECTORY_NAME),
+			join("/tmp/home", ".cline", AGENT_CONFIG_DIRECTORY_NAME),
 		]);
 		expect(definition.includeFile?.("agent.yaml", "/tmp/agent.yaml")).toBe(
 			true,
@@ -166,9 +171,9 @@ Be precise.`),
 		);
 	});
 
-	it("reads agent configs from ~/.cline/data/settings/agents-compatible directory", async () => {
+	it("reads agent configs from ~/.cline/.agents", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-agent-config-loader-"));
-		const agentsDir = join(tempRoot, "settings", AGENT_CONFIG_DIRECTORY_NAME);
+		const agentsDir = join(tempRoot, ".cline", AGENT_CONFIG_DIRECTORY_NAME);
 		await mkdir(agentsDir, { recursive: true });
 		try {
 			await writeFile(
@@ -198,37 +203,49 @@ name:
 		}
 	});
 
-	it("reads from both documents and settings directories", async () => {
+	it("reads from both workspace and global directories", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-agent-config-loader-"));
-		const documentsDir = join(tempRoot, "Documents", "Cline", "Agents");
-		const settingsDir = join(tempRoot, "settings", AGENT_CONFIG_DIRECTORY_NAME);
-		await mkdir(documentsDir, { recursive: true });
-		await mkdir(settingsDir, { recursive: true });
+		const workspaceDir = join(tempRoot, "workspace");
+		const workspaceAgentsDir = join(
+			workspaceDir,
+			".cline",
+			AGENT_CONFIG_DIRECTORY_NAME,
+		);
+		const globalAgentsDir = join(
+			tempRoot,
+			".cline",
+			AGENT_CONFIG_DIRECTORY_NAME,
+		);
+		await mkdir(workspaceAgentsDir, { recursive: true });
+		await mkdir(globalAgentsDir, { recursive: true });
 		try {
 			await writeFile(
-				join(documentsDir, "legacy.yaml"),
+				join(workspaceAgentsDir, "workspace.yaml"),
 				`---
-name: LegacyAgent
-description: legacy
+name: WorkspaceAgent
+description: workspace
 ---
-legacy prompt`,
+workspace prompt`,
 			);
 			await writeFile(
-				join(settingsDir, "new.yaml"),
+				join(globalAgentsDir, "global.yaml"),
 				`---
-name: NewAgent
-description: new
+name: GlobalAgent
+description: global
 ---
-new prompt`,
+global prompt`,
 			);
 
-			const loaded = await readAgentConfigsFromDisk([
-				documentsDir,
-				settingsDir,
+			process.env.CLINE_DIR = join(tempRoot, ".cline");
+			const loaded = await readAgentConfigsFromDisk(undefined, workspaceDir);
+			expect([...loaded.keys()].sort()).toEqual([
+				"globalagent",
+				"workspaceagent",
 			]);
-			expect([...loaded.keys()].sort()).toEqual(["legacyagent", "newagent"]);
-			expect(loaded.get("legacyagent")?.systemPrompt).toBe("legacy prompt");
-			expect(loaded.get("newagent")?.systemPrompt).toBe("new prompt");
+			expect(loaded.get("workspaceagent")?.systemPrompt).toBe(
+				"workspace prompt",
+			);
+			expect(loaded.get("globalagent")?.systemPrompt).toBe("global prompt");
 		} finally {
 			await rm(tempRoot, { recursive: true, force: true });
 		}

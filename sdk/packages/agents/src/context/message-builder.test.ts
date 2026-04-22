@@ -68,6 +68,28 @@ describe("MessageBuilder", () => {
 		expect(reset[1]?.content).toEqual(secondReadResult.content);
 	});
 
+	it("preserves user image blocks when building api messages", () => {
+		const builder = new MessageBuilder();
+		const messages: LlmsProviders.Message[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<user_input mode="act">whats in the pic</user_input>',
+					},
+					{ type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+				],
+			},
+		];
+
+		const built = builder.buildForApi(messages);
+		expect(built[0]?.content).toEqual([
+			{ type: "text", text: "whats in the pic" },
+			{ type: "image", mediaType: "image/png", data: "aGVsbG8=" },
+		]);
+	});
+
 	it("parses read_files locators from multimodal tool result content", () => {
 		const builder = new MessageBuilder();
 		const firstReadUse = {

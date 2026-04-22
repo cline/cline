@@ -86,6 +86,16 @@ type SessionDeletedEvent = CustomEvent<{
 	sessionId: string;
 }>;
 
+type SidecarSessionStateEvent = {
+	sessionId?: string;
+	status?: string;
+};
+
+type SidecarChatEvent = {
+	sessionId?: string;
+	stream?: string;
+};
+
 const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
 type FilterOption = (typeof filterOptions)[number];
 const INITIAL_HISTORY_FETCH_LIMIT = 300;
@@ -464,6 +474,7 @@ export function AgentSidebar({
 	);
 	const sessionsRef = useRef<SessionHistoryItem[]>([]);
 	const threadsRef = useRef<Thread[]>([]);
+	const refreshTimeoutRef = useRef<number | null>(null);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -562,12 +573,25 @@ export function AgentSidebar({
 		}
 	}, []);
 
+	const scheduleRefresh = useCallback(
+		(delayMs = 0) => {
+			if (refreshTimeoutRef.current !== null) {
+				window.clearTimeout(refreshTimeoutRef.current);
+			}
+			refreshTimeoutRef.current = window.setTimeout(() => {
+				refreshTimeoutRef.current = null;
+				void refreshSessions();
+			}, delayMs);
+		},
+		[refreshSessions],
+	);
+
 	useEffect(() => {
 		let disposed = false;
 
 		const runRefresh = () => {
 			if (!disposed) {
-				void refreshSessions();
+				scheduleRefresh();
 			}
 		};
 
@@ -582,8 +606,12 @@ export function AgentSidebar({
 		return () => {
 			disposed = true;
 			window.clearInterval(interval);
+			if (refreshTimeoutRef.current !== null) {
+				window.clearTimeout(refreshTimeoutRef.current);
+				refreshTimeoutRef.current = null;
+			}
 		};
-	}, [refreshSessions]);
+	}, [scheduleRefresh]);
 
 	useEffect(() => {
 		const recent = sessions.slice(0, 24);
@@ -723,7 +751,7 @@ export function AgentSidebar({
 			setThreads((current) =>
 				current.filter((thread) => thread.id !== sessionId),
 			);
-			void refreshSessions();
+			scheduleRefresh(50);
 		};
 
 		window.addEventListener(
@@ -754,6 +782,61 @@ export function AgentSidebar({
 				);
 			},
 		);
+		const unsubscribeTransportStatus = desktopClient.subscribe(
+			"chat_session_status",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				const record = payload as SidecarSessionStateEvent;
+				const sessionId = record.sessionId?.trim();
+				if (!sessionId) {
+					return;
+				}
+				const known = sessionsRef.current.some(
+					(session) => session.sessionId === sessionId,
+				);
+				if (
+					!known ||
+					record.status === "running" ||
+					record.status === "starting" ||
+					record.status === "idle"
+				) {
+					scheduleRefresh(50);
+				}
+			},
+		);
+		const unsubscribeTransportEnded = desktopClient.subscribe(
+			"chat_session_ended",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				const record = payload as SidecarSessionStateEvent;
+				if (record.sessionId?.trim()) {
+					scheduleRefresh(50);
+				}
+			},
+		);
+		const unsubscribeTransportChatEvent = desktopClient.subscribe(
+			"chat_event",
+			(payload) => {
+				if (!payload || typeof payload !== "object") {
+					return;
+				}
+				const record = payload as SidecarChatEvent;
+				const sessionId = record.sessionId?.trim();
+				if (!sessionId) {
+					return;
+				}
+				const known = sessionsRef.current.some(
+					(session) => session.sessionId === sessionId,
+				);
+				if (!known) {
+					scheduleRefresh(50);
+				}
+			},
+		);
 		return () => {
 			window.removeEventListener(
 				"cline:session-title-updated",
@@ -764,8 +847,11 @@ export function AgentSidebar({
 				handleSessionDeleted as EventListener,
 			);
 			unsubscribeTransportDelete();
+			unsubscribeTransportStatus();
+			unsubscribeTransportEnded();
+			unsubscribeTransportChatEvent();
 		};
-	}, [refreshSessions]);
+	}, [scheduleRefresh]);
 
 	useEffect(() => {
 		const recent = sessions.slice(0, 24);

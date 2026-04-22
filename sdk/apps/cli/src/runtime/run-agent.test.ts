@@ -69,7 +69,11 @@ vi.mock("./interactive-welcome", () => ({
 }));
 
 vi.mock("./prompt", () => ({
-	buildUserInputMessage: vi.fn(async () => "prompt"),
+	buildUserInputMessage: vi.fn(async () => ({
+		prompt: "prompt",
+		userImages: [],
+		userFiles: [],
+	})),
 }));
 
 vi.mock("./session-events", () => ({
@@ -157,7 +161,6 @@ describe("runAgent", () => {
 					modelId: "google/gemini-3-flash-preview",
 					outputMode: "text",
 					providerId: "openrouter",
-					showTimings: false,
 					showUsage: false,
 					systemPrompt: "system",
 					thinking: false,
@@ -173,6 +176,70 @@ describe("runAgent", () => {
 				prompt: "prompt",
 			}),
 		);
+	});
+
+	it("clears a stale failing exit code after a successful run", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		process.exitCode = 1;
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "stop",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
+				maxIterations: 10,
+				mode: "act",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "text",
+				providerId: "openrouter",
+				showUsage: false,
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(0);
 	});
 
 	it("does not fail an aborted run when teardown hooks throw", async () => {
@@ -231,7 +298,6 @@ describe("runAgent", () => {
 				modelId: "google/gemini-3-flash-preview",
 				outputMode: "text",
 				providerId: "openrouter",
-				showTimings: false,
 				showUsage: false,
 				systemPrompt: "system",
 				thinking: false,
@@ -269,7 +335,6 @@ describe("runAgent", () => {
 				modelId: "google/gemini-3-flash-preview",
 				outputMode: "text",
 				providerId: "openrouter",
-				showTimings: false,
 				showUsage: false,
 				systemPrompt: "system",
 				thinking: false,

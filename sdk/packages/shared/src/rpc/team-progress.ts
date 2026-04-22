@@ -1,5 +1,5 @@
-export const RPC_TEAM_PROGRESS_EVENT_TYPE = "runtime.team.progress.v1";
-export const RPC_TEAM_LIFECYCLE_EVENT_TYPE = "runtime.team.lifecycle.v1";
+export const TEAM_PROGRESS_EVENT_TYPE = "runtime.team.progress.v1";
+export const TEAM_LIFECYCLE_EVENT_TYPE = "runtime.team.lifecycle.v1";
 
 export type TeamProgressMemberRole = "lead" | "teammate";
 export type TeamProgressMemberStatus = "idle" | "running" | "stopped";

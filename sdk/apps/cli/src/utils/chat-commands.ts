@@ -9,6 +9,11 @@ export type ChatCommandState = {
 	workspaceRoot: string;
 };
 
+export type ForkSessionResult = {
+	forkedFromSessionId: string;
+	newSessionId: string;
+};
+
 export type ChatCommandContext = {
 	enabled: boolean;
 	host?: ChatCommandHost;
@@ -19,6 +24,10 @@ export type ChatCommandContext = {
 	abort?: () => Promise<void> | void;
 	stop?: () => Promise<void> | void;
 	describe?: () => Promise<string> | string;
+	fork?: () =>
+		| Promise<ForkSessionResult | undefined>
+		| ForkSessionResult
+		| undefined;
 	schedule?: {
 		create?: (input: {
 			name: string;
@@ -314,6 +323,32 @@ function createDefaultChatCommandHost(): ChatCommandHost {
 				// session-level enableTeams toggling before this host runs.
 				await context.reply(
 					"The /team command must be entered directly as a prompt, not via a chat command.",
+				);
+			},
+		})
+		.register("command", {
+			names: ["/fork"],
+			isAvailable: (context) => typeof context.fork === "function",
+			run: async (_parsed, context) => {
+				let result: ForkSessionResult | undefined;
+				try {
+					result = await context.fork?.();
+				} catch (error) {
+					await context.reply(
+						error instanceof Error
+							? error.message
+							: "Fork failed: could not read messages from the current session.",
+					);
+					return;
+				}
+				if (!result) {
+					await context.reply(
+						"Fork failed: could not read messages from the current session.",
+					);
+					return;
+				}
+				await context.reply(
+					`Forked session ${result.forkedFromSessionId} → new session ${result.newSessionId}`,
 				);
 			},
 		})

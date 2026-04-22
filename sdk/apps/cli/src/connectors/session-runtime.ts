@@ -1,6 +1,6 @@
 import type {
-	RpcChatRuntimeLoggerConfig,
-	RpcChatStartSessionRequest,
+	ChatStartSessionRequest,
+	RuntimeLoggerConfig,
 } from "@clinebot/core";
 import {
 	CoreSessionService,
@@ -8,7 +8,7 @@ import {
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@clinebot/core";
-import { RpcSessionClient } from "@clinebot/rpc";
+import { HubSessionClient } from "@clinebot/hub";
 import type { Thread } from "chat";
 import {
 	ensureOAuthProviderApiKey,
@@ -58,11 +58,10 @@ export async function buildConnectorStartRequest(input: {
 		enableTools: boolean;
 	};
 	io: ConnectIo;
-	loggerConfig: RpcChatRuntimeLoggerConfig;
+	loggerConfig: RuntimeLoggerConfig;
 	systemRules: string;
 	defaultModel?: string;
-	teamName: string;
-}): Promise<RpcChatStartSessionRequest> {
+}): Promise<ChatStartSessionRequest> {
 	const providerSettingsManager = new ProviderSettingsManager();
 	const lastUsedProviderSettings =
 		providerSettingsManager.getLastUsedProviderSettings();
@@ -118,19 +117,14 @@ export async function buildConnectorStartRequest(input: {
 		logger: input.loggerConfig,
 		maxIterations: input.options.maxIterations,
 		enableTools: input.options.enableTools,
-		enableSpawn: input.options.enableTools,
-		enableTeams: input.options.enableTools,
 		autoApproveTools: false,
-		teamName: input.teamName,
-		missionStepInterval: 3,
-		missionTimeIntervalMs: 120000,
 	};
 }
 
 export function buildThreadStartRequest<TState extends ConnectorThreadState>(
-	base: RpcChatStartSessionRequest,
+	base: ChatStartSessionRequest,
 	state: TState,
-): RpcChatStartSessionRequest {
+): ChatStartSessionRequest {
 	const enableTools = state.enableTools ?? base.enableTools;
 	return {
 		...base,
@@ -148,8 +142,8 @@ export async function getOrCreateSessionId<
 	TState extends ConnectorThreadState,
 >(input: {
 	thread: Thread<TState>;
-	client: RpcSessionClient;
-	startRequest: RpcChatStartSessionRequest;
+	client: HubSessionClient;
+	startRequest: ChatStartSessionRequest;
 	logger: CliLoggerAdapter;
 	clientId: string;
 	transport: string;
@@ -267,9 +261,9 @@ export async function getOrCreateSessionId<
 
 export async function clearSession<TState extends ConnectorThreadState>(input: {
 	thread: Thread<TState>;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	bindingsPath: string;
-	baseStartRequest: RpcChatStartSessionRequest;
+	baseStartRequest: ChatStartSessionRequest;
 	errorLabel: string;
 }): Promise<void> {
 	const threadState = await loadThreadState(
@@ -302,7 +296,7 @@ export async function stopConnectorSessions(input: {
 	localMatcher: (metadata: Record<string, unknown> | undefined) => boolean;
 	rpcMatcher: (metadata: Record<string, unknown> | undefined) => boolean;
 }): Promise<number> {
-	const client = new RpcSessionClient({ address: input.rpcAddress });
+	const client = new HubSessionClient({ address: input.rpcAddress });
 	try {
 		const rows = await client.listSessions({ limit: 5000 });
 		const filtered = rows.filter((row) => {

@@ -19,13 +19,32 @@ export interface ToolPresetConfig extends DefaultToolsConfig {
  */
 export const ToolPresets = {
 	/**
-	 * Browser-based tools (no shell access, no web fetch)
+	 * Act mode (full development tools)
+	 * Good for coding assistants and task automation
 	 */
-	browser: {
-		enableReadFiles: false,
-		enableSearch: false,
-		enableBash: false,
-		enableWebFetch: false,
+	act: {
+		enableReadFiles: true,
+		enableSearch: true,
+		enableBash: true,
+		enableWebFetch: true,
+		enableApplyPatch: false,
+		enableEditor: true,
+		enableSkills: true,
+		enableAskQuestion: true,
+		enableSubmitAndExit: true,
+		enableSpawnAgent: true,
+		enableAgentTeams: true,
+	},
+
+	/**
+	 * Plan mode (read-only, no shell access)
+	 * Good for analysis and documentation agents
+	 */
+	plan: {
+		enableReadFiles: true,
+		enableSearch: true,
+		enableBash: true,
+		enableWebFetch: true,
 		enableApplyPatch: false,
 		enableEditor: false,
 		enableSkills: true,
@@ -48,42 +67,6 @@ export const ToolPresets = {
 		enableEditor: false,
 		enableSkills: false,
 		enableAskQuestion: false,
-		enableSubmitAndExit: false,
-		enableSpawnAgent: true,
-		enableAgentTeams: true,
-	},
-
-	/**
-	 * Full development tools (all tools enabled) - Act mode
-	 * Good for coding assistants and task automation
-	 */
-	development: {
-		enableReadFiles: true,
-		enableSearch: true,
-		enableBash: true,
-		enableWebFetch: true,
-		enableApplyPatch: false,
-		enableEditor: true,
-		enableSkills: true,
-		enableAskQuestion: true,
-		enableSubmitAndExit: true,
-		enableSpawnAgent: true,
-		enableAgentTeams: true,
-	},
-
-	/**
-	 * Read-only tools (no shell access) - Plan mode
-	 * Good for analysis and documentation agents
-	 */
-	readonly: {
-		enableReadFiles: true,
-		enableSearch: true,
-		enableBash: true,
-		enableWebFetch: true,
-		enableApplyPatch: false,
-		enableEditor: false,
-		enableSkills: true,
-		enableAskQuestion: true,
 		enableSubmitAndExit: false,
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
@@ -135,9 +118,9 @@ export function resolveToolPresetName(options: {
 	mode?: "act" | "plan" | "yolo";
 }): ToolPresetName {
 	if (options.mode === "plan") {
-		return "readonly";
+		return "plan";
 	}
-	return options.mode === "yolo" ? "yolo" : "development";
+	return options.mode === "yolo" ? "yolo" : "act";
 }
 
 /**
@@ -177,7 +160,7 @@ export function createToolPoliciesWithPreset(
  *
  * @example
  * ```typescript
- * const tools = createDefaultToolsWithPreset("readonly", {
+ * const tools = createDefaultToolsWithPreset("plan", {
  *   executors: {
  *     readFile: async ({ path }) => fs.readFile(path, "utf-8"),
  *     search: async (query, cwd) => searchFiles(query, cwd),

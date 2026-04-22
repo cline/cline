@@ -1,4 +1,4 @@
-import type { RpcSessionClient } from "@clinebot/rpc";
+import type { HubSessionClient } from "@clinebot/hub";
 import type { TeamProgressProjectionEvent } from "@clinebot/shared";
 import type { Chat, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
@@ -136,7 +136,7 @@ export function createTaskUpdateFingerprint(
 export function startConnectorTaskUpdateRelay<
 	TState extends ConnectorThreadState,
 >(input: {
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	clientId: string;
 	bot: Chat;
 	logger: CliLoggerAdapter;

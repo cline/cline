@@ -65,6 +65,10 @@ const loggingMocks = vi.hoisted(() => ({
 	})),
 	flushCliLoggerAdapters: vi.fn(),
 }));
+const hubRuntimeMocks = vi.hoisted(() => ({
+	ensureCliHubServer: vi.fn(async () => "ws://127.0.0.1:4317"),
+	prewarmCliHubServer: vi.fn(),
+}));
 
 function forcePromptModeInput() {
 	Object.defineProperty(process.stdin, "isTTY", {
@@ -131,6 +135,7 @@ vi.mock("./runtime/prompt", () => ({
 vi.mock("./commands/history", () => historyMocks);
 vi.mock("./commands/checkpoint", () => checkpointMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
+vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 
 describe("runCli lightweight command dispatch", () => {
 	afterEach(() => {
@@ -159,6 +164,9 @@ describe("runCli lightweight command dispatch", () => {
 			mockState.runAgentCalls += 1;
 		});
 		runtimeMocks.runInteractive.mockReset();
+		hubRuntimeMocks.ensureCliHubServer.mockReset();
+		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue("ws://127.0.0.1:4317");
+		hubRuntimeMocks.prewarmCliHubServer.mockReset();
 		authMocks.ensureOAuthProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
@@ -242,6 +250,18 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(mockState.runAgentImports).toBe(1);
 		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("skips hub prewarm for yolo runs", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--yolo", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
+		expect(hubRuntimeMocks.prewarmCliHubServer).not.toHaveBeenCalled();
 	});
 
 	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {

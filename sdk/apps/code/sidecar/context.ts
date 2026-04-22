@@ -2,11 +2,9 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
+	ClineCore,
 	type CoreSessionEvent,
-	CoreSessionService,
-	LocalRuntimeHost,
-	ProviderSettingsManager,
-	SqliteSessionStore,
+	NodeHubClient,
 	setHomeDirIfUnset,
 } from "@clinebot/core";
 import type { AgentEvent } from "@clinebot/shared";
@@ -56,7 +54,15 @@ function emitChunk(
 ): void {
 	const ts = nowMs();
 	appendSessionChunk(sessionId, stream, chunk, ts);
-	sendEvent(ctx, "chat_event", { sessionId, stream, chunk, ts });
+	const nextIndex = (ctx.streamIndices.get(sessionId) ?? 0) + 1;
+	ctx.streamIndices.set(sessionId, nextIndex);
+	sendEvent(ctx, "chat_event", {
+		sessionId,
+		stream,
+		chunk,
+		ts,
+		index: nextIndex,
+	});
 }
 
 export { sendEvent, emitChunk, nowMs };
@@ -366,64 +372,199 @@ function handleCoreSessionEvent(
 export function createSidecarContext(workspaceRoot: string): SidecarContext {
 	return {
 		liveSessions: new Map(),
+		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		sessionManager: null,
+		hubClient: null,
 		workspaceRoot,
 		unsubscribeSessionEvents: null,
 	};
+}
+
+export function handleHubApprovalEvent(
+	ctx: SidecarContext,
+	event: {
+		event: string;
+		sessionId?: string;
+		payload?: Record<string, unknown>;
+	},
+): void {
+	if (event.event !== "approval.requested") {
+		return;
+	}
+	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
+	const approvalId =
+		typeof event.payload?.approvalId === "string"
+			? event.payload.approvalId.trim()
+			: "";
+	if (!sessionId || !approvalId) {
+		return;
+	}
+	const requestId = approvalId;
+	ctx.pendingApprovals.set(requestId, {
+		approvalId,
+		item: {
+			requestId,
+			sessionId,
+			createdAt: new Date().toISOString(),
+			toolCallId:
+				typeof event.payload?.toolCallId === "string"
+					? event.payload.toolCallId
+					: "",
+			toolName:
+				typeof event.payload?.toolName === "string"
+					? event.payload.toolName
+					: "tool",
+			input:
+				typeof event.payload?.inputJson === "string"
+					? event.payload.inputJson
+					: undefined,
+			conversationId: sessionId,
+		},
+	});
+	const sessionApprovals = Array.from(ctx.pendingApprovals.values())
+		.filter((approval) => approval.item.sessionId === sessionId)
+		.map((approval) => approval.item);
+	sendEvent(ctx, "tool_approval_state", {
+		sessionId,
+		items: sessionApprovals,
+	});
+}
+
+export function handleHubLiveEvent(
+	ctx: SidecarContext,
+	event: {
+		event: string;
+		sessionId?: string;
+		payload?: Record<string, unknown>;
+	},
+): void {
+	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
+	if (!sessionId) {
+		return;
+	}
+	const session = ctx.liveSessions.get(sessionId);
+	if (!session?.attachedViaHub) {
+		return;
+	}
+
+	switch (event.event) {
+		case "assistant.delta": {
+			const text =
+				typeof event.payload?.text === "string" ? event.payload.text : "";
+			if (text) {
+				emitChunk(ctx, sessionId, "chat_text", text);
+			}
+			return;
+		}
+		case "reasoning.delta": {
+			const text =
+				typeof event.payload?.text === "string" ? event.payload.text : "";
+			const redacted = event.payload?.redacted === true;
+			if (!text && !redacted) {
+				return;
+			}
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_reasoning",
+				JSON.stringify({ text, redacted }),
+			);
+			return;
+		}
+		case "tool.started": {
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_start",
+				JSON.stringify({
+					toolCallId:
+						typeof event.payload?.toolCallId === "string"
+							? event.payload.toolCallId
+							: undefined,
+					toolName:
+						typeof event.payload?.toolName === "string"
+							? event.payload.toolName
+							: "tool",
+					input: event.payload?.input,
+				}),
+			);
+			return;
+		}
+		case "tool.finished": {
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_end",
+				JSON.stringify({
+					toolCallId:
+						typeof event.payload?.toolCallId === "string"
+							? event.payload.toolCallId
+							: undefined,
+					toolName:
+						typeof event.payload?.toolName === "string"
+							? event.payload.toolName
+							: "tool",
+					output: event.payload?.output,
+					error:
+						typeof event.payload?.error === "string"
+							? event.payload.error
+							: undefined,
+				}),
+			);
+			return;
+		}
+		case "run.started":
+		case "session.attached":
+		case "session.updated": {
+			const payloadSession =
+				event.payload?.session &&
+				typeof event.payload.session === "object" &&
+				!Array.isArray(event.payload.session)
+					? (event.payload.session as Record<string, unknown>)
+					: undefined;
+			const status =
+				typeof payloadSession?.status === "string"
+					? payloadSession.status
+					: event.event === "run.started"
+						? "running"
+						: session.status;
+			session.status = status;
+			session.busy = status === "running";
+			sendEvent(ctx, "chat_session_status", { sessionId, status });
+			return;
+		}
+		case "run.completed":
+		case "run.aborted": {
+			const reason =
+				typeof event.payload?.reason === "string"
+					? event.payload.reason
+					: event.event === "run.aborted"
+						? "aborted"
+						: "completed";
+			session.status = reason;
+			session.busy = false;
+			session.endedAt = nowMs();
+			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
+			return;
+		}
+		default:
+			return;
+	}
 }
 
 export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
 	setHomeDirIfUnset(homedir());
-
-	const store = new SqliteSessionStore();
-	const sessionService = new CoreSessionService(store);
-	const providerSettingsManager = new ProviderSettingsManager();
-
-	const sessionManager = new LocalRuntimeHost({
-		sessionService,
-		providerSettingsManager,
-		defaultToolExecutors: {
-			askQuestion: async (_question, options) => options[0] ?? "",
-			submit: async (summary, verified) => {
-				const status = verified ? "verified" : "unverified";
-				return `Submission recorded (${status}): ${summary}`;
-			},
-		},
-		requestToolApproval: async (request) => {
-			const requestId = `${request.conversationId}_${request.toolCallId}`;
-			const item = {
-				requestId,
-				sessionId: request.conversationId,
-				createdAt: new Date().toISOString(),
-				toolCallId: request.toolCallId,
-				toolName: request.toolName,
-				input: request.input,
-				iteration: request.iteration,
-				agentId: request.agentId,
-				conversationId: request.conversationId,
-			};
-
-			return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
-				ctx.pendingApprovals.set(requestId, {
-					request,
-					resolve,
-					item,
-				});
-
-				// Broadcast approval snapshot so the frontend renders the dialog
-				const sessionApprovals = Array.from(ctx.pendingApprovals.values())
-					.filter((a) => a.item.sessionId === request.conversationId)
-					.map((a) => a.item);
-
-				sendEvent(ctx, "tool_approval_state", {
-					sessionId: request.conversationId,
-					items: sessionApprovals,
-				});
-			});
+	const sessionManager = await ClineCore.create({
+		backendMode: "hub",
+		hub: {
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+			clientType: "code-sidecar",
+			displayName: "Code App sidecar",
 		},
 	});
 
@@ -432,6 +573,24 @@ export async function initializeSessionManager(
 		handleCoreSessionEvent(ctx, event);
 	});
 
+	const runtimeAddress = sessionManager.runtimeAddress?.trim();
+	let hubClient: NodeHubClient | null = null;
+	if (runtimeAddress) {
+		hubClient = new NodeHubClient({
+			url: runtimeAddress,
+			clientType: "code-sidecar-approvals",
+			displayName: "Code App approvals",
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+		});
+		await hubClient.connect();
+		hubClient.subscribe((event) => {
+			handleHubApprovalEvent(ctx, event);
+			handleHubLiveEvent(ctx, event);
+		});
+	}
+
 	ctx.sessionManager = sessionManager;
+	ctx.hubClient = hubClient;
 	ctx.unsubscribeSessionEvents = unsubscribe;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { PlusIcon } from "lucide-react";
+import { GitBranchIcon, Loader2Icon, PlusIcon, Trash2Icon } from "lucide-react";
 import { nanoid } from "nanoid";
 import {
 	type MutableRefObject,
@@ -35,9 +35,11 @@ import TeamTasks, { type TeamToolEvent } from "@/components/TeamTasks";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type {
+	WebviewChatAttachments,
 	WebviewDefaults,
 	WebviewOutboundMessage,
 	WebviewProviderModel,
+	WebviewSessionSummary,
 	WebviewToolEvent,
 } from "../../webview-protocol";
 import { Composer } from "./components/Composer";
@@ -97,6 +99,19 @@ function createMessage(
 		text,
 		...extra,
 	};
+}
+
+function buildUserMessageLabel(
+	prompt: string,
+	attachments?: WebviewChatAttachments,
+	attachmentCount = 0,
+): string {
+	const resolvedCount =
+		attachmentCount || (attachments?.userImages?.length ?? 0);
+	if (resolvedCount === 0) {
+		return prompt;
+	}
+	return `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${resolvedCount} file${resolvedCount === 1 ? "" : "s"}]`;
 }
 
 function appendAssistantDelta(
@@ -375,6 +390,45 @@ function appendToolEvent(
 	return [...current, createMessage("meta", text, { toolEvents: [toolEvent] })];
 }
 
+function mergeHydratedMessagesWithLive(
+	hydrated: ChatMessage[],
+	current: ChatMessage[],
+): ChatMessage[] {
+	if (current.length === 0) {
+		return hydrated;
+	}
+	const next = [...hydrated];
+	for (const live of current) {
+		const last = next.at(-1);
+		if (live.role === "assistant" && last?.role === "assistant") {
+			next[next.length - 1] = {
+				...last,
+				text: `${last.text}${live.text}`,
+				reasoning:
+					`${last.reasoning ?? ""}${live.reasoning ?? ""}` || undefined,
+				reasoningRedacted:
+					last.reasoningRedacted || live.reasoningRedacted || undefined,
+				toolEvents: [...(last.toolEvents ?? []), ...(live.toolEvents ?? [])],
+			};
+			continue;
+		}
+		if (
+			live.role === "meta" &&
+			last?.role === "meta" &&
+			(live.toolEvents?.length ?? 0) > 0
+		) {
+			next[next.length - 1] = {
+				...last,
+				text: live.text || last.text,
+				toolEvents: [...(last.toolEvents ?? []), ...(live.toolEvents ?? [])],
+			};
+			continue;
+		}
+		next.push(live);
+	}
+	return next;
+}
+
 function finalizeAssistantTurn(
 	current: ChatMessage[],
 	finishReason: string,
@@ -393,6 +447,17 @@ function finalizeAssistantTurn(
 	];
 }
 
+function formatSessionLabel(session: WebviewSessionSummary): string {
+	const title = session.title?.trim() || session.sessionId.slice(0, 12);
+	const status = session.status?.trim();
+	const workspaceName = session.workspaceRoot?.trim()
+		? session.workspaceRoot.trim().split("/").pop()
+		: undefined;
+	return [title, status ? `(${status})` : undefined, workspaceName]
+		.filter(Boolean)
+		.join(" • ");
+}
+
 export default function Chat() {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [status, setStatus] = useState("Waiting for RPC initialization...");
@@ -406,6 +471,8 @@ export default function Chat() {
 		workspaceRoot: "",
 		cwd: "",
 	});
+	const [sessions, setSessions] = useState<WebviewSessionSummary[]>([]);
+	const [sessionTitleDraft, setSessionTitleDraft] = useState("");
 	const [lastSelection, setLastSelection] =
 		useState<ModelSelectionStorage>(readModelSelection);
 	const [provider, setProvider] = useState(() => lastSelection.lastProvider);
@@ -421,8 +488,21 @@ export default function Chat() {
 	const [enableTeams, setEnableTeams] = useState(false);
 	const [autoApproveTools, setAutoApproveTools] = useState(true);
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);
+	const [titleEditing, setTitleEditing] = useState(false);
+	const [forking, setForking] = useState(false);
+	const [forkError, setForkError] = useState<string | null>(null);
 	const activeAssistantIdRef = useRef<string | undefined>(undefined);
 	const lastSelectionRef = useRef(lastSelection);
+	const sessionsRef = useRef(sessions);
+	const defaultsRef = useRef(defaults);
+
+	useEffect(() => {
+		sessionsRef.current = sessions;
+	}, [sessions]);
+
+	useEffect(() => {
+		defaultsRef.current = defaults;
+	}, [defaults]);
 
 	useEffect(() => {
 		const handleMessage = (event: MessageEvent<WebviewOutboundMessage>) => {
@@ -439,19 +519,44 @@ export default function Chat() {
 					setStatus(`Error: ${message.text}`);
 					setSending(false);
 					activeAssistantIdRef.current = undefined;
-					setMessages((current) => [
-						...current,
-						createMessage("error", `Error: ${message.text}`),
-					]);
+					setMessages((current) => {
+						if (current.length === 0) {
+							return current;
+						}
+						const nextText = `Error: ${message.text}`;
+						const last = current.at(-1);
+						if (last?.role === "error" && last.text === nextText) {
+							return current;
+						}
+						return [...current, createMessage("error", nextText)];
+					});
 					return;
 				case "defaults":
 					setDefaults(message.defaults);
+					if (message.defaults.provider) {
+						setProvider(message.defaults.provider);
+					}
+					if (message.defaults.model) {
+						setModel(message.defaults.model);
+					}
+					return;
+				case "sessions":
+					setSessions(message.sessions);
 					return;
 				case "providers":
 					setProviders(message.providers);
 					setProvider((current) => {
+						const currentProvider =
+							current && message.providers.some((item) => item.id === current)
+								? current
+								: "";
+						const savedProvider = readModelSelection().lastProvider;
 						const nextProvider =
-							current ||
+							currentProvider ||
+							(savedProvider &&
+							message.providers.some((item) => item.id === savedProvider)
+								? savedProvider
+								: "") ||
 							message.providers.find((item) => item.enabled)?.id ||
 							message.providers[0]?.id ||
 							"";
@@ -470,6 +575,14 @@ export default function Chat() {
 						if (current && message.models.some((item) => item.id === current)) {
 							return current;
 						}
+						const nextDefaults = defaultsRef.current;
+						if (
+							nextDefaults.provider === message.providerId &&
+							nextDefaults.model &&
+							message.models.some((item) => item.id === nextDefaults.model)
+						) {
+							return nextDefaults.model;
+						}
 						const saved = readModelSelection();
 						const rememberedModel =
 							saved.lastModelByProvider[message.providerId];
@@ -484,6 +597,55 @@ export default function Chat() {
 					return;
 				case "session_started":
 					setSessionId(message.sessionId);
+					setTitleEditing(false);
+					setSessionTitleDraft("");
+					return;
+				case "session_hydrated":
+					setSessionId(message.sessionId);
+					setSending(message.status === "running");
+					if (message.providerId) {
+						setProvider(message.providerId);
+					}
+					if (message.providerId && message.modelId) {
+						const nextSelection: ModelSelectionStorage = {
+							lastProvider: message.providerId,
+							lastModelByProvider: {
+								...lastSelectionRef.current.lastModelByProvider,
+								[message.providerId]: message.modelId,
+							},
+						};
+						lastSelectionRef.current = nextSelection;
+						setLastSelection(nextSelection);
+						writeModelSelection(nextSelection);
+						setModel(message.modelId);
+					}
+					setTitleEditing(false);
+					setSessionTitleDraft(
+						sessionsRef.current
+							.find((item) => item.sessionId === message.sessionId)
+							?.title?.trim() || "",
+					);
+					setMessages((current) => {
+						const merged =
+							message.status === "running"
+								? mergeHydratedMessagesWithLive(
+										message.messages as ChatMessage[],
+										current,
+									)
+								: (message.messages as ChatMessage[]);
+						activeAssistantIdRef.current =
+							message.status === "running"
+								? [...merged]
+										.reverse()
+										.find((item) => item.role === "assistant")?.id
+								: undefined;
+						return merged;
+					});
+					setStatus(
+						message.status === "running"
+							? `Attached to ${message.sessionId} (running)`
+							: `Attached to ${message.sessionId}`,
+					);
 					return;
 				case "assistant_delta":
 					setMessages((current) =>
@@ -526,9 +688,21 @@ export default function Chat() {
 				case "reset_done":
 					setSessionId(undefined);
 					setSending(false);
+					setTitleEditing(false);
+					setSessionTitleDraft("");
 					activeAssistantIdRef.current = undefined;
 					setStatus("Started a new chat session.");
 					setMessages([]);
+					return;
+				case "fork_done":
+					setForking(false);
+					setForkError(null);
+					setStatus(`Forked → new session ${message.newSessionId}`);
+					return;
+				case "fork_error":
+					setForking(false);
+					setForkError(message.text);
+					setStatus(`Fork failed: ${message.text}`);
 					return;
 			}
 		};
@@ -577,6 +751,34 @@ export default function Chat() {
 		() => messages.filter((message) => message.role !== "meta" || message.text),
 		[messages],
 	);
+	const sessionTitle =
+		sessionId &&
+		typeof sessions.find((item) => item.sessionId === sessionId)?.title ===
+			"string"
+			? sessions.find((item) => item.sessionId === sessionId)?.title?.trim() ||
+				""
+			: "";
+	const displayedSessionTitle = titleEditing ? sessionTitleDraft : sessionTitle;
+
+	const commitSessionTitle = () => {
+		if (!sessionId) {
+			setTitleEditing(false);
+			return;
+		}
+		const normalized = sessionTitleDraft.replace(/\s+/g, " ").trim();
+		setTitleEditing(false);
+		if (normalized === sessionTitle) {
+			return;
+		}
+		setSessionTitleDraft(normalized);
+		postToHost({
+			type: "updateSessionMetadata",
+			sessionId,
+			metadata: {
+				title: normalized,
+			},
+		});
+	};
 
 	return (
 		<PromptInputProvider>
@@ -588,10 +790,72 @@ export default function Chat() {
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
+						{sessions.length > 0 ? (
+							<select
+								className="max-w-48 rounded-md border bg-background px-2 py-1 text-xs"
+								onChange={(event) => {
+									const nextSessionId = event.target.value;
+									if (!nextSessionId) {
+										postToHost({ type: "reset" });
+										setStatus("Resetting session...");
+										return;
+									}
+									setMessages([]);
+									setSending(false);
+									activeAssistantIdRef.current = undefined;
+									setStatus(`Attaching to ${nextSessionId}...`);
+									postToHost({
+										type: "attachSession",
+										sessionId: nextSessionId,
+									});
+								}}
+								value={sessionId ?? ""}
+							>
+								<option value="">New session</option>
+								{sessions.map((item) => (
+									<option key={item.sessionId} value={item.sessionId}>
+										{formatSessionLabel(item)}
+									</option>
+								))}
+							</select>
+						) : null}
+						{sessionId ? (
+							<input
+								className="min-w-0 max-w-56 rounded-md border bg-background px-2 py-1 text-xs"
+								onBlur={commitSessionTitle}
+								onChange={(event) => setSessionTitleDraft(event.target.value)}
+								onFocus={() => {
+									setTitleEditing(true);
+									setSessionTitleDraft(sessionTitle);
+								}}
+								onKeyDown={(event) => {
+									if (event.key === "Enter") {
+										event.preventDefault();
+										commitSessionTitle();
+									}
+								}}
+								placeholder="Session title"
+								value={displayedSessionTitle}
+							/>
+						) : null}
 						{sessionId ? (
 							<code className="rounded-full bg-muted px-3 py-1 text-xs">
 								{sessionId}
 							</code>
+						) : null}
+						{sessionId ? (
+							<Button
+								onClick={() => {
+									setStatus(`Deleting ${sessionId}...`);
+									postToHost({ type: "deleteSession", sessionId });
+								}}
+								size="icon-sm"
+								type="button"
+								variant="ghost"
+							>
+								<Trash2Icon className="size-4" />
+								<span className="sr-only">Delete session</span>
+							</Button>
 						) : null}
 						<Button
 							onClick={() => {
@@ -701,6 +965,35 @@ export default function Chat() {
 										) : null}
 										<MessageContent>
 											<MessageResponse>{message.text}</MessageResponse>
+											{message.role === "assistant" && !sending ? (
+												<div className="mt-1 flex items-center gap-1">
+													<Button
+														className="h-6 gap-1 px-2 text-[11px] text-muted-foreground hover:text-foreground"
+														disabled={forking}
+														onClick={() => {
+															setForking(true);
+															setForkError(null);
+															postToHost({ type: "forkSession" });
+														}}
+														size="sm"
+														title="Fork session — copy full message history into a new session"
+														type="button"
+														variant="ghost"
+													>
+														{forking ? (
+															<Loader2Icon className="size-3 animate-spin" />
+														) : (
+															<GitBranchIcon className="size-3" />
+														)}
+														Fork
+													</Button>
+													{forkError ? (
+														<span className="text-[11px] text-destructive">
+															{forkError}
+														</span>
+													) : null}
+												</div>
+											) : null}
 										</MessageContent>
 									</div>
 								</Message>
@@ -744,12 +1037,15 @@ export default function Chat() {
 						}
 						setModel("");
 					}}
-					onSend={(prompt) => {
+					onSend={({ prompt, attachments, attachmentCount }) => {
 						const assistantMessage = createMessage("assistant", "");
 						activeAssistantIdRef.current = assistantMessage.id;
 						setMessages((current) => [
 							...current,
-							createMessage("user", prompt),
+							createMessage(
+								"user",
+								buildUserMessageLabel(prompt, attachments, attachmentCount),
+							),
 							assistantMessage,
 						]);
 						setSending(true);
@@ -757,6 +1053,7 @@ export default function Chat() {
 						postToHost({
 							type: "send",
 							prompt,
+							attachments,
 							config: {
 								autoApproveTools,
 								enableSpawn,

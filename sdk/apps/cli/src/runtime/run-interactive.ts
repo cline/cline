@@ -4,6 +4,7 @@ import {
 	prewarmFileIndex,
 	SessionSource,
 	type TeamEvent,
+	toggleDisabledTool,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import { render } from "ink";
@@ -16,6 +17,7 @@ import {
 import { loadInteractiveConfigData } from "../tui/interactive-config";
 import { InteractiveTui } from "../tui/interactive-tui";
 import {
+	type InteractiveSlashCommand,
 	listInteractiveSlashCommands,
 	resolveClineWelcomeLine,
 } from "../tui/interactive-welcome";
@@ -26,12 +28,13 @@ import {
 } from "../utils/approval";
 import {
 	type ChatCommandState,
+	chatCommandHost,
+	type ForkSessionResult,
 	maybeHandleChatCommand,
 } from "../utils/chat-commands";
 import { createRuntimeHooks } from "../utils/hooks";
 import { c, setActiveCliSession, writeErr, writeln } from "../utils/output";
 import { createWorkspaceChatCommandHost } from "../utils/plugin-chat-commands";
-import { readRepoStatus } from "../utils/repo-status";
 import { loadInteractiveResumeMessages } from "../utils/resume";
 import {
 	enableTeamsForPrompt,
@@ -80,29 +83,27 @@ export async function runInteractive(
 		process.exit(1);
 	}
 
-	const initialRepoStatus = await readRepoStatus(config.cwd);
 	void prewarmFileIndex(config.cwd);
 	const workflowSlashCommands = listInteractiveSlashCommands(
 		userInstructionWatcher,
 	);
-	const { host: chatCommandHost, pluginSlashCommands } =
-		await createWorkspaceChatCommandHost({
+	let interactiveChatCommandHost = chatCommandHost;
+	const loadAdditionalSlashCommands = async (): Promise<
+		InteractiveSlashCommand[]
+	> => {
+		const { host, pluginSlashCommands } = await createWorkspaceChatCommandHost({
 			cwd: config.cwd,
 			workspaceRoot: config.workspaceRoot,
 			logger: config.logger,
 		});
-	for (const cmd of pluginSlashCommands) {
-		workflowSlashCommands.push({
+		interactiveChatCommandHost = host;
+		return pluginSlashCommands.map((cmd) => ({
 			name: cmd.name,
 			instructions: "",
 			description: cmd.description ?? "Plugin command",
-		});
-	}
+		}));
+	};
 
-	const runtimeHooks = createRuntimeHooks({
-		verbose: config.verbose,
-		yolo: config.mode === "yolo",
-	});
 	const enableChatCommands = process.env.CLINE_ENABLE_CHAT_COMMANDS === "1";
 	const autoApproveAllRef = {
 		current: config.toolPolicies["*"]?.autoApprove !== false,
@@ -117,61 +118,8 @@ export async function runInteractive(
 			enabled,
 		});
 	};
-	const sessionManager = await createCliCore({
-		defaultToolExecutors: {
-			askQuestion: askQuestionInTerminal,
-			submit: submitAndExitInTerminal,
-		},
-		forceLocalBackend: config.mode === "yolo" || config.sandbox === true,
-		logger: config.logger,
-		toolPolicies: config.toolPolicies,
-		requestToolApproval: async (request) => {
-			if (autoApproveAllRef.current) {
-				return { approved: true };
-			}
-			return requestToolApproval(request);
-		},
-	});
 
 	const uiEvents = getUIEventEmitter();
-
-	const onAgentEvent = (event: AgentEvent): void => {
-		uiEvents.emit("agent", event);
-	};
-	const unsubscribeAgent = subscribeToAgentEvents(sessionManager, onAgentEvent);
-	const unsubscribePendingPrompts = subscribeToPendingPromptEvents(
-		sessionManager,
-		{
-			onPendingPrompts: (event: PendingPromptSnapshot): void => {
-				uiEvents.emit("pending-prompts", event);
-			},
-			onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent): void => {
-				uiEvents.emit("pending-prompt-submitted", event);
-			},
-		},
-	);
-
-	const initialMessages = await loadInteractiveResumeMessages(
-		sessionManager,
-		resumeSessionId,
-	);
-	if (resumeSessionId?.trim()) {
-		const previewMessages = getLastSessionPreviewMessages(
-			initialMessages ?? [],
-			2,
-		);
-		if (previewMessages.length > 0) {
-			writeln(
-				`${c.dim}Resuming ${resumeSessionId.trim()} with recent context:${c.reset}`,
-			);
-			for (const previewMessage of previewMessages) {
-				writeln(
-					`${c.dim}${formatPreviewMessageText(previewMessage)}${c.reset}`,
-				);
-			}
-			writeln();
-		}
-	}
 	const chatCommandState: ChatCommandState = {
 		enableTools: config.enableTools,
 		autoApproveTools: autoApproveAllRef.current,
@@ -228,13 +176,26 @@ export async function runInteractive(
 			guidance: `mistake_limit_reached: ${answer.trim()}`,
 		};
 	};
+	let sessionManager: Awaited<ReturnType<typeof createCliCore>> | undefined;
+	let runtimeHooks: ReturnType<typeof createRuntimeHooks> | undefined;
+	let unsubscribeAgent = () => {};
+	let unsubscribePendingPrompts = () => {};
+	let startupPromise: Promise<void> | undefined;
+	let startupError: unknown;
+	let shutdownRequested = false;
 	// Tracks the session that is currently live for send/abort/stop operations.
 	let activeSessionId = "";
 	// One-time startup input: when present, the first interactive session
 	// reuses this historical id instead of allocating a new one.
 	const initialResumeSessionId = resumeSessionId?.trim() || undefined;
 	const applyStartedSession = (
-		started: Awaited<ReturnType<typeof sessionManager.start>>,
+		started: NonNullable<
+			Awaited<ReturnType<typeof createCliCore>>
+		> extends infer T
+			? T extends { start: (...args: never[]) => Promise<infer R> }
+				? R
+				: never
+			: never,
 	) => {
 		setActiveCliSession({
 			manifestPath: started.manifestPath,
@@ -243,13 +204,67 @@ export async function runInteractive(
 		});
 		activeSessionId = started.sessionId;
 	};
+	const ensureSessionManager = async () => {
+		if (sessionManager) {
+			return sessionManager;
+		}
+		const manager = await createCliCore({
+			defaultToolExecutors: {
+				askQuestion: askQuestionInTerminal,
+				submit: submitAndExitInTerminal,
+			},
+			forceLocalBackend: config.mode === "yolo" || config.sandbox === true,
+			logger: config.logger,
+			toolPolicies: config.toolPolicies,
+			requestToolApproval: async (request) => {
+				if (autoApproveAllRef.current) {
+					return { approved: true };
+				}
+				return requestToolApproval(request);
+			},
+		});
+		if (shutdownRequested) {
+			await manager.dispose("cli_interactive_startup_cancelled");
+			throw new Error("interactive runtime shutdown requested");
+		}
+		sessionManager = manager;
+		runtimeHooks = createRuntimeHooks({
+			verbose: config.verbose,
+			yolo: config.mode === "yolo",
+			cwd: config.cwd,
+			workspaceRoot: config.workspaceRoot,
+			dispatchHookEvent: async (payload) => {
+				await manager.handleHookEvent(payload);
+			},
+		});
+		const onAgentEvent = (event: AgentEvent): void => {
+			uiEvents.emit("agent", event);
+		};
+		unsubscribeAgent = subscribeToAgentEvents(manager, onAgentEvent);
+		unsubscribePendingPrompts = subscribeToPendingPromptEvents(manager, {
+			onPendingPrompts: (event: PendingPromptSnapshot): void => {
+				uiEvents.emit("pending-prompts", event);
+			},
+			onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent): void => {
+				uiEvents.emit("pending-prompt-submitted", event);
+			},
+		});
+		return manager;
+	};
 	/**
 	 * Starts a brand-new interactive session. This path is used for normal boot
 	 * when we are not resuming, and for later reset/new-session flows where we
 	 * intentionally want a fresh session id.
 	 */
-	const startFreshSession = async (initial: typeof initialMessages = []) => {
-		const started = await sessionManager.start({
+	const startFreshSession = async (
+		initial: Awaited<ReturnType<typeof loadInteractiveResumeMessages>> = [],
+		sessionMetadata?: Record<string, unknown>,
+	) => {
+		const manager = await ensureSessionManager();
+		if (!runtimeHooks) {
+			throw new Error("interactive runtime hooks are unavailable");
+		}
+		const started = await manager.start({
 			source: SessionSource.CLI,
 			config: {
 				...config,
@@ -270,12 +285,69 @@ export async function runInteractive(
 			},
 			interactive: true,
 			initialMessages: initial,
+			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
 				userInstructionWatcher,
 				onTeamRestored: () => {},
 			},
 		});
 		applyStartedSession(started);
+	};
+
+	/**
+	 * Forks the current active session by copying its full message history and
+	 * checkpoint metadata into a brand-new session. The new session's persisted
+	 * metadata records the origin session id, source, and any checkpoint history
+	 * so the lineage can be traced back.
+	 */
+	const forkCurrentSession = async (): Promise<
+		ForkSessionResult | undefined
+	> => {
+		const manager = sessionManager;
+		if (!manager || !activeSessionId) {
+			return undefined;
+		}
+		const forkedFromSessionId = activeSessionId;
+		// Read the current session record so we can copy checkpoint metadata.
+		const sessionRecord = await manager.get(forkedFromSessionId);
+		// Read the full message history from the source session.
+		const messages = await manager
+			.readMessages(forkedFromSessionId)
+			.catch(() => undefined);
+		if (!messages) {
+			return undefined;
+		}
+		if (messages.length === 0) {
+			throw new Error("Cannot fork an empty session.");
+		}
+		// Stop the current session before starting the fork so the two sessions
+		// do not share the same in-process state.
+		await manager.stop(forkedFromSessionId);
+		// Build fork lineage metadata. We copy any existing checkpoint metadata
+		// from the original session so the forked session knows what checkpoints
+		// were present at the time of the fork.
+		const checkpointMetadata = sessionRecord?.metadata?.checkpoint ?? undefined;
+		const forkMetadata: Record<string, unknown> = {
+			fork: {
+				forkedFromSessionId,
+				forkedAt: new Date().toISOString(),
+				source: sessionRecord?.source ?? SessionSource.CLI,
+				...(checkpointMetadata !== undefined
+					? { checkpoints: checkpointMetadata }
+					: {}),
+			},
+		};
+		// Preserve any other existing metadata fields from the original session
+		// so nothing is lost (e.g. title, totalCost).
+		if (sessionRecord?.metadata) {
+			for (const [key, value] of Object.entries(sessionRecord.metadata)) {
+				if (key !== "fork") {
+					forkMetadata[key] = value;
+				}
+			}
+		}
+		await startFreshSession(messages, forkMetadata);
+		return { forkedFromSessionId, newSessionId: activeSessionId };
 	};
 	/**
 	 * Starts the initial interactive session by continuing an existing historical
@@ -284,9 +356,13 @@ export async function runInteractive(
 	 */
 	const startResumedSession = async (
 		resumeId: string,
-		initial: typeof initialMessages,
+		initial: Awaited<ReturnType<typeof loadInteractiveResumeMessages>>,
 	) => {
-		const started = await sessionManager.start({
+		const manager = await ensureSessionManager();
+		if (!runtimeHooks) {
+			throw new Error("interactive runtime hooks are unavailable");
+		}
+		const started = await manager.start({
 			source: SessionSource.CLI,
 			config: {
 				...config,
@@ -315,16 +391,52 @@ export async function runInteractive(
 		});
 		applyStartedSession(started);
 	};
-	if (initialResumeSessionId) {
-		await startResumedSession(initialResumeSessionId, initialMessages);
-	} else {
-		await startFreshSession(initialMessages);
-	}
+	const ensureInteractiveRuntimeReady = async (): Promise<void> => {
+		if (startupPromise) {
+			return await startupPromise;
+		}
+		startupPromise = (async () => {
+			const manager = await ensureSessionManager();
+			const initialMessages = await loadInteractiveResumeMessages(
+				manager,
+				resumeSessionId,
+			);
+			if (resumeSessionId?.trim()) {
+				const previewMessages = getLastSessionPreviewMessages(
+					initialMessages ?? [],
+					2,
+				);
+				if (previewMessages.length > 0) {
+					writeln(
+						`${c.dim}Resuming ${resumeSessionId.trim()} with recent context:${c.reset}`,
+					);
+					for (const previewMessage of previewMessages) {
+						writeln(
+							`${c.dim}${formatPreviewMessageText(previewMessage)}${c.reset}`,
+						);
+					}
+					writeln();
+				}
+			}
+			if (shutdownRequested) {
+				return;
+			}
+			if (initialResumeSessionId) {
+				await startResumedSession(initialResumeSessionId, initialMessages);
+			} else {
+				await startFreshSession(initialMessages);
+			}
+		})().catch((error) => {
+			startupError = error;
+			throw error;
+		});
+		return await startupPromise;
+	};
 
 	let isRunning = false;
 	let abortRequested = false;
 	const abortAll = () => {
-		if (abortRequested) {
+		if (abortRequested || !sessionManager || !activeSessionId) {
 			return false;
 		}
 		abortRequested = true;
@@ -371,18 +483,27 @@ export async function runInteractive(
 			return await cleanupPromise;
 		}
 		cleanupPromise = (async () => {
+			shutdownRequested = true;
 			requestExit();
 			process.off("SIGINT", handleSigint);
 			process.off("SIGTERM", handleSigterm);
-			unsubscribeAgent();
-			unsubscribePendingPrompts();
 			try {
-				await sessionManager.stop(activeSessionId);
+				await startupPromise?.catch(() => {});
+			} finally {
+				unsubscribeAgent();
+				unsubscribePendingPrompts();
+			}
+			try {
+				if (sessionManager && activeSessionId) {
+					await sessionManager.stop(activeSessionId);
+				}
 			} finally {
 				try {
-					await sessionManager.dispose("cli_interactive_shutdown");
+					if (sessionManager) {
+						await sessionManager.dispose("cli_interactive_shutdown");
+					}
 				} finally {
-					await runtimeHooks.shutdown();
+					await runtimeHooks?.shutdown();
 				}
 			}
 			setActiveRuntimeAbort(undefined);
@@ -397,8 +518,8 @@ export async function runInteractive(
 		React.createElement(InteractiveTui, {
 			config,
 			initialView: options?.initialView ?? "chat",
-			initialRepoStatus,
 			workflowSlashCommands,
+			loadAdditionalSlashCommands,
 			loadWelcomeLine: async () =>
 				await resolveClineWelcomeLine({
 					config,
@@ -410,7 +531,35 @@ export async function runInteractive(
 					watcher: userInstructionWatcher,
 					cwd: config.cwd,
 					workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
+					availabilityContext: {
+						mode: config.mode,
+						modelId: config.modelId,
+						providerId: config.providerId,
+						enableSpawnAgent: config.enableSpawnAgent,
+						enableAgentTeams: config.enableAgentTeams,
+					},
 				}),
+			onToggleConfigItem: async (item) => {
+				if (
+					item.source !== "workspace-plugin" &&
+					item.source !== "global-plugin"
+				) {
+					return undefined;
+				}
+				toggleDisabledTool(item.name);
+				return await loadInteractiveConfigData({
+					watcher: userInstructionWatcher,
+					cwd: config.cwd,
+					workspaceRoot: config.workspaceRoot?.trim() || config.cwd,
+					availabilityContext: {
+						mode: config.mode,
+						modelId: config.modelId,
+						providerId: config.providerId,
+						enableSpawnAgent: config.enableSpawnAgent,
+						enableAgentTeams: config.enableAgentTeams,
+					},
+				});
+			},
 			subscribeToEvents: ({
 				onAgentEvent: onAgent,
 				onTeamEvent: onTeam,
@@ -429,6 +578,7 @@ export async function runInteractive(
 				};
 			},
 			onSubmit: async (input, _mode, delivery) => {
+				await ensureInteractiveRuntimeReady();
 				abortRequested = false;
 				if (!delivery) {
 					isRunning = true;
@@ -449,7 +599,7 @@ export async function runInteractive(
 						if (!config.enableAgentTeams) {
 							await enableTeamsForPrompt(config);
 							// Restart the session with teams enabled.
-							if (activeSessionId) {
+							if (sessionManager && activeSessionId) {
 								await sessionManager.stop(activeSessionId);
 							}
 							await startFreshSession([]);
@@ -461,7 +611,7 @@ export async function runInteractive(
 					if (
 						await maybeHandleChatCommand(input, {
 							enabled: enableChatCommands,
-							host: chatCommandHost,
+							host: interactiveChatCommandHost,
 							getState: () => ({
 								...chatCommandState,
 								autoApproveTools: autoApproveAllRef.current,
@@ -477,7 +627,7 @@ export async function runInteractive(
 								commandOutput = text;
 							},
 							reset: async () => {
-								if (activeSessionId) {
+								if (sessionManager && activeSessionId) {
 									await sessionManager.stop(activeSessionId);
 								}
 								await startFreshSession([]);
@@ -493,6 +643,7 @@ export async function runInteractive(
 									`cwd=${chatCommandState.cwd}`,
 									`workspaceRoot=${chatCommandState.workspaceRoot}`,
 								].join("\n"),
+							fork: forkCurrentSession,
 						})
 					) {
 						return {
@@ -504,13 +655,21 @@ export async function runInteractive(
 							commandOutput,
 						};
 					}
-					const userInput = await buildUserInputMessage(
-						input,
-						userInstructionWatcher,
-					);
+					const {
+						prompt: userInput,
+						userImages,
+						userFiles,
+					} = await buildUserInputMessage(input, userInstructionWatcher);
+					if (!sessionManager) {
+						throw startupError instanceof Error
+							? startupError
+							: new Error("interactive session manager is unavailable");
+					}
 					const result = await sessionManager.send({
 						sessionId: activeSessionId,
 						prompt: userInput,
+						userImages: userImages.length > 0 ? userImages : undefined,
+						userFiles: userFiles.length > 0 ? userFiles : undefined,
 						delivery,
 					});
 					if (!result) {
@@ -552,6 +711,13 @@ export async function runInteractive(
 		}),
 		{ exitOnCtrlC: false },
 	);
+	void ensureInteractiveRuntimeReady().catch((error) => {
+		if (shutdownRequested) {
+			return;
+		}
+		writeErr(error instanceof Error ? error.message : String(error));
+		requestExit();
+	});
 	unmountInteractiveUi = () => {
 		try {
 			inkApp.unmount();

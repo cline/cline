@@ -2,7 +2,6 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
-import { getRpcServerDefaultAddress } from "@clinebot/rpc";
 import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
 import {
@@ -16,7 +15,6 @@ import {
 	normalizeAutoApproveArgs,
 	resolveWorkspaceRoot,
 } from "./utils/helpers";
-import { getInternalLaunchViolation } from "./utils/internal-launch";
 import {
 	c,
 	installStreamErrorGuards,
@@ -30,12 +28,7 @@ import {
 	isOAuthProvider,
 	normalizeProviderId,
 } from "./utils/provider-auth";
-import { ensureCliRpcRuntimeAddress } from "./utils/rpc-runtime";
-import {
-	enableTeamsForPrompt,
-	rewriteTeamPrompt,
-	TEAM_COMMAND_USAGE,
-} from "./utils/team-command";
+import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
 import type { Config } from "./utils/types";
 
 export function stdinHasPipedInput(): boolean {
@@ -46,17 +39,6 @@ export function stdinHasPipedInput(): boolean {
 	} catch {
 		return false;
 	}
-}
-
-function mergeToolPolicies(
-	base: Record<string, ToolPolicy>,
-	overrides: Record<string, ToolPolicy>,
-): Record<string, ToolPolicy> {
-	const out: Record<string, ToolPolicy> = { ...base };
-	for (const [name, policy] of Object.entries(overrides)) {
-		out[name] = { ...(out[name] ?? {}), ...policy };
-	}
-	return out;
 }
 
 async function createProviderSettingsManager() {
@@ -80,6 +62,82 @@ async function loadCliRuntimeModules() {
 async function loadInteractiveRuntimeModule() {
 	const { runInteractive } = await import("./runtime/run-interactive");
 	return runInteractive;
+}
+
+function resolveCwdArg(argv: string[]): string | undefined {
+	const longIndex = argv.indexOf("--cwd");
+	if (longIndex >= 0 && longIndex + 1 < argv.length) {
+		const value = argv[longIndex + 1]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	for (let index = 0; index < argv.length; index += 1) {
+		if (argv[index] !== "-c") {
+			continue;
+		}
+		const value = argv[index + 1]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+function shouldPrewarmCliHub(argv: string[]): boolean {
+	if (argv.includes("--yolo") || argv.includes("-y")) {
+		return false;
+	}
+	const subcommand = argv.find((arg) => arg && !arg.startsWith("-"))?.trim();
+	return subcommand !== "hub";
+}
+
+function shouldAwaitCliHubPrewarm(argv: string[]): boolean {
+	const firstPositional = argv
+		.find((arg) => arg && !arg.startsWith("-"))
+		?.trim();
+	if (!firstPositional) {
+		return false;
+	}
+	const knownSubcommands = new Set([
+		"auth",
+		"checkpoint",
+		"config",
+		"connect",
+		"dev",
+		"doctor",
+		"history",
+		"hook",
+		"hub",
+		"schedule",
+		"task",
+		"t",
+		"update",
+		"version",
+	]);
+	if (!knownSubcommands.has(firstPositional)) {
+		return false;
+	}
+
+	switch (firstPositional) {
+		case "auth":
+		case "checkpoint":
+		case "config":
+		case "connect":
+		case "dev":
+		case "doctor":
+		case "history":
+		case "hook":
+		case "hub":
+		case "schedule":
+		case "task":
+		case "t":
+		case "update":
+		case "version":
+			return false;
+		default:
+			return true;
+	}
 }
 
 /**
@@ -109,11 +167,25 @@ export async function runCli(): Promise<void> {
 	let launchConfigView = false;
 
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
-	const internalLaunchViolation = getInternalLaunchViolation(normalizedArgs);
-	if (internalLaunchViolation) {
-		writeErr(internalLaunchViolation);
-		process.exitCode = 1;
-		return;
+	if (
+		shouldPrewarmCliHub(normalizedArgs) &&
+		process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase() !== "local" &&
+		!process.env.CLINE_VCR?.trim()
+	) {
+		const startupCwd = resolveCwdArg(normalizedArgs) ?? process.cwd();
+		const startupWorkspaceRoot = resolveWorkspaceRoot(startupCwd);
+		try {
+			const { ensureCliHubServer, prewarmCliHubServer } = await import(
+				"./utils/hub-runtime"
+			);
+			if (shouldAwaitCliHubPrewarm(normalizedArgs)) {
+				await ensureCliHubServer(startupWorkspaceRoot);
+			} else {
+				prewarmCliHubServer(startupWorkspaceRoot);
+			}
+		} catch {
+			// Defer hard failures to the command/runtime path; startup prewarm is best-effort.
+		}
 	}
 
 	// Subcommand routing via Commander
@@ -202,15 +274,6 @@ export async function runCli(): Promise<void> {
 			const realCmd = await createConfigRuntimeCommand();
 			await realCmd.parseAsync(cmd.args, { from: "user" });
 		});
-	program
-		.command("hook-worker")
-		.allowUnknownOption()
-		.allowExcessArguments()
-		.action(async () => {
-			const { runHookWorkerCommand } = await import("./commands/hook");
-			ctx.exitCode = await runHookWorkerCommand(writeErr);
-		});
-
 	const connectCmd = program
 		.command("connect")
 		.description("Connect to an editor or IDE adapter")
@@ -237,18 +300,6 @@ export async function runCli(): Promise<void> {
 					ctx.exitCode = await runStopAllConnectors(io);
 				}
 			} else if (adapter) {
-				// Ensure the RPC server is running before starting the connector.
-				// The connect command requires RPC for multi-client session management.
-				if (!process.env.CLINE_RPC_ADDRESS?.trim()) {
-					try {
-						const rpcAddress = await ensureCliRpcRuntimeAddress(
-							getRpcServerDefaultAddress(),
-						);
-						process.env.CLINE_RPC_ADDRESS = rpcAddress;
-					} catch {
-						// Best effort: proceed and let the connector handle any connection errors.
-					}
-				}
 				// connectCmd.args = [adapter, ...passthroughFlags]. Pass only the
 				// connector-specific flags (everything after the adapter name).
 				ctx.exitCode = await runConnectAdapter(
@@ -318,6 +369,9 @@ export async function runCli(): Promise<void> {
 			const result = await runHistoryList({
 				limit,
 				outputMode,
+				workspaceRoot: resolveWorkspaceRoot(
+					program.opts().cwd ?? process.cwd(),
+				),
 				io,
 			});
 			if (typeof result === "string") {
@@ -461,27 +515,15 @@ export async function runCli(): Promise<void> {
 			ctx.exitCode = await runHookCommand(io);
 		});
 
-	const createRpcRuntimeCommand = async () => {
-		const { createRpcCommand } = await import("./commands/rpc");
-		return createRpcCommand(io, (code) => {
-			ctx.exitCode = code;
-		});
-	};
-
-	program
-		.command("rpc")
-		.description("Start or manage the RPC server")
-		.allowUnknownOption()
-		.allowExcessArguments()
-		.passThroughOptions()
-		.action(async (_opts: unknown, cmd: Command) => {
-			const rpcCmd = await createRpcRuntimeCommand();
-			await rpcCmd.parseAsync(cmd.args, { from: "user" });
-		});
-
 	const createScheduleRuntimeCommand = async () => {
 		const { createScheduleCommand } = await import("./commands/schedule");
 		return createScheduleCommand(io, (code) => {
+			ctx.exitCode = code;
+		});
+	};
+	const createHubRuntimeCommand = async () => {
+		const { createHubCommand } = await import("./commands/hub");
+		return createHubCommand(io, (code) => {
 			ctx.exitCode = code;
 		});
 	};
@@ -495,6 +537,16 @@ export async function runCli(): Promise<void> {
 		.action(async (_opts: unknown, cmd: Command) => {
 			const scheduleCmd = await createScheduleRuntimeCommand();
 			await scheduleCmd.parseAsync(cmd.args, { from: "user" });
+		});
+	program
+		.command("hub")
+		.description("Manage the local hub daemon")
+		.allowUnknownOption()
+		.allowExcessArguments()
+		.passThroughOptions()
+		.action(async (_opts: unknown, cmd: Command) => {
+			const hubCmd = await createHubRuntimeCommand();
+			await hubCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
 	// 'task' is syntactic sugar for the default prompt flow.
@@ -536,12 +588,6 @@ export async function runCli(): Promise<void> {
 		.option("-v, --verbose", "Show verbose output")
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
-			const address = process.env.CLINE_RPC_ADDRESS || "127.0.0.1:4317";
-			import("@clinebot/rpc")
-				.then(({ requestRpcServerShutdown }) =>
-					requestRpcServerShutdown(address),
-				)
-				.catch(() => {});
 			writeErr(
 				"update command is not implemented yet (use your package manager to update manually)",
 			);
@@ -657,18 +703,11 @@ export async function runCli(): Promise<void> {
 	}
 	setCurrentOutputMode(args.outputMode);
 	const defaultToolAutoApprove = args.defaultToolAutoApprove;
-	const mergedToolPolicies = mergeToolPolicies({}, args.toolPolicies);
 	const toolPolicies: Record<string, ToolPolicy> = {
 		"*": {
 			autoApprove: defaultToolAutoApprove,
 		},
 	};
-	for (const [name, policy] of Object.entries(mergedToolPolicies)) {
-		toolPolicies[name] = {
-			enabled: policy.enabled,
-			autoApprove: policy.autoApprove ?? defaultToolAutoApprove,
-		};
-	}
 
 	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
 		writeErr(
@@ -812,7 +851,6 @@ export async function runCli(): Promise<void> {
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
 			showUsage: args.showUsage,
-			showTimings: args.showTimings,
 			verbose: args.verbose,
 			thinking: effectiveReasoningEffort !== "none",
 			reasoningEffort:
@@ -825,9 +863,9 @@ export async function runCli(): Promise<void> {
 			loggerConfig: loggerAdapter.runtimeConfig,
 			defaultToolAutoApprove,
 			toolPolicies,
-			enableSpawnAgent: args.enableSpawnAgent,
-			enableAgentTeams: args.enableAgentTeams,
-			enableTools: args.enableTools,
+			enableSpawnAgent: args.yolo !== true,
+			enableAgentTeams: args.yolo !== true,
+			enableTools: true,
 			cwd,
 			workspaceRoot,
 			extensionContext: {
@@ -841,19 +879,10 @@ export async function runCli(): Promise<void> {
 				},
 				logger: loggerAdapter.core,
 			},
-			teamName: args.enableAgentTeams
-				? args.teamName?.trim() || createTeamName()
-				: undefined,
-			missionLogIntervalSteps:
-				typeof args.missionLogIntervalSteps === "number" &&
-				Number.isFinite(args.missionLogIntervalSteps)
-					? args.missionLogIntervalSteps
-					: 3,
-			missionLogIntervalMs:
-				typeof args.missionLogIntervalMs === "number" &&
-				Number.isFinite(args.missionLogIntervalMs)
-					? args.missionLogIntervalMs
-					: 120000,
+			teamName:
+				args.yolo !== true
+					? args.teamName?.trim() || createTeamName()
+					: undefined,
 		};
 		try {
 			// For OAuth providers, don't write the resolved key into apiKey —
@@ -899,7 +928,6 @@ export async function runCli(): Promise<void> {
 					return;
 				}
 				if (rewrittenTeamPrompt.kind === "rewritten") {
-					await enableTeamsForPrompt(config);
 					await runAgent(
 						rewrittenTeamPrompt.prompt,
 						config,
@@ -930,7 +958,6 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 		if (rewrittenTeamPrompt.kind === "rewritten") {
-			await enableTeamsForPrompt(config);
 			await runAgent(
 				rewrittenTeamPrompt.prompt,
 				config,

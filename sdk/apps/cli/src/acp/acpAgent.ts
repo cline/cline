@@ -517,7 +517,6 @@ export class AcpAgent implements Agent {
 			sandbox: false,
 			thinking: false,
 			showUsage: false,
-			showTimings: false,
 			outputMode: "text",
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
@@ -527,8 +526,6 @@ export class AcpAgent implements Agent {
 			enableTools: true,
 			cwd,
 			workspaceRoot: resolveWorkspaceRoot(cwd),
-			missionLogIntervalSteps: 3,
-			missionLogIntervalMs: 120000,
 		};
 	}
 }

@@ -7,18 +7,6 @@ export interface AgentExtensionCommand {
 	handler?: (input: string) => Promise<string> | string;
 }
 
-export interface AgentExtensionShortcut {
-	name: string;
-	value: string;
-	description?: string;
-}
-
-export interface AgentExtensionFlag {
-	name: string;
-	description?: string;
-	defaultValue?: boolean | string | number;
-}
-
 export interface AgentExtensionMessageBuilder<TMessage = unknown> {
 	name: string;
 	build: (message: TMessage) => TMessage;
@@ -34,19 +22,15 @@ export interface AgentExtensionProvider {
  * API surface passed to an extension's `setup()` method.
  *
  * Use it to register the contributions the extension wants to make — tools,
- * commands, shortcuts, flags, message builders, and providers. All registrations
- * accumulate into the `ContributionRegistry` and are available to the host after
- * `setup()` completes.
+ * commands, message builders, and providers. All registrations accumulate into
+ * the `ContributionRegistry` and are available to the host after `setup()`
+ * completes.
  */
 export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
 	/** Register a tool the agent can invoke during its run. Requires the `tools` capability. */
 	registerTool: (tool: TTool) => void;
 	/** Register a slash command available in connected chat surfaces. Requires the `commands` capability. */
 	registerCommand: (command: AgentExtensionCommand) => void;
-	/** Register a named shortcut that expands to a fixed string in the composer. Requires the `shortcuts` capability. */
-	registerShortcut: (shortcut: AgentExtensionShortcut) => void;
-	/** Register a boolean/string/number flag that can be toggled at runtime. Requires the `flags` capability. */
-	registerFlag: (flag: AgentExtensionFlag) => void;
 	/** Register a named message builder for transforming messages before they are sent. Requires the `messageBuilders` capability. */
 	registerMessageBuilder: (
 		builder: AgentExtensionMessageBuilder<TMessage>,
@@ -59,8 +43,6 @@ const ExtensionCapabilityOptions = [
 	"hooks",
 	"tools",
 	"commands",
-	"shortcuts",
-	"flags",
 	"messageBuilders",
 	"providers",
 ] as const;
@@ -74,13 +56,13 @@ export interface PluginManifest {
 	paths?: string[];
 	capabilities: AgentExtensionCapability[];
 	hookStages?: AgentExtensionHookStage[];
+	providerIds?: string[];
+	modelIds?: string[];
 }
 
 export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
 	tools: TTool[];
 	commands: AgentExtensionCommand[];
-	shortcuts: AgentExtensionShortcut[];
-	flags: AgentExtensionFlag[];
 	messageBuilder: AgentExtensionMessageBuilder<TMessage>[];
 	providers: AgentExtensionProvider[];
 }
@@ -227,6 +209,35 @@ function asExtensionName(
 	return extension.name || `extension_${String(order).padStart(4, "0")}`;
 }
 
+function hasValidStringArray(value: unknown): value is string[] {
+	return (
+		Array.isArray(value) && value.every((entry) => typeof entry === "string")
+	);
+}
+
+function normalizeOptionalStringArray(value: unknown): string[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const normalized = value
+		.filter((entry): entry is string => typeof entry === "string")
+		.map((entry) => entry.trim())
+		.filter((entry) => entry.length > 0);
+	return normalized.length > 0 ? normalized : undefined;
+}
+
+export function normalizePluginManifest(
+	manifest: PluginManifest,
+): PluginManifest {
+	const providerIds = normalizeOptionalStringArray(manifest.providerIds);
+	const modelIds = normalizeOptionalStringArray(manifest.modelIds);
+	return {
+		...manifest,
+		...(providerIds ? { providerIds } : {}),
+		...(modelIds ? { modelIds } : {}),
+	};
+}
+
 function hasHookHandlers(
 	extension: ContributionRegistryExtension<any>,
 ): boolean {
@@ -288,6 +299,22 @@ function normalizeManifest<
 			`Invalid manifest for extension "${extensionName}": hookStages must be an array when provided`,
 		);
 	}
+	if (
+		Object.hasOwn(manifest, "providerIds") &&
+		!hasValidStringArray(manifest.providerIds)
+	) {
+		throw new Error(
+			`Invalid manifest for extension "${extensionName}": providerIds must be a string array when provided`,
+		);
+	}
+	if (
+		Object.hasOwn(manifest, "modelIds") &&
+		!hasValidStringArray(manifest.modelIds)
+	) {
+		throw new Error(
+			`Invalid manifest for extension "${extensionName}": modelIds must be a string array when provided`,
+		);
+	}
 	const hookStages = new Set<AgentExtensionHookStage>();
 	for (const stage of rawStages) {
 		if (!ALLOWED_HOOK_STAGES.has(stage)) {
@@ -336,7 +363,7 @@ function normalizeManifest<
 	return {
 		capabilities,
 		hookStages,
-		raw: manifest,
+		raw: normalizePluginManifest(manifest),
 	};
 }
 
@@ -349,8 +376,6 @@ export class ContributionRegistry<
 	private readonly registry: AgentExtensionRegistry<TTool, TMessage> = {
 		tools: [],
 		commands: [],
-		shortcuts: [],
-		flags: [],
 		messageBuilder: [],
 		providers: [],
 	};
@@ -397,8 +422,6 @@ export class ContributionRegistry<
 		const api: AgentExtensionApi<TTool, TMessage> = {
 			registerTool: (tool) => this.registry.tools.push(tool),
 			registerCommand: (command) => this.registry.commands.push(command),
-			registerShortcut: (shortcut) => this.registry.shortcuts.push(shortcut),
-			registerFlag: (flag) => this.registry.flags.push(flag),
 			registerMessageBuilder: (builder) =>
 				this.registry.messageBuilder.push(builder),
 			registerProvider: (provider) => this.registry.providers.push(provider),
@@ -438,8 +461,6 @@ export class ContributionRegistry<
 		return {
 			tools: [...this.registry.tools],
 			commands: [...this.registry.commands],
-			shortcuts: [...this.registry.shortcuts],
-			flags: [...this.registry.flags],
 			messageBuilder: [...this.registry.messageBuilder],
 			providers: [...this.registry.providers],
 		};

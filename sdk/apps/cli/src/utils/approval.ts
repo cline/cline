@@ -3,6 +3,8 @@ import type { ToolApprovalRequest, ToolApprovalResult } from "@clinebot/shared";
 import { truncate } from "./helpers";
 import { c, getActiveCliSession, write } from "./output";
 
+const SHOW_TERMINAL_CURSOR = "\x1b[?25h";
+
 // =============================================================================
 // Desktop tool approval
 // =============================================================================
@@ -129,28 +131,31 @@ export async function askQuestionInTerminal(
 		for (const [index, option] of options.entries()) {
 			write(`${c.dim}  ${index + 1}.${c.reset} ${option}\n`);
 		}
-
-		rl.question(
-			`${c.dim}Choose 1-${options.length} or type a custom answer:${c.reset} `,
-			(value) => {
-				rl.close();
-				const trimmed = value.trim();
-				const numeric = Number.parseInt(trimmed, 10);
-				if (
-					Number.isInteger(numeric) &&
-					numeric >= 1 &&
-					numeric <= options.length
-				) {
-					resolve(options[numeric - 1] ?? "");
-					return;
-				}
-				if (trimmed.length > 0) {
-					resolve(trimmed);
-					return;
-				}
-				resolve(options[0] ?? "");
-			},
+		// Ink hides the terminal cursor while its TUI is mounted; restore it so
+		// readline shows a normal blinking insertion point for the follow-up.
+		write(SHOW_TERMINAL_CURSOR);
+		write(
+			`${c.dim}Choose 1-${options.length} or type a custom answer:${c.reset}\n${c.green}>${c.reset} `,
 		);
+
+		rl.question("", (value) => {
+			rl.close();
+			const trimmed = value.trim();
+			const numeric = Number.parseInt(trimmed, 10);
+			if (
+				Number.isInteger(numeric) &&
+				numeric >= 1 &&
+				numeric <= options.length
+			) {
+				resolve(options[numeric - 1] ?? "");
+				return;
+			}
+			if (trimmed.length > 0) {
+				resolve(trimmed);
+				return;
+			}
+			resolve(options[0] ?? "");
+		});
 	});
 }
 

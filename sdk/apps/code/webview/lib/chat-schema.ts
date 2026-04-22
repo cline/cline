@@ -12,12 +12,11 @@ export const ChatSessionConfigSchema = z.object({
 	rules: z.string().optional(),
 	maxIterations: z.number().int().positive().optional(),
 	enableTools: z.boolean(),
-	enableSpawn: z.boolean(),
-	enableTeams: z.boolean(),
+	enableSpawn: z.boolean().optional(),
+	enableTeams: z.boolean().optional(),
 	autoApproveTools: z.boolean().optional(),
-	teamName: z.string().min(1),
-	missionStepInterval: z.number().int().positive(),
-	missionTimeIntervalMs: z.number().int().positive(),
+	missionStepInterval: z.number().int().positive().optional(),
+	missionTimeIntervalMs: z.number().int().positive().optional(),
 });
 
 export const ChatSessionStatusSchema = z.enum([

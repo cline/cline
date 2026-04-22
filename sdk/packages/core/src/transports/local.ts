@@ -47,6 +47,7 @@ import {
 	handleAgentEvent,
 } from "../services/agent-events";
 import { resolveWorkspacePath } from "../services/config";
+import { filterDisabledTools } from "../services/global-settings";
 import { prepareLocalRuntimeBootstrap } from "../services/local-runtime-bootstrap";
 import { nowIso } from "../services/session-artifacts";
 import {
@@ -73,15 +74,14 @@ import {
 } from "../services/usage";
 import { enrichPromptWithMentions } from "../services/workspace";
 import type { FileSessionService } from "../session/file-session-service";
-import type { RpcCoreSessionService } from "../session/rpc-session-service";
 import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../session/session-manifest";
+import type { SessionRow } from "../session/session-row";
 import type {
 	CoreSessionService,
 	RootSessionArtifacts,
-	SessionRow,
 } from "../session/session-service";
 import {
 	buildTeamRunContinuationPrompt,
@@ -106,10 +106,7 @@ import {
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
 
-type SessionBackend =
-	| CoreSessionService
-	| RpcCoreSessionService
-	| FileSessionService;
+type SessionBackend = CoreSessionService | FileSessionService;
 
 const MAX_SCAN_LIMIT = 5000;
 const MAX_USER_FILE_BYTES = 20 * 1_000 * 1_024;
@@ -129,13 +126,57 @@ async function loadUserFileContent(path: string): Promise<string> {
 	return content;
 }
 
+function toActiveSessionRecord(session: ActiveSession): SessionRecord {
+	return {
+		sessionId: session.sessionId,
+		source: session.source,
+		pid: process.pid,
+		startedAt: session.startedAt,
+		endedAt: null,
+		exitCode: null,
+		status: "running",
+		interactive: session.interactive,
+		provider: session.config.providerId,
+		model: session.config.modelId,
+		cwd: session.config.cwd,
+		workspaceRoot: resolveWorkspacePath(session.config),
+		teamName: session.config.teamName?.trim() || undefined,
+		enableTools: session.config.enableTools,
+		enableSpawn: session.config.enableSpawnAgent,
+		enableTeams: session.config.enableAgentTeams,
+		parentSessionId:
+			typeof session.sessionMetadata?.parentSessionId === "string"
+				? session.sessionMetadata.parentSessionId
+				: undefined,
+		parentAgentId:
+			typeof session.sessionMetadata?.parentAgentId === "string"
+				? session.sessionMetadata.parentAgentId
+				: undefined,
+		agentId:
+			typeof session.sessionMetadata?.agentId === "string"
+				? session.sessionMetadata.agentId
+				: undefined,
+		conversationId:
+			typeof session.sessionMetadata?.conversationId === "string"
+				? session.sessionMetadata.conversationId
+				: undefined,
+		isSubagent:
+			typeof session.sessionMetadata?.isSubagent === "boolean"
+				? session.sessionMetadata.isSubagent
+				: false,
+		prompt: session.pendingPrompt,
+		metadata: session.sessionMetadata,
+		messagesPath: session.artifacts?.messagesPath,
+		updatedAt: session.startedAt,
+	};
+}
+
 export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
 	createAgent?: (config: AgentConfig) => Agent;
 	defaultToolExecutors?: Partial<ToolExecutors>;
-	teamToolsFactory?: import("../runtime/session-runtime").TeamToolsFactory;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	providerSettingsManager?: ProviderSettingsManager;
 	oauthTokenManager?: RuntimeOAuthTokenManager;
@@ -151,7 +192,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly runtimeBuilder: RuntimeBuilder;
 	private readonly createAgentInstance: (config: AgentConfig) => Agent;
 	private readonly defaultToolExecutors?: Partial<ToolExecutors>;
-	private readonly teamToolsFactory?: import("../runtime/session-runtime").TeamToolsFactory;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
@@ -176,7 +216,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.createAgentInstance =
 			options.createAgent ?? ((config) => new Agent(config));
 		this.defaultToolExecutors = options.defaultToolExecutors;
-		this.teamToolsFactory = options.teamToolsFactory;
 		this.defaultToolPolicies = options.toolPolicies;
 		this.providerSettingsManager =
 			options.providerSettingsManager ?? new ProviderSettingsManager();
@@ -198,21 +237,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const startedAt = nowIso();
 		const requestedSessionId = input.config.sessionId?.trim() ?? "";
 		const sessionId = requestedSessionId || createSessionId();
-		const resumedRow = requestedSessionId
-			? await this.getRow(sessionId)
-			: undefined;
-		const startInput: StartSessionInput =
-			resumedRow &&
-			!input.config.teamName?.trim() &&
-			resumedRow.teamName?.trim()
-				? {
-						...input,
-						config: {
-							...input.config,
-							teamName: resumedRow.teamName,
-						},
-					}
-				: input;
+		const startInput: StartSessionInput = input;
 		this.usageBySession.set(sessionId, createInitialAccumulatedUsage());
 
 		const sessionsDir =
@@ -250,6 +275,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			messages_path: messagesPath,
 		});
 
+		const sessionToolExecutors =
+			input.localRuntime?.defaultToolExecutors ?? this.defaultToolExecutors;
 		let bootstrap!: Awaited<ReturnType<typeof prepareLocalRuntimeBootstrap>>;
 		bootstrap = await prepareLocalRuntimeBootstrap({
 			input: startInput,
@@ -257,8 +284,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			sessionId,
 			providerSettingsManager: this.providerSettingsManager,
 			defaultTelemetry: this.defaultTelemetry,
-			defaultToolExecutors: this.defaultToolExecutors,
-			teamToolsFactory: this.teamToolsFactory,
+			defaultToolExecutors: sessionToolExecutors,
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultRequestToolApproval: this.defaultRequestToolApproval,
 			onPluginEvent: (event) => void this.handlePluginEvent(sessionId, event),
@@ -266,7 +292,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 				void this.handleTeamEvent(sessionId, event);
 				bootstrap.config.onTeamEvent?.(event);
 			},
-			createSpawnTool: () => this.createSpawnTool(bootstrap.config, sessionId),
+			createSpawnTool: () =>
+				this.createSpawnTool(bootstrap.config, sessionId, sessionToolExecutors),
 			readSessionMetadata: async () =>
 				(await this.get(sessionId))?.metadata as
 					| Record<string, unknown>
@@ -404,6 +431,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
+		const canStartRun =
+			typeof (session.agent as Agent & { canStartRun?: () => boolean })
+				.canStartRun === "function"
+				? (
+						session.agent as Agent & {
+							canStartRun: () => boolean;
+						}
+					).canStartRun()
+				: true;
+		const delivery =
+			input.delivery ??
+			(session.interactive && !canStartRun ? ("queue" as const) : undefined);
 		session.config.telemetry?.capture({
 			event: "session.input_sent",
 			properties: {
@@ -411,13 +450,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 				promptLength: input.prompt.length,
 				userImageCount: input.userImages?.length ?? 0,
 				userFileCount: input.userFiles?.length ?? 0,
-				delivery: input.delivery ?? "immediate",
+				delivery: delivery ?? "immediate",
 			},
 		});
-		if (input.delivery === "queue" || input.delivery === "steer") {
+		if (delivery === "queue" || delivery === "steer") {
 			this.enqueuePendingPrompt(input.sessionId, {
 				prompt: input.prompt,
-				delivery: input.delivery,
+				delivery,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
 			});
@@ -506,13 +545,25 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	async get(sessionId: string): Promise<SessionRecord | undefined> {
+		const active = this.sessions.get(sessionId);
+		if (active) {
+			return toActiveSessionRecord(active);
+		}
 		const row = await this.getRow(sessionId);
 		return row ? toSessionRecord(row) : undefined;
 	}
 
 	async list(limit = 200): Promise<SessionRecord[]> {
 		const rows = await this.listRows(limit);
-		return rows.map(toSessionRecord);
+		const persisted = rows.map(toSessionRecord);
+		const seen = new Set(persisted.map((row) => row.sessionId));
+		for (const active of this.sessions.values()) {
+			if (seen.has(active.sessionId)) {
+				continue;
+			}
+			persisted.unshift(toActiveSessionRecord(active));
+		}
+		return persisted.slice(0, limit);
 	}
 
 	async delete(sessionId: string): Promise<boolean> {
@@ -844,12 +895,39 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		notifyTeamRunWaiters(session);
 
+		const cleanupErrors: unknown[] = [];
+		const recordCleanupError = (stage: string, error: unknown) => {
+			cleanupErrors.push(error);
+			session.config.logger?.log("Session shutdown cleanup failed", {
+				sessionId: session.sessionId,
+				stage,
+				error,
+				severity: "warn",
+			});
+		};
+
 		if (session.artifacts) {
-			await this.updateStatus(session, input.status, input.exitCode);
-			await session.agent.shutdown(input.shutdownReason);
+			try {
+				await this.updateStatus(session, input.status, input.exitCode);
+			} catch (error) {
+				recordCleanupError("update_status", error);
+			}
+			try {
+				await session.agent.shutdown(input.shutdownReason);
+			} catch (error) {
+				recordCleanupError("agent_shutdown", error);
+			}
 		}
-		await Promise.resolve(session.runtime.shutdown(input.shutdownReason));
-		await session.pluginSandboxShutdown?.();
+		try {
+			await Promise.resolve(session.runtime.shutdown(input.shutdownReason));
+		} catch (error) {
+			recordCleanupError("runtime_shutdown", error);
+		}
+		try {
+			await session.pluginSandboxShutdown?.();
+		} catch (error) {
+			recordCleanupError("plugin_sandbox_shutdown", error);
+		}
 		this.sessions.delete(session.sessionId);
 		this.emit({
 			type: "ended",
@@ -859,6 +937,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				ts: Date.now(),
 			},
 		});
+		if (cleanupErrors.length > 0 && input.status === "failed") {
+			throw cleanupErrors[0];
+		}
 	}
 
 	private async updateStatus(
@@ -1142,6 +1223,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private createSpawnTool(
 		config: CoreSessionConfig,
 		rootSessionId: string,
+		toolExecutors?: Partial<ToolExecutors>,
 	): Tool {
 		const createSubAgentTools = () => {
 			const tools: Tool[] = config.enableTools
@@ -1152,13 +1234,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 								mode: config.mode,
 							})
 						],
-						executors: this.defaultToolExecutors,
+						executors: toolExecutors,
 					})
 				: [];
 			if (config.enableSpawnAgent) {
-				tools.push(this.createSpawnTool(config, rootSessionId));
+				tools.push(this.createSpawnTool(config, rootSessionId, toolExecutors));
 			}
-			return tools;
+			return filterDisabledTools(tools);
 		};
 
 		return createSpawnAgentTool({

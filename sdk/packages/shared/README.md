@@ -30,19 +30,18 @@ It now also exports hook session context primitives used across agents/core/CLI:
 - `resolveRootSessionId(...)`
 - `resolveHookLogPath(...)`
 
-It also exports cross-client RPC runtime payload DTOs used by multiple hosts
+It also exports cross-client runtime payload DTOs used by multiple hosts
 (`@clinebot/cli`, `@clinebot/code`) so request/response contracts are not duplicated
 outside transport wiring:
 
-- chat runtime payloads (`RpcChatStartSessionRequest`, `RpcChatRunTurnRequest`, `RpcChatTurnResult`)
-- provider runtime payloads (`RpcProviderActionRequest`, `RpcProviderCatalogResponse`, `RpcProviderOAuthLoginResponse`)
-- Cline account runtime payloads (`RpcClineAccountActionRequest`, `RpcClineAccountUser`, `RpcClineAccountBalance`)
+- chat runtime payloads (`ChatStartSessionRequest`, `ChatRunTurnRequest`, `ChatTurnResult`)
+- provider runtime payloads (`ProviderActionRequest`, `ProviderCatalogResponse`, `ProviderOAuthLoginResponse`)
+- Cline account action payloads (`ClineAccountActionRequest`)
 - provider action requests include provider catalog/model operations plus provider add/save operations for settings hosts
 - provider action payloads now expose granular request/type contracts for reuse:
-  `RpcAddProviderActionRequest`, `RpcSaveProviderSettingsActionRequest`,
-  `RpcProviderCapability`, and `RpcOAuthProviderId`
+  `AddProviderActionRequest`, `SaveProviderSettingsActionRequest`,
+  `ProviderCapability`, and `OAuthProviderId`
 
 Chat runtime payload notes:
-- `RpcChatStartSessionRequest` supports `initialMessages`, optional `toolPolicies`, optional `rules` for default system prompt assembly, and optional `logger` runtime config (`RpcChatRuntimeLoggerConfig`) so hosts can pass serialized logger settings to remote runtimes.
-- `RpcChatRuntimeLoggerConfig.bindings` lets hosts attach stable context fields (for example `clientId`, `clientType`, `clientApp`) to all runtime log records.
-- `RpcChatRunTurnRequest` supports `promptPreformatted` for callers that already built CLI-style user input envelopes.
+- `ChatStartSessionRequest` supports `initialMessages`, optional `toolPolicies`, optional `rules` for default system prompt assembly, and optional `logger` runtime config (`RuntimeLoggerConfig`) so hosts can pass serialized logger settings across transport boundaries.
+- `RuntimeLoggerConfig.bindings` lets hosts attach stable context fields (for example `clientId`, `clientType`, `clientApp`) to all runtime log records.

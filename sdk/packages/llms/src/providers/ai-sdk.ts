@@ -145,6 +145,15 @@ function toAiSdkMessages(
 				continue;
 			}
 
+			if (part.type === "image") {
+				content.push({
+					type: "image",
+					image: part.image,
+					mediaType: part.mediaType,
+				});
+				continue;
+			}
+
 			if (part.type === "tool-call") {
 				const thoughtSignature =
 					part.metadata?.thoughtSignature ?? part.metadata?.thought_signature;

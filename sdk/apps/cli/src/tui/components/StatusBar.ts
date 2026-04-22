@@ -123,7 +123,7 @@ export function StatusBar({
 				Text,
 				{ color: "gray" },
 				isConfigViewOpen
-					? "Config mode: Tab tabs \u00b7 \u2191/\u2193 navigate \u00b7 Esc close"
+					? "Config mode: \u2190/\u2192 or 1-8 tabs \u00b7 \u2191/\u2193 or j/k navigate \u00b7 Esc close"
 					: undefined,
 			),
 			isConfigViewOpen

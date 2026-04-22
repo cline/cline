@@ -94,13 +94,14 @@ import { SqliteSessionStore, resolveSessionBackend } from "@clinebot/core";
 const store = new SqliteSessionStore();
 ```
 
-### 5. Routine Schedules — Direct RpcSessionClient (kept)
+### 5. Routine Schedules — Direct Hub Commands
 
-Scheduler operations still use `RpcSessionClient` since they talk to the scheduler service. But they're called in-process, not via child script:
+Routine operations now ensure the local hub server in-process and issue hub schedule commands directly. They are still called in-process, not via child script:
 
 ```typescript
-import { RpcSessionClient } from "@clinebot/rpc";
-const client = new RpcSessionClient({ address });
+import { ensureHubServer, sendHubCommand } from "@clinebot/hub";
+await ensureHubServer({ runtimeHandlers: createLocalHubScheduleRuntimeHandlers() });
+await sendHubCommand({}, { command: "schedule.list", payload: { limit: 200 } });
 ```
 
 ### 6. Native Commands
@@ -143,7 +144,7 @@ Supported commands:
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
-| `list_routine_schedules` | `RpcSessionClient` |
+| `list_routine_schedules` | local hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |
 | `open_mcp_settings_file` | OS `open` command |

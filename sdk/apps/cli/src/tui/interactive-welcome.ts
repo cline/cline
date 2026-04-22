@@ -53,6 +53,11 @@ export function listInteractiveSlashCommands(
 			description: "Alias for /config",
 		},
 		{
+			name: "fork",
+			instructions: "/fork",
+			description: "Create a copy of the current session into a new session",
+		},
+		{
 			name: "team",
 			instructions: "/team [prompt]",
 			description: "Start the task with agent team",

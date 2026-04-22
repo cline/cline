@@ -15,6 +15,7 @@ export {
 	resolveDbDataDir,
 	resolveDocumentsClineDirectoryPath,
 	resolveDocumentsExtensionPath,
+	resolveGlobalSettingsPath,
 	resolveHooksConfigSearchPaths,
 	resolveMcpSettingsPath,
 	resolvePluginConfigSearchPaths,

@@ -90,29 +90,25 @@ function printRunStats(
 		return;
 	}
 	writeln();
-	if (config.showTimings || config.showUsage) {
+	if (config.showUsage) {
 		const parts: string[] = [];
-		if (config.showTimings) {
-			parts.push(`${((performance.now() - startTime) / 1000).toFixed(2)}s`);
+		parts.push(`${((performance.now() - startTime) / 1000).toFixed(2)}s`);
+		const tokenParts: string[] = [
+			`${usage.inputTokens} in`,
+			`${usage.outputTokens} out`,
+		];
+		if (usage.cacheReadTokens) {
+			tokenParts.push(`${usage.cacheReadTokens} cache read`);
 		}
-		if (config.showUsage) {
-			const tokenParts: string[] = [
-				`${usage.inputTokens} in`,
-				`${usage.outputTokens} out`,
-			];
-			if (usage.cacheReadTokens) {
-				tokenParts.push(`${usage.cacheReadTokens} cache read`);
-			}
-			if (usage.cacheWriteTokens) {
-				tokenParts.push(`${usage.cacheWriteTokens} cache write`);
-			}
-			parts.push(tokenParts.join(", "));
-			if (typeof usage.totalCost === "number") {
-				parts.push(`${formatUsd(usage.totalCost)} est. cost`);
-			}
-			if (result.iterations > 1) {
-				parts.push(`${result.iterations} iterations`);
-			}
+		if (usage.cacheWriteTokens) {
+			tokenParts.push(`${usage.cacheWriteTokens} cache write`);
+		}
+		parts.push(tokenParts.join(", "));
+		if (typeof usage.totalCost === "number") {
+			parts.push(`${formatUsd(usage.totalCost)} est. cost`);
+		}
+		if (result.iterations > 1) {
+			parts.push(`${result.iterations} iterations`);
 		}
 		writeln(`${c.dim}[${parts.join(" | ")}]${c.reset}`);
 	}
@@ -132,6 +128,10 @@ export async function runAgent(
 		clineProviderSettings?: ProviderSettings;
 	},
 ): Promise<void> {
+	// A clean one-shot run should not inherit a stale nonzero process exit code
+	// from lower layers or prior bookkeeping inside the same process.
+	process.exitCode = 0;
+
 	if (config.verbose) {
 		const clineWelcomeLine = await resolveClineWelcomeLine({
 			config,
@@ -146,10 +146,6 @@ export async function runAgent(
 	const startTime = performance.now();
 	void prewarmFileIndex(config.cwd);
 
-	const runtimeHooks = createRuntimeHooks({
-		verbose: config.verbose,
-		yolo: config.mode === "yolo",
-	});
 	const sessionManager = await createCliCore({
 		defaultToolExecutors: {
 			askQuestion: askQuestionInTerminal,
@@ -159,6 +155,15 @@ export async function runAgent(
 		logger: config.logger,
 		toolPolicies: config.toolPolicies,
 		requestToolApproval,
+	});
+	const runtimeHooks = createRuntimeHooks({
+		verbose: config.verbose,
+		yolo: config.mode === "yolo",
+		cwd: config.cwd,
+		workspaceRoot: config.workspaceRoot,
+		dispatchHookEvent: async (payload) => {
+			await sessionManager.handleHookEvent(payload);
+		},
 	});
 
 	let reasoningChunkCount = 0;
@@ -231,10 +236,11 @@ export async function runAgent(
 		if (config.verbose) {
 			printModelProviderInfo(config);
 		}
-		const userInput = await buildUserInputMessage(
-			prompt,
-			userInstructionWatcher,
-		);
+		const {
+			prompt: userInput,
+			userImages,
+			userFiles,
+		} = await buildUserInputMessage(prompt, userInstructionWatcher);
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
 			config: {
@@ -252,6 +258,8 @@ export async function runAgent(
 				) => resolveMistakeLimitDecision(config, context),
 			},
 			prompt: userInput,
+			userImages: userImages.length > 0 ? userImages : undefined,
+			userFiles: userFiles.length > 0 ? userFiles : undefined,
 			interactive: false,
 			localRuntime: {
 				userInstructionWatcher,
@@ -292,7 +300,12 @@ export async function runAgent(
 			result = started.result;
 		} else {
 			result = await sessionManager
-				.send({ sessionId: started.sessionId, prompt: userInput })
+				.send({
+					sessionId: started.sessionId,
+					prompt: userInput,
+					userImages: userImages.length > 0 ? userImages : undefined,
+					userFiles: userFiles.length > 0 ? userFiles : undefined,
+				})
 				.finally(clearRunTimeout);
 		}
 		if (!result) {
@@ -342,6 +355,7 @@ export async function runAgent(
 			reasoningChunkCount,
 			redactedReasoningChunkCount,
 		);
+		process.exitCode = 0;
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		config.logger?.log(err instanceof Error ? (err.stack ?? message) : message);

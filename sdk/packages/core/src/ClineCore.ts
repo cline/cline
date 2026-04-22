@@ -17,31 +17,26 @@ import type {
 	StartSessionResult,
 } from "./runtime/runtime-host";
 import { splitCoreSessionConfig } from "./runtime/runtime-host";
-import type { TeamToolsFactory } from "./runtime/session-runtime";
 import type { CoreSessionConfig } from "./types/config";
 import type { SessionMessagesArtifactUploader } from "./types/session";
 
-/** Advanced options for connecting to or spawning the Cline RPC server. */
-export interface RpcOptions {
-	/**
-	 * The address of the Cline RPC server to connect to.
-	 * Defaults to the `CLINE_RPC_ADDRESS` env var, or the SDK default address if unset.
-	 */
-	address?: string;
-	/**
-	 * When `true` (default), automatically spawns a background RPC server process if one is
-	 * not already running.
-	 */
-	autoStart?: boolean;
-	/**
-	 * Number of connection attempts made to the RPC server after it is spawned.
-	 * Defaults to `5`.
-	 */
-	connectAttempts?: number;
-	/**
-	 * Milliseconds to wait between RPC connection attempts. Defaults to `100`.
-	 */
-	connectDelayMs?: number;
+export interface HubOptions {
+	endpoint?: string;
+	authToken?: string;
+	strategy?: "prefer-hub" | "require-hub";
+	clientType?: string;
+	displayName?: string;
+	workspaceRoot?: string;
+	cwd?: string;
+}
+
+export interface RemoteOptions {
+	endpoint: string;
+	authToken?: string;
+	clientType?: string;
+	displayName?: string;
+	workspaceRoot?: string;
+	cwd?: string;
 }
 
 export type { RuntimeHostMode };
@@ -66,16 +61,22 @@ export interface ClineCoreOptions {
 	distinctId?: string;
 	/**
 	 * Controls how the runtime host is selected:
-	 * - `"auto"` (default) — connects to a running RPC server if available, starts one in the
-	 *   background if `rpc.autoStart` is true, and falls back to local in-process execution.
-	 * - `"rpc"` — requires an RPC runtime server; throws if one is not reachable.
+	 * - `"auto"` (default) — prefers a compatible local hub when one is available and falls
+	 *   back to local in-process execution when not.
+	 * - `"hub"` — requires a compatible websocket hub runtime; throws if one is not reachable.
+	 * - `"remote"` — requires an explicit remote websocket hub endpoint.
 	 * - `"local"` — always uses local in-process execution and local SQLite/file storage.
 	 */
 	backendMode?: RuntimeHostMode;
 	/**
-	 * RPC server connection options. Only relevant when `backendMode` is `"auto"` or `"rpc"`.
+	 * Hub runtime connection options. Used when `backendMode` is `"hub"` or when `"auto"`
+	 * should prefer a shared local hub if available.
 	 */
-	rpc?: RpcOptions;
+	hub?: HubOptions;
+	/**
+	 * Remote hub connection options. Only relevant when `backendMode` is `"remote"`.
+	 */
+	remote?: RemoteOptions;
 	/**
 	 * Override one or more default tool executors (e.g. file I/O, shell, browser).
 	 * Partial — only the keys you supply are replaced; the rest use built-in implementations.
@@ -88,7 +89,7 @@ export interface ClineCoreOptions {
 	telemetry?: ITelemetryService;
 	/**
 	 * Optional structured logger for core-side operational diagnostics such as
-	 * RPC backend startup, reuse, and fallback decisions.
+	 * runtime-host selection and fallback decisions.
 	 */
 	logger?: BasicLogger;
 	/**
@@ -115,15 +116,6 @@ export interface ClineCoreOptions {
 	 * @internal
 	 */
 	sessionService?: SessionBackend;
-	/**
-	 * Factory that creates team management tools for the multi-agent team system.
-	 * When provided, team tools are registered whenever `enableAgentTeams` is `true`
-	 * on a session config.
-	 *
-	 * Consumers that depend on `@clinebot/enterprise` can pass
-	 * `bootstrapAgentTeams` here directly.
-	 */
-	teamToolsFactory?: TeamToolsFactory;
 	/**
 	 * Optional hook invoked before each session starts.
 	 * Use this to prepare workspace-scoped runtime state and then return an
@@ -160,6 +152,7 @@ export class ClineCore implements RuntimeHost {
 	readonly runtimeAddress: string | undefined;
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
+	private readonly defaultToolExecutors: Partial<ToolExecutors> | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
 		StartSessionBootstrap
@@ -171,11 +164,13 @@ export class ClineCore implements RuntimeHost {
 		clientName: string | undefined,
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
+		defaultToolExecutors: Partial<ToolExecutors> | undefined,
 	) {
 		this.clientName = clientName;
 		this.runtimeAddress = runtimeAddress;
 		this.host = host;
 		this.prepare = prepare;
+		this.defaultToolExecutors = defaultToolExecutors;
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -191,6 +186,7 @@ export class ClineCore implements RuntimeHost {
 			options.clientName,
 			host.runtimeAddress,
 			options.prepare,
+			options.defaultToolExecutors,
 		);
 	}
 
@@ -227,13 +223,18 @@ export class ClineCore implements RuntimeHost {
 	private normalizeStartInput(input: ClineCoreStartInput): StartSessionInput {
 		const split = splitCoreSessionConfig(input.config);
 		const localRuntime =
-			split.localRuntime || input.localRuntime
+			split.localRuntime || input.localRuntime || this.defaultToolExecutors
 				? {
 						...(split.localRuntime ?? {}),
 						...(input.localRuntime ?? {}),
 						configOverrides: {
 							...(split.localRuntime?.configOverrides ?? {}),
 							...(input.localRuntime?.configOverrides ?? {}),
+						},
+						defaultToolExecutors: {
+							...(this.defaultToolExecutors ?? {}),
+							...(split.localRuntime?.defaultToolExecutors ?? {}),
+							...(input.localRuntime?.defaultToolExecutors ?? {}),
 						},
 					}
 				: undefined;

@@ -115,6 +115,9 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					closeInlineStreamIfNeeded();
 					const toolName = event.toolName ?? "unknown_tool";
 					const inputStr = formatToolInput(toolName, event.input);
+					if (toolName === "ask_question") {
+						break;
+					}
 					write(
 						`${c.cyan}[${toolName}]${c.reset}${inputStr ? ` ${inputStr}` : ""}\n`,
 					);
@@ -131,6 +134,9 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					break;
 				case "tool":
 					closeInlineStreamIfNeeded();
+					if (event.toolName === "ask_question") {
+						break;
+					}
 					if (event.error) {
 						write(
 							`   ${c.gray}${HOOK}${c.reset}${c.red}error: ${event.error}${c.reset}\n`,

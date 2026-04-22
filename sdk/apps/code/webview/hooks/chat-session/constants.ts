@@ -29,12 +29,11 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	systemPrompt: undefined,
 	maxIterations: undefined,
 	enableTools: true,
-	enableSpawn: true,
-	enableTeams: true,
+	enableSpawn: undefined,
+	enableTeams: undefined,
 	autoApproveTools: true,
-	teamName: "app-team",
-	missionStepInterval: 3,
-	missionTimeIntervalMs: 120000,
+	missionStepInterval: undefined,
+	missionTimeIntervalMs: undefined,
 };
 
 export function getInitialChatConfig(): ChatSessionConfig {

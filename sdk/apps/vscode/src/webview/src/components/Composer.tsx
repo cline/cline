@@ -51,7 +51,10 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import type { ProviderOption } from "@/types";
-import type { WebviewProviderModel } from "../../../webview-protocol";
+import type {
+	WebviewChatAttachments,
+	WebviewProviderModel,
+} from "../../../webview-protocol";
 
 function PromptAttachmentsDisplay() {
 	const attachments = usePromptInputAttachments();
@@ -319,7 +322,11 @@ export function Composer({
 	onModelChange: (value: string) => void;
 	onModelSelectorOpenChange: (value: boolean) => void;
 	onProviderChange: (value: string) => void;
-	onSend: (prompt: string) => void;
+	onSend: (input: {
+		prompt: string;
+		attachments?: WebviewChatAttachments;
+		attachmentCount: number;
+	}) => void;
 	onSystemPromptChange: (value: string) => void;
 	onThinkingChange: (value: boolean) => void;
 	provider: string;
@@ -351,17 +358,32 @@ export function Composer({
 						return;
 					}
 
-					if (message.files.length) {
-						toast.info(
-							"Attachments are not wired into the VS Code chat runtime yet.",
-						);
+					let attachments: WebviewChatAttachments | undefined;
+					if (message.files.length > 0) {
+						const userImages = (
+							await Promise.all(
+								message.files.map((file) => toImageDataUrl(file.url)),
+							)
+						).filter((value): value is string => Boolean(value));
+						if (userImages.length > 0) {
+							attachments = { userImages };
+						}
+						if (userImages.length !== message.files.length) {
+							toast.warning(
+								"Only image attachments are currently sent in the VS Code chat runtime.",
+							);
+						}
 					}
 
-					if (!prompt) {
+					if (!prompt && !attachments?.userImages?.length) {
 						return;
 					}
 
-					onSend(prompt);
+					onSend({
+						prompt,
+						attachments,
+						attachmentCount: message.files.length,
+					});
 				}}
 			>
 				<PromptInputHeader>
@@ -462,4 +484,35 @@ export function Composer({
 			</PromptInput>
 		</div>
 	);
+}
+
+async function toImageDataUrl(
+	url: string | undefined,
+): Promise<string | undefined> {
+	if (!url) {
+		return undefined;
+	}
+	if (url.startsWith("data:image/")) {
+		return url;
+	}
+	if (!url.startsWith("blob:")) {
+		return undefined;
+	}
+	try {
+		const response = await fetch(url);
+		const blob = await response.blob();
+		if (!blob.type.startsWith("image/")) {
+			return undefined;
+		}
+		return await new Promise((resolve) => {
+			const reader = new FileReader();
+			reader.onloadend = () => {
+				resolve(typeof reader.result === "string" ? reader.result : undefined);
+			};
+			reader.onerror = () => resolve(undefined);
+			reader.readAsDataURL(blob);
+		});
+	} catch {
+		return undefined;
+	}
 }

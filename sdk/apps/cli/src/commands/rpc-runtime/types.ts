@@ -1,4 +1,4 @@
-import type { RpcProviderCapability } from "@clinebot/core";
+import type { ProviderCapability } from "@clinebot/core";
 
 export type StoredModelsFile = {
 	version: 1;
@@ -9,7 +9,7 @@ export type StoredModelsFile = {
 				name: string;
 				baseUrl: string;
 				defaultModelId: string;
-				capabilities?: RpcProviderCapability[];
+				capabilities?: ProviderCapability[];
 				modelsSourceUrl?: string;
 			};
 			models: Record<

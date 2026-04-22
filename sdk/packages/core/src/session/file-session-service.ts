@@ -13,7 +13,7 @@ import type {
 	SessionPersistenceAdapter,
 } from "./persistence-service";
 import { UnifiedSessionPersistenceService } from "./persistence-service";
-import type { SessionRow } from "./session-service";
+import type { SessionRow } from "./session-row";
 
 interface FileSessionIndex {
 	version: 1;

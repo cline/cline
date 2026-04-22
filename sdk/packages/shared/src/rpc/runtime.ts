@@ -1,31 +1,23 @@
 import type {
-	AgentMode,
 	SessionExecutionConfig,
 	SessionPromptConfig,
 } from "../session/runtime-config";
 
-export type RpcAgentMode = AgentMode;
-
-export interface RpcSessionStorageOptions {
-	homeDir?: string;
-}
-
-export interface RpcChatRuntimeConfigBase extends SessionPromptConfig {
+export interface ChatRuntimeConfig extends SessionPromptConfig {
 	cwd?: string;
 	apiKey: string;
-	logger?: RpcChatRuntimeLoggerConfig;
+	logger?: RuntimeLoggerConfig;
 	enableTools: boolean;
-	enableSpawn: boolean;
-	enableTeams: boolean;
+	enableSpawn?: boolean;
+	enableTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
 	autoApproveTools?: boolean;
-	teamName: string;
-	missionStepInterval: number;
-	missionTimeIntervalMs: number;
+	missionStepInterval?: number;
+	missionTimeIntervalMs?: number;
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
 }
 
-export interface RpcChatRuntimeLoggerConfig {
+export interface RuntimeLoggerConfig {
 	enabled?: boolean;
 	level?: "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "silent";
 	destination?: string;
@@ -33,53 +25,52 @@ export interface RpcChatRuntimeLoggerConfig {
 	bindings?: Record<string, string | number | boolean>;
 }
 
-export interface RpcChatStartSessionRequest extends RpcChatRuntimeConfigBase {
+export interface ChatStartSessionRequest extends ChatRuntimeConfig {
 	sessionId?: string;
 	workspaceRoot: string;
 	provider: string;
 	model: string;
 	source?: string;
 	interactive?: boolean;
-	sessions?: RpcSessionStorageOptions;
-	initialMessages?: RpcChatMessage[];
+	initialMessages?: ChatMessage[];
 }
 
-export interface RpcChatStartSessionArtifacts {
+export interface ChatStartSessionArtifacts {
 	sessionId: string;
 	manifestPath: string;
 	messagesPath: string;
 }
 
-export interface RpcChatStartSessionResponse {
+export interface ChatStartSessionResponse {
 	sessionId: string;
-	startResult?: RpcChatStartSessionArtifacts;
+	startResult?: ChatStartSessionArtifacts;
 }
 
-export interface RpcChatAttachmentFile {
+export interface ChatAttachmentFile {
 	name: string;
 	content: string;
 }
 
-export interface RpcChatAttachments {
+export interface ChatAttachments {
 	userImages?: string[];
-	userFiles?: RpcChatAttachmentFile[];
+	userFiles?: ChatAttachmentFile[];
 }
 
-export interface RpcChatMessage {
+export interface ChatMessage {
 	role?: string;
 	content?: unknown;
 	[key: string]: unknown;
 }
 
-export interface RpcChatRunTurnRequest {
-	config: RpcChatStartSessionRequest;
-	messages?: RpcChatMessage[];
+export interface ChatRunTurnRequest {
+	config: ChatStartSessionRequest;
+	messages?: ChatMessage[];
 	prompt: string;
-	attachments?: RpcChatAttachments;
+	attachments?: ChatAttachments;
 	delivery?: "queue" | "steer";
 }
 
-export interface RpcChatToolCallResult {
+export interface ChatToolCallResult {
 	name: string;
 	input?: unknown;
 	output?: unknown;
@@ -87,7 +78,7 @@ export interface RpcChatToolCallResult {
 	durationMs?: number;
 }
 
-export interface RpcChatTurnResult {
+export interface ChatTurnResult {
 	text: string;
 	usage: {
 		inputTokens: number;
@@ -100,23 +91,23 @@ export interface RpcChatTurnResult {
 	outputTokens: number;
 	iterations: number;
 	finishReason: string;
-	messages: RpcChatMessage[];
-	toolCalls: RpcChatToolCallResult[];
+	messages: ChatMessage[];
+	toolCalls: ChatToolCallResult[];
 }
 
-export interface RpcEnterpriseContext {
+export interface EnterpriseContext {
 	projectId?: string;
 	workspaceId?: string;
 	organizationId?: string;
 }
 
-export interface RpcEnterpriseAuthenticateRequest extends RpcEnterpriseContext {
+export interface EnterpriseAuthenticateRequest extends EnterpriseContext {
 	providerId: string;
 	workspacePath: string;
 	rootPath?: string;
 }
 
-export interface RpcEnterpriseAuthenticateResponse {
+export interface EnterpriseAuthenticateResponse {
 	providerId: string;
 	authenticated: boolean;
 	roles: string[];
@@ -124,14 +115,14 @@ export interface RpcEnterpriseAuthenticateResponse {
 	metadata?: Record<string, unknown>;
 }
 
-export interface RpcEnterpriseSyncRequest extends RpcEnterpriseContext {
+export interface EnterpriseSyncRequest extends EnterpriseContext {
 	providerId: string;
 	workspacePath: string;
 	rootPath?: string;
 	useCachedBundle?: boolean;
 }
 
-export interface RpcEnterpriseSyncResponse {
+export interface EnterpriseSyncResponse {
 	providerId: string;
 	authenticated: boolean;
 	hasCachedBundle: boolean;
@@ -145,15 +136,15 @@ export interface RpcEnterpriseSyncResponse {
 	metadata?: Record<string, unknown>;
 }
 
-export interface RpcEnterpriseStatusRequest {
+export interface EnterpriseStatusRequest {
 	providerId: string;
 	workspacePath: string;
 	rootPath?: string;
 }
 
-export type RpcEnterpriseStatusResponse = RpcEnterpriseSyncResponse;
+export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 
-export interface RpcProviderModel {
+export interface ProviderModel {
 	id: string;
 	name: string;
 	supportsAttachments?: boolean;
@@ -161,7 +152,7 @@ export interface RpcProviderModel {
 	supportsReasoning?: boolean;
 }
 
-export interface RpcProviderListItem {
+export interface ProviderListItem {
 	id: string;
 	name: string;
 	models: number | null;
@@ -174,122 +165,41 @@ export interface RpcProviderListItem {
 	defaultModelId?: string;
 	authDescription: string;
 	baseUrlDescription: string;
-	modelList?: RpcProviderModel[];
+	modelList?: ProviderModel[];
 	family?: string;
 }
 
-export interface RpcProviderCatalogResponse {
-	providers: RpcProviderListItem[];
+export interface ProviderCatalogResponse {
+	providers: ProviderListItem[];
 	settingsPath: string;
 }
 
-export interface RpcProviderModelsResponse {
+export interface ProviderModelsResponse {
 	providerId: string;
-	models: RpcProviderModel[];
-}
-
-export interface RpcClineAccountOrganization {
-	active: boolean;
-	memberId: string;
-	name: string;
-	organizationId: string;
-	roles: Array<"admin" | "member" | "owner">;
-}
-
-export interface RpcClineAccountUser {
-	id: string;
-	email: string;
-	displayName: string;
-	photoUrl: string;
-	createdAt: string;
-	updatedAt: string;
-	organizations: RpcClineAccountOrganization[];
-}
-
-export interface RpcClineAccountBalance {
-	balance: number;
-	userId: string;
-}
-
-export interface RpcClineAccountUsageTransaction {
-	aiInferenceProviderName: string;
-	aiModelName: string;
-	aiModelTypeName: string;
-	completionTokens: number;
-	costUsd: number;
-	createdAt: string;
-	creditsUsed: number;
-	generationId: string;
-	id: string;
-	metadata: {
-		additionalProp1: string;
-		additionalProp2: string;
-		additionalProp3: string;
-	};
-	operation?: string;
-	organizationId: string;
-	promptTokens: number;
-	totalTokens: number;
-	userId: string;
-}
-
-export interface RpcClineAccountPaymentTransaction {
-	paidAt: string;
-	creatorId: string;
-	amountCents: number;
-	credits: number;
-}
-
-export interface RpcClineAccountOrganizationBalance {
-	balance: number;
-	organizationId: string;
-}
-
-export interface RpcClineAccountOrganizationUsageTransaction {
-	aiInferenceProviderName: string;
-	aiModelName: string;
-	aiModelTypeName: string;
-	completionTokens: number;
-	costUsd: number;
-	createdAt: string;
-	creditsUsed: number;
-	generationId: string;
-	id: string;
-	memberDisplayName: string;
-	memberEmail: string;
-	metadata: {
-		additionalProp1: string;
-		additionalProp2: string;
-		additionalProp3: string;
-	};
-	operation?: string;
-	organizationId: string;
-	promptTokens: number;
-	totalTokens: number;
-	userId: string;
+	models: ProviderModel[];
 }
 
 import type { OAuthProviderId } from "../types/auth";
 
-export type RpcOAuthProviderId = OAuthProviderId;
-
-export type RpcProviderCapability =
+export type ProviderCapability =
 	| "reasoning"
 	| "prompt-cache"
 	| "streaming"
 	| "tools"
-	| "vision";
+	| "vision"
+	| "computer-use"
+	| "oauth";
 
-export interface RpcListProvidersActionRequest {
+export interface ListProvidersActionRequest {
 	action: "listProviders";
 }
 
-export interface RpcGetProviderModelsActionRequest {
+export interface GetProviderModelsActionRequest {
 	action: "getProviderModels";
 	providerId: string;
 }
 
-export interface RpcSaveProviderSettingsActionRequest {
+export interface SaveProviderSettingsActionRequest {
 	action: "saveProviderSettings";
 	providerId: string;
 	enabled?: boolean;
@@ -371,7 +281,7 @@ export interface RpcSaveProviderSettingsActionRequest {
 	)[];
 }
 
-export interface RpcAddProviderActionRequest {
+export interface AddProviderActionRequest {
 	action: "addProvider";
 	providerId: string;
 	name: string;
@@ -382,16 +292,16 @@ export interface RpcAddProviderActionRequest {
 	models?: string[];
 	defaultModelId?: string;
 	modelsSourceUrl?: string;
-	capabilities?: RpcProviderCapability[];
+	capabilities?: ProviderCapability[];
 }
 
-export type RpcProviderSettingsActionRequest =
-	| RpcListProvidersActionRequest
-	| RpcGetProviderModelsActionRequest
-	| RpcSaveProviderSettingsActionRequest
-	| RpcAddProviderActionRequest;
+export type ProviderSettingsActionRequest =
+	| ListProvidersActionRequest
+	| GetProviderModelsActionRequest
+	| SaveProviderSettingsActionRequest
+	| AddProviderActionRequest;
 
-export type RpcClineAccountActionRequest =
+export type ClineAccountActionRequest =
 	| {
 			action: "clineAccount";
 			operation: "fetchMe";
@@ -436,11 +346,11 @@ export type RpcClineAccountActionRequest =
 			operation: "fetchFeaturebaseToken";
 	  };
 
-export type RpcProviderActionRequest =
-	| RpcProviderSettingsActionRequest
-	| RpcClineAccountActionRequest;
+export type ProviderActionRequest =
+	| ProviderSettingsActionRequest
+	| ClineAccountActionRequest;
 
-export interface RpcProviderOAuthLoginResponse {
-	provider: RpcOAuthProviderId;
+export interface ProviderOAuthLoginResponse {
+	provider: OAuthProviderId;
 	accessToken: string;
 }

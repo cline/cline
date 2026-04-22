@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { AgentTeamsRuntime } from "../extensions/tools/team";
-import { FileTeamPersistenceStore } from "./session-service";
+import { FileTeamPersistenceStore } from "./team-persistence-store";
 
 describe("FileTeamPersistenceStore", () => {
 	it("does not create state.json for an empty runtime", () => {

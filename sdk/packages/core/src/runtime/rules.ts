@@ -20,6 +20,18 @@ export function formatRulesForSystemPrompt(
 	return `\n\n# Rules\n${renderedRules}`;
 }
 
+export function mergeRulesForSystemPrompt(
+	primaryRules?: string,
+	additionalRules?: string,
+): string | undefined {
+	const primary = primaryRules?.trim();
+	const additional = additionalRules?.trim();
+	if (primary && additional) {
+		return `${primary}\n\n${additional}`;
+	}
+	return primary || additional || undefined;
+}
+
 export function listEnabledRulesFromWatcher(
 	watcher: UserInstructionConfigWatcher,
 ): RuleConfig[] {

@@ -96,6 +96,7 @@ describe("cli e2e", () => {
 		return {
 			...process.env,
 			HOME: homeDir,
+			CLINE_DIR: path.join(homeDir, ".cline"),
 			CLINE_DATA_DIR: dataDir,
 			CLINE_DB_DATA_DIR: path.join(dataDir, "db"),
 			CLINE_SESSION_DATA_DIR: sessionDir,
@@ -123,7 +124,6 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).toBe("");
 		expect(asText(result.stdout)).toContain("Usage:");
 		expect(asText(result.stdout)).toContain("--autoapprove [value]");
-		expect(asText(result.stdout)).toContain("--auto-approve-all");
 		expect(asText(result.stdout)).toContain("-T, --taskId <id>");
 		expect(asText(result.stdout)).toContain("--sandbox");
 		expect(asText(result.stdout)).toContain("--thinking");
@@ -219,12 +219,10 @@ describe("cli e2e", () => {
 		);
 	});
 
-	it("returns an error for unknown rpc subcommands", () => {
-		const result = runCli(["rpc", "nonesuch"], { env: createIsolatedEnv() });
+	it("returns an error for unknown hub subcommands", () => {
+		const result = runCli(["hub", "nonesuch"], { env: createIsolatedEnv() });
 		expect(result.status).toBe(1);
-		expect(asText(result.stderr)).toContain(
-			'unknown rpc subcommand "nonesuch"',
-		);
+		expect(asText(result.stderr)).toContain('unknown command "nonesuch"');
 	});
 
 	it("returns an error for interactive auth when no TTY is available", () => {
@@ -515,15 +513,14 @@ Skill from docs path.`,
 
 	it("lists configured agents with source paths", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
-		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));
 		const workspace = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-workspace-"));
-		tempDirs.push(homeDir, dataDir, workspace);
-		const docsAgentsDir = path.join(homeDir, "Documents", "Cline", "Agents");
-		const settingsAgentsDir = path.join(dataDir, "settings", "agents");
-		mkdirSync(docsAgentsDir, { recursive: true });
-		mkdirSync(settingsAgentsDir, { recursive: true });
+		tempDirs.push(homeDir, workspace);
+		const globalAgentsDir = path.join(homeDir, ".cline", "agents");
+		const workspaceAgentsDir = path.join(workspace, ".cline", "agents");
+		mkdirSync(globalAgentsDir, { recursive: true });
+		mkdirSync(workspaceAgentsDir, { recursive: true });
 		writeFileSync(
-			path.join(docsAgentsDir, "reviewer.yaml"),
+			path.join(globalAgentsDir, "reviewer.yaml"),
 			`---
 name: Reviewer
 description: Reviews code changes
@@ -532,7 +529,7 @@ Review diffs thoroughly.`,
 			"utf8",
 		);
 		writeFileSync(
-			path.join(settingsAgentsDir, "planner.yaml"),
+			path.join(workspaceAgentsDir, "planner.yaml"),
 			`---
 name: Planner
 description: Plans implementation tasks
@@ -546,7 +543,7 @@ Break work into clear steps.`,
 			env: {
 				...createIsolatedEnv(),
 				HOME: homeDir,
-				CLINE_DATA_DIR: dataDir,
+				CLINE_DIR: path.join(homeDir, ".cline"),
 			},
 		});
 		expect(textResult.status).toBe(0);
@@ -554,10 +551,10 @@ Break work into clear steps.`,
 		expect(asText(textResult.stdout)).toContain("Reviewer");
 		expect(asText(textResult.stdout)).toContain("Planner");
 		expect(asText(textResult.stdout)).toContain(
-			path.join(docsAgentsDir, "reviewer.yaml"),
+			path.join(globalAgentsDir, "reviewer.yaml"),
 		);
 		expect(asText(textResult.stdout)).toContain(
-			path.join(settingsAgentsDir, "planner.yaml"),
+			path.join(workspaceAgentsDir, "planner.yaml"),
 		);
 
 		const jsonResult = runCli(["config", "agents", "--json"], {
@@ -565,7 +562,7 @@ Break work into clear steps.`,
 			env: {
 				...createIsolatedEnv(),
 				HOME: homeDir,
-				CLINE_DATA_DIR: dataDir,
+				CLINE_DIR: path.join(homeDir, ".cline"),
 			},
 		});
 		expect(jsonResult.status).toBe(0);
@@ -577,7 +574,7 @@ Break work into clear steps.`,
 		expect(parsed.some((agent) => agent.name === "Planner")).toBe(true);
 		expect(
 			parsed.some(
-				(agent) => agent.path === path.join(docsAgentsDir, "reviewer.yaml"),
+				(agent) => agent.path === path.join(globalAgentsDir, "reviewer.yaml"),
 			),
 		).toBe(true);
 	});
@@ -619,6 +616,7 @@ Break work into clear steps.`,
 			env: {
 				...createIsolatedEnv(),
 				HOME: homeDir,
+				CLINE_DIR: path.join(homeDir, ".cline"),
 				CLINE_DATA_DIR: dataDir,
 			},
 		});
@@ -642,6 +640,7 @@ Break work into clear steps.`,
 			env: {
 				...createIsolatedEnv(),
 				HOME: homeDir,
+				CLINE_DIR: path.join(homeDir, ".cline"),
 				CLINE_DATA_DIR: dataDir,
 			},
 		});
@@ -746,25 +745,115 @@ Break work into clear steps.`,
 	});
 
 	it("lists available tools", () => {
+		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
+		const dataDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-data-"));
+		const workspace = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-workspace-"));
+		tempDirs.push(homeDir, dataDir, workspace);
+		const workspacePluginsDir = path.join(workspace, ".cline", "plugins");
+		const globalSettingsPath = path.join(
+			dataDir,
+			"settings",
+			"global-settings.json",
+		);
+		mkdirSync(workspacePluginsDir, { recursive: true });
+		mkdirSync(path.dirname(globalSettingsPath), { recursive: true });
+		writeFileSync(
+			path.join(workspacePluginsDir, "workspace-plugin.ts"),
+			[
+				"export default {",
+				"  name: 'workspace-plugin',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api) {",
+				"    api.registerTool({",
+				"      name: 'plugin_echo',",
+				"      description: 'Echo from plugin',",
+				"      inputSchema: { type: 'object', properties: {}, required: [] },",
+				"      execute: async () => ({ ok: true }),",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+		writeFileSync(
+			globalSettingsPath,
+			JSON.stringify({ disabledTools: ["plugin_echo"] }, null, 2),
+			"utf8",
+		);
+
 		const textResult = runCli(["config", "tools"], {
-			env: createIsolatedEnv(),
+			cwd: workspace,
+			env: {
+				...createIsolatedEnv(),
+				HOME: homeDir,
+				CLINE_DATA_DIR: dataDir,
+				CLINE_GLOBAL_SETTINGS_PATH: globalSettingsPath,
+			},
 		});
 		expect(textResult.status).toBe(0);
 		expect(asText(textResult.stdout)).toContain("Available tools:");
-		expect(asText(textResult.stdout)).toContain("read_files");
+		expect(asText(textResult.stdout)).toContain(
+			"read_files [default: enabled]",
+		);
+		expect(asText(textResult.stdout)).toContain(
+			"spawn_agent [default: enabled]",
+		);
+		expect(asText(textResult.stdout)).toContain("teams [default: enabled]");
 		expect(asText(textResult.stdout)).not.toContain("submit_and_exit");
+		expect(asText(textResult.stdout)).not.toContain("apply_patch");
+		expect(asText(textResult.stdout)).toContain("Plugin tools:");
+		expect(asText(textResult.stdout)).toContain("plugin_echo");
+		expect(asText(textResult.stdout)).toContain("[disabled]");
 
 		const jsonResult = runCli(["config", "tools", "--json"], {
-			env: createIsolatedEnv(),
+			cwd: workspace,
+			env: {
+				...createIsolatedEnv(),
+				HOME: homeDir,
+				CLINE_DATA_DIR: dataDir,
+				CLINE_GLOBAL_SETTINGS_PATH: globalSettingsPath,
+			},
 		});
 		expect(jsonResult.status).toBe(0);
 		const parsed = JSON.parse(asText(jsonResult.stdout)) as Array<{
+			id?: string;
 			name: string;
 			type: string;
+			enabled?: boolean;
+			defaultEnabled?: boolean;
+			headlessToolNames?: string[];
 		}>;
-		expect(parsed.some((tool) => tool.name === "run_commands")).toBe(true);
-		expect(parsed.some((tool) => tool.name === "submit_and_exit")).toBe(false);
-		expect(parsed.every((tool) => tool.type === "default")).toBe(true);
+		expect(
+			parsed.some(
+				(tool) => tool.id === "run_commands" && tool.defaultEnabled === true,
+			),
+		).toBe(true);
+		expect(
+			parsed.some(
+				(tool) =>
+					tool.id === "editor" &&
+					tool.headlessToolNames?.includes("editor") &&
+					!tool.headlessToolNames?.includes("apply_patch"),
+			),
+		).toBe(true);
+		expect(
+			parsed.some(
+				(tool) =>
+					tool.id === "teams" &&
+					tool.defaultEnabled === true &&
+					tool.headlessToolNames?.includes("team_status"),
+			),
+		).toBe(true);
+		expect(parsed.some((tool) => tool.id === "apply_patch")).toBe(false);
+		expect(parsed.some((tool) => tool.id === "submit_and_exit")).toBe(false);
+		expect(
+			parsed.some(
+				(tool) =>
+					tool.name === "plugin_echo" &&
+					tool.type === "plugin" &&
+					tool.enabled === false,
+			),
+		).toBe(true);
 	});
 
 	it("rejects invalid hook payloads", () => {

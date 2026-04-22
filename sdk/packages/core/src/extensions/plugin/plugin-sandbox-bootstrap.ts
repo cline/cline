@@ -4,13 +4,18 @@
  * This file runs inside an isolated Node.js child process spawned by
  * {@link SubprocessSandbox}. It receives RPC calls over IPC and dynamically
  * imports plugin modules, wiring up their contributions (tools, commands,
- * shortcuts, flags, renderers, providers) and lifecycle hooks.
+ * message builders, providers) and lifecycle hooks.
  *
  * Because it executes in a separate process it must stay bundle-safe and only
  * depend on local helpers that can be inlined into the sandbox build.
  */
 
+import { normalizePluginManifest, type PluginManifest } from "@clinebot/shared";
 import { importPluginModule } from "./plugin-module-import";
+import {
+	matchesPluginManifestTargeting,
+	type PluginTargeting,
+} from "./plugin-targeting";
 
 // ---------------------------------------------------------------------------
 // Types (intentionally minimal – mirrors only what the RPC protocol needs)
@@ -31,18 +36,6 @@ interface PluginCommand {
 	handler?: (input: string) => Promise<string>;
 }
 
-interface PluginShortcut {
-	name: string;
-	value: string;
-	description?: string;
-}
-
-interface PluginFlag {
-	name: string;
-	description?: string;
-	defaultValue?: boolean | string | number;
-}
-
 interface PluginMessageBuilder {
 	name: string;
 	build: (message: unknown[]) => unknown[]; // Message[]
@@ -57,15 +50,13 @@ interface PluginProvider {
 interface PluginApi {
 	registerTool(tool: PluginTool): void;
 	registerCommand(command: PluginCommand): void;
-	registerShortcut(shortcut: PluginShortcut): void;
-	registerFlag(flag: PluginFlag): void;
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 }
 
 interface PluginModule {
 	name: string;
-	manifest: Record<string, unknown>;
+	manifest: PluginManifest;
 	setup?: (api: PluginApi) => void | Promise<void>;
 	[hookName: string]: unknown;
 }
@@ -86,12 +77,10 @@ interface PluginDescriptor {
 	pluginId: string;
 	pluginPath: string;
 	name: string;
-	manifest: Record<string, unknown>;
+	manifest: PluginManifest;
 	contributions: {
 		tools: ContributionDescriptor[];
 		commands: ContributionDescriptor[];
-		shortcuts: ContributionDescriptor[];
-		flags: ContributionDescriptor[];
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 	};
@@ -132,6 +121,12 @@ function isObject(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null;
 }
 
+function hasValidStringArray(value: unknown): value is string[] {
+	return (
+		Array.isArray(value) && value.every((entry) => typeof entry === "string")
+	);
+}
+
 function assertValidPluginModule(
 	plugin: unknown,
 	pluginPath: string,
@@ -144,6 +139,18 @@ function assertValidPluginModule(
 	}
 	if (!isObject(plugin.manifest)) {
 		throw new Error(`Invalid plugin manifest: ${pluginPath}`);
+	}
+	if (
+		Object.hasOwn(plugin.manifest, "providerIds") &&
+		!hasValidStringArray(plugin.manifest.providerIds)
+	) {
+		throw new Error(`Invalid plugin manifest.providerIds: ${pluginPath}`);
+	}
+	if (
+		Object.hasOwn(plugin.manifest, "modelIds") &&
+		!hasValidStringArray(plugin.manifest.modelIds)
+	) {
+		throw new Error(`Invalid plugin manifest.modelIds: ${pluginPath}`);
 	}
 }
 
@@ -214,6 +221,8 @@ function getPlugin(pluginId: string): PluginState {
 async function initialize(args: {
 	pluginPaths?: string[];
 	exportName?: string;
+	providerId?: string;
+	modelId?: string;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -224,6 +233,10 @@ async function initialize(args: {
 	const warnings: PluginInitializationWarning[] = [];
 	const exportName = args.exportName || "plugin";
 	const pluginIndexByName = new Map<string, number>();
+	const targeting: PluginTargeting = {
+		providerId: args.providerId,
+		modelId: args.modelId,
+	};
 
 	for (const pluginPath of args.pluginPaths || []) {
 		let plugin: PluginModule | undefined;
@@ -232,13 +245,15 @@ async function initialize(args: {
 			plugin = (moduleExports.default ??
 				moduleExports[exportName]) as unknown as PluginModule;
 			assertValidPluginModule(plugin, pluginPath);
+			plugin.manifest = normalizePluginManifest(plugin.manifest);
+			if (!matchesPluginManifestTargeting(plugin.manifest, targeting)) {
+				continue;
+			}
 
 			const pluginId = `plugin_${++pluginCounter}`;
 			const contributions: PluginDescriptor["contributions"] = {
 				tools: [],
 				commands: [],
-				shortcuts: [],
-				flags: [],
 				messageBuilders: [],
 				providers: [],
 			};
@@ -270,22 +285,6 @@ async function initialize(args: {
 						id,
 						name: command.name,
 						description: command.description,
-					});
-				},
-				registerShortcut: (shortcut) => {
-					contributions.shortcuts.push({
-						id: makeId(pluginId, "shortcut"),
-						name: shortcut.name,
-						value: shortcut.value,
-						description: shortcut.description,
-					});
-				},
-				registerFlag: (flag) => {
-					contributions.flags.push({
-						id: makeId(pluginId, "flag"),
-						name: flag.name,
-						description: flag.description,
-						defaultValue: flag.defaultValue,
 					});
 				},
 				registerMessageBuilder: (builder) => {

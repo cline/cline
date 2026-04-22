@@ -141,7 +141,7 @@ export function emitTeamProgress(
 	emit: (event: CoreSessionEvent) => void,
 ): void {
 	if (!session.runtime.teamRuntime) return;
-	const teamName = session.config.teamName?.trim() || "team";
+	const teamName = session.runtime.teamRuntime.getTeamName();
 	emit({
 		type: "team_progress",
 		payload: {

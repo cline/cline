@@ -1,16 +1,19 @@
 import { createWhatsAppAdapter } from "@chat-adapter/whatsapp";
-import type { RpcChatStartSessionRequest } from "@clinebot/core";
+import type { ChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core";
-import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import { HubSessionClient } from "@clinebot/hub";
 import type {
 	ConnectWhatsAppOptions,
 	WhatsAppConnectorState,
 } from "@clinebot/shared";
 import { Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
-import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
+import {
+	ensureCliHubServer,
+	parseHubEndpointOverride,
+} from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import {
@@ -104,17 +107,12 @@ async function buildWhatsAppStartRequest(
 	loggerConfig: Parameters<
 		typeof buildConnectorStartRequest
 	>[0]["loggerConfig"],
-): Promise<RpcChatStartSessionRequest> {
-	const instanceKey = resolveInstanceKey({
-		phoneNumberId: options.phoneNumberId,
-		userName: options.userName,
-	});
+): Promise<ChatStartSessionRequest> {
 	return buildConnectorStartRequest({
 		options,
 		io,
 		loggerConfig,
 		systemRules: WHATSAPP_SYSTEM_RULES,
-		teamName: `whatsapp-${instanceKey.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
 }
 
@@ -155,7 +153,7 @@ function resolveWhatsAppParticipant(
 async function persistWhatsAppThreadContext(input: {
 	thread: Thread<WhatsAppThreadState>;
 	bindingsPath: string;
-	baseStartRequest: RpcChatStartSessionRequest;
+	baseStartRequest: ChatStartSessionRequest;
 	rawMessage: unknown;
 	errorLabel: string;
 }): Promise<void> {
@@ -188,7 +186,7 @@ async function persistWhatsAppThreadContext(input: {
 
 async function deliverScheduledResult(input: {
 	bot: Chat;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	logger: CliLoggerAdapter;
 	bindingsPath: string;
 	options: ConnectWhatsAppOptions;
@@ -547,13 +545,19 @@ class WhatsAppConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
-		process.env.CLINE_RPC_ADDRESS = rpcAddress;
+		const rpcAddress = await ensureCliHubServer(
+			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+			parseHubEndpointOverride(options.rpcAddress),
+		);
 
 		const clientId = `whatsapp-${process.pid}-${Date.now()}`;
-		await registerRpcClient(rpcAddress, {
+		const client = new HubSessionClient({
+			address: rpcAddress,
 			clientId,
 			clientType: "cli",
+			displayName: "whatsapp connector",
+			workspaceRoot: startRequest.workspaceRoot || startRequest.cwd,
+			cwd: startRequest.cwd,
 			metadata: {
 				transport: "whatsapp",
 				userName: options.userName,
@@ -561,9 +565,7 @@ class WhatsAppConnector extends ConnectorBase<
 					? { phoneNumberId: options.phoneNumberId }
 					: {}),
 			},
-		}).catch(() => undefined);
-
-		const client = new RpcSessionClient({ address: rpcAddress });
+		});
 		this.writeConnectorState(statePath, {
 			instanceKey,
 			userName: options.userName,

@@ -243,8 +243,6 @@ describe("sdk-enterprise", () => {
 		const contributions = await plugin.setup?.({
 			registerTool() {},
 			registerCommand() {},
-			registerShortcut() {},
-			registerFlag() {},
 			registerMessageBuilder() {},
 			registerProvider() {},
 		} satisfies AgentExtensionApi);

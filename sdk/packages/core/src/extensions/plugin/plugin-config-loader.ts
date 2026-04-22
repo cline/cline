@@ -8,6 +8,7 @@ import {
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import { loadAgentPluginsFromPathsWithDiagnostics } from "./plugin-loader";
 import { loadSandboxedPlugins } from "./plugin-sandbox";
+import type { PluginTargeting } from "./plugin-targeting";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 
@@ -54,7 +55,8 @@ export function resolveAgentPluginPaths(
 }
 
 export interface ResolveAndLoadAgentPluginsOptions
-	extends ResolveAgentPluginPathsOptions {
+	extends ResolveAgentPluginPathsOptions,
+		PluginTargeting {
 	mode?: "sandbox" | "in_process";
 	exportName?: string;
 	importTimeoutMs?: number;
@@ -80,6 +82,8 @@ export async function resolveAndLoadAgentPlugins(
 		const report = await loadAgentPluginsFromPathsWithDiagnostics(paths, {
 			cwd: options.cwd,
 			exportName: options.exportName,
+			providerId: options.providerId,
+			modelId: options.modelId,
 		});
 		return {
 			extensions: report.plugins,
@@ -95,6 +99,8 @@ export async function resolveAndLoadAgentPlugins(
 		hookTimeoutMs: options.hookTimeoutMs,
 		contributionTimeoutMs: options.contributionTimeoutMs,
 		onEvent: options.onEvent,
+		providerId: options.providerId,
+		modelId: options.modelId,
 	});
 	return {
 		extensions: sandboxed.extensions ?? [],

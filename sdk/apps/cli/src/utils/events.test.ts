@@ -73,6 +73,35 @@ describe("handleEvent text formatting", () => {
 		expect(output).toMatch(/\[run_commands\].*\n.*\[read_files\]/s);
 	});
 
+	it("does not echo ask_question through the generic tool renderer", () => {
+		handleEvent(
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "ask_question",
+				input: {
+					question: "How can I best assist you today?",
+					options: [
+						"Help me understand or analyze code in a repository",
+						"Help me create or edit files",
+					],
+				},
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+		handleEvent(
+			{
+				type: "content_end",
+				contentType: "tool",
+				toolName: "ask_question",
+				output: "Help me create or edit files",
+			} as unknown as AgentEvent,
+			{} as Config,
+		);
+
+		expect(output).toBe("");
+	});
+
 	it("prints tool errors inline", () => {
 		handleEvent(
 			{

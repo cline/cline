@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 import type { AgentConfig, HookStage, Tool } from "@clinebot/shared";
 import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
+import type { PluginTargeting } from "./plugin-targeting";
 
-export interface PluginSandboxOptions {
+export interface PluginSandboxOptions extends PluginTargeting {
 	pluginPaths: string[];
 	exportName?: string;
 	importTimeoutMs?: number;
@@ -25,8 +26,6 @@ type SandboxedContributionDescriptor = {
 	inputSchema?: unknown;
 	timeoutMs?: number;
 	retryable?: boolean;
-	value?: string;
-	defaultValue?: boolean | string | number;
 	metadata?: Record<string, unknown>;
 };
 
@@ -38,8 +37,6 @@ type SandboxedPluginDescriptor = {
 	contributions: {
 		tools: SandboxedContributionDescriptor[];
 		commands: SandboxedContributionDescriptor[];
-		shortcuts: SandboxedContributionDescriptor[];
-		flags: SandboxedContributionDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
 	};
@@ -181,6 +178,8 @@ export async function loadSandboxedPlugins(
 	const initArgs = {
 		pluginPaths: options.pluginPaths,
 		exportName: options.exportName,
+		providerId: options.providerId,
+		modelId: options.modelId,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks
@@ -357,22 +356,6 @@ function registerSimpleContributions(
 	api: AgentExtensionApi,
 	descriptor: SandboxedPluginDescriptor,
 ): void {
-	for (const sd of descriptor.contributions.shortcuts) {
-		api.registerShortcut({
-			name: sd.name,
-			value: sd.value ?? "",
-			description: sd.description,
-		});
-	}
-
-	for (const fd of descriptor.contributions.flags) {
-		api.registerFlag({
-			name: fd.name,
-			description: fd.description,
-			defaultValue: fd.defaultValue,
-		});
-	}
-
 	for (const rd of descriptor.contributions.messageBuilders) {
 		api.registerMessageBuilder({
 			name: rd.name,

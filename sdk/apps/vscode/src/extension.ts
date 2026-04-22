@@ -1,17 +1,21 @@
+import { spawn } from "node:child_process";
 import * as os from "node:os";
 import { basename, join } from "node:path";
 import {
 	type BasicLogger,
 	buildWorkspaceMetadata,
 	ClineCore,
-	type CoreSessionEvent,
+	createConfiguredTelemetryService,
 	type ITelemetryService,
 	Llms,
+	NodeHubClient,
+	type ProviderModel,
 	ProviderSettingsManager,
-	type RpcProviderModel,
+	probeHubServer,
+	readHubDiscovery,
+	resolveSharedHubOwnerContext,
 	type ToolPolicy,
 } from "@clinebot/core";
-import { createConfiguredTelemetryService } from "@clinebot/core/telemetry";
 import {
 	buildClineSystemPrompt,
 	createClineTelemetryServiceConfig,
@@ -20,8 +24,10 @@ import {
 import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
 import type {
+	WebviewChatMessage,
 	WebviewInboundMessage,
 	WebviewOutboundMessage,
+	WebviewSessionSummary,
 } from "./webview-protocol";
 
 const llmModels = Llms;
@@ -131,25 +137,172 @@ type ProviderListItem = {
 	defaultModelId?: string;
 };
 
+type HubSessionRecord = {
+	sessionId: string;
+	status?: string;
+	workspaceRoot?: string;
+	updatedAt?: number;
+	metadata?: Record<string, unknown>;
+};
+
+type HubEventEnvelope = {
+	event: string;
+	sessionId?: string;
+	payload?: Record<string, unknown>;
+};
+
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+	return value && typeof value === "object"
+		? (value as Record<string, unknown>)
+		: undefined;
+}
+
 type LlmModelInfo = {
 	name?: string;
 	capabilities?: string[];
 	thinkingConfig?: unknown;
 };
 
+function stringifyContent(value: unknown): string {
+	if (typeof value === "string") {
+		return value;
+	}
+	if (value == null) {
+		return "";
+	}
+	try {
+		return JSON.stringify(value, null, 2);
+	} catch {
+		return String(value);
+	}
+}
+
+function mapPersistedMessagesToWebviewMessages(
+	messages: Array<{
+		id?: string;
+		role?: string;
+		content?:
+			| string
+			| Array<
+					| { type: "text"; text: string }
+					| { type: "reasoning"; text: string; redacted?: boolean }
+					| {
+							type: "tool-call";
+							toolCallId: string;
+							toolName: string;
+							input?: unknown;
+					  }
+					| {
+							type: "tool-result";
+							toolCallId: string;
+							toolName: string;
+							output?: unknown;
+							isError?: boolean;
+					  }
+			  >;
+	}>,
+): WebviewChatMessage[] {
+	return messages.flatMap((message, messageIndex) => {
+		const textParts: string[] = [];
+		const reasoningParts: string[] = [];
+		let reasoningRedacted = false;
+		const toolEvents = new Map<
+			string,
+			NonNullable<WebviewChatMessage["toolEvents"]>[number]
+		>();
+
+		if (typeof message.content === "string") {
+			const text = message.content.trim();
+			if (text) {
+				textParts.push(text);
+			}
+		}
+
+		for (const part of Array.isArray(message.content) ? message.content : []) {
+			switch (part.type) {
+				case "text":
+					if (part.text.trim()) {
+						textParts.push(part.text.trim());
+					}
+					break;
+				case "reasoning":
+					if (part.text.trim()) {
+						reasoningParts.push(part.text);
+					}
+					reasoningRedacted = reasoningRedacted || part.redacted === true;
+					break;
+				case "tool-call":
+					toolEvents.set(part.toolCallId, {
+						id: `${message.id ?? messageIndex}:${part.toolCallId}`,
+						toolCallId: part.toolCallId,
+						name: part.toolName,
+						text: `Running ${part.toolName}...`,
+						state: "input-available",
+						input: part.input,
+					});
+					break;
+				case "tool-result": {
+					const existing = toolEvents.get(part.toolCallId);
+					toolEvents.set(part.toolCallId, {
+						id:
+							existing?.id ??
+							`${message.id ?? messageIndex}:${part.toolCallId}`,
+						toolCallId: part.toolCallId,
+						name: part.toolName,
+						text: part.isError
+							? `${part.toolName} failed`
+							: `${part.toolName} completed`,
+						state: part.isError ? "output-error" : "output-available",
+						input: existing?.input,
+						output: part.output,
+						error: part.isError ? stringifyContent(part.output) : undefined,
+					});
+					break;
+				}
+			}
+		}
+
+		const text = textParts.join("\n");
+		const toolEventList = [...toolEvents.values()];
+		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
+			return [];
+		}
+
+		return [
+			{
+				id: message.id || `history-${messageIndex}`,
+				role:
+					message.role === "user"
+						? "user"
+						: message.role === "assistant"
+							? "assistant"
+							: "meta",
+				text,
+				reasoning:
+					reasoningParts.length > 0 ? reasoningParts.join("\n") : undefined,
+				reasoningRedacted: reasoningRedacted || undefined,
+				toolEvents: toolEventList.length > 0 ? toolEventList : undefined,
+			},
+		];
+	});
+}
+
 class CoreChatWebviewController implements vscode.Disposable {
+	private static readonly SESSION_REFRESH_INTERVAL_MS = 4_000;
 	private readonly webview: vscode.Webview;
 	private readonly extensionUri: vscode.Uri;
 	private readonly logger: BasicLogger;
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly providerSettingsManager = new ProviderSettingsManager();
 	private host: ClineCore | undefined;
+	private hubClient: NodeHubClient | undefined;
+	private stopHostSubscription: (() => void) | undefined;
+	private stopSessionRefreshInterval: (() => void) | undefined;
 	private stopSessionSubscription: (() => void) | undefined;
 	private sessionId: string | undefined;
 	private startConfig: StartConfig | undefined;
+	private hubUrl: string | undefined;
 	private sending = false;
-	private streamedAssistantText = "";
-	private streamedReasoningText = "";
 	private telemetry: ITelemetryService | undefined;
 
 	constructor(
@@ -193,6 +346,12 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	public dispose(): void {
 		this.stopEventStream();
+		this.stopSessionRefreshInterval?.();
+		this.stopSessionRefreshInterval = undefined;
+		this.stopHostSubscription?.();
+		this.stopHostSubscription = undefined;
+		this.hubClient?.close();
+		this.hubClient = undefined;
 		if (this.sessionId && this.host) {
 			void this.host.stop(this.sessionId).catch(() => {
 				// best-effort cleanup
@@ -219,6 +378,18 @@ class CoreChatWebviewController implements vscode.Disposable {
 			await this.loadModels(message.providerId);
 			return;
 		}
+		if (message.type === "attachSession") {
+			await this.attachSession(message.sessionId);
+			return;
+		}
+		if (message.type === "deleteSession") {
+			await this.deleteSession(message.sessionId);
+			return;
+		}
+		if (message.type === "updateSessionMetadata") {
+			await this.updateSessionMetadata(message.sessionId, message.metadata);
+			return;
+		}
 		if (message.type === "abort") {
 			await this.abortTurn();
 			return;
@@ -227,13 +398,22 @@ class CoreChatWebviewController implements vscode.Disposable {
 			await this.resetSession();
 			return;
 		}
+		if (message.type === "forkSession") {
+			await this.forkSession();
+			return;
+		}
 		if (message.type === "send") {
-			await this.sendPrompt(message.prompt, message.config);
+			await this.sendPrompt(
+				message.prompt,
+				message.config,
+				message.attachments,
+			);
 		}
 	}
 
 	private async initialize(): Promise<void> {
 		try {
+			await this.ensureHub();
 			await this.getSessionHost();
 			await this.post({
 				type: "status",
@@ -242,9 +422,99 @@ class CoreChatWebviewController implements vscode.Disposable {
 			const defaults = this.resolveWorkspaceDefaults();
 			await this.post({ type: "defaults", defaults });
 			await this.loadProviders(defaults.provider);
+			await this.refreshSessions();
+			if (!this.stopSessionRefreshInterval) {
+				const interval = setInterval(() => {
+					void this.refreshSessions().catch(() => undefined);
+				}, CoreChatWebviewController.SESSION_REFRESH_INTERVAL_MS);
+				this.stopSessionRefreshInterval = () => {
+					clearInterval(interval);
+				};
+			}
 		} catch (error) {
 			await this.postError(error);
 		}
+	}
+
+	private async ensureHub(): Promise<void> {
+		const defaults = this.resolveWorkspaceDefaults();
+		if (this.hubClient && this.hubUrl) {
+			try {
+				await this.hubClient.connect();
+				return;
+			} catch {
+				this.hubClient.close();
+				this.hubClient = undefined;
+				this.hubUrl = undefined;
+			}
+		}
+		const owner = resolveSharedHubOwnerContext();
+		if (this.hubUrl) {
+			const healthy = await probeHubServer(this.hubUrl);
+			if (healthy?.url) {
+				this.hubUrl = healthy.url;
+			} else {
+				this.hubUrl = undefined;
+			}
+		}
+		if (!this.hubUrl) {
+			const discovery = await readHubDiscovery(owner.discoveryPath);
+			if (discovery?.url) {
+				const healthy = await probeHubServer(discovery.url);
+				if (healthy?.url) {
+					this.hubUrl = healthy.url;
+				}
+			}
+		}
+		if (!this.hubUrl) {
+			const daemonScriptPath = join(
+				this.extensionUri.fsPath,
+				"dist",
+				"hub-daemon.js",
+			);
+			const payload = Buffer.from(
+				JSON.stringify({
+					workspaceRoot: defaults.workspaceRoot,
+					cwd: defaults.cwd,
+					systemPrompt: "",
+				}),
+				"utf8",
+			).toString("base64");
+			const child = spawn(process.execPath, [daemonScriptPath, payload], {
+				cwd: this.extensionUri.fsPath,
+				detached: true,
+				stdio: "ignore",
+				env: process.env,
+			});
+			child.unref();
+
+			const deadline = Date.now() + 8_000;
+			while (Date.now() < deadline) {
+				const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
+				if (nextDiscovery?.url) {
+					const healthy = await probeHubServer(nextDiscovery.url);
+					if (healthy?.url) {
+						this.hubUrl = healthy.url;
+						break;
+					}
+				}
+				await new Promise((resolve) => setTimeout(resolve, 200));
+			}
+		}
+		if (!this.hubUrl) {
+			throw new Error("No compatible hub runtime is available.");
+		}
+		this.hubClient = new NodeHubClient({
+			url: this.hubUrl,
+			clientType: "vscode",
+			displayName: "VS Code",
+			workspaceRoot: defaults.workspaceRoot,
+			cwd: defaults.cwd,
+		});
+		await this.hubClient.connect();
+		this.hubClient.subscribe((event) => {
+			void this.handleHubEvent(event as HubEventEnvelope);
+		});
 	}
 
 	private async initializeWebview(): Promise<void> {
@@ -349,7 +619,11 @@ class CoreChatWebviewController implements vscode.Disposable {
 	} {
 		const folder = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
 		const cwd = folder ?? process.cwd();
+		const lastUsedProviderSettings =
+			this.providerSettingsManager.getLastUsedProviderSettings();
 		return {
+			provider: lastUsedProviderSettings?.provider,
+			model: lastUsedProviderSettings?.model,
 			workspaceRoot: cwd,
 			cwd,
 		};
@@ -395,7 +669,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 			string,
 			LlmModelInfo
 		>;
-		const models: RpcProviderModel[] = Object.entries(modelMap)
+		const models: ProviderModel[] = Object.entries(modelMap)
 			.sort(([a], [b]) => a.localeCompare(b))
 			.map(([modelId, info]: [string, LlmModelInfo]) => ({
 				id: modelId,
@@ -413,6 +687,111 @@ class CoreChatWebviewController implements vscode.Disposable {
 		});
 	}
 
+	private async refreshSessions(): Promise<void> {
+		if (!this.hubClient) {
+			return;
+		}
+		const reply = await this.hubClient.command("session.list");
+		const sessions = (
+			(reply.payload?.sessions as HubSessionRecord[] | undefined) ?? []
+		)
+			.sort((a, b) => (b.updatedAt ?? 0) - (a.updatedAt ?? 0))
+			.map(
+				(session): WebviewSessionSummary => ({
+					sessionId: session.sessionId,
+					title:
+						typeof session.metadata?.title === "string"
+							? session.metadata.title
+							: undefined,
+					status: session.status,
+					workspaceRoot: session.workspaceRoot,
+					updatedAt: session.updatedAt,
+				}),
+			);
+		await this.post({ type: "sessions", sessions });
+	}
+
+	private async attachSession(sessionId: string): Promise<void> {
+		const trimmed = sessionId.trim();
+		if (!trimmed) {
+			await this.resetSession();
+			return;
+		}
+		const host = await this.getSessionHost();
+		const session = await host.get(trimmed);
+		if (!session) {
+			await this.post({
+				type: "status",
+				text: `Session ${trimmed} was not found.`,
+			});
+			return;
+		}
+		this.startEventStream(trimmed);
+		await this.hubClient?.command("session.attach", {
+			sessionId: trimmed,
+			role: "participant",
+			metadata: { source: "vscode-webview" },
+		});
+		const persistedMessages = (await host.readMessages(trimmed)) as Parameters<
+			typeof mapPersistedMessagesToWebviewMessages
+		>[0];
+		this.startConfig = await this.buildStartConfigFromSession(session);
+		await this.post({ type: "session_started", sessionId: trimmed });
+		await this.post({
+			type: "session_hydrated",
+			sessionId: trimmed,
+			status: session.status,
+			providerId: session.provider,
+			modelId: session.model,
+			messages: mapPersistedMessagesToWebviewMessages(persistedMessages),
+		});
+		await this.post({
+			type: "status",
+			text:
+				session.status === "running"
+					? `Attached to ${trimmed} (running)`
+					: `Attached to ${trimmed}`,
+		});
+		await this.refreshSessions();
+	}
+
+	private async updateSessionMetadata(
+		sessionId: string,
+		metadata: Record<string, unknown>,
+	): Promise<void> {
+		const trimmed = sessionId.trim();
+		if (!trimmed) {
+			return;
+		}
+		const host = await this.getSessionHost();
+		await host.update(trimmed, { metadata });
+		await this.refreshSessions();
+	}
+
+	private async deleteSession(sessionId: string): Promise<void> {
+		const trimmed = sessionId.trim();
+		if (!trimmed) {
+			return;
+		}
+		const host = await this.getSessionHost();
+		const deleted = await host.delete(trimmed);
+		if (!deleted) {
+			await this.post({
+				type: "status",
+				text: `Session ${trimmed} not found.`,
+			});
+			return;
+		}
+		if (this.sessionId === trimmed) {
+			this.stopEventStream();
+			this.sessionId = undefined;
+			this.startConfig = undefined;
+			await this.post({ type: "reset_done" });
+		}
+		await this.refreshSessions();
+		await this.post({ type: "status", text: `Deleted session ${trimmed}` });
+	}
+
 	private async sendPrompt(
 		prompt: string,
 		config?: {
@@ -427,9 +806,12 @@ class CoreChatWebviewController implements vscode.Disposable {
 			enableTeams?: boolean;
 			autoApproveTools?: boolean;
 		},
+		attachments?: {
+			userImages?: string[];
+		},
 	): Promise<void> {
 		const trimmedPrompt = prompt.trim();
-		if (!trimmedPrompt) {
+		if (!trimmedPrompt && (attachments?.userImages?.length ?? 0) === 0) {
 			return;
 		}
 		if (this.sending) {
@@ -441,22 +823,15 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 
 		this.sending = true;
-		this.streamedAssistantText = "";
-		this.streamedReasoningText = "";
 		try {
 			await this.ensureSession(config);
 			const host = await this.getSessionHost();
-			const result = await host.send({
+			await host.send({
 				sessionId: this.sessionId as string,
 				prompt: trimmedPrompt,
+				userImages: attachments?.userImages,
 			});
-			this.emitRemainder(result?.text ?? "");
-			await this.post({
-				type: "turn_done",
-				finishReason: result?.finishReason ?? "unknown",
-				iterations: result?.iterations ?? 0,
-				usage: result?.usage,
-			});
+			await this.refreshSessions();
 		} catch (error) {
 			await this.postError(error);
 		} finally {
@@ -464,22 +839,50 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 	}
 
-	private emitRemainder(fullText: string): void {
-		if (!fullText) {
-			return;
-		}
-		if (fullText.startsWith(this.streamedAssistantText)) {
-			const remainder = fullText.slice(this.streamedAssistantText.length);
-			if (remainder) {
-				this.streamedAssistantText = fullText;
-				void this.post({ type: "assistant_delta", text: remainder });
-			}
-			return;
-		}
-		if (fullText !== this.streamedAssistantText) {
-			this.streamedAssistantText = fullText;
-			void this.post({ type: "assistant_delta", text: fullText });
-		}
+	private async buildStartConfigFromSession(
+		session: NonNullable<Awaited<ReturnType<ClineCore["get"]>>>,
+	): Promise<StartConfig> {
+		const resolvedSystemPrompt = await this.resolveSystemPrompt(
+			session.cwd,
+			session.provider,
+			typeof session.metadata?.systemPrompt === "string"
+				? session.metadata.systemPrompt
+				: undefined,
+			session.metadata?.mode === "plan" ? "plan" : "act",
+		);
+		return {
+			workspaceRoot: session.workspaceRoot,
+			cwd: session.cwd,
+			providerId: session.provider,
+			modelId: session.model,
+			mode: session.metadata?.mode === "plan" ? "plan" : "act",
+			apiKey: "",
+			systemPrompt: resolvedSystemPrompt,
+			maxIterations:
+				typeof session.metadata?.maxIterations === "number"
+					? session.metadata.maxIterations
+					: undefined,
+			thinking: session.metadata?.thinking === true,
+			enableTools: session.enableTools,
+			enableSpawnAgent: session.enableSpawn,
+			enableAgentTeams: session.enableTeams,
+			teamName: session.teamName ?? "vscode-chat",
+			missionLogIntervalSteps: 3,
+			missionLogIntervalMs: 120000,
+			logger: this.logger,
+			extensionContext: {
+				client: { name: "cline-vscode", version },
+				workspace: {
+					rootPath: session.workspaceRoot,
+					cwd: session.cwd,
+					workspaceName: basename(session.cwd),
+					ide: "VS Code",
+					platform: os.platform(),
+				},
+				logger: this.logger,
+				telemetry: this.telemetry,
+			},
+		};
 	}
 
 	private async ensureSession(config?: {
@@ -568,6 +971,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 		this.startConfig = startConfig;
 		this.startEventStream(sessionId);
 		await this.post({ type: "session_started", sessionId });
+		await this.refreshSessions();
 		return startConfig;
 	}
 
@@ -582,107 +986,16 @@ class CoreChatWebviewController implements vscode.Disposable {
 		this.stopEventStream();
 		this.sessionId = undefined;
 		this.startConfig = undefined;
-		this.streamedAssistantText = "";
-		this.streamedReasoningText = "";
 	}
 
 	private startEventStream(sessionId: string): void {
 		this.stopEventStream();
-		const host = this.host;
-		if (!host) {
-			return;
-		}
-		this.stopSessionSubscription = host.subscribe((event: CoreSessionEvent) => {
-			if (
-				event.type !== "agent_event" ||
-				event.payload.sessionId !== sessionId
-			) {
+		this.sessionId = sessionId;
+		this.stopSessionSubscription = this.hubClient?.subscribe((event) => {
+			if (event.sessionId !== sessionId) {
 				return;
 			}
-
-			const agentEvent = event.payload.event;
-			if (
-				agentEvent.type === "content_start" &&
-				agentEvent.contentType === "text" &&
-				typeof agentEvent.text === "string" &&
-				agentEvent.text.length > 0
-			) {
-				this.streamedAssistantText += agentEvent.text;
-				void this.post({ type: "assistant_delta", text: agentEvent.text });
-				return;
-			}
-
-			if (
-				agentEvent.type === "content_start" &&
-				agentEvent.contentType === "reasoning"
-			) {
-				if (agentEvent.redacted && !agentEvent.reasoning) {
-					void this.post({ type: "reasoning_delta", text: "", redacted: true });
-					return;
-				}
-				if (
-					typeof agentEvent.reasoning === "string" &&
-					agentEvent.reasoning.length > 0
-				) {
-					this.streamedReasoningText += agentEvent.reasoning;
-					void this.post({
-						type: "reasoning_delta",
-						text: agentEvent.reasoning,
-						redacted: agentEvent.redacted,
-					});
-					return;
-				}
-			}
-
-			if (
-				agentEvent.type === "content_end" &&
-				agentEvent.contentType === "reasoning" &&
-				typeof agentEvent.reasoning === "string" &&
-				agentEvent.reasoning !== this.streamedReasoningText
-			) {
-				const text = agentEvent.reasoning.startsWith(this.streamedReasoningText)
-					? agentEvent.reasoning.slice(this.streamedReasoningText.length)
-					: agentEvent.reasoning;
-				this.streamedReasoningText = agentEvent.reasoning;
-				void this.post({ type: "reasoning_delta", text });
-				return;
-			}
-
-			if (
-				agentEvent.type === "content_start" &&
-				agentEvent.contentType === "tool"
-			) {
-				void this.post({
-					type: "tool_event",
-					text: `Running ${agentEvent.toolName ?? "tool"}...`,
-					event: {
-						toolCallId: agentEvent.toolCallId,
-						toolName: agentEvent.toolName,
-						status: "running",
-						input: agentEvent.input,
-					},
-				});
-				return;
-			}
-
-			if (
-				agentEvent.type === "content_end" &&
-				agentEvent.contentType === "tool"
-			) {
-				void this.post({
-					type: "tool_event",
-					text: agentEvent.error
-						? `${agentEvent.toolName ?? "tool"} failed: ${agentEvent.error}`
-						: `${agentEvent.toolName ?? "tool"} completed`,
-					event: {
-						toolCallId: agentEvent.toolCallId,
-						toolName: agentEvent.toolName,
-						status: agentEvent.error ? "failed" : "completed",
-						output: agentEvent.output,
-						error: agentEvent.error,
-					},
-				});
-			}
+			void this.forwardSessionHubEvent(event as HubEventEnvelope);
 		});
 	}
 
@@ -719,10 +1032,95 @@ class CoreChatWebviewController implements vscode.Disposable {
 		}
 	}
 
+	private async forkSession(): Promise<void> {
+		const forkedFromSessionId = this.sessionId;
+		if (!forkedFromSessionId) {
+			await this.post({
+				type: "fork_error",
+				text: "No active session to fork.",
+			});
+			return;
+		}
+		try {
+			const host = await this.getSessionHost();
+			// Read the messages from the source session — fails fast if empty.
+			const rawMessages = await host.readMessages(forkedFromSessionId);
+			if (rawMessages.length === 0) {
+				await this.post({
+					type: "fork_error",
+					text: "Cannot fork an empty session.",
+				});
+				return;
+			}
+			// Retrieve the session record to copy checkpoint metadata.
+			const sourceSession = await host.get(forkedFromSessionId);
+			const checkpointMetadata = sourceSession?.metadata?.checkpoint;
+			const forkMetadata: Record<string, unknown> = {
+				fork: {
+					forkedFromSessionId,
+					forkedAt: new Date().toISOString(),
+					source: sourceSession?.source ?? "vscode",
+					...(checkpointMetadata !== undefined
+						? { checkpoints: checkpointMetadata }
+						: {}),
+				},
+			};
+			// Carry forward any other metadata fields (e.g. title, totalCost).
+			if (sourceSession?.metadata) {
+				for (const [key, value] of Object.entries(sourceSession.metadata)) {
+					if (key !== "fork") {
+						forkMetadata[key] = value;
+					}
+				}
+			}
+			// Stop the current session before spawning the fork.
+			await this.stopExistingSession();
+			if (!this.startConfig) {
+				throw new Error("Could not resolve start config for fork.");
+			}
+			const toolPolicies: Record<string, import("@clinebot/core").ToolPolicy> =
+				{ "*": { autoApprove: true } };
+			const response = await host.start({
+				interactive: true,
+				config: this.startConfig,
+				toolPolicies,
+				initialMessages: rawMessages as import("@clinebot/llms").Message[],
+				sessionMetadata: forkMetadata,
+			});
+			const newSessionId = response.sessionId.trim();
+			if (!newSessionId) {
+				throw new Error("Fork did not return a session id.");
+			}
+			this.sessionId = newSessionId;
+			this.startEventStream(newSessionId);
+			await this.post({ type: "session_started", sessionId: newSessionId });
+			const forkMessages = mapPersistedMessagesToWebviewMessages(
+				rawMessages as Parameters<
+					typeof mapPersistedMessagesToWebviewMessages
+				>[0],
+			);
+			await this.post({
+				type: "session_hydrated",
+				sessionId: newSessionId,
+				messages: forkMessages,
+			});
+			await this.post({
+				type: "fork_done",
+				forkedFromSessionId,
+				newSessionId,
+			});
+			await this.refreshSessions();
+		} catch (error) {
+			const text = error instanceof Error ? error.message : String(error);
+			await this.post({ type: "fork_error", text });
+		}
+	}
+
 	private async resetSession(): Promise<void> {
 		await this.stopExistingSession();
 		this.sending = false;
 		await this.post({ type: "reset_done" });
+		await this.refreshSessions();
 	}
 
 	private stopEventStream(): void {
@@ -732,12 +1130,149 @@ class CoreChatWebviewController implements vscode.Disposable {
 
 	private async getSessionHost(): Promise<ClineCore> {
 		if (!this.host) {
+			await this.ensureHub();
 			this.host = await ClineCore.create({
-				backendMode: "local",
+				backendMode: "hub",
+				hub: {
+					endpoint: this.hubUrl,
+					clientType: "vscode",
+					displayName: "VS Code",
+					workspaceRoot: this.resolveWorkspaceDefaults().workspaceRoot,
+					cwd: this.resolveWorkspaceDefaults().cwd,
+				},
 				telemetry: this.telemetry,
 			});
+			this.stopHostSubscription = this.host.subscribe(() => {});
 		}
 		return this.host;
+	}
+
+	private async handleHubEvent(event: HubEventEnvelope): Promise<void> {
+		const shouldRefreshSessions =
+			event.event === "session.created" ||
+			event.event === "session.updated" ||
+			event.event === "session.attached" ||
+			event.event === "session.detached" ||
+			event.event === "run.started" ||
+			event.event === "run.completed" ||
+			event.event === "run.aborted";
+		if (!this.sessionId || event.sessionId !== this.sessionId) {
+			if (shouldRefreshSessions) {
+				void this.refreshSessions().catch(() => undefined);
+			}
+			return;
+		}
+		if (!this.stopSessionSubscription) {
+			await this.forwardSessionHubEvent(event);
+		}
+	}
+
+	private async forwardSessionHubEvent(event: HubEventEnvelope): Promise<void> {
+		const payload = asRecord(event.payload);
+		const shouldRefreshSessions =
+			event.event === "session.created" ||
+			event.event === "session.updated" ||
+			event.event === "session.attached" ||
+			event.event === "session.detached" ||
+			event.event === "run.started" ||
+			event.event === "run.completed" ||
+			event.event === "run.aborted";
+		switch (event.event) {
+			case "assistant.delta":
+				await this.post({
+					type: "assistant_delta",
+					text: String(payload?.text ?? ""),
+				});
+				return;
+			case "reasoning.delta":
+				await this.post({
+					type: "reasoning_delta",
+					text: String(payload?.text ?? ""),
+					redacted: payload?.redacted === true,
+				});
+				return;
+			case "tool.started":
+				await this.post({
+					type: "tool_event",
+					text: `Running ${String(payload?.toolName ?? "tool")}...`,
+					event: {
+						toolCallId:
+							typeof payload?.toolCallId === "string"
+								? payload.toolCallId
+								: undefined,
+						toolName:
+							typeof payload?.toolName === "string" ? payload.toolName : "tool",
+						status: "running",
+						input: payload?.input,
+					},
+				});
+				return;
+			case "tool.finished":
+				await this.post({
+					type: "tool_event",
+					text:
+						typeof payload?.error === "string"
+							? `${String(payload?.toolName ?? "tool")} failed: ${payload.error}`
+							: `${String(payload?.toolName ?? "tool")} completed`,
+					event: {
+						toolCallId:
+							typeof payload?.toolCallId === "string"
+								? payload.toolCallId
+								: undefined,
+						toolName:
+							typeof payload?.toolName === "string" ? payload.toolName : "tool",
+						status: typeof payload?.error === "string" ? "failed" : "completed",
+						output: payload?.output,
+						error:
+							typeof payload?.error === "string" ? payload.error : undefined,
+					},
+				});
+				return;
+			case "run.completed":
+				await this.post({
+					type: "turn_done",
+					finishReason:
+						typeof payload?.reason === "string" ? payload.reason : "completed",
+					iterations:
+						typeof payload?.result === "object" &&
+						payload.result &&
+						typeof (payload.result as Record<string, unknown>).iterations ===
+							"number"
+							? ((payload.result as Record<string, unknown>)
+									.iterations as number)
+							: 0,
+					usage:
+						typeof payload?.result === "object" &&
+						payload.result &&
+						typeof (payload.result as Record<string, unknown>).usage ===
+							"object"
+							? ((payload.result as Record<string, unknown>).usage as {
+									inputTokens?: number;
+									outputTokens?: number;
+									cacheCreationInputTokens?: number;
+									cacheReadInputTokens?: number;
+									totalCost?: number;
+								})
+							: undefined,
+				});
+				if (shouldRefreshSessions) {
+					void this.refreshSessions().catch(() => undefined);
+				}
+				return;
+			case "run.aborted":
+				await this.post({
+					type: "turn_done",
+					finishReason: "aborted",
+					iterations: 0,
+				});
+				if (shouldRefreshSessions) {
+					void this.refreshSessions().catch(() => undefined);
+				}
+				return;
+		}
+		if (shouldRefreshSessions) {
+			void this.refreshSessions().catch(() => undefined);
+		}
 	}
 
 	private async post(message: WebviewOutboundMessage): Promise<void> {

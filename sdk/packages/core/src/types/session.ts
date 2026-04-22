@@ -2,10 +2,8 @@ import type { Agent } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
 import type { SessionAccumulatedUsage } from "../runtime/runtime-host";
 import type { BuiltRuntime } from "../runtime/session-runtime";
-import type {
-	RootSessionArtifacts,
-	SessionRow,
-} from "../session/session-service";
+import type { SessionRow } from "../session/session-row";
+import type { RootSessionArtifacts } from "../session/session-service";
 import type { SessionSource, SessionStatus } from "./common";
 import type { CoreSessionConfig } from "./config";
 

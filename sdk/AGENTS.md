@@ -6,7 +6,7 @@ alwaysApply: true
 
 # Cline SDK — Development Reference
 
-Quick-reference for active development. For onboarding, workspace setup, publishing, and detailed workflow see [CONTRIBUTION.md](./CONTRIBUTION.md). For architecture and runtime flows see [ARCHITECTURE.md](./ARCHITECTURE.md). For API details see [DOC.md](./DOC.md).
+Quick-reference for active development. For onboarding, workspace setup, publishing, and detailed workflow see [CONTRIBUTING.md](./CONTRIBUTING.md). For architecture and runtime flows see [ARCHITECTURE.md](./ARCHITECTURE.md). For API details see [DOC.md](./DOC.md).
 
 ## Package Boundaries
 
@@ -15,23 +15,21 @@ Quick-reference for active development. For onboarding, workspace setup, publish
 - `@clinebot/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
 - `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
 - `@clinebot/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
+- `@clinebot/hub`: hub discovery, WebSocket clients, session helpers, and host-side daemon controls
 - `@clinebot/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry
 
 ### Internal Package
 
 - `@clinebot/enterprise`: enterprise identity adapters, control-plane sync, managed instruction materialization, claims-to-role mapping, telemetry bridging. Composes with core but `core` must not depend on it. Excluded from root SDK build/version/publish flows.
-- `@clinebot/scheduler`: scheduled execution, concurrency guards, routine persistence
-- `@clinebot/rpc`: gRPC/control-plane layer for sessions, events, approvals, schedules
 
 ### Dependency Direction
 
 ```mermaid
 flowchart TD
-  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & rpc["@clinebot/rpc"] & core["@clinebot/core"]
+  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & core["@clinebot/core"] & hub["@clinebot/hub"]
   llms --> agents & core
-  scheduler["@clinebot/scheduler"] --> rpc
   agents --> core
-  rpc --> core
+  core --> hub
   enterprise["@clinebot/enterprise"] --> agents & core & shared
   core --> apps["CLI / VS Code / Code App"]
 ```
@@ -40,7 +38,7 @@ Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
 - `core` owns stateful orchestration
-- `rpc` owns transport/gateway concerns
+- `hub` owns host-side discovery/client concerns while `core` owns the hub runtime/server behavior
 - `enterprise` may depend on `core`, but not the reverse
 
 ## Change Routing
@@ -49,9 +47,8 @@ Route changes to the package that owns the concern:
 
 - model/provider schemas or handler behavior: `@clinebot/llms`
 - stateless loop, tool orchestration, streaming, hook/extension runtime: `@clinebot/agents`
-- session lifecycle, storage, config watching, default tools, plugin loading, telemetry: `@clinebot/core`
-- schedules and routine execution: `@clinebot/scheduler`
-- session gateway, approval routing, RPC contracts: `@clinebot/rpc`
+- hub discovery, attach flows, and session-oriented client helpers: `@clinebot/hub`
+- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, and hub runtime services: `@clinebot/core`
 - enterprise identity, control-plane sync, materialization, claims mapping: `@clinebot/enterprise`
 - host-specific UX or shell behavior: app package
 
@@ -65,7 +62,7 @@ bun run test        # run all tests
 bun run check       # lint + build + typecheck + check-publish
 ```
 
-If you touch RPC/bootstrap/session flows, please update `ARCHITECTURE.md`.
+If you touch hub/bootstrap/session flows, please update `ARCHITECTURE.md`.
 
 ## Practical Guidance
 
@@ -84,7 +81,7 @@ If you touch RPC/bootstrap/session flows, please update `ARCHITECTURE.md`.
 ## Documentation Responsibilities
 
 - `README.md`: visitor-facing overview. Update when the repo story or package inventory changes.
-- `CONTRIBUTION.md`: onboarding, workflow, publishing. Update when contributor setup or release process changes.
+- `CONTRIBUTING.md`: onboarding, workflow, publishing. Update when contributor setup or release process changes.
 - `AGENTS.md` (this file): development reference. Update when package boundaries, dependency rules, or change routing changes.
 - `ARCHITECTURE.md`: design, boundaries, runtime flows. Update when system design or architectural constraints change.
 - `DOC.md`: API and behavior reference. Update when exported surfaces, lifecycle semantics, or runtime behavior changes.

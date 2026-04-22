@@ -10,7 +10,7 @@ import {
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { ensureParentDir, resolveClineDataDir } from "@clinebot/core";
-import type { RpcSessionClient, RpcSessionRow } from "@clinebot/rpc";
+import type { HubSessionClient, HubSessionRow } from "@clinebot/hub";
 import { withResolvedClineBuildEnv } from "@clinebot/shared";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";
@@ -271,7 +271,7 @@ export function removeFile(path: string): void {
 
 export function parseRowMetadata(
 	row:
-		| RpcSessionRow
+		| HubSessionRow
 		| {
 				metadata?: Record<string, unknown>;
 				parentSessionId?: string | null;
@@ -295,7 +295,7 @@ export function parseLocalRowMetadata(row: {
 }
 
 export async function readSessionReplyText(
-	client: RpcSessionClient,
+	client: HubSessionClient,
 	sessionId: string,
 ): Promise<string | undefined> {
 	const session = await client.getSession(sessionId);

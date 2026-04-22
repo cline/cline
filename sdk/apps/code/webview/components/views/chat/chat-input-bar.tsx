@@ -42,6 +42,24 @@ type ActiveMention = {
 	query: string;
 };
 
+type ActiveSlash = {
+	slashIndex: number;
+	query: string;
+};
+
+type SlashCommand = {
+	name: string;
+	description?: string;
+};
+
+const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: "fork",
+		description: "Create a copy of the current session into a new session",
+	},
+	{ name: "team", description: "Start the task with an agent team" },
+];
+
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: ["anthropic/claude-sonnet-4.6"],
 	anthropic: ["claude-sonnet-4-6"],
@@ -93,6 +111,34 @@ function getActiveMention(input: string, cursor: number): ActiveMention | null {
 		end: cursor,
 		query: mentionBody,
 	};
+}
+
+function getActiveSlash(input: string, cursor: number): ActiveSlash | null {
+	if (cursor < 0 || cursor > input.length) {
+		return null;
+	}
+	const left = input.slice(0, cursor);
+	const slashIndex = left.lastIndexOf("/");
+	if (slashIndex === -1) {
+		return null;
+	}
+	// Slash must be at the start or preceded by whitespace.
+	if (slashIndex > 0 && !/\s/.test(left[slashIndex - 1] ?? "")) {
+		return null;
+	}
+	const query = left.slice(slashIndex + 1);
+	// No whitespace allowed inside the query — once the user typed a space
+	// the slash command has been committed.
+	if (/\s/.test(query)) {
+		return null;
+	}
+	// Don't open slash mode if there's already a completed slash command earlier in the input.
+	const firstSlashCommandRegex = /(^|\s)\/[a-zA-Z0-9_.-]+\s/;
+	const textBeforeCurrentSlash = input.slice(0, slashIndex);
+	if (firstSlashCommandRegex.test(textBeforeCurrentSlash)) {
+		return null;
+	}
+	return { slashIndex, query };
 }
 
 type ChatInputBarProps = {
@@ -177,6 +223,17 @@ export function ChatInputBar({
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
 	const mentionResultsCacheRef = useRef(new Map<string, string[]>());
 	const mentionLastRequestKeyRef = useRef<string | null>(null);
+
+	// ---- Slash command state ----
+	const [slashOpen, setSlashOpen] = useState(false);
+	const [activeSlash, setActiveSlash] = useState<ActiveSlash | null>(null);
+	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
+		BUILTIN_SLASH_COMMANDS,
+	);
+	const [slashLoading, setSlashLoading] = useState(false);
+	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
+	const slashCommandsLoadedRef = useRef(false);
+
 	const tokensSummary = useMemo(() => {
 		const total = summary.tokensIn + summary.tokensOut;
 		if (total === 0) {
@@ -302,6 +359,100 @@ export function ChatInputBar({
 		[activeMention, onPromptInputChange, promptInput],
 	);
 
+	// ---- Slash command effects ----
+
+	// Detect slash mode from current input + cursor position.
+	useEffect(() => {
+		const nextSlash = getActiveSlash(promptInput, cursorIndex);
+		setActiveSlash(nextSlash);
+		setSlashOpen(nextSlash !== null);
+	}, [promptInput, cursorIndex]);
+
+	// Reset selection index when slash menu opens/closes.
+	useEffect(() => {
+		if (!slashOpen) {
+			setSlashSelectedIndex(0);
+		}
+	}, [slashOpen]);
+
+	// Lazily load workflow commands from the sidecar the first time the slash
+	// menu opens, then merge with the built-in commands.
+	useEffect(() => {
+		if (!slashOpen || slashCommandsLoadedRef.current) {
+			return;
+		}
+		slashCommandsLoadedRef.current = true;
+		let cancelled = false;
+		setSlashLoading(true);
+		desktopClient
+			.invoke<{
+				workflows?: Array<{ id: string; name: string }>;
+			}>("list_user_instruction_configs")
+			.then((response: { workflows?: Array<{ id: string; name: string }> }) => {
+				if (cancelled) return;
+				const workflows = Array.isArray(response?.workflows)
+					? response.workflows
+					: [];
+				const workflowCommands: SlashCommand[] = workflows.map(
+					(w: { id: string; name: string }) => ({
+						name: w.name.toLowerCase().replace(/\s+/g, "-"),
+						description: "Workflow command",
+					}),
+				);
+				const builtinNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
+				const dedupedWorkflows = workflowCommands.filter(
+					(c) => !builtinNames.has(c.name),
+				);
+				setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...dedupedWorkflows]);
+			})
+			.catch(() => {
+				// Keep built-in commands on error.
+			})
+			.finally(() => {
+				if (!cancelled) setSlashLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [slashOpen]);
+
+	// Filtered slash commands based on the current query.
+	const filteredSlashCommands = useMemo(() => {
+		if (!slashOpen) return [];
+		const query = (activeSlash?.query ?? "").trim().toLowerCase();
+		if (!query) {
+			return slashCommands.slice(0, 10);
+		}
+		return slashCommands
+			.filter((cmd) => cmd.name.toLowerCase().includes(query))
+			.sort((a, b) => {
+				const aStarts = a.name.toLowerCase().startsWith(query);
+				const bStarts = b.name.toLowerCase().startsWith(query);
+				if (aStarts && !bStarts) return -1;
+				if (!aStarts && bStarts) return 1;
+				return a.name.localeCompare(b.name);
+			})
+			.slice(0, 10);
+	}, [slashOpen, activeSlash?.query, slashCommands]);
+
+	const insertSlashCommandItem = useCallback(
+		(commandName: string) => {
+			if (!activeSlash) return;
+			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
+			onPromptInputChange(nextValue);
+			setSlashOpen(false);
+			const nextCursor = activeSlash.slashIndex + commandName.length + 2;
+			requestAnimationFrame(() => {
+				const input = promptInputRef.current;
+				if (!input) return;
+				input.focus();
+				input.setSelectionRange(nextCursor, nextCursor);
+				setCursorIndex(nextCursor);
+			});
+		},
+		[activeSlash, onPromptInputChange, promptInput],
+	);
+
 	return (
 		<div className="border-t border-border bg-card">
 			{/* Input area */}
@@ -359,6 +510,45 @@ export function ChatInputBar({
 					</div>
 				)}
 				<div className="relative">
+					{slashOpen && (
+						<div className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
+							{filteredSlashCommands.length === 0 ? (
+								<div className="px-3 py-2 text-xs text-muted-foreground">
+									{slashLoading
+										? "Loading commands..."
+										: "No matching commands"}
+								</div>
+							) : (
+								<>
+									{filteredSlashCommands.map((cmd, index) => (
+										<button
+											className={cn(
+												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs transition-colors",
+												index === slashSelectedIndex
+													? "bg-accent text-foreground"
+													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+											)}
+											key={cmd.name}
+											onClick={() => insertSlashCommandItem(cmd.name)}
+											type="button"
+										>
+											<span className="font-medium">/{cmd.name}</span>
+											{cmd.description && (
+												<span className="text-[10px] opacity-70">
+													{cmd.description}
+												</span>
+											)}
+										</button>
+									))}
+									{slashLoading && (
+										<div className="px-3 py-1 text-[10px] text-muted-foreground">
+											Loading...
+										</div>
+									)}
+								</>
+							)}
+						</div>
+					)}
 					{mentionOpen && (
 						<div className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl">
 							{mentionFiles.length === 0 ? (
@@ -406,6 +596,38 @@ export function ChatInputBar({
 								)
 							}
 							onKeyDown={(e) => {
+								// Slash command menu takes priority when open.
+								if (slashOpen && filteredSlashCommands.length > 0) {
+									if (e.key === "ArrowDown") {
+										e.preventDefault();
+										setSlashSelectedIndex(
+											(prev) => (prev + 1) % filteredSlashCommands.length,
+										);
+										return;
+									}
+									if (e.key === "ArrowUp") {
+										e.preventDefault();
+										setSlashSelectedIndex(
+											(prev) =>
+												(prev - 1 + filteredSlashCommands.length) %
+												filteredSlashCommands.length,
+										);
+										return;
+									}
+									if (e.key === "Enter" || e.key === "Tab") {
+										e.preventDefault();
+										const selected = filteredSlashCommands[slashSelectedIndex];
+										if (selected) {
+											insertSlashCommandItem(selected.name);
+										}
+										return;
+									}
+								}
+								if (slashOpen && e.key === "Escape") {
+									e.preventDefault();
+									setSlashOpen(false);
+									return;
+								}
 								if (mentionOpen && mentionFiles.length > 0) {
 									if (e.key === "ArrowDown") {
 										e.preventDefault();

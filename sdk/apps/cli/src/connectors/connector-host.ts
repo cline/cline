@@ -1,9 +1,11 @@
+import { readFileSync } from "node:fs";
+import { basename } from "node:path";
 import type {
-	RpcChatRunTurnRequest,
-	RpcChatStartSessionRequest,
+	ChatRunTurnRequest,
+	ChatStartSessionRequest,
 	UserInstructionConfigWatcher,
 } from "@clinebot/core";
-import type { RpcSessionClient } from "@clinebot/rpc";
+import type { HubSessionClient } from "@clinebot/hub";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
@@ -37,14 +39,32 @@ export type ActiveConnectorTurn = {
 	sessionId: string;
 };
 
+function buildAttachments(input: {
+	userImages: string[];
+	userFiles: string[];
+}): ChatRunTurnRequest["attachments"] | undefined {
+	const userImages = input.userImages.length > 0 ? input.userImages : undefined;
+	const userFiles =
+		input.userFiles.length > 0
+			? input.userFiles.map((filePath) => ({
+					name: basename(filePath),
+					content: readFileSync(filePath, "utf8"),
+				}))
+			: undefined;
+	if (!userImages && !userFiles) {
+		return undefined;
+	}
+	return { userImages, userFiles };
+}
+
 export async function handleConnectorUserTurn<
 	TState extends ConnectorThreadState,
 >(input: {
 	thread: Thread<TState>;
 	text: string;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
-	baseStartRequest: RpcChatStartSessionRequest;
+	baseStartRequest: ChatStartSessionRequest;
 	explicitSystemPrompt: string | undefined;
 	clientId: string;
 	logger: CliLoggerAdapter;
@@ -82,7 +102,7 @@ export async function handleConnectorUserTurn<
 	}) => Promise<void>;
 	onDescribe?: (
 		currentState: TState,
-		baseStartRequest: RpcChatStartSessionRequest,
+		baseStartRequest: ChatStartSessionRequest,
 		thread: Thread<TState>,
 	) => Promise<string> | string;
 	onReplyCompleted?: (result: {
@@ -527,12 +547,14 @@ export async function handleConnectorUserTurn<
 	);
 	const activeTurn = input.activeTurns?.get(turnKey);
 	if (activeTurn?.sessionId?.trim()) {
+		const { prompt, userImages, userFiles } = await buildUserInputMessage(
+			resolvedInput,
+			input.userInstructionWatcher,
+		);
 		await input.client.sendRuntimeSession(activeTurn.sessionId, {
 			config: startRequest,
-			prompt: await buildUserInputMessage(
-				resolvedInput,
-				input.userInstructionWatcher,
-			),
+			prompt,
+			attachments: buildAttachments({ userImages, userFiles }),
 			delivery: "steer",
 		});
 		await input.thread.post("Steering current task.");
@@ -557,12 +579,14 @@ export async function handleConnectorUserTurn<
 		reusedLogMessage: input.reusedLogMessage,
 		startedLogMessage: input.startedLogMessage,
 	});
-	const request: RpcChatRunTurnRequest = {
+	const { prompt, userImages, userFiles } = await buildUserInputMessage(
+		resolvedInput,
+		input.userInstructionWatcher,
+	);
+	const request: ChatRunTurnRequest = {
 		config: startRequest,
-		prompt: await buildUserInputMessage(
-			resolvedInput,
-			input.userInstructionWatcher,
-		),
+		prompt,
+		attachments: buildAttachments({ userImages, userFiles }),
 	};
 
 	input.activeTurns?.set(turnKey, { sessionId });
@@ -631,7 +655,7 @@ export async function maybeHandleConnectorApprovalReply<
 >(input: {
 	thread: Thread<TState>;
 	text: string;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	clientId: string;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
 	deniedReason: string;

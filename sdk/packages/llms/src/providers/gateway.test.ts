@@ -366,6 +366,60 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("passes user image blocks through the openai-compatible ai-sdk path", async () => {
+		process.env.OPENROUTER_API_KEY = "env-openrouter-key";
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway();
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "anthropic/claude-haiku-4.5",
+				messages: [
+					{
+						id: "user_1",
+						role: "user",
+						content: [
+							{ type: "text", text: "whats in the pic" },
+							{
+								type: "image",
+								mediaType: "image/png",
+								image: "data:image/png;base64,aGVsbG8=",
+							},
+						],
+						createdAt: Date.now(),
+					},
+				],
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: expect.arrayContaining([
+					expect.objectContaining({
+						role: "user",
+						content: expect.arrayContaining([
+							expect.objectContaining({
+								type: "text",
+								text: "whats in the pic",
+							}),
+							expect.objectContaining({
+								type: "image",
+								image: "data:image/png;base64,aGVsbG8=",
+								mediaType: "image/png",
+							}),
+						]),
+					}),
+				]),
+			}),
+		);
+	});
+
 	it("reads Anthropic cache usage from provider metadata", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

@@ -45,7 +45,7 @@
       "devDependencies": {
         "@clinebot/core": "workspace:*",
         "@clinebot/enterprise": "workspace:*",
-        "@clinebot/rpc": "workspace:*",
+        "@clinebot/hub": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
         "@types/react": "19.2.14",
@@ -58,8 +58,8 @@
         "@base-ui/react": "^1.2.0",
         "@clinebot/agents": "workspace:*",
         "@clinebot/core": "workspace:*",
+        "@clinebot/hub": "workspace:*",
         "@clinebot/llms": "workspace:*",
-        "@clinebot/rpc": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "@fontsource-variable/geist": "^5.2.8",
         "@hookform/resolvers": "^3.9.1",
@@ -268,12 +268,13 @@
         "nanoid": "^5.1.7",
         "node-machine-id": "^1.1.12",
         "simple-git": "^3.32.3",
+        "ws": "^8.20.0",
         "yaml": "^2.8.2",
         "zod": "^4.3.6",
       },
       "devDependencies": {
-        "@clinebot/rpc": "workspace:*",
         "@clinebot/shared": "workspace:*",
+        "@types/ws": "^8.18.1",
       },
     },
     "packages/enterprise": {
@@ -284,6 +285,14 @@
         "@clinebot/core": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "aws4fetch": "^1.0.20",
+      },
+    },
+    "packages/hub": {
+      "name": "@clinebot/hub",
+      "version": "0.0.35",
+      "dependencies": {
+        "@clinebot/core": "workspace:*",
+        "@clinebot/shared": "workspace:*",
       },
     },
     "packages/llms": {
@@ -317,23 +326,6 @@
       "optionalPeers": [
         "@aws-sdk/client-bedrock-runtime",
       ],
-    },
-    "packages/rpc": {
-      "name": "@clinebot/rpc",
-      "version": "0.0.28",
-      "dependencies": {
-        "@clinebot/scheduler": "workspace:*",
-        "@clinebot/shared": "workspace:*",
-        "@grpc/grpc-js": "^1.14.0",
-        "@grpc/proto-loader": "^0.8.0",
-      },
-    },
-    "packages/scheduler": {
-      "name": "@clinebot/scheduler",
-      "version": "0.0.28",
-      "dependencies": {
-        "@clinebot/shared": "workspace:*",
-      },
     },
     "packages/shared": {
       "name": "@clinebot/shared",
@@ -580,11 +572,9 @@
 
     "@clinebot/enterprise": ["@clinebot/enterprise@workspace:packages/enterprise"],
 
+    "@clinebot/hub": ["@clinebot/hub@workspace:packages/hub"],
+
     "@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
-
-    "@clinebot/rpc": ["@clinebot/rpc@workspace:packages/rpc"],
-
-    "@clinebot/scheduler": ["@clinebot/scheduler@workspace:packages/scheduler"],
 
     "@clinebot/shared": ["@clinebot/shared@workspace:packages/shared"],
 
@@ -700,10 +690,6 @@
 
     "@graphql-typed-document-node/core": ["@graphql-typed-document-node/core@3.2.0", "", { "peerDependencies": { "graphql": "^0.8.0 || ^0.9.0 || ^0.10.0 || ^0.11.0 || ^0.12.0 || ^0.13.0 || ^14.0.0 || ^15.0.0 || ^16.0.0 || ^17.0.0" } }, "sha512-mB9oAsNCm9aM3/SOv4YtBMqZbYj10R7dkq8byBqxGY/ncFwhf2oQzMV+LCRlWoDSEBJ3COiR1yeDvMtsoOsuFQ=="],
 
-    "@grpc/grpc-js": ["@grpc/grpc-js@1.14.3", "", { "dependencies": { "@grpc/proto-loader": "^0.8.0", "@js-sdsl/ordered-map": "^4.4.2" } }, "sha512-Iq8QQQ/7X3Sac15oB6p0FmUg/klxQvXLeileoqrTRGJYLV+/9tubbr9ipz0GKHjmXVsgFPo/+W+2cA8eNcR+XA=="],
-
-    "@grpc/proto-loader": ["@grpc/proto-loader@0.8.0", "", { "dependencies": { "lodash.camelcase": "^4.3.0", "long": "^5.0.0", "protobufjs": "^7.5.3", "yargs": "^17.7.2" }, "bin": { "proto-loader-gen-types": "build/bin/proto-loader-gen-types.js" } }, "sha512-rc1hOQtjIWGxcxpb9aHAfLpIctjEnsDehj0DAiVfBlmT84uvR0uUtN2hEi/ecvWVjXUGf5qPF4qEgiLOx1YIMQ=="],
-
     "@hono/node-server": ["@hono/node-server@1.19.14", "", { "peerDependencies": { "hono": "^4" } }, "sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw=="],
 
     "@hookform/resolvers": ["@hookform/resolvers@3.10.0", "", { "peerDependencies": { "react-hook-form": "^7.0.0" } }, "sha512-79Dv+3mDF7i+2ajj7SkypSKHhl1cbln1OGavqrsF7p6mbUv11xpqpacPsGDCTRvCSjEEIez2ef1NveSVL3b0Ag=="],
@@ -799,8 +785,6 @@
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
-
-    "@js-sdsl/ordered-map": ["@js-sdsl/ordered-map@4.4.2", "", {}, "sha512-iUKgm52T8HOE/makSxjqoWhe95ZJA1/G1sYsGev2JDKUSS14KAgg1LHb+Ba+IPow0xflbnSkOsZcO08C7w1gYw=="],
 
     "@kwsites/file-exists": ["@kwsites/file-exists@1.1.1", "", { "dependencies": { "debug": "^4.1.1" } }, "sha512-m9/5YGR18lIwxSFDwfE3oA7bWuq9kdau6ugN4H2rJeyhFQZcG9AgSHkQtSD15a8WvTgfz9aikZMrKPHvbpqFiw=="],
 
@@ -2243,8 +2227,6 @@
     "lodash": ["lodash@4.18.1", "", {}, "sha512-dMInicTPVE8d1e5otfwmmjlxkZoUpiVLwyeTdUsi/Caj/gfzzblBcCE5sRHV/AsjuCmxWrte2TNGSYuCeCq+0Q=="],
 
     "lodash-es": ["lodash-es@4.18.1", "", {}, "sha512-J8xewKD/Gk22OZbhpOVSwcs60zhd95ESDwezOFuA3/099925PdHJ7OFHNTGtajL3AlZkykD32HykiMo+BIBI8A=="],
-
-    "lodash.camelcase": ["lodash.camelcase@4.3.0", "", {}, "sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA=="],
 
     "lodash.merge": ["lodash.merge@4.6.2", "", {}, "sha512-0KpjqXRVvrYyCsX1swR/XTK0va6VQkQM6MNo7PqW77ByjAhoARA8EfrP1N4+KlKj8YS0ZUCtRT/YUuhyYDujIQ=="],
 

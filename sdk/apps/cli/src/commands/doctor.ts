@@ -1,8 +1,15 @@
 import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
-import { resolveClineDataDir } from "@clinebot/core";
-import { getRpcServerDefaultAddress, getRpcServerHealth } from "@clinebot/rpc";
+import {
+	resolveClineDataDir,
+	resolveSharedHubOwnerContext,
+} from "@clinebot/core";
+import {
+	clearHubDiscovery,
+	probeHubServer,
+	readHubDiscovery,
+} from "@clinebot/hub";
 import { Command } from "commander";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";
@@ -13,34 +20,20 @@ type DoctorIo = {
 	writeErr: (text: string) => void;
 };
 
-type DoctorStatus = {
-	rpcAddress: string;
-	rpcHealthy: boolean;
-	rpcServerId?: string;
-	listeningPids: number[];
-	rpcStartupLocks: RpcStartupArtifact[];
-	rpcSpawnLeases: RpcStartupArtifact[];
-	staleCliPids: number[];
-	hookWorkerPids: number[];
-	activeConnectors: ActiveConnectorRecord[];
-	recentSpawnedProcesses: SpawnedProcessRecord[];
-};
-
-type RpcStartupArtifact = {
+type StartupArtifact = {
 	path: string;
-	address?: string;
 	pid?: number;
 	acquiredAt?: string;
 	stale: boolean;
 };
 
 type ActiveConnectorRecord = {
-	type: string; //"telegram" | "gchat" | "whatsapp" | "linear" | "discord";
+	type: string;
 	pid: number;
-	rpcAddress: string;
+	hubUrl: string;
 	startedAt?: string;
 	applicationId?: string;
-	botUsername?: string; // Username for Assistant Bots
+	botUsername?: string;
 	userName?: string;
 	phoneNumberId?: string;
 	port?: number;
@@ -53,6 +46,18 @@ type SpawnedProcessRecord = {
 	command?: string;
 	component?: string;
 	detached?: boolean;
+};
+
+type DoctorStatus = {
+	cwd: string;
+	hubUrl?: string;
+	hubHealthy: boolean;
+	hubPid?: number;
+	listeningPids: number[];
+	hubStartupLocks: StartupArtifact[];
+	staleCliPids: number[];
+	activeConnectors: ActiveConnectorRecord[];
+	recentSpawnedProcesses: SpawnedProcessRecord[];
 };
 
 type ProcessRecord = {
@@ -106,139 +111,8 @@ function resolveCliLogPath(): string {
 	return join(resolveClineDataDir(), "logs", `${name}.log`);
 }
 
-function parseRpcPort(address: string): number | undefined {
-	const idx = address.lastIndexOf(":");
-	if (idx <= 0 || idx >= address.length - 1) {
-		return undefined;
-	}
-	const port = Number.parseInt(address.slice(idx + 1), 10);
-	return Number.isInteger(port) && port > 0 ? port : undefined;
-}
-
-function encodeRpcAddress(address: string): string {
-	return Buffer.from(address).toString("base64url");
-}
-
-function normalizeRpcAddressForLockName(address: string): string {
-	return address.trim().replace(/[^a-zA-Z0-9_.-]+/g, "_");
-}
-
-function getRpcStartupLockRoot(): string {
-	return join(resolveClineDataDir(), "locks");
-}
-
-function getRpcStartupLockDir(address: string): string {
-	return join(
-		getRpcStartupLockRoot(),
-		`rpc-start-${normalizeRpcAddressForLockName(address)}.lock`,
-	);
-}
-
-function getRpcSpawnLeaseRoot(): string {
-	return join(resolveClineDataDir(), "sessions", "rpc", "spawn-leases");
-}
-
-function getRpcSpawnLeasePath(address: string): string {
-	return join(getRpcSpawnLeaseRoot(), `${encodeRpcAddress(address)}.lock`);
-}
-
-function readRpcStartupArtifacts(path: string): RpcStartupArtifact | undefined {
-	try {
-		const raw = JSON.parse(readFileSync(path, "utf8")) as Record<
-			string,
-			unknown
-		>;
-		const pid = typeof raw.pid === "number" ? raw.pid : undefined;
-		const address = typeof raw.address === "string" ? raw.address : undefined;
-		const acquiredAt =
-			typeof raw.acquiredAt === "string"
-				? raw.acquiredAt
-				: typeof raw.createdAt === "number"
-					? new Date(raw.createdAt).toISOString()
-					: undefined;
-		return {
-			path,
-			address,
-			pid,
-			acquiredAt,
-			stale: !isProcessRunning(pid ?? -1),
-		};
-	} catch {
-		return {
-			path,
-			stale: true,
-		};
-	}
-}
-
-function listRpcStartupLocks(address: string): RpcStartupArtifact[] {
-	const lockDir = getRpcStartupLockDir(address);
-	if (!existsSync(lockDir)) {
-		return [];
-	}
-	const ownerPath = join(lockDir, "owner.json");
-	return [
-		readRpcStartupArtifacts(ownerPath) ?? { path: ownerPath, stale: true },
-	];
-}
-
-function listRpcSpawnLeases(address: string): RpcStartupArtifact[] {
-	const leasePath = getRpcSpawnLeasePath(address);
-	if (!existsSync(leasePath)) {
-		return [];
-	}
-	return [
-		readRpcStartupArtifacts(leasePath) ?? { path: leasePath, stale: true },
-	];
-}
-
-function clearPathIfExists(path: string): boolean {
-	if (!existsSync(path)) {
-		return false;
-	}
-	try {
-		rmSync(path, { recursive: true, force: true });
-		return true;
-	} catch {
-		return false;
-	}
-}
-
-function clearRpcStartupArtifacts(
-	address: string,
-	options?: { forceAddressArtifacts?: boolean },
-): { startupLocks: number; spawnLeases: number } {
-	const force = options?.forceAddressArtifacts === true;
-	const startupLocks = listRpcStartupLocks(address);
-	const spawnLeases = listRpcSpawnLeases(address);
-	let clearedStartupLocks = 0;
-	let clearedSpawnLeases = 0;
-
-	for (const artifact of startupLocks) {
-		if (
-			(force || artifact.stale) &&
-			clearPathIfExists(dirname(artifact.path))
-		) {
-			clearedStartupLocks += 1;
-		}
-	}
-	for (const artifact of spawnLeases) {
-		if ((force || artifact.stale) && clearPathIfExists(artifact.path)) {
-			clearedSpawnLeases += 1;
-		}
-	}
-	return {
-		startupLocks: clearedStartupLocks,
-		spawnLeases: clearedSpawnLeases,
-	};
-}
-
-function listListeningPids(address: string): number[] {
-	const port = parseRpcPort(address);
-	if (!port) {
-		return [];
-	}
-	if (process.platform === "win32") {
+function listListeningPids(port: number | undefined): number[] {
+	if (!port || process.platform === "win32") {
 		return [];
 	}
 	const result = spawnSync("lsof", ["-nP", `-tiTCP:${port}`, "-sTCP:LISTEN"], {
@@ -264,30 +138,9 @@ function listStaleCliPids(): number[] {
 	}
 	return [...records.values()]
 		.filter(
-			(record) =>
-				!/(?:^|\s)(?:rpc|hook-worker|connect)(?:\s|$)/.test(record.command),
+			(record) => !/(?:^|\s)(?:hub|rpc|connect)(?:\s|$)/.test(record.command),
 		)
 		.map((record) => record.pid);
-}
-
-function listHookWorkerPids(): number[] {
-	if (process.platform === "win32") {
-		return [];
-	}
-	const patterns = ["hook-worker", " hook-worker "];
-	const pids = new Set<number>();
-	for (const pattern of patterns) {
-		const result = spawnSync("pgrep", ["-f", pattern], { encoding: "utf8" });
-		if (result.status !== 0 && result.status !== 1) {
-			continue;
-		}
-		for (const pid of parsePids(result.stdout)) {
-			if (pid !== process.pid && pid !== process.ppid) {
-				pids.add(pid);
-			}
-		}
-	}
-	return [...pids].sort((a, b) => a - b);
 }
 
 function readRecentSpawnedProcesses(limit = 20): SpawnedProcessRecord[] {
@@ -332,6 +185,73 @@ function readRecentSpawnedProcesses(limit = 20): SpawnedProcessRecord[] {
 	}
 }
 
+function readStartupArtifact(path: string): StartupArtifact | undefined {
+	try {
+		const raw = JSON.parse(readFileSync(path, "utf8")) as Record<
+			string,
+			unknown
+		>;
+		const pid = typeof raw.pid === "number" ? raw.pid : undefined;
+		const acquiredAt =
+			typeof raw.acquiredAt === "string" ? raw.acquiredAt : undefined;
+		return {
+			path,
+			pid,
+			acquiredAt,
+			stale: !isProcessRunning(pid ?? -1),
+		};
+	} catch {
+		return {
+			path,
+			stale: true,
+		};
+	}
+}
+
+function listHubStartupLocks(_cwd: string): StartupArtifact[] {
+	const owner = resolveSharedHubOwnerContext();
+	const ownerPath = join(`${owner.discoveryPath}.lock`, "owner.json");
+	if (!existsSync(ownerPath)) {
+		return [];
+	}
+	return [readStartupArtifact(ownerPath) ?? { path: ownerPath, stale: true }];
+}
+
+function clearPathIfExists(path: string): boolean {
+	if (!existsSync(path)) {
+		return false;
+	}
+	try {
+		rmSync(path, { recursive: true, force: true });
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+async function clearHubStartupArtifacts(
+	_cwd: string,
+	options?: { clearDiscovery?: boolean },
+): Promise<{ startupLocks: number; discovery: number }> {
+	const owner = resolveSharedHubOwnerContext();
+	const startupLocks = listHubStartupLocks(_cwd);
+	let clearedStartupLocks = 0;
+	for (const artifact of startupLocks) {
+		if (artifact.stale && clearPathIfExists(dirname(artifact.path))) {
+			clearedStartupLocks += 1;
+		}
+	}
+	let clearedDiscovery = 0;
+	if (options?.clearDiscovery && existsSync(owner.discoveryPath)) {
+		await clearHubDiscovery(owner.discoveryPath);
+		clearedDiscovery = 1;
+	}
+	return {
+		startupLocks: clearedStartupLocks,
+		discovery: clearedDiscovery,
+	};
+}
+
 function listConnectorStatePaths(
 	type: ActiveConnectorRecord["type"],
 ): string[] {
@@ -362,16 +282,12 @@ function readJsonRecord(path: string): Record<string, unknown> | undefined {
 
 type ConnectorFieldKey = keyof Omit<
 	ActiveConnectorRecord,
-	"type" | "pid" | "rpcAddress"
+	"type" | "pid" | "hubUrl"
 >;
-
-type ConnectorFieldExtractor = (
-	p: Record<string, unknown>,
-) => string | number | undefined;
 
 const connectorFieldExtractors: Record<
 	ConnectorFieldKey,
-	ConnectorFieldExtractor
+	(p: Record<string, unknown>) => string | number | undefined
 > = {
 	startedAt: (p) => (typeof p.startedAt === "string" ? p.startedAt : undefined),
 	port: (p) => (typeof p.port === "number" ? p.port : undefined),
@@ -385,12 +301,10 @@ const connectorFieldExtractors: Record<
 		typeof p.phoneNumberId === "string" ? p.phoneNumberId : undefined,
 };
 
-type ConnectorConfig = {
-	required: ConnectorFieldKey[];
-	optional: ConnectorFieldKey[];
-};
-
-const connectorConfigs: Record<string, ConnectorConfig> = {
+const connectorConfigs: Record<
+	string,
+	{ required: ConnectorFieldKey[]; optional: ConnectorFieldKey[] }
+> = {
 	discord: {
 		required: ["userName", "applicationId"],
 		optional: ["startedAt", "port", "baseUrl"],
@@ -416,9 +330,13 @@ function readActiveConnectorRecord(
 		return undefined;
 	}
 	const pid = typeof parsed.pid === "number" ? parsed.pid : undefined;
-	const rpcAddress =
-		typeof parsed.rpcAddress === "string" ? parsed.rpcAddress : undefined;
-	if (!pid || !rpcAddress || !isProcessRunning(pid)) {
+	const hubUrl =
+		typeof parsed.hubUrl === "string"
+			? parsed.hubUrl
+			: typeof parsed.rpcAddress === "string"
+				? parsed.rpcAddress
+				: undefined;
+	if (!pid || !hubUrl || !isProcessRunning(pid)) {
 		return undefined;
 	}
 	const config = connectorConfigs[type];
@@ -426,7 +344,7 @@ function readActiveConnectorRecord(
 		return undefined;
 	}
 	const fields: Partial<
-		Omit<ActiveConnectorRecord, "type" | "pid" | "rpcAddress">
+		Omit<ActiveConnectorRecord, "type" | "pid" | "hubUrl">
 	> = {};
 	for (const key of config.required) {
 		const value = connectorFieldExtractors[key](parsed);
@@ -441,7 +359,7 @@ function readActiveConnectorRecord(
 			(fields as Record<string, unknown>)[key] = value;
 		}
 	}
-	return { type, pid, rpcAddress, ...fields } as ActiveConnectorRecord;
+	return { type, pid, hubUrl, ...fields } as ActiveConnectorRecord;
 }
 
 function listActiveConnectors(): ActiveConnectorRecord[] {
@@ -470,17 +388,21 @@ function listActiveConnectors(): ActiveConnectorRecord[] {
 	});
 }
 
-async function collectDoctorStatus(address: string): Promise<DoctorStatus> {
-	const health = await getRpcServerHealth(address);
+async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
+	const owner = resolveSharedHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	const health = discovery?.url
+		? await probeHubServer(discovery.url)
+		: undefined;
+	const current = health ?? discovery;
 	return {
-		rpcAddress: address,
-		rpcHealthy: health?.running === true,
-		rpcServerId: health?.serverId,
-		listeningPids: listListeningPids(address),
-		rpcStartupLocks: listRpcStartupLocks(address),
-		rpcSpawnLeases: listRpcSpawnLeases(address),
+		cwd,
+		hubUrl: current?.url,
+		hubHealthy: !!health?.url,
+		hubPid: current?.pid,
+		listeningPids: listListeningPids(current?.port),
+		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
-		hookWorkerPids: listHookWorkerPids(),
 		activeConnectors: listActiveConnectors(),
 		recentSpawnedProcesses: readRecentSpawnedProcesses(),
 	};
@@ -517,7 +439,7 @@ function formatActiveConnector(record: ActiveConnectorRecord): string {
 		record.type,
 		identity,
 		`pid=${record.pid}`,
-		`rpc=${record.rpcAddress}`,
+		`hub=${record.hubUrl}`,
 		record.phoneNumberId ? `phone=${record.phoneNumberId}` : undefined,
 		record.port ? `port=${record.port}` : undefined,
 		record.baseUrl ? `url=${record.baseUrl}` : undefined,
@@ -540,39 +462,31 @@ function killPids(pids: number[]): number {
 }
 
 export async function runDoctorCommand(
-	opts: { address: string; json?: boolean; fix?: boolean; verbose?: boolean },
+	opts: { cwd: string; json?: boolean; fix?: boolean; verbose?: boolean },
 	io: DoctorIo,
 ): Promise<number> {
 	const jsonOutput = opts.json === true;
 	const fix = opts.fix === true;
 	const verbose = opts.verbose === true;
-	const address = opts.address;
-	const before = await collectDoctorStatus(address);
+	const before = await collectDoctorStatus(opts.cwd);
 
 	if (!fix) {
 		if (jsonOutput) {
 			io.writeln(JSON.stringify(before));
 			return 0;
 		}
-		writeln(`rpc address ${c.dim}${before.rpcAddress}${c.reset}`);
+		writeln(`hub url ${c.dim}${before.hubUrl ?? "none"}${c.reset}`);
 		writeln(
-			`rpc healthy ${c.dim}${before.rpcHealthy ? "yes" : "no"}${before.rpcServerId ? ` (${before.rpcServerId})` : ""}${c.reset}`,
+			`hub healthy ${c.dim}${before.hubHealthy ? "yes" : "no"}${before.hubPid ? ` (pid=${before.hubPid})` : ""}${c.reset}`,
 		);
-		writeln(formatPidList("rpc listeners", before.listeningPids));
+		writeln(formatPidList("hub listeners", before.listeningPids));
 		writeln(
 			formatPidList(
-				"rpc startup locks",
-				before.rpcStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
-			),
-		);
-		writeln(
-			formatPidList(
-				"rpc spawn leases",
-				before.rpcSpawnLeases.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+				"hub startup locks",
+				before.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
 			),
 		);
 		writeln(formatPidList("cli processes", before.staleCliPids));
-		writeln(formatPidList("hook workers", before.hookWorkerPids));
 		if (before.activeConnectors.length === 0) {
 			writeln(`active connectors ${c.dim}0${c.reset}`);
 		} else {
@@ -587,11 +501,7 @@ export async function runDoctorCommand(
 				writeln(`- ${c.dim}${formatRecentSpawnedProcess(record)}${c.reset}`);
 			}
 		}
-		if (
-			before.listeningPids.length > 0 ||
-			before.staleCliPids.length > 0 ||
-			before.hookWorkerPids.length > 0
-		) {
+		if (before.listeningPids.length > 0 || before.staleCliPids.length > 0) {
 			io.writeln(
 				"\nRun `cline doctor --fix` to kill all stale local processes.",
 			);
@@ -599,22 +509,17 @@ export async function runDoctorCommand(
 		return 0;
 	}
 
-	const killedRpc = killPids(before.listeningPids);
+	const killedHub = killPids(before.listeningPids);
 	const staleCliTargets = before.staleCliPids.filter(
 		(pid) => !before.listeningPids.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
-	const hookWorkerTargets = before.hookWorkerPids.filter(
-		(pid) =>
-			!before.listeningPids.includes(pid) && !staleCliTargets.includes(pid),
-	);
-	const killedHookWorkers = killPids(hookWorkerTargets);
-	const postKillStatus = await collectDoctorStatus(address);
-	const clearedArtifacts = clearRpcStartupArtifacts(address, {
-		forceAddressArtifacts:
-			!postKillStatus.rpcHealthy && postKillStatus.listeningPids.length === 0,
+	const postKillStatus = await collectDoctorStatus(opts.cwd);
+	const clearedArtifacts = await clearHubStartupArtifacts(opts.cwd, {
+		clearDiscovery:
+			!postKillStatus.hubHealthy && postKillStatus.listeningPids.length === 0,
 	});
-	const after = await collectDoctorStatus(address);
+	const after = await collectDoctorStatus(opts.cwd);
 
 	if (jsonOutput) {
 		io.writeln(
@@ -622,41 +527,32 @@ export async function runDoctorCommand(
 				before,
 				after,
 				killed: {
-					rpcListeners: killedRpc,
+					hubListeners: killedHub,
 					cliProcesses: killedCli,
-					hookWorkers: killedHookWorkers,
-					rpcStartupLocks: clearedArtifacts.startupLocks,
-					rpcSpawnLeases: clearedArtifacts.spawnLeases,
+					hubStartupLocks: clearedArtifacts.startupLocks,
+					hubDiscovery: clearedArtifacts.discovery,
 				},
 			}),
 		);
 		return 0;
 	}
-	writeln(`killed rpc listeners ${c.dim}${killedRpc}${c.reset}`);
+	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
-	writeln(`killed hook workers ${c.dim}${killedHookWorkers}${c.reset}`);
 	writeln(
-		`cleared rpc startup locks ${c.dim}${clearedArtifacts.startupLocks}${c.reset}`,
+		`cleared hub startup locks ${c.dim}${clearedArtifacts.startupLocks}${c.reset}`,
 	);
 	writeln(
-		`cleared rpc spawn leases ${c.dim}${clearedArtifacts.spawnLeases}${c.reset}`,
+		`cleared hub discovery records ${c.dim}${clearedArtifacts.discovery}${c.reset}`,
 	);
-	writeln(`rpc healthy after fix: ${after.rpcHealthy ? "yes" : "no"}`);
-	writeln(formatPidList("remaining rpc listeners", after.listeningPids));
+	writeln(`hub healthy after fix: ${after.hubHealthy ? "yes" : "no"}`);
+	writeln(formatPidList("remaining hub listeners", after.listeningPids));
 	writeln(
 		formatPidList(
-			"remaining rpc startup locks",
-			after.rpcStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
-		),
-	);
-	writeln(
-		formatPidList(
-			"remaining rpc spawn leases",
-			after.rpcSpawnLeases.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+			"remaining hub startup locks",
+			after.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
 		),
 	);
 	writeln(formatPidList("remaining cli processes", after.staleCliPids));
-	writeln(formatPidList("remaining hook workers", after.hookWorkerPids));
 	return 0;
 }
 
@@ -667,17 +563,13 @@ export function createDoctorCommand(
 	const doctor = new Command("doctor")
 		.description("Diagnose and fix local process issues")
 		.exitOverride()
-		.option(
-			"--address <host:port>",
-			"RPC server address",
-			process.env.CLINE_RPC_ADDRESS || getRpcServerDefaultAddress(),
-		)
+		.option("--cwd <path>", "Workspace root", process.cwd())
 		.option("--json", "Output as JSON")
 		.option("--fix", "Kill stale local processes")
 		.option("-v, --verbose", "Show additional diagnostic details")
 		.action(async function (this: Command) {
 			const opts = this.opts<{
-				address: string;
+				cwd: string;
 				json?: boolean;
 				fix?: boolean;
 				verbose?: boolean;

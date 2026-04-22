@@ -1,14 +1,14 @@
 "use client";
 
 import type {
-	RpcClineAccountBalance,
-	RpcClineAccountOrganization,
-	RpcClineAccountOrganizationBalance,
-	RpcClineAccountOrganizationUsageTransaction,
-	RpcClineAccountPaymentTransaction,
-	RpcClineAccountUsageTransaction,
-	RpcClineAccountUser,
-} from "@clinebot/shared";
+	ClineAccountBalance,
+	ClineAccountOrganization,
+	ClineAccountOrganizationBalance,
+	ClineAccountOrganizationUsageTransaction,
+	ClineAccountPaymentTransaction,
+	ClineAccountUsageTransaction,
+	ClineAccountUser,
+} from "@clinebot/core";
 import {
 	AlertCircle,
 	Building,
@@ -30,24 +30,24 @@ import { cn } from "@/lib/utils";
 // Data fetching helpers via sidecar command
 // ---------------------------------------------------------------------------
 
-async function fetchAccountUser(): Promise<RpcClineAccountUser> {
-	return await desktopClient.invoke<RpcClineAccountUser>("cline_account", {
+async function fetchAccountUser(): Promise<ClineAccountUser> {
+	return await desktopClient.invoke<ClineAccountUser>("cline_account", {
 		action: "clineAccount",
 		operation: "fetchMe",
 	});
 }
 
-async function fetchAccountBalance(): Promise<RpcClineAccountBalance> {
-	return await desktopClient.invoke<RpcClineAccountBalance>("cline_account", {
+async function fetchAccountBalance(): Promise<ClineAccountBalance> {
+	return await desktopClient.invoke<ClineAccountBalance>("cline_account", {
 		action: "clineAccount",
 		operation: "fetchBalance",
 	});
 }
 
 async function fetchAccountOrganizations(): Promise<
-	RpcClineAccountOrganization[]
+	ClineAccountOrganization[]
 > {
-	return await desktopClient.invoke<RpcClineAccountOrganization[]>(
+	return await desktopClient.invoke<ClineAccountOrganization[]>(
 		"cline_account",
 		{
 			action: "clineAccount",
@@ -58,8 +58,8 @@ async function fetchAccountOrganizations(): Promise<
 
 async function fetchOrganizationBalance(
 	organizationId: string,
-): Promise<RpcClineAccountOrganizationBalance> {
-	return await desktopClient.invoke<RpcClineAccountOrganizationBalance>(
+): Promise<ClineAccountOrganizationBalance> {
+	return await desktopClient.invoke<ClineAccountOrganizationBalance>(
 		"cline_account",
 		{
 			action: "clineAccount",
@@ -70,9 +70,9 @@ async function fetchOrganizationBalance(
 }
 
 async function fetchUsageTransactions(): Promise<
-	RpcClineAccountUsageTransaction[]
+	ClineAccountUsageTransaction[]
 > {
-	return await desktopClient.invoke<RpcClineAccountUsageTransaction[]>(
+	return await desktopClient.invoke<ClineAccountUsageTransaction[]>(
 		"cline_account",
 		{
 			action: "clineAccount",
@@ -84,21 +84,22 @@ async function fetchUsageTransactions(): Promise<
 async function fetchOrganizationUsageTransactions(
 	organizationId: string,
 	memberId?: string,
-): Promise<RpcClineAccountOrganizationUsageTransaction[]> {
-	return await desktopClient.invoke<
-		RpcClineAccountOrganizationUsageTransaction[]
-	>("cline_account", {
-		action: "clineAccount",
-		operation: "fetchOrganizationUsageTransactions",
-		organizationId,
-		...(memberId?.trim() ? { memberId: memberId.trim() } : {}),
-	});
+): Promise<ClineAccountOrganizationUsageTransaction[]> {
+	return await desktopClient.invoke<ClineAccountOrganizationUsageTransaction[]>(
+		"cline_account",
+		{
+			action: "clineAccount",
+			operation: "fetchOrganizationUsageTransactions",
+			organizationId,
+			...(memberId?.trim() ? { memberId: memberId.trim() } : {}),
+		},
+	);
 }
 
 async function fetchPaymentTransactions(): Promise<
-	RpcClineAccountPaymentTransaction[]
+	ClineAccountPaymentTransaction[]
 > {
-	return await desktopClient.invoke<RpcClineAccountPaymentTransaction[]>(
+	return await desktopClient.invoke<ClineAccountPaymentTransaction[]>(
 		"cline_account",
 		{
 			action: "clineAccount",
@@ -117,19 +118,19 @@ export function AccountView() {
 	);
 
 	// Overview data
-	const [user, setUser] = useState<RpcClineAccountUser | null>(null);
-	const [balance, setBalance] = useState<RpcClineAccountBalance | null>(null);
+	const [user, setUser] = useState<ClineAccountUser | null>(null);
+	const [balance, setBalance] = useState<ClineAccountBalance | null>(null);
 	const [organizationBalance, setOrganizationBalance] =
-		useState<RpcClineAccountOrganizationBalance | null>(null);
+		useState<ClineAccountOrganizationBalance | null>(null);
 	const [organizations, setOrganizations] = useState<
-		RpcClineAccountOrganization[]
+		ClineAccountOrganization[]
 	>([]);
 	const [overviewLoading, setOverviewLoading] = useState(true);
 	const [overviewError, setOverviewError] = useState<string | null>(null);
 
 	// Usage data
 	const [usageTransactions, setUsageTransactions] = useState<
-		RpcClineAccountUsageTransaction[]
+		ClineAccountUsageTransaction[]
 	>([]);
 	const [usageLoading, setUsageLoading] = useState(false);
 	const [usageError, setUsageError] = useState<string | null>(null);
@@ -138,7 +139,7 @@ export function AccountView() {
 
 	// Billing data
 	const [paymentTransactions, setPaymentTransactions] = useState<
-		RpcClineAccountPaymentTransaction[]
+		ClineAccountPaymentTransaction[]
 	>([]);
 	const [billingLoading, setBillingLoading] = useState(false);
 	const [billingError, setBillingError] = useState<string | null>(null);

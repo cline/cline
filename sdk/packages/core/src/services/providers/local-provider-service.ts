@@ -1,11 +1,11 @@
 import * as LlmsModels from "@clinebot/llms";
 import type {
-	RpcAddProviderActionRequest,
-	RpcOAuthProviderId,
-	RpcProviderCapability,
-	RpcProviderListItem,
-	RpcProviderModel,
-	RpcSaveProviderSettingsActionRequest,
+	AddProviderActionRequest,
+	OAuthProviderId,
+	ProviderCapability,
+	ProviderListItem,
+	ProviderModel,
+	SaveProviderSettingsActionRequest,
 } from "@clinebot/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
 import { loginClineOAuth } from "../../auth/cline";
@@ -22,7 +22,7 @@ import {
 	readModelsFile,
 	registerCustomProvider,
 	resolveModelsRegistryPath,
-	toRpcProviderModel,
+	toProviderModel,
 	writeModelsFile,
 } from "./local-provider-registry";
 
@@ -38,7 +38,7 @@ export interface UpdateLocalProviderRequest {
 	models?: string[];
 	defaultModelId?: string | null;
 	modelsSourceUrl?: string | null;
-	capabilities?: RpcProviderCapability[] | null;
+	capabilities?: ProviderCapability[] | null;
 }
 
 export interface DeleteLocalProviderRequest {
@@ -91,12 +91,12 @@ function stableColor(id: string): string {
 	return palette[hash % palette.length];
 }
 
-function toSortedRpcProviderModels(
+function toSortedProviderModels(
 	modelMap: Record<string, ModelInfo>,
-): RpcProviderModel[] {
+): ProviderModel[] {
 	return Object.entries(modelMap)
 		.sort(([a], [b]) => a.localeCompare(b))
-		.map(([modelId, info]) => toRpcProviderModel(modelId, info));
+		.map(([modelId, info]) => toProviderModel(modelId, info));
 }
 
 // --- Model ID parsing ---
@@ -207,7 +207,7 @@ function normalizeHeaders(
 
 function buildProviderModels(
 	modelIds: string[],
-	capabilities: RpcProviderCapability[] | undefined,
+	capabilities: ProviderCapability[] | undefined,
 ) {
 	const supportsVision = capabilities?.includes("vision") ?? false;
 	const supportsReasoning = capabilities?.includes("reasoning") ?? false;
@@ -262,7 +262,7 @@ function removeProviderFromSettingsState(
 
 export async function addLocalProvider(
 	manager: ProviderSettingsManager,
-	request: Omit<RpcAddProviderActionRequest, "action">,
+	request: Omit<AddProviderActionRequest, "action">,
 ): Promise<{
 	providerId: string;
 	settingsPath: string;
@@ -513,17 +513,17 @@ export async function deleteLocalProvider(
 
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
-): Promise<{ providers: RpcProviderListItem[]; settingsPath: string }> {
+): Promise<{ providers: ProviderListItem[]; settingsPath: string }> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds().sort((a, b) => a.localeCompare(b));
 
 	const providers = await Promise.all(
-		ids.map(async (id): Promise<RpcProviderListItem> => {
+		ids.map(async (id): Promise<ProviderListItem> => {
 			const [info, registeredModels] = await Promise.all([
 				LlmsModels.getProvider(id),
 				LlmsModels.getModelsForProvider(id),
 			]);
-			const modelList = toSortedRpcProviderModels(registeredModels);
+			const modelList = toSortedProviderModels(registeredModels);
 			const persistedSettings = state.providers[id]?.settings;
 			const name = info?.name ?? titleCaseFromId(id);
 			return {
@@ -554,16 +554,16 @@ export async function listLocalProviders(
 export async function getLocalProviderModels(
 	providerId: string,
 	config?: ProviderConfig,
-): Promise<{ providerId: string; models: RpcProviderModel[] }> {
+): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
-	const models = toSortedRpcProviderModels(modelMap);
+	const models = toSortedProviderModels(modelMap);
 	return { providerId: id, models };
 }
 
 export function saveLocalProviderSettings(
 	manager: ProviderSettingsManager,
-	request: Omit<RpcSaveProviderSettingsActionRequest, "action">,
+	request: Omit<SaveProviderSettingsActionRequest, "action">,
 ): { providerId: string; enabled: boolean; settingsPath: string } {
 	const providerId = request.providerId.trim();
 
@@ -626,7 +626,7 @@ export function saveLocalProviderSettings(
 	return { providerId, enabled: true, settingsPath: manager.getFilePath() };
 }
 
-export function normalizeOAuthProvider(provider: string): RpcOAuthProviderId {
+export function normalizeOAuthProvider(provider: string): OAuthProviderId {
 	const normalized = provider.trim().toLowerCase();
 	if (normalized === "codex" || normalized === "openai-codex")
 		return "openai-codex";
@@ -637,7 +637,7 @@ export function normalizeOAuthProvider(provider: string): RpcOAuthProviderId {
 }
 
 function toProviderApiKey(
-	providerId: RpcOAuthProviderId,
+	providerId: OAuthProviderId,
 	credentials: { access: string },
 ): string {
 	return providerId === "cline"
@@ -646,7 +646,7 @@ function toProviderApiKey(
 }
 
 export async function loginLocalProvider(
-	providerId: RpcOAuthProviderId,
+	providerId: OAuthProviderId,
 	existing: ProviderSettings | undefined,
 	openUrl: (url: string) => void,
 ): Promise<{
@@ -676,7 +676,7 @@ export async function loginLocalProvider(
 
 export function saveLocalProviderOAuthCredentials(
 	manager: ProviderSettingsManager,
-	providerId: RpcOAuthProviderId,
+	providerId: OAuthProviderId,
 	existing: ProviderSettings | undefined,
 	credentials: {
 		access: string;

@@ -104,6 +104,7 @@ async function runHistoryUpdate(
 export async function runHistoryList(input: {
 	limit: number;
 	outputMode: CliOutputMode;
+	workspaceRoot?: string;
 	io?: HistoryIo;
 }): Promise<number | string> {
 	const io = input.io ?? {
@@ -112,7 +113,9 @@ export async function runHistoryList(input: {
 	};
 	const limit = Number.isFinite(input.limit) ? input.limit : 200;
 
-	const hydratedRows = await listSessions(limit);
+	const hydratedRows = await listSessions(limit, {
+		workspaceRoot: input.workspaceRoot,
+	});
 	if (hydratedRows.length === 0) {
 		if (input.outputMode === "json") {
 			process.stdout.write(JSON.stringify([]));

@@ -8,15 +8,15 @@ import {
 describe("default tool presets", () => {
 	it("explicitly configures ask_question across presets", () => {
 		expect(ToolPresets.search.enableAskQuestion).toBe(false);
-		expect(ToolPresets.development.enableAskQuestion).toBe(true);
-		expect(ToolPresets.readonly.enableAskQuestion).toBe(true);
+		expect(ToolPresets.act.enableAskQuestion).toBe(true);
+		expect(ToolPresets.plan.enableAskQuestion).toBe(true);
 		expect(ToolPresets.minimal.enableAskQuestion).toBe(true);
 		expect(ToolPresets.yolo.enableAskQuestion).toBe(false);
 	});
 
 	it("disables spawn and team tools by default in yolo mode", () => {
-		expect(ToolPresets.development.enableSpawnAgent).toBe(true);
-		expect(ToolPresets.development.enableAgentTeams).toBe(true);
+		expect(ToolPresets.act.enableSpawnAgent).toBe(true);
+		expect(ToolPresets.act.enableAgentTeams).toBe(true);
 		expect(ToolPresets.yolo.enableSpawnAgent).toBe(false);
 		expect(ToolPresets.yolo.enableAgentTeams).toBe(false);
 		expect(ToolPresets.yolo.enableSubmitAndExit).toBe(true);

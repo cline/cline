@@ -7,7 +7,7 @@ export const CLINE_DEBUG_PORT_BASE_ENV = "CLINE_DEBUG_PORT_BASE";
 export type ClineBuildEnv = "development" | "production";
 export type ClineDebugRole =
 	| "rpc"
-	| "hook-worker"
+	| "hook"
 	| "plugin-sandbox"
 	| "connector"
 	| "sandbox";
@@ -98,7 +98,7 @@ function resolveRolePortOffset(role: ClineDebugRole | undefined): number {
 	switch (role) {
 		case "rpc":
 			return 0;
-		case "hook-worker":
+		case "hook":
 			return 1;
 		case "plugin-sandbox":
 			return 2;

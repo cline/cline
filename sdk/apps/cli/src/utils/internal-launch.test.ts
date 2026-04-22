@@ -3,10 +3,6 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	buildCliSubcommandCommand,
-	buildInternalCliEnv,
-	CLINE_INTERNAL_DEPTH_ENV,
-	CLINE_INTERNAL_ROLE_ENV,
-	getInternalLaunchViolation,
 	resolveCliLaunchSpec,
 } from "./internal-launch";
 
@@ -42,7 +38,7 @@ describe("internal launch helpers", () => {
 	});
 
 	it("falls back to launching the compiled binary directly for bunfs argv", () => {
-		const command = buildCliSubcommandCommand("hook-worker", [], {
+		const command = buildCliSubcommandCommand("hub", ["start"], {
 			execPath: "/tmp/cline",
 			argv: ["bun", "/$bunfs/root/cline", "hey"],
 			execArgv: [],
@@ -51,14 +47,14 @@ describe("internal launch helpers", () => {
 
 		expect(command).toEqual({
 			launcher: "/tmp/cline",
-			childArgs: ["hook-worker"],
+			childArgs: ["hub", "start"],
 		});
 	});
 
 	it("adds node debug flags for development node launches", () => {
 		const utilsDir = dirname(fileURLToPath(import.meta.url));
 		const repoRoot = resolve(utilsDir, "../../../../");
-		const command = buildCliSubcommandCommand("hook-worker", [], {
+		const command = buildCliSubcommandCommand("hub", ["start"], {
 			execPath: "/usr/local/bin/node",
 			argv: ["node", "./apps/cli/src/index.ts"],
 			execArgv: [],
@@ -72,28 +68,9 @@ describe("internal launch helpers", () => {
 				"--inspect=127.0.0.1:0",
 				"--enable-source-maps",
 				resolve(repoRoot, "apps/cli/src/index.ts"),
-				"hook-worker",
+				"hub",
+				"start",
 			],
 		});
-	});
-
-	it("rejects internal launches when the expected subcommand is missing", () => {
-		const env = buildInternalCliEnv("hook-worker", {});
-
-		expect(
-			getInternalLaunchViolation(["/$bunfs/root/cline", "hook-worker"], env),
-		).toContain('expected subcommand "hook-worker"');
-		expect(getInternalLaunchViolation(["hook-worker"], env)).toBeUndefined();
-	});
-
-	it("rejects nested internal launches beyond depth one", () => {
-		const env = {
-			[CLINE_INTERNAL_ROLE_ENV]: "hook-worker",
-			[CLINE_INTERNAL_DEPTH_ENV]: "2",
-		};
-
-		expect(getInternalLaunchViolation(["hook-worker"], env)).toContain(
-			"refusing nested internal CLI launch",
-		);
 	});
 });

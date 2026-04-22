@@ -307,10 +307,7 @@ function emitSteer(sessionId: string | undefined, prompt: string): void {
 
 async function getSessionManager(): Promise<SessionManager> {
 	sessionManagerPromise ??= ClineCore.create({
-		backendMode:
-			DEFAULT_BACKEND_MODE === "local" || DEFAULT_BACKEND_MODE === "rpc"
-				? DEFAULT_BACKEND_MODE
-				: "auto",
+		backendMode: DEFAULT_BACKEND_MODE === "local" ? "local" : "auto",
 	}).catch((err) => {
 		// Clear the cached promise so subsequent calls can retry.
 		sessionManagerPromise = undefined;

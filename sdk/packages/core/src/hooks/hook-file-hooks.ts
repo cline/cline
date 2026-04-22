@@ -270,7 +270,7 @@ async function runHookCommand(
 	}
 	const command = augmentNodeCommandForDebug(options.command, {
 		env: options.env,
-		debugRole: "hook-worker",
+		debugRole: "hook",
 	});
 	const child = spawn(command[0], command.slice(1), {
 		cwd: options.cwd,
@@ -395,7 +395,7 @@ function inferHookCommand(path: string): string[] {
 		lowered.endsWith(".cjs")
 	) {
 		return augmentNodeCommandForDebug(["node", path], {
-			debugRole: "hook-worker",
+			debugRole: "hook",
 		});
 	}
 	if (

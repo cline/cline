@@ -43,7 +43,7 @@ When a directory is given as a plugin path, the loader looks for a `package.json
 }
 ```
 
-Each entry in `plugins` is a `PluginManifest` with a `paths` array of relative file paths and a `capabilities` array declaring what the plugin provides (`tools`, `hooks`, `commands`, `flags`, `providers`). All paths are resolved relative to the directory containing `package.json`.
+Each entry in `plugins` is a `PluginManifest` with a `paths` array of relative file paths and a `capabilities` array declaring what the plugin provides (`tools`, `hooks`, `commands`, `messageBuilders`, `providers`). All paths are resolved relative to the directory containing `package.json`.
 
 If no `cline.plugins` field is present, the loader falls back to looking for `index.ts` or `index.js` at the directory root.
 
@@ -92,13 +92,13 @@ Parent agent receives task
 
 Drop a Markdown file with YAML frontmatter into any of these directories:
 
-- **Global**: `~/.cline/data/settings/agents/`
+- **Global**: `~/.cline/agents/`
 - **Project**: `.cline/agents/` (relative to your working directory)
 
 That global path still works. In the current implementation, agent presets are loaded from:
 
 - bundled presets in `agents/` alongside the plugin
-- `~/.cline/data/settings/agents/`
+- `~/.cline/agents/`
 - `<cwd>/.cline/agents/`
 
 ```markdown

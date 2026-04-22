@@ -1,0 +1,18 @@
+{
+	"extends": "./tsconfig.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"sourceMap": false,
+		"declaration": true,
+		"declarationMap": true,
+		"noEmit": false,
+		"emitDeclarationOnly": true,
+		"outDir": "./dist",
+		"paths": {
+			"@clinebot/core": ["../core/dist/index.d.ts"],
+			"@clinebot/shared": ["../shared/dist/index.d.ts"]
+		}
+	},
+	"include": ["src/**/*"],
+	"exclude": ["src/**/*.test.ts", "node_modules", "dist"]
+}

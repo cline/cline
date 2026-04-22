@@ -45,7 +45,6 @@ describe("parseArgs", () => {
 			verbose: false,
 			interactive: false,
 			showUsage: false,
-			showTimings: false,
 			outputMode: "text",
 			mode: "act",
 			sandbox: false,
@@ -54,32 +53,19 @@ describe("parseArgs", () => {
 			reasoningEffort: undefined,
 			liveModelCatalog: false,
 			yolo: false,
-			enableSpawnAgent: true,
-			enableAgentTeams: true,
-			enableTools: true,
 			defaultToolAutoApprove: true,
-			toolPolicies: {},
 		});
 	});
 
 	it("parses prompt, runtime flags, and global approval settings", () => {
 		const parsed = parseArgs([
 			"--verbose",
-			"--no-tools",
-			"--no-spawn",
-			"--no-teams",
 			"--autoapprove",
 			"false",
-			"--tool-enable",
-			"read_files",
 			"--cwd",
 			"/tmp/work",
 			"--team-name",
 			"dev-team",
-			"--mission-step-interval",
-			"4",
-			"--mission-time-interval-ms",
-			"25000",
 			"--provider",
 			"openai",
 			"--model",
@@ -87,7 +73,6 @@ describe("parseArgs", () => {
 			"--key",
 			"abc123",
 			"--usage",
-			"--timings",
 			"--thinking",
 			"--reasoning-effort",
 			"high",
@@ -100,12 +85,8 @@ describe("parseArgs", () => {
 
 		expect(parsed.prompt).toBe("Audit the repo");
 		expect(parsed.verbose).toBe(true);
-		expect(parsed.enableTools).toBe(false);
-		expect(parsed.enableSpawnAgent).toBe(false);
-		expect(parsed.enableAgentTeams).toBe(false);
 		expect(parsed.defaultToolAutoApprove).toBe(false);
 		expect(parsed.showUsage).toBe(true);
-		expect(parsed.showTimings).toBe(true);
 		expect(parsed.thinking).toBe(true);
 		expect(parsed.reasoningEffort).toBe("high");
 		expect(parsed.liveModelCatalog).toBe(true);
@@ -113,15 +94,10 @@ describe("parseArgs", () => {
 		expect(parsed.mode).toBe("plan");
 		expect(parsed.cwd).toBe("/tmp/work");
 		expect(parsed.teamName).toBe("dev-team");
-		expect(parsed.missionLogIntervalSteps).toBe(4);
-		expect(parsed.missionLogIntervalMs).toBe(25000);
 		expect(parsed.provider).toBe("openai");
 		expect(parsed.model).toBe("gpt-5");
 		expect(parsed.key).toBe("abc123");
 		expect(parsed.sandbox).toBe(false);
-		expect(parsed.toolPolicies).toEqual({
-			read_files: { enabled: true },
-		});
 	});
 
 	it("parses provider via -P shorthand", () => {
@@ -135,26 +111,6 @@ describe("parseArgs", () => {
 		expect(parsed.sandboxDir).toBe("./.tmp-cline");
 	});
 
-	it("ignores empty tool names for enable/disable policy flags", () => {
-		const parsed = parseArgs(["--tool-enable", "", "--tool-disable", ""]);
-		expect(parsed.toolPolicies).toEqual({});
-	});
-
-	it("splits comma-separated tool policy flags", () => {
-		const parsed = parseArgs([
-			"--tool-enable",
-			"search_codebase,fetch_web_content",
-			"--tool-disable",
-			"run_commands,read_files",
-		]);
-		expect(parsed.toolPolicies).toEqual({
-			search_codebase: { enabled: true },
-			fetch_web_content: { enabled: true },
-			run_commands: { enabled: false },
-			read_files: { enabled: false },
-		});
-	});
-
 	it("parses --autoapprove false as global approval-off", () => {
 		const parsed = parseArgs([
 			"--autoapprove",
@@ -162,7 +118,6 @@ describe("parseArgs", () => {
 			"tell me about this repo",
 		]);
 		expect(parsed.defaultToolAutoApprove).toBe(false);
-		expect(parsed.toolPolicies).toEqual({});
 		expect(parsed.prompt).toBe("tell me about this repo");
 	});
 
@@ -211,22 +166,9 @@ describe("parseArgs", () => {
 		expect(parsed.invalidMaxConsecutiveMistakes).toBeUndefined();
 	});
 
-	it("supports yolo and auto-approve-all aliases for tool auto-approval", () => {
+	it("supports yolo as an auto-approval shortcut", () => {
 		const parsedYolo = parseArgs(["--yolo"]);
 		expect(parsedYolo.defaultToolAutoApprove).toBe(true);
-		expect(parsedYolo.enableSpawnAgent).toBe(false);
-		expect(parsedYolo.enableAgentTeams).toBe(false);
-
-		const parsedAutoApproveAll = parseArgs(["--auto-approve-all"]);
-		expect(parsedAutoApproveAll.defaultToolAutoApprove).toBe(true);
-		expect(parsedAutoApproveAll.enableSpawnAgent).toBe(true);
-		expect(parsedAutoApproveAll.enableAgentTeams).toBe(true);
-	});
-
-	it("preserves explicit spawn and team opt-ins in yolo mode", () => {
-		const parsed = parseArgs(["--yolo", "--spawn", "--teams"]);
-		expect(parsed.enableSpawnAgent).toBe(true);
-		expect(parsed.enableAgentTeams).toBe(true);
 	});
 
 	it("parses timeout and validates invalid values", () => {
@@ -329,6 +271,28 @@ describe("format helpers", () => {
 				subject: "Status update",
 			}),
 		).toContain("send lead:");
+	});
+
+	it("formats ask_question as a readable prompt", () => {
+		expect(
+			formatToolInput("ask_question", {
+				question: "How can I best assist you today?",
+				options: [
+					"Help me understand or analyze code in a repository",
+					"Help me create or edit files",
+					"Help me run commands or tests",
+				],
+			}),
+		).toBe(
+			[
+				"The agent is waiting for your input.",
+				"How can I best assist you today?",
+				"1. Help me understand or analyze code in a repository",
+				"2. Help me create or edit files",
+				"3. Help me run commands or tests",
+				"> Reply with an option number or type your answer.",
+			].join("\n"),
+		);
 	});
 
 	it("summarizes structured tool outputs", () => {

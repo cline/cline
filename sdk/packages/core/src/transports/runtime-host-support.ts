@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import type * as LlmsProviders from "@clinebot/llms";
+import { formatDisplayUserInput } from "@clinebot/shared";
 import type { HookEventPayload } from "../hooks";
 import type { SessionAccumulatedUsage } from "../runtime/runtime-host";
 import type { CoreSessionEvent } from "../types/events";
@@ -35,15 +36,51 @@ export async function readPersistedMessagesFile(
 		const raw = (await readFile(path, "utf8")).trim();
 		if (!raw) return [];
 		const parsed = JSON.parse(raw) as unknown;
-		if (Array.isArray(parsed)) return parsed as LlmsProviders.Message[];
+		if (Array.isArray(parsed)) {
+			return sanitizeDisplayMessages(parsed as LlmsProviders.Message[]);
+		}
 		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
 			const messages = (parsed as { messages?: unknown }).messages;
-			if (Array.isArray(messages)) return messages as LlmsProviders.Message[];
+			if (Array.isArray(messages)) {
+				return sanitizeDisplayMessages(messages as LlmsProviders.Message[]);
+			}
 		}
 		return [];
 	} catch {
 		return [];
 	}
+}
+
+function sanitizeDisplayMessage(
+	message: LlmsProviders.Message,
+): LlmsProviders.Message {
+	if (message.role !== "user") {
+		return message;
+	}
+	if (typeof message.content === "string") {
+		return {
+			...message,
+			content: formatDisplayUserInput(message.content),
+		};
+	}
+	return {
+		...message,
+		content: message.content.map((part) => {
+			if (part.type !== "text" || typeof part.text !== "string") {
+				return part;
+			}
+			return {
+				...part,
+				text: formatDisplayUserInput(part.text),
+			};
+		}),
+	};
+}
+
+export function sanitizeDisplayMessages(
+	messages: LlmsProviders.Message[],
+): LlmsProviders.Message[] {
+	return messages.map(sanitizeDisplayMessage);
 }
 
 export function cloneAccumulatedUsage(

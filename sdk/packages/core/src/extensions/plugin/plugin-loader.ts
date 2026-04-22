@@ -1,10 +1,14 @@
 import { resolve } from "node:path";
-import type { AgentConfig } from "@clinebot/shared";
+import { type AgentConfig, normalizePluginManifest } from "@clinebot/shared";
 import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "./plugin-load-report";
 import { importPluginModule } from "./plugin-module-import";
+import {
+	matchesPluginManifestTargeting,
+	type PluginTargeting,
+} from "./plugin-targeting";
 
 type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 type PluginLike = {
@@ -12,6 +16,8 @@ type PluginLike = {
 	manifest: {
 		capabilities: string[];
 		hookStages?: string[];
+		providerIds?: string[];
+		modelIds?: string[];
 	};
 };
 
@@ -58,6 +64,22 @@ function validatePluginManifest(
 			`Invalid plugin module at ${absolutePath}: manifest.hookStages must be a string array when provided`,
 		);
 	}
+	if (
+		Object.hasOwn(plugin.manifest, "providerIds") &&
+		!hasValidStringArray(plugin.manifest.providerIds)
+	) {
+		throw new Error(
+			`Invalid plugin module at ${absolutePath}: manifest.providerIds must be a string array when provided`,
+		);
+	}
+	if (
+		Object.hasOwn(plugin.manifest, "modelIds") &&
+		!hasValidStringArray(plugin.manifest.modelIds)
+	) {
+		throw new Error(
+			`Invalid plugin module at ${absolutePath}: manifest.modelIds must be a string array when provided`,
+		);
+	}
 }
 
 function validatePluginExport(
@@ -95,12 +117,15 @@ export async function loadAgentPluginFromPath(
 		moduleExports[exportName]) as unknown;
 
 	validatePluginExport(plugin, absolutePath);
-	return plugin as AgentPlugin;
+	return {
+		...(plugin as AgentPlugin),
+		manifest: normalizePluginManifest((plugin as AgentPlugin).manifest),
+	};
 }
 
 export async function loadAgentPluginsFromPaths(
 	pluginPaths: string[],
-	options: LoadAgentPluginFromPathOptions = {},
+	options: LoadAgentPluginFromPathOptions & PluginTargeting = {},
 ): Promise<AgentPlugin[]> {
 	const report = await loadAgentPluginsFromPathsWithDiagnostics(
 		pluginPaths,
@@ -111,7 +136,7 @@ export async function loadAgentPluginsFromPaths(
 
 export async function loadAgentPluginsFromPathsWithDiagnostics(
 	pluginPaths: string[],
-	options: LoadAgentPluginFromPathOptions = {},
+	options: LoadAgentPluginFromPathOptions & PluginTargeting = {},
 ): Promise<{
 	plugins: AgentPlugin[];
 	failures: PluginInitializationFailure[];
@@ -128,6 +153,9 @@ export async function loadAgentPluginsFromPathsWithDiagnostics(
 	for (const pluginPath of pluginPaths) {
 		try {
 			const plugin = await loadAgentPluginFromPath(pluginPath, options);
+			if (!matchesPluginManifestTargeting(plugin.manifest, options)) {
+				continue;
+			}
 			const existing = loadedByName.get(plugin.name);
 			if (existing) {
 				warnings.push({

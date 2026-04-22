@@ -82,8 +82,6 @@ await host.start({
 | ------------------ | -------------------------------------------- |
 | `tools`            | `api.registerTool()`                         |
 | `commands`         | `api.registerCommand()`                      |
-| `shortcuts`        | `api.registerShortcut()`                     |
-| `flags`            | `api.registerFlag()`                         |
 | `providers`        | `api.registerProvider()`                     |
 | `messageBuilder`   | `api.registerMessageBuilder()` (Coming soon) |
 | `hooks`            | lifecycle hook handlers (see below)          |

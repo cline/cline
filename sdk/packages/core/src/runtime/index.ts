@@ -3,6 +3,7 @@ export {
 	isRuleEnabled,
 	listEnabledRulesFromWatcher,
 	loadRulesForSystemPromptFromWatcher,
+	mergeRulesForSystemPrompt,
 } from "./rules";
 export { createTeamName, DefaultRuntimeBuilder } from "./runtime-builder";
 export type {

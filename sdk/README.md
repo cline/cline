@@ -9,8 +9,7 @@ It is a Bun workspace centered around a small stack of reusable packages:
 - `@clinebot/shared`: shared contracts, schemas, path helpers, and runtime utilities
 - `@clinebot/llms`: model catalogs, shared provider contracts, and AI SDK-backed handler creation
 - `@clinebot/agents`: stateless agent loop, tools, hooks, and extension primitives
-- `@clinebot/scheduler`: scheduled execution and concurrency control
-- `@clinebot/rpc`: cross-process runtime gateway
+- `@clinebot/hub`: hub discovery, hub clients, and host-side daemon helpers
 - `@clinebot/core`: stateful orchestration, sessions, storage, and runtime assembly
 - `@clinebot/enterprise`: used for internal enterprise integrations. It is intentionally excluded from the root SDK build/version/publish flows.
 
@@ -22,7 +21,7 @@ This repo is the implementation workspace for the next-generation Cline SDK.
 
 Choose documentation by your question:
 
-- **Getting started**: [CONTRIBUTION.md](./CONTRIBUTION.md) covers workspace setup, development workflow, debugging, and publishing
+- **Getting started**: [CONTRIBUTING.md](./CONTRIBUTING.md) covers workspace setup, development workflow, debugging, and publishing
 - **Active development**: [AGENTS.md](./AGENTS.md) for package boundaries, dependency rules, change routing, and verification
 - **System design**: [ARCHITECTURE.md](./ARCHITECTURE.md) for design decisions and runtime flows
 - **API reference**: [DOC.md](./DOC.md) for detailed package/behavior specifications
@@ -39,11 +38,10 @@ Choose documentation by your question:
 
 ```mermaid
 flowchart LR
-  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & rpc["@clinebot/rpc"] & core["@clinebot/core"]
+  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & core["@clinebot/core"] & hub["@clinebot/hub"]
   llms --> agents & core
-  scheduler["@clinebot/scheduler"] --> rpc
   agents --> core
-  rpc --> core
+  core --> hub
   enterprise["@clinebot/enterprise (internal)"] --> agents & core & shared
   core --> apps["CLI / VS Code / Code App"]
 ```

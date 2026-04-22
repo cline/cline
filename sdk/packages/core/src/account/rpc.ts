@@ -1,6 +1,6 @@
 import type {
-	RpcClineAccountActionRequest,
-	RpcProviderActionRequest,
+	ClineAccountActionRequest,
+	ProviderActionRequest,
 } from "@clinebot/shared";
 import type {
 	ClineAccountBalance,
@@ -34,14 +34,14 @@ export interface ClineAccountOperations {
 	fetchFeaturebaseToken?(): Promise<FeaturebaseTokenResponse | undefined>;
 }
 
-export function isRpcClineAccountActionRequest(
-	request: RpcProviderActionRequest,
-): request is RpcClineAccountActionRequest {
+export function isClineAccountActionRequest(
+	request: ProviderActionRequest,
+): request is ClineAccountActionRequest {
 	return request.action === "clineAccount";
 }
 
-export async function executeRpcClineAccountAction(
-	request: RpcClineAccountActionRequest,
+export async function executeClineAccountAction(
+	request: ClineAccountActionRequest,
 	service: ClineAccountOperations,
 ): Promise<unknown> {
 	switch (request.operation) {
@@ -76,16 +76,16 @@ export async function executeRpcClineAccountAction(
 	}
 }
 
-export interface RpcProviderActionExecutor {
-	runProviderAction(request: RpcProviderActionRequest): Promise<{
+export interface ProviderActionExecutor {
+	runProviderAction(request: ProviderActionRequest): Promise<{
 		result: unknown;
 	}>;
 }
 
 export class RpcClineAccountService implements ClineAccountOperations {
-	private readonly executor: RpcProviderActionExecutor;
+	private readonly executor: ProviderActionExecutor;
 
-	constructor(executor: RpcProviderActionExecutor) {
+	constructor(executor: ProviderActionExecutor) {
 		this.executor = executor;
 	}
 
@@ -178,7 +178,7 @@ export class RpcClineAccountService implements ClineAccountOperations {
 		});
 	}
 
-	private async request<T>(request: RpcClineAccountActionRequest): Promise<T> {
+	private async request<T>(request: ClineAccountActionRequest): Promise<T> {
 		const response = await this.executor.runProviderAction(request);
 		return response.result as T;
 	}

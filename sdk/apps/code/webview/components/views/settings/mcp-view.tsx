@@ -1,16 +1,46 @@
 "use client";
 
-import { Circle, Eye, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { Circle, Minus, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 
+type McpTransportType = "stdio" | "sse" | "streamableHttp";
+
 interface McpServer {
 	name: string;
-	transportType: "stdio" | "sse" | "streamableHttp";
+	transportType: McpTransportType;
 	disabled: boolean;
 	command?: string;
 	args?: string[];
@@ -29,7 +59,8 @@ interface McpServersResponse {
 
 interface McpServerUpsertInput {
 	name: string;
-	transportType: "stdio" | "sse" | "streamableHttp";
+	previousName?: string;
+	transportType: McpTransportType;
 	command?: string;
 	args?: string[];
 	cwd?: string;
@@ -39,6 +70,20 @@ interface McpServerUpsertInput {
 	disabled?: boolean;
 	metadata?: unknown;
 }
+
+type McpServerFormState = {
+	name: string;
+	previousName: string;
+	transportType: McpTransportType;
+	command: string;
+	argsText: string;
+	cwd: string;
+	envEntries: Array<{ id: string; key: string; value: string }>;
+	url: string;
+	headersText: string;
+	disabled: boolean;
+	metadataText: string;
+};
 
 function splitCsv(text: string): string[] {
 	return text
@@ -77,102 +122,46 @@ function stringifyKeyValuePairs(input?: Record<string, string>): string {
 		.join(", ");
 }
 
-function getServerInput(existing?: McpServer): McpServerUpsertInput | null {
-	const nameInput = window.prompt("MCP server name", existing?.name ?? "");
-	if (nameInput == null) {
-		return null;
+function stringifyRedactedKeyValuePairs(
+	input?: Record<string, string>,
+): string {
+	if (!input) {
+		return "";
 	}
-	const name = nameInput.trim();
-	if (!name) {
-		window.alert("Server name is required.");
-		return null;
-	}
+	return Object.keys(input)
+		.map((key) => `${key}=[REDACTED]`)
+		.join(", ");
+}
 
-	const transportInput = window.prompt(
-		'Transport type ("stdio", "sse", or "streamableHttp")',
-		existing?.transportType ?? "stdio",
-	);
-	if (transportInput == null) {
-		return null;
+function createEnvEntries(
+	input?: Record<string, string>,
+): Array<{ id: string; key: string; value: string }> {
+	if (!input || Object.keys(input).length === 0) {
+		return [{ id: crypto.randomUUID(), key: "", value: "" }];
 	}
-	const transportType =
-		transportInput.trim() as McpServerUpsertInput["transportType"];
-	if (
-		transportType !== "stdio" &&
-		transportType !== "sse" &&
-		transportType !== "streamableHttp"
-	) {
-		window.alert('Transport type must be "stdio", "sse", or "streamableHttp".');
-		return null;
-	}
+	return Object.entries(input).map(([key, value]) => ({
+		id: crypto.randomUUID(),
+		key,
+		value,
+	}));
+}
 
-	if (transportType === "stdio") {
-		const commandInput = window.prompt("Command", existing?.command ?? "");
-		if (commandInput == null) {
-			return null;
-		}
-		const command = commandInput.trim();
-		if (!command) {
-			window.alert("Command is required for stdio transport.");
-			return null;
-		}
-		const argsInput = window.prompt(
-			'Args (comma-separated, e.g. "-y, @modelcontextprotocol/server-github")',
-			existing?.args?.join(", ") ?? "",
-		);
-		if (argsInput == null) {
-			return null;
-		}
-		const cwdInput = window.prompt(
-			"Working directory (optional)",
-			existing?.cwd ?? "",
-		);
-		if (cwdInput == null) {
-			return null;
-		}
-		const envInput = window.prompt(
-			"Environment vars (comma-separated KEY=VALUE pairs, optional)",
-			stringifyKeyValuePairs(existing?.env),
-		);
-		if (envInput == null) {
-			return null;
-		}
-		const args = splitCsv(argsInput);
-		return {
-			name,
-			transportType,
-			command,
-			args: args.length > 0 ? args : undefined,
-			cwd: cwdInput.trim() || undefined,
-			env: parseKeyValuePairs(envInput),
-			disabled: existing?.disabled ?? false,
-			metadata: existing?.metadata,
-		};
-	}
-
-	const urlInput = window.prompt("Server URL", existing?.url ?? "");
-	if (urlInput == null) {
-		return null;
-	}
-	const url = urlInput.trim();
-	if (!url) {
-		window.alert("URL is required for sse/streamableHttp transport.");
-		return null;
-	}
-	const headersInput = window.prompt(
-		"Headers (comma-separated KEY=VALUE pairs, optional)",
-		stringifyKeyValuePairs(existing?.headers),
-	);
-	if (headersInput == null) {
-		return null;
-	}
+function createServerFormState(existing?: McpServer): McpServerFormState {
 	return {
-		name,
-		transportType,
-		url,
-		headers: parseKeyValuePairs(headersInput),
+		name: existing?.name ?? "",
+		previousName: existing?.name ?? "",
+		transportType: existing?.transportType ?? "stdio",
+		command: existing?.command ?? "",
+		argsText: existing?.args?.join(", ") ?? "",
+		cwd: existing?.cwd ?? "",
+		envEntries: createEnvEntries(existing?.env),
+		url: existing?.url ?? "",
+		headersText: stringifyKeyValuePairs(existing?.headers),
 		disabled: existing?.disabled ?? false,
-		metadata: existing?.metadata,
+		metadataText:
+			existing?.metadata === undefined
+				? ""
+				: JSON.stringify(existing.metadata, null, 2),
 	};
 }
 
@@ -184,6 +173,13 @@ export function McpServersContent() {
 	const [isOpeningSettingsFile, setIsOpeningSettingsFile] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [busyServerName, setBusyServerName] = useState<string | null>(null);
+	const [editorOpen, setEditorOpen] = useState(false);
+	const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
+	const [formState, setFormState] = useState<McpServerFormState>(() =>
+		createServerFormState(),
+	);
+	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
+	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
 
 	const applyResponse = useCallback((response: McpServersResponse) => {
 		setServers(response.servers);
@@ -231,7 +227,7 @@ export function McpServersContent() {
 	};
 
 	const upsertServer = async (input: McpServerUpsertInput) => {
-		setBusyServerName(input.name);
+		setBusyServerName(input.previousName ?? input.name);
 		setErrorMessage(null);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
@@ -244,6 +240,7 @@ export function McpServersContent() {
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
+			throw error;
 		} finally {
 			setBusyServerName(null);
 		}
@@ -268,24 +265,80 @@ export function McpServersContent() {
 		}
 	};
 
-	const handleAddServer = async () => {
-		const input = getServerInput();
-		if (!input) {
-			return;
+	const buildServerInput = useCallback((form: McpServerFormState) => {
+		const name = form.name.trim();
+		if (!name) {
+			throw new Error("Server name is required.");
 		}
-		await upsertServer(input);
+		const env = form.envEntries.reduce<Record<string, string>>((acc, entry) => {
+			const key = entry.key.trim();
+			if (!key) {
+				return acc;
+			}
+			acc[key] = entry.value;
+			return acc;
+		}, {});
+		const metadataText = form.metadataText.trim();
+		const metadata =
+			metadataText.length > 0 ? JSON.parse(metadataText) : undefined;
+		if (form.transportType === "stdio") {
+			const command = form.command.trim();
+			if (!command) {
+				throw new Error("Command is required for stdio transport.");
+			}
+			const args = splitCsv(form.argsText);
+			return {
+				name,
+				previousName: form.previousName.trim() || undefined,
+				transportType: form.transportType,
+				command,
+				args: args.length > 0 ? args : undefined,
+				cwd: form.cwd.trim() || undefined,
+				env: Object.keys(env).length > 0 ? env : undefined,
+				disabled: form.disabled,
+				metadata,
+			} satisfies McpServerUpsertInput;
+		}
+		const url = form.url.trim();
+		if (!url) {
+			throw new Error("URL is required for sse and streamableHttp transport.");
+		}
+		return {
+			name,
+			previousName: form.previousName.trim() || undefined,
+			transportType: form.transportType,
+			url,
+			headers: parseKeyValuePairs(form.headersText),
+			disabled: form.disabled,
+			metadata,
+		} satisfies McpServerUpsertInput;
+	}, []);
+
+	const openCreateDialog = () => {
+		setEditorMode("create");
+		setFormState(createServerFormState());
+		setFormErrorMessage(null);
+		setEditorOpen(true);
 	};
 
-	const handleEditServer = async (server: McpServer) => {
-		const input = getServerInput(server);
-		if (!input) {
-			return;
-		}
-		await upsertServer(input);
+	const openEditDialog = (server: McpServer) => {
+		setEditorMode("edit");
+		setFormState(createServerFormState(server));
+		setFormErrorMessage(null);
+		setEditorOpen(true);
 	};
 
-	const _openMcpCatalog = () => {
-		window.open("https://mcp.so", "_blank", "noopener,noreferrer");
+	const handleSaveServer = async () => {
+		setFormErrorMessage(null);
+		try {
+			const input = buildServerInput(formState);
+			await upsertServer(input);
+			setEditorOpen(false);
+		} catch (error) {
+			setFormErrorMessage(
+				error instanceof Error ? error.message : String(error),
+			);
+		}
 	};
 
 	const openSettingsFile = async () => {
@@ -315,6 +368,39 @@ export function McpServersContent() {
 		[servers],
 	);
 
+	const updateEnvEntry = (
+		id: string,
+		field: "key" | "value",
+		value: string,
+	) => {
+		setFormState((current) => ({
+			...current,
+			envEntries: current.envEntries.map((entry) =>
+				entry.id === id ? { ...entry, [field]: value } : entry,
+			),
+		}));
+	};
+
+	const addEnvEntry = () => {
+		setFormState((current) => ({
+			...current,
+			envEntries: [
+				...current.envEntries,
+				{ id: crypto.randomUUID(), key: "", value: "" },
+			],
+		}));
+	};
+
+	const removeEnvEntry = (id: string) => {
+		setFormState((current) => ({
+			...current,
+			envEntries:
+				current.envEntries.length === 1
+					? [{ id: crypto.randomUUID(), key: "", value: "" }]
+					: current.envEntries.filter((entry) => entry.id !== id),
+		}));
+	};
+
 	return (
 		<ScrollArea className="h-full">
 			<div className="mx-auto max-w-3xl px-8 py-6">
@@ -339,7 +425,7 @@ export function McpServersContent() {
 							/>
 							Refresh
 						</Button>
-						<Button size="sm" onClick={() => void handleAddServer()}>
+						<Button size="sm" onClick={openCreateDialog}>
 							<Plus className="h-4 w-4" />
 							Add MCP Server
 						</Button>
@@ -355,14 +441,6 @@ export function McpServersContent() {
 						disabled={isOpeningSettingsFile}
 					>
 						{settingsPath || "Open settings file"}
-					</Button>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => void openSettingsFile()}
-						disabled={isOpeningSettingsFile}
-					>
-						Open config file
 					</Button>
 				</div>
 				<p className="mb-6 text-xs text-muted-foreground">
@@ -414,18 +492,8 @@ export function McpServersContent() {
 											<Button
 												variant="ghost"
 												size="icon-sm"
-												aria-label={`View ${server.name}`}
-												onClick={() => {
-													window.alert(JSON.stringify(server, null, 2));
-												}}
-											>
-												<Eye className="h-3.5 w-3.5" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon-sm"
 												aria-label={`Edit ${server.name}`}
-												onClick={() => void handleEditServer(server)}
+												onClick={() => openEditDialog(server)}
 												disabled={isBusy}
 											>
 												<Pencil className="h-3.5 w-3.5" />
@@ -434,16 +502,8 @@ export function McpServersContent() {
 												variant="ghost"
 												size="icon-sm"
 												aria-label={`Delete ${server.name}`}
-												onClick={() => {
-													if (
-														window.confirm(
-															`Delete MCP server "${server.name}" from settings?`,
-														)
-													) {
-														void deleteServer(server.name);
-													}
-												}}
-												disabled={!server.disabled && isBusy}
+												onClick={() => setDeleteTarget(server)}
+												disabled={isBusy}
 											>
 												<Trash2 className="h-3.5 w-3.5" />
 											</Button>
@@ -452,7 +512,7 @@ export function McpServersContent() {
 												onCheckedChange={(enabled) =>
 													toggleServer(server, !enabled)
 												}
-												disabled={!server.disabled && isBusy}
+												disabled={isBusy}
 												aria-label={`Enable ${server.name}`}
 											/>
 										</div>
@@ -488,7 +548,7 @@ export function McpServersContent() {
 										{server.env && Object.keys(server.env).length > 0 && (
 											<p>
 												<span className="text-muted-foreground/70">Env:</span>{" "}
-												{stringifyKeyValuePairs(server.env)}
+												{stringifyRedactedKeyValuePairs(server.env)}
 											</p>
 										)}
 										{server.headers &&
@@ -507,6 +567,291 @@ export function McpServersContent() {
 					</div>
 				)}
 			</div>
+
+			<Dialog
+				open={editorOpen}
+				onOpenChange={(open) => {
+					setEditorOpen(open);
+					if (!open) {
+						setFormErrorMessage(null);
+					}
+				}}
+			>
+				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+					<DialogHeader>
+						<DialogTitle>
+							{editorMode === "edit" ? "Edit MCP Server" : "Add MCP Server"}
+						</DialogTitle>
+						<DialogDescription>
+							Update the MCP server stored in{" "}
+							<code className="font-mono">
+								{settingsPath || "cline_mcp_settings.json"}
+							</code>
+							.
+						</DialogDescription>
+					</DialogHeader>
+
+					<div className="grid gap-4">
+						<div className="grid gap-2">
+							<Label htmlFor="mcp-name">Server name</Label>
+							<Input
+								id="mcp-name"
+								value={formState.name}
+								onChange={(event) =>
+									setFormState((current) => ({
+										...current,
+										name: event.target.value,
+									}))
+								}
+								placeholder="github"
+							/>
+						</div>
+
+						<div className="grid gap-2">
+							<Label>Transport type</Label>
+							<Select
+								value={formState.transportType}
+								onValueChange={(value) =>
+									setFormState((current) => ({
+										...current,
+										transportType: value as McpTransportType,
+									}))
+								}
+							>
+								<SelectTrigger className="w-full">
+									<SelectValue placeholder="Select transport" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="stdio">stdio</SelectItem>
+									<SelectItem value="sse">sse</SelectItem>
+									<SelectItem value="streamableHttp">streamableHttp</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+
+						{formState.transportType === "stdio" ? (
+							<>
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-command">Command</Label>
+									<Input
+										id="mcp-command"
+										value={formState.command}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												command: event.target.value,
+											}))
+										}
+										placeholder="npx"
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-args">Args</Label>
+									<Textarea
+										id="mcp-args"
+										value={formState.argsText}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												argsText: event.target.value,
+											}))
+										}
+										placeholder="-y, @modelcontextprotocol/server-github"
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-cwd">Working directory</Label>
+									<Input
+										id="mcp-cwd"
+										value={formState.cwd}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												cwd: event.target.value,
+											}))
+										}
+										placeholder="/path/to/project"
+									/>
+								</div>
+								<div className="grid gap-2">
+									<div className="flex items-center justify-between gap-3">
+										<Label>Environment variables</Label>
+										<Button
+											type="button"
+											variant="ghost"
+											size="sm"
+											onClick={addEnvEntry}
+										>
+											<Plus className="h-3.5 w-3.5" />
+										</Button>
+									</div>
+									<div className="flex flex-col gap-2">
+										{formState.envEntries.map((entry) => (
+											<div key={entry.id} className="flex items-center gap-2">
+												<Button
+													type="button"
+													variant="ghost"
+													size="icon-sm"
+													onClick={() => removeEnvEntry(entry.id)}
+													aria-label={`Remove env var ${entry.key || "row"}`}
+												>
+													<Minus className="h-3.5 w-3.5" />
+												</Button>
+												<Input
+													value={entry.key}
+													onChange={(event) =>
+														updateEnvEntry(entry.id, "key", event.target.value)
+													}
+													placeholder="KEY"
+												/>
+												<Input
+													type="password"
+													value={entry.value}
+													onChange={(event) =>
+														updateEnvEntry(
+															entry.id,
+															"value",
+															event.target.value,
+														)
+													}
+													placeholder="VALUE"
+												/>
+											</div>
+										))}
+									</div>
+								</div>
+							</>
+						) : (
+							<>
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-url">Server URL</Label>
+									<Input
+										id="mcp-url"
+										value={formState.url}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												url: event.target.value,
+											}))
+										}
+										placeholder="https://example.com/mcp"
+									/>
+								</div>
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-headers">Headers</Label>
+									<Textarea
+										id="mcp-headers"
+										value={formState.headersText}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												headersText: event.target.value,
+											}))
+										}
+										placeholder="Authorization=Bearer token"
+									/>
+								</div>
+							</>
+						)}
+
+						<div className="grid gap-2">
+							<Label htmlFor="mcp-metadata">Metadata JSON</Label>
+							<Textarea
+								id="mcp-metadata"
+								value={formState.metadataText}
+								onChange={(event) =>
+									setFormState((current) => ({
+										...current,
+										metadataText: event.target.value,
+									}))
+								}
+								placeholder='{"key":"value"}'
+							/>
+						</div>
+
+						<div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
+							<div>
+								<p className="text-sm font-medium text-foreground">Enabled</p>
+								<p className="text-xs text-muted-foreground">
+									Disable the server without removing it from settings.
+								</p>
+							</div>
+							<Switch
+								checked={!formState.disabled}
+								onCheckedChange={(enabled) =>
+									setFormState((current) => ({
+										...current,
+										disabled: !enabled,
+									}))
+								}
+								aria-label="Enable MCP server"
+							/>
+						</div>
+
+						{formErrorMessage ? (
+							<div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+								{formErrorMessage}
+							</div>
+						) : null}
+					</div>
+
+					<DialogFooter>
+						<Button
+							variant="outline"
+							onClick={() => setEditorOpen(false)}
+							disabled={busyServerName !== null}
+						>
+							Cancel
+						</Button>
+						<Button
+							onClick={() => void handleSaveServer()}
+							disabled={busyServerName !== null}
+						>
+							{busyServerName !== null
+								? "Saving..."
+								: editorMode === "edit"
+									? "Save changes"
+									: "Add server"}
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
+
+			<AlertDialog
+				open={deleteTarget !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDeleteTarget(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete MCP Server</AlertDialogTitle>
+						<AlertDialogDescription>
+							{deleteTarget
+								? `Delete MCP server "${deleteTarget.name}" from settings?`
+								: "Delete this MCP server from settings?"}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel disabled={busyServerName !== null}>
+							Cancel
+						</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={busyServerName !== null || !deleteTarget}
+							onClick={() => {
+								if (deleteTarget) {
+									void deleteServer(deleteTarget.name);
+									setDeleteTarget(null);
+								}
+							}}
+						>
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</ScrollArea>
 	);
 }

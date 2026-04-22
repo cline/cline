@@ -1,5 +1,3 @@
-export const DEFAULT_REASONING_EFFORT = "medium" as const;
-
 export const REASONING_EFFORT_RATIOS = {
 	xhigh: 0.95,
 	high: 0.8,
@@ -10,6 +8,8 @@ export const REASONING_EFFORT_RATIOS = {
 } as const;
 
 export type ReasoningEffortValue = keyof typeof REASONING_EFFORT_RATIOS;
+export const DEFAULT_REASONING_EFFORT: ReasoningEffortValue | undefined =
+	undefined;
 
 export function resolveEffectiveReasoningEffort(
 	reasoningEffort?: string,

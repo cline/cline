@@ -91,7 +91,7 @@ describe("withLatestAssistantTurnMetadata", () => {
 		expect("modelId" in (persisted[3] ?? {})).toBe(false);
 	});
 
-	it("applies turn model metadata and usage to every assistant message created in the turn", () => {
+	it("applies turn model metadata to every assistant message but usage only to the terminal assistant message", () => {
 		const persisted = withLatestAssistantTurnMetadata(
 			[
 				{ role: "user", content: "spawn a team" },
@@ -133,14 +133,8 @@ describe("withLatestAssistantTurnMetadata", () => {
 				provider: "anthropic",
 				family: "claude-sonnet-4",
 			},
-			metrics: {
-				inputTokens: 10,
-				outputTokens: 5,
-				cacheReadTokens: 2,
-				cacheWriteTokens: 1,
-				cost: 0.12,
-			},
 		});
+		expect(persisted[1]).not.toHaveProperty("metrics");
 		expect(persisted[3]).toMatchObject({
 			role: "assistant",
 			modelInfo: {

@@ -10,32 +10,39 @@ import {
 import { homedir } from "node:os";
 import { basename, dirname, extname, join } from "node:path";
 import type {
-	RpcClineAccountActionRequest,
-	RpcProviderCapability,
+	ClineAccountActionRequest,
+	ProviderCapability,
 } from "@clinebot/core";
 import {
+	ALL_DEFAULT_TOOL_NAMES,
 	addLocalProvider,
 	ClineAccountService,
 	ClineCore,
+	createLocalHubScheduleRuntimeHandlers,
 	createUserInstructionConfigWatcher,
+	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
-	executeRpcClineAccountAction,
+	executeClineAccountAction,
 	getLocalProviderModels,
 	listHookConfigFiles,
 	listLocalProviders,
+	listPluginTools,
 	loginLocalProvider,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	resolveLocalClineAuthToken,
+	resolvePluginConfigSearchPaths,
 	resolveRulesConfigSearchPaths,
 	resolveSessionBackend,
+	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	resolveSkillsConfigSearchPaths,
 	resolveWorkflowsConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	toggleDisabledTool,
 } from "@clinebot/core";
-import { RpcSessionClient } from "@clinebot/rpc";
+import { ensureHubServer, sendHubCommand } from "@clinebot/hub";
 import { broadcastEvent } from "./context";
 import {
 	findArtifactUnderDir,
@@ -67,10 +74,57 @@ function readMcpServersResponse(): JsonRecord {
 	}
 	const parsed = JSON.parse(readFileSync(settingsPath, "utf8")) as JsonRecord;
 	const servers = parsed.mcpServers as JsonRecord | undefined;
-	const entries = Object.entries(servers ?? {}).map(([name, body]) => ({
-		name,
-		...(body as JsonRecord),
-	}));
+	const entries = Object.entries(servers ?? {}).map(([name, body]) => {
+		const record = body as JsonRecord;
+		const transport =
+			record.transport && typeof record.transport === "object"
+				? (record.transport as JsonRecord)
+				: undefined;
+		const transportType = String(
+			transport?.type ?? record.transportType ?? record.type ?? "stdio",
+		).trim();
+		return {
+			name,
+			transportType,
+			disabled: record.disabled === true,
+			command:
+				typeof transport?.command === "string"
+					? transport.command
+					: typeof record.command === "string"
+						? record.command
+						: undefined,
+			args: Array.isArray(transport?.args)
+				? transport.args
+				: Array.isArray(record.args)
+					? record.args
+					: undefined,
+			cwd:
+				typeof transport?.cwd === "string"
+					? transport.cwd
+					: typeof record.cwd === "string"
+						? record.cwd
+						: undefined,
+			env:
+				transport?.env && typeof transport.env === "object"
+					? transport.env
+					: record.env && typeof record.env === "object"
+						? record.env
+						: undefined,
+			url:
+				typeof transport?.url === "string"
+					? transport.url
+					: typeof record.url === "string"
+						? record.url
+						: undefined,
+			headers:
+				transport?.headers && typeof transport.headers === "object"
+					? transport.headers
+					: record.headers && typeof record.headers === "object"
+						? record.headers
+						: undefined,
+			metadata: record.metadata,
+		};
+	});
 	return { settingsPath, hasSettingsFile: true, servers: entries };
 }
 
@@ -100,6 +154,29 @@ function removePathIfExists(
 		recursive: options?.recursive === true,
 	});
 	return true;
+}
+
+async function listSessionsFromSidecarManager(
+	ctx: SidecarContext,
+	limit: number,
+): Promise<unknown> {
+	if (ctx.sessionManager) {
+		return await ctx.sessionManager.list(limit);
+	}
+	const core = await ClineCore.create({
+		backendMode: "hub",
+		hub: {
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+			clientType: "code-sidecar-list",
+			displayName: "Code App history",
+		},
+	});
+	try {
+		return await core.list(limit);
+	} finally {
+		await core.dispose("code_sidecar_list_sessions");
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -143,7 +220,7 @@ function listGitBranches(
 }
 
 // ---------------------------------------------------------------------------
-// Routine schedule helpers (in-process via RpcSessionClient)
+// Routine schedule helpers (in-process via shared hub server)
 // ---------------------------------------------------------------------------
 
 function toPositiveInt(value: unknown): number | undefined {
@@ -162,18 +239,42 @@ async function handleRoutineScheduleCommand(
 	command: string,
 	args?: Record<string, unknown>,
 ): Promise<unknown> {
-	const address = process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:4317";
-	const client = new RpcSessionClient({ address });
+	await ensureHubServer({
+		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+	});
+	const clientCommand = async (
+		hubCommand: string,
+		payload?: Record<string, unknown>,
+	) => {
+		const reply = await sendHubCommand(
+			{},
+			{
+				clientId: "code-sidecar-routines",
+				command: hubCommand as never,
+				payload,
+			},
+		);
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? `hub command failed: ${hubCommand}`,
+			);
+		}
+		return (reply.payload ?? {}) as Record<string, unknown>;
+	};
 	try {
 		if (command === "list_routine_schedules") {
 			const [schedules, activeExecutions, upcomingRuns] = await Promise.all([
-				client.listSchedules({
+				clientCommand("schedule.list", {
 					limit: toPositiveInt(args?.limit) ?? 200,
 				}),
-				client.getActiveScheduledExecutions(),
-				client.getUpcomingScheduledRuns(30),
+				clientCommand("schedule.active"),
+				clientCommand("schedule.upcoming", { limit: 30 }),
 			]);
-			return { schedules, activeExecutions, upcomingRuns };
+			return {
+				schedules: schedules.schedules ?? [],
+				activeExecutions: activeExecutions.executions ?? [],
+				upcomingRuns: upcomingRuns.runs ?? [],
+			};
 		}
 		if (command === "create_routine_schedule") {
 			const name = asTrimmedString(args?.name);
@@ -185,12 +286,14 @@ async function handleRoutineScheduleCommand(
 					"createSchedule requires name, cron_pattern, prompt, and workspace_root",
 				);
 			}
-			const created = await client.createSchedule({
+			const created = await clientCommand("schedule.create", {
 				name,
 				cronPattern,
 				prompt,
-				provider: asTrimmedString(args?.provider) ?? "cline",
-				model: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				modelSelection: {
+					providerId: asTrimmedString(args?.provider) ?? "cline",
+					modelId: asTrimmedString(args?.model) ?? "openai/gpt-5.3-codex",
+				},
 				mode: args?.mode === "plan" ? "plan" : "act",
 				workspaceRoot,
 				cwd: asTrimmedString(args?.cwd),
@@ -206,29 +309,28 @@ async function handleRoutineScheduleCommand(
 								.filter((v: string) => v.length > 0)
 						: undefined,
 			});
-			return { schedule: created ?? null };
+			return { schedule: created.schedule ?? null };
 		}
 		const scheduleId = asTrimmedString(args?.schedule_id);
 		if (!scheduleId) throw new Error(`${command} requires schedule_id`);
 		if (command === "pause_routine_schedule") {
-			const schedule = await client.pauseSchedule(scheduleId);
-			return { schedule: schedule ?? null };
+			const reply = await clientCommand("schedule.disable", { scheduleId });
+			return { schedule: reply.schedule ?? null };
 		}
 		if (command === "resume_routine_schedule") {
-			const schedule = await client.resumeSchedule(scheduleId);
-			return { schedule: schedule ?? null };
+			const reply = await clientCommand("schedule.enable", { scheduleId });
+			return { schedule: reply.schedule ?? null };
 		}
 		if (command === "trigger_routine_schedule") {
-			const execution = await client.triggerScheduleNow(scheduleId);
-			return { execution: execution ?? null };
+			const reply = await clientCommand("schedule.trigger", { scheduleId });
+			return { execution: reply.execution ?? null };
 		}
 		if (command === "delete_routine_schedule") {
-			const deleted = await client.deleteSchedule(scheduleId);
-			return { deleted };
+			const reply = await clientCommand("schedule.delete", { scheduleId });
+			return { deleted: reply.deleted === true };
 		}
 		throw new Error(`unsupported routine schedule command: ${command}`);
 	} finally {
-		client.close();
 	}
 }
 
@@ -236,13 +338,8 @@ async function handleRoutineScheduleCommand(
 // User instruction config listing (in-process via @clinebot/core watchers)
 // ---------------------------------------------------------------------------
 
-function resolveAgentConfigSearchPaths(): string[] {
-	const clineDataDir =
-		process.env.CLINE_DATA_DIR?.trim() || join(homedir(), ".cline", "data");
-	return [
-		join(homedir(), "Documents", "Cline", "Agents"),
-		join(clineDataDir, "settings", "agents"),
-	];
+function resolveAgentConfigSearchPaths(workspaceRoot?: string): string[] {
+	return resolveSharedAgentConfigSearchPaths(workspaceRoot);
 }
 
 async function listUserInstructionConfigs(
@@ -301,8 +398,8 @@ async function listUserInstructionConfigs(
 
 	const loadAgents = (): unknown[] => {
 		const agentsById = new Map<string, { name: string; path: string }>();
-		const directories = resolveAgentConfigSearchPaths().filter((d) =>
-			existsSync(d),
+		const directories = resolveAgentConfigSearchPaths(workspaceRoot).filter(
+			(d) => existsSync(d),
 		);
 		for (const directory of directories) {
 			try {
@@ -344,7 +441,32 @@ async function listUserInstructionConfigs(
 		}
 	};
 
-	const [rules, workflows, skills] = await Promise.all([
+	const loadPlugins = (): Array<{ name: string; path: string }> => {
+		const pluginsByPath = new Map<string, { name: string; path: string }>();
+		const directories = resolvePluginConfigSearchPaths(workspaceRoot).filter(
+			(d) => existsSync(d),
+		);
+		for (const directory of directories) {
+			try {
+				for (const filePath of discoverPluginModulePaths(directory)) {
+					if (pluginsByPath.has(filePath)) {
+						continue;
+					}
+					pluginsByPath.set(filePath, {
+						name: basename(filePath, extname(filePath)),
+						path: filePath,
+					});
+				}
+			} catch {
+				// best-effort
+			}
+		}
+		return [...pluginsByPath.values()].sort((a, b) =>
+			a.name.localeCompare(b.name),
+		);
+	};
+
+	const [rules, workflows, skills, pluginTools] = await Promise.all([
 		loadWatcherSnapshot("rule", resolveRulesConfigSearchPaths(workspaceRoot)),
 		loadWatcherSnapshot(
 			"workflow",
@@ -354,6 +476,10 @@ async function listUserInstructionConfigs(
 			...resolveSkillsConfigSearchPaths(workspaceRoot),
 			join(homedir(), "Documents", "Cline", "Skills"),
 		]),
+		listPluginTools({
+			workspacePath: workspaceRoot,
+			cwd: workspaceRoot,
+		}),
 	]);
 
 	return {
@@ -362,7 +488,26 @@ async function listUserInstructionConfigs(
 		workflows,
 		skills,
 		agents: loadAgents(),
+		plugins: loadPlugins(),
+		tools: [
+			...ALL_DEFAULT_TOOL_NAMES.map((name) => ({
+				id: name,
+				name,
+				enabled: true,
+				source: "builtin",
+			})),
+			...pluginTools.map((tool) => ({
+				id: `${tool.pluginName}:${tool.name}:${tool.path}`,
+				name: tool.name,
+				description: tool.description,
+				enabled: tool.enabled,
+				source: tool.source,
+				path: tool.path,
+				pluginName: tool.pluginName,
+			})),
+		],
 		hooks: loadHooks(),
+		mcp: readMcpServersResponse(),
 		warnings,
 	};
 }
@@ -469,13 +614,17 @@ export async function handleCommand(
 			throw new Error("sessionId and requestId are required");
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
-		if (pending) {
-			pending.resolve({
+		if (pending && ctx.hubClient) {
+			await ctx.hubClient.command("approval.respond", {
+				approvalId: pending.approvalId,
 				approved: Boolean(args?.approved),
-				reason: typeof args?.reason === "string" ? args.reason : undefined,
+				payload:
+					typeof args?.reason === "string" && args.reason.trim().length > 0
+						? { reason: args.reason }
+						: undefined,
 			});
-			ctx.pendingApprovals.delete(requestId);
 		}
+		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
 			.filter((a) => a.item.sessionId === sessionId)
 			.map((a) => a.item);
@@ -494,24 +643,16 @@ export async function handleCommand(
 		);
 	}
 	if (command === "list_cli_sessions") {
-		const core = await ClineCore.create();
-		try {
-			return await core.list(
-				typeof args?.limit === "number" ? args.limit : 300,
-			);
-		} finally {
-			await core.dispose("code_sidecar_list_cli_sessions");
-		}
+		return await listSessionsFromSidecarManager(
+			ctx,
+			typeof args?.limit === "number" ? args.limit : 300,
+		);
 	}
 	if (command === "list_discovered_sessions") {
-		const core = await ClineCore.create();
-		try {
-			return await core.list(
-				typeof args?.limit === "number" ? args.limit : 300,
-			);
-		} finally {
-			await core.dispose("code_sidecar_list_discovered_sessions");
-		}
+		return await listSessionsFromSidecarManager(
+			ctx,
+			typeof args?.limit === "number" ? args.limit : 300,
+		);
 	}
 	if (command === "update_chat_session_title") {
 		const sessionId = String(args?.sessionId ?? "").trim();
@@ -640,8 +781,8 @@ export async function handleCommand(
 			apiBaseUrl: settings?.baseUrl?.trim() || "https://api.cline.bot",
 			getAuthToken: async () => resolveLocalClineAuthToken(settings),
 		});
-		return await executeRpcClineAccountAction(
-			args as RpcClineAccountActionRequest,
+		return await executeClineAccountAction(
+			args as ClineAccountActionRequest,
 			accountService,
 		);
 	}
@@ -694,7 +835,7 @@ export async function handleCommand(
 					? args.models_source_url
 					: undefined,
 			capabilities: Array.isArray(args?.capabilities)
-				? (args.capabilities as RpcProviderCapability[])
+				? (args.capabilities as ProviderCapability[])
 				: undefined,
 		});
 	}
@@ -761,6 +902,9 @@ export async function handleCommand(
 				: (args as JsonRecord);
 		const name = String(input.name ?? "").trim();
 		if (!name) throw new Error("server name is required");
+		const previousName = String(
+			input.previousName ?? input.previous_name ?? "",
+		).trim();
 		const transportType = String(
 			input.transportType ?? input.transport_type ?? "",
 		).trim();
@@ -789,6 +933,9 @@ export async function handleCommand(
 		const path = ensureMcpSettingsFile();
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as JsonRecord;
 		const servers = (parsed.mcpServers as JsonRecord | undefined) ?? {};
+		if (previousName && previousName !== name) {
+			delete servers[previousName];
+		}
 		servers[name] = next;
 		writeMcpServersMap(servers);
 		return readMcpServersResponse();
@@ -845,6 +992,14 @@ export async function handleCommand(
 
 	// ── User instruction configs ──────────────────────────────────────
 	if (command === "list_user_instruction_configs") {
+		return await listUserInstructionConfigs(ctx.workspaceRoot);
+	}
+	if (command === "toggle_disabled_plugin_tool") {
+		const toolName = String(args?.name ?? "").trim();
+		if (!toolName) {
+			throw new Error("tool name is required");
+		}
+		toggleDisabledTool(toolName);
 		return await listUserInstructionConfigs(ctx.workspaceRoot);
 	}
 

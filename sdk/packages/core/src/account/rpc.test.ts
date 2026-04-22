@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import {
 	type ClineAccountOperations,
-	executeRpcClineAccountAction,
+	executeClineAccountAction,
 	RpcClineAccountService,
 } from "./rpc";
 
-describe("executeRpcClineAccountAction", () => {
+describe("executeClineAccountAction", () => {
 	it("dispatches fetchMe", async () => {
 		const service: ClineAccountOperations = {
 			fetchMe: vi.fn(async () => ({
@@ -30,7 +30,7 @@ describe("executeRpcClineAccountAction", () => {
 			fetchFeaturebaseToken: vi.fn(async () => undefined),
 		};
 
-		const result = await executeRpcClineAccountAction(
+		const result = await executeClineAccountAction(
 			{ action: "clineAccount", operation: "fetchMe" },
 			service,
 		);

@@ -3,6 +3,23 @@ import net from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { startLocalOAuthServer } from "./server";
 
+const socketBindingSupported = await (async () => {
+	try {
+		const srv = net.createServer();
+		await new Promise<void>((resolve, reject) => {
+			srv.listen(0, "127.0.0.1", () => resolve());
+			srv.once("error", reject);
+		});
+		await new Promise<void>((resolve, reject) =>
+			srv.close((err) => (err ? reject(err) : resolve())),
+		);
+		return true;
+	} catch {
+		return false;
+	}
+})();
+const socketIt = socketBindingSupported ? it : it.skip;
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -60,27 +77,30 @@ function flushAsync(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 describe("auth/server startLocalOAuthServer — onListening", () => {
-	it("is called with host, port, and callbackUrl when the server binds", async () => {
-		const port = await getFreePort();
-		const onListening = vi.fn();
+	socketIt(
+		"is called with host, port, and callbackUrl when the server binds",
+		async () => {
+			const port = await getFreePort();
+			const onListening = vi.fn();
 
-		const server = await startLocalOAuthServer({
-			ports: [port],
-			callbackPath: "/callback",
-			onListening,
-		});
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				onListening,
+			});
 
-		expect(onListening).toHaveBeenCalledOnce();
-		expect(onListening).toHaveBeenCalledWith({
-			host: "127.0.0.1",
-			port,
-			callbackUrl: `http://127.0.0.1:${port}/callback`,
-		});
+			expect(onListening).toHaveBeenCalledOnce();
+			expect(onListening).toHaveBeenCalledWith({
+				host: "127.0.0.1",
+				port,
+				callbackUrl: `http://127.0.0.1:${port}/callback`,
+			});
 
-		server.close();
-	});
+			server.close();
+		},
+	);
 
-	it("is not called when no port can be bound", async () => {
+	socketIt("is not called when no port can be bound", async () => {
 		const port = await getFreePort();
 		const blocker = await occupyPort(port);
 		const onListening = vi.fn();
@@ -96,27 +116,30 @@ describe("auth/server startLocalOAuthServer — onListening", () => {
 		await closeServer(blocker);
 	});
 
-	it("fires for the first available port and skips occupied ones", async () => {
-		const [port1, port2] = await Promise.all([getFreePort(), getFreePort()]);
-		const blocker = await occupyPort(port1);
-		const onListening = vi.fn();
+	socketIt(
+		"fires for the first available port and skips occupied ones",
+		async () => {
+			const [port1, port2] = await Promise.all([getFreePort(), getFreePort()]);
+			const blocker = await occupyPort(port1);
+			const onListening = vi.fn();
 
-		const server = await startLocalOAuthServer({
-			ports: [port1, port2],
-			callbackPath: "/cb",
-			onListening,
-		});
+			const server = await startLocalOAuthServer({
+				ports: [port1, port2],
+				callbackPath: "/cb",
+				onListening,
+			});
 
-		expect(onListening).toHaveBeenCalledOnce();
-		expect(onListening).toHaveBeenCalledWith(
-			expect.objectContaining({ port: port2 }),
-		);
+			expect(onListening).toHaveBeenCalledOnce();
+			expect(onListening).toHaveBeenCalledWith(
+				expect.objectContaining({ port: port2 }),
+			);
 
-		server.close();
-		await closeServer(blocker);
-	});
+			server.close();
+			await closeServer(blocker);
+		},
+	);
 
-	it("swallows errors thrown by the onListening callback", async () => {
+	socketIt("swallows errors thrown by the onListening callback", async () => {
 		const port = await getFreePort();
 		const onListening = vi
 			.fn()
@@ -140,7 +163,7 @@ describe("auth/server startLocalOAuthServer — onListening", () => {
 // ---------------------------------------------------------------------------
 
 describe("auth/server startLocalOAuthServer — onClose", () => {
-	it("is called with host and port when close() is invoked", async () => {
+	socketIt("is called with host and port when close() is invoked", async () => {
 		const port = await getFreePort();
 		const onClose = vi.fn();
 
@@ -156,23 +179,26 @@ describe("auth/server startLocalOAuthServer — onClose", () => {
 		expect(onClose).toHaveBeenCalledWith({ host: "127.0.0.1", port });
 	});
 
-	it("is called with host and port when cancelWait() is invoked", async () => {
-		const port = await getFreePort();
-		const onClose = vi.fn();
+	socketIt(
+		"is called with host and port when cancelWait() is invoked",
+		async () => {
+			const port = await getFreePort();
+			const onClose = vi.fn();
 
-		const server = await startLocalOAuthServer({
-			ports: [port],
-			callbackPath: "/callback",
-			onClose,
-		});
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/callback",
+				onClose,
+			});
 
-		server.cancelWait();
+			server.cancelWait();
 
-		expect(onClose).toHaveBeenCalledOnce();
-		expect(onClose).toHaveBeenCalledWith({ host: "127.0.0.1", port });
-	});
+			expect(onClose).toHaveBeenCalledOnce();
+			expect(onClose).toHaveBeenCalledWith({ host: "127.0.0.1", port });
+		},
+	);
 
-	it("is called after a successful OAuth callback request", async () => {
+	socketIt("is called after a successful OAuth callback request", async () => {
 		const port = await getFreePort();
 		const onClose = vi.fn();
 
@@ -194,7 +220,7 @@ describe("auth/server startLocalOAuthServer — onClose", () => {
 		expect(onClose).toHaveBeenCalledWith({ host: "127.0.0.1", port });
 	});
 
-	it("is not called when no port was bound", async () => {
+	socketIt("is not called when no port was bound", async () => {
 		const port = await getFreePort();
 		const blocker = await occupyPort(port);
 		const onClose = vi.fn();
@@ -211,7 +237,7 @@ describe("auth/server startLocalOAuthServer — onClose", () => {
 		await closeServer(blocker);
 	});
 
-	it("swallows errors thrown by the onClose callback", async () => {
+	socketIt("swallows errors thrown by the onClose callback", async () => {
 		const port = await getFreePort();
 		const onClose = vi
 			.fn()
@@ -239,49 +265,55 @@ describe("auth/server startLocalOAuthServer — onListening + onClose together",
 		vi.restoreAllMocks();
 	});
 
-	it("fires onListening on bind then onClose after a successful callback", async () => {
-		const port = await getFreePort();
-		const order: string[] = [];
+	socketIt(
+		"fires onListening on bind then onClose after a successful callback",
+		async () => {
+			const port = await getFreePort();
+			const order: string[] = [];
 
-		const server = await startLocalOAuthServer({
-			ports: [port],
-			callbackPath: "/cb",
-			onListening: vi.fn(() => {
-				order.push("listening");
-			}),
-			onClose: vi.fn(() => {
-				order.push("close");
-			}),
-		});
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/cb",
+				onListening: vi.fn(() => {
+					order.push("listening");
+				}),
+				onClose: vi.fn(() => {
+					order.push("close");
+				}),
+			});
 
-		expect(order).toEqual(["listening"]);
+			expect(order).toEqual(["listening"]);
 
-		const waitPromise = server.waitForCallback();
-		await get(`http://127.0.0.1:${port}/cb?code=mycode`);
-		const payload = await waitPromise;
+			const waitPromise = server.waitForCallback();
+			await get(`http://127.0.0.1:${port}/cb?code=mycode`);
+			const payload = await waitPromise;
 
-		expect(payload?.code).toBe("mycode");
-		expect(order).toEqual(["listening", "close"]);
-	});
+			expect(payload?.code).toBe("mycode");
+			expect(order).toEqual(["listening", "close"]);
+		},
+	);
 
-	it("fires onListening on bind then onClose after cancelWait()", async () => {
-		const port = await getFreePort();
-		const order: string[] = [];
+	socketIt(
+		"fires onListening on bind then onClose after cancelWait()",
+		async () => {
+			const port = await getFreePort();
+			const order: string[] = [];
 
-		const server = await startLocalOAuthServer({
-			ports: [port],
-			callbackPath: "/cb",
-			onListening: vi.fn(() => {
-				order.push("listening");
-			}),
-			onClose: vi.fn(() => {
-				order.push("close");
-			}),
-		});
+			const server = await startLocalOAuthServer({
+				ports: [port],
+				callbackPath: "/cb",
+				onListening: vi.fn(() => {
+					order.push("listening");
+				}),
+				onClose: vi.fn(() => {
+					order.push("close");
+				}),
+			});
 
-		expect(order).toEqual(["listening"]);
+			expect(order).toEqual(["listening"]);
 
-		server.cancelWait();
-		expect(order).toEqual(["listening", "close"]);
-	});
+			server.cancelWait();
+			expect(order).toEqual(["listening", "close"]);
+		},
+	);
 });

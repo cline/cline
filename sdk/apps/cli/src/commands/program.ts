@@ -4,22 +4,6 @@ import type { ParsedArgs } from "../utils/types";
 
 export { CommanderError };
 
-/**
- * Collect repeatable option values into an array.
- */
-function collect(value: string, previous: string[]): string[] {
-	return previous.concat(value);
-}
-
-function expandToolOptionValues(values: string[]): string[] {
-	return values.flatMap((value) =>
-		value
-			.split(",")
-			.map((part) => part.trim())
-			.filter(Boolean),
-	);
-}
-
 function normalizeAutoApproveValue(
 	value: string | boolean | undefined,
 ): string {
@@ -36,13 +20,9 @@ export function addRootOptions(cmd: Command): Command {
 	return cmd
 		.option(
 			"--acp",
-			"[TODO] Run in ACP (Agent Client Protocol) mode for editor integration",
+			"Run in ACP (Agent Client Protocol) mode for editor integration",
 		)
 		.option("-a, --act", "Run in act mode")
-		.option(
-			"--auto-approve-all",
-			"Enable auto-approve all actions while keeping interactive mode",
-		)
 		.option(
 			"--autoapprove [value]",
 			"Set tool auto-approval for all tools (`true` or `false`)",
@@ -50,7 +30,6 @@ export function addRootOptions(cmd: Command): Command {
 		)
 		.option("--config <dir>", "Configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
-		.option("--enable-spawn") // alias for --spawn
 		.option(
 			"--hooks-dir <dir>",
 			"Path to additional hooks directory for runtime hook injection",
@@ -64,14 +43,6 @@ export function addRootOptions(cmd: Command): Command {
 			"Maximum consecutive mistakes before halting in yolo mode",
 		)
 		.option("-n, --max-iterations <count>")
-		.option(
-			"--mission-step-interval <count>",
-			"Mission log update cadence in meaningful steps",
-		)
-		.option(
-			"--mission-time-interval-ms <ms>",
-			"Mission log update cadence in milliseconds",
-		)
 		.option("-m, --model <model>", "Model to use for the task")
 		.option("-p, --plan", "Run in plan mode")
 		.option("-P, --provider <id>", "Provider id (default: cline)")
@@ -85,23 +56,14 @@ export function addRootOptions(cmd: Command): Command {
 			"--sandbox-dir <dir>",
 			"Sandbox state dir (default: $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox)",
 		)
-		.option("--spawn", undefined, true)
-		.option("--no-spawn", "Disable spawn_agent")
 		.option("-s, --system <prompt>", "Override the system prompt")
 		.option("-T, --taskId <id>", "Resume an existing task by ID")
 		.option("--team-name <name>", "Override the runtime team state name")
-		.option("--teams", undefined, true)
-		.option("--no-teams", "Disable agent-team tools")
 		.option("--thinking", "Enable extended thinking (default: medium effort)")
 		.option(
 			"-t, --timeout <seconds>",
 			"Optional timeout in seconds (applies only when provided)",
 		)
-		.option("--timings", "Show timing details")
-		.option("--tool-disable <name>", "Explicitly disable one tool", collect, [])
-		.option("--tool-enable <name>", "Explicitly enable one tool", collect, [])
-		.option("--tools", undefined, true)
-		.option("--no-tools", "Disable tools")
 		.option("-u, --usage", "Show token usage and estimated cost")
 		.option("-v, --verbose", "Show verbose output")
 		.option("-y, --yolo", "Enable yolo mode (auto-approve actions)");
@@ -128,14 +90,11 @@ export function createProgram(): Command {
 
 export function commanderToParsedArgs(program: Command): ParsedArgs {
 	const opts = program.opts();
-	const spawnValueSource = program.getOptionValueSource("spawn");
-	const teamsValueSource = program.getOptionValueSource("teams");
 
 	const result: ParsedArgs = {
 		verbose: !!opts.verbose,
 		interactive: !!opts.interactive,
 		showUsage: !!opts.usage,
-		showTimings: !!opts.timings,
 		outputMode: opts.json ? "json" : "text",
 		mode: opts.plan ? "plan" : "act",
 		yolo: opts.yolo ?? false,
@@ -144,26 +103,8 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		thinking: !!opts.thinking,
 		reasoningEffort: undefined,
 		liveModelCatalog: !!opts.refreshModels,
-		enableSpawnAgent: opts.enableSpawn ? true : opts.spawn,
-		enableAgentTeams: opts.teams,
-		enableTools: opts.tools,
 		defaultToolAutoApprove: true,
-		toolPolicies: {},
 	};
-
-	// --enable-spawn overrides --spawn/--no-spawn
-	if (opts.enableSpawn) {
-		result.enableSpawnAgent = true;
-	}
-
-	if (opts.yolo) {
-		if (!opts.enableSpawn && spawnValueSource === "default") {
-			result.enableSpawnAgent = false;
-		}
-		if (teamsValueSource === "default") {
-			result.enableAgentTeams = false;
-		}
-	}
 
 	// Approval: last-wins semantics
 	if (opts.autoapprove !== undefined) {
@@ -176,7 +117,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 			result.invalidAutoApprove = raw;
 		}
 	}
-	if (opts.autoApproveAll || opts.yolo) {
+	if (opts.yolo) {
 		result.defaultToolAutoApprove = true;
 	}
 
@@ -232,35 +173,6 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 
 	if (opts.maxIterations !== undefined) {
 		result.maxIterations = Number.parseInt(opts.maxIterations, 10);
-	}
-	if (opts.missionStepInterval !== undefined) {
-		result.missionLogIntervalSteps = Number.parseInt(
-			opts.missionStepInterval,
-			10,
-		);
-	}
-	if (opts.missionTimeIntervalMs !== undefined) {
-		result.missionLogIntervalMs = Number.parseInt(
-			opts.missionTimeIntervalMs,
-			10,
-		);
-	}
-
-	// Tool policies
-	const toolEnable = expandToolOptionValues(opts.toolEnable ?? []);
-	const toolDisable = expandToolOptionValues(opts.toolDisable ?? []);
-
-	for (const name of toolEnable) {
-		result.toolPolicies[name] = {
-			...(result.toolPolicies[name] ?? {}),
-			enabled: true,
-		};
-	}
-	for (const name of toolDisable) {
-		result.toolPolicies[name] = {
-			...(result.toolPolicies[name] ?? {}),
-			enabled: false,
-		};
 	}
 
 	// Positional args → prompt

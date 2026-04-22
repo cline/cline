@@ -2,7 +2,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { Tool } from "@clinebot/shared";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import { TelemetryService } from "../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -33,6 +33,12 @@ function makeBaseConfig(
 }
 
 describe("DefaultRuntimeBuilder", () => {
+	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+
+	afterEach(() => {
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
+	});
+
 	it("includes builtin tools when enabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig(),
@@ -199,6 +205,25 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("run_commands");
 		expect(names).not.toContain("read_files");
 		expect(names).toContain("search_codebase");
+	});
+
+	it("omits tools disabled by global settings from the advertised runtime tool list", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-global-"));
+		const settingsPath = join(tempRoot, "global-settings.json");
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({ disabledTools: ["search_codebase"] }, null, 2),
+			"utf8",
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("search_codebase");
+		expect(names).toContain("read_files");
 	});
 
 	it("adds spawn tool when enabled", async () => {

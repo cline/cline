@@ -161,6 +161,27 @@ export interface BootstrapAgentTeamsResult {
 	restoredTeammates: string[];
 }
 
+export const TEAM_TOOL_NAMES = [
+	"team_spawn_teammate",
+	"team_shutdown_teammate",
+	"team_status",
+	"team_task",
+	"team_run_task",
+	"team_cancel_run",
+	"team_list_runs",
+	"team_await_runs",
+	"team_send_message",
+	"team_broadcast",
+	"team_read_mailbox",
+	"team_mission_log",
+	"team_cleanup",
+	"team_create_outcome",
+	"team_attach_outcome_fragment",
+	"team_review_outcome_fragment",
+	"team_finalize_outcome",
+	"team_list_outcomes",
+] as const;
+
 function spawnTeamTeammate(
 	options: Omit<CreateAgentTeamsToolsOptions, "requesterId" | "allowSpawn"> & {
 		requesterId: string;

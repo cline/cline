@@ -1,16 +1,19 @@
 import { createGoogleChatAdapter } from "@chat-adapter/gchat";
-import type { RpcChatStartSessionRequest } from "@clinebot/core";
+import type { ChatStartSessionRequest } from "@clinebot/core";
 import { createUserInstructionConfigWatcher } from "@clinebot/core";
-import { RpcSessionClient, registerRpcClient } from "@clinebot/rpc";
+import { HubSessionClient } from "@clinebot/hub";
 import type {
 	ConnectGoogleChatOptions,
 	GoogleChatConnectorState,
 } from "@clinebot/shared";
 import { Chat, ConsoleLogger, type Thread } from "chat";
 import type { Command } from "commander";
-import { ensureRpcRuntimeAddress } from "../../commands/rpc";
 import type { CliLoggerAdapter } from "../../logging/adapter";
 import { createCliLoggerAdapter } from "../../logging/adapter";
+import {
+	ensureCliHubServer,
+	parseHubEndpointOverride,
+} from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import {
@@ -84,13 +87,12 @@ async function buildGoogleChatStartRequest(
 	loggerConfig: Parameters<
 		typeof buildConnectorStartRequest
 	>[0]["loggerConfig"],
-): Promise<RpcChatStartSessionRequest> {
+): Promise<ChatStartSessionRequest> {
 	return buildConnectorStartRequest({
 		options,
 		io,
 		loggerConfig,
 		systemRules: GCHAT_SYSTEM_RULES,
-		teamName: `gchat-${options.userName.replace(/[^a-zA-Z0-9_-]+/g, "-")}`,
 	});
 }
 
@@ -127,7 +129,7 @@ function resolveGoogleChatParticipant(
 async function persistGoogleChatThreadContext(input: {
 	thread: Thread<GoogleChatThreadState>;
 	bindingsPath: string;
-	baseStartRequest: RpcChatStartSessionRequest;
+	baseStartRequest: ChatStartSessionRequest;
 	rawMessage: unknown;
 	errorLabel: string;
 }): Promise<void> {
@@ -160,7 +162,7 @@ async function persistGoogleChatThreadContext(input: {
 
 async function deliverScheduledResult(input: {
 	bot: Chat;
-	client: RpcSessionClient;
+	client: HubSessionClient;
 	logger: CliLoggerAdapter;
 	bindingsPath: string;
 	userName: string;
@@ -541,20 +543,24 @@ class GoogleChatConnector extends ConnectorBase<
 			cwd: commandCwd,
 			workspaceRoot: startRequest.workspaceRoot || commandCwd,
 		});
-		const rpcAddress = await ensureRpcRuntimeAddress(options.rpcAddress);
-		process.env.CLINE_RPC_ADDRESS = rpcAddress;
+		const rpcAddress = await ensureCliHubServer(
+			startRequest.workspaceRoot || startRequest.cwd || process.cwd(),
+			parseHubEndpointOverride(options.rpcAddress),
+		);
 
 		const clientId = `gchat-${process.pid}-${Date.now()}`;
-		await registerRpcClient(rpcAddress, {
+		const client = new HubSessionClient({
+			address: rpcAddress,
 			clientId,
 			clientType: "cli",
+			displayName: "gchat connector",
+			workspaceRoot: startRequest.workspaceRoot || startRequest.cwd,
+			cwd: startRequest.cwd,
 			metadata: {
 				transport: "gchat",
 				userName: options.userName,
 			},
-		}).catch(() => undefined);
-
-		const client = new RpcSessionClient({ address: rpcAddress });
+		});
 		this.writeConnectorState(statePath, {
 			userName: options.userName,
 			pid: process.pid,

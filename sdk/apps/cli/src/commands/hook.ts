@@ -1,25 +1,11 @@
-import { createInterface } from "node:readline";
-import type { HookEventPayload, RunHookResult } from "@clinebot/core";
+import type { HookEventPayload } from "@clinebot/core";
 import { handleSessionHookEvent } from "../session/session";
 import {
 	appendHookAudit,
 	parseCliHookPayload,
 	readStdinUtf8,
-	truncate,
 	writeHookJson,
 } from "../utils/helpers";
-
-interface HookWorkerRequest {
-	id: string;
-	payload: unknown;
-}
-
-interface HookWorkerResponse {
-	id: string;
-	ok: boolean;
-	result?: RunHookResult;
-	error?: string;
-}
 
 async function handleHookPayload(payload: HookEventPayload): Promise<unknown> {
 	await appendHookAudit(payload);
@@ -41,27 +27,6 @@ async function handleHookPayload(payload: HookEventPayload): Promise<unknown> {
 				`unsupported hookName: ${(payload as { hookName: string }).hookName}`,
 			);
 	}
-}
-
-function toHookResult(value: unknown): RunHookResult {
-	return {
-		exitCode: 0,
-		stdout: "",
-		stderr: "",
-		parsedJson: value,
-	};
-}
-
-function parseWorkerRequest(raw: string): HookWorkerRequest {
-	const parsed = JSON.parse(raw) as HookWorkerRequest;
-	if (!parsed || typeof parsed.id !== "string" || !parsed.id.trim()) {
-		throw new Error("invalid hook worker request id");
-	}
-	return parsed;
-}
-
-function encodeWorkerResponse(response: HookWorkerResponse): string {
-	return `${JSON.stringify(response)}\n`;
 }
 
 type HookIo = {
@@ -90,80 +55,4 @@ export async function runHookCommand(io: HookIo) {
 		io.writeErr(error instanceof Error ? error.message : String(error));
 		return 1;
 	}
-}
-
-export async function runHookWorkerCommand(writeErr: (text: string) => void) {
-	const rl = createInterface({
-		input: process.stdin,
-		crlfDelay: Infinity,
-		terminal: false,
-	});
-
-	try {
-		for await (const line of rl) {
-			const raw = line.trim();
-			if (!raw) {
-				continue;
-			}
-			let request: HookWorkerRequest;
-			try {
-				request = parseWorkerRequest(raw);
-			} catch (error) {
-				process.stdout.write(
-					encodeWorkerResponse({
-						id: "unknown",
-						ok: false,
-						error: error instanceof Error ? error.message : String(error),
-					}),
-				);
-				continue;
-			}
-
-			try {
-				const payload = await parseCliHookPayload(request.payload);
-				if (!payload) {
-					throw new Error("invalid hook payload");
-				}
-				process.stdout.write(
-					encodeWorkerResponse({
-						id: request.id,
-						ok: true,
-						result: toHookResult(await handleHookPayload(payload)),
-					}),
-				);
-			} catch (error) {
-				process.stdout.write(
-					encodeWorkerResponse({
-						id: request.id,
-						ok: false,
-						error: error instanceof Error ? error.message : String(error),
-					}),
-				);
-			}
-		}
-		return 0;
-	} catch (error) {
-		writeErr(error instanceof Error ? error.message : String(error));
-		return 1;
-	} finally {
-		rl.close();
-	}
-}
-
-export function formatHookDispatchOutput(result?: RunHookResult): string {
-	const value = result?.parsedJson;
-	if (value === undefined || value === null) {
-		return "";
-	}
-	if (
-		typeof value === "object" &&
-		!Array.isArray(value) &&
-		Object.keys(value as Record<string, unknown>).length === 0
-	) {
-		return "";
-	}
-	if (typeof value === "string") {
-		return truncate(value, 100);
-	}
-	return truncate(JSON.stringify(value), 100);
 }

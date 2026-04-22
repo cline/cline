@@ -12,7 +12,7 @@ import {
 	type SessionManifest,
 	SessionManifestSchema,
 } from "../session/session-manifest";
-import type { SessionRow } from "../session/session-service";
+import type { SessionRow } from "../session/session-row";
 import type { SessionSource, SessionStatus } from "../types/common";
 import type { StoredMessageWithMetadata } from "../types/session";
 import type { SessionRecord } from "../types/sessions";
@@ -154,22 +154,28 @@ export function withLatestAssistantTurnMetadata(
 	}
 
 	const usage = result.usage;
+	const lastAssistantIndexForUsage =
+		assistantIndexes[assistantIndexes.length - 1];
 	for (const targetIndex of assistantIndexes) {
 		const target = next[targetIndex];
+		const metrics =
+			targetIndex === lastAssistantIndexForUsage
+				? {
+						...(target.metrics ?? {}),
+						inputTokens: usage.inputTokens,
+						outputTokens: usage.outputTokens,
+						cacheReadTokens: usage.cacheReadTokens ?? 0,
+						cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+						cost: usage.totalCost,
+					}
+				: target.metrics;
 		next[targetIndex] = {
 			...normalizeStoredMessageModelMetadata(target, {
 				id: result.model.id,
 				provider: result.model.provider,
 				family: result.model.info?.family,
 			}),
-			metrics: {
-				...(target.metrics ?? {}),
-				inputTokens: usage.inputTokens,
-				outputTokens: usage.outputTokens,
-				cacheReadTokens: usage.cacheReadTokens ?? 0,
-				cacheWriteTokens: usage.cacheWriteTokens ?? 0,
-				cost: usage.totalCost,
-			},
+			...(metrics ? { metrics } : {}),
 			ts: target.ts ?? result.endedAt.getTime(),
 		};
 	}

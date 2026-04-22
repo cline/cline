@@ -7,6 +7,7 @@
 export * as Llms from "@clinebot/llms";
 // Shared contracts and path helpers re-exported for app consumers.
 export type {
+	AddProviderActionRequest,
 	AgentConfig,
 	AgentEvent,
 	AgentExtension,
@@ -15,34 +16,35 @@ export type {
 	AgentMode,
 	AgentResult,
 	BasicLogger,
+	ChatRunTurnRequest,
+	ChatRuntimeConfig,
+	ChatStartSessionArtifacts,
+	ChatStartSessionRequest,
+	ChatTurnResult,
+	ClineAccountActionRequest,
 	ConnectorHookEvent,
+	EnterpriseAuthenticateRequest,
+	EnterpriseAuthenticateResponse,
+	EnterpriseStatusRequest,
+	EnterpriseStatusResponse,
+	EnterpriseSyncRequest,
+	EnterpriseSyncResponse,
 	emptyWorkspaceManifest,
+	GetProviderModelsActionRequest,
 	HookSessionContext,
 	ITelemetryService,
-	RpcAddProviderActionRequest,
-	RpcChatMessage,
-	RpcChatRunTurnRequest,
-	RpcChatRuntimeConfigBase,
-	RpcChatRuntimeLoggerConfig,
-	RpcChatStartSessionArtifacts,
-	RpcChatStartSessionRequest,
-	RpcChatTurnResult,
-	RpcClineAccountActionRequest,
-	RpcEnterpriseAuthenticateRequest,
-	RpcEnterpriseAuthenticateResponse,
-	RpcEnterpriseStatusRequest,
-	RpcEnterpriseStatusResponse,
-	RpcEnterpriseSyncRequest,
-	RpcEnterpriseSyncResponse,
-	RpcOAuthProviderId,
-	RpcProviderActionRequest,
-	RpcProviderCapability,
-	RpcProviderCatalogResponse,
-	RpcProviderListItem,
-	RpcProviderModel,
-	RpcProviderOAuthLoginResponse,
-	RpcSaveProviderSettingsActionRequest,
+	ListProvidersActionRequest,
+	OAuthProviderId,
+	ProviderActionRequest,
+	ProviderCatalogResponse,
+	ProviderListItem,
+	ProviderModel,
+	ProviderOAuthLoginResponse,
+	RuntimeLoggerConfig,
+	SaveProviderSettingsActionRequest,
 	SessionLineage,
+	TEAM_LIFECYCLE_EVENT_TYPE,
+	TEAM_PROGRESS_EVENT_TYPE,
 	TeamProgressProjectionEvent,
 	TelemetryArray,
 	TelemetryMetadata,
@@ -69,8 +71,6 @@ export {
 	noopBasicLogger,
 	normalizeUserInput,
 	parseUserCommandEnvelope,
-	RPC_TEAM_LIFECYCLE_EVENT_TYPE,
-	RPC_TEAM_PROGRESS_EVENT_TYPE,
 } from "@clinebot/shared";
 export * from "@clinebot/shared/storage";
 export {
@@ -85,11 +85,11 @@ export {
 	type ClineAccountUsageTransaction,
 	type ClineAccountUser,
 	type ClineOrganization,
-	executeRpcClineAccountAction,
+	executeClineAccountAction,
 	type FeaturebaseTokenResponse,
-	isRpcClineAccountActionRequest,
+	isClineAccountActionRequest,
+	type ProviderActionExecutor,
 	RpcClineAccountService,
-	type RpcProviderActionExecutor,
 	type UserRemoteConfigOrganization,
 	type UserRemoteConfigResponse,
 } from "./account";
@@ -154,7 +154,8 @@ export {
 	ClineCore,
 	type ClineCoreOptions,
 	type ClineCoreStartInput,
-	type RpcOptions,
+	type HubOptions,
+	type RemoteOptions,
 } from "./ClineCore";
 export type {
 	LoadAgentPluginFromPathOptions,
@@ -296,16 +297,11 @@ export {
 	toTeamProgressLifecycleEvent,
 } from "./extensions/tools/team";
 export {
-	createPersistentSubprocessHooks,
 	createSubprocessHooks,
 	type HookEventName,
 	HookEventNameSchema,
 	type HookEventPayload,
 	HookEventPayloadSchema,
-	PersistentHookClient,
-	type PersistentHookClientOptions,
-	type PersistentSubprocessHookControl,
-	type PersistentSubprocessHooksOptions,
 	parseHookEventPayload,
 	type RunHookOptions,
 	type RunHookResult,
@@ -320,6 +316,7 @@ export type {
 	CheckpointEntry,
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
+export * from "./hub";
 export type { SessionBackend } from "./runtime/host";
 export {
 	createRuntimeHost,
@@ -327,34 +324,11 @@ export {
 	resolveSessionBackend,
 } from "./runtime/host";
 export {
-	clearRpcDiscoveryIfAddressMatches,
-	type EnsureRpcRuntimeOptions,
-	ensureRpcRuntimeAddress,
-	isCompatibleRuntime,
-	type ResolveRpcRuntimeResult,
-	RPC_BUILD_ID_ENV,
-	RPC_DISCOVERY_PATH_ENV,
-	RPC_OWNER_ID_ENV,
-	RPC_STARTUP_LOCK_BYPASS_ENV,
-	type RpcDiscoveryRecord,
-	type RpcOwnerContext,
-	type RpcStartupLockHandle,
-	recordRpcDiscovery,
-	resolveEnsuredRpcRuntime,
-	resolveRpcOwnerContext,
-	resolveRpcRuntimeBuildKey,
-	waitForCompatibleRpcRuntime,
-	withRpcStartupLock,
-} from "./runtime/rpc-runtime-ensure";
-export {
-	type RpcSpawnLease,
-	tryAcquireRpcSpawnLease,
-} from "./runtime/rpc-spawn-lease";
-export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
 	listEnabledRulesFromWatcher,
 	loadRulesForSystemPromptFromWatcher,
+	mergeRulesForSystemPrompt,
 } from "./runtime/rules";
 export {
 	createTeamName,
@@ -375,9 +349,6 @@ export type {
 	RuntimeBuilder,
 	RuntimeBuilderInput,
 	SessionRuntime,
-	TeamToolsFactory,
-	TeamToolsFactoryOptions,
-	TeamToolsFactoryResult,
 } from "./runtime/session-runtime";
 export {
 	type SandboxCallOptions,
@@ -388,6 +359,18 @@ export {
 	type DesktopToolApprovalOptions,
 	requestDesktopToolApproval,
 } from "./runtime/tool-approval";
+export type { GlobalSettings } from "./services/global-settings";
+export {
+	filterDisabledTools,
+	filterExtensionToolRegistrations,
+	isToolDisabledGlobally,
+	readGlobalSettings,
+	resolveDisabledToolNames,
+	toggleDisabledTool,
+	writeGlobalSettings,
+} from "./services/global-settings";
+export type { PluginToolSummary } from "./services/plugin-tools";
+export { listPluginTools } from "./services/plugin-tools";
 export {
 	addLocalProvider,
 	type DeleteLocalProviderRequest,
@@ -474,7 +457,6 @@ export {
 	generateWorkspaceInfo,
 	normalizeWorkspacePath,
 } from "./services/workspace-manifest";
-export { RpcCoreSessionService } from "./session/rpc-session-service";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
@@ -482,24 +464,24 @@ export {
 	sanitizeSessionToken,
 } from "./session/session-graph";
 export type { SessionManifest } from "./session/session-manifest";
+export type { SessionRow } from "./session/session-row";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
-	SessionRow,
 } from "./session/session-service";
 export { CoreSessionService } from "./session/session-service";
 export {
-	createSqliteRpcSessionBackend,
-	SqliteRpcSessionBackend,
-	type SqliteRpcSessionBackendOptions,
-} from "./session/sqlite-rpc-session-backend";
+	FileTeamPersistenceStore,
+	type FileTeamPersistenceStoreOptions,
+} from "./session/team-persistence-store";
 export type {
 	WorkspaceManager,
 	WorkspaceManagerEvent,
 } from "./session/workspace-manager";
 export { InMemoryWorkspaceManager } from "./session/workspace-manager";
+export { HubRuntimeHost } from "./transports/hub";
 export { LocalRuntimeHost } from "./transports/local";
-export { RpcRuntimeHost } from "./transports/rpc";
+export { RemoteRuntimeHost } from "./transports/remote";
 export type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -524,6 +506,7 @@ export { createContextCompactionPrepareTurn } from "./extensions/context/compact
 export {
 	ALL_DEFAULT_TOOL_NAMES,
 	type AskQuestionExecutor,
+	type BuiltinToolAvailabilityContext,
 	type CreateBuiltinToolsOptions,
 	type CreateDefaultToolsOptions,
 	createBuiltinTools,
@@ -535,6 +518,13 @@ export {
 	type DefaultToolName,
 	DefaultToolNames,
 	type DefaultToolsConfig,
+	getCoreAcpToolNames,
+	getCoreBuiltinToolCatalog,
+	getCoreDefaultEnabledToolIds,
+	getCoreHeadlessToolNames,
+	resolveCoreSelectedToolIds,
+	TEAM_TOOL_NAMES,
+	type ToolCatalogEntry,
 	type ToolExecutors,
 	type ToolPolicyPresetName,
 	type ToolPresetName,

@@ -1,26 +1,15 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createScheduleCommand } from "./schedule";
 
-const mockListSchedules = vi.hoisted(() => vi.fn());
-const mockClientClose = vi.hoisted(() => vi.fn());
-const mockGetRpcServerHealth = vi.hoisted(() => vi.fn());
+const mockSendHubCommand = vi.hoisted(() => vi.fn());
+const mockEnsureCliHubServer = vi.hoisted(() => vi.fn());
 
-vi.mock("@clinebot/rpc", () => ({
-	RPC_BUILD_VERSION: "rpc-build-test",
-	getRpcServerHealth: mockGetRpcServerHealth,
-	RpcSessionClient: class {
-		async listSchedules(input: unknown) {
-			return mockListSchedules(input);
-		}
-
-		close() {
-			mockClientClose();
-		}
-	},
+vi.mock("@clinebot/hub", () => ({
+	sendHubCommand: mockSendHubCommand,
 }));
 
-vi.mock("./rpc", () => ({
-	runRpcEnsureCommand: vi.fn(async () => 0),
+vi.mock("../utils/hub-runtime", () => ({
+	ensureCliHubServer: mockEnsureCliHubServer,
 }));
 
 async function runScheduleCommand(
@@ -41,8 +30,11 @@ describe("runScheduleCommand list output", () => {
 	});
 
 	it('prints "No schedules found." for empty non-json list output', async () => {
-		mockGetRpcServerHealth.mockResolvedValue({ running: true });
-		mockListSchedules.mockResolvedValue([]);
+		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:4319/hub");
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedules: [] },
+		});
 
 		const output: string[] = [];
 		const errors: string[] = [];
@@ -58,17 +50,26 @@ describe("runScheduleCommand list output", () => {
 		expect(code).toBe(0);
 		expect(errors).toEqual([]);
 		expect(output).toEqual(["No schedules found."]);
-		expect(mockListSchedules).toHaveBeenCalledWith({
-			limit: 100,
-			enabled: undefined,
-			tags: undefined,
-		});
-		expect(mockClientClose).toHaveBeenCalledTimes(1);
+		expect(mockSendHubCommand).toHaveBeenCalledWith(
+			{},
+			{
+				clientId: "clite-schedule",
+				command: "schedule.list",
+				payload: {
+					limit: 100,
+					enabled: undefined,
+					tags: undefined,
+				},
+			},
+		);
 	});
 
 	it("keeps JSON list output unchanged when --json is provided", async () => {
-		mockGetRpcServerHealth.mockResolvedValue({ running: true });
-		mockListSchedules.mockResolvedValue([]);
+		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:4319/hub");
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedules: [] },
+		});
 
 		const output: string[] = [];
 		const errors: string[] = [];
@@ -84,6 +85,6 @@ describe("runScheduleCommand list output", () => {
 		expect(code).toBe(0);
 		expect(errors).toEqual([]);
 		expect(output).toEqual(["[]"]);
-		expect(mockClientClose).toHaveBeenCalledTimes(1);
+		expect(mockSendHubCommand).toHaveBeenCalled();
 	});
 });

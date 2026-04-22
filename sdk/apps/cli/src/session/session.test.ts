@@ -76,18 +76,22 @@ describe("createCliCore", () => {
 		await sessionModule.createCliCore();
 
 		expect(createCore).toHaveBeenCalledWith(
-			expect.not.objectContaining({
-				backendMode: "local",
+			expect.objectContaining({
+				backendMode: "hub",
 			}),
 		);
 	});
 
-	it("lets core interpret env-managed backend routing by default", async () => {
+	it("prefers the shared hub backend by default", async () => {
 		await sessionModule.createCliCore();
 
 		expect(createCore).toHaveBeenCalledWith(
-			expect.not.objectContaining({
-				backendMode: expect.anything(),
+			expect.objectContaining({
+				backendMode: "hub",
+				hub: expect.objectContaining({
+					clientType: "cli",
+					displayName: "Cline CLI",
+				}),
 			}),
 		);
 	});
@@ -98,6 +102,24 @@ describe("createCliCore", () => {
 		expect(createCore).toHaveBeenCalledWith(
 			expect.objectContaining({
 				backendMode: "local",
+			}),
+		);
+	});
+
+	it("keeps the shared hub backend when custom tool executors are provided", async () => {
+		await sessionModule.createCliCore({
+			defaultToolExecutors: {
+				submit: vi.fn(),
+			},
+		});
+
+		expect(createCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				backendMode: "hub",
+				hub: expect.objectContaining({
+					clientType: "cli",
+					displayName: "Cline CLI",
+				}),
 			}),
 		);
 	});
@@ -138,7 +160,7 @@ describe("createCliCore", () => {
 		expect(logger.log).toHaveBeenCalledWith(
 			"CLI core runtime routing selected",
 			{
-				backendMode: "env-managed",
+				backendMode: "hub",
 				rpcAddress: "127.0.0.1:4317",
 				forceLocalBackend: false,
 			},
