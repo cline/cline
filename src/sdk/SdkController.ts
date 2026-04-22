@@ -13,7 +13,7 @@ import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineAskQuestion, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
 import type { Settings } from "@shared/storage/state-keys"
@@ -110,6 +110,11 @@ export class Controller {
 	// we need to restart the SDK session to pick up the new tools.
 	// If the session is mid-turn, we defer the restart until the turn completes.
 	private mcpToolRestartPending = false
+
+	// Pending ask_question resolve — when the SDK's built-in ask_question tool
+	// fires, we store the Promise resolve function here. When the user responds
+	// via askResponse(), we call it to return the answer to the SDK.
+	private pendingAskResolve: ((answer: string) => void) | undefined
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -463,7 +468,41 @@ export class Controller {
 	private async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
-		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+		const sessionManager = await VscodeSessionHost.create({
+			mcpHub: this.mcpHub,
+			askQuestion: async (question: string, options: string[], _context: unknown): Promise<string> => {
+				// Build ClineAskQuestion JSON (same format as classic ask_followup_question)
+				const askData: ClineAskQuestion = {
+					question,
+					options: options?.length ? options : undefined,
+				}
+
+				// Emit as ClineMessage with type:"ask", ask:"followup"
+				const askMessage: ClineMessage = {
+					ts: Date.now(),
+					type: "ask",
+					ask: "followup",
+					text: JSON.stringify(askData),
+					partial: false,
+				}
+
+				// Add to message state and push to webview
+				if (this.task?.messageStateHandler) {
+					this.task.messageStateHandler.addMessages([askMessage])
+					this.debouncedSaveClineMessages()
+				}
+				this.emitSessionEvents([askMessage], {
+					type: "status",
+					payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+				})
+				await this.postStateToWebview()
+
+				// Return a Promise that resolves when the user responds via askResponse()
+				return new Promise<string>((resolve) => {
+					this.pendingAskResolve = resolve
+				})
+			},
+		})
 		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			this.handleSessionEvent(event)
 		})
@@ -715,6 +754,9 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
+		// Clear any pending ask_question — the question is moot after cancellation
+		this.pendingAskResolve = undefined
+
 		if (!this.activeSession) {
 			Logger.warn("[SdkController] cancelTask: No active session")
 			return
@@ -760,6 +802,9 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
+		// Clear any pending ask_question — the session is being torn down
+		this.pendingAskResolve = undefined
+
 		if (this.activeSession) {
 			const { sessionManager, unsubscribe, sessionId } = this.activeSession
 
@@ -872,6 +917,39 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		// Check if the SDK's ask_question tool is waiting for a response.
+		// If so, resolve the pending promise with the user's answer and return
+		// — we do NOT send a new message to the SDK in this case.
+		if (this.pendingAskResolve) {
+			const resolve = this.pendingAskResolve
+			this.pendingAskResolve = undefined
+
+			const responseText = prompt ?? ""
+			Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
+
+			// Render the user's response in the chat timeline
+			if (responseText) {
+				const userMessage: ClineMessage = {
+					ts: Date.now(),
+					type: "say",
+					say: "user_feedback",
+					text: responseText,
+					partial: false,
+				}
+				if (this.task?.messageStateHandler) {
+					this.task.messageStateHandler.addMessages([userMessage])
+					this.debouncedSaveClineMessages()
+				}
+				this.emitSessionEvents([userMessage], {
+					type: "status",
+					payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+				})
+			}
+
+			resolve(responseText)
+			return
+		}
+
 		// If the user is viewing an old task (this.task is set by showTaskWithId)
 		// but there's no active SDK session, we need to resume the session first.
 		// Also resume when the session was cancelled (isRunning === false) — the

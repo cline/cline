@@ -482,13 +482,17 @@ underlying patterns that caused them are relevant.
   
   **Reference**: CLI implementation at `apps/cli/src/utils/approval.ts:63-108`. Desktop implementation at `apps/desktop/hooks/use-agent-session.tsx:134-194` (polls for approvals via `poll_tool_approvals` Tauri command). Tauri desktop at `apps/code/hooks/use-chat-session.ts:993-1010` (responds via `respond_tool_approval`).
 
-  **Part B: `askQuestion` executor (~30 lines)**
-  Wire into `VscodeSessionHost.create()` via `defaultToolExecutors: { askQuestion: fn }`. The executor should:
-  1. Emit a ClineMessage with `type: "ask"`, `ask: "followup"` containing the question and options
-  2. Return a Promise that resolves with the user's text response when they reply in the webview
-  3. The webview's existing follow-up question UI already handles this message type
+  **Part B: `askQuestion` executor (~30 lines)** — ✅ **Fixed**
+  Wired into `VscodeSessionHost.create()` via `defaultToolExecutors: { askQuestion: fn }`. The executor:
+  1. Builds a `ClineAskQuestion` JSON payload with `question` and `options`
+  2. Emits a ClineMessage with `type: "ask"`, `ask: "followup"` — the webview's existing follow-up question UI renders this
+  3. Returns a Promise that resolves when the user responds via `askResponse()`
+  4. `askResponse()` checks `pendingAskResolve` first — if set, resolves the Promise with the user's answer instead of sending a new SDK message
+  5. `cancelTask()` and `clearTask()` both clear `pendingAskResolve` to prevent leaks
   
-  **Reference**: CLI implementation at `apps/cli/src/runtime/run-interactive.ts:106` (`askQuestionInTerminal`).
+  **Files changed**: `src/sdk/vscode-session-host.ts` (added `askQuestion` option, `defaultToolExecutors` in `ClineCore.create()`), `src/sdk/SdkController.ts` (added `pendingAskResolve` field, executor implementation in `startNewSession()`, resolution in `askResponse()`, cleanup in `cancelTask()`/`clearTask()`)
+  
+  **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 148 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 2 pre-existing test suite failures (`auth-service.test.ts`, `cline-session-factory.test.ts`) are unrelated `@hosts/host-provider` import errors.
 
   **Part C: Pending prompts for follow-up messages (~20 lines)**
   Update `SdkController.askResponse()` to use `delivery: "queue"` when the agent is running, so follow-up messages are queued instead of throwing. Subscribe to `pending_prompts` and `pending_prompt_submitted` events to show queued messages in the webview.
