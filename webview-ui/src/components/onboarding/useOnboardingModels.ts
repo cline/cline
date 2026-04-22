@@ -7,6 +7,13 @@ import { useEffect, useMemo, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ModelsServiceClient } from "@/services/grpc-client"
 
+export type OnboardingModelsStatus = "loading" | "success" | "empty"
+
+export interface UseOnboardingModelsResult {
+	status: OnboardingModelsStatus
+	models: OnboardingModelGroup
+}
+
 function toOnboardingModel(
 	rec: ClineRecommendedModel,
 	group: string,
@@ -42,9 +49,11 @@ interface RecommendedModelsData {
 	free: ClineRecommendedModel[]
 }
 
-export function useOnboardingModels(): OnboardingModelGroup {
+type FetchState = { status: "loading" } | { status: "success"; data: RecommendedModelsData } | { status: "empty" }
+
+export function useOnboardingModels(): UseOnboardingModelsResult {
 	const { openRouterModels, clineModels, refreshClineModels } = useExtensionState()
-	const [data, setData] = useState<RecommendedModelsData | null>(null)
+	const [fetchState, setFetchState] = useState<FetchState>({ status: "loading" })
 
 	useEffect(() => {
 		let cancelled = false
@@ -53,9 +62,19 @@ export function useOnboardingModels(): OnboardingModelGroup {
 			try {
 				const response = await ModelsServiceClient.refreshClineRecommendedModelsRpc(EmptyRequest.create({}))
 				if (!cancelled) {
-					setData({ recommended: response.recommended ?? [], free: response.free ?? [] })
+					const recommended = response.recommended ?? []
+					const free = response.free ?? []
+					if (recommended.length === 0 && free.length === 0) {
+						setFetchState({ status: "empty" })
+					} else {
+						setFetchState({ status: "success", data: { recommended, free } })
+					}
 				}
-			} catch {}
+			} catch {
+				if (!cancelled) {
+					setFetchState({ status: "empty" })
+				}
+			}
 		}
 
 		refreshRecommendedModels()
@@ -74,14 +93,15 @@ export function useOnboardingModels(): OnboardingModelGroup {
 		return { ...openRouterModels, ...(clineModels ?? {}) }
 	}, [openRouterModels, clineModels])
 
-	return useMemo<OnboardingModelGroup>(() => {
-		if (!data || (data.recommended.length === 0 && data.free.length === 0)) {
-			return { models: CLINE_ONBOARDING_MODELS }
+	return useMemo<UseOnboardingModelsResult>(() => {
+		if (fetchState.status !== "success") {
+			return { status: fetchState.status, models: { models: CLINE_ONBOARDING_MODELS } }
 		}
 
+		const { data } = fetchState
 		const freeModels = data.free.map((rec) => toOnboardingModel(rec, "free", "Free", modelCatalog))
 		const frontierModels = data.recommended.map((rec) => toOnboardingModel(rec, "frontier", "", modelCatalog))
 
-		return { models: [...freeModels, ...frontierModels] }
-	}, [data, modelCatalog])
+		return { status: "success", models: { models: [...freeModels, ...frontierModels] } }
+	}, [fetchState, modelCatalog])
 }

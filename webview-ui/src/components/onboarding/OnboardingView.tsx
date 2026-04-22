@@ -1,5 +1,5 @@
 import type { ModelInfo } from "@shared/api"
-import type { OnboardingModel, OpenRouterModelInfo } from "@shared/proto/index.cline"
+import type { OnboardingModel, OnboardingModelGroup, OpenRouterModelInfo } from "@shared/proto/index.cline"
 import { AlertCircleIcon, CircleCheckIcon, CircleIcon, ListIcon, LoaderCircleIcon, ZapIcon } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import ClineLogoWhite from "@/assets/ClineLogoWhite"
@@ -12,6 +12,7 @@ import { cn } from "@/lib/utils"
 import { AccountServiceClient, StateServiceClient } from "@/services/grpc-client"
 import ApiConfigurationSection from "../settings/sections/ApiConfigurationSection"
 import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
+import WelcomeView from "../welcome/WelcomeView"
 import {
 	getCapabilities,
 	getClineUIOnboardingGroups,
@@ -264,10 +265,9 @@ const OnboardingStepContent = ({
 	return <ApiConfigurationSection />
 }
 
-const OnboardingView = () => {
+const OnboardingViewContent = ({ onboardingModels }: { onboardingModels: OnboardingModelGroup }) => {
 	const { handleFieldsChange } = useApiConfigurationHandlers()
 	const { openRouterModels, hideSettings, hideAccount, setShowWelcome } = useExtensionState()
-	const onboardingModels = useOnboardingModels()
 
 	const [stepNumber, setStepNumber] = useState(0)
 	const [isActionLoading, setIsActionLoading] = useState(false)
@@ -418,6 +418,24 @@ const OnboardingView = () => {
 			</div>
 		</div>
 	)
+}
+
+const OnboardingView = () => {
+	const { status, models } = useOnboardingModels()
+
+	if (status === "loading") {
+		return (
+			<div className="fixed inset-0 flex items-center justify-center">
+				<LoaderCircleIcon className="animate-spin" />
+			</div>
+		)
+	}
+
+	if (status === "empty") {
+		return <WelcomeView />
+	}
+
+	return <OnboardingViewContent onboardingModels={models} />
 }
 
 export default OnboardingView
