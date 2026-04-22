@@ -3,11 +3,6 @@ English | <a href="https://github.com/cline/cline/blob/main/locales/es/README.md
 </sub></div>
 
 # Cline
-
-<p align="center">
-  <img src="https://media.githubusercontent.com/media/cline/cline/main/assets/docs/demo.gif" width="100%" />
-</p>
-
 <div align="center">
 <table>
 <tbody>
