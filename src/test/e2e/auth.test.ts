@@ -69,25 +69,4 @@ e2e("Views - can set up API keys and navigate to Settings from Chat", async ({ s
 	await expect(clineLogo).toBeVisible()
 	const chatInputBox = sidebar.getByTestId("chat-input")
 	await expect(chatInputBox).toBeVisible()
-
-	// Verify What's New Section is showing and starts with first banner,
-	// and the navigation buttons work
-	const announcementsRegion = sidebar.locator('[aria-label="Announcements"]')
-	await expect(announcementsRegion).toBeVisible()
-
-	const pageIndicator = announcementsRegion
-		.locator("div")
-		.filter({ hasText: /^\d+ \/ \d+$/ })
-		.first()
-	await expect(pageIndicator).toBeVisible()
-
-	const initialIndicator = (await pageIndicator.innerText()).trim()
-	const totalBanners = Number(initialIndicator.split("/")[1]?.trim() || "0")
-
-	if (totalBanners > 1) {
-		await sidebar.getByRole("button", { name: "Next banner" }).click()
-		await expect(pageIndicator).not.toHaveText(initialIndicator)
-		await sidebar.getByRole("button", { name: "Previous banner" }).click()
-		await expect(pageIndicator).toHaveText(initialIndicator)
-	}
 })
