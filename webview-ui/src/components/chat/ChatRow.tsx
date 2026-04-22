@@ -435,10 +435,10 @@ export const ChatRowContent = memo(
 									toolIcon("sign-out", "yellow", -90, "This file is outside of your workspace")}
 								<span style={{ fontWeight: "bold" }}>{editToolTitle}</span>
 							</div>
-							{backgroundEditEnabled && tool.path && tool.content ? (
+							{backgroundEditEnabled && tool.path && (tool.diff || tool.content) ? (
 								<DiffEditRow
 									isLoading={message.partial}
-									patch={tool.content}
+									patch={tool.diff || tool.content!}
 									path={tool.path}
 									startLineNumbers={tool.startLineNumbers}
 								/>
