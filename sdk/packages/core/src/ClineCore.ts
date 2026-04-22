@@ -13,11 +13,13 @@ import type {
 	LocalRuntimeStartOptions,
 	RuntimeHost,
 	RuntimeHostMode,
+	RuntimeHostSubscribeOptions,
 	StartSessionInput,
 	StartSessionResult,
 } from "./runtime/runtime-host";
 import { splitCoreSessionConfig } from "./runtime/runtime-host";
 import type { CoreSessionConfig } from "./types/config";
+import type { CoreSessionEvent } from "./types/events";
 import type { SessionMessagesArtifactUploader } from "./types/session";
 
 export interface HubOptions {
@@ -307,8 +309,12 @@ export class ClineCore implements RuntimeHost {
 		this.host.readMessages(...args);
 	handleHookEvent: RuntimeHost["handleHookEvent"] = (...args) =>
 		this.host.handleHookEvent(...args);
-	subscribe: RuntimeHost["subscribe"] = (...args) =>
-		this.host.subscribe(...args);
+	subscribe(
+		listener: (event: CoreSessionEvent) => void,
+		options?: RuntimeHostSubscribeOptions,
+	): () => void {
+		return this.host.subscribe(listener, options);
+	}
 	updateSessionModel: RuntimeHost["updateSessionModel"] = (...args) =>
 		this.host.updateSessionModel?.(...args) ?? Promise.resolve();
 }

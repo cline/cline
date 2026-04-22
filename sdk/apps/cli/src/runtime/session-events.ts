@@ -1,5 +1,10 @@
 import { EventEmitter } from "node:events";
-import type { AgentEvent, CoreSessionEvent, TeamEvent } from "@clinebot/core";
+import type {
+	AgentEvent,
+	CoreSessionEvent,
+	RuntimeHostSubscribeOptions,
+	TeamEvent,
+} from "@clinebot/core";
 
 export const getUIEventEmitter = () =>
 	new EventEmitter() as InteractiveEventBridge;
@@ -53,12 +58,16 @@ interface InteractiveEventBridge {
 }
 
 type SessionManagerSubscriber = {
-	subscribe(listener: (event: unknown) => void): () => void;
+	subscribe(
+		listener: (event: unknown) => void,
+		options?: RuntimeHostSubscribeOptions,
+	): () => void;
 };
 
 export function subscribeToAgentEvents(
 	sessionManager: SessionManagerSubscriber,
 	onAgentEvent: (event: AgentEvent) => void,
+	options?: RuntimeHostSubscribeOptions,
 ): () => void {
 	let hasSeenStructuredAgentEvent = false;
 	return sessionManager.subscribe((event: unknown) => {
@@ -101,7 +110,7 @@ export function subscribeToAgentEvents(
 		} catch {
 			// Best-effort event parsing path.
 		}
-	});
+	}, options);
 }
 
 export function subscribeToPendingPromptEvents(

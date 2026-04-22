@@ -23,6 +23,11 @@ type PendingReply = {
 	reject: (error: unknown) => void;
 };
 
+type SubscriptionEntry = {
+	listener: (event: HubEventEnvelope) => void;
+	sessionId?: string;
+};
+
 type WebSocketLike = {
 	readyState: number;
 	send(data: string): void;
@@ -101,6 +106,7 @@ export interface LocalHubResolutionOptions {
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
+const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_COMMAND_TIMEOUT_MS = 30_000;
 
@@ -109,7 +115,8 @@ export class NodeHubClient {
 	private connectPromise: Promise<void> | undefined;
 	private readonly clientId: string;
 	private readonly pendingReplies = new Map<string, PendingReply>();
-	private readonly listeners = new Set<(event: HubEventEnvelope) => void>();
+	private readonly listeners = new Set<SubscriptionEntry>();
+	private readonly subscriptionCounts = new Map<string, number>();
 	private lastCloseMessage = "Hub connection closed";
 
 	constructor(private readonly options: HubClientOptions) {
@@ -212,16 +219,27 @@ export class NodeHubClient {
 				cwd: this.options.cwd,
 			},
 		} satisfies HubClientRegistration);
-		this.sendFrame({
-			kind: "stream.subscribe",
-			clientId: this.clientId,
-		});
+		for (const key of this.subscriptionCounts.keys()) {
+			this.sendSubscriptionFrame(
+				"stream.subscribe",
+				this.subscriptionSessionIdFromKey(key),
+			);
+		}
 	}
 
-	subscribe(listener: (event: HubEventEnvelope) => void): () => void {
-		this.listeners.add(listener);
+	subscribe(
+		listener: (event: HubEventEnvelope) => void,
+		options?: { sessionId?: string },
+	): () => void {
+		const sessionId = options?.sessionId?.trim() || undefined;
+		const entry = { listener, sessionId };
+		this.listeners.add(entry);
+		this.adjustSubscriptionCount(sessionId, 1);
 		return () => {
-			this.listeners.delete(listener);
+			if (!this.listeners.delete(entry)) {
+				return;
+			}
+			this.adjustSubscriptionCount(sessionId, -1);
 		};
 	}
 
@@ -304,6 +322,44 @@ export class NodeHubClient {
 		this.socket.send(JSON.stringify(frame));
 	}
 
+	private sendSubscriptionFrame(
+		kind: "stream.subscribe" | "stream.unsubscribe",
+		sessionId?: string,
+	): void {
+		this.sendFrame({
+			kind,
+			clientId: this.clientId,
+			...(sessionId ? { sessionId } : {}),
+		});
+	}
+
+	private adjustSubscriptionCount(
+		sessionId: string | undefined,
+		delta: 1 | -1,
+	): void {
+		const key = this.subscriptionKeyForSessionId(sessionId);
+		const next = (this.subscriptionCounts.get(key) ?? 0) + delta;
+		if (next <= 0) {
+			this.subscriptionCounts.delete(key);
+			if (delta < 0 && this.socket?.readyState === 1) {
+				this.sendSubscriptionFrame("stream.unsubscribe", sessionId);
+			}
+			return;
+		}
+		this.subscriptionCounts.set(key, next);
+		if (delta > 0 && next === 1 && this.socket?.readyState === 1) {
+			this.sendSubscriptionFrame("stream.subscribe", sessionId);
+		}
+	}
+
+	private subscriptionKeyForSessionId(sessionId: string | undefined): string {
+		return sessionId ?? GLOBAL_SUBSCRIPTION_KEY;
+	}
+
+	private subscriptionSessionIdFromKey(key: string): string | undefined {
+		return key === GLOBAL_SUBSCRIPTION_KEY ? undefined : key;
+	}
+
 	private handleFrame(frame: HubTransportFrame): void {
 		switch (frame.kind) {
 			case "reply": {
@@ -320,8 +376,14 @@ export class NodeHubClient {
 				return;
 			}
 			case "event":
-				for (const listener of this.listeners) {
-					listener(frame.envelope);
+				for (const entry of this.listeners) {
+					if (
+						entry.sessionId &&
+						entry.sessionId !== frame.envelope.sessionId?.trim()
+					) {
+						continue;
+					}
+					entry.listener(frame.envelope);
 				}
 				return;
 			case "command":

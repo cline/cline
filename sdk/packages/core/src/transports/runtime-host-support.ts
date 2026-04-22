@@ -3,22 +3,39 @@ import { readFile } from "node:fs/promises";
 import type * as LlmsProviders from "@clinebot/llms";
 import { formatDisplayUserInput } from "@clinebot/shared";
 import type { HookEventPayload } from "../hooks";
-import type { SessionAccumulatedUsage } from "../runtime/runtime-host";
+import type {
+	RuntimeHostSubscribeOptions,
+	SessionAccumulatedUsage,
+} from "../runtime/runtime-host";
 import type { CoreSessionEvent } from "../types/events";
 
 export class RuntimeHostEventBus {
-	private readonly listeners = new Set<(event: CoreSessionEvent) => void>();
+	private readonly listeners = new Set<{
+		listener: (event: CoreSessionEvent) => void;
+		sessionId?: string;
+	}>();
 
-	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
-		this.listeners.add(listener);
+	subscribe(
+		listener: (event: CoreSessionEvent) => void,
+		options?: RuntimeHostSubscribeOptions,
+	): () => void {
+		const entry = {
+			listener,
+			sessionId: options?.sessionId?.trim() || undefined,
+		};
+		this.listeners.add(entry);
 		return () => {
-			this.listeners.delete(listener);
+			this.listeners.delete(entry);
 		};
 	}
 
 	emit(event: CoreSessionEvent): void {
-		for (const listener of this.listeners) {
-			listener(event);
+		const sessionId = event.payload.sessionId?.trim();
+		for (const entry of this.listeners) {
+			if (entry.sessionId && entry.sessionId !== sessionId) {
+				continue;
+			}
+			entry.listener(event);
 		}
 	}
 

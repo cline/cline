@@ -2,7 +2,7 @@ import { test } from "@microsoft/tui-test";
 import { CLINE_BIN } from "./helpers/constants.js";
 import { clineEnv } from "./helpers/env.js";
 import { waitForChatReady } from "./helpers/page-objects/chat.js";
-import { expectVisible, typeAndSubmit } from "./helpers/terminal.js";
+import { expectVisible } from "./helpers/terminal.js";
 
 test.describe("cline interactive basics", () => {
 	test.use({
@@ -25,7 +25,8 @@ test.describe("cline interactive basics", () => {
 
 	test("shows slash commands after / input", async ({ terminal }) => {
 		await waitForChatReady(terminal);
-		await typeAndSubmit(terminal, "/");
+		// Type "/" without submitting to trigger the slash menu
+		terminal.write("/");
 		await expectVisible(terminal, ["/settings"], {
 			timeout: 5000,
 		});

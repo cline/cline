@@ -1,8 +1,75 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { NodeHubClient } from "./client";
 
+type SocketListener = (...args: unknown[]) => void;
 type MessageListener = (event: { data: string }) => void;
 type GenericListener = (...args: unknown[]) => void;
+
+class MockWebSocket {
+	static readonly CONNECTING = 0;
+	static readonly OPEN = 1;
+	static readonly CLOSING = 2;
+	static readonly CLOSED = 3;
+	static instances: MockWebSocket[] = [];
+
+	readyState = MockWebSocket.CONNECTING;
+	readonly sentFrames: unknown[] = [];
+	private readonly listeners = new Map<string, SocketListener[]>();
+
+	constructor(public readonly url: string) {
+		MockWebSocket.instances.push(this);
+		queueMicrotask(() => {
+			this.readyState = MockWebSocket.OPEN;
+			this.emit("open");
+		});
+	}
+
+	static reset(): void {
+		MockWebSocket.instances = [];
+	}
+
+	send(data: string): void {
+		const frame = JSON.parse(data) as {
+			kind?: string;
+			envelope?: { requestId?: string };
+		};
+		this.sentFrames.push(frame);
+		if (frame.kind === "command" && frame.envelope?.requestId) {
+			queueMicrotask(() => {
+				this.emit("message", {
+					data: JSON.stringify({
+						kind: "reply",
+						envelope: {
+							version: "v1",
+							command: "client.register",
+							requestId: frame.envelope?.requestId,
+							ok: true,
+							clientId: "hub",
+							payload: {},
+						},
+					}),
+				});
+			});
+		}
+	}
+
+	close(): void {
+		this.readyState = MockWebSocket.CLOSED;
+		this.emit("close", { code: 1000, reason: "" });
+	}
+
+	addEventListener(type: string, listener: SocketListener): void {
+		const listeners = this.listeners.get(type) ?? [];
+		listeners.push(listener);
+		this.listeners.set(type, listeners);
+	}
+
+	emit(type: string, ...args: unknown[]): void {
+		for (const listener of this.listeners.get(type) ?? []) {
+			listener(...args);
+		}
+	}
+}
 
 class FakeWebSocket {
 	static instances: FakeWebSocket[] = [];
@@ -68,50 +135,89 @@ class FakeWebSocket {
 }
 
 describe("NodeHubClient", () => {
-	const originalWebSocket = globalThis.WebSocket;
+	describe("subscription re-registration", () => {
+		afterEach(() => {
+			MockWebSocket.reset();
+			vi.unstubAllGlobals();
+		});
 
-	beforeEach(() => {
-		vi.useFakeTimers();
-		FakeWebSocket.instances = [];
-		(globalThis as unknown as { WebSocket?: typeof FakeWebSocket }).WebSocket =
-			FakeWebSocket;
+		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+			await client.connect();
+			client.subscribe(() => {});
+
+			const firstSocket = MockWebSocket.instances[0];
+			expect(firstSocket.sentFrames).toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+			});
+
+			firstSocket.emit("close", { code: 1006, reason: "" });
+
+			await client.connect();
+
+			const secondSocket = MockWebSocket.instances[1];
+			expect(secondSocket.sentFrames).toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+			});
+			expect(secondSocket.sentFrames).not.toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+				sessionId: "*",
+			});
+		});
 	});
 
-	afterEach(() => {
-		vi.useRealTimers();
-		if (originalWebSocket) {
-			globalThis.WebSocket = originalWebSocket;
-		} else {
-			delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
-		}
-	});
+	describe("timeouts", () => {
+		const originalWebSocket = globalThis.WebSocket;
 
-	it("times out when the hub connection never opens", async () => {
-		const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
-		const connectPromise = client.connect();
-		const expectation = expect(connectPromise).rejects.toThrow(
-			"Timed out connecting to hub after 8000ms",
-		);
+		beforeEach(() => {
+			vi.useFakeTimers();
+			FakeWebSocket.instances = [];
+			(
+				globalThis as unknown as { WebSocket?: typeof FakeWebSocket }
+			).WebSocket = FakeWebSocket;
+		});
 
-		await vi.advanceTimersByTimeAsync(8_001);
-		await expectation;
-	});
+		afterEach(() => {
+			vi.useRealTimers();
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+		});
 
-	it("times out when a hub command never replies", async () => {
-		const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
-		const connectPromise = client.connect();
-		const socket = FakeWebSocket.instances[0];
-		if (!socket) {
-			throw new Error("expected fake websocket instance");
-		}
-		socket.open();
-		await connectPromise;
+		it("times out when the hub connection never opens", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+			const connectPromise = client.connect();
+			const expectation = expect(connectPromise).rejects.toThrow(
+				"Timed out connecting to hub after 8000ms",
+			);
 
-		const commandPromise = client.command("client.list");
-		const expectation = expect(commandPromise).rejects.toThrow(
-			"Hub command client.list timed out after 30000ms",
-		);
-		await vi.advanceTimersByTimeAsync(30_001);
-		await expectation;
+			await vi.advanceTimersByTimeAsync(8_001);
+			await expectation;
+		});
+
+		it("times out when a hub command never replies", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+			const connectPromise = client.connect();
+			const socket = FakeWebSocket.instances[0];
+			if (!socket) {
+				throw new Error("expected fake websocket instance");
+			}
+			socket.open();
+			await connectPromise;
+
+			const commandPromise = client.command("client.list");
+			const expectation = expect(commandPromise).rejects.toThrow(
+				"Hub command client.list timed out after 30000ms",
+			);
+			await vi.advanceTimersByTimeAsync(30_001);
+			await expectation;
+		});
 	});
 });

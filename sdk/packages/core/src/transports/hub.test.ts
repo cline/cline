@@ -39,6 +39,7 @@ describe("HubRuntimeHost", () => {
 	});
 
 	it("does not auto-start a run during session creation", async () => {
+		subscribeMock.mockReturnValue(() => {});
 		commandMock.mockResolvedValue({
 			payload: {
 				session: {
@@ -64,6 +65,9 @@ describe("HubRuntimeHost", () => {
 		expect(started.sessionId).toBe("sess-1");
 		expect(started.result).toBeUndefined();
 		expect(commandMock).toHaveBeenCalledTimes(1);
+		expect(subscribeMock).toHaveBeenCalledWith(expect.any(Function), {
+			sessionId: "sess-1",
+		});
 		expect(commandMock).toHaveBeenCalledWith("session.create", {
 			workspaceRoot: "/tmp/project",
 			cwd: "/tmp/project",
@@ -93,6 +97,7 @@ describe("HubRuntimeHost", () => {
 	});
 
 	it("starts runs only through send", async () => {
+		subscribeMock.mockReturnValue(() => {});
 		const result = {
 			text: "Hey!",
 			usage: {
@@ -125,12 +130,51 @@ describe("HubRuntimeHost", () => {
 			prompt: "Hey",
 		});
 
+		expect(subscribeMock).toHaveBeenCalledWith(expect.any(Function), {
+			sessionId: "sess-1",
+		});
 		expect(commandMock).toHaveBeenCalledWith(
 			"run.start",
 			{ sessionId: "sess-1", input: "Hey", attachments: undefined },
 			"sess-1",
 		);
 		expect(sent).toEqual(result);
+	});
+
+	it("tears down session stream subscriptions when a session stops", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		commandMock.mockResolvedValue({ ok: true, payload: {} });
+		await host.stop("sess-1");
+
+		expect(unsubscribe).toHaveBeenCalledTimes(1);
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"session.detach",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
 	});
 
 	it("forwards image attachments when sending a run", async () => {

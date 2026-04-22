@@ -7,6 +7,7 @@ import {
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
 import type { ConsecutiveMistakeLimitContext } from "@clinebot/shared";
+import { createSessionId } from "@clinebot/shared";
 import { createCliCore } from "../session/session";
 import { resolveClineWelcomeLine } from "../tui/interactive-welcome";
 import {
@@ -178,7 +179,10 @@ export async function runAgent(
 		}
 		handleEvent(event, config);
 	};
-	const unsubscribe = subscribeToAgentEvents(sessionManager, onAgentEvent);
+	const plannedSessionId = createSessionId();
+	const unsubscribe = subscribeToAgentEvents(sessionManager, onAgentEvent, {
+		sessionId: plannedSessionId,
+	});
 
 	// --- Abort & signal handling ---
 	let abortRequested = false;
@@ -245,6 +249,7 @@ export async function runAgent(
 			source: SessionSource.CLI,
 			config: {
 				...config,
+				sessionId: plannedSessionId,
 				execution: {
 					...config.execution,
 					loopDetection:

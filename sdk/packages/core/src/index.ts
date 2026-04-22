@@ -338,6 +338,7 @@ export type {
 	RuntimeHost,
 	RuntimeHost as SessionHost,
 	RuntimeHostMode,
+	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	StartSessionInput,

@@ -164,6 +164,10 @@ export interface SessionAccumulatedUsage {
 	totalCost: number;
 }
 
+export interface RuntimeHostSubscribeOptions {
+	sessionId?: string;
+}
+
 /**
  * RuntimeHost is the transport/runtime boundary for core session execution.
  * Callers must normalize broad local config into `RuntimeSessionConfig`
@@ -192,7 +196,10 @@ export interface RuntimeHost {
 	): Promise<{ updated: boolean }>;
 	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
 	handleHookEvent(payload: HookEventPayload): Promise<void>;
-	subscribe(listener: (event: CoreSessionEvent) => void): () => void;
+	subscribe(
+		listener: (event: CoreSessionEvent) => void,
+		options?: RuntimeHostSubscribeOptions,
+	): () => void;
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>;
 }
 

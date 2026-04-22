@@ -29,6 +29,7 @@ import type { HookEventPayload } from "../hooks";
 import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type {
 	RuntimeHost,
+	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	StartSessionInput,
@@ -621,8 +622,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
-	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
-		return this.events.subscribe(listener);
+	subscribe(
+		listener: (event: CoreSessionEvent) => void,
+		options?: RuntimeHostSubscribeOptions,
+	): () => void {
+		return this.events.subscribe(listener, options);
 	}
 
 	async updateSessionModel(sessionId: string, modelId: string): Promise<void> {

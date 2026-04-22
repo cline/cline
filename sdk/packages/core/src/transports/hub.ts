@@ -12,6 +12,7 @@ import type { HookEventPayload } from "../hooks";
 import { NodeHubClient } from "../hub/client";
 import type {
 	RuntimeHost,
+	RuntimeHostSubscribeOptions,
 	SendSessionInput,
 	SessionAccumulatedUsage,
 	StartSessionInput,
@@ -205,7 +206,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		string,
 		Partial<ToolExecutors>
 	>();
-	private readonly activeSessionIds = new Set<string>();
+	private readonly sessionSubscriptions = new Map<string, () => void>();
 
 	constructor(
 		options: HubRuntimeHostOptions,
@@ -219,9 +220,6 @@ export class HubRuntimeHost implements RuntimeHost {
 			displayName: options.displayName ?? "core hub runtime",
 			workspaceRoot: clientContext?.workspaceRoot,
 			cwd: clientContext?.cwd,
-		});
-		this.client.subscribe((event) => {
-			this.handleHubEvent(event);
 		});
 	}
 
@@ -264,7 +262,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				input.localRuntime.defaultToolExecutors,
 			);
 		}
-		this.activeSessionIds.add(sessionId);
+		this.ensureSessionSubscription(sessionId);
 
 		return {
 			sessionId,
@@ -276,6 +274,7 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
+		this.ensureSessionSubscription(input.sessionId);
 		const reply = await this.client.command(
 			"run.start",
 			{
@@ -328,19 +327,20 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async stop(sessionId: string): Promise<void> {
 		this.sessionToolExecutors.delete(sessionId);
-		this.activeSessionIds.delete(sessionId);
+		this.disposeSessionSubscription(sessionId);
 		await this.client.command("session.detach", { sessionId }, sessionId);
 	}
 
 	async dispose(): Promise<void> {
-		for (const sessionId of this.activeSessionIds) {
+		for (const [sessionId, unsubscribe] of this.sessionSubscriptions) {
+			unsubscribe();
 			try {
 				await this.client.command("session.detach", { sessionId }, sessionId);
 			} catch {
 				// Best-effort detach during shutdown.
 			}
 		}
-		this.activeSessionIds.clear();
+		this.sessionSubscriptions.clear();
 		this.sessionToolExecutors.clear();
 		this.client.close();
 	}
@@ -364,7 +364,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async delete(sessionId: string): Promise<boolean> {
 		this.sessionToolExecutors.delete(sessionId);
-		this.activeSessionIds.delete(sessionId);
+		this.disposeSessionSubscription(sessionId);
 		const reply = await this.client.command("session.delete", { sessionId });
 		return reply.payload?.deleted === true;
 	}
@@ -404,9 +404,37 @@ export class HubRuntimeHost implements RuntimeHost {
 		await this.client.command("session.hook", { payload: _payload });
 	}
 
-	subscribe(listener: (event: CoreSessionEvent) => void): () => void {
-		void this.client.connect().catch(() => undefined);
-		return this.events.subscribe(listener);
+	subscribe(
+		listener: (event: CoreSessionEvent) => void,
+		options?: RuntimeHostSubscribeOptions,
+	): () => void {
+		return this.events.subscribe(listener, options);
+	}
+
+	private ensureSessionSubscription(sessionId: string): void {
+		const target = sessionId.trim();
+		if (!target || this.sessionSubscriptions.has(target)) {
+			return;
+		}
+		const subscription = this.client.subscribe(
+			(event) => {
+				this.handleHubEvent(event);
+			},
+			{ sessionId: target },
+		);
+		this.sessionSubscriptions.set(
+			target,
+			typeof subscription === "function" ? subscription : () => {},
+		);
+	}
+
+	private disposeSessionSubscription(sessionId: string): void {
+		const target = sessionId.trim();
+		if (!target) {
+			return;
+		}
+		this.sessionSubscriptions.get(target)?.();
+		this.sessionSubscriptions.delete(target);
 	}
 
 	private handleHubEvent(
