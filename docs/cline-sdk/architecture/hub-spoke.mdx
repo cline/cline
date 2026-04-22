@@ -1,0 +1,157 @@
+---
+title: "Hub-Spoke Architecture"
+sidebarTitle: "Hub & Spoke"
+description: "The RPC sidecar enables persistent sessions, scheduled agents, and multi-client access through a hub-spoke model."
+---
+
+The SDK uses a hub-spoke architecture for production deployments. A background sidecar process (the hub) manages session state, while client applications (spokes) connect to it over gRPC.
+
+## Why Hub-Spoke?
+
+A single-process architecture works for simple scripts, but breaks down when you need:
+
+- Sessions that persist across CLI invocations
+- Scheduled agents that run when no client is connected
+- Multiple clients accessing the same session (e.g., Slack bot + CLI)
+- Process isolation (client crash doesn't kill the agent)
+
+The hub-spoke model solves all of these by decoupling session management from client processes.
+
+## The Hub: RPC Sidecar
+
+The hub is a gRPC server that runs as a background process on `127.0.0.1:4317` (configurable). It manages:
+
+- Session lifecycle (create, resume, stop)
+- Session persistence (SQLite)
+- Event routing (streaming events to connected clients)
+- Tool approval workflows
+- Schedule execution
+- Multi-client registration
+
+The sidecar starts automatically on first connection and stays running in the background. It persists state across client restarts.
+
+```bash
+# Manual control
+cline rpc start    # Start the sidecar
+cline rpc stop     # Stop it
+cline rpc status   # Check if it's running
+```
+
+## The Spokes: Clients
+
+Any application that connects to the hub is a spoke:
+
+- The CLI (`cline`)
+- VS Code extension
+- Desktop app
+- Custom applications using `ClineCore`
+- Connectors (Telegram, Slack, etc.)
+
+Multiple spokes can connect simultaneously. Each spoke registers with the hub and receives events for its sessions.
+
+## Communication Flow
+
+```
+Spoke (CLI)              Hub (RPC Sidecar)              Agent
+    │                         │                           │
+    │── StartRuntimeSession ─>│                           │
+    │                         │── Create Agent ──────────>│
+    │                         │                           │── LLM Call
+    │<── StreamEvents ────────│<── AgentEvent ───────────│
+    │<── StreamEvents ────────│<── AgentEvent ───────────│
+    │                         │                           │── Tool Call
+    │<── RequestToolApproval ─│                           │
+    │── RespondToolApproval ─>│                           │
+    │                         │── Tool Approved ────────>│
+    │<── StreamEvents ────────│<── AgentEvent ───────────│
+    │                         │<── Done ─────────────────│
+    │<── StreamEvents ────────│                           │
+    │                         │                           │
+```
+
+## Backend Modes
+
+Control how ClineCore connects:
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  backendMode: "auto",  // Default
+})
+```
+
+| Mode | Behavior |
+|------|----------|
+| `auto` | Tries RPC first. Falls back to local if no sidecar is running. |
+| `rpc` | Requires the RPC sidecar. Starts it automatically if `rpc.autoStart` is true. |
+| `local` | In-process only. No sidecar, no cross-process sessions. |
+
+### When to Use Each Mode
+
+Use `local` for:
+- Simple scripts and one-off tasks
+- Testing and development
+- Environments where a background process isn't appropriate
+
+Use `rpc` for:
+- Production services that need session persistence
+- Scheduled agents
+- Multi-client access (connectors, multiple CLI sessions)
+- Process isolation
+
+Use `auto` when you want the best of both worlds. It uses RPC if available and falls back gracefully.
+
+## RPC Configuration
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  backendMode: "rpc",
+  rpc: {
+    autoStart: true,           // Start sidecar if not running
+    address: "127.0.0.1:4317", // Sidecar address
+  },
+})
+```
+
+Environment variables:
+- `CLINE_RPC_ADDRESS` -- Override the sidecar address
+- `CLINE_SESSION_BACKEND_MODE` -- Override the backend mode (`local`, `rpc`, `auto`)
+
+## Session Persistence
+
+In RPC mode, sessions are stored by the sidecar and survive client restarts:
+
+```bash
+# Start a task
+cline "Start implementing the auth module"
+# Session ID: abc-123
+
+# Close the terminal, go to lunch, come back
+
+# Resume the same session
+cline --session abc-123 "Continue where you left off"
+```
+
+The sidecar stores sessions in SQLite at `~/.cline/data/sessions/`.
+
+## Multi-Client Access
+
+Multiple clients can connect to the same sidecar simultaneously:
+
+```bash
+# Terminal 1: CLI session
+cline "Work on feature X"
+
+# Terminal 2: Check on the session
+cline history list
+
+# Terminal 3: Telegram connector
+cline connect telegram -m my_bot -k $TOKEN
+
+# All three share the same sidecar and session store
+```
+
+## Process Isolation
+
+If a client crashes (e.g., the CLI is killed with Ctrl+C), the sidecar and its running agents are unaffected. The session continues in the background, and you can reconnect to see the results.

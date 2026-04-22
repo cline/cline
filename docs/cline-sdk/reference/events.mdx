@@ -1,0 +1,225 @@
+---
+title: "Events"
+sidebarTitle: "Events"
+description: "API reference for all AgentEvent types emitted during agent execution."
+---
+
+The `AgentEvent` type is a discriminated union of all events the agent emits during execution. Every event has a `type` field that identifies what happened.
+
+```typescript
+import type { AgentEvent } from "@clinebot/shared"
+```
+
+## Event Types
+
+### content_start
+
+Emitted when the model starts generating a new piece of content.
+
+```typescript
+{
+  type: "content_start"
+  contentType: "text" | "tool" | "reasoning"
+  toolName?: string      // Only when contentType is "tool"
+  toolCallId?: string    // Only when contentType is "tool"
+}
+```
+
+### content_update
+
+Emitted for each chunk of content as the model streams its response.
+
+```typescript
+{
+  type: "content_update"
+  contentType: "text" | "tool" | "reasoning"
+  text?: string          // The chunk of text or reasoning
+}
+```
+
+### content_end
+
+Emitted when a piece of content is complete.
+
+```typescript
+{
+  type: "content_end"
+  contentType: "text" | "tool" | "reasoning"
+}
+```
+
+### iteration_start
+
+Emitted at the beginning of each agent loop iteration.
+
+```typescript
+{
+  type: "iteration_start"
+  iteration: number      // 1-based iteration count
+}
+```
+
+### iteration_end
+
+Emitted when an iteration completes.
+
+```typescript
+{
+  type: "iteration_end"
+  iteration: number
+}
+```
+
+### usage
+
+Emitted after each LLM API call with token consumption data.
+
+```typescript
+{
+  type: "usage"
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
+}
+```
+
+### notice
+
+Status updates and warnings from the agent runtime.
+
+```typescript
+{
+  type: "notice"
+  reason: "recovery" | "loop_detected" | "stop" | "status"
+  message?: string
+}
+```
+
+| Reason | When |
+|--------|------|
+| `recovery` | Agent recovered from a transient error (API timeout, rate limit) |
+| `loop_detected` | Agent is making repeated identical tool calls |
+| `stop` | Agent is about to stop (message contains the reason) |
+| `status` | General status update |
+
+### done
+
+Emitted when the agent finishes a run.
+
+```typescript
+{
+  type: "done"
+  finishReason: "completed" | "max_iterations" | "mistake_limit" | "aborted" | "error" | "timeout"
+  text: string
+  iterations: number
+  usage: AgentUsage
+}
+```
+
+### error
+
+Emitted when an error occurs during execution.
+
+```typescript
+{
+  type: "error"
+  message: string
+  recoverable: boolean
+}
+```
+
+If `recoverable` is `true`, the agent will retry automatically. If `false`, the next event will be `done` with `finishReason: "error"`.
+
+## Event Ordering
+
+Within a single iteration, events follow this order:
+
+```
+iteration_start
+  content_start (text or reasoning)
+    content_update (repeated)
+  content_end
+  content_start (tool, if model made a tool call)
+    content_update (tool arguments)
+  content_end
+  usage
+iteration_end
+```
+
+After the final iteration:
+
+```
+done
+```
+
+`error` and `notice` events can occur at any point during execution.
+
+## Subscribing to Events
+
+### Via Agent Constructor
+
+```typescript
+const agent = new Agent({
+  onEvent: (event: AgentEvent) => {
+    // handle all events
+  },
+})
+```
+
+### Via subscribeEvents
+
+```typescript
+const unsubscribe = agent.subscribeEvents((event: AgentEvent) => {
+  // handle events
+})
+
+// Stop listening
+unsubscribe()
+```
+
+### Via AgentStream
+
+```typescript
+const stream = streamRun(agent, "message")
+
+for await (const event of stream) {
+  // handle events as async iterable
+}
+```
+
+## Filtering Events
+
+A common pattern for handling specific event types:
+
+```typescript
+function handleEvent(event: AgentEvent) {
+  switch (event.type) {
+    case "content_update":
+      if (event.contentType === "text") {
+        process.stdout.write(event.text ?? "")
+      }
+      break
+
+    case "content_start":
+      if (event.contentType === "tool") {
+        console.log(`\nCalling: ${event.toolName}`)
+      }
+      break
+
+    case "usage":
+      console.log(`Tokens: ${event.inputTokens}/${event.outputTokens}`)
+      break
+
+    case "done":
+      console.log(`\nDone: ${event.finishReason} (${event.iterations} iterations)`)
+      break
+
+    case "error":
+      if (!event.recoverable) {
+        console.error(`Fatal: ${event.message}`)
+      }
+      break
+  }
+}
+```

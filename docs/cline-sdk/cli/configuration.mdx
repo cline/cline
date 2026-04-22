@@ -1,0 +1,169 @@
+---
+title: "Configuration"
+sidebarTitle: "Configuration"
+description: "Configure the CLI and SDK through files, environment variables, and runtime options."
+---
+
+The SDK discovers configuration from multiple sources, with later sources overriding earlier ones.
+
+## Resolution Order
+
+1. Built-in defaults
+2. User home config (`~/.cline/`)
+3. Project config (`.cline/` in the working directory)
+4. Environment variables
+5. Runtime options (constructor arguments, CLI flags)
+
+## File Structure
+
+### User Home
+
+```
+~/.cline/
+  data/
+    settings/
+      providers.json           # Stored API keys and provider config
+      rules/                   # Global rules (apply to all projects)
+      skills/                  # Global skills
+    teams/                     # Persistent team state
+    sessions/                  # Session database (SQLite)
+    logs/
+      rpc-sidecar.log          # RPC server logs
+    machine-id                 # Stable machine identifier
+  plugins/                     # Global plugins (.js, .ts files)
+```
+
+### Project Root
+
+```
+.cline/
+  rules/                       # Project-specific rules
+  skills/                      # Project-specific skills
+  workflows/                   # Workflow definitions
+  hooks/                       # Lifecycle hook scripts
+  plugins/                     # Project-specific plugins
+  mcp.json                     # MCP server configuration
+  agents.yaml                  # Custom agent definitions
+  managed.json                 # Enterprise-managed instructions
+```
+
+## Provider Configuration
+
+### Via CLI
+
+```bash
+# Set up a provider with API key
+cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-6
+
+# Stored in ~/.cline/data/settings/providers.json
+```
+
+### Via Environment Variables
+
+| Variable | Provider |
+|----------|----------|
+| `ANTHROPIC_API_KEY` | Anthropic |
+| `OPENAI_API_KEY` | OpenAI |
+| `GOOGLE_API_KEY` | Google |
+| `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY` | AWS Bedrock |
+| `MISTRAL_API_KEY` | Mistral |
+
+### Via Runtime Config
+
+```typescript
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: "sk-ant-...",  // Takes precedence over env/settings
+})
+```
+
+## Rules
+
+Rules are instructions injected into the system prompt. They guide agent behavior.
+
+```
+~/.cline/data/settings/rules/    # Global (all projects)
+.cline/rules/                     # Project-specific
+```
+
+Each `.md` or `.txt` file in these directories is a rule. Rules are auto-discovered and watched for changes during active sessions.
+
+```markdown
+<!-- .cline/rules/testing.md -->
+Always write tests for new functions. Use vitest for TypeScript projects.
+Prefer integration tests over unit tests for API endpoints.
+```
+
+## Skills
+
+Skills are reusable instruction sets the agent can activate.
+
+```
+~/.cline/data/settings/skills/    # Global
+.cline/skills/                     # Project-specific
+```
+
+## Workflows
+
+Workflows are slash-command-triggered action sequences.
+
+```
+.cline/workflows/                  # Project root
+```
+
+## Hooks
+
+Hooks are scripts that run at lifecycle stages.
+
+```
+.cline/hooks/                      # Project root
+```
+
+See [Hooks](/cline-sdk/hooks) for details.
+
+## Plugins
+
+Plugins are JavaScript or TypeScript files that export an `AgentExtension`.
+
+```
+~/.cline/plugins/                  # Global
+.cline/plugins/                    # Project-specific
+```
+
+See [Extensions](/cline-sdk/extensions) for details.
+
+## MCP Servers
+
+Configure Model Context Protocol servers in `.cline/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/path/to/dir"],
+      "type": "stdio"
+    },
+    "database": {
+      "url": "http://localhost:8080/mcp",
+      "type": "http"
+    }
+  }
+}
+```
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `CLINE_RPC_ADDRESS` | Override RPC sidecar address (default: `127.0.0.1:4317`) |
+| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `rpc`, `auto`) |
+| `CLINE_BUILD_ENV` | Set to `development` for debug features |
+| `CLINE_DEBUG_PORT_BASE` | Base port for Node.js inspector |
+
+## Hot Reloading
+
+Rules, skills, and workflows are watched for changes during active sessions. Edit a file and the agent picks up the changes on its next iteration. No restart needed.
+
+Plugins are loaded once at session start and are not hot-reloaded.

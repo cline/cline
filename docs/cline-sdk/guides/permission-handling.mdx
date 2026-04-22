@@ -1,0 +1,155 @@
+---
+title: "Permission Handling"
+sidebarTitle: "Permission Handling"
+description: "Control which tools agents can run automatically and which require explicit approval."
+---
+
+By default, tools require approval before they execute. This guide covers the different strategies for managing tool permissions, from full auto-approve to interactive approval flows.
+
+## Tool Policies
+
+The simplest way to manage permissions is through tool policies. Set them per-tool when creating an agent:
+
+```typescript
+const agent = new Agent({
+  // ...config
+  tools: [readFileTool, writeFileTool, bashTool, searchTool],
+  toolPolicies: {
+    read_file: { autoApprove: true },     // Always run without asking
+    search: { autoApprove: true },         // Always run without asking
+    write_file: { autoApprove: false },    // Always ask before running
+    bash: { autoApprove: false },          // Always ask before running
+  },
+})
+```
+
+### Policy Options
+
+| Policy | Effect |
+|--------|--------|
+| `{ autoApprove: true }` | Tool executes immediately without approval |
+| `{ autoApprove: false }` | Tool waits for approval before executing |
+| `{ enabled: false }` | Tool is completely disabled (model won't see it) |
+| No policy set | Falls back to the default (requires approval) |
+
+## Auto-Approve Everything
+
+For trusted environments (CI pipelines, sandboxed containers, development scripts):
+
+```typescript
+const agent = new Agent({
+  // ...config
+  tools: allTools,
+  toolPolicies: Object.fromEntries(
+    allTools.map((t) => [t.name, { autoApprove: true }])
+  ),
+})
+```
+
+Or with ClineCore:
+
+```typescript
+const session = await cline.start({
+  config: {
+    enableTools: true,
+    toolPolicies: {
+      bash: { autoApprove: true },
+      editor: { autoApprove: true },
+      read_files: { autoApprove: true },
+      apply_patch: { autoApprove: true },
+      search: { autoApprove: true },
+      fetch_web: { autoApprove: true },
+    },
+  },
+  requestToolApproval: async () => ({ approved: true }),
+  // ...
+})
+```
+
+<Warning>
+Auto-approving all tools means the agent can execute any shell command, modify any file, and make network requests without your review. Only use this in environments where the agent's actions are either sandboxed or fully trusted.
+</Warning>
+
+## Interactive Approval
+
+For applications that need human oversight, implement a custom approval handler:
+
+```typescript
+import { ClineCore } from "@clinebot/core"
+import * as readline from "readline"
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const ask = (q: string) => new Promise<string>((res) => rl.question(q, res))
+
+const cline = await ClineCore.create({
+  clientName: "interactive-app",
+  requestToolApproval: async (request) => {
+    console.log(`\nTool: ${request.toolName}`)
+    console.log(`Input: ${JSON.stringify(request.input, null, 2)}`)
+
+    const answer = await ask("Approve? (y/n): ")
+    return { approved: answer.toLowerCase() === "y" }
+  },
+})
+```
+
+## Tiered Permissions
+
+A practical middle ground: auto-approve read-only operations, require approval for writes:
+
+```typescript
+const READ_TOOLS = new Set(["read_files", "search", "fetch_web"])
+const WRITE_TOOLS = new Set(["bash", "editor", "apply_patch"])
+
+const toolPolicies: Record<string, { autoApprove: boolean }> = {}
+
+for (const tool of READ_TOOLS) {
+  toolPolicies[tool] = { autoApprove: true }
+}
+for (const tool of WRITE_TOOLS) {
+  toolPolicies[tool] = { autoApprove: false }
+}
+```
+
+## Conditional Approval Logic
+
+Approve based on what the tool is actually doing, not just which tool it is:
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "smart-approval",
+  requestToolApproval: async (request) => {
+    // Auto-approve non-destructive bash commands
+    if (request.toolName === "bash") {
+      const cmd = request.input.command as string
+      const safeCommands = ["ls", "cat", "grep", "find", "git status", "git log", "git diff"]
+      if (safeCommands.some((safe) => cmd.startsWith(safe))) {
+        return { approved: true }
+      }
+    }
+
+    // Auto-approve reads to specific directories
+    if (request.toolName === "read_files") {
+      const path = request.input.path as string
+      if (path.startsWith("/src/") || path.startsWith("/tests/")) {
+        return { approved: true }
+      }
+    }
+
+    // Everything else requires manual approval
+    console.log(`Approval needed: ${request.toolName}`)
+    console.log(`Input: ${JSON.stringify(request.input)}`)
+    return { approved: false }
+  },
+})
+```
+
+## What Happens When a Tool is Rejected
+
+When approval is denied, the agent receives a rejection message and can adjust its approach. It might:
+- Ask the user for clarification
+- Try a different tool to accomplish the same goal
+- Modify its approach and try again with different parameters
+- Give up on that subtask and move on
+
+The agent does not get stuck in a loop. The rejection counts as a response, and the agent proceeds with its next iteration.

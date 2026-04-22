@@ -1,0 +1,291 @@
+---
+title: "Going to Production"
+sidebarTitle: "Going to Production"
+description: "Best practices for deploying agents to production: error handling, observability, cost control, and security."
+---
+
+Moving from development to production means handling the things that don't matter during prototyping: errors, costs, observability, and security. This guide covers the patterns that production agent deployments need.
+
+## Error Handling
+
+### Agent-Level Errors
+
+The agent handles transient errors internally (API timeouts, rate limits) with automatic retries. When it exhausts retries, the run completes with `finishReason: "error"`.
+
+```typescript
+const result = await agent.run("Do something complex")
+
+if (result.finishReason === "error") {
+  // Log the error and alert
+  logger.error("Agent run failed", {
+    iterations: result.iterations,
+    lastToolCalls: result.toolCalls.slice(-3),
+  })
+}
+```
+
+### Tool Errors
+
+Tools should return errors as data rather than throwing. This lets the agent see the error and adjust:
+
+```typescript
+const apiTool = createTool({
+  name: "call_service",
+  // ...
+  execute: async (input) => {
+    try {
+      const result = await service.call(input)
+      return { success: true, data: result }
+    } catch (err) {
+      return { success: false, error: err.message }
+    }
+  },
+})
+```
+
+### Mistake Limits
+
+The agent tracks consecutive failures. After too many in a row, it stops with `finishReason: "mistake_limit"`. Successful tool calls reset the counter.
+
+### Loop Detection
+
+If the agent makes identical tool calls repeatedly, the SDK detects the loop, warns the model, and eventually force-stops execution. No configuration needed.
+
+## Observability
+
+### OpenTelemetry Integration
+
+The SDK integrates with OpenTelemetry for traces, metrics, and logs:
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "production-app",
+  telemetry: myTelemetryService,
+  logger: myLogger,
+})
+```
+
+Events emitted include:
+- `agent_created` -- agent initialized with config
+- `tool_usage` -- tool called with name, duration, success/failure
+- `model_api_call` -- LLM API call with model, tokens, latency
+- `session_ended` -- session completed with finish reason, total tokens
+
+### Custom Metrics via Extensions
+
+```typescript
+const productionMetrics: AgentExtension = {
+  name: "production-metrics",
+  manifest: { capabilities: ["hooks"] },
+
+  onRunEnd({ result }) {
+    metrics.histogram("agent.duration_ms", result.durationMs)
+    metrics.counter("agent.tokens.input", result.usage.inputTokens)
+    metrics.counter("agent.tokens.output", result.usage.outputTokens)
+    metrics.counter(`agent.finish.${result.finishReason}`, 1)
+  },
+
+  onToolCall({ call }) {
+    metrics.counter(`agent.tool.${call.name}`, 1)
+  },
+
+  onError({ error, recoverable }) {
+    metrics.counter("agent.errors", 1, {
+      recoverable: String(recoverable),
+      type: error.constructor.name,
+    })
+  },
+}
+```
+
+### Structured Logging
+
+```typescript
+import pino from "pino"
+
+const logger = pino({ level: "info" })
+
+const agent = new Agent({
+  // ...config
+  onEvent: (event) => {
+    if (event.type === "done") {
+      logger.info({
+        event: "agent_complete",
+        finishReason: event.finishReason,
+        iterations: event.iterations,
+        tokens: event.usage,
+      })
+    }
+    if (event.type === "error") {
+      logger.error({
+        event: "agent_error",
+        message: event.message,
+        recoverable: event.recoverable,
+      })
+    }
+  },
+})
+```
+
+## Cost Control
+
+### Set Token Limits
+
+```typescript
+const agent = new Agent({
+  // ...config
+  maxTokensPerTurn: 4096,
+  maxIterations: 20,
+})
+```
+
+### Track Spending
+
+```typescript
+let sessionCost = 0
+
+const agent = new Agent({
+  // ...config
+  onEvent: (event) => {
+    if (event.type === "usage") {
+      const turnCost =
+        (event.inputTokens * 3) / 1_000_000 +    // $3/M for Sonnet input
+        (event.outputTokens * 15) / 1_000_000     // $15/M for Sonnet output
+      sessionCost += turnCost
+
+      if (sessionCost > 1.00) {
+        agent.abort("Cost limit exceeded ($1.00)")
+      }
+    }
+  },
+})
+```
+
+### Use Cheaper Models for Simple Tasks
+
+```typescript
+// Quick lookup: use a fast, cheap model
+const lookupAgent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-haiku-4-5",
+  // ...
+})
+
+// Complex work: use a more capable model
+const workAgent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  // ...
+})
+```
+
+## Security
+
+### Sandbox Tool Execution
+
+Never let an agent run arbitrary shell commands on a production server without constraints:
+
+```typescript
+const sandboxedBash = createTool({
+  name: "bash",
+  description: "Execute a shell command in a sandboxed environment.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      command: { type: "string", description: "Shell command to execute" },
+    },
+    required: ["command"],
+  },
+  execute: async (input) => {
+    const blocked = ["rm -rf", "sudo", "curl | sh", "wget | sh", "> /dev/"]
+    if (blocked.some((b) => input.command.includes(b))) {
+      return { error: "Command blocked by security policy" }
+    }
+
+    // Execute in a container, chroot, or restricted shell
+    return await executeInSandbox(input.command)
+  },
+})
+```
+
+### Validate Tool Inputs
+
+Don't trust tool inputs any more than you'd trust user input:
+
+```typescript
+const fileTool = createTool({
+  name: "read_file",
+  // ...
+  execute: async (input) => {
+    const resolved = path.resolve(input.path)
+
+    // Prevent path traversal
+    if (!resolved.startsWith(ALLOWED_DIRECTORY)) {
+      return { error: "Access denied: path outside allowed directory" }
+    }
+
+    return await fs.readFile(resolved, "utf-8")
+  },
+})
+```
+
+### Rotate API Keys
+
+Use environment variables for API keys, not hardcoded values:
+
+```typescript
+// Good
+const agent = new Agent({
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  // ...
+})
+
+// Never do this
+const agent = new Agent({
+  apiKey: "sk-ant-api03-...",
+  // ...
+})
+```
+
+## Deployment Patterns
+
+### Stateless Worker
+
+For request/response workflows (API endpoints, webhook handlers):
+
+```typescript
+async function handleRequest(prompt: string): Promise<string> {
+  const agent = new Agent({
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt: "You are a helpful assistant.",
+    tools: [myTool],
+    maxIterations: 10,
+  })
+
+  const result = await agent.run(prompt)
+  await agent.shutdown()
+  return result.text
+}
+```
+
+### Persistent Service
+
+For long-running services with session management:
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "my-service",
+  backendMode: "rpc",
+  rpc: { autoStart: true },
+})
+
+// Sessions persist across restarts
+// Connectors, schedules, and team state all managed by the RPC sidecar
+
+process.on("SIGTERM", async () => {
+  await cline.dispose("Shutting down")
+  process.exit(0)
+})
+```

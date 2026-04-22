@@ -1,0 +1,195 @@
+---
+title: "Tools API"
+sidebarTitle: "Tools API"
+description: "API reference for creating and configuring tools."
+---
+
+Tools give agents the ability to take actions. This reference covers the `createTool` helper, the `Tool` interface, and related types.
+
+```typescript
+import { createTool } from "@clinebot/shared"
+```
+
+## createTool(config)
+
+Factory function for creating type-safe tools.
+
+```typescript
+const tool = createTool({
+  name: "my_tool",
+  description: "What this tool does.",
+  inputSchema: { /* JSON Schema */ },
+  execute: async (input, context) => {
+    return { result: "done" }
+  },
+})
+```
+
+### Parameters
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `name` | `string` | Yes | Unique tool identifier (snake_case recommended) |
+| `description` | `string` | Yes | Description the LLM reads to decide when to use the tool |
+| `inputSchema` | `JSONSchema` | Yes | JSON Schema defining the tool's input parameters |
+| `execute` | `(input, context, onChange?) => Promise<output>` | Yes | Function that performs the tool's action |
+| `timeoutMs` | `number` | No | Maximum execution time in milliseconds |
+| `retryable` | `boolean` | No | Whether failed executions can be retried |
+| `maxRetries` | `number` | No | Maximum retry attempts (only applies if `retryable` is true) |
+
+Returns: `Tool`
+
+## Tool Interface
+
+```typescript
+interface Tool<TInput = unknown, TOutput = unknown> {
+  name: string
+  description: string
+  inputSchema: JSONSchema
+  execute(
+    input: TInput,
+    context: ToolContext,
+    onChange?: (update: unknown) => void
+  ): Promise<TOutput>
+  timeoutMs?: number
+  retryable?: boolean
+  maxRetries?: number
+}
+```
+
+## ToolContext
+
+Passed as the second argument to `execute`. Contains metadata about the current execution.
+
+```typescript
+interface ToolContext {
+  agentId: string
+  conversationId: string
+  iteration: number
+  abortSignal?: AbortSignal
+  metadata?: Record<string, unknown>
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `agentId` | Unique ID of the agent calling this tool |
+| `conversationId` | ID of the current conversation |
+| `iteration` | Current loop iteration number |
+| `abortSignal` | Fires when the run is aborted. Use to cancel long-running work. |
+| `metadata` | Custom metadata from the agent or session config |
+
+## ToolPolicy
+
+Controls whether a tool requires approval.
+
+```typescript
+interface ToolPolicy {
+  enabled?: boolean
+  autoApprove?: boolean
+}
+```
+
+| Field | Default | Description |
+|-------|---------|-------------|
+| `enabled` | `true` | Whether the tool is available. Set to `false` to hide it from the model. |
+| `autoApprove` | `false` | Whether the tool runs without approval. Set to `true` to skip the approval step. |
+
+Usage:
+
+```typescript
+const agent = new Agent({
+  tools: [readTool, writeTool],
+  toolPolicies: {
+    read_file: { autoApprove: true },
+    write_file: { autoApprove: false },
+  },
+})
+```
+
+## ToolCallRecord
+
+Returned in `AgentResult.toolCalls`. Records details about each tool call made during a run.
+
+```typescript
+interface ToolCallRecord {
+  id: string
+  name: string
+  input: unknown
+  output?: unknown
+  error?: string
+  duration?: number
+  status: "success" | "error" | "timeout" | "aborted"
+}
+```
+
+## ToolApprovalRequest
+
+Sent to the approval handler when a tool requires approval.
+
+```typescript
+interface ToolApprovalRequest {
+  toolName: string
+  input: unknown
+  agentId: string
+  sessionId?: string
+}
+```
+
+## JSON Schema for inputSchema
+
+The `inputSchema` field uses standard [JSON Schema](https://json-schema.org/) syntax. Common patterns:
+
+```typescript
+// Simple string input
+inputSchema: {
+  type: "object",
+  properties: {
+    query: { type: "string", description: "Search query" },
+  },
+  required: ["query"],
+}
+
+// Multiple types with enum
+inputSchema: {
+  type: "object",
+  properties: {
+    action: {
+      type: "string",
+      enum: ["start", "stop", "restart"],
+      description: "Action to perform",
+    },
+    target: { type: "string", description: "Target service name" },
+  },
+  required: ["action", "target"],
+}
+
+// Nested objects
+inputSchema: {
+  type: "object",
+  properties: {
+    config: {
+      type: "object",
+      properties: {
+        host: { type: "string" },
+        port: { type: "number" },
+      },
+      required: ["host"],
+    },
+  },
+  required: ["config"],
+}
+
+// Arrays
+inputSchema: {
+  type: "object",
+  properties: {
+    files: {
+      type: "array",
+      items: { type: "string" },
+      description: "List of file paths to process",
+    },
+  },
+  required: ["files"],
+}
+```

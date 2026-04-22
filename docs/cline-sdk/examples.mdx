@@ -1,0 +1,246 @@
+---
+title: "Examples"
+sidebarTitle: "Examples"
+description: "Complete working examples of agents built with the Cline SDK."
+---
+
+These examples are full, runnable applications you can copy and adapt. Each demonstrates a different pattern for building with the SDK.
+
+## Slack Bot
+
+A persistent Slack bot where each thread gets its own agent session with conversation memory.
+
+```typescript
+import { Agent } from "@clinebot/agents"
+
+// Map Slack thread IDs to agent instances
+const agents = new Map<string, Agent>()
+
+async function handleSlackMessage(threadId: string, message: string) {
+  let agent = agents.get(threadId)
+
+  if (!agent) {
+    agent = new Agent({
+      providerId: "anthropic",
+      modelId: "claude-sonnet-4-6",
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      systemPrompt: "You are a concise Slack assistant. Keep responses short.",
+      tools: [],
+    })
+    agents.set(threadId, agent)
+  }
+
+  const result = agent.hasRun
+    ? await agent.continue(message)
+    : await agent.run(message)
+
+  return result.text
+}
+```
+
+## Code Review Agent
+
+An agent that reads a git diff and produces a structured code review.
+
+```typescript
+import { Agent } from "@clinebot/agents"
+import { createTool } from "@clinebot/shared"
+import { execSync } from "child_process"
+
+const gitDiffTool = createTool({
+  name: "git_diff",
+  description: "Get the git diff for the current branch against main.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      base: { type: "string", description: "Base branch to compare against" },
+    },
+    required: ["base"],
+  },
+  execute: async (input) => {
+    const diff = execSync(`git diff ${input.base}...HEAD`, { encoding: "utf-8" })
+    return { diff }
+  },
+})
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: `You are a senior code reviewer. When asked to review code:
+1. Use the git_diff tool to get the changes
+2. Analyze for bugs, security issues, and style problems
+3. Provide specific, actionable feedback with file paths and line numbers
+4. Rate the overall quality on a scale of 1-5`,
+  tools: [gitDiffTool],
+})
+
+const result = await agent.run("Review the changes on this branch against main")
+console.log(result.text)
+```
+
+## Scheduled Daily Summary
+
+A ClineCore agent that runs on a cron schedule to summarize daily activity.
+
+```bash
+cline schedule create "Daily PR summary" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "Summarize all open PRs and their status" \
+  --workspace /path/to/repo \
+  --model anthropic/claude-sonnet-4-6
+```
+
+Or programmatically:
+
+```typescript
+import { ClineCore } from "@clinebot/core"
+
+const cline = await ClineCore.create({
+  clientName: "daily-summary",
+  backendMode: "rpc",
+  rpc: { autoStart: true },
+})
+
+// The RPC server manages the schedule and runs the agent
+// even after this process exits
+```
+
+## Auto-Approve File Editor
+
+An agent with full file system access that auto-approves all tool calls.
+
+```typescript
+import { ClineCore } from "@clinebot/core"
+
+const cline = await ClineCore.create({ clientName: "file-editor" })
+
+const session = await cline.start({
+  prompt: "Refactor all JavaScript files in src/ to use TypeScript",
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    cwd: "/path/to/project",
+    enableTools: true,
+    toolPolicies: {
+      bash: { autoApprove: true },
+      editor: { autoApprove: true },
+      read_files: { autoApprove: true },
+      apply_patch: { autoApprove: true },
+      search: { autoApprove: true },
+    },
+  },
+  requestToolApproval: async () => ({ approved: true }),
+})
+
+console.log("Done:", session.result?.finishReason)
+```
+
+## Interactive CLI Agent
+
+A command-line agent with streaming output and multi-turn conversation.
+
+```typescript
+import { Agent } from "@clinebot/agents"
+import * as readline from "readline"
+
+const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
+const ask = (q: string) => new Promise<string>((res) => rl.question(q, res))
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a helpful coding assistant.",
+  tools: [],
+  onEvent: (event) => {
+    if (event.type === "content_update" && event.contentType === "text") {
+      process.stdout.write(event.text)
+    }
+  },
+})
+
+console.log("Chat with the agent. Type 'exit' to quit.\n")
+
+while (true) {
+  const input = await ask("\n> ")
+  if (input === "exit") break
+
+  const result = agent.hasRun
+    ? await agent.continue(input)
+    : await agent.run(input)
+
+  console.log(`\n[${result.finishReason} | ${result.iterations} iterations]`)
+}
+
+await agent.shutdown()
+rl.close()
+```
+
+## Extension Plugin
+
+A plugin that logs all tool calls and tracks execution time.
+
+```typescript
+import { Agent, type AgentExtension } from "@clinebot/agents"
+
+const metricsPlugin: AgentExtension = {
+  name: "metrics-tracker",
+  manifest: { capabilities: ["hooks"] },
+
+  setup(api) {
+    // Extensions can register additional tools here
+    // api.registerTool(myTool)
+  },
+
+  onRunStart({ userMessage }) {
+    console.log(`[metrics] Run started: "${userMessage.slice(0, 50)}..."`)
+    console.time("[metrics] Total run time")
+  },
+
+  onToolCall({ call }) {
+    console.log(`[metrics] Tool called: ${call.name}`)
+    console.time(`[metrics] ${call.name}`)
+  },
+
+  onToolResult({ record }) {
+    console.timeEnd(`[metrics] ${record.name}`)
+  },
+
+  onRunEnd({ result }) {
+    console.timeEnd("[metrics] Total run time")
+    console.log(`[metrics] Finished: ${result.finishReason}`)
+    console.log(`[metrics] Iterations: ${result.iterations}`)
+    console.log(`[metrics] Tokens: ${result.usage.inputTokens + result.usage.outputTokens}`)
+  },
+}
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a helpful assistant.",
+  tools: [],
+  extensions: [metricsPlugin],
+})
+
+await agent.run("Explain how async/await works in JavaScript")
+```
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Building an Agent" icon="hammer" href="/cline-sdk/guides/building-an-agent">
+    End-to-end tutorial walking through a complete agent build.
+  </Card>
+  <Card title="Creating Custom Tools" icon="wrench" href="/cline-sdk/guides/creating-custom-tools">
+    Deep dive into the tool system with advanced patterns.
+  </Card>
+  <Card title="Writing Extensions" icon="puzzle-piece" href="/cline-sdk/guides/writing-extensions">
+    Build plugins that modify agent behavior at every stage.
+  </Card>
+  <Card title="Connectors" icon="plug" href="/cline-sdk/guides/connectors">
+    Connect your agent to Telegram, Slack, and other platforms.
+  </Card>
+</CardGroup>

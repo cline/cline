@@ -1,0 +1,158 @@
+---
+title: "Connector Setup"
+sidebarTitle: "Connectors"
+description: "Step-by-step setup guides for connecting agents to Telegram, Slack, and other messaging platforms."
+---
+
+Connectors let you chat with your agent from messaging platforms. Each platform has its own setup process.
+
+## Telegram
+
+<Steps>
+  <Step title="Create a bot with BotFather">
+    1. Open Telegram and start a chat with [@BotFather](https://t.me/BotFather)
+    2. Send `/newbot`
+    3. Enter a display name (e.g., "Cline Agent")
+    4. Enter a username ending in `bot` (e.g., `cline_myname_bot`). Must be unique across Telegram.
+    5. BotFather responds with your bot token (looks like `7123456789:AAH...`)
+  </Step>
+
+  <Step title="Start the connector">
+    ```bash
+    cline connect telegram -m cline_myname_bot -k 7123456789:AAH...
+    ```
+
+    The connector starts and begins listening for messages.
+  </Step>
+
+  <Step title="Chat with your bot">
+    Search for your bot's username in Telegram and send a message. The agent processes it and replies.
+  </Step>
+</Steps>
+
+### Securing Your Bot
+
+By default, anyone who finds your bot can send it messages and trigger agent execution on your machine. Add access control with `--hook-command`:
+
+<Steps>
+  <Step title="Get your Telegram user ID">
+    Message [@userinfobot](https://t.me/userinfobot) on Telegram. It replies immediately with your user ID (a number like `12345678`).
+  </Step>
+
+  <Step title="Start with access control">
+    Replace `12345678` with your Telegram user ID:
+
+    ```bash
+    cline connect telegram -m cline_myname_bot -k $BOT_TOKEN \
+      --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "telegram:id:12345678" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
+    ```
+  </Step>
+</Steps>
+
+For complex auth logic, use a script file:
+
+```bash
+#!/bin/bash
+# auth-check.sh
+INPUT=$(cat)
+USER_KEY=$(echo "$INPUT" | jq -r '.payload.actor.participantKey')
+
+ALLOWED_USERS="telegram:id:12345678 telegram:id:87654321"
+
+for user in $ALLOWED_USERS; do
+  if [ "$USER_KEY" = "$user" ]; then
+    echo '{"action":"allow"}'
+    exit 0
+  fi
+done
+
+echo '{"action":"deny","message":"You are not authorized to use this bot."}'
+```
+
+```bash
+cline connect telegram -m cline_myname_bot -k $BOT_TOKEN \
+  --hook-command './auth-check.sh'
+```
+
+<Note>
+The Telegram connector requires the RPC sidecar. Start it with `cline rpc start` if it doesn't auto-start.
+</Note>
+
+## Slack
+
+```bash
+cline connect slack
+```
+
+Follow the interactive prompts to:
+1. Create or select a Slack app
+2. Configure OAuth permissions
+3. Install the app to your workspace
+
+Once connected, each Slack thread maps to its own agent session.
+
+## Google Chat
+
+```bash
+cline connect gchat
+```
+
+Requires a Google Cloud project with the Chat API enabled.
+
+## WhatsApp
+
+```bash
+cline connect whatsapp
+```
+
+Uses the WhatsApp Business API. Requires a Meta developer account.
+
+## Linear
+
+```bash
+cline connect linear
+```
+
+Connects to Linear issues and comments. The agent can respond to issue mentions and comments.
+
+## Hook Command Protocol
+
+All connectors support `--hook-command` for access control. The script receives a JSON payload via stdin:
+
+```json
+{
+  "payload": {
+    "actor": {
+      "participantKey": "telegram:id:12345678",
+      "displayName": "User Name"
+    },
+    "message": "The incoming message text"
+  }
+}
+```
+
+The script must return one of:
+
+```json
+{"action": "allow"}
+```
+
+```json
+{"action": "deny", "message": "Optional message sent back to the user"}
+```
+
+If `--hook-command` is not set, all messages are auto-approved.
+
+## Running Multiple Connectors
+
+You can run multiple connectors simultaneously. They all share the same RPC sidecar:
+
+```bash
+# Terminal 1
+cline connect telegram -m my_bot -k $TELEGRAM_TOKEN
+
+# Terminal 2
+cline connect slack
+
+# Both connectors share sessions through the RPC sidecar
+```

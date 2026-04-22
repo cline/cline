@@ -1,0 +1,150 @@
+---
+title: "Gateway"
+sidebarTitle: "Gateway"
+description: "API reference for the LLM provider gateway in @clinebot/llms."
+---
+
+The `DefaultGateway` from `@clinebot/llms` manages LLM provider registration, model discovery, and streaming.
+
+```typescript
+import { DefaultGateway } from "@clinebot/llms"
+```
+
+## DefaultGateway
+
+### Constructor
+
+```typescript
+const gateway = new DefaultGateway()
+```
+
+### gateway.registerProvider(registration)
+
+Register a custom provider.
+
+```typescript
+gateway.registerProvider({
+  id: "my-provider",
+  name: "My Custom Provider",
+  handler: myProviderHandler,
+  models: [
+    {
+      id: "my-model",
+      name: "My Model",
+      contextWindow: 128000,
+      maxTokens: 4096,
+      pricing: { input: 1.0, output: 3.0 },
+      capabilities: { vision: false, reasoning: false },
+    },
+  ],
+})
+```
+
+### gateway.configureProvider(config)
+
+Configure an existing provider with credentials.
+
+```typescript
+gateway.configureProvider({
+  id: "anthropic",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+```
+
+### gateway.listProviders()
+
+List all registered providers.
+
+```typescript
+const providers = gateway.listProviders()
+```
+
+Returns: `ProviderInfo[]`
+
+### gateway.listModels(providerId?)
+
+List available models. Optionally filter by provider.
+
+```typescript
+// All models
+const allModels = gateway.listModels()
+
+// Models for a specific provider
+const anthropicModels = gateway.listModels("anthropic")
+```
+
+Returns: `ModelInfo[]`
+
+### gateway.createAgentModel(selection)
+
+Create a model instance for use with an agent.
+
+```typescript
+const model = gateway.createAgentModel({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+```
+
+## ProviderInfo
+
+```typescript
+interface ProviderInfo {
+  id: string
+  name: string
+  capabilities: {
+    vision: boolean
+    toolUse: boolean
+    streaming: boolean
+    reasoning: boolean
+  }
+  models: ModelInfo[]
+}
+```
+
+## ModelInfo
+
+```typescript
+interface ModelInfo {
+  id: string
+  name: string
+  provider: string
+  contextWindow: number
+  maxTokens: number
+  pricing: {
+    input: number            // Cost per million input tokens
+    output: number           // Cost per million output tokens
+    cacheCreation?: number   // Cost per million cache creation tokens
+    cacheRead?: number       // Cost per million cache read tokens
+  }
+  capabilities: {
+    vision?: boolean
+    reasoning?: boolean
+    thinking?: boolean
+    streaming?: boolean
+  }
+  status?: {
+    available: boolean
+    deprecation?: string
+  }
+}
+```
+
+## Built-In Providers
+
+The gateway ships with handlers for these providers pre-registered:
+
+| Provider ID | Package |
+|-------------|---------|
+| `anthropic` | Built-in |
+| `openai` | Built-in |
+| `google` | Built-in |
+| `bedrock` | Built-in |
+| `vertex` | Built-in |
+| `mistral` | Built-in |
+| `openai-compatible` | Built-in |
+| `litellm` | Built-in |
+| `dify` | Built-in |
+
+Each provider handler translates the SDK's unified interface to the provider's native API format.

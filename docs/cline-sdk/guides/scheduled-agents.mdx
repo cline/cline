@@ -1,0 +1,141 @@
+---
+title: "Scheduled Agents"
+sidebarTitle: "Scheduled Agents"
+description: "Run agents on cron schedules for recurring automations like daily summaries, code reviews, and maintenance tasks."
+---
+
+The SDK supports running agents on cron schedules through the RPC sidecar. Scheduled agents persist across process restarts and run independently of any client application.
+
+## How Scheduling Works
+
+Scheduled agents rely on the [hub-spoke architecture](/cline-sdk/architecture/hub-spoke):
+
+1. You define a schedule (cron expression + prompt + config)
+2. The RPC sidecar stores the schedule and manages execution
+3. At each trigger time, the sidecar creates a new session and runs the agent
+4. Results are stored and can be routed to connectors (Slack, email, etc.)
+
+The sidecar runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
+
+## Creating Schedules via CLI
+
+The fastest way to create a schedule:
+
+```bash
+# Daily at 9 AM on weekdays
+cline schedule create "PR summary" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "List all open PRs, their review status, and any that have been open more than 3 days" \
+  --workspace /path/to/repo \
+  --model anthropic/claude-sonnet-4-6
+
+# Every 6 hours
+cline schedule create "Health check" \
+  --cron "0 */6 * * *" \
+  --prompt "Run the test suite and report any failures" \
+  --workspace /path/to/project
+
+# Monday mornings
+cline schedule create "Weekly digest" \
+  --cron "0 8 * * MON" \
+  --prompt "Summarize last week's commits, PRs merged, and issues closed"
+```
+
+## Managing Schedules
+
+```bash
+# List all schedules
+cline schedule list
+
+# Trigger a schedule immediately (without waiting for cron)
+cline schedule trigger <schedule-id>
+
+# Pause a schedule
+cline schedule pause <schedule-id>
+
+# Resume a paused schedule
+cline schedule resume <schedule-id>
+
+# Delete a schedule
+cline schedule delete <schedule-id>
+
+# View execution history
+cline schedule executions <schedule-id>
+```
+
+## Creating Schedules Programmatically
+
+```typescript
+import { ClineCore } from "@clinebot/core"
+
+const cline = await ClineCore.create({
+  clientName: "scheduler",
+  backendMode: "rpc",
+  rpc: { autoStart: true },
+})
+
+// The RPC client provides schedule management
+// Schedules persist in the sidecar even after this process exits
+```
+
+## Cron Expression Reference
+
+| Expression | Schedule |
+|-----------|----------|
+| `0 9 * * MON-FRI` | 9 AM, Monday through Friday |
+| `0 */6 * * *` | Every 6 hours |
+| `0 8 * * MON` | 8 AM every Monday |
+| `30 17 * * *` | 5:30 PM every day |
+| `0 0 1 * *` | Midnight on the 1st of each month |
+| `*/30 * * * *` | Every 30 minutes |
+
+## Use Cases
+
+### Daily Standup Summary
+
+```bash
+cline schedule create "Standup prep" \
+  --cron "0 8 * * MON-FRI" \
+  --prompt "Summarize: (1) PRs merged yesterday, (2) PRs currently in review, (3) open issues assigned to team members. Format as a brief standup update." \
+  --workspace /path/to/repo
+```
+
+### Automated Dependency Updates
+
+```bash
+cline schedule create "Dependency check" \
+  --cron "0 10 * * MON" \
+  --prompt "Check for outdated npm dependencies. For any with security vulnerabilities, create a branch with the update and open a PR." \
+  --workspace /path/to/project
+```
+
+### Codebase Health Report
+
+```bash
+cline schedule create "Code health" \
+  --cron "0 6 * * MON" \
+  --prompt "Analyze the codebase for: (1) files with no test coverage, (2) TODO/FIXME comments older than 30 days, (3) functions longer than 100 lines. Produce a health report." \
+  --workspace /path/to/project
+```
+
+## Concurrency and Resource Limits
+
+The scheduler enforces limits to prevent resource exhaustion:
+
+- Schedules have configurable concurrency limits
+- If a previous execution is still running when the next trigger fires, the new execution is queued or skipped (configurable)
+- The sidecar monitors resource usage and can pause schedules if the system is under load
+
+## Routing Results
+
+Combine scheduled agents with [connectors](/cline-sdk/guides/connectors) to route results to messaging platforms:
+
+```bash
+# Start a Telegram connector
+cline connect telegram -m my_bot -k $BOT_TOKEN
+
+# Schedule an agent whose output gets sent to Telegram
+cline schedule create "Morning briefing" \
+  --cron "0 8 * * *" \
+  --prompt "Summarize overnight activity in the repo"
+```
