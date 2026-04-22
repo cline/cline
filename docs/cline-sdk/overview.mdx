@@ -7,7 +7,7 @@ description: "A modular TypeScript framework for building, orchestrating, and de
 The Cline SDK is a modular TypeScript framework for building AI agents that can edit files, run commands, browse the web, and use any tool you give them. It powers [Cline CLI](/cline-cli/overview), the VS Code extension, and the JetBrains plugin -- and you can embed it in your own applications.
 
 ```typescript
-import { Agent } from "@clinebot/core"
+import { Agent } from "@clinebot/sdk"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -64,7 +64,7 @@ Your Application
   @clinebot/shared    Contracts: types, schemas, tool interfaces, hook engine
 ```
 
-Most applications start with either `@clinebot/agents` (for lightweight, stateless agent usage) or `@clinebot/core` (for full session management and persistence).
+Most applications just install `@clinebot/sdk` and import everything from there. If you only need the lightweight agent loop, you can install `@clinebot/agents` directly.
 
 <CardGroup cols={2}>
   <Card title="Quickstart" icon="rocket" href="/cline-sdk/quickstart">
@@ -86,28 +86,28 @@ Most applications start with either `@clinebot/agents` (for lightweight, statele
 <Tabs>
   <Tab title="npm">
     ```bash
-    npm install @clinebot/core
+    npm install @clinebot/sdk
     ```
   </Tab>
   <Tab title="bun">
     ```bash
-    bun add @clinebot/core
+    bun add @clinebot/sdk
     ```
   </Tab>
   <Tab title="pnpm">
     ```bash
-    pnpm add @clinebot/core
+    pnpm add @clinebot/sdk
     ```
   </Tab>
 </Tabs>
 
-`@clinebot/core` re-exports everything you need from the lower-level packages (`agents`, `llms`, `shared`), so a single install is all it takes:
+`@clinebot/sdk` includes everything you need -- agents, tools, sessions, providers, and the full built-in tool suite:
 
 ```typescript
-import { type AgentExtension, ClineCore, createTool } from "@clinebot/core"
+import { Agent, ClineCore, createTool, type AgentExtension } from "@clinebot/sdk"
 ```
 
-If you only need the lightweight agent loop without sessions, persistence, or built-in tools, you can install the individual packages directly (`@clinebot/agents`, `@clinebot/llms`, `@clinebot/shared`).
+Under the hood, the SDK is composed of four packages (`@clinebot/core`, `@clinebot/agents`, `@clinebot/llms`, `@clinebot/shared`). You can install these individually if you want a minimal dependency footprint -- for example, `@clinebot/agents` gives you just the stateless agent loop without sessions or built-in tools. See [Packages](/cline-sdk/architecture/packages) for details.
 
 Requires Node.js 22 or later and Bun 1.3.10 or later.
 
@@ -135,10 +135,10 @@ Requires Node.js 22 or later and Bun 1.3.10 or later.
     ```
   </Tab>
   <Tab title="ClineCore (Full Stack)">
-    Use `@clinebot/core` for session persistence, built-in tools (bash, file editing, web fetch), config watching, and optional RPC for multi-process architectures.
+    Use `ClineCore` for session persistence, built-in tools (bash, file editing, web fetch), config watching, and optional RPC for multi-process architectures.
 
     ```typescript
-    import { ClineCore } from "@clinebot/core"
+    import { ClineCore } from "@clinebot/sdk"
 
     const cline = await ClineCore.create({
       clientName: "my-app",
