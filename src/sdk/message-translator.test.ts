@@ -1457,3 +1457,214 @@ describe("sdkToolToClineSayTool — fetch_web_content and skills (S6-39, S6-40)"
 		expect(tool.path).toBe("kanban")
 	})
 })
+
+// ---------------------------------------------------------------------------
+// S6-47: search_codebase renders query and path correctly
+// ---------------------------------------------------------------------------
+
+describe("sdkToolToClineSayTool — search_codebase (S6-47)", () => {
+	it("S6-47: search_codebase with { queries: ['TODO', 'FIXME'] } extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: { queries: ["TODO", "FIXME"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO, FIXME")
+	})
+
+	it("S6-47: search_codebase with stringified JSON input extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: JSON.stringify({ queries: ["TODO"] }),
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO")
+	})
+
+	it("S6-47: search_codebase with bare array input extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: ["TODO", "FIXME"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO, FIXME")
+	})
+
+	it("S6-47: search_codebase with bare string input extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: "TODO",
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO")
+	})
+
+	it("S6-47: search_codebase with { queries: 'single' } (string, not array) extracts regex", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: { queries: "TODO" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		expect(tool.regex).toBe("TODO")
+	})
+
+	it("S6-47: content_end preserves search queries from content_start", () => {
+		const state = new MessageTranslatorState()
+		// content_start
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+						input: { queries: ["TODO", "FIXME"] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end (no input — S6-24 pattern)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("searchFiles")
+		expect(endTool.regex).toBe("TODO, FIXME")
+	})
+
+	it("S6-47: content_end preserves bare array input from content_start", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+						input: ["searchPattern"],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "search_codebase",
+						toolCallId: "c1",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endTool = JSON.parse(endResult.messages[0].text!)
+		expect(endTool.tool).toBe("searchFiles")
+		expect(endTool.regex).toBe("searchPattern")
+	})
+
+	it("S6-47: search_codebase path is undefined when SDK has no path param", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "search_codebase",
+					toolCallId: "c1",
+					input: { queries: ["TODO"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		const tool = JSON.parse(result.messages[0].text!)
+		expect(tool.tool).toBe("searchFiles")
+		// Path should be undefined since SDK search_codebase has no path parameter
+		expect(tool.path).toBeUndefined()
+	})
+})
