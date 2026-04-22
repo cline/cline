@@ -1,0 +1,153 @@
+---
+title: "Connectors"
+sidebarTitle: "Connectors"
+description: "Connect the CLI to Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear."
+---
+
+Connectors let you chat with your agent from messaging platforms. Each incoming message creates or continues an agent session, and the agent's response is sent back to the conversation.
+
+## Setup Wizard
+
+Run `cline connect` to open an interactive wizard that guides you through platform selection, credential entry, security configuration, and advanced options (provider, model, system prompt, agent mode).
+
+```bash
+cline connect
+```
+
+## Supported Platforms
+
+| Platform | Direct Command | Required Credentials |
+|----------|---------------|---------------------|
+| Telegram | `cline connect telegram` | Bot username, bot token |
+| Slack | `cline connect slack` | Bot token, signing secret, base URL |
+| Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
+| Google Chat | `cline connect gchat` | Service account credentials JSON, base URL |
+| WhatsApp | `cline connect whatsapp` | Phone number ID, access token, app secret, verify token, base URL |
+| Linear | `cline connect linear` | API key, webhook signing secret, base URL |
+
+## Telegram
+
+<Steps>
+  <Step title="Create a Telegram bot">
+    Open Telegram and start a chat with [@BotFather](https://t.me/BotFather). Send `/newbot` and follow the prompts:
+
+    1. Enter a display name (e.g., "Cline")
+    2. Enter a username ending in `bot` (e.g., `cline_myname_bot`). Must be unique across Telegram.
+    3. BotFather responds with your bot token (looks like `7123456789:AAH...`)
+  </Step>
+
+  <Step title="Start the connector">
+    ```bash
+    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN>
+    ```
+  </Step>
+
+  <Step title="Chat with your bot">
+    Open Telegram, search for your bot's username, and send a message. The agent processes it and replies in the chat.
+  </Step>
+</Steps>
+
+### Security
+
+By default, anyone who finds your bot can message it and it will execute tasks on your machine. Lock it down with the `--hook-command` flag.
+
+<Steps>
+  <Step title="Get your Telegram user ID">
+    Message [@userinfobot](https://t.me/userinfobot) on Telegram. It replies with your user ID immediately.
+  </Step>
+
+  <Step title="Start with access control">
+    Replace `12345` with your actual Telegram user ID:
+
+    ```bash
+    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN> \
+      --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "telegram:id:12345" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
+    ```
+  </Step>
+</Steps>
+
+The `--hook-command` receives each incoming message with sender info via stdin. Your script returns `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`. Without `--hook-command`, everything is auto-approved.
+
+## Slack
+
+Requires a bot token, signing secret, and public base URL.
+
+```bash
+cline connect slack --token <BOT-TOKEN> --signing-secret <SECRET> --base-url <URL>
+```
+
+Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+
+## Discord
+
+Requires an application ID, bot token, public key, and public base URL.
+
+```bash
+cline connect discord --app-id <ID> --token <TOKEN> --public-key <KEY> --base-url <URL>
+```
+
+## Google Chat
+
+Requires a service account credentials JSON file and public base URL.
+
+```bash
+cline connect gchat --credentials <JSON> --base-url <URL>
+```
+
+## WhatsApp
+
+Requires a phone number ID, access token, app secret, webhook verify token, and public base URL.
+
+```bash
+cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --base-url <URL>
+```
+
+## Linear
+
+Requires an API key, webhook signing secret, and public base URL.
+
+```bash
+cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
+```
+
+## Managing Connectors
+
+```bash
+# Stop all connectors
+cline connect --stop
+
+# Stop a specific connector
+cline connect telegram --stop
+```
+
+## Hook Command Protocol
+
+The `--hook-command` pattern works across all connectors. The script receives a JSON payload via stdin:
+
+```json
+{
+  "payload": {
+    "actor": {
+      "participantKey": "telegram:id:12345",
+      "displayName": "User Name"
+    },
+    "message": "The incoming message text"
+  }
+}
+```
+
+Return `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`.
+
+## Running Multiple Connectors
+
+Multiple connectors can run simultaneously. They all share the same RPC sidecar:
+
+```bash
+# Terminal 1
+cline connect telegram -m my_bot -k $TELEGRAM_TOKEN
+
+# Terminal 2
+cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
+```
+
+Connectors require the RPC server. Start it with `cline rpc start` if it doesn't auto-start.

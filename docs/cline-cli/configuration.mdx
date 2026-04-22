@@ -66,18 +66,33 @@ Manage [skills](/customization/skills) that extend Cline's capabilities:
 
 ## Configuration Directory
 
-Cline stores configuration in `~/.cline/data/`:
+Cline stores configuration in `~/.cline/`:
 
 ```text
 ~/.cline/
-├── data/                    # Configuration directory
-│   ├── globalState.json     # Global settings
-│   ├── secrets.json         # API keys (encrypted)
-│   ├── settings/            # Settings files
-│   │   └── cline_mcp_settings.json  # MCP server configuration
-│   ├── workspace/           # Workspace-specific state
-│   └── tasks/               # Task history and data
-└── log/                     # Log files
+  data/
+    settings/
+      providers.json           # API keys and provider config
+      rules/                   # Global rules
+      skills/                  # Global skills
+    teams/                     # Team state
+    sessions/                  # Session database (SQLite)
+    logs/
+      rpc-sidecar.log          # RPC server logs
+  plugins/                     # Global plugins (.js, .ts)
+```
+
+Project-level configuration lives in `.cline/` at the workspace root:
+
+```text
+.cline/
+  rules/                       # Project rules
+  skills/                      # Project skills
+  workflows/                   # Workflows (slash commands)
+  hooks/                       # Lifecycle hooks
+  plugins/                     # Project plugins
+  mcp.json                     # MCP server config
+  agents.yaml                  # Agent definitions
 ```
 
 ### Viewing Logs
@@ -92,21 +107,26 @@ This opens the log file in your default editor.
 
 ## Environment Variables
 
-### CLINE_DIR
+| Variable | Description |
+|----------|-------------|
+| `CLINE_DATA_DIR` | Custom configuration directory (replaces `~/.cline/data/`) |
+| `CLINE_RPC_ADDRESS` | Override RPC sidecar address (default: `127.0.0.1:4317`) |
+| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `rpc`, `auto`) |
+| `CLINE_SANDBOX` | Enable sandbox mode |
+| `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
+| `CLINE_HOOKS_DIR` | Additional hooks directory |
+| `CLINE_COMMAND_PERMISSIONS` | JSON policy restricting shell commands (see below) |
+
+### CLINE_DATA_DIR
 
 Override the default configuration directory:
 
 ```bash
-export CLINE_DIR=/custom/path/to/cline
+export CLINE_DATA_DIR=/custom/path/to/cline
 cline "your task"
 ```
 
 When set, all Cline data is stored in this directory instead of `~/.cline/data/`.
-
-**Use cases:**
-- Running multiple isolated Cline configurations
-- Team-shared configurations
-- CI/CD with custom state directories
 
 ### CLINE_COMMAND_PERMISSIONS
 
@@ -176,53 +196,9 @@ cline --config ~/.cline-personal "help me with this side project"
 
 ## MCP Server Configuration
 
-Cline CLI supports [MCP (Model Context Protocol)](/mcp/mcp-overview) servers, giving you access to external tools and data sources directly from the terminal. The CLI uses the same MCP configuration format as the VS Code extension.
+Cline CLI supports [MCP (Model Context Protocol)](/mcp/mcp-overview) servers, giving you access to external tools and data sources directly from the terminal.
 
-### Setting Up MCP Servers
-
-You can add MCP servers from the CLI:
-
-```bash
-# STDIO server
-cline mcp add kanban -- kanban mcp
-
-# Remote HTTP server
-cline mcp add linear https://mcp.linear.app/mcp --type http
-```
-
-These commands update:
-
-```
-~/.cline/data/settings/cline_mcp_settings.json
-```
-
-You can still edit this file directly. It uses the same JSON format as the VS Code extension:
-
-```json
-{
-  "mcpServers": {
-    "my-server": {
-      "command": "node",
-      "args": ["/path/to/server.js"],
-      "env": {
-        "API_KEY": "your_api_key"
-      },
-      "alwaysAllow": ["tool1", "tool2"],
-      "disabled": false
-    }
-  }
-}
-```
-
-For the full configuration reference including STDIO and SSE transport types, see [Adding and Configuring MCP Servers](/mcp/adding-and-configuring-servers).
-
-<Note>
-The CLI does not yet have a `/mcp` slash command for interactive management inside the terminal UI. Use `cline mcp add` or edit `cline_mcp_settings.json` directly.
-</Note>
-
-### Custom Config Directory
-
-If you use the `CLINE_DIR` environment variable or `--config` flag, the MCP settings file will be located at `<your-config-dir>/data/settings/cline_mcp_settings.json` instead.
+Run `cline mcp` to manage MCP servers interactively, or configure them directly in `.cline/mcp.json`. See [MCP Servers](/cline-cli/mcp-servers) for details.
 
 ## Configuration for Local Providers
 

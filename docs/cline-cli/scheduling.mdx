@@ -1,0 +1,107 @@
+---
+title: "Scheduling"
+sidebarTitle: "Scheduling"
+description: "Run agents on cron schedules for recurring automations like daily summaries and code reviews."
+---
+
+The CLI supports running agents on cron schedules through the RPC sidecar. Scheduled agents persist across process restarts and run independently of any terminal session.
+
+## Schedule Wizard
+
+Run `cline schedule` to open an interactive menu for creating and managing schedules, browsing execution history, and viewing performance statistics.
+
+```bash
+cline schedule
+```
+
+The wizard provides:
+
+| Action | Description |
+|--------|-------------|
+| Create new schedule | Set up a recurring task with cron timing and prompt |
+| List schedules | View all schedules with status and next run time |
+| Upcoming runs | Preview the next 10 scheduled executions |
+| Active executions | Show currently running tasks |
+| Trigger now | Immediately run a selected schedule |
+| Pause / Resume | Suspend or restart a schedule |
+| Execution history | View past runs with status, duration, tokens, and cost |
+| Statistics | Success rate, average duration, last failure |
+| Delete | Remove a schedule |
+
+## Creating Schedules with Flags
+
+```bash
+cline schedule create "PR summary" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "List all open PRs and their review status" \
+  --workspace /path/to/repo \
+  --model anthropic/claude-sonnet-4-6
+```
+
+## Managing Schedules
+
+```bash
+cline schedule list
+cline schedule trigger <schedule-id>
+cline schedule pause <schedule-id>
+cline schedule resume <schedule-id>
+cline schedule delete <schedule-id>
+cline schedule executions <schedule-id>
+```
+
+## Cron Expression Reference
+
+| Expression | Schedule |
+|-----------|----------|
+| `*/5 * * * *` | Every 5 minutes |
+| `*/15 * * * *` | Every 15 minutes |
+| `0 * * * *` | Every hour |
+| `0 */6 * * *` | Every 6 hours |
+| `0 0 * * *` | Daily at midnight |
+| `0 9 * * *` | Daily at 9am |
+| `0 9 * * 1-5` | Every weekday at 9am |
+| `0 9 * * 1` | Every Monday at 9am |
+| `0 0 1 * *` | First of every month |
+
+## Examples
+
+### Daily Standup Summary
+
+```bash
+cline schedule create "Standup prep" \
+  --cron "0 8 * * MON-FRI" \
+  --prompt "Summarize: (1) PRs merged yesterday, (2) PRs currently in review, (3) open issues assigned to team members." \
+  --workspace /path/to/repo
+```
+
+### Weekly Dependency Check
+
+```bash
+cline schedule create "Dependency check" \
+  --cron "0 10 * * MON" \
+  --prompt "Check for outdated npm dependencies. For any with security vulnerabilities, create a branch with the update and open a PR." \
+  --workspace /path/to/project
+```
+
+### Codebase Health Report
+
+```bash
+cline schedule create "Code health" \
+  --cron "0 6 * * MON" \
+  --prompt "Analyze the codebase for: (1) files with no test coverage, (2) TODO/FIXME comments older than 30 days, (3) functions longer than 100 lines." \
+  --workspace /path/to/project
+```
+
+## Routing Results
+
+Combine schedules with [connectors](/cline-cli/connectors) to send results to messaging platforms:
+
+```bash
+cline connect telegram -m my_bot -k $BOT_TOKEN
+
+cline schedule create "Morning briefing" \
+  --cron "0 8 * * *" \
+  --prompt "Summarize overnight activity in the repo"
+```
+
+Scheduling requires the RPC server. It starts automatically when you create a schedule.
