@@ -456,7 +456,8 @@ function createCapabilityBackedToolExecutors(
 	};
 }
 
-class HubServerTransport implements NativeHubTransport {
+/** @internal Exported for unit testing fetch/runtime wiring. */
+export class HubServerTransport implements NativeHubTransport {
 	private readonly clients = new Map<string, HubClientRecord>();
 	private readonly listeners = new Map<
 		string,
@@ -493,6 +494,7 @@ class HubServerTransport implements NativeHubTransport {
 			options.sessionHost ??
 			new LocalRuntimeHost({
 				sessionService: new CoreSessionService(new SqliteSessionStore()),
+				fetch: options.fetch,
 			});
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
@@ -1665,6 +1667,16 @@ export interface HubWebSocketServerOptions {
 	sessionHost?: RuntimeHost;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
+	/**
+	 * Custom `fetch` implementation forwarded to the internally-constructed
+	 * `LocalRuntimeHost` that executes incoming `session.create` traffic.
+	 * Used by the AI gateway providers for every session that runs inside
+	 * this hub process.
+	 *
+	 * Ignored when `sessionHost` is supplied — in that case the caller owns
+	 * runtime construction and is responsible for wiring its own fetch.
+	 */
+	fetch?: typeof fetch;
 }
 
 export interface HubWebSocketServer {

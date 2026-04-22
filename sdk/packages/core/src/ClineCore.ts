@@ -113,6 +113,27 @@ export interface ClineCoreOptions {
 	 */
 	messagesArtifactUploader?: SessionMessagesArtifactUploader;
 	/**
+	 * Custom `fetch` implementation forwarded to the AI gateway providers used
+	 * by local sessions. When supplied, it is threaded into each
+	 * `ProviderConfig.fetch` built during session bootstrap, which in turn
+	 * populates `GatewayProviderSettings.fetch` (and the top-level
+	 * `GatewayConfig.fetch` fallback) so hosts can inject custom HTTP behavior
+	 * such as proxies, retries, tracing, or test doubles.
+	 *
+	 * Per-session or per-provider overrides still win: an explicit
+	 * `config.fetch` on `CoreSessionConfig` or a stored provider-level `fetch`
+	 * takes precedence over this default.
+	 *
+	 * Applies only to sessions executed in this process (local and fallback-
+	 * to-local auto mode). For hub and remote runtimes the HTTP call happens
+	 * inside the process that owns the gateway, so configure `fetch` there:
+	 *   - `startHubServer({ fetch })` / `ensureHubServer({ fetch })` from
+	 *     `@clinebot/hub`
+	 *   - `createLocalHubScheduleRuntimeHandlers({ fetch })` from
+	 *     `@clinebot/core/hub` for the scheduler
+	 */
+	fetch?: typeof fetch;
+	/**
 	 * An already-constructed session backend to use instead of resolving one automatically.
 	 * Intended for testing or embedding a custom persistence layer.
 	 * @internal

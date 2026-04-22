@@ -59,11 +59,22 @@ function resolveMode(
 			: "act";
 }
 
+export interface CreateLocalHubScheduleRuntimeHandlersOptions
+	extends Pick<HubScheduleServiceOptions, "logger"> {
+	/**
+	 * Custom `fetch` implementation forwarded to the scheduler's internal
+	 * `LocalRuntimeHost`. Used by the AI gateway providers for every
+	 * scheduled session executed inside this hub process.
+	 */
+	fetch?: typeof fetch;
+}
+
 export function createLocalHubScheduleRuntimeHandlers(
-	_options: Pick<HubScheduleServiceOptions, "logger"> = {},
+	options: CreateLocalHubScheduleRuntimeHandlersOptions = {},
 ): HubScheduleRuntimeHandlers {
 	const sessionHost = new LocalRuntimeHost({
 		sessionService: new CoreSessionService(new SqliteSessionStore()),
+		fetch: options.fetch,
 	});
 
 	return {

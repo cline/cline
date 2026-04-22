@@ -77,6 +77,7 @@ function createLocalRuntimeHost(
 		toolPolicies: options.toolPolicies,
 		requestToolApproval: options.requestToolApproval,
 		distinctId,
+		fetch: options.fetch,
 	});
 }
 

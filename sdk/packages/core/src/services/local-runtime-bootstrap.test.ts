@@ -258,4 +258,81 @@ describe("prepareLocalRuntimeBootstrap", () => {
 
 		expect(registeredTools).toEqual(["compatible_tool"]);
 	});
+
+	it("threads defaultFetch into providerConfig.fetch", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const customFetch = vi.fn() as unknown as typeof fetch;
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-fetch",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolExecutors: undefined,
+			defaultToolPolicies: undefined,
+			defaultRequestToolApproval: undefined,
+			defaultFetch: customFetch,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.fetch).toBe(customFetch);
+	});
+
+	it("prefers per-session config fetch over defaultFetch", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const defaultFetch = vi.fn() as unknown as typeof fetch;
+		const sessionFetch = vi.fn() as unknown as typeof fetch;
+		const input = createStartInput();
+		(input.config as unknown as { fetch?: typeof fetch }).fetch = sessionFetch;
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-fetch-override",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolExecutors: undefined,
+			defaultToolPolicies: undefined,
+			defaultRequestToolApproval: undefined,
+			defaultFetch,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.fetch).toBe(sessionFetch);
+	});
+
+	it("leaves providerConfig.fetch unset when no fetch is supplied", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-no-fetch",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolExecutors: undefined,
+			defaultToolPolicies: undefined,
+			defaultRequestToolApproval: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.fetch).toBeUndefined();
+	});
 });

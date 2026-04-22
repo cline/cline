@@ -185,6 +185,12 @@ export interface LocalRuntimeHostOptions {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
+	/**
+	 * Default custom `fetch` implementation threaded into every
+	 * `ProviderConfig.fetch` built during local session bootstrap. Used by
+	 * the AI gateway providers when issuing HTTP requests.
+	 */
+	fetch?: typeof fetch;
 }
 
 export class LocalRuntimeHost implements RuntimeHost {
@@ -197,6 +203,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
+	private readonly defaultFetch?: typeof fetch;
 	private readonly defaultRequestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
@@ -228,6 +235,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		this.defaultTelemetry = options.telemetry;
 		this.defaultTelemetry?.setDistinctId(distinctId);
+		this.defaultFetch = options.fetch;
 		this.defaultRequestToolApproval = options.requestToolApproval;
 	}
 
@@ -288,6 +296,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			defaultToolExecutors: sessionToolExecutors,
 			defaultToolPolicies: this.defaultToolPolicies,
 			defaultRequestToolApproval: this.defaultRequestToolApproval,
+			defaultFetch: this.defaultFetch,
 			onPluginEvent: (event) => void this.handlePluginEvent(sessionId, event),
 			onTeamEvent: (event: TeamEvent) => {
 				void this.handleTeamEvent(sessionId, event);

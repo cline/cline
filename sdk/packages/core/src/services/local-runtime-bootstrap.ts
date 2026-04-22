@@ -93,6 +93,7 @@ function buildProviderConfig(
 	config: CoreSessionConfig,
 	providerSettingsManager: ProviderSettingsManager,
 	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
+	defaultFetch?: typeof fetch,
 ): ProviderConfig {
 	const stored = providerSettingsManager.getProviderSettings(config.providerId);
 	const modelCatalog =
@@ -119,6 +120,13 @@ function buildProviderConfig(
 	if (config.extensionContext) {
 		providerConfig.extensionContext = config.extensionContext;
 	}
+	// Thread a host-provided custom fetch through to the AI gateway providers.
+	// Precedence: explicit per-session config > stored provider settings > host default.
+	const sessionFetch = (config as { fetch?: typeof fetch }).fetch;
+	const resolvedFetch = sessionFetch ?? providerConfig.fetch ?? defaultFetch;
+	if (resolvedFetch) {
+		providerConfig.fetch = resolvedFetch;
+	}
 	return providerConfig;
 }
 
@@ -133,6 +141,11 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	defaultRequestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
+	/**
+	 * Host-level default `fetch` threaded into `ProviderConfig.fetch` so the
+	 * AI gateway providers can use a custom HTTP implementation.
+	 */
+	defaultFetch?: typeof fetch;
 	onPluginEvent: (event: { name: string; payload?: unknown }) => void;
 	onTeamEvent: (event: TeamEvent) => void;
 	createSpawnTool: () => Tool;
@@ -170,6 +183,7 @@ export async function prepareLocalRuntimeBootstrap(
 		defaultToolExecutors,
 		defaultToolPolicies,
 		defaultRequestToolApproval,
+		defaultFetch,
 		onPluginEvent,
 		onTeamEvent,
 		createSpawnTool,
@@ -249,6 +263,7 @@ export async function prepareLocalRuntimeBootstrap(
 		baseConfig,
 		providerSettingsManager,
 		localRuntime?.modelCatalogDefaults,
+		defaultFetch,
 	);
 	const hooks = mergeAgentHooks([
 		baseConfig.hooks,

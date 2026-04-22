@@ -429,6 +429,7 @@ function buildGatewayConfig(config: ProviderConfig) {
 		baseUrl: config.baseUrl,
 		headers: config.headers,
 		timeoutMs: config.timeoutMs,
+		fetch: config.fetch,
 		defaultModelId: config.modelId,
 		models: config.knownModels
 			? Object.values(config.knownModels).map((model) => {
@@ -558,6 +559,7 @@ class GatewayApiHandler implements ApiHandler {
 	): ApiStream {
 		const gateway = createGateway({
 			providerConfigs: [buildGatewayConfig(this.config)],
+			fetch: this.config.fetch,
 			logger: this.config.logger ?? this.config.extensionContext?.logger,
 		});
 		const registration = resolveProviderRegistrationSync(this.config);
@@ -607,6 +609,7 @@ export async function createGatewayApiHandlerAsync(
 ): Promise<ApiHandler> {
 	const gateway = createGateway({
 		providerConfigs: [buildGatewayConfig(config)],
+		fetch: config.fetch,
 		logger: config.logger ?? config.extensionContext?.logger,
 	});
 	const registration = await resolveProviderRegistration(config);

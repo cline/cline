@@ -1675,4 +1675,86 @@ describe("sdk-gateway", () => {
 			text: "Cline custom model",
 		});
 	});
+
+	it("forwards a per-provider fetch through to the provider config", async () => {
+		const customFetch = vi.fn() as unknown as typeof fetch;
+		const createProvider = vi.fn((config: { fetch?: typeof fetch }) => ({
+			async *stream() {
+				expect(config.fetch).toBe(customFetch);
+				yield { type: "text-delta", text: "ok" } satisfies AgentModelEvent;
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-fetch",
+						name: "CustomFetch",
+						defaultModelId: "alpha",
+						models: [
+							{ id: "alpha", name: "Alpha", providerId: "custom-fetch" },
+						],
+					},
+					createProvider,
+				},
+			],
+			providerConfigs: [{ providerId: "custom-fetch", fetch: customFetch }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-fetch",
+				modelId: "alpha",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(createProvider).toHaveBeenCalledOnce();
+	});
+
+	it("falls back to the top-level gateway fetch when no provider fetch is set", async () => {
+		const fallbackFetch = vi.fn() as unknown as typeof fetch;
+		const createProvider = vi.fn((config: { fetch?: typeof fetch }) => ({
+			async *stream() {
+				expect(config.fetch).toBe(fallbackFetch);
+				yield { type: "text-delta", text: "ok" } satisfies AgentModelEvent;
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+
+		const gateway = createGateway({
+			builtins: false,
+			fetch: fallbackFetch,
+			providers: [
+				{
+					manifest: {
+						id: "custom-fetch-fallback",
+						name: "CustomFetchFallback",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "custom-fetch-fallback",
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-fetch-fallback",
+				modelId: "alpha",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(createProvider).toHaveBeenCalledOnce();
+	});
 });

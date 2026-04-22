@@ -90,6 +90,14 @@ export interface EndpointConfig {
 	headers?: Record<string, string>;
 	/** Request timeout in milliseconds */
 	timeoutMs?: number;
+	/**
+	 * Custom `fetch` implementation used by the AI gateway providers when
+	 * issuing requests. When supplied, it is forwarded to
+	 * `GatewayProviderSettings.fetch` (and as a top-level fallback on
+	 * `GatewayConfig.fetch`) so hosts can inject custom HTTP behavior such
+	 * as proxies, retries, tracing, or test doubles.
+	 */
+	fetch?: typeof fetch;
 }
 
 /**
