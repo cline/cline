@@ -10,10 +10,13 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from "@clinebot/core"
+import { createTool, type Tool } from "@clinebot/shared"
+import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
-import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineAskQuestion, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
 import type { Settings } from "@shared/storage/state-keys"
@@ -27,6 +30,7 @@ import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
+import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
@@ -41,11 +45,12 @@ import {
 	createHistoryItemFromSession,
 	getHistoryItemById,
 } from "./cline-session-factory"
+import { buildAgentHooks, buildHookExtensions, type HookMessageEmitter } from "./hooks-adapter"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
+import { MessageTranslatorState, sdkToolToClineSayTool, translateSessionEvent } from "./message-translator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
-import { WebviewGrpcBridge } from "./webview-grpc-bridge"
+import { pushMessageToWebview, WebviewGrpcBridge } from "./webview-grpc-bridge"
 
 /**
  * Log a stub warning and return undefined.
@@ -63,6 +68,63 @@ function isAbortError(error: unknown): boolean {
 		return error.name === "AbortError" || error.message.toLowerCase().includes("aborted")
 	}
 	return false
+}
+
+// ---------------------------------------------------------------------------
+// Auto-approval → SDK tool policies
+// ---------------------------------------------------------------------------
+
+/**
+ * Build SDK `toolPolicies` from the user's `AutoApprovalSettings`.
+ *
+ * The SDK defaults all tools to `{ autoApprove: true }` when no policy is
+ * set, so we only need to emit entries for tools that should NOT be
+ * auto-approved. This ensures `requestToolApproval` is called for tools
+ * the user hasn't enabled.
+ */
+function buildToolPolicies(
+	settings: AutoApprovalSettings,
+	mcpHub?: McpHub,
+): Record<string, { enabled?: boolean; autoApprove?: boolean }> {
+	const policies: Record<string, { enabled?: boolean; autoApprove?: boolean }> = {}
+
+	const set = (tools: string[], autoApprove: boolean) => {
+		for (const tool of tools) {
+			policies[tool] = { autoApprove }
+		}
+	}
+
+	// Read operations
+	set(
+		["read_files", "read_file", "list_files", "list_code_definition_names", "search_codebase", "search_files"],
+		!!settings.actions.readFiles,
+	)
+
+	// Write operations
+	set(["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"], !!settings.actions.editFiles)
+
+	// Command execution
+	const commandAutoApprove = !!settings.actions.executeAllCommands || !!settings.actions.executeSafeCommands
+	set(["run_commands", "execute_command"], commandAutoApprove)
+
+	// Browser / web
+	set(["fetch_web_content", "web_fetch", "web_search"], !!settings.actions.useBrowser)
+
+	// MCP tools — gated by the global `useMcp` toggle AND per-tool autoApprove flags.
+	// When `useMcp` is off, ALL MCP tools require approval.
+	// When `useMcp` is on, each tool's individual `autoApprove` flag decides.
+	if (mcpHub) {
+		const mcpEnabled = !!settings.actions.useMcp
+		for (const server of mcpHub.getServers()) {
+			for (const tool of server.tools ?? []) {
+				const sdkName = `${server.name}__${tool.name}`
+				const autoApprove = mcpEnabled && !!tool.autoApprove
+				policies[sdkName] = { autoApprove }
+			}
+		}
+	}
+
+	return policies
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +172,24 @@ export class Controller {
 	// we need to restart the SDK session to pick up the new tools.
 	// If the session is mid-turn, we defer the restart until the turn completes.
 	private mcpToolRestartPending = false
+
+	// Pending ask_question resolve — when the SDK's built-in ask_question tool
+	// fires, we store the Promise resolve function here. When the user responds
+	// via askResponse(), we call it to return the answer to the SDK.
+	private pendingAskResolve: ((answer: string) => void) | undefined
+
+	// Pending tool approval resolve — when the SDK calls requestToolApproval
+	// for a non-auto-approved tool, we store the Promise resolve function here.
+	// When the user clicks Approve/Reject in the webview, askResponse() resolves
+	// this promise with { approved: true/false }.
+	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
+
+	// Pending mode change — set by the `switch_to_act_mode` tool's execute()
+	// callback (injected into plan-mode sessions). After `sessionManager.send()`
+	// returns, we apply the pending change by rebuilding the session with the
+	// new mode's config (see `applyPendingModeChange`). Mirrors the CLI's
+	// plan → act flow in apps/cli/src/runtime/run-interactive.ts.
+	private pendingModeChange: Mode | null = null
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -304,10 +384,99 @@ export class Controller {
 	}
 
 	/**
+	 * Check if the active API provider is 'cline' (for current mode).
+	 */
+	private isClineProviderActive(): boolean {
+		try {
+			const apiConfig = this.stateManager.getApiConfiguration()
+			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
+			const mode = modeValue === "plan" ? "plan" : "act"
+			const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+			return provider === "cline"
+		} catch {
+			return false
+		}
+	}
+
+	/**
+	 * Emit a proper auth error for the 'cline' provider when the user is not
+	 * logged in. This produces the same message sequence the classic extension
+	 * emits, so the webview renders the "Sign in to Cline" button via ErrorRow.
+	 *
+	 * Message sequence:
+	 *   1. say:'task'           – the user's message text
+	 *   2. say:'api_req_started' – opens the API request row
+	 *   3. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders auth UI
+	 */
+	private emitClineAuthError(task?: string): void {
+		const ts = Date.now()
+
+		const clineError = new ClineError(
+			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
+			undefined, // modelId
+			"cline",
+		)
+		const serializedError = clineError.serialize()
+
+		const messages: ClineMessage[] = [
+			{
+				ts,
+				type: "say",
+				say: "task",
+				text: task ?? "",
+				partial: false,
+			},
+			{
+				ts: ts + 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					streamingFailedMessage: serializedError,
+				} satisfies ClineApiReqInfo),
+				partial: false,
+			},
+			{
+				ts: ts + 2,
+				type: "ask",
+				ask: "api_req_failed",
+				text: serializedError,
+				partial: false,
+			},
+		]
+
+		// Add to message state handler if a task proxy exists, otherwise
+		// the messages are only emitted to listeners (webview bridge).
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages(messages)
+			this.debouncedSaveClineMessages()
+		}
+
+		this.emitSessionEvents(messages, {
+			type: "status",
+			payload: { sessionId: this.activeSession?.sessionId ?? "", status: "error" },
+		})
+
+		this.postStateToWebview().catch(() => {})
+	}
+
+	/**
 	 * Handle an SDK session event.
 	 * Translates the event and emits ClineMessages to listeners.
 	 */
 	private handleSessionEvent(event: CoreSessionEvent): void {
+		// Log pending prompt events for visibility (SDK emits these when
+		// queued messages are enqueued/consumed via delivery: "queue").
+		if (event.type === "pending_prompts") {
+			const count = event.payload.prompts.length
+			Logger.log(
+				`[SdkController] Pending prompts updated: ${count} prompt(s) in queue for session ${event.payload.sessionId}`,
+			)
+		} else if (event.type === "pending_prompt_submitted") {
+			Logger.log(
+				`[SdkController] Pending prompt submitted: "${event.payload.prompt.substring(0, 80)}" for session ${event.payload.sessionId}`,
+			)
+		}
+
 		const result = translateSessionEvent(event, this.messageTranslatorState)
 
 		// Suppress completion_result messages that arrive after cancellation.
@@ -394,6 +563,41 @@ export class Controller {
 		})
 	}
 
+	// ---- Hook message emitter ----
+
+	/**
+	 * Build an emitter-aware AgentHooks that pushes hook_status ClineMessages
+	 * to the webview whenever a hook runs.
+	 *
+	 * Each emitted message is:
+	 * 1. Added to the task proxy's messageStateHandler (so state includes it)
+	 * 2. Pushed through the partial message stream (so the webview renders it)
+	 * 3. Persisted to disk via debounced save
+	 */
+	private buildHooksWithEmitter(): ReturnType<typeof buildAgentHooks> {
+		const emitter: HookMessageEmitter = (msg) => {
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([msg])
+				this.debouncedSaveClineMessages()
+			}
+			// Push through the partial message stream for immediate rendering
+			pushMessageToWebview(msg).catch(() => {})
+		}
+		return buildAgentHooks(this.stateManager, emitter)
+	}
+
+	private buildExtensionsWithEmitter(): ReturnType<typeof buildHookExtensions> {
+		const emitter: HookMessageEmitter = (msg) => {
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([msg])
+				this.debouncedSaveClineMessages()
+			}
+			// Push through the partial message stream for immediate rendering
+			pushMessageToWebview(msg).catch(() => {})
+		}
+		return buildHookExtensions(this.stateManager, emitter)
+	}
+
 	// ---- Session helpers (shared by initTask, resumeSessionFromTask, restartSessionForMcpTools, etc.) ----
 
 	/**
@@ -451,6 +655,162 @@ export class Controller {
 	}
 
 	/**
+	 * Handle the SDK's `requestToolApproval` callback for non-auto-approved tools.
+	 *
+	 * Converts the SDK tool request to a `ClineSayTool` JSON message, emits it
+	 * as a `type: "ask", ask: "tool"` ClineMessage (triggering the webview's
+	 * existing approval UI), and returns a Promise that resolves when the user
+	 * clicks Approve or Reject.
+	 */
+	private async handleRequestToolApproval(request: {
+		agentId: string
+		conversationId: string
+		iteration: number
+		toolCallId: string
+		toolName: string
+		input: unknown
+		policy: { enabled?: boolean; autoApprove?: boolean }
+	}): Promise<{ approved: boolean; reason?: string }> {
+		// Convert SDK tool name + input to ClineSayTool JSON for the webview
+		const sayTool = sdkToolToClineSayTool(request.toolName, request.input)
+
+		// Emit as ClineMessage with type:"ask", ask:"tool"
+		// This is the same format the classic extension uses for tool approval dialogs
+		const toolAskMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "tool",
+			text: JSON.stringify(sayTool),
+			partial: false,
+		}
+
+		// Add to message state and push to webview
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([toolAskMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([toolAskMessage], {
+			type: "status",
+			payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+		})
+		await this.postStateToWebview()
+
+		// Return a Promise that resolves when the user clicks Approve/Reject
+		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+			this.pendingToolApprovalResolve = resolve
+		})
+	}
+
+	/**
+	 * Handle the SDK's built-in `ask_question` tool executor.
+	 *
+	 * Emits a `type: "ask", ask: "followup"` ClineMessage with `ClineAskQuestion`
+	 * JSON (the same format as the classic `ask_followup_question` tool), and
+	 * returns a Promise that resolves when the user responds via `askResponse()`.
+	 */
+	private async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+		// Build ClineAskQuestion JSON (same format as classic ask_followup_question)
+		const askData: ClineAskQuestion = {
+			question,
+			options: options?.length ? options : undefined,
+		}
+
+		// Emit as ClineMessage with type:"ask", ask:"followup"
+		const askMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "followup",
+			text: JSON.stringify(askData),
+			partial: false,
+		}
+
+		// Add to message state and push to webview
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([askMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([askMessage], {
+			type: "status",
+			payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+		})
+		await this.postStateToWebview()
+
+		// Return a Promise that resolves when the user responds via askResponse()
+		return new Promise<string>((resolve) => {
+			this.pendingAskResolve = resolve
+		})
+	}
+
+	/**
+	 * Build the `switch_to_act_mode` tool injected into plan-mode sessions.
+	 *
+	 * Mirrors the CLI's implementation in apps/cli/src/runtime/run-interactive.ts.
+	 * When the model calls this tool, we set `pendingModeChange = "act"` and
+	 * return a success message so the turn completes normally. After
+	 * `sessionManager.send()` returns, `applyPendingModeChange()` rebuilds the
+	 * session in act mode (see Task 4 for the full session-rebuild flow).
+	 */
+	private createSwitchToActModeTool(): Tool {
+		return createTool({
+			name: "switch_to_act_mode",
+			description:
+				"Switch from plan mode to act mode. Call this after the user has confirmed they want to proceed with the plan. Do not call this proactively or before the user has agreed.",
+			inputSchema: {
+				type: "object",
+				properties: {},
+			},
+			timeoutMs: 5000,
+			retryable: false,
+			maxRetries: 0,
+			execute: async () => {
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				if (currentMode === "act") {
+					return "Already in act mode."
+				}
+				this.pendingModeChange = "act"
+				return "You successfully switched to act mode, proceed with the plan. You now have access to editing files and running commands. (The switch_to_act_mode tool is only available in plan mode.)"
+			},
+		})
+	}
+
+	/**
+	 * Inject mode-specific extra tools into a session config.
+	 *
+	 * Currently only adds the `switch_to_act_mode` tool when the session is
+	 * in plan mode. Called from every code path that builds a session config
+	 * (initTask, resumeSessionFromTask, reinitExistingTaskFromId, and the
+	 * MCP tool restart flow).
+	 */
+	private injectModeExtraTools(config: { extraTools?: Tool[]; mode?: string }, mode: Mode): void {
+		if (mode === "plan") {
+			config.extraTools = [...(config.extraTools ?? []), this.createSwitchToActModeTool()]
+		}
+	}
+
+	/**
+	 * Apply a pending mode change queued by the `switch_to_act_mode` tool.
+	 *
+	 * Called after `sessionManager.send()` returns (i.e. the agent turn that
+	 * invoked the tool has completed). The full session-rebuild flow (persist
+	 * messages, tear down old session, start a new one with the new mode's
+	 * config + tools + system prompt) is implemented in Task 4.
+	 *
+	 * For now this just clears the flag so subsequent turns don't re-trigger,
+	 * and logs the intent so we can see the plumbing work end-to-end.
+	 */
+	private async applyPendingModeChange(): Promise<void> {
+		const target = this.pendingModeChange
+		if (!target) {
+			return
+		}
+		this.pendingModeChange = null
+		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target} (session rebuild pending — Task 4)`)
+		// TODO(Task 4): persist messages, tear down activeSession, rebuild
+		// session with the new mode's CoreSessionConfig, restore conversation
+		// history via initialMessages, and update state (mode toggle).
+	}
+
+	/**
 	 * Create a new VscodeSessionHost, subscribe to events, start a session,
 	 * and wire up `this.activeSession`.
 	 *
@@ -463,7 +823,17 @@ export class Controller {
 	private async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
-		const sessionManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
+		// Build tool policies from user's auto-approval settings so the SDK
+		// knows which tools require explicit user approval.
+		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.mcpHub) : undefined
+
+		const sessionManager = await VscodeSessionHost.create({
+			mcpHub: this.mcpHub,
+			requestToolApproval: (request) => this.handleRequestToolApproval(request),
+			askQuestion: (question, options, context) => this.handleAskQuestion(question, options, context),
+			toolPolicies,
+		})
 		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			this.handleSessionEvent(event)
 		})
@@ -494,6 +864,7 @@ export class Controller {
 		prompt: string,
 		images?: string[],
 		files?: string[],
+		delivery?: "queue" | "steer",
 	): void {
 		sessionManager
 			.send({
@@ -501,12 +872,32 @@ export class Controller {
 				prompt,
 				userImages: images,
 				userFiles: files,
+				delivery,
 			})
-			.then(() => {
+			.then(async (result) => {
+				// When delivery is "queue", send() returns undefined immediately
+				// (the message was enqueued, the turn didn't complete). Don't
+				// update isRunning — the agent is still mid-turn.
+				if (delivery === "queue" || delivery === "steer") {
+					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
+					return
+				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				if (this.activeSession) {
 					this.activeSession.isRunning = false
 				}
+
+				// If the model invoked `switch_to_act_mode` during this turn,
+				// apply the queued mode change now that the turn is complete.
+				// Mirrors the CLI's plan → act flow (apps/cli/src/runtime/run-interactive.ts).
+				if (this.pendingModeChange) {
+					try {
+						await this.applyPendingModeChange()
+					} catch (err) {
+						Logger.error("[SdkController] applyPendingModeChange failed:", err)
+					}
+				}
+
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
 				})
@@ -520,18 +911,32 @@ export class Controller {
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
-				this.emitSessionEvents(
-					[
-						{
-							ts: Date.now(),
-							type: "say",
-							say: "error",
-							text: `Agent error: ${error instanceof Error ? error.message : String(error)}`,
-							partial: false,
-						},
-					],
-					{ type: "status", payload: { sessionId, status: "error" } },
-				)
+
+				// Detect auth errors for the 'cline' provider so the webview
+				// shows the "Sign in to Cline" button instead of a raw error.
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				const isClineAuthError =
+					this.isClineProviderActive() &&
+					(errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+						errorMessage.toLowerCase().includes("missing api key") ||
+						errorMessage.toLowerCase().includes("unauthorized"))
+
+				if (isClineAuthError) {
+					this.emitClineAuthError()
+				} else {
+					this.emitSessionEvents(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Agent error: ${errorMessage}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId, status: "error" } },
+					)
+				}
 				if (this.activeSession) {
 					this.activeSession.isRunning = false
 				}
@@ -567,9 +972,26 @@ export class Controller {
 				cwd,
 				mode,
 			})
+			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+
+			// Inject the `switch_to_act_mode` tool in plan mode so the model
+			// can programmatically transition to act mode once the user agrees
+			// to the plan. Mirrors apps/cli/src/runtime/run-interactive.ts.
+			this.injectModeExtraTools(config, mode)
+
 			Logger.log(
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
+
+			// Pre-check: if using the 'cline' provider without auth, emit a
+			// proper auth error so the webview shows the "Sign in to Cline"
+			// button instead of a raw SDK error.
+			if (config.providerId === "cline" && !config.apiKey) {
+				Logger.warn("[SdkController] Cline provider selected but no auth token — emitting auth error")
+				this.emitClineAuthError(task)
+				return undefined
+			}
 
 			// Build start input — NO prompt, so start() returns immediately
 			// (session creation only, no inference yet)
@@ -667,10 +1089,14 @@ export class Controller {
 
 			// Build session config from the history item's context
 			const cwd = historyItem.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
+			const reinitMode: Mode = "act" // Default to act mode for resumed tasks
 			const config = await buildSessionConfig({
 				cwd,
-				mode: "act", // Default to act mode for resumed tasks
+				mode: reinitMode,
 			})
+			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+			this.injectModeExtraTools(config, reinitMode)
 
 			// Create a temporary session host to read old messages before
 			// starting the new session (start() overwrites the session row)
@@ -699,22 +1125,42 @@ export class Controller {
 			Logger.log(`[SdkController] Task resumed: ${taskId} → ${startResult.sessionId}`)
 		} catch (error) {
 			Logger.error("[SdkController] Failed to reinit task:", error)
-			this.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "error",
-						text: `Failed to resume task: ${error instanceof Error ? error.message : String(error)}`,
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId: taskId, status: "error" } },
-			)
+
+			// Detect auth errors for the 'cline' provider
+			const reinitErrorMsg = error instanceof Error ? error.message : String(error)
+			const isClineAuthReinit =
+				this.isClineProviderActive() &&
+				(reinitErrorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+					reinitErrorMsg.toLowerCase().includes("missing api key") ||
+					reinitErrorMsg.toLowerCase().includes("unauthorized"))
+
+			if (isClineAuthReinit) {
+				this.emitClineAuthError()
+			} else {
+				this.emitSessionEvents(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Failed to resume task: ${reinitErrorMsg}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId: taskId, status: "error" } },
+				)
+			}
 		}
 	}
 
 	async cancelTask(): Promise<void> {
+		// Clear any pending ask_question or tool approval — they are moot after cancellation
+		this.pendingAskResolve = undefined
+		if (this.pendingToolApprovalResolve) {
+			this.pendingToolApprovalResolve({ approved: false, reason: "Task cancelled" })
+			this.pendingToolApprovalResolve = undefined
+		}
+
 		if (!this.activeSession) {
 			Logger.warn("[SdkController] cancelTask: No active session")
 			return
@@ -760,6 +1206,13 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
+		// Clear any pending ask_question or tool approval — the session is being torn down
+		this.pendingAskResolve = undefined
+		if (this.pendingToolApprovalResolve) {
+			this.pendingToolApprovalResolve({ approved: false, reason: "Task cleared" })
+			this.pendingToolApprovalResolve = undefined
+		}
+
 		if (this.activeSession) {
 			const { sessionManager, unsubscribe, sessionId } = this.activeSession
 
@@ -872,6 +1325,57 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		// Check if a tool approval is pending (requestToolApproval callback waiting).
+		// The TaskProxy stores the response type in taskState.askResponse before
+		// calling this method, so we can determine approve vs reject.
+		if (this.pendingToolApprovalResolve) {
+			const resolve = this.pendingToolApprovalResolve
+			this.pendingToolApprovalResolve = undefined
+
+			const responseType = this.task?.taskState?.askResponse
+			const approved = responseType === "yesButtonClicked"
+			Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
+
+			resolve({
+				approved,
+				...(approved ? {} : { reason: prompt || "User denied the tool execution" }),
+			})
+			return
+		}
+
+		// Check if the SDK's ask_question tool is waiting for a response.
+		// If so, resolve the pending promise with the user's answer and return
+		// — we do NOT send a new message to the SDK in this case.
+		if (this.pendingAskResolve) {
+			const resolve = this.pendingAskResolve
+			this.pendingAskResolve = undefined
+
+			const responseText = prompt ?? ""
+			Logger.log(`[SdkController] Resolving pending ask_question with: "${responseText.substring(0, 80)}"`)
+
+			// Render the user's response in the chat timeline
+			if (responseText) {
+				const userMessage: ClineMessage = {
+					ts: Date.now(),
+					type: "say",
+					say: "user_feedback",
+					text: responseText,
+					partial: false,
+				}
+				if (this.task?.messageStateHandler) {
+					this.task.messageStateHandler.addMessages([userMessage])
+					this.debouncedSaveClineMessages()
+				}
+				this.emitSessionEvents([userMessage], {
+					type: "status",
+					payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+				})
+			}
+
+			resolve(responseText)
+			return
+		}
+
 		// If the user is viewing an old task (this.task is set by showTaskWithId)
 		// but there's no active SDK session, we need to resume the session first.
 		// Also resume when the session was cancelled (isRunning === false) — the
@@ -883,18 +1387,31 @@ export class Controller {
 				await this.resumeSessionFromTask(this.task.taskId, prompt, images, files)
 			} catch (error) {
 				Logger.error("[SdkController] Failed to resume session from task:", error)
-				this.emitSessionEvents(
-					[
-						{
-							ts: Date.now(),
-							type: "say",
-							say: "error",
-							text: `Failed to resume task: ${error instanceof Error ? error.message : String(error)}`,
-							partial: false,
-						},
-					],
-					{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
-				)
+
+				// Detect auth errors for the 'cline' provider
+				const errorMsg = error instanceof Error ? error.message : String(error)
+				const isClineAuth =
+					this.isClineProviderActive() &&
+					(errorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+						errorMsg.toLowerCase().includes("missing api key") ||
+						errorMsg.toLowerCase().includes("unauthorized"))
+
+				if (isClineAuth) {
+					this.emitClineAuthError()
+				} else {
+					this.emitSessionEvents(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Failed to resume task: ${errorMsg}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
+					)
+				}
 				await this.postStateToWebview()
 			}
 			return
@@ -906,6 +1423,17 @@ export class Controller {
 		}
 
 		const { sessionManager, sessionId } = this.activeSession
+
+		// If the session is already running (agent mid-turn), use delivery: "queue"
+		// so the SDK enqueues the message instead of throwing "already in progress".
+		// The SDK will drain the queue after the current turn completes.
+		const wasAlreadyRunning = this.activeSession.isRunning
+		const delivery = wasAlreadyRunning ? ("queue" as const) : undefined
+
+		if (wasAlreadyRunning) {
+			Logger.log(`[SdkController] Session is running — queuing follow-up message for session: ${sessionId}`)
+		}
+
 		this.activeSession.isRunning = true
 
 		// Mirror classic behavior: render the user's follow-up message immediately
@@ -933,14 +1461,17 @@ export class Controller {
 			})
 		}
 
-		// Reset translator state for new turn
-		this.messageTranslatorState.reset()
+		// Reset translator state for new turn (only if not queuing — queued
+		// messages will be processed after the current turn completes)
+		if (!wasAlreadyRunning) {
+			this.messageTranslatorState.reset()
+		}
 
 		// Resolve @mentions before sending to the SDK
 		const resolvedPrompt = prompt ? await this.resolveContextMentions(prompt) : ""
 
-		// Fire-and-forget send
-		this.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files)
+		// Fire-and-forget send (with delivery: "queue" if session was already running)
+		this.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files, delivery)
 	}
 
 	/**
@@ -966,6 +1497,9 @@ export class Controller {
 		const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 		const config = await buildSessionConfig({ cwd, mode })
+		config.hooks = this.buildHooksWithEmitter()
+		config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+		this.injectModeExtraTools(config, mode)
 		config.sessionId = taskId
 
 		// Load conversation history BEFORE start() (which overwrites the session row).
@@ -1465,6 +1999,9 @@ export class Controller {
 			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({ cwd, mode })
+			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+			this.injectModeExtraTools(config, mode)
 			// Preserve the existing task/session ID so currentTaskItem continues
 			// to resolve from taskHistory and the webview doesn't flash back to
 			// a blank/new-task state after MCP server toggles.
