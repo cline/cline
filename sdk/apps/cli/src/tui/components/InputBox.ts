@@ -10,29 +10,59 @@ export interface QueuedPromptItem {
 
 interface InputBoxProps {
 	input: string;
-	cursorIndex: number;
+	cursor: number;
 	queuedPrompts: QueuedPromptItem[];
+}
+
+function renderInputWithCursor(
+	input: string,
+	cursor: number,
+	cursorVisible: boolean,
+): React.ReactNode[] {
+	const safeCursor = Math.max(0, Math.min(cursor, input.length));
+	const before = input.slice(0, safeCursor);
+	const currentChar = input[safeCursor] ?? " ";
+	const after = input.slice(safeCursor + (safeCursor < input.length ? 1 : 0));
+	const parts: React.ReactNode[] = [];
+
+	if (before) {
+		parts.push(React.createElement(Text, { key: "before" }, before));
+	}
+
+	parts.push(
+		cursorVisible
+			? React.createElement(Text, { key: "cursor", inverse: true }, currentChar)
+			: React.createElement(Text, { key: "cursor" }, currentChar),
+	);
+
+	if (after) {
+		parts.push(React.createElement(Text, { key: "after" }, after));
+	}
+
+	return parts;
 }
 
 export function InputBox({
 	input,
-	cursorIndex,
+	cursor,
 	queuedPrompts,
 }: InputBoxProps): React.ReactElement {
-	const [showCursor, setShowCursor] = useState(true);
+	const [cursorVisible, setCursorVisible] = useState(true);
 
 	useEffect(() => {
-		setShowCursor(true);
-		const timer = setInterval(() => {
-			setShowCursor((current) => !current);
-		}, 530);
-		return () => clearInterval(timer);
+		setCursorVisible(true);
+		const interval = setInterval(() => {
+			setCursorVisible((current) => !current);
+		}, 450);
+		const timeout = setTimeout(() => {
+			clearInterval(interval);
+			setCursorVisible(true);
+		}, 1200);
+		return () => {
+			clearInterval(interval);
+			clearTimeout(timeout);
+		};
 	}, []);
-
-	const clampedCursorIndex = Math.max(0, Math.min(cursorIndex, input.length));
-	const beforeCursor = input.slice(0, clampedCursorIndex);
-	const cursorCharacter = input[clampedCursorIndex] ?? " ";
-	const afterCursor = input.slice(clampedCursorIndex + 1);
 
 	return React.createElement(
 		Box,
@@ -78,18 +108,7 @@ export function InputBox({
 				Text,
 				null,
 				React.createElement(Text, { color: "green" }, "> "),
-				beforeCursor,
-				showCursor
-					? React.createElement(
-							Text,
-							{
-								backgroundColor: "green",
-								color: "black",
-							},
-							cursorCharacter,
-						)
-					: React.createElement(Text, null, cursorCharacter),
-				afterCursor,
+				...renderInputWithCursor(input, cursor, cursorVisible),
 			),
 		),
 	);

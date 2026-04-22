@@ -571,20 +571,23 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const closeInlineStream = useCallback(() => {
 		activeInlineStreamRef.current = undefined;
-		// Mark the last streaming entry as no longer streaming
+		// Mark the most recent streaming inline entry as no longer streaming.
+		// Status/team rows can be appended after it before the stream closes.
 		setEntries((prev) => {
 			if (prev.length === 0) return prev;
-			const last = prev[prev.length - 1];
-			if (
-				last &&
-				(last.kind === "assistant_text" ||
-					last.kind === "reasoning" ||
-					last.kind === "tool_start") &&
-				last.streaming
-			) {
-				const next = [...prev];
-				next[next.length - 1] = { ...last, streaming: false } as ChatEntry;
-				return next;
+			for (let index = prev.length - 1; index >= 0; index -= 1) {
+				const entry = prev[index];
+				if (
+					entry &&
+					(entry.kind === "assistant_text" ||
+						entry.kind === "reasoning" ||
+						entry.kind === "tool_start") &&
+					entry.streaming
+				) {
+					const next = [...prev];
+					next[index] = { ...entry, streaming: false } as ChatEntry;
+					return next;
+				}
 			}
 			return prev;
 		});
@@ -1301,7 +1304,11 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 
 	const renderInputBox =
 		!isConfigViewOpen && !isExitRequested
-			? React.createElement(InputBox, { input, cursorIndex, queuedPrompts })
+			? React.createElement(InputBox, {
+					input,
+					cursor: cursorIndex,
+					queuedPrompts,
+				})
 			: null;
 
 	const renderConfigView = isConfigViewOpen
