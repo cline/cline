@@ -11,7 +11,7 @@ These examples are full, runnable applications you can copy and adapt. Each demo
 A persistent Slack bot where each thread gets its own agent session with conversation memory.
 
 ```typescript
-import { Agent } from "@clinebot/core"
+import { Agent } from "@clinebot/sdk"
 
 // Map Slack thread IDs to agent instances
 const agents = new Map<string, Agent>()
@@ -43,8 +43,8 @@ async function handleSlackMessage(threadId: string, message: string) {
 An agent that reads a git diff and produces a structured code review.
 
 ```typescript
-import { Agent } from "@clinebot/core"
-import { createTool } from "@clinebot/core"
+import { Agent } from "@clinebot/sdk"
+import { createTool } from "@clinebot/sdk"
 import { execSync } from "child_process"
 
 const gitDiffTool = createTool({
@@ -94,7 +94,7 @@ cline schedule create "Daily PR summary" \
 Or programmatically:
 
 ```typescript
-import { ClineCore } from "@clinebot/core"
+import { ClineCore } from "@clinebot/sdk"
 
 const cline = await ClineCore.create({
   clientName: "daily-summary",
@@ -111,7 +111,7 @@ const cline = await ClineCore.create({
 An agent with full file system access that auto-approves all tool calls.
 
 ```typescript
-import { ClineCore } from "@clinebot/core"
+import { ClineCore } from "@clinebot/sdk"
 
 const cline = await ClineCore.create({ clientName: "file-editor" })
 
@@ -142,7 +142,7 @@ console.log("Done:", session.result?.finishReason)
 A command-line agent with streaming output and multi-turn conversation.
 
 ```typescript
-import { Agent } from "@clinebot/core"
+import { Agent } from "@clinebot/sdk"
 import * as readline from "readline"
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
@@ -183,7 +183,7 @@ rl.close()
 A plugin that logs all tool calls and tracks execution time.
 
 ```typescript
-import { Agent, type AgentExtension } from "@clinebot/core"
+import { Agent, type AgentExtension } from "@clinebot/sdk"
 
 const metricsPlugin: AgentExtension = {
   name: "metrics-tracker",

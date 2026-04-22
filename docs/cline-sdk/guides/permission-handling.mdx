@@ -75,7 +75,7 @@ Auto-approving all tools means the agent can execute any shell command, modify a
 For applications that need human oversight, implement a custom approval handler:
 
 ```typescript
-import { ClineCore } from "@clinebot/core"
+import { ClineCore } from "@clinebot/sdk"
 import * as readline from "readline"
 
 const rl = readline.createInterface({ input: process.stdin, output: process.stdout })
