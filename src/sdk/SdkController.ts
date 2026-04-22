@@ -1292,11 +1292,13 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 			})
-			// SDK always uses background execution (bash executor spawns child
-			// processes directly). Override so the webview's CommandOutputRow
-			// renders with the correct background-exec UI (cancel button, log
-			// file links, proper status text).
-			state.vscodeTerminalExecutionMode = "backgroundExec"
+			// NOTE: Prior to the foreground-terminal removal on main (PR #10196,
+			// commit 1862f1595), we had to override state.vscodeTerminalExecutionMode
+			// = "backgroundExec" so CommandOutputRow would render the background-exec
+			// UI (cancel button, log file links, correct status text). After that PR
+			// the webview unconditionally treats every command as background-exec
+			// (ChatRow hardcodes isBackgroundExec={true}), and the field was removed
+			// from ExtensionState, so the override is no longer necessary.
 			return state
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
