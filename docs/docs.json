@@ -97,29 +97,6 @@
 						]
 					},
 					{
-						"group": "Cline CLI",
-						"pages": [
-							"cline-cli/overview",
-							"cline-cli/installation",
-							"cline-cli/interactive-mode",
-							{
-								"group": "Headless Mode",
-								"pages": [
-									"cline-cli/three-core-flows",
-									"cline-cli/samples/overview",
-									"cline-cli/samples/github-issue-rca",
-									"cline-cli/samples/github-integration",
-									"cline-cli/samples/github-pr-review",
-									"cline-cli/samples/model-orchestration",
-									"cline-cli/samples/worktree-workflows"
-								]
-							},
-							"cline-cli/configuration",
-							"cline-cli/acp-editor-integrations",
-							"cline-cli/cli-reference"
-						]
-					},
-					{
 						"group": "Features",
 						"pages": [
 							"features/memory-bank",
@@ -416,12 +393,53 @@
 							"cline-sdk/reference/events",
 							"cline-sdk/reference/types"
 						]
+					}
+				]
+			},
+			{
+				"tab": "CLI",
+				"icon": "terminal",
+				"groups": [
+					{
+						"group": "Getting Started",
+						"pages": [
+							"cline-cli/overview",
+							"cline-cli/installation"
+						]
 					},
 					{
-						"group": "CLI",
+						"group": "Usage",
 						"pages": [
-							"cline-sdk/cli/commands",
-							"cline-sdk/cli/configuration"
+							"cline-cli/interactive-mode",
+							"cline-cli/three-core-flows"
+						]
+					},
+					{
+						"group": "Features",
+						"pages": [
+							"cline-cli/connectors",
+							"cline-cli/scheduling",
+							"cline-cli/mcp-servers",
+							"cline-cli/agent-teams"
+						]
+					},
+					{
+						"group": "Reference",
+						"pages": [
+							"cline-cli/cli-reference",
+							"cline-cli/configuration",
+							"cline-cli/acp-editor-integrations"
+						]
+					},
+					{
+						"group": "Samples",
+						"pages": [
+							"cline-cli/samples/overview",
+							"cline-cli/samples/github-issue-rca",
+							"cline-cli/samples/github-integration",
+							"cline-cli/samples/github-pr-review",
+							"cline-cli/samples/model-orchestration",
+							"cline-cli/samples/worktree-workflows"
 						]
 					}
 				]
