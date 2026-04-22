@@ -1,0 +1,173 @@
+---
+title: "Cline SDK"
+sidebarTitle: "Overview"
+description: "A modular TypeScript framework for building, orchestrating, and deploying AI agents."
+---
+
+The Cline SDK is a modular TypeScript framework for building AI agents that can edit files, run commands, browse the web, and use any tool you give them. It powers [Cline CLI](/cline-cli/overview), the VS Code extension, and the desktop app -- and you can embed it in your own applications.
+
+```typescript
+import { Agent } from "@clinebot/agents"
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  systemPrompt: "You are a helpful coding assistant.",
+  tools: [],
+  onEvent: (event) => {
+    if (event.type === "content_update" && event.contentType === "text") {
+      process.stdout.write(event.text)
+    }
+  },
+})
+
+const result = await agent.run("Create a hello world Express server")
+console.log(result.finishReason) // "completed"
+```
+
+## What You Can Build
+
+<CardGroup cols={2}>
+  <Card title="Coding Agents" icon="code">
+    Embed a full coding agent in your Node.js app. File editing, command execution, browser use, and MCP server support all built in.
+  </Card>
+  <Card title="Chat Bots" icon="messages">
+    Connect agents to Slack, Telegram, Google Chat, WhatsApp, or Linear. Each conversation gets its own persistent session.
+  </Card>
+  <Card title="Scheduled Automations" icon="clock">
+    Run agents on a cron schedule. Daily PR summaries, automated code reviews, recurring maintenance tasks.
+  </Card>
+  <Card title="Multi-Agent Teams" icon="users">
+    Coordinate multiple agents working together. Delegate subtasks, share context, and merge results.
+  </Card>
+  <Card title="Custom Tool Platforms" icon="wrench">
+    Give agents domain-specific capabilities through custom tools, extensions, and lifecycle hooks.
+  </Card>
+  <Card title="IDE Integrations" icon="window">
+    Build editor extensions and developer tools powered by the same engine as the Cline VS Code extension.
+  </Card>
+</CardGroup>
+
+## How It Works
+
+The SDK is organized as a layered stack of packages. Use as much or as little as you need:
+
+```
+Your Application
+       |
+  @clinebot/core      Full orchestration: sessions, persistence, config, built-in tools
+       |
+  @clinebot/agents    Stateless agent loop: run/continue/abort, tool execution, hooks
+       |
+  @clinebot/llms      LLM gateway: provider abstraction, model catalogs, streaming
+       |
+  @clinebot/shared    Contracts: types, schemas, tool interfaces, hook engine
+```
+
+Most applications start with either `@clinebot/agents` (for lightweight, stateless agent usage) or `@clinebot/core` (for full session management and persistence).
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/cline-sdk/quickstart">
+    Get a working agent running in under 5 minutes.
+  </Card>
+  <Card title="Core Concepts" icon="book" href="/cline-sdk/agents">
+    Understand agents, sessions, tools, events, and the extension system.
+  </Card>
+  <Card title="Examples" icon="flask" href="/cline-sdk/examples">
+    Browse complete working examples you can copy and adapt.
+  </Card>
+  <Card title="API Reference" icon="rectangle-terminal" href="/cline-sdk/reference/cline-core">
+    Full method signatures, parameters, and return types.
+  </Card>
+</CardGroup>
+
+## Installation
+
+<Tabs>
+  <Tab title="npm">
+    ```bash
+    npm install @clinebot/agents @clinebot/llms
+    ```
+  </Tab>
+  <Tab title="bun">
+    ```bash
+    bun add @clinebot/agents @clinebot/llms
+    ```
+  </Tab>
+  <Tab title="pnpm">
+    ```bash
+    pnpm add @clinebot/agents @clinebot/llms
+    ```
+  </Tab>
+</Tabs>
+
+For full session management, persistence, and built-in tools, also install `@clinebot/core`:
+
+```bash
+npm install @clinebot/core
+```
+
+Requires Node.js 22 or later and Bun 1.3.10 or later.
+
+## Two Ways to Use the SDK
+
+<Tabs>
+  <Tab title="Agent (Lightweight)">
+    Use `@clinebot/agents` directly for stateless, in-process agent execution. No persistence, no RPC, no session management. You control the lifecycle.
+
+    ```typescript
+    import { Agent } from "@clinebot/agents"
+
+    const agent = new Agent({
+      providerId: "anthropic",
+      modelId: "claude-sonnet-4-6",
+      systemPrompt: "You are a helpful assistant.",
+      tools: [myCustomTool],
+    })
+
+    const result = await agent.run("Analyze this codebase")
+    console.log(result.text)
+
+    // Continue the conversation
+    const followUp = await agent.continue("Now refactor the auth module")
+    ```
+  </Tab>
+  <Tab title="ClineCore (Full Stack)">
+    Use `@clinebot/core` for session persistence, built-in tools (bash, file editing, web fetch), config watching, and optional RPC for multi-process architectures.
+
+    ```typescript
+    import { ClineCore } from "@clinebot/core"
+
+    const cline = await ClineCore.create({
+      clientName: "my-app",
+    })
+
+    const session = await cline.start({
+      prompt: "Set up a CI pipeline for this project",
+      config: {
+        providerId: "anthropic",
+        modelId: "claude-sonnet-4-6",
+        apiKey: process.env.ANTHROPIC_API_KEY,
+        cwd: "/path/to/project",
+      },
+    })
+
+    console.log(session.result?.text)
+    ```
+  </Tab>
+</Tabs>
+
+## Supported Providers
+
+The SDK supports all major LLM providers through `@clinebot/llms`:
+
+| Provider | Models | Streaming | Vision | Tool Use |
+|----------|--------|-----------|--------|----------|
+| Anthropic | Claude 4, 3.5 | Yes | Yes | Yes |
+| OpenAI | GPT-4o, o1 | Yes | Yes | Yes |
+| Google | Gemini 2.5 | Yes | Yes | Yes |
+| AWS Bedrock | Claude, Llama | Yes | Yes | Yes |
+| Mistral | Mistral Large | Yes | No | Yes |
+| OpenAI-compatible | Any | Yes | Varies | Varies |
+
+Configure providers via environment variables, settings files, or runtime config. See [Providers and Models](/cline-sdk/providers-and-models) for details.

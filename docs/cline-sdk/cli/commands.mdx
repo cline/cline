@@ -1,0 +1,138 @@
+---
+title: "CLI Commands"
+sidebarTitle: "Commands"
+description: "Reference for all Cline CLI commands."
+---
+
+The Cline CLI provides interactive and headless access to the SDK from the terminal.
+
+## Basic Usage
+
+```bash
+# Interactive TUI
+cline
+
+# Single prompt (runs agent, exits on completion)
+cline "Write a function that sorts an array"
+
+# With a specific model
+cline --model anthropic/claude-sonnet-4-6 "Explain this codebase"
+```
+
+## Authentication
+
+```bash
+# Interactive provider selection and auth
+cline auth
+
+# Authenticate a specific provider with API key
+cline auth -p anthropic -k "sk-ant-..."
+
+# Set default model during auth
+cline auth -p anthropic -k "sk-ant-..." -m anthropic/claude-sonnet-4-6
+
+# Auth for a custom config directory
+cline auth -p anthropic -k "sk-ant-..." --config /custom/path
+```
+
+## Configuration
+
+```bash
+# Open config editor
+cline config
+
+# List discovered resources
+cline list rules          # Show active rules
+cline list skills         # Show available skills
+cline list workflows      # Show available workflows
+cline list hooks          # Show registered hooks
+cline list plugins        # Show loaded plugins
+```
+
+## RPC Server
+
+```bash
+# Manage the RPC sidecar
+cline rpc start           # Start the sidecar
+cline rpc stop            # Stop it
+cline rpc status          # Check if running
+```
+
+## Scheduling
+
+```bash
+# Create a scheduled agent
+cline schedule create "Task name" \
+  --cron "0 9 * * MON-FRI" \
+  --prompt "What to do" \
+  --workspace /path/to/repo \
+  --model anthropic/claude-sonnet-4-6
+
+# Manage schedules
+cline schedule list
+cline schedule trigger <schedule-id>
+cline schedule pause <schedule-id>
+cline schedule resume <schedule-id>
+cline schedule delete <schedule-id>
+
+# View execution history
+cline schedule executions <schedule-id>
+```
+
+## Connectors
+
+```bash
+# Connect to messaging platforms
+cline connect telegram -m <BOT-ID> -k <BOT-TOKEN>
+cline connect slack
+cline connect gchat
+cline connect whatsapp
+cline connect linear
+
+# With access control
+cline connect telegram -m <BOT-ID> -k <BOT-TOKEN> \
+  --hook-command '/path/to/auth-script.sh'
+```
+
+## Session Management
+
+```bash
+# List recent sessions
+cline history list
+
+# Export session data
+cline history export <session-id>
+
+# Manage checkpoints
+cline checkpoint list
+cline checkpoint delete <checkpoint-id>
+```
+
+## Teams
+
+```bash
+# Start a team workflow
+cline --team-name my-team "Plan and implement feature X"
+
+# Resume team work
+cline --team-name my-team "Continue with incomplete tasks"
+```
+
+## Diagnostics
+
+```bash
+# Run diagnostics
+cline doctor
+```
+
+Reports on: Node.js version, installed packages, provider configuration, RPC server status, and common issues.
+
+## Global Flags
+
+| Flag | Description |
+|------|-------------|
+| `--model <id>` | Override the default model (format: `provider/model`) |
+| `--team-name <name>` | Enable team mode with the given team name |
+| `--session <id>` | Resume an existing session |
+| `--config <path>` | Custom config directory (default: `~/.cline`) |
+| `--workspace <path>` | Working directory for the agent |

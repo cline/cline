@@ -1,0 +1,157 @@
+---
+title: "Connectors"
+sidebarTitle: "Connectors"
+description: "Connect your agents to Telegram, Slack, Google Chat, WhatsApp, and Linear for conversational access from any platform."
+---
+
+Connectors turn your agent into a chat bot on messaging platforms. Each incoming message creates or continues an agent session, and the agent's response is sent back to the conversation.
+
+## Supported Platforms
+
+| Platform | Command | Status |
+|----------|---------|--------|
+| Telegram | `cline connect telegram` | Available |
+| Slack | `cline connect slack` | Available |
+| Google Chat | `cline connect gchat` | Available |
+| WhatsApp | `cline connect whatsapp` | Available |
+| Linear | `cline connect linear` | Available |
+
+## Telegram
+
+### Setup
+
+<Steps>
+  <Step title="Create a Telegram bot">
+    Open Telegram and start a chat with [@BotFather](https://t.me/BotFather). Send `/newbot` and follow the prompts:
+
+    1. Enter a display name (e.g., "Cline")
+    2. Enter a username ending in `bot` (e.g., `cline_saoud_bot`). Must be unique across Telegram.
+    3. BotFather responds with your bot token (looks like `7123456789:AAH...`)
+  </Step>
+
+  <Step title="Start the connector">
+    ```bash
+    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN>
+    ```
+  </Step>
+
+  <Step title="Chat with your bot">
+    Open Telegram, search for your bot's username, and send a message. The agent processes it and replies in the chat.
+  </Step>
+</Steps>
+
+### Security
+
+By default, anyone who finds your bot can message it and it will execute tasks on your machine. Lock it down with the `--hook-command` flag.
+
+<Steps>
+  <Step title="Get your Telegram user ID">
+    Message [@userinfobot](https://t.me/userinfobot) on Telegram. It replies with your user ID immediately.
+  </Step>
+
+  <Step title="Start with access control">
+    Replace `12345` with your actual Telegram user ID:
+
+    ```bash
+    cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN> \
+      --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "telegram:id:12345" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
+    ```
+  </Step>
+</Steps>
+
+The `--hook-command` receives each incoming message with sender info via stdin. Your script returns `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`. Without `--hook-command`, everything is auto-approved.
+
+For more complex auth logic, point to a script file instead of an inline command:
+
+```bash
+cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN> \
+  --hook-command '/path/to/auth-check.sh'
+```
+
+### Prerequisites
+
+The Telegram connector requires the RPC server to be running. Start it manually if it doesn't auto-start:
+
+```bash
+cline rpc start
+```
+
+## Slack
+
+```bash
+cline connect slack
+```
+
+Follow the interactive setup to connect your Slack workspace. Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+
+## Google Chat
+
+```bash
+cline connect gchat
+```
+
+## WhatsApp
+
+```bash
+cline connect whatsapp
+```
+
+## Linear
+
+```bash
+cline connect linear
+```
+
+## How Connectors Work
+
+Connectors are persistent daemon processes that:
+
+1. Subscribe to incoming messages from the platform (webhooks or polling)
+2. Route each message to the RPC server
+3. The RPC server creates or resumes an agent session
+4. The agent processes the message and generates a response
+5. The connector sends the response back to the platform
+
+Each conversation (Slack thread, Telegram chat, etc.) maps to its own agent session with independent context and history.
+
+## Architecture
+
+```
+[Telegram/Slack/etc.] --> [Connector Daemon] --> [RPC Server] --> [Agent Session]
+                     <--                    <--              <--
+```
+
+The connector daemon runs locally on your machine. Messages flow through the RPC sidecar, which manages session state and agent execution. This means:
+
+- The agent has access to your local file system and tools
+- Sessions persist across connector restarts
+- Multiple connectors can run simultaneously (e.g., Telegram and Slack)
+- Scheduled agents can share the same RPC server
+
+## Custom Hook Commands
+
+The `--hook-command` pattern works across all connectors. The script receives a JSON payload with:
+
+```json
+{
+  "payload": {
+    "actor": {
+      "participantKey": "telegram:id:12345",
+      "displayName": "User Name"
+    },
+    "message": "The incoming message text"
+  }
+}
+```
+
+Return either:
+
+```json
+{"action": "allow"}
+```
+
+or:
+
+```json
+{"action": "deny", "message": "Optional rejection message sent back to user"}
+```

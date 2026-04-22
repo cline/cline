@@ -1,0 +1,134 @@
+---
+title: "Architecture Overview"
+sidebarTitle: "Overview"
+description: "The SDK is a layered stack of packages with strict dependency boundaries and clear responsibilities."
+---
+
+The Cline SDK is organized as a stack of packages. Each layer has a single responsibility and depends only on layers below it. You can use any layer independently -- consume just `@clinebot/agents` for a lightweight agent loop, or use `@clinebot/core` for the full runtime.
+
+## Package Stack
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│  Your Application / CLI / VS Code / Desktop App              │
+└────────────────────────┬─────────────────────────────────────┘
+                         │
+┌────────────────────────▼─────────────────────────────────────┐
+│  @clinebot/core                                              │
+│  Sessions, persistence, config discovery, built-in tools,    │
+│  telemetry, RPC integration                                  │
+└────┬──────────────┬──────────────┬──────────────────────┬────┘
+     │              │              │                      │
+┌────▼─────┐  ┌─────▼──────┐  ┌───▼──────────┐  ┌────────▼───┐
+│@clinebot │  │ @clinebot  │  │ @clinebot    │  │ @clinebot  │
+│/agents   │  │ /llms      │  │ /rpc         │  │ /scheduler │
+│          │  │            │  │ (internal)   │  │ (internal) │
+│Stateless │  │Provider    │  │gRPC control  │  │Cron exec,  │
+│agent loop│  │gateway,    │  │plane,        │  │concurrency │
+│          │  │model       │  │sessions,     │  │limits      │
+│          │  │catalogs    │  │approvals     │  │            │
+└────┬─────┘  └─────┬──────┘  └──────────────┘  └────────────┘
+     │              │
+     └──────┬───────┘
+            │
+┌───────────▼──────────────────────────────────────────────────┐
+│  @clinebot/shared                                            │
+│  Contracts, types, schemas, hook engine, tool interfaces      │
+└──────────────────────────────────────────────────────────────┘
+```
+
+## Package Responsibilities
+
+### @clinebot/shared
+
+The foundation layer. Contains type definitions, interfaces, and utilities that all other packages depend on.
+
+- `Tool` interface and `createTool` helper
+- `AgentEvent` union type
+- `HookEngine` for lifecycle callbacks
+- `ContributionRegistry` for extension registration
+- `Message` and `ContentBlock` types
+- Logging interfaces (`BasicLogger`)
+- Path helpers and schemas
+
+No higher-layer dependencies. Safe to import anywhere.
+
+### @clinebot/llms
+
+LLM provider abstraction built on the Vercel AI SDK.
+
+- `DefaultGateway` for provider registration and model discovery
+- Provider handlers for Anthropic, OpenAI, Google, Bedrock, Mistral, and more
+- Model catalogs with pricing, capabilities, and context window metadata
+- Streaming support with consistent event format across providers
+- Provider settings management
+
+Depends on: `@clinebot/shared`
+
+### @clinebot/agents
+
+The core agent execution loop. Stateless by design -- no persistence, no RPC, no built-in tools.
+
+- `Agent` class with `run()`, `continue()`, `abort()`, `shutdown()`
+- Turn processing (text, reasoning, tool calls)
+- Tool orchestration with parallel execution support
+- Loop detection and mistake tracking
+- Extension and hook runtime
+- `AgentStream` for async event iteration
+
+Depends on: `@clinebot/shared`, `@clinebot/llms`
+
+### @clinebot/core
+
+Full orchestration runtime. Wraps the agent loop with everything needed for production.
+
+- `ClineCore` entry point
+- Session lifecycle and persistence (SQLite)
+- Built-in tools (bash, editor, read_files, apply_patch, search, fetch_web)
+- Config file discovery and watching (rules, skills, workflows, hooks, plugins)
+- MCP server integration
+- Tool approval workflows
+- Telemetry (OpenTelemetry)
+- RPC integration for multi-process architectures
+- Team management for multi-agent coordination
+
+Depends on: `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`
+
+### @clinebot/rpc (internal)
+
+gRPC control plane for the [hub-spoke architecture](/cline-sdk/architecture/hub-spoke). Not published as part of the SDK.
+
+- gRPC server with 40+ RPC methods
+- Session routing and event streaming
+- Tool approval gateway
+- Schedule execution
+
+### @clinebot/scheduler (internal)
+
+Cron-based scheduling engine. Not published as part of the SDK.
+
+- Cron expression parsing and execution
+- Concurrency and resource limits
+- Schedule persistence
+
+## Design Principles
+
+### Strict dependency direction
+
+Dependencies flow downward only. `core` depends on `agents`, never the reverse. This keeps lower layers testable and embeddable without pulling in the full stack.
+
+### Stateless agent loop
+
+The `Agent` class in `@clinebot/agents` does not do I/O, persistence, or RPC. It's a pure state machine: take messages in, produce tool calls and text out. This makes it easy to test, embed, and reason about.
+
+### RPC as transport, not business logic
+
+The RPC layer routes requests and streams events. Session logic, tool approval, and config management live in `@clinebot/core`. The RPC server is a thin gateway.
+
+### Config as files
+
+Rules, skills, workflows, hooks, and plugins are discovered from the file system. New instruction sources should materialize as files and use the watcher discovery system, not parallel in-memory paths. This makes configuration version-controllable and inspectable.
+
+### Published vs internal
+
+Only `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`, and `@clinebot/core` are published to npm. RPC, scheduler, and enterprise packages are internal implementation details.

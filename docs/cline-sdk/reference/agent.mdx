@@ -1,0 +1,269 @@
+---
+title: "Agent"
+sidebarTitle: "Agent"
+description: "API reference for the Agent class, the stateless execution loop at the heart of the SDK."
+---
+
+The `Agent` class runs the core agent loop: send messages to an LLM, execute tool calls, feed results back, repeat.
+
+```typescript
+import { Agent } from "@clinebot/agents"
+```
+
+## Constructor
+
+```typescript
+new Agent(config: AgentConfig)
+```
+
+### AgentConfig
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `providerId` | `string` | Yes | LLM provider (e.g., `"anthropic"`, `"openai"`) |
+| `modelId` | `string` | Yes | Model identifier (e.g., `"claude-sonnet-4-6"`) |
+| `apiKey` | `string` | No | Provider API key |
+| `systemPrompt` | `string` | Yes | System prompt for the agent |
+| `tools` | `Tool[]` | No | Tools available to the agent. Default: `[]` |
+| `extensions` | `AgentExtension[]` | No | Extensions/plugins. Default: `[]` |
+| `maxIterations` | `number` | No | Maximum loop iterations. Default: `50` |
+| `maxParallelToolCalls` | `number` | No | Concurrent tool executions. Default: `1` |
+| `apiTimeoutMs` | `number` | No | Timeout per LLM API call |
+| `maxTokensPerTurn` | `number` | No | Max tokens per model response |
+| `initialMessages` | `Message[]` | No | Pre-seed conversation history |
+| `toolPolicies` | `Record<string, ToolPolicy>` | No | Per-tool approval rules |
+| `hookPolicies` | `HookPolicies` | No | Hook failure behavior |
+| `onEvent` | `(event: AgentEvent) => void` | No | Real-time event callback |
+
+## Methods
+
+### agent.run(message, images?, files?)
+
+Start a new conversation with a user message.
+
+```typescript
+const result = await agent.run(
+  message: string,
+  images?: string[],
+  files?: string[]
+)
+```
+
+Returns: `Promise<AgentResult>`
+
+The agent processes the message through the iterative loop until the task is complete, the iteration limit is reached, or an error occurs.
+
+### agent.continue(message)
+
+Add a follow-up message to the existing conversation.
+
+```typescript
+const result = await agent.continue(message: string)
+```
+
+Returns: `Promise<AgentResult>`
+
+Requires a previous `run()` call. The agent retains the full conversation history from all previous turns.
+
+### agent.abort(reason?)
+
+Cancel the current run.
+
+```typescript
+agent.abort(reason?: string)
+```
+
+The current `run()` or `continue()` resolves with `finishReason: "aborted"`. The agent stops after the current tool execution completes (tool calls are not interrupted mid-execution).
+
+### agent.shutdown(reason?)
+
+Clean up all resources.
+
+```typescript
+await agent.shutdown(reason?: string)
+```
+
+Returns: `Promise<void>`
+
+After shutdown, the agent cannot be used again.
+
+### agent.getMessages()
+
+Get the full conversation history.
+
+```typescript
+const messages = agent.getMessages()
+```
+
+Returns: `Message[]`
+
+### agent.clearHistory()
+
+Reset the conversation. After clearing, the next call must be `run()`, not `continue()`.
+
+```typescript
+agent.clearHistory()
+```
+
+### agent.restore(messages)
+
+Load a conversation from a previous session.
+
+```typescript
+agent.restore(messages: Message[])
+```
+
+After restoring, use `continue()` to pick up the conversation.
+
+### agent.addTools(tools)
+
+Add tools to the agent after creation.
+
+```typescript
+agent.addTools(tools: Tool[])
+```
+
+Tools are available starting from the next iteration.
+
+### agent.updateConnection(overrides)
+
+Change the LLM provider or model without losing conversation history.
+
+```typescript
+agent.updateConnection(overrides: Partial<{
+  providerId: string
+  modelId: string
+  apiKey: string
+  baseUrl: string
+}>)
+```
+
+### agent.subscribeEvents(listener)
+
+Subscribe to real-time events.
+
+```typescript
+const unsubscribe = agent.subscribeEvents(
+  listener: (event: AgentEvent) => void
+)
+```
+
+Returns: `() => void` (unsubscribe function)
+
+### agent.getAgentId()
+
+Get the unique identifier for this agent instance.
+
+```typescript
+const id = agent.getAgentId()
+```
+
+Returns: `string`
+
+### agent.getConversationId()
+
+Get the conversation identifier.
+
+```typescript
+const id = agent.getConversationId()
+```
+
+Returns: `string`
+
+### agent.canStartRun()
+
+Check if the agent is ready for a new `run()` or `continue()` call.
+
+```typescript
+const ready = agent.canStartRun()
+```
+
+Returns: `boolean`
+
+Returns `false` if a run is currently in progress.
+
+### agent.hasRun (property)
+
+Whether the agent has completed at least one `run()` call.
+
+```typescript
+if (agent.hasRun) {
+  await agent.continue("Follow up")
+} else {
+  await agent.run("First message")
+}
+```
+
+Type: `boolean` (read-only)
+
+## AgentResult
+
+Returned by `run()` and `continue()`.
+
+```typescript
+interface AgentResult {
+  text: string
+  finishReason: "completed" | "max_iterations" | "mistake_limit" | "aborted" | "error" | "timeout"
+  iterations: number
+  usage: AgentUsage
+  messages: Message[]
+  toolCalls: ToolCallRecord[]
+  model: string
+  startedAt: Date
+  endedAt: Date
+  durationMs: number
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `text` | The agent's final text response |
+| `finishReason` | Why the agent stopped |
+| `iterations` | Number of loop iterations |
+| `usage` | Token counts (input, output, cache) |
+| `messages` | Full conversation history |
+| `toolCalls` | All tool calls made during this run |
+| `model` | Model ID used |
+| `startedAt` | When the run started |
+| `endedAt` | When the run ended |
+| `durationMs` | Total wall-clock duration |
+
+## AgentUsage
+
+```typescript
+interface AgentUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
+}
+```
+
+## streamRun
+
+Helper function to create a streaming agent run.
+
+```typescript
+import { streamRun } from "@clinebot/agents"
+
+const stream = streamRun(agent: Agent, message: string)
+```
+
+Returns: `AgentStream`
+
+### AgentStream
+
+Implements `AsyncIterable<AgentEvent>`.
+
+```typescript
+// Iterate over events
+for await (const event of stream) {
+  // handle event
+}
+
+// Get the final result
+const result = await stream.getResult()
+
+// Abort the stream
+stream.abort()
+```

@@ -1,0 +1,219 @@
+---
+title: "Building an Agent"
+sidebarTitle: "Building an Agent"
+description: "End-to-end tutorial: build a code review bot that reads PRs, analyzes diffs, and posts structured feedback."
+---
+
+This tutorial walks through building a complete code review agent. By the end, you'll have a bot that reads a GitHub pull request, analyzes the diff, and produces structured feedback with file-specific comments.
+
+## What You'll Build
+
+A code review agent that:
+1. Fetches a PR diff from GitHub
+2. Reads relevant source files for context
+3. Produces structured review feedback
+4. Tracks review metrics
+
+## Prerequisites
+
+- Node.js 22+
+- An Anthropic API key
+- A GitHub personal access token (for reading PRs)
+
+## Step 1: Set Up the Project
+
+```bash
+mkdir code-reviewer && cd code-reviewer
+npm init -y
+npm install @clinebot/agents @clinebot/shared
+npm install -D typescript tsx
+```
+
+## Step 2: Create the Tools
+
+The agent needs two tools: one to fetch PR data and one to read file contents.
+
+```typescript
+// tools.ts
+import { createTool } from "@clinebot/shared"
+
+export const getPullRequest = createTool({
+  name: "get_pull_request",
+  description:
+    "Fetch a GitHub pull request's metadata and diff. Returns the title, description, changed files, and unified diff.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      owner: { type: "string", description: "Repository owner (e.g., 'facebook')" },
+      repo: { type: "string", description: "Repository name (e.g., 'react')" },
+      number: { type: "number", description: "PR number" },
+    },
+    required: ["owner", "repo", "number"],
+  },
+  execute: async (input) => {
+    const headers = {
+      Authorization: `token ${process.env.GITHUB_TOKEN}`,
+      Accept: "application/vnd.github.v3+json",
+    }
+
+    const [prResponse, diffResponse] = await Promise.all([
+      fetch(
+        `https://api.github.com/repos/${input.owner}/${input.repo}/pulls/${input.number}`,
+        { headers }
+      ),
+      fetch(
+        `https://api.github.com/repos/${input.owner}/${input.repo}/pulls/${input.number}`,
+        { headers: { ...headers, Accept: "application/vnd.github.v3.diff" } }
+      ),
+    ])
+
+    const pr = await prResponse.json()
+    const diff = await diffResponse.text()
+
+    return {
+      title: pr.title,
+      description: pr.body,
+      author: pr.user.login,
+      changedFiles: pr.changed_files,
+      additions: pr.additions,
+      deletions: pr.deletions,
+      diff,
+    }
+  },
+})
+
+export const readFileFromRepo = createTool({
+  name: "read_file_from_repo",
+  description:
+    "Read a file from the repository at a specific ref (branch, tag, or commit SHA). Use this to get full context on files that appear in the PR diff.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      owner: { type: "string", description: "Repository owner" },
+      repo: { type: "string", description: "Repository name" },
+      path: { type: "string", description: "File path relative to repo root" },
+      ref: { type: "string", description: "Git ref (branch name, tag, or SHA)" },
+    },
+    required: ["owner", "repo", "path", "ref"],
+  },
+  execute: async (input) => {
+    const response = await fetch(
+      `https://api.github.com/repos/${input.owner}/${input.repo}/contents/${input.path}?ref=${input.ref}`,
+      {
+        headers: {
+          Authorization: `token ${process.env.GITHUB_TOKEN}`,
+          Accept: "application/vnd.github.v3.raw",
+        },
+      }
+    )
+
+    if (!response.ok) {
+      return { error: `File not found: ${input.path} at ref ${input.ref}` }
+    }
+
+    const content = await response.text()
+    return { path: input.path, content }
+  },
+})
+```
+
+## Step 3: Create the Review Extension
+
+Track metrics about the review process:
+
+```typescript
+// metrics-extension.ts
+import { type AgentExtension } from "@clinebot/agents"
+
+export const reviewMetrics: AgentExtension = {
+  name: "review-metrics",
+  manifest: { capabilities: ["hooks"] },
+
+  onRunStart({ userMessage }) {
+    console.log(`[review] Starting review: "${userMessage.slice(0, 80)}..."`)
+    console.time("[review] Total review time")
+  },
+
+  onToolCall({ call }) {
+    console.log(`[review] Tool: ${call.name}`)
+  },
+
+  onRunEnd({ result }) {
+    console.timeEnd("[review] Total review time")
+    console.log(`[review] Iterations: ${result.iterations}`)
+    console.log(`[review] Tokens: ${result.usage.inputTokens + result.usage.outputTokens}`)
+  },
+}
+```
+
+## Step 4: Wire It Together
+
+```typescript
+// review.ts
+import { Agent } from "@clinebot/agents"
+import { getPullRequest, readFileFromRepo } from "./tools"
+import { reviewMetrics } from "./metrics-extension"
+
+const SYSTEM_PROMPT = `You are a senior code reviewer. When asked to review a PR:
+
+1. Use get_pull_request to fetch the PR diff and metadata
+2. Read any files you need for additional context using read_file_from_repo
+3. Analyze the changes for:
+   - Bugs and logic errors
+   - Security vulnerabilities
+   - Performance issues
+   - Style and readability
+   - Missing tests
+4. Produce a structured review with:
+   - A summary (2-3 sentences)
+   - A quality rating (1-5)
+   - Specific comments with file paths and line numbers
+   - Suggested improvements
+
+Be constructive and specific. Reference exact lines when pointing out issues.`
+
+async function reviewPR(owner: string, repo: string, prNumber: number) {
+  const agent = new Agent({
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt: SYSTEM_PROMPT,
+    tools: [getPullRequest, readFileFromRepo],
+    extensions: [reviewMetrics],
+    onEvent: (event) => {
+      if (event.type === "content_update" && event.contentType === "text") {
+        process.stdout.write(event.text)
+      }
+    },
+  })
+
+  const result = await agent.run(
+    `Review PR #${prNumber} in ${owner}/${repo}`
+  )
+
+  await agent.shutdown()
+  return result
+}
+
+// Run it
+const result = await reviewPR("your-org", "your-repo", 123)
+console.log("\n\nReview complete:", result.finishReason)
+```
+
+## Step 5: Run It
+
+```bash
+ANTHROPIC_API_KEY=sk-ant-... GITHUB_TOKEN=ghp_... npx tsx review.ts
+```
+
+## Extending Further
+
+From here, you could:
+
+- Add a tool that posts review comments back to GitHub via the API
+- Use `continue()` for follow-up questions about specific findings
+- Add a `checkstyle` tool that runs linters on the changed files
+- Store reviews in a database for trend analysis
+- Connect it to a webhook for automatic PR reviews
+
+See [Creating Custom Tools](/cline-sdk/guides/creating-custom-tools) and [Writing Extensions](/cline-sdk/guides/writing-extensions) for more on extending agent capabilities.

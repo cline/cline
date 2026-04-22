@@ -101,7 +101,6 @@
 						"pages": [
 							"cline-cli/overview",
 							"cline-cli/installation",
-							"cline-sdk/overview",
 							"cline-cli/interactive-mode",
 							{
 								"group": "Headless Mode",
@@ -358,6 +357,72 @@
 							"kanban/core-workflow",
 							"kanban/features",
 							"kanban/remote-access"
+						]
+					}
+				]
+			},
+			{
+				"tab": "SDK",
+				"icon": "cube",
+				"groups": [
+					{
+						"group": "Getting Started",
+						"pages": [
+							"cline-sdk/overview",
+							"cline-sdk/quickstart",
+							"cline-sdk/examples"
+						]
+					},
+					{
+						"group": "Core Concepts",
+						"pages": [
+							"cline-sdk/agents",
+							"cline-sdk/sessions",
+							"cline-sdk/tools",
+							"cline-sdk/streaming-and-events",
+							"cline-sdk/extensions",
+							"cline-sdk/hooks",
+							"cline-sdk/providers-and-models"
+						]
+					},
+					{
+						"group": "Guides",
+						"pages": [
+							"cline-sdk/guides/building-an-agent",
+							"cline-sdk/guides/creating-custom-tools",
+							"cline-sdk/guides/writing-extensions",
+							"cline-sdk/guides/permission-handling",
+							"cline-sdk/guides/scheduled-agents",
+							"cline-sdk/guides/multi-agent-teams",
+							"cline-sdk/guides/connectors",
+							"cline-sdk/guides/going-to-production"
+						]
+					},
+					{
+						"group": "Architecture",
+						"pages": [
+							"cline-sdk/architecture/overview",
+							"cline-sdk/architecture/hub-spoke",
+							"cline-sdk/architecture/packages"
+						]
+					},
+					{
+						"group": "API Reference",
+						"pages": [
+							"cline-sdk/reference/cline-core",
+							"cline-sdk/reference/agent",
+							"cline-sdk/reference/gateway",
+							"cline-sdk/reference/tools-api",
+							"cline-sdk/reference/events",
+							"cline-sdk/reference/types"
+						]
+					},
+					{
+						"group": "CLI",
+						"pages": [
+							"cline-sdk/cli/commands",
+							"cline-sdk/cli/configuration",
+							"cline-sdk/cli/connectors"
 						]
 					}
 				]

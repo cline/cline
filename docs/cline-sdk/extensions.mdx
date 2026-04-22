@@ -1,0 +1,235 @@
+---
+title: "Extensions"
+sidebarTitle: "Extensions"
+description: "Extensions are plugins that add tools, commands, and capabilities to agents at runtime."
+---
+
+Extensions are the primary mechanism for adding capabilities to agents. An extension can register tools, contribute commands, and hook into the agent lifecycle. They run inside the agent process with full access to the runtime API.
+
+## The AgentExtension Interface
+
+```typescript
+interface AgentExtension {
+  name: string
+  manifest: {
+    capabilities: ("tools" | "hooks" | "commands")[]
+  }
+
+  // Called once during agent initialization
+  setup?(api: ExtensionAPI): void
+
+  // Lifecycle hooks (optional)
+  onRunStart?(context: { userMessage: string }): void
+  onRunEnd?(context: { result: AgentResult }): void
+  onToolCall?(context: { call: ToolCallRecord }): void
+  onToolResult?(context: { record: ToolCallRecord }): void
+  onIterationStart?(context: { iteration: number }): void
+  onIterationEnd?(context: { iteration: number }): void
+  onError?(context: { error: Error; recoverable: boolean }): void
+}
+```
+
+## Creating an Extension
+
+Here's a complete extension that adds a database query tool and logs all tool calls:
+
+```typescript
+import { type AgentExtension } from "@clinebot/agents"
+import { createTool } from "@clinebot/shared"
+
+const databaseExtension: AgentExtension = {
+  name: "database-tools",
+  manifest: {
+    capabilities: ["tools", "hooks"],
+  },
+
+  setup(api) {
+    api.registerTool(
+      createTool({
+        name: "query_database",
+        description: "Run a read-only SQL query against the application database.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            sql: { type: "string", description: "SQL SELECT query to execute" },
+          },
+          required: ["sql"],
+        },
+        execute: async (input) => {
+          const rows = await db.query(input.sql)
+          return { rows, count: rows.length }
+        },
+      })
+    )
+  },
+
+  onToolCall({ call }) {
+    console.log(`[db-ext] Tool called: ${call.name}`)
+  },
+
+  onToolResult({ record }) {
+    console.log(`[db-ext] Tool result: ${record.name} (${record.duration}ms)`)
+  },
+}
+```
+
+## Registering Extensions
+
+### With Agent
+
+```typescript
+const agent = new Agent({
+  // ...config
+  extensions: [databaseExtension, loggingExtension, metricsExtension],
+})
+```
+
+### With ClineCore
+
+```typescript
+const session = await cline.start({
+  config: {
+    extensions: [databaseExtension],
+  },
+  // ...
+})
+```
+
+Extensions are loaded once when the agent starts. The `setup()` method runs before the first iteration, so all tools are available from the very first LLM call.
+
+## The ExtensionAPI
+
+The `api` object passed to `setup()` provides methods for contributing to the agent runtime:
+
+```typescript
+interface ExtensionAPI {
+  registerTool(tool: Tool): void
+  // Additional methods may be available depending on the host
+}
+```
+
+## File-Based Plugins
+
+ClineCore can discover and load plugins from the file system. Drop a `.js` or `.mjs` file into `~/.cline/plugins/` (global) or `.cline/plugins/` (project-level):
+
+```
+~/.cline/plugins/
+  typescript-nav.ts        # Global plugin
+  metrics.js
+
+.cline/plugins/
+  project-helper.ts        # Project-specific plugin
+```
+
+Each plugin file should export an `AgentExtension`:
+
+```typescript
+// ~/.cline/plugins/typescript-nav.ts
+import { type AgentExtension } from "@clinebot/agents"
+import { createTool } from "@clinebot/shared"
+
+const extension: AgentExtension = {
+  name: "typescript-nav",
+  manifest: { capabilities: ["tools"] },
+
+  setup(api) {
+    api.registerTool(
+      createTool({
+        name: "goto_definition",
+        description: "Find the definition of a TypeScript symbol at a given file and line.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: { type: "string", description: "Absolute path to the TypeScript file" },
+            line: { type: "number", description: "Line number (1-based)" },
+          },
+          required: ["filePath", "line"],
+        },
+        execute: async (input) => {
+          // Uses TypeScript Language Service API to resolve definitions
+          // through imports, re-exports, and type aliases
+          const definitions = await resolveDefinitions(input.filePath, input.line)
+          return { definitions }
+        },
+      })
+    )
+  },
+}
+
+export default extension
+```
+
+Plugins are loaded at session start and are not hot-reloaded (unlike rules and skills, which are watched for changes).
+
+## Extension Patterns
+
+### Metrics and Observability
+
+```typescript
+const metricsExtension: AgentExtension = {
+  name: "metrics",
+  manifest: { capabilities: ["hooks"] },
+
+  onRunStart() {
+    metrics.increment("agent.runs.started")
+  },
+
+  onRunEnd({ result }) {
+    metrics.increment("agent.runs.completed")
+    metrics.gauge("agent.iterations", result.iterations)
+    metrics.histogram("agent.tokens", result.usage.inputTokens + result.usage.outputTokens)
+  },
+
+  onToolCall({ call }) {
+    metrics.increment(`agent.tools.${call.name}.called`)
+  },
+
+  onError({ error, recoverable }) {
+    metrics.increment("agent.errors", { recoverable: String(recoverable) })
+  },
+}
+```
+
+### Guardrails
+
+```typescript
+const guardrailExtension: AgentExtension = {
+  name: "safety-guardrails",
+  manifest: { capabilities: ["hooks"] },
+
+  onToolCall({ call }) {
+    if (call.name === "bash" && call.input.command?.includes("rm -rf")) {
+      throw new Error("Destructive shell commands are not allowed")
+    }
+  },
+}
+```
+
+### Context Injection
+
+```typescript
+const contextExtension: AgentExtension = {
+  name: "project-context",
+  manifest: { capabilities: ["hooks"] },
+
+  onRunStart({ userMessage }) {
+    // Log or enrich the user's message before the agent sees it
+    console.log(`User asked: ${userMessage}`)
+  },
+}
+```
+
+## Extensions vs Hooks
+
+Extensions and [Hooks](/cline-sdk/hooks) serve different purposes:
+
+| Aspect | Extensions | Hooks |
+|--------|-----------|-------|
+| Defined as | TypeScript objects | Shell scripts or TypeScript files |
+| Loaded from | Code or `.cline/plugins/` | `.cline/hooks/` |
+| Can register tools | Yes | No |
+| Can modify agent behavior | Yes, through tool registration and lifecycle callbacks | Yes, through lifecycle interception |
+| Runs in | Agent process (in-memory) | Separate process (shell execution) |
+| Best for | Adding capabilities (tools, integrations) | Policy enforcement, external side effects |
+
+Use extensions when you want to add tools or modify the agent from within the runtime. Use hooks when you want external scripts to react to agent events.
