@@ -30,12 +30,13 @@ type ApiReqState = "pre" | "thinking" | "error" | "final"
 // Helper to format search regex for display - show all terms separated by |
 const formatSearchRegex = (regex: string, path: string, filePattern?: string): string => {
 	const cleanedPath = cleanPathPrefix(path)
+	const pathDisplay = cleanedPath ? `${cleanedPath}/` : "codebase"
 	const terms = regex
 		.split("|")
 		.map((t) => t.trim().replace(/\\b/g, "").replace(/\\s\?/g, " "))
 		.filter(Boolean)
 		.join(" | ")
-	return filePattern && filePattern !== "*" ? `"${terms}" in ${cleanedPath}/ (${filePattern})` : `"${terms}" in ${cleanedPath}/`
+	return filePattern && filePattern !== "*" ? `"${terms}" in ${pathDisplay} (${filePattern})` : `"${terms}" in ${pathDisplay}`
 }
 // Format activity text based on tool type
 const getActivityText = (tool: ClineSayTool): string | null => {
@@ -47,7 +48,7 @@ const getActivityText = (tool: ClineSayTool): string | null => {
 		case "listFilesRecursive":
 			return tool.path ? `Exploring ${cleanedPath}/...` : null
 		case "searchFiles":
-			return tool.regex && tool.path ? `Searching ${formatSearchRegex(tool.regex, tool.path, tool.filePattern)}...` : null
+			return tool.regex ? `Searching ${formatSearchRegex(tool.regex, tool.path || "", tool.filePattern)}...` : null
 		case "listCodeDefinitionNames":
 			return tool.path ? `Analyzing ${cleanedPath}/...` : null
 		default:
