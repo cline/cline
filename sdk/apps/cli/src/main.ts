@@ -2,6 +2,7 @@ import { fstatSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename } from "node:path";
 import type { ToolPolicy } from "@clinebot/core";
+
 import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
 import {
@@ -10,6 +11,7 @@ import {
 	commanderToParsedArgs,
 	createProgram,
 } from "./commands/program";
+import { autoUpdateOnStartup } from "./commands/update";
 import {
 	configureSandboxEnvironment,
 	normalizeAutoApproveArgs,
@@ -156,6 +158,7 @@ function resolveConfigDirArg(argv: string[]): string | undefined {
 
 export async function runCli(): Promise<void> {
 	installStreamErrorGuards();
+	autoUpdateOnStartup();
 
 	const cliArgs = process.argv.slice(2);
 	const configDir = resolveConfigDirArg(cliArgs);
@@ -580,18 +583,18 @@ export async function runCli(): Promise<void> {
 		},
 	);
 
-	program
+	const updateCmd = program
 		.command("update")
-		.description("[TODO] Check for updates and install if available")
+		.description("Check for updates and install if available")
 		.allowUnknownOption()
 		.allowExcessArguments()
 		.option("-v, --verbose", "Show verbose output")
 		.option("--config <dir>", "configuration directory")
 		.action(async () => {
-			writeErr(
-				"update command is not implemented yet (use your package manager to update manually)",
-			);
-			ctx.exitCode = 1;
+			const { checkForUpdates } = await import("./commands/update");
+			ctx.exitCode = await checkForUpdates({
+				verbose: updateCmd.opts().verbose === true,
+			});
 		});
 
 	program
