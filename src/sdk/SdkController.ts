@@ -12,6 +12,7 @@ import * as path from "node:path"
 import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
+import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
 import type { McpMarketplaceCatalog } from "@shared/mcp"
@@ -19,11 +20,13 @@ import type { Settings } from "@shared/storage/state-keys"
 import type { Mode } from "@shared/storage/types"
 import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
+import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists, GlobalFileNames } from "@/core/storage/disk"
 import { StateManager } from "@/core/storage/StateManager"
 import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
+import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
@@ -174,6 +177,43 @@ export class Controller {
 		this.mcpHub?.dispose?.()
 		this.sessionEventListeners.clear()
 		Logger.log("[SdkController] Disposed")
+	}
+
+	// ---- Context mention resolution ----
+
+	/**
+	 * Resolve `@` context mentions in user text before sending to the SDK.
+	 *
+	 * The classic extension's Task class called `parseMentions()` to inline
+	 * file content (`@/path`), URL content (`@https://...`), diagnostics
+	 * (`@problems`), git state (`@git-changes`), and commit info (`@hash`)
+	 * into the prompt text. The SDK's own mention enricher only handles
+	 * simple `@path` file mentions and doesn't support the webview's
+	 * `@/path` format or special mentions.
+	 *
+	 * This method bridges the gap by calling the classic `parseMentions()`
+	 * before the text is sent to the SDK, ensuring all context mentions
+	 * are resolved into inline content that the LLM can see.
+	 */
+	private async resolveContextMentions(text: string): Promise<string> {
+		// Quick check: skip if there are no @ mentions
+		if (!mentionRegexGlobal.test(text)) {
+			return text
+		}
+		// Reset lastIndex since RegExp.test() advances it for global regexes
+		mentionRegexGlobal.lastIndex = 0
+
+		try {
+			const cwd = await this.getWorkspaceRoot()
+			const urlContentFetcher = new UrlContentFetcher()
+			const workspaceManager = await this.ensureWorkspaceManager()
+			const resolved = await parseMentions(text, cwd, urlContentFetcher, undefined, workspaceManager)
+			Logger.log(`[SdkController] Resolved context mentions (${text.length} → ${resolved.length} chars)`)
+			return resolved
+		} catch (error) {
+			Logger.error("[SdkController] Failed to resolve context mentions, using raw text:", error)
+			return text
+		}
 	}
 
 	// ---- Workspace root resolution ----
@@ -577,7 +617,10 @@ export class Controller {
 			// Send the prompt to start inference (fire-and-forget)
 			if (task?.trim()) {
 				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
-				this.fireAndForgetSend(sessionManager, startResult.sessionId, task, images, files)
+				// Resolve @mentions (file content, URLs, diagnostics, git state)
+				// before sending to the SDK, which doesn't handle them natively.
+				const resolvedTask = await this.resolveContextMentions(task)
+				this.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedTask, images, files)
 			}
 
 			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
@@ -893,8 +936,11 @@ export class Controller {
 		// Reset translator state for new turn
 		this.messageTranslatorState.reset()
 
+		// Resolve @mentions before sending to the SDK
+		const resolvedPrompt = prompt ? await this.resolveContextMentions(prompt) : ""
+
 		// Fire-and-forget send
-		this.fireAndForgetSend(sessionManager, sessionId, prompt ?? "", images, files)
+		this.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files)
 	}
 
 	/**
@@ -984,7 +1030,10 @@ export class Controller {
 				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
 				: "[TASK RESUMPTION] Please continue where you left off.")
 
-		this.fireAndForgetSend(sessionManager, startResult.sessionId, effectivePrompt, images, files)
+		// Resolve @mentions before sending to the SDK
+		const resolvedPrompt = await this.resolveContextMentions(effectivePrompt)
+
+		this.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedPrompt, images, files)
 	}
 
 	/**
