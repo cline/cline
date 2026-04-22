@@ -270,6 +270,18 @@ export class Controller {
 	private handleSessionEvent(event: CoreSessionEvent): void {
 		const result = translateSessionEvent(event, this.messageTranslatorState)
 
+		// Suppress completion_result messages that arrive after cancellation.
+		// When cancelTask() runs, it sets isRunning=false and emits resume_task.
+		// Late-arriving "done" events from the SDK produce completion_result
+		// which would override the resume_task button with "Start New Task".
+		// During normal completion, isRunning is still true when the done event
+		// fires, so this filter only affects the cancellation race condition.
+		if (this.activeSession && !this.activeSession.isRunning && result.messages.length > 0) {
+			result.messages = result.messages.filter(
+				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
+			)
+		}
+
 		if (result.messages.length > 0) {
 			// Accumulate messages in the task proxy's message state handler
 			// BEFORE emitting to listeners. This ensures that if a listener
@@ -819,7 +831,10 @@ export class Controller {
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
 		// If the user is viewing an old task (this.task is set by showTaskWithId)
 		// but there's no active SDK session, we need to resume the session first.
-		if (!this.activeSession && this.task) {
+		// Also resume when the session was cancelled (isRunning === false) — the
+		// underlying SDK session is dead after abort, so we must create a new one
+		// with the conversation history as initialMessages.
+		if ((!this.activeSession || !this.activeSession.isRunning) && this.task) {
 			Logger.log(`[SdkController] askResponse: No active session but task exists (${this.task.taskId}), resuming...`)
 			try {
 				await this.resumeSessionFromTask(this.task.taskId, prompt, images, files)
@@ -959,21 +974,17 @@ export class Controller {
 
 		await this.postStateToWebview()
 
-		// Send the follow-up message (fire-and-forget), or use a resumption
-		// summary if there's no conversation history and no prompt
+		// Send the follow-up message (fire-and-forget).
+		// Always send a resumption prompt when the user didn't type anything —
+		// this matches the classic extension's behavior where clicking "Resume Task"
+		// without text still sends a [TASK RESUMPTION] message to the agent.
 		const effectivePrompt =
 			prompt?.trim() ||
-			((!initialMessages || initialMessages.length === 0) && historyItem
-				? `[TASK RESUMPTION] Resuming task: ${historyItem.task}`
-				: "")
+			(historyItem
+				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
+				: "[TASK RESUMPTION] Please continue where you left off.")
 
-		if (effectivePrompt) {
-			this.fireAndForgetSend(sessionManager, startResult.sessionId, effectivePrompt, images, files)
-		} else {
-			// No prompt and we have history — session is ready but idle
-			this.activeSession!.isRunning = false
-			Logger.log(`[SdkController] Session resumed (idle, no prompt) for task: ${taskId}`)
-		}
+		this.fireAndForgetSend(sessionManager, startResult.sessionId, effectivePrompt, images, files)
 	}
 
 	/**
