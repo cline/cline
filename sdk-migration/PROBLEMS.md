@@ -702,6 +702,70 @@ When not logged in with the "cline" provider, the user sees a raw error instead 
 - **Verification**: 7 new unit tests in `src/sdk/message-translator.test.ts` — S6-39 tests cover: SDK requests array URL extraction, content_end preserving URL from content_start, classic web_fetch backward compat, multiple requests extracting first URL. All 57 tests pass.
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.
 
+### S6-47: Tool architecture audit — dead code, missing tools, and disconnected handlers
+
+- **Status**: 🔴 Blocker (attempt_completion command); 🟡 Minor (others)
+- **Description**: Comprehensive audit of tool wiring on the SDK branch. The SDK provides its own built-in tools internally; the VSCode extension adds "extra tools" via `src/sdk/vscode-runtime-builder.ts` (currently: `attempt_completion` + MCP tools from McpHub). The classic `ToolExecutorCoordinator` and all its handlers (`src/core/task/tools/handlers/*.ts`) are **dead code** — the SDK handles tool execution internally, and the coordinator is never instantiated on the SDK path.
+
+#### Where does the agent get tool descriptions?
+
+On the SDK branch, tool descriptions come from **two sources**:
+1. **SDK built-in tools** — defined inside `@clinebot/core`. The SDK provides: `read_files`/`read_file`, `list_files`, `list_code_definition_names`, `editor`/`replace_in_file`, `write_to_file`, `apply_patch`, `delete_file`, `run_commands`/`execute_command`, `search_codebase`/`search_files`, `fetch_web_content`/`web_fetch`, `web_search`, `skills`/`use_skill`, `ask_question`/`ask_followup_question`.
+2. **VSCode extra tools** — defined in `src/sdk/vscode-runtime-builder.ts::createVscodeExtraTools()`, injected via `VscodeSessionHost.create()` → `applyToStartSessionInput()` → `config.extraTools`. Currently: `attempt_completion` + MCP tools bridged from McpHub.
+
+The classic system prompt tool definitions (`src/core/prompts/system-prompt/tools/*.ts`) and variant templates are **NOT used** for tool descriptions on the SDK branch — the SDK constructs its own system prompt with its own tool definitions. The classic tool specs are only used by the classic Task path (subagents, legacy code).
+
+#### Issue 1: `attempt_completion` `command` parameter is dead code
+
+- **Severity**: 🔴 Blocker
+- **Tool definition** (`src/sdk/vscode-runtime-builder.ts:44-71`): Defines `command` as an optional string parameter: _"An optional terminal command to showcase the result (e.g. open a dev server)."_
+- **Execute function** (line 66-68): `return typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."` — **ignores `command` entirely**.
+- **Message translator** (`src/sdk/message-translator.ts:513-524, 603-629`): When handling `attempt_completion`, only extracts `result` via `getStringField(parsedInput, "result")` — **never reads `command`**.
+- **Classic handler** (`src/core/task/tools/handlers/AttemptCompletionHandler.ts:192`): Would execute the command via `config.callbacks.executeCommandTool(command!, undefined)`, but this handler is **dead code** — the `ToolExecutorCoordinator` is never instantiated on the SDK path.
+- **Impact**: The agent is told it can provide a `command` parameter, wastes tokens generating it, but the command is silently discarded. Example: agent says `command: "open localhost:3000"` but nothing happens.
+- **Fix needed**: Either (a) implement command execution in the SDK extra tool's `execute` function (spawn the command via the standalone terminal manager or similar), or (b) remove the `command` parameter from the tool schema if the feature is intentionally dropped.
+
+#### Issue 2: Classic `ToolExecutorCoordinator` and all handlers are dead code
+
+- **Severity**: 🟡 Minor (informational — no user-facing bug, just dead code)
+- **Files**: `src/core/task/tools/ToolExecutorCoordinator.ts`, `src/core/task/tools/handlers/*.ts` (28 handler files)
+- **Description**: The entire classic tool execution pipeline (`ToolExecutorCoordinator` → handler → Task callbacks) is unreachable on the SDK branch. The SDK handles tool execution internally via its runtime. These files exist only for: (a) subagent support via `SubagentRunner` which still uses the classic `Task` class, (b) reference/comparison.
+- **Impact**: No runtime bug, but the dead code creates confusion about which code path is active.
+
+#### Issue 3: Tools present in classic but absent from SDK
+
+The following classic tools have no equivalent in the SDK's built-in tool set or extra tools. Some omissions are intentional (SDK handles them differently or they're internal-only); others may be gaps:
+
+| Classic Tool | Classic Handler | SDK Status | Notes |
+|---|---|---|---|
+| `browser_action` | `BrowserToolHandler` | ❌ Missing | SDK has no browser automation tool. Agent cannot interact with websites. **Likely a gap.** |
+| `plan_mode_respond` | `PlanModeRespondHandler` | ❓ Unknown | SDK may handle plan/act modes differently (via session config or agent instructions rather than a tool). Need to verify. |
+| `act_mode_respond` | `ActModeRespondHandler` | ❓ Unknown | Same as above. |
+| `new_task` | `NewTaskHandler` | ❌ Missing | Subagent orchestration tool. SDK may use its own multi-agent mechanism. |
+| `use_subagents` | `UseSubagentsToolHandler` | ❌ Missing | Same as above. |
+| `condense` | `CondenseHandler` | ❓ Unknown | Internal context-management tool. SDK may handle context truncation internally. |
+| `summarize_task` | `SummarizeTaskHandler` | ❓ Unknown | Internal tool for task summarization. SDK may handle this differently. |
+| `generate_explanation` | `GenerateExplanationToolHandler` | ❌ Missing | UI feature for explaining changes. Would need to be an extra tool. |
+| `report_bug` | `ReportBugHandler` | ❌ Missing | Slash-command tool. Low priority. |
+| `new_rule` | `WriteToFileToolHandler` (shared) | ❌ Missing | Slash-command tool for creating .clinerules files. Low priority — the SDK's `write_to_file` can serve the same purpose. |
+| `load_mcp_documentation` | `LoadMcpDocumentationHandler` | ❌ Missing | Loads MCP server creation docs. Low priority. |
+| `access_mcp_resource` | `AccessMcpResourceHandler` | ❌ Missing | Accesses MCP server resources (not tools). The McpHub bridge only provides MCP tools, not resources. **Possible gap.** |
+| `focus_chain` (TODO) | `undefined` (no handler) | ✅ N/A | Metadata-only parameter, no execution needed. |
+
+#### Issue 4: SDK has tools NOT in classic
+
+| SDK Tool | Classic Equivalent | Notes |
+|---|---|---|
+| `delete_file` | None | SDK provides file deletion. Classic extension didn't have an explicit delete tool. |
+
+- **Root cause**: The SDK migration replaced the classic Task → ToolExecutorCoordinator → Handler pipeline with the SDK's internal tool execution. Extra tools are only `attempt_completion` + MCP tools. All other tools come from the SDK's built-in set, which doesn't include all classic tools.
+
+- **Priority**:
+  1. **Fix `attempt_completion` `command`** — the agent wastes tokens on a dead parameter
+  2. **Audit `browser_action` and `access_mcp_resource`** — these may be user-visible gaps
+  3. **Verify plan/act mode** — confirm the SDK handles this correctly without explicit tools
+  4. **Low priority**: `report_bug`, `new_rule`, `load_mcp_documentation`, `generate_explanation` — these are convenience tools, not core functionality
+
 ### S6-40: 'Cline Loaded the skill' tool call appears blank (no skill name)
 - **Status**: 🟢 Verified Fixed
 - **Description**: When the agent uses the `skills` tool, the tool call in the chat showed "Cline loaded the skill:" but the skill name was blank — no name was rendered.
