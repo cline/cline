@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 
-import { fetchModelsDevProviderModels } from "../../src/model/catalog-live";
-import type { ModelInfo } from "../../src/model/types";
+import type { ModelInfo } from "@clinebot/shared";
+import { fetchModelsDevProviderModels } from "../../src/catalog/catalog-live";
 
 function sortObjectByKey<T>(
 	input: Record<string, T>,

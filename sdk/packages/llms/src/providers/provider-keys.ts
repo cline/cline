@@ -1,4 +1,5 @@
-const ENTRIES: ReadonlyArray<{
+/** Maps provider identifiers across Cline legacy provider ids, models.dev keys, and runtime provider ids. */
+const PROVIDER_IDS_MAP: ReadonlyArray<{
 	modelsDevKey: string;
 	generatedProviderId?: string;
 	runtimeProviderId?: string;
@@ -96,6 +97,7 @@ const ENTRIES: ReadonlyArray<{
 		generatedProviderId: "baseten",
 		runtimeProviderId: "baseten",
 	},
+	{ modelsDevKey: "zai-coding-plan", generatedProviderId: "zai-coding-plan" },
 	{ modelsDevKey: "google-vertex-anthropic", generatedProviderId: "vertex" },
 	{ modelsDevKey: "lmstudio", generatedProviderId: "lmstudio" },
 	{ modelsDevKey: "zai", generatedProviderId: "zai" },
@@ -114,7 +116,7 @@ function dedupe(values: readonly string[]): string[] {
 }
 
 export const MODELS_DEV_PROVIDER_KEY_MAP = Object.fromEntries(
-	ENTRIES.flatMap((entry) =>
+	PROVIDER_IDS_MAP.flatMap((entry) =>
 		entry.generatedProviderId
 			? [[entry.modelsDevKey, entry.generatedProviderId]]
 			: [],
@@ -122,7 +124,7 @@ export const MODELS_DEV_PROVIDER_KEY_MAP = Object.fromEntries(
 );
 
 export function resolveProviderModelCatalogKeys(providerId: string): string[] {
-	const mapped = ENTRIES.flatMap((entry) => {
+	const mapped = PROVIDER_IDS_MAP.flatMap((entry) => {
 		if (!entry.generatedProviderId) {
 			return [];
 		}

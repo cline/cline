@@ -430,6 +430,17 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		defaults: { baseUrl: "https://api.z.ai/api/paas/v4" },
 	},
 	{
+		id: "zai-coding-plan",
+		name: "Z.AI Coding Plan",
+		description: "Z.AI's coding-focused models",
+		family: "openai-compatible",
+		capabilities: ["reasoning", "tools"],
+		defaultModelId: "glm-5v-turbo",
+		apiKeyEnv: ["ZHIPU_API_KEY"],
+		modelsProviderId: "zai-coding-plan",
+		defaults: { baseUrl: "https://api.z.ai/api/coding/paas/v4" },
+	},
+	{
 		id: "moonshot",
 		name: "Moonshot",
 		description: "Moonshot AI Studio models",

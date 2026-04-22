@@ -5,7 +5,6 @@
  * Use BUILT_IN_PROVIDER_IDS for runtime operations (validation, iteration)
  * Use BuiltInProviderId type for compile-time type safety
  */
-
 export enum BUILT_IN_PROVIDER {
 	// First-party
 	ANTHROPIC = "anthropic",
@@ -45,6 +44,8 @@ export enum BUILT_IN_PROVIDER {
 	WANDB = "wandb",
 	XIAOMI = "xiaomi",
 	KILO = "kilo",
+	ZAI = "zai",
+	ZAI_CODING_PLAN = "zai-coding-plan",
 	// Regional/specialized
 	QWEN = "qwen",
 	QWEN_CODE = "qwen-code",
@@ -52,7 +53,6 @@ export enum BUILT_IN_PROVIDER {
 	MISTRAL = "mistral",
 	MOONSHOT = "moonshot",
 	ASKSAGE = "asksage",
-	ZAI = "zai",
 	MINIMAX = "minimax",
 	DIFY = "dify",
 	OCA = "oca",
