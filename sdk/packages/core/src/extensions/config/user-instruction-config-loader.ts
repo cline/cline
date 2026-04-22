@@ -52,6 +52,7 @@ export interface RuleConfig {
 export interface WorkflowConfig {
 	name: string;
 	disabled?: boolean;
+	description?: string;
 	instructions: string;
 	frontmatter: Record<string, unknown>;
 }

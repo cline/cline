@@ -1,3 +1,4 @@
+import { truncateSplit } from "@clinebot/shared";
 import type {
 	SkillConfig,
 	UserInstructionConfigWatcher,
@@ -10,6 +11,7 @@ export type AvailableRuntimeCommand = {
 	id: string;
 	name: string;
 	instructions: string;
+	description?: string;
 	kind: RuntimeCommandKind;
 };
 
@@ -32,6 +34,10 @@ function listCommandsForKind(
 			id,
 			name: record.item.name,
 			instructions: record.item.instructions,
+			description: truncateSplit(
+				record.item.description ?? record.item.instructions,
+				".",
+			),
 			kind,
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name));

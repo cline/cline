@@ -71,8 +71,7 @@ export function listInteractiveSlashCommands(
 		...listAvailableRuntimeCommandsFromWatcher(watcher).map((command) => ({
 			name: command.name,
 			instructions: command.instructions,
-			description:
-				command.kind === "workflow" ? "Workflow command" : "Skill command",
+			description: command.description,
 		})),
 	];
 }

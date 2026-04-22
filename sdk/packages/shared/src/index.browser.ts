@@ -154,7 +154,12 @@ export {
 	safeJsonStringify,
 } from "./parse/json";
 export { getDefaultShell, getShellArgs } from "./parse/shell";
-export { maskSecret, sanitizeFileName, truncateStr } from "./parse/string";
+export {
+	maskSecret,
+	sanitizeFileName,
+	truncateSplit,
+	truncateStr,
+} from "./parse/string";
 export { formatHumanReadableDate } from "./parse/time";
 export { validateWithZod, zodToJsonSchema } from "./parse/zod";
 export type { ClineSystemPromptOptions } from "./prompt/cline";

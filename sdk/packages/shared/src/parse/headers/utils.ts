@@ -12,7 +12,7 @@ export function parseKeyPairsIntoRecord(
 			const separatorIndex = entry.indexOf("=");
 			if (separatorIndex <= 0) return;
 
-		    // From the beginning to the equal sign is the key, from the equal sign to the end is the value
+			// From the beginning to the equal sign is the key, from the equal sign to the end is the value
 			const key = decodeURIComponent(entry.substring(0, separatorIndex).trim());
 			const value = decodeURIComponent(
 				entry.substring(separatorIndex + 1).trim(),
