@@ -229,7 +229,7 @@
 					{
 						"group": "Getting Started",
 						"pages": [
-							"cline-cli/overview",
+							"cline-cli/getting-started",
 							"cline-cli/installation"
 						]
 					},
@@ -541,10 +541,6 @@
 		{
 			"source": "/cline-cli/samples",
 			"destination": "/cline-cli/samples/overview"
-		},
-		{
-			"source": "/cline-cli/overview",
-			"destination": "/cline-cli/getting-started"
 		},
 		{
 			"source": "/features/hooks/real-world-examples",
