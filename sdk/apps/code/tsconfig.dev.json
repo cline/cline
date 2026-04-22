@@ -4,6 +4,7 @@
 		"paths": {
 			"@/*": ["./*"],
 			"@clinebot/core": ["../../packages/core/src/index.ts"],
+			"@clinebot/core/hub": ["../../packages/core/src/hub/index.ts"],
 			"@clinebot/hub": ["../../packages/hub/src/index.ts"],
 			"@clinebot/shared": ["../../packages/shared/src/index.ts"],
 			"@clinebot/shared/storage": [

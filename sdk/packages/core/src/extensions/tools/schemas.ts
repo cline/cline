@@ -228,10 +228,12 @@ export const ApplyPatchInputSchema = z
 		input: z
 			.string()
 			.min(1)
-			.describe("The apply_patch text payload, including patch instructions"),
+			.describe(
+				"The freeform apply_patch payload in the canonical patch grammar (e.g *** Begin Patch, *** Update File:, @@, and *** End Patch).",
+			),
 	})
 	.describe(
-		"Modify or create a text file by applying patches. Prefer using this tool for file edits over shell commands. IMPORTANT: large patches can time out, so use small chunks and multiple calls when possible.",
+		"Modify or create a text file by applying patches using the canonical apply_patch diff grammar. Prefer sending the patch body directly rather than wrapping it in shell syntax. IMPORTANT: large patches can time out, so use small chunks and multiple calls when possible.",
 	);
 export const ApplyPatchInputUnionSchema = z.union([
 	ApplyPatchInputSchema,

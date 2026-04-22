@@ -1,7 +1,9 @@
 /**
  * Apply Patch Executor
  *
- * Built-in implementation for the legacy apply_patch format.
+ * Built-in implementation for the documented GPT-5 apply_patch grammar.
+ * It accepts the freeform patch body directly and tolerates the legacy shell
+ * wrapper form used by older prompts.
  */
 
 import * as fs from "node:fs/promises";
@@ -23,6 +25,10 @@ interface FileChange {
 	oldContent?: string;
 	newContent?: string;
 	movePath?: string;
+}
+
+interface NormalizedPatchInput {
+	lines: string[];
 }
 
 /**
@@ -63,104 +69,87 @@ function resolveFilePath(
 	return resolved;
 }
 
-function stripBashWrapper(lines: string[]): string[] {
-	const result: string[] = [];
-	let insidePatch = false;
-	let foundBegin = false;
-	let foundContent = false;
-
-	for (let i = 0; i < lines.length; i++) {
-		const line = lines[i];
-		if (
-			!insidePatch &&
-			BASH_WRAPPERS.some((wrapper) => line.startsWith(wrapper))
-		) {
-			continue;
-		}
-
-		if (line.startsWith(PATCH_MARKERS.BEGIN)) {
-			insidePatch = true;
-			foundBegin = true;
-			result.push(line);
-			continue;
-		}
-
-		if (line === PATCH_MARKERS.END) {
-			insidePatch = false;
-			result.push(line);
-			continue;
-		}
-
-		const isPatchContent =
-			line.startsWith(PATCH_MARKERS.ADD) ||
-			line.startsWith(PATCH_MARKERS.UPDATE) ||
-			line.startsWith(PATCH_MARKERS.DELETE) ||
-			line.startsWith(PATCH_MARKERS.MOVE) ||
-			line.startsWith(PATCH_MARKERS.SECTION) ||
-			line.startsWith("+") ||
-			line.startsWith("-") ||
-			line.startsWith(" ") ||
-			line === "***";
-
-		if (isPatchContent && i !== lines.length - 1) {
-			foundContent = true;
-		}
-
-		if (
-			insidePatch ||
-			(!foundBegin && isPatchContent) ||
-			(line === "" && foundContent)
-		) {
-			result.push(line);
-		}
-	}
-
-	while (result.length > 0 && result[result.length - 1] === "") {
-		result.pop();
-	}
-
-	return !foundBegin && !foundContent ? lines : result;
+function normalizeLineEndings(input: string): string[] {
+	return input.split("\n").map((line) => line.replace(/\r$/, ""));
 }
 
-function preprocessLines(input: string): string[] {
-	let lines = input.split("\n").map((line) => line.replace(/\r$/, ""));
-	lines = stripBashWrapper(lines);
+function isWrapperLine(line: string): boolean {
+	if (line.trim() === "") {
+		return false;
+	}
+	return BASH_WRAPPERS.some((wrapper) => line.startsWith(wrapper));
+}
 
-	const hasBegin = lines.length > 0 && lines[0].startsWith(PATCH_MARKERS.BEGIN);
-	const hasEnd =
-		lines.length > 0 && lines[lines.length - 1] === PATCH_MARKERS.END;
-	if (!hasBegin && !hasEnd) {
-		return [PATCH_MARKERS.BEGIN, ...lines, PATCH_MARKERS.END];
+function trimWrapperLines(lines: string[]): string[] {
+	let start = 0;
+	let end = lines.length;
+
+	while (start < end && isWrapperLine(lines[start] ?? "")) {
+		start++;
 	}
-	if (hasBegin && hasEnd) {
-		return lines;
+
+	while (end > start && isWrapperLine(lines[end - 1] ?? "")) {
+		end--;
 	}
-	throw new DiffError(
-		"Invalid patch text - incomplete sentinels. Try breaking it into smaller patches.",
+
+	return lines.slice(start, end);
+}
+
+function normalizePatchInput(input: string): NormalizedPatchInput {
+	const rawLines = normalizeLineEndings(input);
+	const beginIndex = rawLines.findIndex((line) =>
+		line.startsWith(PATCH_MARKERS.BEGIN),
 	);
-}
-
-function extractFilesForOperations(
-	text: string,
-	markers: readonly string[],
-): string[] {
-	const lines = stripBashWrapper(text.split("\n"));
-	const files: string[] = [];
-
-	for (const line of lines) {
-		for (const marker of markers) {
-			if (!line.startsWith(marker)) {
-				continue;
-			}
-			const file = line.substring(marker.length).trim();
-			if (!text.trim().endsWith(file)) {
-				files.push(file);
-			}
+	let endIndex = -1;
+	for (let i = rawLines.length - 1; i >= 0; i--) {
+		if (rawLines[i]?.startsWith(PATCH_MARKERS.END)) {
+			endIndex = i;
 			break;
 		}
 	}
 
-	return files;
+	if (beginIndex !== -1 || endIndex !== -1) {
+		if (beginIndex === -1 || endIndex === -1 || endIndex < beginIndex) {
+			throw new DiffError(
+				"Invalid patch text - incomplete sentinels. Try breaking it into smaller patches.",
+			);
+		}
+		const lines = rawLines.slice(beginIndex, endIndex + 1);
+		return {
+			lines,
+		};
+	}
+
+	const stripped = trimWrapperLines(rawLines);
+	while (stripped.length > 0 && stripped[0] === "") {
+		stripped.shift();
+	}
+	while (stripped.length > 0 && stripped[stripped.length - 1] === "") {
+		stripped.pop();
+	}
+
+	const lines = [PATCH_MARKERS.BEGIN, ...stripped, PATCH_MARKERS.END];
+	return {
+		lines,
+	};
+}
+
+function extractFilesForOperations(
+	lines: readonly string[],
+	markers: readonly string[],
+): string[] {
+	const files = new Set<string>();
+
+	for (const line of lines) {
+		for (const marker of markers) {
+			if (line.startsWith(marker)) {
+				files.add(line.substring(marker.length).trim());
+				break;
+			}
+		}
+	}
+
+	return [...files];
 }
 
 function applyChunks(
@@ -197,12 +186,12 @@ function applyChunks(
 }
 
 async function loadFiles(
-	rawInput: string,
+	lines: readonly string[],
 	cwd: string,
 	encoding: BufferEncoding,
 	restrictToCwd: boolean,
 ): Promise<Record<string, string>> {
-	const filesToLoad = extractFilesForOperations(rawInput, [
+	const filesToLoad = extractFilesForOperations(lines, [
 		PATCH_MARKERS.UPDATE,
 		PATCH_MARKERS.DELETE,
 	]);
@@ -328,14 +317,14 @@ export function createApplyPatchExecutor(
 		cwd: string,
 		_context: ToolContext,
 	): Promise<string> => {
-		const lines = preprocessLines(input.input);
+		const normalizedInput = normalizePatchInput(input.input);
 		const currentFiles = await loadFiles(
-			input.input,
+			normalizedInput.lines,
 			cwd,
 			encoding,
 			restrictToCwd,
 		);
-		const parser = new PatchParser(lines, currentFiles);
+		const parser = new PatchParser(normalizedInput.lines, currentFiles);
 		const { patch, fuzz } = parser.parse();
 		const changes = patchToChanges(patch, currentFiles);
 		const touched = await applyChanges(changes, cwd, encoding, restrictToCwd);

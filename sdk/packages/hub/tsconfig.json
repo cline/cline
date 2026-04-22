@@ -16,6 +16,7 @@
 		"noUnusedParameters": false,
 		"paths": {
 			"@clinebot/core": ["../core/src/index.ts"],
+			"@clinebot/core/hub": ["../core/src/hub/index.ts"],
 			"@clinebot/shared": ["../shared/src/index.ts"],
 			"@clinebot/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
 		}
