@@ -234,10 +234,16 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
 			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
 			const isEdit = toolName === "replace_in_file" || !!oldText
+
+			// When the SDK provides both old and new text, build a search/replace
+			// diff in the format DiffEditRow expects. ChatRow passes `content` to
+			// DiffEditRow's `patch` prop, so the formatted diff must go into `content`.
+			const diffContent = oldText && newText ? `------- SEARCH\n${oldText}\n=======\n${newText}\n+++++++ REPLACE` : newText
+
 			return {
 				tool: isEdit ? "editedExistingFile" : "newFileCreated",
 				path: filePath,
-				content: newText,
+				content: diffContent,
 				diff: patch,
 			}
 		}
@@ -254,10 +260,18 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "apply_patch": {
 			const filePath = getStringField(parsedInput, "path") ?? ""
-			const patch = getStringField(parsedInput, "patch")
+			// The SDK sends apply_patch input as { input: 'apply_patch <<"EOF"\n*** Begin Patch\n...' }
+			// Also check the "patch" and "diff" fields for compatibility.
+			const patch =
+				getStringField(parsedInput, "patch") ??
+				getStringField(parsedInput, "diff") ??
+				getStringField(parsedInput, "input")
 			return {
 				tool: "editedExistingFile",
 				path: filePath,
+				// ChatRow passes `content` to DiffEditRow's `patch` prop,
+				// so we must populate `content` for the diff to render.
+				content: patch,
 				diff: patch,
 			}
 		}
