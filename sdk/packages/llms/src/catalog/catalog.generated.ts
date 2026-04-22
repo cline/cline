@@ -8,12 +8,13 @@
 import type { ModelInfo } from "@clinebot/shared";
 /**
  * Model list auto-generated for built-in providers
+ * listed in @clinebot/llms/src/providers/provider-keys.ts
  */
 export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1776877569689,
+	version: 1776897029283,
 	providers: {
 		aihubmix: {
 			"coding-glm-5.1": {
@@ -1393,6 +1394,28 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		baseten: {
+			"moonshotai/Kimi-K2.6": {
+				id: "moonshotai/Kimi-K2.6",
+				name: "Kimi K2.6",
+				contextWindow: 262144,
+				maxTokens: 13107,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.95,
+					output: 4,
+					cacheRead: 0.16,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-21",
+				family: "kimi-k2.6",
+			},
 			"nvidia/Nemotron-120B-A12B": {
 				id: "nvidia/Nemotron-120B-A12B",
 				name: "Nemotron 3 Super",
