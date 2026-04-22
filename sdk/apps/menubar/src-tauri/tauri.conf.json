@@ -5,7 +5,8 @@
 	"identifier": "bot.cline.menubar",
 	"build": {
 		"beforeDevCommand": "",
-		"beforeBuildCommand": "bun run build:sidecar:bin"
+		"beforeBuildCommand": "bun run build:sidecar:bin",
+		"beforeBundleCommand": "[ \"$(uname)\" = \"Darwin\" ] && xattr -d com.apple.quarantine ./target/release/bundle/macos/Cline\\ Hub.app || true"
 	},
 	"app": {
 		"windows": [],

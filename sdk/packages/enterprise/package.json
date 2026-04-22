@@ -5,11 +5,9 @@
 	"description": "[INTERNAL] Enterprise composition layer for the Cline SDK",
 	"type": "module",
 	"main": "./dist/index.js",
-	"types": "./dist/index.d.ts",
 	"exports": {
 		".": {
 			"development": "./src/index.ts",
-			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		}
 	},
@@ -18,7 +16,7 @@
 		"src"
 	],
 	"scripts": {
-		"build": "bun build ./src/index.ts --outdir ./dist --target node --format esm && bunx tsc -p tsconfig.build.json",
+		"build": "rm -rf dist && bun build ./src/index.ts --outdir ./dist --target node --format esm",
 		"clean": "rm -rf dist node_modules",
 		"typecheck": "bunx tsc -p tsconfig.json --noEmit",
 		"test": "bunx vitest run --config vitest.config.ts",
