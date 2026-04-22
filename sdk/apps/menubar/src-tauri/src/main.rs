@@ -21,6 +21,7 @@ struct HubState {
     connected: bool,
     last_workspace_root: Option<String>,
     hub_uptime: Option<String>,
+    last_error: Option<String>,
     client_summaries: Vec<ClientSummary>,
     notifications: Vec<NotificationRecord>,
 }
@@ -88,6 +89,46 @@ impl Drop for AppState {
             }
         }
     }
+}
+
+fn current_timestamp_secs() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs()
+}
+
+fn push_notification(
+    state: &Arc<AppState>,
+    title: impl Into<String>,
+    body: impl Into<String>,
+    severity: impl Into<String>,
+    show_system: bool,
+) {
+    let title = title.into();
+    let body = body.into();
+    let severity = severity.into();
+    eprintln!("[notification/{severity}] {title}: {body}");
+    if let Ok(mut hub) = state.hub_state.lock() {
+        if severity.eq_ignore_ascii_case("error") {
+            hub.last_error = Some(format!("{title}: {body}"));
+            hub.connected = false;
+        }
+        hub.notifications.push(NotificationRecord {
+            title: title.clone(),
+            body: body.clone(),
+            severity: severity.clone(),
+            timestamp: current_timestamp_secs(),
+        });
+        if hub.notifications.len() > 50 {
+            let keep_from = hub.notifications.len() - 50;
+            hub.notifications.drain(0..keep_from);
+        }
+    }
+    if show_system {
+        show_system_notification(&title, &body);
+    }
+    refresh_tray_menu(state);
 }
 
 fn resolve_sidecar_script(workspace_root: &str, launch_cwd: &str) -> Option<PathBuf> {
@@ -183,13 +224,28 @@ fn start_sidecar(
                 handle_sidecar_message(&state_for_stdout, msg, trimmed);
             } else {
                 eprintln!("[menubar-sidecar] {trimmed}");
+                push_notification(
+                    &state_for_stdout,
+                    "Sidecar output",
+                    trimmed.to_string(),
+                    "warn",
+                    false,
+                );
             }
         }
         if let Ok(mut ep) = state_for_stdout.ws_endpoint.lock() {
             *ep = None;
         }
+        push_notification(
+            &state_for_stdout,
+            "Sidecar stopped",
+            "The menubar sidecar exited or closed its output stream.",
+            "error",
+            false,
+        );
     });
 
+    let state_for_stderr = state.clone();
     thread::spawn(move || {
         let reader = BufReader::new(stderr);
         for line in reader.lines() {
@@ -197,6 +253,13 @@ fn start_sidecar(
                 let trimmed = text.trim();
                 if !trimmed.is_empty() {
                     eprintln!("[menubar-sidecar:err] {trimmed}");
+                    push_notification(
+                        &state_for_stderr,
+                        "Sidecar error",
+                        trimmed.to_string(),
+                        "error",
+                        false,
+                    );
                 }
             }
         }
@@ -217,6 +280,9 @@ fn handle_sidecar_message(state: &Arc<AppState>, msg: SidecarMessage, raw: &str)
                 }
                 eprintln!("[menubar-sidecar] ready at {url}");
             }
+            if let Ok(mut hub) = state.hub_state.lock() {
+                hub.last_error = None;
+            }
             refresh_tray_menu(state);
         }
         "hub_state" => {
@@ -232,6 +298,9 @@ fn handle_sidecar_message(state: &Arc<AppState>, msg: SidecarMessage, raw: &str)
                 hub.hub_uptime = msg
                     .hub_uptime
                     .and_then(|value| if value.trim().is_empty() { None } else { Some(value) });
+                if connected {
+                    hub.last_error = None;
+                }
             }
             let should_log = {
                 let mut last = state
@@ -257,27 +326,17 @@ fn handle_sidecar_message(state: &Arc<AppState>, msg: SidecarMessage, raw: &str)
             let title = msg.title.unwrap_or_default();
             let body = msg.body.unwrap_or_default();
             let severity = msg.severity.unwrap_or_else(|| "info".to_string());
-            eprintln!("[notification/{severity}] {title}: {body}");
-            if let Ok(mut hub) = state.hub_state.lock() {
-                hub.notifications.push(NotificationRecord {
-                    title: title.clone(),
-                    body: body.clone(),
-                    severity,
-                    timestamp: std::time::SystemTime::now()
-                        .duration_since(std::time::UNIX_EPOCH)
-                        .unwrap_or_default()
-                        .as_secs(),
-                });
-                if hub.notifications.len() > 50 {
-                    let keep_from = hub.notifications.len() - 50;
-                    hub.notifications.drain(0..keep_from);
-                }
-            }
-            show_system_notification(&title, &body);
-            refresh_tray_menu(state);
+            push_notification(state, title, body, severity, true);
         }
         _ => {
             eprintln!("[menubar-sidecar] {raw}");
+            push_notification(
+                state,
+                "Sidecar message",
+                raw.to_string(),
+                "warn",
+                false,
+            );
         }
     }
 }
@@ -385,6 +444,8 @@ fn build_tray_menu(
 ) -> tauri::Result<Menu<tauri::Wry>> {
     let status_text = if hub_state.connected {
         "Hub Connected".to_string()
+    } else if hub_state.last_error.is_some() {
+        "Hub: error".to_string()
     } else {
         "Hub: disconnected".to_string()
     };
@@ -417,6 +478,22 @@ fn build_tray_menu(
                 None::<&str>,
             )?));
         }
+        items.push(Box::new(PredefinedMenuItem::separator(app)?));
+    }
+
+    if let Some(last_error) = hub_state.last_error.as_ref() {
+        let summary = if last_error.len() > 96 {
+            format!("Last Error: {}...", &last_error[..93])
+        } else {
+            format!("Last Error: {last_error}")
+        };
+        items.push(Box::new(MenuItem::with_id(
+            app,
+            "latest_error",
+            &summary,
+            true,
+            None::<&str>,
+        )?));
         items.push(Box::new(PredefinedMenuItem::separator(app)?));
     }
 
@@ -466,6 +543,7 @@ fn get_hub_state(state: tauri::State<'_, Arc<AppState>>) -> serde_json::Value {
         "clientSummaries": hub.client_summaries,
         "lastWorkspaceRoot": hub.last_workspace_root,
         "hubUptime": hub.hub_uptime,
+        "lastError": hub.last_error,
         "notificationCount": hub.notifications.len(),
         "recentNotifications": &hub.notifications[hub.notifications.len().saturating_sub(10)..],
     })
@@ -508,6 +586,13 @@ fn main() {
                 &launch_cwd_for_setup,
             ) {
                 eprintln!("[menubar] sidecar start failed: {e}");
+                push_notification(
+                    &state_for_setup,
+                    "Sidecar start failed",
+                    e,
+                    "error",
+                    false,
+                );
             }
 
             thread::spawn(move || loop {
@@ -518,6 +603,13 @@ fn main() {
                     &launch_cwd_for_watchdog,
                 ) {
                     eprintln!("[menubar] watchdog restart failed: {e}");
+                    push_notification(
+                        &state_for_watchdog,
+                        "Sidecar restart failed",
+                        e,
+                        "error",
+                        false,
+                    );
                 }
             });
 
@@ -534,6 +626,16 @@ fn main() {
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
                         "quit" => app.exit(0),
+                        "latest_error" => {
+                            let state = app.state::<Arc<AppState>>();
+                            let error = {
+                                let hub = state.hub_state.lock().unwrap_or_else(|p| p.into_inner());
+                                hub.last_error.clone()
+                            };
+                            if let Some(error) = error {
+                                show_notification_details("Last Error", &error);
+                            }
+                        }
                         "new_chat" => {
                             let state = app.state::<Arc<AppState>>();
                             let workspace_root = {

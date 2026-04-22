@@ -66,8 +66,8 @@ describe("hub discovery", () => {
 			hubId: "hub_123",
 			protocolVersion: "v1",
 			host: "127.0.0.1",
-			port: 4319,
-			url: "ws://127.0.0.1:4319/hub",
+			port: 25463,
+			url: "ws://127.0.0.1:25463/hub",
 			startedAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};

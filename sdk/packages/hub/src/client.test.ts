@@ -24,13 +24,13 @@ describe("resolveHubUrl", () => {
 			hubId: "hub-test",
 			protocolVersion: "v1",
 			host: "127.0.0.1",
-			port: 4319,
-			url: "ws://127.0.0.1:4319/hub",
+			port: 25463,
+			url: "ws://127.0.0.1:25463/hub",
 			startedAt: new Date(0).toISOString(),
 			updatedAt: new Date(0).toISOString(),
 		});
 
-		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:4319/hub");
+		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:25463/hub");
 	});
 
 	it("falls back to the default endpoint when no discovery file exists", async () => {
@@ -40,7 +40,7 @@ describe("resolveHubUrl", () => {
 			"readHubDiscovery",
 		).mockResolvedValue(undefined);
 
-		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:4319/hub");
+		await expect(resolveHubUrl()).resolves.toBe("ws://127.0.0.1:25463/hub");
 	});
 
 	it("uses an explicit endpoint without consulting discovery", async () => {

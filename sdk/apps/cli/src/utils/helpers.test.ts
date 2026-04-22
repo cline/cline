@@ -52,7 +52,6 @@ describe("parseArgs", () => {
 			thinking: false,
 			reasoningEffort: undefined,
 			liveModelCatalog: false,
-			yolo: false,
 			defaultToolAutoApprove: true,
 		});
 	});
@@ -168,7 +167,17 @@ describe("parseArgs", () => {
 
 	it("supports yolo as an auto-approval shortcut", () => {
 		const parsedYolo = parseArgs(["--yolo"]);
+		expect(parsedYolo.mode).toBe("yolo");
 		expect(parsedYolo.defaultToolAutoApprove).toBe(true);
+	});
+
+	it("parses --zen flag for background hub dispatch", () => {
+		const parsedLong = parseArgs(["--zen", "do it"]);
+		expect(parsedLong.mode).toBe("zen");
+		expect(parsedLong.prompt).toBe("do it");
+
+		const parsedShort = parseArgs(["-z", "do it"]);
+		expect(parsedShort.mode).toBe("zen");
 	});
 
 	it("parses timeout and validates invalid values", () => {

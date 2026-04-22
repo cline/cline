@@ -66,6 +66,19 @@ function emit(msg: Record<string, unknown>): void {
 	process.stdout.write(`${JSON.stringify(msg)}\n`);
 }
 
+function emitNotification(
+	title: string,
+	body: string,
+	severity: "info" | "warn" | "error" = "error",
+): void {
+	emit({
+		type: "notification",
+		title,
+		body,
+		severity,
+	});
+}
+
 function formatUptime(ms: number): string {
 	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
 	const days = Math.floor(totalSeconds / 86_400);
@@ -174,6 +187,7 @@ async function main(): Promise<void> {
 		hubUrl = await ensureDetachedHubServer(workspaceRoot);
 	} catch (err) {
 		const msg = err instanceof Error ? err.message : String(err);
+		emitNotification("Hub startup failed", msg, "error");
 		process.stderr.write(`[menubar-sidecar] hub error: ${msg}\n`);
 		process.exit(1);
 	}
@@ -555,6 +569,7 @@ async function main(): Promise<void> {
 
 main().catch((err) => {
 	const msg = err instanceof Error ? err.message : String(err);
+	emitNotification("Menubar sidecar fatal error", msg, "error");
 	process.stderr.write(`[menubar-sidecar] fatal: ${msg}\n`);
 	process.exit(1);
 });

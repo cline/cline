@@ -113,6 +113,11 @@ clite --autoapprove true --max-consecutive-mistakes 5 "Refactor this package"
 # Explicit yolo also enables submit_and_exit and disables spawn/team tools by default
 clite --yolo --max-consecutive-mistakes 5 "Refactor this package"
 
+# Zen mode: fire-and-forget a task to the background hub and exit the CLI immediately
+# The hub keeps running the task; the menubar app (if installed) will notify you on
+# completion. Otherwise check `clite history` later to see the result.
+clite --zen "Refactor the authentication module"
+
 # Stream structured NDJSON output
 clite --json "Summarize this repository"
 
@@ -265,8 +270,7 @@ Runtime note:
 | `-P, --provider <id>` | Provider id (default: `cline`) |
 | `-m, --model <id>` | Model id (default: `anthropic/claude-sonnet-4.6`) |
 | `-k, --key <api-key>` | API key override for this run |
-| `-a, --act` | Run in act mode |
-| `-p, --plan` | Run in plan mode |
+| `-p, --plan` | Run in plan mode. Default to act mode. |
 | `-i, --interactive` | Interactive multi-turn mode |
 | `-T, --taskId <id>` | Resume an interactive task/session |
 | `-n, --max-iterations <n>` | Cap agent loop iterations |
@@ -284,6 +288,7 @@ Runtime note:
 | `--sandbox-dir <path>` | Sandbox state dir (default: `$CLINE_SANDBOX_DATA_DIR` or `/tmp/cline-sandbox`) |
 | `--autoapprove [true\|false]` | Set tool auto-approval for all tools |
 | `-y, --yolo` | Skip tool approval prompts, enable `submit_and_exit`, and disable spawn/team tools by default |
+| `-z, --zen` | Dispatch the task to the background hub and exit the CLI immediately (see "Zen mode" below) |
 | `--team-name <name>` | Override the runtime team state name |
 | `-h, --help` | Show help (exits immediately) |
 | `-v, --verbose` | Show verbose runtime diagnostics |
@@ -334,6 +339,23 @@ Auth quick-setup flags:
 - `-k, --apikey <key>`
 - `-m, --modelid <id>`
 - `-b, --baseurl <url>` (OpenAI/OpenAI-compatible quick setup)
+
+## Zen Mode
+
+`--zen` (alias `-z`) runs a task in the background hub daemon and exits the CLI immediately. It is intended for long-running tasks you want to fire off and walk away from.
+
+```bash
+# Fire off a task and return to your shell right away
+clite --zen "Refactor the authentication module and add unit tests"
+```
+
+Behavior:
+
+- The CLI starts (or reuses) the local hub daemon, submits the task, then exits. It does **not** stream output or stay attached to the session.
+- Because there is no human in the loop once the CLI exits, zen sessions run with full tool auto-approval (same semantics as `--yolo`). `spawn`/`team` tools are disabled by default for safety, consistent with yolo-mode defaults.
+- If the Cline menubar app is running, it subscribes to hub `ui.notify` events and will surface a system notification when the task completes.
+- If the menubar app is not running, there is no live UI for the task. Use `clite history` later to find the session and inspect the result.
+- `--zen` is incompatible with `--sandbox` (sandbox requires a local backend that exits with the CLI) and with `--interactive` (there is no terminal UI to render into).
 
 ## Tool Approval
 

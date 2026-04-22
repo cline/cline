@@ -148,7 +148,7 @@ describe("NodeHubClient", () => {
 		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
 			vi.stubGlobal("WebSocket", MockWebSocket);
 
-			const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
 			await client.connect();
 			client.subscribe(() => {});
 
@@ -196,7 +196,7 @@ describe("NodeHubClient", () => {
 		});
 
 		it("times out when the hub connection never opens", async () => {
-			const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
 			const connectPromise = client.connect();
 			const expectation = expect(connectPromise).rejects.toThrow(
 				"Timed out connecting to hub after 8000ms",
@@ -207,7 +207,7 @@ describe("NodeHubClient", () => {
 		});
 
 		it("times out when a hub command never replies", async () => {
-			const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
 			const connectPromise = client.connect();
 			const socket = FakeWebSocket.instances[0];
 			if (!socket) {
@@ -231,7 +231,7 @@ describe("NodeHubClient", () => {
 			FakeWebSocket;
 		FakeWebSocket.instances = [];
 
-		const client = new NodeHubClient({ url: "ws://127.0.0.1:4319/hub" });
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
 		const connectPromise = client.connect();
 		const socket = FakeWebSocket.instances[0];
 		if (!socket) {
@@ -283,8 +283,8 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					protocolVersion: "v1",
 					buildId: "test-build",
 					host: "127.0.0.1",
-					port: 4319,
-					url: "ws://127.0.0.1:4319/hub",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
 					startedAt: new Date().toISOString(),
 					updatedAt: new Date().toISOString(),
 				})),
@@ -320,8 +320,8 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					protocolVersion: "v1",
 					buildId: "old-build",
 					host: "127.0.0.1",
-					port: 4319,
-					url: "ws://127.0.0.1:4319/hub",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
 					startedAt: new Date().toISOString(),
 					updatedAt: new Date().toISOString(),
 				})),
@@ -333,8 +333,8 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					protocolVersion: "v1",
 					buildId: "old-build",
 					host: "127.0.0.1",
-					port: 4319,
-					url: "ws://127.0.0.1:4319/hub",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
 					startedAt: new Date().toISOString(),
 					updatedAt: new Date().toISOString(),
 				})),

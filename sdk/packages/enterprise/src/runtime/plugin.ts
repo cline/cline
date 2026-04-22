@@ -10,7 +10,7 @@ export function createEnterprisePlugin(
 	return {
 		name: options.pluginName ?? "enterprise",
 		manifest: { capabilities: ["providers"] },
-		async setup(api) {
+		async setup(api, _ctx) {
 			api.registerProvider?.({
 				name: options.pluginName ?? "enterprise",
 				description: "Enterprise-managed runtime integration",

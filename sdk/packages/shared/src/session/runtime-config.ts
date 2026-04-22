@@ -1,6 +1,6 @@
 import type { ToolPolicy } from "../llms/tools";
 
-export type AgentMode = "act" | "plan" | "yolo";
+export type AgentMode = "act" | "plan" | "yolo" | "zen";
 
 export interface SessionPromptConfig {
 	mode?: AgentMode;

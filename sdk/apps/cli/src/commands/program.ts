@@ -40,7 +40,7 @@ export function addRootOptions(cmd: Command): Command {
 		.option("--apiKey <api-key>") // hidden alias for --key
 		.option(
 			"--max-consecutive-mistakes <count>",
-			"Maximum consecutive mistakes before halting in yolo mode",
+			"Maximum consecutive mistakes before halting",
 		)
 		.option("-n, --max-iterations <count>")
 		.option("-m, --model <model>", "Model to use for the task")
@@ -66,7 +66,11 @@ export function addRootOptions(cmd: Command): Command {
 		)
 		.option("-u, --usage", "Show token usage and estimated cost")
 		.option("-v, --verbose", "Show verbose output")
-		.option("-y, --yolo", "Enable yolo mode (auto-approve actions)");
+		.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+		.option(
+			"-z, --zen",
+			"Run the task in the background hub and exit immediately (menubar app notifies on completion)",
+		);
 }
 
 export function createProgram(): Command {
@@ -96,8 +100,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		interactive: !!opts.interactive,
 		showUsage: !!opts.usage,
 		outputMode: opts.json ? "json" : "text",
-		mode: opts.plan ? "plan" : "act",
-		yolo: opts.yolo ?? false,
+		mode: opts.plan ? "plan" : opts.yolo ? "yolo" : opts.zen ? "zen" : "act",
 		sandbox: !!opts.sandbox,
 		acpMode: !!opts.acp,
 		thinking: !!opts.thinking,

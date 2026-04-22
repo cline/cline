@@ -98,7 +98,7 @@ describe("runtime host resolution", () => {
 		const { createRuntimeHost } = await import("../runtime/host");
 		const { HubRuntimeHost } = await import("../transports/hub");
 		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
-			"ws://127.0.0.1:4319/hub",
+			"ws://127.0.0.1:25463/hub",
 		);
 		hubConnectMock.mockResolvedValue(undefined);
 
@@ -119,7 +119,7 @@ describe("runtime host resolution", () => {
 		expect(logger.log).toHaveBeenCalledWith(
 			"Using discovered local hub runtime host",
 			{
-				url: "ws://127.0.0.1:4319/hub",
+				url: "ws://127.0.0.1:25463/hub",
 			},
 		);
 	});
@@ -153,7 +153,7 @@ describe("runtime host resolution", () => {
 		const { createRuntimeHost } = await import("../runtime/host");
 		const { LocalRuntimeHost } = await import("../transports/local");
 		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
-			"ws://127.0.0.1:4319/hub",
+			"ws://127.0.0.1:25463/hub",
 		);
 		hubConnectMock.mockRejectedValue(new Error("connect failed"));
 
@@ -176,7 +176,7 @@ describe("runtime host resolution", () => {
 		const { createRuntimeHost } = await import("../runtime/host");
 		const { HubRuntimeHost } = await import("../transports/hub");
 		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
-			"ws://127.0.0.1:4319/hub",
+			"ws://127.0.0.1:25463/hub",
 		);
 
 		const host = await createRuntimeHost({

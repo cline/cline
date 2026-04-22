@@ -25,6 +25,7 @@ import type {
 import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../session/session-service";
 import { LocalRuntimeHost } from "../transports/local";
+import { readPersistedMessagesFile } from "../transports/runtime-host-support";
 import type { CoreSessionEvent } from "../types/events";
 import type { SessionRecord as LocalSessionRecord } from "../types/sessions";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
@@ -214,24 +215,94 @@ function eventNameForScheduleCommand(
 	}
 }
 
-function buildCompletionNotification(session: HubSessionRecord | undefined): {
+function extractAssistantText(content: unknown): string | undefined {
+	if (typeof content === "string") {
+		const trimmed = content.trim();
+		return trimmed || undefined;
+	}
+	if (!Array.isArray(content)) {
+		return undefined;
+	}
+	const text = content
+		.map((part) => {
+			if (
+				part &&
+				typeof part === "object" &&
+				"type" in part &&
+				(part as { type?: unknown }).type === "text" &&
+				"text" in part &&
+				typeof (part as { text?: unknown }).text === "string"
+			) {
+				return (part as { text: string }).text.trim();
+			}
+			return "";
+		})
+		.filter(Boolean)
+		.join("\n")
+		.trim();
+	return text || undefined;
+}
+
+const MAX_NOTIFICATION_BODY_BYTES = 120;
+const NOTIFICATION_BODY_ELLIPSIS = "...";
+
+export function truncateNotificationBody(value: string): string {
+	const trimmed = value.trim();
+	if (!trimmed) {
+		return "";
+	}
+	if (Buffer.byteLength(trimmed, "utf8") <= MAX_NOTIFICATION_BODY_BYTES) {
+		return trimmed;
+	}
+	const budget =
+		MAX_NOTIFICATION_BODY_BYTES -
+		Buffer.byteLength(NOTIFICATION_BODY_ELLIPSIS, "utf8");
+	if (budget <= 0) {
+		return NOTIFICATION_BODY_ELLIPSIS;
+	}
+	let truncated = "";
+	for (const char of trimmed) {
+		if (Buffer.byteLength(truncated + char, "utf8") > budget) {
+			break;
+		}
+		truncated += char;
+	}
+	return `${truncated}${NOTIFICATION_BODY_ELLIPSIS}`;
+}
+
+async function buildCompletionNotification(
+	session: HubSessionRecord | undefined,
+): Promise<{
 	title: string;
 	body: string;
 	severity: "info";
-} {
-	const prompt =
+}> {
+	const sessionId = session?.sessionId?.trim() || "unknown";
+	const messagesPath =
+		typeof session?.metadata?.messagesPath === "string"
+			? session.metadata.messagesPath
+			: undefined;
+	const messages = await readPersistedMessagesFile(messagesPath);
+	const latestAssistantText = [...messages]
+		.reverse()
+		.find((message) => message.role === "assistant");
+	const assistantReply = latestAssistantText
+		? extractAssistantText(latestAssistantText.content)
+		: undefined;
+	const workspaceRoot = session?.workspaceRoot?.trim() || "workspace";
+	const fallback =
 		typeof session?.metadata?.prompt === "string"
 			? session.metadata.prompt.trim()
-			: "";
-	const workspaceRoot = session?.workspaceRoot?.trim() || "workspace";
+			: workspaceRoot;
 	return {
-		title: "Task completed",
-		body:
-			prompt.length > 0
-				? prompt.length > 120
-					? `${prompt.slice(0, 117)}...`
-					: prompt
-				: workspaceRoot,
+		title: `Task completed (${sessionId})`,
+		body: truncateNotificationBody(
+			assistantReply && assistantReply.length > 0
+				? assistantReply
+				: fallback.length > 0
+					? fallback
+					: workspaceRoot,
+		),
 		severity: "info",
 	};
 }
@@ -248,6 +319,39 @@ function isHubToolExecutorName(value: unknown): value is HubToolExecutorName {
 		value === "askQuestion" ||
 		value === "submit"
 	);
+}
+
+function formatHubStartupError(
+	error: unknown,
+	context: {
+		host: string;
+		port: number;
+		pathname: string;
+	},
+): Error {
+	const code =
+		error &&
+		typeof error === "object" &&
+		"code" in error &&
+		typeof (error as { code?: unknown }).code === "string"
+			? (error as { code: string }).code
+			: undefined;
+	const message =
+		error instanceof Error
+			? error.message
+			: typeof error === "string"
+				? error
+				: "Unknown startup error";
+	const details = `Failed to start hub server on ${context.host}:${context.port}${context.pathname}: ${message}`;
+	const wrapped = new Error(code ? `${details} (${code})` : details);
+	if (code) {
+		(error as Error & { code?: string }).code = code;
+		(wrapped as Error & { code?: string }).code = code;
+	}
+	if (error instanceof Error && error.stack) {
+		wrapped.stack = `${wrapped.name}: ${wrapped.message}\nCaused by: ${error.stack}`;
+	}
+	return wrapped;
 }
 
 function serializeToolContext(context: ToolContext): Record<string, unknown> {
@@ -1500,12 +1604,9 @@ class HubServerTransport implements NativeHubTransport {
 					const session = await this.readHubSessionRecord(
 						event.payload.sessionId,
 					);
+					const notification = await buildCompletionNotification(session);
 					this.publish(
-						this.buildEvent(
-							"ui.notify",
-							buildCompletionNotification(session),
-							event.payload.sessionId,
-						),
+						this.buildEvent("ui.notify", notification, event.payload.sessionId),
 					);
 				}
 				this.publish(
@@ -1590,7 +1691,7 @@ export async function startHubWebSocketServer(
 	const owner = options.owner ?? resolveHubOwnerContext();
 	const host = options.host ?? "127.0.0.1";
 	const pathname = options.pathname ?? "/hub";
-	const requestedPort = options.port ?? 4319;
+	const requestedPort = options.port ?? 25463;
 	let port = requestedPort;
 	let url = createHubServerUrl(host, requestedPort, pathname);
 	const buildId = resolveHubBuildId();
@@ -1601,23 +1702,32 @@ export async function startHubWebSocketServer(
 	);
 	const cleanup = new Set<() => void>();
 	const startedAt = new Date().toISOString();
+	const versionPayload = {
+		protocolVersion: "v1",
+		buildId,
+		pid: process.pid,
+		startedAt,
+	} as const;
 
 	const server = http.createServer((req, res) => {
 		if ((req.url ?? "/") === "/health") {
 			const body = JSON.stringify({
 				hubId: transport.getHubId(),
-				protocolVersion: "v1",
-				buildId,
+				...versionPayload,
 				host,
 				port,
 				url,
-				pid: process.pid,
-				startedAt,
 				updatedAt: new Date().toISOString(),
 			} satisfies HubServerDiscoveryRecord);
 			res.statusCode = 200;
 			res.setHeader("content-type", "application/json");
 			res.end(body);
+			return;
+		}
+		if ((req.url ?? "/") === "/version") {
+			res.statusCode = 200;
+			res.setHeader("content-type", "application/json");
+			res.end(JSON.stringify(versionPayload));
 			return;
 		}
 		res.statusCode = 404;
@@ -1642,11 +1752,25 @@ export async function startHubWebSocketServer(
 	});
 
 	await new Promise<void>((resolve, reject) => {
-		server.once("error", reject);
+		server.once("error", (error) => {
+			reject(
+				formatHubStartupError(error, {
+					host,
+					port: requestedPort,
+					pathname,
+				}),
+			);
+		});
 		server.listen(requestedPort, host, () => {
 			const address = server.address();
 			if (!address || typeof address === "string") {
-				reject(new Error("Failed to resolve hub port"));
+				reject(
+					formatHubStartupError(new Error("Failed to resolve hub port"), {
+						host,
+						port: requestedPort,
+						pathname,
+					}),
+				);
 				return;
 			}
 			port = address.port;
@@ -1708,7 +1832,7 @@ export async function ensureHubWebSocketServer(
 ): Promise<EnsuredHubWebSocketServerResult> {
 	const owner = options.owner ?? resolveHubOwnerContext();
 	const host = options.host ?? "127.0.0.1";
-	const port = options.port ?? 4319;
+	const port = options.port ?? 25463;
 	const pathname = options.pathname ?? "/hub";
 	const expectedUrl = createHubServerUrl(host, port, pathname);
 	const sharedKey = owner.discoveryPath;

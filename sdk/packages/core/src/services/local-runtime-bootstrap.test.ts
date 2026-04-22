@@ -164,12 +164,16 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		const registeredTools: string[] = [];
-		bootstrap.extensions?.[0]?.setup?.({
-			registerTool: (tool: { name: string }) => registeredTools.push(tool.name),
-			registerCommand: () => {},
-			registerMessageBuilder: () => {},
-			registerProvider: () => {},
-		});
+		bootstrap.extensions?.[0]?.setup?.(
+			{
+				registerTool: (tool: { name: string }) =>
+					registeredTools.push(tool.name),
+				registerCommand: () => {},
+				registerMessageBuilder: () => {},
+				registerProvider: () => {},
+			},
+			{},
+		);
 
 		expect(registeredTools).toEqual(["allowed_tool"]);
 	});
@@ -241,12 +245,16 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		const registeredTools: string[] = [];
-		bootstrap.extensions?.[0]?.setup?.({
-			registerTool: (tool: { name: string }) => registeredTools.push(tool.name),
-			registerCommand: () => {},
-			registerMessageBuilder: () => {},
-			registerProvider: () => {},
-		});
+		bootstrap.extensions?.[0]?.setup?.(
+			{
+				registerTool: (tool: { name: string }) =>
+					registeredTools.push(tool.name),
+				registerCommand: () => {},
+				registerMessageBuilder: () => {},
+				registerProvider: () => {},
+			},
+			{},
+		);
 
 		expect(registeredTools).toEqual(["compatible_tool"]);
 	});

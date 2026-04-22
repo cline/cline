@@ -7,14 +7,14 @@ import {
 	resolveRuntimeSlashCommandFromWatcher,
 	type UserInstructionConfigWatcher,
 } from "@clinebot/core";
-import { buildClineSystemPrompt } from "@clinebot/shared";
+import { type AgentMode, buildClineSystemPrompt } from "@clinebot/shared";
 
 export async function resolveSystemPrompt(input: {
 	cwd: string;
 	explicitSystemPrompt?: string;
 	providerId?: string;
 	rules?: string;
-	mode?: "act" | "plan" | "yolo";
+	mode?: AgentMode;
 }): Promise<string> {
 	const metadata = await buildWorkspaceMetadata(input.cwd);
 	return buildClineSystemPrompt({

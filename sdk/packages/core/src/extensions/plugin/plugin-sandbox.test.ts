@@ -271,7 +271,7 @@ describe("plugin-sandbox", () => {
 		expect(control?.overrideInput).toBe("HELLO");
 
 		const { tools, api } = createApiCapture();
-		await extension?.setup?.(api);
+		await extension?.setup?.(api, {});
 		expect(tools.map((tool) => tool.name)).toContain("sandbox_echo");
 		const echoTool = tools.find((tool) => tool.name === "sandbox_echo");
 		expect(echoTool).toBeDefined();
@@ -324,7 +324,7 @@ describe("plugin-sandbox", () => {
 	it("forwards sandbox plugin events to the host", async () => {
 		const extension = sharedExtensions.get("sandbox-events");
 		const { tools, api } = createApiCapture();
-		await extension?.setup?.(api);
+		await extension?.setup?.(api, {});
 		const tool = tools.find((entry) => entry.name === "emit_event");
 		await tool?.execute({ value: "hello" }, {
 			agentId: "agent-1",
@@ -343,7 +343,7 @@ describe("plugin-sandbox", () => {
 		const extension = sharedExtensions.get("sandbox-ts");
 		expect(extension?.name).toBe("sandbox-ts");
 		const { tools, api } = createApiCapture();
-		await extension?.setup?.(api);
+		await extension?.setup?.(api, {});
 		const tool = tools.find((entry) => entry.name === "sandbox_ts_echo");
 		expect(tool).toBeDefined();
 		const result = await tool?.execute({ value: "ok" }, {
@@ -418,7 +418,7 @@ describe("plugin-sandbox", () => {
 	it("supports createTool through the agents package export in the sandbox", async () => {
 		const extension = sharedExtensions.get("sandbox-create-tool");
 		const { tools, api } = createApiCapture();
-		await extension?.setup?.(api);
+		await extension?.setup?.(api, {});
 		const tool = tools.find((entry) => entry.name === "created_tool");
 		expect(tool).toBeDefined();
 		const result = await tool?.execute({ value: "ok" }, {

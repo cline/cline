@@ -87,7 +87,9 @@ function resolveCwdArg(argv: string[]): string | undefined {
 }
 
 function shouldPrewarmCliHub(argv: string[]): boolean {
-	if (argv.includes("--yolo") || argv.includes("-y")) {
+	// --zen always needs the hub, even when combined with --yolo.
+	const zenRequested = argv.includes("--zen") || argv.includes("-z");
+	if (!zenRequested && (argv.includes("--yolo") || argv.includes("-y"))) {
 		return false;
 	}
 	const subcommand = argv.find((arg) => arg && !arg.startsWith("-"))?.trim();
@@ -719,11 +721,15 @@ export async function runCli(): Promise<void> {
 		const providedApiKey = args.key?.trim() || undefined;
 		let apiKey = providedApiKey || persistedApiKey || undefined;
 
+		const isYoloMode = args.mode === "yolo";
+		const isZenMode = args.mode === "zen";
+
 		// In headless mode (yolo / json / piped stdin without --interactive),
 		// don't attempt browser-based OAuth. Authentication may still resolve at
 		// runtime from environment-based provider auth or persisted OAuth tokens.
 		const isHeadless =
-			args.yolo ||
+			isYoloMode ||
+			isZenMode ||
 			args.outputMode === "json" ||
 			(!process.stdin.isTTY && !args.interactive);
 
@@ -787,7 +793,7 @@ export async function runCli(): Promise<void> {
 				explicitSystemPrompt: args.systemPrompt,
 				providerId: provider,
 				rules: loadRulesForSystemPromptFromWatcher(userInstructionWatcher),
-				mode: args.yolo ? "yolo" : undefined,
+				mode: args.mode ?? "act",
 			}),
 			maxIterations: args.maxIterations,
 			execution: {
@@ -807,13 +813,13 @@ export async function runCli(): Promise<void> {
 					? undefined
 					: effectiveReasoningEffort,
 			outputMode: args.outputMode,
-			mode: args.yolo === true ? "yolo" : args.mode,
+			mode: args.mode,
 			logger: loggerAdapter.core,
 			loggerConfig: loggerAdapter.runtimeConfig,
 			defaultToolAutoApprove,
 			toolPolicies,
-			enableSpawnAgent: args.yolo !== true,
-			enableAgentTeams: args.yolo !== true,
+			enableSpawnAgent: !isYoloMode,
+			enableAgentTeams: !isYoloMode,
 			enableTools: true,
 			cwd,
 			workspaceRoot,
@@ -828,10 +834,9 @@ export async function runCli(): Promise<void> {
 				},
 				logger: loggerAdapter.core,
 			},
-			teamName:
-				args.yolo !== true
-					? args.teamName?.trim() || createTeamName()
-					: undefined,
+			teamName: !isYoloMode
+				? args.teamName?.trim() || createTeamName()
+				: undefined,
 		};
 		try {
 			// For OAuth providers, don't write the resolved key into apiKey —
@@ -876,21 +881,32 @@ export async function runCli(): Promise<void> {
 					writeln(TEAM_COMMAND_USAGE);
 					return;
 				}
-				if (rewrittenTeamPrompt.kind === "rewritten") {
-					await runAgent(
-						rewrittenTeamPrompt.prompt,
-						config,
-						userInstructionWatcher,
-					);
+				const pipedEffectivePrompt =
+					rewrittenTeamPrompt.kind === "rewritten"
+						? rewrittenTeamPrompt.prompt
+						: prompt;
+				if (isZenMode) {
+					const { runZen } = await import("./runtime/run-zen");
+					await runZen(pipedEffectivePrompt, config, userInstructionWatcher);
 					return;
 				}
-				await runAgent(prompt, config, userInstructionWatcher);
+				await runAgent(pipedEffectivePrompt, config, userInstructionWatcher);
 				return;
 			}
 		}
 
-		// Interactive mode
+		// Interactive mode — zen is incompatible because there is no terminal UI
+		// to surface results and nothing waits for the background task.
 		if (args.interactive || !args.prompt) {
+			if (isZenMode) {
+				writeErr(
+					args.interactive
+						? "--zen is not compatible with interactive mode."
+						: "--zen requires a prompt.",
+				);
+				process.exitCode = 1;
+				return;
+			}
 			const runInteractive = await loadInteractiveRuntimeModule();
 			await runInteractive(config, userInstructionWatcher, resumeSessionId, {
 				clineApiBaseUrl: selectedProviderSettings?.baseUrl,
@@ -906,15 +922,22 @@ export async function runCli(): Promise<void> {
 			writeln(TEAM_COMMAND_USAGE);
 			return;
 		}
-		if (rewrittenTeamPrompt.kind === "rewritten") {
-			await runAgent(
-				rewrittenTeamPrompt.prompt,
-				config,
-				userInstructionWatcher,
-			);
+		const effectivePrompt =
+			rewrittenTeamPrompt.kind === "rewritten"
+				? rewrittenTeamPrompt.prompt
+				: args.prompt;
+
+		// Zen mode: dispatch the task to the background hub and exit. The CLI
+		// does not stay connected to stream output; completion is delivered via
+		// the hub's existing ui.notify broadcast (picked up by the menubar app
+		// when installed).
+		if (isZenMode) {
+			const { runZen } = await import("./runtime/run-zen");
+			await runZen(effectivePrompt, config, userInstructionWatcher);
 			return;
 		}
-		await runAgent(args.prompt, config, userInstructionWatcher);
+
+		await runAgent(effectivePrompt, config, userInstructionWatcher);
 		// Exit once agent is done in non-interactive mode
 		return;
 	} finally {

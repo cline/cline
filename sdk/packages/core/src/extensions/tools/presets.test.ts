@@ -10,7 +10,7 @@ describe("default tool presets", () => {
 		expect(ToolPresets.search.enableAskQuestion).toBe(false);
 		expect(ToolPresets.act.enableAskQuestion).toBe(true);
 		expect(ToolPresets.plan.enableAskQuestion).toBe(true);
-		expect(ToolPresets.minimal.enableAskQuestion).toBe(true);
+		expect(ToolPresets.minimal.enableAskQuestion).toBe(false);
 		expect(ToolPresets.yolo.enableAskQuestion).toBe(false);
 	});
 

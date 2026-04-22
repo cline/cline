@@ -821,7 +821,7 @@ export default function Chat() {
 						) : null}
 						{sessionId ? (
 							<input
-								className="min-w-0 max-w-56 rounded-md border bg-background px-2 py-1 text-xs"
+								className="min-w-0 max-w-56 rounded-md border bg-muted px-2 py-1 text-xs"
 								onBlur={commitSessionTitle}
 								onChange={(event) => setSessionTitleDraft(event.target.value)}
 								onFocus={() => {
@@ -837,11 +837,6 @@ export default function Chat() {
 								placeholder="Session title"
 								value={displayedSessionTitle}
 							/>
-						) : null}
-						{sessionId ? (
-							<code className="rounded-full bg-muted px-3 py-1 text-xs">
-								{sessionId}
-							</code>
 						) : null}
 						{sessionId ? (
 							<Button

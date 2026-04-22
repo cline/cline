@@ -3,7 +3,7 @@ const HUB_PORT_ENV = "CLINE_HUB_PORT";
 const HUB_PATHNAME_ENV = "CLINE_HUB_PATHNAME";
 
 export const DEFAULT_HUB_HOST = "127.0.0.1";
-export const DEFAULT_HUB_PORT = 4319;
+export const DEFAULT_HUB_PORT = 25463;
 export const DEFAULT_HUB_PATHNAME = "/hub";
 
 export interface HubEndpointOverrides {

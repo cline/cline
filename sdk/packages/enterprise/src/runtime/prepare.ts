@@ -51,12 +51,12 @@ export function createEnterprisePluginDefinition(options?: {
 	return {
 		name,
 		manifest: { capabilities: ["providers"] },
-		async setup(api) {
+		async setup(api, ctx) {
 			api.registerProvider?.({
 				name,
 				description: "Enterprise-managed runtime integration",
 			});
-			await options?.setup?.(api);
+			await options?.setup?.(api, ctx);
 		},
 	};
 }

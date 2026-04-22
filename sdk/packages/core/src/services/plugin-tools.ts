@@ -15,7 +15,10 @@ export interface PluginToolSummary {
 	description?: string;
 }
 
-function collectRegisteredTools(extension: AgentExtension): Tool[] {
+function collectRegisteredTools(
+	extension: AgentExtension,
+	workspaceInfo?: { rootPath: string },
+): Tool[] {
 	if (!extension.setup) {
 		return [];
 	}
@@ -27,7 +30,7 @@ function collectRegisteredTools(extension: AgentExtension): Tool[] {
 		registerMessageBuilder: () => {},
 		registerProvider: () => {},
 	};
-	extension.setup(api, {});
+	extension.setup(api, { workspaceInfo });
 	return tools;
 }
 
@@ -55,7 +58,9 @@ export async function listPluginTools(input: {
 			},
 		);
 		for (const extension of report.plugins) {
-			for (const tool of collectRegisteredTools(extension)) {
+			for (const tool of collectRegisteredTools(extension, {
+				rootPath: input.workspacePath,
+			})) {
 				summaries.push({
 					name: tool.name,
 					pluginName: extension.name,

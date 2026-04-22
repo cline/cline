@@ -73,7 +73,6 @@ export interface ParsedArgs {
 	showUsage: boolean;
 	outputMode: CliOutputMode;
 	mode: CliAgentMode;
-	yolo?: boolean;
 	timeoutSeconds?: number;
 	invalidTimeoutSeconds?: string;
 	thinking: boolean;

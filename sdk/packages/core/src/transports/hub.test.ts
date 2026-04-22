@@ -54,7 +54,7 @@ describe("HubRuntimeHost", () => {
 		});
 
 		const { HubRuntimeHost } = await import("./hub");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		const started = await host.start({
 			config: createConfig(),
@@ -123,7 +123,7 @@ describe("HubRuntimeHost", () => {
 		commandMock.mockResolvedValue({ ok: true, payload: { result } });
 
 		const { HubRuntimeHost } = await import("./hub");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		const sent = await host.send({
 			sessionId: "sess-1",
@@ -158,7 +158,7 @@ describe("HubRuntimeHost", () => {
 		});
 
 		const { HubRuntimeHost } = await import("./hub");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await host.start({
 			config: createConfig(),
@@ -181,7 +181,7 @@ describe("HubRuntimeHost", () => {
 		commandMock.mockResolvedValue({ ok: true, payload: { result: undefined } });
 
 		const { HubRuntimeHost } = await import("./hub");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await host.send({
 			sessionId: "sess-1",
@@ -210,7 +210,7 @@ describe("HubRuntimeHost", () => {
 		writeFileSync(filePath, "# note\n", "utf8");
 
 		const { HubRuntimeHost } = await import("./hub");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await host.send({
 			sessionId: "sess-1",
@@ -246,7 +246,7 @@ describe("HubRuntimeHost", () => {
 		});
 
 		const { HubRuntimeHost } = await import("./hub");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
 
 		await host.start({
 			config: createConfig(),

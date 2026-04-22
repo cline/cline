@@ -512,7 +512,7 @@ export interface AgentExtension extends ContributionRegistryExtension<Tool> {
 	manifest: PluginManifest;
 	setup?: (
 		api: AgentExtensionApi<Tool, Message>,
-		ctx?: AgentExtensionContext,
+		ctx: AgentExtensionContext,
 	) => void | Promise<void>;
 	onSessionStart?: (
 		ctx: AgentExtensionSessionStartContext,

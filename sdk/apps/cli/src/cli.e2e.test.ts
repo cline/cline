@@ -209,6 +209,15 @@ describe("cli e2e", () => {
 		);
 	});
 
+	it("rejects zen mode without a prompt using a prompt-specific error", () => {
+		const result = runCli(["--zen"], {
+			env: createIsolatedEnv(),
+		});
+		expect(result.status).toBe(1);
+		expect(asText(result.stderr)).toContain("--zen requires a prompt.");
+		expect(asText(result.stderr)).not.toContain("interactive mode");
+	});
+
 	it("returns an error for unknown config targets", () => {
 		const result = runCli(["config", "unknown-target"], {
 			env: createIsolatedEnv(),

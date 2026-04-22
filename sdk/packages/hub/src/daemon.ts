@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSharedHubOwnerContext } from "@clinebot/core/hub";
 import { withResolvedClineBuildEnv } from "@clinebot/shared";
@@ -10,9 +10,11 @@ import {
 	resolveHubEndpointOptions,
 } from "./defaults";
 import {
+	createHubServerUrl,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	writeHubDiscovery,
 } from "./discovery";
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
@@ -56,9 +58,18 @@ function resolveLaunchCommand(
 	if (!execPath) {
 		throw new Error("unable to resolve runtime executable for hub daemon");
 	}
+	const isBunRuntime = basename(execPath).toLowerCase().includes("bun");
+	const useDevelopmentConditions =
+		isBunRuntime && daemonEntryPath.toLowerCase().endsWith(".ts");
 	return {
 		launcher: execPath,
-		args: [daemonEntryPath, "--cwd", workspaceRoot, ...endpointArgs(endpoint)],
+		args: [
+			...(useDevelopmentConditions ? ["--conditions=development"] : []),
+			daemonEntryPath,
+			"--cwd",
+			workspaceRoot,
+			...endpointArgs(endpoint),
+		],
 		cwd: workspaceRoot,
 		env: {
 			...withResolvedClineBuildEnv(process.env),
@@ -93,6 +104,12 @@ export function prewarmDetachedHubServer(
 	endpoint: HubEndpointOverrides = {},
 ): void {
 	const owner = resolveSharedHubOwnerContext();
+	const resolvedEndpoint = resolveHubEndpointOptions(endpoint);
+	const expectedUrl = createHubServerUrl(
+		resolvedEndpoint.host,
+		resolvedEndpoint.port,
+		resolvedEndpoint.pathname,
+	);
 	void readHubDiscovery(owner.discoveryPath)
 		.then(async (discovered) => {
 			if (discovered?.url) {
@@ -101,7 +118,16 @@ export function prewarmDetachedHubServer(
 					return;
 				}
 			}
-			spawnDetachedHubServer(workspaceRoot, endpoint);
+			const expected = await probeHubServer(expectedUrl);
+			if (expected?.url && (await probeHubConnection(expected.url))) {
+				await writeHubDiscovery(owner.discoveryPath, expected);
+				return;
+			}
+			const spawnEndpoint =
+				expected?.url && resolvedEndpoint.port !== 0
+					? { ...resolvedEndpoint, port: 0 }
+					: resolvedEndpoint;
+			spawnDetachedHubServer(workspaceRoot, spawnEndpoint);
 		})
 		.catch(() => {
 			// best-effort prewarm only
@@ -114,6 +140,11 @@ export async function ensureDetachedHubServer(
 ): Promise<string> {
 	const owner = resolveSharedHubOwnerContext();
 	const endpoint = resolveHubEndpointOptions(endpointOverrides);
+	const expectedUrl = createHubServerUrl(
+		endpoint.host,
+		endpoint.port,
+		endpoint.pathname,
+	);
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	if (discovered?.url) {
 		const healthy = await probeHubServer(discovered.url);
@@ -121,8 +152,14 @@ export async function ensureDetachedHubServer(
 			return healthy.url;
 		}
 	}
-
-	spawnDetachedHubServer(workspaceRoot, endpoint);
+	const expected = await probeHubServer(expectedUrl);
+	if (expected?.url && (await probeHubConnection(expected.url))) {
+		await writeHubDiscovery(owner.discoveryPath, expected);
+		return expected.url;
+	}
+	const spawnEndpoint =
+		expected?.url && endpoint.port !== 0 ? { ...endpoint, port: 0 } : endpoint;
+	spawnDetachedHubServer(workspaceRoot, spawnEndpoint);
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
@@ -131,6 +168,11 @@ export async function ensureDetachedHubServer(
 			if (healthy?.url && (await probeHubConnection(healthy.url))) {
 				return healthy.url;
 			}
+		}
+		const nextExpected = await probeHubServer(expectedUrl);
+		if (nextExpected?.url && (await probeHubConnection(nextExpected.url))) {
+			await writeHubDiscovery(owner.discoveryPath, nextExpected);
+			return nextExpected.url;
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}

@@ -30,7 +30,7 @@ describe("runScheduleCommand list output", () => {
 	});
 
 	it('prints "No schedules found." for empty non-json list output', async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:4319/hub");
+		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
 		mockSendHubCommand.mockResolvedValue({
 			ok: true,
 			payload: { schedules: [] },
@@ -65,7 +65,7 @@ describe("runScheduleCommand list output", () => {
 	});
 
 	it("keeps JSON list output unchanged when --json is provided", async () => {
-		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:4319/hub");
+		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
 		mockSendHubCommand.mockResolvedValue({
 			ok: true,
 			payload: { schedules: [] },

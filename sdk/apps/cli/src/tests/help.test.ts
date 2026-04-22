@@ -79,9 +79,9 @@ test.describe("cline task --help", () => {
 		await expectVisible(terminal, [
 			"Usage:",
 			"prompt",
-			"--act",
 			"--plan",
 			"--yolo",
+			"--zen",
 			"--timeout",
 			"--model",
 			"--verbose",

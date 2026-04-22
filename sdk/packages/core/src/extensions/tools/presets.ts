@@ -4,7 +4,7 @@
  * Pre-configured tool combinations for common use cases.
  */
 
-import type { Tool, ToolPolicy } from "@clinebot/shared";
+import type { AgentMode, Tool, ToolPolicy } from "@clinebot/shared";
 import { ALL_DEFAULT_TOOL_NAMES } from "./constants";
 import { createDefaultTools } from "./definitions";
 import type { CreateDefaultToolsOptions, DefaultToolsConfig } from "./types";
@@ -73,20 +73,19 @@ export const ToolPresets = {
 	},
 
 	/**
-	 * Minimal tools (file reading only)
-	 * Good for focused single-file tasks
+	 * Minimal tools for focused tasks
 	 */
 	minimal: {
 		enableReadFiles: false,
 		enableSearch: false,
-		enableBash: false,
+		enableBash: true,
 		enableWebFetch: false,
 		enableApplyPatch: false,
 		enableEditor: false,
 		enableSkills: false,
-		enableAskQuestion: true,
+		enableAskQuestion: false,
 		enableSubmitAndExit: false,
-		enableSpawnAgent: false,
+		enableSpawnAgent: true,
 		enableAgentTeams: false,
 	},
 
@@ -115,12 +114,15 @@ export const ToolPresets = {
 export type ToolPresetName = keyof typeof ToolPresets;
 
 export function resolveToolPresetName(options: {
-	mode?: "act" | "plan" | "yolo";
+	mode?: AgentMode;
 }): ToolPresetName {
 	if (options.mode === "plan") {
 		return "plan";
 	}
-	return options.mode === "yolo" ? "yolo" : "act";
+	if (options.mode === "yolo") {
+		return "yolo";
+	}
+	return "act";
 }
 
 /**
