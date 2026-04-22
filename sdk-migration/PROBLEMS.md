@@ -772,4 +772,29 @@ The following classic tools have no equivalent in the SDK's built-in tool set or
 - **Root cause**: The SDK's `skills` tool uses `{ skill: "name", args?: "..." }` as its input format, but `sdkToolToClineSayTool()` only checked for `skill_name` and `name` fields. The SDK's field is just `skill`, so the extraction returned `""`, leaving `tool.path` empty.
 - **Fix applied**: Added `getStringField(parsedInput, "skill")` to the fallback chain in the `skills`/`use_skill` case, between `skill_name` (classic) and `name` (generic fallback). This handles all three input formats.
 - **Verification**: 3 new unit tests in `src/sdk/message-translator.test.ts` — S6-40 tests cover: SDK `skill` field extraction, content_end preserving skill name, classic `skill_name` backward compat. All 57 tests pass.
+
+### S6-47: Search tool group summary shows empty regex and "/" path
+- **Status**: 🟢 Verified Fixed
+- **Description**: When the SDK's `search_codebase` tool runs, the tool group summary shows `Cline read 3 files, performed 1 search: "" in /` — the search regex is empty and the path is just `/` instead of a meaningful location.
+- **Root cause**: Two issues:
+  1. **Empty regex**: The SDK's `SearchCodebaseUnionInputSchema` accepts multiple input formats: `{ queries: string[] }`, `string[]` (bare array), or `string` (bare string). The `parseToolInput()` function in message-translator.ts only handles objects and stringified JSON objects — it returns `undefined` for bare arrays and non-JSON strings. When `parsedInput` is `undefined`, all `getArrayField`/`getStringField` lookups fail, producing `regex = ""`.
+  2. **"/" path**: The SDK's `search_codebase` tool has no `path` parameter in its schema (it uses `config.cwd` internally). So `getStringField(parsedInput, "path")` always returns `undefined`. The webview's `ToolGroupRenderer` constructs `folderPath = (tool.path || "") + "/"` = `"/"`, and `formatSearchDisplay` shows `"" in /`.
+- **Fix applied**: Three files changed:
+  1. **`src/sdk/message-translator.ts`** (lines 275-293): Restructured the `search_codebase` case to handle all SDK union schema input formats. When `parsedInput` is an object, extracts queries normally. Falls back to checking `Array.isArray(input)` for bare arrays, then `typeof input === "string"` for bare strings.
+  2. **`webview-ui/src/components/chat/chat-view/components/messages/ToolGroupRenderer.tsx`**: Three changes:
+     - `formatSearchDisplay()`: When path is empty, shows "codebase" instead of `/`.
+     - `getToolDisplayInfo()` searchFiles case: Sets `path` to `""` (not `"/"`) when `filePath` is empty.
+     - `getActivityText()` searchFiles case: Removed `&& tool.path` requirement, and inner `formatSearchRegex()` shows "codebase" when path is empty.
+  3. **`webview-ui/src/components/chat/RequestStartRow.tsx`**: Same fixes as ToolGroupRenderer — `formatSearchRegex()` shows "codebase" for empty path, `getActivityText()` doesn't require `tool.path` for search.
+- **Verification**: 8 new unit tests in `src/sdk/message-translator.test.ts` cover all input formats:
+  - `{ queries: ["TODO", "FIXME"] }` → `regex: "TODO, FIXME"` ✅
+  - `JSON.stringify({ queries: ["TODO"] })` → `regex: "TODO"` ✅
+  - `["TODO", "FIXME"]` (bare array) → `regex: "TODO, FIXME"` ✅
+  - `"TODO"` (bare string) → `regex: "TODO"` ✅
+  - `{ queries: "TODO" }` (string, not array) → `regex: "TODO"` ✅
+  - content_end preserves queries from content_start ✅
+  - content_end preserves bare array input ✅
+  - path is undefined when SDK has no path param ✅
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts -- message-translator` — 65 tests pass (8 new). `npx tsc --noEmit` — 0 errors in changed files.
+
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.

@@ -272,9 +272,25 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "search_codebase":
 		case "search_files": {
-			const queries = getArrayField(parsedInput, "queries")
-			const regex =
-				queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? getStringField(parsedInput, "regex") ?? ""
+			// The SDK's SearchCodebaseUnionInputSchema accepts multiple formats:
+			//   1. { queries: string[] }  — standard object (parsedInput handles this)
+			//   2. { queries: string }    — queries as single string
+			//   3. string[]               — bare array (parseToolInput returns undefined for arrays)
+			//   4. string                 — bare string (parseToolInput tries JSON.parse, returns undefined if not an object)
+			// We must handle all four to avoid showing empty regex in the UI.
+			let regex = ""
+			if (parsedInput) {
+				// Cases 1 & 2: input was an object with a "queries" field
+				const queries = getArrayField(parsedInput, "queries")
+				regex =
+					queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? getStringField(parsedInput, "regex") ?? ""
+			} else if (Array.isArray(input)) {
+				// Case 3: bare array of query strings
+				regex = input.map(String).join(", ")
+			} else if (typeof input === "string") {
+				// Case 4: bare string query
+				regex = input
+			}
 			const path = getStringField(parsedInput, "path")
 			const filePattern = getStringField(parsedInput, "file_pattern") ?? getStringField(parsedInput, "filePattern")
 			return {
