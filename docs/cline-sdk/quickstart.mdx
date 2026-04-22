@@ -62,8 +62,7 @@ This guide takes you from zero to a working agent in under 5 minutes. By the end
 Agents become powerful when you give them tools. Here's an agent with a simple tool:
 
 ```typescript
-import { Agent } from "@clinebot/sdk"
-import { createTool } from "@clinebot/sdk"
+import { Agent, createTool } from "@clinebot/sdk"
 
 const weatherTool = createTool({
   name: "get_weather",

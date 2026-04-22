@@ -152,7 +152,7 @@ Dependencies flow strictly downward. No circular dependencies. No upward referen
 
 ## @clinebot/sdk
 
-`@clinebot/sdk` is the recommended install for most users. It's an alias for `@clinebot/core` that re-exports everything you need from all four published packages:
+`@clinebot/sdk` is the recommended install for most users. It includes all four published packages, so a single install gives you the full API:
 
 ```bash
 npm install @clinebot/sdk
@@ -168,14 +168,30 @@ For most use cases, just install `@clinebot/sdk`. Install individual packages on
 
 | I want to... | Package |
 |--------------|---------|
-| Everything (recommended) | `@clinebot/sdk` |
-| Just the stateless agent loop | `@clinebot/agents` |
-| Just provider/model management | `@clinebot/llms` |
-| Just types and tool helpers | `@clinebot/shared` |
+| Create a simple agent with custom tools | `@clinebot/agents` + `@clinebot/shared` |
+| Use built-in tools (bash, file editing) | `@clinebot/core` |
+| Persist sessions across restarts | `@clinebot/core` with RPC mode |
+| Schedule agents on a cron | `@clinebot/core` with RPC mode |
+| List available models and providers | `@clinebot/llms` |
+| Create custom tools | `@clinebot/shared` (for `createTool`) |
+| Build an extension/plugin | `@clinebot/agents` (for `AgentExtension` type) |
 
 ## Version Compatibility
 
-All published packages share the same version number and are released together:
+All published packages share the same version number and are released together. Use matching versions across packages:
+
+```json
+{
+  "dependencies": {
+    "@clinebot/core": "0.0.34",
+    "@clinebot/agents": "0.0.34",
+    "@clinebot/llms": "0.0.34",
+    "@clinebot/shared": "0.0.34"
+  }
+}
+```
+
+Or just use `@clinebot/sdk` as a convenience:
 
 ```json
 {
