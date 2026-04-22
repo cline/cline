@@ -375,4 +375,166 @@ describe("LocalRuntimeHost e2e", () => {
 		expect(existsSync(started.manifestPath)).toBe(false);
 		expect(existsSync(started.messagesPath)).toBe(false);
 	});
+
+	it("persists replayable assistant content blocks with turn metadata in messages artifacts", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "core-e2e-messages-contract-"),
+		);
+		tempDirs.push(sessionsDir);
+
+		const sessionService = new LocalFileSessionService(sessionsDir);
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+
+		const assistantToolUseId = "tool-call-1";
+		const run = vi.fn(async (prompt: string) =>
+			createResult({
+				text: "done",
+				usage: {
+					inputTokens: 21,
+					outputTokens: 8,
+					cacheReadTokens: 3,
+					cacheWriteTokens: 1,
+					totalCost: 0.13,
+				},
+				model: {
+					id: "claude-sonnet-4-6",
+					provider: "anthropic",
+					info: {
+						id: "claude-sonnet-4-6",
+						family: "claude-sonnet-4",
+					},
+				},
+				messages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: prompt }],
+					},
+					{
+						role: "assistant",
+						content: [
+							{ type: "thinking", thinking: "Need to inspect files first." },
+							{
+								type: "tool_use",
+								id: assistantToolUseId,
+								name: "read_files",
+								input: { path: "/tmp/project/README.md" },
+							},
+						],
+					},
+					{
+						role: "user",
+						content: [
+							{
+								type: "tool_result",
+								tool_use_id: assistantToolUseId,
+								content: "README content",
+							},
+						],
+					},
+					{
+						role: "assistant",
+						content: [{ type: "text", text: "I found the relevant section." }],
+					},
+				] satisfies LlmsProviders.Message[],
+			}),
+		);
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId: `test-${nanoid(5)}`,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					restore: vi.fn(),
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		const started = await manager.start({
+			interactive: false,
+			...splitCoreSessionConfig({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "test-key",
+				cwd: sessionsDir,
+				systemPrompt: "You are a test agent",
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			}),
+		});
+
+		await manager.send({
+			sessionId: started.sessionId,
+			prompt: "Inspect the README",
+		});
+
+		const payload = JSON.parse(readFileSync(started.messagesPath, "utf8")) as {
+			messages?: Array<Record<string, unknown>>;
+		};
+		const persisted = payload.messages ?? [];
+		expect(persisted).toHaveLength(4);
+
+		const firstAssistant = persisted[1] as {
+			role: string;
+			content: Array<{ type: string }>;
+			modelInfo?: { id?: string; provider?: string };
+			metrics?: Record<string, unknown>;
+		};
+		const toolResultUser = persisted[2] as {
+			role: string;
+			content: Array<{ type: string; tool_use_id?: string }>;
+		};
+		const terminalAssistant = persisted[3] as {
+			role: string;
+			content: Array<{ type: string; text?: string }>;
+			modelInfo?: { id?: string; provider?: string };
+			metrics?: {
+				inputTokens?: number;
+				outputTokens?: number;
+				cacheReadTokens?: number;
+				cacheWriteTokens?: number;
+				cost?: number;
+			};
+		};
+
+		expect(firstAssistant.role).toBe("assistant");
+		expect(firstAssistant.content[0]?.type).toBe("thinking");
+		expect(firstAssistant.content[1]?.type).toBe("tool_use");
+		expect(firstAssistant.modelInfo).toMatchObject({
+			id: "claude-sonnet-4-6",
+			provider: "anthropic",
+		});
+		expect(firstAssistant.metrics).toBeUndefined();
+
+		expect(toolResultUser.role).toBe("user");
+		expect(toolResultUser.content[0]?.type).toBe("tool_result");
+		expect(toolResultUser.content[0]?.tool_use_id).toBe(assistantToolUseId);
+
+		expect(terminalAssistant.role).toBe("assistant");
+		expect(terminalAssistant.content[0]?.type).toBe("text");
+		expect(terminalAssistant.modelInfo).toMatchObject({
+			id: "claude-sonnet-4-6",
+			provider: "anthropic",
+		});
+		expect(terminalAssistant.metrics).toMatchObject({
+			inputTokens: 21,
+			outputTokens: 8,
+			cacheReadTokens: 3,
+			cacheWriteTokens: 1,
+			cost: 0.13,
+		});
+	});
 });

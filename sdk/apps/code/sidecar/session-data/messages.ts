@@ -16,6 +16,8 @@ type ChatTurnResult = {
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
+		cacheReadTokens?: number;
+		cacheWriteTokens?: number;
 		totalCost?: number;
 	};
 	inputTokens?: number;
@@ -84,6 +86,8 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 			: undefined;
 	const inputTokens = parseU64Value(metrics?.inputTokens);
 	const outputTokens = parseU64Value(metrics?.outputTokens);
+	const cacheReadTokens = parseU64Value(metrics?.cacheReadTokens);
+	const cacheWriteTokens = parseU64Value(metrics?.cacheWriteTokens);
 	const totalCost = parseF64Value(metrics?.cost);
 	const providerId =
 		(typeof message.providerId === "string" && message.providerId) ||
@@ -94,6 +98,8 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 	if (
 		inputTokens === undefined &&
 		outputTokens === undefined &&
+		cacheReadTokens === undefined &&
+		cacheWriteTokens === undefined &&
 		totalCost === undefined &&
 		!providerId &&
 		!modelId
@@ -103,6 +109,8 @@ function extractMessageUsageMeta(message: JsonRecord): JsonRecord | undefined {
 	return {
 		inputTokens,
 		outputTokens,
+		cacheReadTokens,
+		cacheWriteTokens,
 		totalCost,
 		providerId,
 		modelId,
@@ -164,12 +172,20 @@ export function persistUsageInMessages(
 			: {};
 	const inputTokens = result.usage?.inputTokens ?? result.inputTokens;
 	const outputTokens = result.usage?.outputTokens ?? result.outputTokens;
+	const cacheReadTokens = result.usage?.cacheReadTokens;
+	const cacheWriteTokens = result.usage?.cacheWriteTokens;
 	const totalCost = result.usage?.totalCost ?? result.totalCost;
 	if (typeof inputTokens === "number") {
 		metrics.inputTokens = inputTokens;
 	}
 	if (typeof outputTokens === "number") {
 		metrics.outputTokens = outputTokens;
+	}
+	if (typeof cacheReadTokens === "number") {
+		metrics.cacheReadTokens = cacheReadTokens;
+	}
+	if (typeof cacheWriteTokens === "number") {
+		metrics.cacheWriteTokens = cacheWriteTokens;
 	}
 	if (
 		typeof totalCost === "number" &&

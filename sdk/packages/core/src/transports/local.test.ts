@@ -1483,6 +1483,78 @@ describe("LocalRuntimeHost", () => {
 		);
 	});
 
+	it("does not synthesize assistant usage metadata when a turn fails before assistant output", async () => {
+		const sessionId = "sess-failed-before-assistant";
+		const manifest = createManifest(sessionId);
+		const persistSessionMessages = vi.fn();
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-failed-before-assistant.json",
+				messagesPath: "/tmp/messages-failed-before-assistant.json",
+				manifest,
+			}),
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const userOnlyMessages = [
+			{ role: "user", content: [{ type: "text", text: "hello" }] },
+		];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run: vi.fn().mockRejectedValue(new Error("boom")),
+					continue: vi.fn(),
+					abort: vi.fn(),
+					restore: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi
+						.fn()
+						.mockReturnValueOnce([])
+						.mockReturnValue(userOnlyMessages),
+					messages: [],
+				}) as never,
+		});
+
+		await expect(
+			manager.start(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					prompt: "hello",
+					interactive: false,
+				}),
+			),
+		).rejects.toThrow("boom");
+
+		expect(persistSessionMessages).toHaveBeenCalledTimes(1);
+		expect(persistSessionMessages).toHaveBeenCalledWith(
+			sessionId,
+			userOnlyMessages,
+			"You are a test agent",
+		);
+		const persisted = persistSessionMessages.mock.calls[0]?.[1] as Array<{
+			role?: string;
+			metrics?: unknown;
+			modelInfo?: unknown;
+		}>;
+		expect(persisted).toHaveLength(1);
+		expect(persisted[0]?.role).toBe("user");
+		expect(persisted[0]).not.toHaveProperty("metrics");
+		expect(persisted[0]).not.toHaveProperty("modelInfo");
+	});
+
 	it("uses run for first send then continue for subsequent sends", async () => {
 		const sessionId = "sess-2";
 		const manifest = createManifest(sessionId);
@@ -2354,7 +2426,30 @@ describe("LocalRuntimeHost", () => {
 		const run = vi
 			.fn()
 			.mockRejectedValueOnce(new Error("401 Unauthorized"))
-			.mockResolvedValueOnce(createResult({ text: "retried" }));
+			.mockResolvedValueOnce(
+				createResult({
+					text: "retried",
+					usage: {
+						inputTokens: 9,
+						outputTokens: 4,
+						cacheReadTokens: 2,
+						cacheWriteTokens: 1,
+						totalCost: 0.11,
+					},
+					model: {
+						id: "claude-sonnet-4-6",
+						provider: "anthropic",
+						info: {
+							id: "claude-sonnet-4-6",
+							family: "claude-sonnet-4",
+						},
+					},
+					messages: [
+						{ role: "user", content: [{ type: "text", text: "hello" }] },
+						{ role: "assistant", content: [{ type: "text", text: "retried" }] },
+					],
+				}),
+			);
 		const restore = vi.fn();
 		const updateConnection = vi.fn();
 		const resolveProviderApiKey = vi
@@ -2413,6 +2508,25 @@ describe("LocalRuntimeHost", () => {
 		});
 		expect(updateConnectionDefaults).toHaveBeenCalledWith({
 			apiKey: "oauth-access-new",
+		});
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledTimes(1);
+		const persisted = (
+			sessionService.persistSessionMessages as ReturnType<typeof vi.fn>
+		).mock.calls[0]?.[1] as Array<Record<string, unknown>> | undefined;
+		expect(persisted?.[1]).toMatchObject({
+			role: "assistant",
+			modelInfo: {
+				id: "claude-sonnet-4-6",
+				provider: "anthropic",
+				family: "claude-sonnet-4",
+			},
+			metrics: {
+				inputTokens: 9,
+				outputTokens: 4,
+				cacheReadTokens: 2,
+				cacheWriteTokens: 1,
+				cost: 0.11,
+			},
 		});
 	});
 

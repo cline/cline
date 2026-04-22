@@ -52,7 +52,10 @@ Desktop transport envelope:
 ## Data + Storage
 
 - Session artifacts are written under `~/.cline/data/sessions/<sessionId>/` (or `CLINE_SESSION_DATA_DIR`).
-- Core files include `<sessionId>.messages.json` and `<sessionId>.hooks.jsonl`.
+- Canonical replay/export artifact: `<sessionId>.messages.json`.
+- `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
+- `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.
+- Full v1 schema for the persisted messages file, including failure/retry semantics and golden fixtures, is documented in [`packages/core/docs/messages-contract-v1.md`](../../packages/core/docs/messages-contract-v1.md).
 
 ## Troubleshooting
 
