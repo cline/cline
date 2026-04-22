@@ -24,6 +24,33 @@ export interface HubCommandRequest
 	clientId?: string;
 }
 
+function normalizeHubConnectionError(error: unknown, url: string): Error {
+	if (error instanceof Error) {
+		return error;
+	}
+	if (
+		error &&
+		typeof error === "object" &&
+		"message" in error &&
+		typeof (error as { message?: unknown }).message === "string" &&
+		(error as { message: string }).message.trim()
+	) {
+		return new Error((error as { message: string }).message.trim());
+	}
+	const eventType =
+		error &&
+		typeof error === "object" &&
+		"type" in error &&
+		typeof (error as { type?: unknown }).type === "string"
+			? (error as { type: string }).type.trim()
+			: "";
+	return new Error(
+		eventType
+			? `Failed to connect to hub at ${url} (${eventType} event before socket open).`
+			: `Failed to connect to hub at ${url}.`,
+	);
+}
+
 function hasExplicitEndpoint(overrides: HubEndpointOverrides): boolean {
 	return (
 		overrides.host !== undefined ||
@@ -96,9 +123,19 @@ export async function connectToHub(url: string): Promise<HubConnection> {
 		});
 
 		ws.addEventListener("error", (error) => {
-			reject(error);
+			reject(normalizeHubConnectionError(error, url));
 		});
 	});
+}
+
+export async function probeHubConnection(url: string): Promise<boolean> {
+	try {
+		const connection = await connectToHub(url);
+		connection.close();
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 export async function sendHubCommand(

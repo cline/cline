@@ -1,5 +1,8 @@
 import type { ClineCoreOptions } from "../ClineCore";
-import { ensureCompatibleLocalHubUrl } from "../hub/client";
+import {
+	ensureCompatibleLocalHubUrl,
+	resolveCompatibleLocalHubUrl,
+} from "../hub/client";
 import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../services/telemetry/distinct-id";
 import { FileSessionService } from "../session/file-session-service";
@@ -153,7 +156,7 @@ export async function createRuntimeHost(
 		);
 	}
 	if (configuredMode === "auto") {
-		const hubUrl = await ensureCompatibleLocalHubUrl({
+		const hubUrl = await resolveCompatibleLocalHubUrl({
 			endpoint: options.hub?.endpoint,
 			strategy: options.hub?.strategy ?? "prefer-hub",
 			workspaceRoot: options.hub?.workspaceRoot,
@@ -163,7 +166,7 @@ export async function createRuntimeHost(
 			options.logger?.log("Using discovered local hub runtime host", {
 				url: hubUrl,
 			});
-			return new HubRuntimeHost(
+			const host = new HubRuntimeHost(
 				{
 					url: hubUrl,
 					authToken: options.hub?.authToken,
@@ -175,6 +178,16 @@ export async function createRuntimeHost(
 					cwd: options.hub?.cwd,
 				},
 			);
+			try {
+				await host.connect();
+				return host;
+			} catch (error) {
+				options.logger?.log("Falling back to local runtime host", {
+					reason: "hub_connect_failed",
+					severity: "warn",
+					error,
+				});
+			}
 		}
 		options.logger?.log("Falling back to local runtime host", {
 			reason: "compatible_hub_unavailable",

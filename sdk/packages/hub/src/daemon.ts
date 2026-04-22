@@ -4,6 +4,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { resolveSharedHubOwnerContext } from "@clinebot/core/hub";
 import { withResolvedClineBuildEnv } from "@clinebot/shared";
+import { probeHubConnection } from "./client";
 import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
@@ -96,7 +97,7 @@ export function prewarmDetachedHubServer(
 		.then(async (discovered) => {
 			if (discovered?.url) {
 				const healthy = await probeHubServer(discovered.url);
-				if (healthy?.url) {
+				if (healthy?.url && (await probeHubConnection(healthy.url))) {
 					return;
 				}
 			}
@@ -116,7 +117,7 @@ export async function ensureDetachedHubServer(
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	if (discovered?.url) {
 		const healthy = await probeHubServer(discovered.url);
-		if (healthy?.url) {
+		if (healthy?.url && (await probeHubConnection(healthy.url))) {
 			return healthy.url;
 		}
 	}
@@ -127,7 +128,7 @@ export async function ensureDetachedHubServer(
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url) {
 			const healthy = await probeHubServer(nextDiscovery.url);
-			if (healthy?.url) {
+			if (healthy?.url && (await probeHubConnection(healthy.url))) {
 				return healthy.url;
 			}
 		}

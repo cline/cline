@@ -223,6 +223,10 @@ export class HubRuntimeHost implements RuntimeHost {
 		});
 	}
 
+	async connect(): Promise<void> {
+		await this.client.connect();
+	}
+
 	async start(input: StartSessionInput): Promise<StartSessionResult> {
 		const advertisedToolExecutors = Object.keys(
 			input.localRuntime?.defaultToolExecutors ?? {},

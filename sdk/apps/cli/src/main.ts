@@ -94,54 +94,6 @@ function shouldPrewarmCliHub(argv: string[]): boolean {
 	return subcommand !== "hub";
 }
 
-function shouldAwaitCliHubPrewarm(argv: string[]): boolean {
-	const firstPositional = argv
-		.find((arg) => arg && !arg.startsWith("-"))
-		?.trim();
-	if (!firstPositional) {
-		return false;
-	}
-	const knownSubcommands = new Set([
-		"auth",
-		"checkpoint",
-		"config",
-		"connect",
-		"dev",
-		"doctor",
-		"history",
-		"hook",
-		"hub",
-		"schedule",
-		"task",
-		"t",
-		"update",
-		"version",
-	]);
-	if (!knownSubcommands.has(firstPositional)) {
-		return false;
-	}
-
-	switch (firstPositional) {
-		case "auth":
-		case "checkpoint":
-		case "config":
-		case "connect":
-		case "dev":
-		case "doctor":
-		case "history":
-		case "hook":
-		case "hub":
-		case "schedule":
-		case "task":
-		case "t":
-		case "update":
-		case "version":
-			return false;
-		default:
-			return true;
-	}
-}
-
 /**
  * Two-pass approach for --config: a quick scan of process.argv extracts the
  * config directory before commander parses, because setHomeDir() must run
@@ -178,14 +130,8 @@ export async function runCli(): Promise<void> {
 		const startupCwd = resolveCwdArg(normalizedArgs) ?? process.cwd();
 		const startupWorkspaceRoot = resolveWorkspaceRoot(startupCwd);
 		try {
-			const { ensureCliHubServer, prewarmCliHubServer } = await import(
-				"./utils/hub-runtime"
-			);
-			if (shouldAwaitCliHubPrewarm(normalizedArgs)) {
-				await ensureCliHubServer(startupWorkspaceRoot);
-			} else {
-				prewarmCliHubServer(startupWorkspaceRoot);
-			}
+			const { prewarmCliHubServer } = await import("./utils/hub-runtime");
+			prewarmCliHubServer(startupWorkspaceRoot);
 		} catch {
 			// Defer hard failures to the command/runtime path; startup prewarm is best-effort.
 		}

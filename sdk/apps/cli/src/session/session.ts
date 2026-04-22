@@ -28,18 +28,13 @@ export async function createCliCore(options?: {
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
 }): Promise<ClineCore> {
-	const explicitBackendMode = options?.forceLocalBackend
-		? "local"
-		: process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase() ===
-					"local" || process.env.CLINE_VCR?.trim()
-			? undefined
-			: "hub";
+	const explicitBackendMode = options?.forceLocalBackend ? "local" : undefined;
 	const cwd = options?.cwd?.trim() || process.cwd();
 	const workspaceRoot =
 		options?.workspaceRoot?.trim() || resolveWorkspaceRoot(cwd);
 	const core = await ClineCore.create({
 		...(explicitBackendMode ? { backendMode: explicitBackendMode } : {}),
-		...(explicitBackendMode === "hub"
+		...(options?.forceLocalBackend !== true
 			? {
 					hub: {
 						cwd,

@@ -70,28 +70,35 @@ describe("createCliCore", () => {
 		process.env.CLINE_VCR = envSnapshot.CLINE_VCR;
 	});
 
-	it("treats an explicit rpc address as a shared server to attach to", async () => {
+	it("passes hub client metadata through without forcing hub mode", async () => {
 		process.env.CLINE_RPC_ADDRESS = "127.0.0.1:5001";
 
 		await sessionModule.createCliCore();
 
 		expect(createCore).toHaveBeenCalledWith(
 			expect.objectContaining({
-				backendMode: "hub",
-			}),
-		);
-	});
-
-	it("prefers the shared hub backend by default", async () => {
-		await sessionModule.createCliCore();
-
-		expect(createCore).toHaveBeenCalledWith(
-			expect.objectContaining({
-				backendMode: "hub",
 				hub: expect.objectContaining({
 					clientType: "cli",
 					displayName: "Cline CLI",
 				}),
+			}),
+		);
+	});
+
+	it("lets core choose the backend by default", async () => {
+		await sessionModule.createCliCore();
+
+		expect(createCore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				hub: expect.objectContaining({
+					clientType: "cli",
+					displayName: "Cline CLI",
+				}),
+			}),
+		);
+		expect(createCore).toHaveBeenCalledWith(
+			expect.not.objectContaining({
+				backendMode: expect.anything(),
 			}),
 		);
 	});
@@ -106,7 +113,7 @@ describe("createCliCore", () => {
 		);
 	});
 
-	it("keeps the shared hub backend when custom tool executors are provided", async () => {
+	it("keeps hub client metadata when custom tool executors are provided", async () => {
 		await sessionModule.createCliCore({
 			defaultToolExecutors: {
 				submit: vi.fn(),
@@ -115,7 +122,6 @@ describe("createCliCore", () => {
 
 		expect(createCore).toHaveBeenCalledWith(
 			expect.objectContaining({
-				backendMode: "hub",
 				hub: expect.objectContaining({
 					clientType: "cli",
 					displayName: "Cline CLI",
@@ -160,7 +166,7 @@ describe("createCliCore", () => {
 		expect(logger.log).toHaveBeenCalledWith(
 			"CLI core runtime routing selected",
 			{
-				backendMode: "hub",
+				backendMode: "env-managed",
 				rpcAddress: "127.0.0.1:4317",
 				forceLocalBackend: false,
 			},

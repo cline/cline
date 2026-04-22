@@ -36,12 +36,7 @@ function writeHookInvocation(
 		return;
 	}
 	if (!options.verbose) {
-		if (
-			payload.hookName === "tool_result" ||
-			payload.hookName === "tool_call"
-		) {
-			return;
-		}
+		return;
 	}
 	closeInlineStreamIfNeeded();
 	const hookName = payload.hookName;

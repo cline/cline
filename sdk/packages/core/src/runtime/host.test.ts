@@ -3,13 +3,22 @@ import { FileSessionService } from "../session/file-session-service";
 
 const sqliteInitMock = vi.hoisted(() => vi.fn());
 const ensureCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
+const resolveCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
+const hubConnectMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../hub/client", async () => {
 	const actual =
 		await vi.importActual<typeof import("../hub/client")>("../hub/client");
 	return {
 		...actual,
+		NodeHubClient: class {
+			connect = hubConnectMock;
+			command = vi.fn();
+			subscribe = vi.fn(() => () => {});
+			close = vi.fn();
+		},
 		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,
+		resolveCompatibleLocalHubUrl: resolveCompatibleLocalHubUrlMock,
 	};
 });
 
@@ -31,6 +40,8 @@ describe("runtime host resolution", () => {
 	afterEach(() => {
 		sqliteInitMock.mockReset();
 		ensureCompatibleLocalHubUrlMock.mockReset();
+		resolveCompatibleLocalHubUrlMock.mockReset();
+		hubConnectMock.mockReset();
 		logger.debug.mockReset();
 		logger.log.mockReset();
 		logger.error.mockReset();
@@ -86,9 +97,10 @@ describe("runtime host resolution", () => {
 	it("prefers a compatible local hub when backendMode is auto", async () => {
 		const { createRuntimeHost } = await import("../runtime/host");
 		const { HubRuntimeHost } = await import("../transports/hub");
-		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:4319/hub",
 		);
+		hubConnectMock.mockResolvedValue(undefined);
 
 		const host = await createRuntimeHost({
 			backendMode: "auto",
@@ -99,10 +111,11 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(HubRuntimeHost);
-		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
+		expect(resolveCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			endpoint: undefined,
 			strategy: "prefer-hub",
 		});
+		expect(ensureCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
 		expect(logger.log).toHaveBeenCalledWith(
 			"Using discovered local hub runtime host",
 			{
@@ -114,7 +127,7 @@ describe("runtime host resolution", () => {
 	it("falls back to local runtime when auto hub discovery fails", async () => {
 		const { createRuntimeHost } = await import("../runtime/host");
 		const { LocalRuntimeHost } = await import("../transports/local");
-		ensureCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
 
 		const host = await createRuntimeHost({
 			backendMode: "auto",
@@ -122,16 +135,40 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(LocalRuntimeHost);
-		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
+		expect(resolveCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			endpoint: undefined,
 			strategy: "prefer-hub",
 		});
+		expect(ensureCompatibleLocalHubUrlMock).not.toHaveBeenCalled();
 		expect(logger.log).toHaveBeenCalledWith(
 			"Falling back to local runtime host",
 			{
 				reason: "compatible_hub_unavailable",
 				severity: "warn",
 			},
+		);
+	});
+
+	it("falls back to local runtime when auto hub connect fails", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		const { LocalRuntimeHost } = await import("../transports/local");
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue(
+			"ws://127.0.0.1:4319/hub",
+		);
+		hubConnectMock.mockRejectedValue(new Error("connect failed"));
+
+		const host = await createRuntimeHost({
+			backendMode: "auto",
+			logger,
+		});
+
+		expect(host).toBeInstanceOf(LocalRuntimeHost);
+		expect(logger.log).toHaveBeenCalledWith(
+			"Falling back to local runtime host",
+			expect.objectContaining({
+				reason: "hub_connect_failed",
+				severity: "warn",
+			}),
 		);
 	});
 

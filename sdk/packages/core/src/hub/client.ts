@@ -11,6 +11,7 @@ import {
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
 import {
+	clearHubDiscovery,
 	type HubOwnerContext,
 	probeHubServer,
 	readHubDiscovery,
@@ -85,6 +86,42 @@ function decodeCloseReason(reason: unknown): string {
 		return Buffer.from(reason).toString("utf8");
 	}
 	return "";
+}
+
+function normalizeWebSocketConnectError(error: unknown, url: URL): Error {
+	if (error instanceof Error) {
+		return error;
+	}
+	if (
+		error &&
+		typeof error === "object" &&
+		"error" in error &&
+		(error as { error?: unknown }).error instanceof Error
+	) {
+		return (error as { error: Error }).error;
+	}
+	const message =
+		error &&
+		typeof error === "object" &&
+		"message" in error &&
+		typeof (error as { message?: unknown }).message === "string"
+			? (error as { message: string }).message.trim()
+			: "";
+	if (message) {
+		return new Error(message);
+	}
+	const eventType =
+		error &&
+		typeof error === "object" &&
+		"type" in error &&
+		typeof (error as { type?: unknown }).type === "string"
+			? (error as { type: string }).type.trim()
+			: "";
+	return new Error(
+		eventType
+			? `Failed to connect to hub at ${url.toString()} (${eventType} event before socket open).`
+			: `Failed to connect to hub at ${url.toString()}.`,
+	);
 }
 
 export interface HubClientOptions {
@@ -180,7 +217,7 @@ export class NodeHubClient {
 				clearTimeout(timeout);
 				this.connectPromise = undefined;
 				this.socket = undefined;
-				reject(error);
+				reject(normalizeWebSocketConnectError(error, url));
 			});
 		});
 
@@ -404,17 +441,76 @@ export function normalizeHubWebSocketUrl(url: string): string {
 	return parsed.toString();
 }
 
-async function probeCompatibleHubUrl(url: string): Promise<string | undefined> {
+export async function verifyHubConnection(
+	url: string,
+	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
+): Promise<boolean> {
+	const client = new NodeHubClient({
+		url,
+		clientType: "hub-healthcheck",
+		displayName: "hub healthcheck",
+		workspaceRoot: options?.workspaceRoot,
+		cwd: options?.cwd,
+	});
+	try {
+		await client.connect();
+		return true;
+	} catch {
+		return false;
+	} finally {
+		client.close();
+	}
+}
+
+type HubProbeResult =
+	| {
+			status: "compatible";
+			url: string;
+	  }
+	| {
+			status: "unreachable" | "build_mismatch";
+			url: string;
+	  };
+
+async function probeCompatibleHubUrl(
+	url: string,
+	options?: {
+		verifyConnection?: boolean;
+		workspaceRoot?: string;
+		cwd?: string;
+	},
+): Promise<HubProbeResult> {
 	const normalized = normalizeHubWebSocketUrl(url);
 	const record = await probeHubServer(normalized);
 	if (!record) {
-		return undefined;
+		return {
+			status: "unreachable",
+			url: normalized,
+		};
 	}
 	const buildId = resolveHubBuildId();
 	if (record.buildId?.trim() && record.buildId !== buildId) {
-		return undefined;
+		return {
+			status: "build_mismatch",
+			url: normalized,
+		};
 	}
-	return normalized;
+	if (
+		options?.verifyConnection === true &&
+		!(await verifyHubConnection(normalized, {
+			workspaceRoot: options.workspaceRoot,
+			cwd: options.cwd,
+		}))
+	) {
+		return {
+			status: "unreachable",
+			url: normalized,
+		};
+	}
+	return {
+		status: "compatible",
+		url: normalized,
+	};
 }
 
 function resolveHubModuleUrl(): string {
@@ -515,9 +611,11 @@ async function waitForCompatibleHubUrl(
 	while (Date.now() < deadline) {
 		const record = await readHubDiscovery(owner.discoveryPath);
 		if (record?.url) {
-			const compatible = await probeCompatibleHubUrl(record.url);
-			if (compatible) {
-				return compatible;
+			const compatible = await probeCompatibleHubUrl(record.url, {
+				verifyConnection: true,
+			});
+			if (compatible.status === "compatible") {
+				return compatible.url;
 			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
@@ -529,7 +627,8 @@ export async function resolveCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
 	if (options.endpoint?.trim()) {
-		return await probeCompatibleHubUrl(options.endpoint);
+		const compatible = await probeCompatibleHubUrl(options.endpoint);
+		return compatible.status === "compatible" ? compatible.url : undefined;
 	}
 
 	const owner = resolveSharedHubOwnerContext();
@@ -537,14 +636,27 @@ export async function resolveCompatibleLocalHubUrl(
 	if (!record?.url) {
 		return undefined;
 	}
-	return await probeCompatibleHubUrl(record.url);
+	const compatible = await probeCompatibleHubUrl(record.url);
+	if (compatible.status === "compatible") {
+		return compatible.url;
+	}
+	if (compatible.status === "build_mismatch") {
+		await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+	}
+	return undefined;
 }
 
 export async function ensureCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
 	const resolved = await resolveCompatibleLocalHubUrl(options);
-	if (resolved) {
+	if (
+		resolved &&
+		(await verifyHubConnection(resolved, {
+			workspaceRoot: options.workspaceRoot,
+			cwd: options.cwd,
+		}))
+	) {
 		return resolved;
 	}
 	if (options.endpoint?.trim()) {

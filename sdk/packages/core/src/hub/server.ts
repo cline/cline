@@ -28,6 +28,7 @@ import { LocalRuntimeHost } from "../transports/local";
 import type { CoreSessionEvent } from "../types/events";
 import type { SessionRecord as LocalSessionRecord } from "../types/sessions";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
+import { verifyHubConnection } from "./client";
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
@@ -1723,13 +1724,13 @@ export async function ensureHubWebSocketServer(
 		const discovered = await readHubDiscovery(owner.discoveryPath);
 		if (discovered?.url === expectedUrl) {
 			const healthy = await probeHubServer(discovered.url);
-			if (healthy?.url) {
+			if (healthy?.url && (await verifyHubConnection(healthy.url))) {
 				return { url: healthy.url, action: "reuse" };
 			}
 		}
 
 		const expected = await probeHubServer(expectedUrl);
-		if (expected?.url) {
+		if (expected?.url && (await verifyHubConnection(expected.url))) {
 			await writeHubDiscovery(owner.discoveryPath, expected);
 			return { url: expected.url, action: "reuse" };
 		}
