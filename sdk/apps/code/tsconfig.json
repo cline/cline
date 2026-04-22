@@ -23,7 +23,6 @@
 			"@clinebot/agents": ["../../packages/agents/src/index.ts"],
 			"@clinebot/core": ["../../packages/core/src/index.ts"],
 			"@clinebot/core/hub": ["../../packages/core/src/hub/index.ts"],
-			"@clinebot/hub": ["../../packages/hub/src/index.ts"],
 			"@clinebot/llms": ["../../packages/llms/src/index.ts"],
 			"@clinebot/shared": ["../../packages/shared/src/index.ts"],
 			"@clinebot/shared/storage": [

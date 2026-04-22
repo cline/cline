@@ -1,7 +1,10 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { resolveSharedHubOwnerContext } from "@clinebot/core";
-import { probeHubServer, readHubDiscovery } from "@clinebot/hub";
+import {
+	probeHubServer,
+	readHubDiscovery,
+	resolveSharedHubOwnerContext,
+} from "@clinebot/core";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";

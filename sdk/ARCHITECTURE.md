@@ -21,7 +21,6 @@ flowchart LR
   llms["@clinebot/llms"]
   agents["@clinebot/agents"]
   core["@clinebot/core"]
-  hub["@clinebot/hub"]
   enterprise["@clinebot/enterprise (internal)"]
   apps["Host Apps"]
 
@@ -31,8 +30,6 @@ flowchart LR
   core --> agents
   core --> llms
   core --> shared
-  hub --> shared
-  core --> hub
   enterprise --> agents
   enterprise --> core
   enterprise --> shared
@@ -85,19 +82,6 @@ Design rule:
 
 - `agents` should not own persistent storage or host lifecycle concerns.
 
-### `@clinebot/hub`
-
-Owns host-side hub access:
-
-- local discovery and health probing
-- WebSocket client helpers
-- session-oriented hub client adapters
-- detached host bootstrap helpers
-
-Design rule:
-
-- `@clinebot/hub` stays thin and client-oriented; the stateful hub implementation lives in `@clinebot/core`.
-
 ### `@clinebot/core`
 
 Owns stateful orchestration:
@@ -105,16 +89,19 @@ Owns stateful orchestration:
 - runtime composition
 - session lifecycle
 - storage and persistence
-- hub server/runtime services
 - config watching/loading and watcher projections
 - default host tool assembly
 - plugin discovery/loading
 - default context compaction policy
 - telemetry integration
+- hub server and scheduled-runtime services under `src/hub/`
+- hub discovery, the detached hub daemon, and the `@clinebot/core/hub/daemon-entry` subpath
+- host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@clinebot/core/hub`
 
-Design rule:
+Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
+- hub-related modules live under `packages/core/src/hub/`. Infrastructure such as discovery, the daemon, and WebSocket clients belongs next to the hub server implementation so there is a single source of truth.
 
 ### `@clinebot/enterprise`
 
@@ -153,7 +140,7 @@ Design rules:
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@clinebot/agents` and `@clinebot/llms`.
 6. `@clinebot/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
-7. `@clinebot/hub` clients adapt command/reply and event streams back into host-facing APIs.
+7. Hub client adapters exported from `@clinebot/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 
 ### Enterprise-Managed Runtime
 

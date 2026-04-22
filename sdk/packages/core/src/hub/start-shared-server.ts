@@ -1,13 +1,13 @@
+import { resolveHubEndpointOptions } from "./defaults";
 import {
 	type EnsuredHubWebSocketServerResult,
 	type EnsureHubWebSocketServerOptions,
 	ensureHubWebSocketServer,
 	type HubWebSocketServer,
 	type HubWebSocketServerOptions,
-	resolveSharedHubOwnerContext,
 	startHubWebSocketServer,
-} from "@clinebot/core/hub";
-import { resolveHubEndpointOptions } from "./defaults";
+} from "./server";
+import { resolveSharedHubOwnerContext } from "./workspace";
 
 export type HubServer = HubWebSocketServer;
 export type EnsureHubServerResult = EnsuredHubWebSocketServerResult;
@@ -18,6 +18,11 @@ export interface StartHubServerOptions
 export interface EnsureHubServerOptions
 	extends Omit<EnsureHubWebSocketServerOptions, "owner"> {}
 
+/**
+ * Start a hub WebSocket server bound to the process-local shared owner
+ * context. Callers that need a custom owner should invoke
+ * {@link startHubWebSocketServer} directly.
+ */
 export async function startHubServer(
 	options: StartHubServerOptions,
 ): Promise<HubServer> {
@@ -33,6 +38,10 @@ export async function startHubServer(
 	});
 }
 
+/**
+ * Ensure a hub WebSocket server is running in the process-local shared owner
+ * context, reusing a compatible in-process instance when available.
+ */
 export async function ensureHubServer(
 	options: EnsureHubServerOptions,
 ): Promise<EnsureHubServerResult> {

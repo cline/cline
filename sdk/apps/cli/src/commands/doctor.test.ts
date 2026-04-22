@@ -35,9 +35,6 @@ vi.mock("node:child_process", () => ({
 vi.mock("@clinebot/core", () => ({
 	resolveClineDataDir: mockResolveClineDataDir,
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
-}));
-
-vi.mock("@clinebot/hub", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,

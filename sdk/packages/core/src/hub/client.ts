@@ -1,15 +1,12 @@
-import { spawn } from "node:child_process";
-import { basename } from "node:path";
 import {
-	augmentNodeCommandForDebug,
 	createSessionId,
 	type HubClientRegistration,
 	type HubCommandEnvelope,
 	type HubEventEnvelope,
 	type HubReplyEnvelope,
 	type HubTransportFrame,
-	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
+import { spawnDetachedHubServer } from "./daemon";
 import {
 	clearHubDiscovery,
 	type HubOwnerContext,
@@ -513,97 +510,6 @@ async function probeCompatibleHubUrl(
 	};
 }
 
-function resolveHubModuleUrl(): string {
-	const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
-	return new URL(`./index.${extension}`, import.meta.url).href;
-}
-
-function isBunExecutable(command: string): boolean {
-	const name = basename(command).toLowerCase();
-	return name === "bun" || name === "bun.exe";
-}
-
-function buildDetachedHubBootstrapCode(options: {
-	host?: string;
-	port?: number;
-	pathname?: string;
-}): string {
-	return `
-import { createLocalHubScheduleRuntimeHandlers, ensureHubWebSocketServer } from ${JSON.stringify(resolveHubModuleUrl())};
-
-const result = await ensureHubWebSocketServer({
-	runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
-	${options.host ? `host: ${JSON.stringify(options.host)},` : ""}
-	${typeof options.port === "number" ? `port: ${JSON.stringify(options.port)},` : ""}
-	${options.pathname ? `pathname: ${JSON.stringify(options.pathname)},` : ""}
-});
-
-if (result.server) {
-	await new Promise((resolve) => {
-		const shutdown = () => resolve(undefined);
-		process.once("SIGINT", shutdown);
-		process.once("SIGTERM", shutdown);
-	});
-	await result.server.close();
-}
-`.trim();
-}
-
-function parseLocalEndpointOverride(endpoint: string | undefined): {
-	host?: string;
-	port?: number;
-	pathname?: string;
-} {
-	const trimmed = endpoint?.trim();
-	if (!trimmed) {
-		return {};
-	}
-	try {
-		const parsed = new URL(
-			trimmed.includes("://") ? trimmed : `ws://${trimmed}`,
-		);
-		return {
-			host: parsed.hostname || undefined,
-			port: parsed.port ? Number.parseInt(parsed.port, 10) : undefined,
-			pathname:
-				parsed.pathname && parsed.pathname !== "/"
-					? parsed.pathname
-					: undefined,
-		};
-	} catch {
-		return {};
-	}
-}
-
-function spawnDetachedLocalHub(
-	owner: HubOwnerContext,
-	endpoint?: string,
-): void {
-	const command = augmentNodeCommandForDebug([process.execPath], {
-		env: process.env,
-		execArgv: process.execArgv,
-	});
-	const launcher = command[0] ?? process.execPath;
-	const childArgsPrefix = command.slice(1);
-	const bootstrapCode = buildDetachedHubBootstrapCode(
-		parseLocalEndpointOverride(endpoint),
-	);
-	const evalArgs = isBunExecutable(launcher)
-		? ["-e", bootstrapCode]
-		: ["--input-type=module", "-e", bootstrapCode];
-	const child = spawn(launcher, [...childArgsPrefix, ...evalArgs], {
-		detached: true,
-		stdio: "ignore",
-		env: {
-			...withResolvedClineBuildEnv(process.env),
-			CLINE_HUB_DISCOVERY_PATH: owner.discoveryPath,
-			CLINE_NO_INTERACTIVE: "1",
-		},
-		cwd: process.cwd(),
-	});
-	child.unref();
-}
-
 async function waitForCompatibleHubUrl(
 	owner: HubOwnerContext,
 ): Promise<string | undefined> {
@@ -663,6 +569,6 @@ export async function ensureCompatibleLocalHubUrl(
 		return undefined;
 	}
 	const owner = resolveSharedHubOwnerContext();
-	spawnDetachedLocalHub(owner);
+	spawnDetachedHubServer(options.workspaceRoot ?? process.cwd());
 	return await waitForCompatibleHubUrl(owner);
 }

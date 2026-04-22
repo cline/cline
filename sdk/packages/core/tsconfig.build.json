@@ -8,5 +8,10 @@
 		"rootDir": "./src",
 		"incremental": false
 	},
-	"include": ["src/index.ts", "src/hub/index.ts", "src/telemetry/index.ts"]
+	"include": [
+		"src/index.ts",
+		"src/hub/index.ts",
+		"src/hub/daemon-entry.ts",
+		"src/telemetry/index.ts"
+	]
 }

@@ -9,8 +9,8 @@ import {
 } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
+import type { HubSessionClient, HubSessionRow } from "@clinebot/core";
 import { ensureParentDir, resolveClineDataDir } from "@clinebot/core";
-import type { HubSessionClient, HubSessionRow } from "@clinebot/hub";
 import { withResolvedClineBuildEnv } from "@clinebot/shared";
 import { createCliLoggerAdapter } from "../logging/adapter";
 import { logSpawnedProcess } from "../logging/process";

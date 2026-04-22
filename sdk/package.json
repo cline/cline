@@ -22,7 +22,7 @@
 		"test:unit": "bash -lc 'set -euo pipefail; bun -F @clinebot/agents test & p1=$!; bun -F @clinebot/llms test & p2=$!; bun -F @clinebot/core test:unit & p3=$!; bun -F @clinebot/cli test:unit & p4=$!; wait $p1; wait $p2; wait $p3; wait $p4'",
 		"test:e2e": "bun -F @clinebot/core test:e2e && bun -F @clinebot/cli test:e2e",
 		"test:e2e:interactive": "bun -F @clinebot/cli test:e2e:interactive",
-		"verify:routines": "zsh -lc 'cd packages/core && bunx vitest run src/hub/schedule-service.test.ts --config vitest.config.ts'",
+		"verify:routines": "zsh -lc 'cd packages/core && bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
 		"verify:workos-device-auth": "bun scripts/verify-workos-device-auth.ts",
 		"biome": "bunx --bun @biomejs/biome",
 		"format": "bun biome format",

@@ -1,13 +1,14 @@
 import process from "node:process";
 import { createInterface } from "node:readline";
-import { Llms, ProviderSettingsManager } from "@clinebot/core";
 import {
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubSessionClient,
 	HubUIClient,
+	Llms,
+	ProviderSettingsManager,
 	toHubHealthUrl,
-} from "@clinebot/hub";
+} from "@clinebot/core";
 import type { HubUINotifyPayload, SessionRecord } from "@clinebot/shared";
 
 interface TrackedClient {

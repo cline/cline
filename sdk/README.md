@@ -9,8 +9,7 @@ It is a Bun workspace centered around a small stack of reusable packages:
 - `@clinebot/shared`: shared contracts, schemas, path helpers, and runtime utilities
 - `@clinebot/llms`: model catalogs, shared provider contracts, and AI SDK-backed handler creation
 - `@clinebot/agents`: stateless agent loop, tools, hooks, and extension primitives
-- `@clinebot/hub`: hub discovery, hub clients, and host-side daemon helpers
-- `@clinebot/core`: stateful orchestration, sessions, storage, and runtime assembly
+- `@clinebot/core`: stateful orchestration, sessions, storage, runtime assembly, and the hub subpath (`@clinebot/core/hub`) covering discovery, the detached daemon, WebSocket clients, and session/UI client adapters
 - `@clinebot/enterprise`: used for internal enterprise integrations. It is intentionally excluded from the root SDK build/version/publish flows.
 
 Host apps in `apps/` compose those packages into real user-facing products such as the CLI apps, and the VS Code extension.
@@ -38,12 +37,10 @@ Choose documentation by your question:
 
 ```mermaid
 flowchart LR
-  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & core["@clinebot/core"] & hub["@clinebot/hub"]
   llms --> agents & core
   agents --> core
-  core --> hub
-  enterprise["@clinebot/enterprise (internal)"] --> agents & core & shared
-  core --> apps["CLI / VS Code / Code App"]
+  enterprise["@clinebot/enterprise"] --> agents & core
+  core --> apps["Clients (CLI, VS Code)"]
 ```
 
 

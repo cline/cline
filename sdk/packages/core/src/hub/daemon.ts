@@ -2,9 +2,8 @@ import { spawn } from "node:child_process";
 import { closeSync, mkdirSync, openSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { resolveSharedHubOwnerContext } from "@clinebot/core/hub";
 import { withResolvedClineBuildEnv } from "@clinebot/shared";
-import { probeHubConnection } from "./client";
+import { verifyHubConnection } from "./client";
 import {
 	type HubEndpointOverrides,
 	resolveHubEndpointOptions,
@@ -16,6 +15,7 @@ import {
 	resolveClineDataDir,
 	writeHubDiscovery,
 } from "./discovery";
+import { resolveSharedHubOwnerContext } from "./workspace";
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
@@ -41,7 +41,8 @@ function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
 }
 
 function resolveDaemonEntryPath(): string {
-	return fileURLToPath(new URL("./daemon-entry.ts", import.meta.url));
+	const extension = import.meta.url.endsWith(".ts") ? "ts" : "js";
+	return fileURLToPath(new URL(`./daemon-entry.${extension}`, import.meta.url));
 }
 
 function resolveLaunchCommand(
@@ -114,12 +115,12 @@ export function prewarmDetachedHubServer(
 		.then(async (discovered) => {
 			if (discovered?.url) {
 				const healthy = await probeHubServer(discovered.url);
-				if (healthy?.url && (await probeHubConnection(healthy.url))) {
+				if (healthy?.url && (await verifyHubConnection(healthy.url))) {
 					return;
 				}
 			}
 			const expected = await probeHubServer(expectedUrl);
-			if (expected?.url && (await probeHubConnection(expected.url))) {
+			if (expected?.url && (await verifyHubConnection(expected.url))) {
 				await writeHubDiscovery(owner.discoveryPath, expected);
 				return;
 			}
@@ -148,12 +149,12 @@ export async function ensureDetachedHubServer(
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	if (discovered?.url) {
 		const healthy = await probeHubServer(discovered.url);
-		if (healthy?.url && (await probeHubConnection(healthy.url))) {
+		if (healthy?.url && (await verifyHubConnection(healthy.url))) {
 			return healthy.url;
 		}
 	}
 	const expected = await probeHubServer(expectedUrl);
-	if (expected?.url && (await probeHubConnection(expected.url))) {
+	if (expected?.url && (await verifyHubConnection(expected.url))) {
 		await writeHubDiscovery(owner.discoveryPath, expected);
 		return expected.url;
 	}
@@ -165,12 +166,12 @@ export async function ensureDetachedHubServer(
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
 		if (nextDiscovery?.url) {
 			const healthy = await probeHubServer(nextDiscovery.url);
-			if (healthy?.url && (await probeHubConnection(healthy.url))) {
+			if (healthy?.url && (await verifyHubConnection(healthy.url))) {
 				return healthy.url;
 			}
 		}
 		const nextExpected = await probeHubServer(expectedUrl);
-		if (nextExpected?.url && (await probeHubConnection(nextExpected.url))) {
+		if (nextExpected?.url && (await verifyHubConnection(nextExpected.url))) {
 			await writeHubDiscovery(owner.discoveryPath, nextExpected);
 			return nextExpected.url;
 		}

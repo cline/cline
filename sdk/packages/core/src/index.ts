@@ -157,6 +157,7 @@ export {
 	type HubOptions,
 	type RemoteOptions,
 } from "./ClineCore";
+export * from "./cron";
 export type {
 	LoadAgentPluginFromPathOptions,
 	PluginInitializationFailure,

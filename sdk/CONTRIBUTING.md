@@ -13,8 +13,7 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 | `@clinebot/shared` | Contracts, schemas, path helpers, hook engine, extension registry |
 | `@clinebot/llms` | Provider settings, model catalogs, manifests, handler creation |
 | `@clinebot/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
-| `@clinebot/hub` | Hub discovery, client helpers, and host-side daemon controls |
-| `@clinebot/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, and hub runtime services |
+| `@clinebot/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@clinebot/core/hub`, `@clinebot/core/hub/daemon-entry`) |
 
 ### Internal Package
 

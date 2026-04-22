@@ -12,7 +12,6 @@
 	},
 	"dependencies": {
 		"@clinebot/core": "workspace:*",
-		"@clinebot/hub": "workspace:*",
 		"@clinebot/shared": "workspace:*"
 	},
 	"devDependencies": {

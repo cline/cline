@@ -17,7 +17,7 @@ bringing in session storage, hub transport, or host-specific default tools.
 
 - Default host tools like filesystem access, shell execution, or web fetching live in `@clinebot/core`
 - Session persistence and stateful orchestration live in `@clinebot/core`
-- Shared hub runtime/session transport lives in `@clinebot/core` and `@clinebot/hub`
+- Shared hub runtime/session transport lives in `@clinebot/core` (see `@clinebot/core/hub`)
 
 That split keeps this package usable in Node, browser, and custom host
 environments where you want to supply your own tools and runtime policy.

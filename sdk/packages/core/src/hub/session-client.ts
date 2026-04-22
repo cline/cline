@@ -1,4 +1,3 @@
-import { NodeHubClient } from "@clinebot/core/hub";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
@@ -7,6 +6,7 @@ import type {
 	HubEventEnvelope,
 	TeamProgressProjectionEvent,
 } from "@clinebot/shared";
+import { NodeHubClient } from "./client";
 
 export interface HubSessionClientOptions {
 	address: string;

@@ -1,4 +1,4 @@
-import { sendHubCommand } from "@clinebot/hub";
+import { sendHubCommand } from "@clinebot/core";
 import { ensureCliHubServer } from "../../utils/hub-runtime";
 import type { CommandIo } from "./types";
 

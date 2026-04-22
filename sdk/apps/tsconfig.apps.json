@@ -11,11 +11,6 @@
 				"../packages/core/src/*",
 				"../packages/core/src/*/index.ts"
 			],
-			"@clinebot/hub": ["../packages/hub/src/index.ts"],
-			"@clinebot/hub/*": [
-				"../packages/hub/src/*",
-				"../packages/hub/src/*/index.ts"
-			],
 			"@clinebot/core/telemetry": [
 				"../packages/core/src/services/telemetry/index.ts"
 			],

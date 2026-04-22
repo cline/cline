@@ -3,9 +3,9 @@ import { basename } from "node:path";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
+	HubSessionClient,
 	UserInstructionConfigWatcher,
 } from "@clinebot/core";
-import type { HubSessionClient } from "@clinebot/hub";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";

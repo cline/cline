@@ -4,14 +4,14 @@ import type {
 	ChatStartSessionRequest,
 	ChatTurnResult,
 } from "@clinebot/shared";
+import type {
+	HubScheduleRuntimeHandlers,
+	HubScheduleServiceOptions,
+} from "../cron/schedule-service";
 import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../session/session-service";
 import { LocalRuntimeHost } from "../transports/local";
 import { SessionSource } from "../types/common";
-import type {
-	HubScheduleRuntimeHandlers,
-	HubScheduleServiceOptions,
-} from "./schedule-service";
 
 function toChatTurnResult(result: {
 	text: string;

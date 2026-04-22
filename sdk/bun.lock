@@ -45,7 +45,6 @@
       "devDependencies": {
         "@clinebot/core": "workspace:*",
         "@clinebot/enterprise": "workspace:*",
-        "@clinebot/hub": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "@microsoft/tui-test": "^0.0.2",
         "@types/react": "19.2.14",
@@ -58,7 +57,6 @@
         "@base-ui/react": "^1.2.0",
         "@clinebot/agents": "workspace:*",
         "@clinebot/core": "workspace:*",
-        "@clinebot/hub": "workspace:*",
         "@clinebot/llms": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "@fontsource-variable/geist": "^5.2.8",
@@ -167,7 +165,6 @@
       "version": "0.1.0",
       "dependencies": {
         "@clinebot/core": "workspace:*",
-        "@clinebot/hub": "workspace:*",
         "@clinebot/shared": "workspace:*",
       },
       "devDependencies": {
@@ -300,14 +297,6 @@
         "@clinebot/core": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "aws4fetch": "^1.0.20",
-      },
-    },
-    "packages/hub": {
-      "name": "@clinebot/hub",
-      "version": "0.0.35",
-      "dependencies": {
-        "@clinebot/core": "workspace:*",
-        "@clinebot/shared": "workspace:*",
       },
     },
     "packages/llms": {
@@ -586,8 +575,6 @@
     "@clinebot/core": ["@clinebot/core@workspace:packages/core"],
 
     "@clinebot/enterprise": ["@clinebot/enterprise@workspace:packages/enterprise"],
-
-    "@clinebot/hub": ["@clinebot/hub@workspace:packages/hub"],
 
     "@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
 

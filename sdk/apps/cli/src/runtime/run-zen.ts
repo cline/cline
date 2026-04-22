@@ -1,5 +1,5 @@
 import type { UserInstructionConfigWatcher } from "@clinebot/core";
-import { HubSessionClient } from "@clinebot/hub";
+import { HubSessionClient } from "@clinebot/core";
 import type { ChatStartSessionRequest } from "@clinebot/shared";
 import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, emitJsonLine, writeErr, writeln } from "../utils/output";

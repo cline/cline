@@ -90,7 +90,6 @@ The package also exports storage and settings helpers such as:
 
 - `@clinebot/agents`: stateless agent loop and tool primitives
 - `@clinebot/llms`: provider/model configuration and handlers
-- `@clinebot/hub`: hub discovery and hub session clients
 
 ## More Examples
 

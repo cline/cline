@@ -16,6 +16,7 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		entrypoints: [
 			"./src/index.ts",
 			"./src/hub/index.ts",
+			"./src/hub/daemon-entry.ts",
 			"./src/services/telemetry/index.ts",
 		],
 		outdir: "./dist",

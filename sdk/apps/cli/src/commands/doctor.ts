@@ -2,14 +2,12 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
-	resolveClineDataDir,
-	resolveSharedHubOwnerContext,
-} from "@clinebot/core";
-import {
 	clearHubDiscovery,
 	probeHubServer,
 	readHubDiscovery,
-} from "@clinebot/hub";
+	resolveClineDataDir,
+	resolveSharedHubOwnerContext,
+} from "@clinebot/core";
 import { Command } from "commander";
 import { isProcessRunning } from "../connectors/common";
 import { getCliBuildInfo } from "../utils/common";

@@ -4,11 +4,11 @@ import type {
 } from "@clinebot/core";
 import {
 	CoreSessionService,
+	HubSessionClient,
 	Llms,
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@clinebot/core";
-import { HubSessionClient } from "@clinebot/hub";
 import type { Thread } from "chat";
 import {
 	ensureOAuthProviderApiKey,

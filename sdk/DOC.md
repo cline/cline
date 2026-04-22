@@ -91,21 +91,25 @@ Behavior:
 - hosts may also supply `prepareTurn` to rewrite message history or the system prompt before the turn is sent
 - this is the primary seam for host-owned context pipelines such as compaction
 
-## `@clinebot/hub`
+## `@clinebot/core/hub`
 
-Primary role: host-side hub discovery and client access.
+Primary role: hub infrastructure, discovery, and host-side client access. Exposed as a subpath export of `@clinebot/core`; everything is also re-exported from the `@clinebot/core` root barrel.
 
 Important exported areas:
 
-- local hub discovery helpers
-- WebSocket hub client helpers
-- `HubSessionClient`
-- host-side ensure/start helpers
+- local hub discovery helpers (`resolveHubOwnerContext`, `resolveSharedHubOwnerContext`, `readHubDiscovery`, `writeHubDiscovery`, `clearHubDiscovery`, `probeHubServer`, `toHubHealthUrl`, `createHubServerUrl`, `withHubStartupLock`, `resolveHubBuildId`)
+- endpoint defaults and env resolution (`resolveHubEndpointOptions`, `DEFAULT_HUB_HOST`, `DEFAULT_HUB_PORT`, `DEFAULT_HUB_PATHNAME`)
+- hub WebSocket server (`startHubWebSocketServer`, `ensureHubWebSocketServer`, and the shared-owner wrappers `startHubServer`, `ensureHubServer`)
+- detached daemon control (`spawnDetachedHubServer`, `ensureDetachedHubServer`, `prewarmDetachedHubServer`), plus the daemon process entry at `@clinebot/core/hub/daemon-entry`
+- WebSocket hub clients (`NodeHubClient`, `connectToHub`, `resolveHubUrl`, `sendHubCommand`, `probeHubConnection`, `verifyHubConnection`, `normalizeHubWebSocketUrl`)
+- high-level client adapters (`HubSessionClient`, `HubUIClient`)
+- compatible-local-hub resolution used by `createRuntimeHost` (`resolveCompatibleLocalHubUrl`, `ensureCompatibleLocalHubUrl`)
 
 Behavior notes:
 
-- `@clinebot/hub` is intentionally thin and client-oriented
-- stateful hub runtime behavior lives in `@clinebot/core`
+- hub infrastructure, discovery, and client adapters live in a single module tree under `packages/core/src/hub/`.
+- `HubSessionClient` and `HubUIClient` wrap `NodeHubClient` to provide session-lifecycle and UI-notification surfaces respectively.
+- `ensureCompatibleLocalHubUrl` is the canonical entry point for "start the shared hub if it isn't already running"; it honors build-ID-aware discovery and uses `ensureDetachedHubServer` internally.
 
 ## `@clinebot/core`
 

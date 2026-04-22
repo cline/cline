@@ -58,7 +58,6 @@
 	"license": "Apache-2.0",
 	"devDependencies": {
 		"@clinebot/core": "workspace:*",
-		"@clinebot/hub": "workspace:*",
 		"@clinebot/enterprise": "workspace:*",
 		"@clinebot/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",

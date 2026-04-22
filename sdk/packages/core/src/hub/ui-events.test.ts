@@ -1,7 +1,7 @@
-import { createLocalHubScheduleRuntimeHandlers } from "@clinebot/core/hub";
 import type { HubUINotifyPayload } from "@clinebot/shared";
 import { afterEach, describe, expect, it } from "vitest";
-import { startHubServer } from "./server";
+import { createLocalHubScheduleRuntimeHandlers } from "./runtime-handlers";
+import { startHubServer } from "./start-shared-server";
 import { HubUIClient } from "./ui-client";
 
 describe("hub UI events", () => {

@@ -18,7 +18,6 @@
 		"@base-ui/react": "^1.2.0",
 		"@clinebot/agents": "workspace:*",
 		"@clinebot/core": "workspace:*",
-		"@clinebot/hub": "workspace:*",
 		"@clinebot/llms": "workspace:*",
 		"@clinebot/shared": "workspace:*",
 		"@fontsource-variable/geist": "^5.2.8",

@@ -1,13 +1,11 @@
 import {
-	createLocalHubScheduleRuntimeHandlers,
-	resolveSharedHubOwnerContext,
-} from "@clinebot/core";
-import {
 	clearHubDiscovery,
+	createLocalHubScheduleRuntimeHandlers,
 	ensureHubServer,
 	probeHubServer,
 	readHubDiscovery,
-} from "@clinebot/hub";
+	resolveSharedHubOwnerContext,
+} from "@clinebot/core";
 import { Command } from "commander";
 
 interface HubCommandIo {

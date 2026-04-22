@@ -22,6 +22,7 @@ import {
 	createUserInstructionConfigWatcher,
 	discoverPluginModulePaths,
 	ensureCustomProvidersLoaded,
+	ensureHubServer,
 	executeClineAccountAction,
 	getLocalProviderModels,
 	listHookConfigFiles,
@@ -40,9 +41,9 @@ import {
 	SqliteSessionStore,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	sendHubCommand,
 	toggleDisabledTool,
 } from "@clinebot/core";
-import { ensureHubServer, sendHubCommand } from "@clinebot/hub";
 import { broadcastEvent } from "./context";
 import {
 	findArtifactUnderDir,

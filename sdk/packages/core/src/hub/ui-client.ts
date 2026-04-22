@@ -1,4 +1,3 @@
-import { NodeHubClient } from "@clinebot/core/hub";
 import type {
 	HubClientRecord,
 	HubEventEnvelope,
@@ -6,6 +5,7 @@ import type {
 	HubUIShowWindowPayload,
 	SessionRecord,
 } from "@clinebot/shared";
+import { NodeHubClient } from "./client";
 
 export interface HubUIClientOptions {
 	address: string;

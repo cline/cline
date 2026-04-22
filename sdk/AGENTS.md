@@ -15,8 +15,7 @@ Quick-reference for active development. For onboarding, workspace setup, publish
 - `@clinebot/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
 - `@clinebot/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
 - `@clinebot/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
-- `@clinebot/hub`: hub discovery, WebSocket clients, session helpers, and host-side daemon controls
-- `@clinebot/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry
+- `@clinebot/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@clinebot/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@clinebot/core/hub/daemon-entry` for launching the shared daemon
 
 ### Internal Package
 
@@ -26,10 +25,9 @@ Quick-reference for active development. For onboarding, workspace setup, publish
 
 ```mermaid
 flowchart TD
-  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & core["@clinebot/core"] & hub["@clinebot/hub"]
+  shared["@clinebot/shared"] --> llms["@clinebot/llms"] & agents["@clinebot/agents"] & core["@clinebot/core"]
   llms --> agents & core
   agents --> core
-  core --> hub
   enterprise["@clinebot/enterprise"] --> agents & core & shared
   core --> apps["CLI / VS Code / Code App"]
 ```
@@ -37,8 +35,7 @@ flowchart TD
 Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
-- `core` owns stateful orchestration
-- `hub` owns host-side discovery/client concerns while `core` owns the hub runtime/server behavior
+- `core` owns stateful orchestration, including the shared-hub daemon, server, and client adapters under `src/hub/`
 - `enterprise` may depend on `core`, but not the reverse
 
 ## Change Routing
@@ -47,8 +44,7 @@ Route changes to the package that owns the concern:
 
 - model/provider schemas or handler behavior: `@clinebot/llms`
 - stateless loop, tool orchestration, streaming, hook/extension runtime: `@clinebot/agents`
-- hub discovery, attach flows, and session-oriented client helpers: `@clinebot/hub`
-- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, and hub runtime services: `@clinebot/core`
+- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, hub runtime services, hub discovery, hub daemon spawn, and session-oriented client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@clinebot/core` (hub pieces live under `src/hub/`)
 - enterprise identity, control-plane sync, materialization, claims mapping: `@clinebot/enterprise`
 - host-specific UX or shell behavior: app package
 

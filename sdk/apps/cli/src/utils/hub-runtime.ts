@@ -2,7 +2,7 @@ import {
 	ensureDetachedHubServer,
 	type HubEndpointOverrides,
 	prewarmDetachedHubServer,
-} from "@clinebot/hub";
+} from "@clinebot/core";
 
 export function parseHubEndpointOverride(
 	rawAddress: string | undefined,

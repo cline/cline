@@ -20,6 +20,11 @@
 			"types": "./dist/hub/index.d.ts",
 			"import": "./dist/hub/index.js"
 		},
+		"./hub/daemon-entry": {
+			"development": "./src/hub/daemon-entry.ts",
+			"types": "./dist/hub/daemon-entry.d.ts",
+			"import": "./dist/hub/daemon-entry.js"
+		},
 		"./telemetry": {
 			"development": "./src/services/telemetry/index.ts",
 			"types": "./dist/services/telemetry/index.d.ts",
@@ -33,7 +38,7 @@
 		"test": "bun run test:unit && bun run test:e2e",
 		"test:unit": "vitest run --config vitest.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
-		"verify:routines": "zsh -lc 'bunx vitest run src/hub/schedule-service.test.ts --config vitest.config.ts'",
+		"verify:routines": "zsh -lc 'bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",
 		"test:watch": "vitest --config vitest.config.ts"
 	},
 	"dependencies": {

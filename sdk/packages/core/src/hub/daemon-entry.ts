@@ -1,5 +1,7 @@
-import { createLocalHubScheduleRuntimeHandlers } from "@clinebot/core/hub";
-import { startHubServer } from "./server";
+import { resolveHubEndpointOptions } from "./defaults";
+import { createLocalHubScheduleRuntimeHandlers } from "./runtime-handlers";
+import { startHubWebSocketServer } from "./server";
+import { resolveSharedHubOwnerContext } from "./workspace";
 
 function parseArgs(argv: string[]): {
 	cwd: string;
@@ -46,10 +48,17 @@ async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
 
-	const server = await startHubServer({
+	const endpoint = resolveHubEndpointOptions({
 		host: options.host,
 		port: options.port,
 		pathname: options.pathname,
+	});
+
+	const server = await startHubWebSocketServer({
+		host: endpoint.host,
+		port: endpoint.port,
+		pathname: endpoint.pathname,
+		owner: resolveSharedHubOwnerContext(),
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 	});
 

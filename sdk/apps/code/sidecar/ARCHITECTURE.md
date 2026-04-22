@@ -99,7 +99,7 @@ const store = new SqliteSessionStore();
 Routine operations now ensure the local hub server in-process and issue hub schedule commands directly. They are still called in-process, not via child script:
 
 ```typescript
-import { ensureHubServer, sendHubCommand } from "@clinebot/hub";
+import { ensureHubServer, sendHubCommand } from "@clinebot/core";
 await ensureHubServer({ runtimeHandlers: createLocalHubScheduleRuntimeHandlers() });
 await sendHubCommand({}, { command: "schedule.list", payload: { limit: 200 } });
 ```

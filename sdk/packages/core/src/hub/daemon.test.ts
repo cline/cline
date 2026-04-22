@@ -5,7 +5,7 @@ const {
 	closeSync,
 	mkdirSync,
 	openSync,
-	probeHubConnection,
+	verifyHubConnection,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
 	probeHubServer,
@@ -17,7 +17,7 @@ const {
 	closeSync: vi.fn(),
 	mkdirSync: vi.fn(),
 	openSync: vi.fn(() => 17),
-	probeHubConnection: vi.fn(),
+	verifyHubConnection: vi.fn(),
 	resolveSharedHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -41,16 +41,16 @@ vi.mock("node:fs", () => ({
 	openSync,
 }));
 
-vi.mock("@clinebot/core/hub", () => ({
-	resolveSharedHubOwnerContext,
-}));
-
 vi.mock("@clinebot/shared", () => ({
 	withResolvedClineBuildEnv: (env: NodeJS.ProcessEnv) => env,
 }));
 
 vi.mock("./client", () => ({
-	probeHubConnection,
+	verifyHubConnection,
+}));
+
+vi.mock("./workspace", () => ({
+	resolveSharedHubOwnerContext,
 }));
 
 vi.mock("./discovery", () => ({
@@ -76,7 +76,9 @@ describe("ensureDetachedHubServer", () => {
 			.mockResolvedValueOnce({
 				url: "ws://127.0.0.1:5555/hub",
 			});
-		probeHubConnection.mockResolvedValueOnce(false).mockResolvedValueOnce(true);
+		verifyHubConnection
+			.mockResolvedValueOnce(false)
+			.mockResolvedValueOnce(true);
 		readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
 			url: "ws://127.0.0.1:5555/hub",
 		});
