@@ -455,7 +455,7 @@ underlying patterns that caused them are relevant.
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 34/34 pass.
 
 ### S6-26: SDK pending prompts / tool approval / ask_question not integrated
-- **Status**: 🔴 Blocker
+- **Status**: 🔵 Awaiting Verification
 - **Description**: The SDK has three mechanisms for the agent to interact with the user mid-task, none of which are currently wired into the VSCode extension:
 
   **1. `requestToolApproval` callback** — When a tool's policy has `autoApprove: false`, the agent calls `requestToolApproval({ agentId, conversationId, iteration, toolCallId, toolName, input, policy })` and blocks until the callback returns `{ approved: boolean, reason?: string }`. Without this callback, ALL non-auto-approved tools are denied with "no approval handler is configured". This is the equivalent of the classic extension's "Cline wants to..." approval dialog.
@@ -473,27 +473,42 @@ underlying patterns that caused them are relevant.
 
 - **Fix needed** (three parts):
 
-  **Part A: `requestToolApproval` callback (~50 lines)**
-  Wire into `VscodeSessionHost.create()` options. The callback should:
-  1. Emit a ClineMessage with `type: "ask"`, `ask: "tool"` containing the tool name and input as `ClineSayTool` JSON (same format the classic extension uses for tool approval dialogs)
-  2. Add the message to `messageStateHandler` and push to the partial message stream
-  3. Return a Promise that resolves when the user clicks Approve/Reject in the webview
-  4. The webview's existing approval UI (Approve/Reject buttons in ChatRow) already sends `askResponse` back through gRPC → `SdkController.askResponse()`. Need to wire this to resolve the approval Promise.
+  **Part A: `requestToolApproval` callback (~50 lines)** — ✅ **Fixed**
+  Wired into `VscodeSessionHost.create()` via `requestToolApproval` option in `startNewSession()`. The callback:
+  1. Converts SDK `ToolApprovalRequest` (toolName + input) to `ClineSayTool` JSON using the exported `sdkToolToClineSayTool()` from `message-translator.ts`
+  2. Emits a ClineMessage with `type: "ask"`, `ask: "tool"` — the webview's existing tool approval UI renders this (Approve/Save/Reject buttons in ChatRow)
+  3. Adds the message to `messageStateHandler` and pushes to the partial message stream via `emitSessionEvents()` + `postStateToWebview()`
+  4. Returns a Promise that resolves when the user clicks Approve/Reject in the webview
+  5. Resolution path: webview button click → gRPC `askResponse` handler → TaskProxy.handleWebviewAskResponse() (stores `askResponse` type in `taskState.askResponse`) → SdkController.askResponse() → checks `pendingToolApprovalResolve` → reads `taskState.askResponse` to determine `yesButtonClicked` (approved) vs `noButtonClicked` (denied) → resolves Promise with `{ approved: true/false }`
+  6. `cancelTask()` and `clearTask()` both resolve pending approval with `{ approved: false }` to prevent leaks
   
-  **Reference**: CLI implementation at `apps/cli/src/utils/approval.ts:63-108`. Desktop implementation at `apps/desktop/hooks/use-agent-session.tsx:134-194` (polls for approvals via `poll_tool_approvals` Tauri command). Tauri desktop at `apps/code/hooks/use-chat-session.ts:993-1010` (responds via `respond_tool_approval`).
+  **Files changed**: `src/sdk/message-translator.ts` (exported `sdkToolToClineSayTool`), `src/sdk/SdkController.ts` (added `pendingToolApprovalResolve` field, `requestToolApproval` callback in `startNewSession()`, approval resolution in `askResponse()`, cleanup in `cancelTask()`/`clearTask()`)
+  
+  **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 136 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 3 pre-existing test suite failures are unrelated import resolution errors.
 
-  **Part B: `askQuestion` executor (~30 lines)**
-  Wire into `VscodeSessionHost.create()` via `defaultToolExecutors: { askQuestion: fn }`. The executor should:
-  1. Emit a ClineMessage with `type: "ask"`, `ask: "followup"` containing the question and options
-  2. Return a Promise that resolves with the user's text response when they reply in the webview
-  3. The webview's existing follow-up question UI already handles this message type
+  **Part B: `askQuestion` executor (~30 lines)** — ✅ **Fixed**
+  Wired into `VscodeSessionHost.create()` via `defaultToolExecutors: { askQuestion: fn }`. The executor:
+  1. Builds a `ClineAskQuestion` JSON payload with `question` and `options`
+  2. Emits a ClineMessage with `type: "ask"`, `ask: "followup"` — the webview's existing follow-up question UI renders this
+  3. Returns a Promise that resolves when the user responds via `askResponse()`
+  4. `askResponse()` checks `pendingAskResolve` first — if set, resolves the Promise with the user's answer instead of sending a new SDK message
+  5. `cancelTask()` and `clearTask()` both clear `pendingAskResolve` to prevent leaks
   
-  **Reference**: CLI implementation at `apps/cli/src/runtime/run-interactive.ts:106` (`askQuestionInTerminal`).
+  **Files changed**: `src/sdk/vscode-session-host.ts` (added `askQuestion` option, `defaultToolExecutors` in `ClineCore.create()`), `src/sdk/SdkController.ts` (added `pendingAskResolve` field, executor implementation in `startNewSession()`, resolution in `askResponse()`, cleanup in `cancelTask()`/`clearTask()`)
+  
+  **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 148 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 2 pre-existing test suite failures (`auth-service.test.ts`, `cline-session-factory.test.ts`) are unrelated `@hosts/host-provider` import errors.
 
-  **Part C: Pending prompts for follow-up messages (~20 lines)**
-  Update `SdkController.askResponse()` to use `delivery: "queue"` when the agent is running, so follow-up messages are queued instead of throwing. Subscribe to `pending_prompts` and `pending_prompt_submitted` events to show queued messages in the webview.
+  **Part C: Pending prompts for follow-up messages (~20 lines)** — ✅ **Fixed**
+  Updated `SdkController.askResponse()` to detect when the session is already running (`wasAlreadyRunning = this.activeSession.isRunning`) and pass `delivery: "queue"` to `fireAndForgetSend()`. The SDK enqueues the message and drains it after the current turn completes. Three changes:
+  1. `fireAndForgetSend()` accepts an optional `delivery` parameter, passes it to `sessionManager.send()`, and skips `isRunning = false` when delivery is "queue"/"steer" (since the turn didn't complete — the message was just enqueued)
+  2. `askResponse()` captures `wasAlreadyRunning` before setting `isRunning = true`, computes `delivery = wasAlreadyRunning ? "queue" : undefined`, and passes it through. Also skips `messageTranslatorState.reset()` for queued messages since the current turn is still active.
+  3. `handleSessionEvent()` logs `pending_prompts` and `pending_prompt_submitted` events for visibility (the SDK emits these when queued messages are enqueued/consumed).
   
-  **Reference**: CLI wiring at `apps/cli/src/runtime/run-interactive.ts:125-134`. Tauri desktop at `apps/code/host/runtime-bridge.ts:338-382`.
+  **Files changed**: `src/sdk/SdkController.ts` (updated `fireAndForgetSend()` signature, `askResponse()` delivery logic, `handleSessionEvent()` logging)
+  
+  **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 136 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 3 pre-existing test suite failures are unrelated import resolution errors.
+  
+  **Reference**: CLI wiring at `apps/cli/src/runtime/run-interactive.ts:642-777`. Tauri desktop at `apps/code/sidecar/chat-session.ts:429-467`.
 
 - **Verification**: 
   1. Start a task that uses tools → verify approval dialog appears → approve → tool executes
@@ -518,9 +533,9 @@ underlying patterns that caused them are relevant.
 
 Fixed. The gRPC handler was calling `controller.initTask()` (starts new session) instead of `controller.showTaskWithId()` (loads messages from disk). See S6-27 entry for details.
 
-### 🔴 Top Priority: S6-26 — Pending prompts / tool approval / ask_question
+### 🔵 Awaiting Verification: S6-26 — Pending prompts / tool approval / ask_question
 
-The SDK's three user-interaction mechanisms are not wired in. Without `requestToolApproval`, non-auto-approved tools are silently denied. Without `askQuestion`, the agent can't ask clarifying questions. Without pending prompts, follow-up messages during a running task will fail.
+All three parts fixed (Part A: requestToolApproval, Part B: askQuestion, Part C: pending prompts with delivery: "queue"). Awaiting manual verification.
 
 ### 🔴 Third Priority: S6-18 — Missing API key shows error instead of login prompt
 
@@ -772,4 +787,53 @@ The following classic tools have no equivalent in the SDK's built-in tool set or
 - **Root cause**: The SDK's `skills` tool uses `{ skill: "name", args?: "..." }` as its input format, but `sdkToolToClineSayTool()` only checked for `skill_name` and `name` fields. The SDK's field is just `skill`, so the extraction returned `""`, leaving `tool.path` empty.
 - **Fix applied**: Added `getStringField(parsedInput, "skill")` to the fallback chain in the `skills`/`use_skill` case, between `skill_name` (classic) and `name` (generic fallback). This handles all three input formats.
 - **Verification**: 3 new unit tests in `src/sdk/message-translator.test.ts` — S6-40 tests cover: SDK `skill` field extraction, content_end preserving skill name, classic `skill_name` backward compat. All 57 tests pass.
+
+### S6-47: Search tool group summary shows empty regex and "/" path
+- **Status**: 🟢 Verified Fixed
+- **Description**: When the SDK's `search_codebase` tool runs, the tool group summary shows `Cline read 3 files, performed 1 search: "" in /` — the search regex is empty and the path is just `/` instead of a meaningful location.
+- **Root cause**: Two issues:
+  1. **Empty regex**: The SDK's `SearchCodebaseUnionInputSchema` accepts multiple input formats: `{ queries: string[] }`, `string[]` (bare array), or `string` (bare string). The `parseToolInput()` function in message-translator.ts only handles objects and stringified JSON objects — it returns `undefined` for bare arrays and non-JSON strings. When `parsedInput` is `undefined`, all `getArrayField`/`getStringField` lookups fail, producing `regex = ""`.
+  2. **"/" path**: The SDK's `search_codebase` tool has no `path` parameter in its schema (it uses `config.cwd` internally). So `getStringField(parsedInput, "path")` always returns `undefined`. The webview's `ToolGroupRenderer` constructs `folderPath = (tool.path || "") + "/"` = `"/"`, and `formatSearchDisplay` shows `"" in /`.
+- **Fix applied**: Three files changed:
+  1. **`src/sdk/message-translator.ts`** (lines 275-293): Restructured the `search_codebase` case to handle all SDK union schema input formats. When `parsedInput` is an object, extracts queries normally. Falls back to checking `Array.isArray(input)` for bare arrays, then `typeof input === "string"` for bare strings.
+  2. **`webview-ui/src/components/chat/chat-view/components/messages/ToolGroupRenderer.tsx`**: Three changes:
+     - `formatSearchDisplay()`: When path is empty, shows "codebase" instead of `/`.
+     - `getToolDisplayInfo()` searchFiles case: Sets `path` to `""` (not `"/"`) when `filePath` is empty.
+     - `getActivityText()` searchFiles case: Removed `&& tool.path` requirement, and inner `formatSearchRegex()` shows "codebase" when path is empty.
+  3. **`webview-ui/src/components/chat/RequestStartRow.tsx`**: Same fixes as ToolGroupRenderer — `formatSearchRegex()` shows "codebase" for empty path, `getActivityText()` doesn't require `tool.path` for search.
+- **Verification**: 8 new unit tests in `src/sdk/message-translator.test.ts` cover all input formats:
+  - `{ queries: ["TODO", "FIXME"] }` → `regex: "TODO, FIXME"` ✅
+  - `JSON.stringify({ queries: ["TODO"] })` → `regex: "TODO"` ✅
+  - `["TODO", "FIXME"]` (bare array) → `regex: "TODO, FIXME"` ✅
+  - `"TODO"` (bare string) → `regex: "TODO"` ✅
+  - `{ queries: "TODO" }` (string, not array) → `regex: "TODO"` ✅
+  - content_end preserves queries from content_start ✅
+  - content_end preserves bare array input ✅
+  - path is undefined when SDK has no path param ✅
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts -- message-translator` — 65 tests pass (8 new). `npx tsc --noEmit` — 0 errors in changed files.
+
+
+
+### S6-48: File edit diffs show all green (no red deletions)
+- **Status**: 🟢 Verified Fixed
+- **Description**: When Cline edits an existing file, the diff shown in the chatview only showed green (additions) and never red (deletions). The entire file content appeared as additions, making it impossible to see what was actually changed.
+- **Root cause**: Three compounding issues in the SDK message translation pipeline:
+  1. **Editor tool**: The SDK's `editor` tool provides `old_text` and `new_text` fields. The message translator stored `new_text` into `content` and the `patch`/`diff` field into `diff`. But `ChatRow.tsx` passes `tool.content` to `DiffEditRow`'s `patch` prop. Since `content` was raw `new_text` (not a diff format), `DiffEditRow.parsePatch()` didn't recognize any known diff format and fell through to the fallback (lines 303-317) which treated the entire text as a new file, prefixing every line with `+ ` (green additions only).
+  2. **apply_patch tool**: The SDK sends `apply_patch` input as `{ input: '...' }`, but the translator only checked the `patch` field (not `input`). Also, the translator set `diff` but not `content`, so `ChatRow.tsx`'s condition `tool.content` was falsy, causing it to fall through to `CodeAccordian` instead of `DiffEditRow`.
+  3. **ChatRow.tsx**: The condition and prop used only `tool.content`, ignoring `tool.diff` even when it contained a valid patch.
+- **Fix applied**: Three files changed:
+  1. **`src/sdk/message-translator.ts`** — `editor`/`replace_in_file` case: When both `old_text` and `new_text` are provided, construct a search/replace diff in the format DiffEditRow expects (`------- SEARCH\n<old>\n=======\n<new>\n+++++++ REPLACE`) and store it in `content`. When only `new_text` is provided (new file), keep raw text as before.
+  2. **`src/sdk/message-translator.ts`** — `apply_patch` case: Also check the `input` field (SDK format) in addition to `patch` and `diff`. Populate both `content` and `diff` with the patch so `ChatRow.tsx` can render it.
+  3. **`webview-ui/src/components/chat/ChatRow.tsx`** — Changed condition from `tool.content` to `(tool.diff || tool.content)` and prop from `patch={tool.content}` to `patch={tool.diff || tool.content!}`, so `DiffEditRow` receives whichever field contains the diff.
+- **Verification**: 7 new unit tests in `src/sdk/message-translator.test.ts`:
+  - Editor with `old_text` + `new_text` → content is search/replace diff ✅
+  - Editor with only `new_text` → content is raw new_text (newFileCreated) ✅
+  - Editor with `old_str`/`new_str` variant → search/replace diff ✅
+  - Multiline old/new text preserved in diff ✅
+  - apply_patch with SDK `{ input: '...' }` → content and diff populated ✅
+  - apply_patch with classic `{ patch: '...' }` → content and diff populated ✅
+  - apply_patch prefers `patch` over `input` field ✅
+  - Updated existing S6-24 test to expect diff format when old_text+new_text present ✅
+- **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 72 tests pass (7 new). `npx tsc --noEmit --skipLibCheck` — 0 errors.
+
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.

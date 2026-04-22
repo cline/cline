@@ -13,6 +13,10 @@
 //   say==="tool", expecting ClineSayTool format: {tool, path, content, ...}.
 //   We must convert SDK tool names (read_files, editor, run_commands, etc.)
 //   and their inputs to this format.
+// - SDK "agent_event" content_start (tool: MCP) → ClineMessage say="use_mcp_server" with partial=true
+//   MCP tools use serverName__toolName naming convention. The webview renders
+//   MCP tool calls via say/ask="use_mcp_server" with ClineAskUseMcpServer JSON.
+// - SDK "agent_event" content_end (tool: MCP) → say="use_mcp_server" + say="mcp_server_response"
 // - SDK "agent_event" content_end → ClineMessage with partial=false
 // - SDK "agent_event" content_start (tool: attempt_completion) → ClineMessage say="completion_result"
 // - SDK "agent_event" content_end (tool: attempt_completion) → ClineMessage ask="completion_result"
@@ -24,7 +28,7 @@
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { AgentEvent } from "@clinebot/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
-import type { ClineApiReqInfo, ClineMessage, ClineSay, ClineSayTool } from "@shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineAskUseMcpServer, ClineMessage, ClineSay, ClineSayTool } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 
 // ---------------------------------------------------------------------------
@@ -190,10 +194,10 @@ export class MessageTranslatorState {
  *   fetch_web_content/web_fetch        → webFetch
  *   web_search                         → webSearch
  *   skills/use_skill                   → useSkill
- *   ask_question/ask_followup_question → (not a visual tool — handled as text)
- *   MCP tools                          → (passed through with tool name as-is)
+ *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
+ *   MCP tools (serverName__toolName)   → (handled before reaching sdkToolToClineSayTool — emitted as say="use_mcp_server")
  */
-function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
+export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
 	// Parse input if it's a string (some SDK tools pass stringified JSON)
 	const parsedInput = parseToolInput(input)
 
@@ -234,10 +238,16 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			const patch = getStringField(parsedInput, "patch") ?? getStringField(parsedInput, "diff")
 			const oldText = getStringField(parsedInput, "old_text") ?? getStringField(parsedInput, "old_str")
 			const isEdit = toolName === "replace_in_file" || !!oldText
+
+			// When the SDK provides both old and new text, build a search/replace
+			// diff in the format DiffEditRow expects. ChatRow passes `content` to
+			// DiffEditRow's `patch` prop, so the formatted diff must go into `content`.
+			const diffContent = oldText && newText ? `------- SEARCH\n${oldText}\n=======\n${newText}\n+++++++ REPLACE` : newText
+
 			return {
 				tool: isEdit ? "editedExistingFile" : "newFileCreated",
 				path: filePath,
-				content: newText,
+				content: diffContent,
 				diff: patch,
 			}
 		}
@@ -254,10 +264,18 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "apply_patch": {
 			const filePath = getStringField(parsedInput, "path") ?? ""
-			const patch = getStringField(parsedInput, "patch")
+			// The SDK sends apply_patch input as { input: 'apply_patch <<"EOF"\n*** Begin Patch\n...' }
+			// Also check the "patch" and "diff" fields for compatibility.
+			const patch =
+				getStringField(parsedInput, "patch") ??
+				getStringField(parsedInput, "diff") ??
+				getStringField(parsedInput, "input")
 			return {
 				tool: "editedExistingFile",
 				path: filePath,
+				// ChatRow passes `content` to DiffEditRow's `patch` prop,
+				// so we must populate `content` for the diff to render.
+				content: patch,
 				diff: patch,
 			}
 		}
@@ -272,9 +290,25 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 
 		case "search_codebase":
 		case "search_files": {
-			const queries = getArrayField(parsedInput, "queries")
-			const regex =
-				queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? getStringField(parsedInput, "regex") ?? ""
+			// The SDK's SearchCodebaseUnionInputSchema accepts multiple formats:
+			//   1. { queries: string[] }  — standard object (parsedInput handles this)
+			//   2. { queries: string }    — queries as single string
+			//   3. string[]               — bare array (parseToolInput returns undefined for arrays)
+			//   4. string                 — bare string (parseToolInput tries JSON.parse, returns undefined if not an object)
+			// We must handle all four to avoid showing empty regex in the UI.
+			let regex = ""
+			if (parsedInput) {
+				// Cases 1 & 2: input was an object with a "queries" field
+				const queries = getArrayField(parsedInput, "queries")
+				regex =
+					queries?.join(", ") ?? getStringField(parsedInput, "queries") ?? getStringField(parsedInput, "regex") ?? ""
+			} else if (Array.isArray(input)) {
+				// Case 3: bare array of query strings
+				regex = input.map(String).join(", ")
+			} else if (typeof input === "string") {
+				// Case 4: bare string query
+				regex = input
+			}
 			const path = getStringField(parsedInput, "path")
 			const filePattern = getStringField(parsedInput, "file_pattern") ?? getStringField(parsedInput, "filePattern")
 			return {
@@ -455,6 +489,49 @@ export function extractToolOutputText(output: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
+// MCP tool detection
+// ---------------------------------------------------------------------------
+
+/**
+ * MCP tools created by `createMcpTools()` use `serverName__toolName` format
+ * (double underscore separator). This function detects MCP tools and parses
+ * the server name and tool name.
+ *
+ * Returns undefined if the tool name doesn't match the MCP naming convention.
+ */
+function parseMcpToolName(toolName: string): { serverName: string; toolName: string } | undefined {
+	const separatorIndex = toolName.indexOf("__")
+	if (separatorIndex <= 0) return undefined
+	const serverName = toolName.substring(0, separatorIndex)
+	const mcpToolName = toolName.substring(separatorIndex + 2)
+	if (!mcpToolName) return undefined
+	return { serverName, toolName: mcpToolName }
+}
+
+/**
+ * Build a ClineAskUseMcpServer JSON payload for MCP tool calls.
+ * This is what the webview's ChatRow expects when rendering MCP tool calls
+ * (message.ask === "use_mcp_server" or message.say === "use_mcp_server").
+ */
+function buildMcpToolPayload(mcpInfo: { serverName: string; toolName: string }, input?: unknown): string {
+	const parsedInput = parseToolInput(input)
+	// Format arguments as a JSON string (matching classic ClineAskUseMcpServer.arguments)
+	let argumentsStr: string | undefined
+	if (parsedInput && Object.keys(parsedInput).length > 0) {
+		argumentsStr = JSON.stringify(parsedInput, null, 2)
+	} else if (typeof input === "string" && input.trim()) {
+		argumentsStr = input
+	}
+
+	return JSON.stringify({
+		type: "use_mcp_tool",
+		serverName: mcpInfo.serverName,
+		toolName: mcpInfo.toolName,
+		arguments: argumentsStr,
+	} satisfies ClineAskUseMcpServer)
+}
+
+// ---------------------------------------------------------------------------
 // Agent event translation
 // ---------------------------------------------------------------------------
 
@@ -539,6 +616,22 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							type: "say",
 							say: "command",
 							text: commandText,
+							partial: true,
+						})
+						break
+					}
+
+					// MCP tools use serverName__toolName naming convention.
+					// The webview renders MCP tool calls via say/ask="use_mcp_server"
+					// with ClineAskUseMcpServer JSON, not generic say="tool".
+					const mcpInfo = parseMcpToolName(toolName)
+					if (mcpInfo) {
+						const mcpPayload = buildMcpToolPayload(mcpInfo, input)
+						messages.push({
+							ts: state.getStreamingToolTs(),
+							type: "say",
+							say: "use_mcp_server" as ClineSay,
+							text: mcpPayload,
 							partial: true,
 						})
 						break
@@ -652,6 +745,42 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							partial: false,
 							commandCompleted: true,
 						})
+						break
+					}
+
+					// MCP tools → finalize as say="use_mcp_server" + say="mcp_server_response"
+					// The classic extension emits:
+					//   1. say/ask: "use_mcp_server" (tool call display with args)
+					//   2. say: "mcp_server_request_started" (spinner)
+					//   3. say: "mcp_server_response" (tool output)
+					// In the SDK path, by content_end the tool has already executed,
+					// so we emit the finalized tool call + response together.
+					const mcpInfoEnd = parseMcpToolName(toolName)
+					if (mcpInfoEnd) {
+						const storedMcpInput = state.getStreamingToolInput()
+						const mcpTs = state.clearStreamingTool()
+						const mcpPayload = buildMcpToolPayload(mcpInfoEnd, storedMcpInput)
+
+						// Finalize the use_mcp_server message (non-partial)
+						messages.push({
+							ts: mcpTs,
+							type: "say",
+							say: "use_mcp_server" as ClineSay,
+							text: mcpPayload,
+							partial: false,
+						})
+
+						// Emit the MCP server response with the tool output
+						const mcpOutputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
+						if (mcpOutputStr) {
+							messages.push({
+								ts: state.nextTs(),
+								type: "say",
+								say: "mcp_server_response" as ClineSay,
+								text: mcpOutputStr,
+								partial: false,
+							})
+						}
 						break
 					}
 
