@@ -43,8 +43,7 @@ async function handleSlackMessage(threadId: string, message: string) {
 An agent that reads a git diff and produces a structured code review.
 
 ```typescript
-import { Agent } from "@clinebot/sdk"
-import { createTool } from "@clinebot/sdk"
+import { Agent, createTool } from "@clinebot/sdk"
 import { execSync } from "child_process"
 
 const gitDiffTool = createTool({
