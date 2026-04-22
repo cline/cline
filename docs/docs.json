@@ -56,8 +56,8 @@
 	"navigation": {
 		"tabs": [
 			{
-				"tab": "Extension",
-				"icon": "square-terminal",
+				"tab": "Cline",
+				"icon": "robot",
 				"groups": [
 					{
 						"group": "Home",
