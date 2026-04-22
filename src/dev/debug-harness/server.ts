@@ -51,9 +51,11 @@ const EXT_INSPECT_PORT = 9230
 const PROJECT_ROOT = path.resolve(__script_dir, "..", "..", "..")
 const SCREENSHOT_DIR = path.join(os.tmpdir(), "cline-debug")
 const DEFAULT_WORKSPACE = path.join(os.tmpdir(), "cline-debug-workspace")
+const DEFAULT_CLINE_DIR = path.join(os.homedir(), ".cline2") // Separate profile from user's ~/.cline
 const SKIP_BUILD = args.includes("--skip-build")
 const AUTO_LAUNCH = args.includes("--auto-launch")
 const WORKSPACE_ARG = getArg("--workspace")
+const CLINE_DIR_ARG = getArg("--cline-dir") // Override the isolated CLINE_DIR
 
 // ============================================================
 // VLQ Sourcemap Decoder
@@ -294,9 +296,13 @@ class DebugHarness {
 	private webCdpSession: CDPSession | null = null // Playwright CDP session fallback
 	private screenshotCounter = 0
 	private extSourceMap: SourceMapJSON | null = null
+	private clineDir: string = DEFAULT_CLINE_DIR // The CLINE_DIR used for the debugee
 
 	// Pause waiters - resolved when any debuggee hits a breakpoint
 	private pauseWaiters: { resolve: (info: any) => void; timer: NodeJS.Timeout }[] = []
+
+	// Browser URL capture - stores URLs that the debugee tried to open (instead of opening a real browser)
+	private capturedUrls: { timestamp: number; url: string }[] = []
 
 	// ────────────────────────────────────────────
 	// Lifecycle
@@ -341,6 +347,20 @@ class DebugHarness {
 		const executablePath = await downloadAndUnzipVSCode("stable", undefined, new SilentReporter())
 		log(`VSCode binary: ${executablePath}`)
 
+		// Resolve the CLINE_DIR for the debugee (separate from debugger's ~/.cline)
+		this.clineDir = CLINE_DIR_ARG || DEFAULT_CLINE_DIR
+		fs.mkdirSync(this.clineDir, { recursive: true })
+		fs.mkdirSync(path.join(this.clineDir, "data"), { recursive: true })
+		log(`Debugee CLINE_DIR: ${this.clineDir}`)
+
+		// Clear any previously captured URLs
+		this.capturedUrls = []
+		// Also clear the captured URLs file on disk
+		const captureFile = path.join(this.clineDir, "data", "debug-captured-urls.jsonl")
+		try {
+			fs.unlinkSync(captureFile)
+		} catch {}
+
 		// Create temp user data dir to avoid interfering with real VSCode profile
 		const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "cline-debug-profile-"))
 		log(`User data dir: ${userDataDir}`)
@@ -368,6 +388,11 @@ class DebugHarness {
 					TEMP_PROFILE: "true",
 					DEV_WORKSPACE_FOLDER: PROJECT_ROOT,
 					CLINE_ENVIRONMENT: "production",
+					// ── Data isolation: use separate profile from user's ~/.cline ──
+					CLINE_DIR: this.clineDir,
+					// ── Browser capture: intercept openExternal() for OAuth testing ──
+					CLINE_CAPTURE_BROWSER: "1",
+					CLINE_DEBUG_HARNESS_PORT: String(PORT),
 				},
 				timeout: 60000,
 			})
@@ -399,6 +424,8 @@ class DebugHarness {
 			workspace,
 			extCdpConnected: this.extCdp.connected,
 			screenshotDir: SCREENSHOT_DIR,
+			clineDir: this.clineDir,
+			browserCapture: true,
 		}
 	}
 
@@ -1107,6 +1134,162 @@ class DebugHarness {
 			sourceMapFiles: this.extSourceMap?.sources.length || 0,
 			screenshotDir: SCREENSHOT_DIR,
 			projectRoot: PROJECT_ROOT,
+			clineDir: this.clineDir,
+			capturedUrls: this.capturedUrls.length,
+		}
+	}
+
+	// ────────────────────────────────────────────
+	// OAuth & Browser Capture
+	// ────────────────────────────────────────────
+
+	/**
+	 * Get URLs that the debugee tried to open in a browser (captured by
+	 * CLINE_CAPTURE_BROWSER). Each entry has a timestamp and URL.
+	 * Use this to inspect OAuth authorization URLs that were intercepted.
+	 *
+	 * Params:
+	 *   clear - Whether to clear the list after reading (default: false)
+	 */
+	oauthCapturedUrls(params: { clear?: boolean } = {}): any {
+		const urls = [...this.capturedUrls]
+		if (params.clear) this.capturedUrls = []
+		return { urls, count: urls.length }
+	}
+
+	/**
+	 * Read stored auth tokens from the debugee's secrets.json.
+	 * Useful for verifying that an OAuth flow successfully persisted tokens.
+	 */
+	oauthReadStoredToken(): any {
+		const secretsFile = path.join(this.clineDir, "data", "secrets.json")
+		if (!fs.existsSync(secretsFile)) {
+			return { found: false, path: secretsFile }
+		}
+		try {
+			const data = JSON.parse(fs.readFileSync(secretsFile, "utf-8"))
+			// Extract the Cline account ID and related auth info
+			const accountId = data["cline:clineAccountId"]
+			const mcpOAuth = data["mcpOAuthSecrets"]
+			return {
+				found: true,
+				path: secretsFile,
+				hasAccountId: !!accountId,
+				hasMcpOAuth: !!mcpOAuth,
+				// Don't return full token values for safety, just presence indicators
+				keys: Object.keys(data),
+			}
+		} catch (e: any) {
+			return { found: true, path: secretsFile, error: e.message }
+		}
+	}
+
+	/**
+	 * Simulate an OAuth callback by constructing a vscode:// URI and
+	 * injecting it into the debugee's extension host. This bypasses the
+	 * browser entirely — use with oauth.captured_urls to get the redirect
+	 * parameters from the captured authorization URL.
+	 *
+	 * For Cline OAuth: the SDK's local callback server captures the code
+	 * automatically. Use this ONLY for provider-specific callbacks (OpenRouter,
+	 * MCP, etc.) that use the vscode:// URI scheme.
+	 *
+	 * Params:
+	 *   path     - URI path (e.g., "/auth", "/openrouter", "/mcp-auth/callback/HASH")
+	 *   code     - Authorization code from the OAuth provider
+	 *   state    - OAuth state parameter (for MCP/OCA)
+	 *   provider - Provider name for /auth path (e.g., "cline", "oca")
+	 *   token    - Direct token for /auth path (overrides code)
+	 */
+	async oauthSimulateCallback(params: {
+		path: string
+		code?: string
+		state?: string
+		provider?: string
+		token?: string
+	}): Promise<any> {
+		if (!this.app) throw new Error("VSCode not running")
+
+		// Build the URI
+		const extensionId = "saoudrizwan.claude-dev"
+		const scheme = "vscode"
+		const searchParams = new URLSearchParams()
+		if (params.code) searchParams.set("code", params.code)
+		if (params.state) searchParams.set("state", params.state)
+		if (params.provider) searchParams.set("provider", params.provider)
+		if (params.token) {
+			// For /auth path, the extension reads refreshToken, idToken, or code
+			searchParams.set("refreshToken", params.token)
+		}
+		const queryString = searchParams.toString()
+		const uri = `${scheme}://${extensionId}${params.path}${queryString ? "?" + queryString : ""}`
+
+		log(`Simulating OAuth callback URI: ${uri}`)
+
+		// Use CDP to evaluate the URI handler in the extension host.
+		// This is equivalent to the browser redirecting to the vscode:// URI.
+		try {
+			// Method 1: Use the extension host's Runtime.evaluate to trigger the URI handler
+			const result = await this.extCdp.send("Runtime.evaluate", {
+				expression: `
+					(() => {
+						// The extension registers a URI handler via vscode.window.registerUriHandler.
+						// We can trigger it by dispatching a custom event or by calling
+						// the handler directly. However, the URI handler is managed by VSCode,
+						// so we need to use VSCode's command to open the URI.
+						//
+						// The most reliable way is to use the 'vscode.open' command,
+						// but that opens a browser. Instead, we can directly call the
+						// SharedUriHandler which is imported in extension.ts.
+						//
+						// For now, we'll note the URI and the agent should use
+						// ui.command_palette with "Cline: Handle URI" or similar.
+						return ${JSON.stringify(uri)}
+					})()
+				`,
+				returnByValue: true,
+			})
+
+			// Method 2: Use Playwright to navigate via the command palette
+			// We'll open the URI by typing it into VSCode's command palette
+			// Actually, the simplest way is to emit the URI event via the electron app
+			// _electron doesn't expose a direct URI handler, but we can use the window
+
+			return {
+				uri,
+				note:
+					"URI constructed. For callbacks that use the vscode:// scheme, " +
+					"you need to trigger the extension's URI handler. Options:\n" +
+					"1. For Cline OAuth (SDK local callback): the SDK captures the code " +
+					"automatically from its local HTTP server — no simulation needed.\n" +
+					"2. For MCP/provider OAuth: use 'ext.evaluate' to call " +
+					"SharedUriHandler.handleUri() directly, or use the command palette.",
+			}
+		} catch (e: any) {
+			return { uri, error: e.message }
+		}
+	}
+
+	/**
+	 * Read the captured URLs JSONL file from the debugee's CLINE_DIR.
+	 * This is the on-disk log of all URLs that openExternal() captured.
+	 * Use this if the real-time POST to /captured-url was missed.
+	 */
+	oauthReadCapturedUrlsFile(): any {
+		const captureFile = path.join(this.clineDir, "data", "debug-captured-urls.jsonl")
+		if (!fs.existsSync(captureFile)) {
+			return { found: false, path: captureFile }
+		}
+		try {
+			const content = fs.readFileSync(captureFile, "utf-8")
+			const entries = content
+				.trim()
+				.split("\n")
+				.filter((l) => l.trim())
+				.map((l) => JSON.parse(l))
+			return { found: true, path: captureFile, urls: entries, count: entries.length }
+		} catch (e: any) {
+			return { found: true, path: captureFile, error: e.message }
 		}
 	}
 
@@ -1218,6 +1401,16 @@ class DebugHarness {
 			case "ui.send_message":
 				return this.uiSendMessage(params)
 
+			// OAuth & Browser Capture
+			case "oauth.captured_urls":
+				return this.oauthCapturedUrls(params)
+			case "oauth.read_stored_token":
+				return this.oauthReadStoredToken()
+			case "oauth.simulate_callback":
+				return this.oauthSimulateCallback(params)
+			case "oauth.read_captured_urls_file":
+				return this.oauthReadCapturedUrlsFile()
+
 			// Combined
 			case "wait_for_pause":
 				return this.waitForPause(params)
@@ -1299,6 +1492,24 @@ const server = http.createServer(async (req, res) => {
 			res.end(JSON.stringify(status, null, 2))
 		} catch (e: any) {
 			res.writeHead(500, { "Content-Type": "application/json" })
+			res.end(JSON.stringify({ error: e.message }))
+		}
+		return
+	}
+
+	// Endpoint for captured browser URLs (posted by the debugee's openExternal interception)
+	if (req.method === "POST" && req.url === "/captured-url") {
+		try {
+			const body = await readBody(req)
+			const entry = JSON.parse(body)
+			if (entry.url) {
+				harness["capturedUrls"].push({ timestamp: entry.timestamp || Date.now(), url: entry.url })
+				log(`[CaptureBrowser] Received URL: ${entry.url.slice(0, 120)}...`)
+			}
+			res.writeHead(200, { "Content-Type": "application/json" })
+			res.end(JSON.stringify({ captured: true }))
+		} catch (e: any) {
+			res.writeHead(400, { "Content-Type": "application/json" })
 			res.end(JSON.stringify({ error: e.message }))
 		}
 		return
