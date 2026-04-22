@@ -139,6 +139,9 @@ export class HubSessionClient {
 
 	private async ensureMetadataApplied(): Promise<void> {
 		if (this.metadataApplied || !this.options.metadata) {
+			if (!this.options.metadata) {
+				await this.client.connect();
+			}
 			return;
 		}
 		await this.client.connect();
@@ -146,6 +149,10 @@ export class HubSessionClient {
 			metadata: this.options.metadata,
 		});
 		this.metadataApplied = true;
+	}
+
+	async connect(): Promise<void> {
+		await this.ensureMetadataApplied();
 	}
 
 	close(): void {

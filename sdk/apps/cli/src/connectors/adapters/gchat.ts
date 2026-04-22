@@ -561,6 +561,7 @@ class GoogleChatConnector extends ConnectorBase<
 				userName: options.userName,
 			},
 		});
+		await client.connect();
 		this.writeConnectorState(statePath, {
 			userName: options.userName,
 			pid: process.pid,

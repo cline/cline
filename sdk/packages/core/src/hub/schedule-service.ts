@@ -487,7 +487,6 @@ export class HubScheduleService {
 					: schedule.mode === "yolo"
 						? "yolo"
 						: "act",
-			apiKey: "",
 			systemPrompt: schedule.systemPrompt,
 			maxIterations: schedule.maxIterations,
 			enableTools: schedule.runtimeOptions?.enableTools ?? true,

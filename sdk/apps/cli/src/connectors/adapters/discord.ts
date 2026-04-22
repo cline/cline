@@ -556,6 +556,7 @@ class DiscordConnector extends ConnectorBase<
 				userName: options.userName,
 			},
 		});
+		await client.connect();
 		this.writeConnectorState(statePath, {
 			userName: options.userName,
 			applicationId: options.applicationId,

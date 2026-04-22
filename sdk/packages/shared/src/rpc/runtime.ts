@@ -5,7 +5,7 @@ import type {
 
 export interface ChatRuntimeConfig extends SessionPromptConfig {
 	cwd?: string;
-	apiKey: string;
+	apiKey?: string;
 	logger?: RuntimeLoggerConfig;
 	enableTools: boolean;
 	enableSpawn?: boolean;

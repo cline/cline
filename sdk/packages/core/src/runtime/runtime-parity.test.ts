@@ -23,7 +23,7 @@ function legacyBuiltinTools(cwd: string): Tool[] {
 		enableReadFiles: true,
 		enableSearch: true,
 		enableBash: true,
-		enableWebFetch: true,
+		enableWebFetch: false,
 	});
 }
 

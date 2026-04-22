@@ -1,5 +1,4 @@
 import http from "node:http";
-import { createServer as createNetServer } from "node:net";
 import { URL } from "node:url";
 import type {
 	HubClientRecord,
@@ -31,6 +30,7 @@ import type { SessionRecord as LocalSessionRecord } from "../types/sessions";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import {
 	clearHubDiscovery,
+	createHubServerUrl,
 	type HubOwnerContext,
 	type HubServerDiscoveryRecord,
 	probeHubServer,
@@ -100,6 +100,24 @@ function wrapWsSocket(socket: NodeWebSocketLike) {
 		},
 		removeEventListener(): void {},
 	};
+}
+
+function formatHubUptime(ms: number): string {
+	const totalSeconds = Math.max(0, Math.floor(ms / 1000));
+	const days = Math.floor(totalSeconds / 86_400);
+	const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+	const minutes = Math.floor((totalSeconds % 3_600) / 60);
+	const seconds = totalSeconds % 60;
+	if (days > 0) {
+		return `${days}d ${hours}h`;
+	}
+	if (hours > 0) {
+		return `${hours}h ${minutes}m`;
+	}
+	if (minutes > 0) {
+		return `${minutes}m ${seconds}s`;
+	}
+	return `${seconds}s`;
 }
 
 function mapLocalStatusToHubStatus(
@@ -193,6 +211,28 @@ function eventNameForScheduleCommand(
 		default:
 			return undefined;
 	}
+}
+
+function buildCompletionNotification(session: HubSessionRecord | undefined): {
+	title: string;
+	body: string;
+	severity: "info";
+} {
+	const prompt =
+		typeof session?.metadata?.prompt === "string"
+			? session.metadata.prompt.trim()
+			: "";
+	const workspaceRoot = session?.workspaceRoot?.trim() || "workspace";
+	return {
+		title: "Task completed",
+		body:
+			prompt.length > 0
+				? prompt.length > 120
+					? `${prompt.slice(0, 117)}...`
+					: prompt
+				: workspaceRoot,
+		severity: "info",
+	};
 }
 
 function isHubToolExecutorName(value: unknown): value is HubToolExecutorName {
@@ -341,6 +381,7 @@ class HubServerTransport implements NativeHubTransport {
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly sessionHost: RuntimeHost;
 	private readonly hubId = createSessionId("hub_");
+	private readonly startedAtMs = Date.now();
 
 	constructor(readonly options: HubWebSocketServerOptions) {
 		this.sessionHost =
@@ -407,6 +448,10 @@ class HubServerTransport implements NativeHubTransport {
 	}
 
 	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
+		const uptimeMs = Date.now() - this.startedAtMs;
+		console.error(
+			`[hub] command=${envelope.command} uptime=${formatHubUptime(uptimeMs)} client=${envelope.clientId ?? "unknown"} session=${envelope.sessionId ?? "-"}`,
+		);
 		switch (envelope.command) {
 			case "client.register":
 				return this.handleClientRegister(envelope);
@@ -448,6 +493,20 @@ class HubServerTransport implements NativeHubTransport {
 				return await this.handleApprovalRespond(envelope);
 			case "capability.respond":
 				return await this.handleCapabilityRespond(envelope);
+			case "ui.notify":
+				this.publish(this.buildEvent("ui.notify", envelope.payload ?? {}));
+				return {
+					version: envelope.version,
+					requestId: envelope.requestId,
+					ok: true,
+				};
+			case "ui.show_window":
+				this.publish(this.buildEvent("ui.show_window", envelope.payload ?? {}));
+				return {
+					version: envelope.version,
+					requestId: envelope.requestId,
+					ok: true,
+				};
 			default: {
 				const reply = await this.scheduleCommands.handleCommand(envelope);
 				if (reply.ok) {
@@ -485,6 +544,14 @@ class HubServerTransport implements NativeHubTransport {
 			metadata: payload?.metadata,
 			workspaceContext: payload?.workspaceContext,
 		});
+		this.publish(
+			this.buildEvent("hub.client.registered", {
+				clientId,
+				clientType: payload?.clientType ?? "unknown",
+				displayName: payload?.displayName,
+				connectedAt: Date.now(),
+			}),
+		);
 		return {
 			version: envelope.version,
 			requestId: envelope.requestId,
@@ -534,6 +601,9 @@ class HubServerTransport implements NativeHubTransport {
 		if (clientId) {
 			this.clients.delete(clientId);
 			this.listeners.delete(clientId);
+		}
+		if (clientId) {
+			this.publish(this.buildEvent("hub.client.disconnected", { clientId }));
 		}
 		return {
 			version: envelope.version,
@@ -1425,6 +1495,18 @@ class HubServerTransport implements NativeHubTransport {
 				return;
 			}
 			case "ended":
+				if (event.payload.reason === "completed") {
+					const session = await this.readHubSessionRecord(
+						event.payload.sessionId,
+					);
+					this.publish(
+						this.buildEvent(
+							"ui.notify",
+							buildCompletionNotification(session),
+							event.payload.sessionId,
+						),
+					);
+				}
 				this.publish(
 					this.buildEvent(
 						event.payload.reason === "aborted"
@@ -1473,43 +1555,6 @@ class HubServerTransport implements NativeHubTransport {
 	}
 }
 
-async function findAvailablePort(
-	host: string,
-	preferredPort: number,
-): Promise<number> {
-	const canBind = (port: number) =>
-		new Promise<boolean>((resolve) => {
-			const server = createNetServer();
-			server.once("error", () => resolve(false));
-			server.once("listening", () => server.close(() => resolve(true)));
-			server.listen({ host, port });
-		});
-
-	if (preferredPort > 0 && (await canBind(preferredPort))) {
-		return preferredPort;
-	}
-
-	return await new Promise<number>((resolve, reject) => {
-		const server = createNetServer();
-		server.once("error", reject);
-		server.listen({ host, port: 0 }, () => {
-			const address = server.address();
-			if (!address || typeof address === "string") {
-				server.close(() => reject(new Error("Failed to resolve hub port")));
-				return;
-			}
-			const port = address.port;
-			server.close((error) => {
-				if (error) {
-					reject(error);
-					return;
-				}
-				resolve(port);
-			});
-		});
-	});
-}
-
 export interface HubWebSocketServerOptions {
 	host?: string;
 	port?: number;
@@ -1544,8 +1589,9 @@ export async function startHubWebSocketServer(
 	const owner = options.owner ?? resolveHubOwnerContext();
 	const host = options.host ?? "127.0.0.1";
 	const pathname = options.pathname ?? "/hub";
-	const port = await findAvailablePort(host, options.port ?? 4319);
-	const url = new URL(`ws://${host}:${port}${pathname}`).toString();
+	const requestedPort = options.port ?? 4319;
+	let port = requestedPort;
+	let url = createHubServerUrl(host, requestedPort, pathname);
 	const buildId = resolveHubBuildId();
 	const transport = new HubServerTransport(options);
 	await transport.start();
@@ -1596,7 +1642,16 @@ export async function startHubWebSocketServer(
 
 	await new Promise<void>((resolve, reject) => {
 		server.once("error", reject);
-		server.listen(port, host, () => resolve());
+		server.listen(requestedPort, host, () => {
+			const address = server.address();
+			if (!address || typeof address === "string") {
+				reject(new Error("Failed to resolve hub port"));
+				return;
+			}
+			port = address.port;
+			url = createHubServerUrl(host, port, pathname);
+			resolve();
+		});
 	});
 
 	await writeHubDiscovery(owner.discoveryPath, {
@@ -1651,20 +1706,35 @@ export async function ensureHubWebSocketServer(
 	options: EnsureHubWebSocketServerOptions,
 ): Promise<EnsuredHubWebSocketServerResult> {
 	const owner = options.owner ?? resolveHubOwnerContext();
+	const host = options.host ?? "127.0.0.1";
+	const port = options.port ?? 4319;
+	const pathname = options.pathname ?? "/hub";
+	const expectedUrl = createHubServerUrl(host, port, pathname);
 	const sharedKey = owner.discoveryPath;
 	const existing = SHARED_SERVERS.get(sharedKey);
 	if (existing) {
 		const server = await existing;
-		return { server, url: server.url, action: "reuse" };
+		if (server.url === expectedUrl) {
+			return { server, url: server.url, action: "reuse" };
+		}
 	}
 
 	return await withHubStartupLock(owner.discoveryPath, async () => {
 		const discovered = await readHubDiscovery(owner.discoveryPath);
-		if (discovered?.url) {
+		if (discovered?.url === expectedUrl) {
 			const healthy = await probeHubServer(discovered.url);
 			if (healthy?.url) {
 				return { url: healthy.url, action: "reuse" };
 			}
+		}
+
+		const expected = await probeHubServer(expectedUrl);
+		if (expected?.url) {
+			await writeHubDiscovery(owner.discoveryPath, expected);
+			return { url: expected.url, action: "reuse" };
+		}
+
+		if (discovered?.url) {
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 

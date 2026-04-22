@@ -186,4 +186,35 @@ describe("HubRuntimeHost", () => {
 			"sess-1",
 		);
 	});
+
+	it("detaches active sessions when disposed", async () => {
+		commandMock.mockResolvedValueOnce({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:4319/hub" });
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+		await host.dispose();
+
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"session.detach",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
+	});
 });

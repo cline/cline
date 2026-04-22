@@ -39,12 +39,30 @@ type SandboxedPluginDescriptor = {
 		commands: SandboxedContributionDescriptor[];
 		messageBuilders: SandboxedContributionDescriptor[];
 		providers: SandboxedContributionDescriptor[];
+		shortcuts?: SandboxedContributionDescriptor[];
+		flags?: SandboxedContributionDescriptor[];
 	};
 };
 
 type SandboxedInitializeResult = {
 	plugins: SandboxedPluginDescriptor[];
 } & PluginLoadDiagnostics;
+
+function normalizeDescriptor(
+	descriptor: SandboxedPluginDescriptor,
+): SandboxedPluginDescriptor {
+	return {
+		...descriptor,
+		contributions: {
+			tools: descriptor.contributions?.tools ?? [],
+			commands: descriptor.contributions?.commands ?? [],
+			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
+			providers: descriptor.contributions?.providers ?? [],
+			shortcuts: descriptor.contributions?.shortcuts ?? [],
+			flags: descriptor.contributions?.flags ?? [],
+		},
+	};
+}
 
 function isUnknownPluginIdError(error: unknown): boolean {
 	const message = error instanceof Error ? error.message : String(error);
@@ -207,7 +225,7 @@ export async function loadSandboxedPlugins(
 		});
 		throw error;
 	}
-	const descriptors = initialized.plugins;
+	const descriptors = initialized.plugins.map(normalizeDescriptor);
 
 	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
 		(descriptor) => {
@@ -266,7 +284,7 @@ function registerTools(
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
 ): void {
-	for (const td of descriptor.contributions.tools) {
+	for (const td of descriptor.contributions?.tools ?? []) {
 		const tool: Tool = {
 			name: td.name,
 			description: td.description ?? "",
@@ -317,7 +335,7 @@ function registerCommands(
 	timeoutMs: number,
 	reinitialize: () => Promise<void>,
 ): void {
-	for (const cd of descriptor.contributions.commands) {
+	for (const cd of descriptor.contributions?.commands ?? []) {
 		api.registerCommand({
 			name: cd.name,
 			description: cd.description,
@@ -356,14 +374,14 @@ function registerSimpleContributions(
 	api: AgentExtensionApi,
 	descriptor: SandboxedPluginDescriptor,
 ): void {
-	for (const rd of descriptor.contributions.messageBuilders) {
+	for (const rd of descriptor.contributions?.messageBuilders ?? []) {
 		api.registerMessageBuilder({
 			name: rd.name,
 			build: (m) => m,
 		});
 	}
 
-	for (const pd of descriptor.contributions.providers) {
+	for (const pd of descriptor.contributions?.providers ?? []) {
 		api.registerProvider({
 			name: pd.name,
 			description: pd.description,

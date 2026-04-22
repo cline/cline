@@ -162,6 +162,21 @@
         "zod": "^4.1.5",
       },
     },
+    "apps/menubar": {
+      "name": "@clinebot/menubar",
+      "version": "0.1.0",
+      "dependencies": {
+        "@clinebot/core": "workspace:*",
+        "@clinebot/hub": "workspace:*",
+        "@clinebot/shared": "workspace:*",
+      },
+      "devDependencies": {
+        "@tauri-apps/cli": "^2.0.0",
+        "@types/bun": "^1.3.10",
+        "@types/node": "^25.3.5",
+        "typescript": "^5.9.3",
+      },
+    },
     "apps/vscode": {
       "name": "@clinebot/vscode",
       "version": "0.0.0",
@@ -575,6 +590,8 @@
     "@clinebot/hub": ["@clinebot/hub@workspace:packages/hub"],
 
     "@clinebot/llms": ["@clinebot/llms@workspace:packages/llms"],
+
+    "@clinebot/menubar": ["@clinebot/menubar@workspace:apps/menubar"],
 
     "@clinebot/shared": ["@clinebot/shared@workspace:packages/shared"],
 

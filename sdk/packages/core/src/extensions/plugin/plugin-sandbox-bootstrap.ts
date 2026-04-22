@@ -83,6 +83,8 @@ interface PluginDescriptor {
 		commands: ContributionDescriptor[];
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
+		shortcuts?: ContributionDescriptor[];
+		flags?: ContributionDescriptor[];
 	};
 }
 
@@ -256,6 +258,8 @@ async function initialize(args: {
 				commands: [],
 				messageBuilders: [],
 				providers: [],
+				shortcuts: [],
+				flags: [],
 			};
 			const handlers: PluginState["handlers"] = {
 				tools: new Map(),

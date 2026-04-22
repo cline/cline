@@ -330,7 +330,9 @@ export type HubCommandName =
 	| "schedule.list_executions"
 	| "schedule.stats"
 	| "schedule.active"
-	| "schedule.upcoming";
+	| "schedule.upcoming"
+	| "ui.notify"
+	| "ui.show_window";
 
 export interface HubCommandEnvelope {
 	version: HubProtocolVersion;
@@ -387,7 +389,10 @@ export type HubEventName =
 	| "schedule.deleted"
 	| "schedule.triggered"
 	| "schedule.execution_completed"
-	| "schedule.execution_failed";
+	| "schedule.execution_failed"
+	| "ui.notify"
+	| "ui.show_window"
+	| "hub.client.updated";
 
 export interface HubEventEnvelope {
 	version: HubProtocolVersion;
@@ -535,3 +540,16 @@ export type HubTransportFrame =
 	| { kind: "stream.subscribe"; clientId: string; sessionId?: string }
 	| { kind: "stream.unsubscribe"; clientId: string; sessionId?: string }
 	| { kind: "event"; envelope: HubEventEnvelope };
+
+export interface HubUINotifyPayload {
+	title: string;
+	body: string;
+	severity?: "info" | "warning" | "error";
+	sessionId?: string;
+	clientId?: string;
+}
+
+export interface HubUIShowWindowPayload {
+	windowId?: string;
+	focus?: boolean;
+}

@@ -101,6 +101,8 @@ export interface LocalHubResolutionOptions {
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
+const HUB_CONNECT_TIMEOUT_MS = 8_000;
+const HUB_COMMAND_TIMEOUT_MS = 30_000;
 
 export class NodeHubClient {
 	private socket: WebSocketLike | undefined;
@@ -136,21 +138,60 @@ export class NodeHubClient {
 		const WebSocketImpl = getWebSocketCtor();
 		const socket = new WebSocketImpl(url.toString());
 		this.socket = socket;
+		let suppressCloseMessage = false;
 		this.connectPromise = new Promise<void>((resolve, reject) => {
-			socket.addEventListener("open", () => resolve());
-			socket.addEventListener("error", (error) => reject(error));
+			let settled = false;
+			const timeout = setTimeout(() => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				suppressCloseMessage = true;
+				this.lastCloseMessage = `Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`;
+				this.connectPromise = undefined;
+				this.socket = undefined;
+				try {
+					socket.close();
+				} catch {
+					// best-effort close
+				}
+				reject(new Error(this.lastCloseMessage));
+			}, HUB_CONNECT_TIMEOUT_MS);
+			socket.addEventListener("open", () => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				clearTimeout(timeout);
+				resolve();
+			});
+			socket.addEventListener("error", (error) => {
+				if (settled) {
+					return;
+				}
+				settled = true;
+				clearTimeout(timeout);
+				this.connectPromise = undefined;
+				this.socket = undefined;
+				reject(error);
+			});
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
 			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
 		});
 		socket.addEventListener("close", (event: unknown) => {
+			if (this.socket !== socket && this.connectPromise === undefined) {
+				return;
+			}
 			const closeEvent = event as { code?: number; reason?: unknown };
 			const reasonText = decodeCloseReason(closeEvent.reason);
-			this.lastCloseMessage =
-				closeEvent.code || reasonText
-					? `Hub connection closed (code=${closeEvent.code ?? 0}${reasonText ? `, reason=${reasonText}` : ""})`
-					: "Hub connection closed";
+			if (!suppressCloseMessage) {
+				this.lastCloseMessage =
+					closeEvent.code || reasonText
+						? `Hub connection closed (code=${closeEvent.code ?? 0}${reasonText ? `, reason=${reasonText}` : ""})`
+						: "Hub connection closed";
+			}
 			for (const pending of this.pendingReplies.values()) {
 				pending.reject(new Error(this.lastCloseMessage));
 			}
@@ -192,7 +233,26 @@ export class NodeHubClient {
 		await this.connect();
 		const requestId = createSessionId("hubreq_");
 		const reply = new Promise<HubReplyEnvelope>((resolve, reject) => {
-			this.pendingReplies.set(requestId, { resolve, reject });
+			const timeout = setTimeout(() => {
+				if (!this.pendingReplies.delete(requestId)) {
+					return;
+				}
+				reject(
+					new Error(
+						`Hub command ${command} timed out after ${HUB_COMMAND_TIMEOUT_MS}ms`,
+					),
+				);
+			}, HUB_COMMAND_TIMEOUT_MS);
+			this.pendingReplies.set(requestId, {
+				resolve: (value) => {
+					clearTimeout(timeout);
+					resolve(value);
+				},
+				reject: (error) => {
+					clearTimeout(timeout);
+					reject(error);
+				},
+			});
 		});
 		this.sendFrame({
 			kind: "command",

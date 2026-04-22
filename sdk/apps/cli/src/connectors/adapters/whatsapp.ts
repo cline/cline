@@ -566,6 +566,7 @@ class WhatsAppConnector extends ConnectorBase<
 					: {}),
 			},
 		});
+		await client.connect();
 		this.writeConnectorState(statePath, {
 			instanceKey,
 			userName: options.userName,

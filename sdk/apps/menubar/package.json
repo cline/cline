@@ -1,0 +1,24 @@
+{
+	"name": "@clinebot/menubar",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "tauri dev",
+		"build": "tauri build",
+		"build:sidecar:bin": "mkdir -p src-tauri/bin && bun build ./sidecar/index.ts --compile --outfile ./src-tauri/bin/menubar-sidecar",
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf node_modules dist src-tauri/target"
+	},
+	"dependencies": {
+		"@clinebot/core": "workspace:*",
+		"@clinebot/hub": "workspace:*",
+		"@clinebot/shared": "workspace:*"
+	},
+	"devDependencies": {
+		"@tauri-apps/cli": "^2.0.0",
+		"@types/bun": "^1.3.10",
+		"@types/node": "^25.3.5",
+		"typescript": "^5.9.3"
+	}
+}

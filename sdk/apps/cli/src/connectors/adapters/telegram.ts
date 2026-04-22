@@ -571,6 +571,7 @@ class TelegramConnector extends ConnectorBase<
 				botUserName: options.botUsername,
 			},
 		});
+		await client.connect();
 		this.writeConnectorState(statePath, {
 			botUsername: options.botUsername,
 			pid: process.pid,

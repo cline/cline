@@ -1071,7 +1071,9 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 					setAbortRequested(true);
 					onAbort();
 					appendEntry({ kind: "status", text: "abort requested" });
+					return;
 				}
+				requestExit();
 				return;
 			}
 			requestExit();

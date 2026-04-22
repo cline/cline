@@ -205,6 +205,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		string,
 		Partial<ToolExecutors>
 	>();
+	private readonly activeSessionIds = new Set<string>();
 
 	constructor(
 		options: HubRuntimeHostOptions,
@@ -263,6 +264,7 @@ export class HubRuntimeHost implements RuntimeHost {
 				input.localRuntime.defaultToolExecutors,
 			);
 		}
+		this.activeSessionIds.add(sessionId);
 
 		return {
 			sessionId,
@@ -326,10 +328,19 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async stop(sessionId: string): Promise<void> {
 		this.sessionToolExecutors.delete(sessionId);
+		this.activeSessionIds.delete(sessionId);
 		await this.client.command("session.detach", { sessionId }, sessionId);
 	}
 
 	async dispose(): Promise<void> {
+		for (const sessionId of this.activeSessionIds) {
+			try {
+				await this.client.command("session.detach", { sessionId }, sessionId);
+			} catch {
+				// Best-effort detach during shutdown.
+			}
+		}
+		this.activeSessionIds.clear();
 		this.sessionToolExecutors.clear();
 		this.client.close();
 	}
@@ -353,6 +364,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async delete(sessionId: string): Promise<boolean> {
 		this.sessionToolExecutors.delete(sessionId);
+		this.activeSessionIds.delete(sessionId);
 		const reply = await this.client.command("session.delete", { sessionId });
 		return reply.payload?.deleted === true;
 	}

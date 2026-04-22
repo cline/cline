@@ -52,10 +52,10 @@ pnpm-lock.yaml
 packages/rpc/src/proto/generated
 
 # Tauri generated code
-apps/code/src-tauri/gen
-
+apps/*/src-tauri/gen
+apps/*/src-tauri/bin
 # Tauri UI test snapshots
-apps/cli/src/tests/.tui-test
-apps/cli/src/tests/tui-traces
+apps/*/src/tests/.tui-test
+apps/*/src/tests/tui-traces
 
 .cli-release-staging
