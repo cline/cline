@@ -1,3 +1,4 @@
+import { parseKeyPairsIntoRecord } from "../parse/headers/utils";
 import type { OpenTelemetryClientConfig, TelemetryMetadata } from "./telemetry";
 
 export interface ClineTelemetryServiceConfig extends OpenTelemetryClientConfig {
@@ -18,12 +19,7 @@ function getTelemetryBuildTimeConfig(): OpenTelemetryClientConfig {
 			? Number.parseInt(process?.env?.OTEL_METRIC_EXPORT_INTERVAL, 10)
 			: undefined,
 		otlpHeaders: process?.env?.OTEL_EXPORTER_OTLP_HEADERS
-			? Object.fromEntries(
-					process?.env?.OTEL_EXPORTER_OTLP_HEADERS.split(",").map((header) => {
-						const [key, value] = header.split("=");
-						return [key.trim(), value.trim()];
-					}),
-				)
+			? parseKeyPairsIntoRecord(process?.env?.OTEL_EXPORTER_OTLP_HEADERS)
 			: undefined,
 	};
 }
