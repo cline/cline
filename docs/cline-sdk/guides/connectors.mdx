@@ -1,20 +1,23 @@
 ---
 title: "Connectors"
 sidebarTitle: "Connectors"
-description: "Connect your agents to Telegram, Slack, Google Chat, WhatsApp, and Linear for conversational access from any platform."
+description: "Connect your agents to Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear for conversational access from any platform."
 ---
 
 Connectors turn your agent into a chat bot on messaging platforms. Each incoming message creates or continues an agent session, and the agent's response is sent back to the conversation.
 
+Run `cline connect` to open an interactive setup wizard, or connect a specific platform directly with flags.
+
 ## Supported Platforms
 
-| Platform | Command | Status |
-|----------|---------|--------|
-| Telegram | `cline connect telegram` | Available |
-| Slack | `cline connect slack` | Available |
-| Google Chat | `cline connect gchat` | Available |
-| WhatsApp | `cline connect whatsapp` | Available |
-| Linear | `cline connect linear` | Available |
+| Platform | Direct Command | Required Credentials |
+|----------|---------------|---------------------|
+| Telegram | `cline connect telegram` | Bot username, bot token |
+| Slack | `cline connect slack` | Bot token, signing secret, base URL |
+| Discord | `cline connect discord` | Application ID, bot token, public key, base URL |
+| Google Chat | `cline connect gchat` | Service account credentials JSON, base URL |
+| WhatsApp | `cline connect whatsapp` | Phone number ID, access token, app secret, verify token, base URL |
+| Linear | `cline connect linear` | API key, webhook signing secret, base URL |
 
 ## Telegram
 
@@ -78,28 +81,44 @@ cline rpc start
 
 ## Slack
 
+Requires a bot token, signing secret, and public base URL.
+
 ```bash
-cline connect slack
+cline connect slack --token <BOT-TOKEN> --signing-secret <SECRET> --base-url <URL>
 ```
 
-Follow the interactive setup to connect your Slack workspace. Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+Each Slack thread maps to an agent session, so the agent maintains conversation context within a thread.
+
+## Discord
+
+Requires an application ID, bot token, public key, and public base URL.
+
+```bash
+cline connect discord --app-id <ID> --token <TOKEN> --public-key <KEY> --base-url <URL>
+```
 
 ## Google Chat
 
+Requires a service account credentials JSON file and public base URL.
+
 ```bash
-cline connect gchat
+cline connect gchat --credentials <JSON> --base-url <URL>
 ```
 
 ## WhatsApp
 
+Requires a phone number ID, access token, app secret, webhook verify token, and public base URL.
+
 ```bash
-cline connect whatsapp
+cline connect whatsapp --phone-id <ID> --token <TOKEN> --app-secret <SECRET> --base-url <URL>
 ```
 
 ## Linear
 
+Requires an API key, webhook signing secret, and public base URL.
+
 ```bash
-cline connect linear
+cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
 ```
 
 ## How Connectors Work
