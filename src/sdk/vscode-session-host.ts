@@ -15,8 +15,9 @@ import {
 	type SessionRecord,
 	type StartSessionInput,
 	type StartSessionResult,
+	type ToolExecutors,
 } from "@clinebot/core"
-import { type ToolApprovalRequest, type ToolApprovalResult } from "@clinebot/shared"
+import { type ToolApprovalRequest, type ToolApprovalResult, type ToolContext } from "@clinebot/shared"
 import { getDistinctId } from "@/services/logging/distinctId"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -33,6 +34,8 @@ export interface VscodeSessionHostOptions {
 		input: unknown
 		policy: { enabled: boolean; autoApprove: boolean }
 	}) => Promise<{ approved: boolean; reason?: string }>
+	/** Executor for the SDK's built-in ask_question tool (equivalent to classic ask_followup_question). */
+	askQuestion?: (question: string, options: string[], context: ToolContext) => Promise<string>
 }
 
 export class VscodeSessionHost implements SessionHost {
@@ -45,11 +48,18 @@ export class VscodeSessionHost implements SessionHost {
 	}
 
 	static async create(options: VscodeSessionHostOptions): Promise<VscodeSessionHost> {
+		// Build defaultToolExecutors from options — only include keys that are provided
+		const defaultToolExecutors: Partial<ToolExecutors> = {}
+		if (options.askQuestion) {
+			defaultToolExecutors.askQuestion = options.askQuestion
+		}
+
 		const inner = await ClineCore.create({
 			backendMode: "local",
 			requestToolApproval: options.requestToolApproval as
 				| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)
 				| undefined,
+			defaultToolExecutors: Object.keys(defaultToolExecutors).length > 0 ? defaultToolExecutors : undefined,
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {

@@ -190,7 +190,7 @@ export class MessageTranslatorState {
  *   fetch_web_content/web_fetch        → webFetch
  *   web_search                         → webSearch
  *   skills/use_skill                   → useSkill
- *   ask_question/ask_followup_question → (not a visual tool — handled as text)
+ *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
  *   MCP tools                          → (passed through with tool name as-is)
  */
 function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
