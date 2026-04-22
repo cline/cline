@@ -18,7 +18,7 @@ This guide takes you from zero to a working agent in under 5 minutes. By the end
     ```bash
     mkdir my-agent && cd my-agent
     npm init -y
-    npm install @clinebot/agents @clinebot/llms
+    npm install @clinebot/core
     ```
   </Step>
 
@@ -26,7 +26,7 @@ This guide takes you from zero to a working agent in under 5 minutes. By the end
     Create a file called `agent.ts`:
 
     ```typescript
-    import { Agent } from "@clinebot/agents"
+    import { Agent } from "@clinebot/core"
 
     const agent = new Agent({
       providerId: "anthropic",
@@ -62,8 +62,8 @@ This guide takes you from zero to a working agent in under 5 minutes. By the end
 Agents become powerful when you give them tools. Here's an agent with a simple tool:
 
 ```typescript
-import { Agent } from "@clinebot/agents"
-import { createTool } from "@clinebot/shared"
+import { Agent } from "@clinebot/core"
+import { createTool } from "@clinebot/core"
 
 const weatherTool = createTool({
   name: "get_weather",
@@ -130,11 +130,7 @@ console.log(r3.text)
 
 ## Use ClineCore for Full Features
 
-When you need session persistence, built-in tools (file editing, shell commands, web browsing), and config management, use `ClineCore`:
-
-```bash
-npm install @clinebot/core
-```
+When you need session persistence, built-in tools (file editing, shell commands, web browsing), and config management, use `ClineCore` (already installed with `@clinebot/core`):
 
 ```typescript
 import { ClineCore } from "@clinebot/core"

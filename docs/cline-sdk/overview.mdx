@@ -7,7 +7,7 @@ description: "A modular TypeScript framework for building, orchestrating, and de
 The Cline SDK is a modular TypeScript framework for building AI agents that can edit files, run commands, browse the web, and use any tool you give them. It powers [Cline CLI](/cline-cli/overview), the VS Code extension, and the JetBrains plugin -- and you can embed it in your own applications.
 
 ```typescript
-import { Agent } from "@clinebot/agents"
+import { Agent } from "@clinebot/core"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -86,26 +86,28 @@ Most applications start with either `@clinebot/agents` (for lightweight, statele
 <Tabs>
   <Tab title="npm">
     ```bash
-    npm install @clinebot/agents @clinebot/llms
+    npm install @clinebot/core
     ```
   </Tab>
   <Tab title="bun">
     ```bash
-    bun add @clinebot/agents @clinebot/llms
+    bun add @clinebot/core
     ```
   </Tab>
   <Tab title="pnpm">
     ```bash
-    pnpm add @clinebot/agents @clinebot/llms
+    pnpm add @clinebot/core
     ```
   </Tab>
 </Tabs>
 
-For full session management, persistence, and built-in tools, also install `@clinebot/core`:
+`@clinebot/core` re-exports everything you need from the lower-level packages (`agents`, `llms`, `shared`), so a single install is all it takes:
 
-```bash
-npm install @clinebot/core
+```typescript
+import { type AgentExtension, ClineCore, createTool } from "@clinebot/core"
 ```
+
+If you only need the lightweight agent loop without sessions, persistence, or built-in tools, you can install the individual packages directly (`@clinebot/agents`, `@clinebot/llms`, `@clinebot/shared`).
 
 Requires Node.js 22 or later and Bun 1.3.10 or later.
 

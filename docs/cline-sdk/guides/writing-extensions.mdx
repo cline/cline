@@ -18,7 +18,7 @@ A GitHub integration extension that:
 ```typescript
 // github-extension.ts
 import { type AgentExtension, type AgentResult } from "@clinebot/agents"
-import { createTool } from "@clinebot/shared"
+import { createTool } from "@clinebot/core"
 
 interface GitHubConfig {
   token: string
@@ -213,8 +213,8 @@ To make this extension available to all ClineCore sessions, save it as a file pl
 
 ```typescript
 // ~/.cline/plugins/github.ts
-import { type AgentExtension } from "@clinebot/agents"
-import { createTool } from "@clinebot/shared"
+import { type AgentExtension } from "@clinebot/core"
+import { createTool } from "@clinebot/core"
 
 const extension: AgentExtension = {
   name: "github",
