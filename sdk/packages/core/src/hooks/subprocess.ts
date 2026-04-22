@@ -26,6 +26,7 @@ import {
 	type ToolCallHookPayload,
 	type ToolResultHookPayload,
 	type UserPromptSubmitData,
+	type WorkspaceInfo,
 } from "@clinebot/shared";
 import { z } from "zod";
 import {
@@ -133,6 +134,13 @@ export async function runHook(
 export interface SubprocessHooksOptions {
 	command?: string[];
 	cwd?: string;
+	/**
+	 * Structured workspace and git metadata forwarded into every hook payload
+	 * as `workspaceInfo`. Obtained from `generateWorkspaceInfo` at session
+	 * startup and passed here so hook scripts can inspect branch, commit, and
+	 * remote without running their own `git` commands.
+	 */
+	workspaceInfo?: WorkspaceInfo;
 	env?: NodeJS.ProcessEnv;
 	timeoutMs?: number;
 	onDispatchError?: (error: Error, payload: HookEventPayload) => void;
@@ -240,6 +248,7 @@ function basePayload(
 			parentAgentId: ctx.parentAgentId,
 		}),
 		workspaceRoots: workspaceRoot ? [workspaceRoot] : [],
+		workspaceInfo: options.workspaceInfo,
 		userId,
 		agent_id: ctx.agentId,
 		parent_agent_id: ctx.parentAgentId,

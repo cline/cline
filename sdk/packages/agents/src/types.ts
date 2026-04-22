@@ -64,6 +64,7 @@ export type {
 	PendingToolCall,
 	ProcessedTurn,
 	ReasoningEffort,
+	SessionWorkspaceEnv,
 } from "@clinebot/shared";
 export {
 	AgentConfigSchema,

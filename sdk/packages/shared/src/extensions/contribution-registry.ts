@@ -1,5 +1,6 @@
 import type { HookStage } from "../hooks/contracts";
 import type { Tool } from "../llms/tools";
+import type { WorkspaceInfo } from "../session/workspace";
 
 export interface AgentExtensionCommand {
 	name: string;
@@ -37,6 +38,28 @@ export interface AgentExtensionApi<TTool = Tool, TMessage = unknown> {
 	) => void;
 	/** Register a provider contribution (e.g. a custom model provider). Requires the `providers` capability. */
 	registerProvider: (provider: AgentExtensionProvider) => void;
+}
+
+/**
+ * Session-scoped workspace context passed as the second argument to an
+ * extension's `setup(api, ctx)` method.
+ *
+ * These values are always sourced from the host session config — never from
+ * `process.cwd()`. Use them to resolve paths or build workspace-aware tool
+ * schemas at registration time.
+ *
+ * Both fields are optional so that `setup()` callers that do not have
+ * workspace context (e.g. unit tests) can omit them without breaking plugins.
+ */
+export interface PluginSetupContext {
+	/**
+	 * Structured workspace and git metadata for the session. Contains
+	 * `rootPath`, `hint`, `associatedRemoteUrls`, `latestGitCommitHash`, and
+	 * `latestGitBranchName`. Use `rootPath` for workspace-relative paths and
+	 * the git fields for branch-aware registration or commit attribution at
+	 * setup time.
+	 */
+	workspaceInfo?: WorkspaceInfo;
 }
 
 const ExtensionCapabilityOptions = [
@@ -88,8 +111,19 @@ export interface ContributionRegistryExtension<TTool = Tool> {
 	manifest: PluginManifest;
 	/** Indicates whether this extension is disabled. Disabled extensions are ignored during setup. */
 	disabled?: boolean;
-	/** Called once during registry setup to register tools, commands, and other contributions. */
-	setup?: (api: AgentExtensionApi<TTool, any>) => void | Promise<void>;
+	/**
+	 * Called once during registry setup to register tools, commands, and other
+	 * contributions.
+	 *
+	 * The optional second argument provides workspace context that is always
+	 * sourced from the host session config — never from `process.cwd()`. Use
+	 * `ctx.workspaceInfo?.rootPath` instead of `process.cwd()` or
+	 * `import.meta.url` tricks when you need workspace-relative paths.
+	 */
+	setup?: (
+		api: AgentExtensionApi<TTool, any>,
+		ctx: PluginSetupContext,
+	) => void | Promise<void>;
 	/** Handler for the `input` stage — fired when the user submits input. */
 	onInput?: unknown;
 	/** Handler for the `runtime_event` stage — fired on every agent event emitted during a run. */
@@ -127,6 +161,8 @@ export interface ContributionRegistryOptions<
 	TTool = Tool,
 > {
 	extensions?: TExtension[];
+	/** Workspace context forwarded to each extension's `setup(api, ctx)` call. */
+	setupContext?: PluginSetupContext;
 }
 
 interface NormalizedExtension<
@@ -382,9 +418,11 @@ export class ContributionRegistry<
 	private normalized: NormalizedExtension<TExtension, TTool>[] = [];
 	private phase: "resolve" | "validate" | "setup" | "activate" | "run" =
 		"resolve";
+	private readonly setupContext: PluginSetupContext;
 
 	constructor(options: ContributionRegistryOptions<TExtension, TTool> = {}) {
 		this.extensions = options.extensions ?? [];
+		this.setupContext = options.setupContext ?? {};
 	}
 
 	resolve(): void {
@@ -429,7 +467,7 @@ export class ContributionRegistry<
 
 		for (const { extension } of this.normalized) {
 			if (extension.disabled) continue;
-			await extension.setup?.(api);
+			await extension.setup?.(api, this.setupContext);
 		}
 		this.phase = "activate";
 	}

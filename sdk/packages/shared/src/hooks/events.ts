@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AgentHooks } from "../agents/types";
 import type { ToolCallRecord } from "../llms/tools";
 import type { HookSessionContext } from "../session/hook-context";
+import type { WorkspaceInfo } from "../session/workspace";
 
 type AgentHookControl = NonNullable<
 	Awaited<ReturnType<NonNullable<AgentHooks["onToolCallStart"]>>>
@@ -142,6 +143,18 @@ export interface HookEventPayloadBase {
 	taskId: string;
 	sessionContext?: HookSessionContext;
 	workspaceRoots: string[];
+	/**
+	 * Structured workspace and git metadata for the session.
+	 *
+	 * Contains `rootPath`, `hint`, `associatedRemoteUrls`,
+	 * `latestGitCommitHash`, and `latestGitBranchName` — the same data as
+	 * `workspaceRoots[0]` plus the git fields. Hook scripts can use this for
+	 * branch-aware logic or commit attribution without running `git` themselves.
+	 *
+	 * `undefined` when the session has no workspace metadata (e.g. unit tests
+	 * or sessions started without a `cwd`).
+	 */
+	workspaceInfo?: WorkspaceInfo;
 	userId: string;
 	agent_id: string;
 	parent_agent_id: string | null;
@@ -239,6 +252,7 @@ export const HookEventPayloadSchema: z.ZodType<any> = z
 			})
 			.optional(),
 		workspaceRoots: z.array(z.string()),
+		workspaceInfo: z.custom<WorkspaceInfo>().optional(),
 		userId: z.string(),
 		agent_id: z.string(),
 		parent_agent_id: z.string().nullable(),

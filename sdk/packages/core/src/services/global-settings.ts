@@ -105,15 +105,18 @@ export function filterExtensionToolRegistrations(
 
 		return {
 			...extension,
-			setup: (api: AgentExtensionApi) =>
-				extension.setup?.({
-					...api,
-					registerTool: (tool) => {
-						if (!disabled.has(tool.name)) {
-							api.registerTool(tool);
-						}
+			setup: (api: AgentExtensionApi, ctx) =>
+				extension.setup?.(
+					{
+						...api,
+						registerTool: (tool) => {
+							if (!disabled.has(tool.name)) {
+								api.registerTool(tool);
+							}
+						},
 					},
-				}),
+					ctx,
+				),
 		};
 	});
 }

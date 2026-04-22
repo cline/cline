@@ -151,6 +151,9 @@ export class Agent {
 
 		this.contributionRegistry = createContributionRegistry({
 			extensions: this.config.extensions,
+			setupContext: {
+				workspaceInfo: runtimeConfig.extensionContext?.workspace,
+			},
 		});
 		this.contributionRegistry.resolve();
 		this.contributionRegistry.validate();
@@ -507,6 +510,9 @@ export class Agent {
 							conversationId: this.conversationStore.getConversationId(),
 							parentAgentId: this.parentAgentId,
 							schedule: this.config.schedule,
+							cwd: this.config.extensionContext?.workspace?.cwd,
+							workspaceRoot: this.config.extensionContext?.workspace?.rootPath,
+							workspaceInfo: this.config.extensionContext?.workspace,
 						},
 					},
 				);

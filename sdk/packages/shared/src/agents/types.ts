@@ -32,6 +32,7 @@ import type {
 import { ToolCallRecordSchema } from "../llms/tools";
 import type { BasicLogger } from "../logging/logger";
 import type { ITelemetryService } from "../services/telemetry";
+import type { WorkspaceInfo } from "../session/workspace";
 
 // =============================================================================
 // Agent Events
@@ -300,10 +301,46 @@ export interface AgentHookScheduleContext {
 }
 
 /**
+ * Workspace location fields shared by session-scoped and run-scoped contexts.
+ *
+ * These fields are always sourced from the host session config — never from
+ * `process.cwd()`. Plugins and hooks must use these values when they need to
+ * resolve paths relative to the session's working directory or project root,
+ * because the `--cwd` CLI flag sets the session cwd without calling
+ * `process.chdir()`, so `process.cwd()` may return the wrong path.
+ */
+export interface SessionWorkspaceEnv {
+	/**
+	 * The session's active working directory as configured by the host (e.g.
+	 * via `--cwd`). Always accurate — never use `process.cwd()` in plugins or
+	 * hooks; use this field instead.
+	 */
+	cwd?: string;
+	/**
+	 * The workspace / project root when it differs from `cwd`. Global plugins
+	 * installed outside the project should use this rather than
+	 * `import.meta.url` tricks or `process.cwd()`.
+	 */
+	workspaceRoot?: string;
+	/**
+	 * Structured workspace and git metadata for the session.
+	 *
+	 * Contains the same information as the `{{CLINE_METADATA}}` block in the
+	 * system prompt but in structured form: `rootPath`, `hint`,
+	 * `associatedRemoteUrls`, `latestGitCommitHash`, `latestGitBranchName`.
+	 *
+	 * Plugins and hooks can use this for branch-aware logic, commit
+	 * attribution, or tooling integrations without running their own `git`
+	 * calls. Populated once per session at session-start time.
+	 */
+	workspaceInfo?: WorkspaceInfo;
+}
+
+/**
  * Fired exactly once for the lifetime of an agent conversation, before the
  * first run starts. This is the right place for session-scoped setup.
  */
-export interface AgentHookSessionStartContext {
+export interface AgentHookSessionStartContext extends SessionWorkspaceEnv {
 	agentId: string;
 	conversationId: string;
 	parentAgentId: string | null;
@@ -427,7 +464,7 @@ export interface AgentExtensionRuntimeEventContext {
 	event: AgentEvent;
 }
 
-export interface AgentExtensionSessionStartContext {
+export interface AgentExtensionSessionStartContext extends SessionWorkspaceEnv {
 	agentId: string;
 	conversationId: string;
 	parentAgentId: string | null;
@@ -466,10 +503,17 @@ export type AgentExtensionBeforeAgentStartControl = Omit<
 	appendMessages?: Message[];
 };
 
+export interface AgentExtensionContext {
+	workspaceInfo?: WorkspaceInfo;
+}
+
 export interface AgentExtension extends ContributionRegistryExtension<Tool> {
 	name: string;
 	manifest: PluginManifest;
-	setup?: (api: AgentExtensionApi<Tool, Message>) => void | Promise<void>;
+	setup?: (
+		api: AgentExtensionApi<Tool, Message>,
+		ctx?: AgentExtensionContext,
+	) => void | Promise<void>;
 	onSessionStart?: (
 		ctx: AgentExtensionSessionStartContext,
 	) => undefined | AgentHookControl | Promise<undefined | AgentHookControl>;

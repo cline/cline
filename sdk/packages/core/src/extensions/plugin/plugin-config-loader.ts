@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import type { AgentConfig } from "@clinebot/shared";
+import type { AgentConfig, WorkspaceInfo } from "@clinebot/shared";
 import {
 	discoverPluginModulePaths as discoverPluginModulePathsFromShared,
 	resolveConfiguredPluginModulePaths,
@@ -63,6 +63,12 @@ export interface ResolveAndLoadAgentPluginsOptions
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * Structured workspace and git metadata. Forwarded to sandboxed plugins
+	 * via PluginSetupCtx.workspaceInfo and made available to in-process plugins
+	 * in the extension context.
+	 */
+	workspaceInfo?: WorkspaceInfo;
 }
 
 export async function resolveAndLoadAgentPlugins(
@@ -84,6 +90,7 @@ export async function resolveAndLoadAgentPlugins(
 			exportName: options.exportName,
 			providerId: options.providerId,
 			modelId: options.modelId,
+			workspaceInfo: options.workspaceInfo,
 		});
 		return {
 			extensions: report.plugins,
@@ -101,6 +108,8 @@ export async function resolveAndLoadAgentPlugins(
 		onEvent: options.onEvent,
 		providerId: options.providerId,
 		modelId: options.modelId,
+		cwd: options.cwd,
+		workspaceInfo: options.workspaceInfo,
 	});
 	return {
 		extensions: sandboxed.extensions ?? [],

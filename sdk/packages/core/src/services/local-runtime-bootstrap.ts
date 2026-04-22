@@ -5,6 +5,7 @@ import type {
 	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
+	WorkspaceInfo,
 } from "@clinebot/shared";
 import { resolveAndLoadAgentPlugins } from "../extensions/plugin/plugin-config-loader";
 import type {
@@ -35,7 +36,7 @@ import { resolveWorkspacePath } from "./config";
 import { filterExtensionToolRegistrations } from "./global-settings";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
-import { buildWorkspaceMetadata } from "./workspace-manifest";
+import { buildWorkspaceMetadataWithInfo } from "./workspace-manifest";
 
 function formatPluginFailure(failure: PluginInitializationFailure): string {
 	const label = failure.pluginName ?? failure.pluginPath;
@@ -146,6 +147,8 @@ export interface LocalRuntimeBootstrap {
 	config: CoreSessionConfig;
 	providerConfig: ProviderConfig;
 	workspaceMetadata: string;
+	/** Structured git + path metadata generated alongside workspaceMetadata. */
+	workspaceInfo: WorkspaceInfo;
 	extensions: AgentConfig["extensions"];
 	hooks: AgentHooks | undefined;
 	toolPolicies: AgentConfig["toolPolicies"];
@@ -180,17 +183,25 @@ export async function prepareLocalRuntimeBootstrap(
 		| undefined;
 	const localConfig = configOverrides as Partial<CoreSessionConfig> | undefined;
 
+	// Generate workspace + git metadata once, early, so it can be forwarded to
+	// hooks and extensions. The serialized string goes into CoreSessionConfig
+	// as workspaceMetadata; the structured object is kept as workspaceInfo.
+	const { workspaceInfo, workspaceMetadata } =
+		await buildWorkspaceMetadataWithInfo(input.config.cwd);
+
 	const fileHooks = createHookConfigFileHooks({
 		cwd: input.config.cwd,
 		workspacePath,
 		rootSessionId: sessionId,
 		logger: configOverrides?.logger,
+		workspaceInfo,
 	});
 	const auditHooks = hasRuntimeHooks(configOverrides?.hooks)
 		? undefined
 		: createHookAuditHooks({
 				rootSessionId: sessionId,
 				workspacePath,
+				workspaceInfo,
 			});
 	const baseHooks = mergeAgentHooks([
 		configOverrides?.hooks,
@@ -209,6 +220,7 @@ export async function prepareLocalRuntimeBootstrap(
 			onEvent: onPluginEvent,
 			providerId: input.config.providerId,
 			modelId: input.config.modelId,
+			workspaceInfo,
 		});
 		logPluginDiagnostics(
 			loadedPlugins.failures,
@@ -226,7 +238,6 @@ export async function prepareLocalRuntimeBootstrap(
 		configOverrides?.extensions,
 		filterExtensionToolRegistrations(loadedPlugins?.extensions),
 	);
-	const workspaceMetadata = await buildWorkspaceMetadata(input.config.cwd);
 	const baseConfig: CoreSessionConfig = {
 		...input.config,
 		...(configOverrides ?? {}),
@@ -270,6 +281,7 @@ export async function prepareLocalRuntimeBootstrap(
 		config,
 		providerConfig,
 		workspaceMetadata,
+		workspaceInfo,
 		extensions,
 		hooks,
 		toolPolicies,

@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
-import { type AgentConfig, normalizePluginManifest } from "@clinebot/shared";
+import type { AgentConfig, PluginSetupContext } from "@clinebot/shared";
+import { normalizePluginManifest } from "@clinebot/shared";
 import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
@@ -25,6 +26,7 @@ export interface LoadAgentPluginFromPathOptions {
 	exportName?: string;
 	cwd?: string;
 	useCache?: boolean;
+	workspaceInfo?: PluginSetupContext["workspaceInfo"];
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -117,9 +119,23 @@ export async function loadAgentPluginFromPath(
 		moduleExports[exportName]) as unknown;
 
 	validatePluginExport(plugin, absolutePath);
+	const pluginTyped = plugin as AgentPlugin;
+	const originalSetup = pluginTyped.setup;
+
+	// Wrap setup to inject workspace context
+	const setupWithContext: AgentPlugin["setup"] = originalSetup
+		? (api, _ctx) => {
+				const ctx = {
+					workspaceInfo: options.workspaceInfo,
+				};
+				return originalSetup(api, ctx);
+			}
+		: undefined;
+
 	return {
-		...(plugin as AgentPlugin),
-		manifest: normalizePluginManifest((plugin as AgentPlugin).manifest),
+		...pluginTyped,
+		manifest: normalizePluginManifest(pluginTyped.manifest),
+		setup: setupWithContext,
 	};
 }
 

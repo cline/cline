@@ -27,7 +27,7 @@ function collectRegisteredTools(extension: AgentExtension): Tool[] {
 		registerMessageBuilder: () => {},
 		registerProvider: () => {},
 	};
-	extension.setup(api);
+	extension.setup(api, {});
 	return tools;
 }
 

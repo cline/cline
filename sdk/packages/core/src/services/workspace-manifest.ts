@@ -52,3 +52,21 @@ export async function buildWorkspaceMetadata(cwd: string): Promise<string> {
 	const workspaceInfo = await generateWorkspaceInfo(cwd);
 	return processWorkspaceInfo(workspaceInfo);
 }
+
+/**
+ * Generate workspace metadata as both a structured `WorkspaceInfo` object and
+ * its pre-serialized string form.
+ *
+ * Use this instead of calling `buildWorkspaceMetadata` + `generateWorkspaceInfo`
+ * separately so the git I/O only happens once.
+ */
+export async function buildWorkspaceMetadataWithInfo(cwd: string): Promise<{
+	workspaceInfo: WorkspaceInfo;
+	workspaceMetadata: string;
+}> {
+	const workspaceInfo = await generateWorkspaceInfo(cwd);
+	return {
+		workspaceInfo,
+		workspaceMetadata: processWorkspaceInfo(workspaceInfo),
+	};
+}

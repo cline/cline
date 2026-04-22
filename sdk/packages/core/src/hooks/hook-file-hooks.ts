@@ -6,6 +6,7 @@ import {
 	augmentNodeCommandForDebug,
 	type BasicLogger,
 	type HookSessionContext,
+	type WorkspaceInfo,
 	withResolvedClineBuildEnv,
 } from "@clinebot/shared";
 import { ensureHookLogDir } from "@clinebot/shared/storage";
@@ -46,6 +47,8 @@ type HookRuntimeOptions = {
 	rootSessionId?: string;
 	logger?: BasicLogger;
 	toolCallTimeoutMs?: number;
+	/** Structured git + path metadata forwarded into every hook payload. */
+	workspaceInfo?: WorkspaceInfo;
 };
 
 function mapParams(input: unknown): Record<string, string> {
@@ -162,6 +165,7 @@ function createPayloadBase(
 		taskId: ctx.conversationId,
 		sessionContext,
 		workspaceRoots: options.workspacePath ? [options.workspacePath] : [],
+		workspaceInfo: options.workspaceInfo,
 		userId,
 		agent_id: ctx.agentId,
 		parent_agent_id: ctx.parentAgentId,
@@ -500,11 +504,13 @@ function runAsyncHookCommands(options: {
 export function createHookAuditHooks(options: {
 	rootSessionId?: string;
 	workspacePath: string;
+	workspaceInfo?: WorkspaceInfo;
 }): AgentHooks {
 	const runtimeOptions: HookRuntimeOptions = {
 		cwd: options.workspacePath,
 		workspacePath: options.workspacePath,
 		rootSessionId: options.rootSessionId,
+		workspaceInfo: options.workspaceInfo,
 	};
 
 	const append = (payload: HookEventPayload): void => {

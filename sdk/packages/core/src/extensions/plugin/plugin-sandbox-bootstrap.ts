@@ -54,10 +54,14 @@ interface PluginApi {
 	registerProvider(provider: PluginProvider): void;
 }
 
+interface PluginSetupCtx {
+	workspaceInfo?: unknown;
+}
+
 interface PluginModule {
 	name: string;
 	manifest: PluginManifest;
-	setup?: (api: PluginApi) => void | Promise<void>;
+	setup?: (api: PluginApi, ctx: PluginSetupCtx) => void | Promise<void>;
 	[hookName: string]: unknown;
 }
 
@@ -156,6 +160,17 @@ function assertValidPluginModule(
 	}
 }
 
+function assertValidPluginSetupCtx(
+	ctx: unknown,
+): asserts ctx is PluginSetupCtx {
+	if (!isObject(ctx)) {
+		throw new Error("Plugin setup context must be an object");
+	}
+	if (ctx.workspaceInfo !== undefined && !isObject(ctx.workspaceInfo)) {
+		throw new Error("Plugin setup context workspaceInfo must be an object");
+	}
+}
+
 // ---------------------------------------------------------------------------
 // State
 // ---------------------------------------------------------------------------
@@ -192,6 +207,16 @@ function emitEvent(name: string, payload?: unknown): void {
 // Expose event emitter to plugins.
 (globalThis as Record<string, unknown>).__clinePluginHost = { emitEvent };
 
+/**
+ * Session workspace env — populated by `initialize()` and available to any
+ * plugin code that executes before the setup hook, or cannot use hook context.
+ * Prefer using PluginSetupCtx from the setup function when possible.
+ */
+(globalThis as Record<string, unknown>).__clineSessionEnv = {
+	cwd: undefined as string | undefined,
+	workspaceInfo: undefined as unknown,
+};
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
@@ -225,10 +250,32 @@ async function initialize(args: {
 	exportName?: string;
 	providerId?: string;
 	modelId?: string;
+	cwd?: string;
+	workspaceInfo?: unknown;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
 	contributionCounters.clear();
+
+	// Apply the session's working directory so that process.cwd() and relative
+	// path resolution inside plugins reflect the correct workspace, not the
+	// host process's cwd (which may differ when --cwd was used without calling
+	// process.chdir() on the host side).
+	if (args.cwd) {
+		try {
+			process.chdir(args.cwd);
+		} catch {
+			// Ignore — best-effort; path may not exist in unusual environments.
+		}
+	}
+
+	// Keep the global escape-hatch in sync with the active session.
+	const sessionEnv = (globalThis as Record<string, unknown>)
+		.__clineSessionEnv as Record<string, unknown>;
+	if (sessionEnv) {
+		sessionEnv.cwd = args.cwd;
+		sessionEnv.workspaceInfo = args.workspaceInfo;
+	}
 
 	const descriptors: PluginDescriptor[] = [];
 	const failures: PluginInitializationFailure[] = [];
@@ -308,7 +355,11 @@ async function initialize(args: {
 
 			if (typeof plugin.setup === "function") {
 				try {
-					await plugin.setup(api);
+					const setupCtx = {
+						workspaceInfo: args.workspaceInfo,
+					};
+					assertValidPluginSetupCtx(setupCtx);
+					await plugin.setup(api, setupCtx);
 				} catch (error) {
 					failures.push({
 						pluginPath,

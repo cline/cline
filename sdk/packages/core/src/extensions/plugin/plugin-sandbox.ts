@@ -2,7 +2,12 @@ import { existsSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { AgentConfig, HookStage, Tool } from "@clinebot/shared";
+import type {
+	AgentConfig,
+	HookStage,
+	Tool,
+	WorkspaceInfo,
+} from "@clinebot/shared";
 import { SubprocessSandbox } from "../../runtime/subprocess-sandbox";
 import type { PluginLoadDiagnostics } from "./plugin-load-report";
 import type { PluginTargeting } from "./plugin-targeting";
@@ -14,6 +19,18 @@ export interface PluginSandboxOptions extends PluginTargeting {
 	hookTimeoutMs?: number;
 	contributionTimeoutMs?: number;
 	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * The session's working directory. Forwarded to the sandbox subprocess so
+	 * that `process.cwd()` returns the correct path inside the sandbox even
+	 * when `--cwd` was passed without calling `process.chdir()` on the host.
+	 */
+	cwd?: string;
+	/**
+	 * Structured workspace and git metadata (branch, commit, remotes) generated
+	 * at session startup. Forwarded to plugins via PluginSetupCtx.workspaceInfo
+	 * so they can inspect git state without running their own commands.
+	 */
+	workspaceInfo?: WorkspaceInfo;
 }
 
 type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
@@ -198,6 +215,8 @@ export async function loadSandboxedPlugins(
 		exportName: options.exportName,
 		providerId: options.providerId,
 		modelId: options.modelId,
+		cwd: options.cwd,
+		workspaceInfo: options.workspaceInfo,
 	};
 
 	// Guard against concurrent re-initialization when multiple tools/hooks

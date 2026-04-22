@@ -36,6 +36,7 @@ export type {
 	ContributionRegistryExtension,
 	ContributionRegistryOptions,
 	PluginManifest,
+	PluginSetupContext,
 } from "./extensions/contribution-registry";
 export {
 	ContributionRegistry,
