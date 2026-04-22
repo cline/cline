@@ -421,8 +421,7 @@
 						"group": "CLI",
 						"pages": [
 							"cline-sdk/cli/commands",
-							"cline-sdk/cli/configuration",
-							"cline-sdk/cli/connectors"
+							"cline-sdk/cli/configuration"
 						]
 					}
 				]
