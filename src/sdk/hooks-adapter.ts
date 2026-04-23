@@ -16,10 +16,21 @@ import type {
 	AgentHookToolCallEndContext,
 	AgentHookToolCallStartContext,
 } from "@clinebot/shared"
+import type { ClineMessage } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 import { HookFactory } from "@/core/hooks/hook-factory"
 import { getHooksEnabledSafe } from "@/core/hooks/hooks-utils"
 import type { StateManager } from "@/core/storage/StateManager"
+
+/**
+ * Callback type for emitting hook_status ClineMessages to the webview.
+ *
+ * The SDK invokes AgentHooks callbacks inline (not through onEvent), so
+ * the message-translator's `case 'hook':` handler never fires for our
+ * adapter hooks. This emitter lets the hooks-adapter push hook_status
+ * messages directly to the webview via the SdkController.
+ */
+export type HookMessageEmitter = (message: ClineMessage) => void
 
 /**
  * Safely coerce an `unknown` SDK tool input into `Record<string, string>`.
@@ -56,13 +67,41 @@ function mapHookResult(hookOutput: { cancel: boolean; contextModification: strin
 }
 
 /**
+ * Build a hook_status ClineMessage for the webview's HookMessage component.
+ *
+ * The `text` field is JSON matching the HookMetadata interface expected by
+ * `webview-ui/src/components/chat/HookMessage.tsx`.
+ */
+function buildHookStatusMessage(opts: {
+	hookName: string
+	status: "running" | "completed" | "failed" | "cancelled"
+	toolName?: string
+}): ClineMessage {
+	return {
+		ts: Date.now(),
+		type: "say",
+		say: "hook_status",
+		text: JSON.stringify({
+			hookName: opts.hookName,
+			...(opts.toolName && { toolName: opts.toolName }),
+			status: opts.status,
+		}),
+		partial: false,
+	}
+}
+
+/**
  * Build an `AgentHooks` object that bridges Cline's file-based hook scripts
  * into SDK lifecycle callbacks.
  *
  * Each callback dynamically checks `hooksEnabled` so toggling mid-session
  * takes effect immediately.
+ *
+ * @param stateManager The StateManager instance for reading hook settings.
+ * @param emitHookMessage Optional callback to emit hook_status ClineMessages
+ *   to the webview. When provided, hook executions become visible in the chat.
  */
-export function buildAgentHooks(stateManager: StateManager): AgentHooks {
+export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: HookMessageEmitter): AgentHooks {
 	return {
 		// ---------------------------------------------------------------
 		// TaskStart → onSessionStart
@@ -75,6 +114,13 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 				}
 
 				const factory = new HookFactory()
+				const hasHook = await factory.hasHook("TaskStart")
+				if (!hasHook) {
+					return undefined
+				}
+
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "running" }))
+
 				const runner = await factory.create("TaskStart")
 				const result = await runner.run({
 					taskId: ctx.conversationId,
@@ -87,8 +133,10 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 					},
 				})
 
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "completed" }))
 				return mapHookResult(result)
 			} catch (error) {
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed" }))
 				Logger.error("[HooksAdapter] onSessionStart hook failed:", error)
 				return undefined
 			}
@@ -105,17 +153,28 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 				}
 
 				const factory = new HookFactory()
+				const hasHook = await factory.hasHook("PreToolUse")
+				if (!hasHook) {
+					return undefined
+				}
+
+				const toolName = ctx.call.name
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: "running" }))
+
 				const runner = await factory.create("PreToolUse")
 				const result = await runner.run({
 					taskId: ctx.conversationId,
 					preToolUse: {
-						toolName: ctx.call.name,
+						toolName,
 						parameters: toStringRecord(ctx.call.input),
 					},
 				})
 
+				const finalStatus = result.cancel ? "cancelled" : "completed"
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: finalStatus }))
 				return mapHookResult(result)
 			} catch (error) {
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "PreToolUse", toolName: ctx.call.name, status: "failed" }))
 				Logger.error("[HooksAdapter] onToolCallStart hook failed:", error)
 				return undefined
 			}
@@ -132,11 +191,19 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 				}
 
 				const factory = new HookFactory()
+				const hasHook = await factory.hasHook("PostToolUse")
+				if (!hasHook) {
+					return undefined
+				}
+
+				const toolName = ctx.record.name
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: "running" }))
+
 				const runner = await factory.create("PostToolUse")
 				const result = await runner.run({
 					taskId: ctx.conversationId,
 					postToolUse: {
-						toolName: ctx.record.name,
+						toolName,
 						parameters: toStringRecord(ctx.record.input),
 						result: String(ctx.record.output ?? ctx.record.error ?? ""),
 						success: !ctx.record.error,
@@ -144,8 +211,13 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 					},
 				})
 
+				const finalStatus = result.cancel ? "cancelled" : "completed"
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: finalStatus }))
 				return mapHookResult(result)
 			} catch (error) {
+				emitHookMessage?.(
+					buildHookStatusMessage({ hookName: "PostToolUse", toolName: ctx.record.name, status: "failed" }),
+				)
 				Logger.error("[HooksAdapter] onToolCallEnd hook failed:", error)
 				return undefined
 			}
@@ -166,6 +238,13 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 				}
 
 				const factory = new HookFactory()
+				const hasHook = await factory.hasHook("TaskComplete")
+				if (!hasHook) {
+					return
+				}
+
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "running" }))
+
 				const runner = await factory.create("TaskComplete")
 				await runner.run({
 					taskId: ctx.conversationId,
@@ -177,7 +256,10 @@ export function buildAgentHooks(stateManager: StateManager): AgentHooks {
 						},
 					},
 				})
+
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "completed" }))
 			} catch (error) {
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "failed" }))
 				Logger.error("[HooksAdapter] onRunEnd hook failed:", error)
 			}
 		},
