@@ -1,0 +1,176 @@
+---
+title: "Quickstart"
+sidebarTitle: "Quickstart"
+description: "Get a working AI agent running in under 5 minutes."
+---
+
+This guide takes you from zero to a working agent in under 5 minutes. By the end, you'll have an agent that can answer questions, call tools, and stream responses in real time.
+
+## Prerequisites
+
+- Node.js 22 or later
+- An API key from a supported provider (Anthropic, OpenAI, Google, etc.)
+
+## Setup
+
+<Steps>
+  <Step title="Create a new project">
+    ```bash
+    mkdir my-agent && cd my-agent
+    npm init -y
+    npm install @clinebot/sdk
+    ```
+  </Step>
+
+  <Step title="Create your first agent">
+    Create a file called `agent.ts`:
+
+    ```typescript
+    import { Agent } from "@clinebot/sdk"
+
+    const agent = new Agent({
+      providerId: "anthropic",
+      modelId: "claude-sonnet-4-6",
+      apiKey: process.env.ANTHROPIC_API_KEY,
+      systemPrompt: "You are a helpful coding assistant. Be concise.",
+      tools: [],
+      onEvent: (event) => {
+        if (event.type === "content_update" && event.contentType === "text") {
+          process.stdout.write(event.text)
+        }
+      },
+    })
+
+    const result = await agent.run("What is the fibonacci sequence? Show me a TypeScript implementation.")
+    console.log("\n\nFinished:", result.finishReason)
+    console.log("Iterations:", result.iterations)
+    console.log("Tokens used:", result.usage.inputTokens + result.usage.outputTokens)
+    ```
+  </Step>
+
+  <Step title="Run it">
+    ```bash
+    ANTHROPIC_API_KEY=sk-ant-... npx tsx agent.ts
+    ```
+
+    You should see the agent's response streaming to your terminal in real time.
+  </Step>
+</Steps>
+
+## Add a Custom Tool
+
+Agents become powerful when you give them tools. Here's an agent with a simple tool:
+
+```typescript
+import { Agent, createTool } from "@clinebot/sdk"
+
+const weatherTool = createTool({
+  name: "get_weather",
+  description: "Get the current weather for a city.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      city: { type: "string", description: "City name" },
+    },
+    required: ["city"],
+  },
+  execute: async (input) => {
+    // Replace with a real weather API call
+    return { temperature: 72, condition: "sunny", city: input.city }
+  },
+})
+
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a weather assistant. Use the get_weather tool to answer questions.",
+  tools: [weatherTool],
+  onEvent: (event) => {
+    if (event.type === "content_update" && event.contentType === "text") {
+      process.stdout.write(event.text)
+    }
+    if (event.type === "content_start" && event.contentType === "tool") {
+      console.log(`\n[calling tool: ${event.toolName}]`)
+    }
+  },
+})
+
+const result = await agent.run("What's the weather in San Francisco?")
+```
+
+The agent will call `get_weather` with `{ city: "San Francisco" }`, receive the result, and incorporate it into its response.
+
+## Multi-Turn Conversations
+
+Use `continue()` to keep a conversation going with the same agent:
+
+```typescript
+const agent = new Agent({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+  systemPrompt: "You are a helpful assistant.",
+  tools: [],
+})
+
+// First turn
+const r1 = await agent.run("My name is Sarah and I'm building a REST API in Go.")
+console.log(r1.text)
+
+// Second turn -- agent remembers the context
+const r2 = await agent.continue("What framework would you recommend for my project?")
+console.log(r2.text)
+
+// Third turn
+const r3 = await agent.continue("Show me a basic hello world with that framework.")
+console.log(r3.text)
+```
+
+## Use ClineCore for Full Features
+
+When you need session persistence, built-in tools (file editing, shell commands, web browsing), and config management, use `ClineCore` (already installed with `@clinebot/sdk`):
+
+```typescript
+import { ClineCore } from "@clinebot/sdk"
+
+const cline = await ClineCore.create({
+  clientName: "my-app",
+})
+
+const session = await cline.start({
+  prompt: "Create a README.md for this project",
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    cwd: process.cwd(),
+    enableTools: true,
+  },
+})
+
+console.log("Session ID:", session.sessionId)
+console.log("Result:", session.result?.text)
+console.log("Finish reason:", session.result?.finishReason)
+
+await cline.dispose()
+```
+
+ClineCore gives the agent access to built-in tools like `bash`, `editor`, `read_files`, `apply_patch`, `search`, and `fetch_web` automatically.
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Agents" icon="robot" href="/sdk/agents">
+    Deep dive into the Agent lifecycle, configuration, and execution model.
+  </Card>
+  <Card title="Tools" icon="wrench" href="/sdk/tools">
+    Learn how to create custom tools and use the built-in tool suite.
+  </Card>
+  <Card title="Streaming and Events" icon="wave-pulse" href="/sdk/streaming-and-events">
+    Build real-time UIs with the event system and async streaming.
+  </Card>
+  <Card title="Examples" icon="flask" href="/sdk/examples">
+    Browse complete working examples you can copy and adapt.
+  </Card>
+</CardGroup>
