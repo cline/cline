@@ -91,7 +91,7 @@ describe("withLatestAssistantTurnMetadata", () => {
 		expect("modelId" in (persisted[3] ?? {})).toBe(false);
 	});
 
-	it("applies turn model metadata to every assistant message but usage only to the terminal assistant message", () => {
+	it("falls back to result.usage on the terminal assistant message when no per-turn metrics are pre-stamped (legacy / non-agent-loop path)", () => {
 		const persisted = withLatestAssistantTurnMetadata(
 			[
 				{ role: "user", content: "spawn a team" },
@@ -148,6 +148,74 @@ describe("withLatestAssistantTurnMetadata", () => {
 				cacheReadTokens: 2,
 				cacheWriteTokens: 1,
 				cost: 0.12,
+			},
+		});
+	});
+
+	it("preserves per-turn metrics already stamped on assistant messages instead of overwriting with total run usage", () => {
+		// The agent loop stamps per-turn metrics onto each assistant message
+		// before appending it to the conversation store. This test verifies that
+		// withLatestAssistantTurnMetadata preserves those per-turn values.
+		const persisted = withLatestAssistantTurnMetadata(
+			[
+				{ role: "user", content: "do something" },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "1", name: "bash", input: {} }],
+					metrics: {
+						inputTokens: 100,
+						outputTokens: 50,
+						cacheReadTokens: 10,
+						cacheWriteTokens: 5,
+						cost: 0.05,
+					},
+				},
+				{
+					role: "user",
+					content: [{ type: "tool_result", tool_use_id: "1", content: "done" }],
+				},
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "All done." }],
+					metrics: {
+						inputTokens: 200,
+						outputTokens: 80,
+						cacheReadTokens: 20,
+						cacheWriteTokens: 8,
+						cost: 0.09,
+					},
+				},
+			] as MessageWithMetadata[],
+			createResult({
+				usage: {
+					inputTokens: 300,
+					outputTokens: 130,
+					cacheReadTokens: 30,
+					cacheWriteTokens: 13,
+					totalCost: 0.14,
+				},
+			}),
+			[],
+		);
+
+		// First assistant message: per-turn metrics preserved, NOT overwritten with totals
+		expect(persisted[1]).toMatchObject({
+			metrics: {
+				inputTokens: 100,
+				outputTokens: 50,
+				cacheReadTokens: 10,
+				cacheWriteTokens: 5,
+				cost: 0.05,
+			},
+		});
+		// Last assistant message: per-turn metrics preserved, NOT overwritten with totals
+		expect(persisted[3]).toMatchObject({
+			metrics: {
+				inputTokens: 200,
+				outputTokens: 80,
+				cacheReadTokens: 20,
+				cacheWriteTokens: 8,
+				cost: 0.09,
 			},
 		});
 	});

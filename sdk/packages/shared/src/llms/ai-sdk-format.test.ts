@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { formatMessagesForAiSdk } from "./ai-sdk-format";
+import {
+	formatMessagesForAiSdk,
+	toAiSdkToolResultOutput,
+} from "./ai-sdk-format";
 
 describe("formatMessagesForAiSdk", () => {
 	it("omits empty system messages", () => {
@@ -165,5 +168,16 @@ describe("formatMessagesForAiSdk", () => {
 				],
 			},
 		]);
+	});
+
+	it("passes through tool result output for compatibility helper", () => {
+		expect(toAiSdkToolResultOutput({ ok: true })).toEqual({
+			type: "json",
+			value: { ok: true },
+		});
+		expect(toAiSdkToolResultOutput("contents")).toEqual({
+			type: "text",
+			value: "contents",
+		});
 	});
 });

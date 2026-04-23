@@ -153,22 +153,24 @@ export function withLatestAssistantTurnMetadata(
 		assistantIndexes.push(next.length - 1 - lastAssistantIndex);
 	}
 
-	const usage = result.usage;
-	const lastAssistantIndexForUsage =
-		assistantIndexes[assistantIndexes.length - 1];
+	const lastAssistantIndex = assistantIndexes[assistantIndexes.length - 1];
 	for (const targetIndex of assistantIndexes) {
 		const target = next[targetIndex];
-		const metrics =
-			targetIndex === lastAssistantIndexForUsage
-				? {
-						...(target.metrics ?? {}),
-						inputTokens: usage.inputTokens,
-						outputTokens: usage.outputTokens,
-						cacheReadTokens: usage.cacheReadTokens ?? 0,
-						cacheWriteTokens: usage.cacheWriteTokens ?? 0,
-						cost: usage.totalCost,
-					}
-				: target.metrics;
+		// Use per-turn metrics already stamped on the message if available.
+		// Only fall back to result.usage (total run usage) for the terminal
+		// assistant message when no per-turn metrics are present, to avoid
+		// attaching session totals to intermediate turn messages.
+		let metrics = target.metrics;
+		if (!metrics && targetIndex === lastAssistantIndex) {
+			const usage = result.usage;
+			metrics = {
+				inputTokens: usage.inputTokens,
+				outputTokens: usage.outputTokens,
+				cacheReadTokens: usage.cacheReadTokens ?? 0,
+				cacheWriteTokens: usage.cacheWriteTokens ?? 0,
+				cost: usage.totalCost,
+			};
+		}
 		next[targetIndex] = {
 			...normalizeStoredMessageModelMetadata(target, {
 				id: result.model.id,

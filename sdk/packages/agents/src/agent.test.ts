@@ -1840,11 +1840,12 @@ describe("Agent", () => {
 		expect(handler.createMessage.mock.calls[1]?.[1]).toEqual([
 			{ role: "user", content: "compacted history" },
 		]);
-		expect(result.messages).toEqual([
+		expect(result.messages).toMatchObject([
 			{ role: "user", content: "compacted history" },
 			{
 				role: "assistant",
 				content: [{ type: "text", text: "done", signature: undefined }],
+				metrics: { inputTokens: 10, outputTokens: 5 },
 			},
 		]);
 	});

@@ -764,7 +764,22 @@ export class Agent {
 				apiTimeout?.cancel();
 				apiTimeout = undefined;
 				if (assistantMessage) {
-					this.conversationStore.appendMessage(assistantMessage);
+					this.conversationStore.appendMessage({
+						...assistantMessage,
+						metrics: {
+							inputTokens: turn.usage.inputTokens,
+							outputTokens: turn.usage.outputTokens,
+							...(turn.usage.cacheReadTokens !== undefined && {
+								cacheReadTokens: turn.usage.cacheReadTokens,
+							}),
+							...(turn.usage.cacheWriteTokens !== undefined && {
+								cacheWriteTokens: turn.usage.cacheWriteTokens,
+							}),
+							...(turn.usage.cost !== undefined && {
+								cost: turn.usage.cost,
+							}),
+						},
+					});
 				}
 
 				const turnEndControl = await this.lifecycle.dispatch("hook.turn_end", {

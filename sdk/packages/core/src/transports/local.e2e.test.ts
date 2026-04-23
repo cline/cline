@@ -425,6 +425,14 @@ describe("LocalRuntimeHost e2e", () => {
 								input: { path: "/tmp/project/README.md" },
 							},
 						],
+						// Per-turn metrics stamped by agent.ts at append time (turn 1).
+						metrics: {
+							inputTokens: 15,
+							outputTokens: 6,
+							cacheReadTokens: 2,
+							cacheWriteTokens: 1,
+							cost: 0.07,
+						},
 					},
 					{
 						role: "user",
@@ -439,8 +447,16 @@ describe("LocalRuntimeHost e2e", () => {
 					{
 						role: "assistant",
 						content: [{ type: "text", text: "I found the relevant section." }],
+						// Per-turn metrics stamped by agent.ts at append time (turn 2).
+						metrics: {
+							inputTokens: 21,
+							outputTokens: 8,
+							cacheReadTokens: 3,
+							cacheWriteTokens: 1,
+							cost: 0.13,
+						},
 					},
-				] satisfies LlmsProviders.Message[],
+				] satisfies LlmsProviders.MessageWithMetadata[] as LlmsProviders.Message[],
 			}),
 		);
 
@@ -517,7 +533,16 @@ describe("LocalRuntimeHost e2e", () => {
 			id: "claude-sonnet-4-6",
 			provider: "anthropic",
 		});
-		expect(firstAssistant.metrics).toBeUndefined();
+		// Per-turn metrics are stamped by agent.ts at append time and
+		// preserved by withLatestAssistantTurnMetadata. Each assistant message
+		// should carry its own turn's usage, not the session total.
+		expect(firstAssistant.metrics).toMatchObject({
+			inputTokens: 15,
+			outputTokens: 6,
+			cacheReadTokens: 2,
+			cacheWriteTokens: 1,
+			cost: 0.07,
+		});
 
 		expect(toolResultUser.role).toBe("user");
 		expect(toolResultUser.content[0]?.type).toBe("tool_result");
