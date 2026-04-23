@@ -10,6 +10,7 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from "@clinebot/core"
+import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { mentionRegexGlobal } from "@shared/context-mentions"
@@ -63,6 +64,46 @@ function isAbortError(error: unknown): boolean {
 		return error.name === "AbortError" || error.message.toLowerCase().includes("aborted")
 	}
 	return false
+}
+
+// ---------------------------------------------------------------------------
+// Auto-approval → SDK tool policies
+// ---------------------------------------------------------------------------
+
+/**
+ * Build SDK `toolPolicies` from the user's `AutoApprovalSettings`.
+ *
+ * The SDK defaults all tools to `{ autoApprove: true }` when no policy is
+ * set, so we only need to emit entries for tools that should NOT be
+ * auto-approved. This ensures `requestToolApproval` is called for tools
+ * the user hasn't enabled.
+ */
+function buildToolPolicies(settings: AutoApprovalSettings): Record<string, { enabled?: boolean; autoApprove?: boolean }> {
+	const policies: Record<string, { enabled?: boolean; autoApprove?: boolean }> = {}
+
+	const set = (tools: string[], autoApprove: boolean) => {
+		for (const tool of tools) {
+			policies[tool] = { autoApprove }
+		}
+	}
+
+	// Read operations
+	set(
+		["read_files", "read_file", "list_files", "list_code_definition_names", "search_codebase", "search_files"],
+		!!settings.actions.readFiles,
+	)
+
+	// Write operations
+	set(["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"], !!settings.actions.editFiles)
+
+	// Command execution
+	const commandAutoApprove = !!settings.actions.executeAllCommands || !!settings.actions.executeSafeCommands
+	set(["run_commands", "execute_command"], commandAutoApprove)
+
+	// Browser / web
+	set(["fetch_web_content", "web_fetch", "web_search"], !!settings.actions.useBrowser)
+
+	return policies
 }
 
 // ---------------------------------------------------------------------------
@@ -561,10 +602,16 @@ export class Controller {
 	private async startNewSession(
 		startInput: Parameters<VscodeSessionHost["start"]>[0],
 	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
+		// Build tool policies from user's auto-approval settings so the SDK
+		// knows which tools require explicit user approval.
+		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
+		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings) : undefined
+
 		const sessionManager = await VscodeSessionHost.create({
 			mcpHub: this.mcpHub,
 			requestToolApproval: (request) => this.handleRequestToolApproval(request),
 			askQuestion: (question, options, context) => this.handleAskQuestion(question, options, context),
+			toolPolicies,
 		})
 		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			this.handleSessionEvent(event)
