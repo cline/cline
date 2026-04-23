@@ -193,7 +193,7 @@ export class MessageTranslatorState {
  *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
  *   MCP tools                          → (passed through with tool name as-is)
  */
-function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
+export function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool {
 	// Parse input if it's a string (some SDK tools pass stringified JSON)
 	const parsedInput = parseToolInput(input)
 

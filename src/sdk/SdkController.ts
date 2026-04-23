@@ -42,7 +42,7 @@ import {
 	getHistoryItemById,
 } from "./cline-session-factory"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
+import { MessageTranslatorState, sdkToolToClineSayTool, translateSessionEvent } from "./message-translator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
@@ -115,6 +115,12 @@ export class Controller {
 	// fires, we store the Promise resolve function here. When the user responds
 	// via askResponse(), we call it to return the answer to the SDK.
 	private pendingAskResolve: ((answer: string) => void) | undefined
+
+	// Pending tool approval resolve — when the SDK calls requestToolApproval
+	// for a non-auto-approved tool, we store the Promise resolve function here.
+	// When the user clicks Approve/Reject in the webview, askResponse() resolves
+	// this promise with { approved: true/false }.
+	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -456,6 +462,93 @@ export class Controller {
 	}
 
 	/**
+	 * Handle the SDK's `requestToolApproval` callback for non-auto-approved tools.
+	 *
+	 * Converts the SDK tool request to a `ClineSayTool` JSON message, emits it
+	 * as a `type: "ask", ask: "tool"` ClineMessage (triggering the webview's
+	 * existing approval UI), and returns a Promise that resolves when the user
+	 * clicks Approve or Reject.
+	 */
+	private async handleRequestToolApproval(request: {
+		agentId: string
+		conversationId: string
+		iteration: number
+		toolCallId: string
+		toolName: string
+		input: unknown
+		policy: { enabled?: boolean; autoApprove?: boolean }
+	}): Promise<{ approved: boolean; reason?: string }> {
+		// Convert SDK tool name + input to ClineSayTool JSON for the webview
+		const sayTool = sdkToolToClineSayTool(request.toolName, request.input)
+
+		// Emit as ClineMessage with type:"ask", ask:"tool"
+		// This is the same format the classic extension uses for tool approval dialogs
+		const toolAskMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "tool",
+			text: JSON.stringify(sayTool),
+			partial: false,
+		}
+
+		// Add to message state and push to webview
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([toolAskMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([toolAskMessage], {
+			type: "status",
+			payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+		})
+		await this.postStateToWebview()
+
+		// Return a Promise that resolves when the user clicks Approve/Reject
+		return new Promise<{ approved: boolean; reason?: string }>((resolve) => {
+			this.pendingToolApprovalResolve = resolve
+		})
+	}
+
+	/**
+	 * Handle the SDK's built-in `ask_question` tool executor.
+	 *
+	 * Emits a `type: "ask", ask: "followup"` ClineMessage with `ClineAskQuestion`
+	 * JSON (the same format as the classic `ask_followup_question` tool), and
+	 * returns a Promise that resolves when the user responds via `askResponse()`.
+	 */
+	private async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+		// Build ClineAskQuestion JSON (same format as classic ask_followup_question)
+		const askData: ClineAskQuestion = {
+			question,
+			options: options?.length ? options : undefined,
+		}
+
+		// Emit as ClineMessage with type:"ask", ask:"followup"
+		const askMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "followup",
+			text: JSON.stringify(askData),
+			partial: false,
+		}
+
+		// Add to message state and push to webview
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages([askMessage])
+			this.debouncedSaveClineMessages()
+		}
+		this.emitSessionEvents([askMessage], {
+			type: "status",
+			payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
+		})
+		await this.postStateToWebview()
+
+		// Return a Promise that resolves when the user responds via askResponse()
+		return new Promise<string>((resolve) => {
+			this.pendingAskResolve = resolve
+		})
+	}
+
+	/**
 	 * Create a new VscodeSessionHost, subscribe to events, start a session,
 	 * and wire up `this.activeSession`.
 	 *
@@ -470,38 +563,8 @@ export class Controller {
 	): Promise<{ startResult: StartSessionResult; sessionManager: SessionHost }> {
 		const sessionManager = await VscodeSessionHost.create({
 			mcpHub: this.mcpHub,
-			askQuestion: async (question: string, options: string[], _context: unknown): Promise<string> => {
-				// Build ClineAskQuestion JSON (same format as classic ask_followup_question)
-				const askData: ClineAskQuestion = {
-					question,
-					options: options?.length ? options : undefined,
-				}
-
-				// Emit as ClineMessage with type:"ask", ask:"followup"
-				const askMessage: ClineMessage = {
-					ts: Date.now(),
-					type: "ask",
-					ask: "followup",
-					text: JSON.stringify(askData),
-					partial: false,
-				}
-
-				// Add to message state and push to webview
-				if (this.task?.messageStateHandler) {
-					this.task.messageStateHandler.addMessages([askMessage])
-					this.debouncedSaveClineMessages()
-				}
-				this.emitSessionEvents([askMessage], {
-					type: "status",
-					payload: { sessionId: this.activeSession?.sessionId ?? "", status: "running" },
-				})
-				await this.postStateToWebview()
-
-				// Return a Promise that resolves when the user responds via askResponse()
-				return new Promise<string>((resolve) => {
-					this.pendingAskResolve = resolve
-				})
-			},
+			requestToolApproval: (request) => this.handleRequestToolApproval(request),
+			askQuestion: (question, options, context) => this.handleAskQuestion(question, options, context),
 		})
 		const unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
 			this.handleSessionEvent(event)
@@ -754,8 +817,12 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
-		// Clear any pending ask_question — the question is moot after cancellation
+		// Clear any pending ask_question or tool approval — they are moot after cancellation
 		this.pendingAskResolve = undefined
+		if (this.pendingToolApprovalResolve) {
+			this.pendingToolApprovalResolve({ approved: false, reason: "Task cancelled" })
+			this.pendingToolApprovalResolve = undefined
+		}
 
 		if (!this.activeSession) {
 			Logger.warn("[SdkController] cancelTask: No active session")
@@ -802,8 +869,12 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		// Clear any pending ask_question — the session is being torn down
+		// Clear any pending ask_question or tool approval — the session is being torn down
 		this.pendingAskResolve = undefined
+		if (this.pendingToolApprovalResolve) {
+			this.pendingToolApprovalResolve({ approved: false, reason: "Task cleared" })
+			this.pendingToolApprovalResolve = undefined
+		}
 
 		if (this.activeSession) {
 			const { sessionManager, unsubscribe, sessionId } = this.activeSession
@@ -917,6 +988,24 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
+		// Check if a tool approval is pending (requestToolApproval callback waiting).
+		// The TaskProxy stores the response type in taskState.askResponse before
+		// calling this method, so we can determine approve vs reject.
+		if (this.pendingToolApprovalResolve) {
+			const resolve = this.pendingToolApprovalResolve
+			this.pendingToolApprovalResolve = undefined
+
+			const responseType = this.task?.taskState?.askResponse
+			const approved = responseType === "yesButtonClicked"
+			Logger.log(`[SdkController] Resolving pending tool approval: approved=${approved} (responseType=${responseType})`)
+
+			resolve({
+				approved,
+				...(approved ? {} : { reason: prompt || "User denied the tool execution" }),
+			})
+			return
+		}
+
 		// Check if the SDK's ask_question tool is waiting for a response.
 		// If so, resolve the pending promise with the user's answer and return
 		// — we do NOT send a new message to the SDK in this case.

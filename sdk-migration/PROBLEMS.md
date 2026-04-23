@@ -473,14 +473,18 @@ underlying patterns that caused them are relevant.
 
 - **Fix needed** (three parts):
 
-  **Part A: `requestToolApproval` callback (~50 lines)**
-  Wire into `VscodeSessionHost.create()` options. The callback should:
-  1. Emit a ClineMessage with `type: "ask"`, `ask: "tool"` containing the tool name and input as `ClineSayTool` JSON (same format the classic extension uses for tool approval dialogs)
-  2. Add the message to `messageStateHandler` and push to the partial message stream
-  3. Return a Promise that resolves when the user clicks Approve/Reject in the webview
-  4. The webview's existing approval UI (Approve/Reject buttons in ChatRow) already sends `askResponse` back through gRPC → `SdkController.askResponse()`. Need to wire this to resolve the approval Promise.
+  **Part A: `requestToolApproval` callback (~50 lines)** — ✅ **Fixed**
+  Wired into `VscodeSessionHost.create()` via `requestToolApproval` option in `startNewSession()`. The callback:
+  1. Converts SDK `ToolApprovalRequest` (toolName + input) to `ClineSayTool` JSON using the exported `sdkToolToClineSayTool()` from `message-translator.ts`
+  2. Emits a ClineMessage with `type: "ask"`, `ask: "tool"` — the webview's existing tool approval UI renders this (Approve/Save/Reject buttons in ChatRow)
+  3. Adds the message to `messageStateHandler` and pushes to the partial message stream via `emitSessionEvents()` + `postStateToWebview()`
+  4. Returns a Promise that resolves when the user clicks Approve/Reject in the webview
+  5. Resolution path: webview button click → gRPC `askResponse` handler → TaskProxy.handleWebviewAskResponse() (stores `askResponse` type in `taskState.askResponse`) → SdkController.askResponse() → checks `pendingToolApprovalResolve` → reads `taskState.askResponse` to determine `yesButtonClicked` (approved) vs `noButtonClicked` (denied) → resolves Promise with `{ approved: true/false }`
+  6. `cancelTask()` and `clearTask()` both resolve pending approval with `{ approved: false }` to prevent leaks
   
-  **Reference**: CLI implementation at `apps/cli/src/utils/approval.ts:63-108`. Desktop implementation at `apps/desktop/hooks/use-agent-session.tsx:134-194` (polls for approvals via `poll_tool_approvals` Tauri command). Tauri desktop at `apps/code/hooks/use-chat-session.ts:993-1010` (responds via `respond_tool_approval`).
+  **Files changed**: `src/sdk/message-translator.ts` (exported `sdkToolToClineSayTool`), `src/sdk/SdkController.ts` (added `pendingToolApprovalResolve` field, `requestToolApproval` callback in `startNewSession()`, approval resolution in `askResponse()`, cleanup in `cancelTask()`/`clearTask()`)
+  
+  **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 136 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 3 pre-existing test suite failures are unrelated import resolution errors.
 
   **Part B: `askQuestion` executor (~30 lines)** — ✅ **Fixed**
   Wired into `VscodeSessionHost.create()` via `defaultToolExecutors: { askQuestion: fn }`. The executor:
