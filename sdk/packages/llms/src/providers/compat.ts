@@ -276,6 +276,86 @@ function toGatewayRequestMessages(
 		}
 	}
 
+	const extractImageParts = (
+		value: unknown,
+	): Array<Record<string, unknown>> => {
+		if (!Array.isArray(value)) {
+			return [];
+		}
+		return value.flatMap((entry) => {
+			if (!entry || typeof entry !== "object") {
+				return [];
+			}
+			const record = entry as Record<string, unknown>;
+			if (
+				record.type === "image" &&
+				typeof record.mediaType === "string" &&
+				typeof record.data === "string"
+			) {
+				return [
+					{
+						type: "image" as const,
+						image: `data:${record.mediaType};base64,${record.data}`,
+						mediaType: record.mediaType,
+					},
+				];
+			}
+			if (
+				typeof record.query === "string" &&
+				typeof record.success === "boolean" &&
+				"result" in record
+			) {
+				return extractImageParts(record.result);
+			}
+			return [];
+		});
+	};
+
+	const normalizeToolResultValue = (value: unknown): unknown => {
+		if (typeof value === "string" || value == null) {
+			return value;
+		}
+		if (Array.isArray(value)) {
+			const normalized = value.flatMap((entry): unknown[] => {
+				if (!entry || typeof entry !== "object") {
+					return [entry];
+				}
+
+				const record = entry as Record<string, unknown>;
+
+				if (record.type === "image") {
+					return [];
+				}
+
+				if (record.type === "text" && typeof record.text === "string") {
+					return [record.text];
+				}
+
+				if (record.type === "file" && typeof record.content === "string") {
+					return [record.content];
+				}
+
+				if (
+					typeof record.query === "string" &&
+					typeof record.success === "boolean" &&
+					"result" in record
+				) {
+					return [
+						{
+							...record,
+							result: normalizeToolResultValue(record.result),
+						},
+					];
+				}
+
+				return [record];
+			});
+			return normalized;
+		}
+
+		return value;
+	};
+
 	return messages.map((message) => {
 		const content =
 			typeof message.content === "string"
@@ -312,43 +392,14 @@ function toGatewayRequestMessages(
 									},
 								];
 							case "tool_result": {
-								const contentParts =
-									typeof part.content === "string" ? [] : part.content;
-								const textOutput =
-									typeof part.content === "string"
-										? part.content
-										: contentParts
-												.map((contentPart) =>
-													contentPart.type === "text"
-														? contentPart.text
-														: contentPart.type === "file"
-															? contentPart.content
-															: "",
-												)
-												.join("\n");
-								const imageParts =
-									typeof part.content === "string"
-										? []
-										: contentParts
-												.filter(
-													(
-														contentPart,
-													): contentPart is Extract<
-														typeof contentPart,
-														{ type: "image" }
-													> => contentPart.type === "image",
-												)
-												.map((contentPart) => ({
-													type: "image" as const,
-													image: `data:${contentPart.mediaType};base64,${contentPart.data}`,
-													mediaType: contentPart.mediaType,
-												}));
+								const normalizedOutput = normalizeToolResultValue(part.content);
+								const imageParts = extractImageParts(part.content);
 								return [
 									{
 										type: "tool-result" as const,
 										toolCallId: part.tool_use_id,
 										toolName: toolNames.get(part.tool_use_id) ?? "tool",
-										output: textOutput,
+										output: normalizedOutput,
 										isError: part.is_error ?? false,
 									},
 									...imageParts,
