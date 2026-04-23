@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import type {
 	AgentConfig,
 	BasicLogger,
@@ -10,6 +11,7 @@ import type {
 import { ClineCore } from "@clinebot/core";
 import { resolveWorkspaceRoot } from "../utils/helpers";
 import { getCliTelemetryService } from "../utils/telemetry";
+import type { ConversationHistory } from "./export";
 
 function toSessionRecordLike(
 	row: SessionRecord | undefined,
@@ -122,13 +124,13 @@ export async function updateSession(
 
 export async function getSessionRow(
 	sessionId: string,
-): Promise<unknown | undefined> {
+): Promise<SessionRecord | undefined> {
 	const target = sessionId.trim();
 	if (!target) {
 		return undefined;
 	}
 	return await withCliCore(
-		async (core) => toSessionRecordLike(await core.get(target)),
+		async (core) => (await core.get(target)) ?? undefined,
 		{ forceLocalBackend: true },
 	);
 }
@@ -152,4 +154,16 @@ export async function handleSessionHookEvent(
 		},
 		{ forceLocalBackend: true },
 	);
+}
+
+export async function readSessionMessagesArtifact(
+	sessionId: string,
+): Promise<ConversationHistory | undefined> {
+	const row = await getSessionRow(sessionId);
+	const path = row?.messagesPath?.trim();
+	if (!path) {
+		return undefined;
+	}
+	const raw = await readFile(path, "utf8");
+	return JSON.parse(raw) as ConversationHistory;
 }

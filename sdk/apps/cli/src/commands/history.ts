@@ -1,5 +1,13 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, resolve } from "node:path";
 import type { SessionHistoryRecord } from "@clinebot/core";
-import { deleteSession, listSessions, updateSession } from "../session/session";
+import { generateConversationHTML } from "../session/export";
+import {
+	deleteSession,
+	listSessions,
+	readSessionMessagesArtifact,
+	updateSession,
+} from "../session/session";
 import { writeln } from "../utils/output";
 import type { CliOutputMode } from "../utils/types";
 
@@ -14,6 +22,22 @@ type HistoryIo = {
 	writeln: (text?: string) => void;
 	writeErr: (text: string) => void;
 };
+
+async function exportHistorySession(
+	sessionId: string,
+	outputPath?: string,
+): Promise<string> {
+	const data = await readSessionMessagesArtifact(sessionId);
+	if (!data) {
+		throw new Error(`Session ${sessionId} not found or has no messages.json`);
+	}
+
+	const targetPath = resolve(outputPath?.trim() || `${sessionId}.html`);
+	const html = generateConversationHTML(data, sessionId);
+	await mkdir(dirname(targetPath), { recursive: true });
+	await writeFile(targetPath, html, "utf8");
+	return targetPath;
+}
 
 async function runHistoryDelete(
 	sessionId: string | undefined,
@@ -101,6 +125,38 @@ async function runHistoryUpdate(
 	}
 }
 
+async function runHistoryExport(
+	sessionId: string | undefined,
+	outputPath: string | undefined,
+	outputMode: CliOutputMode,
+	io: HistoryIo,
+): Promise<number> {
+	if (!sessionId) {
+		io.writeErr("history export requires <session-id>");
+		return 1;
+	}
+
+	try {
+		const targetPath = await exportHistorySession(sessionId, outputPath);
+
+		if (outputMode === "json") {
+			process.stdout.write(
+				JSON.stringify({
+					sessionId,
+					outputPath: targetPath,
+				}),
+			);
+			return 0;
+		}
+
+		io.writeln(`Exported to ${targetPath}`);
+		return 0;
+	} catch (error) {
+		io.writeErr(error instanceof Error ? error.message : String(error));
+		return 1;
+	}
+}
+
 export async function runHistoryList(input: {
 	limit: number;
 	outputMode: CliOutputMode;
@@ -145,6 +201,8 @@ export async function runHistoryList(input: {
 					unmount();
 					resolve(sessionId);
 				},
+				onExport: async (sessionId) =>
+					await exportHistorySession(sessionId, undefined),
 				onExit: () => {
 					unmount();
 					resolve(0);
@@ -154,4 +212,9 @@ export async function runHistoryList(input: {
 	});
 }
 
-export { runHistoryDelete, runHistoryUpdate };
+export {
+	exportHistorySession,
+	runHistoryDelete,
+	runHistoryExport,
+	runHistoryUpdate,
+};

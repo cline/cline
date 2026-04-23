@@ -53,6 +53,7 @@ describe("parseArgs", () => {
 			reasoningEffort: undefined,
 			liveModelCatalog: false,
 			defaultToolAutoApprove: true,
+			kanban: false,
 		});
 	});
 

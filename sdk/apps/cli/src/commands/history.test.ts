@@ -1,6 +1,23 @@
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import type { SessionHistoryRecord } from "@clinebot/core";
-import { describe, expect, it } from "vitest";
-import { formatCheckpointDetail, formatHistoryListLine } from "./history";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	formatCheckpointDetail,
+	formatHistoryListLine,
+	runHistoryExport,
+} from "./history";
+
+vi.mock("../session/session", () => ({
+	readSessionMessagesArtifact: vi.fn(),
+}));
+
+import { readSessionMessagesArtifact } from "../session/session";
+
+const mockedReadSessionMessagesArtifact = vi.mocked(
+	readSessionMessagesArtifact,
+);
 
 function createHistoryRow(
 	overrides: Partial<SessionHistoryRecord> = {},
@@ -123,5 +140,67 @@ describe("formatHistoryListLine", () => {
 		);
 
 		expect(line).not.toContain("checkpoints:");
+	});
+});
+
+describe("runHistoryExport", () => {
+	let tempDir = "";
+
+	afterEach(async () => {
+		vi.clearAllMocks();
+		if (tempDir) {
+			await rm(tempDir, { recursive: true, force: true });
+			tempDir = "";
+		}
+	});
+
+	it("writes standalone html from a persisted messages artifact", async () => {
+		tempDir = await mkdtemp(join(tmpdir(), "clite-history-export-"));
+		const outputPath = join(tempDir, "export.html");
+		mockedReadSessionMessagesArtifact.mockResolvedValue({
+			version: 1,
+			updated_at: "2026-04-22T17:42:10.123Z",
+			sessionId: "sess_1",
+			messages: [
+				{
+					id: "m1",
+					role: "user",
+					content: [{ type: "text", text: "hello" }],
+				},
+				{
+					id: "m2",
+					role: "assistant",
+					content: [{ type: "text", text: "world" }],
+				},
+			],
+		} as any);
+		const io = {
+			writeln: vi.fn(),
+			writeErr: vi.fn(),
+		};
+
+		const code = await runHistoryExport("sess_1", outputPath, "text", io);
+
+		expect(code).toBe(0);
+		expect(io.writeErr).not.toHaveBeenCalled();
+		expect(io.writeln).toHaveBeenCalledWith(
+			expect.stringContaining(outputPath),
+		);
+		await expect(readFile(outputPath, "utf8")).resolves.toContain("world");
+	});
+
+	it("fails when the session artifact is missing", async () => {
+		mockedReadSessionMessagesArtifact.mockResolvedValue(undefined);
+		const io = {
+			writeln: vi.fn(),
+			writeErr: vi.fn(),
+		};
+
+		const code = await runHistoryExport("sess_missing", undefined, "text", io);
+
+		expect(code).toBe(1);
+		expect(io.writeErr).toHaveBeenCalledWith(
+			"Session sess_missing not found or has no messages.json",
+		);
 	});
 });

@@ -36,6 +36,7 @@ export function addRootOptions(cmd: Command): Command {
 		)
 		.option("-i, --interactive", "Start interactive chat mode")
 		.option("--json", "Output messages as JSON instead of styled text")
+		.option("--kanban", "Launch the kanban app and exit")
 		.option("-k, --key <api-key>", "API key override for this run")
 		.option("--apiKey <api-key>") // hidden alias for --key
 		.option(
@@ -96,6 +97,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	const opts = program.opts();
 
 	const result: ParsedArgs = {
+		kanban: !!opts.kanban,
 		verbose: !!opts.verbose,
 		interactive: !!opts.interactive,
 		showUsage: !!opts.usage,

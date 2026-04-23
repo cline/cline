@@ -5,6 +5,7 @@ import type { ToolPolicy } from "@clinebot/core";
 
 import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
+import { launchKanban } from "./commands/kanban";
 import {
 	addRootOptions,
 	CommanderError,
@@ -342,6 +343,25 @@ export async function runCli(): Promise<void> {
 			);
 		});
 
+	const historyExportCmd = historyCmd
+		.command("export <sessionId>")
+		.description("Export a session as a standalone HTML file")
+		.option("-o, --output <path>", "Output HTML file path")
+		.action(async (sessionId: string) => {
+			const opts = historyExportCmd.opts();
+			const outputMode =
+				program.opts().json || historyCmd.opts().json
+					? ("json" as const)
+					: ("text" as const);
+			const { runHistoryExport } = await import("./commands/history");
+			ctx.exitCode = await runHistoryExport(
+				sessionId,
+				opts.output,
+				outputMode,
+				io,
+			);
+		});
+
 	const checkpointCmd = program
 		.command("checkpoint")
 		.description("Inspect or restore session checkpoints")
@@ -534,6 +554,10 @@ export async function runCli(): Promise<void> {
 	// Default flow: no subcommand matched, or fall-through from config/history/task.
 	// When 'task'/'t' was used, options were re-parsed into taskParsedProgram.
 	let args = commanderToParsedArgs(taskParsedProgram ?? program);
+	if (args.kanban) {
+		launchKanban();
+		return;
+	}
 	const cwd = args.cwd ?? process.cwd();
 	const workspaceRoot = resolveWorkspaceRoot(cwd);
 	const sandboxEnabled =

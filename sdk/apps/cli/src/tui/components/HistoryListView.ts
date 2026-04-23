@@ -83,17 +83,20 @@ export function formatHistoryListLine(row: SessionHistoryRecord): string {
 export interface HistoryListViewProps {
 	rows: SessionHistoryRecord[];
 	onSelect: (sessionId: string) => void;
+	onExport?: (sessionId: string) => Promise<string | undefined>;
 	onExit: () => void;
 }
 
 export function HistoryListView({
 	rows: initialRows,
 	onSelect,
+	onExport,
 	onExit,
 }: HistoryListViewProps) {
 	const [rows, setRows] = useState(initialRows);
 	const [selectedIndex, setSelectedIndex] = useState(0);
 	const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+	const [statusMessage, setStatusMessage] = useState<string | null>(null);
 	const pageSize = Math.max(1, (process.stdout.rows ?? 24) / 4); // Leave room for header and footer
 	const selectedRow = rows[selectedIndex];
 	const checkpointDetail = selectedRow
@@ -136,10 +139,30 @@ export function HistoryListView({
 		}
 
 		if (key.upArrow) {
+			setStatusMessage(null);
 			setSelectedIndex((prev) => (prev > 0 ? prev - 1 : rows.length - 1));
 		} else if (key.downArrow) {
+			setStatusMessage(null);
 			setSelectedIndex((prev) => (prev < rows.length - 1 ? prev + 1 : 0));
-		} else if (input === "x" || input === "X") {
+		} else if (key.rightArrow && onExport) {
+			const selected = rows[selectedIndex];
+			if (selected?.sessionId) {
+				setStatusMessage(`Exporting ${selected.sessionId}...`);
+				void onExport(selected.sessionId)
+					.then((path) => {
+						setStatusMessage(
+							path
+								? `Exported ${selected.sessionId} to ${path}`
+								: `Exported ${selected.sessionId}`,
+						);
+					})
+					.catch((error) => {
+						setStatusMessage(
+							error instanceof Error ? error.message : String(error),
+						);
+					});
+			}
+		} else if (key.leftArrow) {
 			const selected = rows[selectedIndex];
 			if (selected?.sessionId) {
 				setConfirmDelete(selected.sessionId);
@@ -156,8 +179,12 @@ export function HistoryListView({
 
 	const headerText = confirmDelete
 		? `Delete this session? (y/n)`
-		: "History (Up/Down to navigate | Enter to resume | x to delete | Esc to quit)";
+		: "History (Up/Down to navigate | Enter to resume | Esc to quit)";
 	const headerColor = confirmDelete ? "red" : "cyan";
+	const footerText =
+		rows.length > pageSize
+			? `Showing ${visibleWindow.startIndex + 1}-${Math.min(visibleWindow.startIndex + pageSize, rows.length)} of ${rows.length} | \u2190 delete | \u2192 export`
+			: `\u2190 delete | \u2192 export`;
 
 	return React.createElement(
 		Box,
@@ -200,11 +227,19 @@ export function HistoryListView({
 					`\n${checkpointDetail}`,
 				)
 			: undefined,
-		rows.length > pageSize &&
-			React.createElement(
-				Text,
-				{ color: "gray" },
-				`\nShowing ${visibleWindow.startIndex + 1}-${Math.min(visibleWindow.startIndex + pageSize, rows.length)} of ${rows.length}`,
-			),
+		statusMessage
+			? React.createElement(
+					Text,
+					{
+						color:
+							statusMessage.startsWith("Exported") ||
+							statusMessage.startsWith("Exporting")
+								? "green"
+								: "red",
+					},
+					`\n${statusMessage}`,
+				)
+			: undefined,
+		React.createElement(Text, { color: "gray" }, `\n${footerText}`),
 	);
 }

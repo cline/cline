@@ -68,6 +68,7 @@ export interface ParsedArgs {
 	prompt?: string;
 	systemPrompt?: string;
 	key?: string;
+	kanban: boolean;
 	verbose: boolean;
 	interactive: boolean;
 	showUsage: boolean;
