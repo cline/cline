@@ -98,6 +98,40 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("treats an unset maxIterations as unlimited", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"first"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_2",
+					toolName: "echo",
+					inputText: '{"text":"second"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, tools: [createEchoTool()] });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.iterations).toBe(3);
+		expect(result.outputText).toBe("done");
+	});
+
 	it("supports plugin-contributed tools and hooks", async () => {
 		const beforeRun = vi.fn();
 		const plugin: AgentRuntimePlugin = {

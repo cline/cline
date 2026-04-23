@@ -179,9 +179,7 @@ function normalizeInput(input: AgentRunInput): AgentMessage[] {
 }
 
 export class AgentRuntime {
-	private readonly config: Required<
-		Pick<AgentRuntimeConfig, "maxIterations" | "toolExecution">
-	> &
+	private readonly config: Required<Pick<AgentRuntimeConfig, "toolExecution">> &
 		AgentRuntimeConfig;
 	private readonly listeners = new Set<AgentEventListener>();
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
@@ -212,7 +210,6 @@ export class AgentRuntime {
 	constructor(config: AgentRuntimeConfig) {
 		this.config = {
 			...config,
-			maxIterations: config.maxIterations ?? 12,
 			toolExecution: config.toolExecution ?? "sequential",
 		};
 		this.state.agentId = config.agentId ?? createUID("agent");
@@ -321,7 +318,10 @@ export class AgentRuntime {
 
 			let finalAssistantMessage: AgentMessage | undefined;
 
-			while (this.state.iteration < this.config.maxIterations) {
+			while (
+				this.config.maxIterations === undefined ||
+				this.state.iteration < this.config.maxIterations
+			) {
 				this.throwIfAborted();
 
 				this.state.iteration += 1;
