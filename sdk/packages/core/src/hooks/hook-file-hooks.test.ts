@@ -1,8 +1,18 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { createHookConfigFileHooks, mergeAgentHooks } from "./hook-file-hooks";
+import { dirname, join } from "node:path";
+import {
+	resolveClineDir,
+	resolveDocumentsClineDirectoryPath,
+	setClineDir,
+	setHomeDir,
+} from "@clinebot/shared/storage";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import {
+	createHookConfigFileHooks,
+	getWindowsPythonFallbackCommand,
+	mergeAgentHooks,
+} from "./hook-file-hooks";
 
 async function waitForFile(
 	filePath: string,
@@ -38,6 +48,30 @@ async function createWorkspaceWithHook(
 }
 
 describe("createHookConfigFileHooks", () => {
+	const originalHomeDir = dirname(
+		dirname(resolveDocumentsClineDirectoryPath()),
+	);
+	const originalClineDir = resolveClineDir();
+	let isolatedRoot = "";
+
+	beforeAll(async () => {
+		isolatedRoot = await mkdtemp(join(tmpdir(), "hooks-home-"));
+		const isolatedHomeDir = join(isolatedRoot, "home");
+		const isolatedClineDir = join(isolatedRoot, "cline");
+		await mkdir(isolatedHomeDir, { recursive: true });
+		await mkdir(isolatedClineDir, { recursive: true });
+		setHomeDir(isolatedHomeDir);
+		setClineDir(isolatedClineDir);
+	});
+
+	afterAll(async () => {
+		setHomeDir(originalHomeDir);
+		setClineDir(originalClineDir);
+		if (isolatedRoot) {
+			await rm(isolatedRoot, { recursive: true, force: true });
+		}
+	});
+
 	it("ignores example hook files", async () => {
 		const { workspace } = await createWorkspaceWithHook(
 			"PreToolUse.example",
@@ -195,6 +229,37 @@ describe("createHookConfigFileHooks", () => {
 				retryDelay: 250,
 			});
 		}
+	}, 15000);
+
+	it("falls back from py -3 to python when the Windows launcher is missing", () => {
+		expect(
+			getWindowsPythonFallbackCommand(["py", "-3", "hook.py"], "win32", {
+				code: "ENOENT",
+			}),
+		).toEqual(["python", "hook.py"]);
+		expect(
+			getWindowsPythonFallbackCommand(["py", "-3", "-u", "hook.py"], "win32", {
+				code: "ENOENT",
+			}),
+		).toEqual(["python", "-u", "hook.py"]);
+	});
+
+	it("does not rewrite python launch commands when fallback conditions are not met", () => {
+		expect(
+			getWindowsPythonFallbackCommand(["py", "-3", "hook.py"], "linux", {
+				code: "ENOENT",
+			}),
+		).toBeUndefined();
+		expect(
+			getWindowsPythonFallbackCommand(["python", "hook.py"], "win32", {
+				code: "ENOENT",
+			}),
+		).toBeUndefined();
+		expect(
+			getWindowsPythonFallbackCommand(["py", "-3", "hook.py"], "win32", {
+				code: "EACCES",
+			}),
+		).toBeUndefined();
 	});
 
 	it.runIf(process.platform === "win32")(

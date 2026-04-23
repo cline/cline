@@ -272,6 +272,34 @@ async function runHookCommand(
 	if (options.command.length === 0) {
 		throw new Error("runHookCommand requires non-empty command");
 	}
+	try {
+		return await runHookCommandOnce(payload, options);
+	} catch (error) {
+		const fallbackCommand = getWindowsPythonFallbackCommand(
+			options.command,
+			process.platform,
+			error,
+		);
+		if (!fallbackCommand) {
+			throw error;
+		}
+		return await runHookCommandOnce(payload, {
+			...options,
+			command: fallbackCommand,
+		});
+	}
+}
+
+async function runHookCommandOnce(
+	payload: HookEventPayload,
+	options: {
+		command: string[];
+		cwd: string;
+		env?: NodeJS.ProcessEnv;
+		detached: boolean;
+		timeoutMs?: number;
+	},
+): Promise<HookCommandResult | undefined> {
 	const command = augmentNodeCommandForDebug(options.command, {
 		env: options.env,
 		debugRole: "hook",
@@ -357,6 +385,29 @@ function parseShebangCommand(path: string): string[] | undefined {
 	}
 }
 
+function isMissingCommandError(error: unknown): boolean {
+	return !!(
+		error &&
+		typeof error === "object" &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "ENOENT"
+	);
+}
+
+export function getWindowsPythonFallbackCommand(
+	command: string[],
+	platform = process.platform,
+	error?: unknown,
+): string[] | undefined {
+	if (platform !== "win32" || !isMissingCommandError(error)) {
+		return undefined;
+	}
+	if (command[0] !== "py" || command[1] !== "-3") {
+		return undefined;
+	}
+	return ["python", ...command.slice(2)];
+}
+
 function normalizeHookInterpreter(tokens: string[]): string[] | undefined {
 	if (tokens.length === 0) {
 		return undefined;
@@ -374,7 +425,9 @@ function normalizeHookInterpreter(tokens: string[]): string[] | undefined {
 	}
 
 	if (commandName === "python3" || commandName === "python") {
-		return [process.platform === "win32" ? "python" : commandName, ...rest];
+		return process.platform === "win32"
+			? ["py", "-3", ...rest]
+			: [commandName, ...rest];
 	}
 
 	return tokens;
@@ -410,7 +463,9 @@ function inferHookCommand(path: string): string[] {
 		return ["bun", "run", path];
 	}
 	if (lowered.endsWith(".py")) {
-		return [process.platform === "win32" ? "python" : "python3", path];
+		return process.platform === "win32"
+			? ["py", "-3", path]
+			: ["python3", path];
 	}
 	if (lowered.endsWith(".ps1")) {
 		return [
