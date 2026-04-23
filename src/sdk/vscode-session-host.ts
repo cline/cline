@@ -66,7 +66,7 @@ export class VscodeSessionHost implements SessionHost {
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
-					const extraTools = await createVscodeExtraTools(options.mcpHub)
+					const extraTools = await createVscodeExtraTools(options.mcpHub, { cwd: input.config.cwd })
 					return {
 						...input,
 						source: input.source ?? "vscode",

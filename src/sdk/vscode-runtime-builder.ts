@@ -1,4 +1,4 @@
-import { createMcpTools } from "@clinebot/core"
+import { createDefaultExecutors, createMcpTools } from "@clinebot/core"
 import { createTool, type Tool, type ToolContext } from "@clinebot/shared"
 import type { McpHub } from "@/services/mcp/McpHub"
 import { Logger } from "@/shared/services/Logger"
@@ -41,7 +41,28 @@ class McpHubToolProvider {
 	}
 }
 
-function createAttemptCompletionTool(): Tool {
+/**
+ * Lazily-created bash executor for attempt_completion commands.
+ * Re-uses the SDK's built-in bash executor (via createDefaultExecutors) which
+ * already handles cross-platform shells, timeout, abort signals, and output truncation.
+ */
+const getCompletionCommandExecutor = (() => {
+	let executor: ReturnType<typeof createDefaultExecutors>["bash"] | undefined
+	return () => {
+		if (!executor) {
+			const executors = createDefaultExecutors({
+				bash: {
+					timeoutMs: 15_000, // showcase commands, not long-running builds
+					maxOutputBytes: 256_000,
+				},
+			})
+			executor = executors.bash
+		}
+		return executor!
+	}
+})()
+
+function createAttemptCompletionTool(options: { cwd?: string } = {}): Tool {
 	return createTool({
 		name: "attempt_completion",
 		description:
@@ -63,14 +84,38 @@ function createAttemptCompletionTool(): Tool {
 			},
 			required: ["result"],
 		},
-		execute: async (input: unknown) => {
+		execute: async (input: unknown, context: ToolContext) => {
 			const parsedInput = input && typeof input === "object" ? (input as Record<string, unknown>) : {}
-			return typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."
+			const resultText = typeof parsedInput.result === "string" ? parsedInput.result : "Task completed."
+			const command = typeof parsedInput.command === "string" ? parsedInput.command.trim() : undefined
+
+			if (!command) {
+				return resultText
+			}
+
+			// Execute the command and include its output in the result
+			const cwd = options.cwd || process.cwd()
+			Logger.log(`[attempt_completion] Executing command: ${command} (cwd: ${cwd})`)
+
+			try {
+				const bashExecutor = getCompletionCommandExecutor()
+				const commandOutput = await bashExecutor(command, cwd, context)
+				const trimmedOutput = commandOutput.trim()
+
+				if (trimmedOutput) {
+					return `${resultText}\n\n[Command: ${command}]\n${trimmedOutput}`
+				}
+				return `${resultText}\n\n[Command executed: ${command}]`
+			} catch (error) {
+				const errorMsg = error instanceof Error ? error.message : String(error)
+				Logger.warn(`[attempt_completion] Command failed: ${errorMsg}`)
+				return `${resultText}\n\n[Command failed: ${command}]\n${errorMsg}`
+			}
 		},
 	})
 }
 
-export async function createVscodeExtraTools(mcpHub: McpHub): Promise<Tool[]> {
+export async function createVscodeExtraTools(mcpHub: McpHub, options?: { cwd?: string }): Promise<Tool[]> {
 	const provider = new McpHubToolProvider(mcpHub)
 	const mcpTools = await Promise.all(
 		mcpHub.getServers().map(async (server) => {
@@ -90,7 +135,7 @@ export async function createVscodeExtraTools(mcpHub: McpHub): Promise<Tool[]> {
 		}),
 	)
 
-	const tools = [createAttemptCompletionTool(), ...mcpTools.flat()]
+	const tools = [createAttemptCompletionTool({ cwd: options?.cwd }), ...mcpTools.flat()]
 	Logger.log(`[VscodeRuntimeTools] Prepared ${tools.length} VSCode extra tools`)
 	return tools
 }
