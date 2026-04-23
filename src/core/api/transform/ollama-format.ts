@@ -48,9 +48,7 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 								?.map((part) => {
 									if (part.type === "image") {
 										// Strip data URI prefix if present (e.g., "data:image/png;base64,")
-										const base64Data = part.source.data
-											.replace(/^data:image\/\w+;base64,/, "")
-											.replace(/^data:[^;]+;base64,/, "")
+										const base64Data = part.source.data.replace(/^data:[^;]+;base64,/, "")
 										toolResultImages.push(base64Data)
 										return "(see following user message for image)"
 									}
@@ -72,9 +70,7 @@ export function convertToOllamaMessages(anthropicMessages: Omit<ClineStorageMess
 						.map((part) => {
 							if (part.type === "image") {
 								// Strip data URI prefix if present (e.g., "data:image/png;base64,")
-								const base64Data = part.source.data
-									.replace(/^data:image\/\w+;base64,/, "")
-									.replace(/^data:[^;]+;base64,/, "")
+								const base64Data = part.source.data.replace(/^data:[^;]+;base64,/, "")
 								nonToolImages.push(base64Data)
 								return "(see following user message for image)"
 							}
