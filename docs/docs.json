@@ -278,6 +278,7 @@
 						"group": "Getting Started",
 						"pages": [
 							"sdk/overview",
+							"sdk/ecosystem",
 							"sdk/quickstart",
 							"sdk/examples"
 						]
