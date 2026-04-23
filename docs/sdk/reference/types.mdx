@@ -1,0 +1,308 @@
+---
+title: "Types"
+sidebarTitle: "Types"
+description: "Complete type reference for all SDK exports."
+---
+
+All types are exported from their respective packages. This page lists the key types you'll work with.
+
+## Message Types
+
+```typescript
+import type { Message, ContentBlock } from "@clinebot/shared"
+```
+
+### Message
+
+```typescript
+interface Message {
+  role: "user" | "assistant" | "system"
+  content: ContentBlock[]
+}
+```
+
+### ContentBlock
+
+Discriminated union of content types:
+
+```typescript
+type ContentBlock =
+  | TextContent
+  | ToolUseContent
+  | ToolResultContent
+  | ThinkingContent
+
+interface TextContent {
+  type: "text"
+  text: string
+}
+
+interface ToolUseContent {
+  type: "tool_use"
+  id: string
+  name: string
+  input: unknown
+}
+
+interface ToolResultContent {
+  type: "tool_result"
+  tool_use_id: string
+  content: string | ContentBlock[]
+  is_error?: boolean
+}
+
+interface ThinkingContent {
+  type: "thinking"
+  thinking: string
+}
+```
+
+## Agent Types
+
+```typescript
+import type {
+  Agent,
+  AgentConfig,
+  AgentResult,
+  AgentUsage,
+  AgentExtension,
+  AgentStream,
+} from "@clinebot/agents"
+```
+
+### AgentConfig
+
+See [Agent Reference](/sdk/reference/agent#agentconfig).
+
+### AgentResult
+
+```typescript
+interface AgentResult {
+  text: string
+  finishReason: "completed" | "max_iterations" | "mistake_limit" | "aborted" | "error" | "timeout"
+  iterations: number
+  usage: AgentUsage
+  messages: Message[]
+  toolCalls: ToolCallRecord[]
+  model: string
+  startedAt: Date
+  endedAt: Date
+  durationMs: number
+}
+```
+
+### AgentUsage
+
+```typescript
+interface AgentUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  cacheCreationTokens?: number
+}
+```
+
+### AgentExtension
+
+```typescript
+interface AgentExtension {
+  name: string
+  manifest: {
+    capabilities: ("tools" | "hooks" | "commands")[]
+  }
+  setup?(api: ExtensionAPI): void
+  onRunStart?(context: { userMessage: string }): void
+  onRunEnd?(context: { result: AgentResult }): void
+  onToolCall?(context: { call: ToolCallRecord }): void
+  onToolResult?(context: { record: ToolCallRecord }): void
+  onIterationStart?(context: { iteration: number }): void
+  onIterationEnd?(context: { iteration: number }): void
+  onError?(context: { error: Error; recoverable: boolean }): void
+}
+```
+
+## Tool Types
+
+```typescript
+import type {
+  Tool,
+  ToolContext,
+  ToolPolicy,
+  ToolCallRecord,
+} from "@clinebot/shared"
+```
+
+### Tool
+
+```typescript
+interface Tool<TInput = unknown, TOutput = unknown> {
+  name: string
+  description: string
+  inputSchema: JSONSchema
+  execute(input: TInput, context: ToolContext, onChange?: Function): Promise<TOutput>
+  timeoutMs?: number
+  retryable?: boolean
+  maxRetries?: number
+}
+```
+
+### ToolContext
+
+```typescript
+interface ToolContext {
+  agentId: string
+  conversationId: string
+  iteration: number
+  abortSignal?: AbortSignal
+  metadata?: Record<string, unknown>
+}
+```
+
+### ToolPolicy
+
+```typescript
+interface ToolPolicy {
+  enabled?: boolean
+  autoApprove?: boolean
+}
+```
+
+### ToolCallRecord
+
+```typescript
+interface ToolCallRecord {
+  id: string
+  name: string
+  input: unknown
+  output?: unknown
+  error?: string
+  duration?: number
+  status: "success" | "error" | "timeout" | "aborted"
+}
+```
+
+## Event Types
+
+```typescript
+import type { AgentEvent } from "@clinebot/shared"
+```
+
+See [Events Reference](/sdk/reference/events) for the full `AgentEvent` union type.
+
+## Core Types
+
+```typescript
+import type {
+  ClineCore,
+  ClineCoreOptions,
+  StartSessionInput,
+  StartSessionResult,
+  CoreSessionConfig,
+  SessionRecord,
+} from "@clinebot/core"
+```
+
+### SessionRecord
+
+```typescript
+interface SessionRecord {
+  sessionId: string
+  workspaceRoot: string
+  cwd: string
+  provider: string
+  model: string
+  status: string
+  createdAt: Date
+  updatedAt: Date
+  metadata?: Record<string, unknown>
+  messagesPath?: string
+  transcriptPath?: string
+}
+```
+
+## Model Types
+
+```typescript
+import type {
+  ModelInfo,
+  ProviderInfo,
+} from "@clinebot/llms"
+```
+
+### ModelInfo
+
+```typescript
+interface ModelInfo {
+  id: string
+  name: string
+  provider: string
+  contextWindow: number
+  maxTokens: number
+  pricing: {
+    input: number
+    output: number
+    cacheCreation?: number
+    cacheRead?: number
+  }
+  capabilities: {
+    vision?: boolean
+    reasoning?: boolean
+    thinking?: boolean
+    streaming?: boolean
+  }
+  status?: {
+    available: boolean
+    deprecation?: string
+  }
+}
+```
+
+### ProviderInfo
+
+```typescript
+interface ProviderInfo {
+  id: string
+  name: string
+  capabilities: {
+    vision: boolean
+    toolUse: boolean
+    streaming: boolean
+    reasoning: boolean
+  }
+  models: ModelInfo[]
+}
+```
+
+## Hook Types
+
+```typescript
+import type { HookEngine } from "@clinebot/shared"
+```
+
+### HookPolicy
+
+```typescript
+type HookPolicy = "fail_open" | "fail_closed"
+```
+
+| Policy | Behavior |
+|--------|----------|
+| `fail_open` | Hook errors are logged but execution continues |
+| `fail_closed` | Hook errors stop the agent |
+
+## Utility Types
+
+### BasicLogger
+
+The logging interface used across the SDK:
+
+```typescript
+interface BasicLogger {
+  debug(message: string, ...args: unknown[]): void
+  info(message: string, ...args: unknown[]): void
+  warn(message: string, ...args: unknown[]): void
+  error(message: string, ...args: unknown[]): void
+}
+```
+
+Any logger that implements these four methods works (console, pino, winston, etc.).

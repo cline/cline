@@ -229,43 +229,43 @@
 					{
 						"group": "Getting Started",
 						"pages": [
-							"cline-cli/getting-started",
-							"cline-cli/installation"
+							"cli/getting-started",
+							"cli/installation"
 						]
 					},
 					{
 						"group": "Usage",
 						"pages": [
-							"cline-cli/interactive-mode",
-							"cline-cli/three-core-flows"
+							"cli/interactive-mode",
+							"cli/three-core-flows"
 						]
 					},
 					{
 						"group": "Features",
 						"pages": [
-							"cline-cli/connectors",
-							"cline-cli/scheduling",
-							"cline-cli/mcp-servers",
-							"cline-cli/agent-teams"
+							"cli/connectors",
+							"cli/scheduling",
+							"cli/mcp-servers",
+							"cli/agent-teams"
 						]
 					},
 					{
 						"group": "Reference",
 						"pages": [
-							"cline-cli/cli-reference",
-							"cline-cli/configuration",
-							"cline-cli/acp-editor-integrations"
+							"cli/cli-reference",
+							"cli/configuration",
+							"cli/acp-editor-integrations"
 						]
 					},
 					{
 						"group": "Samples",
 						"pages": [
-							"cline-cli/samples/overview",
-							"cline-cli/samples/github-issue-rca",
-							"cline-cli/samples/github-integration",
-							"cline-cli/samples/github-pr-review",
-							"cline-cli/samples/model-orchestration",
-							"cline-cli/samples/worktree-workflows"
+							"cli/samples/overview",
+							"cli/samples/github-issue-rca",
+							"cli/samples/github-integration",
+							"cli/samples/github-pr-review",
+							"cli/samples/model-orchestration",
+							"cli/samples/worktree-workflows"
 						]
 					}
 				]
@@ -277,53 +277,53 @@
 					{
 						"group": "Getting Started",
 						"pages": [
-							"cline-sdk/overview",
-							"cline-sdk/quickstart",
-							"cline-sdk/examples"
+							"sdk/overview",
+							"sdk/quickstart",
+							"sdk/examples"
 						]
 					},
 					{
 						"group": "Core Concepts",
 						"pages": [
-							"cline-sdk/agents",
-							"cline-sdk/sessions",
-							"cline-sdk/tools",
-							"cline-sdk/streaming-and-events",
-							"cline-sdk/extensions",
-							"cline-sdk/hooks",
-							"cline-sdk/providers-and-models"
+							"sdk/agents",
+							"sdk/sessions",
+							"sdk/tools",
+							"sdk/streaming-and-events",
+							"sdk/extensions",
+							"sdk/hooks",
+							"sdk/model-providers"
 						]
 					},
 					{
 						"group": "Guides",
 						"pages": [
-							"cline-sdk/guides/building-an-agent",
-							"cline-sdk/guides/creating-custom-tools",
-							"cline-sdk/guides/writing-extensions",
-							"cline-sdk/guides/permission-handling",
-							"cline-sdk/guides/scheduled-agents",
-							"cline-sdk/guides/multi-agent-teams",
-							"cline-sdk/guides/connectors",
-							"cline-sdk/guides/going-to-production"
+							"sdk/guides/building-an-agent",
+							"sdk/guides/creating-custom-tools",
+							"sdk/guides/writing-extensions",
+							"sdk/guides/permission-handling",
+							"sdk/guides/scheduled-agents",
+							"sdk/guides/multi-agent-teams",
+							"sdk/guides/connectors",
+							"sdk/guides/going-to-production"
 						]
 					},
 					{
 						"group": "Architecture",
 						"pages": [
-							"cline-sdk/architecture/overview",
-							"cline-sdk/architecture/hub-spoke",
-							"cline-sdk/architecture/packages"
+							"sdk/architecture/overview",
+							"sdk/architecture/hub-spoke",
+							"sdk/architecture/packages"
 						]
 					},
 					{
 						"group": "API Reference",
 						"pages": [
-							"cline-sdk/reference/cline-core",
-							"cline-sdk/reference/agent",
-							"cline-sdk/reference/gateway",
-							"cline-sdk/reference/tools-api",
-							"cline-sdk/reference/events",
-							"cline-sdk/reference/types"
+							"sdk/reference/cline-core",
+							"sdk/reference/agent",
+							"sdk/reference/gateway",
+							"sdk/reference/tools-api",
+							"sdk/reference/events",
+							"sdk/reference/types"
 						]
 					}
 				]
@@ -539,8 +539,8 @@
 			"destination": "/getting-started/your-first-project"
 		},
 		{
-			"source": "/cline-cli/samples",
-			"destination": "/cline-cli/samples/overview"
+			"source": "/cli/samples",
+			"destination": "/cli/samples/overview"
 		},
 		{
 			"source": "/features/hooks/real-world-examples",
@@ -749,6 +749,182 @@
 		{
 			"source": "/api/reference",
 			"destination": "/api/overview"
+		},
+		{
+			"source": "/cline-cli/getting-started",
+			"destination": "/cli/getting-started"
+		},
+		{
+			"source": "/cline-cli/installation",
+			"destination": "/cli/installation"
+		},
+		{
+			"source": "/cline-cli/interactive-mode",
+			"destination": "/cli/interactive-mode"
+		},
+		{
+			"source": "/cline-cli/three-core-flows",
+			"destination": "/cli/three-core-flows"
+		},
+		{
+			"source": "/cline-cli/connectors",
+			"destination": "/cli/connectors"
+		},
+		{
+			"source": "/cline-cli/scheduling",
+			"destination": "/cli/scheduling"
+		},
+		{
+			"source": "/cline-cli/mcp-servers",
+			"destination": "/cli/mcp-servers"
+		},
+		{
+			"source": "/cline-cli/agent-teams",
+			"destination": "/cli/agent-teams"
+		},
+		{
+			"source": "/cline-cli/cli-reference",
+			"destination": "/cli/cli-reference"
+		},
+		{
+			"source": "/cline-cli/configuration",
+			"destination": "/cli/configuration"
+		},
+		{
+			"source": "/cline-cli/acp-editor-integrations",
+			"destination": "/cli/acp-editor-integrations"
+		},
+		{
+			"source": "/cline-cli/samples/overview",
+			"destination": "/cli/samples/overview"
+		},
+		{
+			"source": "/cline-cli/samples/github-issue-rca",
+			"destination": "/cli/samples/github-issue-rca"
+		},
+		{
+			"source": "/cline-cli/samples/github-integration",
+			"destination": "/cli/samples/github-integration"
+		},
+		{
+			"source": "/cline-cli/samples/github-pr-review",
+			"destination": "/cli/samples/github-pr-review"
+		},
+		{
+			"source": "/cline-cli/samples/model-orchestration",
+			"destination": "/cli/samples/model-orchestration"
+		},
+		{
+			"source": "/cline-cli/samples/worktree-workflows",
+			"destination": "/cli/samples/worktree-workflows"
+		},
+		{
+			"source": "/cline-sdk/overview",
+			"destination": "/sdk/overview"
+		},
+		{
+			"source": "/cline-sdk/quickstart",
+			"destination": "/sdk/quickstart"
+		},
+		{
+			"source": "/cline-sdk/examples",
+			"destination": "/sdk/examples"
+		},
+		{
+			"source": "/cline-sdk/agents",
+			"destination": "/sdk/agents"
+		},
+		{
+			"source": "/cline-sdk/sessions",
+			"destination": "/sdk/sessions"
+		},
+		{
+			"source": "/cline-sdk/tools",
+			"destination": "/sdk/tools"
+		},
+		{
+			"source": "/cline-sdk/streaming-and-events",
+			"destination": "/sdk/streaming-and-events"
+		},
+		{
+			"source": "/cline-sdk/extensions",
+			"destination": "/sdk/extensions"
+		},
+		{
+			"source": "/cline-sdk/hooks",
+			"destination": "/sdk/hooks"
+		},
+		{
+			"source": "/cline-sdk/model-providers",
+			"destination": "/sdk/model-providers"
+		},
+		{
+			"source": "/cline-sdk/guides/building-an-agent",
+			"destination": "/sdk/guides/building-an-agent"
+		},
+		{
+			"source": "/cline-sdk/guides/creating-custom-tools",
+			"destination": "/sdk/guides/creating-custom-tools"
+		},
+		{
+			"source": "/cline-sdk/guides/writing-extensions",
+			"destination": "/sdk/guides/writing-extensions"
+		},
+		{
+			"source": "/cline-sdk/guides/permission-handling",
+			"destination": "/sdk/guides/permission-handling"
+		},
+		{
+			"source": "/cline-sdk/guides/scheduled-agents",
+			"destination": "/sdk/guides/scheduled-agents"
+		},
+		{
+			"source": "/cline-sdk/guides/multi-agent-teams",
+			"destination": "/sdk/guides/multi-agent-teams"
+		},
+		{
+			"source": "/cline-sdk/guides/connectors",
+			"destination": "/sdk/guides/connectors"
+		},
+		{
+			"source": "/cline-sdk/guides/going-to-production",
+			"destination": "/sdk/guides/going-to-production"
+		},
+		{
+			"source": "/cline-sdk/architecture/overview",
+			"destination": "/sdk/architecture/overview"
+		},
+		{
+			"source": "/cline-sdk/architecture/hub-spoke",
+			"destination": "/sdk/architecture/hub-spoke"
+		},
+		{
+			"source": "/cline-sdk/architecture/packages",
+			"destination": "/sdk/architecture/packages"
+		},
+		{
+			"source": "/cline-sdk/reference/cline-core",
+			"destination": "/sdk/reference/cline-core"
+		},
+		{
+			"source": "/cline-sdk/reference/agent",
+			"destination": "/sdk/reference/agent"
+		},
+		{
+			"source": "/cline-sdk/reference/gateway",
+			"destination": "/sdk/reference/gateway"
+		},
+		{
+			"source": "/cline-sdk/reference/tools-api",
+			"destination": "/sdk/reference/tools-api"
+		},
+		{
+			"source": "/cline-sdk/reference/events",
+			"destination": "/sdk/reference/events"
+		},
+		{
+			"source": "/cline-sdk/reference/types",
+			"destination": "/sdk/reference/types"
 		}
 	],
 	"search": {
