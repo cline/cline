@@ -377,6 +377,19 @@ export class Controller {
 	 * Translates the event and emits ClineMessages to listeners.
 	 */
 	private handleSessionEvent(event: CoreSessionEvent): void {
+		// Log pending prompt events for visibility (SDK emits these when
+		// queued messages are enqueued/consumed via delivery: "queue").
+		if (event.type === "pending_prompts") {
+			const count = event.payload.prompts.length
+			Logger.log(
+				`[SdkController] Pending prompts updated: ${count} prompt(s) in queue for session ${event.payload.sessionId}`,
+			)
+		} else if (event.type === "pending_prompt_submitted") {
+			Logger.log(
+				`[SdkController] Pending prompt submitted: "${event.payload.prompt.substring(0, 80)}" for session ${event.payload.sessionId}`,
+			)
+		}
+
 		const result = translateSessionEvent(event, this.messageTranslatorState)
 
 		// Suppress completion_result messages that arrive after cancellation.
@@ -660,6 +673,7 @@ export class Controller {
 		prompt: string,
 		images?: string[],
 		files?: string[],
+		delivery?: "queue" | "steer",
 	): void {
 		sessionManager
 			.send({
@@ -667,8 +681,16 @@ export class Controller {
 				prompt,
 				userImages: images,
 				userFiles: files,
+				delivery,
 			})
-			.then(() => {
+			.then((result) => {
+				// When delivery is "queue", send() returns undefined immediately
+				// (the message was enqueued, the turn didn't complete). Don't
+				// update isRunning — the agent is still mid-turn.
+				if (delivery === "queue" || delivery === "steer") {
+					Logger.log(`[SdkController] Message queued for session: ${sessionId}`)
+					return
+				}
 				Logger.log(`[SdkController] Agent turn completed for session: ${sessionId}`)
 				if (this.activeSession) {
 					this.activeSession.isRunning = false
@@ -1137,6 +1159,17 @@ export class Controller {
 		}
 
 		const { sessionManager, sessionId } = this.activeSession
+
+		// If the session is already running (agent mid-turn), use delivery: "queue"
+		// so the SDK enqueues the message instead of throwing "already in progress".
+		// The SDK will drain the queue after the current turn completes.
+		const wasAlreadyRunning = this.activeSession.isRunning
+		const delivery = wasAlreadyRunning ? ("queue" as const) : undefined
+
+		if (wasAlreadyRunning) {
+			Logger.log(`[SdkController] Session is running — queuing follow-up message for session: ${sessionId}`)
+		}
+
 		this.activeSession.isRunning = true
 
 		// Mirror classic behavior: render the user's follow-up message immediately
@@ -1164,14 +1197,17 @@ export class Controller {
 			})
 		}
 
-		// Reset translator state for new turn
-		this.messageTranslatorState.reset()
+		// Reset translator state for new turn (only if not queuing — queued
+		// messages will be processed after the current turn completes)
+		if (!wasAlreadyRunning) {
+			this.messageTranslatorState.reset()
+		}
 
 		// Resolve @mentions before sending to the SDK
 		const resolvedPrompt = prompt ? await this.resolveContextMentions(prompt) : ""
 
-		// Fire-and-forget send
-		this.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files)
+		// Fire-and-forget send (with delivery: "queue" if session was already running)
+		this.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files, delivery)
 	}
 
 	/**
