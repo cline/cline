@@ -75,7 +75,7 @@ export const WelcomeSection: React.FC<WelcomeSectionProps> = ({
 			setShowWhatsNewModal(true)
 			setHasShownWhatsNewModal(true)
 		}
-	}, [welcomeBanners])
+	}, [welcomeBanners, showAnnouncement, hasShownWhatsNewModal])
 
 	const handleCloseWhatsNewModal = useCallback(() => {
 		setShowWhatsNewModal(false)
