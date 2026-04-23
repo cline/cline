@@ -92,29 +92,9 @@ Key exports:
 
 ## Internal Packages
 
-These packages are not published to npm. They're implementation details of the CLI and desktop applications.
-
-### @clinebot/rpc
-
-gRPC control plane for the hub-spoke architecture. Provides:
-
-- `ClineGateway` gRPC service with 40+ RPC methods
-- Session routing, event streaming, tool approval gateway
-- Client registration and health checks
-- Proto definitions in `proto/rpc.proto`
-
-### @clinebot/scheduler
-
-Cron-based execution engine:
-
-- Cron expression parsing
-- Concurrency and resource limits
-- Schedule persistence
-- Execution history tracking
-
 ### @clinebot/enterprise
 
-Enterprise integrations (not part of the SDK):
+Enterprise integrations (not published):
 
 - WorkOS-based identity and SSO
 - Control plane sync for managed instructions
@@ -134,14 +114,6 @@ Enterprise integrations (not part of the SDK):
         │       ├── @clinebot/llms
         │       │       │
         │       │       └── @clinebot/shared
-        │       │
-        │       └── @clinebot/shared
-        │
-        ├── @clinebot/rpc (internal)
-        │       │
-        │       └── @clinebot/shared
-        │
-        ├── @clinebot/scheduler (internal)
         │       │
         │       └── @clinebot/shared
         │
@@ -170,8 +142,8 @@ For most use cases, just install `@clinebot/sdk`. Install individual packages on
 |--------------|---------|
 | Create a simple agent with custom tools | `@clinebot/agents` + `@clinebot/shared` |
 | Use built-in tools (bash, file editing) | `@clinebot/core` |
-| Persist sessions across restarts | `@clinebot/core` with RPC mode |
-| Schedule agents on a cron | `@clinebot/core` with RPC mode |
+| Persist sessions across restarts | `@clinebot/core` in hub mode |
+| Schedule agents on a cron | `@clinebot/core` in hub mode |
 | List available models and providers | `@clinebot/llms` |
 | Create custom tools | `@clinebot/shared` (for `createTool`) |
 | Build an extension/plugin | `@clinebot/agents` (for `AgentExtension` type) |

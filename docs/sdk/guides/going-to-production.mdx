@@ -277,12 +277,12 @@ For long-running services with session management:
 ```typescript
 const cline = await ClineCore.create({
   clientName: "my-service",
-  backendMode: "rpc",
-  rpc: { autoStart: true },
+  backendMode: "hub",
+  
 })
 
 // Sessions persist across restarts
-// Connectors, schedules, and team state all managed by the RPC sidecar
+// Connectors, schedules, and team state all managed by the hub
 
 process.on("SIGTERM", async () => {
   await cline.dispose("Shutting down")

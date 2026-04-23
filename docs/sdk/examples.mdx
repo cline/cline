@@ -97,11 +97,11 @@ import { ClineCore } from "@clinebot/sdk"
 
 const cline = await ClineCore.create({
   clientName: "daily-summary",
-  backendMode: "rpc",
-  rpc: { autoStart: true },
+  backendMode: "hub",
+  
 })
 
-// The RPC server manages the schedule and runs the agent
+// The hub manages the schedule and runs the agent
 // even after this process exits
 ```
 

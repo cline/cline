@@ -4,7 +4,7 @@ sidebarTitle: "Sessions"
 description: "ClineCore provides session management, persistence, built-in tools, and config discovery on top of the Agent."
 ---
 
-While the [Agent](/sdk/agents) class gives you a stateless execution loop, `ClineCore` wraps it with everything you need for production applications: session persistence, built-in tools, config file discovery, and optional RPC for multi-process architectures.
+While the [Agent](/sdk/agents) class gives you a stateless execution loop, `ClineCore` wraps it with everything you need for production applications: session persistence, built-in tools, config file discovery, and optional hub for multi-process architectures.
 
 ## When to Use ClineCore vs Agent
 
@@ -14,7 +14,7 @@ While the [Agent](/sdk/agents) class gives you a stateless execution loop, `Clin
 | Session persistence (survive restarts) | No | Yes |
 | Built-in tools (bash, file editing, etc.) | No | Yes |
 | Config file discovery (.cline/rules, skills, etc.) | No | Yes |
-| Multi-process / RPC architecture | No | Yes |
+| Multi-process / hub architecture | No | Yes |
 | Scheduled agents (cron) | No | Yes |
 | Multi-agent teams | No | Yes |
 
@@ -25,7 +25,7 @@ import { ClineCore } from "@clinebot/sdk"
 
 const cline = await ClineCore.create({
   clientName: "my-app",
-  backendMode: "auto",  // "auto" | "rpc" | "local"
+  backendMode: "auto",  // "auto" | "hub" | "remote" | "local"
   logger: myLogger,     // Optional: custom logger
 })
 ```
@@ -34,9 +34,10 @@ const cline = await ClineCore.create({
 
 | Mode | Behavior |
 |------|----------|
-| `auto` | Uses RPC if a server is available, falls back to local |
-| `local` | In-process only. Sessions stored in local SQLite. |
-| `rpc` | Connects to the RPC sidecar for cross-process session management. |
+| `auto` | Prefers a compatible local hub when available, falls back to local in-process execution. This is the default. |
+| `hub` | Requires a compatible WebSocket hub. Throws if one is not reachable. |
+| `remote` | Requires an explicit remote WebSocket hub endpoint. |
+| `local` | In-process only. No hub, no shared sessions. |
 
 ## Starting a Session
 

@@ -211,23 +211,16 @@ cline config tools                 # List available tools
 cline config --json <target>       # Output as JSON
 ```
 
-### cline rpc
+### cline hub
 
-Manage the RPC sidecar server.
+Manage the hub daemon. The hub starts automatically when `ClineCore` needs it, so most users don't need these commands. Use `cline hub stop` to shut down a hub running in the background.
 
 ```bash
-cline rpc start                    # Start the sidecar
-cline rpc stop                     # Stop it
-cline rpc status                   # Check health
-cline rpc ensure                   # Start if not running
-cline rpc list                     # List active sessions
-cline rpc kill-session <id>        # Terminate a session
+cline hub start                    # Start the hub daemon
+cline hub stop                     # Stop it
+cline hub status                   # Check if running
+cline hub ensure                   # Start if not running, return URL
 ```
-
-| Option | Description |
-|--------|-------------|
-| `--address <host:port>` | RPC address (default: `127.0.0.1:4317`) |
-| `--json` | Output as JSON |
 
 ### cline doctor
 
@@ -237,7 +230,7 @@ Diagnose configuration and connectivity issues.
 cline doctor
 ```
 
-Checks RPC server health, active processes, connector status, hook workers, and stale locks.
+Checks hub health, active processes, connector status, hook workers, and stale locks.
 
 ### cline dev
 
@@ -259,8 +252,8 @@ cline -V
 | Variable | Description |
 |----------|-------------|
 | `CLINE_DATA_DIR` | Custom configuration directory (replaces `~/.cline/data/`) |
-| `CLINE_RPC_ADDRESS` | Override RPC sidecar address (default: `127.0.0.1:4317`) |
-| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `rpc`, `auto`) |
+| `CLINE_HUB_ADDRESS` | Override hub address (default: `127.0.0.1:25463`) |
+| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_SANDBOX` | Enable sandbox mode |
 | `CLINE_HOOKS_DIR` | Additional hooks directory |
@@ -312,7 +305,7 @@ When using `--json`, each message is a JSON object on its own line:
     teams/                       # Team state
     sessions/                    # Session database (SQLite)
     logs/
-      rpc-sidecar.log            # RPC server logs
+      hub-daemon.log             # Hub logs
   plugins/                       # Global plugins
 
 .cline/                          # Project root

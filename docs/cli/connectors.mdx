@@ -140,7 +140,7 @@ Return `{"action": "allow"}` or `{"action": "deny", "message": "reason"}`.
 
 ## Running Multiple Connectors
 
-Multiple connectors can run simultaneously. They all share the same RPC sidecar:
+Multiple connectors can run simultaneously. They all share the same hub:
 
 ```bash
 # Terminal 1
@@ -150,4 +150,4 @@ cline connect telegram -m my_bot -k $TELEGRAM_TOKEN
 cline connect slack --token $SLACK_TOKEN --signing-secret $SECRET --base-url $URL
 ```
 
-Connectors require the RPC server. Start it with `cline rpc start` if it doesn't auto-start.
+Connectors require the hub. Start it with `cline hub start` if it doesn't auto-start.
