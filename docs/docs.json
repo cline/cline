@@ -290,7 +290,7 @@
 							"sdk/sessions",
 							"sdk/tools",
 							"sdk/streaming-and-events",
-							"sdk/extensions",
+							"sdk/plugins",
 							"sdk/hooks",
 							"sdk/model-providers"
 						]
@@ -300,7 +300,7 @@
 						"pages": [
 							"sdk/guides/building-an-agent",
 							"sdk/guides/creating-custom-tools",
-							"sdk/guides/writing-extensions",
+							"sdk/guides/writing-plugins",
 							"sdk/guides/permission-handling",
 							"sdk/guides/scheduled-agents",
 							"sdk/guides/multi-agent-teams",
@@ -848,8 +848,8 @@
 			"destination": "/sdk/streaming-and-events"
 		},
 		{
-			"source": "/cline-sdk/extensions",
-			"destination": "/sdk/extensions"
+			"source": "/cline-sdk/plugins",
+			"destination": "/sdk/plugins"
 		},
 		{
 			"source": "/cline-sdk/hooks",
@@ -868,8 +868,8 @@
 			"destination": "/sdk/guides/creating-custom-tools"
 		},
 		{
-			"source": "/cline-sdk/guides/writing-extensions",
-			"destination": "/sdk/guides/writing-extensions"
+			"source": "/cline-sdk/guides/writing-plugins",
+			"destination": "/sdk/guides/writing-plugins"
 		},
 		{
 			"source": "/cline-sdk/guides/permission-handling",
@@ -926,6 +926,22 @@
 		{
 			"source": "/cline-sdk/reference/types",
 			"destination": "/sdk/reference/types"
+		},
+		{
+			"source": "/sdk/extensions",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/cline-sdk/extensions",
+			"destination": "/sdk/plugins"
+		},
+		{
+			"source": "/sdk/guides/writing-extensions",
+			"destination": "/sdk/guides/writing-plugins"
+		},
+		{
+			"source": "/cline-sdk/guides/writing-extensions",
+			"destination": "/sdk/guides/writing-plugins"
 		}
 	],
 	"search": {

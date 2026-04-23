@@ -65,7 +65,7 @@ import type {
   AgentConfig,
   AgentResult,
   AgentUsage,
-  AgentExtension,
+  AgentPlugin,
   AgentStream,
 } from "@clinebot/agents"
 ```
@@ -102,15 +102,15 @@ interface AgentUsage {
 }
 ```
 
-### AgentExtension
+### AgentPlugin
 
 ```typescript
-interface AgentExtension {
+interface AgentPlugin {
   name: string
   manifest: {
     capabilities: ("tools" | "hooks" | "commands")[]
   }
-  setup?(api: ExtensionAPI): void
+  setup?(api: PluginAPI): void
   onRunStart?(context: { userMessage: string }): void
   onRunEnd?(context: { result: AgentResult }): void
   onToolCall?(context: { call: ToolCallRecord }): void

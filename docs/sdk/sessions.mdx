@@ -79,7 +79,7 @@ interface StartSessionResult {
 | `enableTools` | `boolean` | Enable the built-in tool suite |
 | `enableSpawnAgent` | `boolean` | Allow spawning sub-agents |
 | `enableAgentTeams` | `boolean` | Enable multi-agent team workflows |
-| `extensions` | `AgentExtension[]` | Custom extensions/plugins |
+| `plugins` | `AgentPlugin[]` | Plugins that add tools, hooks, and capabilities |
 | `toolPolicies` | `Record<string, ToolPolicy>` | Per-tool approval rules |
 | `maxIterations` | `number` | Maximum iterations |
 | `mode` | `string` | `"normal"`, `"expert"`, or `"performance"` |

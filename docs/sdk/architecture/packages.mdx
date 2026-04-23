@@ -66,7 +66,7 @@ Key exports:
 | `Agent` | Main agent class |
 | `AgentConfig` | Constructor configuration type |
 | `AgentResult` | Return type from `run()` and `continue()` |
-| `AgentExtension` | Extension/plugin interface |
+| `AgentPlugin` | Plugin interface |
 | `AgentStream` | Async iterable event stream |
 | `streamRun` | Helper to create a streaming agent run |
 | `AgentUsage` | Token usage tracking type |
@@ -131,7 +131,7 @@ npm install @clinebot/sdk
 ```
 
 ```typescript
-import { Agent, ClineCore, createTool, type AgentExtension } from "@clinebot/sdk"
+import { Agent, ClineCore, createTool, type AgentPlugin } from "@clinebot/sdk"
 ```
 
 ## Choosing the Right Package
@@ -146,7 +146,7 @@ For most use cases, just install `@clinebot/sdk`. Install individual packages on
 | Schedule agents on a cron | `@clinebot/core` in hub mode |
 | List available models and providers | `@clinebot/llms` |
 | Create custom tools | `@clinebot/shared` (for `createTool`) |
-| Build an extension/plugin | `@clinebot/agents` (for `AgentExtension` type) |
+| Build a plugin | `@clinebot/agents` (for `AgentPlugin` type) |
 
 ## Version Compatibility
 

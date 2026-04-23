@@ -1,23 +1,23 @@
 ---
-title: "Writing Extensions"
-sidebarTitle: "Writing Extensions"
+title: "Writing Plugins"
+sidebarTitle: "Writing Plugins"
 description: "Build plugins that add tools, observe execution, and modify agent behavior."
 ---
 
-Extensions are the primary way to package reusable agent capabilities. This guide walks through building a production-quality extension from scratch.
+Plugins are the primary way to package reusable agent capabilities. This guide walks through building a production-quality plugin from scratch.
 
 ## What You'll Build
 
-A GitHub integration extension that:
+A GitHub integration plugin that:
 - Registers tools for interacting with GitHub (list issues, create PRs, post comments)
 - Logs all tool calls for auditing
 - Tracks token usage per session
 
-## Step 1: Define the Extension Structure
+## Step 1: Define the Plugin Structure
 
 ```typescript
-// github-extension.ts
-import { type AgentExtension, type AgentResult } from "@clinebot/agents"
+// github-plugin.ts
+import { type AgentPlugin, type AgentResult } from "@clinebot/agents"
 import { createTool } from "@clinebot/sdk"
 
 interface GitHubConfig {
@@ -26,7 +26,7 @@ interface GitHubConfig {
   repo: string
 }
 
-export function createGitHubExtension(config: GitHubConfig): AgentExtension {
+export function createGitHubPlugin(config: GitHubConfig): AgentPlugin {
   let totalTokens = 0
 
   return {
@@ -183,11 +183,11 @@ function createPostCommentTool(config: GitHubConfig) {
 }
 ```
 
-## Step 3: Use the Extension
+## Step 3: Use the Plugin
 
 ```typescript
 import { Agent } from "@clinebot/agents"
-import { createGitHubExtension } from "./github-extension"
+import { createGitHubPlugin } from "./github-plugin"
 
 const agent = new Agent({
   providerId: "anthropic",
@@ -195,8 +195,8 @@ const agent = new Agent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a project manager assistant with access to GitHub.",
   tools: [],
-  extensions: [
-    createGitHubExtension({
+  plugins: [
+    createGitHubPlugin({
       token: process.env.GITHUB_TOKEN,
       owner: "my-org",
       repo: "my-project",
@@ -209,13 +209,13 @@ await agent.run("List all open bugs and create a summary issue with the count")
 
 ## Distributing as a File Plugin
 
-To make this extension available to all ClineCore sessions, save it as a file plugin:
+To make this plugin available to all ClineCore sessions, save it as a file plugin:
 
 ```typescript
 // ~/.cline/plugins/github.ts
-import { type AgentExtension, createTool } from "@clinebot/sdk"
+import { type AgentPlugin, createTool } from "@clinebot/sdk"
 
-const extension: AgentExtension = {
+const plugin: AgentPlugin = {
   name: "github",
   manifest: { capabilities: ["tools"] },
   setup(api) {
@@ -228,14 +228,14 @@ const extension: AgentExtension = {
   },
 }
 
-export default extension
+export default plugin
 ```
 
 ClineCore automatically discovers and loads plugins from `~/.cline/plugins/` (global) and `.cline/plugins/` (project-level).
 
-## Extension Design Guidelines
+## Plugin Design Guidelines
 
-1. Use factory functions (like `createGitHubExtension`) when the extension needs configuration. Export the extension object directly when it doesn't.
+1. Use factory functions (like `createGitHubPlugin`) when the plugin needs configuration. Export the plugin object directly when it doesn't.
 
 2. Keep `setup()` synchronous and fast. It runs before the first LLM call, so any async initialization delays the agent.
 

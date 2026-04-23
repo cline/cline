@@ -71,10 +71,10 @@ Events emitted include:
 - `model_api_call` -- LLM API call with model, tokens, latency
 - `session_ended` -- session completed with finish reason, total tokens
 
-### Custom Metrics via Extensions
+### Custom Metrics via Plugins
 
 ```typescript
-const productionMetrics: AgentExtension = {
+const productionMetrics: AgentPlugin = {
   name: "production-metrics",
   manifest: { capabilities: ["hooks"] },
 

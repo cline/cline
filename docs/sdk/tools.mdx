@@ -138,12 +138,12 @@ const session = await cline.start({
 })
 ```
 
-### Via Extensions
+### Via Plugins
 
-Extensions can register tools during their setup phase:
+Plugins can register tools during their setup phase:
 
 ```typescript
-const myExtension: AgentExtension = {
+const myPlugin: AgentPlugin = {
   name: "database-tools",
   manifest: { capabilities: ["tools"] },
   setup(api) {
@@ -154,7 +154,7 @@ const myExtension: AgentExtension = {
 }
 ```
 
-See [Extensions](/sdk/extensions) for more on the extension system.
+See [Plugins](/sdk/plugins) for more on the plugin system.
 
 ## Tool Policies
 

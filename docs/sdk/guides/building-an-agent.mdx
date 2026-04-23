@@ -117,15 +117,15 @@ export const readFileFromRepo = createTool({
 })
 ```
 
-## Step 3: Create the Review Extension
+## Step 3: Create the Review Plugin
 
 Track metrics about the review process:
 
 ```typescript
-// metrics-extension.ts
-import { type AgentExtension } from "@clinebot/sdk"
+// metrics-plugin.ts
+import { type AgentPlugin } from "@clinebot/sdk"
 
-export const reviewMetrics: AgentExtension = {
+export const reviewMetrics: AgentPlugin = {
   name: "review-metrics",
   manifest: { capabilities: ["hooks"] },
 
@@ -152,7 +152,7 @@ export const reviewMetrics: AgentExtension = {
 // review.ts
 import { Agent } from "@clinebot/sdk"
 import { getPullRequest, readFileFromRepo } from "./tools"
-import { reviewMetrics } from "./metrics-extension"
+import { reviewMetrics } from "./metrics-plugin"
 
 const SYSTEM_PROMPT = `You are a senior code reviewer. When asked to review a PR:
 
@@ -179,7 +179,7 @@ async function reviewPR(owner: string, repo: string, prNumber: number) {
     apiKey: process.env.ANTHROPIC_API_KEY,
     systemPrompt: SYSTEM_PROMPT,
     tools: [getPullRequest, readFileFromRepo],
-    extensions: [reviewMetrics],
+    plugins: [reviewMetrics],
     onEvent: (event) => {
       if (event.type === "content_update" && event.contentType === "text") {
         process.stdout.write(event.text)
@@ -216,4 +216,4 @@ From here, you could:
 - Store reviews in a database for trend analysis
 - Connect it to a webhook for automatic PR reviews
 
-See [Creating Custom Tools](/sdk/guides/creating-custom-tools) and [Writing Extensions](/sdk/guides/writing-extensions) for more on extending agent capabilities.
+See [Creating Custom Tools](/sdk/guides/creating-custom-tools) and [Writing Plugins](/sdk/guides/writing-plugins) for more on extending agent capabilities.

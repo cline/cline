@@ -1,22 +1,24 @@
 ---
-title: "Extensions"
-sidebarTitle: "Extensions"
-description: "Extensions are plugins that add tools, commands, and capabilities to agents at runtime."
+title: "Plugins"
+sidebarTitle: "Plugins"
+description: "Plugins add tools, commands, and capabilities to agents at runtime."
 ---
 
-Extensions are the primary mechanism for adding capabilities to agents. An extension can register tools, contribute commands, and hook into the agent lifecycle. They run inside the agent process with full access to the runtime API.
+Plugins are the primary mechanism for adding capabilities to agents. A plugin can register tools, contribute commands, and hook into the agent lifecycle. They run inside the agent process with full access to the runtime API.
 
-## The AgentExtension Interface
+You can pass plugins in code or drop them as files into `.cline/plugins/` for auto-discovery.
+
+## The AgentPlugin Interface
 
 ```typescript
-interface AgentExtension {
+interface AgentPlugin {
   name: string
   manifest: {
     capabilities: ("tools" | "hooks" | "commands")[]
   }
 
   // Called once during agent initialization
-  setup?(api: ExtensionAPI): void
+  setup?(api: PluginAPI): void
 
   // Lifecycle hooks (optional)
   onRunStart?(context: { userMessage: string }): void
@@ -29,15 +31,14 @@ interface AgentExtension {
 }
 ```
 
-## Creating an Extension
+## Creating a Plugin
 
-Here's a complete extension that adds a database query tool and logs all tool calls:
+A plugin that adds a database query tool and logs all tool calls:
 
 ```typescript
-import { type AgentExtension } from "@clinebot/agents"
-import { createTool } from "@clinebot/shared"
+import { type AgentPlugin, createTool } from "@clinebot/sdk"
 
-const databaseExtension: AgentExtension = {
+const databasePlugin: AgentPlugin = {
   name: "database-tools",
   manifest: {
     capabilities: ["tools", "hooks"],
@@ -64,23 +65,23 @@ const databaseExtension: AgentExtension = {
   },
 
   onToolCall({ call }) {
-    console.log(`[db-ext] Tool called: ${call.name}`)
+    console.log(`[db] Tool called: ${call.name}`)
   },
 
   onToolResult({ record }) {
-    console.log(`[db-ext] Tool result: ${record.name} (${record.duration}ms)`)
+    console.log(`[db] Tool result: ${record.name} (${record.duration}ms)`)
   },
 }
 ```
 
-## Registering Extensions
+## Registering Plugins
 
 ### With Agent
 
 ```typescript
 const agent = new Agent({
   // ...config
-  extensions: [databaseExtension, loggingExtension, metricsExtension],
+  plugins: [databasePlugin, loggingPlugin, metricsPlugin],
 })
 ```
 
@@ -89,46 +90,44 @@ const agent = new Agent({
 ```typescript
 const session = await cline.start({
   config: {
-    extensions: [databaseExtension],
+    plugins: [databasePlugin],
   },
   // ...
 })
 ```
 
-Extensions are loaded once when the agent starts. The `setup()` method runs before the first iteration, so all tools are available from the very first LLM call.
+Plugins are loaded once when the agent starts. The `setup()` method runs before the first iteration, so all tools are available from the very first LLM call.
 
-## The ExtensionAPI
+## The Plugin API
 
-The `api` object passed to `setup()` provides methods for contributing to the agent runtime:
+The `api` object passed to `setup()` lets you register contributions:
 
 ```typescript
-interface ExtensionAPI {
+interface PluginAPI {
   registerTool(tool: Tool): void
-  // Additional methods may be available depending on the host
 }
 ```
 
 ## File-Based Plugins
 
-ClineCore can discover and load plugins from the file system. Drop a `.js` or `.mjs` file into `~/.cline/plugins/` (global) or `.cline/plugins/` (project-level):
+You can also load plugins from the file system instead of passing them in code. Drop a `.ts` or `.js` file into `~/.cline/plugins/` (global) or `.cline/plugins/` (project-level) and ClineCore discovers them automatically at session start.
 
 ```
 ~/.cline/plugins/
-  typescript-nav.ts        # Global plugin
+  typescript-nav.ts        # Available in all projects
   metrics.js
 
 .cline/plugins/
-  project-helper.ts        # Project-specific plugin
+  project-helper.ts        # Available in this project only
 ```
 
-Each plugin file should export an `AgentExtension`:
+Each file exports an `AgentPlugin`:
 
 ```typescript
 // ~/.cline/plugins/typescript-nav.ts
-import { type AgentExtension } from "@clinebot/agents"
-import { createTool } from "@clinebot/shared"
+import { type AgentPlugin, createTool } from "@clinebot/sdk"
 
-const extension: AgentExtension = {
+const plugin: AgentPlugin = {
   name: "typescript-nav",
   manifest: { capabilities: ["tools"] },
 
@@ -146,8 +145,6 @@ const extension: AgentExtension = {
           required: ["filePath", "line"],
         },
         execute: async (input) => {
-          // Uses TypeScript Language Service API to resolve definitions
-          // through imports, re-exports, and type aliases
           const definitions = await resolveDefinitions(input.filePath, input.line)
           return { definitions }
         },
@@ -156,17 +153,17 @@ const extension: AgentExtension = {
   },
 }
 
-export default extension
+export default plugin
 ```
 
-Plugins are loaded at session start and are not hot-reloaded (unlike rules and skills, which are watched for changes).
+File-based plugins are loaded once at session start and are not hot-reloaded (unlike rules and skills, which are watched for changes).
 
-## Extension Patterns
+## Plugin Patterns
 
 ### Metrics and Observability
 
 ```typescript
-const metricsExtension: AgentExtension = {
+const metricsPlugin: AgentPlugin = {
   name: "metrics",
   manifest: { capabilities: ["hooks"] },
 
@@ -193,7 +190,7 @@ const metricsExtension: AgentExtension = {
 ### Guardrails
 
 ```typescript
-const guardrailExtension: AgentExtension = {
+const guardrailPlugin: AgentPlugin = {
   name: "safety-guardrails",
   manifest: { capabilities: ["hooks"] },
 
@@ -208,23 +205,22 @@ const guardrailExtension: AgentExtension = {
 ### Context Injection
 
 ```typescript
-const contextExtension: AgentExtension = {
+const contextPlugin: AgentPlugin = {
   name: "project-context",
   manifest: { capabilities: ["hooks"] },
 
   onRunStart({ userMessage }) {
-    // Log or enrich the user's message before the agent sees it
     console.log(`User asked: ${userMessage}`)
   },
 }
 ```
 
-## Extensions vs Hooks
+## Plugins vs Hooks
 
-Extensions and [Hooks](/sdk/hooks) serve different purposes:
+Plugins and [Hooks](/sdk/hooks) serve different purposes:
 
-| Aspect | Extensions | Hooks |
-|--------|-----------|-------|
+| Aspect | Plugins | Hooks |
+|--------|---------|-------|
 | Defined as | TypeScript objects | Shell scripts or TypeScript files |
 | Loaded from | Code or `.cline/plugins/` | `.cline/hooks/` |
 | Can register tools | Yes | No |
@@ -232,4 +228,4 @@ Extensions and [Hooks](/sdk/hooks) serve different purposes:
 | Runs in | Agent process (in-memory) | Separate process (shell execution) |
 | Best for | Adding capabilities (tools, integrations) | Policy enforcement, external side effects |
 
-Use extensions when you want to add tools or modify the agent from within the runtime. Use hooks when you want external scripts to react to agent events.
+Use plugins when you want to add tools or modify the agent from within the runtime. Use hooks when you want external scripts to react to agent events.

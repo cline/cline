@@ -25,7 +25,7 @@ new Agent(config: AgentConfig)
 | `apiKey` | `string` | No | Provider API key |
 | `systemPrompt` | `string` | Yes | System prompt for the agent |
 | `tools` | `Tool[]` | No | Tools available to the agent. Default: `[]` |
-| `extensions` | `AgentExtension[]` | No | Extensions/plugins. Default: `[]` |
+| `plugins` | `AgentPlugin[]` | No | Plugins that add tools, hooks, and capabilities. Default: `[]` |
 | `maxIterations` | `number` | No | Maximum loop iterations. Default: `50` |
 | `maxParallelToolCalls` | `number` | No | Concurrent tool executions. Default: `1` |
 | `apiTimeoutMs` | `number` | No | Timeout per LLM API call |

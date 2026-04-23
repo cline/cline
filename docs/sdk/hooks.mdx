@@ -4,7 +4,7 @@ sidebarTitle: "Hooks"
 description: "Hooks are lifecycle callbacks that let you intercept, inspect, and modify agent behavior at every stage of execution."
 ---
 
-Hooks let you run code at specific points in the agent's lifecycle. Unlike [extensions](/sdk/extensions) (which add capabilities like tools), hooks are designed for observation and policy enforcement: logging, auditing, blocking dangerous operations, modifying the system prompt, or triggering external workflows.
+Hooks let you run code at specific points in the agent's lifecycle. Unlike [plugins](/sdk/plugins) (which add capabilities like tools), hooks are designed for observation and policy enforcement: logging, auditing, blocking dangerous operations, modifying the system prompt, or triggering external workflows.
 
 ## Hook Lifecycle
 
@@ -42,12 +42,12 @@ session_start
 | `error` | An error occurs | Error reporting, alerting |
 | `stop` | Agent is stopping | |
 
-## Using Hooks in Extensions
+## Using Hooks in Plugins
 
-The simplest way to use hooks is through the [extension](/sdk/extensions) lifecycle methods:
+The simplest way to use hooks is through the [plugin](/sdk/plugins) lifecycle methods:
 
 ```typescript
-const auditExtension: AgentExtension = {
+const auditPlugin: AgentPlugin = {
   name: "audit-log",
   manifest: { capabilities: ["hooks"] },
 
@@ -115,7 +115,7 @@ The default policy depends on the hook type. Observational hooks (like logging) 
 The `before_agent_start` hook is a seam for modifying the system prompt or initial messages before the agent makes its first LLM call:
 
 ```typescript
-const contextInjectionExtension: AgentExtension = {
+const contextInjectionPlugin: AgentPlugin = {
   name: "context-injection",
   manifest: { capabilities: ["hooks"] },
 
@@ -154,7 +154,7 @@ curl -X POST "$SLACK_WEBHOOK_URL" \
 ### Cost Tracking
 
 ```typescript
-const costTracker: AgentExtension = {
+const costTracker: AgentPlugin = {
   name: "cost-tracker",
   manifest: { capabilities: ["hooks"] },
 
@@ -173,7 +173,7 @@ const costTracker: AgentExtension = {
 ### Rate Limiting
 
 ```typescript
-const rateLimiter: AgentExtension = {
+const rateLimiter: AgentPlugin = {
   name: "rate-limiter",
   manifest: { capabilities: ["hooks"] },
 
