@@ -693,6 +693,213 @@ describe("sdk-gateway", () => {
 		expect(usageEvent?.usage.totalCost).toBeCloseTo(0.003475, 12);
 	});
 
+	it("reads nested raw market cost for cline before falling back to pricing", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 3793,
+						completion_tokens: 1250,
+						raw: {
+							cost: 0,
+							market_cost: 0.01829135,
+						},
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cline",
+					apiKey: "cline-key",
+					models: [
+						{
+							id: "openai/gpt-5.4",
+							name: "GPT-5.4",
+							metadata: {
+								pricing: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "openai/gpt-5.4",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: expect.objectContaining({
+				totalCost: 0.01829135,
+			}),
+		});
+	});
+
+	it("uses nested raw upstream inference cost for vercel ai gateway", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 24553,
+						completion_tokens: 32,
+						raw: {
+							cost: 0,
+							cost_details: {
+								upstream_inference_cost: 0.0123725,
+							},
+						},
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "vercel-key",
+					models: [
+						{
+							id: "google/gemini-3-flash",
+							name: "Gemini 3 Flash",
+							metadata: {
+								pricing: { input: 9, output: 9 },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/gemini-3-flash",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: expect.objectContaining({
+				totalCost: 0.0123725,
+			}),
+		});
+	});
+
+	it("uses provider-specific openrouter billed total from nested raw usage", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 24559,
+						completion_tokens: 31,
+						raw: {
+							cost: 0.000618625,
+							cost_details: {
+								upstream_inference_cost: 0.0123725,
+							},
+						},
+					},
+				},
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "openrouter-key",
+					defaultModelId: "google/gemini-3-flash-preview",
+					models: [
+						{
+							id: "google/gemini-3-flash-preview",
+							name: "Gemini 3 Flash Preview",
+							metadata: {
+								pricing: { input: 9, output: 9 },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "google/gemini-3-flash-preview",
+				messages: baseMessages,
+			}),
+		);
+
+		const usageEvent = events.find(
+			(event): event is Extract<AgentModelEvent, { type: "usage" }> =>
+				event.type === "usage",
+		);
+		expect(usageEvent?.usage.totalCost).toBeCloseTo(0.012991125, 12);
+	});
+
+	it("applies provider-specific usage normalization to stream usage promises", async () => {
+		streamTextSpy.mockReturnValue({
+			usage: Promise.resolve({
+				inputTokens: 24553,
+				outputTokens: 32,
+				raw: {
+					cost: 0,
+					cost_details: {
+						upstream_inference_cost: 0.0123725,
+					},
+				},
+			}),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "vercel-key",
+					models: [
+						{
+							id: "google/gemini-3-flash",
+							name: "Gemini 3 Flash",
+							metadata: {
+								pricing: { input: 9, output: 9 },
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/gemini-3-flash",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: expect.objectContaining({
+				inputTokens: 24553,
+				outputTokens: 32,
+				totalCost: 0.0123725,
+			}),
+		});
+	});
+
 	it("reads compatible-provider cache usage from nested provider metadata", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

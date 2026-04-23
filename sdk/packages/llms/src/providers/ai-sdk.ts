@@ -29,6 +29,14 @@ import {
 } from "./routing/utils";
 import type { ProviderFactoryResult } from "./vendors/types";
 
+interface GatewayNormalizedUsage {
+	inputTokens: number;
+	outputTokens: number;
+	cacheReadTokens: number;
+	cacheWriteTokens: number;
+	totalCost?: number;
+}
+
 interface AiSdkStreamPart {
 	type?: string;
 	[key: string]: unknown;
@@ -39,14 +47,6 @@ interface AiSdkStreamResult {
 	textStream?: AsyncIterable<string>;
 	text?: Promise<string> | string;
 	usage?: Promise<Record<string, unknown>>;
-}
-
-interface NormalizedUsage {
-	inputTokens: number;
-	outputTokens: number;
-	cacheReadTokens: number;
-	cacheWriteTokens: number;
-	totalCost?: number;
 }
 
 type ProviderModuleKind =
@@ -327,13 +327,6 @@ function getUsageValue(
 	return 0;
 }
 
-function hasUsageValue(
-	usage: Record<string, unknown>,
-	...keys: string[]
-): boolean {
-	return keys.some((key) => getNumericValue(usage[key]) !== undefined);
-}
-
 function getNumericValue(value: unknown): number | undefined {
 	if (typeof value === "number" && Number.isFinite(value)) {
 		return value;
@@ -385,7 +378,7 @@ function extractProviderNestedUsage(
 }
 
 function calculateUsageCostFromPricing(
-	usage: Omit<NormalizedUsage, "totalCost">,
+	usage: Omit<GatewayNormalizedUsage, "totalCost">,
 	pricingValue: unknown,
 ): number | undefined {
 	if (!pricingValue || typeof pricingValue !== "object") {
@@ -416,11 +409,19 @@ function calculateUsageCostFromPricing(
 	);
 }
 
+/**
+ * Normalizes usage from various provider formats into a standard structure.
+ * Handles multiple naming conventions (e.g., inputTokens vs input_tokens),
+ * extracts costs from market_cost/cost/upstream_inference_cost fields,
+ * and falls back to pricing-based calculation if no explicit cost is found.
+ * For providers that charge both gateway and model costs (e.g., OpenRouter),
+ * sums baseCost + upstreamInferenceCost when both are present.
+ */
 function normalizeUsage(
 	usageValue: unknown,
 	providerMetadata?: unknown,
 	pricingValue?: unknown,
-): NormalizedUsage {
+): GatewayNormalizedUsage {
 	const usage =
 		usageValue && typeof usageValue === "object"
 			? (usageValue as Record<string, unknown>)
@@ -435,23 +436,30 @@ function normalizeUsage(
 		typeof providerMetadataRecord.gateway === "object"
 			? (providerMetadataRecord.gateway as Record<string, unknown>)
 			: {};
-	const upstreamInferenceCost = getNumericValue(
-		(usage.cost_details as Record<string, unknown> | undefined)
-			?.upstream_inference_cost,
-	);
+	const rawUsage =
+		usage.raw && typeof usage.raw === "object"
+			? (usage.raw as Record<string, unknown>)
+			: usage;
+	const upstreamInferenceCost =
+		getNumericValue(
+			(rawUsage.cost_details as Record<string, unknown> | undefined)
+				?.upstream_inference_cost,
+		) ?? getNumericValue(rawUsage.upstream_inference_cost);
+	const marketCost =
+		getNumericValue(rawUsage.market_cost) ??
+		getNumericValue(rawUsage.marketCost) ??
+		getNumericValue(gatewayMetadata.marketCost);
+	const baseCost =
+		getNumericValue(rawUsage.cost) ?? getNumericValue(gatewayMetadata.cost);
 	const hasExplicitCost =
-		hasUsageValue(usage, "market_cost", "marketCost", "cost") ||
-		hasUsageValue(gatewayMetadata, "marketCost", "cost") ||
-		upstreamInferenceCost !== undefined ||
-		hasUsageValue(usage, "upstream_inference_cost");
+		marketCost !== undefined ||
+		baseCost !== undefined ||
+		upstreamInferenceCost !== undefined;
 	const totalCost =
-		getNumericValue(usage.market_cost) ??
-		getNumericValue(usage.marketCost) ??
-		getNumericValue(gatewayMetadata.marketCost) ??
-		getNumericValue(usage.cost) ??
-		getNumericValue(gatewayMetadata.cost) ??
-		upstreamInferenceCost ??
-		getNumericValue(usage.upstream_inference_cost);
+		marketCost ??
+		(baseCost !== undefined && upstreamInferenceCost !== undefined
+			? baseCost + upstreamInferenceCost
+			: (baseCost ?? upstreamInferenceCost));
 	const normalizedUsage = {
 		inputTokens: getUsageValue(
 			usage,
