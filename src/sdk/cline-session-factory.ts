@@ -23,6 +23,29 @@ import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
 import { getProviderSettingsManager } from "./provider-migration"
 
 // ---------------------------------------------------------------------------
+// Plan mode instructions
+// ---------------------------------------------------------------------------
+
+/**
+ * Instructions appended to the system prompt when the session is in plan mode.
+ * Mirrors the CLI's plan-mode guardrails in apps/cli/src/runtime/prompt.ts so
+ * plan mode in VSCode has the same explicit "explore/analyze/plan, do not
+ * implement" guidance.
+ */
+const PLAN_MODE_INSTRUCTIONS = `# Plan Mode
+
+You are in Plan mode. Your role is to explore, analyze, and plan -- not to execute.
+
+- Read files, search the codebase, and gather context to understand the problem
+- Ask clarifying questions when requirements are ambiguous
+- Present your plan as a structured outline with clear steps
+- Explain tradeoffs between different approaches when they exist
+- Do NOT edit files, write code, run destructive commands, or make any changes
+- Do NOT implement anything -- focus on understanding and alignment first
+
+When the user aligns on a plan and is ready to proceed, use the switch_to_act_mode tool to switch to act mode and begin implementation.`
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -354,6 +377,14 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	} catch (error) {
 		Logger.warn("[SessionFactory] Failed to build system prompt, using minimal fallback:", error)
 		systemPrompt = "You are Cline, a highly skilled software engineer. Help the user with their request."
+	}
+
+	// Append plan-mode instructions when in plan mode, matching the CLI's
+	// behavior (apps/cli/src/runtime/prompt.ts). The shared prompt builder does
+	// not include these guardrails, so without this the model in plan mode may
+	// still attempt to make edits instead of planning.
+	if (mode === "plan") {
+		systemPrompt = systemPrompt ? `${systemPrompt}\n\n${PLAN_MODE_INSTRUCTIONS}` : PLAN_MODE_INSTRUCTIONS
 	}
 
 	const config: CoreSessionConfig = {
