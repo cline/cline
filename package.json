@@ -597,6 +597,7 @@
 		"vite": "^7.1.11",
 		"js-yaml": "^4.1.1",
 		"serialize-javascript": ">=7.0.3",
+		"protobufjs": "7.5.5",
 		"mocha": {
 			"diff": ">=8.0.3"
 		}
