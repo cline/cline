@@ -1,5 +1,6 @@
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { AgentEvent } from "@clinebot/shared"
+import type { ClineAskUseMcpServer } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import {
 	extractToolOutputText,
@@ -1835,5 +1836,225 @@ describe("sdkToolToClineSayTool — editor diff rendering (S6-48)", () => {
 			expect(tool.content).toBe("the-patch-content")
 			expect(tool.diff).toBe("the-patch-content")
 		})
+	})
+})
+
+// ---------------------------------------------------------------------------
+// MCP tool handling — say="use_mcp_server" + say="mcp_server_response"
+// ---------------------------------------------------------------------------
+
+describe("MCP tool rendering (serverName__toolName convention)", () => {
+	it("content_start for MCP tool emits say='use_mcp_server' with ClineAskUseMcpServer payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "notion__notion-get-users",
+					toolCallId: "c1",
+					input: { user_id: "self" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		const msg = result.messages[0]
+		expect(msg.type).toBe("say")
+		expect(msg.say).toBe("use_mcp_server")
+		expect(msg.partial).toBe(true)
+		const payload = JSON.parse(msg.text!) as ClineAskUseMcpServer
+		expect(payload.type).toBe("use_mcp_tool")
+		expect(payload.serverName).toBe("notion")
+		expect(payload.toolName).toBe("notion-get-users")
+		expect(payload.arguments).toContain('"user_id"')
+	})
+
+	it("content_end for MCP tool emits finalized use_mcp_server + mcp_server_response", () => {
+		const state = new MessageTranslatorState()
+		// content_start to set up state
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "c1",
+						input: { user_id: "self" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end with output
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "notion__notion-get-users",
+						toolCallId: "c1",
+						output: "User: Max (self)",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[0].say).toBe("use_mcp_server")
+		expect(result.messages[0].partial).toBe(false)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe("User: Max (self)")
+	})
+
+	it("content_end for MCP tool with error shows error in response", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "github__search-repos",
+						toolCallId: "c2",
+						input: { query: "cline" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "github__search-repos",
+						toolCallId: "c2",
+						error: "Auth failed",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(2)
+		expect(result.messages[1].say).toBe("mcp_server_response")
+		expect(result.messages[1].text).toBe("Error: Auth failed")
+	})
+
+	it("MCP tool with empty input omits arguments", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__list-databases",
+						toolCallId: "c3",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const payload = JSON.parse(result.messages[0].text!) as ClineAskUseMcpServer
+		expect(payload.serverName).toBe("notion")
+		expect(payload.toolName).toBe("list-databases")
+		expect(payload.arguments).toBeUndefined()
+	})
+
+	it("non-MCP tool (no __ separator) still emits say='tool'", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "read_files",
+						toolCallId: "c4",
+						input: { files: [{ path: "/tmp/test.ts" }] },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages[0].say).toBe("tool")
+	})
+
+	it("tool starting with __ (empty server) is not MCP", () => {
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "__orphan",
+						toolCallId: "c5",
+						input: {},
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages[0].say).toBe("tool")
+	})
+
+	it("content_end with no output omits mcp_server_response", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "notion__update-page",
+						toolCallId: "c6",
+						input: { page_id: "123" },
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const result = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "notion__update-page",
+						toolCallId: "c6",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("use_mcp_server")
+		expect(result.messages[0].partial).toBe(false)
 	})
 })
