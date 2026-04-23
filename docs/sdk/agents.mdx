@@ -31,7 +31,7 @@ const agent = new Agent({
 | `apiKey` | `string` | Provider API key |
 | `systemPrompt` | `string` | Instructions that guide agent behavior |
 | `tools` | `Tool[]` | Tools the agent can call |
-| `extensions` | `AgentExtension[]` | Plugins that extend agent capabilities |
+| `plugins` | `AgentPlugin[]` | Plugins that add tools, hooks, and capabilities |
 | `maxIterations` | `number` | Maximum loop iterations before stopping (default: 50) |
 | `maxParallelToolCalls` | `number` | Max concurrent tool executions (default: 1) |
 | `apiTimeoutMs` | `number` | Timeout for each LLM API call |

@@ -81,7 +81,7 @@ const result = await cline.start(input: StartSessionInput)
 | `mode` | `"normal" \| "expert" \| "performance"` | No | Execution mode |
 | `tools` | `Tool[]` | No | Additional custom tools |
 | `toolPolicies` | `Record<string, ToolPolicy>` | No | Per-tool policies |
-| `extensions` | `AgentExtension[]` | No | Extensions/plugins |
+| `plugins` | `AgentPlugin[]` | No | Plugins that add tools, hooks, and capabilities |
 | `logger` | `BasicLogger` | No | Session-specific logger |
 
 ### StartSessionResult

@@ -41,7 +41,7 @@ console.log(result.finishReason) // "completed"
     Coordinate multiple agents working together. Delegate subtasks, share context, and merge results.
   </Card>
   <Card title="Custom Tool Platforms" icon="wrench">
-    Give agents domain-specific capabilities through custom tools, extensions, and lifecycle hooks.
+    Give agents domain-specific capabilities through custom tools, plugins, and lifecycle hooks.
   </Card>
   <Card title="IDE Integrations" icon="window">
     Build editor extensions and developer tools powered by the same engine as the Cline VS Code extension.
@@ -71,7 +71,7 @@ Most applications just install `@clinebot/sdk` and import everything from there.
     Get a working agent running in under 5 minutes.
   </Card>
   <Card title="Core Concepts" icon="book" href="/sdk/agents">
-    Understand agents, sessions, tools, events, and the extension system.
+    Understand agents, sessions, tools, events, and the plugin system.
   </Card>
   <Card title="Examples" icon="flask" href="/sdk/examples">
     Browse complete working examples you can copy and adapt.
@@ -104,7 +104,7 @@ Most applications just install `@clinebot/sdk` and import everything from there.
 `@clinebot/sdk` includes everything you need -- agents, tools, sessions, providers, and the full built-in tool suite:
 
 ```typescript
-import { Agent, ClineCore, createTool, type AgentExtension } from "@clinebot/sdk"
+import { Agent, ClineCore, createTool, type AgentPlugin } from "@clinebot/sdk"
 ```
 
 Under the hood, the SDK is composed of four packages (`@clinebot/core`, `@clinebot/agents`, `@clinebot/llms`, `@clinebot/shared`). You can install these individually if you want a minimal dependency footprint -- for example, `@clinebot/agents` gives you just the stateless agent loop without sessions or built-in tools. See [Packages](/sdk/architecture/packages) for details.

@@ -177,19 +177,19 @@ await agent.shutdown()
 rl.close()
 ```
 
-## Extension Plugin
+## Plugin Example
 
 A plugin that logs all tool calls and tracks execution time.
 
 ```typescript
-import { Agent, type AgentExtension } from "@clinebot/sdk"
+import { Agent, type AgentPlugin } from "@clinebot/sdk"
 
-const metricsPlugin: AgentExtension = {
+const metricsPlugin: AgentPlugin = {
   name: "metrics-tracker",
   manifest: { capabilities: ["hooks"] },
 
   setup(api) {
-    // Extensions can register additional tools here
+    // Plugins can register additional tools here
     // api.registerTool(myTool)
   },
 
@@ -221,7 +221,7 @@ const agent = new Agent({
   apiKey: process.env.ANTHROPIC_API_KEY,
   systemPrompt: "You are a helpful assistant.",
   tools: [],
-  extensions: [metricsPlugin],
+  plugins: [metricsPlugin],
 })
 
 await agent.run("Explain how async/await works in JavaScript")
@@ -236,7 +236,7 @@ await agent.run("Explain how async/await works in JavaScript")
   <Card title="Creating Custom Tools" icon="wrench" href="/sdk/guides/creating-custom-tools">
     Deep dive into the tool system with advanced patterns.
   </Card>
-  <Card title="Writing Extensions" icon="puzzle-piece" href="/sdk/guides/writing-extensions">
+  <Card title="Writing Plugins" icon="puzzle-piece" href="/sdk/guides/writing-plugins">
     Build plugins that modify agent behavior at every stage.
   </Card>
   <Card title="Connectors" icon="plug" href="/sdk/guides/connectors">
