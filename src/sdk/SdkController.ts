@@ -13,6 +13,7 @@ import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
+import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
 import { mentionRegexGlobal } from "@shared/context-mentions"
 import type { ClineApiReqInfo, ClineAskQuestion, ClineMessage, ExtensionState } from "@shared/ExtensionMessage"
 import type { HistoryItem } from "@shared/HistoryItem"
@@ -28,6 +29,7 @@ import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { UrlContentFetcher } from "@/services/browser/UrlContentFetcher"
+import { ClineError } from "@/services/error/ClineError"
 import { McpHub } from "@/services/mcp/McpHub"
 import { telemetryService } from "@/services/telemetry"
 import { ClineExtensionContext } from "@/shared/cline"
@@ -371,6 +373,82 @@ export class Controller {
 				Logger.error("[SdkController] Error in session event listener:", error)
 			}
 		}
+	}
+
+	/**
+	 * Check if the active API provider is 'cline' (for current mode).
+	 */
+	private isClineProviderActive(): boolean {
+		try {
+			const apiConfig = this.stateManager.getApiConfiguration()
+			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
+			const mode = modeValue === "plan" ? "plan" : "act"
+			const provider = mode === "plan" ? apiConfig.planModeApiProvider : apiConfig.actModeApiProvider
+			return provider === "cline"
+		} catch {
+			return false
+		}
+	}
+
+	/**
+	 * Emit a proper auth error for the 'cline' provider when the user is not
+	 * logged in. This produces the same message sequence the classic extension
+	 * emits, so the webview renders the "Sign in to Cline" button via ErrorRow.
+	 *
+	 * Message sequence:
+	 *   1. say:'task'           – the user's message text
+	 *   2. say:'api_req_started' – opens the API request row
+	 *   3. ask:'api_req_failed'  – ClineError JSON → ErrorRow renders auth UI
+	 */
+	private emitClineAuthError(task?: string): void {
+		const ts = Date.now()
+
+		const clineError = new ClineError(
+			{ message: CLINE_ACCOUNT_AUTH_ERROR_MESSAGE, status: 401 },
+			undefined, // modelId
+			"cline",
+		)
+		const serializedError = clineError.serialize()
+
+		const messages: ClineMessage[] = [
+			{
+				ts,
+				type: "say",
+				say: "task",
+				text: task ?? "",
+				partial: false,
+			},
+			{
+				ts: ts + 1,
+				type: "say",
+				say: "api_req_started",
+				text: JSON.stringify({
+					streamingFailedMessage: serializedError,
+				} satisfies ClineApiReqInfo),
+				partial: false,
+			},
+			{
+				ts: ts + 2,
+				type: "ask",
+				ask: "api_req_failed",
+				text: serializedError,
+				partial: false,
+			},
+		]
+
+		// Add to message state handler if a task proxy exists, otherwise
+		// the messages are only emitted to listeners (webview bridge).
+		if (this.task?.messageStateHandler) {
+			this.task.messageStateHandler.addMessages(messages)
+			this.debouncedSaveClineMessages()
+		}
+
+		this.emitSessionEvents(messages, {
+			type: "status",
+			payload: { sessionId: this.activeSession?.sessionId ?? "", status: "error" },
+		})
+
+		this.postStateToWebview().catch(() => {})
 	}
 
 	/**
@@ -732,18 +810,32 @@ export class Controller {
 					return
 				}
 				Logger.error("[SdkController] Agent turn failed:", error)
-				this.emitSessionEvents(
-					[
-						{
-							ts: Date.now(),
-							type: "say",
-							say: "error",
-							text: `Agent error: ${error instanceof Error ? error.message : String(error)}`,
-							partial: false,
-						},
-					],
-					{ type: "status", payload: { sessionId, status: "error" } },
-				)
+
+				// Detect auth errors for the 'cline' provider so the webview
+				// shows the "Sign in to Cline" button instead of a raw error.
+				const errorMessage = error instanceof Error ? error.message : String(error)
+				const isClineAuthError =
+					this.isClineProviderActive() &&
+					(errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+						errorMessage.toLowerCase().includes("missing api key") ||
+						errorMessage.toLowerCase().includes("unauthorized"))
+
+				if (isClineAuthError) {
+					this.emitClineAuthError()
+				} else {
+					this.emitSessionEvents(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Agent error: ${errorMessage}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId, status: "error" } },
+					)
+				}
 				if (this.activeSession) {
 					this.activeSession.isRunning = false
 				}
@@ -783,6 +875,15 @@ export class Controller {
 			Logger.log(
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
+
+			// Pre-check: if using the 'cline' provider without auth, emit a
+			// proper auth error so the webview shows the "Sign in to Cline"
+			// button instead of a raw SDK error.
+			if (config.providerId === "cline" && !config.apiKey) {
+				Logger.warn("[SdkController] Cline provider selected but no auth token — emitting auth error")
+				this.emitClineAuthError(task)
+				return undefined
+			}
 
 			// Build start input — NO prompt, so start() returns immediately
 			// (session creation only, no inference yet)
@@ -913,18 +1014,31 @@ export class Controller {
 			Logger.log(`[SdkController] Task resumed: ${taskId} → ${startResult.sessionId}`)
 		} catch (error) {
 			Logger.error("[SdkController] Failed to reinit task:", error)
-			this.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "error",
-						text: `Failed to resume task: ${error instanceof Error ? error.message : String(error)}`,
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId: taskId, status: "error" } },
-			)
+
+			// Detect auth errors for the 'cline' provider
+			const reinitErrorMsg = error instanceof Error ? error.message : String(error)
+			const isClineAuthReinit =
+				this.isClineProviderActive() &&
+				(reinitErrorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+					reinitErrorMsg.toLowerCase().includes("missing api key") ||
+					reinitErrorMsg.toLowerCase().includes("unauthorized"))
+
+			if (isClineAuthReinit) {
+				this.emitClineAuthError()
+			} else {
+				this.emitSessionEvents(
+					[
+						{
+							ts: Date.now(),
+							type: "say",
+							say: "error",
+							text: `Failed to resume task: ${reinitErrorMsg}`,
+							partial: false,
+						},
+					],
+					{ type: "status", payload: { sessionId: taskId, status: "error" } },
+				)
+			}
 		}
 	}
 
@@ -1162,18 +1276,31 @@ export class Controller {
 				await this.resumeSessionFromTask(this.task.taskId, prompt, images, files)
 			} catch (error) {
 				Logger.error("[SdkController] Failed to resume session from task:", error)
-				this.emitSessionEvents(
-					[
-						{
-							ts: Date.now(),
-							type: "say",
-							say: "error",
-							text: `Failed to resume task: ${error instanceof Error ? error.message : String(error)}`,
-							partial: false,
-						},
-					],
-					{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
-				)
+
+				// Detect auth errors for the 'cline' provider
+				const errorMsg = error instanceof Error ? error.message : String(error)
+				const isClineAuth =
+					this.isClineProviderActive() &&
+					(errorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+						errorMsg.toLowerCase().includes("missing api key") ||
+						errorMsg.toLowerCase().includes("unauthorized"))
+
+				if (isClineAuth) {
+					this.emitClineAuthError()
+				} else {
+					this.emitSessionEvents(
+						[
+							{
+								ts: Date.now(),
+								type: "say",
+								say: "error",
+								text: `Failed to resume task: ${errorMsg}`,
+								partial: false,
+							},
+						],
+						{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
+					)
+				}
 				await this.postStateToWebview()
 			}
 			return
