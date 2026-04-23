@@ -78,7 +78,10 @@ function isAbortError(error: unknown): boolean {
  * auto-approved. This ensures `requestToolApproval` is called for tools
  * the user hasn't enabled.
  */
-function buildToolPolicies(settings: AutoApprovalSettings): Record<string, { enabled?: boolean; autoApprove?: boolean }> {
+function buildToolPolicies(
+	settings: AutoApprovalSettings,
+	mcpHub?: McpHub,
+): Record<string, { enabled?: boolean; autoApprove?: boolean }> {
 	const policies: Record<string, { enabled?: boolean; autoApprove?: boolean }> = {}
 
 	const set = (tools: string[], autoApprove: boolean) => {
@@ -102,6 +105,20 @@ function buildToolPolicies(settings: AutoApprovalSettings): Record<string, { ena
 
 	// Browser / web
 	set(["fetch_web_content", "web_fetch", "web_search"], !!settings.actions.useBrowser)
+
+	// MCP tools — gated by the global `useMcp` toggle AND per-tool autoApprove flags.
+	// When `useMcp` is off, ALL MCP tools require approval.
+	// When `useMcp` is on, each tool's individual `autoApprove` flag decides.
+	if (mcpHub) {
+		const mcpEnabled = !!settings.actions.useMcp
+		for (const server of mcpHub.getServers()) {
+			for (const tool of server.tools ?? []) {
+				const sdkName = `${server.name}__${tool.name}`
+				const autoApprove = mcpEnabled && !!tool.autoApprove
+				policies[sdkName] = { autoApprove }
+			}
+		}
+	}
 
 	return policies
 }
@@ -605,7 +622,7 @@ export class Controller {
 		// Build tool policies from user's auto-approval settings so the SDK
 		// knows which tools require explicit user approval.
 		const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
-		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings) : undefined
+		const toolPolicies = autoApprovalSettings ? buildToolPolicies(autoApprovalSettings, this.mcpHub) : undefined
 
 		const sessionManager = await VscodeSessionHost.create({
 			mcpHub: this.mcpHub,
