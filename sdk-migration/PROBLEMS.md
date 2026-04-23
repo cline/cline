@@ -455,7 +455,7 @@ underlying patterns that caused them are relevant.
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 34/34 pass.
 
 ### S6-26: SDK pending prompts / tool approval / ask_question not integrated
-- **Status**: 🔴 Blocker
+- **Status**: 🔵 Awaiting Verification
 - **Description**: The SDK has three mechanisms for the agent to interact with the user mid-task, none of which are currently wired into the VSCode extension:
 
   **1. `requestToolApproval` callback** — When a tool's policy has `autoApprove: false`, the agent calls `requestToolApproval({ agentId, conversationId, iteration, toolCallId, toolName, input, policy })` and blocks until the callback returns `{ approved: boolean, reason?: string }`. Without this callback, ALL non-auto-approved tools are denied with "no approval handler is configured". This is the equivalent of the classic extension's "Cline wants to..." approval dialog.
@@ -498,10 +498,17 @@ underlying patterns that caused them are relevant.
   
   **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 148 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 2 pre-existing test suite failures (`auth-service.test.ts`, `cline-session-factory.test.ts`) are unrelated `@hosts/host-provider` import errors.
 
-  **Part C: Pending prompts for follow-up messages (~20 lines)**
-  Update `SdkController.askResponse()` to use `delivery: "queue"` when the agent is running, so follow-up messages are queued instead of throwing. Subscribe to `pending_prompts` and `pending_prompt_submitted` events to show queued messages in the webview.
+  **Part C: Pending prompts for follow-up messages (~20 lines)** — ✅ **Fixed**
+  Updated `SdkController.askResponse()` to detect when the session is already running (`wasAlreadyRunning = this.activeSession.isRunning`) and pass `delivery: "queue"` to `fireAndForgetSend()`. The SDK enqueues the message and drains it after the current turn completes. Three changes:
+  1. `fireAndForgetSend()` accepts an optional `delivery` parameter, passes it to `sessionManager.send()`, and skips `isRunning = false` when delivery is "queue"/"steer" (since the turn didn't complete — the message was just enqueued)
+  2. `askResponse()` captures `wasAlreadyRunning` before setting `isRunning = true`, computes `delivery = wasAlreadyRunning ? "queue" : undefined`, and passes it through. Also skips `messageTranslatorState.reset()` for queued messages since the current turn is still active.
+  3. `handleSessionEvent()` logs `pending_prompts` and `pending_prompt_submitted` events for visibility (the SDK emits these when queued messages are enqueued/consumed).
   
-  **Reference**: CLI wiring at `apps/cli/src/runtime/run-interactive.ts:125-134`. Tauri desktop at `apps/code/host/runtime-bridge.ts:338-382`.
+  **Files changed**: `src/sdk/SdkController.ts` (updated `fireAndForgetSend()` signature, `askResponse()` delivery logic, `handleSessionEvent()` logging)
+  
+  **Evidence**: TypeScript compiles with 0 errors (`npx tsc --noEmit --skipLibCheck`). All 136 SDK adapter tests pass (`npx vitest run --config vitest.config.sdk.ts`). The 3 pre-existing test suite failures are unrelated import resolution errors.
+  
+  **Reference**: CLI wiring at `apps/cli/src/runtime/run-interactive.ts:642-777`. Tauri desktop at `apps/code/sidecar/chat-session.ts:429-467`.
 
 - **Verification**: 
   1. Start a task that uses tools → verify approval dialog appears → approve → tool executes
@@ -526,9 +533,9 @@ underlying patterns that caused them are relevant.
 
 Fixed. The gRPC handler was calling `controller.initTask()` (starts new session) instead of `controller.showTaskWithId()` (loads messages from disk). See S6-27 entry for details.
 
-### 🔴 Top Priority: S6-26 — Pending prompts / tool approval / ask_question
+### 🔵 Awaiting Verification: S6-26 — Pending prompts / tool approval / ask_question
 
-The SDK's three user-interaction mechanisms are not wired in. Without `requestToolApproval`, non-auto-approved tools are silently denied. Without `askQuestion`, the agent can't ask clarifying questions. Without pending prompts, follow-up messages during a running task will fail.
+All three parts fixed (Part A: requestToolApproval, Part B: askQuestion, Part C: pending prompts with delivery: "queue"). Awaiting manual verification.
 
 ### 🔴 Third Priority: S6-18 — Missing API key shows error instead of login prompt
 
