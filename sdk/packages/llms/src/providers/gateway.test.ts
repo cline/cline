@@ -958,6 +958,54 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("reads cache write tokens from nested raw usage", async () => {
+		streamTextSpy.mockReturnValue({
+			usage: Promise.resolve({
+				inputTokens: 15997,
+				outputTokens: 4,
+				raw: {
+					prompt_tokens: 15997,
+					completion_tokens: 4,
+					cache_creation_input_tokens: 22,
+					market_cost: 0.0082385,
+				},
+			}),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cline",
+					apiKey: "cline-key",
+					models: [
+						{
+							id: "anthropic/claude-opus-4.6",
+							name: "Claude Opus 4.6",
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "anthropic/claude-opus-4.6",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "usage",
+			usage: expect.objectContaining({
+				inputTokens: 15997,
+				outputTokens: 4,
+				cacheWriteTokens: 22,
+				totalCost: 0.0082385,
+			}),
+		});
+	});
+
 	it("reads compatible-provider cache usage from nested provider metadata", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

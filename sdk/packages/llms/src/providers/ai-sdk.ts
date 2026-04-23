@@ -508,6 +508,12 @@ export function normalizeUsage(
 				"cache_creation_input_tokens",
 			) ||
 			getUsageValue(
+				rawUsage,
+				"cacheWriteTokens",
+				"cache_write_tokens",
+				"cache_creation_input_tokens",
+			) ||
+			getUsageValue(
 				providerUsage ?? {},
 				"cacheWriteTokens",
 				"cache_write_tokens",
