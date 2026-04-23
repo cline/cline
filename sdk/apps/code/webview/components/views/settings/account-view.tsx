@@ -26,6 +26,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 
+function normalizeAccountViewError(error: unknown): Error {
+	const message = error instanceof Error ? error.message : String(error);
+	if (message.includes("unsupported desktop command: cline_account")) {
+		return new Error(
+			"The desktop sidecar is running an older build that does not support account commands. Restart the sidecar or reload the app, then try again.",
+		);
+	}
+	return error instanceof Error ? error : new Error(message);
+}
+
 // ---------------------------------------------------------------------------
 // Data fetching helpers via sidecar command
 // ---------------------------------------------------------------------------
@@ -166,7 +176,7 @@ export function AccountView() {
 			setOrganizationBalance(organizationBalanceData);
 			setOrganizations(orgsData);
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
+			const message = normalizeAccountViewError(err).message;
 			setOverviewError(message);
 		} finally {
 			setOverviewLoading(false);
@@ -194,7 +204,7 @@ export function AccountView() {
 			setUsageLoaded(true);
 		} catch (err) {
 			if (usageGenerationRef.current !== generation) return;
-			const message = err instanceof Error ? err.message : String(err);
+			const message = normalizeAccountViewError(err).message;
 			setUsageError(message);
 		} finally {
 			if (usageGenerationRef.current === generation) {
@@ -226,7 +236,7 @@ export function AccountView() {
 			setPaymentTransactions(data);
 			setBillingLoaded(true);
 		} catch (err) {
-			const message = err instanceof Error ? err.message : String(err);
+			const message = normalizeAccountViewError(err).message;
 			setBillingError(message);
 		} finally {
 			setBillingLoading(false);

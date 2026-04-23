@@ -116,11 +116,13 @@ describe("runDoctorCommand", () => {
 						listeningPids: [],
 						hubStartupLocks: [],
 						staleCliPids: [],
+						staleSidecarPids: [],
 					}
 				: {
 						listeningPids: [50174],
 						hubStartupLocks: [],
 						staleCliPids: [50190],
+						staleSidecarPids: [],
 					},
 		);
 	});
@@ -178,6 +180,7 @@ describe("runDoctorCommand", () => {
 			killed: {
 				hubListeners: 0,
 				cliProcesses: 0,
+				sidecarProcesses: 0,
 				hubStartupLocks: 1,
 				hubDiscovery: 1,
 			},
@@ -185,8 +188,54 @@ describe("runDoctorCommand", () => {
 				hubHealthy: false,
 				listeningPids: [],
 				hubStartupLocks: [],
+				staleSidecarPids: [],
 			},
 		});
 		expect(mockClearHubDiscovery).toHaveBeenCalledWith(discoveryPath);
+	});
+
+	it("doctor --fix kills stale code sidecar processes", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockResolvedValue(undefined);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[0] === "-fal" &&
+				args[1] === "/src-tauri/bin/code-sidecar"
+			) {
+				return {
+					status: 0,
+					stdout:
+						"60123 /Users/example/dev/sdk/apps/code/src-tauri/bin/code-sidecar\n",
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+		const killSpy = vi.spyOn(process, "kill").mockImplementation(() => true);
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true, fix: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(killSpy).toHaveBeenCalledWith(60123, "SIGKILL");
+		expect(JSON.parse(output[0] || "")).toMatchObject({
+			before: {
+				staleSidecarPids: [60123],
+			},
+			killed: {
+				sidecarProcesses: 1,
+			},
+		});
+		killSpy.mockRestore();
 	});
 });

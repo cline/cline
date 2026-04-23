@@ -33,6 +33,13 @@ interface ClientSummary {
 	sessionCount: number;
 }
 
+type ClientSummaryGroup = {
+	label: string;
+	name: string;
+	sessionCount: number;
+	firstConnectedAt: number;
+};
+
 interface LastSessionContext {
 	workspaceRoot: string;
 	cwd?: string;
@@ -121,6 +128,30 @@ function formatClientName(client: TrackedClient): string {
 		client.clientId.trim() ||
 		"Unknown"
 	);
+}
+
+function summarizeClient(client: TrackedClient): {
+	key: string;
+	label: string;
+	name: string;
+} {
+	const normalizedType = client.clientType.trim().toLowerCase();
+	if (
+		normalizedType === "code-sidecar" ||
+		normalizedType === "code-sidecar-approvals" ||
+		normalizedType === "code-sidecar-list"
+	) {
+		return {
+			key: "code-app",
+			label: "Code App",
+			name: "Code App",
+		};
+	}
+	return {
+		key: client.clientId,
+		label: formatClientLabel(client.clientType),
+		name: formatClientName(client),
+	};
 }
 
 function parseLastSessionContext(
@@ -291,12 +322,35 @@ async function main(): Promise<void> {
 			}
 			sessionCounts.set(clientId, (sessionCounts.get(clientId) ?? 0) + 1);
 		}
-		const clientSummaries: ClientSummary[] = Array.from(clients.values())
-			.sort((a, b) => a.connectedAt - b.connectedAt)
-			.map((client) => ({
-				label: formatClientLabel(client.clientType),
-				name: formatClientName(client),
+		const groupedSummaries = new Map<string, ClientSummaryGroup>();
+		for (const client of Array.from(clients.values()).sort(
+			(a, b) => a.connectedAt - b.connectedAt,
+		)) {
+			const summary = summarizeClient(client);
+			const existing = groupedSummaries.get(summary.key);
+			if (existing) {
+				existing.sessionCount += sessionCounts.get(client.clientId) ?? 0;
+				existing.firstConnectedAt = Math.min(
+					existing.firstConnectedAt,
+					client.connectedAt,
+				);
+				continue;
+			}
+			groupedSummaries.set(summary.key, {
+				label: summary.label,
+				name: summary.name,
 				sessionCount: sessionCounts.get(client.clientId) ?? 0,
+				firstConnectedAt: client.connectedAt,
+			});
+		}
+		const clientSummaries: ClientSummary[] = Array.from(
+			groupedSummaries.values(),
+		)
+			.sort((a, b) => a.firstConnectedAt - b.firstConnectedAt)
+			.map(({ label, name, sessionCount }) => ({
+				label,
+				name,
+				sessionCount,
 			}));
 		emit({
 			type: "hub_state",

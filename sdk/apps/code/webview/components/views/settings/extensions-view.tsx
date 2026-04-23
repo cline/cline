@@ -130,6 +130,42 @@ type UserInstructionListsResponse = {
 	warnings: string[];
 };
 
+function asArray<T>(value: T[] | null | undefined): T[] {
+	return Array.isArray(value) ? value : [];
+}
+
+function normalizeInstructionListsResponse(
+	response: Partial<UserInstructionListsResponse> | null | undefined,
+): UserInstructionListsResponse {
+	return {
+		workspaceRoot:
+			typeof response?.workspaceRoot === "string" ? response.workspaceRoot : "",
+		rules: asArray(response?.rules),
+		workflows: asArray(response?.workflows),
+		skills: asArray(response?.skills),
+		agents: asArray(response?.agents),
+		plugins: asArray(response?.plugins),
+		tools: asArray(response?.tools),
+		hooks: asArray(response?.hooks),
+		mcp:
+			response?.mcp && typeof response.mcp === "object"
+				? {
+						settingsPath:
+							typeof response.mcp.settingsPath === "string"
+								? response.mcp.settingsPath
+								: "",
+						hasSettingsFile: Boolean(response.mcp.hasSettingsFile),
+						servers: asArray(response.mcp.servers),
+					}
+				: {
+						settingsPath: "",
+						hasSettingsFile: false,
+						servers: [],
+					},
+		warnings: asArray(response?.warnings),
+	};
+}
+
 const EXTENSION_LISTS_CACHE_TTL_MS = 60_000;
 const EXTENSION_HOOK_STATS_CACHE_TTL_MS = 30_000;
 
@@ -145,6 +181,18 @@ let extensionHookStatsCache: {
 	fetchedAt: number;
 } | null = null;
 
+function hasFreshExtensionsListsCache(
+	cache: typeof extensionListsCache,
+	now: number,
+): cache is NonNullable<typeof extensionListsCache> {
+	return Boolean(
+		cache &&
+			now - cache.fetchedAt < EXTENSION_LISTS_CACHE_TTL_MS &&
+			Array.isArray(cache.tools) &&
+			cache.tools.length > 0,
+	);
+}
+
 function previewText(input: string, maxLength = 150): string {
 	const compact = input.replace(/\s+/g, " ").trim();
 	if (compact.length <= maxLength) {
@@ -158,17 +206,15 @@ function normalizePath(path: string): string {
 }
 
 async function fetchUserInstructionLists(): Promise<UserInstructionListsResponse> {
-	return desktopClient.invoke<UserInstructionListsResponse>(
-		"list_user_instruction_configs",
-	);
+	const response = await desktopClient.invoke<
+		Partial<UserInstructionListsResponse>
+	>("list_user_instruction_configs");
+	return normalizeInstructionListsResponse(response);
 }
 
 export async function primeExtensionsListsCache(): Promise<void> {
 	const now = Date.now();
-	if (
-		extensionListsCache &&
-		now - extensionListsCache.fetchedAt < EXTENSION_LISTS_CACHE_TTL_MS
-	) {
+	if (hasFreshExtensionsListsCache(extensionListsCache, now)) {
 		return;
 	}
 	const response = await fetchUserInstructionLists();
@@ -180,7 +226,9 @@ export async function primeExtensionsListsCache(): Promise<void> {
 
 export function RulesView() {
 	const [activeTab, setActiveTab] = useState<ShortcutTab>("Rules");
-	const [isLoading, setIsLoading] = useState(() => !extensionListsCache);
+	const [isLoading, setIsLoading] = useState(
+		() => !hasFreshExtensionsListsCache(extensionListsCache, Date.now()),
+	);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [workspaceRoot, setWorkspaceRoot] = useState(
 		() => extensionListsCache?.workspaceRoot ?? "",
@@ -222,11 +270,7 @@ export function RulesView() {
 
 	const refresh = useCallback(async (force = false) => {
 		const now = Date.now();
-		if (
-			!force &&
-			extensionListsCache &&
-			now - extensionListsCache.fetchedAt < EXTENSION_LISTS_CACHE_TTL_MS
-		) {
+		if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
 			setWorkspaceRoot(extensionListsCache.workspaceRoot);
 			setRules(extensionListsCache.rules);
 			setWorkflows(extensionListsCache.workflows);
@@ -345,18 +389,19 @@ export function RulesView() {
 	}, []);
 
 	const applyResponse = useCallback(
-		(response: UserInstructionListsResponse) => {
-			setWorkspaceRoot(response.workspaceRoot);
-			setRules(response.rules);
-			setWorkflows(response.workflows);
-			setSkills(response.skills);
-			setAgents(response.agents);
-			setPlugins(response.plugins);
-			setTools(response.tools);
-			setHooks(response.hooks);
-			setWarnings(response.warnings);
+		(response: Partial<UserInstructionListsResponse>) => {
+			const normalizedResponse = normalizeInstructionListsResponse(response);
+			setWorkspaceRoot(normalizedResponse.workspaceRoot);
+			setRules(normalizedResponse.rules);
+			setWorkflows(normalizedResponse.workflows);
+			setSkills(normalizedResponse.skills);
+			setAgents(normalizedResponse.agents);
+			setPlugins(normalizedResponse.plugins);
+			setTools(normalizedResponse.tools);
+			setHooks(normalizedResponse.hooks);
+			setWarnings(normalizedResponse.warnings);
 			extensionListsCache = {
-				...response,
+				...normalizedResponse,
 				fetchedAt: Date.now(),
 			};
 		},

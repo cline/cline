@@ -55,6 +55,7 @@ type DoctorStatus = {
 	listeningPids: number[];
 	hubStartupLocks: StartupArtifact[];
 	staleCliPids: number[];
+	staleSidecarPids: number[];
 	activeConnectors: ActiveConnectorRecord[];
 	recentSpawnedProcesses: SpawnedProcessRecord[];
 };
@@ -140,6 +141,23 @@ function listStaleCliPids(): number[] {
 			(record) => !/(?:^|\s)(?:hub|rpc|connect)(?:\s|$)/.test(record.command),
 		)
 		.map((record) => record.pid);
+}
+
+function listStaleSidecarPids(): number[] {
+	const patterns = [
+		"/apps/code/sidecar/index.ts",
+		"/apps/code/dist/sidecar/index.js",
+		"/src-tauri/bin/code-sidecar",
+		"/Resources/code-sidecar",
+		" code-sidecar",
+	];
+	const records = new Map<number, ProcessRecord>();
+	for (const pattern of patterns) {
+		for (const record of listMatchingProcesses(pattern)) {
+			records.set(record.pid, record);
+		}
+	}
+	return [...records.values()].map((record) => record.pid);
 }
 
 function readRecentSpawnedProcesses(limit = 20): SpawnedProcessRecord[] {
@@ -402,6 +420,7 @@ async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 		listeningPids: listListeningPids(current?.port),
 		hubStartupLocks: listHubStartupLocks(cwd),
 		staleCliPids: listStaleCliPids(),
+		staleSidecarPids: listStaleSidecarPids(),
 		activeConnectors: listActiveConnectors(),
 		recentSpawnedProcesses: readRecentSpawnedProcesses(),
 	};
@@ -486,6 +505,7 @@ export async function runDoctorCommand(
 			),
 		);
 		writeln(formatPidList("cli processes", before.staleCliPids));
+		writeln(formatPidList("sidecar processes", before.staleSidecarPids));
 		if (before.activeConnectors.length === 0) {
 			writeln(`active connectors ${c.dim}0${c.reset}`);
 		} else {
@@ -500,9 +520,13 @@ export async function runDoctorCommand(
 				writeln(`- ${c.dim}${formatRecentSpawnedProcess(record)}${c.reset}`);
 			}
 		}
-		if (before.listeningPids.length > 0 || before.staleCliPids.length > 0) {
+		if (
+			before.listeningPids.length > 0 ||
+			before.staleCliPids.length > 0 ||
+			before.staleSidecarPids.length > 0
+		) {
 			io.writeln(
-				"\nRun `cline doctor --fix` to kill all stale local processes.",
+				"\nRun `cline doctor --fix` to kill all stale local processes, including stale sidecars.",
 			);
 		}
 		return 0;
@@ -521,6 +545,12 @@ export async function runDoctorCommand(
 		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
+	const staleSidecarTargets = before.staleSidecarPids.filter(
+		(pid) =>
+			!refreshedAfterGracefulStop.listeningPids.includes(pid) &&
+			!staleCliTargets.includes(pid),
+	);
+	const killedSidecars = killPids(staleSidecarTargets);
 	const postKillStatus = await collectDoctorStatus(opts.cwd);
 	const clearedArtifacts = await clearHubStartupArtifacts(opts.cwd, {
 		clearDiscovery:
@@ -536,6 +566,7 @@ export async function runDoctorCommand(
 				killed: {
 					hubListeners: killedHub,
 					cliProcesses: killedCli,
+					sidecarProcesses: killedSidecars,
 					hubStartupLocks: clearedArtifacts.startupLocks,
 					hubDiscovery: clearedArtifacts.discovery,
 				},
@@ -545,6 +576,7 @@ export async function runDoctorCommand(
 	}
 	writeln(`killed hub listeners ${c.dim}${killedHub}${c.reset}`);
 	writeln(`killed cli processes ${c.dim}${killedCli}${c.reset}`);
+	writeln(`killed sidecar processes ${c.dim}${killedSidecars}${c.reset}`);
 	writeln(
 		`cleared hub startup locks ${c.dim}${clearedArtifacts.startupLocks}${c.reset}`,
 	);
@@ -560,6 +592,7 @@ export async function runDoctorCommand(
 		),
 	);
 	writeln(formatPidList("remaining cli processes", after.staleCliPids));
+	writeln(formatPidList("remaining sidecar processes", after.staleSidecarPids));
 	return 0;
 }
 

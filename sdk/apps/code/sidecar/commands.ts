@@ -14,7 +14,6 @@ import type {
 	ProviderCapability,
 } from "@clinebot/core";
 import {
-	ALL_DEFAULT_TOOL_NAMES,
 	addLocalProvider,
 	ClineAccountService,
 	ClineCore,
@@ -24,6 +23,7 @@ import {
 	ensureCustomProvidersLoaded,
 	ensureHubServer,
 	executeClineAccountAction,
+	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
 	listHookConfigFiles,
 	listLocalProviders,
@@ -491,11 +491,13 @@ async function listUserInstructionConfigs(
 		agents: loadAgents(),
 		plugins: loadPlugins(),
 		tools: [
-			...ALL_DEFAULT_TOOL_NAMES.map((name) => ({
-				id: name,
-				name,
-				enabled: true,
+			...getCoreBuiltinToolCatalog().map((tool) => ({
+				id: tool.id,
+				name: tool.id,
+				description: tool.description,
+				enabled: tool.defaultEnabled,
 				source: "builtin",
+				headlessToolNames: tool.headlessToolNames,
 			})),
 			...pluginTools.map((tool) => ({
 				id: `${tool.pluginName}:${tool.name}:${tool.path}`,
