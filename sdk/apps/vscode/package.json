@@ -51,7 +51,6 @@
 	},
 	"dependencies": {
 		"@ai-sdk/react": "^3.0.118",
-		"@clinebot/agents": "workspace:*",
 		"@clinebot/core": "workspace:*",
 		"@clinebot/llms": "workspace:*",
 		"@clinebot/shared": "workspace:*",

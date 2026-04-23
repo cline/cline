@@ -1,3 +1,4 @@
+export * from "./agent";
 export * from "./agents";
 export type {
 	ConnectorAuthorizationDecision,
@@ -227,7 +228,6 @@ export type {
 	AddProviderActionRequest,
 	ChatAttachmentFile,
 	ChatAttachments,
-	ChatMessage,
 	ChatRunTurnRequest,
 	ChatRuntimeConfig,
 	ChatStartSessionArtifacts,

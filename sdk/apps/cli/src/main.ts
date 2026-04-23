@@ -66,36 +66,6 @@ async function loadInteractiveRuntimeModule() {
 	return runInteractive;
 }
 
-function resolveCwdArg(argv: string[]): string | undefined {
-	const longIndex = argv.indexOf("--cwd");
-	if (longIndex >= 0 && longIndex + 1 < argv.length) {
-		const value = argv[longIndex + 1]?.trim();
-		if (value) {
-			return value;
-		}
-	}
-	for (let index = 0; index < argv.length; index += 1) {
-		if (argv[index] !== "-c") {
-			continue;
-		}
-		const value = argv[index + 1]?.trim();
-		if (value) {
-			return value;
-		}
-	}
-	return undefined;
-}
-
-function shouldPrewarmCliHub(argv: string[]): boolean {
-	// --zen always needs the hub, even when combined with --yolo.
-	const zenRequested = argv.includes("--zen") || argv.includes("-z");
-	if (!zenRequested && (argv.includes("--yolo") || argv.includes("-y"))) {
-		return false;
-	}
-	const subcommand = argv.find((arg) => arg && !arg.startsWith("-"))?.trim();
-	return subcommand !== "hub";
-}
-
 /**
  * Two-pass approach for --config: a quick scan of process.argv extracts the
  * config directory before commander parses, because setHomeDir() must run
@@ -122,22 +92,7 @@ export async function runCli(): Promise<void> {
 	}
 	setHomeDir(homedir());
 	let launchConfigView = false;
-
 	const normalizedArgs = normalizeAutoApproveArgs(cliArgs);
-	if (
-		shouldPrewarmCliHub(normalizedArgs) &&
-		process.env.CLINE_SESSION_BACKEND_MODE?.trim().toLowerCase() !== "local" &&
-		!process.env.CLINE_VCR?.trim()
-	) {
-		const startupCwd = resolveCwdArg(normalizedArgs) ?? process.cwd();
-		const startupWorkspaceRoot = resolveWorkspaceRoot(startupCwd);
-		try {
-			const { prewarmCliHubServer } = await import("./utils/hub-runtime");
-			prewarmCliHubServer(startupWorkspaceRoot);
-		} catch {
-			// Defer hard failures to the command/runtime path; startup prewarm is best-effort.
-		}
-	}
 
 	// Subcommand routing via Commander
 	const ctx: { exitCode?: number; resumeSessionId?: string } = {};

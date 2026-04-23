@@ -304,6 +304,10 @@ describe("LocalRuntimeHost e2e", () => {
 					run,
 					continue: continueFn,
 					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-e2e-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-e2e-1"),
 					restore: vi.fn((baseline: LlmsProviders.Message[]) => {
 						messages = [...baseline];
 					}),
@@ -469,7 +473,11 @@ describe("LocalRuntimeHost e2e", () => {
 					run,
 					continue: vi.fn(),
 					abort: vi.fn(),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-e2e-artifacts"),
+					getConversationId: vi.fn().mockReturnValue("conv-e2e-artifacts"),
 					restore: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
 					updateConnection: vi.fn(),
 					shutdown: vi.fn().mockResolvedValue(undefined),
 					getMessages: vi.fn().mockReturnValue([]),

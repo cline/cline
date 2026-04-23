@@ -1,4 +1,4 @@
-import type { AgentEvent } from "@clinebot/shared";
+import type { AgentConfig, AgentEvent } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	AgentTeamsRuntime,
@@ -6,25 +6,13 @@ import {
 	TeamMessageType,
 } from "./multi-agent";
 
-const { createAgentMock } = vi.hoisted(() => ({
-	createAgentMock: vi.fn(),
-}));
-
-vi.mock("@clinebot/agents", async () => {
-	const actual =
-		await vi.importActual<typeof import("@clinebot/agents")>(
-			"@clinebot/agents",
-		);
-
-	return {
-		...actual,
-		createAgent: createAgentMock,
-	};
-});
-
-describe("AgentTeamsRuntime teammate lifecycle events", () => {
-	it("spawns teammates with a 10 minute API timeout", () => {
-		createAgentMock.mockReturnValueOnce({
+const { createSessionRuntimeMock } = vi.hoisted(() => {
+	// The mock must work with `new SessionRuntime(...)` which the
+	// production code uses. Arrow functions cannot be called with `new`,
+	// so we declare the default impl as a regular function expression.
+	// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+	const createSessionRuntimeMock = vi.fn(function (_config?: unknown) {
+		return {
 			abort: vi.fn(),
 			run: vi.fn(),
 			continue: vi.fn(),
@@ -32,6 +20,38 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			getAgentId: vi.fn(() => "teammate-1"),
 			getConversationId: vi.fn(() => "conv-1"),
 			getMessages: vi.fn(() => []),
+			subscribeEvents: vi.fn(() => () => {}),
+		};
+	});
+
+	return { createSessionRuntimeMock };
+});
+
+type SessionRuntimeCtorConfig = AgentConfig & {
+	consumePendingUserMessage?: () => string | undefined;
+	onEvent?: (event: AgentEvent) => void;
+};
+
+vi.mock("../../../runtime/session-runtime-orchestrator", () => {
+	return {
+		SessionRuntime: createSessionRuntimeMock,
+	};
+});
+
+describe("AgentTeamsRuntime teammate lifecycle events", () => {
+	it("spawns teammates with a 10 minute API timeout", () => {
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
 		});
 		const runtime = new AgentTeamsRuntime({
 			teamName: "test-team",
@@ -47,7 +67,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			},
 		});
 
-		expect(createAgentMock).toHaveBeenCalledWith(
+		expect(createSessionRuntimeMock).toHaveBeenCalledWith(
 			expect.objectContaining({
 				apiTimeoutMs: 10 * 60 * 1000,
 			}),
@@ -56,14 +76,18 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("does not emit task_start when teammate is already busy", async () => {
 		const events: TeamEvent[] = [];
-		createAgentMock.mockReturnValueOnce({
-			abort: vi.fn(),
-			run: vi.fn(),
-			continue: vi.fn(),
-			canStartRun: vi.fn(() => false),
-			getAgentId: vi.fn(() => "teammate-1"),
-			getConversationId: vi.fn(() => "conv-1"),
-			getMessages: vi.fn(() => []),
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => false),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
 		});
 		const runtime = new AgentTeamsRuntime({
 			teamName: "test-team",
@@ -93,14 +117,18 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("emits teammate_spawned with lifecycle payload", () => {
 		const events: TeamEvent[] = [];
-		createAgentMock.mockReturnValueOnce({
-			abort: vi.fn(),
-			run: vi.fn(),
-			continue: vi.fn(),
-			canStartRun: vi.fn(() => true),
-			getAgentId: vi.fn(() => "teammate-1"),
-			getConversationId: vi.fn(() => "conv-1"),
-			getMessages: vi.fn(() => []),
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
 		});
 		const runtime = new AgentTeamsRuntime({
 			teamName: "test-team",
@@ -135,16 +163,20 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("swallows abort-like shutdown errors from teammates", () => {
 		const events: TeamEvent[] = [];
-		createAgentMock.mockReturnValueOnce({
-			abort: vi.fn(() => {
-				throw new DOMException("This operation was aborted", "AbortError");
-			}),
-			run: vi.fn(),
-			continue: vi.fn(),
-			canStartRun: vi.fn(() => true),
-			getAgentId: vi.fn(() => "teammate-1"),
-			getConversationId: vi.fn(() => "conv-1"),
-			getMessages: vi.fn(() => []),
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(() => {
+					throw new DOMException("This operation was aborted", "AbortError");
+				}),
+				run: vi.fn(),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
 		});
 		const runtime = new AgentTeamsRuntime({
 			teamName: "test-team",
@@ -179,30 +211,34 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("prepends unread mailbox notification to teammate message", async () => {
 		let routedMessage: string | undefined;
-		createAgentMock.mockReturnValueOnce({
-			abort: vi.fn(),
-			run: vi.fn(async (message) => {
-				routedMessage = message;
-				return {
-					text: "Task completed",
-					iterations: 1,
-					finishReason: "end_turn",
-					durationMs: 100,
-					usage: {
-						inputTokens: 10,
-						outputTokens: 20,
-						cacheReadTokens: 0,
-						cacheWriteTokens: 0,
-						totalCost: 0,
-					},
-					messages: [],
-				};
-			}),
-			continue: vi.fn(),
-			canStartRun: vi.fn(() => true),
-			getAgentId: vi.fn(() => "teammate-1"),
-			getConversationId: vi.fn(() => "conv-1"),
-			getMessages: vi.fn(() => []),
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(async (message) => {
+					routedMessage = message;
+					return {
+						text: "Task completed",
+						iterations: 1,
+						finishReason: "end_turn",
+						durationMs: 100,
+						usage: {
+							inputTokens: 10,
+							outputTokens: 20,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost: 0,
+						},
+						messages: [],
+					};
+				}),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
 		});
 		const runtime = new AgentTeamsRuntime({
 			teamName: "test-team",
@@ -246,30 +282,34 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("does not prepend notification when no unread mail", async () => {
 		let routedMessage: string | undefined;
-		createAgentMock.mockReturnValueOnce({
-			abort: vi.fn(),
-			run: vi.fn(async (message) => {
-				routedMessage = message;
-				return {
-					text: "Task completed",
-					iterations: 1,
-					finishReason: "end_turn",
-					durationMs: 100,
-					usage: {
-						inputTokens: 10,
-						outputTokens: 20,
-						cacheReadTokens: 0,
-						cacheWriteTokens: 0,
-						totalCost: 0,
-					},
-					messages: [],
-				};
-			}),
-			continue: vi.fn(),
-			canStartRun: vi.fn(() => true),
-			getAgentId: vi.fn(() => "teammate-1"),
-			getConversationId: vi.fn(() => "conv-1"),
-			getMessages: vi.fn(() => []),
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(async (message) => {
+					routedMessage = message;
+					return {
+						text: "Task completed",
+						iterations: 1,
+						finishReason: "end_turn",
+						durationMs: 100,
+						usage: {
+							inputTokens: 10,
+							outputTokens: 20,
+							cacheReadTokens: 0,
+							cacheWriteTokens: 0,
+							totalCost: 0,
+						},
+						messages: [],
+					};
+				}),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
 		});
 		const runtime = new AgentTeamsRuntime({
 			teamName: "test-team",
@@ -296,8 +336,10 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("queues steer message notification when recipient is running", () => {
 		let consumePendingMessage: (() => string | undefined) | undefined;
-		createAgentMock.mockImplementationOnce((config) => {
-			consumePendingMessage = config.consumePendingUserMessage;
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function (config) {
+			consumePendingMessage = (config as SessionRuntimeCtorConfig)
+				.consumePendingUserMessage;
 			return {
 				abort: vi.fn(),
 				run: vi.fn(),
@@ -306,6 +348,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 				getAgentId: vi.fn(() => "teammate-1"),
 				getConversationId: vi.fn(() => "conv-1"),
 				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
 			};
 		});
 		const runtime = new AgentTeamsRuntime({
@@ -349,8 +392,10 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 
 	it("does not queue steer message when recipient is idle", () => {
 		let consumePendingMessage: (() => string | undefined) | undefined;
-		createAgentMock.mockImplementationOnce((config) => {
-			consumePendingMessage = config.consumePendingUserMessage;
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function (config) {
+			consumePendingMessage = (config as SessionRuntimeCtorConfig)
+				.consumePendingUserMessage;
 			return {
 				abort: vi.fn(),
 				run: vi.fn(),
@@ -359,6 +404,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 				getAgentId: vi.fn(() => "teammate-1"),
 				getConversationId: vi.fn(() => "conv-1"),
 				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
 			};
 		});
 		const runtime = new AgentTeamsRuntime({
@@ -390,8 +436,9 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 	it("includes tool and run error details in run_progress activity", async () => {
 		const events: TeamEvent[] = [];
 		let wrappedOnEvent: ((event: AgentEvent) => void) | undefined;
-		createAgentMock.mockImplementationOnce((config) => {
-			wrappedOnEvent = config.onEvent;
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function (config) {
+			wrappedOnEvent = (config as SessionRuntimeCtorConfig).onEvent;
 			return {
 				abort: vi.fn(),
 				run: vi.fn(async () => {
@@ -414,6 +461,7 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 				getAgentId: vi.fn(() => "teammate-1"),
 				getConversationId: vi.fn(() => "conv-1"),
 				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
 			};
 		});
 		const runtime = new AgentTeamsRuntime({

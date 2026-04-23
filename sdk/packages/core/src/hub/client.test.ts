@@ -225,6 +225,39 @@ describe("NodeHubClient", () => {
 		});
 	});
 
+	it("normalizes websocket error events during connect", async () => {
+		const originalWebSocket = globalThis.WebSocket;
+		(globalThis as unknown as { WebSocket?: typeof FakeWebSocket }).WebSocket =
+			FakeWebSocket;
+		FakeWebSocket.instances = [];
+
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+		const connectPromise = client.connect();
+		const socket = FakeWebSocket.instances[0];
+		if (!socket) {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			throw new Error("expected fake websocket instance");
+		}
+
+		socket.fail({ type: "error" });
+
+		try {
+			await expect(connectPromise).rejects.toThrow(
+				"Failed to connect to hub at ws://127.0.0.1:25463/hub (error event before socket open).",
+			);
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+		}
+	});
+
 	it("surfaces websocket error messages during connect", async () => {
 		const originalWebSocket = globalThis.WebSocket;
 		(globalThis as unknown as { WebSocket?: typeof FakeWebSocket }).WebSocket =

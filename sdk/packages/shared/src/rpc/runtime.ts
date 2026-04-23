@@ -32,7 +32,6 @@ export interface ChatStartSessionRequest extends ChatRuntimeConfig {
 	model: string;
 	source?: string;
 	interactive?: boolean;
-	initialMessages?: ChatMessage[];
 }
 
 export interface ChatStartSessionArtifacts {
@@ -56,15 +55,8 @@ export interface ChatAttachments {
 	userFiles?: ChatAttachmentFile[];
 }
 
-export interface ChatMessage {
-	role?: string;
-	content?: unknown;
-	[key: string]: unknown;
-}
-
 export interface ChatRunTurnRequest {
 	config: ChatStartSessionRequest;
-	messages?: ChatMessage[];
 	prompt: string;
 	attachments?: ChatAttachments;
 	delivery?: "queue" | "steer";
@@ -91,7 +83,6 @@ export interface ChatTurnResult {
 	outputTokens: number;
 	iterations: number;
 	finishReason: string;
-	messages: ChatMessage[];
 	toolCalls: ChatToolCallResult[];
 }
 

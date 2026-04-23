@@ -3,6 +3,7 @@ import {
 	ensureCompatibleLocalHubUrl,
 	resolveCompatibleLocalHubUrl,
 } from "../hub/client";
+import { prewarmDetachedHubServer } from "../hub/daemon";
 import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../services/telemetry/distinct-id";
 import { FileSessionService } from "../session/file-session-service";
@@ -32,6 +33,23 @@ export type SessionBackend = CoreSessionService | FileSessionService;
 
 let cachedBackend: SessionBackend | undefined;
 let backendInitPromise: Promise<SessionBackend> | undefined;
+
+function prewarmLocalHubIfNeeded(
+	configuredMode: RuntimeHostMode,
+	options: ClineCoreOptions,
+): void {
+	if (configuredMode !== "auto" && configuredMode !== "hub") {
+		return;
+	}
+	if (options.hub?.endpoint?.trim()) {
+		return;
+	}
+	prewarmDetachedHubServer(
+		options.hub?.workspaceRoot?.trim() ||
+			options.hub?.cwd?.trim() ||
+			process.cwd(),
+	);
+}
 
 async function reconcileDeadSessionsIfSupported(
 	backend: SessionBackend,
@@ -108,6 +126,7 @@ export async function createRuntimeHost(
 	const distinctId = resolveCoreDistinctId(options.distinctId);
 	options.telemetry?.setDistinctId(distinctId);
 	const configuredMode = resolveConfiguredBackendMode(options);
+	prewarmLocalHubIfNeeded(configuredMode, options);
 	if (configuredMode === "remote") {
 		const remoteEndpoint = options.remote?.endpoint?.trim();
 		if (!remoteEndpoint) {

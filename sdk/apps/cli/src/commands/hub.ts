@@ -5,6 +5,7 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveSharedHubOwnerContext,
+	stopLocalHubServerGracefully,
 } from "@clinebot/core";
 import { Command } from "commander";
 
@@ -16,6 +17,10 @@ interface HubCommandIo {
 async function stopHubServer(_workspaceRoot: string): Promise<boolean> {
 	const owner = resolveSharedHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
+	if (await stopLocalHubServerGracefully()) {
+		await clearHubDiscovery(owner.discoveryPath);
+		return true;
+	}
 	const pid = discovery?.pid;
 	if (pid) {
 		try {

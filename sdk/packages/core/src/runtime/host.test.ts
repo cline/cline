@@ -5,6 +5,7 @@ const sqliteInitMock = vi.hoisted(() => vi.fn());
 const ensureCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
 const resolveCompatibleLocalHubUrlMock = vi.hoisted(() => vi.fn());
 const hubConnectMock = vi.hoisted(() => vi.fn());
+const prewarmDetachedHubServerMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../hub/client", async () => {
 	const actual =
@@ -19,6 +20,15 @@ vi.mock("../hub/client", async () => {
 		},
 		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,
 		resolveCompatibleLocalHubUrl: resolveCompatibleLocalHubUrlMock,
+	};
+});
+
+vi.mock("../hub/daemon", async () => {
+	const actual =
+		await vi.importActual<typeof import("../hub/daemon")>("../hub/daemon");
+	return {
+		...actual,
+		prewarmDetachedHubServer: prewarmDetachedHubServerMock,
 	};
 });
 
@@ -42,6 +52,7 @@ describe("runtime host resolution", () => {
 		ensureCompatibleLocalHubUrlMock.mockReset();
 		resolveCompatibleLocalHubUrlMock.mockReset();
 		hubConnectMock.mockReset();
+		prewarmDetachedHubServerMock.mockReset();
 		logger.debug.mockReset();
 		logger.log.mockReset();
 		logger.error.mockReset();
@@ -111,6 +122,7 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(HubRuntimeHost);
+		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(process.cwd());
 		expect(resolveCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			endpoint: undefined,
 			strategy: "prefer-hub",
@@ -135,6 +147,7 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(LocalRuntimeHost);
+		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(process.cwd());
 		expect(resolveCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			endpoint: undefined,
 			strategy: "prefer-hub",
@@ -163,6 +176,7 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(LocalRuntimeHost);
+		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(process.cwd());
 		expect(logger.log).toHaveBeenCalledWith(
 			"Falling back to local runtime host",
 			expect.objectContaining({
@@ -184,9 +198,40 @@ describe("runtime host resolution", () => {
 		});
 
 		expect(host).toBeInstanceOf(HubRuntimeHost);
+		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(process.cwd());
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
 		});
+	});
+
+	it("uses the configured hub workspace root when prewarming", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
+
+		await createRuntimeHost({
+			backendMode: "auto",
+			hub: {
+				workspaceRoot: "/workspace/project",
+			},
+		});
+
+		expect(prewarmDetachedHubServerMock).toHaveBeenCalledWith(
+			"/workspace/project",
+		);
+	});
+
+	it("does not prewarm when using an explicit hub endpoint", async () => {
+		const { createRuntimeHost } = await import("../runtime/host");
+		resolveCompatibleLocalHubUrlMock.mockResolvedValue(undefined);
+
+		await createRuntimeHost({
+			backendMode: "auto",
+			hub: {
+				endpoint: "ws://127.0.0.1:4317/hub",
+			},
+		});
+
+		expect(prewarmDetachedHubServerMock).not.toHaveBeenCalled();
 	});
 
 	it("uses a remote runtime host when backendMode is remote", async () => {

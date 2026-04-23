@@ -15,7 +15,7 @@ The CLI does not have a `--plugin` flag yet. It discovers plugin modules from `.
 mkdir -p .cline/plugins
 cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
 
-clite -i "What's the weather like in Tokyo and Paris?"
+cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
 The module exports `default` and `plugin`, so the CLI loader can import it directly.

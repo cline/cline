@@ -26,7 +26,6 @@
 		"node": ">=22"
 	},
 	"dependencies": {
-		"@clinebot/agents": "workspace:*",
 		"@clinebot/core": "workspace:*",
 		"@clinebot/shared": "workspace:*",
 		"aws4fetch": "^1.0.20"

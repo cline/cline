@@ -4,7 +4,6 @@
  * Utilities for orchestrating multiple agents working together.
  */
 
-import { type Agent, createAgent } from "@clinebot/agents";
 import {
 	type AgentConfig,
 	type AgentEvent,
@@ -33,6 +32,7 @@ import {
 	type TeamTaskStatus,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
+import { SessionRuntime } from "../../../runtime/session-runtime-orchestrator";
 
 // Re-export shared types for backward compatibility
 export {
@@ -162,7 +162,7 @@ function isAbortLikeError(error: unknown): boolean {
 const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
 
 export class AgentTeam {
-	private agents: Map<string, Agent> = new Map();
+	private agents: Map<string, SessionRuntime> = new Map();
 	private configs: Map<string, TeamMemberConfig> = new Map();
 	private onTeamEvent?: (event: TeamEvent) => void;
 
@@ -196,7 +196,10 @@ export class AgentTeam {
 			},
 		};
 
-		const agent = createAgent(wrappedConfig);
+		const agent = new SessionRuntime(wrappedConfig);
+		if (wrappedConfig.onEvent) {
+			agent.subscribeEvents(wrappedConfig.onEvent);
+		}
 		this.agents.set(id, agent);
 		this.configs.set(id, config);
 	}
@@ -206,7 +209,7 @@ export class AgentTeam {
 		return this.agents.delete(id);
 	}
 
-	getAgent(id: string): Agent | undefined {
+	getAgent(id: string): SessionRuntime | undefined {
 		return this.agents.get(id);
 	}
 
@@ -497,7 +500,7 @@ export function createWorkerReviewerTeam(configs: {
 // =============================================================================
 
 interface TeamMemberState extends TeamMemberSnapshot {
-	agent?: Agent;
+	agent?: SessionRuntime;
 	runningCount: number;
 	lastMissionStep: number;
 	lastMissionAt: number;
@@ -851,7 +854,10 @@ export class AgentTeamsRuntime {
 			},
 		};
 
-		const agent = createAgent(wrappedConfig);
+		const agent = new SessionRuntime(wrappedConfig);
+		if (wrappedConfig.onEvent) {
+			agent.subscribeEvents(wrappedConfig.onEvent);
+		}
 		const teammate: TeamMemberState = {
 			agentId,
 			role: "teammate",

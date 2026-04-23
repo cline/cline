@@ -1,4 +1,3 @@
-import { Agent } from "@clinebot/agents";
 import type {
 	AgentConfig,
 	AgentEvent,
@@ -10,6 +9,7 @@ import type {
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
+import { SessionRuntime } from "../../../runtime/session-runtime-orchestrator";
 import {
 	buildSubAgentSystemPrompt,
 	buildTeammateSystemPrompt,
@@ -126,6 +126,11 @@ export function buildDelegatedAgentConfig(
 
 export function createDelegatedAgent(
 	options: BuildDelegatedAgentConfigOptions,
-): Agent {
-	return new Agent(buildDelegatedAgentConfig(options));
+): SessionRuntime {
+	const config = buildDelegatedAgentConfig(options);
+	const session = new SessionRuntime(config);
+	if (config.onEvent) {
+		session.subscribeEvents(config.onEvent);
+	}
+	return session;
 }

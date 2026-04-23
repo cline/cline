@@ -9,15 +9,9 @@ const getAgentIdMock = vi.fn(() => "sub-agent-1");
 const getConversationIdMock = vi.fn(() => "conv-sub-1");
 const agentConstructorSpy = vi.fn();
 
-vi.mock("@clinebot/agents", async () => {
-	const actual =
-		await vi.importActual<typeof import("@clinebot/agents")>(
-			"@clinebot/agents",
-		);
-
+vi.mock("../../../runtime/session-runtime-orchestrator", () => {
 	return {
-		...actual,
-		Agent: class MockAgent {
+		SessionRuntime: class MockSessionRuntime {
 			constructor(config: unknown) {
 				agentConstructorSpy(config);
 			}
@@ -28,6 +22,10 @@ vi.mock("@clinebot/agents", async () => {
 
 			getConversationId(): string {
 				return getConversationIdMock();
+			}
+
+			subscribeEvents(): () => void {
+				return () => {};
 			}
 
 			async run(input: string): Promise<unknown> {

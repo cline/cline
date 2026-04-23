@@ -7,6 +7,7 @@ import {
 	HubUIClient,
 	Llms,
 	ProviderSettingsManager,
+	stopLocalHubServerGracefully,
 	toHubHealthUrl,
 } from "@clinebot/core";
 import type { HubUINotifyPayload, SessionRecord } from "@clinebot/shared";
@@ -44,7 +45,7 @@ interface ProviderLaunchAuth {
 }
 
 interface SidecarCommand {
-	type: "new_chat";
+	type: "new_chat" | "shutdown_hub";
 	prompt?: string;
 }
 
@@ -367,6 +368,19 @@ async function main(): Promise<void> {
 		}
 	}
 
+	async function shutdownHub(): Promise<void> {
+		try {
+			await stopLocalHubServerGracefully();
+		} catch (error) {
+			emit({
+				type: "notification",
+				title: "Hub shutdown failed",
+				body: error instanceof Error ? error.message : String(error),
+				severity: "error",
+			});
+		}
+	}
+
 	const stdin = createInterface({ input: process.stdin, terminal: false });
 	stdin.on("line", (line) => {
 		const trimmed = line.trim();
@@ -383,6 +397,10 @@ async function main(): Promise<void> {
 			if (typeof command.prompt === "string") {
 				void startBackgroundChat(command.prompt);
 			}
+			return;
+		}
+		if (command?.type === "shutdown_hub") {
+			void shutdownHub();
 		}
 	});
 

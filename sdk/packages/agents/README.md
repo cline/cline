@@ -31,8 +31,6 @@ npm install @clinebot/agents @clinebot/shared @clinebot/llms zod
 ## Quick Start
 
 ```ts
-import { Agent } from "@clinebot/agents";
-import { createTool } from "@clinebot/shared";
 import { z } from "zod";
 
 const getWeather = createTool({

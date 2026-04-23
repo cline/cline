@@ -572,3 +572,34 @@ export async function ensureCompatibleLocalHubUrl(
 	spawnDetachedHubServer(options.workspaceRoot ?? process.cwd());
 	return await waitForCompatibleHubUrl(owner);
 }
+
+export async function requestHubShutdown(url: string): Promise<boolean> {
+	const parsed = new URL(url);
+	if (parsed.protocol === "ws:") {
+		parsed.protocol = "http:";
+	} else if (parsed.protocol === "wss:") {
+		parsed.protocol = "https:";
+	}
+	parsed.pathname = "/shutdown";
+	parsed.search = "";
+	parsed.hash = "";
+	const response = await fetch(parsed, { method: "POST" });
+	return response.ok;
+}
+
+export async function stopLocalHubServerGracefully(): Promise<boolean> {
+	const owner = resolveSharedHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath);
+	if (!discovery?.url) {
+		return false;
+	}
+	try {
+		const stopped = await requestHubShutdown(discovery.url);
+		if (stopped) {
+			return true;
+		}
+	} catch {
+		// Fall through so callers can apply a stronger fallback.
+	}
+	return false;
+}

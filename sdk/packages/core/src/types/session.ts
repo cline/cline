@@ -1,7 +1,7 @@
-import type { Agent } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
 import type { SessionAccumulatedUsage } from "../runtime/runtime-host";
 import type { BuiltRuntime } from "../runtime/session-runtime";
+import type { SessionRuntime } from "../runtime/session-runtime-orchestrator";
 import type { SessionRow } from "../session/session-row";
 import type { RootSessionArtifacts } from "../session/session-service";
 import type { SessionSource, SessionStatus } from "./common";
@@ -16,7 +16,7 @@ export type ActiveSession = {
 	startedAt: string;
 	pendingPrompt?: string;
 	runtime: BuiltRuntime;
-	agent: Agent;
+	agent: SessionRuntime;
 	started: boolean;
 	aborting: boolean;
 	interactive: boolean;

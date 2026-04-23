@@ -1,3 +1,15 @@
+/**
+ * User-input / first-turn content assembler.
+ *
+ * @see PLAN.md §3.1 — moved from `packages/agents/src/utils/agent-input.ts`.
+ * @see PLAN.md §3.2.4 — called from the `Agent.run/continue` facade via
+ *                      the `buildInitialUserContent` helper.
+ *
+ * Pure port. Opens the first user ContentBlock[] for a turn, loading user
+ * file contents via the injected `userFileContentLoader` (already
+ * core-owned per §3.1 notes on `packages/core/src/transports/local.ts`).
+ */
+
 import type * as LlmsProviders from "@clinebot/llms";
 
 export async function buildInitialUserContent(
@@ -27,6 +39,43 @@ export async function buildInitialUserContent(
 		content.push(...fileTextBlocks);
 	}
 	return content;
+}
+
+/**
+ * Normalize a user message shape into a plain string when possible.
+ *
+ * @see PLAN.md §3.1 — exported from the user-input-builder module so
+ *                    SessionRuntime can use it to sanitise ad-hoc input.
+ *
+ * Accepts either a string or a LlmsProviders.Message; returns the best-effort
+ * concatenated plain-text body. Non-text content is ignored.
+ */
+export function normalizeUserMessage(
+	input: string | LlmsProviders.Message | undefined,
+): string {
+	if (input == null) {
+		return "";
+	}
+	if (typeof input === "string") {
+		return input;
+	}
+	const content = input.content;
+	if (typeof content === "string") {
+		return content;
+	}
+	if (!Array.isArray(content)) {
+		return "";
+	}
+	const textParts: string[] = [];
+	for (const block of content) {
+		if (block && typeof block === "object" && block.type === "text") {
+			const text = (block as { text?: unknown }).text;
+			if (typeof text === "string") {
+				textParts.push(text);
+			}
+		}
+	}
+	return textParts.join("\n");
 }
 
 function buildImageBlocks(userImages?: string[]): LlmsProviders.ImageContent[] {

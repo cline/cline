@@ -7,6 +7,7 @@ import {
 	readHubDiscovery,
 	resolveClineDataDir,
 	resolveSharedHubOwnerContext,
+	stopLocalHubServerGracefully,
 } from "@clinebot/core";
 import { Command } from "commander";
 import { isProcessRunning } from "../connectors/common";
@@ -507,9 +508,17 @@ export async function runDoctorCommand(
 		return 0;
 	}
 
-	const killedHub = killPids(before.listeningPids);
+	const gracefullyStoppedHub = before.hubHealthy
+		? await stopLocalHubServerGracefully().catch(() => false)
+		: false;
+	const refreshedAfterGracefulStop = gracefullyStoppedHub
+		? await collectDoctorStatus(opts.cwd)
+		: before;
+	const killedHub = gracefullyStoppedHub
+		? 0
+		: killPids(refreshedAfterGracefulStop.listeningPids);
 	const staleCliTargets = before.staleCliPids.filter(
-		(pid) => !before.listeningPids.includes(pid),
+		(pid) => !refreshedAfterGracefulStop.listeningPids.includes(pid),
 	);
 	const killedCli = killPids(staleCliTargets);
 	const postKillStatus = await collectDoctorStatus(opts.cwd);

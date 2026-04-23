@@ -1,10 +1,23 @@
-import type { HookEngine, HookHandler } from "@clinebot/shared";
+/**
+ * Lifecycle-hook registration wiring for the legacy `AgentHooks` and
+ * `AgentExtension` surfaces onto a `HookEngine`.
+ *
+ * @see PLAN.md §3.1 — moved from `packages/agents/src/runtime/hook-registry.ts`.
+ * @see PLAN.md §3.3.3 — OLD `config.hooks.*` → NEW placement.
+ *
+ * Verbatim port: pure wiring with no state. After the migration this is
+ * invoked by `HookBridge` and the legacy-agent facade's `addTools`
+ * pathway. Lives under `packages/core/src/hooks/` per §3.1.
+ */
+
 import type {
 	AgentConfig,
 	AgentExtension,
 	AgentExtensionHookStage,
 	AgentHookControl,
-} from "../types";
+	HookEngine,
+	HookHandler,
+} from "@clinebot/shared";
 
 type LifecycleConfig = Pick<AgentConfig, "hooks" | "extensions">;
 

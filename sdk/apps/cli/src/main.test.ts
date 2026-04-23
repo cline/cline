@@ -67,7 +67,6 @@ const loggingMocks = vi.hoisted(() => ({
 }));
 const hubRuntimeMocks = vi.hoisted(() => ({
 	ensureCliHubServer: vi.fn(async () => "ws://127.0.0.1:4317"),
-	prewarmCliHubServer: vi.fn(),
 }));
 
 function forcePromptModeInput() {
@@ -166,7 +165,6 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runInteractive.mockReset();
 		hubRuntimeMocks.ensureCliHubServer.mockReset();
 		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue("ws://127.0.0.1:4317");
-		hubRuntimeMocks.prewarmCliHubServer.mockReset();
 		authMocks.ensureOAuthProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);
@@ -261,7 +259,6 @@ describe("runCli lightweight command dispatch", () => {
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
 		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
-		expect(hubRuntimeMocks.prewarmCliHubServer).not.toHaveBeenCalled();
 	});
 
 	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {

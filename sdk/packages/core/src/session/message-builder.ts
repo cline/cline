@@ -1,3 +1,14 @@
+/**
+ * API-safe message builder for provider payloads.
+ *
+ * @see PLAN.md §3.1 — moved from `packages/agents/src/context/message-builder.ts`.
+ * @see PLAN.md §3.2.3 — public surface of `MessageBuilder`.
+ *
+ * Verbatim port: walks the conversation to produce provider-ready
+ * messages, handles tool-result truncation and outdated-file-content
+ * rewrite for compaction. Per-instance caches make this host state.
+ */
+
 import type * as LlmsProviders from "@clinebot/llms";
 import { normalizeUserInput } from "@clinebot/shared";
 

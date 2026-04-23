@@ -7,5 +7,5 @@
 		"tsBuildInfoFile": "./node_modules/.cache/tsconfig.tsbuildinfo"
 	},
 	"include": ["src/**/*"],
-	"exclude": ["node_modules", "dist", "**/*.test.ts"]
+	"exclude": ["node_modules", "dist", "**/*.test.ts", "fixtures"]
 }

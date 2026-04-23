@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { appendFileSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import type { AgentHooks } from "@clinebot/agents";
+import type { AgentHooks } from "@clinebot/shared";
 import {
 	augmentNodeCommandForDebug,
 	type BasicLogger,

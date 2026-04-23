@@ -632,8 +632,7 @@ export function createSubmitAndExitTool(
  *
  * @example
  * ```typescript
- * import { Agent } from "@clinebot/agents"
- * import { createDefaultTools } from "@clinebot/core"
+ * import { Agent, createDefaultTools } from "@clinebot/core"
  * import * as fs from "fs/promises"
  * import { exec } from "child_process"
  *

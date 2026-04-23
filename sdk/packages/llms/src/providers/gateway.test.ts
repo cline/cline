@@ -900,6 +900,64 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("does not emit duplicate usage when finish parts already carry totals", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "finish",
+					usage: {
+						prompt_tokens: 1000,
+						completion_tokens: 25,
+						cache_creation_input_tokens: 50,
+						prompt_tokens_details: { cached_tokens: 200 },
+						market_cost: 0.0011,
+					},
+				},
+			]),
+			usage: Promise.resolve({
+				prompt_tokens: 1000,
+				completion_tokens: 25,
+				cache_creation_input_tokens: 50,
+				prompt_tokens_details: { cached_tokens: 200 },
+				market_cost: 0.0011,
+			}),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "cline",
+					apiKey: "cline-key",
+					models: [{ id: "openai/gpt-5.3-codex", name: "GPT-5.3 Codex" }],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "openai/gpt-5.3-codex",
+				messages: baseMessages,
+			}),
+		);
+
+		const usageEvents = events.filter(
+			(event): event is Extract<AgentModelEvent, { type: "usage" }> =>
+				event.type === "usage",
+		);
+		expect(usageEvents).toHaveLength(1);
+		expect(usageEvents[0]).toEqual({
+			type: "usage",
+			usage: {
+				inputTokens: 1000,
+				outputTokens: 25,
+				cacheReadTokens: 200,
+				cacheWriteTokens: 50,
+				totalCost: 0.0011,
+			},
+		});
+	});
+
 	it("reads compatible-provider cache usage from nested provider metadata", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([

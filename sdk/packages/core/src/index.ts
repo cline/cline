@@ -34,6 +34,7 @@ export type {
 	HookSessionContext,
 	ITelemetryService,
 	ListProvidersActionRequest,
+	MessageWithMetadata,
 	OAuthProviderId,
 	ProviderActionRequest,
 	ProviderCatalogResponse,
@@ -504,6 +505,7 @@ export { CORE_BUILD_VERSION } from "./version";
 export async function loadOpenTelemetryAdapter() {
 	return import("./services/telemetry/index.js");
 }
+export { Agent, createAgentRuntime } from "@clinebot/agents";
 export { createContextCompactionPrepareTurn } from "./extensions/context/compaction";
 export {
 	ALL_DEFAULT_TOOL_NAMES,

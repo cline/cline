@@ -10,6 +10,7 @@ const {
 	mockReadHubDiscovery,
 	mockProbeHubServer,
 	mockClearHubDiscovery,
+	mockStopLocalHubServerGracefully,
 } = vi.hoisted(() => ({
 	mockSpawnSync: vi.fn(),
 	mockResolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
@@ -26,6 +27,7 @@ const {
 	mockReadHubDiscovery: vi.fn(),
 	mockProbeHubServer: vi.fn(),
 	mockClearHubDiscovery: vi.fn(),
+	mockStopLocalHubServerGracefully: vi.fn(async () => false),
 }));
 
 vi.mock("node:child_process", () => ({
@@ -38,6 +40,7 @@ vi.mock("@clinebot/core", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
 	probeHubServer: mockProbeHubServer,
 	readHubDiscovery: mockReadHubDiscovery,
+	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 }));
 
 vi.mock("../connectors/common", () => ({
@@ -52,6 +55,7 @@ describe("runDoctorCommand", () => {
 	afterEach(() => {
 		vi.clearAllMocks();
 		mockResolveClineDataDir.mockReturnValue("/tmp/cline-data");
+		mockStopLocalHubServerGracefully.mockResolvedValue(false);
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}

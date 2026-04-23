@@ -1,3 +1,8 @@
+import type {
+	AgentMessage,
+	AgentModelEvent,
+	AgentToolDefinition,
+} from "../agent";
 import type { BasicLogger } from "../logging/logger";
 
 export type JsonValue =
@@ -8,117 +13,13 @@ export type JsonValue =
 	| JsonValue[]
 	| { [key: string]: JsonValue | undefined };
 
-export type AgentToolDefinition = {
-	name: string;
-	description: string;
-	inputSchema: Record<string, unknown>;
-};
-
-export type AgentMessagePart =
-	| {
-			type: "text";
-			text: string;
-	  }
-	| {
-			type: "reasoning";
-			text: string;
-			metadata?: Record<string, unknown>;
-	  }
-	| {
-			type: "image";
-			image: string | Uint8Array | ArrayBuffer | URL;
-			mediaType?: string;
-	  }
-	| {
-			type: "file";
-			path: string;
-			content: string;
-	  }
-	| {
-			type: "tool-call";
-			toolCallId: string;
-			toolName: string;
-			input?: unknown;
-			metadata?: Record<string, unknown>;
-	  }
-	| {
-			type: "tool-result";
-			toolCallId: string;
-			toolName: string;
-			output: unknown;
-			isError?: boolean;
-	  };
-
-export interface AgentMessage {
-	id?: string;
-	role: "user" | "assistant" | "tool";
-	content: AgentMessagePart[];
-	createdAt?: number;
-	metadata?: Record<string, unknown>;
-}
-
-export interface AgentModelRequest {
-	systemPrompt?: string;
-	messages: readonly AgentMessage[];
-	tools?: readonly AgentToolDefinition[];
-	signal?: AbortSignal;
-	options?: {
-		temperature?: number;
-		maxTokens?: number;
-		metadata?: Record<string, unknown>;
-		reasoning?: {
-			enabled?: boolean;
-			effort?: "low" | "medium" | "high" | "xhigh";
-			budgetTokens?: number;
-		};
-	};
-}
-
-export type AgentModelFinishReason =
-	| "stop"
-	| "tool-calls"
-	| "max-tokens"
-	| "error";
-
-export interface AgentModelUsage {
-	inputTokens: number;
-	outputTokens: number;
-	cacheReadTokens?: number;
-	cacheWriteTokens?: number;
-	totalCost?: number;
-}
-
-export type AgentModelEvent =
-	| {
-			type: "text-delta";
-			text: string;
-	  }
-	| {
-			type: "reasoning-delta";
-			text: string;
-			metadata?: Record<string, unknown>;
-	  }
-	| {
-			type: "tool-call-delta";
-			toolCallId?: string;
-			toolName?: string;
-			input?: unknown;
-			inputText?: string;
-			metadata?: Record<string, unknown>;
-	  }
-	| {
-			type: "usage";
-			usage: AgentModelUsage;
-	  }
-	| {
-			type: "finish";
-			reason: AgentModelFinishReason;
-			error?: string;
-	  };
-
-export interface AgentModel {
-	stream(request: AgentModelRequest): Promise<AsyncIterable<AgentModelEvent>>;
-}
+// AgentToolDefinition, AgentMessagePart, AgentMessage, AgentModelRequest,
+// AgentModelFinishReason, AgentModelEvent, AgentModel, and AgentModelUsage
+// previously lived here with gateway-local shapes. They have been retired in
+// favor of the canonical AgentRuntime types in `../agent` (PLAN.md §3.6 Step 3,
+// expanded). `AgentModelUsage` is superseded by `AgentUsage` (`AgentTokenUsage`
+// + optional `totalCost`); usage deltas on `AgentModelEvent` are now
+// `Partial<AgentUsage>`.
 
 export type GatewayModelCapability =
 	| "text"

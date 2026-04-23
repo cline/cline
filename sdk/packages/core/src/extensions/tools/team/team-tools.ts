@@ -1,4 +1,4 @@
-import type { AgentResult } from "@clinebot/agents";
+import type { AgentResult } from "@clinebot/shared";
 import {
 	createTool,
 	TEAM_AWAIT_TIMEOUT_MS,

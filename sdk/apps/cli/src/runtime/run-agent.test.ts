@@ -130,7 +130,7 @@ describe("runAgent", () => {
 				messages: [],
 				toolCalls: [],
 				iterations: 1,
-				finishReason: "stop",
+				finishReason: "completed",
 				model: {
 					id: "gemini",
 					provider: "openrouter",
@@ -201,7 +201,7 @@ describe("runAgent", () => {
 				messages: [],
 				toolCalls: [],
 				iterations: 1,
-				finishReason: "stop",
+				finishReason: "completed",
 				model: {
 					id: "gemini",
 					provider: "openrouter",
@@ -330,6 +330,69 @@ describe("runAgent", () => {
 				logger: {
 					log: vi.fn(),
 				},
+				maxIterations: 10,
+				mode: "yolo",
+				modelId: "google/gemini-3-flash-preview",
+				outputMode: "text",
+				providerId: "openrouter",
+				showUsage: false,
+				systemPrompt: "system",
+				thinking: false,
+				toolPolicies: { "*": { autoApprove: true } },
+				verbose: false,
+				workspaceRoot: process.cwd(),
+			} as never),
+		).resolves.toBeUndefined();
+
+		expect(process.exitCode).toBe(1);
+	});
+
+	it("sets a failing exit code when the run result finishes with an error", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-1",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-1",
+			},
+			result: {
+				text: "",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 0,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "error",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent("test prompt", {
+				cwd: process.cwd(),
+				enableAgentTeams: false,
+				enableSpawnAgent: false,
+				enableTools: [],
+				execution: {
+					maxConsecutiveMistakes: 3,
+				},
+				logger: undefined,
 				maxIterations: 10,
 				mode: "yolo",
 				modelId: "google/gemini-3-flash-preview",

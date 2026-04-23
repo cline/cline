@@ -1,7 +1,6 @@
 import { readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
-import { Agent } from "@clinebot/agents";
 import type * as LlmsProviders from "@clinebot/llms";
 import {
 	type AgentConfig,
@@ -41,6 +40,7 @@ import {
 	RuntimeOAuthTokenManager,
 } from "../runtime/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../runtime/session-runtime";
+import { SessionRuntime } from "../runtime/session-runtime-orchestrator";
 import {
 	type AgentEventContext,
 	buildTelemetryAgentIdentity,
@@ -176,7 +176,7 @@ export interface LocalRuntimeHostOptions {
 	distinctId?: string;
 	sessionService: SessionBackend;
 	runtimeBuilder?: RuntimeBuilder;
-	createAgent?: (config: AgentConfig) => Agent;
+	createAgent?: (config: AgentConfig) => SessionRuntime;
 	defaultToolExecutors?: Partial<ToolExecutors>;
 	toolPolicies?: AgentConfig["toolPolicies"];
 	providerSettingsManager?: ProviderSettingsManager;
@@ -197,7 +197,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	public readonly runtimeAddress = undefined;
 	private readonly sessionService: SessionBackend;
 	private readonly runtimeBuilder: RuntimeBuilder;
-	private readonly createAgentInstance: (config: AgentConfig) => Agent;
+	private readonly createAgentInstance: (config: AgentConfig) => SessionRuntime;
 	private readonly defaultToolExecutors?: Partial<ToolExecutors>;
 	private readonly defaultToolPolicies?: AgentConfig["toolPolicies"];
 	private readonly providerSettingsManager: ProviderSettingsManager;
@@ -222,7 +222,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
-			options.createAgent ?? ((config) => new Agent(config));
+			options.createAgent ?? ((config) => new SessionRuntime(config));
 		this.defaultToolExecutors = options.defaultToolExecutors;
 		this.defaultToolPolicies = options.toolPolicies;
 		this.providerSettingsManager =
@@ -356,10 +356,13 @@ export class LocalRuntimeHost implements RuntimeHost {
 				this.onAgentEvent(sessionId, configWithProvider, event),
 		} as AgentConfig;
 		const agent = this.createAgentInstance(agentConfig);
+		if (agentConfig.onEvent) {
+			agent.subscribeEvents(agentConfig.onEvent);
+		}
 		runtime.registerLeadAgent?.(agent);
 		const rootAgentIdentity = buildTelemetryAgentIdentity({
-			agentId: this.readAgentId(agent),
-			conversationId: this.readAgentConversationId(agent),
+			agentId: agent.getAgentId(),
+			conversationId: agent.getConversationId(),
 			teamId: runtime.teamRuntime?.getTeamId(),
 			teamName: runtime.teamRuntime?.getTeamName(),
 			teamRole: runtime.teamRuntime ? "lead" : undefined,
@@ -385,7 +388,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				ulid: sessionId,
 				teamId: runtime.teamRuntime.getTeamId(),
 				teamName: runtime.teamRuntime.getTeamName(),
-				leadAgentId: this.readAgentId(agent),
+				leadAgentId: agent.getAgentId(),
 				restoredFromPersistence: runtime.teamRestoredFromPersistence === true,
 			});
 		}
@@ -441,15 +444,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async send(input: SendSessionInput): Promise<AgentResult | undefined> {
 		const session = this.getSessionOrThrow(input.sessionId);
-		const canStartRun =
-			typeof (session.agent as Agent & { canStartRun?: () => boolean })
-				.canStartRun === "function"
-				? (
-						session.agent as Agent & {
-							canStartRun: () => boolean;
-						}
-					).canStartRun()
-				: true;
+		const canStartRun = session.agent.canStartRun();
 		const delivery =
 			input.delivery ??
 			(session.interactive && !canStartRun ? ("queue" as const) : undefined);
@@ -509,11 +504,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			session.pendingPrompts.length = 0;
 			this.emitPendingPrompts(session);
 		}
-		(
-			session.agent as Agent & {
-				abort: (abortReason?: unknown) => void;
-			}
-		).abort(reason);
+		session.agent.abort(reason);
 	}
 
 	async stop(sessionId: string): Promise<void> {
@@ -525,11 +516,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 		// Abort the agent first if it's running, so shutdown can proceed
 		session.aborting = true;
-		(
-			session.agent as Agent & {
-				abort: (abortReason?: unknown) => void;
-			}
-		).abort(new Error("session_stop"));
+		session.agent.abort(new Error("session_stop"));
 		await this.shutdownSession(session, {
 			status: "cancelled",
 			exitCode: 0,
@@ -1107,15 +1094,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!session || session.aborting || session.drainingPendingPrompts) {
 			return;
 		}
-		const canStartRun =
-			typeof (session.agent as Agent & { canStartRun?: () => boolean })
-				.canStartRun === "function"
-				? (
-						session.agent as Agent & {
-							canStartRun: () => boolean;
-						}
-					).canStartRun()
-				: true;
+		const canStartRun = session.agent.canStartRun();
 		if (!canStartRun) {
 			return;
 		}
@@ -1490,13 +1469,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		overrides: { apiKey?: string; modelId?: string },
 	): void {
-		const agentWithConnection = session.agent as Agent & {
-			updateConnection?: (overrides: {
-				apiKey?: string;
-				modelId?: string;
-			}) => void;
-		};
-		agentWithConnection.updateConnection?.(overrides);
+		session.agent.updateConnection(overrides);
 	}
 
 	private getSessionAgentTelemetryIdentity(session: ActiveSession) {
@@ -1509,14 +1482,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 	}
 
-	private readAgentId(agent: Agent): string | undefined {
-		return (agent as Agent & { getAgentId?: () => string }).getAgentId?.();
+	private readAgentId(agent: SessionRuntime): string {
+		return agent.getAgentId();
 	}
 
-	private readAgentConversationId(agent: Agent): string | undefined {
-		return (
-			agent as Agent & { getConversationId?: () => string }
-		).getConversationId?.();
+	private readAgentConversationId(agent: SessionRuntime): string {
+		return agent.getConversationId();
 	}
 
 	private emitStatus(sessionId: string, status: string): void {

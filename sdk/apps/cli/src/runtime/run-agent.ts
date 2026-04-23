@@ -91,7 +91,7 @@ function printRunStats(
 		return;
 	}
 	writeln();
-	if (config.showUsage) {
+	if (config.verbose) {
 		const parts: string[] = [];
 		parts.push(`${((performance.now() - startTime) / 1000).toFixed(2)}s`);
 		const tokenParts: string[] = [
@@ -349,6 +349,11 @@ export async function runAgent(
 				);
 			}
 			writeln();
+			return;
+		}
+
+		if (result.finishReason !== "completed") {
+			process.exitCode = 1;
 			return;
 		}
 

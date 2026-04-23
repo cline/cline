@@ -8,31 +8,18 @@
 	},
 	"main": "dist/index.js",
 	"dependencies": {
-		"@clinebot/llms": "workspace:*",
-		"zod": "^4.3.6"
-	},
-	"devDependencies": {
-		"@clinebot/shared": "workspace:*"
+		"@clinebot/shared": "workspace:*",
+		"nanoid": "^5.1.7"
 	},
 	"exports": {
 		".": {
-			"browser": "./dist/index.browser.js",
+			"browser": "./dist/index.js",
 			"development": "./src/index.ts",
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
-		},
-		"./node": {
-			"development": "./src/index.node.ts",
-			"types": "./dist/index.node.d.ts",
-			"import": "./dist/index.node.js"
-		},
-		"./browser": {
-			"development": "./src/index.browser.ts",
-			"types": "./dist/index.browser.d.ts",
-			"import": "./dist/index.browser.js"
 		}
 	},
-	"description": "High-level SDK for building agentic loops with LLMs",
+	"description": "Browser-safe agent runtime for the next-generation Cline SDK",
 	"files": [
 		"dist",
 		"src"

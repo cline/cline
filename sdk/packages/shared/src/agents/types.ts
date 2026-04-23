@@ -173,7 +173,7 @@ export interface AgentDoneEvent extends AgentEventMetadata {
 	/** Total number of iterations */
 	iterations: number;
 	/** Aggregated usage information */
-	usage?: AgentUsage;
+	usage?: LegacyAgentUsage;
 }
 
 export interface AgentErrorEvent extends AgentEventMetadata {
@@ -665,9 +665,16 @@ export const AgentFinishReasonSchema = z.enum([
 // =============================================================================
 
 /**
- * Aggregated token usage and cost information
+ * Aggregated token usage and cost information (legacy, host-facing shape).
+ *
+ * Renamed from `AgentUsage` per PLAN.md §3.7.2 to make room for the new
+ * runtime's stricter `AgentUsage` (see `../agent.ts`). Retained because
+ * the host-facing `AgentResult`/`AgentUsageEvent` surface and the
+ * `AgentUsageSchema` Zod schema use this more-permissive shape (all
+ * cache/cost fields optional). The facade adapter converts between the
+ * two shapes at runtime.
  */
-export interface AgentUsage {
+export interface LegacyAgentUsage {
 	/** Total input tokens across all iterations */
 	inputTokens: number;
 	/** Total output tokens across all iterations */
@@ -725,9 +732,9 @@ export interface AgentResult {
 	/** Final text output from the agent */
 	text: string;
 	/** Aggregated token usage and cost */
-	usage: AgentUsage;
+	usage: LegacyAgentUsage;
 	/** Full conversation history */
-	messages: Message[];
+	messages: MessageWithMetadata[];
 	/** All tool calls made during execution */
 	toolCalls: ToolCallRecord[];
 	/** Number of loop iterations */
@@ -751,7 +758,7 @@ export interface AgentResult {
 export const AgentResultSchema = z.object({
 	text: z.string(),
 	usage: AgentUsageSchema,
-	messages: z.array(z.custom<Message>()),
+	messages: z.array(z.custom<MessageWithMetadata>()),
 	toolCalls: z.array(ToolCallRecordSchema),
 	iterations: z.number(),
 	finishReason: AgentFinishReasonSchema,

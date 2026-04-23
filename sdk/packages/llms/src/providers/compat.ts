@@ -372,9 +372,11 @@ function toGatewayRequestMessages(
 					});
 
 		return {
+			id: nanoid(),
 			role: message.role,
 			content,
-		} as GatewayStreamRequest["messages"][number];
+			createdAt: Date.now(),
+		} as unknown as GatewayStreamRequest["messages"][number];
 	});
 }
 
@@ -467,20 +469,23 @@ function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
-		case "reasoning-delta":
+		case "reasoning-delta": {
+			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {
 				type: "reasoning",
 				id,
 				reasoning: event.text,
 				signature:
-					typeof event.metadata?.thoughtSignature === "string"
-						? event.metadata.thoughtSignature
-						: typeof event.metadata?.signature === "string"
-							? event.metadata.signature
+					typeof metadata?.thoughtSignature === "string"
+						? metadata.thoughtSignature
+						: typeof metadata?.signature === "string"
+							? metadata.signature
 							: undefined,
-				details: event.metadata?.details,
+				details: metadata?.details,
 			};
+		}
 		case "tool-call-delta": {
+			const metadata = event.metadata as Record<string, unknown> | undefined;
 			const args =
 				typeof event.inputText === "string" || event.input === undefined
 					? event.inputText
@@ -489,8 +494,8 @@ function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
 				type: "tool_calls",
 				id,
 				signature:
-					typeof event.metadata?.thoughtSignature === "string"
-						? event.metadata.thoughtSignature
+					typeof metadata?.thoughtSignature === "string"
+						? metadata.thoughtSignature
 						: undefined,
 				tool_call: {
 					call_id: event.toolCallId,
@@ -506,8 +511,8 @@ function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
 			return {
 				type: "usage",
 				id,
-				inputTokens: event.usage.inputTokens,
-				outputTokens: event.usage.outputTokens,
+				inputTokens: event.usage.inputTokens ?? 0,
+				outputTokens: event.usage.outputTokens ?? 0,
 				cacheReadTokens: event.usage.cacheReadTokens,
 				cacheWriteTokens: event.usage.cacheWriteTokens,
 				totalCost: event.usage.totalCost,

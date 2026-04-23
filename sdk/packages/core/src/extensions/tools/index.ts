@@ -143,8 +143,7 @@ export interface CreateBuiltinToolsOptions
  *
  * @example
  * ```typescript
- * import { Agent } from "@clinebot/agents"
- * import { createBuiltinTools } from "@clinebot/core"
+ * import { Agent, createBuiltinTools } from "@clinebot/core"
  *
  * const tools = createBuiltinTools({
  *   cwd: "/path/to/project",

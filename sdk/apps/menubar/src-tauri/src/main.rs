@@ -625,7 +625,17 @@ fn main() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| {
                     match event.id().as_ref() {
-                        "quit" => app.exit(0),
+                        "quit" => {
+                            let state = app.state::<Arc<AppState>>();
+                            let _ = send_sidecar_command(
+                                state.inner(),
+                                serde_json::json!({
+                                    "type": "shutdown_hub",
+                                }),
+                            );
+                            thread::sleep(Duration::from_millis(300));
+                            app.exit(0);
+                        }
                         "latest_error" => {
                             let state = app.state::<Arc<AppState>>();
                             let error = {

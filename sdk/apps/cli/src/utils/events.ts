@@ -3,7 +3,6 @@ import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
 	emitJsonLine,
-	formatUsd,
 	getCurrentOutputMode,
 	write,
 	writeErr,
@@ -164,18 +163,10 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 			closeInlineStreamIfNeeded();
 			if (config.verbose) {
 				const iterations = event.iterations;
-				const usage = event.usage;
 				const isAborted = event.reason === "aborted";
-				if (usage) {
-					const costStr = formatUsd(usage.totalCost ?? 0);
-					write(
-						`\n${c.dim}── ${isAborted ? "aborted" : "finished"} in ${iterations} turns | ${costStr} | ${usage.inputTokens}/${usage.outputTokens} tokens used ──${c.reset}`,
-					);
-				} else {
-					write(
-						`\n${c.dim}── ${isAborted ? "aborted" : "finished"}: ${event.reason} (${iterations} iterations) ──${c.reset}`,
-					);
-				}
+				write(
+					`\n${c.dim}── ${(event.reason ?? isAborted) ? "aborted" : "finished"} (${iterations} iterations) ──${c.reset}\n`,
+				);
 			}
 			activeInlineStream = undefined;
 			inlineStreamHasOutput = false;

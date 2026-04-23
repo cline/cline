@@ -16,7 +16,6 @@
 	},
 	"dependencies": {
 		"@base-ui/react": "^1.2.0",
-		"@clinebot/agents": "workspace:*",
 		"@clinebot/core": "workspace:*",
 		"@clinebot/llms": "workspace:*",
 		"@clinebot/shared": "workspace:*",

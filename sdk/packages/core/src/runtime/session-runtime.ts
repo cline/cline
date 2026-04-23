@@ -1,4 +1,3 @@
-import type { Agent } from "@clinebot/agents";
 import type {
 	AgentConfig,
 	AgentHooks,
@@ -16,6 +15,19 @@ import type {
 } from "../extensions/tools/team";
 import type { CoreSessionConfig } from "../types/config";
 
+/**
+ * Internal structural alias for the lead-agent handle that
+ * {@link BuiltRuntime.registerLeadAgent} hands off to
+ * `runtime-builder.ts`. Narrowed to only the `.addTools()` surface the
+ * callback exercises; avoids depending on `@clinebot/agents`' `Agent`
+ * class during the PLAN.md §3.6 Step 5 type-only migration. When
+ * SessionRuntime is rebuilt in Step 6, this field is expected to be
+ * dropped entirely per §3.5 row #2.
+ */
+type LeadAgentHandle = {
+	addTools(tools: Tool[]): unknown;
+};
+
 export interface BuiltRuntime {
 	tools: Tool[];
 	hooks?: AgentHooks;
@@ -25,7 +37,7 @@ export interface BuiltRuntime {
 	teamRestoredFromPersistence?: boolean;
 	delegatedAgentConfigProvider?: DelegatedAgentConfigProvider;
 	completionGuard?: () => string | undefined;
-	registerLeadAgent?: (agent: Agent) => void;
+	registerLeadAgent?: (agent: LeadAgentHandle) => void;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 

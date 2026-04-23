@@ -54,6 +54,10 @@ type GuardedStream = NodeJS.WriteStream & {
 	[STDERR_ERROR_GUARD]?: (error: unknown) => void;
 };
 
+function exitForBrokenPipe(): never {
+	process.exit(process.exitCode ?? 0);
+}
+
 export function isBrokenPipeError(error: unknown): boolean {
 	return Boolean(
 		error &&
@@ -69,7 +73,7 @@ export function installStreamErrorGuards(): void {
 	if (!stdout[STDOUT_ERROR_GUARD]) {
 		const onStdoutError = (error: unknown) => {
 			if (isBrokenPipeError(error)) {
-				process.exit(0);
+				exitForBrokenPipe();
 			}
 		};
 		stdout[STDOUT_ERROR_GUARD] = onStdoutError;
@@ -88,7 +92,7 @@ export function installStreamErrorGuards(): void {
 	if (!stderr[STDERR_ERROR_GUARD]) {
 		const onStderrError = (error: unknown) => {
 			if (isBrokenPipeError(error)) {
-				process.exit(0);
+				exitForBrokenPipe();
 			}
 		};
 		stderr[STDERR_ERROR_GUARD] = onStderrError;

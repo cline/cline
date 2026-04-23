@@ -8,7 +8,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	type AgentConfig,
+	type AgentExtension,
 	ClineCore,
 	createTool,
 	type Tool,
@@ -21,7 +21,6 @@ import { z } from "zod";
 // Types
 // ---------------------------------------------------------------------------
 
-type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 type SessionManager = ClineCore;
 
 /** Minimal plugin host interface injected by the runtime via globalThis. */
@@ -481,7 +480,7 @@ const GetSkillInput = z
 // Plugin
 // ---------------------------------------------------------------------------
 
-const plugin: AgentPlugin = {
+const plugin: AgentExtension = {
 	name: "portable-subagents",
 	manifest: { capabilities: ["tools"] },
 

@@ -1,7 +1,6 @@
 import {
 	ensureDetachedHubServer,
 	type HubEndpointOverrides,
-	prewarmDetachedHubServer,
 } from "@clinebot/core";
 
 export function parseHubEndpointOverride(
@@ -26,13 +25,6 @@ export function parseHubEndpointOverride(
 	} catch {
 		return {};
 	}
-}
-
-export function prewarmCliHubServer(
-	workspaceRoot: string,
-	endpoint: HubEndpointOverrides = {},
-): void {
-	prewarmDetachedHubServer(workspaceRoot, endpoint);
 }
 
 export async function ensureCliHubServer(

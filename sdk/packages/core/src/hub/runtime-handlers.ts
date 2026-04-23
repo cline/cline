@@ -22,7 +22,6 @@ function toChatTurnResult(result: {
 	};
 	iterations: number;
 	finishReason: string;
-	messages: unknown[];
 	toolCalls: Array<{
 		name: string;
 		input?: unknown;
@@ -38,7 +37,6 @@ function toChatTurnResult(result: {
 		outputTokens: result.usage.outputTokens,
 		iterations: result.iterations,
 		finishReason: result.finishReason,
-		messages: result.messages as never,
 		toolCalls: result.toolCalls.map((call) => ({
 			name: call.name,
 			input: call.input,

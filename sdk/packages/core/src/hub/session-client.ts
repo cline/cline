@@ -208,7 +208,6 @@ export class HubSessionClient {
 				apiKey: request.apiKey,
 			},
 			toolPolicies: request.toolPolicies,
-			initialMessages: request.initialMessages,
 		});
 		const row = extractSessionRow(reply.payload);
 		if (!row?.sessionId) {

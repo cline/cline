@@ -21,7 +21,6 @@
 		]
 	},
 	"dependencies": {
-		"@clinebot/agents": "latest",
 		"@clinebot/core": "latest",
 		"@clinebot/shared": "latest",
 		"yaml": "^2.8.1",

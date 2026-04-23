@@ -27,7 +27,13 @@ import {
 	createEphemeralCacheControl,
 	toProviderOptionsKey,
 } from "./routing/utils";
-import type { ProviderFactoryResult } from "./vendors/types";
+import type {
+	AiSdkStreamPart,
+	AiSdkStreamResult,
+	AiSdkStreamTotalUsage,
+	AiSdkStreamUsage,
+	ProviderFactoryResult,
+} from "./vendors/types";
 
 interface GatewayNormalizedUsage {
 	inputTokens: number;
@@ -36,19 +42,6 @@ interface GatewayNormalizedUsage {
 	cacheWriteTokens: number;
 	totalCost?: number;
 }
-
-interface AiSdkStreamPart {
-	type?: string;
-	[key: string]: unknown;
-}
-
-interface AiSdkStreamResult {
-	fullStream?: AsyncIterable<AiSdkStreamPart>;
-	textStream?: AsyncIterable<string>;
-	text?: Promise<string> | string;
-	usage?: Promise<Record<string, unknown>>;
-}
-
 type ProviderModuleKind =
 	| "openai"
 	| "openai-compatible"
@@ -115,8 +108,9 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "reasoning") {
-				const signature = part.metadata?.signature;
-				const redactedData = part.metadata?.redactedData;
+				const metadata = part.metadata as Record<string, unknown> | undefined;
+				const signature = metadata?.signature;
+				const redactedData = metadata?.redactedData;
 				content.push({
 					type: "reasoning",
 					text: part.text,
@@ -155,8 +149,9 @@ function toAiSdkMessages(
 			}
 
 			if (part.type === "tool-call") {
+				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
-					part.metadata?.thoughtSignature ?? part.metadata?.thought_signature;
+					metadata?.thoughtSignature ?? metadata?.thought_signature;
 				content.push({
 					type: "tool-call",
 					toolCallId: part.toolCallId,
@@ -417,8 +412,22 @@ function calculateUsageCostFromPricing(
  * For providers that charge both gateway and model costs (e.g., OpenRouter),
  * sums baseCost + upstreamInferenceCost when both are present.
  */
-function normalizeUsage(
-	usageValue: unknown,
+/**
+ * Normalizes usage from various provider formats into a standard structure.
+ * Accepts both AI SDK's normalized shapes (AiSdkStreamTotalUsage, AiSdkStreamUsage)
+ * and raw provider responses. Handles multiple naming conventions (camelCase vs snake_case),
+ * extracts costs from provider-specific fields, and falls back to pricing-based calculation.
+ *
+ * @param usageValue - AI SDK normalized usage or raw provider response object
+ * @param providerMetadata - Provider-specific metadata for cost extraction
+ * @param pricingValue - Fallback pricing config (per 1M tokens) when no explicit cost found
+ */
+export function normalizeUsage(
+	usageValue:
+		| AiSdkStreamUsage
+		| AiSdkStreamTotalUsage
+		| Record<string, unknown>
+		| undefined,
 	providerMetadata?: unknown,
 	pricingValue?: unknown,
 ): GatewayNormalizedUsage {
@@ -491,6 +500,7 @@ function normalizeUsage(
 				"cache_read_input_tokens",
 			),
 		cacheWriteTokens:
+			getNestedUsageValue(usage, "inputTokenDetails", "cacheWriteTokens") ||
 			getUsageValue(
 				usage,
 				"cacheWriteTokens",
@@ -646,6 +656,8 @@ async function* emitAiSdkEvents(
 	let sawToolCalls = false;
 	let finishReason: unknown;
 	let streamError: string | undefined;
+	let finishUsage: unknown;
+	let finishProviderMetadata: unknown;
 
 	try {
 		if (stream.fullStream) {
@@ -698,22 +710,17 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "finish") {
+					finishUsage = part.usage ?? part.totalUsage;
+					finishProviderMetadata = part.providerMetadata;
+					finishReason =
+						part.finishReason ?? part.rawFinishReason ?? part.reason;
+				}
+
 				if (part.type === "error") {
 					streamError =
 						capturedError?.current ?? extractErrorMessage(part.error);
 					break;
-				}
-
-				if (part.type === "finish") {
-					yield {
-						type: "usage",
-						usage: normalizeUsage(
-							part.usage ?? part.totalUsage ?? {},
-							part.providerMetadata,
-							pricingValue,
-						),
-					};
-					finishReason = part.finishReason ?? part.reason;
 				}
 			}
 		} else if (stream.textStream) {
@@ -727,16 +734,30 @@ async function* emitAiSdkEvents(
 		streamError = capturedError?.current ?? extractErrorMessage(error);
 	}
 
-	if (!streamError && stream.usage) {
+	// Prefer stream.usage (has raw cost data) over finish part usage.
+	// stream.usage may be undefined in mocked/test scenarios, fall back to finish part + its providerMetadata.
+	let usageToEmit: unknown;
+	let metadataToUse: unknown;
+	if (stream.usage) {
 		try {
-			const usage = await stream.usage;
-			yield {
-				type: "usage",
-				usage: normalizeUsage(usage, undefined, pricingValue),
-			};
+			usageToEmit = await stream.usage;
 		} catch (error) {
-			streamError = capturedError?.current ?? extractErrorMessage(error);
+			if (!streamError) {
+				streamError = capturedError?.current ?? extractErrorMessage(error);
+			}
+			usageToEmit = finishUsage;
+			metadataToUse = finishProviderMetadata;
 		}
+	} else {
+		usageToEmit = finishUsage;
+		metadataToUse = finishProviderMetadata;
+	}
+
+	if (usageToEmit) {
+		yield {
+			type: "usage",
+			usage: normalizeUsage(usageToEmit, metadataToUse, pricingValue),
+		};
 	}
 
 	yield {

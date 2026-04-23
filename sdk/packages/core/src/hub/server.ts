@@ -1720,6 +1720,43 @@ export async function startHubWebSocketServer(
 		pid: process.pid,
 		startedAt,
 	} as const;
+	let closePromise: Promise<void> | undefined;
+
+	const closeServer = async (): Promise<void> => {
+		if (closePromise) {
+			return closePromise;
+		}
+		closePromise = (async () => {
+			for (const detach of cleanup) {
+				detach();
+			}
+			cleanup.clear();
+			await new Promise<void>((resolve, reject) => {
+				wss.close((error?: Error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve();
+				});
+			});
+			await new Promise<void>((resolve, reject) => {
+				server.close((error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve();
+				});
+			});
+			await transport.stop();
+			const current = await readHubDiscovery(owner.discoveryPath);
+			if (current?.url === url) {
+				await clearHubDiscovery(owner.discoveryPath);
+			}
+		})();
+		return closePromise;
+	};
 
 	const server = http.createServer((req, res) => {
 		if ((req.url ?? "/") === "/health") {
@@ -1740,6 +1777,15 @@ export async function startHubWebSocketServer(
 			res.statusCode = 200;
 			res.setHeader("content-type", "application/json");
 			res.end(JSON.stringify(versionPayload));
+			return;
+		}
+		if ((req.url ?? "/") === "/shutdown" && req.method === "POST") {
+			res.statusCode = 202;
+			res.setHeader("content-type", "application/json");
+			res.end(JSON.stringify({ ok: true }));
+			queueMicrotask(() => {
+				void closeServer();
+			});
 			return;
 		}
 		res.statusCode = 404;
@@ -1807,35 +1853,7 @@ export async function startHubWebSocketServer(
 		host,
 		port,
 		url,
-		close: async () => {
-			for (const detach of cleanup) {
-				detach();
-			}
-			cleanup.clear();
-			await new Promise<void>((resolve, reject) => {
-				wss.close((error?: Error) => {
-					if (error) {
-						reject(error);
-						return;
-					}
-					resolve();
-				});
-			});
-			await new Promise<void>((resolve, reject) => {
-				server.close((error) => {
-					if (error) {
-						reject(error);
-						return;
-					}
-					resolve();
-				});
-			});
-			await transport.stop();
-			const current = await readHubDiscovery(owner.discoveryPath);
-			if (current?.url === url) {
-				await clearHubDiscovery(owner.discoveryPath);
-			}
-		},
+		close: closeServer,
 	};
 }
 

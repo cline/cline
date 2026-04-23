@@ -4,6 +4,7 @@ import {
 	clearHubDiscovery,
 	createInMemoryHubOwnerContext,
 	readHubDiscovery,
+	toHubHealthUrl,
 	writeHubDiscovery,
 } from "./discovery";
 import { createLocalHubScheduleRuntimeHandlers } from "./runtime-handlers";
@@ -110,5 +111,33 @@ describe("hub server startup", () => {
 			});
 			await clearHubDiscovery(owner.discoveryPath);
 		}
+	});
+
+	it("shuts down active server through the shutdown endpoint", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-shutdown");
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		expect(result.server).toBeDefined();
+		servers.add(result.server!);
+
+		const shutdownUrl = new URL(toHubHealthUrl(result.url));
+		shutdownUrl.pathname = "/shutdown";
+		const response = await fetch(shutdownUrl, { method: "POST" });
+		expect(response.status).toBe(202);
+
+		for (let index = 0; index < 50; index += 1) {
+			if ((await readHubDiscovery(owner.discoveryPath)) === undefined) {
+				servers.delete(result.server!);
+				return;
+			}
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		}
+
+		throw new Error("Timed out waiting for hub shutdown");
 	});
 });
