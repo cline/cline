@@ -1190,6 +1190,57 @@ function failedToolTurnEvents(): AgentRuntimeEvent[] {
 	];
 }
 
+function failedStructuredToolTurnEvents(): AgentRuntimeEvent[] {
+	return [
+		{ type: "turn-started", iteration: 1, snapshot: makeSnapshot() },
+		{
+			type: "tool-started",
+			iteration: 1,
+			toolCall: {
+				type: "tool-call",
+				toolCallId: "tc_structured",
+				toolName: "exec",
+				input: { cmd: "pwd" },
+			},
+			snapshot: makeSnapshot(),
+		},
+		{
+			type: "tool-finished",
+			iteration: 1,
+			toolCall: {
+				type: "tool-call",
+				toolCallId: "tc_structured",
+				toolName: "exec",
+				input: { cmd: "pwd" },
+			},
+			message: {
+				id: "m_structured",
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "tc_structured",
+						toolName: "exec",
+						output: {
+							message: "sandbox denied",
+							code: "EPERM",
+						},
+						isError: true,
+					},
+				],
+				createdAt: 1,
+			},
+			snapshot: makeSnapshot(),
+		},
+		{
+			type: "turn-finished",
+			iteration: 1,
+			toolCallCount: 1,
+			snapshot: makeSnapshot(),
+		},
+	];
+}
+
 describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 	it("aborts after maxConsecutiveMistakes failed-tool turns", async () => {
 		const { deps, abortCalls } = makeScriptedRuntime({
@@ -1205,6 +1256,36 @@ describe("SessionRuntime.run — tracker wiring (P1 #3)", () => {
 		await session.continue("two");
 		// Second failed turn — counter reaches 2, tracker calls abort.
 		expect(abortCalls.length).toBeGreaterThanOrEqual(1);
+	});
+
+	it("serializes structured tool errors in mistake details", async () => {
+		const errors: string[] = [];
+		const { deps } = makeScriptedRuntime({
+			events: failedStructuredToolTurnEvents(),
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({ execution: { maxConsecutiveMistakes: 1 } }),
+			{
+				...deps,
+				telemetry: undefined,
+				logger: {
+					log() {},
+					debug() {},
+					error() {},
+				},
+			},
+		);
+		session.subscribeEvents((event) => {
+			if (event.type === "error") {
+				errors.push(event.error.message);
+			}
+		});
+
+		await session.run("run tool");
+
+		expect(errors).toContain(
+			'1 tool call(s) failed: [exec] {"message":"sandbox denied","code":"EPERM"}',
+		);
 	});
 
 	it("resets mistake tracking when run() starts a fresh conversation", async () => {

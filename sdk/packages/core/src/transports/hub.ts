@@ -303,6 +303,7 @@ export class HubRuntimeHost implements RuntimeHost {
 						: undefined,
 			},
 			input.sessionId,
+			{ timeoutMs: null },
 		);
 		return reply.payload?.result as AgentResult | undefined;
 	}

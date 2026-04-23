@@ -1,10 +1,9 @@
 /// <reference types="@types/bun" />
 export {};
 
-// Only externalize published packages; bundle internal workspace packages
-// used by agents. Post Step 9, the only runtime dep is `nanoid` (for
-// `createUID`). `@clinebot/shared` is the one workspace dep and is bundled.
-const external = ["nanoid"];
+// Externalize third-party runtime deps plus the provider/runtime layer that
+// the Agent facade loads dynamically. `@clinebot/shared` stays bundled.
+const external = ["@clinebot/llms", "nanoid"];
 
 const builds: Parameters<typeof Bun.build>[0][] = [
 	{

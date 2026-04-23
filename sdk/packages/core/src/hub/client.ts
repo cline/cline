@@ -281,27 +281,36 @@ export class NodeHubClient {
 		command: HubCommandEnvelope["command"],
 		payload?: Record<string, unknown>,
 		sessionId?: string,
+		options?: { timeoutMs?: number | null },
 	): Promise<HubReplyEnvelope> {
 		await this.connect();
 		const requestId = createSessionId("hubreq_");
 		const reply = new Promise<HubReplyEnvelope>((resolve, reject) => {
-			const timeout = setTimeout(() => {
-				if (!this.pendingReplies.delete(requestId)) {
-					return;
-				}
-				reject(
-					new Error(
-						`Hub command ${command} timed out after ${HUB_COMMAND_TIMEOUT_MS}ms`,
-					),
-				);
-			}, HUB_COMMAND_TIMEOUT_MS);
+			const timeoutMs = options?.timeoutMs;
+			const timeout =
+				timeoutMs === null
+					? undefined
+					: setTimeout(() => {
+							if (!this.pendingReplies.delete(requestId)) {
+								return;
+							}
+							reject(
+								new Error(
+									`Hub command ${command} timed out after ${timeoutMs ?? HUB_COMMAND_TIMEOUT_MS}ms`,
+								),
+							);
+						}, timeoutMs ?? HUB_COMMAND_TIMEOUT_MS);
 			this.pendingReplies.set(requestId, {
 				resolve: (value) => {
-					clearTimeout(timeout);
+					if (timeout) {
+						clearTimeout(timeout);
+					}
 					resolve(value);
 				},
 				reject: (error) => {
-					clearTimeout(timeout);
+					if (timeout) {
+						clearTimeout(timeout);
+					}
 					reject(error);
 				},
 			});

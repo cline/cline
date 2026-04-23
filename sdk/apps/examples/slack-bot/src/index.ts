@@ -22,11 +22,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
-import {
-	Agent,
-	ProviderSettingsSchema,
-	toProviderConfig,
-} from "@clinebot/core";
+import { Agent } from "@clinebot/agents";
+import { ProviderSettingsSchema, toProviderConfig } from "@clinebot/core";
 import {
 	Chat,
 	ConsoleLogger,
@@ -414,7 +411,7 @@ async function handleUserTurn(thread: Thread, text: string): Promise<void> {
 		: await runtime.agent.run(input);
 	runtime.hasRun = true;
 	const answer =
-		result.text.trim() ||
+		result.outputText.trim() ||
 		"I could not produce a response. Please try rephrasing your request.";
 	await thread.post(answer);
 }

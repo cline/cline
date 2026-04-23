@@ -8,7 +8,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-	type AgentExtension,
+	type AgentPlugin,
 	ClineCore,
 	createTool,
 	type Tool,
@@ -480,7 +480,7 @@ const GetSkillInput = z
 // Plugin
 // ---------------------------------------------------------------------------
 
-const plugin: AgentExtension = {
+const plugin: AgentPlugin = {
 	name: "portable-subagents",
 	manifest: { capabilities: ["tools"] },
 

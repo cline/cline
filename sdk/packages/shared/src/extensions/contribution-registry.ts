@@ -105,6 +105,7 @@ export interface AgentExtensionRegistry<TTool = Tool, TMessage = unknown> {
  * context and return types.
  */
 export interface ContributionRegistryExtension<TTool = Tool> {
+	type?: string; // Default to plugin for now.
 	/** Unique identifier for this extension, used in error messages and hook handler names. */
 	name: string;
 	/** Declares what capabilities and hook stages this extension uses. Validated before `setup()` runs. */

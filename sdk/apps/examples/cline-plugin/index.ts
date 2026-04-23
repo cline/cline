@@ -19,7 +19,7 @@
  *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
  */
 
-import { type AgentExtension, ClineCore, createTool } from "@clinebot/core";
+import { type AgentPlugin, ClineCore, createTool } from "@clinebot/core";
 
 // ---------------------------------------------------------------------------
 // Plugin-level state — populated once in onSessionStart, available to all
@@ -30,7 +30,7 @@ let sessionWorkspaceRoot: string | undefined;
 let sessionBranch: string | undefined;
 let sessionCommit: string | undefined;
 
-const plugin: AgentExtension = {
+const plugin: AgentPlugin = {
 	name: "weather-and-metrics",
 	manifest: {
 		capabilities: ["tools", "hooks"],

@@ -1,13 +1,14 @@
+import { createGateway } from "@clinebot/llms";
 import type {
 	AgentAfterToolResult,
 	AgentBeforeModelResult,
 	AgentBeforeToolResult,
 	AgentMessage,
 	AgentMessagePart,
+	AgentModel,
 	AgentModelFinishReason,
 	AgentModelRequest,
 	AgentRunResult,
-	AgentRuntimeConfig,
 	AgentRuntimeEvent,
 	AgentRuntimeHooks,
 	AgentRuntimeStateSnapshot,
@@ -17,6 +18,7 @@ import type {
 	AgentToolDefinition,
 	AgentToolResult,
 	AgentUsage,
+	AgentRuntimeConfig as BaseAgentRuntimeConfig,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 
@@ -29,10 +31,66 @@ function createUID(prefix: string, length = 8): string {
 	return `${prefix}_${nanoid(length)}`;
 }
 
-export type * from "@clinebot/shared";
-
 export type AgentRunInput = string | AgentMessage | readonly AgentMessage[];
 export type AgentEventListener = (event: AgentRuntimeEvent) => void;
+
+/**
+ * Advanced form: caller supplies a pre-built `AgentModel`. Used by
+ * `@clinebot/core`, which constructs models itself to share gateway/telemetry
+ * wiring with the rest of the session runtime.
+ */
+export interface AgentRuntimeConfigWithModel extends BaseAgentRuntimeConfig {
+	model: AgentModel;
+}
+
+/**
+ * Friendly form: caller supplies provider/model IDs and credentials, and the
+ * runtime builds an `AgentModel` internally via `@clinebot/llms`. This is the
+ * entry point most standalone users want.
+ */
+export interface AgentRuntimeConfigWithProvider
+	extends Omit<BaseAgentRuntimeConfig, "model"> {
+	/** Provider ID (e.g., "anthropic", "openai") */
+	providerId: string;
+	/** Model ID to use */
+	modelId: string;
+	/** API key for the provider */
+	apiKey?: string;
+	/** Custom base URL for the API */
+	baseUrl?: string;
+	/** Additional headers for API requests */
+	headers?: Record<string, string>;
+}
+
+/**
+ * Config accepted by `new AgentRuntime(...)` / `createAgentRuntime(...)` /
+ * `new Agent(...)` / `createAgent(...)`. Either supply a pre-built `model`
+ * (advanced) or `providerId` + `modelId` (+ credentials) and the runtime will
+ * construct the model itself via `@clinebot/llms`.
+ */
+export type AgentRuntimeConfig =
+	| AgentRuntimeConfigWithModel
+	| AgentRuntimeConfigWithProvider;
+
+function hasPrebuiltModel(
+	config: AgentRuntimeConfig,
+): config is AgentRuntimeConfigWithModel {
+	return (config as AgentRuntimeConfigWithModel).model !== undefined;
+}
+
+function resolveRuntimeConfig(
+	config: AgentRuntimeConfig,
+): BaseAgentRuntimeConfig {
+	if (hasPrebuiltModel(config)) {
+		return config;
+	}
+	const { providerId, modelId, apiKey, baseUrl, headers, ...rest } = config;
+	const gateway = createGateway({
+		providerConfigs: [{ providerId, apiKey, baseUrl, headers }],
+	});
+	const model = gateway.createAgentModel({ providerId, modelId });
+	return { ...rest, model };
+}
 
 interface PendingToolAssembly {
 	toolCallId: string;
@@ -179,12 +237,12 @@ function normalizeInput(input: AgentRunInput): AgentMessage[] {
 }
 
 export class AgentRuntime {
-	private readonly config: Required<Pick<AgentRuntimeConfig, "toolExecution">> &
-		AgentRuntimeConfig;
+	private config: Required<Pick<BaseAgentRuntimeConfig, "toolExecution">> &
+		BaseAgentRuntimeConfig;
 	private readonly listeners = new Set<AgentEventListener>();
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	private readonly tools = new Map<string, AgentTool<any, any>>();
-	private readonly hooks: HookBag = {
+	private hooks: HookBag = {
 		beforeRun: [],
 		afterRun: [],
 		beforeModel: [],
@@ -208,13 +266,14 @@ export class AgentRuntime {
 	private abortController?: AbortController;
 
 	constructor(config: AgentRuntimeConfig) {
+		const resolved = resolveRuntimeConfig(config);
 		this.config = {
-			...config,
-			toolExecution: config.toolExecution ?? "sequential",
+			...resolved,
+			toolExecution: resolved.toolExecution ?? "sequential",
 		};
-		this.state.agentId = config.agentId ?? createUID("agent");
-		this.state.agentRole = config.agentRole;
-		this.state.messages = cloneMessages(config.initialMessages ?? []);
+		this.state.agentId = resolved.agentId ?? createUID("agent");
+		this.state.agentRole = resolved.agentRole;
+		this.state.messages = cloneMessages(resolved.initialMessages ?? []);
 	}
 
 	async run(input: AgentRunInput): Promise<AgentRunResult> {
@@ -237,6 +296,32 @@ export class AgentRuntime {
 		this.listeners.add(listener);
 		return () => {
 			this.listeners.delete(listener);
+		};
+	}
+
+	/**
+	 * Replace the conversation with a fresh set of messages, discarding any
+	 * in-flight run and usage state while preserving the underlying model,
+	 * tools, hooks, plugins, and active event subscribers.
+	 *
+	 * Useful for standalone callers that persist conversations externally and
+	 * want to re-seed the runtime from storage without recreating subscribers.
+	 */
+	restore(messages: readonly AgentMessage[]): void {
+		this.abort("Agent state restored");
+		// Reset state that is not carried across restores. Keep `listeners`,
+		// tools, hooks, plugins, model, and agent identity so external event
+		// subscribers continue to receive events after restore().
+		this.state.runId = undefined;
+		this.state.status = "idle";
+		this.state.iteration = 0;
+		this.state.pendingToolCalls = [];
+		this.state.usage = cloneUsage(DEFAULT_USAGE);
+		this.state.lastError = undefined;
+		this.state.messages = cloneMessages(messages);
+		this.config = {
+			...this.config,
+			initialMessages: cloneMessages(messages),
 		};
 	}
 
@@ -1048,5 +1133,22 @@ function mergeToolInputText(current: string, incoming: string): string {
 }
 
 export function createAgentRuntime(config: AgentRuntimeConfig): AgentRuntime {
+	return new AgentRuntime(config);
+}
+
+/**
+ * `Agent` is the user-friendly name for `AgentRuntime`. They are the same
+ * class; this alias exists so standalone callers can write:
+ *
+ *     const agent = new Agent({ providerId, modelId, apiKey });
+ *     await agent.run("hello");
+ *
+ * while `@clinebot/core` (which owns model construction) continues to use
+ * the `AgentRuntime` name with `{ model, ... }` configs.
+ */
+export const Agent = AgentRuntime;
+export type Agent = AgentRuntime;
+
+export function createAgent(config: AgentRuntimeConfig): AgentRuntime {
 	return new AgentRuntime(config);
 }

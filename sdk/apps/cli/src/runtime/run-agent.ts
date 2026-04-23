@@ -369,6 +369,7 @@ export async function runAgent(
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
 		config.logger?.log(err instanceof Error ? (err.stack ?? message) : message);
+		writeErr(message);
 		process.exitCode = 1;
 	} finally {
 		await cleanupRuntime();

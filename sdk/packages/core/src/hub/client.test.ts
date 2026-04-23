@@ -223,6 +223,61 @@ describe("NodeHubClient", () => {
 			await vi.advanceTimersByTimeAsync(30_001);
 			await expectation;
 		});
+
+		it("allows commands to opt out of the reply timeout", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const connectPromise = client.connect();
+			const socket = FakeWebSocket.instances[0];
+			if (!socket) {
+				throw new Error("expected fake websocket instance");
+			}
+			socket.open();
+			await connectPromise;
+
+			const commandPromise = client.command(
+				"client.list",
+				undefined,
+				undefined,
+				{ timeoutMs: null },
+			);
+			await vi.advanceTimersByTimeAsync(30_001);
+
+			let settled = false;
+			void commandPromise.then(
+				() => {
+					settled = true;
+				},
+				() => {
+					settled = true;
+				},
+			);
+			await Promise.resolve();
+
+			expect(settled).toBe(false);
+			const requestId = [
+				...(
+					client as unknown as { pendingReplies: Map<string, unknown> }
+				).pendingReplies.keys(),
+			][0];
+
+			(
+				socket as unknown as { emit: (type: string, payload: unknown) => void }
+			).emit("message", {
+				data: JSON.stringify({
+					kind: "reply",
+					envelope: {
+						version: "v1",
+						requestId,
+						ok: true,
+						payload: { clients: [] },
+					},
+				}),
+			});
+			await expect(commandPromise).resolves.toMatchObject({
+				ok: true,
+				payload: { clients: [] },
+			});
+		});
 	});
 
 	it("normalizes websocket error events during connect", async () => {

@@ -248,6 +248,7 @@
       "name": "@clinebot/agents",
       "version": "0.0.36",
       "dependencies": {
+        "@clinebot/llms": "workspace:*",
         "@clinebot/shared": "workspace:*",
         "nanoid": "^5.1.7",
       },

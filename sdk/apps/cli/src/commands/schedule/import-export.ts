@@ -18,6 +18,31 @@ import {
 } from "./common";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
 
+function resolveImportedModelSelection(parsed: Record<string, unknown>): {
+	provider: string;
+	model: string;
+} {
+	const modelSelection =
+		parsed.modelSelection &&
+		typeof parsed.modelSelection === "object" &&
+		!Array.isArray(parsed.modelSelection)
+			? (parsed.modelSelection as Record<string, unknown>)
+			: undefined;
+	const provider = String(
+		modelSelection?.providerId ??
+			parsed.providerId ??
+			parsed.provider ??
+			"cline",
+	).trim();
+	const model = String(
+		modelSelection?.modelId ??
+			parsed.modelId ??
+			parsed.model ??
+			"openai/gpt-5.3-codex",
+	).trim();
+	return { provider, model };
+}
+
 export function registerScheduleExportCommand(
 	schedule: Command,
 	io: CommandIo,
@@ -106,12 +131,13 @@ export function registerScheduleImportCommand(
 					fail();
 					return;
 				}
+				const { provider, model } = resolveImportedModelSelection(parsed);
 				const created = await client.createSchedule({
 					name: String(parsed.name ?? "").trim(),
 					cronPattern: String(parsed.cronPattern ?? parsed.cron ?? "").trim(),
 					prompt: String(parsed.prompt ?? "").trim(),
-					provider: String(parsed.provider ?? "cline").trim(),
-					model: String(parsed.model ?? "openai/gpt-5.3-codex").trim(),
+					provider,
+					model,
 					mode: parsed.mode === "plan" ? "plan" : "act",
 					workspaceRoot,
 					cwd: String(parsed.cwd ?? "").trim() || undefined,

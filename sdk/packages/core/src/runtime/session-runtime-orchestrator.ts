@@ -31,7 +31,7 @@
  * @see PLAN.md §3.6 Step 8d — landing commit.
  */
 
-import type { Agent } from "@clinebot/agents";
+import type { AgentRuntime } from "@clinebot/agents";
 import { createAgentRuntime } from "@clinebot/agents";
 import {
 	type AgentConfig,
@@ -70,6 +70,20 @@ import { LoopDetectionTracker } from "./loop-detection";
 import { MistakeTracker } from "./mistake-tracker";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
 
+function formatToolResultError(output: unknown): string {
+	if (typeof output === "string") {
+		return output;
+	}
+	if (output instanceof Error) {
+		return output.message;
+	}
+	try {
+		return JSON.stringify(output);
+	} catch {
+		return String(output);
+	}
+}
+
 // =============================================================================
 // Public types
 // =============================================================================
@@ -93,7 +107,7 @@ export interface SessionRuntimeOrchestratorDeps {
 	 */
 	readonly createAgentRuntimeImpl?: (
 		config: Parameters<typeof createAgentRuntime>[0],
-	) => Agent;
+	) => AgentRuntime;
 }
 
 /** Connection overrides applied via `updateConnection`. */
@@ -165,7 +179,7 @@ export class SessionRuntime {
 	private readonly listeners = new Set<SessionEventListener>();
 	private readonly createAgentRuntimeImpl: (
 		config: Parameters<typeof createAgentRuntime>[0],
-	) => Agent;
+	) => AgentRuntime;
 
 	/** Stable run id shared with the HookBridge during an active run. */
 	private activeRunId: string | null = null;
@@ -175,8 +189,8 @@ export class SessionRuntime {
 	private abortRequested = false;
 	/** Last abort reason requested for the active run. */
 	private abortReason: string | undefined;
-	/** Reference to the current run's `Agent` so `abort` can forward. */
-	private activeRuntime: Agent | null = null;
+	/** Reference to the current run's `AgentRuntime` so `abort` can forward. */
+	private activeRuntime: AgentRuntime | null = null;
 	/** Promise for the current run so shutdown can await an aborted run's drain. */
 	private activeRunPromise: Promise<AgentResult> | null = null;
 	/** Per-run `Agent → AgentEvent` adapter; `reset()` each run. */
@@ -848,9 +862,11 @@ export class SessionRuntime {
 				const isError =
 					resultPart?.type === "tool-result" && resultPart.isError === true;
 				const errorText = isError
-					? typeof resultPart?.output === "string"
-						? resultPart.output
-						: String(resultPart?.output)
+					? formatToolResultError(
+							resultPart?.type === "tool-result"
+								? resultPart.output
+								: undefined,
+						)
 					: undefined;
 				const record: ToolCallRecord = {
 					id: event.toolCall.toolCallId,

@@ -326,7 +326,7 @@ Preferred bridge:
 Why:
 
 - it prepares and materializes enterprise-managed files under `.cline/<plugin>/`
-- it returns a valid `AgentExtension`
+- it returns a valid `AgentPlugin`
 - it can create a telemetry service from enterprise telemetry settings
 - it lets core consume enterprise behavior through existing generic seams and normal watcher discovery
 

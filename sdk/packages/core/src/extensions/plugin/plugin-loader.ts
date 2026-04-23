@@ -1,5 +1,5 @@
 import { resolve } from "node:path";
-import type { AgentConfig, PluginSetupContext } from "@clinebot/shared";
+import type { AgentExtension, PluginSetupContext } from "@clinebot/shared";
 import { normalizePluginManifest } from "@clinebot/shared";
 import type {
 	PluginInitializationFailure,
@@ -11,7 +11,6 @@ import {
 	type PluginTargeting,
 } from "./plugin-targeting";
 
-type AgentPlugin = NonNullable<AgentConfig["extensions"]>[number];
 type PluginLike = {
 	name: string;
 	manifest: {
@@ -109,7 +108,7 @@ function validatePluginExport(
 export async function loadAgentPluginFromPath(
 	pluginPath: string,
 	options: LoadAgentPluginFromPathOptions = {},
-): Promise<AgentPlugin> {
+): Promise<AgentExtension> {
 	const absolutePath = resolve(options.cwd ?? process.cwd(), pluginPath);
 	const moduleExports = await importPluginModule(absolutePath, {
 		useCache: options.useCache,
@@ -119,11 +118,11 @@ export async function loadAgentPluginFromPath(
 		moduleExports[exportName]) as unknown;
 
 	validatePluginExport(plugin, absolutePath);
-	const pluginTyped = plugin as AgentPlugin;
+	const pluginTyped = plugin as AgentExtension;
 	const originalSetup = pluginTyped.setup;
 
 	// Wrap setup to inject workspace context
-	const setupWithContext: AgentPlugin["setup"] = originalSetup
+	const setupWithContext: AgentExtension["setup"] = originalSetup
 		? (api, _ctx) => {
 				const ctx = {
 					workspaceInfo: options.workspaceInfo,
@@ -142,7 +141,7 @@ export async function loadAgentPluginFromPath(
 export async function loadAgentPluginsFromPaths(
 	pluginPaths: string[],
 	options: LoadAgentPluginFromPathOptions & PluginTargeting = {},
-): Promise<AgentPlugin[]> {
+): Promise<AgentExtension[]> {
 	const report = await loadAgentPluginsFromPathsWithDiagnostics(
 		pluginPaths,
 		options,
@@ -154,7 +153,7 @@ export async function loadAgentPluginsFromPathsWithDiagnostics(
 	pluginPaths: string[],
 	options: LoadAgentPluginFromPathOptions & PluginTargeting = {},
 ): Promise<{
-	plugins: AgentPlugin[];
+	plugins: AgentExtension[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
 }> {
@@ -162,7 +161,7 @@ export async function loadAgentPluginsFromPathsWithDiagnostics(
 	const warnings: PluginInitializationWarning[] = [];
 	const loadedByName = new Map<
 		string,
-		{ plugin: AgentPlugin; pluginPath: string; order: number }
+		{ plugin: AgentExtension; pluginPath: string; order: number }
 	>();
 	let order = 0;
 

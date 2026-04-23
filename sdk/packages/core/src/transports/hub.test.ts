@@ -137,6 +137,7 @@ describe("HubRuntimeHost", () => {
 			"run.start",
 			{ sessionId: "sess-1", input: "Hey", attachments: undefined },
 			"sess-1",
+			{ timeoutMs: null },
 		);
 		expect(sent).toEqual(result);
 	});
@@ -199,6 +200,7 @@ describe("HubRuntimeHost", () => {
 				},
 			},
 			"sess-1",
+			{ timeoutMs: null },
 		);
 	});
 
@@ -228,6 +230,7 @@ describe("HubRuntimeHost", () => {
 				},
 			},
 			"sess-1",
+			{ timeoutMs: null },
 		);
 	});
 

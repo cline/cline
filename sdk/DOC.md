@@ -322,7 +322,7 @@ It:
 
 ### Plugin Behavior
 
-`createEnterprisePlugin(...)` returns a valid `AgentExtension`.
+`createEnterprisePlugin(...)` returns a valid `AgentPlugin`.
 
 Behavior:
 
@@ -491,7 +491,7 @@ clite --hooks-dir ./ci/hooks "run the test suite"
 
 ### Plugins
 
-Plugins extend Cline CLI with custom chat commands. Each plugin registers one or more `AgentExtensionCommand` handlers that become available as slash commands across all connected chat surfaces. Plugins are loaded per-workspace and run in-process alongside the agent.
+Plugins extend Cline CLI with custom chat commands. Each plugin registers one or more `AgentPluginCommand` handlers that become available as slash commands across all connected chat surfaces. Plugins are loaded per-workspace and run in-process alongside the agent.
 
 ---
 
