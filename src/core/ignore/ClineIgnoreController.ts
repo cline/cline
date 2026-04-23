@@ -153,21 +153,26 @@ export class ClineIgnoreController {
 	 * @returns true if file is accessible, false if ignored
 	 */
 	validateAccess(filePath: string): boolean {
-		// Always allow access if .clineignore does not exist
-		if (!this.clineIgnoreContent) {
-			return true
-		}
 		try {
 			// Normalize path to be relative to cwd and use forward slashes
 			const absolutePath = path.resolve(this.cwd, filePath)
-			const relativePath = path.relative(this.cwd, absolutePath).toPosix()
+			const relativePath = path.relative(this.cwd, absolutePath)
+
+			// Block paths that resolve outside the workspace (path traversal)
+			if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+				return false
+			}
+
+			// Always allow access if .clineignore does not exist
+			if (!this.clineIgnoreContent) {
+				return true
+			}
 
 			// Ignore expects paths to be path.relative()'d
-			return !this.ignoreInstance.ignores(relativePath)
+			return !this.ignoreInstance.ignores(relativePath.toPosix())
 		} catch (_error) {
-			// Logger.error(`Error validating access for ${filePath}:`, error)
-			// Ignore is designed to work with relative file paths, so will throw error for paths outside cwd. We are allowing access to all files outside cwd.
-			return true
+			// Deny by default on errors (e.g., invalid paths)
+			return false
 		}
 	}
 
