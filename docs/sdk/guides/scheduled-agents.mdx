@@ -4,18 +4,18 @@ sidebarTitle: "Scheduled Agents"
 description: "Run agents on cron schedules for recurring automations like daily summaries, code reviews, and maintenance tasks."
 ---
 
-The SDK supports running agents on cron schedules through the RPC sidecar. Scheduled agents persist across process restarts and run independently of any client application.
+The SDK supports running agents on cron schedules through the hub. Scheduled agents persist across process restarts and run independently of any client application.
 
 ## How Scheduling Works
 
 Scheduled agents rely on the [hub-spoke architecture](/sdk/architecture/hub-spoke):
 
 1. You define a schedule (cron expression + prompt + config)
-2. The RPC sidecar stores the schedule and manages execution
-3. At each trigger time, the sidecar creates a new session and runs the agent
+2. The hub stores the schedule and manages execution
+3. At each trigger time, the hub creates a new session and runs the agent
 4. Results are stored and can be routed to connectors (Slack, email, etc.)
 
-The sidecar runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
+The hub runs as a background process on your machine. It starts automatically when needed and persists schedules across restarts.
 
 ## Schedule Wizard
 
@@ -72,12 +72,12 @@ import { ClineCore } from "@clinebot/sdk"
 
 const cline = await ClineCore.create({
   clientName: "scheduler",
-  backendMode: "rpc",
-  rpc: { autoStart: true },
+  backendMode: "hub",
+  
 })
 
-// The RPC client provides schedule management
-// Schedules persist in the sidecar even after this process exits
+// The hub client provides schedule management
+// Schedules persist in the hub even after this process exits
 ```
 
 ## Cron Expression Reference
@@ -126,7 +126,7 @@ The scheduler enforces limits to prevent resource exhaustion:
 
 - Schedules have configurable concurrency limits
 - If a previous execution is still running when the next trigger fires, the new execution is queued or skipped (configurable)
-- The sidecar monitors resource usage and can pause schedules if the system is under load
+- The hub monitors resource usage and can pause schedules if the system is under load
 
 ## Routing Results
 

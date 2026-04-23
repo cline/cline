@@ -78,7 +78,7 @@ Cline stores configuration in `~/.cline/`:
     teams/                     # Team state
     sessions/                  # Session database (SQLite)
     logs/
-      rpc-sidecar.log          # RPC server logs
+      hub-daemon.log           # Hub logs
   plugins/                     # Global plugins (.js, .ts)
 ```
 
@@ -110,8 +110,8 @@ This opens the log file in your default editor.
 | Variable | Description |
 |----------|-------------|
 | `CLINE_DATA_DIR` | Custom configuration directory (replaces `~/.cline/data/`) |
-| `CLINE_RPC_ADDRESS` | Override RPC sidecar address (default: `127.0.0.1:4317`) |
-| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `rpc`, `auto`) |
+| `CLINE_HUB_ADDRESS` | Override hub address (default: `127.0.0.1:25463`) |
+| `CLINE_SESSION_BACKEND_MODE` | Force backend mode (`local`, `hub`, `remote`, `auto`) |
 | `CLINE_SANDBOX` | Enable sandbox mode |
 | `CLINE_SANDBOX_DATA_DIR` | Sandbox session storage directory |
 | `CLINE_HOOKS_DIR` | Additional hooks directory |

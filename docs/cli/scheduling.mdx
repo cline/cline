@@ -4,7 +4,7 @@ sidebarTitle: "Scheduling"
 description: "Run agents on cron schedules for recurring automations like daily summaries and code reviews."
 ---
 
-The CLI supports running agents on cron schedules through the RPC sidecar. Scheduled agents persist across process restarts and run independently of any terminal session.
+The CLI supports running agents on cron schedules through the hub. Scheduled agents persist across process restarts and run independently of any terminal session.
 
 ## Schedule Wizard
 
@@ -104,4 +104,4 @@ cline schedule create "Morning briefing" \
   --prompt "Summarize overnight activity in the repo"
 ```
 
-Scheduling requires the RPC server. It starts automatically when you create a schedule.
+Scheduling requires the hub. It starts automatically when you create a schedule.

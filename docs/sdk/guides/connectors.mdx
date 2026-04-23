@@ -73,10 +73,10 @@ cline connect telegram -m <BOT-USERNAME> -k <BOT-TOKEN> \
 
 ### Prerequisites
 
-The Telegram connector requires the RPC server to be running. Start it manually if it doesn't auto-start:
+The Telegram connector requires the hub to be running. Start it manually if it doesn't auto-start:
 
 ```bash
-cline rpc start
+cline hub start
 ```
 
 ## Slack
@@ -126,8 +126,8 @@ cline connect linear --api-key <KEY> --signing-secret <SECRET> --base-url <URL>
 Connectors are persistent daemon processes that:
 
 1. Subscribe to incoming messages from the platform (webhooks or polling)
-2. Route each message to the RPC server
-3. The RPC server creates or resumes an agent session
+2. Route each message to the hub
+3. The hub creates or resumes an agent session
 4. The agent processes the message and generates a response
 5. The connector sends the response back to the platform
 
@@ -136,16 +136,16 @@ Each conversation (Slack thread, Telegram chat, etc.) maps to its own agent sess
 ## Architecture
 
 ```
-[Telegram/Slack/etc.] --> [Connector Daemon] --> [RPC Server] --> [Agent Session]
-                     <--                    <--              <--
+[Telegram/Slack/etc.] --> [Connector Daemon] --> [Hub] --> [Agent Session]
+                     <--                    <--        <--
 ```
 
-The connector daemon runs locally on your machine. Messages flow through the RPC sidecar, which manages session state and agent execution. This means:
+The connector daemon runs locally on your machine. Messages flow through the hub, which manages session state and agent execution. This means:
 
 - The agent has access to your local file system and tools
 - Sessions persist across connector restarts
 - Multiple connectors can run simultaneously (e.g., Telegram and Slack)
-- Scheduled agents can share the same RPC server
+- Scheduled agents can share the same hub
 
 ## Custom Hook Commands
 

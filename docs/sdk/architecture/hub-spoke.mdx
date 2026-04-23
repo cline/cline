@@ -1,90 +1,77 @@
 ---
 title: "Hub-Spoke Architecture"
 sidebarTitle: "Hub & Spoke"
-description: "The RPC sidecar enables persistent sessions, scheduled agents, and multi-client access through a hub-spoke model."
+description: "A local daemon coordinates sessions across clients, while spoke workers handle agent execution."
 ---
 
-The SDK uses a hub-spoke architecture for production deployments. A background sidecar process (the hub) manages session state, while client applications (spokes) connect to it over gRPC.
+The SDK uses a hub-spoke architecture for production deployments. A background daemon (the hub) coordinates session state and event routing, spoke workers execute the agent loop, and clients (CLI, VS Code, JetBrains, etc.) attach as peers over WebSocket.
 
 ## Why Hub-Spoke?
 
 A single-process architecture works for simple scripts, but breaks down when you need:
 
-- Sessions that persist across CLI invocations
+- Sessions that survive when a window closes or the CLI exits
+- Multiple clients viewing and controlling the same session
 - Scheduled agents that run when no client is connected
-- Multiple clients accessing the same session (e.g., Slack bot + CLI)
-- Process isolation (client crash doesn't kill the agent)
+- Process isolation so a runaway agent doesn't freeze the UI
 
-The hub-spoke model solves all of these by decoupling session management from client processes.
+The hub-spoke model solves all of these by separating coordination from execution, and both from the client UI.
 
-## The Hub: RPC Sidecar
+## Three Roles
 
-The hub is a gRPC server that runs as a background process on `127.0.0.1:4317` (configurable). It manages:
+<CardGroup cols={3}>
+  <Card title="Hub" icon="circle-nodes">
+    Singleton daemon per machine. Coordinates sessions, routes events and approvals, manages schedules, brokers capabilities between clients. Does not run the agent loop.
+  </Card>
+  <Card title="Spoke" icon="gear">
+    Worker process running `@clinebot/core`. Executes the agent loop, calls tools, streams output. Reports events back to the hub. Owned by the daemon, not by any client.
+  </Card>
+  <Card title="Client" icon="display">
+    CLI, VS Code, JetBrains, or any custom app. Discovers the hub, registers over WebSocket, attaches to sessions, sends user input, receives streamed events.
+  </Card>
+</CardGroup>
 
-- Session lifecycle (create, resume, stop)
-- Session persistence (SQLite)
-- Event routing (streaming events to connected clients)
-- Tool approval workflows
-- Schedule execution
-- Multi-client registration
-
-The sidecar starts automatically on first connection and stays running in the background. It persists state across client restarts.
-
-```bash
-# Manual control
-cline rpc start    # Start the sidecar
-cline rpc stop     # Stop it
-cline rpc status   # Check if it's running
-```
-
-## The Spokes: Clients
-
-Any application that connects to the hub is a spoke:
-
-- The CLI (`cline`)
-- VS Code extension
-- Desktop app
-- Custom applications using `ClineCore`
-- Connectors (Telegram, Slack, etc.)
-
-Multiple spokes can connect simultaneously. Each spoke registers with the hub and receives events for its sessions.
+The single rule that keeps it clean: clients participate, spokes execute, the hub coordinates. No two roles should overlap.
 
 ## Communication Flow
 
-```
-Spoke (CLI)              Hub (RPC Sidecar)              Agent
-    │                         │                           │
-    │── StartRuntimeSession ─>│                           │
-    │                         │── Create Agent ──────────>│
-    │                         │                           │── LLM Call
-    │<── StreamEvents ────────│<── AgentEvent ───────────│
-    │<── StreamEvents ────────│<── AgentEvent ───────────│
-    │                         │                           │── Tool Call
-    │<── RequestToolApproval ─│                           │
-    │── RespondToolApproval ─>│                           │
-    │                         │── Tool Approved ────────>│
-    │<── StreamEvents ────────│<── AgentEvent ───────────│
-    │                         │<── Done ─────────────────│
-    │<── StreamEvents ────────│                           │
-    │                         │                           │
-```
+Clients connect to the hub over WebSocket. The hub routes commands and streams events. Spokes report back to the hub, never directly to clients.
+
+<Steps>
+  <Step title="Client discovers or starts the hub">
+    The hub is a singleton daemon per machine. If one isn't running, `ClineCore` starts it automatically. Discovery uses lock files at `~/.cline/locks/hub/owners/`.
+  </Step>
+  <Step title="Client registers and attaches to a session">
+    The client sends a `client.register` command over WebSocket, advertising its capabilities (shell access, file editing, diff viewing, etc.). It then creates or attaches to a session.
+  </Step>
+  <Step title="Hub assigns a spoke to execute">
+    The hub spawns or assigns a spoke worker to run the agent loop. The spoke executes tools, streams partial output, and handles abort/cancel.
+  </Step>
+  <Step title="Hub fans out events to all attached clients">
+    As the spoke produces events (text deltas, tool calls, usage), the hub relays them to every client attached to that session. Clients can come and go without interrupting execution.
+  </Step>
+  <Step title="Client disconnects, session keeps running">
+    If the CLI exits or a window closes, the spoke continues executing. Another client can attach to the same session and pick up the event stream mid-flight.
+  </Step>
+</Steps>
 
 ## Backend Modes
 
-Control how ClineCore connects:
+`ClineCore` selects the execution mode based on configuration:
 
 ```typescript
 const cline = await ClineCore.create({
   clientName: "my-app",
-  backendMode: "auto",  // Default
+  backendMode: "auto",
 })
 ```
 
 | Mode | Behavior |
 |------|----------|
-| `auto` | Tries RPC first. Falls back to local if no sidecar is running. |
-| `rpc` | Requires the RPC sidecar. Starts it automatically if `rpc.autoStart` is true. |
-| `local` | In-process only. No sidecar, no cross-process sessions. |
+| `auto` | Prefers a compatible local hub when available, falls back to local in-process execution when not. This is the default. |
+| `hub` | Requires a compatible WebSocket hub. Throws if one is not reachable. |
+| `remote` | Requires an explicit remote WebSocket hub endpoint. For deployments where the hub doesn't live on the user's machine. |
+| `local` | Always uses local in-process execution with local SQLite/file storage. No hub, no shared sessions. |
 
 ### When to Use Each Mode
 
@@ -93,65 +80,67 @@ Use `local` for:
 - Testing and development
 - Environments where a background process isn't appropriate
 
-Use `rpc` for:
-- Production services that need session persistence
+Use `hub` (or `auto`) for:
+- Session persistence across client restarts
+- Multiple clients sharing the same session
 - Scheduled agents
-- Multi-client access (connectors, multiple CLI sessions)
-- Process isolation
+- Connector integrations (Telegram, Slack, etc.)
 
-Use `auto` when you want the best of both worlds. It uses RPC if available and falls back gracefully.
+Use `remote` for:
+- Cloud deployments where the hub runs on a server
+- Team-shared hub instances
 
-## RPC Configuration
+## Capability Brokerage
 
-```typescript
-const cline = await ClineCore.create({
-  clientName: "my-app",
-  backendMode: "rpc",
-  rpc: {
-    autoStart: true,           // Start sidecar if not running
-    address: "127.0.0.1:4317", // Sidecar address
-  },
-})
-```
+When multiple clients are attached to a session, the hub routes capability requests to whichever client can handle them. Clients advertise their capabilities at registration.
 
-Environment variables:
-- `CLINE_RPC_ADDRESS` -- Override the sidecar address
-- `CLINE_SESSION_BACKEND_MODE` -- Override the backend mode (`local`, `rpc`, `auto`)
+For example, VS Code might register `open-file`, `reveal-diff`, and `run-build` capabilities. The CLI might register `shell` and `run-tests`. When the agent needs to open a diff, the hub routes the request to VS Code. When it needs to run a shell command, the hub routes to the CLI.
+
+This means a session gets richer as more clients join. A CLI session can later be enriched by VS Code attaching -- an IDE selection can be sent into a running terminal session, or a diff created by one client can be opened by another.
 
 ## Session Persistence
 
-In RPC mode, sessions are stored by the sidecar and survive client restarts:
+Sessions are stored with full conversation history, tool call records, and metadata. The hub maintains a SQLite index for efficient listing and JSON snapshots as the source of truth for each session's state.
 
-```bash
-# Start a task
-cline "Start implementing the auth module"
-# Session ID: abc-123
-
-# Close the terminal, go to lunch, come back
-
-# Resume the same session
-cline --session abc-123 "Continue where you left off"
+```
+~/.cline/data/sessions/
+  sessions.db                    # SQLite index
+  [session-id].json              # Authoritative session record
 ```
 
-The sidecar stores sessions in SQLite at `~/.cline/data/sessions/`.
+Sessions can have multiple participants, each tracked with a role (`creator`, `participant`, `observer`). The session persists independently of any single client's lifecycle.
+
+## Managing the Hub
+
+The hub starts automatically when `ClineCore` needs it. You can also manage it manually:
+
+```bash
+cline hub start      # Start the hub daemon
+cline hub stop       # Stop it
+cline hub status     # Check if running
+cline hub ensure     # Start if not running, return URL
+```
+
+The hub listens on `127.0.0.1:25463` by default and logs to `~/.cline/logs/hub-daemon.log`.
 
 ## Multi-Client Access
 
-Multiple clients can connect to the same sidecar simultaneously:
+Multiple clients can connect to the same hub and attach to the same session simultaneously:
 
 ```bash
-# Terminal 1: CLI session
+# Terminal 1: start a task
 cline "Work on feature X"
 
-# Terminal 2: Check on the session
-cline history list
+# Terminal 2: attach to the same session from VS Code or another CLI
 
 # Terminal 3: Telegram connector
 cline connect telegram -m my_bot -k $TOKEN
 
-# All three share the same sidecar and session store
+# All three share the same hub and can access the same sessions
 ```
 
 ## Process Isolation
 
-If a client crashes (e.g., the CLI is killed with Ctrl+C), the sidecar and its running agents are unaffected. The session continues in the background, and you can reconnect to see the results.
+If a client crashes, the hub and its running spokes are unaffected. The session continues executing in the spoke worker. When the client reconnects (or a different client attaches), it receives the full session history and resumes the live event stream.
+
+The spoke also has a process boundary from the hub itself. A runaway model call in a spoke doesn't degrade the hub's ability to coordinate other sessions, route approvals, or fan out events.

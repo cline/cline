@@ -4,7 +4,7 @@ sidebarTitle: "ClineCore"
 description: "API reference for ClineCore, the full orchestration runtime with sessions, persistence, and built-in tools."
 ---
 
-`ClineCore` is the main entry point for applications that need session management, built-in tools, config discovery, and optional RPC support.
+`ClineCore` is the main entry point for applications that need session management, built-in tools, config discovery, and optional hub support.
 
 ```typescript
 import { ClineCore } from "@clinebot/core"
@@ -23,10 +23,7 @@ const cline = await ClineCore.create(options: ClineCoreOptions)
 | Parameter | Type | Required | Description |
 |-----------|------|----------|-------------|
 | `clientName` | `string` | Yes | Identifier for this client (e.g., `"my-app"`) |
-| `backendMode` | `"auto" \| "rpc" \| "local"` | No | How to connect to the backend. Default: `"auto"` |
-| `rpc` | `RpcOptions` | No | RPC sidecar configuration |
-| `rpc.autoStart` | `boolean` | No | Start the sidecar automatically if not running |
-| `rpc.address` | `string` | No | Sidecar address. Default: `"127.0.0.1:4317"` |
+| `backendMode` | `"auto" \| "hub" \| "remote" \| "local"` | No | How to connect to the backend. Default: `"auto"` |
 | `logger` | `BasicLogger` | No | Custom logger instance |
 | `telemetry` | `ITelemetryService` | No | Telemetry service for OpenTelemetry integration |
 | `toolPolicies` | `Record<string, ToolPolicy>` | No | Global tool policies |
@@ -36,8 +33,7 @@ const cline = await ClineCore.create(options: ClineCoreOptions)
 ```typescript
 const cline = await ClineCore.create({
   clientName: "my-app",
-  backendMode: "rpc",
-  rpc: { autoStart: true, address: "127.0.0.1:4317" },
+  backendMode: "hub",
   logger: myLogger,
   requestToolApproval: async (req) => ({ approved: true }),
 })

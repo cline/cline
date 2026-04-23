@@ -10,24 +10,24 @@ The Cline SDK is organized as a stack of packages. Each layer has a single respo
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│  Your Application / CLI / VS Code / Desktop App              │
+│  Your Application / CLI / VS Code / JetBrains                │
 └────────────────────────┬─────────────────────────────────────┘
                          │
 ┌────────────────────────▼─────────────────────────────────────┐
 │  @clinebot/core                                              │
 │  Sessions, persistence, config discovery, built-in tools,    │
-│  telemetry, RPC integration                                  │
-└────┬──────────────┬──────────────┬──────────────────────┬────┘
-     │              │              │                      │
-┌────▼─────┐  ┌─────▼──────┐  ┌───▼──────────┐  ┌────────▼───┐
-│@clinebot │  │ @clinebot  │  │ @clinebot    │  │ @clinebot  │
-│/agents   │  │ /llms      │  │ /rpc         │  │ /scheduler │
-│          │  │            │  │ (internal)   │  │ (internal) │
-│Stateless │  │Provider    │  │gRPC control  │  │Cron exec,  │
-│agent loop│  │gateway,    │  │plane,        │  │concurrency │
-│          │  │model       │  │sessions,     │  │limits      │
-│          │  │catalogs    │  │approvals     │  │            │
-└────┬─────┘  └─────┬──────┘  └──────────────┘  └────────────┘
+│  hub daemon, scheduling, telemetry                           │
+└────┬──────────────┬──────────────────────────────────────────┘
+     │              │
+┌────▼─────┐  ┌─────▼──────┐
+│@clinebot │  │ @clinebot  │
+│/agents   │  │ /llms      │
+│          │  │            │
+│Stateless │  │Provider    │
+│agent loop│  │gateway,    │
+│          │  │model       │
+│          │  │catalogs    │
+└────┬─────┘  └─────┬──────┘
      │              │
      └──────┬───────┘
             │
@@ -67,7 +67,7 @@ Depends on: `@clinebot/shared`
 
 ### @clinebot/agents
 
-The core agent execution loop. Stateless by design -- no persistence, no RPC, no built-in tools.
+The core agent execution loop. Stateless by design -- no persistence, no hub, no built-in tools.
 
 - `Agent` class with `run()`, `continue()`, `abort()`, `shutdown()`
 - Turn processing (text, reasoning, tool calls)
@@ -89,27 +89,10 @@ Full orchestration runtime. Wraps the agent loop with everything needed for prod
 - MCP server integration
 - Tool approval workflows
 - Telemetry (OpenTelemetry)
-- RPC integration for multi-process architectures
+- Hub integration for multi-process architectures
 - Team management for multi-agent coordination
 
 Depends on: `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`
-
-### @clinebot/rpc (internal)
-
-gRPC control plane for the [hub-spoke architecture](/sdk/architecture/hub-spoke). Not published as part of the SDK.
-
-- gRPC server with 40+ RPC methods
-- Session routing and event streaming
-- Tool approval gateway
-- Schedule execution
-
-### @clinebot/scheduler (internal)
-
-Cron-based scheduling engine. Not published as part of the SDK.
-
-- Cron expression parsing and execution
-- Concurrency and resource limits
-- Schedule persistence
 
 ## Design Principles
 
@@ -119,11 +102,11 @@ Dependencies flow downward only. `core` depends on `agents`, never the reverse. 
 
 ### Stateless agent loop
 
-The `Agent` class in `@clinebot/agents` does not do I/O, persistence, or RPC. It's a pure state machine: take messages in, produce tool calls and text out. This makes it easy to test, embed, and reason about.
+The `Agent` class in `@clinebot/agents` does not do I/O, persistence, or transport. It's a pure state machine: take messages in, produce tool calls and text out. This makes it easy to test, embed, and reason about.
 
-### RPC as transport, not business logic
+### Hub as coordinator, not executor
 
-The RPC layer routes requests and streams events. Session logic, tool approval, and config management live in `@clinebot/core`. The RPC server is a thin gateway.
+The [hub](/sdk/architecture/hub-spoke) coordinates sessions, routes events, manages schedules, and brokers capabilities between clients. It does not run the agent loop. Spoke workers handle execution with a process boundary so the hub stays responsive. Hub functionality lives inside `@clinebot/core`.
 
 ### Config as files
 
@@ -131,4 +114,4 @@ Rules, skills, workflows, hooks, and plugins are discovered from the file system
 
 ### Published vs internal
 
-Only `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`, and `@clinebot/core` are published to npm. RPC, scheduler, and enterprise packages are internal implementation details.
+Only `@clinebot/shared`, `@clinebot/llms`, `@clinebot/agents`, and `@clinebot/core` are published to npm. Enterprise is an internal package.
