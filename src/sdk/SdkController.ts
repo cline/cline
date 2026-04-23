@@ -515,6 +515,20 @@ export class Controller {
 				// Check if MCP tools changed while we were mid-turn.
 				// If so, restart the session now that the turn is complete.
 				this.checkDeferredMcpToolRestart()
+
+				// If the model invoked `switch_to_act_mode` during this turn,
+				// apply the queued mode change now that the turn is complete.
+				// This mirrors the check in `fireAndForgetSend`'s completion
+				// handler — wiring it here ensures we also catch the mode
+				// change when turnComplete is signalled via the event stream
+				// before (or instead of) the send() promise resolving.
+				// Mirrors the CLI's plan → act flow in
+				// apps/cli/src/runtime/run-interactive.ts.
+				if (this.pendingModeChange) {
+					this.applyPendingModeChange().catch((err) => {
+						Logger.error("[SdkController] applyPendingModeChange failed:", err)
+					})
+				}
 			}
 
 			// Update task history with usage info
@@ -791,12 +805,14 @@ export class Controller {
 	 * Apply a pending mode change queued by the `switch_to_act_mode` tool.
 	 *
 	 * Called after `sessionManager.send()` returns (i.e. the agent turn that
-	 * invoked the tool has completed). The full session-rebuild flow (persist
-	 * messages, tear down old session, start a new one with the new mode's
-	 * config + tools + system prompt) is implemented in Task 4.
+	 * invoked the tool has completed). Delegates to `rebuildSessionForMode`
+	 * to perform the full session-rebuild flow: persist state, tear down the
+	 * old session, start a new one with the new mode's CoreSessionConfig
+	 * (updated system prompt + tools), and preserve conversation history via
+	 * `initialMessages`.
 	 *
-	 * For now this just clears the flag so subsequent turns don't re-trigger,
-	 * and logs the intent so we can see the plumbing work end-to-end.
+	 * Mirrors the CLI's applyPendingModeChange in
+	 * apps/cli/src/runtime/run-interactive.ts.
 	 */
 	private async applyPendingModeChange(): Promise<void> {
 		const target = this.pendingModeChange
@@ -804,10 +820,187 @@ export class Controller {
 			return
 		}
 		this.pendingModeChange = null
-		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target} (session rebuild pending — Task 4)`)
-		// TODO(Task 4): persist messages, tear down activeSession, rebuild
-		// session with the new mode's CoreSessionConfig, restore conversation
-		// history via initialMessages, and update state (mode toggle).
+		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target}`)
+		await this.rebuildSessionForMode(target)
+	}
+
+	/**
+	 * Rebuild the active SDK session for a new mode (plan ↔ act).
+	 *
+	 * Persists the new mode to global state, reads the current conversation
+	 * history from the active session, tears down the old session/host, and
+	 * starts a new session with:
+	 *   - A fresh CoreSessionConfig for the new mode (new system prompt,
+	 *     since buildSessionConfig() appends PLAN_MODE_INSTRUCTIONS in plan)
+	 *   - Mode-specific extra tools (switch_to_act_mode injected in plan)
+	 *   - The preserved conversation history as `initialMessages`
+	 *
+	 * The task proxy is kept alive (we only update its taskId if the new
+	 * session uses a different ID) so the webview's currentTaskItem and
+	 * clineMessages remain stable across the rebuild.
+	 *
+	 * Mirrors the flow in restartSessionForMcpTools and the CLI's
+	 * onModeChange callback in apps/cli/src/runtime/run-interactive.ts.
+	 */
+	private async rebuildSessionForMode(newMode: Mode): Promise<void> {
+		// 1. Persist the new mode to global state FIRST so that
+		//    buildSessionConfig() below reads the new value.
+		await this.stateManager.setGlobalState("mode", newMode)
+
+		if (!this.activeSession) {
+			// No active session to rebuild — just refresh the webview so the
+			// mode toggle shows the new value.
+			await this.postStateToWebview()
+			return
+		}
+
+		const { sessionManager: oldManager, unsubscribe: oldUnsubscribe, sessionId: oldSessionId } = this.activeSession
+		const wasRunning = this.activeSession.isRunning
+
+		Logger.log(`[SdkController] Rebuilding session ${oldSessionId} for mode change → ${newMode} (wasRunning=${wasRunning})`)
+
+		// 2. Cancel-style teardown when the session is mid-turn. Mirrors
+		//    cancelTask() so we get the same UX as the classic "switch modes
+		//    cancels the current task" behavior:
+		//    - Reject any pending tool approval (SDK treats as denial → clean abort path)
+		//    - Discard any pending ask_question resolver (no meaningful answer to give)
+		//    - Cancel the debounced save so it doesn't race with our finalization below
+		//    - abort() the session (propagates AbortSignal through tool executor →
+		//      running shell commands receive SIGTERM, in-flight LLM streams terminate)
+		//    - Finalize messages in-memory so partial flags are cleared and the open
+		//      api_req_started gets cancelReason: "user_cancelled" (same as clearTask)
+		if (wasRunning) {
+			this.pendingAskResolve = undefined
+			if (this.pendingToolApprovalResolve) {
+				this.pendingToolApprovalResolve({ approved: false, reason: "Mode changed" })
+				this.pendingToolApprovalResolve = undefined
+			}
+			if (this.saveClineMessagesTimer) {
+				clearTimeout(this.saveClineMessagesTimer)
+				this.saveClineMessagesTimer = undefined
+			}
+			try {
+				await oldManager.abort(oldSessionId)
+			} catch (error) {
+				if (!isAbortError(error)) {
+					Logger.error("[SdkController] Failed to abort old session during mode change:", error)
+				}
+			}
+			this.activeSession.isRunning = false
+
+			// Finalize in-memory messages so the webview stops rendering
+			// streaming spinners on the aborted turn. finalizeMessagesForSave
+			// strips partial flags and stamps the open api_req_started with
+			// cancelReason. addMessages() updates existing entries in-place
+			// by `ts`, so this rewrites the partial records rather than
+			// appending duplicates.
+			if (this.task?.messageStateHandler) {
+				const current = this.task.messageStateHandler.getClineMessages()
+				const finalized = this.finalizeMessagesForSave(current)
+				this.task.messageStateHandler.addMessages(finalized)
+
+				// Persist synchronously so if anything fails below, the on-disk
+				// history reflects a cleanly cancelled turn (not a partial stream).
+				if (this.task.taskId && finalized.length > 0) {
+					try {
+						const { saveClineMessages } = await import("@core/storage/disk")
+						await saveClineMessages(this.task.taskId, finalized)
+					} catch (err) {
+						Logger.error("[SdkController] Failed to persist finalized messages during mode rebuild:", err)
+					}
+				}
+			}
+		}
+
+		try {
+			// 3. Read conversation history from the OLD session BEFORE tearing
+			//    it down. Without this, the new session starts with zero
+			//    context and the LLM loses memory of the conversation.
+			//    sanitizeInitialMessagesForSessionStart (inside loadInitialMessages)
+			//    strips orphaned tool_use blocks from the aborted turn.
+			const initialMessages = await this.loadInitialMessages(oldManager, oldSessionId)
+
+			// 4. Build a fresh session config for the new mode. This rebuilds
+			//    the system prompt (plan mode appends PLAN_MODE_INSTRUCTIONS)
+			//    and resets extraTools, which we then re-inject below.
+			const cwd = await this.getWorkspaceRoot()
+			const config = await buildSessionConfig({ cwd, mode: newMode })
+			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+			// Inject the `switch_to_act_mode` tool when entering plan mode;
+			// in act mode, extraTools stays empty so the tool is gone.
+			this.injectModeExtraTools(config, newMode)
+			// Preserve the existing task/session ID so currentTaskItem continues
+			// to resolve from taskHistory and the webview doesn't flash back
+			// to a blank/new-task state.
+			config.sessionId = oldSessionId
+
+			// 5. Tear down the old session BEFORE starting the new one, so
+			//    startNewSession() doesn't overwrite this.activeSession while
+			//    the old subscription is still active. stop() and dispose()
+			//    are fire-and-forget because the in-flight turn (if any) was
+			//    already aborted in step 2; these calls just free the SDK's
+			//    internal bookkeeping.
+			oldUnsubscribe()
+			oldManager.stop(oldSessionId).catch(() => {})
+			oldManager.dispose("modeChange").catch(() => {})
+
+			// 6. Start a new session with the preserved conversation history.
+			const startInput = buildStartSessionInput(config, { cwd, mode: newMode })
+			const { startResult } = await this.startNewSession({
+				...startInput,
+				...(initialMessages
+					? { initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"] }
+					: {}),
+			})
+
+			// Session is idle after the rebuild (no prompt was sent).
+			if (this.activeSession) {
+				this.activeSession.isRunning = false
+			}
+
+			// 6. Update the task proxy. We keep the existing TaskProxy instance
+			//    alive (preserves messageStateHandler / clineMessages) but
+			//    align its taskId with the new session if it differs. In
+			//    practice the SDK honors our requested sessionId, so this is
+			//    almost always a no-op.
+			if (this.task && this.task.taskId !== startResult.sessionId) {
+				Logger.warn(
+					`[SdkController] Mode rebuild returned a new session ID (${startResult.sessionId}); updating task proxy`,
+				)
+				this.task.taskId = startResult.sessionId
+			}
+
+			// Reset translator state for the new session
+			this.messageTranslatorState.reset()
+
+			// 7. Post state so the webview picks up the new mode toggle.
+			await this.postStateToWebview()
+
+			Logger.log(`[SdkController] Session rebuilt for mode ${newMode}: ${oldSessionId} → ${startResult.sessionId}`)
+		} catch (error) {
+			Logger.error("[SdkController] Failed to rebuild session for mode change:", error)
+
+			// Emit an error message but don't crash — leave the user in a
+			// state where they can retry. Note: the old session is already
+			// torn down by this point if we failed after step 5.
+			const errorMessage: ClineMessage = {
+				ts: Date.now(),
+				type: "say",
+				say: "error",
+				text: `Failed to switch mode: ${error instanceof Error ? error.message : String(error)}`,
+				partial: false,
+			}
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([errorMessage])
+				this.debouncedSaveClineMessages()
+			}
+			this.emitSessionEvents([errorMessage], {
+				type: "status",
+				payload: { sessionId: oldSessionId, status: "error" },
+			})
+			await this.postStateToWebview()
+		}
 	}
 
 	/**
@@ -1706,19 +1899,21 @@ export class Controller {
 			return false
 		}
 
-		// Save the mode
-		await this.stateManager.setGlobalState("mode", modeToSwitchTo)
-
-		// If there's an active task, we need to handle the mode switch.
-		// In the classic controller, this would cancel the current task and
-		// potentially start a new one. For now, we just update the mode
-		// and let the next task use the new mode's model config.
-		if (this.task && this.activeSession?.isRunning) {
-			// Cancel the current task — the user will need to send a new message
-			// in the new mode. This matches the classic behavior.
-			await this.cancelTask()
+		// If there's an active session, rebuild it for the new mode. This
+		// preserves conversation history while swapping in the new mode's
+		// system prompt and tools (plan mode adds switch_to_act_mode and
+		// PLAN_MODE_INSTRUCTIONS; act mode removes plan-only tools).
+		//
+		// Mirrors the CLI's onModeChange callback in
+		// apps/cli/src/runtime/run-interactive.ts.
+		if (this.activeSession) {
+			await this.rebuildSessionForMode(modeToSwitchTo)
+			return true
 		}
 
+		// No active session — just persist the mode so the next initTask
+		// picks it up, and refresh the webview's mode toggle.
+		await this.stateManager.setGlobalState("mode", modeToSwitchTo)
 		await this.postStateToWebview()
 		return true
 	}
