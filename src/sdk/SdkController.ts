@@ -10,6 +10,7 @@ import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type CoreSessionEvent, type SessionHost, type StartSessionResult } from "@clinebot/core"
+import { createTool, type Tool } from "@clinebot/shared"
 import type { AutoApprovalSettings } from "@shared/AutoApprovalSettings"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
@@ -182,6 +183,13 @@ export class Controller {
 	// When the user clicks Approve/Reject in the webview, askResponse() resolves
 	// this promise with { approved: true/false }.
 	private pendingToolApprovalResolve: ((result: { approved: boolean; reason?: string }) => void) | undefined
+
+	// Pending mode change — set by the `switch_to_act_mode` tool's execute()
+	// callback (injected into plan-mode sessions). After `sessionManager.send()`
+	// returns, we apply the pending change by rebuilding the session with the
+	// new mode's config (see `applyPendingModeChange`). Mirrors the CLI's
+	// plan → act flow in apps/cli/src/runtime/run-interactive.ts.
+	private pendingModeChange: Mode | null = null
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -734,6 +742,75 @@ export class Controller {
 	}
 
 	/**
+	 * Build the `switch_to_act_mode` tool injected into plan-mode sessions.
+	 *
+	 * Mirrors the CLI's implementation in apps/cli/src/runtime/run-interactive.ts.
+	 * When the model calls this tool, we set `pendingModeChange = "act"` and
+	 * return a success message so the turn completes normally. After
+	 * `sessionManager.send()` returns, `applyPendingModeChange()` rebuilds the
+	 * session in act mode (see Task 4 for the full session-rebuild flow).
+	 */
+	private createSwitchToActModeTool(): Tool {
+		return createTool({
+			name: "switch_to_act_mode",
+			description:
+				"Switch from plan mode to act mode. Call this after the user has confirmed they want to proceed with the plan. Do not call this proactively or before the user has agreed.",
+			inputSchema: {
+				type: "object",
+				properties: {},
+			},
+			timeoutMs: 5000,
+			retryable: false,
+			maxRetries: 0,
+			execute: async () => {
+				const currentMode = this.stateManager.getGlobalSettingsKey("mode")
+				if (currentMode === "act") {
+					return "Already in act mode."
+				}
+				this.pendingModeChange = "act"
+				return "You successfully switched to act mode, proceed with the plan. You now have access to editing files and running commands. (The switch_to_act_mode tool is only available in plan mode.)"
+			},
+		})
+	}
+
+	/**
+	 * Inject mode-specific extra tools into a session config.
+	 *
+	 * Currently only adds the `switch_to_act_mode` tool when the session is
+	 * in plan mode. Called from every code path that builds a session config
+	 * (initTask, resumeSessionFromTask, reinitExistingTaskFromId, and the
+	 * MCP tool restart flow).
+	 */
+	private injectModeExtraTools(config: { extraTools?: Tool[]; mode?: string }, mode: Mode): void {
+		if (mode === "plan") {
+			config.extraTools = [...(config.extraTools ?? []), this.createSwitchToActModeTool()]
+		}
+	}
+
+	/**
+	 * Apply a pending mode change queued by the `switch_to_act_mode` tool.
+	 *
+	 * Called after `sessionManager.send()` returns (i.e. the agent turn that
+	 * invoked the tool has completed). The full session-rebuild flow (persist
+	 * messages, tear down old session, start a new one with the new mode's
+	 * config + tools + system prompt) is implemented in Task 4.
+	 *
+	 * For now this just clears the flag so subsequent turns don't re-trigger,
+	 * and logs the intent so we can see the plumbing work end-to-end.
+	 */
+	private async applyPendingModeChange(): Promise<void> {
+		const target = this.pendingModeChange
+		if (!target) {
+			return
+		}
+		this.pendingModeChange = null
+		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target} (session rebuild pending — Task 4)`)
+		// TODO(Task 4): persist messages, tear down activeSession, rebuild
+		// session with the new mode's CoreSessionConfig, restore conversation
+		// history via initialMessages, and update state (mode toggle).
+	}
+
+	/**
 	 * Create a new VscodeSessionHost, subscribe to events, start a session,
 	 * and wire up `this.activeSession`.
 	 *
@@ -797,7 +874,7 @@ export class Controller {
 				userFiles: files,
 				delivery,
 			})
-			.then((result) => {
+			.then(async (result) => {
 				// When delivery is "queue", send() returns undefined immediately
 				// (the message was enqueued, the turn didn't complete). Don't
 				// update isRunning — the agent is still mid-turn.
@@ -809,6 +886,18 @@ export class Controller {
 				if (this.activeSession) {
 					this.activeSession.isRunning = false
 				}
+
+				// If the model invoked `switch_to_act_mode` during this turn,
+				// apply the queued mode change now that the turn is complete.
+				// Mirrors the CLI's plan → act flow (apps/cli/src/runtime/run-interactive.ts).
+				if (this.pendingModeChange) {
+					try {
+						await this.applyPendingModeChange()
+					} catch (err) {
+						Logger.error("[SdkController] applyPendingModeChange failed:", err)
+					}
+				}
+
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
 				})
@@ -885,6 +974,12 @@ export class Controller {
 			})
 			config.hooks = this.buildHooksWithEmitter()
 			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+
+			// Inject the `switch_to_act_mode` tool in plan mode so the model
+			// can programmatically transition to act mode once the user agrees
+			// to the plan. Mirrors apps/cli/src/runtime/run-interactive.ts.
+			this.injectModeExtraTools(config, mode)
+
 			Logger.log(
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
@@ -994,12 +1089,14 @@ export class Controller {
 
 			// Build session config from the history item's context
 			const cwd = historyItem.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
+			const reinitMode: Mode = "act" // Default to act mode for resumed tasks
 			const config = await buildSessionConfig({
 				cwd,
-				mode: "act", // Default to act mode for resumed tasks
+				mode: reinitMode,
 			})
 			config.hooks = this.buildHooksWithEmitter()
 			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+			this.injectModeExtraTools(config, reinitMode)
 
 			// Create a temporary session host to read old messages before
 			// starting the new session (start() overwrites the session row)
@@ -1402,6 +1499,7 @@ export class Controller {
 		const config = await buildSessionConfig({ cwd, mode })
 		config.hooks = this.buildHooksWithEmitter()
 		config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+		this.injectModeExtraTools(config, mode)
 		config.sessionId = taskId
 
 		// Load conversation history BEFORE start() (which overwrites the session row).
@@ -1903,6 +2001,7 @@ export class Controller {
 			const config = await buildSessionConfig({ cwd, mode })
 			config.hooks = this.buildHooksWithEmitter()
 			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
+			this.injectModeExtraTools(config, mode)
 			// Preserve the existing task/session ID so currentTaskItem continues
 			// to resolve from taskHistory and the webview doesn't flash back to
 			// a blank/new-task state after MCP server toggles.
