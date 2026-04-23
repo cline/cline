@@ -44,7 +44,7 @@ import {
 	createHistoryItemFromSession,
 	getHistoryItemById,
 } from "./cline-session-factory"
-import { buildAgentHooks, type HookMessageEmitter } from "./hooks-adapter"
+import { buildAgentHooks, buildHookExtensions, type HookMessageEmitter } from "./hooks-adapter"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 import { MessageTranslatorState, sdkToolToClineSayTool, translateSessionEvent } from "./message-translator"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
@@ -578,6 +578,18 @@ export class Controller {
 		return buildAgentHooks(this.stateManager, emitter)
 	}
 
+	private buildExtensionsWithEmitter(): ReturnType<typeof buildHookExtensions> {
+		const emitter: HookMessageEmitter = (msg) => {
+			if (this.task?.messageStateHandler) {
+				this.task.messageStateHandler.addMessages([msg])
+				this.debouncedSaveClineMessages()
+			}
+			// Push through the partial message stream for immediate rendering
+			pushMessageToWebview(msg).catch(() => {})
+		}
+		return buildHookExtensions(this.stateManager, emitter)
+	}
+
 	// ---- Session helpers (shared by initTask, resumeSessionFromTask, restartSessionForMcpTools, etc.) ----
 
 	/**
@@ -872,6 +884,7 @@ export class Controller {
 				mode,
 			})
 			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
 			Logger.log(
 				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
 			)
@@ -986,6 +999,7 @@ export class Controller {
 				mode: "act", // Default to act mode for resumed tasks
 			})
 			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
 
 			// Create a temporary session host to read old messages before
 			// starting the new session (start() overwrites the session row)
@@ -1387,6 +1401,7 @@ export class Controller {
 		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 		const config = await buildSessionConfig({ cwd, mode })
 		config.hooks = this.buildHooksWithEmitter()
+		config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
 		config.sessionId = taskId
 
 		// Load conversation history BEFORE start() (which overwrites the session row).
@@ -1887,6 +1902,7 @@ export class Controller {
 			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
 			const config = await buildSessionConfig({ cwd, mode })
 			config.hooks = this.buildHooksWithEmitter()
+			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
 			// Preserve the existing task/session ID so currentTaskItem continues
 			// to resolve from taskHistory and the webview doesn't flash back to
 			// a blank/new-task state after MCP server toggles.
