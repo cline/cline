@@ -902,6 +902,53 @@ describe("translateSessionEvent — agent_event content_update", () => {
 })
 
 // ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (usage)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event usage", () => {
+	it("splits SDK inclusive input tokens into classic disjoint usage buckets", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "usage",
+					inputTokens: 24481,
+					outputTokens: 261,
+					cacheReadTokens: 24478,
+					cacheWriteTokens: 0,
+					cost: 0.0112674,
+					totalInputTokens: 24481,
+					totalOutputTokens: 261,
+					totalCacheReadTokens: 24478,
+					totalCacheWriteTokens: 0,
+					totalCost: 0.0112674,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("api_req_started")
+		expect(JSON.parse(result.messages[0].text ?? "{}")).toMatchObject({
+			tokensIn: 3,
+			tokensOut: 261,
+			cacheReads: 24478,
+			cacheWrites: 0,
+			cost: 0.0112674,
+		})
+		expect(result.usage).toEqual({
+			tokensIn: 3,
+			tokensOut: 261,
+			cacheReads: 24478,
+			cacheWrites: 0,
+			totalCost: 0.0112674,
+		})
+	})
+})
+
+// ---------------------------------------------------------------------------
 // historyItemToSessionFields
 // ---------------------------------------------------------------------------
 

@@ -139,6 +139,32 @@ Still deferred:
 
 - Further splitting task lifecycle methods such as `initTask`, `clearTask`,
   `cancelTask`, `showTaskWithId`, and task reinitialization.
+
+## PR 10 Scope
+
+Tenth PR is behavior-preserving and extracts task control/display behavior.
+
+Implemented boundary:
+
+- `SdkTaskControlCoordinator`
+  - Owns task cancellation and `resume_task` ask emission.
+  - Owns task clearing, active-session teardown, finalized message persistence,
+    pending interaction cleanup, and task proxy clearing.
+  - Owns `showTaskWithId`, including silent active-session teardown, task proxy
+    creation, UI message loading/finalization, fresh resume ask insertion, and
+    partial-message pushes.
+
+Controller changes:
+
+- Public `cancelTask`, `clearTask`, and `showTaskWithId` methods remain on
+  `Controller`, but delegate to `SdkTaskControlCoordinator`.
+- `Controller` still supplies facade callbacks for ask responses, state
+  posting, task proxy access, and translator reset.
+
+Still deferred:
+
+- Moving task startup and reinitialization (`initTask`,
+  `reinitExistingTaskFromId`) out of `Controller`.
 - Moving whole task lifecycle workflows out of `Controller`.
 - Consolidating mode/MCP rebuild policy.
 

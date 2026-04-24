@@ -45,7 +45,8 @@ import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import { SdkSessionFactory } from "./sdk-session-factory"
-import { isAbortError, SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
+import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, type TaskWithId } from "./sdk-task-history"
 import { createTaskProxy, type TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
@@ -73,6 +74,7 @@ export class Controller {
 	private mode: SdkModeCoordinator
 	private mcpTools: SdkMcpCoordinator
 	private followups: SdkFollowupCoordinator
+	private taskControl: SdkTaskControlCoordinator
 
 	// gRPC bridge (Step 5) — bridges SDK events to webview streams
 	private grpcBridge: WebviewGrpcBridge
@@ -227,6 +229,19 @@ export class Controller {
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthError(),
+			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.taskControl = new SdkTaskControlCoordinator({
+			sessions: this.sessions,
+			interactions: this.interactions,
+			messages: this.messages,
+			taskHistory: this.taskHistory,
+			getTask: () => this.task,
+			setTask: (task) => {
+				this.task = task
+			},
+			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -737,44 +752,7 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
-		// Clear any pending ask_question or tool approval — they are moot after cancellation
-		this.interactions.clearPending("Task cancelled")
-
-		const activeSession = this.sessions.getActiveSession()
-		if (!activeSession) {
-			Logger.warn("[SdkController] cancelTask: No active session")
-			return
-		}
-
-		const { sessionManager, sessionId } = activeSession
-
-		try {
-			await sessionManager.abort(sessionId)
-		} catch (error) {
-			// AbortError is the expected result of AbortController.abort() — suppress it.
-			if (!isAbortError(error)) {
-				Logger.error("[SdkController] Failed to abort session:", error)
-			} else {
-				Logger.debug(`[SdkController] AbortError during cancelTask (expected): ${sessionId}`)
-			}
-		}
-
-		this.sessions.setRunning(false)
-
-		// Emit resume_task ask so the webview shows the "Resume task" button
-		// and enables follow-up message input. This mirrors the classic
-		// extension's behavior in Task.abortTask().
-		const resumeMessage: ClineMessage = {
-			ts: Date.now(),
-			type: "ask",
-			ask: "resume_task",
-			text: "",
-			partial: false,
-		}
-		this.messages.appendAndEmit([resumeMessage], { type: "status", payload: { sessionId, status: "cancelled" } })
-
-		await this.postStateToWebview()
-		Logger.log(`[SdkController] Task cancelled: ${sessionId}`)
+		await this.taskControl.cancelTask()
 	}
 
 	async cancelBackgroundCommand(): Promise<void> {
@@ -782,65 +760,7 @@ export class Controller {
 	}
 
 	async clearTask(): Promise<void> {
-		// Clear any pending ask_question or tool approval — the session is being torn down
-		this.interactions.clearPending("Task cleared")
-
-		const activeSession = this.sessions.clearActiveSessionReference()
-		if (activeSession) {
-			const { sessionManager, unsubscribe, sessionId } = activeSession
-
-			// Clear the reference FIRST so that any re-entrant calls
-			// (e.g., from event handlers triggered during stop/dispose)
-			// see no active session and don't try to stop it again.
-			unsubscribe()
-
-			// Stop and dispose the session (best-effort, with timeout).
-			// The stop()/dispose() calls can hang if the session is in
-			// an unexpected state (e.g., after MCP tool restart created
-			// a session that was never sent a prompt). Use a timeout to
-			// prevent blocking the UI.
-			const withTimeout = <T>(promise: Promise<T>, ms: number): Promise<T | undefined> =>
-				Promise.race([promise, new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), ms))])
-
-			try {
-				await withTimeout(sessionManager.stop(sessionId), 3000)
-			} catch (error) {
-				Logger.warn("[SdkController] Error stopping session during clear:", error)
-			}
-
-			try {
-				await withTimeout(sessionManager.dispose("clearTask"), 3000)
-			} catch (error) {
-				Logger.warn("[SdkController] Error disposing session manager during clear:", error)
-			}
-		}
-
-		// Finalize messages on disk before clearing the task proxy.
-		// This ensures that when the user navigates back to this task,
-		// the messages don't still appear as "streaming" with partial=true.
-		if (this.task) {
-			const taskId = this.task.taskId
-			const messages = this.task.messageStateHandler.getClineMessages()
-			if (taskId && messages.length > 0) {
-				// Clear partial flags and update last api_req_started with cancel reason
-				const finalizedMessages = this.messages.finalizeMessagesForSave(messages)
-				try {
-					const { saveClineMessages } = await import("@core/storage/disk")
-					await saveClineMessages(taskId, finalizedMessages)
-				} catch (err) {
-					Logger.error("[SdkController] Failed to save finalized messages during clearTask:", err)
-				}
-			}
-
-			// Cancel any pending debounced save (the finalized save above supersedes it)
-			this.messages.cancelPendingSave()
-
-			this.task.messageStateHandler.clear()
-			this.task = undefined
-		}
-
-		// Reset translator state
-		this.messageTranslatorState.reset()
+		await this.taskControl.clearTask()
 	}
 
 	async handleTaskCreation(prompt: string): Promise<void> {
@@ -877,99 +797,7 @@ export class Controller {
 	 * 3. Only then push state to the webview
 	 */
 	async showTaskWithId(taskId: string): Promise<void> {
-		try {
-			// Look up the task in StateManager's task history (which is where
-			// updateTaskHistory writes). Fall back to the legacy file reader.
-			const historyItem = this.taskHistory.findHistoryItem(taskId)
-			if (!historyItem) {
-				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-				return
-			}
-
-			// Silently tear down any active session WITHOUT clearing this.task
-			// (prevents race condition where state push sees task=undefined)
-			const activeSession = this.sessions.clearActiveSessionReference()
-			if (activeSession) {
-				const { sessionManager, unsubscribe, sessionId } = activeSession
-				// Unsubscribe FIRST to prevent stale events from triggering state pushes
-				unsubscribe()
-				// Stop and dispose in background — don't await, don't let errors propagate
-				sessionManager.stop(sessionId).catch(() => {})
-				sessionManager.dispose("showTaskWithId").catch(() => {})
-			}
-
-			// Clear old task proxy's messages (if any)
-			if (this.task) {
-				this.task.messageStateHandler.clear()
-			}
-
-			// Reset translator state
-			this.messageTranslatorState.reset()
-
-			// Create the new task proxy BEFORE pushing state
-			this.task = createTaskProxy(
-				taskId,
-				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
-				() => this.cancelTask(),
-			)
-
-			// Load the task's messages from disk and add them to the message state handler
-			// so the webview can display them.
-			// IMPORTANT: Use getSavedClineMessages (from disk.ts) instead of readUiMessages
-			// (from legacy-state-reader.ts) because they use different base paths:
-			// - getSavedClineMessages: HostProvider.globalStorageFsPath/tasks/<id>/ui_messages.json
-			// - readUiMessages: ~/.cline/data/tasks/<id>/ui_messages.json
-			// saveClineMessages writes to the HostProvider path, so we must read from there too.
-			const { getSavedClineMessages } = await import("@core/storage/disk")
-			const rawMessages = await getSavedClineMessages(taskId)
-
-			// Sanitize loaded messages: strip partial flags and clean up incomplete api requests.
-			// Messages may have been saved mid-stream if the task was interrupted.
-			const messages = this.messages.finalizeMessagesForSave(rawMessages)
-
-			if (messages.length > 0) {
-				// Determine whether to show "Resume Task" or "Start New Task" button
-				const lastRelevantMessage = [...messages]
-					.reverse()
-					.find((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
-				const isCompletedTask = lastRelevantMessage?.ask === "completion_result"
-				const resumeAsk = isCompletedTask ? "resume_completed_task" : "resume_task"
-
-				// Remove any old resume messages then append a fresh one
-				const cleanedMessages = messages.filter((m) => m.ask !== "resume_task" && m.ask !== "resume_completed_task")
-				const resumeMessage: ClineMessage = {
-					ts: Date.now(),
-					type: "ask",
-					ask: resumeAsk,
-					text: "",
-				}
-				cleanedMessages.push(resumeMessage)
-
-				this.messages.appendMessages(cleanedMessages, { save: false })
-				Logger.log(`[SdkController] Loaded ${cleanedMessages.length} messages for task: ${taskId} (with ${resumeAsk})`)
-
-				// Also push each message through the partial message stream.
-				// The webview receives messages from two sources:
-				// 1. State updates (subscribeToState) — sets clineMessages in bulk
-				// 2. Partial messages (subscribeToPartialMessage) — appends/updates by ts
-				// Pushing through both ensures the webview has messages regardless
-				// of any timing issues with the state update. The webview deduplicates
-				// by timestamp, so duplicate pushes are harmless.
-				const { pushMessageToWebview } = await import("./webview-grpc-bridge")
-				for (const msg of cleanedMessages) {
-					await pushMessageToWebview(msg)
-				}
-			} else {
-				Logger.log(`[SdkController] No messages found for task: ${taskId}`)
-			}
-
-			// Now push state — this.task is set with messages, so the webview
-			// will see currentTaskItem + clineMessages and show the chat view
-			await this.postStateToWebview()
-			Logger.log(`[SdkController] Showing task: ${taskId}`)
-		} catch (error) {
-			Logger.error("[SdkController] Failed to show task:", error)
-		}
+		await this.taskControl.showTaskWithId(taskId)
 	}
 
 	// ---- Mode switching (Step 8) ----

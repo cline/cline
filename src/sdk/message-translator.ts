@@ -56,6 +56,34 @@ export interface TranslationResult {
 	}
 }
 
+type NormalizedUsage = NonNullable<TranslationResult["usage"]>
+
+function normalizeUsageEvent(usageEvent: {
+	inputTokens?: number
+	outputTokens?: number
+	cacheReadTokens?: number
+	cacheWriteTokens?: number
+	cost?: number
+	totalCost?: number
+}): NormalizedUsage {
+	const inputTokens = usageEvent.inputTokens ?? 0
+	const cacheReads = usageEvent.cacheReadTokens ?? 0
+	const cacheWrites = usageEvent.cacheWriteTokens ?? 0
+
+	// SDK provider usage reports inputTokens as the full request size, with
+	// cache reads/writes included. Classic Cline/webview metrics expect
+	// tokensIn, cacheReads, and cacheWrites to be disjoint buckets.
+	const uncachedInputTokens = Math.max(0, inputTokens - cacheReads - cacheWrites)
+
+	return {
+		tokensIn: uncachedInputTokens,
+		tokensOut: usageEvent.outputTokens ?? 0,
+		cacheWrites,
+		cacheReads,
+		totalCost: usageEvent.cost ?? usageEvent.totalCost ?? 0,
+	}
+}
+
 // ---------------------------------------------------------------------------
 // State tracking for partial messages
 // ---------------------------------------------------------------------------
@@ -884,13 +912,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// these are embedded in the api_req_started message's
 			// ClineApiReqInfo. We emit a separate api_req_started update
 			// with the usage data so the webview can display costs.
-			const usageEvent = event as unknown as Record<string, unknown>
+			const usageEvent = normalizeUsageEvent(event)
 			const apiReqInfo: ClineApiReqInfo = {
-				tokensIn: (usageEvent.inputTokens as number) ?? 0,
-				tokensOut: (usageEvent.outputTokens as number) ?? 0,
-				cacheWrites: (usageEvent.cacheWriteTokens as number) ?? undefined,
-				cacheReads: (usageEvent.cacheReadTokens as number) ?? undefined,
-				cost: (usageEvent.totalCost as number) ?? undefined,
+				tokensIn: usageEvent.tokensIn,
+				tokensOut: usageEvent.tokensOut,
+				cacheWrites: usageEvent.cacheWrites,
+				cacheReads: usageEvent.cacheReads,
+				cost: usageEvent.totalCost,
 			}
 			messages.push({
 				ts: state.nextTs(),
@@ -1001,13 +1029,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 			// Extract usage from usage events
 			if (event.payload.event.type === "usage") {
-				result.usage = {
-					tokensIn: event.payload.event.inputTokens ?? 0,
-					tokensOut: event.payload.event.outputTokens ?? 0,
-					cacheWrites: event.payload.event.cacheWriteTokens ?? 0,
-					cacheReads: event.payload.event.cacheReadTokens ?? 0,
-					totalCost: event.payload.event.totalCost ?? 0,
-				}
+				result.usage = normalizeUsageEvent(event.payload.event)
 			}
 			break
 		}
