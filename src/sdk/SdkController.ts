@@ -1937,14 +1937,22 @@ export class Controller {
 		// apps/cli/src/runtime/run-interactive.ts.
 		if (this.activeSession) {
 			await this.rebuildSessionForMode(modeToSwitchTo)
-			return true
+			// Return false so the webview preserves the user's pending
+			// input text. The boolean indicates whether the chatContent
+			// was consumed as a submitted message (classic: only when
+			// responding to a plan-mode ask). The SDK flow always rebuilds
+			// the session without consuming input, so return false to
+			// match classic UX (input remains in the textbox after toggle).
+			return false
 		}
 
 		// No active session — just persist the mode so the next initTask
 		// picks it up, and refresh the webview's mode toggle.
 		await this.stateManager.setGlobalState("mode", modeToSwitchTo)
 		await this.postStateToWebview()
-		return true
+		// Return false so the webview preserves any pending input text.
+		// (No chatContent was consumed — the mode just flipped.)
+		return false
 	}
 
 	// ---- Telemetry ----
