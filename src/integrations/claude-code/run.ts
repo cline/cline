@@ -15,6 +15,8 @@ type ClaudeCodeOptions = {
 	modelId: string
 	thinkingBudgetTokens?: number
 	shouldUseFile?: boolean
+	/** For testing only: inject a custom execa implementation */
+	_execa?: Awaited<typeof import("execa")>["execa"]
 }
 
 type ProcessState = {
@@ -42,7 +44,8 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		options.shouldUseFile = true
 	}
 
-	const cProcess = await runProcess(options, await getCwd())
+	const execa = options._execa ?? (await import("execa")).execa
+	const cProcess = runProcess(options, await getCwd(), execa)
 
 	const rl = readline.createInterface({
 		input: cProcess.stdout,
@@ -199,11 +202,11 @@ const BUFFER_SIZE = 20_000_000 // 20 MB
 // This is the limit imposed by the CLI
 const CLAUDE_CODE_MAX_OUTPUT_TOKENS = "32000"
 
-async function runProcess(
+function runProcess(
 	{ systemPrompt, messages, path, modelId, thinkingBudgetTokens, shouldUseFile }: ClaudeCodeOptions,
 	cwd: string,
+	execa: Awaited<typeof import("execa")>["execa"],
 ) {
-	const { execa } = await import("execa")
 	const claudePath = path?.trim() || "claude"
 
 	const args = [

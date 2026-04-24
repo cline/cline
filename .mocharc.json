@@ -4,7 +4,8 @@
 	],
 	"spec": [
 		"src/**/__tests__/*.ts",
-		"src/test/services/**/*.test.ts"
+		"src/test/services/**/*.test.ts",
+		"src/integrations/claude-code/run.test.ts"
 	],
 	"require": [
 		"tsx/cjs",
