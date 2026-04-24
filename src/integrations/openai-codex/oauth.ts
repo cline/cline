@@ -28,6 +28,44 @@ export const OPENAI_CODEX_OAUTH_CONFIG = {
 // Token storage key - must match the key in SECRETS_KEYS (state-keys.ts)
 const OPENAI_CODEX_CREDENTIALS_KEY = "openai-codex-oauth-credentials"
 
+type ProviderSettingsManager = {
+	getProviderSettings(providerId: string):
+		| {
+				provider?: string
+				auth?: {
+					accessToken?: string
+					refreshToken?: string
+					expiresAt?: number
+					accountId?: string
+					email?: string
+				}
+		  }
+		| undefined
+	saveProviderSettings(
+		settings: {
+			provider: string
+			auth?: {
+				accessToken?: string
+				refreshToken?: string
+				expiresAt?: number
+				accountId?: string
+				email?: string
+			}
+		},
+		options?: { tokenSource?: "manual" | "oauth" | "migration" },
+	): void
+}
+
+async function getSdkProviderSettingsManager(): Promise<ProviderSettingsManager | null> {
+	try {
+		const { getProviderSettingsManager } = await import("@/sdk/provider-migration")
+		return getProviderSettingsManager() as ProviderSettingsManager
+	} catch (error) {
+		Logger.warn("[openai-codex-oauth] SDK provider settings unavailable:", error)
+		return null
+	}
+}
+
 // Credentials schema
 const openAiCodexCredentialsSchema = z.object({
 	type: z.literal("openai-codex"),
@@ -41,6 +79,83 @@ const openAiCodexCredentialsSchema = z.object({
 })
 
 export type OpenAiCodexCredentials = z.infer<typeof openAiCodexCredentialsSchema>
+
+function providerSettingsToCredentials(
+	settings: NonNullable<ReturnType<ProviderSettingsManager["getProviderSettings"]>>,
+): OpenAiCodexCredentials | null {
+	const auth = settings.auth
+	if (!auth?.accessToken || !auth.refreshToken) {
+		return null
+	}
+
+	return openAiCodexCredentialsSchema.parse({
+		type: "openai-codex",
+		access_token: auth.accessToken,
+		refresh_token: auth.refreshToken,
+		// Older SDK-backed sign-ins wrote providers.json without expiresAt.
+		// Treat those credentials as expired so the next API request refreshes
+		// them and rewrites both storage locations with complete metadata.
+		expires: auth.expiresAt ?? 0,
+		email: auth.email,
+		accountId: auth.accountId,
+	})
+}
+
+async function loadCredentialsFromProviderSettings(): Promise<OpenAiCodexCredentials | null> {
+	try {
+		const manager = await getSdkProviderSettingsManager()
+		const settings = manager?.getProviderSettings("openai-codex")
+		return settings ? providerSettingsToCredentials(settings) : null
+	} catch (error) {
+		Logger.error("[openai-codex-oauth] Failed to load provider settings credentials:", error)
+		return null
+	}
+}
+
+async function saveCredentialsToProviderSettings(credentials: OpenAiCodexCredentials): Promise<void> {
+	const manager = await getSdkProviderSettingsManager()
+	if (!manager) {
+		return
+	}
+
+	const existing = manager.getProviderSettings("openai-codex")
+	manager.saveProviderSettings(
+		{
+			...(existing ?? { provider: "openai-codex" }),
+			provider: "openai-codex",
+			auth: {
+				...(existing?.auth ?? {}),
+				accessToken: credentials.access_token,
+				refreshToken: credentials.refresh_token,
+				expiresAt: credentials.expires,
+				accountId: credentials.accountId,
+				email: credentials.email,
+			},
+		},
+		{ tokenSource: "oauth" },
+	)
+}
+
+async function clearCredentialsFromProviderSettings(): Promise<void> {
+	const manager = await getSdkProviderSettingsManager()
+	if (!manager) {
+		return
+	}
+
+	const existing = manager.getProviderSettings("openai-codex")
+	if (!existing) {
+		return
+	}
+
+	manager.saveProviderSettings(
+		{
+			...existing,
+			provider: "openai-codex",
+			auth: undefined,
+		},
+		{ tokenSource: "manual" },
+	)
+}
 
 // Token response schema from OpenAI
 const tokenResponseSchema = z.object({
@@ -385,12 +500,13 @@ export class OpenAiCodexOAuthManager {
 			const stateManager = StateManager.get()
 			const credentialsJson = stateManager.getSecretKey("openai-codex-oauth-credentials")
 
-			if (!credentialsJson) {
-				return null
+			if (credentialsJson) {
+				const parsed = JSON.parse(credentialsJson)
+				this.credentials = openAiCodexCredentialsSchema.parse(parsed)
+				return this.credentials
 			}
 
-			const parsed = JSON.parse(credentialsJson)
-			this.credentials = openAiCodexCredentialsSchema.parse(parsed)
+			this.credentials = await loadCredentialsFromProviderSettings()
 			return this.credentials
 		} catch (error) {
 			Logger.error("[openai-codex-oauth] Failed to load credentials:", error)
@@ -405,6 +521,7 @@ export class OpenAiCodexOAuthManager {
 		const stateManager = StateManager.get()
 		stateManager.setSecret("openai-codex-oauth-credentials", JSON.stringify(credentials))
 		await stateManager.flushPendingState()
+		await saveCredentialsToProviderSettings(credentials)
 		this.credentials = credentials
 	}
 
@@ -415,6 +532,7 @@ export class OpenAiCodexOAuthManager {
 		const stateManager = StateManager.get()
 		stateManager.setSecret("openai-codex-oauth-credentials", undefined)
 		await stateManager.flushPendingState()
+		await clearCredentialsFromProviderSettings()
 		this.credentials = null
 	}
 
