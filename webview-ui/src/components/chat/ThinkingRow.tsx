@@ -89,7 +89,7 @@ export const ThinkingRow = memo(
 				{isExpanded && (
 					<Button
 						className={cn(
-							"flex gap-0 overflow-hidden w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left !p-0 !pl-0",
+							"flex gap-0 overflow-hidden whitespace-normal w-full min-w-0 max-h-0 opacity-0 items-baseline justify-baseline text-left !p-0 !pl-0",
 							"disabled:cursor-text disabled:opacity-100",
 							{
 								"max-h-[200px] opacity-100": isVisible,
