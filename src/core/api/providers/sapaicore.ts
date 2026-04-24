@@ -632,6 +632,8 @@ export class SapAiCoreHandler implements ApiHandler {
 			"gpt-5-nano",
 			"gpt-5-mini",
 			"gpt-5.2",
+			"gpt-5.4",
+			"gpt-5.4-nano",
 			"o3-mini",
 			"o3",
 			"o4-mini",
@@ -717,7 +719,20 @@ export class SapAiCoreHandler implements ApiHandler {
 				stream_options: { include_usage: true },
 			}
 
-			if (["o1", "o3-mini", "o3", "o4-mini", "gpt-5", "gpt-5.2", "gpt-5-nano", "gpt-5-mini"].includes(model.id)) {
+			if (
+				[
+					"o1",
+					"o3-mini",
+					"o3",
+					"o4-mini",
+					"gpt-5",
+					"gpt-5.2",
+					"gpt-5.4",
+					"gpt-5.4-nano",
+					"gpt-5-nano",
+					"gpt-5-mini",
+				].includes(model.id)
+			) {
 				delete payload.max_tokens
 				delete payload.temperature
 
