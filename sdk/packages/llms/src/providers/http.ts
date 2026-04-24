@@ -68,8 +68,8 @@ export function hasAuthorizationHeader(
 }
 
 /**
- * OpenAI-compatible local servers (LM Studio) or explicit Authorization headers
- * may run without `apiKey` / env-based keys (legacy noop-key behavior).
+ * OpenAI-compatible local servers (LM Studio, Ollama) or explicit
+ * Authorization headers may run without `apiKey` / env-based keys.
  */
 export function allowsMissingOpenAiCompatibleApiKey(
 	providerId: string,
@@ -78,7 +78,10 @@ export function allowsMissingOpenAiCompatibleApiKey(
 	if (hasAuthorizationHeader(config.headers)) {
 		return true;
 	}
-	return normalizeProviderId(providerId) === "lmstudio";
+	const normalizedProviderId = normalizeProviderId(providerId);
+	return (
+		normalizedProviderId === "lmstudio" || normalizedProviderId === "ollama"
+	);
 }
 
 export async function fetchJson(
