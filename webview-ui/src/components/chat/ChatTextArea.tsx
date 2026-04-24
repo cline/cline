@@ -990,28 +990,64 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			[updateCursorPosition],
 		)
 
-		const onModeToggle = useCallback(() => {
-			void (async () => {
-				const convertedProtoMode = mode === "plan" ? PlanActMode.ACT : PlanActMode.PLAN
-				const response = await StateServiceClient.togglePlanActModeProto(
-					TogglePlanActModeRequest.create({
-						mode: convertedProtoMode,
-						chatContent: {
-							message: inputValue.trim() ? inputValue : undefined,
-							images: selectedImages,
-							files: selectedFiles,
-						},
-					}),
-				)
-				// Focus the textarea after mode toggle with slight delay
-				setTimeout(() => {
-					if (response.value) {
-						setInputValue("")
-					}
+		const onModeSelect = useCallback(
+			(targetMode: Mode) => {
+				if (mode === targetMode) {
 					textAreaRef.current?.focus()
-				}, 100)
-			})()
-		}, [mode, inputValue, selectedImages, selectedFiles, setInputValue])
+					return
+				}
+
+				void (async () => {
+					const convertedProtoMode = targetMode === "plan" ? PlanActMode.PLAN : PlanActMode.ACT
+					const response = await StateServiceClient.togglePlanActModeProto(
+						TogglePlanActModeRequest.create({
+							mode: convertedProtoMode,
+							chatContent: {
+								message: inputValue.trim() ? inputValue : undefined,
+								images: selectedImages,
+								files: selectedFiles,
+							},
+						}),
+					)
+					// Focus the textarea after mode toggle with slight delay
+					setTimeout(() => {
+						if (response.value) {
+							setInputValue("")
+						}
+						textAreaRef.current?.focus()
+					}, 100)
+				})()
+			},
+			[mode, inputValue, selectedImages, selectedFiles, setInputValue],
+		)
+
+		const onModeToggle = useCallback(() => {
+			const nextMode = mode === "plan" ? "act" : "plan"
+			onModeSelect(nextMode)
+		}, [mode, onModeSelect])
+
+		const handleModeOptionKeyDown = useCallback(
+			(event: React.KeyboardEvent<HTMLButtonElement>, targetMode: Mode) => {
+				switch (event.key) {
+					case " ":
+					case "Enter":
+						event.preventDefault()
+						onModeSelect(targetMode)
+						break
+					case "ArrowLeft":
+					case "ArrowUp":
+						event.preventDefault()
+						onModeSelect("plan")
+						break
+					case "ArrowRight":
+					case "ArrowDown":
+						event.preventDefault()
+						onModeSelect("act")
+						break
+				}
+			},
+			[onModeSelect],
+		)
 
 		useShortcut(usePlatform().togglePlanActKeys, onModeToggle, { disableTextInputs: false }) // important that we don't disable the text input here
 
@@ -1595,20 +1631,31 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 							</p>
 						</TooltipContent>
 						<TooltipTrigger>
-							<SwitchContainer data-testid="mode-switch" disabled={false} onClick={onModeToggle}>
+							<SwitchContainer
+								aria-label="Plan or Act mode"
+								data-testid="mode-switch"
+								disabled={false}
+								role="radiogroup">
 								<Slider isAct={mode === "act"} isPlan={mode === "plan"} />
 								{["Plan", "Act"].map((m) => (
-									<div
+									<button
 										aria-checked={mode === m.toLowerCase()}
 										className={cn(
-											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent",
+											"pt-0.5 pb-px px-2 z-10 text-xs w-1/2 text-center bg-transparent border-0",
 											mode === m.toLowerCase() ? "text-white" : "text-input-foreground",
 										)}
+										key={m}
+										onBlur={() => setShownTooltipMode(null)}
+										onClick={() => onModeSelect(m.toLowerCase() as Mode)}
+										onFocus={() => setShownTooltipMode(m.toLowerCase() as Mode)}
+										onKeyDown={(event) => handleModeOptionKeyDown(event, m.toLowerCase() as Mode)}
 										onMouseLeave={() => setShownTooltipMode(null)}
 										onMouseOver={() => setShownTooltipMode(m.toLowerCase() === "plan" ? "plan" : "act")}
-										role="switch">
+										role="radio"
+										tabIndex={mode === m.toLowerCase() ? 0 : -1}
+										type="button">
 										{m}
-									</div>
+									</button>
 								))}
 							</SwitchContainer>
 						</TooltipTrigger>
