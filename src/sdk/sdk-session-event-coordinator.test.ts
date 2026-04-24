@@ -94,6 +94,45 @@ describe("SdkSessionEventCoordinator", () => {
 			totalCost: 0.01,
 		})
 	})
+
+	it("zeros usage and api request message cost for free Cline models", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			isClineFreeModel: vi.fn().mockResolvedValue(true),
+			task: { taskId: "task-1" },
+			translation: {
+				messages: [
+					{
+						ts: 1,
+						type: "say",
+						say: "api_req_started",
+						text: JSON.stringify({ tokensIn: 10, tokensOut: 5, cost: 0.0016 }),
+					},
+				],
+				sessionEnded: false,
+				turnComplete: false,
+				usage: { tokensIn: 10, tokensOut: 5, totalCost: 0.0016 },
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				{
+					ts: 1,
+					type: "say",
+					say: "api_req_started",
+					text: JSON.stringify({ tokensIn: 10, tokensOut: 5, cost: 0 }),
+				},
+			],
+			event,
+		)
+		expect(options.taskHistory.updateTaskUsage).toHaveBeenCalledWith("task-1", {
+			tokensIn: 10,
+			tokensOut: 5,
+			totalCost: 0,
+		})
+	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
@@ -103,7 +142,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			sessionId: "session-123",
 			event: { type: "done", success: true },
 		},
-	} as CoreSessionEvent
+	} as unknown as CoreSessionEvent
 	const activeSession = input.activeSession ?? makeActiveSession()
 	const options = {
 		messageTranslatorState: new MessageTranslatorState(),
@@ -127,6 +166,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		getTask: vi.fn(() => input.task),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
+		isClineFreeModel: input.isClineFreeModel,
 	} as unknown as SdkSessionEventCoordinatorOptions & {
 		sessions: SdkSessionEventCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -163,6 +203,7 @@ interface MakeCoordinatorInput {
 	activeSession: ReturnType<typeof makeActiveSession>
 	hasPendingModeChange: boolean
 	task: { taskId: string }
+	isClineFreeModel: () => Promise<boolean>
 	translation: {
 		messages: ClineMessage[]
 		sessionEnded: boolean
