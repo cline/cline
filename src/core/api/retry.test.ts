@@ -117,7 +117,7 @@ describe("Retry Decorator", () => {
 			const baseDelay = 1000
 
 			class TestClass {
-				@withRetry({ maxRetries: 2, baseDelay }) // Use large baseDelay to ensure header takes precedence
+				@withRetry({ maxRetries: 2, baseDelay, maxRetryAfter: Number.POSITIVE_INFINITY }) // Use large baseDelay to ensure header takes precedence
 				async *failMethod() {
 					callCount++
 					if (callCount === 1) {
@@ -174,6 +174,60 @@ describe("Retry Decorator", () => {
 			const [_, delay] = setTimeoutSpy.getCall(0).args
 			delay?.should.equal(baseDelay)
 
+			result.should.deepEqual(["success after retry"])
+		})
+
+		it("should throw immediately when retry-after exceeds maxRetryAfter", async () => {
+			let callCount = 0
+			class TestClass {
+				@withRetry({ maxRetries: 3, baseDelay: 10, maxRetryAfter: 60_000 })
+				async *failMethod() {
+					callCount++
+					if (callCount === 1) {
+						const error: any = new Error("Rate limit exceeded")
+						error.status = 429
+						error.headers = { "retry-after": "10800" } // 3 hours
+						throw error
+					}
+					yield "should not reach"
+				}
+			}
+
+			const test = new TestClass()
+			try {
+				for await (const _ of test.failMethod()) {
+					// Should not reach here
+				}
+				throw new Error("Should have thrown")
+			} catch (error: any) {
+				error.message.should.equal("Rate limit exceeded")
+				callCount.should.equal(1)
+			}
+		})
+
+		it("should still retry when retry-after is within maxRetryAfter", async () => {
+			let callCount = 0
+			class TestClass {
+				@withRetry({ maxRetries: 2, baseDelay: 10, maxRetryAfter: 60_000 })
+				async *failMethod() {
+					callCount++
+					if (callCount === 1) {
+						const error: any = new Error("Rate limit exceeded")
+						error.status = 429
+						error.headers = { "retry-after": "0.01" } // 10ms, well within limit
+						throw error
+					}
+					yield "success after retry"
+				}
+			}
+
+			const test = new TestClass()
+			const result = []
+			for await (const value of test.failMethod()) {
+				result.push(value)
+			}
+
+			callCount.should.equal(2)
 			result.should.deepEqual(["success after retry"])
 		})
 
