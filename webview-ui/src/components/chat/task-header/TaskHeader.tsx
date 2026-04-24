@@ -12,7 +12,6 @@ import NewTaskButton from "./buttons/NewTaskButton"
 import OpenDiskConversationHistoryButton from "./buttons/OpenDiskConversationHistoryButton"
 import { CheckpointError } from "./CheckpointError"
 import ContextWindow from "./ContextWindow"
-import { FocusChain } from "./FocusChain"
 import { highlightText } from "./Highlights"
 
 const IS_DEV = process.env.IS_DEV === '"true"'
@@ -25,8 +24,6 @@ interface TaskHeaderProps {
 	cacheReads?: number
 	totalCost: number
 	lastApiReqTotalTokens?: number
-	lastProgressMessageText?: string
-	showFocusChainPlaceholder?: boolean
 	onClose: () => void
 	onSendMessage?: (command: string, files: string[], images: string[]) => void
 }
@@ -41,8 +38,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 	cacheReads,
 	totalCost,
 	lastApiReqTotalTokens,
-	lastProgressMessageText,
-	showFocusChainPlaceholder,
 	onClose,
 	onSendMessage,
 }) => {
@@ -50,7 +45,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 		apiConfiguration,
 		currentTaskItem,
 		checkpointManagerErrorMessage,
-		focusChainSettings,
 		navigateToSettings,
 		mode,
 		expandTaskHeader: isTaskExpanded,
@@ -222,15 +216,6 @@ const TaskHeader: React.FC<TaskHeaderProps> = ({
 					</div>
 				)}
 			</div>
-
-			{/* Display Focus Chain To-Do List */}
-			{focusChainSettings.enabled && (
-				<FocusChain
-					currentTaskItemId={currentTaskItem?.id}
-					lastProgressMessageText={lastProgressMessageText}
-					showPlaceholderWhenEmpty={showFocusChainPlaceholder}
-				/>
-			)}
 		</div>
 	)
 }
