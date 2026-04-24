@@ -25,6 +25,7 @@ import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
@@ -561,6 +562,14 @@ export class AuthService {
 
 			// Store Codex credentials in providers.json
 			await this.saveCodexCredentials(credentials)
+			await openAiCodexOAuthManager.saveCredentials({
+				type: "openai-codex",
+				access_token: credentials.access,
+				refresh_token: credentials.refresh,
+				expires: credentials.expires,
+				email: credentials.email,
+				accountId: credentials.accountId,
+			})
 
 			// Notify webview of state change
 			await this.sendAuthStatusUpdate()
@@ -600,6 +609,8 @@ export class AuthService {
 	 */
 	async clearCodexCredentials(): Promise<void> {
 		try {
+			await openAiCodexOAuthManager.clearCredentials()
+
 			const manager = getProviderSettingsManager()
 			const existing = manager.getProviderSettings("openai-codex")
 			if (existing) {
