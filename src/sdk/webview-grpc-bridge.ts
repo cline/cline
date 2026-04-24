@@ -16,7 +16,7 @@ import type { ClineMessage as ProtoClineMessage } from "@shared/proto/cline/ui"
 import { convertClineMessageToProto } from "@shared/proto-conversions/cline-message"
 import { Logger } from "@shared/services/Logger"
 import type { MessageTranslatorState } from "./message-translator"
-import type { SessionEventListener } from "./SdkController"
+import type { SessionEventListener } from "./sdk-message-coordinator"
 
 /**
  * Manages the bridge between SDK session events and webview gRPC streams.
