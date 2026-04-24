@@ -564,11 +564,8 @@ export function createSkillsTool(
  */
 export function createAskQuestionTool(
 	executor: AskQuestionExecutor,
-	config: Pick<DefaultToolsConfig, "askQuestionTimeoutMs"> = {},
 ): Tool<AskQuestionInput, string> {
-	const timeoutMs = config.askQuestionTimeoutMs ?? 15000;
-
-	return createTool<AskQuestionInput, string>({
+	return {
 		name: "ask_question",
 		description:
 			"Ask user a question for clarifying or gathering information needed to complete the task. " +
@@ -577,18 +574,13 @@ export function createAskQuestionTool(
 			"Provide an array of 2-5 options for the user to choose from. " +
 			"Never include an option to toggle to Act mode.",
 		inputSchema: zodToJsonSchema(AskQuestionInputSchema),
-		timeoutMs,
 		retryable: false,
 		maxRetries: 0,
 		execute: async (input, context) => {
 			const validatedInput = validateWithZod(AskQuestionInputSchema, input);
-			return withTimeout(
-				executor(validatedInput.question, validatedInput.options, context),
-				timeoutMs,
-				`ask_question timed out after ${timeoutMs}ms`,
-			);
+			return executor(validatedInput.question, validatedInput.options, context);
 		},
-	});
+	};
 }
 
 export function createSubmitAndExitTool(
@@ -718,7 +710,7 @@ export function createDefaultTools(options: CreateDefaultToolsOptions): Tool[] {
 
 	// Add ask_question tool if enabled and executor provided
 	if (enableAskQuestion && executors.askQuestion) {
-		tools.push(createAskQuestionTool(executors.askQuestion, config));
+		tools.push(createAskQuestionTool(executors.askQuestion));
 	} else if (enableSubmitAndExit && executors.submit) {
 		// Add submit_and_exit tool if enabled and executor provided
 		tools.push(createSubmitAndExitTool(executors.submit, config));

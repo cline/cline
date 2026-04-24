@@ -18,6 +18,8 @@ import type {
 	StartSessionResult,
 } from "./runtime/runtime-host";
 import { splitCoreSessionConfig } from "./runtime/runtime-host";
+import { CORE_TELEMETRY_EVENTS } from "./services/telemetry/core-events";
+import { SessionSource } from "./types/common";
 import type { CoreSessionConfig } from "./types/config";
 import type { CoreSessionEvent } from "./types/events";
 import type { SessionMessagesArtifactUploader } from "./types/session";
@@ -176,6 +178,7 @@ export class ClineCore implements RuntimeHost {
 	private readonly host: RuntimeHost;
 	private readonly prepare: ClineCoreOptions["prepare"] | undefined;
 	private readonly defaultToolExecutors: Partial<ToolExecutors> | undefined;
+	private readonly telemetry: ITelemetryService | undefined;
 	private readonly activeSessionBootstraps = new Map<
 		string,
 		StartSessionBootstrap
@@ -188,12 +191,14 @@ export class ClineCore implements RuntimeHost {
 		runtimeAddress: string | undefined,
 		prepare: ClineCoreOptions["prepare"],
 		defaultToolExecutors: Partial<ToolExecutors> | undefined,
+		telemetry: ITelemetryService | undefined,
 	) {
 		this.clientName = clientName;
 		this.runtimeAddress = runtimeAddress;
 		this.host = host;
 		this.prepare = prepare;
 		this.defaultToolExecutors = defaultToolExecutors;
+		this.telemetry = telemetry;
 		this.unsubscribeBootstrapCleanup = this.host.subscribe((event) => {
 			if (event.type !== "ended") {
 				return;
@@ -228,6 +233,7 @@ export class ClineCore implements RuntimeHost {
 			host.runtimeAddress,
 			options.prepare,
 			options.defaultToolExecutors,
+			options.telemetry,
 		);
 	}
 
@@ -337,11 +343,41 @@ export class ClineCore implements RuntimeHost {
 					await Promise.resolve(bootstrap.dispose?.());
 				}
 			}
+			this.emitSessionStartedTelemetry(preparedInput, result.sessionId);
 			return result;
 		} catch (error) {
 			await Promise.resolve(bootstrap?.dispose?.());
 			throw error;
 		}
+	}
+
+	private emitSessionStartedTelemetry(
+		input: ClineCoreStartInput,
+		sessionId: string,
+	): void {
+		// Per-session telemetry override (passed via `CoreSessionConfig.telemetry`)
+		// takes precedence over the instance-wide telemetry service configured
+		// on `ClineCore.create`. Either way we fire a single `session.started`
+		// event here so the signal is emitted for every backend (local, hub,
+		// remote), not just the in-process local transport.
+		const telemetry = input.config.telemetry ?? this.telemetry;
+		if (!telemetry) {
+			return;
+		}
+		telemetry.capture({
+			event: CORE_TELEMETRY_EVENTS.SESSION.STARTED,
+			properties: {
+				sessionId,
+				source: input.source ?? SessionSource.CORE,
+				providerId: input.config.providerId,
+				modelId: input.config.modelId,
+				enableTools: input.config.enableTools,
+				enableSpawnAgent: input.config.enableSpawnAgent,
+				enableAgentTeams: input.config.enableAgentTeams,
+				clientName: this.clientName,
+				runtimeAddress: this.runtimeAddress,
+			},
+		});
 	}
 	/**
 	 * Sends a message or command to an active session.

@@ -12,7 +12,7 @@
  *
  * Fields that do **not** round-trip into `AgentRuntimeConfig`
  * (e.g. `execution.maxConsecutiveMistakes`,
- * `execution.loopDetection`, `toolPolicies`, `hookPolicies`) are
+ * `execution.loopDetection`, `hookPolicies`) are
  * consumed by `SessionRuntime` / `MistakeTracker` /
  * `LoopDetectionTracker` — not passed through here. See §3.2.1's
  * "Fields with no corresponding AgentRuntimeConfig slot" note.
@@ -38,7 +38,17 @@ import type { HookBridge } from "../hooks/hook-bridge";
  */
 export interface CreateAgentRuntimeConfigInput {
 	readonly agentConfig: AgentConfig;
+	/**
+	 * Core/hub runtime session identifier used for host lifecycle operations,
+	 * event routing, persistence, and approval delivery.
+	 */
+	readonly sessionId?: string;
 	readonly agentId: string;
+	/**
+	 * Agent conversation/transcript identifier used by tools, hooks, telemetry,
+	 * and model history correlation.
+	 */
+	readonly conversationId?: string;
 	readonly parentAgentId?: string;
 	/** The role label for teammates (`AgentConfig.role` in sub-agent configs). */
 	readonly agentRole?: string;
@@ -81,7 +91,9 @@ export function createAgentRuntimeConfig(
 	const toolExecution = resolveToolExecution(agentConfig.maxParallelToolCalls);
 
 	const config: AgentRuntimeConfig = {
+		sessionId: input.sessionId ?? agentConfig.sessionId,
 		agentId: input.agentId,
+		conversationId: input.conversationId,
 		agentRole: input.agentRole,
 		systemPrompt: input.systemPrompt ?? agentConfig.systemPrompt,
 		messageModelInfo,
@@ -95,6 +107,8 @@ export function createAgentRuntimeConfig(
 		initialMessages: input.initialMessages,
 		maxIterations: agentConfig.maxIterations,
 		toolExecution,
+		toolPolicies: agentConfig.toolPolicies,
+		requestToolApproval: agentConfig.requestToolApproval,
 	};
 
 	return config;

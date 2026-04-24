@@ -98,6 +98,70 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("requests approval when a tool policy disables auto-approval", async () => {
+		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
+		const requestToolApproval = vi.fn(async () => ({
+			approved: false,
+			reason: "denied by test",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_approval",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: "denied by test" },
+				});
+				return [
+					{ type: "text-delta", text: "approval handled" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval,
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("approval handled");
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(requestToolApproval).toHaveBeenCalledWith({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			iteration: 1,
+			toolCallId: "call_approval",
+			toolName: "echo",
+			input: { text: "hi" },
+			policy: { autoApprove: false },
+		});
+	});
+
 	it("stores tool calls but skips execution when metadata disables external execution", async () => {
 		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
 		const model = new ScriptedModel([

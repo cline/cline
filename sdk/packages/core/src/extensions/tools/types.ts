@@ -336,12 +336,6 @@ export interface DefaultToolsConfig {
 	skillsTimeoutMs?: number;
 
 	/**
-	 * Timeout for ask_followup_question operations in milliseconds
-	 * @default 15000
-	 */
-	askQuestionTimeoutMs?: number;
-
-	/**
 	 * Timeout for submit_and_exit operations in milliseconds
 	 * @default 15000
 	 */

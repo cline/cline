@@ -185,6 +185,66 @@ describe("default ask_question tool", () => {
 			}),
 		);
 	});
+
+	it("waits for ask_question answers without timing out", async () => {
+		vi.useFakeTimers();
+		try {
+			let resolveAnswer: (answer: string) => void = () => {};
+			const execute = vi.fn(
+				() =>
+					new Promise<string>((resolve) => {
+						resolveAnswer = resolve;
+					}),
+			);
+			const tools = createDefaultTools({
+				executors: {
+					askQuestion: execute,
+				},
+				enableReadFiles: false,
+				enableSearch: false,
+				enableBash: false,
+				enableWebFetch: false,
+				enableEditor: false,
+				enableSkills: false,
+				enableAskQuestion: true,
+			});
+			const askTool = tools.find((tool) => tool.name === "ask_question");
+			expect(askTool).toBeDefined();
+			if (!askTool) {
+				throw new Error("Expected ask_question tool to be defined.");
+			}
+
+			const pending = askTool.execute(
+				{
+					question: "Which approach should I take?",
+					options: ["Option 1", "Option 2"],
+				},
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			);
+			let settled: unknown;
+			pending.then(
+				(value) => {
+					settled = value;
+				},
+				(error) => {
+					settled = error instanceof Error ? error : new Error(String(error));
+				},
+			);
+
+			await vi.advanceTimersByTimeAsync(60_000);
+			await Promise.resolve();
+
+			expect(settled).toBeUndefined();
+			resolveAnswer("Option 2");
+			await expect(pending).resolves.toBe("Option 2");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
 
 describe("default submit_and_exit tool", () => {

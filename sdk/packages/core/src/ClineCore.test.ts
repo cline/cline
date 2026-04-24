@@ -153,6 +153,107 @@ describe("ClineCore", () => {
 		expect(dispose).toHaveBeenCalledTimes(1);
 	});
 
+	it("emits session.started telemetry when a new session is started", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			start: vi.fn(async () => createStartResult("session-telemetry")),
+			send: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stop: vi.fn(),
+			dispose: vi.fn(),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(),
+			delete: vi.fn(),
+			readMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const telemetry = {
+			capture: vi.fn(),
+			captureRequired: vi.fn(),
+			setDistinctId: vi.fn(),
+			setMetadata: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+			recordCounter: vi.fn(),
+			recordHistogram: vi.fn(),
+			recordGauge: vi.fn(),
+			flush: vi.fn().mockResolvedValue(undefined),
+			dispose: vi.fn().mockResolvedValue(undefined),
+		};
+
+		const core = await ClineCore.create({
+			backendMode: "local",
+			clientName: "unit-test-client",
+			telemetry: telemetry as never,
+		});
+		await core.start(createStartInput());
+
+		expect(telemetry.capture).toHaveBeenCalledWith(
+			expect.objectContaining({
+				event: "session.started",
+				properties: expect.objectContaining({
+					sessionId: "session-telemetry",
+					source: "core",
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-6",
+					enableTools: true,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+					clientName: "unit-test-client",
+				}),
+			}),
+		);
+	});
+
+	it("prefers the per-session telemetry service over the ClineCore one", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			start: vi.fn(async () => createStartResult("session-override")),
+			send: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stop: vi.fn(),
+			dispose: vi.fn(),
+			get: vi.fn(async () => undefined),
+			list: vi.fn(),
+			delete: vi.fn(),
+			readMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+
+		const coreTelemetry = {
+			capture: vi.fn(),
+			setDistinctId: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+		};
+		const sessionTelemetry = {
+			capture: vi.fn(),
+			setDistinctId: vi.fn(),
+			updateCommonProperties: vi.fn(),
+			isEnabled: vi.fn(() => true),
+		};
+
+		const core = await ClineCore.create({
+			backendMode: "local",
+			telemetry: coreTelemetry as never,
+		});
+		const input = createStartInput();
+		input.config.telemetry = sessionTelemetry as never;
+		await core.start(input);
+
+		expect(sessionTelemetry.capture).toHaveBeenCalledWith(
+			expect.objectContaining({ event: "session.started" }),
+		);
+		expect(coreTelemetry.capture).not.toHaveBeenCalled();
+	});
+
 	it("hydrates list rows through the core API", async () => {
 		const host = {
 			runtimeAddress: undefined,

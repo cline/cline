@@ -11,6 +11,11 @@
  * See PLAN.md §3.6 Step 3 and §3.7.2 for the migration context.
  */
 
+import type {
+	ToolApprovalRequest,
+	ToolApprovalResult,
+	ToolPolicy,
+} from "./llms/tools";
 import type { BasicLogger } from "./logging/logger";
 
 // =============================================================================
@@ -366,7 +371,24 @@ export interface AgentRuntimePlugin {
 // =============================================================================
 
 export interface AgentRuntimeConfig {
+	/**
+	 * Core/hub runtime session identifier.
+	 *
+	 * The host-owned lifecycle id for the task/session containing this runtime.
+	 * It is stable for hub subscriptions, session persistence, abort/stop
+	 * commands, and approval routing. It can differ from `conversationId`, which
+	 * tracks the agent transcript.
+	 */
+	sessionId?: string;
 	agentId?: string;
+	/**
+	 * Agent conversation/transcript identifier.
+	 *
+	 * Used by the stateless agent loop, tools, hooks, telemetry, and model
+	 * history correlation. This id follows the current conversation store and
+	 * should not be used as the hub/session routing key.
+	 */
+	conversationId?: string;
 	agentRole?: AgentRole;
 	systemPrompt?: string;
 	messageModelInfo?: AgentMessage["modelInfo"];
@@ -381,6 +403,10 @@ export interface AgentRuntimeConfig {
 	initialMessages?: readonly AgentMessage[];
 	maxIterations?: number;
 	toolExecution?: "sequential" | "parallel";
+	toolPolicies?: Record<string, ToolPolicy>;
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 }
 
 // =============================================================================

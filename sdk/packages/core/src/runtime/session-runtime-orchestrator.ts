@@ -659,10 +659,11 @@ export class SessionRuntime {
 		for (const tool of this.config.tools) {
 			mergedToolsByName.set(tool.name, tool);
 		}
+		const conversationId = this.conversation.getConversationId();
 		const adaptedTools = toolsToAgentTools(
 			Array.from(mergedToolsByName.values()),
 			{
-				conversationId: this.conversation.getConversationId(),
+				conversationId,
 				metadata: this.config.toolContextMetadata,
 			},
 		);
@@ -677,7 +678,9 @@ export class SessionRuntime {
 		);
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig: this.config,
+			sessionId: this.config.sessionId,
 			agentId: this.agentId,
+			conversationId,
 			parentAgentId: this.parentAgentId,
 			model: agentModel,
 			logger: this.logger,

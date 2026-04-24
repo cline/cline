@@ -68,6 +68,7 @@ type NodeUpgradeSocketLike = {
 
 type HubSessionState = {
 	createdByClientId: string;
+	interactive: boolean;
 	participants: Map<string, SessionParticipant>;
 };
 
@@ -563,13 +564,12 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async stop(): Promise<void> {
-		for (const approval of this.pendingApprovals.values()) {
-			approval.resolve({
+		for (const approvalId of this.pendingApprovals.keys()) {
+			this.resolvePendingApproval(approvalId, {
 				approved: false,
 				reason: "Hub shutting down before approval was resolved.",
 			});
 		}
-		this.pendingApprovals.clear();
 		for (const pending of this.pendingCapabilityRequests.values()) {
 			pending.resolve({
 				ok: false,
@@ -775,9 +775,13 @@ export class HubServerTransport implements NativeHubTransport {
 		sessionId: string,
 		clientId: string,
 		role: SessionParticipant["role"],
+		options: { interactive?: boolean } = {},
 	): HubSessionState {
 		const existing = this.sessionState.get(sessionId);
 		if (existing) {
+			if (options.interactive !== undefined) {
+				existing.interactive = options.interactive;
+			}
 			if (!existing.participants.has(clientId)) {
 				existing.participants.set(clientId, {
 					clientId,
@@ -789,6 +793,7 @@ export class HubServerTransport implements NativeHubTransport {
 		}
 		const state: HubSessionState = {
 			createdByClientId: clientId,
+			interactive: options.interactive ?? true,
 			participants: new Map([
 				[
 					clientId,
@@ -1012,7 +1017,9 @@ export class HubServerTransport implements NativeHubTransport {
 						? { "*": { autoApprove: true } }
 						: undefined,
 		});
-		this.ensureSessionState(started.sessionId, clientId, "creator");
+		this.ensureSessionState(started.sessionId, clientId, "creator", {
+			interactive: metadata.interactive !== false,
+		});
 		const session = await this.readHubSessionRecord(started.sessionId);
 		if (session) {
 			this.publish(
@@ -1310,9 +1317,18 @@ export class HubServerTransport implements NativeHubTransport {
 		request: ToolApprovalRequest,
 	): Promise<{ approved: boolean; reason?: string }> {
 		const approvalId = createSessionId("approval_");
+		const sessionId = request.sessionId;
+		const state = this.sessionState.get(sessionId);
+		if (state?.interactive === false) {
+			return {
+				approved: false,
+				reason:
+					"Tool approval requires an interactive session, but this session is non-interactive.",
+			};
+		}
 		return await new Promise((resolve) => {
 			this.pendingApprovals.set(approvalId, {
-				sessionId: request.conversationId,
+				sessionId,
 				resolve,
 			});
 			this.publish(
@@ -1320,14 +1336,32 @@ export class HubServerTransport implements NativeHubTransport {
 					"approval.requested",
 					{
 						approvalId,
+						sessionId: request.sessionId,
+						agentId: request.agentId,
+						conversationId: request.conversationId,
+						iteration: request.iteration,
 						toolCallId: request.toolCallId,
 						toolName: request.toolName,
 						inputJson: JSON.stringify(request.input ?? null),
+						policy: request.policy,
 					},
-					request.conversationId,
+					sessionId,
 				),
 			);
 		});
+	}
+
+	private resolvePendingApproval(
+		approvalId: string,
+		result: { approved: boolean; reason?: string },
+	): { sessionId: string } | undefined {
+		const pending = this.pendingApprovals.get(approvalId);
+		if (!pending) {
+			return undefined;
+		}
+		this.pendingApprovals.delete(approvalId);
+		pending.resolve(result);
+		return { sessionId: pending.sessionId };
 	}
 
 	private async handleApprovalRespond(
@@ -1349,25 +1383,37 @@ export class HubServerTransport implements NativeHubTransport {
 				},
 			};
 		}
-		this.pendingApprovals.delete(approvalId);
 		const reason =
-			envelope.payload?.payload &&
-			typeof envelope.payload.payload === "object" &&
-			!Array.isArray(envelope.payload.payload) &&
-			typeof (envelope.payload.payload as Record<string, unknown>).reason ===
-				"string"
-				? ((envelope.payload.payload as Record<string, unknown>)
-						.reason as string)
-				: undefined;
-		pending.resolve({
+			typeof envelope.payload?.reason === "string"
+				? envelope.payload.reason
+				: envelope.payload?.payload &&
+						typeof envelope.payload.payload === "object" &&
+						!Array.isArray(envelope.payload.payload) &&
+						typeof (envelope.payload.payload as Record<string, unknown>)
+							.reason === "string"
+					? ((envelope.payload.payload as Record<string, unknown>)
+							.reason as string)
+					: undefined;
+		const resolved = this.resolvePendingApproval(approvalId, {
 			approved: envelope.payload?.approved === true,
 			reason,
 		});
+		if (!resolved) {
+			return {
+				version: envelope.version,
+				requestId: envelope.requestId,
+				ok: false,
+				error: {
+					code: "approval_not_found",
+					message: `Unknown approval: ${approvalId}`,
+				},
+			};
+		}
 		this.publish(
 			this.buildEvent(
 				"approval.resolved",
 				{ approvalId, approved: envelope.payload?.approved === true, reason },
-				pending.sessionId,
+				resolved.sessionId,
 			),
 		);
 		return {

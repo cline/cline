@@ -115,7 +115,33 @@ export interface ToolCallRecord {
 }
 
 export interface ToolApprovalRequest {
+	/**
+	 * Core/hub runtime session identifier.
+	 *
+	 * This is the routing and lifecycle id for the task/session that owns the
+	 * tool call. Hosts and hub transports use it to deliver approval events to
+	 * clients subscribed to that session and to correlate approval responses
+	 * with the pending runtime session. It should not be used as the transcript
+	 * id for model history.
+	 */
+	sessionId: string;
+	/**
+	 * Agent instance identifier.
+	 *
+	 * This identifies the lead or delegated agent that requested the tool call.
+	 * It is used for attribution in approval prompts, events, telemetry, and
+	 * team/sub-agent flows. It is not a hub routing key and should not be used
+	 * to find the owning runtime session.
+	 */
 	agentId: string;
+	/**
+	 * Agent conversation/transcript identifier.
+	 *
+	 * This identifies the model conversation that produced the tool call. Tools,
+	 * hooks, telemetry, and persisted session metadata use it to correlate work
+	 * with the agent's message history. It is contextual data, not the hub event
+	 * routing key.
+	 */
 	conversationId: string;
 	iteration: number;
 	toolCallId: string;

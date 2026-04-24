@@ -257,16 +257,13 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
-		expect(adapter.emit).toHaveBeenCalledWith(
+		// `session.started` is emitted from `ClineCore.start` (see
+		// `ClineCore.test.ts`), not from `LocalRuntimeHost`, so that the
+		// signal fires for every backend. We assert that it is NOT emitted
+		// here and only transport-scoped events remain.
+		expect(adapter.emit).not.toHaveBeenCalledWith(
 			"session.started",
-			expect.objectContaining({
-				sessionId,
-				agentId: "agent-root-1",
-				agentKind: "team_lead",
-				conversationId: "conv-root-1",
-				teamRole: "lead",
-				distinct_id: distinctId,
-			}),
+			expect.anything(),
 		);
 		expect(adapter.emit).toHaveBeenCalledWith(
 			"task.agent_created",

@@ -1,7 +1,6 @@
 import type { ITelemetryService } from "@clinebot/shared";
 import { resolveDocumentsExtensionPath } from "@clinebot/shared/storage";
 import { listHookConfigFiles } from "../extensions/config/hooks-config-loader";
-import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
 import {
 	captureHookDiscovery,
@@ -14,10 +13,15 @@ import {
 } from "./telemetry/core-events";
 import type { enrichPromptWithMentions } from "./workspace";
 
+/**
+ * Emits local-only session creation telemetry (task.created/restarted and
+ * hook discovery). The transport-agnostic `session.started` event is
+ * emitted from `ClineCore.start` so it fires for every backend (local,
+ * hub, remote) at the outer API boundary.
+ */
 export function emitSessionCreationTelemetry(
 	config: CoreSessionConfig,
 	sessionId: string,
-	source: SessionSource,
 	isRestart: boolean,
 	workspacePath: string,
 	agentIdentity?: Partial<TelemetryAgentIdentityProperties>,
@@ -36,19 +40,6 @@ export function emitSessionCreationTelemetry(
 		});
 	}
 	captureHookDiscoveryTelemetry(config.telemetry, { workspacePath });
-	config.telemetry?.capture({
-		event: "session.started",
-		properties: {
-			sessionId,
-			source,
-			providerId: config.providerId,
-			modelId: config.modelId,
-			enableTools: config.enableTools,
-			enableSpawnAgent: config.enableSpawnAgent,
-			enableAgentTeams: config.enableAgentTeams,
-			...agentIdentity,
-		},
-	});
 }
 
 export function captureHookDiscoveryTelemetry(

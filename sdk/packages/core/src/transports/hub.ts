@@ -2,9 +2,12 @@ import { readFileSync } from "node:fs";
 import { basename } from "node:path";
 import type {
 	AgentResult,
+	HubEventEnvelope,
 	SessionRecord as HubSessionRecord,
 	HubToolExecutorName,
 	JsonValue,
+	ToolApprovalRequest,
+	ToolApprovalResult,
 	ToolContext,
 } from "@clinebot/shared";
 import type { ToolExecutors } from "../extensions/tools";
@@ -75,11 +78,25 @@ function parseToolContext(value: unknown): ToolContext {
 	};
 }
 
+function parseApprovalInput(value: unknown): unknown {
+	if (typeof value !== "string") {
+		return value;
+	}
+	try {
+		return JSON.parse(value);
+	} catch {
+		return value;
+	}
+}
+
 export interface HubRuntimeHostOptions {
 	url: string;
 	authToken?: string;
 	clientType?: string;
 	displayName?: string;
+	requestToolApproval?: (
+		request: ToolApprovalRequest,
+	) => Promise<ToolApprovalResult> | ToolApprovalResult;
 }
 
 function mapStatus(
@@ -207,11 +224,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		Partial<ToolExecutors>
 	>();
 	private readonly sessionSubscriptions = new Map<string, () => void>();
+	private readonly requestToolApproval:
+		| HubRuntimeHostOptions["requestToolApproval"]
+		| undefined;
 
 	constructor(
 		options: HubRuntimeHostOptions,
 		clientContext?: { workspaceRoot?: string; cwd?: string },
 	) {
+		this.requestToolApproval = options.requestToolApproval;
 		this.runtimeAddress = options.url;
 		this.client = new NodeHubClient({
 			url: options.url,
@@ -442,12 +463,14 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.delete(target);
 	}
 
-	private handleHubEvent(
-		event: import("@clinebot/shared").HubEventEnvelope,
-	): void {
+	private handleHubEvent(event: HubEventEnvelope): void {
 		const sessionId = event.sessionId?.trim();
 		if (event.event === "capability.requested") {
 			void this.handleCapabilityRequest(event);
+			return;
+		}
+		if (event.event === "approval.requested") {
+			void this.handleApprovalRequested(event);
 			return;
 		}
 		if (!sessionId) {
@@ -582,7 +605,7 @@ export class HubRuntimeHost implements RuntimeHost {
 	}
 
 	private async handleCapabilityRequest(
-		event: import("@clinebot/shared").HubEventEnvelope,
+		event: HubEventEnvelope,
 	): Promise<void> {
 		const sessionId = event.sessionId?.trim();
 		if (!sessionId) {
@@ -653,5 +676,71 @@ export class HubRuntimeHost implements RuntimeHost {
 				sessionId,
 			);
 		}
+	}
+
+	private async handleApprovalRequested(
+		event: HubEventEnvelope,
+	): Promise<void> {
+		const sessionId = event.sessionId?.trim();
+		if (!sessionId || !this.requestToolApproval) {
+			return;
+		}
+		const approvalId =
+			typeof event.payload?.approvalId === "string"
+				? event.payload.approvalId.trim()
+				: "";
+		const toolCallId =
+			typeof event.payload?.toolCallId === "string"
+				? event.payload.toolCallId
+				: "";
+		const toolName =
+			typeof event.payload?.toolName === "string" ? event.payload.toolName : "";
+		if (!approvalId || !toolCallId || !toolName) {
+			return;
+		}
+		const policy =
+			event.payload?.policy &&
+			typeof event.payload.policy === "object" &&
+			!Array.isArray(event.payload.policy)
+				? (event.payload.policy as ToolApprovalRequest["policy"])
+				: { autoApprove: false };
+		const result = await Promise.resolve(
+			this.requestToolApproval({
+				sessionId,
+				agentId:
+					typeof event.payload?.agentId === "string"
+						? event.payload.agentId
+						: "",
+				conversationId:
+					typeof event.payload?.conversationId === "string"
+						? event.payload.conversationId
+						: sessionId,
+				iteration:
+					typeof event.payload?.iteration === "number"
+						? event.payload.iteration
+						: 0,
+				toolCallId,
+				toolName,
+				input: parseApprovalInput(event.payload?.inputJson),
+				policy,
+			}),
+		).catch((error) => ({
+			approved: false,
+			reason:
+				error instanceof Error
+					? error.message
+					: `Tool approval request failed: ${String(error)}`,
+		}));
+		await this.client
+			.command(
+				"approval.respond",
+				{
+					approvalId,
+					approved: result.approved,
+					reason: result.reason,
+				},
+				sessionId,
+			)
+			.catch(() => {});
 	}
 }

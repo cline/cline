@@ -19,6 +19,8 @@ import type {
 	AgentToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
+	ToolApprovalResult,
+	ToolPolicy,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
 
@@ -90,6 +92,16 @@ function resolveRuntimeConfig(
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });
 	return { ...rest, model };
+}
+
+function resolveToolPolicy(
+	toolName: string,
+	policies: BaseAgentRuntimeConfig["toolPolicies"],
+): ToolPolicy {
+	return {
+		...(policies?.["*"] ?? {}),
+		...(policies?.[toolName] ?? {}),
+	};
 }
 
 interface PendingToolAssembly {
@@ -839,12 +851,72 @@ export class AgentRuntime {
 			}
 		}
 
+		if (tool && !skipReason) {
+			const policy = resolveToolPolicy(
+				toolCall.toolName,
+				this.config.toolPolicies,
+			);
+			if (policy.enabled === false) {
+				skipReason = `Tool "${toolCall.toolName}" is disabled by policy`;
+			} else if (policy.autoApprove === false) {
+				const approval = await this.requestToolApproval(
+					toolCall,
+					input,
+					policy,
+				);
+				if (!approval.approved) {
+					skipReason =
+						approval.reason ?? `Tool "${toolCall.toolName}" was not approved`;
+				}
+			}
+		}
+
 		return {
 			toolCall: { ...toolCall, input },
 			tool,
 			input,
 			skipReason,
 		};
+	}
+
+	private async requestToolApproval(
+		toolCall: AgentToolCallPart,
+		input: unknown,
+		policy: ToolPolicy,
+	): Promise<ToolApprovalResult> {
+		const requestApproval = this.config.requestToolApproval;
+		if (!requestApproval) {
+			return {
+				approved: false,
+				reason: `Tool "${toolCall.toolName}" requires approval but no approval callback is configured`,
+			};
+		}
+		try {
+			return await requestApproval({
+				sessionId:
+					this.config.sessionId?.trim() ||
+					this.config.conversationId?.trim() ||
+					this.state.runId ||
+					this.state.agentId,
+				agentId: this.state.agentId,
+				conversationId:
+					this.config.conversationId?.trim() ||
+					this.state.runId ||
+					this.state.agentId,
+				iteration: this.state.iteration,
+				toolCallId: toolCall.toolCallId,
+				toolName: toolCall.toolName,
+				input,
+				policy,
+			});
+		} catch (error) {
+			return {
+				approved: false,
+				reason: `Tool "${toolCall.toolName}" approval request failed: ${
+					error instanceof Error ? error.message : String(error)
+				}`,
+			};
+		}
 	}
 
 	private async executePreparedTool(

@@ -787,6 +787,15 @@ export const ReasoningEffortSchema = z.enum(["low", "medium", "high", "xhigh"]);
  * Configuration for creating an Agent
  */
 export interface AgentConfig {
+	/**
+	 * Core/hub runtime session identifier.
+	 *
+	 * The host-owned lifecycle id for this task/session. Core uses it for
+	 * persistence, event routing, abort/stop operations, and approval delivery.
+	 * This is intentionally separate from `conversationId`, which identifies the
+	 * model transcript managed by the agent runtime.
+	 */
+	sessionId?: string;
 	// -------------------------------------------------------------------------
 	// Provider Settings
 	// -------------------------------------------------------------------------
@@ -982,6 +991,7 @@ export interface AgentConfig {
 }
 
 export const AgentConfigSchema = z.object({
+	sessionId: z.string().optional(),
 	// Provider Settings
 	providerId: z.string(),
 	modelId: z.string(),
@@ -1050,6 +1060,7 @@ export const AgentConfigSchema = z.object({
 		.function()
 		.input([
 			z.object({
+				sessionId: z.string(),
 				agentId: z.string(),
 				conversationId: z.string(),
 				iteration: z.number(),

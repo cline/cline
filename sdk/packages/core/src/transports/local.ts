@@ -324,6 +324,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const tools = [...runtime.tools, ...(configWithProvider.extraTools ?? [])];
 
 		const agentConfig = {
+			sessionId,
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,
 			apiKey: providerConfig.apiKey,
@@ -370,7 +371,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 		emitSessionCreationTelemetry(
 			configWithProvider,
 			sessionId,
-			source,
 			requestedSessionId.length > 0,
 			workspacePath,
 			rootAgentIdentity,

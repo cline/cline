@@ -142,6 +142,83 @@ describe("HubRuntimeHost", () => {
 		expect(sent).toEqual(result);
 	});
 
+	it("bridges hub approval requests through the configured approval callback", async () => {
+		let onEvent:
+			| ((event: {
+					version: 1;
+					event: "approval.requested";
+					sessionId: string;
+					payload: Record<string, unknown>;
+			  }) => void)
+			| undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock
+			.mockResolvedValueOnce({
+				payload: {
+					session: {
+						sessionId: "sess-1",
+						status: "running",
+						createdAt: Date.now(),
+						updatedAt: Date.now(),
+						workspaceRoot: "/tmp/project",
+						cwd: "/tmp/project",
+					},
+				},
+			})
+			.mockResolvedValueOnce({ ok: true, payload: {} });
+		const requestToolApproval = vi.fn(async () => ({
+			approved: true,
+			reason: "ok",
+		}));
+
+		const { HubRuntimeHost } = await import("./hub");
+		const host = new HubRuntimeHost({
+			url: "ws://127.0.0.1:25463/hub",
+			requestToolApproval,
+		});
+
+		await host.start({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+		onEvent?.({
+			version: 1,
+			event: "approval.requested",
+			sessionId: "sess-1",
+			payload: {
+				approvalId: "approval-1",
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				iteration: 2,
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				inputJson: '{"commands":["echo hi"]}',
+				policy: { autoApprove: false },
+			},
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(requestToolApproval).toHaveBeenCalledWith({
+			sessionId: "sess-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 2,
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"approval.respond",
+			{ approvalId: "approval-1", approved: true, reason: "ok" },
+			"sess-1",
+		);
+	});
+
 	it("tears down session stream subscriptions when a session stops", async () => {
 		const unsubscribe = vi.fn();
 		subscribeMock.mockReturnValue(unsubscribe);

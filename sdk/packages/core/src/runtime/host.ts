@@ -144,6 +144,7 @@ export async function createRuntimeHost(
 			displayName: options.remote?.displayName,
 			workspaceRoot: options.remote?.workspaceRoot,
 			cwd: options.remote?.cwd,
+			requestToolApproval: options.requestToolApproval,
 		});
 	}
 	if (configuredMode === "hub") {
@@ -168,6 +169,7 @@ export async function createRuntimeHost(
 				authToken: options.hub?.authToken,
 				clientType: options.hub?.clientType,
 				displayName: options.hub?.displayName,
+				requestToolApproval: options.requestToolApproval,
 			},
 			{
 				workspaceRoot: options.hub?.workspaceRoot,
@@ -192,6 +194,7 @@ export async function createRuntimeHost(
 					authToken: options.hub?.authToken,
 					clientType: options.hub?.clientType,
 					displayName: options.hub?.displayName,
+					requestToolApproval: options.requestToolApproval,
 				},
 				{
 					workspaceRoot: options.hub?.workspaceRoot,

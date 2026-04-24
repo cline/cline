@@ -175,6 +175,8 @@ describe("createAgentRuntimeConfig", () => {
 			reasoningEffort: "high",
 			maxIterations: 7,
 			maxParallelToolCalls: 4,
+			toolPolicies: { "*": { autoApprove: false } },
+			requestToolApproval: async () => ({ approved: true }),
 		});
 		const tools: AgentTool[] = [
 			{
@@ -186,12 +188,16 @@ describe("createAgentRuntimeConfig", () => {
 		];
 		const runtimeConfig = createAgentRuntimeConfig({
 			agentConfig,
+			sessionId: "session_abc",
 			agentId: "agent_abc",
+			conversationId: "conversation_abc",
 			agentRole: "lead",
 			model: nullModel,
 			tools,
 		});
+		expect(runtimeConfig.sessionId).toBe("session_abc");
 		expect(runtimeConfig.agentId).toBe("agent_abc");
+		expect(runtimeConfig.conversationId).toBe("conversation_abc");
 		expect(runtimeConfig.agentRole).toBe("lead");
 		expect(runtimeConfig.systemPrompt).toBe("sp");
 		expect(runtimeConfig.model).toBe(nullModel);
@@ -207,6 +213,12 @@ describe("createAgentRuntimeConfig", () => {
 		expect(runtimeConfig.tools).toBe(tools);
 		expect(runtimeConfig.maxIterations).toBe(7);
 		expect(runtimeConfig.toolExecution).toBe("parallel");
+		expect(runtimeConfig.toolPolicies).toEqual({
+			"*": { autoApprove: false },
+		});
+		expect(runtimeConfig.requestToolApproval).toBe(
+			agentConfig.requestToolApproval,
+		);
 	});
 
 	it("uses the override systemPrompt when provided", () => {
