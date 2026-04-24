@@ -8,6 +8,7 @@ import {
 } from "@clinebot/core";
 import type { ConsecutiveMistakeLimitContext } from "@clinebot/shared";
 import { createSessionId } from "@clinebot/shared";
+import { logCliError } from "../logging/errors";
 import { createCliCore } from "../session/session";
 import { resolveClineWelcomeLine } from "../tui/interactive-welcome";
 import {
@@ -384,7 +385,7 @@ export async function runAgent(
 		process.exitCode = 0;
 	} catch (err) {
 		const message = err instanceof Error ? err.message : String(err);
-		config.logger?.log(err instanceof Error ? (err.stack ?? message) : message);
+		logCliError(config.logger, "CLI task run failed", { error: err });
 		writeErr(message);
 		process.exitCode = 1;
 	} finally {

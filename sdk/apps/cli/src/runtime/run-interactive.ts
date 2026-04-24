@@ -9,6 +9,7 @@ import {
 } from "@clinebot/core";
 import { render } from "ink";
 import React from "react";
+import { logCliError } from "../logging/errors";
 import { createCliCore } from "../session/session";
 import {
 	formatPreviewMessageText,
@@ -578,12 +579,12 @@ export async function runInteractive(
 				};
 			},
 			onSubmit: async (input, _mode, delivery) => {
-				await ensureInteractiveRuntimeReady();
-				abortRequested = false;
-				if (!delivery) {
-					isRunning = true;
-				}
 				try {
+					await ensureInteractiveRuntimeReady();
+					abortRequested = false;
+					if (!delivery) {
+						isRunning = true;
+					}
 					// Handle /team command: transform the input and ensure
 					// teams are enabled for the current session.
 					const rewrittenTeamPrompt = rewriteTeamPrompt(input);
@@ -689,6 +690,13 @@ export async function runInteractive(
 						usage,
 						iterations: result.iterations,
 					};
+				} catch (error) {
+					logCliError(config.logger, "Interactive turn failed", {
+						error,
+						sessionId: activeSessionId || undefined,
+						delivery,
+					});
+					throw error;
 				} finally {
 					if (!delivery) {
 						isRunning = false;
@@ -715,6 +723,7 @@ export async function runInteractive(
 		if (shutdownRequested) {
 			return;
 		}
+		logCliError(config.logger, "Interactive startup failed", { error });
 		writeErr(error instanceof Error ? error.message : String(error));
 		requestExit();
 	});

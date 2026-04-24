@@ -15,6 +15,7 @@ import {
 	flushCliLoggerAdapters,
 	shutdownCliLoggerAdapters,
 } from "./adapter";
+import { logCliProcessError } from "./errors";
 
 const envKeys = [
 	"CLINE_DATA_DIR",
@@ -110,6 +111,31 @@ describe("createCliLoggerAdapter", () => {
 					sessionId: "s1",
 				});
 			}).not.toThrow();
+		} finally {
+			restoreEnv(snapshot);
+		}
+	});
+
+	it("writes process-level errors to the CLI log", () => {
+		const snapshot = withEnvSnapshot();
+		const dataDir = mkdtempSync(join(tmpdir(), `${commandName}-process-log-`));
+		process.env.CLINE_DATA_DIR = dataDir;
+		delete process.env.CLINE_LOG_PATH;
+		delete process.env.CLINE_LOG_LEVEL;
+		delete process.env.CLINE_LOG_NAME;
+		delete process.env.CLINE_LOG_ENABLED;
+
+		try {
+			logCliProcessError(
+				"unhandledRejection",
+				new Error("message schema validation failed"),
+			);
+
+			const logPath = join(dataDir, "logs", `${commandName}.log`);
+			const log = readFileSync(logPath, "utf8");
+			expect(log).toContain("CLI process error");
+			expect(log).toContain("unhandledRejection");
+			expect(log).toContain("message schema validation failed");
 		} finally {
 			restoreEnv(snapshot);
 		}

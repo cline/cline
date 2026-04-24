@@ -11,20 +11,32 @@ import {
 	TeamAwaitRunsInputSchema,
 	type TeamBroadcastInput,
 	TeamBroadcastInputSchema,
+	TeamBroadcastToolResultSchema,
 	type TeamCancelRunInput,
 	TeamCancelRunInputSchema,
+	TeamCancelRunToolResultSchema,
 	type TeamCleanupInput,
 	TeamCleanupInputSchema,
+	TeamCleanupToolResultSchema,
 	type TeamCreateOutcomeInput,
 	TeamCreateOutcomeInputSchema,
+	type TeamCreateOutcomeToolResult,
+	TeamCreateOutcomeToolResultSchema,
 	type TeamFinalizeOutcomeInput,
 	TeamFinalizeOutcomeInputSchema,
+	TeamFinalizeOutcomeToolResultSchema,
 	type TeamListOutcomesInput,
 	TeamListOutcomesInputSchema,
 	type TeamListRunsInput,
 	TeamListRunsInputSchema,
+	type TeamMailboxMessageToolResult,
+	TeamMailboxMessageToolResultSchema,
 	type TeamMissionLogInput,
 	TeamMissionLogInputSchema,
+	TeamMissionLogToolResultSchema,
+	TeamOutcomeFragmentToolResultSchema,
+	type TeamOutcomeToolResult,
+	TeamOutcomeToolResultSchema,
 	type TeamReadMailboxInput,
 	TeamReadMailboxInputSchema,
 	type TeamReviewOutcomeFragmentInput,
@@ -33,19 +45,27 @@ import {
 	type TeamRunResultSummary,
 	type TeamRunTaskInput,
 	TeamRunTaskInputSchema,
+	type TeamRunTaskToolResult,
+	TeamRunTaskToolResultSchema,
 	type TeamRunToolSummary,
+	TeamRunToolSummarySchema,
 	type TeamRuntimeState,
 	type TeamSendMessageInput,
 	TeamSendMessageInputSchema,
+	TeamSendMessageToolResultSchema,
 	type TeamShutdownTeammateInput,
 	TeamShutdownTeammateInputSchema,
+	TeamSimpleAgentStatusToolResultSchema,
 	type TeamSpawnTeammateInput,
 	TeamSpawnTeammateInputSchema,
 	type TeamStatusInput,
 	TeamStatusInputSchema,
+	type TeamStatusToolResult,
+	TeamStatusToolResultSchema,
 	type TeamTaskInput,
 	TeamTaskInputSchema,
 	type TeamTaskToolResult,
+	TeamTaskToolResultSchema,
 	type TeamTeammateSpec,
 	type Tool,
 	validateWithZod,
@@ -88,6 +108,10 @@ function summarizeRunResult(
 	};
 }
 
+function dateToIso(value: Date | undefined): string | undefined {
+	return value?.toISOString();
+}
+
 function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
 	return {
 		id: run.id,
@@ -98,13 +122,13 @@ function summarizeRun(run: TeamRunRecord): TeamRunToolSummary {
 		priority: run.priority,
 		retryCount: run.retryCount,
 		maxRetries: run.maxRetries,
-		nextAttemptAt: run.nextAttemptAt,
+		nextAttemptAt: dateToIso(run.nextAttemptAt),
 		continueConversation: run.continueConversation,
-		startedAt: run.startedAt,
-		endedAt: run.endedAt,
+		startedAt: run.startedAt.toISOString(),
+		endedAt: dateToIso(run.endedAt),
 		leaseOwner: run.leaseOwner,
-		heartbeatAt: run.heartbeatAt,
-		lastProgressAt: run.lastProgressAt,
+		heartbeatAt: dateToIso(run.heartbeatAt),
+		lastProgressAt: dateToIso(run.lastProgressAt),
 		lastProgressMessage: run.lastProgressMessage,
 		currentActivity: run.currentActivity,
 		error: run.error,
@@ -300,7 +324,10 @@ export function createAgentTeamsTools(
 							}),
 						);
 					}
-					return { agentId: validatedInput.agentId, status: "spawned" };
+					return validateWithZod(TeamSimpleAgentStatusToolResultSchema, {
+						agentId: validatedInput.agentId,
+						status: "spawned",
+					});
 				},
 			}) as Tool,
 		);
@@ -327,20 +354,26 @@ export function createAgentTeamsTools(
 					validatedInput.agentId,
 					validatedInput.reason,
 				);
-				return { agentId: validatedInput.agentId, status: "stopped" };
+				return validateWithZod(TeamSimpleAgentStatusToolResultSchema, {
+					agentId: validatedInput.agentId,
+					status: "stopped",
+				});
 			},
 		}) as Tool,
 	);
 
 	tools.push(
-		createTool<TeamStatusInput, ReturnType<AgentTeamsRuntime["getSnapshot"]>>({
+		createTool<TeamStatusInput, TeamStatusToolResult>({
 			name: "team_status",
 			description:
 				"Return a snapshot of team members, task counts, mailbox, and mission log stats.",
 			inputSchema: zodToJsonSchema(TeamStatusInputSchema),
 			execute: async (input) => {
 				validateWithZod(TeamStatusInputSchema, input);
-				return options.runtime.getSnapshot();
+				return validateWithZod(
+					TeamStatusToolResultSchema,
+					options.runtime.getSnapshot(),
+				);
 			},
 		}) as Tool,
 	);
@@ -376,7 +409,7 @@ export function createAgentTeamsTools(
 							assignee: validatedInput.assignee,
 							createdBy: options.requesterId,
 						});
-						return {
+						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "create",
 							taskId: task.id,
 							status: task.status,
@@ -386,28 +419,28 @@ export function createAgentTeamsTools(
 										note: `Ignored fields for action=create: ${ignoredFields.join(", ")}`,
 									}
 								: {}),
-						};
+						});
 					}
 					case "list":
-						return {
+						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "list",
 							tasks: options.runtime.listTaskItems({
 								status: validatedInput.status,
 								assignee: validatedInput.assignee,
 							}),
-						};
+						});
 					case "claim": {
 						const task = options.runtime.claimTask(
 							validatedInput.taskId!,
 							options.requesterId,
 						);
-						return {
+						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "claim",
 							taskId: task.id,
 							status: task.status,
 							nextStep:
 								"Task is now in_progress. Execute the work using team_run_task or your own tools, then call team_task with action=complete when done.",
-						};
+						});
 					}
 					case "complete": {
 						const task = options.runtime.completeTask(
@@ -415,11 +448,11 @@ export function createAgentTeamsTools(
 							options.requesterId,
 							validatedInput.summary!,
 						);
-						return {
+						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "complete",
 							taskId: task.id,
 							status: task.status,
-						};
+						});
 					}
 					case "block": {
 						const task = options.runtime.blockTask(
@@ -427,36 +460,24 @@ export function createAgentTeamsTools(
 							options.requesterId,
 							validatedInput.reason!,
 						);
-						return {
+						return validateWithZod(TeamTaskToolResultSchema, {
 							action: "block",
 							taskId: task.id,
 							status: task.status,
-						};
+						});
 					}
 				}
 			},
 		}) as Tool,
 	);
 
-	type TeamRunTaskSyncResult = {
-		agentId: string;
-		mode: "sync" | "async";
-		status: "dispatched" | "running" | "queued" | "joined";
-		dispatched: boolean;
-		message: string;
-		deduped?: boolean;
-		runId?: string;
-		text?: string;
-		iterations?: number;
-	};
-
 	// Track in-flight sync runs per agent for dedup
 	// (Claude sometimes emits duplicate tool_use blocks in a single response;
 	//  duplicate sync calls should await the first dispatched run)
-	const pendingSyncRuns = new Map<string, Promise<TeamRunTaskSyncResult>>();
+	const pendingSyncRuns = new Map<string, Promise<TeamRunTaskToolResult>>();
 
 	tools.push(
-		createTool<TeamRunTaskInput, TeamRunTaskSyncResult>({
+		createTool<TeamRunTaskInput, TeamRunTaskToolResult>({
 			name: "team_run_task",
 			description:
 				"Route a delegated task to a teammate. Choose sync (wait) or async (run in background).",
@@ -474,14 +495,14 @@ export function createAgentTeamsTools(
 								validatedInput.continueConversation || undefined,
 						},
 					);
-					return {
+					return validateWithZod(TeamRunTaskToolResultSchema, {
 						agentId: validatedInput.agentId,
 						mode: "async",
 						status: "queued",
 						dispatched: true,
 						message: `Task dispatched to ${validatedInput.agentId} and queued as ${run.id}.`,
 						runId: run.id,
-					};
+					});
 				}
 
 				// Deduplication guard: collapse a duplicate sync call for the same
@@ -489,12 +510,12 @@ export function createAgentTeamsTools(
 				const pendingRun = pendingSyncRuns.get(validatedInput.agentId);
 				if (pendingRun) {
 					const result = await pendingRun;
-					return {
+					return validateWithZod(TeamRunTaskToolResultSchema, {
 						...result,
 						status: "joined",
 						deduped: true,
 						message: `Task for ${validatedInput.agentId} was already dispatched in this tool batch; joined the existing in-flight run.`,
-					};
+					});
 				}
 				const runPromise = options.runtime
 					.routeToTeammate(validatedInput.agentId, validatedInput.task, {
@@ -503,15 +524,17 @@ export function createAgentTeamsTools(
 						continueConversation:
 							validatedInput.continueConversation || undefined,
 					})
-					.then((result) => ({
-						agentId: validatedInput.agentId,
-						mode: "sync" as const,
-						status: "running" as const,
-						dispatched: true,
-						message: `Task dispatched to ${validatedInput.agentId} and completed in sync mode.`,
-						text: result.text,
-						iterations: result.iterations,
-					}))
+					.then((result) =>
+						validateWithZod(TeamRunTaskToolResultSchema, {
+							agentId: validatedInput.agentId,
+							mode: "sync" as const,
+							status: "running" as const,
+							dispatched: true,
+							message: `Task dispatched to ${validatedInput.agentId} and completed in sync mode.`,
+							text: result.text,
+							iterations: result.iterations,
+						}),
+					)
 					.finally(() => {
 						pendingSyncRuns.delete(validatedInput.agentId);
 					});
@@ -532,7 +555,10 @@ export function createAgentTeamsTools(
 					validatedInput.runId,
 					validatedInput.reason,
 				);
-				return { runId: run.id, status: run.status };
+				return validateWithZod(TeamCancelRunToolResultSchema, {
+					runId: run.id,
+					status: run.status,
+				});
 			},
 		}) as Tool,
 	);
@@ -544,9 +570,12 @@ export function createAgentTeamsTools(
 				"List teammate runs started with team_run_task in async mode, including live activity/progress fields when available.",
 			inputSchema: zodToJsonSchema(TeamListRunsInputSchema),
 			execute: async (input) =>
-				options.runtime
-					.listRuns(validateWithZod(TeamListRunsInputSchema, input))
-					.map(summarizeRun),
+				validateWithZod(
+					TeamRunToolSummarySchema.array(),
+					options.runtime
+						.listRuns(validateWithZod(TeamListRunsInputSchema, input))
+						.map(summarizeRun),
+				),
 		}) as Tool,
 	);
 
@@ -562,7 +591,7 @@ export function createAgentTeamsTools(
 				if (validatedInput.runId) {
 					const run = await options.runtime.awaitRun(validatedInput.runId);
 					assertAwaitedRunSucceeded(run);
-					return summarizeRun(run);
+					return validateWithZod(TeamRunToolSummarySchema, summarizeRun(run));
 				}
 				const runs = await options.runtime.awaitAllRuns();
 				const failedRuns = runs.filter((run) =>
@@ -579,7 +608,10 @@ export function createAgentTeamsTools(
 						`One or more runs did not complete successfully: ${details}`,
 					);
 				}
-				return runs.map(summarizeRun);
+				return validateWithZod(
+					TeamRunToolSummarySchema.array(),
+					runs.map(summarizeRun),
+				);
 			},
 		}) as Tool,
 	);
@@ -601,7 +633,10 @@ export function createAgentTeamsTools(
 					validatedInput.body,
 					validatedInput.taskId ?? undefined,
 				);
-				return { id: message.id, toAgentId: message.toAgentId };
+				return validateWithZod(TeamSendMessageToolResultSchema, {
+					id: message.id,
+					toAgentId: message.toAgentId,
+				});
 			},
 		}) as Tool,
 	);
@@ -621,16 +656,15 @@ export function createAgentTeamsTools(
 						taskId: validatedInput.taskId ?? undefined,
 					},
 				);
-				return { delivered: messages.length };
+				return validateWithZod(TeamBroadcastToolResultSchema, {
+					delivered: messages.length,
+				});
 			},
 		}) as Tool,
 	);
 
 	tools.push(
-		createTool<
-			TeamReadMailboxInput,
-			ReturnType<AgentTeamsRuntime["listMailbox"]>
-		>({
+		createTool<TeamReadMailboxInput, TeamMailboxMessageToolResult[]>({
 			name: "team_read_mailbox",
 			description: "Read the current agent mailbox.",
 			inputSchema: zodToJsonSchema(TeamReadMailboxInputSchema),
@@ -639,10 +673,13 @@ export function createAgentTeamsTools(
 					TeamReadMailboxInputSchema,
 					input,
 				);
-				return options.runtime.listMailbox(options.requesterId, {
-					unreadOnly: validatedInput.unreadOnly,
-					markRead: true,
-				});
+				return validateWithZod(
+					TeamMailboxMessageToolResultSchema.array(),
+					options.runtime.listMailbox(options.requesterId, {
+						unreadOnly: validatedInput.unreadOnly,
+						markRead: true,
+					}),
+				);
 			},
 		}) as Tool,
 	);
@@ -667,7 +704,9 @@ export function createAgentTeamsTools(
 						: undefined,
 					nextAction: validatedInput.nextAction || undefined,
 				});
-				return { id: entry.id };
+				return validateWithZod(TeamMissionLogToolResultSchema, {
+					id: entry.id,
+				});
 			},
 		}) as Tool,
 	);
@@ -684,13 +723,15 @@ export function createAgentTeamsTools(
 					throw new Error("Only the lead agent can run cleanup.");
 				}
 				options.runtime.cleanup();
-				return { status: "cleaned" };
+				return validateWithZod(TeamCleanupToolResultSchema, {
+					status: "cleaned",
+				});
 			},
 		}) as Tool,
 	);
 
 	tools.push(
-		createTool<TeamCreateOutcomeInput, { outcomeId: string; status: string }>({
+		createTool<TeamCreateOutcomeInput, TeamCreateOutcomeToolResult>({
 			name: "team_create_outcome",
 			description: "Create a converged team outcome.",
 			inputSchema: zodToJsonSchema(TeamCreateOutcomeInputSchema),
@@ -704,11 +745,11 @@ export function createAgentTeamsTools(
 					requiredSections: validatedInput.requiredSections,
 					createdBy: options.requesterId,
 				});
-				return {
+				return validateWithZod(TeamCreateOutcomeToolResultSchema, {
 					outcomeId: outcome.id,
 					status: outcome.status,
 					requiredSections: outcome.requiredSections,
-				};
+				});
 			},
 		}) as Tool,
 	);
@@ -733,7 +774,10 @@ export function createAgentTeamsTools(
 					sourceRunId: validatedInput.sourceRunId || undefined,
 					content: validatedInput.content,
 				});
-				return { fragmentId: fragment.id, status: fragment.status };
+				return validateWithZod(TeamOutcomeFragmentToolResultSchema, {
+					fragmentId: fragment.id,
+					status: fragment.status,
+				});
 			},
 		}) as Tool,
 	);
@@ -756,7 +800,10 @@ export function createAgentTeamsTools(
 					reviewedBy: options.requesterId,
 					approved: validatedInput.approved,
 				});
-				return { fragmentId: fragment.id, status: fragment.status };
+				return validateWithZod(TeamOutcomeFragmentToolResultSchema, {
+					fragmentId: fragment.id,
+					status: fragment.status,
+				});
 			},
 		}) as Tool,
 	);
@@ -775,23 +822,26 @@ export function createAgentTeamsTools(
 					const outcome = options.runtime.finalizeOutcome(
 						validatedInput.outcomeId,
 					);
-					return { outcomeId: outcome.id, status: outcome.status };
+					return validateWithZod(TeamFinalizeOutcomeToolResultSchema, {
+						outcomeId: outcome.id,
+						status: outcome.status,
+					});
 				},
 			},
 		) as Tool,
 	);
 
 	tools.push(
-		createTool<
-			TeamListOutcomesInput,
-			ReturnType<AgentTeamsRuntime["listOutcomes"]>
-		>({
+		createTool<TeamListOutcomesInput, TeamOutcomeToolResult[]>({
 			name: "team_list_outcomes",
 			description: "List team outcomes.",
 			inputSchema: zodToJsonSchema(TeamListOutcomesInputSchema),
 			execute: async (input) => {
 				validateWithZod(TeamListOutcomesInputSchema, input);
-				return options.runtime.listOutcomes();
+				return validateWithZod(
+					TeamOutcomeToolResultSchema.array(),
+					options.runtime.listOutcomes(),
+				);
 			},
 		}) as Tool,
 	);

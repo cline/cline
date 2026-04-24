@@ -2,6 +2,7 @@
 
 import { isMainThread } from "node:worker_threads";
 import { disposeAll, initVcr } from "@clinebot/shared";
+import { logCliProcessError } from "./logging/errors";
 import { runCli } from "./main";
 import { abortActiveRuntime } from "./runtime/active-runtime";
 import { writeErr } from "./utils/output";
@@ -14,6 +15,7 @@ if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
 } else {
 	let shuttingDown = false;
+	let handlingFatalProcessError = false;
 	const forwardSignalToRuntime = () => {
 		if (shuttingDown) {
 			process.exit(1);
@@ -23,12 +25,33 @@ if (!isMainThread) {
 	};
 	process.on("SIGINT", forwardSignalToRuntime);
 	process.on("SIGTERM", forwardSignalToRuntime);
+	const handleFatalProcessError = (kind: string, error: unknown) => {
+		if (handlingFatalProcessError) {
+			process.exit(1);
+		}
+		handlingFatalProcessError = true;
+		logCliProcessError(kind, error);
+		writeErr(
+			error instanceof Error ? (error.stack ?? error.message) : String(error),
+		);
+		abortActiveRuntime();
+		void disposeAll().finally(() => {
+			process.exit(1);
+		});
+	};
+	process.on("uncaughtException", (error) => {
+		handleFatalProcessError("uncaughtException", error);
+	});
+	process.on("unhandledRejection", (reason) => {
+		handleFatalProcessError("unhandledRejection", reason);
+	});
 
 	void (async () => {
 		let exitCode = 0;
 		try {
 			await runCli();
 		} catch (err) {
+			logCliProcessError("runCli", err);
 			writeErr(err instanceof Error ? err.message : String(err));
 			abortActiveRuntime();
 			exitCode = 1;

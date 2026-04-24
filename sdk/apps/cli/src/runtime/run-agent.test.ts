@@ -315,6 +315,11 @@ describe("runAgent", () => {
 
 	it("sets a failing exit code when session startup throws", async () => {
 		sessionManagerMocks.start.mockRejectedValue(new Error("Missing API key"));
+		const logger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
 
 		const { runAgent } = await import("./run-agent");
 
@@ -327,9 +332,7 @@ describe("runAgent", () => {
 				execution: {
 					maxConsecutiveMistakes: 3,
 				},
-				logger: {
-					log: vi.fn(),
-				},
+				logger,
 				maxIterations: 10,
 				mode: "yolo",
 				modelId: "google/gemini-3-flash-preview",
@@ -345,6 +348,9 @@ describe("runAgent", () => {
 		).resolves.toBeUndefined();
 
 		expect(process.exitCode).toBe(1);
+		expect(logger.error).toHaveBeenCalledWith("CLI task run failed", {
+			error: expect.any(Error),
+		});
 		expect(outputMocks.writeErr).toHaveBeenCalledWith("Missing API key");
 	});
 

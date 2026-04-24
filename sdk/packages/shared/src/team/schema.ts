@@ -5,7 +5,6 @@
  */
 
 import { z } from "zod";
-import type { TeamRunStatus, TeamTaskListItem } from "./types";
 
 export const DEFAULT_OUTCOME_REQUIRED_SECTIONS = [
 	"current_state",
@@ -16,12 +15,42 @@ export const TEAM_AWAIT_TIMEOUT_MS = 60 * 60 * 1000;
 export const TEAM_RUN_MESSAGE_PREVIEW_LIMIT = 240;
 export const TEAM_RUN_TEXT_PREVIEW_LIMIT = 400;
 
-export interface TeamTeammateSpec {
-	agentId: string;
-	rolePrompt: string;
-	modelId?: string;
-	maxIterations?: number;
-}
+const IsoTimestampSchema = z.preprocess(
+	(value) => (value instanceof Date ? value.toISOString() : value),
+	z.string().datetime(),
+);
+
+const TeamTaskStatusSchema = z.enum([
+	"pending",
+	"in_progress",
+	"blocked",
+	"completed",
+]);
+
+const TeamRunStatusSchema = z.enum([
+	"queued",
+	"running",
+	"completed",
+	"failed",
+	"cancelled",
+	"interrupted",
+]);
+
+const TeamOutcomeStatusSchema = z.enum(["draft", "in_review", "finalized"]);
+
+const TeamMemberSnapshotSchema = z.object({
+	agentId: z.string(),
+	role: z.enum(["lead", "teammate"]),
+	description: z.string().optional(),
+	status: z.enum(["idle", "running", "stopped"]),
+});
+
+export const TeamTeammateSpecSchema = z.object({
+	agentId: z.string(),
+	rolePrompt: z.string(),
+	modelId: z.string().optional(),
+	maxIterations: z.number().optional(),
+});
 
 function nullableOptional<T extends z.ZodTypeAny>(schema: T) {
 	return z.preprocess(
@@ -236,51 +265,188 @@ export type TeamFinalizeOutcomeInput = z.infer<
 >;
 export type TeamListOutcomesInput = z.infer<typeof TeamListOutcomesInputSchema>;
 
-export interface TeamRunResultSummary {
-	textPreview: string;
-	iterations: number;
-	finishReason: string;
-	durationMs: number;
-	usage: {
-		inputTokens: number;
-		outputTokens: number;
-		cacheReadTokens?: number;
-		cacheWriteTokens?: number;
-		totalCost?: number;
-	};
-}
+export type TeamTeammateSpec = z.infer<typeof TeamTeammateSpecSchema>;
 
-export interface TeamRunToolSummary {
-	id: string;
-	agentId: string;
-	taskId?: string;
-	status: TeamRunStatus;
-	messagePreview: string;
-	priority: number;
-	retryCount: number;
-	maxRetries: number;
-	nextAttemptAt?: Date;
-	continueConversation?: boolean;
-	startedAt: Date;
-	endedAt?: Date;
-	leaseOwner?: string;
-	heartbeatAt?: Date;
-	lastProgressAt?: Date;
-	lastProgressMessage?: string;
-	currentActivity?: string;
-	error?: string;
-	resultSummary?: TeamRunResultSummary;
-}
+export const TeamStatusToolResultSchema = z.object({
+	teamId: z.string(),
+	teamName: z.string(),
+	members: z.array(TeamMemberSnapshotSchema),
+	taskCounts: z.record(TeamTaskStatusSchema, z.number()),
+	unreadMessages: z.number(),
+	missionLogEntries: z.number(),
+	activeRuns: z.number(),
+	queuedRuns: z.number(),
+	outcomeCounts: z.record(TeamOutcomeStatusSchema, z.number()),
+});
 
-export type TeamTaskToolResult =
-	| {
-			action: "create";
-			taskId: string;
-			status: string;
-			ignoredFields?: string[];
-			note?: string;
-	  }
-	| { action: "list"; tasks: TeamTaskListItem[] }
-	| { action: "claim"; taskId: string; status: string; nextStep: string }
-	| { action: "complete"; taskId: string; status: string }
-	| { action: "block"; taskId: string; status: string };
+export const TeamTaskListItemToolResultSchema = z.object({
+	id: z.string(),
+	title: z.string(),
+	description: z.string(),
+	status: TeamTaskStatusSchema,
+	createdAt: IsoTimestampSchema,
+	updatedAt: IsoTimestampSchema,
+	createdBy: z.string(),
+	assignee: z.string().optional(),
+	dependsOn: z.array(z.string()),
+	summary: z.string().optional(),
+	isReady: z.boolean(),
+	blockedBy: z.array(z.string()),
+});
+
+export const TeamTaskToolResultSchema = z.discriminatedUnion("action", [
+	z.object({
+		action: z.literal("create"),
+		taskId: z.string(),
+		status: TeamTaskStatusSchema,
+		ignoredFields: z.array(z.string()).optional(),
+		note: z.string().optional(),
+	}),
+	z.object({
+		action: z.literal("list"),
+		tasks: z.array(TeamTaskListItemToolResultSchema),
+	}),
+	z.object({
+		action: z.literal("claim"),
+		taskId: z.string(),
+		status: TeamTaskStatusSchema,
+		nextStep: z.string(),
+	}),
+	z.object({
+		action: z.literal("complete"),
+		taskId: z.string(),
+		status: TeamTaskStatusSchema,
+	}),
+	z.object({
+		action: z.literal("block"),
+		taskId: z.string(),
+		status: TeamTaskStatusSchema,
+	}),
+]);
+
+export const TeamRunTaskToolResultSchema = z.object({
+	agentId: z.string(),
+	mode: z.enum(["sync", "async"]),
+	status: z.enum(["dispatched", "running", "queued", "joined"]),
+	dispatched: z.boolean(),
+	message: z.string(),
+	deduped: z.boolean().optional(),
+	runId: z.string().optional(),
+	text: z.string().optional(),
+	iterations: z.number().optional(),
+});
+
+export const TeamRunResultSummarySchema = z.object({
+	textPreview: z.string(),
+	iterations: z.number(),
+	finishReason: z.string(),
+	durationMs: z.number(),
+	usage: z.object({
+		inputTokens: z.number(),
+		outputTokens: z.number(),
+		cacheReadTokens: z.number().optional(),
+		cacheWriteTokens: z.number().optional(),
+		totalCost: z.number().optional(),
+	}),
+});
+
+export const TeamRunToolSummarySchema = z.object({
+	id: z.string(),
+	agentId: z.string(),
+	taskId: z.string().optional(),
+	status: TeamRunStatusSchema,
+	messagePreview: z.string(),
+	priority: z.number(),
+	retryCount: z.number(),
+	maxRetries: z.number(),
+	nextAttemptAt: IsoTimestampSchema.optional(),
+	continueConversation: z.boolean().optional(),
+	startedAt: IsoTimestampSchema,
+	endedAt: IsoTimestampSchema.optional(),
+	leaseOwner: z.string().optional(),
+	heartbeatAt: IsoTimestampSchema.optional(),
+	lastProgressAt: IsoTimestampSchema.optional(),
+	lastProgressMessage: z.string().optional(),
+	currentActivity: z.string().optional(),
+	error: z.string().optional(),
+	resultSummary: TeamRunResultSummarySchema.optional(),
+});
+
+export const TeamMailboxMessageToolResultSchema = z.object({
+	id: z.string(),
+	teamId: z.string(),
+	fromAgentId: z.string(),
+	toAgentId: z.string(),
+	subject: z.string(),
+	body: z.string(),
+	taskId: z.string().optional(),
+	sentAt: IsoTimestampSchema,
+	readAt: IsoTimestampSchema.optional(),
+});
+
+export const TeamOutcomeToolResultSchema = z.object({
+	id: z.string(),
+	teamId: z.string(),
+	title: z.string(),
+	status: TeamOutcomeStatusSchema,
+	requiredSections: z.array(z.string()),
+	createdBy: z.string(),
+	createdAt: IsoTimestampSchema,
+	finalizedAt: IsoTimestampSchema.optional(),
+});
+
+export const TeamCreateOutcomeToolResultSchema = z.object({
+	outcomeId: z.string(),
+	status: TeamOutcomeStatusSchema,
+	requiredSections: z.array(z.string()),
+});
+
+export const TeamSimpleAgentStatusToolResultSchema = z.object({
+	agentId: z.string(),
+	status: z.string(),
+});
+
+export const TeamCancelRunToolResultSchema = z.object({
+	runId: z.string(),
+	status: TeamRunStatusSchema,
+});
+
+export const TeamSendMessageToolResultSchema = z.object({
+	id: z.string(),
+	toAgentId: z.string(),
+});
+
+export const TeamBroadcastToolResultSchema = z.object({
+	delivered: z.number(),
+});
+
+export const TeamMissionLogToolResultSchema = z.object({
+	id: z.string(),
+});
+
+export const TeamCleanupToolResultSchema = z.object({
+	status: z.string(),
+});
+
+export const TeamOutcomeFragmentToolResultSchema = z.object({
+	fragmentId: z.string(),
+	status: z.string(),
+});
+
+export const TeamFinalizeOutcomeToolResultSchema = z.object({
+	outcomeId: z.string(),
+	status: TeamOutcomeStatusSchema,
+});
+
+export type TeamRunResultSummary = z.infer<typeof TeamRunResultSummarySchema>;
+export type TeamRunToolSummary = z.infer<typeof TeamRunToolSummarySchema>;
+export type TeamTaskToolResult = z.infer<typeof TeamTaskToolResultSchema>;
+export type TeamRunTaskToolResult = z.infer<typeof TeamRunTaskToolResultSchema>;
+export type TeamStatusToolResult = z.infer<typeof TeamStatusToolResultSchema>;
+export type TeamMailboxMessageToolResult = z.infer<
+	typeof TeamMailboxMessageToolResultSchema
+>;
+export type TeamOutcomeToolResult = z.infer<typeof TeamOutcomeToolResultSchema>;
+export type TeamCreateOutcomeToolResult = z.infer<
+	typeof TeamCreateOutcomeToolResultSchema
+>;

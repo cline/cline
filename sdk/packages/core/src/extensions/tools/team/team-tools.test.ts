@@ -357,9 +357,38 @@ describe("createAgentTeamsTools schema surface", () => {
 			expect.arrayContaining([
 				expect.objectContaining({
 					title: expect.any(String),
+					createdAt: expect.any(String),
 				}),
 			]),
 		);
+	});
+
+	it("serializes mailbox timestamps through team_read_mailbox", async () => {
+		const runtime = new AgentTeamsRuntime({ teamName: "test-team" });
+		runtime.sendMessage("lead", "lead", "Status", "Please review");
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const readMailbox = tools.find((tool) => tool.name === "team_read_mailbox");
+
+		await expect(
+			readMailbox?.execute(
+				{ unreadOnly: true },
+				{
+					agentId: "lead",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				subject: "Status",
+				sentAt: expect.any(String),
+				readAt: expect.any(String),
+			}),
+		]);
 	});
 
 	it("accepts null sourceRunId for team_attach_outcome_fragment", async () => {
@@ -664,9 +693,9 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			priority: 0,
 			retryCount: 0,
 			maxRetries: 0,
-			startedAt: new Date("2026-03-24T09:00:00.000Z"),
-			endedAt: new Date("2026-03-24T09:01:00.000Z"),
-			lastProgressAt: new Date("2026-03-24T09:00:59.000Z"),
+			startedAt: "2026-03-24T09:00:00.000Z",
+			endedAt: "2026-03-24T09:01:00.000Z",
+			lastProgressAt: "2026-03-24T09:00:59.000Z",
 			lastProgressMessage: "completed",
 			currentActivity: "completed",
 			resultSummary: {
@@ -730,8 +759,8 @@ describe("createAgentTeamsTools runtime behavior", () => {
 				priority: 0,
 				retryCount: 0,
 				maxRetries: 0,
-				startedAt: new Date("2026-03-24T09:00:00.000Z"),
-				lastProgressAt: new Date("2026-03-24T09:00:30.000Z"),
+				startedAt: "2026-03-24T09:00:00.000Z",
+				lastProgressAt: "2026-03-24T09:00:30.000Z",
 				lastProgressMessage: "reading files",
 				currentActivity: "reading_files",
 				resultSummary: undefined,
@@ -945,6 +974,8 @@ describe("createAgentTeamsTools runtime behavior", () => {
 			tasks: [
 				expect.objectContaining({
 					id: first.taskId,
+					createdAt: expect.any(String),
+					updatedAt: expect.any(String),
 					isReady: true,
 					blockedBy: [],
 				}),
