@@ -302,6 +302,7 @@ export function generateApiKeyDisplayName(fieldName) {
 		openAiNativeApiKey: "OpenAI Native API Key",
 		geminiApiKey: "Gemini API Key",
 		ollamaApiKey: "Ollama API Key",
+		lmStudioApiKey: "LM Studio API Key",
 		deepSeekApiKey: "DeepSeek API Key",
 		liteLlmApiKey: "LiteLLM API Key",
 		qwenApiKey: "Qwen API Key",
