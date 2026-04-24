@@ -1,5 +1,18 @@
 # cline
 
+## [2.17.0]
+
+### Added
+
+- Add GPT-5.5 model support for OpenAI Codex subscription users.
+
+### Changed
+
+- Improve `cline-core` runtime memory diagnostics used by CLI:
+  - enable near-heap-limit heap snapshots
+  - add periodic memory usage logging
+  - log discovered heap snapshots on abnormal exits for easier OOM debugging
+
 ## [2.16.0]
 
 ### Added
