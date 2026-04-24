@@ -84,8 +84,13 @@ echo "[TaskStart] Task ID: $TASK_ID" >&2
 TIMESTAMP_ISO=$(date -u -d @"$((TIMESTAMP/1000))" +"%Y-%m-%dT%H:%M:%SZ" 2>/dev/null || date -u +"%Y-%m-%dT%H:%M:%SZ")
 CONTEXT_MOD="Note: Task started at $TIMESTAMP_ISO"
 
-# Return result as JSON
-echo "{\\"cancel\\":false,\\"contextModification\\":\\"$CONTEXT_MOD\\",\\"errorMessage\\":\\"\\"}"
+# Return result as JSON (use jq to safely encode the variable, with a simple fallback)
+if command -v jq &> /dev/null; then
+  jq -n --arg ctx "$CONTEXT_MOD" '{"cancel":false,"contextModification":$ctx,"errorMessage":""}'
+else
+  ESCAPED_MOD=$(printf '%s' "$CONTEXT_MOD" | sed 's/\\\\/\\\\\\\\/g; s/"/\\\\"/g')
+  echo '{"cancel":false,"contextModification":"'"$ESCAPED_MOD"'","errorMessage":""}'
+fi
 `
 }
 
