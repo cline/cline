@@ -25,8 +25,10 @@ import type { Controller } from "@/core/controller"
 import { getRequestRegistry, type StreamingResponseHandler } from "@/core/controller/grpc-handler"
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
+import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
+import { featureFlagsService } from "@/services/feature-flags"
 import { CLINE_API_ENDPOINT } from "@/shared/cline/api"
 import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
@@ -561,6 +563,14 @@ export class AuthService {
 
 			// Store Codex credentials in providers.json
 			await this.saveCodexCredentials(credentials)
+			await openAiCodexOAuthManager.saveCredentials({
+				type: "openai-codex",
+				access_token: credentials.access,
+				refresh_token: credentials.refresh,
+				expires: credentials.expires,
+				email: credentials.email,
+				accountId: credentials.accountId,
+			})
 
 			// Notify webview of state change
 			await this.sendAuthStatusUpdate()
@@ -600,6 +610,8 @@ export class AuthService {
 	 */
 	async clearCodexCredentials(): Promise<void> {
 		try {
+			await openAiCodexOAuthManager.clearCredentials()
+
 			const manager = getProviderSettingsManager()
 			const existing = manager.getProviderSettings("openai-codex")
 			if (existing) {
@@ -871,6 +883,10 @@ export class AuthService {
 		})
 
 		await Promise.all(streamSends)
+
+		// Poll feature flags immediately for the current auth context so cache-only
+		// consumers (for example BannerService) see the latest remote config.
+		await featureFlagsService.poll(this._clineAuthInfo?.userInfo?.id || null)
 
 		// Update state in webviews once per unique controller
 		await Promise.all(Array.from(uniqueControllers).map((c) => c.postStateToWebview()))

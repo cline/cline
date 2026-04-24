@@ -35,10 +35,8 @@ export async function getStateToPostToWebview(controller: {
 	const taskHistory = stateManager.getGlobalStateKey("taskHistory")
 	const autoApprovalSettings = stateManager.getGlobalSettingsKey("autoApprovalSettings")
 	const browserSettings = stateManager.getGlobalSettingsKey("browserSettings")
-	const focusChainSettings = stateManager.getGlobalSettingsKey("focusChainSettings")
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
 	const mode = stateManager.getGlobalSettingsKey("mode")
-	const strictPlanModeEnabled = stateManager.getGlobalSettingsKey("strictPlanModeEnabled")
 	const yoloModeToggled = stateManager.getGlobalSettingsKey("yoloModeToggled")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
@@ -115,14 +113,11 @@ export async function getStateToPostToWebview(controller: {
 		apiConfiguration,
 		currentTaskItem,
 		clineMessages,
-		currentFocusChainChecklist: controller.task?.taskState?.currentFocusChainChecklist || null,
 		checkpointManagerErrorMessage,
 		autoApprovalSettings,
 		browserSettings,
-		focusChainSettings,
 		preferredLanguage,
 		mode,
-		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
 		subagentsEnabled,

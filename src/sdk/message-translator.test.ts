@@ -902,6 +902,53 @@ describe("translateSessionEvent — agent_event content_update", () => {
 })
 
 // ---------------------------------------------------------------------------
+// translateSessionEvent — agent_event (usage)
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — agent_event usage", () => {
+	it("splits SDK inclusive input tokens into classic disjoint usage buckets", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "usage",
+					inputTokens: 24481,
+					outputTokens: 261,
+					cacheReadTokens: 24478,
+					cacheWriteTokens: 0,
+					cost: 0.0112674,
+					totalInputTokens: 24481,
+					totalOutputTokens: 261,
+					totalCacheReadTokens: 24478,
+					totalCacheWriteTokens: 0,
+					totalCost: 0.0112674,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0].say).toBe("api_req_started")
+		expect(JSON.parse(result.messages[0].text ?? "{}")).toMatchObject({
+			tokensIn: 3,
+			tokensOut: 261,
+			cacheReads: 24478,
+			cacheWrites: 0,
+			cost: 0.0112674,
+		})
+		expect(result.usage).toEqual({
+			tokensIn: 3,
+			tokensOut: 261,
+			cacheReads: 24478,
+			cacheWrites: 0,
+			totalCost: 0.0112674,
+		})
+	})
+})
+
+// ---------------------------------------------------------------------------
 // historyItemToSessionFields
 // ---------------------------------------------------------------------------
 
@@ -1274,6 +1321,177 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 			const msg = result.messages[0]
 			expect(msg.text).toContain("Error: command not found")
 		})
+	})
+})
+
+// ---------------------------------------------------------------------------
+// ENG-1867: run_commands with bare array input renders command text
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — run_commands bare array/string input (ENG-1867)", () => {
+	it("content_start with bare array input shows command text", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: ["biome check --write src/"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		const msg = result.messages[0]
+		expect(msg.say).toBe("command")
+		expect(msg.text).toBe("biome check --write src/")
+		expect(msg.partial).toBe(true)
+	})
+
+	it("content_start with multi-element bare array joins with &&", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: ["npm install", "npm run build"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("npm install && npm run build")
+	})
+
+	it("content_start with bare string input shows command text", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "execute_command",
+					toolCallId: "c1",
+					input: "ls -la",
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].say).toBe("command")
+		expect(result.messages[0].text).toBe("ls -la")
+	})
+
+	it("content_end preserves bare array input from content_start", () => {
+		const state = new MessageTranslatorState()
+		// content_start with bare array
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						input: ["biome check --write src/"],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						output: "Checked 2 files in 108ms. No fixes applied.",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(endResult.messages).toHaveLength(1)
+		const msg = endResult.messages[0]
+		expect(msg.say).toBe("command")
+		expect(msg.text).toContain("biome check --write src/")
+		expect(msg.text).toContain("Output:")
+		expect(msg.text).toContain("Checked 2 files")
+		expect(msg.partial).toBe(false)
+	})
+
+	it("content_end with bare string input from content_start preserves command", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "c1",
+						input: "echo hello",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "c1",
+						output: "hello\n",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const msg = endResult.messages[0]
+		expect(msg.text).toContain("echo hello")
+		expect(msg.text).toContain("hello")
+	})
+
+	it("wrapped object input { commands: [...] } still works (regression)", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { commands: ["npm test"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("npm test")
 	})
 })
 
