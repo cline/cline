@@ -923,8 +923,16 @@ export class Controller {
 			// 4. Build a fresh session config for the new mode. This rebuilds
 			//    the system prompt (plan mode appends PLAN_MODE_INSTRUCTIONS)
 			//    and resets extraTools, which we then re-inject below.
+			//    buildSessionConfig() reads the mode-specific provider and
+			//    model from ApiConfiguration (planModeApiProvider vs
+			//    actModeApiProvider, planModeApiModelId vs actModeApiModelId,
+			//    etc.), so swapping mode here correctly picks up the user's
+			//    per-mode provider/model pair.
 			const cwd = await this.getWorkspaceRoot()
 			const config = await buildSessionConfig({ cwd, mode: newMode })
+			Logger.log(
+				`[SdkController] Mode rebuild config: mode=${newMode}, provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
+			)
 			config.hooks = this.buildHooksWithEmitter()
 			config.extensions = [...(config.extensions ?? []), ...this.buildExtensionsWithEmitter()]
 			// Inject the `switch_to_act_mode` tool when entering plan mode;
@@ -934,6 +942,27 @@ export class Controller {
 			// to resolve from taskHistory and the webview doesn't flash back
 			// to a blank/new-task state.
 			config.sessionId = oldSessionId
+
+			// 4a. Auth pre-check: if the new mode's provider is 'cline' and
+			//     there's no auth token, emit a proper auth error (producing
+			//     the "Sign in to Cline" button in ErrorRow) instead of
+			//     attempting to start the new session and crashing on the
+			//     first API call. Mirrors the same pre-check in initTask().
+			//
+			//     We leave the old (already-aborted, if it was mid-turn)
+			//     session in place so the user's chat history stays visible
+			//     and they can retry after signing in — tearing down below
+			//     would throw them back to a blank state. The mode is
+			//     already persisted to global state, so the webview's mode
+			//     toggle reflects the new mode.
+			if (config.providerId === "cline" && !config.apiKey) {
+				Logger.warn(
+					`[SdkController] Mode rebuild: new mode '${newMode}' provider is 'cline' but no auth token — emitting auth error`,
+				)
+				this.emitClineAuthError()
+				await this.postStateToWebview()
+				return
+			}
 
 			// 5. Tear down the old session BEFORE starting the new one, so
 			//    startNewSession() doesn't overwrite this.activeSession while
