@@ -168,6 +168,79 @@ Still deferred:
 - Moving whole task lifecycle workflows out of `Controller`.
 - Consolidating mode/MCP rebuild policy.
 
+## PR 11 Scope
+
+Eleventh PR is behavior-preserving and extracts task startup/reinitialization
+behavior.
+
+Implemented boundary:
+
+- `SdkTaskStartCoordinator`
+  - Owns `initTask`, including clearing prior task state, building session
+    config, Cline auth pre-checks, SDK session start, task proxy creation,
+    task-history insertion, initial task-message emission, state posting, and
+    first prompt send.
+  - Owns `reinitExistingTaskFromId`, including task-history lookup, act-mode
+    config rebuild, persisted conversation loading, SDK session start with
+    preserved initial messages, task proxy creation, and auth/error handling.
+
+Controller changes:
+
+- Public `initTask` and `reinitExistingTaskFromId` methods remain on
+  `Controller`, but delegate to `SdkTaskStartCoordinator`.
+
+Still deferred:
+
+- Moving whole task lifecycle workflows out of `Controller`.
+- Consolidating mode/MCP rebuild policy.
+
+## PR 12 Scope
+
+Twelfth PR is behavior-preserving and extracts SDK session event handling.
+
+Implemented boundary:
+
+- `SdkSessionEventCoordinator`
+  - Owns SDK event translation into classic `ClineMessage` updates.
+  - Owns late completion-message filtering after cancellation.
+  - Owns active-session running-state updates when turns complete.
+  - Kicks deferred MCP restarts and pending mode changes after turn
+    completion.
+  - Persists per-turn usage through `SdkTaskHistory`.
+  - Posts state updates after emitted session messages.
+
+Controller changes:
+
+- `SdkSessionFactory` event callbacks now delegate to
+  `SdkSessionEventCoordinator`.
+
+Still deferred:
+
+- Moving shared session-history loading out of `Controller`.
+- Moving state/webview facade helpers out of `Controller`.
+
+## PR 13 Scope
+
+Thirteenth PR is behavior-preserving and extracts shared session-history
+loading.
+
+Implemented boundary:
+
+- `SdkSessionHistoryLoader`
+  - Reads SDK-persisted messages through a supplied session-history reader.
+  - Sanitizes legacy tool-use/tool-result pairings before reuse.
+  - Falls back to classic `api_conversation_history.json` for pre-SDK tasks.
+  - Owns logging for SDK and classic history load/sanitize paths.
+
+Controller changes:
+
+- Mode rebuild, MCP reload, follow-up resume, and task reinit callbacks now
+  share `SdkSessionHistoryLoader`.
+
+Still deferred:
+
+- Moving state/webview facade helpers out of `Controller`.
+
 ## PR 4 Scope
 
 Fourth PR is behavior-preserving and extracts the shared active-session

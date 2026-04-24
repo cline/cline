@@ -9,7 +9,6 @@
 import * as fs from "node:fs/promises"
 import * as os from "node:os"
 import * as path from "node:path"
-import type { CoreSessionEvent } from "@clinebot/core"
 import type { ModelInfo } from "@shared/api"
 import type { ChatContent } from "@shared/ChatContent"
 import { CLINE_ACCOUNT_AUTH_ERROR_MESSAGE } from "@shared/ClineAccount"
@@ -36,19 +35,21 @@ import { Logger } from "@/shared/services/Logger"
 import { ClineAccountService } from "./account-service"
 import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
-import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
-import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
+import { MessageTranslatorState } from "./message-translator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
 import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
+import { SdkSessionEventCoordinator } from "./sdk-session-event-coordinator"
 import { SdkSessionFactory } from "./sdk-session-factory"
+import { SdkSessionHistoryLoader } from "./sdk-session-history-loader"
 import { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskControlCoordinator } from "./sdk-task-control-coordinator"
 import { SdkTaskHistory, type TaskWithId } from "./sdk-task-history"
-import { createTaskProxy, type TaskProxy } from "./task-proxy"
+import { SdkTaskStartCoordinator } from "./sdk-task-start-coordinator"
+import type { TaskProxy } from "./task-proxy"
 import { VscodeSessionHost } from "./vscode-session-host"
 import { WebviewGrpcBridge } from "./webview-grpc-bridge"
 
@@ -75,6 +76,9 @@ export class Controller {
 	private mcpTools: SdkMcpCoordinator
 	private followups: SdkFollowupCoordinator
 	private taskControl: SdkTaskControlCoordinator
+	private taskStart: SdkTaskStartCoordinator
+	private sessionEvents: SdkSessionEventCoordinator
+	private sessionHistory: SdkSessionHistoryLoader
 
 	// gRPC bridge (Step 5) — bridges SDK events to webview streams
 	private grpcBridge: WebviewGrpcBridge
@@ -128,6 +132,7 @@ export class Controller {
 		// Initialize message translator state
 		this.messageTranslatorState = new MessageTranslatorState()
 		this.messages = new SdkMessageCoordinator({ getTask: () => this.task })
+		this.sessionHistory = new SdkSessionHistoryLoader()
 		this.taskHistory = new SdkTaskHistory(this.stateManager)
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
@@ -148,7 +153,7 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
 				askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
-				onSessionEvent: (event) => this.handleSessionEvent(event),
+				onSessionEvent: (event) => this.sessionEvents.handleSessionEvent(event),
 			}),
 			onSendComplete: async () => {
 				if (this.mode.hasPendingModeChange()) {
@@ -198,7 +203,8 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: (sessionManager, sessionId) => this.loadInitialMessages(sessionManager, sessionId),
+			loadInitialMessages: (sessionManager, sessionId) =>
+				this.sessionHistory.loadInitialMessages(sessionManager, sessionId),
 			buildStartSessionInput,
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
@@ -210,7 +216,8 @@ export class Controller {
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: (sessionManager, sessionId) => this.loadInitialMessages(sessionManager, sessionId),
+			loadInitialMessages: (sessionManager, sessionId) =>
+				this.sessionHistory.loadInitialMessages(sessionManager, sessionId),
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -224,7 +231,7 @@ export class Controller {
 			getTask: () => this.task,
 			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: (reader, taskId) => this.loadInitialMessages(reader, taskId),
+			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			buildStartSessionInput,
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineProviderActive: () => this.isClineProviderActive(),
@@ -243,6 +250,38 @@ export class Controller {
 			},
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.taskStart = new SdkTaskStartCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			taskHistory: this.taskHistory,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			buildStartSessionInput,
+			createHistoryItemFromSession,
+			clearTask: () => this.clearTask(),
+			setTask: (task) => {
+				this.task = task
+			},
+			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
+			onCancelTask: () => this.cancelTask(),
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
+			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			isClineProviderActive: () => this.isClineProviderActive(),
+			emitClineAuthError: (task) => this.emitClineAuthError(task),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.sessionEvents = new SdkSessionEventCoordinator({
+			messageTranslatorState: this.messageTranslatorState,
+			sessions: this.sessions,
+			messages: this.messages,
+			mcpTools: this.mcpTools,
+			mode: this.mode,
+			taskHistory: this.taskHistory,
+			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
@@ -419,140 +458,6 @@ export class Controller {
 		this.postStateToWebview().catch(() => {})
 	}
 
-	/**
-	 * Handle an SDK session event.
-	 * Translates the event and emits ClineMessages to listeners.
-	 */
-	private handleSessionEvent(event: CoreSessionEvent): void {
-		// Log pending prompt events for visibility (SDK emits these when
-		// queued messages are enqueued/consumed via delivery: "queue").
-		if (event.type === "pending_prompts") {
-			const count = event.payload.prompts.length
-			Logger.log(
-				`[SdkController] Pending prompts updated: ${count} prompt(s) in queue for session ${event.payload.sessionId}`,
-			)
-		} else if (event.type === "pending_prompt_submitted") {
-			Logger.log(
-				`[SdkController] Pending prompt submitted: "${event.payload.prompt.substring(0, 80)}" for session ${event.payload.sessionId}`,
-			)
-		}
-
-		const result = translateSessionEvent(event, this.messageTranslatorState)
-		const activeSession = this.sessions.getActiveSession()
-
-		// Suppress completion_result messages that arrive after cancellation.
-		// When cancelTask() runs, it sets isRunning=false and emits resume_task.
-		// Late-arriving "done" events from the SDK produce completion_result
-		// which would override the resume_task button with "Start New Task".
-		// During normal completion, isRunning is still true when the done event
-		// fires, so this filter only affects the cancellation race condition.
-		if (activeSession && !activeSession.isRunning && result.messages.length > 0) {
-			result.messages = result.messages.filter(
-				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
-			)
-		}
-
-		if (result.messages.length > 0) {
-			this.messages.appendAndEmit(result.messages, event)
-		}
-
-		// Update running state
-		if (activeSession) {
-			if (result.sessionEnded || result.turnComplete) {
-				this.sessions.setRunning(false)
-
-				// Check if MCP tools changed while we were mid-turn.
-				// If so, restart the session now that the turn is complete.
-				this.mcpTools.checkDeferredRestart()
-
-				// If the model invoked `switch_to_act_mode` during this turn,
-				// apply the queued mode change now that the turn is complete.
-				// This mirrors the check in `fireAndForgetSend`'s completion
-				// handler — wiring it here ensures we also catch the mode
-				// change when turnComplete is signalled via the event stream
-				// before (or instead of) the send() promise resolving.
-				// Mirrors the CLI's plan → act flow in
-				// apps/cli/src/runtime/run-interactive.ts.
-				if (this.mode.hasPendingModeChange()) {
-					this.mode.applyPendingModeChange().catch((err) => {
-						Logger.error("[SdkController] applyPendingModeChange failed:", err)
-					})
-				}
-			}
-
-			// Update task history with usage info
-			if (result.usage && activeSession.startResult) {
-				this.taskHistory.updateTaskUsage(this.task?.taskId ?? this.sessions.getActiveSession()?.sessionId, result.usage)
-			}
-		}
-
-		// Push state update so the webview's clineMessages stays in sync.
-		// The partial message stream pushes individual messages, but the
-		// webview also needs the full clineMessages array in state for
-		// proper rendering (e.g., ChatView checks messages.length).
-		if (result.messages.length > 0) {
-			this.postStateToWebview().catch((err) => {
-				Logger.error("[SdkController] Failed to post state after event:", err)
-			})
-		}
-	}
-
-	// ---- Session helpers (shared by initTask, resumeSessionFromTask, restartSessionForMcpTools, etc.) ----
-
-	/**
-	 * Load conversation history for an old session, to be passed as
-	 * `initialMessages` when creating a replacement session.
-	 *
-	 * Tries the SDK's own persistence (SQLite/file) first via
-	 * `sessionManager.readMessages()`, then falls back to the classic
-	 * `api_conversation_history.json` for pre-SDK tasks.
-	 *
-	 * @param reader  An object with a `readMessages(id)` method — typically
-	 *                a `VscodeSessionHost` or the old `sessionManager`.
-	 * @param taskId  The session/task ID whose messages to load.
-	 */
-	private async loadInitialMessages(
-		reader: { readMessages(id: string): Promise<unknown[]> },
-		taskId: string,
-	): Promise<unknown[] | undefined> {
-		// 1. Try SDK-persisted messages (SQLite / file-backed session store)
-		try {
-			const sdkMessages = await reader.readMessages(taskId)
-			if (sdkMessages.length > 0) {
-				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(sdkMessages)
-				if (sanitizedMessages !== sdkMessages) {
-					Logger.log(
-						`[SdkController] Sanitized legacy pairing in SDK-persisted history for task: ${taskId} (${sdkMessages.length} → ${sanitizedMessages.length} messages)`,
-					)
-				}
-				Logger.log(`[SdkController] Loaded ${sanitizedMessages.length} SDK-persisted messages for task: ${taskId}`)
-				return sanitizedMessages
-			}
-		} catch (error) {
-			Logger.warn("[SdkController] Failed to read SDK-persisted messages:", error)
-		}
-
-		// 2. Fallback: classic api_conversation_history.json (pre-SDK tasks)
-		try {
-			const { getSavedApiConversationHistory } = await import("@core/storage/disk")
-			const apiHistory = await getSavedApiConversationHistory(taskId)
-			if (apiHistory.length > 0) {
-				const sanitizedMessages = sanitizeInitialMessagesForSessionStart(apiHistory as unknown[])
-				if (sanitizedMessages !== apiHistory) {
-					Logger.log(
-						`[SdkController] Sanitized legacy pairing in classic API history for task: ${taskId} (${apiHistory.length} → ${sanitizedMessages.length} messages)`,
-					)
-				}
-				Logger.log(`[SdkController] Loaded ${sanitizedMessages.length} classic API messages for task: ${taskId}`)
-				return sanitizedMessages
-			}
-		} catch (error) {
-			Logger.warn("[SdkController] Failed to read classic API conversation history:", error)
-		}
-
-		return undefined
-	}
-
 	// ---- Task lifecycle (Step 4) ----
 
 	async initTask(
@@ -562,193 +467,11 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
-		Logger.log(`[SdkController] initTask called: "${task?.substring(0, 50)}"`)
-		try {
-			// Clear any existing session first
-			await this.clearTask()
-
-			// Build session config from current state
-			const cwd = await this.getWorkspaceRoot()
-			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
-			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
-			Logger.log(`[SdkController] Building session config: mode=${mode}, cwd=${cwd}`)
-			const config = await this.sessionConfigBuilder.build({
-				prompt: task,
-				images,
-				files,
-				historyItem,
-				taskSettings,
-				cwd,
-				mode,
-			})
-
-			Logger.log(
-				`[SdkController] Session config: provider=${config.providerId}, model=${config.modelId}, hasApiKey=${!!config.apiKey}`,
-			)
-
-			// Pre-check: if using the 'cline' provider without auth, emit a
-			// proper auth error so the webview shows the "Sign in to Cline"
-			// button instead of a raw SDK error.
-			if (config.providerId === "cline" && !config.apiKey) {
-				Logger.warn("[SdkController] Cline provider selected but no auth token — emitting auth error")
-				this.emitClineAuthError(task)
-				return undefined
-			}
-
-			// Build start input — NO prompt, so start() returns immediately
-			// (session creation only, no inference yet)
-			const startInput = buildStartSessionInput(config, {
-				prompt: task,
-				images,
-				files,
-				historyItem,
-				taskSettings,
-				cwd,
-				mode,
-			})
-
-			// Create host, subscribe, start session, wire active session
-			const { startResult, sessionManager } = await this.sessions.startNewSession(startInput)
-
-			// Create a task proxy for gRPC handlers
-			this.task = createTaskProxy(
-				startResult.sessionId,
-				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
-				() => this.cancelTask(),
-			)
-
-			// Create and save a history item for this task
-			const newHistoryItem = createHistoryItemFromSession(startResult.sessionId, task ?? "", config.modelId, cwd)
-			await this.taskHistory.updateTaskHistory(newHistoryItem)
-
-			// Emit initial task message — must be added to messageStateHandler
-			// so that getStateToPostToWebview() includes it in clineMessages.
-			const taskMessage: ClineMessage = {
-				ts: Date.now(),
-				type: "say",
-				say: "task",
-				text: task ?? "",
-				partial: false,
-			}
-			this.messages.appendAndEmit(
-				[taskMessage],
-				{
-					type: "status",
-					payload: { sessionId: startResult.sessionId, status: "running" },
-				},
-				{ save: false },
-			)
-
-			await this.postStateToWebview()
-
-			// Send the prompt to start inference (fire-and-forget)
-			if (task?.trim()) {
-				Logger.log(`[SdkController] Sending prompt to session: ${startResult.sessionId}`)
-				// Resolve @mentions (file content, URLs, diagnostics, git state)
-				// before sending to the SDK, which doesn't handle them natively.
-				const resolvedTask = await this.resolveContextMentions(task)
-				this.sessions.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedTask, images, files)
-			}
-
-			Logger.log(`[SdkController] Task initialized: ${startResult.sessionId}`)
-			return startResult.sessionId
-		} catch (error) {
-			const errorDetails =
-				error instanceof Error ? `${error.name}: ${error.message}\n${error.stack?.substring(0, 500)}` : String(error)
-			Logger.error(`[SdkController] Failed to init task: ${errorDetails}`)
-			// Store error for debugging
-			;(globalThis as Record<string, unknown>).__cline_last_init_error = errorDetails
-			;(globalThis as Record<string, unknown>).__cline_last_init_error_raw = error
-			this.messages.emitSessionEvents(
-				[
-					{
-						ts: Date.now(),
-						type: "say",
-						say: "error",
-						text: `Failed to start task: ${error instanceof Error ? error.message : String(error)}`,
-						partial: false,
-					},
-				],
-				{ type: "status", payload: { sessionId: "", status: "error" } },
-			)
-			return undefined
-		}
+		return this.taskStart.initTask(task, images, files, historyItem, taskSettings)
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
-		try {
-			// Clear any existing session
-			await this.clearTask()
-
-			// Look up the task in StateManager's task history first,
-			// then fall back to the legacy file reader
-			const historyItem = this.taskHistory.findHistoryItem(taskId)
-			if (!historyItem) {
-				Logger.error(`[SdkController] Task not found in history: ${taskId}`)
-				return
-			}
-
-			// Build session config from the history item's context
-			const cwd = historyItem.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
-			const reinitMode: Mode = "act" // Default to act mode for resumed tasks
-			const config = await this.sessionConfigBuilder.build({
-				cwd,
-				mode: reinitMode,
-			})
-
-			// Create a temporary session host to read old messages before
-			// starting the new session (start() overwrites the session row)
-			const tempManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-			const initialMessages = await this.loadInitialMessages(tempManager, taskId)
-			await tempManager.dispose("readMessages")
-
-			// Start a new session with the old conversation history
-			const { startResult } = await this.sessions.startNewSession({
-				config,
-				interactive: true,
-				...(initialMessages
-					? { initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"] }
-					: {}),
-			})
-
-			// Create a task proxy for gRPC handlers
-			this.task = createTaskProxy(
-				startResult.sessionId,
-				(text?: string, images?: string[], files?: string[]) => this.askResponse(text, images, files),
-				() => this.cancelTask(),
-			)
-
-			await this.postStateToWebview()
-
-			Logger.log(`[SdkController] Task resumed: ${taskId} → ${startResult.sessionId}`)
-		} catch (error) {
-			Logger.error("[SdkController] Failed to reinit task:", error)
-
-			// Detect auth errors for the 'cline' provider
-			const reinitErrorMsg = error instanceof Error ? error.message : String(error)
-			const isClineAuthReinit =
-				this.isClineProviderActive() &&
-				(reinitErrorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
-					reinitErrorMsg.toLowerCase().includes("missing api key") ||
-					reinitErrorMsg.toLowerCase().includes("unauthorized"))
-
-			if (isClineAuthReinit) {
-				this.emitClineAuthError()
-			} else {
-				this.messages.emitSessionEvents(
-					[
-						{
-							ts: Date.now(),
-							type: "say",
-							say: "error",
-							text: `Failed to resume task: ${reinitErrorMsg}`,
-							partial: false,
-						},
-					],
-					{ type: "status", payload: { sessionId: taskId, status: "error" } },
-				)
-			}
-		}
+		await this.taskStart.reinitExistingTaskFromId(taskId)
 	}
 
 	async cancelTask(): Promise<void> {
