@@ -4527,8 +4527,19 @@ export const basetenDefaultModelId = "zai-org/GLM-4.6" satisfies BasetenModelId
 // https://docs.z.ai/guides/llm/glm-5
 // https://docs.z.ai/guides/overview/pricing
 export type internationalZAiModelId = keyof typeof internationalZAiModels
-export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5"
+export const internationalZAiDefaultModelId: internationalZAiModelId = "glm-5.1"
 export const internationalZAiModels = {
+	"glm-5.1": {
+		maxTokens: 131_072,
+		contextWindow: 204_800,
+		supportsImages: false,
+		supportsPromptCache: true,
+		supportsReasoning: true,
+		inputPrice: 0,
+		outputPrice: 0,
+		cacheReadsPrice: 0,
+		cacheWritesPrice: 0,
+	},
 	"glm-5": {
 		maxTokens: 128_000,
 		contextWindow: 200_000,
