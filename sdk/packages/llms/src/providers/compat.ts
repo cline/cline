@@ -457,7 +457,9 @@ function buildGatewayRequest(
 		tools: toGatewayTools(tools),
 		maxTokens: config.maxOutputTokens,
 		reasoning:
-			config.thinking || config.reasoningEffort || config.thinkingBudgetTokens
+			config.thinking !== undefined ||
+			config.reasoningEffort ||
+			config.thinkingBudgetTokens !== undefined
 				? {
 						enabled: config.thinking,
 						effort:

@@ -133,10 +133,12 @@ Per-provider live assertions are configured in the JSON via `expectations`:
 - `requireCacheReadTokens`: fail unless `cacheReadTokens > 0` (auto-runs at least 2 attempts with a long cache probe prompt if no prompt override is provided).
 - `minCacheReadTokens`: stricter cache floor check.
 - `requireReasoningChunk`: fail unless at least one reasoning chunk is emitted.
+- `requireNoReasoningChunk`: fail if any reasoning chunk is emitted.
 - `minInputTokens` / `minOutputTokens`: enforce lower bounds.
 - `requireToolCall`: fail unless at least one `tool_calls` chunk is emitted.
 
 In reasoning suites, set `requireReasoningSignal: true` to require either a reasoning chunk or `thoughtsTokenCount > 0` (provider-dependent; can be flaky on some endpoints).
+For GLM/Z.AI thinking checks, use `packages/llms/scripts/live-providers.glm-reasoning.example.json`; it covers native `zai` and routed `openrouter` models with thinking-on and thinking-off expectations.
 
 ### Adding A Model To Live Tests
 
@@ -144,6 +146,7 @@ Add a new entry under the `providers` object in either config file:
 
 - Cache/smoke suite: `packages/llms/scripts/live-providers.example.json`
 - Reasoning suite: `packages/llms/scripts/live-providers.reasoning.example.json`
+- GLM/Z.AI reasoning suite: `packages/llms/scripts/live-providers.glm-reasoning.example.json`
 - Tool-use suite: `packages/llms/scripts/live-providers.tools.example.json`
 
 Minimal smoke/cache entry:
@@ -187,7 +190,8 @@ Reasoning entry:
     }
   },
   "expectations": {
-    "requireUsage": true
+    "requireUsage": true,
+    "requireReasoningChunk": true
   }
 }
 ```

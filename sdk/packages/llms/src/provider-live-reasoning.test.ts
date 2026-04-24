@@ -19,8 +19,7 @@ interface ProviderTarget {
 	systemPrompt: string;
 	userPrompt: string;
 	runs: number;
-	requireUsage: boolean;
-	requireReasoningSignal: boolean;
+	expectations: LiveReasoningExpectations;
 }
 
 const LIVE_TEST_ENABLED = process.env.LLMS_LIVE_REASONING_TESTS === "1";
@@ -43,6 +42,13 @@ interface LiveProviderEntryLike {
 	userPrompt?: unknown;
 	prompt?: unknown;
 	runs?: unknown;
+}
+
+interface LiveReasoningExpectations {
+	requireUsage: boolean;
+	requireReasoningSignal: boolean;
+	requireReasoningChunk: boolean;
+	requireNoReasoningChunk: boolean;
 }
 
 interface LiveRunMetrics {
@@ -95,6 +101,19 @@ function toProviderConfig(settingsInput: unknown): ProviderConfig {
 	return config;
 }
 
+function parseExpectations(input: unknown): LiveReasoningExpectations {
+	const value =
+		input && typeof input === "object"
+			? (input as Record<string, unknown>)
+			: {};
+	return {
+		requireUsage: value.requireUsage !== false,
+		requireReasoningSignal: value.requireReasoningSignal === true,
+		requireReasoningChunk: value.requireReasoningChunk === true,
+		requireNoReasoningChunk: value.requireNoReasoningChunk === true,
+	};
+}
+
 function toTarget(
 	label: string,
 	settingsInput: unknown,
@@ -108,10 +127,15 @@ function toTarget(
 		runsCandidate > 0
 			? Math.floor(runsCandidate)
 			: 1;
-	const expectations =
-		entry?.expectations && typeof entry.expectations === "object"
-			? (entry.expectations as Record<string, unknown>)
-			: {};
+	const expectations = parseExpectations(entry?.expectations);
+	if (
+		expectations.requireReasoningChunk &&
+		expectations.requireNoReasoningChunk
+	) {
+		throw new Error(
+			`${label}: requireReasoningChunk and requireNoReasoningChunk are mutually exclusive`,
+		);
+	}
 
 	return {
 		label: `${label} (${config.providerId})`,
@@ -127,8 +151,7 @@ function toTarget(
 					? entry.prompt
 					: DEFAULT_USER_PROMPT,
 		runs,
-		requireUsage: expectations.requireUsage !== false,
-		requireReasoningSignal: expectations.requireReasoningSignal === true,
+		expectations,
 	};
 }
 
@@ -197,16 +220,25 @@ function assertTargetExpectations(
 	metrics: LiveRunMetrics,
 ): void {
 	const errors: string[] = [];
-	if (target.requireUsage && !metrics.usageSeen) {
+	const expectations = target.expectations;
+	if (expectations.requireUsage && !metrics.usageSeen) {
 		errors.push("expected at least one usage chunk");
 	}
 	if (
-		target.requireReasoningSignal &&
+		expectations.requireReasoningSignal &&
 		metrics.reasoningChunkCount <= 0 &&
 		metrics.thoughtsTokenCountMax <= 0
 	) {
 		errors.push(
 			"expected reasoning signal (reasoning chunk or thoughts tokens)",
+		);
+	}
+	if (expectations.requireReasoningChunk && metrics.reasoningChunkCount <= 0) {
+		errors.push("expected at least one reasoning chunk");
+	}
+	if (expectations.requireNoReasoningChunk && metrics.reasoningChunkCount > 0) {
+		errors.push(
+			`expected no reasoning chunks, got ${metrics.reasoningChunkCount}`,
 		);
 	}
 	if (errors.length > 0) {

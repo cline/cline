@@ -39,6 +39,41 @@ class GatewayModelAdapter implements AgentModel {
 	) {}
 
 	stream(request: AgentModelRequest): Promise<AsyncIterable<AgentModelEvent>> {
+		const requestedReasoning = request.options?.reasoning as
+			| {
+					enabled?: boolean;
+					effort?: "low" | "medium" | "high";
+					budgetTokens?: number;
+			  }
+			| undefined;
+		const thinking = request.options?.thinking;
+		const reasoningEffort = request.options?.reasoningEffort;
+		const thinkingBudgetTokens = request.options?.thinkingBudgetTokens;
+		const legacyEffort =
+			reasoningEffort === "low" ||
+			reasoningEffort === "medium" ||
+			reasoningEffort === "high"
+				? reasoningEffort
+				: undefined;
+		const legacyReasoning:
+			| {
+					enabled?: boolean;
+					effort?: "low" | "medium" | "high";
+					budgetTokens?: number;
+			  }
+			| undefined =
+			typeof thinking === "boolean" ||
+			legacyEffort !== undefined ||
+			typeof thinkingBudgetTokens === "number"
+				? {
+						enabled: typeof thinking === "boolean" ? thinking : undefined,
+						effort: legacyEffort,
+						budgetTokens:
+							typeof thinkingBudgetTokens === "number"
+								? thinkingBudgetTokens
+								: undefined,
+					}
+				: undefined;
 		return this.gateway.stream({
 			providerId: this.selection.providerId,
 			modelId: this.selection.modelId ?? "",
@@ -55,13 +90,7 @@ class GatewayModelAdapter implements AgentModel {
 				(request.options?.metadata as Record<string, unknown> | undefined) ??
 				this.defaults?.metadata,
 			reasoning:
-				(request.options?.reasoning as
-					| {
-							enabled?: boolean;
-							effort?: "low" | "medium" | "high";
-							budgetTokens?: number;
-					  }
-					| undefined) ?? this.defaults?.reasoning,
+				requestedReasoning ?? legacyReasoning ?? this.defaults?.reasoning,
 			signal: request.signal ?? this.defaults?.signal,
 		});
 	}

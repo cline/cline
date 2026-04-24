@@ -24,6 +24,7 @@ import {
 	resolveModelFamily,
 	shouldUseAnthropicPromptCache,
 } from "./routing/anthropic-compatible";
+import { buildGlmThinkingProviderOptions } from "./routing/glm-thinking";
 import {
 	createEphemeralCacheControl,
 	toProviderOptionsKey,
@@ -263,6 +264,11 @@ function toAiSdkProviderOptions(
 		context,
 	);
 	const gatewayReasoning = buildGatewayReasoningOptions(request, context);
+	const glmThinking = buildGlmThinkingProviderOptions(
+		request,
+		context,
+		providerOptionsKey,
+	);
 	const wantsAnthropicThinking =
 		request.reasoning?.enabled === true ||
 		request.reasoning?.effort !== undefined;
@@ -272,7 +278,9 @@ function toAiSdkProviderOptions(
 		...(useAnthropicPromptCache ? createEphemeralCacheControl() : {}),
 	};
 	const compatibleOptions = {
-		...(request.reasoning?.enabled === true
+		...(glmThinking?.compatible ?? {}),
+		...(!glmThinking?.handlesCompatibleThinking &&
+		request.reasoning?.enabled === true
 			? { thinking: { type: "adaptive" } }
 			: {}),
 		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
@@ -322,6 +330,7 @@ function toAiSdkProviderOptions(
 			...(request.providerId === "cline" && gatewayReasoning
 				? { reasoning: gatewayReasoning }
 				: {}),
+			...(glmThinking?.provider ?? {}),
 		};
 	}
 	if (request.providerId === "google" || request.providerId === "gemini") {
@@ -331,10 +340,12 @@ function toAiSdkProviderOptions(
 		providerOptionsKey !== request.providerId &&
 		providerOptionsKey !== "anthropic"
 	) {
-		providerOptions[providerOptionsKey] =
-			request.providerId === "openai-codex"
+		providerOptions[providerOptionsKey] = {
+			...(request.providerId === "openai-codex"
 				? openAICodexOptions
-				: compatibleOptions;
+				: compatibleOptions),
+			...(glmThinking?.providerOptionsKey ?? {}),
+		};
 	}
 	return providerOptions;
 }

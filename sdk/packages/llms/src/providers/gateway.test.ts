@@ -2019,6 +2019,275 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("passes native Z.AI thinking enabled and disabled provider options for GLM", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "zai",
+					apiKey: "zai-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "zai",
+				modelId: "glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+				},
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "zai",
+				modelId: "glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: false,
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					zai: expect.objectContaining({
+						thinking: { type: "enabled" },
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					zai: expect.objectContaining({
+						thinking: { type: "disabled" },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("does not apply Z.AI GLM thinking controls to non-GLM native Z.AI models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "zai",
+					apiKey: "zai-key",
+					models: [
+						{
+							id: "zai-other-model",
+							name: "Non GLM Model",
+							metadata: {
+								family: "other",
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "zai",
+				modelId: "zai-other-model",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					zai: expect.not.objectContaining({
+						thinking: expect.anything(),
+					}),
+					openaiCompatible: expect.not.objectContaining({
+						thinking: expect.anything(),
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("passes routed GLM reasoning include/exclude provider options", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openrouter",
+					apiKey: "openrouter-key",
+				},
+				{
+					providerId: "cline",
+					apiKey: "cline-key",
+				},
+				{
+					providerId: "vercel-ai-gateway",
+					apiKey: "vercel-key",
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "z-ai/glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: true,
+				},
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "openrouter",
+				modelId: "z-ai/glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: false,
+				},
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "cline",
+				modelId: "z-ai/glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: false,
+				},
+			}),
+		);
+		await collect(
+			await gateway.stream({
+				providerId: "vercel-ai-gateway",
+				modelId: "z-ai/glm-4.7",
+				messages: baseMessages,
+				reasoning: {
+					enabled: false,
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						reasoning: { enabled: true },
+					}),
+					openrouter: expect.objectContaining({
+						reasoning: { enabled: true },
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openrouter: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			3,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+					cline: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenNthCalledWith(
+			4,
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					openaiCompatible: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+					vercelAiGateway: expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+					"vercel-ai-gateway": expect.objectContaining({
+						reasoning: { exclude: true },
+					}),
+				}),
+			}),
+		);
+	});
+
+	it("maps legacy model thinking options into gateway reasoning", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "zai",
+					apiKey: "zai-key",
+				},
+			],
+		});
+		const model = gateway.createAgentModel({
+			providerId: "zai",
+			modelId: "glm-4.7",
+		});
+
+		await collect(
+			await model.stream({
+				messages: baseMessages,
+				tools: [],
+				options: {
+					thinking: false,
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					zai: expect.objectContaining({
+						thinking: { type: "disabled" },
+					}),
+				}),
+			}),
+		);
+	});
+
 	it("adapts Anthropic and Gemini providers", async () => {
 		streamTextSpy
 			.mockReturnValueOnce({
