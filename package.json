@@ -495,10 +495,10 @@
 		"typescript": "^5.4.5"
 	},
 	"dependencies": {
-		"@clinebot/core": "^0.0.35",
-		"@clinebot/llms": "^0.0.35",
-		"@clinebot/shared": "^0.0.35",
-		"@clinebot/agents": "^0.0.35",
+		"@clinebot/core": "^0.0.36",
+		"@clinebot/llms": "^0.0.36",
+		"@clinebot/shared": "^0.0.36",
+		"@clinebot/agents": "^0.0.36",
 		"@anthropic-ai/sdk": "^0.37.0",
 		"@anthropic-ai/vertex-sdk": "^0.6.4",
 		"@aws-sdk/client-bedrock-runtime": "^3.922.0",
