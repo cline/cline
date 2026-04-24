@@ -4,6 +4,7 @@ import type {
 	HubReplyEnvelope,
 	HubTransportFrame,
 } from "@clinebot/shared";
+import { safeJsonParse } from "@clinebot/shared";
 import type { HubCommandTransport } from "./transport";
 
 export interface BrowserHubSocketLike {
@@ -29,7 +30,17 @@ export class BrowserWebSocketHubAdapter {
 		let closed = false;
 
 		const sendFrame = (frame: HubTransportFrame): void => {
-			socket.send(JSON.stringify(frame));
+			try {
+				socket.send(JSON.stringify(frame));
+			} catch (error) {
+				console.error(
+					`[hub] failed to send websocket frame: ${
+						error instanceof Error
+							? error.stack || error.message
+							: String(error)
+					}`,
+				);
+			}
 		};
 
 		const onEvent = (envelope: HubEventEnvelope): void => {
@@ -37,8 +48,8 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onMessage = async (event: { data: string }): Promise<void> => {
-			const frame = JSON.parse(event.data) as HubTransportFrame;
 			try {
+				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
 					case "command": {
 						const reply = await this.transport.command(frame.envelope);
@@ -90,13 +101,24 @@ export class BrowserWebSocketHubAdapter {
 						break;
 				}
 			} catch (error) {
-				if (frame.kind !== "command") {
+				const parsed =
+					typeof event.data === "string"
+						? safeJsonParse<HubTransportFrame>(event.data)
+						: undefined;
+				if (!parsed || parsed.kind !== "command") {
+					console.error(
+						`[hub] rejected malformed websocket frame: ${
+							error instanceof Error
+								? error.stack || error.message
+								: String(error)
+						}`,
+					);
 					return;
 				}
 				sendFrame({
 					kind: "reply",
 					envelope: {
-						...frame.envelope,
+						...parsed.envelope,
 						ok: false,
 						error: {
 							code: "command_failed",

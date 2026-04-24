@@ -421,7 +421,7 @@ class SlackConnector extends ConnectorBase<
 			.option(
 				"--rpc-address <host:port>",
 				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:4317",
+				process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:25463",
 			)
 			.option("--host <host>", "Webhook listen host")
 			.option("--port <port>", "Webhook listen port")
@@ -502,7 +502,7 @@ class SlackConnector extends ConnectorBase<
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
-				"127.0.0.1:4317",
+				"127.0.0.1:25463",
 			hookCommand:
 				opts.hookCommand?.trim() ||
 				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),

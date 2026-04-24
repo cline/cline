@@ -227,7 +227,7 @@ describe("runtime host resolution", () => {
 		await createRuntimeHost({
 			backendMode: "auto",
 			hub: {
-				endpoint: "ws://127.0.0.1:4317/hub",
+				endpoint: "ws://127.0.0.1:25463/hub",
 			},
 		});
 

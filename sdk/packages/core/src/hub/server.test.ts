@@ -1,5 +1,6 @@
-import { createServer as createNetServer } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { createConnection, createServer as createNetServer } from "node:net";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { WebSocketServer } from "ws";
 import {
 	clearHubDiscovery,
 	createInMemoryHubOwnerContext,
@@ -32,6 +33,28 @@ async function reservePort(): Promise<number> {
 				}
 				resolve(port);
 			});
+		});
+	});
+}
+
+async function sendRawHttpRequest(
+	port: number,
+	request: string,
+): Promise<string> {
+	return await new Promise((resolve, reject) => {
+		let response = "";
+		const socket = createConnection({ host: "127.0.0.1", port }, () => {
+			socket.write(request);
+		});
+		socket.setEncoding("utf8");
+		socket.on("data", (chunk) => {
+			response += chunk;
+		});
+		socket.on("end", () => {
+			resolve(response);
+		});
+		socket.on("error", (error) => {
+			reject(error);
 		});
 	});
 }
@@ -139,5 +162,51 @@ describe("hub server startup", () => {
 		}
 
 		throw new Error("Timed out waiting for hub shutdown");
+	});
+
+	it("survives websocket upgrade handler failures", async () => {
+		const owner = createInMemoryHubOwnerContext(
+			"hub-server-test-upgrade-guard",
+		);
+		const handleUpgrade = vi
+			.spyOn(WebSocketServer.prototype, "handleUpgrade")
+			.mockImplementation(() => {
+				throw new Error("boom");
+			});
+		try {
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			expect(result.server).toBeDefined();
+			servers.add(result.server!);
+
+			const hubUrl = new URL(result.url);
+			const response = await sendRawHttpRequest(
+				Number(hubUrl.port),
+				[
+					"GET /hub HTTP/1.1",
+					"Host: 127.0.0.1",
+					"Connection: Upgrade",
+					"Upgrade: websocket",
+					"Sec-WebSocket-Version: 13",
+					"Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+					"",
+					"",
+				].join("\r\n"),
+			);
+
+			expect(response).toContain("400 Bad Request");
+
+			const health = await fetch(
+				new URL("/health", `http://127.0.0.1:${hubUrl.port}`),
+			);
+			expect(health.status).toBe(200);
+		} finally {
+			handleUpgrade.mockRestore();
+		}
 	});
 });

@@ -67,11 +67,42 @@ async function main(): Promise<void> {
 		process.exit(0);
 	};
 
+	let fatalShutdownStarted = false;
+	const shutdownFatal = (label: string, error: unknown): void => {
+		if (fatalShutdownStarted) {
+			return;
+		}
+		fatalShutdownStarted = true;
+		const message =
+			error instanceof Error ? error.stack || error.message : String(error);
+		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
+		void server
+			.close()
+			.catch((closeError) => {
+				const closeMessage =
+					closeError instanceof Error
+						? closeError.stack || closeError.message
+						: String(closeError);
+				process.stderr.write(
+					`[hub-daemon] shutdown after ${label} failed: ${closeMessage}\n`,
+				);
+			})
+			.finally(() => {
+				process.exit(1);
+			});
+	};
+
 	process.on("SIGINT", () => {
 		void shutdown();
 	});
 	process.on("SIGTERM", () => {
 		void shutdown();
+	});
+	process.on("uncaughtException", (error) => {
+		shutdownFatal("uncaughtException", error);
+	});
+	process.on("unhandledRejection", (reason) => {
+		shutdownFatal("unhandledRejection", reason);
 	});
 
 	await new Promise<void>(() => {

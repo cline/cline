@@ -41,7 +41,7 @@ describe("createCliCore", () => {
 	beforeEach(() => {
 		createCore.mockReset();
 		createCore.mockResolvedValue({
-			runtimeAddress: "127.0.0.1:4317",
+			runtimeAddress: "127.0.0.1:25463",
 			start: vi.fn(),
 			send: vi.fn(),
 			getAccumulatedUsage: vi.fn(),
@@ -167,7 +167,7 @@ describe("createCliCore", () => {
 			"CLI core runtime routing selected",
 			{
 				backendMode: "env-managed",
-				rpcAddress: "127.0.0.1:4317",
+				rpcAddress: "127.0.0.1:25463",
 				forceLocalBackend: false,
 			},
 		);

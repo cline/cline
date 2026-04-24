@@ -60,6 +60,12 @@ type NodeWebSocketLike = {
 	once(event: "close", listener: () => void): void;
 };
 
+type NodeUpgradeSocketLike = {
+	destroy(error?: Error): void;
+	write(chunk: string): boolean;
+	end(): void;
+};
+
 type HubSessionState = {
 	createdByClientId: string;
 	participants: Map<string, SessionParticipant>;
@@ -102,6 +108,17 @@ function wrapWsSocket(socket: NodeWebSocketLike) {
 		},
 		removeEventListener(): void {},
 	};
+}
+
+function rejectUpgradeSocket(socket: NodeUpgradeSocketLike): void {
+	try {
+		socket.write(
+			"HTTP/1.1 400 Bad Request\r\nConnection: close\r\nContent-Length: 0\r\n\r\n",
+		);
+		socket.end();
+	} catch {
+		socket.destroy();
+	}
 }
 
 function formatHubUptime(ms: number): string {
@@ -523,7 +540,9 @@ export class HubServerTransport implements NativeHubTransport {
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
 		this.sessionHost.subscribe((event) => {
-			void this.handleSessionEvent(event);
+			void this.handleSessionEvent(event).catch((error) => {
+				logHubBoundaryError("session event handling failed", error);
+			});
 		});
 	}
 
@@ -1653,10 +1672,23 @@ export class HubServerTransport implements NativeHubTransport {
 				if (entry.sessionId && entry.sessionId !== event.sessionId) {
 					continue;
 				}
-				entry.listener(event);
+				try {
+					entry.listener(event);
+				} catch (error) {
+					logHubBoundaryError(
+						`listener threw while publishing ${event.event}`,
+						error,
+					);
+				}
 			}
 		}
 	}
+}
+
+function logHubBoundaryError(message: string, error: unknown): void {
+	const details =
+		error instanceof Error ? error.stack || error.message : String(error);
+	console.error(`[hub] ${message}: ${details}`);
 }
 
 export interface HubWebSocketServerOptions {
@@ -1799,14 +1831,23 @@ export async function startHubWebSocketServer(
 			socket.destroy();
 			return;
 		}
-		wss.handleUpgrade(request, socket, head, (websocket: NodeWebSocketLike) => {
-			const detach = adapter.attach(wrapWsSocket(websocket));
-			cleanup.add(detach);
-			websocket.once("close", () => {
-				detach();
-				cleanup.delete(detach);
-			});
-		});
+		try {
+			wss.handleUpgrade(
+				request,
+				socket,
+				head,
+				(websocket: NodeWebSocketLike) => {
+					const detach = adapter.attach(wrapWsSocket(websocket));
+					cleanup.add(detach);
+					websocket.once("close", () => {
+						detach();
+						cleanup.delete(detach);
+					});
+				},
+			);
+		} catch {
+			rejectUpgradeSocket(socket);
+		}
 	});
 
 	await new Promise<void>((resolve, reject) => {

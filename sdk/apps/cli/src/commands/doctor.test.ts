@@ -64,13 +64,13 @@ describe("runDoctorCommand", () => {
 	it("does not report hub processes as stale cli processes", async () => {
 		const cwd = "/workspace";
 		mockReadHubDiscovery.mockResolvedValue({
-			url: "ws://127.0.0.1:4317/hub",
-			port: 4317,
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
 			pid: 50174,
 		});
 		mockProbeHubServer.mockResolvedValue({
-			url: "ws://127.0.0.1:4317/hub",
-			port: 4317,
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
 			pid: 50174,
 		});
 		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
@@ -136,8 +136,8 @@ describe("runDoctorCommand", () => {
 			discoveryPath,
 		});
 		mockReadHubDiscovery.mockResolvedValue({
-			url: "ws://127.0.0.1:4317/hub",
-			port: 4317,
+			url: "ws://127.0.0.1:25463/hub",
+			port: 25463,
 			pid: 50000,
 		});
 		mockProbeHubServer.mockResolvedValue(undefined);
@@ -147,8 +147,8 @@ describe("runDoctorCommand", () => {
 		writeFileSync(
 			discoveryPath,
 			JSON.stringify({
-				url: "ws://127.0.0.1:4317/hub",
-				port: 4317,
+				url: "ws://127.0.0.1:25463/hub",
+				port: 25463,
 				pid: 50000,
 			}),
 			"utf8",

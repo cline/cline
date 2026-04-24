@@ -69,7 +69,7 @@ const loggingMocks = vi.hoisted(() => ({
 	flushCliLoggerAdapters: vi.fn(),
 }));
 const hubRuntimeMocks = vi.hoisted(() => ({
-	ensureCliHubServer: vi.fn(async () => "ws://127.0.0.1:4317"),
+	ensureCliHubServer: vi.fn(async () => "ws://127.0.0.1:25463"),
 }));
 
 function forcePromptModeInput() {
@@ -170,7 +170,9 @@ describe("runCli lightweight command dispatch", () => {
 		});
 		runtimeMocks.runInteractive.mockReset();
 		hubRuntimeMocks.ensureCliHubServer.mockReset();
-		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue("ws://127.0.0.1:4317");
+		hubRuntimeMocks.ensureCliHubServer.mockResolvedValue(
+			"ws://127.0.0.1:25463",
+		);
 		authMocks.ensureOAuthProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReset();
 		authMocks.getPersistedProviderApiKey.mockReturnValue(undefined);

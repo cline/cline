@@ -727,7 +727,7 @@ clite schedule import ./daily-review.yaml
 
 #### How It Works
 
-1. **RPC-backed persistence.** All commands talk to the `clite` RPC sidecar (`127.0.0.1:4317` by default, overridable via `--address` or `CLINE_RPC_ADDRESS`). The sidecar starts automatically if not running.
+1. **RPC-backed persistence.** All commands talk to the `clite` RPC sidecar (`127.0.0.1:25463` by default, overridable via `--address` or `CLINE_RPC_ADDRESS`). The sidecar starts automatically if not running.
 2. **Cron patterns** use standard five-field cron syntax (e.g., `"0 9 * * MON-FRI"` = 9 am Mon–Fri).
 3. **Three required fields** for `create`: a name, a `--cron` pattern, and a `--prompt`.
 4. **Delivery metadata.** When a schedule is created from a chat thread, the adapter and thread ID are stored automatically. Use `--delivery-*` flags to set this explicitly from the CLI.
