@@ -260,7 +260,6 @@ const USER_SETTINGS_FIELDS = {
 	defaultTerminalProfile: { default: "default" as string },
 	terminalOutputLineLimit: { default: 500 as number },
 	maxConsecutiveMistakes: { default: 3 as number },
-	strictPlanModeEnabled: { default: false as boolean },
 	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },

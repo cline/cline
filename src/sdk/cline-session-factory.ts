@@ -387,6 +387,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		systemPrompt = systemPrompt ? `${systemPrompt}\n\n${PLAN_MODE_INSTRUCTIONS}` : PLAN_MODE_INSTRUCTIONS
 	}
 
+	const stateManager = StateManager.get()
+	const globalSubagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled") ?? false
+
 	const config: CoreSessionConfig = {
 		providerId,
 		modelId,
@@ -396,7 +399,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		workspaceRoot,
 		systemPrompt,
 		enableTools: true,
-		enableSpawnAgent: input.taskSettings?.subagentsEnabled ?? false,
+		enableSpawnAgent: input.taskSettings?.subagentsEnabled ?? globalSubagentsEnabled,
 		enableAgentTeams: false,
 		disableMcpSettingsTools: true,
 		mode: mode === "plan" ? "plan" : "act",

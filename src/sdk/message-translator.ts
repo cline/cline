@@ -28,7 +28,17 @@
 import type { CoreSessionEvent } from "@clinebot/core"
 import type { AgentEvent } from "@clinebot/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
-import type { ClineApiReqInfo, ClineAskUseMcpServer, ClineMessage, ClineSay, ClineSayTool } from "@shared/ExtensionMessage"
+import type {
+	ClineApiReqInfo,
+	ClineAskUseMcpServer,
+	ClineAskUseSubagents,
+	ClineMessage,
+	ClineSay,
+	ClineSaySubagentStatus,
+	ClineSayTool,
+	ClineSubagentUsageInfo,
+	SubagentStatusItem,
+} from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
 
 // ---------------------------------------------------------------------------
@@ -46,6 +56,10 @@ export interface TranslationResult {
 	sessionEnded: boolean
 	/** Whether the agent turn is complete */
 	turnComplete: boolean
+	/** Whether a tool call ended with an error (content_end with event.error) */
+	toolError?: boolean
+	/** Whether a tool call ended successfully (content_end without error) */
+	toolSuccess?: boolean
 	/** Usage info if available */
 	usage?: {
 		tokensIn: number
@@ -53,6 +67,34 @@ export interface TranslationResult {
 		cacheWrites?: number
 		cacheReads?: number
 		totalCost?: number
+	}
+}
+
+type NormalizedUsage = NonNullable<TranslationResult["usage"]>
+
+function normalizeUsageEvent(usageEvent: {
+	inputTokens?: number
+	outputTokens?: number
+	cacheReadTokens?: number
+	cacheWriteTokens?: number
+	cost?: number
+	totalCost?: number
+}): NormalizedUsage {
+	const inputTokens = usageEvent.inputTokens ?? 0
+	const cacheReads = usageEvent.cacheReadTokens ?? 0
+	const cacheWrites = usageEvent.cacheWriteTokens ?? 0
+
+	// SDK provider usage reports inputTokens as the full request size, with
+	// cache reads/writes included. Classic Cline/webview metrics expect
+	// tokensIn, cacheReads, and cacheWrites to be disjoint buckets.
+	const uncachedInputTokens = Math.max(0, inputTokens - cacheReads - cacheWrites)
+
+	return {
+		tokensIn: uncachedInputTokens,
+		tokensOut: usageEvent.outputTokens ?? 0,
+		cacheWrites,
+		cacheReads,
+		totalCost: usageEvent.cost ?? usageEvent.totalCost ?? 0,
 	}
 }
 
@@ -159,6 +201,99 @@ export class MessageTranslatorState {
 		return this.attemptCompletionSeen
 	}
 
+	// -----------------------------------------------------------------------
+	// spawn_agent tracking — aggregates parallel spawn_agent tool calls into
+	// the rich SubagentStatusRow UI (use_subagents + subagent messages).
+	// -----------------------------------------------------------------------
+
+	/** Active spawn_agent entries keyed by toolCallId */
+	private spawnAgentEntries = new Map<string, SubagentStatusItem>()
+	/** Stable timestamp for the combined say:"use_subagents" prompts message */
+	private spawnAgentPromptsTs: number | undefined
+	/** Stable timestamp for the combined say:"subagent" status message */
+	private spawnAgentStatusTs: number | undefined
+	/** Counter for assigning index to new spawn_agent entries */
+	private spawnAgentNextIndex = 0
+
+	/** Register a new spawn_agent call. Returns the entry for this call. */
+	addSpawnAgent(toolCallId: string, prompt: string): SubagentStatusItem {
+		const entry: SubagentStatusItem = {
+			index: ++this.spawnAgentNextIndex,
+			prompt,
+			status: "running",
+			toolCalls: 0,
+			inputTokens: 0,
+			outputTokens: 0,
+			totalCost: 0,
+			contextTokens: 0,
+			contextWindow: 0,
+			contextUsagePercentage: 0,
+		}
+		this.spawnAgentEntries.set(toolCallId, entry)
+		return entry
+	}
+
+	/** Get a spawn_agent entry by toolCallId */
+	getSpawnAgent(toolCallId: string): SubagentStatusItem | undefined {
+		return this.spawnAgentEntries.get(toolCallId)
+	}
+
+	/** Whether there are any active spawn_agent calls */
+	hasSpawnAgents(): boolean {
+		return this.spawnAgentEntries.size > 0
+	}
+
+	/** Get all spawn_agent entries as an ordered array */
+	getSpawnAgentItems(): SubagentStatusItem[] {
+		return Array.from(this.spawnAgentEntries.values()).sort((a, b) => a.index - b.index)
+	}
+
+	/** Get or create the stable timestamp for say:"use_subagents" prompts messages */
+	getSpawnAgentPromptsTs(): number {
+		if (!this.spawnAgentPromptsTs) {
+			this.spawnAgentPromptsTs = this.nextTs()
+		}
+		return this.spawnAgentPromptsTs
+	}
+
+	/** Get or create the stable timestamp for subagent status messages */
+	getSpawnAgentStatusTs(): number {
+		if (!this.spawnAgentStatusTs) {
+			this.spawnAgentStatusTs = this.nextTs()
+		}
+		return this.spawnAgentStatusTs
+	}
+
+	/** Build a ClineSaySubagentStatus from the current entries */
+	buildSubagentStatus(overallStatus: ClineSaySubagentStatus["status"]): ClineSaySubagentStatus {
+		const items = this.getSpawnAgentItems()
+		const completed = items.filter((e) => e.status === "completed" || e.status === "failed").length
+		const successes = items.filter((e) => e.status === "completed").length
+		const failures = items.filter((e) => e.status === "failed").length
+		return {
+			status: overallStatus,
+			total: items.length,
+			completed,
+			successes,
+			failures,
+			toolCalls: items.reduce((acc, e) => acc + (e.toolCalls || 0), 0),
+			inputTokens: items.reduce((acc, e) => acc + (e.inputTokens || 0), 0),
+			outputTokens: items.reduce((acc, e) => acc + (e.outputTokens || 0), 0),
+			contextWindow: items.reduce((acc, e) => Math.max(acc, e.contextWindow || 0), 0),
+			maxContextTokens: items.reduce((acc, e) => Math.max(acc, e.contextTokens || 0), 0),
+			maxContextUsagePercentage: items.reduce((acc, e) => Math.max(acc, e.contextUsagePercentage || 0), 0),
+			items,
+		}
+	}
+
+	/** Clear all spawn_agent state (called at iteration_start) */
+	clearSpawnAgents(): void {
+		this.spawnAgentEntries.clear()
+		this.spawnAgentPromptsTs = undefined
+		this.spawnAgentStatusTs = undefined
+		this.spawnAgentNextIndex = 0
+	}
+
 	/** Reset all streaming state (new turn) */
 	reset(): void {
 		this.streamingTextTs = undefined
@@ -167,6 +302,7 @@ export class MessageTranslatorState {
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
 		this.attemptCompletionSeen = false
+		this.clearSpawnAgents()
 	}
 }
 
@@ -604,13 +740,27 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// command tools use say="command" (not say="tool")
 					// because the webview renders commands differently
 					if (toolName === "run_commands" || toolName === "execute_command") {
-						const parsedInput = parseToolInput(input)
-						const commands = getArrayField(parsedInput, "commands")
-						const commandText =
-							commands?.join(" && ") ??
-							getStringField(parsedInput, "commands") ??
-							getStringField(parsedInput, "command") ??
-							""
+						// Handle multiple input formats from SDK run_commands:
+						//   1. { commands: string[] }  — standard wrapped object
+						//   2. string[]                — bare array (parseToolInput returns undefined)
+						//   3. { command: string }     — single command as object (execute_command compat)
+						//   4. string                  — bare string
+						let commandText = ""
+						if (Array.isArray(input)) {
+							// Case 2: bare array of command strings
+							commandText = (input as string[]).join(" && ")
+						} else if (typeof input === "string") {
+							// Case 4: bare string command
+							commandText = input
+						} else {
+							const parsedInput = parseToolInput(input)
+							const commands = getArrayField(parsedInput, "commands")
+							commandText =
+								commands?.join(" && ") ??
+								getStringField(parsedInput, "commands") ??
+								getStringField(parsedInput, "command") ??
+								""
+						}
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -618,6 +768,31 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 							text: commandText,
 							partial: true,
 						})
+						break
+					}
+					// spawn_agent → rich subagent UI (SubagentStatusRow)
+					// Emit say:"use_subagents" with prompts list, then say:"subagent"
+					// with running status. Multiple parallel spawn_agent calls in the
+					// same iteration are aggregated into a single status message.
+					if (toolName === "spawn_agent") {
+						const parsedInput = parseToolInput(input)
+						const taskPrompt = getStringField(parsedInput, "task") ?? ""
+						const callId = event.toolCallId ?? `spawn-${state.nextTs()}`
+						state.addSpawnAgent(callId, taskPrompt)
+
+						// Emit the combined prompts list (replaces itself on each new spawn_agent)
+						const allPrompts = state.getSpawnAgentItems().map((e) => e.prompt)
+						const approvalPayload: ClineAskUseSubagents = { prompts: allPrompts }
+						messages.push({
+							ts: state.getSpawnAgentPromptsTs(),
+							type: "say",
+							say: "use_subagents" as ClineSay,
+							text: JSON.stringify(approvalPayload),
+							partial: true,
+						})
+
+						// Clear the generic streaming tool so it doesn't also emit say:"tool"
+						state.clearStreamingTool()
 						break
 					}
 
@@ -653,11 +828,44 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 		}
 
 		case "content_update": {
-			// Content updates provide incremental progress for tool calls.
-			// For the webview, we don't need to push every update — the
+			// spawn_agent progress updates → emit say:"subagent" with live stats.
+			// The SDK's spawn_agent tool may emit content_update events with
+			// sub-agent progress (iterations, tool calls, usage). We translate
+			// these into the ClineSaySubagentStatus format for the rich UI.
+			const updateToolName = event.toolName ?? state.getStreamingToolName()
+			if (updateToolName === "spawn_agent" && state.hasSpawnAgents()) {
+				const callId = event.toolCallId ?? ""
+				const entry = callId ? state.getSpawnAgent(callId) : undefined
+				if (entry) {
+					// Apply progress from the update payload if available
+					const updateData = event.update as Record<string, unknown> | undefined
+					if (updateData) {
+						if (typeof updateData.toolCalls === "number") entry.toolCalls = updateData.toolCalls
+						if (typeof updateData.inputTokens === "number") entry.inputTokens = updateData.inputTokens
+						if (typeof updateData.outputTokens === "number") entry.outputTokens = updateData.outputTokens
+						if (typeof updateData.totalCost === "number") entry.totalCost = updateData.totalCost
+						if (typeof updateData.contextTokens === "number") entry.contextTokens = updateData.contextTokens
+						if (typeof updateData.contextWindow === "number") entry.contextWindow = updateData.contextWindow
+						if (typeof updateData.contextUsagePercentage === "number")
+							entry.contextUsagePercentage = updateData.contextUsagePercentage
+						if (typeof updateData.latestToolCall === "string") entry.latestToolCall = updateData.latestToolCall
+					}
+				}
+				// Emit a running status update
+				const status = state.buildSubagentStatus("running")
+				messages.push({
+					ts: state.getSpawnAgentStatusTs(),
+					type: "say",
+					say: "subagent" as ClineSay,
+					text: JSON.stringify(status),
+					partial: true,
+				})
+				break
+			}
+
+			// For all other tools, content_update is ignored — the
 			// content_start message with partial=true is sufficient until
-			// content_end finalizes it. This avoids flooding the webview
-			// with intermediate states.
+			// content_end finalizes it.
 			break
 		}
 
@@ -687,6 +895,75 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
+
+					// spawn_agent → finalize the subagent entry and emit
+					// say:"subagent" (completed/failed) + say:"subagent_usage".
+					// When all spawn_agent calls in this iteration finish, the
+					// final say:"subagent" has partial=false.
+					if (toolName === "spawn_agent") {
+						const callId = event.toolCallId ?? ""
+						const entry = callId ? state.getSpawnAgent(callId) : undefined
+						if (entry) {
+							// Extract output stats from SpawnAgentOutput
+							const output = event.output as Record<string, unknown> | undefined
+							if (output) {
+								entry.result = typeof output.text === "string" ? output.text : undefined
+								const usage = output.usage as Record<string, unknown> | undefined
+								if (usage) {
+									if (typeof usage.inputTokens === "number") entry.inputTokens = usage.inputTokens
+									if (typeof usage.outputTokens === "number") entry.outputTokens = usage.outputTokens
+								}
+							}
+							if (event.error) {
+								entry.status = "failed"
+								entry.error = event.error
+							} else {
+								entry.status = "completed"
+							}
+						}
+
+						// Determine overall status — all done when every entry is completed/failed
+						const items = state.getSpawnAgentItems()
+						const allDone = items.every((e) => e.status === "completed" || e.status === "failed")
+						const hasFailed = items.some((e) => e.status === "failed")
+						const overallStatus: ClineSaySubagentStatus["status"] = allDone
+							? hasFailed
+								? "failed"
+								: "completed"
+							: "running"
+
+						const status = state.buildSubagentStatus(overallStatus)
+						messages.push({
+							ts: state.getSpawnAgentStatusTs(),
+							type: "say",
+							say: "subagent" as ClineSay,
+							text: JSON.stringify(status),
+							partial: !allDone,
+						})
+
+						// When all done, emit subagent_usage for cost accounting
+						if (allDone) {
+							const usagePayload: ClineSubagentUsageInfo = {
+								source: "subagents",
+								tokensIn: items.reduce((acc, e) => acc + (e.inputTokens || 0), 0),
+								tokensOut: items.reduce((acc, e) => acc + (e.outputTokens || 0), 0),
+								cacheWrites: 0,
+								cacheReads: 0,
+								cost: items.reduce((acc, e) => acc + (e.totalCost || 0), 0),
+							}
+							messages.push({
+								ts: state.nextTs(),
+								type: "say",
+								say: "subagent_usage" as ClineSay,
+								text: JSON.stringify(usagePayload),
+								partial: false,
+							})
+						}
+
+						// Don't clear the generic streaming tool — spawn_agent
+						// didn't use it (we cleared it at content_start)
+						break
+					}
 
 					// attempt_completion → emit ask:"completion_result" to
 					// finalize the green "Task Completed" rectangle and enable
@@ -728,13 +1005,25 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// by combineCommandSequences in the chat pipeline).
 					if (toolName === "run_commands" || toolName === "execute_command") {
 						const storedInput = state.getStreamingToolInput()
-						const parsedInput = parseToolInput(storedInput)
-						const commands = getArrayField(parsedInput, "commands")
-						const commandText =
-							commands?.join(" && ") ??
-							getStringField(parsedInput, "commands") ??
-							getStringField(parsedInput, "command") ??
-							""
+						// Handle multiple input formats (same as content_start):
+						//   1. { commands: string[] }  — standard wrapped object
+						//   2. string[]                — bare array (parseToolInput returns undefined)
+						//   3. { command: string }     — single command as object (execute_command compat)
+						//   4. string                  — bare string
+						let commandText = ""
+						if (Array.isArray(storedInput)) {
+							commandText = (storedInput as string[]).join(" && ")
+						} else if (typeof storedInput === "string") {
+							commandText = storedInput
+						} else {
+							const parsedInput = parseToolInput(storedInput)
+							const commands = getArrayField(parsedInput, "commands")
+							commandText =
+								commands?.join(" && ") ??
+								getStringField(parsedInput, "commands") ??
+								getStringField(parsedInput, "command") ??
+								""
+						}
 						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
 						const ts = state.clearStreamingTool()
 						messages.push({
@@ -884,13 +1173,13 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 			// these are embedded in the api_req_started message's
 			// ClineApiReqInfo. We emit a separate api_req_started update
 			// with the usage data so the webview can display costs.
-			const usageEvent = event as unknown as Record<string, unknown>
+			const usageEvent = normalizeUsageEvent(event)
 			const apiReqInfo: ClineApiReqInfo = {
-				tokensIn: (usageEvent.inputTokens as number) ?? 0,
-				tokensOut: (usageEvent.outputTokens as number) ?? 0,
-				cacheWrites: (usageEvent.cacheWriteTokens as number) ?? undefined,
-				cacheReads: (usageEvent.cacheReadTokens as number) ?? undefined,
-				cost: (usageEvent.totalCost as number) ?? undefined,
+				tokensIn: usageEvent.tokensIn,
+				tokensOut: usageEvent.tokensOut,
+				cacheWrites: usageEvent.cacheWrites,
+				cacheReads: usageEvent.cacheReads,
+				cost: usageEvent.totalCost,
 			}
 			messages.push({
 				ts: state.nextTs(),
@@ -987,27 +1276,44 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "agent_event": {
+			// Sub-agent events (parentAgentId is set) should NOT produce
+			// ClineMessages in the main chat. The sub-agent's work is
+			// represented by the parent's spawn_agent tool events
+			// (content_start/update/end) which we translate into the rich
+			// SubagentStatusRow UI. Without this filter, every sub-agent
+			// tool call, text output, iteration, and usage event would
+			// flood the main chat.
+			const agentEvent = event.payload.event
+			if (agentEvent.parentAgentId) {
+				break
+			}
+
 			// Agent events contain structured content (text, reasoning, tools)
-			const agentMessages = translateAgentEvent(event.payload.event, state)
+			const agentMessages = translateAgentEvent(agentEvent, state)
 			result.messages.push(...agentMessages)
 
 			// Check for done/error events
-			if (event.payload.event.type === "done") {
+			if (agentEvent.type === "done") {
 				result.turnComplete = true
 			}
-			if (event.payload.event.type === "error") {
+			if (agentEvent.type === "error") {
 				result.turnComplete = true
 			}
 
-			// Extract usage from usage events
-			if (event.payload.event.type === "usage") {
-				result.usage = {
-					tokensIn: event.payload.event.inputTokens ?? 0,
-					tokensOut: event.payload.event.outputTokens ?? 0,
-					cacheWrites: event.payload.event.cacheWriteTokens ?? 0,
-					cacheReads: event.payload.event.cacheReadTokens ?? 0,
-					totalCost: event.payload.event.totalCost ?? 0,
+			// Track tool success/error for consecutive mistake counting.
+			// A content_end event with contentType "tool" signals a completed
+			// tool call — if event.error is set, the tool failed.
+			if (agentEvent.type === "content_end" && agentEvent.contentType === "tool") {
+				if (agentEvent.error) {
+					result.toolError = true
+				} else {
+					result.toolSuccess = true
 				}
+			}
+
+			// Extract usage from usage events
+			if (agentEvent.type === "usage") {
+				result.usage = normalizeUsageEvent(agentEvent)
 			}
 			break
 		}
