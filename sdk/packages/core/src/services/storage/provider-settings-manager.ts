@@ -1,6 +1,7 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { basename, dirname } from "node:path";
 import { resolveProviderSettingsPath } from "@clinebot/shared/storage";
+import { getLiveModelsCatalog } from "../..";
 import {
 	emptyStoredProviderSettings,
 	type ProviderConfig,
@@ -11,7 +12,10 @@ import {
 	StoredProviderSettingsSchema,
 	toProviderConfig,
 } from "../../types/provider-settings";
-import { ensureCustomProvidersLoadedSync } from "../providers/local-provider-registry";
+import {
+	ensureCustomProvidersLoadedSync,
+	registerConfiguredProvidersFromSettings,
+} from "../providers/local-provider-registry";
 import { migrateLegacyProviderSettings } from "./provider-settings-legacy-migration";
 
 function nowIso(): string {
@@ -53,6 +57,7 @@ export class ProviderSettingsManager {
 			});
 		}
 		ensureCustomProvidersLoadedSync(this);
+		registerConfiguredProvidersFromSettings(this.read());
 	}
 
 	getFilePath(): string {
@@ -69,6 +74,7 @@ export class ProviderSettingsManager {
 			const parsed = JSON.parse(raw) as unknown;
 			const result = StoredProviderSettingsSchema.safeParse(parsed);
 			if (result.success) {
+				registerConfiguredProvidersFromSettings(result.data);
 				return result.data;
 			}
 		} catch {
@@ -89,6 +95,7 @@ export class ProviderSettingsManager {
 			`${JSON.stringify(normalized, null, 2)}\n`,
 			"utf8",
 		);
+		registerConfiguredProvidersFromSettings(normalized);
 	}
 
 	saveProviderSettings(
@@ -148,5 +155,13 @@ export class ProviderSettingsManager {
 			return undefined;
 		}
 		return toProviderConfig(settings);
+	}
+
+	async refreshCatalog(): Promise<void> {
+		try {
+			await getLiveModelsCatalog({});
+		} catch {
+			// Ignore errors
+		}
 	}
 }

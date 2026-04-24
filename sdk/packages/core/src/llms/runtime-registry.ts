@@ -86,6 +86,7 @@ export class DefaultLlmsSdk implements LlmsSdk {
 				client: input.client ?? "openai-compatible",
 				capabilities: input.capabilities,
 				env: input.env,
+				source: "system",
 			},
 			models: input.models,
 		});

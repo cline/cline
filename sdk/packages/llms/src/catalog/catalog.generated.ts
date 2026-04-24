@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1776897029283,
+	version: 1777061058464,
 	providers: {
 		aihubmix: {
 			"coding-glm-5.1": {
@@ -1708,6 +1708,29 @@ export const GENERATED_PROVIDER_MODELS: {
 				releaseDate: "2026-02-17",
 				family: "claude-sonnet",
 			},
+			"au.anthropic.claude-sonnet-4-6": {
+				id: "au.anthropic.claude-sonnet-4-6",
+				name: "AU Anthropic Claude Sonnet 4.6",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 3.3,
+					output: 16.5,
+					cacheRead: 0.33,
+					cacheWrite: 4.125,
+				},
+				releaseDate: "2026-02-17",
+				family: "claude-sonnet",
+			},
 			"eu.anthropic.claude-sonnet-4-6": {
 				id: "eu.anthropic.claude-sonnet-4-6",
 				name: "Claude Sonnet 4.6 (EU)",
@@ -1858,6 +1881,29 @@ export const GENERATED_PROVIDER_MODELS: {
 					output: 25,
 					cacheRead: 0.5,
 					cacheWrite: 6.25,
+				},
+				releaseDate: "2026-02-05",
+				family: "claude-opus",
+			},
+			"au.anthropic.claude-opus-4-6-v1": {
+				id: "au.anthropic.claude-opus-4-6-v1",
+				name: "AU Anthropic Claude Opus 4.6",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 16.5,
+					output: 82.5,
+					cacheRead: 1.65,
+					cacheWrite: 20.625,
 				},
 				releaseDate: "2026-02-05",
 				family: "claude-opus",
@@ -3271,6 +3317,48 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		deepseek: {
+			"deepseek-v4-flash": {
+				id: "deepseek-v4-flash",
+				name: "DeepSeek V4 Flash",
+				contextWindow: 1000000,
+				maxTokens: 384000,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.14,
+					output: 0.28,
+					cacheRead: 0.028,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "deepseek-flash",
+			},
+			"deepseek-v4-pro": {
+				id: "deepseek-v4-pro",
+				name: "DeepSeek V4 Pro",
+				contextWindow: 1000000,
+				maxTokens: 384000,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.74,
+					output: 3.48,
+					cacheRead: 0.145,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "deepseek-thinking",
+			},
 			"deepseek-chat": {
 				id: "deepseek-chat",
 				name: "DeepSeek Chat",
@@ -3593,8 +3681,8 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		gemini: {
-			"gemma-4-26b-it": {
-				id: "gemma-4-26b-it",
+			"gemma-4-26b-a4b-it": {
+				id: "gemma-4-26b-a4b-it",
 				name: "Gemma 4 26B",
 				contextWindow: 256000,
 				maxTokens: 8192,
@@ -9378,7 +9466,7 @@ export const GENERATED_PROVIDER_MODELS: {
 				id: "gemma4:31b",
 				name: "gemma4:31b",
 				contextWindow: 262144,
-				maxTokens: 8192,
+				maxTokens: 13107,
 				capabilities: ["images", "tools", "reasoning"],
 				pricing: {
 					input: 0,
@@ -9871,6 +9959,28 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		"openai-native": {
+			"gpt-5.5": {
+				id: "gpt-5.5",
+				name: "GPT-5.5",
+				contextWindow: 1050000,
+				maxTokens: 130000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 30,
+					cacheRead: 0.5,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-23",
+				family: "gpt",
+			},
 			"gpt-5.4-mini": {
 				id: "gpt-5.4-mini",
 				name: "GPT-5.4 mini",
@@ -10641,6 +10751,48 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		openrouter: {
+			"deepseek/deepseek-v4-flash": {
+				id: "deepseek/deepseek-v4-flash",
+				name: "DeepSeek V4 Flash",
+				contextWindow: 1048576,
+				maxTokens: 393216,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.14,
+					output: 0.28,
+					cacheRead: 0.028,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "deepseek-flash",
+			},
+			"deepseek/deepseek-v4-pro": {
+				id: "deepseek/deepseek-v4-pro",
+				name: "DeepSeek V4 Pro",
+				contextWindow: 1048576,
+				maxTokens: 393216,
+				capabilities: [
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.74,
+					output: 3.48,
+					cacheRead: 0.145,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "deepseek-thinking",
+			},
 			"moonshotai/kimi-k2.6": {
 				id: "moonshotai/kimi-k2.6",
 				name: "Kimi K2.6",
@@ -14574,6 +14726,28 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		together: {
+			"moonshotai/Kimi-K2.6": {
+				id: "moonshotai/Kimi-K2.6",
+				name: "Kimi K2.6",
+				contextWindow: 262144,
+				maxTokens: 131000,
+				capabilities: [
+					"images",
+					"tools",
+					"reasoning",
+					"structured_output",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.2,
+					output: 4.5,
+					cacheRead: 0.2,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-21",
+				family: "kimi-k2.6",
+			},
 			"google/gemma-4-31B-it": {
 				id: "google/gemma-4-31B-it",
 				name: "Gemma 4 31B Instruct",

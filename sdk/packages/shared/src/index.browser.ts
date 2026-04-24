@@ -244,15 +244,21 @@ export type {
 	ProviderActionRequest,
 	ProviderCapability,
 	ProviderCatalogResponse,
+	ProviderClient,
 	ProviderListItem,
 	ProviderModel,
 	ProviderModelsResponse,
 	ProviderOAuthLoginResponse,
+	ProviderProtocol,
 	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 } from "./rpc/runtime";
-export { ProviderCapabilitySchema } from "./rpc/runtime";
+export {
+	ProviderCapabilitySchema,
+	ProviderClientSchema,
+	ProviderProtocolSchema,
+} from "./rpc/runtime";
 export type {
 	TeamProgressCounts,
 	TeamProgressLifecycleEvent,

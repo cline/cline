@@ -14,7 +14,9 @@ import { loginOcaOAuth } from "../../auth/oca";
 import { resolveProviderConfig } from "../../llms/provider-defaults";
 import type {
 	ModelInfo,
+	ProviderClient,
 	ProviderConfig,
+	ProviderProtocol,
 	ProviderSettings,
 } from "../../llms/provider-settings";
 import type { ProviderSettingsManager } from "../storage/provider-settings-manager";
@@ -38,6 +40,8 @@ export interface UpdateLocalProviderRequest {
 	models?: string[];
 	defaultModelId?: string | null;
 	modelsSourceUrl?: string | null;
+	protocol?: ProviderProtocol | null;
+	client?: ProviderClient | null;
 	capabilities?: ProviderCapability[] | null;
 }
 
@@ -256,6 +260,7 @@ function removeProviderFromSettingsState(
 		mutated = true;
 	}
 	if (mutated) manager.write(state);
+	LlmsModels.unregisterProvider(providerId);
 }
 
 // --- Public API ---
@@ -338,6 +343,8 @@ export async function addLocalProvider(
 			headers: normalizedHeaders,
 			timeout: request.timeoutMs,
 			model: defaultModelId,
+			protocol: request.protocol,
+			client: request.client,
 		},
 		{ setLastUsed: false },
 	);
@@ -350,6 +357,8 @@ export async function addLocalProvider(
 			name: providerName,
 			baseUrl,
 			defaultModelId,
+			protocol: request.protocol,
+			client: request.client,
 			capabilities,
 			modelsSourceUrl: sourceUrl,
 		},
@@ -384,7 +393,11 @@ export async function updateLocalProvider(
 	if (!existingEntry) {
 		throw new Error(`provider "${providerId}" does not exist`);
 	}
-
+	if (!existingEntry.provider) {
+		throw new Error(
+			`provider "${providerId}" cannot be updated because it is a model overlay (no provider metadata)`,
+		);
+	}
 	const providerName =
 		request.name?.trim() ?? existingEntry.provider.name.trim();
 	if (!providerName) throw new Error("name is required");
@@ -399,6 +412,14 @@ export async function updateLocalProvider(
 			: request.capabilities === null
 				? undefined
 				: [...new Set(request.capabilities)];
+	const protocol =
+		request.protocol === undefined
+			? existingEntry.provider.protocol
+			: (request.protocol ?? undefined);
+	const client =
+		request.client === undefined
+			? existingEntry.provider.client
+			: (request.client ?? undefined);
 
 	const explicitModels = uniqueTrimmed(request.models);
 	const nextModelsSourceUrl =
@@ -408,7 +429,7 @@ export async function updateLocalProvider(
 	const shouldRecomputeModels =
 		request.models !== undefined ||
 		(request.modelsSourceUrl !== undefined && !!nextModelsSourceUrl);
-	const existingModelIds = Object.keys(existingEntry.models)
+	const existingModelIds = Object.keys(existingEntry.models ?? {})
 		.map((id) => id.trim())
 		.filter(Boolean);
 	const modelIds = await resolveModelIds({
@@ -440,6 +461,10 @@ export async function updateLocalProvider(
 		baseUrl,
 		model: defaultModelId,
 	};
+	if (protocol) nextSettings.protocol = protocol;
+	else delete nextSettings.protocol;
+	if (client) nextSettings.client = client;
+	else delete nextSettings.client;
 	if (request.apiKey !== undefined) {
 		const apiKey = request.apiKey?.trim() ?? "";
 		if (apiKey) nextSettings.apiKey = apiKey;
@@ -465,6 +490,8 @@ export async function updateLocalProvider(
 			name: providerName,
 			baseUrl,
 			defaultModelId,
+			protocol,
+			client,
 			capabilities,
 			modelsSourceUrl: nextModelsSourceUrl,
 		},
@@ -541,6 +568,8 @@ export async function listLocalProviders(
 					: undefined,
 				baseUrl: persistedSettings?.baseUrl ?? info?.baseUrl,
 				defaultModelId: info?.defaultModelId,
+				protocol: persistedSettings?.protocol ?? info?.protocol,
+				client: persistedSettings?.client ?? info?.client,
 				authDescription: "This provider uses API keys for authentication.",
 				baseUrlDescription: "The base endpoint to use for provider requests.",
 				modelList,
@@ -596,6 +625,9 @@ export function saveLocalProviderSettings(
 		"contextWindow",
 		"timeout",
 		"apiLine",
+		"protocol",
+		"client",
+		"routingProviderId",
 		"capabilities",
 	] as const) {
 		if (Object.hasOwn(request, key)) next[key] = request[key];

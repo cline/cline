@@ -406,6 +406,7 @@ In desktop mode, CLI writes a request JSON file and waits for a matching decisio
 - `OPENAI_API_KEY` - API key for OpenAI (when using `-p openai`)
 - `OPENROUTER_API_KEY` - API key for OpenRouter (when using `-P openrouter`)
 - `AI_GATEWAY_API_KEY` - API key for Vercel AI Gateway (when using `-p vercel-ai-gateway`)
+- `V0_API_KEY` - API key for v0 (when using `-P v0`)
 
 `--key` takes precedence over environment variables.
 
@@ -448,8 +449,10 @@ On startup, `clite` also attempts a legacy settings import:
 Custom provider registry notes:
 
 - Provider runtime settings continue to persist in `<CLINE_DATA_DIR>/settings/providers.json`.
+- Providers in `providers.json` can opt into the OpenAI Responses API with `"protocol": "openai-responses"`; this routes the runtime through the OpenAI client while keeping the user-defined provider ID, base URL, and model catalog.
 - User-added OpenAI-compatible provider model catalogs are persisted in `<CLINE_DATA_DIR>/settings/models.json` (or alongside `CLINE_PROVIDER_SETTINGS_PATH`).
 - `models.json` stores model lists by provider ID and is loaded by the runtime provider actions.
+- Entries with only `models` extend an existing provider; entries with `provider` metadata register or override a custom provider.
 
 ## Features
 

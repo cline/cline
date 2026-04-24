@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@clinebot/llms";
@@ -122,6 +122,158 @@ describe("ProviderSettingsManager", () => {
 			id: "openai",
 			baseUrl: "https://gateway.example.invalid/v1",
 			defaultModelId: "gpt-oss-120b",
+		});
+	});
+
+	it("registers non-built-in OpenAI-compatible providers from providers.json", async () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		mkdirSync(path.dirname(filePath), { recursive: true });
+		writeFileSync(
+			filePath,
+			JSON.stringify(
+				{
+					version: 1,
+					lastUsedProvider: "custom-provider",
+					providers: {
+						"custom-provider": {
+							settings: {
+								provider: "custom-provider",
+								baseUrl: "https://custom.example.invalid/v1",
+								model: "custom-model",
+								apiKey: "test-key",
+								capabilities: ["reasoning", "tools"],
+							},
+							updatedAt: new Date().toISOString(),
+							tokenSource: "manual",
+						},
+					},
+				},
+				null,
+				2,
+			),
+		);
+
+		const manager = new ProviderSettingsManager({ filePath });
+		const provider = await LlmsModels.getProvider("custom-provider");
+		const models = await LlmsModels.getModelsForProvider("custom-provider");
+
+		expect(manager.getProviderConfig("custom-provider")).toMatchObject({
+			providerId: "custom-provider",
+			baseUrl: "https://custom.example.invalid/v1",
+			modelId: "custom-model",
+		});
+		expect(provider).toMatchObject({
+			id: "custom-provider",
+			baseUrl: "https://custom.example.invalid/v1",
+			defaultModelId: "custom-model",
+			client: "openai-compatible",
+			source: "file",
+		});
+		expect(models["custom-model"]).toMatchObject({
+			id: "custom-model",
+		});
+		expect(models["custom-model"]?.capabilities?.sort()).toEqual([
+			"reasoning",
+			"tools",
+		]);
+	});
+
+	it("routes custom providers with the Responses API protocol through the OpenAI client", async () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		mkdirSync(path.dirname(filePath), { recursive: true });
+		writeFileSync(
+			filePath,
+			JSON.stringify(
+				{
+					version: 1,
+					lastUsedProvider: "custom-responses",
+					providers: {
+						"custom-responses": {
+							settings: {
+								provider: "custom-responses",
+								baseUrl: "https://responses.example.invalid/v1",
+								model: "responses-model",
+								protocol: "openai-responses",
+								apiKey: "test-key",
+							},
+							updatedAt: new Date().toISOString(),
+							tokenSource: "manual",
+						},
+					},
+				},
+				null,
+				2,
+			),
+		);
+
+		const manager = new ProviderSettingsManager({ filePath });
+		const provider = await LlmsModels.getProvider("custom-responses");
+
+		expect(manager.getProviderConfig("custom-responses")).toMatchObject({
+			providerId: "custom-responses",
+			baseUrl: "https://responses.example.invalid/v1",
+			modelId: "responses-model",
+			routingProviderId: "openai-native",
+		});
+		expect(provider).toMatchObject({
+			id: "custom-responses",
+			protocol: "openai-responses",
+			client: "openai",
+			source: "file",
+		});
+	});
+
+	it("refreshes provider registrations when providers.json changes on disk", async () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath });
+		mkdirSync(path.dirname(filePath), { recursive: true });
+
+		expect(LlmsModels.hasProvider("disk-added-provider")).toBe(false);
+
+		writeFileSync(
+			filePath,
+			JSON.stringify(
+				{
+					version: 1,
+					providers: {
+						"disk-added-provider": {
+							settings: {
+								provider: "disk-added-provider",
+								baseUrl: "https://disk.example.invalid/v1",
+								model: "disk-model",
+							},
+							updatedAt: new Date().toISOString(),
+							tokenSource: "manual",
+						},
+					},
+				},
+				null,
+				2,
+			),
+		);
+
+		expect(manager.getProviderSettings("disk-added-provider")).toMatchObject({
+			provider: "disk-added-provider",
+			baseUrl: "https://disk.example.invalid/v1",
+			model: "disk-model",
+		});
+		await expect(
+			LlmsModels.getProvider("disk-added-provider"),
+		).resolves.toMatchObject({
+			id: "disk-added-provider",
+			defaultModelId: "disk-model",
 		});
 	});
 

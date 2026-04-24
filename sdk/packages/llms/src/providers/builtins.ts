@@ -146,6 +146,9 @@ function modelInfoToGateway(
 }
 
 function inferProtocol(spec: BuiltinSpec): ProviderProtocol {
+	if (spec.client === "openai") {
+		return "openai-responses";
+	}
 	switch (spec.family) {
 		case "openai":
 			return "openai-responses";
@@ -161,6 +164,9 @@ function inferProtocol(spec: BuiltinSpec): ProviderProtocol {
 }
 
 function inferClient(spec: BuiltinSpec): ProviderClient {
+	if (spec.protocol === "openai-responses") {
+		return "openai";
+	}
 	switch (spec.family) {
 		case "openai":
 			return "openai";
@@ -323,6 +329,19 @@ const OPENAI_COMPATIBLE_SPECS: BuiltinSpec[] = [
 		modelsProviderId: "vercel-ai-gateway",
 		defaults: { baseUrl: "https://ai-gateway.vercel.sh/v1" },
 		metadata: { promptCacheStrategy: "anthropic-automatic" },
+	},
+	{
+		id: "v0",
+		name: "Vercel V0",
+		description:
+			"The Vercel provider gives you access to the v0 API, designed for building modern web applications.",
+		family: "openai-compatible",
+		protocol: "openai-responses",
+		capabilities: ["reasoning", "tools"],
+		defaultModelId: "v0-1.5-md",
+		apiKeyEnv: ["V0_API_KEY"],
+		modelsProviderId: "v0",
+		defaults: { baseUrl: "https://api.v0.dev/v1" },
 	},
 	{
 		id: "aihubmix",
@@ -716,6 +735,7 @@ function toModelCollection(spec: BuiltinSpec): ModelCollection {
 			capabilities: spec.capabilities,
 			env: spec.apiKeyEnv ? [...spec.apiKeyEnv] : undefined,
 			client: spec.client ?? inferClient(spec),
+			source: "system",
 		},
 		models,
 	};

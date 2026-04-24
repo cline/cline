@@ -11,21 +11,36 @@ const external = [
 	"zod",
 ];
 
+const buildConfig = {
+	target: "node",
+	format: "esm",
+	minify: true,
+	packages: "bundle",
+	sourcemap: "none",
+	external,
+} as const;
+
 const builds: Parameters<typeof Bun.build>[0][] = [
+	// Build main exports separately to avoid Bun bundler output path conflicts
 	{
-		entrypoints: [
-			"./src/index.ts",
-			"./src/hub/index.ts",
-			"./src/hub/daemon-entry.ts",
-			"./src/services/telemetry/index.ts",
-		],
+		entrypoints: ["./src/index.ts"],
 		outdir: "./dist",
-		target: "node",
-		format: "esm",
-		minify: true,
-		packages: "bundle",
-		sourcemap: "none",
-		external,
+		...buildConfig,
+	},
+	{
+		entrypoints: ["./src/hub/index.ts"],
+		outdir: "./dist/hub",
+		...buildConfig,
+	},
+	{
+		entrypoints: ["./src/hub/daemon-entry.ts"],
+		outdir: "./dist/hub",
+		...buildConfig,
+	},
+	{
+		entrypoints: ["./src/services/telemetry/index.ts"],
+		outdir: "./dist/services",
+		...buildConfig,
 	},
 	// The plugin sandbox bootstrap runs in an isolated child process via
 	// SubprocessSandbox and must be emitted as a standalone file with no
@@ -33,16 +48,17 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 	{
 		entrypoints: ["./src/extensions/plugin/plugin-sandbox-bootstrap.ts"],
 		outdir: "./dist/extensions",
-		target: "node",
-		format: "esm",
-		minify: true,
-		packages: "bundle",
-		sourcemap: "none",
+		...buildConfig,
 	},
 ];
 
 for (const config of builds) {
 	const result = await Bun.build(config as Parameters<typeof Bun.build>[0]);
+
+	if (!result.success) {
+		console.error("Build failed for entrypoints:", config.entrypoints);
+		process.exit(1);
+	}
 
 	if (result.logs.length > 0) {
 		for (const log of result.logs) {

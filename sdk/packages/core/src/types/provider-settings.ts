@@ -1,12 +1,19 @@
 import { z } from "zod";
 import {
+	type ProviderClient,
 	type ProviderConfig,
+	type ProviderProtocol,
 	type ProviderSettings,
 	ProviderSettingsSchema,
 	toProviderConfig,
 } from "../llms/provider-settings";
 
-export type { ProviderConfig, ProviderSettings };
+export type {
+	ProviderClient,
+	ProviderConfig,
+	ProviderProtocol,
+	ProviderSettings,
+};
 export const ProviderSettingsSchemaTyped: z.ZodType<ProviderSettings> =
 	ProviderSettingsSchema;
 export { toProviderConfig };

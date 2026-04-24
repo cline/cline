@@ -57,8 +57,18 @@ const ProviderClientSchema = z.enum([
 	"vertex",
 ]);
 
+/**
+ * ProviderSource indicates how a provider was added to the system,
+ * which can be useful for determining trust level and whether to prompt the user for confirmation before using it.
+ * For example, providers with source "system" are built-in and can be trusted,
+ * while providers with source "file" were added by the user using a local JSON file,
+ * and providers with source "discovery" were found through network discovery.
+ */
+const ProviderSourceSchema = z.enum(["system", "file", "discovery"]);
+
 export type ProviderClient = z.infer<typeof ProviderClientSchema>;
 export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
+export type ProviderSource = z.infer<typeof ProviderSourceSchema>;
 
 export const ProviderInfoSchema = z.object({
 	id: z.string(),
@@ -70,6 +80,7 @@ export const ProviderInfoSchema = z.object({
 	capabilities: z.array(ProviderCapabilitySchema).optional(),
 	env: z.array(z.string()).optional(),
 	client: ProviderClientSchema,
+	source: ProviderSourceSchema.default("system"),
 });
 
 export type ProviderInfo = z.infer<typeof ProviderInfoSchema>;

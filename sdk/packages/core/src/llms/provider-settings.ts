@@ -29,6 +29,29 @@ export const ProviderIdSchema = z
 	.min(1)
 	.regex(/^[a-z0-9][a-z0-9-]*$/i);
 
+export const ProviderProtocolSchema = z.enum([
+	"anthropic",
+	"gemini",
+	"openai-chat",
+	"openai-responses",
+	"openai-r1",
+	"ai-sdk",
+]);
+
+export const ProviderClientSchema = z.enum([
+	"anthropic",
+	"ai-sdk",
+	"ai-sdk-community",
+	"openai",
+	"openai-compatible",
+	"openai-r1",
+	"gemini",
+	"bedrock",
+	"custom",
+	"fetch",
+	"vertex",
+]);
+
 export const AuthSettingsSchema = z.object({
 	apiKey: z.string().optional(),
 	accessToken: z.string().optional(),
@@ -115,6 +138,9 @@ export const ProviderSettingsSchema = z.object({
 	apiKey: z.string().optional(),
 	auth: AuthSettingsSchema.optional(),
 	model: z.string().optional(),
+	protocol: ProviderProtocolSchema.optional(),
+	client: ProviderClientSchema.optional(),
+	routingProviderId: ProviderIdSchema.optional(),
 	maxTokens: z.number().int().positive().optional(),
 	contextWindow: z.number().int().positive().optional(),
 	baseUrl: z.string().url().optional(),
@@ -156,6 +182,14 @@ export function safeParseSettings(
 	return ProviderSettingsSchema.safeParse(input);
 }
 
+function shouldRouteThroughOpenAIResponses(
+	settings: ProviderSettings,
+): boolean {
+	return (
+		settings.protocol === "openai-responses" || settings.client === "openai"
+	);
+}
+
 export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
 	const providerId = settings.provider as ProviderId;
 	const normalizedProviderId = normalizeProviderId(providerId);
@@ -170,6 +204,7 @@ export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
 			(catalogKey) => Llms.getGeneratedModelsForProvider(catalogKey),
 		),
 	);
+	const generatedDefaultModelId = Object.keys(generatedKnownModels)[0];
 
 	const apiKey =
 		settings.auth?.accessToken ?? settings.apiKey ?? settings.auth?.apiKey;
@@ -180,10 +215,22 @@ export function toProviderConfig(settings: ProviderSettings): ProviderConfig {
 				? DEFAULT_INTERNAL_OCA_BASE_URL
 				: DEFAULT_EXTERNAL_OCA_BASE_URL
 			: providerDefaults?.baseUrl);
+	const routingProviderId =
+		settings.routingProviderId ??
+		(shouldRouteThroughOpenAIResponses(settings) &&
+		normalizedProviderId !== BUILT_IN_PROVIDER.OPENAI_NATIVE
+			? BUILT_IN_PROVIDER.OPENAI_NATIVE
+			: undefined);
 
 	const config: ProviderConfig = {
 		providerId,
-		modelId: settings.model ?? providerDefaults?.modelId ?? "default",
+		clientType: settings.client,
+		routingProviderId,
+		modelId:
+			settings.model ??
+			providerDefaults?.modelId ??
+			generatedDefaultModelId ??
+			"default",
 		knownModels:
 			providerDefaults?.knownModels ??
 			(Object.keys(generatedKnownModels).length > 0

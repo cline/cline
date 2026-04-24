@@ -70,6 +70,19 @@ async function loadFamilyFactory(
 	return promise;
 }
 
+function resolveRuntimeFamily(
+	spec: (typeof BUILTIN_SPECS)[number],
+): ProviderFamily {
+	if (
+		spec.family === "openai" ||
+		spec.protocol === "openai-responses" ||
+		spec.client === "openai"
+	) {
+		return "openai";
+	}
+	return spec.family;
+}
+
 export const BUILTIN_PROVIDER_REGISTRATIONS: GatewayProviderRegistration[] =
 	BUILTIN_SPECS.map((spec) => ({
 		manifest: toManifest(spec),
@@ -79,6 +92,6 @@ export const BUILTIN_PROVIDER_REGISTRATIONS: GatewayProviderRegistration[] =
 			baseUrl: spec.defaults?.baseUrl,
 		},
 		loadProvider: async () => ({
-			createProvider: await loadFamilyFactory(spec.family),
+			createProvider: await loadFamilyFactory(resolveRuntimeFamily(spec)),
 		}),
 	}));

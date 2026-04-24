@@ -6,7 +6,11 @@ import type {
 	GatewayStreamRequest,
 } from "@clinebot/shared";
 import { nanoid } from "nanoid";
-import type { ModelInfo } from "../catalog/types";
+import type {
+	ModelInfo,
+	ProviderClient,
+	ProviderProtocol,
+} from "../catalog/types";
 import {
 	createAnthropicProvider,
 	createBedrockProvider,
@@ -105,7 +109,32 @@ function toGatewayModelDefinition(
 	};
 }
 
-function resolveFactory(providerId: string): GatewayProviderFactory {
+function resolveFactory(
+	providerId: string,
+	transport?: {
+		client?: ProviderClient;
+		protocol?: ProviderProtocol;
+	},
+): GatewayProviderFactory {
+	if (
+		transport?.client === "openai" ||
+		transport?.protocol === "openai-responses"
+	) {
+		return createOpenAIProvider;
+	}
+	switch (transport?.client) {
+		case "anthropic":
+			return createAnthropicProvider;
+		case "gemini":
+			return createGoogleProvider;
+		case "vertex":
+			return createVertexProvider;
+		case "bedrock":
+			return createBedrockProvider;
+		case "openai-compatible":
+			return createOpenAICompatibleProvider;
+	}
+
 	const normalized = normalizeProviderId(providerId);
 	switch (normalized) {
 		case "openai-codex":
@@ -192,7 +221,11 @@ async function resolveProviderRegistration(
 			apiKeyEnv: collection.provider.env ?? routedBuiltin?.defaults?.apiKeyEnv,
 		},
 		createProvider:
-			routedBuiltin?.createProvider ?? resolveFactory(routedProviderId),
+			routedBuiltin?.createProvider ??
+			resolveFactory(routedProviderId, {
+				client: config.clientType ?? collection.provider.client,
+				protocol: collection.provider.protocol,
+			}),
 		loadProvider: routedBuiltin?.loadProvider,
 	};
 }
@@ -253,7 +286,11 @@ function resolveProviderRegistrationSync(
 			apiKeyEnv: collection.provider.env ?? routedBuiltin?.defaults?.apiKeyEnv,
 		},
 		createProvider:
-			routedBuiltin?.createProvider ?? resolveFactory(routedProviderId),
+			routedBuiltin?.createProvider ??
+			resolveFactory(routedProviderId, {
+				client: config.clientType ?? collection.provider.client,
+				protocol: collection.provider.protocol,
+			}),
 		loadProvider: routedBuiltin?.loadProvider,
 	};
 }

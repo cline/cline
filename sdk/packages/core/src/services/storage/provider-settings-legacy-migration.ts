@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import * as LlmsModels from "@clinebot/llms";
 import { resolveClineDataDir } from "@clinebot/shared/storage";
@@ -7,6 +7,11 @@ import {
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
 } from "../../types/provider-settings";
+import {
+	readModelsFileSync,
+	type StoredModelsFile,
+	writeModelsFileSync,
+} from "../providers/local-provider-registry";
 import type { ProviderSettingsManager } from "./provider-settings-manager";
 
 type LegacyMode = "plan" | "act";
@@ -152,27 +157,6 @@ interface LegacyProviderStorage {
 	secrets: LegacySecrets;
 }
 
-type StoredModelsFile = {
-	version: 1;
-	providers: Record<
-		string,
-		{
-			provider: {
-				name: string;
-				baseUrl: string;
-				defaultModelId?: string;
-			};
-			models: Record<
-				string,
-				{
-					id: string;
-					name: string;
-				}
-			>;
-		}
-	>;
-};
-
 const LEGACY_OPENAI_COMPATIBLE_PROVIDER_ID = "openai";
 
 export interface MigrateLegacyProviderSettingsOptions {
@@ -254,29 +238,6 @@ function readJsonObject<T extends object>(filePath: string): T | undefined {
 		// Invalid legacy file should not block startup.
 	}
 	return undefined;
-}
-
-function readModelsFile(filePath: string): StoredModelsFile {
-	const parsed = readJsonObject<StoredModelsFile>(filePath);
-	if (
-		parsed?.version === 1 &&
-		parsed.providers &&
-		typeof parsed.providers === "object"
-	) {
-		return parsed;
-	}
-	return {
-		version: 1,
-		providers: {},
-	};
-}
-
-function writeModelsFile(filePath: string, state: StoredModelsFile): void {
-	const dir = dirname(filePath);
-	if (!existsSync(dir)) {
-		mkdirSync(dir, { recursive: true });
-	}
-	writeFileSync(filePath, `${JSON.stringify(state, null, 2)}\n`, "utf8");
 }
 
 function resolveLegacyStorage(
@@ -760,7 +721,7 @@ export function migrateLegacyProviderSettings(
 		dirname(options.providerSettingsManager.getFilePath()),
 		"models.json",
 	);
-	const modelsState = readModelsFile(modelsPath);
+	const modelsState = readModelsFileSync(modelsPath);
 	let addedCustomProviderCount = 0;
 
 	for (const legacyProviderId of candidates) {
@@ -817,7 +778,7 @@ export function migrateLegacyProviderSettings(
 
 	options.providerSettingsManager.write(next);
 	if (addedCustomProviderCount > 0) {
-		writeModelsFile(modelsPath, modelsState);
+		writeModelsFileSync(modelsPath, modelsState);
 	}
 
 	return {

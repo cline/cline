@@ -12,6 +12,8 @@ import { basename, dirname, extname, join } from "node:path";
 import type {
 	ClineAccountActionRequest,
 	ProviderCapability,
+	ProviderClient,
+	ProviderProtocol,
 } from "@clinebot/core";
 import {
 	addLocalProvider,
@@ -836,6 +838,14 @@ export async function handleCommand(
 			modelsSourceUrl:
 				typeof args?.models_source_url === "string"
 					? args.models_source_url
+					: undefined,
+			protocol:
+				typeof args?.protocol === "string"
+					? (args.protocol as ProviderProtocol)
+					: undefined,
+			client:
+				typeof args?.client === "string"
+					? (args.client as ProviderClient)
 					: undefined,
 			capabilities: Array.isArray(args?.capabilities)
 				? (args.capabilities as ProviderCapability[])

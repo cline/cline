@@ -1,11 +1,13 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import * as LlmsModels from "@clinebot/llms";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
+	parseModelsFile,
 	readModelsFile,
+	registerCustomProvider,
 	resolveModelsRegistryPath,
 } from "./local-provider-registry";
 import {
@@ -47,6 +49,100 @@ afterEach(() => {
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+});
+
+describe("models registry parsing", () => {
+	it("accepts model entries that use the record key as the model id", async () => {
+		const parsed = parseModelsFile({
+			version: 1,
+			providers: {
+				"schema-provider": {
+					provider: {
+						name: "Schema Provider",
+						baseUrl: "https://schema.example.invalid/v1",
+						defaultModelId: "alpha",
+						protocol: "openai-responses",
+					},
+					models: {
+						alpha: {
+							name: "Alpha",
+							capabilities: ["reasoning"],
+						},
+					},
+				},
+			},
+		});
+
+		const entry = parsed.providers["schema-provider"];
+		expect(entry?.models?.alpha?.id).toBeUndefined();
+		if (!entry) {
+			throw new Error("expected parsed provider entry");
+		}
+
+		registerCustomProvider("schema-provider", entry);
+
+		await expect(
+			LlmsModels.getProvider("schema-provider"),
+		).resolves.toMatchObject({
+			id: "schema-provider",
+			protocol: "openai-responses",
+			client: "openai",
+		});
+		await expect(
+			LlmsModels.getModelsForProvider("schema-provider"),
+		).resolves.toHaveProperty("alpha");
+	});
+
+	it("skips malformed provider entries while preserving valid providers", () => {
+		expect(
+			parseModelsFile({
+				version: 1,
+				providers: {
+					valid: {
+						provider: {
+							name: "Valid",
+							baseUrl: "https://valid.example.invalid/v1",
+						},
+						models: {
+							alpha: {
+								name: "Alpha",
+							},
+						},
+					},
+					broken: {
+						provider: {
+							name: "Broken",
+							baseUrl: 42,
+						},
+					},
+				},
+			}),
+		).toEqual({
+			version: 1,
+			providers: {
+				valid: {
+					provider: {
+						name: "Valid",
+						baseUrl: "https://valid.example.invalid/v1",
+					},
+					models: {
+						alpha: {
+							name: "Alpha",
+						},
+					},
+				},
+			},
+		});
+	});
+
+	it("falls back to an empty registry when the file shape is malformed", () => {
+		expect(
+			parseModelsFile({
+				version: 1,
+				providers: [],
+			}),
+		).toEqual({ version: 1, providers: {} });
+	});
 });
 
 // ===========================================================================
@@ -524,6 +620,66 @@ describe("addLocalProvider – capabilities", () => {
 });
 
 // ===========================================================================
+// models.json – built-in provider model overlays
+// ===========================================================================
+
+describe("models.json model overlays", () => {
+	it("loads model-only entries for built-in providers", async () => {
+		const dir = mkdtempSync(
+			path.join(os.tmpdir(), "local-provider-overlay-test-"),
+		);
+		try {
+			const settingsDir = path.join(dir, "settings");
+			mkdirSync(settingsDir, { recursive: true });
+			writeFileSync(
+				path.join(settingsDir, "models.json"),
+				`${JSON.stringify(
+					{
+						version: 1,
+						providers: {
+							cline: {
+								models: {
+									"openai/gpt-5.5": {
+										id: "openai/gpt-5.5",
+										name: "OpenAI GPT-5.5",
+									},
+								},
+							},
+						},
+					},
+					null,
+					2,
+				)}\n`,
+			);
+
+			const manager = new ProviderSettingsManager({
+				filePath: path.join(settingsDir, "providers.json"),
+			});
+
+			const provider = await LlmsModels.getProvider("cline");
+			expect(provider).toMatchObject({
+				id: "cline",
+				baseUrl: "https://api.cline.bot/api/v1",
+				defaultModelId: "anthropic/claude-sonnet-4.6",
+			});
+
+			const { models } = await getLocalProviderModels("cline");
+			expect(
+				models.find((model) => model.id === "openai/gpt-5.5"),
+			).toMatchObject({
+				id: "openai/gpt-5.5",
+				name: "OpenAI GPT-5.5",
+			});
+			expect(manager.getFilePath()).toBe(
+				path.join(settingsDir, "providers.json"),
+			);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+// ===========================================================================
 // saveLocalProviderSettings
 // ===========================================================================
 
@@ -714,7 +870,7 @@ describe("updateLocalProvider", () => {
 		const modelsPath = resolveModelsRegistryPath(manager);
 		let modelsState = await readModelsFile(modelsPath);
 		expect(
-			modelsState.providers["editable-provider"]?.provider.capabilities,
+			modelsState.providers["editable-provider"]?.provider?.capabilities,
 		).toEqual(["vision"]);
 
 		await updateLocalProvider(manager, {
@@ -723,7 +879,7 @@ describe("updateLocalProvider", () => {
 		});
 		modelsState = await readModelsFile(modelsPath);
 		expect(
-			modelsState.providers["editable-provider"]?.provider.capabilities,
+			modelsState.providers["editable-provider"]?.provider?.capabilities,
 		).toEqual([]);
 
 		await updateLocalProvider(manager, {
@@ -732,7 +888,7 @@ describe("updateLocalProvider", () => {
 		});
 		modelsState = await readModelsFile(modelsPath);
 		expect(
-			modelsState.providers["editable-provider"]?.provider.capabilities,
+			modelsState.providers["editable-provider"]?.provider?.capabilities,
 		).toBeUndefined();
 	});
 
@@ -758,7 +914,7 @@ describe("updateLocalProvider", () => {
 			resolveModelsRegistryPath(manager),
 		);
 		expect(
-			modelsState.providers["editable-provider"]?.provider.modelsSourceUrl,
+			modelsState.providers["editable-provider"]?.provider?.modelsSourceUrl,
 		).toBeUndefined();
 
 		const { models } = await getLocalProviderModels("editable-provider");

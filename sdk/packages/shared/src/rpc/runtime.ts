@@ -155,6 +155,8 @@ export interface ProviderListItem {
 	oauthAccessTokenPresent?: boolean;
 	baseUrl?: string;
 	defaultModelId?: string;
+	protocol?: ProviderProtocol;
+	client?: ProviderClient;
 	authDescription: string;
 	baseUrlDescription: string;
 	modelList?: ProviderModel[];
@@ -190,6 +192,33 @@ export const ProviderCapabilitySchema = z.enum([
 
 export type ProviderCapability = z.infer<typeof ProviderCapabilitySchema>;
 
+export const ProviderProtocolSchema = z.enum([
+	"anthropic",
+	"gemini",
+	"openai-chat",
+	"openai-responses",
+	"openai-r1",
+	"ai-sdk",
+]);
+
+export type ProviderProtocol = z.infer<typeof ProviderProtocolSchema>;
+
+export const ProviderClientSchema = z.enum([
+	"anthropic",
+	"ai-sdk",
+	"ai-sdk-community",
+	"openai",
+	"openai-compatible",
+	"openai-r1",
+	"gemini",
+	"bedrock",
+	"custom",
+	"fetch",
+	"vertex",
+]);
+
+export type ProviderClient = z.infer<typeof ProviderClientSchema>;
+
 export interface ListProvidersActionRequest {
 	action: "listProviders";
 }
@@ -214,6 +243,9 @@ export interface SaveProviderSettingsActionRequest {
 	};
 	// Model configuration
 	model?: string;
+	protocol?: ProviderProtocol;
+	client?: ProviderClient;
+	routingProviderId?: string;
 	maxTokens?: number;
 	contextWindow?: number;
 	// Endpoint configuration
@@ -292,6 +324,8 @@ export interface AddProviderActionRequest {
 	models?: string[];
 	defaultModelId?: string;
 	modelsSourceUrl?: string;
+	protocol?: ProviderProtocol;
+	client?: ProviderClient;
 	capabilities?: ProviderCapability[];
 }
 

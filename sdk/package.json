@@ -41,12 +41,12 @@
 	"module": "index.ts",
 	"type": "module",
 	"engines": {
-		"bun": ">=1.0.0",
+		"bun": ">=1.3.13",
 		"node": ">=22"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.4.5",
-		"@types/bun": "^1.3.10",
+		"@types/bun": "^1.3.13",
 		"@types/node": "^25.3.5",
 		"husky": "^9.1.7",
 		"lint-staged": "^16.3.2",
@@ -56,5 +56,5 @@
 		"nanoid": "^5.1.7",
 		"typescript": "^5.9.3"
 	},
-	"packageManager": "bun@1.3.10"
+	"packageManager": "bun@1.3.13"
 }
