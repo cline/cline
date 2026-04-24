@@ -155,6 +155,13 @@ function isAbortLikeError(error: unknown): boolean {
 	);
 }
 
+function isIntentionalShutdownAbort(
+	member: TeamMemberState | undefined,
+	error: unknown,
+): boolean {
+	return member?.status === "stopped" && isAbortLikeError(error);
+}
+
 // =============================================================================
 // AgentTeam
 // =============================================================================
@@ -1044,12 +1051,14 @@ export class AgentTeamsRuntime {
 				error: err,
 				messages: member.agent.getMessages(),
 			});
-			this.appendMissionLog({
-				agentId,
-				taskId: options?.taskId,
-				kind: "error",
-				summary: err.message,
-			});
+			if (!isIntentionalShutdownAbort(member, err)) {
+				this.appendMissionLog({
+					agentId,
+					taskId: options?.taskId,
+					kind: "error",
+					summary: err.message,
+				});
+			}
 			throw err;
 		} finally {
 			member.runningCount--;
@@ -1170,7 +1179,16 @@ export class AgentTeamsRuntime {
 					: String(error ?? "Unknown error");
 			run.error = message;
 			run.endedAt = new Date();
-			if (run.retryCount < run.maxRetries) {
+			const member = this.members.get(run.agentId);
+			if (isIntentionalShutdownAbort(member, error)) {
+				run.status = "cancelled";
+				run.currentActivity = "cancelled";
+				this.emitEvent({
+					type: TeamMessageType.RunCancelled,
+					run: { ...run },
+					reason: message,
+				});
+			} else if (run.retryCount < run.maxRetries) {
 				run.retryCount++;
 				run.status = "queued";
 				run.nextAttemptAt = new Date(

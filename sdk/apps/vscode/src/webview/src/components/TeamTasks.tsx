@@ -79,9 +79,13 @@ function summarizeTeamTool(event: TeamToolEvent): ReactNode {
 			const agentId =
 				asString(input?.agentId) ?? asString(output?.agentId) ?? "agent";
 			const mode = asString(output?.mode) ?? asString(input?.runMode);
+			const status = asString(output?.status);
 			const task = asString(input?.task);
 			const suffix = task ? `: ${task}` : "";
-			return `${statePrefix} ${mode === "async" ? "queue" : "run"} task with ${agentId}${suffix}`;
+			const action =
+				mode === "async" ? "queue" : status === "joined" ? "join" : "run";
+			const state = status ? ` (${status})` : "";
+			return `${statePrefix} ${action} task with ${agentId}${state}${suffix}`;
 		}
 		case "team_cancel_run":
 			return `${statePrefix} cancel run ${asString(input?.runId) ?? asString(output?.runId) ?? ""}`.trim();
@@ -144,7 +148,11 @@ function describeTeamTool(event: TeamToolEvent): string | undefined {
 			return undefined;
 		}
 		case "team_run_task":
-			return asString(output?.runId) ?? asString(output?.text);
+			return (
+				asString(output?.message) ??
+				asString(output?.runId) ??
+				asString(output?.text)
+			);
 		case "team_send_message":
 		case "team_broadcast":
 			return asString(input?.body);

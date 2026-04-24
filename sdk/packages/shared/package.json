@@ -31,6 +31,11 @@
 			"development": "./src/db/index.ts",
 			"types": "./dist/db/index.d.ts",
 			"import": "./dist/db/index.js"
+		},
+		"./automation": {
+			"development": "./src/automation/index.ts",
+			"types": "./dist/automation/index.d.ts",
+			"import": "./dist/automation/index.js"
 		}
 	},
 	"files": [

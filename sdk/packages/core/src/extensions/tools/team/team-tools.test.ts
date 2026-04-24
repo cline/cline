@@ -750,7 +750,7 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		expect(awaitRuns?.timeoutMs).toBe(60 * 60 * 1000);
 	});
 
-	it("deduplicates concurrent sync team_run_task calls to the same agent", async () => {
+	it("collapses concurrent sync team_run_task calls to the same agent", async () => {
 		let resolveRoute!: (value: { text: string; iterations: number }) => void;
 		const routePromise = new Promise<{ text: string; iterations: number }>(
 			(resolve) => {
@@ -785,19 +785,60 @@ describe("createAgentTeamsTools runtime behavior", () => {
 		const call1 = runTask.execute(input, ctx);
 		const call2 = runTask.execute(input, ctx);
 
-		// Second call should throw with duplicate detection error
-		await expect(call2).rejects.toThrow(
-			'Duplicate team_run_task call detected for agent "educator"',
-		);
-
-		// Only one routeToTeammate call should have been made
+		// Only one routeToTeammate call should be made.
 		expect(routeToTeammate).toHaveBeenCalledTimes(1);
 
-		// Now resolve the first call
+		// Both callers should receive the same result from the shared in-flight run.
 		resolveRoute({ text: "Probability explained", iterations: 3 });
 		const result1 = (await call1) as { text?: string; iterations?: number };
+		const result2 = (await call2) as {
+			text?: string;
+			iterations?: number;
+			status?: string;
+			deduped?: boolean;
+			message?: string;
+		};
 		expect(result1.text).toBe("Probability explained");
 		expect(result1.iterations).toBe(3);
+		expect(result2.text).toBe("Probability explained");
+		expect(result2.iterations).toBe(3);
+		expect(result2.status).toBe("joined");
+		expect(result2.deduped).toBe(true);
+		expect(result2.message).toContain("already dispatched");
+	});
+
+	it("returns explicit dispatch state for async team_run_task calls", async () => {
+		const runtime = {
+			startTeammateRun: vi.fn(() => ({ id: "run_00001" })),
+			getMemberRole: vi.fn(() => "lead"),
+		} as unknown as AgentTeamsRuntime;
+
+		const tools = createAgentTeamsTools({
+			runtime,
+			requesterId: "lead",
+			teammateConfigProvider: makeTeammateConfigProvider(),
+		});
+		const runTask = tools.find((tool) => tool.name === "team_run_task");
+		expect(runTask).toBeDefined();
+		if (!runTask) {
+			throw new Error("Expected team_run_task tool to be defined");
+		}
+
+		const ctx = { agentId: "lead", conversationId: "conv-1", iteration: 1 };
+		const result = (await runTask.execute(
+			{ agentId: "educator", task: "Explain probability", runMode: "async" },
+			ctx,
+		)) as {
+			runId?: string;
+			status?: string;
+			dispatched?: boolean;
+			message?: string;
+		};
+
+		expect(result.runId).toBe("run_00001");
+		expect(result.status).toBe("queued");
+		expect(result.dispatched).toBe(true);
+		expect(result.message).toContain("queued as run_00001");
 	});
 
 	it("allows concurrent sync team_run_task calls to different agents", async () => {

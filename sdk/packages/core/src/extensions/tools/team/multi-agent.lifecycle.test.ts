@@ -209,6 +209,62 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		});
 	});
 
+	it("marks an active queued run as cancelled when teammate shutdown aborts it", async () => {
+		const events: TeamEvent[] = [];
+		let rejectRun: ((error: Error) => void) | undefined;
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(() => {
+					rejectRun?.(
+						new DOMException("This operation was aborted", "AbortError"),
+					);
+				}),
+				run: vi.fn(
+					() =>
+						new Promise((_, reject) => {
+							rejectRun = reject;
+						}),
+				),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			onTeamEvent: (event) => events.push(event),
+		});
+
+		runtime.spawnTeammate({
+			agentId: "python-poet",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Write concise Python-focused haiku",
+				tools: [],
+			},
+		});
+
+		const run = runtime.startTeammateRun("python-poet", "write something");
+		runtime.shutdownTeammate("python-poet", "manual_restart");
+
+		const settledRun = await runtime.awaitRun(run.id, 1);
+		expect(settledRun.status).toBe("cancelled");
+		expect(events).toContainEqual({
+			type: TeamMessageType.RunCancelled,
+			run: expect.objectContaining({
+				id: run.id,
+				agentId: "python-poet",
+				status: "cancelled",
+			}),
+			reason: "This operation was aborted",
+		});
+	});
+
 	it("prepends unread mailbox notification to teammate message", async () => {
 		let routedMessage: string | undefined;
 		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.

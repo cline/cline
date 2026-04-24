@@ -438,22 +438,25 @@ export function createAgentTeamsTools(
 		}) as Tool,
 	);
 
+	type TeamRunTaskSyncResult = {
+		agentId: string;
+		mode: "sync" | "async";
+		status: "dispatched" | "running" | "queued" | "joined";
+		dispatched: boolean;
+		message: string;
+		deduped?: boolean;
+		runId?: string;
+		text?: string;
+		iterations?: number;
+	};
+
 	// Track in-flight sync runs per agent for dedup
 	// (Claude sometimes emits duplicate tool_use blocks in a single response;
-	//  we execute the first and return an informative "duplicate ignored" to the rest)
-	const pendingSyncRuns = new Set<string>();
+	//  duplicate sync calls should await the first dispatched run)
+	const pendingSyncRuns = new Map<string, Promise<TeamRunTaskSyncResult>>();
 
 	tools.push(
-		createTool<
-			TeamRunTaskInput,
-			{
-				agentId: string;
-				mode: "sync" | "async";
-				runId?: string;
-				text?: string;
-				iterations?: number;
-			}
-		>({
+		createTool<TeamRunTaskInput, TeamRunTaskSyncResult>({
 			name: "team_run_task",
 			description:
 				"Route a delegated task to a teammate. Choose sync (wait) or async (run in background).",
@@ -474,39 +477,46 @@ export function createAgentTeamsTools(
 					return {
 						agentId: validatedInput.agentId,
 						mode: "async",
+						status: "queued",
+						dispatched: true,
+						message: `Task dispatched to ${validatedInput.agentId} and queued as ${run.id}.`,
 						runId: run.id,
 					};
 				}
 
-				/// Deduplication guard: reject a duplicate sync call for the same agent
-				// that was already dispatched in this same parallel tool-call batch.
-				if (pendingSyncRuns.has(validatedInput.agentId)) {
-					throw new Error(
-						`Duplicate team_run_task call detected for agent "${validatedInput.agentId}". ` +
-							`Only one call per agent is allowed per turn. Discard this duplicate result.`,
-					);
-				}
-				pendingSyncRuns.add(validatedInput.agentId);
-				try {
-					const result = await options.runtime.routeToTeammate(
-						validatedInput.agentId,
-						validatedInput.task,
-						{
-							taskId: validatedInput.taskId || undefined,
-							fromAgentId: options.requesterId,
-							continueConversation:
-								validatedInput.continueConversation || undefined,
-						},
-					);
+				// Deduplication guard: collapse a duplicate sync call for the same
+				// agent onto the first in-flight dispatch in this parallel tool-call batch.
+				const pendingRun = pendingSyncRuns.get(validatedInput.agentId);
+				if (pendingRun) {
+					const result = await pendingRun;
 					return {
+						...result,
+						status: "joined",
+						deduped: true,
+						message: `Task for ${validatedInput.agentId} was already dispatched in this tool batch; joined the existing in-flight run.`,
+					};
+				}
+				const runPromise = options.runtime
+					.routeToTeammate(validatedInput.agentId, validatedInput.task, {
+						taskId: validatedInput.taskId || undefined,
+						fromAgentId: options.requesterId,
+						continueConversation:
+							validatedInput.continueConversation || undefined,
+					})
+					.then((result) => ({
 						agentId: validatedInput.agentId,
-						mode: "sync",
+						mode: "sync" as const,
+						status: "running" as const,
+						dispatched: true,
+						message: `Task dispatched to ${validatedInput.agentId} and completed in sync mode.`,
 						text: result.text,
 						iterations: result.iterations,
-					};
-				} finally {
-					pendingSyncRuns.delete(validatedInput.agentId);
-				}
+					}))
+					.finally(() => {
+						pendingSyncRuns.delete(validatedInput.agentId);
+					});
+				pendingSyncRuns.set(validatedInput.agentId, runPromise);
+				return await runPromise;
 			},
 		}) as Tool,
 	);
