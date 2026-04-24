@@ -38,7 +38,9 @@ import { AuthService, LogoutReason } from "./auth-service"
 import { buildStartSessionInput, createHistoryItemFromSession } from "./cline-session-factory"
 import { sanitizeInitialMessagesForSessionStart } from "./initial-message-sanitizer"
 import { MessageTranslatorState, translateSessionEvent } from "./message-translator"
+import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkInteractionCoordinator } from "./sdk-interaction-coordinator"
+import { SdkMcpCoordinator } from "./sdk-mcp-coordinator"
 import { SdkMessageCoordinator, type SessionEventListener } from "./sdk-message-coordinator"
 import { SdkModeCoordinator } from "./sdk-mode-coordinator"
 import { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
@@ -69,6 +71,8 @@ export class Controller {
 	private sessionConfigBuilder: SdkSessionConfigBuilder
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
+	private mcpTools: SdkMcpCoordinator
+	private followups: SdkFollowupCoordinator
 
 	// gRPC bridge (Step 5) — bridges SDK events to webview streams
 	private grpcBridge: WebviewGrpcBridge
@@ -90,11 +94,6 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
-
-	// MCP tool list change tracking — when the tool list changes mid-session,
-	// we need to restart the SDK session to pick up the new tools.
-	// If the session is mid-turn, we defer the restart until the turn completes.
-	private mcpToolRestartPending = false
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -118,11 +117,6 @@ export class Controller {
 			ExtensionRegistryInfo.version,
 			telemetryService,
 		)
-
-		// Subscribe to MCP tool list changes so we can restart the SDK session
-		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
-		// does not support dynamic MCP tools, so we must restart the session.
-		this.mcpHub.setToolListChangeCallback(() => this.handleMcpToolListChanged())
 
 		// Initialize SDK-backed auth and account services (Step 6)
 		this.authService = AuthService.getInstance(this)
@@ -208,6 +202,38 @@ export class Controller {
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
 			postStateToWebview: () => this.postStateToWebview(),
 		})
+		this.mcpTools = new SdkMcpCoordinator({
+			stateManager: this.stateManager,
+			sessions: this.sessions,
+			messages: this.messages,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			loadInitialMessages: (sessionManager, sessionId) => this.loadInitialMessages(sessionManager, sessionId),
+			buildStartSessionInput,
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		this.followups = new SdkFollowupCoordinator({
+			stateManager: this.stateManager,
+			interactions: this.interactions,
+			sessions: this.sessions,
+			messages: this.messages,
+			taskHistory: this.taskHistory,
+			sessionConfigBuilder: this.sessionConfigBuilder,
+			getTask: () => this.task,
+			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			getWorkspaceRoot: () => this.getWorkspaceRoot(),
+			loadInitialMessages: (reader, taskId) => this.loadInitialMessages(reader, taskId),
+			buildStartSessionInput,
+			resolveContextMentions: (text) => this.resolveContextMentions(text),
+			isClineProviderActive: () => this.isClineProviderActive(),
+			emitClineAuthError: () => this.emitClineAuthError(),
+			resetMessageTranslator: () => this.messageTranslatorState.reset(),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
+		// Subscribe to MCP tool list changes so we can restart the SDK session
+		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
+		// does not support dynamic MCP tools, so we must restart the session.
+		this.mcpHub.setToolListChangeCallback(() => this.mcpTools.handleToolListChanged())
 
 		// Initialize gRPC bridge
 		this.grpcBridge = new WebviewGrpcBridge(this.messageTranslatorState)
@@ -422,7 +448,7 @@ export class Controller {
 
 				// Check if MCP tools changed while we were mid-turn.
 				// If so, restart the session now that the turn is complete.
-				this.checkDeferredMcpToolRestart()
+				this.mcpTools.checkDeferredRestart()
 
 				// If the model invoked `switch_to_act_mode` during this turn,
 				// apply the queued mode change now that the turn is complete.
@@ -831,201 +857,7 @@ export class Controller {
 	 * return immediately so the webview stays responsive.
 	 */
 	async askResponse(prompt?: string, images?: string[], files?: string[]): Promise<void> {
-		// Check if a tool approval is pending (requestToolApproval callback waiting).
-		// The TaskProxy stores the response type in taskState.askResponse before
-		// calling this method, so we can determine approve vs reject.
-		if (this.interactions.resolvePendingToolApproval(prompt, this.task?.taskState?.askResponse)) {
-			return
-		}
-
-		// Check if the SDK's ask_question tool is waiting for a response.
-		// If so, resolve the pending promise with the user's answer and return
-		// — we do NOT send a new message to the SDK in this case.
-		if (this.interactions.resolvePendingAskQuestion(prompt)) {
-			return
-		}
-
-		// If the user is viewing an old task (this.task is set by showTaskWithId)
-		// but there's no active SDK session, we need to resume the session first.
-		// Also resume when the session was cancelled (isRunning === false) — the
-		// underlying SDK session is dead after abort, so we must create a new one
-		// with the conversation history as initialMessages.
-		const activeSession = this.sessions.getActiveSession()
-		if ((!activeSession || !activeSession.isRunning) && this.task) {
-			Logger.log(`[SdkController] askResponse: No active session but task exists (${this.task.taskId}), resuming...`)
-			try {
-				await this.resumeSessionFromTask(this.task.taskId, prompt, images, files)
-			} catch (error) {
-				Logger.error("[SdkController] Failed to resume session from task:", error)
-
-				// Detect auth errors for the 'cline' provider
-				const errorMsg = error instanceof Error ? error.message : String(error)
-				const isClineAuth =
-					this.isClineProviderActive() &&
-					(errorMsg.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
-						errorMsg.toLowerCase().includes("missing api key") ||
-						errorMsg.toLowerCase().includes("unauthorized"))
-
-				if (isClineAuth) {
-					this.emitClineAuthError()
-				} else {
-					this.messages.emitSessionEvents(
-						[
-							{
-								ts: Date.now(),
-								type: "say",
-								say: "error",
-								text: `Failed to resume task: ${errorMsg}`,
-								partial: false,
-							},
-						],
-						{ type: "status", payload: { sessionId: this.task.taskId, status: "error" } },
-					)
-				}
-				await this.postStateToWebview()
-			}
-			return
-		}
-
-		if (!activeSession) {
-			Logger.error("[SdkController] askResponse: No active session")
-			return
-		}
-
-		const { sessionManager, sessionId } = activeSession
-
-		// If the session is already running (agent mid-turn), use delivery: "queue"
-		// so the SDK enqueues the message instead of throwing "already in progress".
-		// The SDK will drain the queue after the current turn completes.
-		const wasAlreadyRunning = activeSession.isRunning
-		const delivery = wasAlreadyRunning ? ("queue" as const) : undefined
-
-		if (wasAlreadyRunning) {
-			Logger.log(`[SdkController] Session is running — queuing follow-up message for session: ${sessionId}`)
-		}
-
-		this.sessions.setRunning(true)
-
-		// Mirror classic behavior: render the user's follow-up message immediately
-		// so it appears in the chat timeline before assistant streaming begins.
-		const hasPrompt = !!prompt?.trim()
-		const hasImages = !!images?.length
-		const hasFiles = !!files?.length
-		if (hasPrompt || hasImages || hasFiles) {
-			const userMessage: ClineMessage = {
-				ts: Date.now(),
-				type: "say",
-				say: "user_feedback",
-				text: prompt ?? "",
-				images,
-				files,
-				partial: false,
-			}
-			this.messages.appendAndEmit([userMessage], {
-				type: "status",
-				payload: { sessionId, status: "running" },
-			})
-		}
-
-		// Reset translator state for new turn (only if not queuing — queued
-		// messages will be processed after the current turn completes)
-		if (!wasAlreadyRunning) {
-			this.messageTranslatorState.reset()
-		}
-
-		// Resolve @mentions before sending to the SDK
-		const resolvedPrompt = prompt ? await this.resolveContextMentions(prompt) : ""
-
-		// Fire-and-forget send (with delivery: "queue" if session was already running)
-		this.sessions.fireAndForgetSend(sessionManager, sessionId, resolvedPrompt, images, files, delivery)
-	}
-
-	/**
-	 * Resume an old task by spinning up a new SDK session with the old
-	 * conversation history as initialMessages, then sending the user's
-	 * follow-up message.
-	 *
-	 * This handles the case where the user clicked on an old task
-	 * (showTaskWithId loaded UI messages into this.task) and then typed
-	 * a follow-up message. Since showTaskWithId does NOT create an
-	 * activeSession, we need to create one here with the full API
-	 * conversation history so the model has context.
-	 */
-	private async resumeSessionFromTask(taskId: string, prompt?: string, images?: string[], files?: string[]): Promise<void> {
-		Logger.log(`[SdkController] Resuming session from task: ${taskId}`)
-
-		// Look up the HistoryItem for cwd and metadata
-		const historyItem = this.taskHistory.findHistoryItem(taskId)
-		const cwd = historyItem?.cwdOnTaskInitialization ?? (await this.getWorkspaceRoot())
-
-		// Build a new session config, reusing the old task ID
-		const modeValue = this.stateManager.getGlobalSettingsKey("mode")
-		const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
-		const config = await this.sessionConfigBuilder.build({ cwd, mode })
-		config.sessionId = taskId
-
-		// Load conversation history BEFORE start() (which overwrites the session row).
-		// Use a temporary session host for reading, then dispose it.
-		const tempManager = await VscodeSessionHost.create({ mcpHub: this.mcpHub })
-		const initialMessages = await this.loadInitialMessages(tempManager, taskId)
-		await tempManager.dispose("readMessages")
-
-		Logger.log(`[SdkController] Resuming with ${initialMessages?.length ?? 0} initial messages`)
-
-		// Start a new session with the old conversation history
-		const { startResult, sessionManager } = await this.sessions.startNewSession({
-			config,
-			interactive: true,
-			...(initialMessages
-				? { initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"] }
-				: {}),
-		})
-
-		// Update task proxy's session ID if it changed
-		if (this.task && this.task.taskId !== startResult.sessionId) {
-			this.task.taskId = startResult.sessionId
-		}
-
-		this.messageTranslatorState.reset()
-
-		// Update the HistoryItem
-		if (historyItem) {
-			historyItem.ts = Date.now()
-			historyItem.modelId = config.modelId
-			await this.taskHistory.updateTaskHistory(historyItem)
-		}
-
-		// Emit the user's message to the webview
-		if (prompt?.trim()) {
-			const userMessage: ClineMessage = {
-				ts: Date.now(),
-				type: "say",
-				say: "user_feedback",
-				text: prompt,
-				partial: false,
-			}
-			this.messages.appendAndEmit([userMessage], {
-				type: "status",
-				payload: { sessionId: startResult.sessionId, status: "running" },
-			})
-		}
-
-		await this.postStateToWebview()
-
-		// Send the follow-up message (fire-and-forget).
-		// Always send a resumption prompt when the user didn't type anything —
-		// this matches the classic extension's behavior where clicking "Resume Task"
-		// without text still sends a [TASK RESUMPTION] message to the agent.
-		const effectivePrompt =
-			prompt?.trim() ||
-			(historyItem
-				? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
-				: "[TASK RESUMPTION] Please continue where you left off.")
-
-		// Resolve @mentions before sending to the SDK
-		const resolvedPrompt = await this.resolveContextMentions(effectivePrompt)
-
-		this.sessions.fireAndForgetSend(sessionManager, startResult.sessionId, resolvedPrompt, images, files)
+		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse)
 	}
 
 	/**
@@ -1281,178 +1113,6 @@ export class Controller {
 		} catch (error) {
 			Logger.error("[SdkController] Failed to get state for webview:", error)
 			throw error
-		}
-	}
-
-	// ---- MCP tool list change handling ----
-
-	/**
-	 * Called by McpHub when the set of available MCP tools changes
-	 * (servers added/removed/reconnected, tools discovered/lost).
-	 *
-	 * The SDK's DefaultSessionBuilder does not support dynamic MCP tools —
-	 * tools are loaded once at session build time. To pick up new tools,
-	 * we must restart the session with a new VscodeSessionHost (which
-	 * creates a new VscodeRuntimeBuilder that reads the current tool list).
-	 *
-	 * Strategy:
-	 * - If no active session: nothing to do (next initTask will pick up tools)
-	 * - If session is idle (not mid-turn): restart immediately
-	 * - If session is mid-turn: set a flag and restart when the turn completes
-	 */
-	private handleMcpToolListChanged(): void {
-		Logger.log("[SdkController] MCP tool list changed")
-
-		const activeSession = this.sessions.getActiveSession()
-		if (!activeSession) {
-			Logger.log("[SdkController] No active session — tools will be picked up on next initTask")
-			return
-		}
-
-		if (activeSession.isRunning) {
-			Logger.log("[SdkController] Session is mid-turn — deferring MCP tool restart")
-			this.mcpToolRestartPending = true
-			return
-		}
-
-		// Session is idle — restart now
-		this.restartSessionForMcpTools().catch((error) => {
-			Logger.error("[SdkController] Failed to restart session for MCP tools:", error)
-		})
-	}
-
-	/**
-	 * Check if a deferred MCP tool restart is pending and execute it.
-	 * Called after a turn completes (from the send() .then() handlers).
-	 */
-	private checkDeferredMcpToolRestart(): void {
-		if (!this.mcpToolRestartPending) {
-			return
-		}
-		this.mcpToolRestartPending = false
-
-		if (!this.sessions.getActiveSession()) {
-			Logger.log("[SdkController] Deferred MCP restart: no active session, skipping")
-			return
-		}
-
-		Logger.log("[SdkController] Executing deferred MCP tool restart")
-		this.restartSessionForMcpTools().catch((error) => {
-			Logger.error("[SdkController] Failed deferred MCP tool restart:", error)
-		})
-	}
-
-	/**
-	 * Restart the active SDK session to pick up changed MCP tools.
-	 *
-	 * This creates a new VscodeSessionHost (with a fresh VscodeRuntimeBuilder
-	 * that reads the current McpHub tool list), starts a new session with the
-	 * same config, and preserves the conversation by loading messages from the
-	 * old session. The old session is stopped and disposed.
-	 *
-	 * The user sees an informational message in the chat about the tool reload.
-	 */
-	private async restartSessionForMcpTools(): Promise<void> {
-		const activeSession = this.sessions.getActiveSession()
-		if (!activeSession) {
-			return
-		}
-
-		const { sessionManager: oldManager, sessionId: oldSessionId } = activeSession
-
-		Logger.log(`[SdkController] Restarting session ${oldSessionId} for MCP tool changes`)
-
-		// Emit an info message so the user knows what's happening
-		const infoMessage: ClineMessage = {
-			ts: Date.now(),
-			type: "say",
-			say: "info",
-			text: "MCP tools changed — reloading tools for this session...",
-			partial: false,
-		}
-		this.messages.appendAndEmit([infoMessage], {
-			type: "status",
-			payload: { sessionId: oldSessionId, status: "running" },
-		})
-
-		try {
-			// 1. Build fresh session config (same provider/model/mode)
-			const cwd = await this.getWorkspaceRoot()
-			const modeValue = this.stateManager.getGlobalSettingsKey("mode")
-			const mode: Mode = modeValue === "plan" || modeValue === "act" ? modeValue : "act"
-			const config = await this.sessionConfigBuilder.build({ cwd, mode })
-			// Preserve the existing task/session ID so currentTaskItem continues
-			// to resolve from taskHistory and the webview doesn't flash back to
-			// a blank/new-task state after MCP server toggles.
-			config.sessionId = oldSessionId
-
-			// 2. Read conversation history from the OLD session BEFORE tearing it down.
-			// Without this, the new session starts with zero context and the LLM
-			// loses memory of the entire conversation.
-			const initialMessages = await this.loadInitialMessages(oldManager, oldSessionId)
-
-			const startInput = buildStartSessionInput(config, { cwd, mode })
-			const restartResult = await this.sessions.replaceActiveSession({
-				startInput,
-				initialMessages: initialMessages as Parameters<VscodeSessionHost["start"]>[0]["initialMessages"],
-				disposeReason: "mcpToolRestart",
-			})
-			if (!restartResult) {
-				return
-			}
-			const { startResult } = restartResult
-
-			// Keep the existing task proxy ID aligned with taskHistory.
-			// If the SDK returned a different ID despite requesting oldSessionId,
-			// keep the current task ID stable for webview state continuity.
-			if (startResult.sessionId !== oldSessionId) {
-				Logger.warn(
-					`[SdkController] MCP tool restart returned a new session ID (${startResult.sessionId}); preserving task ID ${oldSessionId} for UI continuity`,
-				)
-			}
-
-			// Emit success message
-			const successMessage: ClineMessage = {
-				ts: Date.now(),
-				type: "say",
-				say: "info",
-				text: "MCP tools reloaded successfully. You can continue your conversation.",
-				partial: false,
-			}
-			// Emit ask:"completion_result" so the webview knows the agent is
-			// idle and enables the follow-up input. Without this, the webview
-			// stays in "Thinking..." state because clineAsk is not set (S6-30).
-			const completionAsk: ClineMessage = {
-				ts: Date.now() + 1,
-				type: "ask",
-				ask: "completion_result",
-				text: "",
-				partial: false,
-			}
-			this.messages.appendAndEmit([successMessage, completionAsk], {
-				type: "status",
-				payload: { sessionId: startResult.sessionId, status: "idle" },
-			})
-
-			await this.postStateToWebview()
-			Logger.log(`[SdkController] Session restarted for MCP tools: ${oldSessionId} → ${startResult.sessionId}`)
-		} catch (error) {
-			Logger.error("[SdkController] Failed to restart session for MCP tools:", error)
-
-			// Emit error message but don't crash — the old session may still work
-			// for non-MCP tools
-			const errorMessage: ClineMessage = {
-				ts: Date.now(),
-				type: "say",
-				say: "error",
-				text: `Failed to reload MCP tools: ${error instanceof Error ? error.message : String(error)}. MCP tools may be outdated.`,
-				partial: false,
-			}
-			this.messages.appendAndEmit([errorMessage], {
-				type: "status",
-				payload: { sessionId: oldSessionId, status: "error" },
-			})
-			await this.postStateToWebview()
 		}
 	}
 
