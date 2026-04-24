@@ -153,7 +153,11 @@ export class Controller {
 				mcpHub: this.mcpHub,
 				requestToolApproval: (request) => this.interactions.handleRequestToolApproval(request),
 				askQuestion: (question, options, context) => this.interactions.handleAskQuestion(question, options, context),
-				onSessionEvent: (event) => this.sessionEvents.handleSessionEvent(event),
+				onSessionEvent: (event) => {
+					this.sessionEvents.handleSessionEvent(event).catch((err) => {
+						Logger.error("[SdkController] Failed to handle session event:", err)
+					})
+				},
 			}),
 			onSendComplete: async () => {
 				if (this.mode.hasPendingModeChange()) {
@@ -203,8 +207,8 @@ export class Controller {
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getTask: () => this.task,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: (sessionManager, sessionId) =>
-				this.sessionHistory.loadInitialMessages(sessionManager, sessionId),
+			loadInitialMessages: async (sessionManager, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sessionManager, sessionId)) ?? [],
 			buildStartSessionInput,
 			emitClineAuthError: () => this.emitClineAuthError(),
 			resetMessageTranslator: () => this.messageTranslatorState.reset(),
@@ -216,8 +220,8 @@ export class Controller {
 			messages: this.messages,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			loadInitialMessages: (sessionManager, sessionId) =>
-				this.sessionHistory.loadInitialMessages(sessionManager, sessionId),
+			loadInitialMessages: async (sessionManager, sessionId) =>
+				(await this.sessionHistory.loadInitialMessages(sessionManager, sessionId)) ?? [],
 			buildStartSessionInput,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
@@ -281,6 +285,7 @@ export class Controller {
 			mcpTools: this.mcpTools,
 			mode: this.mode,
 			taskHistory: this.taskHistory,
+			stateManager: this.stateManager,
 			getTask: () => this.task,
 			postStateToWebview: () => this.postStateToWebview(),
 		})
