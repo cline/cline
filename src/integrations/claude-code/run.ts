@@ -106,6 +106,11 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 			)
 		}
 	} catch (err) {
+		// Normal completion: CLI hit --max-turns 1 and exited with code 1.
+		// execa's default reject:true throws before the exit-code check above can run.
+		if (processState.seenMaxTurns) {
+			return
+		}
 		Logger.error(`Error during Claude Code execution:`, err)
 
 		if (processState.stderrLogs.includes("unknown option '--system-prompt-file'")) {

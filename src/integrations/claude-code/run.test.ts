@@ -4,41 +4,31 @@ import proxyquire from "proxyquire"
 import sinon from "sinon"
 
 // Build a mock execa process. exitCode controls what the "close" event emits
-// and what `await cProcess` resolves to.
+// and what `await cProcess` resolves/rejects to.
+// For non-zero exit codes, the promise rejects — matching execa's default reject:true.
 const createMockProcess = (exitCode = 0) => {
-	const mockProcess = {
-		stdin: {
-			write: sinon.fake(),
-			end: sinon.fake(),
-		},
-		stdout: {
-			on: sinon.fake(),
-			resume: sinon.fake(),
-		},
-		stderr: {
-			on: sinon.fake(() => {}),
-		},
-		on: sinon.fake((event, callback) => {
+	// Simulate execa: reject on non-zero exit, resolve on zero.
+	const awaitResult: Promise<{ exitCode: number }> =
+		exitCode !== 0
+			? Promise.reject(Object.assign(new Error(`Command failed with exit code ${exitCode}: claude`), { exitCode }))
+			: Promise.resolve({ exitCode })
+
+	return {
+		stdin: { write: sinon.fake(), end: sinon.fake() },
+		stdout: { on: sinon.fake(), resume: sinon.fake() },
+		stderr: { on: sinon.fake(() => {}) },
+		on: sinon.fake((event: string, callback: (code: number) => void) => {
 			if (event === "close") {
 				setImmediate(() => callback(exitCode))
-			}
-			if (event === "error") {
 			}
 		}),
 		killed: false,
 		kill: sinon.fake(),
 		exitCode,
-		then: (onResolve: (value: any) => void) => {
-			setImmediate(() => onResolve({ exitCode }))
-			return Promise.resolve({ exitCode })
-		},
-		catch: () => Promise.resolve({ exitCode }),
-		finally: (callback: () => void) => {
-			setImmediate(callback)
-			return Promise.resolve({ exitCode })
-		},
+		then: (onResolve: any, onReject?: any) => awaitResult.then(onResolve, onReject),
+		catch: (fn: any) => awaitResult.catch(fn),
+		finally: (fn: any) => awaitResult.finally(fn),
 	}
-	return mockProcess
 }
 
 const createMockReadlineInterface = (lines: string[] = []) => ({
@@ -224,7 +214,8 @@ describe("Claude Code Integration", () => {
 			}
 
 			expect(thrownError).to.not.be.undefined
-			expect(thrownError!.message).to.include("exited with code 1")
+			// execa rejects with "Command failed with exit code 1: ..." which catch re-wraps
+			expect(thrownError!.message).to.include("exit code 1")
 		})
 	})
 })
