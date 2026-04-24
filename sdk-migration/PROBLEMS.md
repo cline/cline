@@ -836,4 +836,38 @@ The following classic tools have no equivalent in the SDK's built-in tool set or
   - Updated existing S6-24 test to expect diff format when old_text+new_text present ✅
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 72 tests pass (7 new). `npx tsc --noEmit --skipLibCheck` — 0 errors.
 
+
+### S6-49: Plan/Act toggle returns misleading boolean (cleared pending input)
+- **Status**: 🔵 Awaiting Verification
+- **Description**: `togglePlanActMode()` in `SdkController.ts` returned `true`
+  on every successful mode flip. The webview's `onModeToggle` handler
+  in `ChatTextArea.tsx` treats the returned boolean as "did I consume
+  your pending input", and calls `setInputValue("")` when it's true.
+  The SDK flow rebuilds the session without consuming the user's pending
+  chat text, so returning `true` incorrectly wiped any text the user
+  had typed before toggling.
+- **Root cause**: The classic `togglePlanActMode()` only returned
+  `true` when it actually consumed `chatContent` as a plan-mode
+  response (`taskState.isAwaitingPlanResponse && didSwitchToActMode`).
+  The SDK `rebuildSessionForMode()` flow never consumes the chat
+  content — it just swaps the mode, system prompt and tools — so the
+  return value should be `false` to match classic UX (input stays
+  in the textbox after toggle).
+- **Fix applied**: `src/sdk/SdkController.ts` — `togglePlanActMode()`
+  now returns `false` in both branches (active session → rebuild, no
+  active session → persist mode). The same-mode no-op branch continues
+  to return `false`.
+- **Verification**: 7 new unit tests in `src/sdk/toggle-plan-act-mode.test.ts`:
+  - PLAN/ACT enum decode → passes correct mode string to controller ✅
+  - `chatContent` passed through verbatim ✅
+  - Return value reflects controller's boolean (both true and false cases) ✅
+  - Invalid `PlanActMode` enum throws ✅
+  - Errors from controller propagate ✅
+  Mode toggle preserves clineMessages because `rebuildSessionForMode`
+  keeps `this.task` (and its `messageStateHandler`) alive across the
+  session rebuild, and `getStateToPostToWebview()` reads `mode` from
+  `stateManager.getGlobalSettingsKey("mode")` which is updated before
+  the state push.
+- **Evidence**: `npx vitest run -c vitest.config.sdk.ts src/sdk/toggle-plan-act-mode.test.ts` — 7 tests pass. `npx tsc --noEmit` — 0 errors. Manual debug-harness verification pending.
+
 - **Evidence**: `npx vitest run --config vitest.config.sdk.ts src/sdk/message-translator.test.ts` — 57 tests pass. `npx tsc --noEmit` — 0 errors.
