@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.81.0]
+
+### Added
+
+- Add GPT-5.5 model support for OpenAI Codex subscription users.
+
+### Fixed
+
+- Remove hardcoded "What’s New" fallback items in webview; only remote-configured welcome banners are shown.
+
+### Changed
+
+- Improve cline-core memory diagnostics used by the extension runtime:
+  - enable near-heap-limit heap snapshots
+  - add periodic memory usage logging
+  - log discovered heap snapshots on abnormal exits for easier OOM debugging
+
 ## [3.80.0]
 
 ### Added
