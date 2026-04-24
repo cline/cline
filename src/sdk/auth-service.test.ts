@@ -16,6 +16,8 @@ import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
 // Mocks
 // ---------------------------------------------------------------------------
 
+const mockFeatureFlagsPoll = vi.hoisted(() => vi.fn().mockResolvedValue(undefined))
+
 // Mock StateManager
 const mockSecrets = new Map<string, string>()
 vi.mock("@/core/storage/StateManager", () => ({
@@ -75,6 +77,13 @@ vi.mock("@/shared/net", () => ({
 // Mock buildBasicClineHeaders
 vi.mock("@/services/EnvUtils", () => ({
 	buildBasicClineHeaders: async () => ({}),
+}))
+
+// Mock feature flags
+vi.mock("@/services/feature-flags", () => ({
+	featureFlagsService: {
+		poll: mockFeatureFlagsPoll,
+	},
 }))
 
 // Mock axios
@@ -425,6 +434,32 @@ describe("AuthService", () => {
 			const [authState] = mockResponseStream.mock.calls[0]
 			expect(authState).toBeDefined()
 			expect(authState.user).toBeNull() // Not authenticated in this test
+		})
+
+		it("polls feature flags with the authenticated user before posting state", async () => {
+			const authInfo = createTestAuthInfo()
+			testAccess(authService)._clineAuthInfo = authInfo
+			testAccess(authService)._authenticated = true
+
+			const mockResponseStream = vi.fn().mockResolvedValue(undefined)
+			const mockController = { postStateToWebview: vi.fn() }
+
+			await authService.subscribeToAuthStatusUpdate(
+				// biome-ignore lint/suspicious/noExplicitAny: mock controller for testing
+				mockController as any,
+				{},
+				// biome-ignore lint/suspicious/noExplicitAny: mock response stream for testing
+				mockResponseStream as any,
+			)
+
+			expect(mockFeatureFlagsPoll).toHaveBeenCalledWith("user-123")
+			expect(mockController.postStateToWebview).toHaveBeenCalled()
+		})
+
+		it("polls feature flags with null when unauthenticated", async () => {
+			await authService.sendAuthStatusUpdate()
+
+			expect(mockFeatureFlagsPoll).toHaveBeenCalledWith(null)
 		})
 
 		it("removes subscription on cleanup", async () => {
