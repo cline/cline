@@ -28,6 +28,9 @@ function cloneManifest(
 	return {
 		...manifest,
 		models: manifest.models.map((model) => ({ ...model })),
+		capabilities: manifest.capabilities
+			? [...manifest.capabilities]
+			: undefined,
 		env: manifest.env ? [...manifest.env] : undefined,
 		api: manifest.api,
 		apiKeyEnv: manifest.apiKeyEnv ? [...manifest.apiKeyEnv] : undefined,

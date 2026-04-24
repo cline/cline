@@ -1,3 +1,4 @@
+import z from "zod";
 import type {
 	SessionExecutionConfig,
 	SessionPromptConfig,
@@ -172,14 +173,22 @@ export interface ProviderModelsResponse {
 
 import type { OAuthProviderId } from "../types/auth";
 
-export type ProviderCapability =
-	| "reasoning"
-	| "prompt-cache"
-	| "streaming"
-	| "tools"
-	| "vision"
-	| "computer-use"
-	| "oauth";
+export const ProviderCapabilitySchema = z.enum([
+	"reasoning",
+	"prompt-cache",
+	// Allow SDK-provided tool schemas and runtime execution.
+	"tools",
+	// Provider manages its own built-in tools and does not accept SDK tools.
+	"provider-tools",
+	"oauth",
+	"temperature",
+	"files",
+	"streaming",
+	"vision",
+	"computer-use",
+]);
+
+export type ProviderCapability = z.infer<typeof ProviderCapabilitySchema>;
 
 export interface ListProvidersActionRequest {
 	action: "listProviders";

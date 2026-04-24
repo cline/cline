@@ -5,12 +5,12 @@ import type {
 	GatewayProviderMetadata,
 	GatewayProviderSettings,
 	JsonValue,
+	ProviderCapability,
 } from "@clinebot/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import type {
 	ModelCollection,
 	ModelInfo,
-	ProviderCapability,
 	ProviderClient,
 	ProviderProtocol,
 } from "../catalog/types";
@@ -97,27 +97,6 @@ function buildClaudeCodeModels(): Record<string, ModelInfo> {
 		sonnet: toClaudeCodeModel("sonnet"),
 		haiku: toClaudeCodeModel("haiku"),
 	};
-}
-
-function removeToolsCapability(model: ModelInfo): ModelInfo {
-	if (!model.capabilities?.includes("tools")) {
-		return model;
-	}
-	return {
-		...model,
-		capabilities: model.capabilities.filter(
-			(capability) => capability !== "tools",
-		),
-	};
-}
-
-function buildOpenAICodexModels(): Record<string, ModelInfo> {
-	return Object.fromEntries(
-		Object.entries(generatedModels("openai")).map(([modelId, model]) => [
-			modelId,
-			removeToolsCapability(model),
-		]),
-	);
 }
 
 function modelInfoToGateway(
@@ -564,7 +543,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		family: "openai",
 		capabilities: ["reasoning"],
 		modelsProviderId: "openai-native",
-		defaultModelId: "gpt-5.4-mini",
+		defaultModelId: "gpt-5.4",
 		apiKeyEnv: ["OPENAI_API_KEY"],
 		defaults: { baseUrl: "https://api.openai.com/v1" },
 	},
@@ -573,9 +552,9 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		name: "OpenAI Codex",
 		description: "OpenAI Codex via the local Codex CLI provider",
 		family: "openai-codex",
-		capabilities: ["reasoning", "oauth"],
-		defaultModelId: "gpt-5.4-mini",
-		modelsFactory: buildOpenAICodexModels,
+		capabilities: ["reasoning", "oauth", "provider-tools"],
+		defaultModelId: "gpt-5.3-codex",
+		modelsProviderId: "openai",
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
 	},
 	{
@@ -673,7 +652,7 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 		description: "OpenCode SDK multi-provider runtime",
 		family: "opencode",
 		capabilities: ["reasoning", "oauth"],
-		defaultModelId: "openai/gpt-5.3-codex",
+		defaultModelId: "openai/gpt-5.4",
 		modelsProviderId: "opencode",
 		defaults: { baseUrl: "" },
 	},
@@ -755,6 +734,7 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		defaultModelId:
 			collection.provider.defaultModelId || resolvedModels[0]?.id || "default",
 		models: resolvedModels,
+		capabilities: spec.capabilities,
 		env: spec.env ?? ["browser", "node"],
 		api: spec.defaults?.baseUrl,
 		apiKeyEnv: spec.apiKeyEnv,
@@ -775,7 +755,3 @@ export const BUILTIN_PROVIDER_COLLECTIONS_BY_ID: Record<
 		collection,
 	]),
 );
-
-export const OPENAI_CODEX_PROVIDER = BUILTIN_PROVIDER_COLLECTIONS_BY_ID[
-	"openai-codex"
-] as ModelCollection;

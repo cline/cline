@@ -24,7 +24,7 @@ export {
 } from "@clinebot/shared";
 
 // Re-import for use in local schemas
-import { ModelInfoSchema } from "@clinebot/shared";
+import { ModelInfoSchema, ProviderCapabilitySchema } from "@clinebot/shared";
 
 export const ModelEntrySchema = z.object({
 	id: z.string(),
@@ -32,16 +32,6 @@ export const ModelEntrySchema = z.object({
 });
 
 export type ModelEntry = z.infer<typeof ModelEntrySchema>;
-
-export const ProviderCapabilitySchema = z.enum([
-	"reasoning",
-	"prompt-cache",
-	"tools",
-	"oauth",
-	"temperature",
-	"files",
-]);
-
 export type ProviderCapability = z.infer<typeof ProviderCapabilitySchema>;
 
 export const ProviderProtocolSchema = z.enum([

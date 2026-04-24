@@ -4,6 +4,7 @@ import type {
 	AgentToolDefinition,
 } from "../agent";
 import type { BasicLogger } from "../logging/logger";
+import type { ProviderCapability } from "../rpc/runtime";
 
 export type JsonValue =
 	| string
@@ -53,6 +54,7 @@ export interface GatewayProviderManifest {
 	description?: string;
 	defaultModelId: string;
 	models: readonly GatewayModelDefinition[];
+	capabilities?: readonly ProviderCapability[];
 	env?: readonly ("browser" | "node")[];
 	api?: string;
 	apiKeyEnv?: readonly string[];

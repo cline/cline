@@ -98,6 +98,120 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("stores tool calls but skips execution when metadata disables external execution", async () => {
+		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+					metadata: {
+						toolSource: {
+							providerId: "openai-codex",
+							modelId: "gpt-5-codex",
+							executionMode: "provider",
+						},
+					},
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "echo",
+					description: "Echo input text",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done");
+		expect(executeTool).not.toHaveBeenCalled();
+		const toolMessages = result.messages.filter(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessages).toHaveLength(1);
+		expect(toolMessages[0]?.content).toEqual([
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "call_1",
+				toolName: "echo",
+				isError: true,
+				output: {
+					error: "Tool execution is disabled for provider openai-codex",
+				},
+			}),
+		]);
+	});
+
+	it("shows provider-disabled message even when tool is not registered locally", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "shell",
+					inputText: '{"command":"echo hi"}',
+					metadata: {
+						toolSource: {
+							providerId: "openai-codex",
+							executionMode: "provider",
+						},
+					},
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [], // shell tool is not registered
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("done");
+		const toolMessages = result.messages.filter(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessages).toHaveLength(1);
+		expect(toolMessages[0]?.content).toEqual([
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "call_1",
+				toolName: "shell",
+				isError: true,
+				output: {
+					error: "Tool execution is disabled for provider openai-codex",
+				},
+			}),
+		]);
+	});
+
 	it("treats an unset maxIterations as unlimited", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -462,7 +576,7 @@ describe("AgentRuntime", () => {
 		const telemetry = { capture: vi.fn() };
 		const logger = {
 			debug: vi.fn(),
-			info: vi.fn(),
+			log: vi.fn(),
 			error: vi.fn(),
 		};
 		const events: string[] = [];

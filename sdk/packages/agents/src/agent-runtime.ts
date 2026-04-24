@@ -805,6 +805,20 @@ export class AgentRuntime {
 			skipReason = metadata.inputParseError;
 		}
 
+		const toolSource =
+			metadata?.toolSource &&
+			typeof metadata.toolSource === "object" &&
+			!Array.isArray(metadata.toolSource)
+				? (metadata.toolSource as Record<string, unknown>)
+				: undefined;
+		if (toolSource?.executionMode === "provider") {
+			const providerId =
+				typeof toolSource.providerId === "string"
+					? toolSource.providerId
+					: "provider";
+			skipReason = `Tool execution is disabled for provider ${providerId}`;
+		}
+
 		if (tool && !skipReason) {
 			for (const hook of this.hooks.beforeTool) {
 				const result = (await hook({
@@ -844,14 +858,14 @@ export class AgentRuntime {
 		});
 
 		let result: AgentToolResult;
-		if (!prepared.tool) {
-			result = {
-				output: { error: `Unknown tool: ${prepared.toolCall.toolName}` },
-				isError: true,
-			};
-		} else if (prepared.skipReason) {
+		if (prepared.skipReason) {
 			result = {
 				output: { error: prepared.skipReason },
+				isError: true,
+			};
+		} else if (!prepared.tool) {
+			result = {
+				output: { error: `Unknown tool: ${prepared.toolCall.toolName}` },
 				isError: true,
 			};
 		} else {

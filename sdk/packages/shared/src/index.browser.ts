@@ -252,6 +252,7 @@ export type {
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
 } from "./rpc/runtime";
+export { ProviderCapabilitySchema } from "./rpc/runtime";
 export type {
 	TeamProgressCounts,
 	TeamProgressLifecycleEvent,

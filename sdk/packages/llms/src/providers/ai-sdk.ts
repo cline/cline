@@ -209,6 +209,41 @@ function toAiSdkTools(
 	);
 }
 
+function providerDisablesExternalToolExecution(
+	context: GatewayProviderContext,
+): boolean {
+	return context.provider.capabilities?.includes("provider-tools") ?? false;
+}
+
+function mergeToolCallMetadata(
+	current: unknown,
+	patch: Record<string, unknown>,
+): Record<string, unknown> {
+	if (!current || typeof current !== "object" || Array.isArray(current)) {
+		return patch;
+	}
+	return {
+		...(current as Record<string, unknown>),
+		...patch,
+	};
+}
+
+function buildToolCallMetadata(input: {
+	metadata: unknown;
+	request: GatewayStreamRequest;
+	context: GatewayProviderContext;
+}): Record<string, unknown> {
+	return mergeToolCallMetadata(input.metadata, {
+		toolSource: {
+			providerId: input.request.providerId,
+			modelId: input.request.modelId,
+			executionMode: providerDisablesExternalToolExecution(input.context)
+				? "provider"
+				: "runtime",
+		},
+	});
+}
+
 function toAiSdkProviderOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -656,6 +691,8 @@ function extractGoogleThoughtMetadata(
 
 async function* emitAiSdkEvents(
 	stream: AiSdkStreamResult,
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
 	pricingValue?: unknown,
 	capturedError?: { current: string | undefined },
 ): AsyncIterable<AgentModelEvent> {
@@ -711,7 +748,11 @@ async function* emitAiSdkEvents(
 							"tool",
 						input: typeof input === "string" ? undefined : input,
 						inputText,
-						metadata: extractGoogleThoughtMetadata(part),
+						metadata: buildToolCallMetadata({
+							metadata: extractGoogleThoughtMetadata(part),
+							request,
+							context,
+						}),
 					};
 					continue;
 				}
@@ -849,8 +890,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const tools =
-					kind === "openai-codex" ? undefined : toAiSdkTools(request);
+				const tools = providerDisablesExternalToolExecution(context)
+					? undefined
+					: toAiSdkTools(request);
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: (shouldUseAnthropicPromptCache(request, context)
@@ -890,6 +932,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 
 				yield* emitAiSdkEvents(
 					stream,
+					request,
+					context,
 					context.model.metadata?.pricing,
 					capturedError,
 				);

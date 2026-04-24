@@ -263,7 +263,13 @@ describe("sdk-gateway", () => {
 			toolName: "lookup",
 			input: { term: "sdk" },
 			inputText: '{"term":"sdk"}',
-			metadata: undefined,
+			metadata: {
+				toolSource: {
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					executionMode: "runtime",
+				},
+			},
 		});
 		expect(events).toContainEqual({
 			type: "usage",
@@ -1211,7 +1217,7 @@ describe("sdk-gateway", () => {
 		);
 	});
 
-	it("does not pass extra tools to the OpenAI Codex provider", async () => {
+	it("does not pass extra tools to providers that disable external tool execution", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
@@ -1219,11 +1225,7 @@ describe("sdk-gateway", () => {
 		});
 
 		const gateway = createGateway({
-			providerConfigs: [
-				{
-					providerId: "openai-codex",
-				},
-			],
+			providerConfigs: [{ providerId: "openai-codex" }],
 		});
 
 		await collect(
@@ -1247,6 +1249,50 @@ describe("sdk-gateway", () => {
 				tools: undefined,
 			}),
 		);
+	});
+
+	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "call_1",
+					toolName: "run_commands",
+					input: { cmd: "pwd" },
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5-codex",
+				messages: baseMessages,
+			}),
+		);
+
+		const toolCallEvent = events.find(
+			(event) => event.type === "tool-call-delta",
+		);
+		expect(toolCallEvent).toMatchObject({
+			type: "tool-call-delta",
+			toolCallId: "call_1",
+			toolName: "run_commands",
+			input: { cmd: "pwd" },
+			inputText: '{"cmd":"pwd"}',
+			metadata: {
+				toolSource: {
+					providerId: "openai-codex",
+					modelId: "gpt-5-codex",
+					executionMode: "provider",
+				},
+			},
+		});
 	});
 
 	it("passes reasoning effort through to Anthropic provider options", async () => {
