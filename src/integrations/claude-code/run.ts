@@ -3,7 +3,6 @@ import fs from "node:fs/promises"
 import os from "node:os"
 import path from "node:path"
 import type Anthropic from "@anthropic-ai/sdk"
-import { execa } from "execa"
 import readline from "readline"
 import { Logger } from "@/shared/services/Logger"
 import { getCwd } from "@/utils/path"
@@ -23,6 +22,7 @@ type ProcessState = {
 	error: Error | null
 	stderrLogs: string
 	exitCode: number | null
+	seenMaxTurns: boolean
 }
 
 // The maximum argument length is longer than this,
@@ -42,7 +42,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		options.shouldUseFile = true
 	}
 
-	const cProcess = runProcess(options, await getCwd())
+	const cProcess = await runProcess(options, await getCwd())
 
 	const rl = readline.createInterface({
 		input: cProcess.stdout,
@@ -53,6 +53,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		stderrLogs: "",
 		exitCode: null,
 		partialData: null,
+		seenMaxTurns: false,
 	}
 
 	try {
@@ -80,6 +81,10 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 					continue
 				}
 
+				if (chunk.type === "result" && chunk.subtype === "error_max_turns") {
+					processState.seenMaxTurns = true
+				}
+
 				yield chunk
 			}
 		}
@@ -91,7 +96,7 @@ export async function* runClaudeCode(options: ClaudeCodeOptions): AsyncGenerator
 		}
 
 		const { exitCode } = await cProcess
-		if (exitCode !== null && exitCode !== 0) {
+		if (exitCode !== null && exitCode !== 0 && !processState.seenMaxTurns) {
 			const errorOutput = processState.error?.message || processState.stderrLogs?.trim()
 			throw new Error(
 				`Claude Code process exited with code ${exitCode}.${errorOutput ? ` Error output: ${errorOutput}` : ""}`,
@@ -194,10 +199,11 @@ const BUFFER_SIZE = 20_000_000 // 20 MB
 // This is the limit imposed by the CLI
 const CLAUDE_CODE_MAX_OUTPUT_TOKENS = "32000"
 
-function runProcess(
+async function runProcess(
 	{ systemPrompt, messages, path, modelId, thinkingBudgetTokens, shouldUseFile }: ClaudeCodeOptions,
 	cwd: string,
 ) {
+	const { execa } = await import("execa")
 	const claudePath = path?.trim() || "claude"
 
 	const args = [

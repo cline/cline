@@ -7,8 +7,8 @@
 		"src/test/services/**/*.test.ts"
 	],
 	"require": [
-		"ts-node/register",
-		"source-map-support/register",
+		"tsx/cjs",
+		"tsconfig-paths/register",
 		"./src/test/requires.ts"
 	],
 	"recursive": true,

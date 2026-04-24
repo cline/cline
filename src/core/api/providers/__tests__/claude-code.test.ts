@@ -1,35 +1,22 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
-import sinon from "sinon"
+import { describe, it } from "mocha"
 import "should"
 import { ClaudeCodeHandler } from "@core/api/providers/claude-code"
 import { ClineStorageMessage } from "@/shared/messages/content"
 
+function makeHandler(mockGen: () => AsyncGenerator<any>) {
+	return new ClaudeCodeHandler({
+		claudeCodePath: "/mock/path",
+		apiModelId: "claude-opus-4-1-20250805",
+		_runClaudeCode: mockGen as any,
+	})
+}
+
 describe("ClaudeCodeHandler", () => {
-	let handler: ClaudeCodeHandler
-	let sandbox: sinon.SinonSandbox
-
-	beforeEach(() => {
-		sandbox = sinon.createSandbox()
-		handler = new ClaudeCodeHandler({
-			claudeCodePath: "/mock/path",
-			apiModelId: "claude-opus-4-1-20250805",
-		})
-	})
-
-	afterEach(() => {
-		sandbox.restore()
-	})
-
 	describe("token counting", () => {
 		it("should correctly handle token usage from assistant messages", async () => {
 			// The 'input_tokens' field represents the TOTAL number of input tokens used.
 			// See https://docs.anthropic.com/en/api/messages#usage-object
 
-			// Mock the runClaudeCode function
-			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
-			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
-
-			// Create a proper async generator mock for the Claude Code response
 			async function* mockGenerator() {
 				// First yield the system init
 				yield {
@@ -68,8 +55,7 @@ describe("ClaudeCodeHandler", () => {
 				}
 			}
 
-			runClaudeCodeStub.returns(mockGenerator() as any)
-
+			const handler = makeHandler(mockGenerator)
 			const systemPrompt = "You are a helpful assistant."
 			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
@@ -106,11 +92,6 @@ describe("ClaudeCodeHandler", () => {
 		})
 
 		it("should handle missing usage fields with nullish coalescing", async () => {
-			// Mock the runClaudeCode function
-			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
-			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
-
-			// Create a proper async generator mock with missing/undefined usage fields
 			async function* mockGenerator() {
 				yield {
 					type: "assistant",
@@ -137,8 +118,7 @@ describe("ClaudeCodeHandler", () => {
 				}
 			}
 
-			runClaudeCodeStub.returns(mockGenerator() as any)
-
+			const handler = makeHandler(mockGenerator)
 			const systemPrompt = "You are a helpful assistant."
 			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
@@ -167,11 +147,6 @@ describe("ClaudeCodeHandler", () => {
 		})
 
 		it("should handle completely missing usage object", async () => {
-			// Mock the runClaudeCode function
-			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
-			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
-
-			// Create a proper async generator mock with missing usage object
 			async function* mockGenerator() {
 				yield {
 					type: "assistant",
@@ -196,8 +171,7 @@ describe("ClaudeCodeHandler", () => {
 				}
 			}
 
-			runClaudeCodeStub.returns(mockGenerator() as any)
-
+			const handler = makeHandler(mockGenerator)
 			const systemPrompt = "You are a helpful assistant."
 			const messages: ClineStorageMessage[] = [{ role: "user", content: "Hello" }]
 
@@ -228,9 +202,6 @@ describe("ClaudeCodeHandler", () => {
 
 	describe("error handling", () => {
 		it("should not crash when assistant message has empty content array", async () => {
-			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
-			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
-
 			async function* mockGenerator() {
 				yield {
 					type: "assistant",
@@ -251,8 +222,7 @@ describe("ClaudeCodeHandler", () => {
 				}
 			}
 
-			runClaudeCodeStub.returns(mockGenerator() as any)
-
+			const handler = makeHandler(mockGenerator)
 			const chunks: any[] = []
 			// Should not throw
 			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
@@ -264,10 +234,82 @@ describe("ClaudeCodeHandler", () => {
 			usageChunk.inputTokens.should.equal(10)
 		})
 
-		it("should throw when result has is_error=true (e.g. rate limit with no assistant message)", async () => {
-			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
-			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
+		it("should yield usage when result chunk has no 'result' property (CLI v2.1+ success format)", async () => {
+			async function* mockGenerator() {
+				yield {
+					type: "assistant",
+					message: {
+						content: [{ type: "text", text: "Hello" }],
+						usage: { input_tokens: 10, output_tokens: 5 },
+						stop_reason: "end_turn",
+					},
+				}
 
+				// CLI v2.1+ omits the 'result' string property on success
+				yield {
+					type: "result",
+					subtype: "success",
+					is_error: false,
+					total_cost_usd: 0.001,
+					duration_ms: 1000,
+					duration_api_ms: 900,
+					num_turns: 1,
+					session_id: "test",
+				}
+			}
+
+			const handler = makeHandler(mockGenerator)
+			const chunks: any[] = []
+			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+				chunks.push(chunk)
+			}
+
+			const usageChunk = chunks.find((c) => c.type === "usage")
+			usageChunk.should.be.ok()
+			usageChunk.totalCost.should.equal(0.001)
+		})
+
+		it("should not throw on error_max_turns and should yield usage (normal --max-turns 1 behaviour)", async () => {
+			async function* mockGenerator() {
+				yield {
+					type: "assistant",
+					message: {
+						content: [{ type: "tool_use", id: "t1", name: "write_to_file", input: {} }],
+						usage: { input_tokens: 20, output_tokens: 10 },
+						stop_reason: "tool_use",
+					},
+				}
+
+				yield {
+					type: "result",
+					subtype: "error_max_turns",
+					is_error: true,
+					total_cost_usd: 0.002,
+					duration_ms: 2000,
+					duration_api_ms: 1800,
+					num_turns: 2,
+					session_id: "test",
+				}
+			}
+
+			const handler = makeHandler(mockGenerator)
+			let thrownError: Error | undefined
+			const chunks: any[] = []
+			try {
+				for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+					chunks.push(chunk)
+				}
+			} catch (err) {
+				thrownError = err as Error
+			}
+
+			;(thrownError === undefined).should.be.true()
+			const usageChunk = chunks.find((c) => c.type === "usage")
+			usageChunk.should.be.ok()
+			usageChunk.totalCost.should.equal(0.002)
+		})
+
+		it("should throw when result has is_error=true (e.g. rate limit with no assistant message)", async () => {
 			async function* mockGenerator() {
 				yield {
 					type: "system",
@@ -296,8 +338,7 @@ describe("ClaudeCodeHandler", () => {
 				}
 			}
 
-			runClaudeCodeStub.returns(mockGenerator() as any)
-
+			const handler = makeHandler(mockGenerator)
 			let thrownError: Error | undefined
 			try {
 				for await (const _ of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
@@ -311,9 +352,6 @@ describe("ClaudeCodeHandler", () => {
 		})
 
 		it("should ignore rate_limit_event system messages without throwing", async () => {
-			const runClaudeCodeModule = await import("@/integrations/claude-code/run")
-			const runClaudeCodeStub = sandbox.stub(runClaudeCodeModule, "runClaudeCode")
-
 			async function* mockGenerator() {
 				yield {
 					type: "system",
@@ -345,8 +383,7 @@ describe("ClaudeCodeHandler", () => {
 				}
 			}
 
-			runClaudeCodeStub.returns(mockGenerator() as any)
-
+			const handler = makeHandler(mockGenerator)
 			const textChunks: string[] = []
 			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
 				if (chunk.type === "text") textChunks.push(chunk.text)
