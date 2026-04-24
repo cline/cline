@@ -110,6 +110,35 @@ Implemented boundary:
 Still deferred:
 
 - Moving normal follow-up/resume behavior out of `Controller.askResponse`.
+
+## PR 9 Scope
+
+Ninth PR is behavior-preserving and extracts follow-up/resume behavior.
+
+Implemented boundary:
+
+- `SdkFollowupCoordinator`
+  - Owns `askResponse` workflow decisions after the public controller facade is
+    called.
+  - Resolves pending tool approvals and SDK `ask_question` prompts.
+  - Sends normal follow-up messages to active sessions.
+  - Queues follow-up messages when the active session is mid-turn.
+  - Resumes displayed or cancelled tasks by rebuilding a session with preserved
+    conversation history, then sends the user's follow-up or task-resumption
+    prompt.
+  - Handles resume-time auth and error message reporting.
+
+Controller changes:
+
+- `Controller.askResponse(...)` now delegates to `SdkFollowupCoordinator`.
+- `Controller` still supplies host concerns through callbacks: temporary host
+  creation, context mention resolution, auth checks, state posting, and
+  initial message loading.
+
+Still deferred:
+
+- Further splitting task lifecycle methods such as `initTask`, `clearTask`,
+  `cancelTask`, `showTaskWithId`, and task reinitialization.
 - Moving whole task lifecycle workflows out of `Controller`.
 - Consolidating mode/MCP rebuild policy.
 
@@ -218,4 +247,30 @@ Controller changes:
 Still deferred:
 
 - Moving MCP reload/defer policy into `SdkMcpCoordinator`.
+- Moving normal follow-up/resume behavior out of `Controller.askResponse`.
+
+## PR 8 Scope
+
+Eighth PR is behavior-preserving and extracts MCP tool-reload policy.
+
+Implemented boundary:
+
+- `SdkMcpCoordinator`
+  - Owns MCP tool-list change handling.
+  - Restarts idle active sessions immediately.
+  - Defers restarts while the active session is mid-turn, then applies the
+    restart when the turn completes.
+  - Rebuilds the active session with the current mode/config and preserved
+    conversation history.
+  - Emits reload progress, success, completion, and error messages.
+
+Controller changes:
+
+- `Controller` still owns the classic `McpHub` instance and registers its tool
+  list callback.
+- Session event completion now delegates deferred MCP restart checks to
+  `SdkMcpCoordinator`.
+
+Still deferred:
+
 - Moving normal follow-up/resume behavior out of `Controller.askResponse`.
