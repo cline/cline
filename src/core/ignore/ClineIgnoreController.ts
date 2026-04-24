@@ -137,7 +137,14 @@ export class ClineIgnoreController {
 	 */
 	private async readIncludedFile(includeLine: string): Promise<string | null> {
 		const includePath = includeLine.substring("!include ".length).trim()
-		const resolvedIncludePath = path.join(this.cwd, includePath)
+		const resolvedIncludePath = path.resolve(this.cwd, includePath)
+
+		// Block paths that resolve outside the workspace (path traversal)
+		const relativePath = path.relative(this.cwd, resolvedIncludePath)
+		if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+			Logger.debug(`[ClineIgnore] Included file path escapes workspace: ${includePath}`)
+			return null
+		}
 
 		if (!(await fileExistsAtPath(resolvedIncludePath))) {
 			Logger.debug(`[ClineIgnore] Included file not found: ${resolvedIncludePath}`)

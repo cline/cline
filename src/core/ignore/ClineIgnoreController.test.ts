@@ -291,6 +291,42 @@ describe("ClineIgnoreController", () => {
 		})
 	})
 
+	describe("Include Directive Path Traversal Protection", () => {
+		it("should block !include directives that escape workspace via ..", async () => {
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include ../../etc/passwd", "*.log"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			// Only *.log pattern should be active (traversal include blocked)
+			controller.validateAccess("server.log").should.be.false()
+			controller.validateAccess("regular-file.txt").should.be.true()
+		})
+
+		it("should block !include with absolute paths", async () => {
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include /etc/shadow", "*.tmp"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			controller.validateAccess("file.tmp").should.be.false()
+			controller.validateAccess("regular.txt").should.be.true()
+		})
+
+		it("should allow !include with paths within workspace", async () => {
+			await fs.writeFile(path.join(tempDir, "extra-ignore.txt"), ["*.log", "debug/"].join("\n"))
+			await fs.writeFile(path.join(tempDir, ".clineignore"), ["!include extra-ignore.txt", "secret.txt"].join("\n"))
+
+			controller = new ClineIgnoreController(tempDir)
+			await controller.initialize()
+
+			controller.validateAccess("server.log").should.be.false()
+			controller.validateAccess("debug/app.js").should.be.false()
+			controller.validateAccess("secret.txt").should.be.false()
+			controller.validateAccess("app.js").should.be.true()
+		})
+	})
+
 	describe("Path Traversal Protection", () => {
 		it("should block paths that escape the workspace via ..", async () => {
 			controller.validateAccess("../../etc/passwd").should.be.false()
