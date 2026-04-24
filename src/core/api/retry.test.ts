@@ -112,12 +112,13 @@ describe("Retry Decorator", () => {
 		it("should respect retry-after header with Unix timestamp", async () => {
 			const setTimeoutSpy = sinon.spy(global, "setTimeout")
 			let callCount = 0
-			const fixedDate = new Date("2010-01-01T00:00:00.000Z")
-			const retryTimestamp = Math.floor(fixedDate.getTime() / 1000) + 0.01 // 10ms in the future
-			const baseDelay = 1000
+			const fakeNow = 1700000000000
+			sinon.stub(Date, "now").returns(fakeNow)
+			const retryTimestamp = fakeNow / 1000 + 1 // 1 second in the future
+			const baseDelay = 10000
 
 			class TestClass {
-				@withRetry({ maxRetries: 2, baseDelay, maxRetryAfter: Number.POSITIVE_INFINITY }) // Use large baseDelay to ensure header takes precedence
+				@withRetry({ maxRetries: 2, baseDelay }) // Use large baseDelay to ensure header takes precedence
 				async *failMethod() {
 					callCount++
 					if (callCount === 1) {
@@ -140,7 +141,7 @@ describe("Retry Decorator", () => {
 
 			setTimeoutSpy.calledOnce.should.be.true
 			const [_, delay] = setTimeoutSpy.getCall(0).args
-			delay?.should.equal(fixedDate.getTime())
+			delay?.should.equal(1000) // (fakeNow/1000 + 1) * 1000 - fakeNow = 1000ms
 
 			result.should.deepEqual(["success after retry"])
 		})
