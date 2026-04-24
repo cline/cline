@@ -7,7 +7,7 @@
 // each assistant message at append time → persisted to messages.json.
 //
 // The cassette has two API calls:
-//   Turn 1: tool call (execute_command)  — usage: 1000 in / 25 out / 50 cacheWrite / 200 cacheRead
+//   Turn 1: tool call (run_commands)     — usage: 1000 in / 25 out / 50 cacheWrite / 200 cacheRead
 //   Turn 2: text completion              — usage: 1500 in / 40 out / 30 cacheWrite / 900 cacheRead
 //
 // If the bug regresses (session total stamped on terminal message instead of

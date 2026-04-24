@@ -14,6 +14,7 @@ export enum BUILT_IN_PROVIDER {
 	// OPENAI = "openai", // OpenAi Completions (deprecated - not a built-in pre-configured provider)
 	OPENAI_NATIVE = "openai-native",
 	OPENAI_CODEX = "openai-codex",
+	OPENAI_CODEX_CLI = "openai-codex-cli",
 	// CLI / Subscription-based providers
 	OPENCODE = "opencode",
 	// Cloud providers

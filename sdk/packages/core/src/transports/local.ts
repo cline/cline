@@ -857,10 +857,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
 		const isAborted = finishReason === "aborted" || session.aborting;
+		const isError = finishReason === "error";
 		await this.shutdownSession(session, {
-			status: isAborted ? "cancelled" : "completed",
-			exitCode: 0,
-			shutdownReason: "session_complete",
+			status: isAborted ? "cancelled" : isError ? "failed" : "completed",
+			exitCode: isError ? 1 : 0,
+			shutdownReason: isError ? "session_error" : "session_complete",
 			endReason: finishReason,
 		});
 	}

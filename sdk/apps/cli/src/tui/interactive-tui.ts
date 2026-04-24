@@ -910,6 +910,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				}
 			} finally {
 				if (!delivery) {
+					closeInlineStream();
 					setIsRunning(false);
 					refreshRepoStatus();
 				}
@@ -917,6 +918,7 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		},
 		[
 			appendEntry,
+			closeInlineStream,
 			config.showUsage,
 			onSubmit,
 			onTurnErrorReported,

@@ -14,6 +14,11 @@ const PROVIDER_IDS_MAP: ReadonlyArray<{
 		generatedProviderId: "openai-native",
 		runtimeProviderId: "openai-codex",
 	},
+	{
+		modelsDevKey: "openai",
+		generatedProviderId: "openai-native",
+		runtimeProviderId: "openai-codex-cli",
+	},
 	{ modelsDevKey: "anthropic", generatedProviderId: "anthropic" },
 	{
 		modelsDevKey: "anthropic",

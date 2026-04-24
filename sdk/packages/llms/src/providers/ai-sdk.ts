@@ -15,6 +15,7 @@ import {
 import { streamText } from "ai";
 import { nanoid } from "nanoid";
 import { z } from "zod";
+import { extractErrorMessage } from "./format";
 import {
 	applyPromptCacheToLastTextPart,
 	buildAnthropicCompatibleReasoningOptions,
@@ -288,6 +289,15 @@ function toAiSdkProviderOptions(
 		// OpenAI specific
 		...(request.providerId === "openai-native" ? { truncation: "auto" } : {}),
 	};
+	const openAICodexOptions =
+		request.providerId === "openai-codex"
+			? {
+					...compatibleOptions,
+					instructions: request.systemPrompt,
+					store: false,
+					systemMessageMode: "remove" as const,
+				}
+			: undefined;
 	const geminiCompatibleOptions = request.reasoning?.effort
 		? {
 				thinkingConfig: {
@@ -300,10 +310,15 @@ function toAiSdkProviderOptions(
 	const providerOptions: Record<string, unknown> = {
 		anthropic: anthropicOptions,
 		openaiCompatible: compatibleOptions,
+		...(request.providerId === "openai-codex" && openAICodexOptions
+			? { openai: openAICodexOptions }
+			: {}),
 	};
 	if (request.providerId !== "anthropic") {
 		providerOptions[request.providerId] = {
-			...compatibleOptions,
+			...(request.providerId === "openai-codex"
+				? openAICodexOptions
+				: compatibleOptions),
 			...(request.providerId === "cline" && gatewayReasoning
 				? { reasoning: gatewayReasoning }
 				: {}),
@@ -316,9 +331,20 @@ function toAiSdkProviderOptions(
 		providerOptionsKey !== request.providerId &&
 		providerOptionsKey !== "anthropic"
 	) {
-		providerOptions[providerOptionsKey] = compatibleOptions;
+		providerOptions[providerOptionsKey] =
+			request.providerId === "openai-codex"
+				? openAICodexOptions
+				: compatibleOptions;
 	}
 	return providerOptions;
+}
+
+function resolveAiSdkSystemPrompt(
+	request: GatewayStreamRequest,
+): string | undefined {
+	return request.providerId === "openai-codex"
+		? undefined
+		: request.systemPrompt;
 }
 
 function mapFinishReason(
@@ -604,54 +630,6 @@ function suppressDanglingStreamPromises(
 	}
 }
 
-function extractErrorMessage(error: unknown): string {
-	if (
-		error &&
-		typeof error === "object" &&
-		"statusCode" in error &&
-		"responseBody" in error
-	) {
-		const apiError = error as {
-			statusCode?: unknown;
-			responseBody?: unknown;
-			message?: unknown;
-		};
-		if (typeof apiError.responseBody === "string") {
-			try {
-				const parsed = JSON.parse(apiError.responseBody) as {
-					error?: { message?: string } | string;
-				};
-				if (typeof parsed.error === "string") {
-					return parsed.error;
-				}
-				if (typeof parsed.error?.message === "string") {
-					return parsed.error.message;
-				}
-			} catch {
-				// Fall through to other representations.
-			}
-		}
-		if (typeof apiError.message === "string" && apiError.message.trim()) {
-			return apiError.message;
-		}
-	}
-
-	if (
-		error &&
-		typeof error === "object" &&
-		"cause" in error &&
-		(error as { cause?: unknown }).cause
-	) {
-		return extractErrorMessage((error as { cause: unknown }).cause);
-	}
-
-	if (error instanceof Error && error.message.trim()) {
-		return error.message;
-	}
-
-	return String(error);
-}
-
 function extractGoogleThoughtMetadata(
 	part: AiSdkStreamPart,
 ): Record<string, unknown> | undefined {
@@ -764,9 +742,14 @@ async function* emitAiSdkEvents(
 						part.finishReason ?? part.rawFinishReason ?? part.reason;
 				}
 
-				if (part.type === "error") {
+				if (part.type === "error" || part.type === "tool-error") {
 					streamError =
 						capturedError?.current ?? extractErrorMessage(part.error);
+					break;
+				}
+
+				if (part.type === "abort") {
+					// abort
 					break;
 				}
 			}
@@ -785,7 +768,10 @@ async function* emitAiSdkEvents(
 	// stream.usage may be undefined in mocked/test scenarios, fall back to finish part + its providerMetadata.
 	let usageToEmit: unknown;
 	let metadataToUse: unknown;
-	if (stream.usage) {
+	if (streamError) {
+		usageToEmit = finishUsage;
+		metadataToUse = finishProviderMetadata;
+	} else if (stream.usage) {
 		try {
 			usageToEmit = await stream.usage;
 		} catch (error) {
@@ -896,8 +882,15 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				stream = streamText({
 					model: provider.model(context.model.id) as never,
 					messages: (shouldUseAnthropicPromptCache(request, context)
-						? buildCachedAiSdkMessages(request, context, request.systemPrompt)
-						: toAiSdkMessages(request.messages, request.systemPrompt)) as never,
+						? buildCachedAiSdkMessages(
+								request,
+								context,
+								resolveAiSdkSystemPrompt(request),
+							)
+						: toAiSdkMessages(
+								request.messages,
+								resolveAiSdkSystemPrompt(request),
+							)) as never,
 					tools: tools as never,
 					temperature: request.temperature,
 					maxOutputTokens: request.maxTokens,

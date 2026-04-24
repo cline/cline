@@ -549,10 +549,21 @@ export const BUILTIN_SPECS: BuiltinSpec[] = [
 	},
 	{
 		id: "openai-codex",
-		name: "OpenAI Codex",
+		name: "OpenAI ChatGPT Subscription",
+		description:
+			"OpenAI ChatGPT subscription access uses an OAuth device code flow.",
+		family: "openai",
+		capabilities: ["reasoning", "oauth", "provider-tools"],
+		defaultModelId: "gpt-5.4",
+		modelsProviderId: "openai",
+		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },
+	},
+	{
+		id: "openai-codex-cli",
+		name: "OpenAI Codex CLI",
 		description: "OpenAI Codex via the local Codex CLI provider",
 		family: "openai-codex",
-		capabilities: ["reasoning", "oauth", "provider-tools"],
+		capabilities: ["reasoning", "provider-tools"],
 		defaultModelId: "gpt-5.3-codex",
 		modelsProviderId: "openai",
 		defaults: { baseUrl: "https://chatgpt.com/backend-api/codex" },

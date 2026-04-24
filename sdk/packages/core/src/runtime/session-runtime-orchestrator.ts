@@ -1046,7 +1046,10 @@ export class SessionRuntime {
 		const finishReason: AgentFinishReason = thrownError
 			? "error"
 			: deriveFinishReason(runResult);
-		const text = runResult?.outputText ?? "";
+		const text =
+			runResult?.outputText ||
+			(runResult?.status === "failed" ? runResult.error?.message : undefined) ||
+			"";
 		const usage: LegacyAgentUsage = runResult
 			? {
 					inputTokens: runResult.usage.inputTokens,

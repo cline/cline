@@ -45,6 +45,8 @@ export async function startHubServer(
 export async function ensureHubServer(
 	options: EnsureHubServerOptions,
 ): Promise<EnsureHubServerResult> {
+	const hasExplicitPort =
+		options.port !== undefined || !!process.env.CLINE_HUB_PORT?.trim();
 	const endpoint = resolveHubEndpointOptions({
 		host: options.host,
 		port: options.port,
@@ -53,6 +55,7 @@ export async function ensureHubServer(
 	return await ensureHubWebSocketServer({
 		...options,
 		...endpoint,
+		allowPortFallback: options.allowPortFallback ?? !hasExplicitPort,
 		owner: resolveSharedHubOwnerContext(),
 	});
 }

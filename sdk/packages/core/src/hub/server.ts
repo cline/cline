@@ -371,6 +371,14 @@ function formatHubStartupError(
 	return wrapped;
 }
 
+function isAddressInUseError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		"code" in error &&
+		(error as Error & { code?: string }).code === "EADDRINUSE"
+	);
+}
+
 function serializeToolContext(context: ToolContext): Record<string, unknown> {
 	return {
 		agentId: context.agentId,
@@ -1719,7 +1727,9 @@ export interface HubWebSocketServer {
 }
 
 export interface EnsureHubWebSocketServerOptions
-	extends HubWebSocketServerOptions {}
+	extends HubWebSocketServerOptions {
+	allowPortFallback?: boolean;
+}
 
 export interface EnsuredHubWebSocketServerResult {
 	server?: HubWebSocketServer;
@@ -1917,7 +1927,10 @@ export async function ensureHubWebSocketServer(
 
 	return await withHubStartupLock(owner.discoveryPath, async () => {
 		const discovered = await readHubDiscovery(owner.discoveryPath);
-		if (discovered?.url === expectedUrl) {
+		const canReuseDiscovered =
+			discovered?.url &&
+			(discovered.url === expectedUrl || options.allowPortFallback === true);
+		if (canReuseDiscovered) {
 			const healthy = await probeHubServer(discovered.url);
 			if (healthy?.url && (await verifyHubConnection(healthy.url))) {
 				return { url: healthy.url, action: "reuse" };
@@ -1934,14 +1947,27 @@ export async function ensureHubWebSocketServer(
 			await clearHubDiscovery(owner.discoveryPath);
 		}
 
-		const serverPromise = startHubWebSocketServer({ ...options, owner });
-		SHARED_SERVERS.set(sharedKey, serverPromise);
+		const start = async (
+			startOptions: HubWebSocketServerOptions,
+		): Promise<EnsuredHubWebSocketServerResult> => {
+			const serverPromise = startHubWebSocketServer({ ...startOptions, owner });
+			SHARED_SERVERS.set(sharedKey, serverPromise);
+			try {
+				const server = await serverPromise;
+				return { server, url: server.url, action: "started" };
+			} catch (error) {
+				SHARED_SERVERS.delete(sharedKey);
+				throw error;
+			}
+		};
+
 		try {
-			const server = await serverPromise;
-			return { server, url: server.url, action: "started" };
+			return await start(options);
 		} catch (error) {
-			SHARED_SERVERS.delete(sharedKey);
-			throw error;
+			if (!options.allowPortFallback || !isAddressInUseError(error)) {
+				throw error;
+			}
+			return await start({ ...options, port: 0 });
 		}
 	});
 }

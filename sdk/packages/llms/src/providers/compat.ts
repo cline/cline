@@ -108,6 +108,7 @@ function toGatewayModelDefinition(
 function resolveFactory(providerId: string): GatewayProviderFactory {
 	const normalized = normalizeProviderId(providerId);
 	switch (normalized) {
+		case "openai-codex":
 		case "openai-native":
 			return createOpenAIProvider;
 		case "anthropic":
@@ -123,7 +124,7 @@ function resolveFactory(providerId: string): GatewayProviderFactory {
 			return createMistralProvider;
 		case "claude-code":
 			return createClaudeCodeProvider;
-		case "openai-codex":
+		case "openai-codex-cli":
 			return createOpenAICodexProvider;
 		case "opencode":
 			return createOpenCodeProvider;

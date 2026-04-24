@@ -7,6 +7,7 @@ import type {
 	ToolApprovalResult,
 	WorkspaceInfo,
 } from "@clinebot/shared";
+import { decodeJwtPayload } from "../auth/utils";
 import { resolveAndLoadAgentPlugins } from "../extensions/plugin/plugin-config-loader";
 import type {
 	PluginInitializationFailure,
@@ -89,8 +90,59 @@ function resolveReasoningSettings(
 	};
 }
 
+function buildOpenAICodexHeaders(input: {
+	sessionId: string;
+	configHeaders: CoreSessionConfig["headers"];
+	storedHeaders: ProviderSettings["headers"];
+	accountId?: string;
+	accessToken?: string;
+}): Record<string, string> | undefined {
+	const headers: Record<string, string> = {
+		...(input.storedHeaders ?? {}),
+		...(input.configHeaders ?? {}),
+	};
+	const resolvedAccountId =
+		input.accountId?.trim() || deriveOpenAICodexAccountId(input.accessToken);
+	headers.originator = "cline";
+	headers.session_id = input.sessionId;
+	headers["User-Agent"] = `Cline/${process.env.npm_package_version || "1.0.0"}`;
+	if (resolvedAccountId) {
+		headers["ChatGPT-Account-Id"] = resolvedAccountId;
+	}
+	return headers;
+}
+
+function deriveOpenAICodexAccountId(
+	accessToken: string | undefined,
+): string | undefined {
+	const trimmed = accessToken?.trim();
+	if (!trimmed) {
+		return undefined;
+	}
+	const payload = decodeJwtPayload(trimmed) as {
+		"https://api.openai.com/auth"?: { chatgpt_account_id?: string };
+		organizations?: Array<{ id?: string }>;
+		chatgpt_account_id?: string;
+	} | null;
+	const authAccountId =
+		payload?.["https://api.openai.com/auth"]?.chatgpt_account_id;
+	if (typeof authAccountId === "string" && authAccountId.length > 0) {
+		return authAccountId;
+	}
+	const orgAccountId = payload?.organizations?.[0]?.id;
+	if (typeof orgAccountId === "string" && orgAccountId.length > 0) {
+		return orgAccountId;
+	}
+	const rootAccountId = payload?.chatgpt_account_id;
+	if (typeof rootAccountId === "string" && rootAccountId.length > 0) {
+		return rootAccountId;
+	}
+	return undefined;
+}
+
 function buildProviderConfig(
 	config: CoreSessionConfig,
+	sessionId: string,
 	providerSettingsManager: ProviderSettingsManager,
 	modelCatalogDefaults?: Partial<ProviderSettings["modelCatalog"]>,
 	defaultFetch?: typeof fetch,
@@ -109,7 +161,17 @@ function buildProviderConfig(
 		model: config.modelId,
 		apiKey: config.apiKey ?? stored?.apiKey,
 		baseUrl: config.baseUrl ?? stored?.baseUrl,
-		headers: config.headers ?? stored?.headers,
+		headers:
+			config.providerId === "openai-codex"
+				? buildOpenAICodexHeaders({
+						sessionId,
+						configHeaders: config.headers,
+						storedHeaders: stored?.headers,
+						accountId: stored?.auth?.accountId,
+						accessToken:
+							config.apiKey ?? stored?.auth?.accessToken ?? stored?.apiKey,
+					})
+				: (config.headers ?? stored?.headers),
 		reasoning: resolveReasoningSettings(config, stored?.reasoning),
 		modelCatalog,
 	};
@@ -261,6 +323,7 @@ export async function prepareLocalRuntimeBootstrap(
 	};
 	const providerConfig = buildProviderConfig(
 		baseConfig,
+		sessionId,
 		providerSettingsManager,
 		localRuntime?.modelCatalogDefaults,
 		defaultFetch,

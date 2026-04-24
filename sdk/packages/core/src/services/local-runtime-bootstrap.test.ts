@@ -335,4 +335,159 @@ describe("prepareLocalRuntimeBootstrap", () => {
 
 		expect(bootstrap.providerConfig.fetch).toBeUndefined();
 	});
+
+	it("adds Codex backend headers for openai-codex from stored OAuth settings", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		input.config.providerId = "openai-codex";
+		input.config.modelId = "gpt-5.4";
+		input.config.apiKey = "oauth-access-token";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-codex",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "openai-codex",
+				model: "gpt-5.4",
+				auth: {
+					accessToken: "oauth-access-token",
+					accountId: "acct-123",
+				},
+				headers: {
+					"x-stored": "stored",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolExecutors: undefined,
+			defaultToolPolicies: undefined,
+			defaultRequestToolApproval: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			originator: "cline",
+			session_id: "sess-codex",
+			"ChatGPT-Account-Id": "acct-123",
+			"x-stored": "stored",
+		});
+	});
+
+	it("keeps Codex-controlled headers from being overridden by stored or config headers", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		input.config.providerId = "openai-codex";
+		input.config.modelId = "gpt-5.4";
+		input.config.apiKey = "oauth-access-token";
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = {
+			originator: "config-originator",
+			session_id: "config-session",
+			"User-Agent": "ConfigAgent/0",
+			"ChatGPT-Account-Id": "config-account",
+			"x-config": "config",
+			"x-shared": "config-wins",
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-codex-invariants",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "openai-codex",
+				model: "gpt-5.4",
+				auth: {
+					accessToken: "oauth-access-token",
+					accountId: "acct-stored",
+				},
+				headers: {
+					originator: "stored-originator",
+					session_id: "stored-session",
+					"User-Agent": "StoredAgent/0",
+					"ChatGPT-Account-Id": "stored-account",
+					"x-stored": "stored",
+					"x-shared": "stored-loses",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolExecutors: undefined,
+			defaultToolPolicies: undefined,
+			defaultRequestToolApproval: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			originator: "cline",
+			session_id: "sess-codex-invariants",
+			"ChatGPT-Account-Id": "acct-stored",
+			"x-config": "config",
+			"x-stored": "stored",
+			"x-shared": "config-wins",
+		});
+		expect(bootstrap.providerConfig.headers?.["User-Agent"]).toMatch(
+			/^Cline\//,
+		);
+	});
+
+	it("derives Codex account id from the OAuth access token when not persisted", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const payload = Buffer.from(
+			JSON.stringify({
+				"https://api.openai.com/auth": {
+					chatgpt_account_id: "acct-derived",
+				},
+			}),
+			"utf8",
+		).toString("base64url");
+		const token = `header.${payload}.sig`;
+
+		const input = createStartInput();
+		input.config.providerId = "openai-codex";
+		input.config.modelId = "gpt-5.4";
+		input.config.apiKey = token;
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-codex-derived",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "openai-codex",
+				model: "gpt-5.4",
+				auth: {
+					accessToken: token,
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolExecutors: undefined,
+			defaultToolPolicies: undefined,
+			defaultRequestToolApproval: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			originator: "cline",
+			session_id: "sess-codex-derived",
+			"ChatGPT-Account-Id": "acct-derived",
+		});
+	});
 });

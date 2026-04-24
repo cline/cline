@@ -316,6 +316,83 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("does not wait for usage when an AI SDK stream emits an error part", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "error",
+					error: new Error("Invalid API key"),
+				},
+			]),
+			usage: new Promise(() => {}),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await Promise.race([
+			collect(
+				await gateway.stream({
+					providerId: "openai-native",
+					modelId: "gpt-5-mini",
+					messages: baseMessages,
+				}),
+			),
+			new Promise<never>((_, reject) =>
+				setTimeout(() => reject(new Error("timed out waiting for stream")), 50),
+			),
+		]);
+
+		expect(events).toEqual([
+			{
+				type: "finish",
+				reason: "error",
+				error: "Invalid API key",
+			},
+		]);
+	});
+
+	it("surfaces API detail fields from OpenAI-compatible error bodies", async () => {
+		const apiError = Object.assign(new Error("Bad Request"), {
+			statusCode: 400,
+			responseBody: JSON.stringify({
+				detail: "Instructions are required",
+			}),
+		});
+		streamTextSpy.mockReturnValue({
+			fullStream: makeFailingStreamParts(apiError),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toEqual({
+			type: "finish",
+			reason: "error",
+			error: "Instructions are required",
+		});
+	});
+
 	it("passes user file blocks through as text content", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -1243,7 +1320,7 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		expect(codexExecSpy).toHaveBeenCalledWith("gpt-5-codex");
+		expect(openaiResponsesSpy).toHaveBeenCalledWith("gpt-5-codex");
 		expect(streamTextSpy).toHaveBeenCalledWith(
 			expect.objectContaining({
 				tools: undefined,
@@ -1293,6 +1370,55 @@ describe("sdk-gateway", () => {
 				},
 			},
 		});
+	});
+
+	it("passes Codex instructions through provider options and removes the system message from messages", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				systemPrompt: "You are helpful.",
+				messages: baseMessages,
+				reasoning: {
+					effort: "high",
+				},
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				messages: [
+					{
+						role: "user",
+						content: [{ type: "text", text: "Hello" }],
+					},
+				],
+				providerOptions: expect.objectContaining({
+					openai: expect.objectContaining({
+						instructions: "You are helpful.",
+						store: false,
+					}),
+					"openai-codex": expect.objectContaining({
+						store: false,
+						reasoningEffort: "high",
+						reasoningSummary: "auto",
+					}),
+					openaiCodex: expect.objectContaining({
+						store: false,
+					}),
+				}),
+			}),
+		);
 	});
 
 	it("passes reasoning effort through to Anthropic provider options", async () => {

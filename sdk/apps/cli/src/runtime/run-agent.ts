@@ -169,6 +169,7 @@ export async function runAgent(
 
 	let reasoningChunkCount = 0;
 	let redactedReasoningChunkCount = 0;
+	const displayedErrorMessages = new Set<string>();
 
 	const onAgentEvent = (event: AgentEvent): void => {
 		if (event.type === "content_start" && event.contentType === "reasoning") {
@@ -176,6 +177,13 @@ export async function runAgent(
 			if (event.redacted) {
 				redactedReasoningChunkCount += 1;
 			}
+		}
+		if (
+			event.type === "error" &&
+			(!event.recoverable || config.verbose) &&
+			event.error.message.trim()
+		) {
+			displayedErrorMessages.add(event.error.message.trim());
 		}
 		handleEvent(event, config);
 	};
@@ -353,6 +361,14 @@ export async function runAgent(
 		}
 
 		if (result.finishReason !== "completed") {
+			const errorText = result.text.trim();
+			if (
+				config.outputMode !== "json" &&
+				errorText &&
+				!displayedErrorMessages.has(errorText)
+			) {
+				writeErr(errorText);
+			}
 			process.exitCode = 1;
 			return;
 		}

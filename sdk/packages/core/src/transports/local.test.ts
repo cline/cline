@@ -2072,6 +2072,68 @@ describe("LocalRuntimeHost", () => {
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 	});
 
+	it("marks a single-run error result as failed", async () => {
+		const sessionId = "sess-error-result";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-error-result.json",
+				messagesPath: "/tmp/messages-error-result.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const run = vi.fn().mockResolvedValue(
+			createResult({
+				finishReason: "error",
+				text: "",
+			}),
+		);
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		const started = await manager.start(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: false,
+			}),
+		);
+
+		expect(started.result?.finishReason).toBe("error");
+		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
+			sessionId,
+			"failed",
+			1,
+		);
+	});
+
 	it("does not persist or emit shutdown hooks when no prompt was submitted", async () => {
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),

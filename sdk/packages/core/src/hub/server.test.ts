@@ -1,3 +1,4 @@
+import { createServer as createHttpServer } from "node:http";
 import { createConnection, createServer as createNetServer } from "node:net";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSocketServer } from "ws";
@@ -122,6 +123,48 @@ describe("hub server startup", () => {
 			await expect(
 				readHubDiscovery(owner.discoveryPath),
 			).resolves.toBeUndefined();
+		} finally {
+			await new Promise<void>((resolve, reject) => {
+				blocker.close((error) => {
+					if (error) {
+						reject(error);
+						return;
+					}
+					resolve();
+				});
+			});
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+	});
+
+	it("falls back to an ephemeral port when fallback is allowed", async () => {
+		const owner = createInMemoryHubOwnerContext(
+			"hub-server-test-port-fallback",
+		);
+		const port = await reservePort();
+		const blocker = createHttpServer((_req, res) => {
+			res.statusCode = 404;
+			res.end("not a hub");
+		});
+		await new Promise<void>((resolve, reject) => {
+			blocker.once("error", reject);
+			blocker.listen({ host: "127.0.0.1", port }, () => resolve());
+		});
+
+		try {
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port,
+				pathname: "/hub",
+				allowPortFallback: true,
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+
+			expect(result.action).toBe("started");
+			expect(result.server).toBeDefined();
+			expect(result.server?.port).not.toBe(port);
+			servers.add(result.server!);
 		} finally {
 			await new Promise<void>((resolve, reject) => {
 				blocker.close((error) => {
