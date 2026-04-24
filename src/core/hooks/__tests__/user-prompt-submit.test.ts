@@ -371,9 +371,9 @@ console.log(JSON.stringify({
 		const isWindows = process.platform === "win32"
 
 		it("should validate representative fixtures end-to-end", async function () {
-			if (isWindows) {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+			// Multiple fixture scenarios spawn child processes sequentially,
+			// which can easily exceed the default 2 s Mocha timeout.
+			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
 
 			const scenarios: FixtureScenario[] = [
 				{
