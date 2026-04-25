@@ -307,6 +307,7 @@ const SECRETS_KEYS = [
 	"awsSessionToken",
 	"awsBedrockApiKey",
 	"openAiApiKey",
+	"abliterationApiKey",
 	"geminiApiKey",
 	"openAiNativeApiKey",
 	"ollamaApiKey",

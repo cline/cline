@@ -3,6 +3,7 @@ import { Mode } from "@shared/storage/types"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { Logger } from "@/shared/services/Logger"
 import { ClineTool } from "@/shared/tools"
+import { AbliterationHandler } from "./providers/abliteration"
 import { AIhubmixHandler } from "./providers/aihubmix"
 import { AnthropicHandler } from "./providers/anthropic"
 import { AskSageHandler } from "./providers/asksage"
@@ -149,6 +150,12 @@ function createHandlerForProvider(
 				openAiModelId: mode === "plan" ? options.planModeOpenAiModelId : options.actModeOpenAiModelId,
 				openAiModelInfo: mode === "plan" ? options.planModeOpenAiModelInfo : options.actModeOpenAiModelInfo,
 				reasoningEffort: mode === "plan" ? options.planModeReasoningEffort : options.actModeReasoningEffort,
+			})
+		case "abliteration":
+			return new AbliterationHandler({
+				onRetryAttempt: options.onRetryAttempt,
+				abliterationApiKey: options.abliterationApiKey,
+				apiModelId: mode === "plan" ? options.planModeApiModelId : options.actModeApiModelId,
 			})
 		case "ollama":
 			return new OllamaHandler({

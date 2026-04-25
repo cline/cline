@@ -17,6 +17,10 @@
 			"label": "OpenAI Compatible"
 		},
 		{
+			"value": "abliteration",
+			"label": "Abliteration.ai"
+		},
+		{
 			"value": "anthropic",
 			"label": "Anthropic"
 		},

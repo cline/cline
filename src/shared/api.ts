@@ -8,6 +8,7 @@ export type ApiProvider =
 	| "bedrock"
 	| "vertex"
 	| "openai"
+	| "abliteration"
 	| "ollama"
 	| "lmstudio"
 	| "gemini"
@@ -1460,6 +1461,26 @@ export const openAiModelInfoSaneDefaults: OpenAiCompatibleModelInfo = {
 	outputPrice: 0,
 	temperature: 0,
 }
+
+// Abliteration
+// https://docs.abliteration.ai/models
+export type AbliterationModelId = keyof typeof abliterationModels
+export const abliterationDefaultModelId: AbliterationModelId = "abliterated-model"
+export const abliterationModels = {
+	"abliterated-model": {
+		maxTokens: -1,
+		contextWindow: 150_000,
+		supportsImages: true,
+		supportsPromptCache: false,
+		supportsTools: true,
+		supportsStreaming: true,
+		inputPrice: 3.0,
+		outputPrice: 3.0,
+		temperature: 0,
+		description:
+			"Abliteration.ai's OpenAI-compatible model with streaming, tool calling, and vision support. Usage is billed on combined input and output tokens.",
+	},
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Gemini
 // https://ai.google.dev/gemini-api/docs/models/gemini

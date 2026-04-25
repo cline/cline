@@ -85,6 +85,11 @@ export function validateApiConfiguration(currentMode: Mode, apiConfiguration?: A
 					return "You must provide a valid base URL, API key, and model ID."
 				}
 				break
+			case "abliteration":
+				if (!apiConfiguration.abliterationApiKey) {
+					return "You must provide a valid API key or choose a different provider."
+				}
+				break
 			case "requesty":
 				if (!apiConfiguration.requestyApiKey) {
 					return "You must provide a valid API key or choose a different provider."

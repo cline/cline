@@ -1,6 +1,8 @@
 import {
 	ApiConfiguration,
 	ApiProvider,
+	abliterationDefaultModelId,
+	abliterationModels,
 	anthropicDefaultModelId,
 	anthropicModels,
 	askSageDefaultModelId,
@@ -100,6 +102,8 @@ export function getModelsForProvider(
 			return geminiModels
 		case "openai-native":
 			return openAiNativeModels
+		case "abliteration":
+			return abliterationModels
 		case "openai-codex":
 			return openAiCodexModels
 		case "deepseek":
@@ -234,6 +238,8 @@ export function normalizeApiConfiguration(
 			return getProviderData(geminiModels, geminiDefaultModelId)
 		case "openai-native":
 			return getProviderData(openAiNativeModels, openAiNativeDefaultModelId)
+		case "abliteration":
+			return getProviderData(abliterationModels, abliterationDefaultModelId)
 		case "openai-codex":
 			return getProviderData(openAiCodexModels, openAiCodexDefaultModelId)
 		case "deepseek":
@@ -825,6 +831,7 @@ export async function syncModeConfigurations(
 		case "vertex":
 		case "gemini":
 		case "openai-native":
+		case "abliteration":
 		case "openai-codex":
 		case "deepseek":
 		case "qwen":
@@ -892,6 +899,12 @@ export const getProviderInfo = (
 					effectiveMode === "plan" ? apiConfiguration.planModeOpenAiModelId : apiConfiguration.actModeOpenAiModelId,
 				baseUrl: apiConfiguration.openAiBaseUrl,
 				helpText: "Add your OpenAI API key and endpoint",
+			}
+		case "abliteration":
+			return {
+				modelId: effectiveMode === "plan" ? apiConfiguration.planModeApiModelId : apiConfiguration.actModeApiModelId,
+				baseUrl: "https://api.abliteration.ai/v1",
+				helpText: "Add your Abliteration.ai API key in settings",
 			}
 		case "vscode-lm":
 			return {
