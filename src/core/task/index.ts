@@ -1961,6 +1961,7 @@ export class Task {
 			isCliEnvironment,
 			enableNativeToolCalls:
 				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			terminalExecutionMode: this.terminalExecutionMode,
