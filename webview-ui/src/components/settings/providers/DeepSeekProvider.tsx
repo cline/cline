@@ -27,7 +27,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modelInfo = deepSeekModels[selectedModelId as keyof typeof deepSeekModels]
-	const showReasoningEffort = (modelInfo as any)?.supportsReasoningEffort === true
+	const showReasoningEffort = modelInfo?.supportsReasoningEffort === true
 
 	return (
 		<div>
