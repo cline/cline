@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
 	version: number;
 	providers: Record<string, Record<string, ModelInfo>>;
 } = {
-	version: 1777061058464,
+	version: 1777078238623,
 	providers: {
 		aihubmix: {
 			"coding-glm-5.1": {
@@ -15018,6 +15018,117 @@ export const GENERATED_PROVIDER_MODELS: {
 			},
 		},
 		"vercel-ai-gateway": {
+			"openai/gpt-5.5": {
+				id: "openai/gpt-5.5",
+				name: "GPT 5.5",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 5,
+					output: 30,
+					cacheRead: 0.5,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "gpt",
+			},
+			"openai/gpt-5.5-pro": {
+				id: "openai/gpt-5.5-pro",
+				name: "GPT 5.5 Pro",
+				contextWindow: 1000000,
+				maxTokens: 128000,
+				capabilities: ["images", "files", "tools", "reasoning", "temperature"],
+				pricing: {
+					input: 30,
+					output: 180,
+					cacheRead: 0,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-24",
+				family: "gpt",
+			},
+			"deepseek/deepseek-v4-flash": {
+				id: "deepseek/deepseek-v4-flash",
+				name: "DeepSeek V4 Flash",
+				contextWindow: 1000000,
+				maxTokens: 384000,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 0.14,
+					output: 0.28,
+					cacheRead: 0.028,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-23",
+				family: "deepseek",
+			},
+			"deepseek/deepseek-v4-pro": {
+				id: "deepseek/deepseek-v4-pro",
+				name: "DeepSeek V4 Pro",
+				contextWindow: 1000000,
+				maxTokens: 384000,
+				capabilities: ["tools", "reasoning", "temperature", "prompt-cache"],
+				pricing: {
+					input: 1.74,
+					output: 3.48,
+					cacheRead: 0.145,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-23",
+				family: "deepseek",
+			},
+			"alibaba/qwen-3.6-max-preview": {
+				id: "alibaba/qwen-3.6-max-preview",
+				name: "Qwen 3.6 Max Preview",
+				contextWindow: 240000,
+				maxTokens: 64000,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 1.3,
+					output: 7.8,
+					cacheRead: 0.26,
+					cacheWrite: 1.625,
+				},
+				releaseDate: "2026-04-20",
+				family: "qwen",
+			},
+			"moonshotai/kimi-k2.6": {
+				id: "moonshotai/kimi-k2.6",
+				name: "Kimi K2.6",
+				contextWindow: 262000,
+				maxTokens: 13100,
+				capabilities: [
+					"images",
+					"files",
+					"tools",
+					"reasoning",
+					"temperature",
+					"prompt-cache",
+				],
+				pricing: {
+					input: 0.95,
+					output: 4,
+					cacheRead: 0.16,
+					cacheWrite: 0,
+				},
+				releaseDate: "2026-04-20",
+				family: "kimi-k2.6",
+			},
 			"anthropic/claude-opus-4.7": {
 				id: "anthropic/claude-opus-4.7",
 				name: "Claude Opus 4.7",
