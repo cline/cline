@@ -54,6 +54,25 @@ jobs:
         env:
           CLINE_API_KEY: ${{ secrets.CLINE_API_KEY }}
         run: |
+          if [ -z "$CLINE_API_KEY" ]; then
+            mkdir -p evals/smoke-tests/results/latest
+            {
+              echo "## Smoke Test Results"
+              echo ""
+              echo "**Status:** skipped"
+              echo ""
+              echo "Smoke tests require \`CLINE_API_KEY\`, which is not available to forked pull request runs."
+            } > evals/smoke-tests/results/latest/summary.md
+
+            if [ "$GITHUB_EVENT_NAME" = "pull_request" ]; then
+              echo "::notice::Skipping smoke tests because CLINE_API_KEY is unavailable for this pull request run."
+              exit 0
+            fi
+
+            echo "::error::CLINE_API_KEY secret is required for smoke tests"
+            exit 1
+          fi
+
           cline auth -p cline -k "$CLINE_API_KEY" -m "anthropic/claude-sonnet-4.5"
           max_attempts=3
           for attempt in $(seq 1 $max_attempts); do
