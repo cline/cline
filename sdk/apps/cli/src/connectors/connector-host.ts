@@ -458,7 +458,6 @@ export async function handleConnectorUserTurn<
 						workspaceRoot: config.workspaceRoot,
 						cwd: config.cwd,
 						systemPrompt: config.systemPrompt,
-						maxIterations: config.maxIterations,
 						metadata,
 					});
 					if (!created) {

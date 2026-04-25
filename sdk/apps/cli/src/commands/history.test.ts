@@ -124,9 +124,6 @@ describe("formatHistoryListLine", () => {
 		expect(detail).toContain("Checkpoint");
 		expect(detail).toContain("run 3");
 		expect(detail).toContain("3 total");
-		expect(detail).toContain(
-			"clite checkpoint restore latest --session-id sess_1",
-		);
 	});
 
 	it("omits checkpoint summary when absent", () => {

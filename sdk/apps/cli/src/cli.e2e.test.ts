@@ -124,8 +124,7 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).toBe("");
 		expect(asText(result.stdout)).toContain("Usage:");
 		expect(asText(result.stdout)).toContain("--autoapprove [value]");
-		expect(asText(result.stdout)).toContain("-T, --taskId <id>");
-		expect(asText(result.stdout)).toContain("--sandbox");
+		expect(asText(result.stdout)).toContain("--data-dir");
 		expect(asText(result.stdout)).toContain("--thinking");
 		expect(asText(result.stdout)).toContain("--reasoning-effort");
 		expect(asText(result.stdout)).toContain("--refresh-models");
@@ -197,7 +196,7 @@ describe("cli e2e", () => {
 	it("rejects interactive mode with json output", () => {
 		const homeDir = mkdtempSync(path.join(os.tmpdir(), "cli-e2e-home-"));
 		tempDirs.push(homeDir);
-		const result = runCli(["--json", "--interactive"], {
+		const result = runCli(["--json", "--tui"], {
 			env: {
 				...createIsolatedEnv(),
 				HOME: homeDir,
@@ -292,12 +291,6 @@ describe("cli e2e", () => {
 		expect(asText(result.stderr)).toContain(
 			"history delete requires --session-id <id>",
 		);
-	});
-
-	it("returns an error when taskId flag is provided without an id", () => {
-		const result = runCli(["--taskId"], { env: createIsolatedEnv() });
-		expect(result.status).toBe(1);
-		expect(asText(result.stderr)).toContain("--taskId requires <id>");
 	});
 
 	it("lists enabled workflows in text mode", () => {

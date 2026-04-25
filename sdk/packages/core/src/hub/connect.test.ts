@@ -1,14 +1,26 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveHubUrl } from "./connect";
 
 const envSnapshot = {
 	CLINE_HUB_DISCOVERY_PATH: process.env.CLINE_HUB_DISCOVERY_PATH,
 	CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
+	CLINE_BUILD_ENV: process.env.CLINE_BUILD_ENV,
 };
+
+beforeEach(() => {
+	// Pin to production so default port assertions are deterministic regardless
+	// of the ambient build env (e.g. when vitest sets CLINE_BUILD_ENV=development).
+	process.env.CLINE_BUILD_ENV = "production";
+});
 
 afterEach(() => {
 	process.env.CLINE_HUB_DISCOVERY_PATH = envSnapshot.CLINE_HUB_DISCOVERY_PATH;
 	process.env.CLINE_DATA_DIR = envSnapshot.CLINE_DATA_DIR;
+	if (envSnapshot.CLINE_BUILD_ENV === undefined) {
+		delete process.env.CLINE_BUILD_ENV;
+	} else {
+		process.env.CLINE_BUILD_ENV = envSnapshot.CLINE_BUILD_ENV;
+	}
 	vi.useRealTimers();
 	vi.restoreAllMocks();
 });

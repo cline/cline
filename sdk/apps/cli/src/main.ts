@@ -5,9 +5,7 @@ import type { ToolPolicy } from "@clinebot/core";
 
 import { registerDisposable } from "@clinebot/shared";
 import type { Command } from "commander";
-import { launchKanban } from "./commands/kanban";
 import {
-	addRootOptions,
 	CommanderError,
 	commanderToParsedArgs,
 	createProgram,
@@ -69,16 +67,29 @@ async function loadInteractiveRuntimeModule() {
 
 /**
  * Two-pass approach for --config: a quick scan of process.argv extracts the
- * config directory before commander parses, because setHomeDir() must run
+ * config directory before commander parses, because setClineDir() must run
  * before any code that reads the home/config directory.
+ *
+ * Recognizes both Commander spellings:
+ *   --config <dir>
+ *   --config=<dir>
+ *
+ * Exported for unit testing; callers in this file should use this rather
+ * than reimplementing the scan.
  */
-function resolveConfigDirArg(argv: string[]): string | undefined {
-	const index = argv.indexOf("--config");
-	if (index < 0 || index + 1 >= argv.length) {
-		return undefined;
+export function resolveConfigDirArg(argv: string[]): string | undefined {
+	for (let i = 0; i < argv.length; i++) {
+		const arg = argv[i];
+		if (arg === "--config") {
+			const value = argv[i + 1]?.trim();
+			return value ? value : undefined;
+		}
+		if (arg?.startsWith("--config=")) {
+			const value = arg.slice("--config=".length).trim();
+			return value ? value : undefined;
+		}
 	}
-	const value = argv[index + 1]?.trim();
-	return value ? value : undefined;
+	return undefined;
 }
 
 export async function runCli(): Promise<void> {
@@ -106,7 +117,6 @@ export async function runCli(): Promise<void> {
 	});
 	// Default action handles non-subcommand args (e.g. prompt text)
 	program.action(() => {});
-	let taskParsedProgram: Command | undefined;
 
 	// Auth subcommand — defines its own options so commander parses them
 	// directly. The short flags -p/-m intentionally shadow the root's -p (plan)
@@ -122,6 +132,10 @@ export async function runCli(): Promise<void> {
 		.option("-b, --baseurl <url>", "Base URL")
 		.option("--config <dir>", "configuration directory")
 		.option("-c, --cwd <path>", "Working directory")
+		.option(
+			"--data-dir <dir>",
+			"Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)",
+		)
 		.option("-v, --verbose", "Show verbose output")
 		.action(async (positionalProvider: string | undefined) => {
 			const opts = authCmd.opts<{
@@ -131,8 +145,26 @@ export async function runCli(): Promise<void> {
 				baseurl?: string;
 				config?: string;
 				cwd?: string;
+				dataDir?: string;
 				verbose?: boolean;
 			}>();
+			// Honor --config inside the action as a defense-in-depth measure.
+			// The early pre-pass in runCli() also calls setClineDir(), but only
+			// for argv tokens it can spot before commander runs. Reapplying
+			// here ensures opts.config (parsed by commander, including the
+			// --config=<dir> form) is always respected before any provider
+			// settings manager is constructed against ~/.cline.
+			if (opts.config?.trim()) {
+				const { setClineDir } = await import("@clinebot/shared/storage");
+				setClineDir(opts.config.trim());
+			}
+			// Honor --data-dir before constructing the provider settings manager
+			// so writes land under the chosen data dir instead of ~/.cline.
+			configureSandboxEnvironment({
+				enabled: !!opts.dataDir || process.env.CLINE_SANDBOX?.trim() === "1",
+				cwd: opts.cwd ?? process.cwd(),
+				explicitDir: opts.dataDir,
+			});
 			const { runAuthCommand } = await import("./commands/auth");
 			const providerSettingsManager = await createProviderSettingsManager();
 			ctx.exitCode = await runAuthCommand({
@@ -362,75 +394,6 @@ export async function runCli(): Promise<void> {
 			);
 		});
 
-	const checkpointCmd = program
-		.command("checkpoint")
-		.description("Inspect or restore session checkpoints")
-		.option("--json", "Output as JSON")
-		.option("--session-id <id>", "Session ID to inspect")
-		.option("--config <dir>", "configuration directory")
-		.action(() => {
-			checkpointCmd.outputHelp();
-			ctx.exitCode = 0;
-		});
-
-	const checkpointStatusCmd = checkpointCmd
-		.command("status")
-		.description("Show the latest checkpoint for a session")
-		.option("--session-id <id>", "Session ID to inspect")
-		.action(async () => {
-			const opts = checkpointStatusCmd.opts();
-			const outputMode =
-				program.opts().json || checkpointCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runCheckpointStatus } = await import("./commands/checkpoint");
-			ctx.exitCode = await runCheckpointStatus({
-				sessionId: opts.sessionId ?? checkpointCmd.opts().sessionId,
-				outputMode,
-				io,
-			});
-		});
-
-	const checkpointListCmd = checkpointCmd
-		.command("list")
-		.description("List checkpoints for a session")
-		.option("--session-id <id>", "Session ID to inspect")
-		.action(async () => {
-			const opts = checkpointListCmd.opts();
-			const outputMode =
-				program.opts().json || checkpointCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runCheckpointList } = await import("./commands/checkpoint");
-			ctx.exitCode = await runCheckpointList({
-				sessionId: opts.sessionId ?? checkpointCmd.opts().sessionId,
-				outputMode,
-				io,
-			});
-		});
-
-	const checkpointRestoreCmd = checkpointCmd
-		.command("restore")
-		.description("Restore a checkpoint into the current working tree")
-		.argument("[selector]", 'Checkpoint selector: "latest" or 1-based index')
-		.option("--session-id <id>", "Session ID to inspect")
-		.option("-y, --yes", "Skip confirmation prompt")
-		.action(async (selector: string | undefined) => {
-			const opts = checkpointRestoreCmd.opts();
-			const outputMode =
-				program.opts().json || checkpointCmd.opts().json
-					? ("json" as const)
-					: ("text" as const);
-			const { runCheckpointRestore } = await import("./commands/checkpoint");
-			ctx.exitCode = await runCheckpointRestore({
-				sessionId: opts.sessionId ?? checkpointCmd.opts().sessionId,
-				selector,
-				yes: opts.yes === true,
-				outputMode,
-				io,
-			});
-		});
-
 	program
 		.command("hook")
 		.description("Handle a hook payload from stdin")
@@ -475,37 +438,6 @@ export async function runCli(): Promise<void> {
 			await hubCmd.parseAsync(cmd.args, { from: "user" });
 		});
 
-	// 'task' is syntactic sugar for the default prompt flow.
-	// Re-parse everything after 'task'/'t' through a fresh root program
-	// so that global options (--model, --timeout, etc.) are properly resolved.
-	const taskCmd = program
-		.command("task")
-		.alias("t")
-		.description("Run a task with the given prompt")
-		.argument("[prompt]", "Task prompt (starts task immediately)")
-		.allowUnknownOption()
-		.allowExcessArguments()
-		.enablePositionalOptions()
-		.passThroughOptions();
-	addRootOptions(taskCmd);
-	taskCmd.action(
-		async (_options: Record<string, unknown>, taskCmd: Command) => {
-			const rootParser = createProgram();
-			rootParser.action(() => {});
-			try {
-				await rootParser.parseAsync(normalizeAutoApproveArgs(taskCmd.args), {
-					from: "user",
-				});
-			} catch (err) {
-				if (err instanceof CommanderError) {
-					throw err;
-				}
-				throw err;
-			}
-			taskParsedProgram = rootParser;
-		},
-	);
-
 	const updateCmd = program
 		.command("update")
 		.description("Check for updates and install if available")
@@ -529,16 +461,20 @@ export async function runCli(): Promise<void> {
 			ctx.exitCode = 0;
 		});
 
+	program
+		.command("kanban")
+		.description("Launch the kanban app and exit")
+		.action(async () => {
+			const { launchKanban } = await import("./commands/kanban");
+			ctx.exitCode = await launchKanban();
+		});
+
 	try {
 		await program.parseAsync(normalizedArgs, { from: "user" });
 	} catch (err: unknown) {
 		if (err instanceof CommanderError) {
 			if (err.exitCode !== 0) {
-				if (err.message.includes("taskId")) {
-					writeErr("--taskId requires <id>");
-				} else {
-					writeErr(err.message);
-				}
+				writeErr(err.message);
 				return;
 			}
 			return;
@@ -551,21 +487,19 @@ export async function runCli(): Promise<void> {
 		return;
 	}
 
-	// Default flow: no subcommand matched, or fall-through from config/history/task.
-	// When 'task'/'t' was used, options were re-parsed into taskParsedProgram.
-	let args = commanderToParsedArgs(taskParsedProgram ?? program);
-	if (args.kanban) {
-		launchKanban();
-		return;
-	}
+	// Default flow: no subcommand matched, or fall-through from config/history.
+	let args = commanderToParsedArgs(program);
 	const cwd = args.cwd ?? process.cwd();
 	const workspaceRoot = resolveWorkspaceRoot(cwd);
+	// Sandbox mode is enabled implicitly whenever --data-dir is provided, or
+	// when CLINE_SANDBOX=1 is set in the environment (in which case the data
+	// dir falls back to $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox).
 	const sandboxEnabled =
-		args.sandbox || process.env.CLINE_SANDBOX?.trim() === "1";
+		!!args.dataDir || process.env.CLINE_SANDBOX?.trim() === "1";
 	const sandboxDataDir = configureSandboxEnvironment({
 		enabled: sandboxEnabled,
 		cwd,
-		explicitDir: args.sandboxDir,
+		explicitDir: args.dataDir,
 	});
 
 	let resumeSessionId: string | undefined = ctx.resumeSessionId;
@@ -577,10 +511,10 @@ export async function runCli(): Promise<void> {
 		};
 	}
 
-	if (args.taskId !== undefined) {
-		const sessionId = args.taskId.trim();
+	if (args.id !== undefined) {
+		const sessionId = args.id.trim();
 		if (!sessionId) {
-			writeErr("--taskId requires <id>");
+			writeErr("--id requires <session-id>");
 			process.exitCode = 1;
 			return;
 		}
@@ -623,9 +557,9 @@ export async function runCli(): Promise<void> {
 		process.exitCode = 1;
 		return;
 	}
-	if (args.invalidMaxConsecutiveMistakes) {
+	if (args.invalidRetries) {
 		writeln(
-			`${c.dim}[warn] ignoring invalid --max-consecutive-mistakes value "${args.invalidMaxConsecutiveMistakes}" (expected integer >= 1)${c.reset}`,
+			`${c.dim}[warn] ignoring invalid --retries value "${args.invalidRetries}" (expected integer >= 1)${c.reset}`,
 		);
 	}
 	if (args.hooksDir?.trim()) {
@@ -703,7 +637,7 @@ export async function runCli(): Promise<void> {
 		const isYoloMode = args.mode === "yolo";
 		const isZenMode = args.mode === "zen";
 
-		// In headless mode (yolo / json / piped stdin without --interactive),
+		// In headless mode (yolo / json / piped stdin without --tui),
 		// don't attempt browser-based OAuth. Authentication may still resolve at
 		// runtime from environment-based provider auth or persisted OAuth tokens.
 		const isHeadless =
@@ -774,9 +708,8 @@ export async function runCli(): Promise<void> {
 				rules: loadRulesForSystemPromptFromWatcher(userInstructionWatcher),
 				mode: args.mode ?? "act",
 			}),
-			maxIterations: args.maxIterations,
 			execution: {
-				maxConsecutiveMistakes: args.maxConsecutiveMistakes ?? 3,
+				maxConsecutiveMistakes: args.retries ?? 3,
 			},
 			compaction: {
 				enabled: true,
@@ -784,7 +717,6 @@ export async function runCli(): Promise<void> {
 			timeoutSeconds: args.timeoutSeconds,
 			sandbox: sandboxEnabled,
 			sandboxDataDir,
-			showUsage: args.showUsage,
 			verbose: args.verbose,
 			thinking: effectiveReasoningEffort !== "none",
 			reasoningEffort:

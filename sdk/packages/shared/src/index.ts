@@ -223,7 +223,12 @@ export {
 	VertexModelSchema,
 	VertexSettingsSchema,
 } from "./remote-config/schema";
-export { CLINE_DEFAULT_RPC_ADDRESS, CLINE_DEFAULT_RPC_PORT } from "./rpc";
+export {
+	CLINE_DEFAULT_RPC_ADDRESS,
+	CLINE_DEFAULT_RPC_PORT,
+	CLINE_HUB_DEV_PORT,
+	CLINE_HUB_PORT,
+} from "./rpc";
 export type {
 	AddProviderActionRequest,
 	ChatAttachmentFile,

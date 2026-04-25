@@ -54,7 +54,6 @@ export async function buildConnectorStartRequest(input: {
 		apiKey?: string;
 		systemPrompt?: string;
 		mode: "act" | "plan";
-		maxIterations?: number;
 		enableTools: boolean;
 	};
 	io: ConnectIo;
@@ -115,7 +114,6 @@ export async function buildConnectorStartRequest(input: {
 		apiKey,
 		systemPrompt,
 		logger: input.loggerConfig,
-		maxIterations: input.options.maxIterations,
 		enableTools: input.options.enableTools,
 		autoApproveTools: false,
 	};

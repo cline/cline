@@ -346,6 +346,19 @@ describe("NodeHubClient", () => {
 });
 
 describe("resolveCompatibleLocalHubUrl", () => {
+	// Reset the module registry *before* each test so the `vi.doMock(...)`
+	// calls below register against a fresh `./client` module graph. Without
+	// this, the static `import { NodeHubClient } from "./client"` at the top
+	// of the file has already cached `./client` (and its real `./discovery`
+	// + `./workspace` bindings) before any test runs, so `vi.doMock` never
+	// takes effect for the dynamic `await import("./client")`. That cache
+	// contamination causes the test to hit the real discovery/probe code
+	// path and fail locally whenever a stray hub daemon is listening on
+	// the default port (passes in CI only because no daemon is running).
+	beforeEach(() => {
+		vi.resetModules();
+	});
+
 	afterEach(() => {
 		vi.unstubAllGlobals();
 		delete process.env.CLINE_HUB_BUILD_ID;

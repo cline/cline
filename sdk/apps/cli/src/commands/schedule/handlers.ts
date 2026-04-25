@@ -61,7 +61,6 @@ export function registerScheduleCommands(
 		.option("--created-by <name>", "Creator name")
 		.option("--cwd <path>", "Working directory")
 		.option("--disabled", "Create in disabled state")
-		.option("--max-iterations <n>", "Maximum iterations")
 		.option("--max-parallel <n>", "Max parallel executions", "1")
 		.option("--metadata-json <json>", "Metadata as JSON object")
 		.option("--mode <act|plan>", "Execution mode")
@@ -101,9 +100,6 @@ export function registerScheduleCommands(
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,
-					maxIterations: opts.maxIterations
-						? toPositiveInt(opts.maxIterations, 1)
-						: undefined,
 					timeoutSeconds: opts.timeout
 						? toPositiveInt(opts.timeout, 1)
 						: undefined,

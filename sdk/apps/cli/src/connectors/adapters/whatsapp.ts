@@ -15,6 +15,7 @@ import { createCliLoggerAdapter } from "../../logging/adapter";
 import {
 	ensureCliHubServer,
 	parseHubEndpointOverride,
+	resolveDefaultCliRpcAddress,
 } from "../../utils/hub-runtime";
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
@@ -287,7 +288,6 @@ class WhatsAppConnector extends ConnectorBase<
 			.option("--cwd <path>", "Workspace / cwd for runtime")
 			.option("--mode <act|plan>", "Agent mode", "act")
 			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--max-iterations <n>", "Optional max iterations")
 			.option("--enable-tools", "Enable tools for WhatsApp sessions")
 			.option(
 				"--hook-command <command>",
@@ -296,7 +296,7 @@ class WhatsAppConnector extends ConnectorBase<
 			.option(
 				"--rpc-address <host:port>",
 				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || "127.0.0.1:25463",
+				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
 			)
 			.option("--host <host>", "Webhook listen host")
 			.option("--port <port>", "Webhook listen port")
@@ -330,7 +330,6 @@ class WhatsAppConnector extends ConnectorBase<
 			system?: string;
 			mode?: string;
 			interactive?: boolean;
-			maxIterations?: string;
 			enableTools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
@@ -364,15 +363,11 @@ class WhatsAppConnector extends ConnectorBase<
 			systemPrompt: opts.system,
 			mode: this.parseMode(opts.mode),
 			interactive: Boolean(opts.interactive),
-			maxIterations: this.parseOptionalInteger(
-				opts.maxIterations,
-				"max iterations",
-			),
 			enableTools: Boolean(opts.enableTools),
 			rpcAddress:
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
-				"127.0.0.1:25463",
+				resolveDefaultCliRpcAddress(),
 			hookCommand:
 				opts.hookCommand?.trim() ||
 				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),

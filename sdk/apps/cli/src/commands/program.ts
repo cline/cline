@@ -1,4 +1,4 @@
-import { Command, CommanderError } from "commander";
+import { Command, CommanderError, Option } from "commander";
 import { version } from "../../package.json";
 import type { ParsedArgs } from "../utils/types";
 
@@ -18,56 +18,58 @@ function normalizeAutoApproveValue(
  */
 export function addRootOptions(cmd: Command): Command {
 	return cmd
-		.option(
-			"--acp",
-			"Run in ACP (Agent Client Protocol) mode for editor integration",
-		)
 		.option("-a, --act", "Run in act mode")
+		.option("-p, --plan", "Run in plan mode")
+		.addOption(
+			// `-y, --yolo` is still accepted (and behaves the same as before) but
+			// hidden from `--help` output.
+			new Option(
+				"-y, --yolo",
+				"Enable yolo mode where agents can use tools without approval with only a small set of tools available.",
+			).hideHelp(),
+		)
 		.option(
 			"--autoapprove [value]",
 			"Set tool auto-approval for all tools (`true` or `false`)",
 			normalizeAutoApproveValue,
 		)
-		.option("--config <dir>", "Configuration directory")
-		.option("-c, --cwd <path>", "Working directory")
-		.option(
-			"--hooks-dir <dir>",
-			"Path to additional hooks directory for runtime hook injection",
-		)
-		.option("-i, --interactive", "Start interactive chat mode")
-		.option("--json", "Output messages as JSON instead of styled text")
-		.option("--kanban", "Launch the kanban app and exit")
-		.option("-k, --key <api-key>", "API key override for this run")
-		.option("--apiKey <api-key>") // hidden alias for --key
-		.option(
-			"--max-consecutive-mistakes <count>",
-			"Maximum consecutive mistakes before halting",
-		)
-		.option("-n, --max-iterations <count>")
-		.option("-m, --model <model>", "Model to use for the task")
-		.option("-p, --plan", "Run in plan mode")
-		.option("-P, --provider <id>", "Provider id (default: cline)")
-		.option(
-			"--reasoning-effort <level>",
-			"Reasoning effort: none|low|medium|high|xhigh",
-		)
-		.option("--refresh-models", "Refresh provider model catalog for this run")
-		.option("--sandbox", "Use isolated local state instead of ~/.cline")
-		.option(
-			"--sandbox-dir <dir>",
-			"Sandbox state dir (default: $CLINE_SANDBOX_DATA_DIR or /tmp/cline-sandbox)",
-		)
-		.option("-s, --system <prompt>", "Override the system prompt")
-		.option("-T, --taskId <id>", "Resume an existing task by ID")
-		.option("--team-name <name>", "Override the runtime team state name")
-		.option("--thinking", "Enable extended thinking (default: medium effort)")
 		.option(
 			"-t, --timeout <seconds>",
 			"Optional timeout in seconds (applies only when provided)",
 		)
-		.option("-u, --usage", "Show token usage and estimated cost")
+		.option("-m, --model <model>", "Model to use for the task")
 		.option("-v, --verbose", "Show verbose output")
-		.option("-y, --yolo", "Enable yolo mode (auto-approve actions)")
+		.option("-c, --cwd <path>", "Working directory")
+		.option("--config <dir>", "Configuration directory")
+		.option(
+			"--data-dir <dir>",
+			"Use isolated local state at <dir> instead of ~/.cline (enables sandbox mode)",
+		)
+		.option("--thinking", "Enable extended thinking (default: medium effort)")
+		.option(
+			"--reasoning-effort <level>",
+			"Reasoning effort: none|low|medium|high|xhigh",
+		)
+		.option(
+			"--retries <count>",
+			"Maximum consecutive mistakes (retries) before halting",
+		)
+		.option("--json", "Output messages as JSON instead of styled text")
+		.option(
+			"--hooks-dir <dir>",
+			"Path to additional hooks directory for runtime hook injection",
+		)
+		.option(
+			"--acp",
+			"Run in ACP (Agent Client Protocol) mode for editor integration",
+		)
+		.option("-i, --tui", "Start interactive TUI chat mode")
+		.option("--id <id>", "Resume an existing task by ID")
+		.option("-k, --key <api-key>", "API key override for this run")
+		.option("-P, --provider <id>", "Provider id (default: cline)")
+		.option("--refresh-models", "Refresh provider model catalog for this run")
+		.option("-s, --system <prompt>", "Override the system prompt")
+		.option("--team-name <name>", "Override the runtime team state name")
 		.option(
 			"-z, --zen",
 			"Run the task in the background hub and exit immediately (menubar app notifies on completion)",
@@ -75,7 +77,7 @@ export function addRootOptions(cmd: Command): Command {
 }
 
 export function createProgram(): Command {
-	const program = new Command("clite")
+	const program = new Command("clite") // Temporary name; will be invoked as `cline` in practice
 		.description("Cline CLI - AI coding assistant in your terminal")
 		.version(version, "-V, --version", "Output the version number")
 		.exitOverride() // don't call process.exit
@@ -97,18 +99,17 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	const opts = program.opts();
 
 	const result: ParsedArgs = {
-		kanban: !!opts.kanban,
 		verbose: !!opts.verbose,
-		interactive: !!opts.interactive,
-		showUsage: !!opts.usage,
+		interactive: !!opts.tui,
 		outputMode: opts.json ? "json" : "text",
 		mode: opts.plan ? "plan" : opts.yolo ? "yolo" : opts.zen ? "zen" : "act",
-		sandbox: !!opts.sandbox,
+		sandbox: !!opts.dataDir,
 		acpMode: !!opts.acp,
 		thinking: !!opts.thinking,
 		reasoningEffort: undefined,
 		liveModelCatalog: !!opts.refreshModels,
 		defaultToolAutoApprove: true,
+		id: opts.id,
 	};
 
 	// Approval: last-wins semantics
@@ -152,19 +153,19 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 		}
 	}
 
-	// Max consecutive mistakes validation
-	if (opts.maxConsecutiveMistakes !== undefined) {
-		const raw = opts.maxConsecutiveMistakes.trim();
+	// Retries (max consecutive mistakes) validation
+	if (opts.retries !== undefined) {
+		const raw = opts.retries.trim();
 		const parsed = Number.parseInt(raw, 10);
 		if (raw && Number.isInteger(parsed) && parsed >= 1) {
-			result.maxConsecutiveMistakes = parsed;
+			result.retries = parsed;
 		} else if (raw) {
-			result.invalidMaxConsecutiveMistakes = raw;
+			result.invalidRetries = raw;
 		}
 	}
 
 	// Simple string/number options
-	if (opts.sandboxDir !== undefined) result.sandboxDir = opts.sandboxDir;
+	if (opts.dataDir !== undefined) result.dataDir = opts.dataDir;
 	if (opts.config !== undefined) result.configDir = opts.config;
 	if (opts.hooksDir !== undefined) result.hooksDir = opts.hooksDir;
 	if (opts.cwd !== undefined) result.cwd = opts.cwd;
@@ -174,11 +175,7 @@ export function commanderToParsedArgs(program: Command): ParsedArgs {
 	if (opts.provider !== undefined) result.provider = opts.provider;
 	if (opts.key !== undefined) result.key = opts.key;
 	else if (opts.apiKey !== undefined) result.key = opts.apiKey;
-	if (opts.taskId !== undefined) result.taskId = opts.taskId;
-
-	if (opts.maxIterations !== undefined) {
-		result.maxIterations = Number.parseInt(opts.maxIterations, 10);
-	}
+	if (opts.id !== undefined) result.id = opts.id;
 
 	// Positional args → prompt
 	const positional = program.args.filter((a) => !a.startsWith("-"));

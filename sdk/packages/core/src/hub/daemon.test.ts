@@ -42,6 +42,9 @@ vi.mock("node:fs", () => ({
 }));
 
 vi.mock("@clinebot/shared", () => ({
+	CLINE_HUB_PORT: 25463,
+	CLINE_HUB_DEV_PORT: 25466,
+	resolveClineBuildEnv: () => "production",
 	withResolvedClineBuildEnv: (env: NodeJS.ProcessEnv) => env,
 }));
 

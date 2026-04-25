@@ -1,4 +1,5 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, isAbsolute, resolve } from "node:path";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -75,7 +76,33 @@ export function registerScheduleExportCommand(
 					fail();
 					return;
 				}
-				if (opts.json || (opts.to && isJsonPath(opts.to))) {
+				const toPath =
+					typeof opts.to === "string" && opts.to.length > 0
+						? opts.to
+						: undefined;
+				if (toPath) {
+					try {
+						const resolvedPath = isAbsolute(toPath)
+							? toPath
+							: resolve(process.cwd(), toPath);
+						await mkdir(dirname(resolvedPath), { recursive: true });
+						const useJson = !!opts.json || isJsonPath(resolvedPath);
+						let serialized: string;
+						if (useJson) {
+							serialized = JSON.stringify(result, null, 2);
+						} else {
+							const yaml = await import("yaml");
+							serialized = yaml.stringify(result);
+						}
+						await writeFile(resolvedPath, serialized, "utf8");
+						io.writeln(`Exported schedule ${scheduleId} to ${resolvedPath}`);
+					} catch (error) {
+						io.writeErr(error instanceof Error ? error.message : String(error));
+						fail();
+					}
+					return;
+				}
+				if (opts.json) {
 					io.writeln(JSON.stringify(result, null, 2));
 					return;
 				}
@@ -144,12 +171,6 @@ export function registerScheduleImportCommand(
 					systemPrompt:
 						String(parsed.systemPrompt ?? parsed.system_prompt ?? "").trim() ||
 						undefined,
-					maxIterations:
-						typeof parsed.maxIterations === "number"
-							? parsed.maxIterations
-							: typeof parsed.max_iterations === "number"
-								? parsed.max_iterations
-								: undefined,
 					timeoutSeconds:
 						typeof parsed.timeoutSeconds === "number"
 							? parsed.timeoutSeconds
@@ -201,13 +222,11 @@ export function registerScheduleUpdateCommand(
 		.command("update")
 		.description("Update a schedule")
 		.argument("<schedule-id>", "Schedule ID")
-		.option("--clear-max-iterations", "Clear max iterations")
 		.option("--clear-timeout", "Clear timeout")
 		.option("--cron <pattern>", "New cron pattern")
 		.option("--cwd <path>", "New working directory")
 		.option("--disabled", "Disable the schedule")
 		.option("--enabled", "Enable the schedule")
-		.option("--max-iterations <n>", "New max iterations")
 		.option("--max-parallel <n>", "New max parallel executions")
 		.option("--metadata-json <json>", "New metadata as JSON object")
 		.option("--mode <act|plan>", "New execution mode")
@@ -276,11 +295,6 @@ export function registerScheduleUpdateCommand(
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,
 					systemPrompt: opts.systemPrompt,
-					maxIterations: opts.maxIterations
-						? toPositiveInt(opts.maxIterations, 1)
-						: opts.clearMaxIterations
-							? null
-							: undefined,
 					timeoutSeconds: opts.timeout
 						? toPositiveInt(opts.timeout, 1)
 						: opts.clearTimeout

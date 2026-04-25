@@ -44,7 +44,6 @@ describe("parseArgs", () => {
 		expect(parsed).toEqual({
 			verbose: false,
 			interactive: false,
-			showUsage: false,
 			outputMode: "text",
 			mode: "act",
 			sandbox: false,
@@ -53,7 +52,6 @@ describe("parseArgs", () => {
 			reasoningEffort: undefined,
 			liveModelCatalog: false,
 			defaultToolAutoApprove: true,
-			kanban: false,
 		});
 	});
 
@@ -72,7 +70,6 @@ describe("parseArgs", () => {
 			"gpt-5",
 			"--key",
 			"abc123",
-			"--usage",
 			"--thinking",
 			"--reasoning-effort",
 			"high",
@@ -86,7 +83,6 @@ describe("parseArgs", () => {
 		expect(parsed.prompt).toBe("Audit the repo");
 		expect(parsed.verbose).toBe(true);
 		expect(parsed.defaultToolAutoApprove).toBe(false);
-		expect(parsed.showUsage).toBe(true);
 		expect(parsed.thinking).toBe(true);
 		expect(parsed.reasoningEffort).toBe("high");
 		expect(parsed.liveModelCatalog).toBe(true);
@@ -105,10 +101,16 @@ describe("parseArgs", () => {
 		expect(parsed.provider).toBe("cline");
 	});
 
-	it("parses sandbox flags", () => {
-		const parsed = parseArgs(["--sandbox", "--sandbox-dir", "./.tmp-cline"]);
+	it("enables sandbox automatically when --data-dir is set", () => {
+		const parsed = parseArgs(["--data-dir", "./.tmp-cline"]);
 		expect(parsed.sandbox).toBe(true);
-		expect(parsed.sandboxDir).toBe("./.tmp-cline");
+		expect(parsed.dataDir).toBe("./.tmp-cline");
+	});
+
+	it("does not enable sandbox when --data-dir is omitted", () => {
+		const parsed = parseArgs([]);
+		expect(parsed.sandbox).toBe(false);
+		expect(parsed.dataDir).toBeUndefined();
 	});
 
 	it("parses --autoapprove false as global approval-off", () => {
@@ -155,15 +157,10 @@ describe("parseArgs", () => {
 		expect(parsedInvalid.invalidReasoningEffort).toBe("ultra");
 	});
 
-	it("parses task resume flag", () => {
-		const parsed = parseArgs(["-T", "session_123"]);
-		expect(parsed.taskId).toBe("session_123");
-	});
-
-	it("parses max consecutive mistakes when valid", () => {
-		const parsed = parseArgs(["--max-consecutive-mistakes", "5"]);
-		expect(parsed.maxConsecutiveMistakes).toBe(5);
-		expect(parsed.invalidMaxConsecutiveMistakes).toBeUndefined();
+	it("parses --retries when valid", () => {
+		const parsed = parseArgs(["--retries", "5"]);
+		expect(parsed.retries).toBe(5);
+		expect(parsed.invalidRetries).toBeUndefined();
 	});
 
 	it("supports yolo as an auto-approval shortcut", () => {
@@ -189,10 +186,10 @@ describe("parseArgs", () => {
 		expect(invalid.invalidTimeoutSeconds).toBe("abc");
 	});
 
-	it("records invalid max consecutive mistakes values", () => {
-		const parsed = parseArgs(["--max-consecutive-mistakes", "0"]);
-		expect(parsed.maxConsecutiveMistakes).toBeUndefined();
-		expect(parsed.invalidMaxConsecutiveMistakes).toBe("0");
+	it("records invalid --retries values", () => {
+		const parsed = parseArgs(["--retries", "0"]);
+		expect(parsed.retries).toBeUndefined();
+		expect(parsed.invalidRetries).toBe("0");
 	});
 });
 

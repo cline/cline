@@ -874,7 +874,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				setHistoryIndex(-1);
 			}
 
-			const startedAt = performance.now();
 			try {
 				const result = await onSubmit(prompt, uiMode, delivery);
 				if (result.commandOutput) {
@@ -887,19 +886,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 				setLastTotalTokens(tokens);
 				if (typeof result.usage.totalCost === "number") {
 					setLastTotalCost(result.usage.totalCost);
-				}
-				if (!result.commandOutput && config.showUsage) {
-					const elapsed = ((performance.now() - startedAt) / 1000).toFixed(2);
-					appendEntry({
-						kind: "done",
-						tokens: config.showUsage ? tokens : 0,
-						cost:
-							config.showUsage && typeof result.usage.totalCost === "number"
-								? result.usage.totalCost
-								: 0,
-						elapsed,
-						iterations: result.iterations,
-					});
 				}
 			} catch (error) {
 				if (!turnErrorReportedRef.current) {
@@ -919,7 +905,6 @@ export function InteractiveTui(props: InteractiveTuiProps): React.ReactElement {
 		[
 			appendEntry,
 			closeInlineStream,
-			config.showUsage,
 			onSubmit,
 			onTurnErrorReported,
 			refreshRepoStatus,

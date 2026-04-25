@@ -19,7 +19,6 @@ test.describe("root flag descriptions", () => {
 		await expectVisible(terminal, [
 			"Run in act mode",
 			"Run in plan mode",
-			"yolo mode",
 			"timeout in seconds",
 			"Model to use",
 			"verbose output",
@@ -29,53 +28,13 @@ test.describe("root flag descriptions", () => {
 			"Reasoning effort",
 			"consecutive mistakes",
 			"Output messages as JSON",
-			// "first completion attempt", // double check completion flag is not required
 			"ACP",
-			"Resume an existing task",
 		]);
 	});
 
 	test("all short flag aliases are shown", async ({ terminal }) => {
-		await expectVisible(terminal, [
-			"-a",
-			"-p",
-			"-y",
-			"-t",
-			"-m",
-			"-v",
-			"-c",
-			"-T",
-		]);
-	});
-});
-
-// ===========================================================================
-// Task subcommand flag descriptions
-// ===========================================================================
-test.describe("task flag descriptions", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["task", "--help"] },
-		env: clineEnv("default"),
-		...HELP_TERMINAL,
-	});
-
-	test("all task flags have correct descriptions", async ({ terminal }) => {
-		await expectVisible(terminal, [
-			"Run in act mode",
-			"Run in plan mode",
-			"yolo mode",
-			"timeout in seconds",
-			"Model to use",
-			"verbose output",
-			"Working directory",
-			"Configuration directory",
-			"extended thinking",
-			"Reasoning effort",
-			"consecutive mistakes",
-			"Output messages as JSON",
-			// "first completion attempt",
-			"Resume an existing task",
-		]);
+		// `-y` is intentionally hidden from help (still accepted at parse time).
+		await expectVisible(terminal, ["-a", "-p", "-t", "-m", "-v", "-c"]);
 	});
 });
 

@@ -1,4 +1,4 @@
-import { writeFile } from "node:fs/promises";
+import { readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -148,5 +148,112 @@ describe("runScheduleCommand import", () => {
 				}),
 			},
 		);
+	});
+});
+
+describe("runScheduleCommand export", () => {
+	afterEach(() => {
+		vi.clearAllMocks();
+	});
+
+	it("writes JSON content to the --to file path", async () => {
+		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		const scheduleRecord = {
+			scheduleId: "sched_abc",
+			name: "Daily Review",
+			cronPattern: "0 9 * * *",
+			prompt: "review status",
+			workspaceRoot: "/tmp/workspace",
+		};
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: scheduleRecord },
+		});
+
+		const targetPath = join(
+			tmpdir(),
+			`clite-schedule-export-${Date.now()}-${Math.random()
+				.toString(36)
+				.slice(2)}.json`,
+		);
+
+		const output: string[] = [];
+		const errors: string[] = [];
+		try {
+			const code = await runScheduleCommand(
+				["export", "sched_abc", "--to", targetPath],
+				{
+					writeln: (text?: string) => {
+						output.push(text ?? "");
+					},
+					writeErr: (text: string) => {
+						errors.push(text);
+					},
+				},
+			);
+
+			expect(code).toBe(0);
+			expect(errors).toEqual([]);
+			expect(output).toEqual([`Exported schedule sched_abc to ${targetPath}`]);
+
+			const written = await readFile(targetPath, "utf8");
+			expect(written).toBe(JSON.stringify(scheduleRecord, null, 2));
+			expect(mockSendHubCommand).toHaveBeenCalledWith(
+				{},
+				{
+					clientId: "clite-schedule",
+					command: "schedule.get",
+					payload: { scheduleId: "sched_abc" },
+				},
+			);
+		} finally {
+			await rm(targetPath, { force: true });
+		}
+	});
+
+	it("writes YAML content when --to has a non-json extension", async () => {
+		mockEnsureCliHubServer.mockResolvedValue("ws://127.0.0.1:25463/hub");
+		const scheduleRecord = {
+			scheduleId: "sched_yaml",
+			name: "Weekly Sync",
+			cronPattern: "0 9 * * 1",
+		};
+		mockSendHubCommand.mockResolvedValue({
+			ok: true,
+			payload: { schedule: scheduleRecord },
+		});
+
+		const targetPath = join(
+			tmpdir(),
+			`clite-schedule-export-${Date.now()}-${Math.random()
+				.toString(36)
+				.slice(2)}.yaml`,
+		);
+
+		const output: string[] = [];
+		const errors: string[] = [];
+		try {
+			const code = await runScheduleCommand(
+				["export", "sched_yaml", "--to", targetPath],
+				{
+					writeln: (text?: string) => {
+						output.push(text ?? "");
+					},
+					writeErr: (text: string) => {
+						errors.push(text);
+					},
+				},
+			);
+
+			expect(code).toBe(0);
+			expect(errors).toEqual([]);
+			expect(output).toEqual([`Exported schedule sched_yaml to ${targetPath}`]);
+
+			const yaml = await import("yaml");
+			const written = await readFile(targetPath, "utf8");
+			expect(written).toBe(yaml.stringify(scheduleRecord));
+		} finally {
+			await rm(targetPath, { force: true });
+		}
 	});
 });

@@ -36,6 +36,7 @@ import type { CoreSessionEvent } from "../types/events";
 import type { SessionRecord as LocalSessionRecord } from "../types/sessions";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import { verifyHubConnection } from "./client";
+import { resolveDefaultHubPort } from "./defaults";
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
@@ -1791,7 +1792,7 @@ export async function startHubWebSocketServer(
 	const owner = options.owner ?? resolveHubOwnerContext();
 	const host = options.host ?? "127.0.0.1";
 	const pathname = options.pathname ?? "/hub";
-	const requestedPort = options.port ?? 25463;
+	const requestedPort = options.port ?? resolveDefaultHubPort();
 	let port = requestedPort;
 	let url = createHubServerUrl(host, requestedPort, pathname);
 	const buildId = resolveHubBuildId();
@@ -1959,7 +1960,7 @@ export async function ensureHubWebSocketServer(
 ): Promise<EnsuredHubWebSocketServerResult> {
 	const owner = options.owner ?? resolveHubOwnerContext();
 	const host = options.host ?? "127.0.0.1";
-	const port = options.port ?? 25463;
+	const port = options.port ?? resolveDefaultHubPort();
 	const pathname = options.pathname ?? "/hub";
 	const expectedUrl = createHubServerUrl(host, port, pathname);
 	const sharedKey = owner.discoveryPath;

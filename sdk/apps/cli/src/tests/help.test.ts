@@ -18,7 +18,6 @@ test.describe("cline --help", () => {
 	test("shows Usage line and lists all subcommands", async ({ terminal }) => {
 		await expectVisible(terminal, [
 			"Usage:",
-			"task|t",
 			"history|h",
 			"auth [options]",
 			"version",
@@ -31,7 +30,6 @@ test.describe("cline --help", () => {
 		await expectVisible(terminal, [
 			"--act",
 			"--plan",
-			"--yolo",
 			"--timeout",
 			"--model",
 			"--verbose",
@@ -39,11 +37,9 @@ test.describe("cline --help", () => {
 			"--config",
 			"--thinking",
 			"--reasoning-effort",
-			"--max-consecutive-mistakes",
+			"--retries",
 			"--json",
-			// "--double-check-completion", bee says this isn't required in the new CLI
 			"--acp",
-			"--taskId",
 		]);
 	});
 });
@@ -60,54 +56,6 @@ test.describe("cline -h", () => {
 
 	test("shows Usage line with short flag", async ({ terminal }) => {
 		await expectVisible(terminal, "Usage:");
-	});
-});
-
-// ===========================================================================
-// cline task --help
-// ===========================================================================
-test.describe("cline task --help", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["task", "--help"] },
-		env: clineEnv("claude-sonnet-4.6"),
-		...HELP_TERMINAL,
-	});
-
-	test("shows task usage, prompt argument, and all flags", async ({
-		terminal,
-	}) => {
-		await expectVisible(terminal, [
-			"Usage:",
-			"prompt",
-			"--plan",
-			"--yolo",
-			"--zen",
-			"--timeout",
-			"--model",
-			"--verbose",
-			"--cwd",
-			"--config",
-			"--thinking",
-			"--reasoning-effort",
-			"--max-consecutive-mistakes",
-			"--json",
-			"--taskId",
-		]);
-	});
-});
-
-// ===========================================================================
-// cline t --help  (task alias)
-// ===========================================================================
-test.describe("cline t --help (task alias)", () => {
-	test.use({
-		program: { file: CLINE_BIN, args: ["t", "--help"] },
-		env: clineEnv("claude-sonnet-4.6"),
-		...HELP_TERMINAL,
-	});
-
-	test("shows task usage and flags via alias", async ({ terminal }) => {
-		await expectVisible(terminal, ["Usage:", "--yolo"]);
 	});
 });
 

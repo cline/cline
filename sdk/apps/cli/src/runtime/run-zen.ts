@@ -20,8 +20,9 @@ const ZEN_DISPATCH_ACK_TIMEOUT_MS = 5_000;
  *
  * Because no human is available to approve tool calls once the CLI exits,
  * zen mode forces full tool auto-approval (same semantics as yolo) and only
- * works with a hub-backed session. Sandbox mode is incompatible with zen
- * because sandbox requires a local backend that terminates with the CLI.
+ * works with a hub-backed session. Sandbox mode (enabled via --data-dir) is
+ * incompatible with zen because sandbox requires a local backend that
+ * terminates with the CLI.
  */
 export async function runZen(
 	prompt: string,
@@ -30,7 +31,7 @@ export async function runZen(
 ): Promise<void> {
 	if (config.sandbox) {
 		writeErr(
-			"--zen cannot be combined with --sandbox (sandbox requires a local backend).",
+			"--zen cannot be combined with --data-dir (sandbox requires a local backend).",
 		);
 		process.exitCode = 1;
 		return;
@@ -85,7 +86,6 @@ export async function runZen(
 			// auto-approved without a human in the loop.
 			mode: "yolo",
 			rules: undefined,
-			maxIterations: config.maxIterations,
 			enableTools: true,
 			enableSpawn: false,
 			enableTeams: false,

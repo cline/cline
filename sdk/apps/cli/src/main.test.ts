@@ -52,11 +52,6 @@ const historyMocks = vi.hoisted(() => ({
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
 }));
-const checkpointMocks = vi.hoisted(() => ({
-	runCheckpointStatus: vi.fn(async () => 0),
-	runCheckpointList: vi.fn(async () => 0),
-	runCheckpointRestore: vi.fn(async () => 0),
-}));
 const loggingMocks = vi.hoisted(() => ({
 	createCliLoggerAdapter: vi.fn(() => ({
 		core: {
@@ -136,7 +131,6 @@ vi.mock("./runtime/prompt", () => ({
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/history", () => historyMocks);
-vi.mock("./commands/checkpoint", () => checkpointMocks);
 vi.mock("./logging/adapter", () => loggingMocks);
 vi.mock("./utils/hub-runtime", () => hubRuntimeMocks);
 
@@ -158,12 +152,6 @@ describe("runCli lightweight command dispatch", () => {
 		historyMocks.runHistoryExport.mockResolvedValue(0);
 		historyMocks.runHistoryUpdate.mockReset();
 		historyMocks.runHistoryUpdate.mockResolvedValue(0);
-		checkpointMocks.runCheckpointStatus.mockReset();
-		checkpointMocks.runCheckpointStatus.mockResolvedValue(0);
-		checkpointMocks.runCheckpointList.mockReset();
-		checkpointMocks.runCheckpointList.mockResolvedValue(0);
-		checkpointMocks.runCheckpointRestore.mockReset();
-		checkpointMocks.runCheckpointRestore.mockResolvedValue(0);
 		runtimeMocks.runAgent.mockReset();
 		runtimeMocks.runAgent.mockImplementation(async () => {
 			mockState.runAgentCalls += 1;
@@ -185,9 +173,7 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.parseAuthCommandArgs.mockReset();
 		authMocks.runAuthCommand.mockReset();
 		kanbanMocks.launchKanban.mockReset();
-		kanbanMocks.launchKanban.mockImplementation(() => {
-			process.exitCode = 0;
-		});
+		kanbanMocks.launchKanban.mockResolvedValue(0);
 		// CI: fd 0 is often a pipe with no EOF. If routing ever falls through to agent bootstrap,
 		// `main` can block forever in `for await (process.stdin)` (see `!process.stdin.isTTY && …`).
 		// Mark stdin as a TTY so that path is skipped in unit tests (real piped-input behavior is
@@ -213,20 +199,6 @@ describe("runCli lightweight command dispatch", () => {
 		mockState.runInteractiveImports = 0;
 
 		process.argv = ["bun", "src/index.ts", "history", "--json"];
-
-		const { runCli } = await import("./main");
-
-		await expect(runCli()).resolves.toBeUndefined();
-		expect(process.exitCode).toBe(0);
-		expect(mockState.runAgentImports).toBe(0);
-		expect(mockState.runInteractiveImports).toBe(0);
-	});
-
-	it("does not load runtime modules for checkpoint status json listing", async () => {
-		mockState.runAgentImports = 0;
-		mockState.runInteractiveImports = 0;
-
-		process.argv = ["bun", "src/index.ts", "checkpoint", "--json", "status"];
 
 		const { runCli } = await import("./main");
 
@@ -283,7 +255,7 @@ describe("runCli lightweight command dispatch", () => {
 	});
 
 	it("launches kanban and exits before loading runtime modules", async () => {
-		process.argv = ["bun", "src/index.ts", "--kanban"];
+		process.argv = ["bun", "src/index.ts", "kanban"];
 
 		const { runCli } = await import("./main");
 
@@ -298,13 +270,13 @@ describe("runCli lightweight command dispatch", () => {
 		const stderrWrite = vi
 			.spyOn(process.stderr, "write")
 			.mockImplementation(() => true);
-		kanbanMocks.launchKanban.mockImplementation(() => {
+		kanbanMocks.launchKanban.mockImplementation(async () => {
 			process.stderr.write(
 				'kanban is not installed. Install it with "npm i -g kanban"\n',
 			);
-			process.exitCode = 1;
+			return 1;
 		});
-		process.argv = ["bun", "src/index.ts", "--kanban"];
+		process.argv = ["bun", "src/index.ts", "kanban"];
 
 		const { runCli } = await import("./main");
 
@@ -563,5 +535,73 @@ describe("stdinHasPipedInput", () => {
 		});
 		const { stdinHasPipedInput } = await import("./main");
 		expect(stdinHasPipedInput()).toBe(false);
+	});
+});
+
+describe("resolveConfigDirArg", () => {
+	it("returns undefined when --config is not present", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg([])).toBeUndefined();
+		expect(
+			resolveConfigDirArg(["auth", "--provider", "openai"]),
+		).toBeUndefined();
+	});
+
+	it("parses the space-separated form: --config <dir>", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(["--config", "./mycfg"])).toBe("./mycfg");
+		expect(
+			resolveConfigDirArg([
+				"auth",
+				"--config",
+				"./mycfg",
+				"--provider",
+				"openai",
+			]),
+		).toBe("./mycfg");
+	});
+
+	it("parses the equals form: --config=<dir>", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(["--config=./mycfg"])).toBe("./mycfg");
+		expect(
+			resolveConfigDirArg(["auth", "--config=./mycfg", "--provider", "openai"]),
+		).toBe("./mycfg");
+	});
+
+	it("trims surrounding whitespace from the value", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(["--config", "  ./mycfg  "])).toBe("./mycfg");
+		expect(resolveConfigDirArg(["--config=  ./mycfg  "])).toBe("./mycfg");
+	});
+
+	it("returns undefined for empty or whitespace-only values", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(["--config", ""])).toBeUndefined();
+		expect(resolveConfigDirArg(["--config", "   "])).toBeUndefined();
+		expect(resolveConfigDirArg(["--config="])).toBeUndefined();
+		expect(resolveConfigDirArg(["--config=   "])).toBeUndefined();
+	});
+
+	it("returns undefined when --config has no following value (space form)", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(resolveConfigDirArg(["--config"])).toBeUndefined();
+	});
+
+	it("returns the first occurrence when --config appears multiple times", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		expect(
+			resolveConfigDirArg(["--config", "./first", "--config", "./second"]),
+		).toBe("./first");
+		expect(resolveConfigDirArg(["--config=./first", "--config=./second"])).toBe(
+			"./first",
+		);
+	});
+
+	it("does not match unrelated flags that share a prefix", async () => {
+		const { resolveConfigDirArg } = await import("./main");
+		// e.g. a hypothetical --configure flag must not be picked up.
+		expect(resolveConfigDirArg(["--configure", "./foo"])).toBeUndefined();
+		expect(resolveConfigDirArg(["--configure=./foo"])).toBeUndefined();
 	});
 });

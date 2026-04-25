@@ -79,7 +79,6 @@ describe("runZen", () => {
 			modelId: "test-model",
 			apiKey: "",
 			systemPrompt: "",
-			maxIterations: 1,
 			loggerConfig: undefined,
 			outputMode: "text",
 		} as never);
