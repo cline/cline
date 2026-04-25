@@ -4,6 +4,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
@@ -25,6 +26,8 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const modelInfo = deepSeekModels[selectedModelId as keyof typeof deepSeekModels]
+	const showReasoningEffort = (modelInfo as any)?.supportsReasoningEffort === true
 
 	return (
 		<div>
@@ -49,6 +52,14 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 						}
 						selectedModelId={selectedModelId}
 					/>
+
+					{showReasoningEffort && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="high"
+							description="Controls reasoning depth for DeepSeek V4 Pro. Higher effort improves complex reasoning at the cost of more tokens."
+						/>
+					)}
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>

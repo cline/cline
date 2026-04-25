@@ -1,7 +1,8 @@
 import { DeepSeekModelId, deepSeekDefaultModelId, deepSeekModels, ModelInfo } from "@shared/api"
+import { normalizeOpenaiReasoningEffort } from "@shared/storage/types"
 import { calculateApiCostOpenAI } from "@utils/cost"
 import OpenAI from "openai"
-import type { ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
+import type { ChatCompletionReasoningEffort, ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { buildExternalBasicHeaders } from "@/services/EnvUtils"
 import { ClineStorageMessage } from "@/shared/messages/content"
 import { fetch } from "@/shared/net"
@@ -12,9 +13,12 @@ import { addReasoningContent } from "../transform/r1-format"
 import { ApiStream } from "../transform/stream"
 import { getOpenAIToolParams, ToolCallProcessor } from "../transform/tool-call-processor"
 
+type DeepSeekReasoningEffort = "high" | "max"
+
 interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	apiModelId?: string
+	reasoningEffort?: string
 }
 
 export class DeepSeekHandler implements ApiHandler {
@@ -76,17 +80,31 @@ export class DeepSeekHandler implements ApiHandler {
 		}
 	}
 
+	/**
+	 * Maps OpenAI-standard reasoning effort levels to DeepSeek V4 Pro supported values.
+	 * DeepSeek V4 Pro only supports "high" and "max".
+	 * - Any non-"xhigh" value → "high"
+	 * - "xhigh" → "max"
+	 */
+	private toDeepSeekReasoningEffort(effort?: string): DeepSeekReasoningEffort {
+		const normalized = normalizeOpenaiReasoningEffort(effort)
+		return normalized === "xhigh" ? "max" : "high"
+	}
+
 	@withRetry()
 	async *createMessage(systemPrompt: string, messages: ClineStorageMessage[], tools?: OpenAITool[]): ApiStream {
 		const client = this.ensureClient()
 		const model = this.getModel()
 
 		const isDeepseekReasoner = model.id.includes("deepseek-reasoner")
+		const isDeepseekV4Pro = model.id.includes("deepseek-v4-pro")
 
 		const convertedMessages = convertToOpenAiMessages(messages)
 		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
+
+		const reasoningEffort = isDeepseekV4Pro ? this.toDeepSeekReasoningEffort(this.options.reasoningEffort) : undefined
 
 		const stream = await client.chat.completions.create({
 			model: model.id,
@@ -96,6 +114,7 @@ export class DeepSeekHandler implements ApiHandler {
 			stream_options: { include_usage: true },
 			// Only set temperature for non-reasoner models
 			...(model.id === "deepseek-reasoner" ? {} : { temperature: 0 }),
+			...(reasoningEffort ? { reasoning_effort: reasoningEffort as ChatCompletionReasoningEffort } : {}),
 			...getOpenAIToolParams(tools),
 		})
 
