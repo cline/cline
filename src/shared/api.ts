@@ -2139,9 +2139,9 @@ export const deepSeekModels = {
 		supportsImages: false,
 		supportsPromptCache: true,
 		inputPrice: 0, // uses cache-based pricing
-		outputPrice: 3.38,
-		cacheWritesPrice: 1.69,
-		cacheReadsPrice: 0.14,
+		outputPrice: 3.48,
+		cacheWritesPrice: 1.74,
+		cacheReadsPrice: 0.145,
 		supportsReasoning: true,
 		supportsReasoningEffort: true,
 	},
