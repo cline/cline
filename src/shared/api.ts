@@ -1477,8 +1477,7 @@ export const abliterationModels = {
 		inputPrice: 3.0,
 		outputPrice: 3.0,
 		temperature: 0,
-		description:
-			"Abliteration.ai's OpenAI-compatible model with streaming, tool calling, and vision support. Usage is billed on combined input and output tokens.",
+		description: "Abliteration.ai's OpenAI-compatible model with streaming, tool calling, and vision support.",
 	},
 } as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
