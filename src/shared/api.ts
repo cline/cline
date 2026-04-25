@@ -2121,7 +2121,31 @@ export const deepSeekModels = {
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
 	},
-} as const satisfies Record<string, ModelInfo>
+	"deepseek-v4-flash": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0, // uses cache-based pricing
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.14,
+		cacheReadsPrice: 0.03,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+	"deepseek-v4-pro": {
+		maxTokens: 384_000,
+		contextWindow: 1_000_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0, // uses cache-based pricing
+		outputPrice: 3.38,
+		cacheWritesPrice: 1.69,
+		cacheReadsPrice: 0.14,
+		supportsReasoning: true,
+		supportsReasoningEffort: true,
+	},
+} as const satisfies Record<string, OpenAiCompatibleModelInfo>
 
 // Hugging Face Inference Providers
 // https://huggingface.co/docs/inference-providers/en/index
