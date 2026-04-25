@@ -3,26 +3,16 @@ import type {
 	GatewayStreamRequest,
 } from "@clinebot/shared";
 import { resolveModelFamily } from "./anthropic-compatible";
+import type { ProviderOptionsPatch } from "./utils";
 
 /**
  * GLM thinking routing.
  *
  * Native Z.AI uses `thinking: { type: "enabled" | "disabled" }`.
  * Routed OpenAI-compatible GLM endpoints should use the generic `reasoning`
- * control shape. Keep the native Z.AI dialect out of the generic
- * OpenAI-compatible request builder.
+ * control shape. The return value is a normal provider-options patch so the
+ * composer can rely on merge order instead of out-of-band flags.
  */
-
-interface GlmThinkingProviderOptions {
-	/** Options safe to include in generic OpenAI-compatible provider options. */
-	compatible?: Record<string, unknown>;
-	/** Options for the concrete provider id, e.g. `zai`, `cline`, or `openrouter`. */
-	provider?: Record<string, unknown>;
-	/** Options for the AI SDK provider-options alias, e.g. `openRouter` or `vercelAiGateway`. */
-	providerOptionsKey?: Record<string, unknown>;
-	/** True when `compatible` already chose the thinking option shape. */
-	handlesCompatibleThinking?: boolean;
-}
 
 export function isGlmModel(
 	request: GatewayStreamRequest,
@@ -35,6 +25,20 @@ export function isGlmModel(
 
 export function isNativeZaiProvider(providerId: string): boolean {
 	return providerId === "zai" || providerId === "zai-coding-plan";
+}
+
+export function shouldSuppressGenericCompatibleThinking(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): boolean {
+	return (
+		(
+			isNativeZaiProvider(request.providerId) &&
+			request.reasoning?.enabled !== undefined &&
+			!isGlmModel(request, context)
+		) ||
+		(isGlmModel(request, context) && !isNativeZaiProvider(request.providerId))
+	);
 }
 
 function buildNativeZaiThinkingOptions(request: GatewayStreamRequest) {
@@ -66,22 +70,23 @@ function buildRoutedGlmReasoningOptions(request: GatewayStreamRequest) {
 	return undefined;
 }
 
-export function buildGlmThinkingProviderOptions(
+export function buildGlmThinkingProviderOptionsPatch(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 	providerOptionsKey: string,
-): GlmThinkingProviderOptions | undefined {
+): ProviderOptionsPatch | undefined {
 	if (isNativeZaiProvider(request.providerId)) {
 		if (!isGlmModel(request, context)) {
-			return request.reasoning?.enabled === undefined
-				? undefined
-				: { handlesCompatibleThinking: true };
+			return undefined;
 		}
-		const compatible = buildNativeZaiThinkingOptions(request);
-		return compatible
+		const nativeThinking = buildNativeZaiThinkingOptions(request);
+		return nativeThinking
 			? {
-					compatible,
-					handlesCompatibleThinking: true,
+					openaiCompatible: nativeThinking,
+					[request.providerId]: nativeThinking,
+					...(providerOptionsKey !== request.providerId
+						? { [providerOptionsKey]: nativeThinking }
+						: {}),
 				}
 			: undefined;
 	}
@@ -96,10 +101,10 @@ export function buildGlmThinkingProviderOptions(
 	}
 
 	return {
-		compatible: routed,
-		provider: routed,
-		providerOptionsKey:
-			providerOptionsKey === request.providerId ? undefined : routed,
-		handlesCompatibleThinking: true,
+		openaiCompatible: routed,
+		[request.providerId]: routed,
+		...(providerOptionsKey !== request.providerId
+			? { [providerOptionsKey]: routed }
+			: {}),
 	};
 }

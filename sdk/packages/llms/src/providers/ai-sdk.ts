@@ -18,17 +18,11 @@ import { z } from "zod";
 import { extractErrorMessage } from "./format";
 import {
 	applyPromptCacheToLastTextPart,
-	buildAnthropicCompatibleReasoningOptions,
-	buildGatewayReasoningOptions,
 	isAnthropicCompatibleModel,
 	resolveModelFamily,
 	shouldUseAnthropicPromptCache,
 } from "./routing/anthropic-compatible";
-import { buildGlmThinkingProviderOptions } from "./routing/glm-thinking";
-import {
-	createEphemeralCacheControl,
-	toProviderOptionsKey,
-} from "./routing/utils";
+import { composeAiSdkProviderOptions } from "./routing/provider-options";
 import type {
 	AiSdkStreamPart,
 	AiSdkStreamResult,
@@ -244,110 +238,6 @@ function buildToolCallMetadata(input: {
 				: "runtime",
 		},
 	});
-}
-
-function toAiSdkProviderOptions(
-	request: GatewayStreamRequest,
-	context: GatewayProviderContext,
-): Record<string, unknown> | undefined {
-	const providerOptionsKey = toProviderOptionsKey(request.providerId);
-	const isAnthropicCompatibleModelId = isAnthropicCompatibleModel({
-		modelId: request.modelId,
-		family: resolveModelFamily(context),
-	});
-	const useAnthropicPromptCache = shouldUseAnthropicPromptCache(
-		request,
-		context,
-	);
-	const anthropicCompatibleReasoning = buildAnthropicCompatibleReasoningOptions(
-		request,
-		context,
-	);
-	const gatewayReasoning = buildGatewayReasoningOptions(request, context);
-	const glmThinking = buildGlmThinkingProviderOptions(
-		request,
-		context,
-		providerOptionsKey,
-	);
-	const wantsAnthropicThinking =
-		request.reasoning?.enabled === true ||
-		request.reasoning?.effort !== undefined;
-	const anthropicOptions = {
-		...(wantsAnthropicThinking ? { thinking: { type: "adaptive" } } : {}),
-		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
-		...(useAnthropicPromptCache ? createEphemeralCacheControl() : {}),
-	};
-	const compatibleOptions = {
-		...(glmThinking?.compatible ?? {}),
-		...(!glmThinking?.handlesCompatibleThinking &&
-		request.reasoning?.enabled === true
-			? { thinking: { type: "adaptive" } }
-			: {}),
-		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
-		...(request.reasoning?.effort
-			? { reasoningEffort: request.reasoning.effort }
-			: {}),
-		...(request.reasoning?.effort && !isAnthropicCompatibleModelId
-			? { reasoningSummary: "auto" }
-			: {}),
-		...(anthropicCompatibleReasoning
-			? { reasoning: anthropicCompatibleReasoning }
-			: {}),
-		...(useAnthropicPromptCache ? createEphemeralCacheControl() : {}),
-		// OpenAI specific
-		...(request.providerId === "openai-native" ? { truncation: "auto" } : {}),
-	};
-	const openAICodexOptions =
-		request.providerId === "openai-codex"
-			? {
-					...compatibleOptions,
-					instructions: request.systemPrompt,
-					store: false,
-					systemMessageMode: "remove" as const,
-				}
-			: undefined;
-	const geminiCompatibleOptions = request.reasoning?.effort
-		? {
-				thinkingConfig: {
-					thinkingLevel: request.reasoning.effort,
-					includeThoughts: true,
-				},
-			}
-		: undefined;
-
-	const providerOptions: Record<string, unknown> = {
-		anthropic: anthropicOptions,
-		openaiCompatible: compatibleOptions,
-		...(request.providerId === "openai-codex" && openAICodexOptions
-			? { openai: openAICodexOptions }
-			: {}),
-	};
-	if (request.providerId !== "anthropic") {
-		providerOptions[request.providerId] = {
-			...(request.providerId === "openai-codex"
-				? openAICodexOptions
-				: compatibleOptions),
-			...(request.providerId === "cline" && gatewayReasoning
-				? { reasoning: gatewayReasoning }
-				: {}),
-			...(glmThinking?.provider ?? {}),
-		};
-	}
-	if (request.providerId === "google" || request.providerId === "gemini") {
-		providerOptions.google = geminiCompatibleOptions;
-	}
-	if (
-		providerOptionsKey !== request.providerId &&
-		providerOptionsKey !== "anthropic"
-	) {
-		providerOptions[providerOptionsKey] = {
-			...(request.providerId === "openai-codex"
-				? openAICodexOptions
-				: compatibleOptions),
-			...(glmThinking?.providerOptionsKey ?? {}),
-		};
-	}
-	return providerOptions;
 }
 
 function resolveAiSdkSystemPrompt(
@@ -909,7 +799,10 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					experimental_telemetry: {
 						isEnabled: langfuse,
 					},
-					providerOptions: toAiSdkProviderOptions(request, context) as never,
+					providerOptions: composeAiSdkProviderOptions(
+						request,
+						context,
+					) as never,
 					onError: ({ error: streamError }) => {
 						const msg = extractErrorMessage(streamError);
 						capturedError.current = msg;

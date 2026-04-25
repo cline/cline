@@ -146,6 +146,23 @@ export function resolvePromptCacheStrategy(
 	return strategy === "anthropic-automatic" ? strategy : undefined;
 }
 
+export function buildAnthropicProviderOptions(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+) {
+	const wantsAnthropicThinking =
+		request.reasoning?.enabled === true ||
+		request.reasoning?.effort !== undefined;
+
+	return {
+		...(wantsAnthropicThinking ? { thinking: { type: "adaptive" } } : {}),
+		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
+		...(shouldUseAnthropicPromptCache(request, context)
+			? createEphemeralCacheControl()
+			: {}),
+	};
+}
+
 export function resolveAnthropicCompatibleReasoningBudget(options: {
 	modelId?: string;
 	family?: string;
