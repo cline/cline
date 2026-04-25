@@ -1,6 +1,11 @@
 import { existsSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import type { BasicLogger, TeamTeammateSpec, Tool } from "@clinebot/shared";
+import type {
+	BasicLogger,
+	RuntimeConfigExtensionKind,
+	TeamTeammateSpec,
+	Tool,
+} from "@clinebot/shared";
 import { resolveSkillsConfigSearchPaths } from "@clinebot/shared/storage";
 import { nanoid } from "nanoid";
 import {
@@ -54,6 +59,19 @@ type SkillsExecutorMetadataItem = {
 type SkillsExecutorWithMetadata = SkillsExecutor & {
 	configuredSkills?: SkillsExecutorMetadataItem[];
 };
+
+const ALL_CONFIG_EXTENSIONS: readonly RuntimeConfigExtensionKind[] = [
+	"rules",
+	"skills",
+	"plugins",
+];
+
+function hasConfigExtension(
+	extensions: ReadonlyArray<RuntimeConfigExtensionKind> | undefined,
+	kind: RuntimeConfigExtensionKind,
+): boolean {
+	return new Set(extensions ?? ALL_CONFIG_EXTENSIONS).has(kind);
+}
 
 function isToolEnabledByPolicies(
 	toolName: string,
@@ -485,6 +503,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			createSpawnTool,
 			onTeamRestored,
 			userInstructionWatcher: sharedUserInstructionWatcher,
+			configExtensions,
 			defaultToolExecutors,
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
@@ -493,7 +512,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const tools: Tool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
-		const hasLocalSkills = hasSkillsFiles(config.cwd);
+		const skillsEnabled = hasConfigExtension(configExtensions, "skills");
+		const hasLocalSkills = skillsEnabled && hasSkillsFiles(config.cwd);
 		let teamToolsRegistered = false;
 		const watcherProvided = Boolean(sharedUserInstructionWatcher);
 		let userInstructionWatcher = sharedUserInstructionWatcher;
@@ -501,7 +521,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		let skillsExecutor: SkillsExecutorWithMetadata | undefined;
 		let mcpShutdown: (() => Promise<void>) | undefined;
 
-		if (!userInstructionWatcher && normalized.enableTools && hasLocalSkills) {
+		if (
+			!userInstructionWatcher &&
+			normalized.enableTools &&
+			skillsEnabled &&
+			hasLocalSkills
+		) {
 			userInstructionWatcher = createUserInstructionConfigWatcher({
 				skills: { workspacePath: config.cwd },
 				rules: { workspacePath: config.cwd },
@@ -512,6 +537,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		if (
 			normalized.enableTools &&
+			skillsEnabled &&
 			userInstructionWatcher &&
 			(watcherProvided ||
 				hasLocalSkills ||

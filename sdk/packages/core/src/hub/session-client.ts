@@ -201,6 +201,7 @@ export class HubSessionClient {
 				enableSpawn: request.enableSpawn,
 				enableTeams: request.enableTeams,
 				autoApproveTools: request.autoApproveTools,
+				configExtensions: request.configExtensions,
 			},
 			modelSelection: {
 				provider: request.provider,

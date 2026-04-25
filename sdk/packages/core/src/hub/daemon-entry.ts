@@ -60,6 +60,7 @@ async function main(): Promise<void> {
 		pathname: endpoint.pathname,
 		owner: resolveSharedHubOwnerContext(),
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		cronOptions: { workspaceRoot: options.cwd },
 	});
 
 	const shutdown = async (): Promise<void> => {

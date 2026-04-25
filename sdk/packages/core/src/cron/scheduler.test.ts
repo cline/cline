@@ -7,6 +7,12 @@ describe("hub scheduler cron helpers", () => {
 		const next = getNextCronTime("*/15 * * * *", after);
 		expect(next).toBe(new Date(2026, 3, 21, 10, 15, 0).getTime());
 	});
+
+	it("computes the next matching cron timestamp in an explicit timezone", () => {
+		const after = Date.parse("2026-04-21T15:30:00.000Z");
+		const next = getNextCronTime("0 9 * * *", after, "America/New_York");
+		expect(next).toBe(Date.parse("2026-04-22T13:00:00.000Z"));
+	});
 });
 
 describe("ScheduleStore", () => {

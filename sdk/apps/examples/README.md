@@ -64,6 +64,19 @@ cd apps/examples/slack-bot
 bun run src/index.ts
 ```
 
+### [`cron/`](./cron)
+
+**Example file-based automation specs** for global `~/.cline/cron/`:
+
+- Copy a recurring spec into `~/.cline/cron/`
+- Use it as a template for one-off or scheduled automation
+- Pair it with the hub's `CronService` to reconcile, queue, and execute runs
+
+```bash
+mkdir -p ~/.cline/cron
+cp apps/examples/cron/daily-code-review.cron.md ~/.cline/cron/
+```
+
 ## 🚀 Quick Start
 
 All examples run with Bun:

@@ -308,6 +308,7 @@ export type {
 export { SESSION_STATUS_VALUES } from "./session/records";
 export type {
 	AgentMode,
+	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
 	SessionPromptConfig,
 	SessionWorkspaceConfig,

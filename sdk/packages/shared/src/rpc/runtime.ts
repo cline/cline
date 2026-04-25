@@ -1,5 +1,6 @@
 import z from "zod";
 import type {
+	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
 	SessionPromptConfig,
 } from "../session/runtime-config";
@@ -16,6 +17,7 @@ export interface ChatRuntimeConfig extends SessionPromptConfig {
 	missionStepInterval?: number;
 	missionTimeIntervalMs?: number;
 	toolPolicies?: SessionExecutionConfig["toolPolicies"];
+	configExtensions?: RuntimeConfigExtensionKind[];
 }
 
 export interface RuntimeLoggerConfig {

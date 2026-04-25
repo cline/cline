@@ -9,6 +9,7 @@ import type {
 	SessionRecord as HubSessionRecord,
 	HubToolExecutorName,
 	JsonValue,
+	RuntimeConfigExtensionKind,
 	SessionParticipant,
 	TeamProgressProjectionEvent,
 	ToolApprovalRequest,
@@ -16,6 +17,7 @@ import type {
 } from "@clinebot/shared";
 import { createSessionId } from "@clinebot/shared";
 import { WebSocketServer } from "ws";
+import { CronService, type CronServiceOptions } from "../cron/cron-service";
 import { HubScheduleCommandService } from "../cron/schedule-command-service";
 import {
 	type HubScheduleRuntimeHandlers,
@@ -110,6 +112,26 @@ function wrapWsSocket(socket: NodeWebSocketLike) {
 		},
 		removeEventListener(): void {},
 	};
+}
+
+const RUNTIME_CONFIG_EXTENSION_KINDS = new Set<RuntimeConfigExtensionKind>([
+	"rules",
+	"skills",
+	"plugins",
+]);
+
+function parseRuntimeConfigExtensions(
+	value: unknown,
+): RuntimeConfigExtensionKind[] | undefined {
+	if (!Array.isArray(value)) {
+		return undefined;
+	}
+	const extensions = value
+		.map((item) => (typeof item === "string" ? item.trim() : ""))
+		.filter((item): item is RuntimeConfigExtensionKind =>
+			RUNTIME_CONFIG_EXTENSION_KINDS.has(item as RuntimeConfigExtensionKind),
+		);
+	return [...new Set(extensions)];
 }
 
 function rejectUpgradeSocket(socket: NodeUpgradeSocketLike): void {
@@ -512,6 +534,7 @@ export class HubServerTransport implements NativeHubTransport {
 	>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
+	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost;
 	private readonly hubId = createSessionId("hub_");
 	private readonly startedAtMs = Date.now();
@@ -549,11 +572,21 @@ export class HubServerTransport implements NativeHubTransport {
 			},
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
+		if (options.cronOptions) {
+			this.cronService = new CronService({
+				runtimeHandlers: options.runtimeHandlers,
+				...options.cronOptions,
+			});
+		}
 		this.sessionHost.subscribe((event) => {
 			void this.handleSessionEvent(event).catch((error) => {
 				logHubBoundaryError("session event handling failed", error);
 			});
 		});
+	}
+
+	getCronService(): CronService | undefined {
+		return this.cronService;
 	}
 
 	getHubId(): string {
@@ -562,6 +595,13 @@ export class HubServerTransport implements NativeHubTransport {
 
 	async start(): Promise<void> {
 		await this.schedules.start();
+		if (this.cronService) {
+			try {
+				await this.cronService.start();
+			} catch (err) {
+				console.error("[hub] cron service start failed", err);
+			}
+		}
 	}
 
 	async stop(): Promise<void> {
@@ -580,6 +620,13 @@ export class HubServerTransport implements NativeHubTransport {
 		this.pendingCapabilityRequests.clear();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
+		if (this.cronService) {
+			try {
+				await this.cronService.dispose();
+			} catch (err) {
+				console.error("[hub] cron service stop failed", err);
+			}
+		}
 	}
 
 	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
@@ -910,6 +957,9 @@ export class HubServerTransport implements NativeHubTransport {
 		const advertisedToolExecutors = Array.isArray(runtimeOptions.toolExecutors)
 			? runtimeOptions.toolExecutors.filter(isHubToolExecutorName)
 			: [];
+		const configExtensions = parseRuntimeConfigExtensions(
+			runtimeOptions.configExtensions,
+		);
 		const started = await this.sessionHost.start({
 			source: typeof metadata.source === "string" ? metadata.source : undefined,
 			interactive: metadata.interactive !== false,
@@ -925,6 +975,7 @@ export class HubServerTransport implements NativeHubTransport {
 					loadLatestOnInit: true,
 					loadPrivateOnAuth: true,
 				},
+				configExtensions,
 				defaultToolExecutors: createCapabilityBackedToolExecutors(
 					clientId,
 					advertisedToolExecutors,
@@ -1754,6 +1805,14 @@ export interface HubWebSocketServerOptions {
 	sessionHost?: RuntimeHost;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
+	/**
+	 * File-based cron automation options. When provided, the hub starts a
+	 * `CronService` that watches global `~/.cline/cron/` by default, reconciles
+	 * specs into `cron.db`, and executes queued runs through `runtimeHandlers`.
+	 * Pass `cronOptions.specs` to use a different source, including future
+	 * workspace-scoped specs.
+	 */
+	cronOptions?: Omit<CronServiceOptions, "runtimeHandlers">;
 	/**
 	 * Custom `fetch` implementation forwarded to the internally-constructed
 	 * `LocalRuntimeHost` that executes incoming `session.create` traffic.

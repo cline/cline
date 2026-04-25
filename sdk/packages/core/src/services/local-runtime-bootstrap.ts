@@ -2,6 +2,7 @@ import type {
 	AgentConfig,
 	AgentHooks,
 	ITelemetryService,
+	RuntimeConfigExtensionKind,
 	Tool,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -88,6 +89,19 @@ function resolveReasoningSettings(
 		...(hasThinking ? { enabled: config.thinking } : {}),
 		...(hasEffort ? { effort: config.reasoningEffort } : {}),
 	};
+}
+
+const ALL_CONFIG_EXTENSIONS: readonly RuntimeConfigExtensionKind[] = [
+	"rules",
+	"skills",
+	"plugins",
+];
+
+function hasConfigExtension(
+	extensions: ReadonlyArray<RuntimeConfigExtensionKind> | undefined,
+	kind: RuntimeConfigExtensionKind,
+): boolean {
+	return new Set(extensions ?? ALL_CONFIG_EXTENSIONS).has(kind);
 }
 
 function buildOpenAICodexHeaders(input: {
@@ -288,26 +302,28 @@ export async function prepareLocalRuntimeBootstrap(
 	let loadedPlugins:
 		| Awaited<ReturnType<typeof resolveAndLoadAgentPlugins>>
 		| undefined;
-	try {
-		loadedPlugins = await resolveAndLoadAgentPlugins({
-			pluginPaths: localConfig?.pluginPaths,
-			workspacePath,
-			cwd: input.config.cwd,
-			onEvent: onPluginEvent,
-			providerId: input.config.providerId,
-			modelId: input.config.modelId,
-			workspaceInfo,
-		});
-		logPluginDiagnostics(
-			loadedPlugins.failures,
-			loadedPlugins.warnings,
-			configOverrides?.logger,
-		);
-	} catch (error) {
-		const message = error instanceof Error ? error.message : String(error);
-		configOverrides?.logger?.log?.(
-			`plugin loading failed; continuing without plugins (${message})`,
-		);
+	if (hasConfigExtension(localRuntime?.configExtensions, "plugins")) {
+		try {
+			loadedPlugins = await resolveAndLoadAgentPlugins({
+				pluginPaths: localConfig?.pluginPaths,
+				workspacePath,
+				cwd: input.config.cwd,
+				onEvent: onPluginEvent,
+				providerId: input.config.providerId,
+				modelId: input.config.modelId,
+				workspaceInfo,
+			});
+			logPluginDiagnostics(
+				loadedPlugins.failures,
+				loadedPlugins.warnings,
+				configOverrides?.logger,
+			);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			configOverrides?.logger?.log?.(
+				`plugin loading failed; continuing without plugins (${message})`,
+			);
+		}
 	}
 
 	const extensions = mergeAgentExtensions(
@@ -373,6 +389,7 @@ export async function prepareLocalRuntimeBootstrap(
 			createSpawnTool,
 			onTeamRestored: localRuntime?.onTeamRestored,
 			userInstructionWatcher: localRuntime?.userInstructionWatcher,
+			configExtensions: localRuntime?.configExtensions,
 			defaultToolExecutors: effectiveToolExecutors,
 			logger: config.logger,
 			telemetry: config.telemetry,

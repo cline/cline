@@ -1047,3 +1047,155 @@ clite connect telegram -m my_bot -k TOKEN --hook-command '/path/to/hook.sh'
 | `schedule.delivery.started` | A scheduled delivery begins |
 | `schedule.delivery.sent` | A scheduled delivery is sent successfully |
 | `schedule.delivery.failed` | A scheduled delivery fails |
+
+---
+
+## File-Based Automation (`.cline/cron/`)
+
+Operators can author automation tasks as Markdown files inside a
+workspace's `.cline/cron/` directory. The hub daemon (via `CronService`)
+parses these files, stores spec state in its own `cron.db`, materializes
+runs, executes them through the runtime, and writes per-run reports.
+
+### File layout
+
+- `.cline/cron/*.md` — **one-off** task specs.
+- `.cline/cron/*.cron.md` — **recurring** task specs (standard 5-field cron pattern).
+- `.cline/cron/events/*.event.md` — **event-driven** task specs (reserved; parsed and stored, executed by Feature 2).
+- `.cline/cron/reports/<run-id>.md` — generated reports. Derived artifact; do not edit by hand.
+- `.cline/data/db/cron.db` — durable cron state. Never edit by hand; sessions live in a separate `sessions.db`.
+
+### Frontmatter
+
+Use YAML frontmatter delimited by `---` lines. The Markdown body is used as
+the task prompt when frontmatter `prompt` is omitted.
+
+Common fields:
+
+| Field | Required | Notes |
+|---|---|---|
+| `id` | no | Stable external id. Falls back to normalized relative path. |
+| `title` | no | Defaults to `id`, then to filename stem. |
+| `prompt` | no | If omitted, the markdown body is used. One of the two is required. |
+| `workspaceRoot` | **yes** | Absolute path for the session. |
+| `mode` | no | `yolo` (default), `act`, or `plan`. |
+| `tools` | no | Comma-separated string or string array of allowed tools. Omitted defaults to all tools; `[]` disables work tools. |
+| `systemPrompt` | no | Override system prompt. Rules and notes metadata are appended. |
+| `modelSelection` | no | `{ providerId, modelId }`. |
+| `maxIterations` | no | Positive integer. |
+| `timeoutSeconds` | no | Positive integer. Aborts the run on expiry. |
+| `notesDirectory` | no | Absolute directory path injected into the system prompt for durable automation notes. |
+| `extensions` | no | String array containing any of `rules`, `skills`, `plugins`. Omitted defaults to all; `[]` disables config extensions. |
+| `source` | no | Session source string. Defaults to `user`. |
+| `tags` | no | String array. |
+| `enabled` | no | Defaults to `true`. |
+| `metadata` | no | Arbitrary object. |
+
+Recurring-only fields (`*.cron.md`): `schedule` (required), `timezone`.
+
+Event-only fields (`events/*.event.md`): `event` (required), `filters`,
+`debounceSeconds`, `dedupeWindowSeconds`, `cooldownSeconds`, `maxParallel`.
+
+Supported `tools` values are the default tool names: `read_files`,
+`search_codebase`, `run_commands`, `fetch_web_content`, `apply_patch`,
+`editor`, `skills`, `ask_question`, `submit_and_exit`. In `yolo` mode, the
+completion tool `submit_and_exit` remains enabled even when `tools` narrows the
+work tools.
+
+Unknown trigger-specific fields on the wrong file kind mark the spec
+invalid; they are recorded with `parse_status='invalid'` but never run.
+`cwd` is not part of file-based cron specs; cron sessions use
+`workspaceRoot` as their working directory.
+
+### Example cron job file
+
+Recurring spec example:
+
+```md
+---
+id: daily-code-review
+title: Daily Code Review
+workspaceRoot: /absolute/path/to/repo
+schedule: "0 9 * * MON-FRI"
+tools: run_commands,read_files
+mode: act
+enabled: true
+modelSelection:
+  providerId: openai
+  modelId: gpt-5.4
+timeoutSeconds: 1800
+systemPrompt: You are a precise automation agent that reports only actionable review findings.
+maxIterations: 20
+tags:
+  - automation
+  - review
+metadata:
+  owner: platform
+notesDirectory: /absolute/path/to/notes
+extensions:
+  - rules
+  - skills
+  - plugins
+source: user
+---
+Review the open pull requests, identify the highest-risk changes, run the
+relevant checks if needed, and write a concise summary of findings.
+```
+
+Save recurring specs as `.cline/cron/<name>.cron.md`. For a one-off task,
+use `.cline/cron/<name>.md` and omit the `schedule` field.
+
+A copyable example is also available at
+[`apps/examples/cron/daily-code-review.cron.md`](./apps/examples/cron/daily-code-review.cron.md).
+
+### Lifecycle
+
+- **Startup reconciliation** — the hub walks `.cline/cron/`, parses every
+  file, and upserts the result. Invalid specs are recorded with
+  `parse_error`; they never run until fixed.
+- **Watcher** — `.cline/cron/` is watched recursively. Each create/change/
+  delete triggers a debounced (~250ms) re-reconcile of the affected file.
+- **Meaningful change detection** — whitespace-only body edits don't bump
+  revisions. Changes to prompt, workspace, mode, model, system prompt,
+  `tools`, `notesDirectory`, `extensions`, `source`, `schedule`/`timezone`,
+  `event`/`filters`/throttling, or enabling a previously-disabled spec
+  increment `revision`.
+- **One-off runs** — at most one queued|running|done run exists per
+  `(spec_id, revision)`. Editing a one-off in a meaningful way bumps its
+  revision and materializes a new run.
+- **Recurring runs** — `getNextCronTime` computes timezone-aware
+  `next_run_at`. One overdue run is enqueued on startup (no unbounded
+  backfill), then the scheduler advances to the next slot.
+- **Deletions** — removing a file marks the spec as `removed=1`, disables
+  it, and cancels any queued runs. Historical `done`/`failed` runs stay
+  queryable.
+
+### Reports
+
+Each completed or failed run writes
+`.cline/cron/reports/<run-id>.md`. The file includes YAML frontmatter
+(`runId`, `specId`, `externalId`, `title`, `triggerKind`, `status`,
+`sessionId`, `sourcePath`, `startedAt`, `completedAt`) and body sections
+for summary, usage (token counts + cost), and a tool-call bullet list.
+
+### Programmatic access
+
+`HubWebSocketServer` accepts optional `cronOptions` that enable the
+`CronService`:
+
+```ts
+new HubWebSocketServer({
+  runtimeHandlers: ...,
+  cronOptions: { workspaceRoot: "/absolute/workspace" },
+});
+```
+
+The service exposes `listSpecs`, `getSpec`, `listRuns`, `getRun`,
+`listActiveRuns`, `listUpcomingRuns`, and `reconcileNow()` for hub-side
+query APIs. Tests cover the parser (`@clinebot/core`
+`src/cron/cron-spec-parser.test.ts`), store, reconciler, materializer,
+and runner.
+
+### Test Plan
+
+Drop one-off specs into `.cline/cron/*.md`, recurring specs into `.cline/cron/*.cron.md`, run the hub, and see runs materialized, executed, and reported to `.cline/cron/reports/<run-id>.md` — all backed by `.cline/data/db/cron.db`.

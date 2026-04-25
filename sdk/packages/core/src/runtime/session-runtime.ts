@@ -4,6 +4,7 @@ import type {
 	AgentResult,
 	BasicLogger,
 	ITelemetryService,
+	RuntimeConfigExtensionKind,
 	Tool,
 } from "@clinebot/shared";
 import type { UserInstructionConfigWatcher } from "../extensions/config";
@@ -49,6 +50,7 @@ export interface RuntimeBuilderInput {
 	createSpawnTool?: () => Tool;
 	onTeamRestored?: () => void;
 	userInstructionWatcher?: UserInstructionConfigWatcher;
+	configExtensions?: RuntimeConfigExtensionKind[];
 	defaultToolExecutors?: Partial<ToolExecutors>;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

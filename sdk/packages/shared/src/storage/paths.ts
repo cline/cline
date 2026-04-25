@@ -148,6 +148,113 @@ export function resolveDbDataDir(): string {
 	return join(resolveClineDataDir(), "db");
 }
 
+/**
+ * Path to the dedicated cron/automation database.
+ * Lives alongside `sessions.db` but is a separate file so cron lifecycle,
+ * retention, and query patterns stay decoupled from session storage.
+ */
+export function resolveCronDbPath(): string {
+	const explicitPath = process.env.CLINE_CRON_DB_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveDbDataDir(), "cron.db");
+}
+
+export type CronSpecsScope = "global" | "workspace";
+
+export interface ResolveCronSpecsDirOptions {
+	/**
+	 * Explicit specs directory. Useful for tests and for future hosts that want
+	 * to provide their own merged/global/workspace cron source root.
+	 */
+	cronSpecsDir?: string;
+	/** Defaults to `global`, i.e. `~/.cline/cron`. */
+	scope?: CronSpecsScope;
+	/** Required when `scope` is `workspace`. */
+	workspaceRoot?: string;
+}
+
+/**
+ * Global file-based cron spec authoring directory:
+ *   `~/.cline/cron/`
+ */
+export function resolveGlobalCronSpecsDir(): string {
+	return join(resolveClineDir(), "cron");
+}
+
+/**
+ * Workspace file-based cron spec authoring directory reserved for future
+ * workspace-scoped automation support:
+ *   `${workspaceRoot}/.cline/cron/`
+ */
+export function resolveWorkspaceCronSpecsDir(workspaceRoot: string): string {
+	return join(workspaceRoot, ".cline", "cron");
+}
+
+/**
+ * Directory containing file-based cron spec authoring.
+ *
+ * Default: global `~/.cline/cron/`.
+ * One-off: `*.md`
+ * Recurring: `*.cron.md`
+ * Event-driven: `events/*.event.md`
+ *
+ * A string argument is retained as a deprecated compatibility shorthand for
+ * workspace scope. New code should pass `{ scope: "workspace", workspaceRoot }`
+ * or use `resolveWorkspaceCronSpecsDir(workspaceRoot)` directly.
+ */
+export function resolveCronSpecsDir(workspaceRoot: string): string;
+export function resolveCronSpecsDir(
+	options?: ResolveCronSpecsDirOptions,
+): string;
+export function resolveCronSpecsDir(
+	input?: string | ResolveCronSpecsDirOptions,
+): string {
+	if (typeof input === "string") {
+		return resolveWorkspaceCronSpecsDir(input);
+	}
+	if (input?.cronSpecsDir?.trim()) {
+		return input.cronSpecsDir.trim();
+	}
+	if (input?.scope === "workspace") {
+		const workspaceRoot = input.workspaceRoot?.trim();
+		if (!workspaceRoot) {
+			throw new Error("workspaceRoot is required for workspace cron scope");
+		}
+		return resolveWorkspaceCronSpecsDir(workspaceRoot);
+	}
+	return resolveGlobalCronSpecsDir();
+}
+
+/** Directory where per-run markdown reports are written. */
+export function resolveCronReportsDir(workspaceRoot: string): string;
+export function resolveCronReportsDir(
+	options?: ResolveCronSpecsDirOptions,
+): string;
+export function resolveCronReportsDir(
+	input?: string | ResolveCronSpecsDirOptions,
+): string {
+	return join(
+		resolveCronSpecsDir(input as ResolveCronSpecsDirOptions),
+		"reports",
+	);
+}
+
+/** Directory where event-spec files live inside the cron specs dir. */
+export function resolveCronEventsDir(workspaceRoot: string): string;
+export function resolveCronEventsDir(
+	options?: ResolveCronSpecsDirOptions,
+): string;
+export function resolveCronEventsDir(
+	input?: string | ResolveCronSpecsDirOptions,
+): string {
+	return join(
+		resolveCronSpecsDir(input as ResolveCronSpecsDirOptions),
+		"events",
+	);
+}
+
 export function resolveProviderSettingsPath(): string {
 	const explicitPath = process.env.CLINE_PROVIDER_SETTINGS_PATH?.trim();
 	if (explicitPath) {

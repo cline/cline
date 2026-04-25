@@ -32,11 +32,9 @@ export function shouldSuppressGenericCompatibleThinking(
 	context: GatewayProviderContext,
 ): boolean {
 	return (
-		(
-			isNativeZaiProvider(request.providerId) &&
+		(isNativeZaiProvider(request.providerId) &&
 			request.reasoning?.enabled !== undefined &&
-			!isGlmModel(request, context)
-		) ||
+			!isGlmModel(request, context)) ||
 		(isGlmModel(request, context) && !isNativeZaiProvider(request.providerId))
 	);
 }

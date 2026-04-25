@@ -60,6 +60,9 @@ function parseCronField(
 					from = resolveValue(rangePart);
 				}
 			}
+			if (from > to) {
+				throw new Error(`Invalid cron range "${rangePart}"`);
+			}
 			for (let value = from; value <= to; value += step) {
 				results.add(value);
 			}
@@ -70,6 +73,9 @@ function parseCronField(
 		if (dashIndex !== -1) {
 			const from = resolveValue(part.slice(0, dashIndex));
 			const to = resolveValue(part.slice(dashIndex + 1));
+			if (from > to) {
+				throw new Error(`Invalid cron range "${part}"`);
+			}
 			for (let value = from; value <= to; value += 1) {
 				results.add(value);
 			}
@@ -105,6 +111,14 @@ export interface ParsedCron {
 	daysOfMonth: number[];
 	months: number[];
 	daysOfWeek: number[];
+}
+
+interface CronDateParts {
+	month: number;
+	dayOfMonth: number;
+	dayOfWeek: number;
+	hour: number;
+	minute: number;
 }
 
 function getRequiredField(
@@ -159,7 +173,131 @@ export function validateCronPattern(pattern: string): void {
 	parseCron(pattern);
 }
 
-export function getNextCronTime(pattern: string, after: number): number {
+export function validateCronSchedule(
+	pattern: string,
+	timezone?: string,
+	after: number = Date.now(),
+): void {
+	getNextCronTime(pattern, after, timezone);
+}
+
+const TIMEZONE_FORMATTERS = new Map<string, Intl.DateTimeFormat>();
+const DOW_BY_SHORT_NAME = new Map(
+	DOW_NAMES.map((name, index) => [name, index] as const),
+);
+
+function normalizeTimezone(timezone: string | undefined): string | undefined {
+	const trimmed = timezone?.trim();
+	return trimmed ? trimmed : undefined;
+}
+
+function getTimezoneFormatter(timezone: string): Intl.DateTimeFormat {
+	const existing = TIMEZONE_FORMATTERS.get(timezone);
+	if (existing) return existing;
+	const formatter = new Intl.DateTimeFormat("en-US", {
+		timeZone: timezone,
+		calendar: "gregory",
+		numberingSystem: "latn",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
+		weekday: "short",
+		hour: "2-digit",
+		minute: "2-digit",
+		hourCycle: "h23",
+	});
+	TIMEZONE_FORMATTERS.set(timezone, formatter);
+	return formatter;
+}
+
+export function validateTimezone(timezone: string | undefined): void {
+	const normalized = normalizeTimezone(timezone);
+	if (!normalized) return;
+	getTimezoneFormatter(normalized).format(new Date());
+}
+
+function getZonedCronDateParts(
+	timestampMs: number,
+	timezone: string,
+): CronDateParts {
+	const parts = getTimezoneFormatter(timezone).formatToParts(
+		new Date(timestampMs),
+	);
+	const byType = new Map(parts.map((part) => [part.type, part.value]));
+	const weekdayRaw = byType.get("weekday")?.toLowerCase().slice(0, 3) ?? "";
+	const dayOfWeek = DOW_BY_SHORT_NAME.get(
+		weekdayRaw as (typeof DOW_NAMES)[number],
+	);
+	if (dayOfWeek === undefined) {
+		throw new Error(`Unable to resolve weekday for timezone "${timezone}"`);
+	}
+	return {
+		month: Number(byType.get("month")),
+		dayOfMonth: Number(byType.get("day")),
+		dayOfWeek,
+		hour: Number(byType.get("hour")),
+		minute: Number(byType.get("minute")),
+	};
+}
+
+function getLocalCronDateParts(timestampMs: number): CronDateParts {
+	const date = new Date(timestampMs);
+	return {
+		month: date.getMonth() + 1,
+		dayOfMonth: date.getDate(),
+		dayOfWeek: date.getDay(),
+		hour: date.getHours(),
+		minute: date.getMinutes(),
+	};
+}
+
+function cronMatchesParts(cron: ParsedCron, parts: CronDateParts): boolean {
+	return (
+		cron.months.includes(parts.month) &&
+		cron.daysOfMonth.includes(parts.dayOfMonth) &&
+		cron.daysOfWeek.includes(parts.dayOfWeek) &&
+		cron.hours.includes(parts.hour) &&
+		cron.minutes.includes(parts.minute)
+	);
+}
+
+function getNextCronTimeByMinuteScan(
+	pattern: string,
+	after: number,
+	timezone: string,
+): number {
+	const cron = parseCron(pattern);
+	const next = new Date(after);
+	next.setSeconds(0, 0);
+	let nextMs = next.getTime() + 60_000;
+
+	const limit = new Date(after);
+	limit.setFullYear(limit.getFullYear() + 4);
+	const limitMs = limit.getTime();
+
+	while (nextMs <= limitMs) {
+		if (cronMatchesParts(cron, getZonedCronDateParts(nextMs, timezone))) {
+			return nextMs;
+		}
+		nextMs += 60_000;
+	}
+
+	throw new Error(
+		`No cron occurrence found within 4 years for pattern "${pattern}" in timezone "${timezone}"`,
+	);
+}
+
+export function getNextCronTime(
+	pattern: string,
+	after: number,
+	timezone?: string,
+): number {
+	const normalizedTimezone = normalizeTimezone(timezone);
+	if (normalizedTimezone) {
+		validateTimezone(normalizedTimezone);
+		return getNextCronTimeByMinuteScan(pattern, after, normalizedTimezone);
+	}
+
 	const cron = parseCron(pattern);
 	let next = new Date(after);
 	next.setSeconds(0, 0);
@@ -169,11 +307,8 @@ export function getNextCronTime(pattern: string, after: number): number {
 	limit.setFullYear(limit.getFullYear() + 4);
 
 	while (next <= limit) {
-		const month = next.getMonth() + 1;
-		const dayOfMonth = next.getDate();
-		const dayOfWeek = next.getDay();
-		const hour = next.getHours();
-		const minute = next.getMinutes();
+		const { month, dayOfMonth, dayOfWeek, hour, minute } =
+			getLocalCronDateParts(next.getTime());
 
 		if (!cron.months.includes(month)) {
 			const targetMonth =

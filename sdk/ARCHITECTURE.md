@@ -330,6 +330,64 @@ Why:
 - it can create a telemetry service from enterprise telemetry settings
 - it lets core consume enterprise behavior through existing generic seams and normal watcher discovery
 
+## File-Based Automation (`CronService`)
+
+`@clinebot/core` ships a file-based automation subsystem under
+`packages/core/src/cron/`. It lets operators author recurring and one-off
+tasks as Markdown files under `${workspaceRoot}/.cline/cron/` and runs
+them through the same runtime handlers used by programmatic schedules.
+
+### Layers
+
+1. **Spec parser** (`cron-spec-parser.ts`): parses YAML frontmatter + body
+   into a `CronSpec` discriminated union (`one_off | schedule | event`).
+   Types live in `@clinebot/shared` under `src/cron/cron-spec-types.ts`
+   so other packages can consume them without the YAML parser. Schedule
+   expressions and timezones are validated before a spec can become
+   runnable.
+2. **Store** (`sqlite-cron-store.ts`): owns `cron.db` at
+   `resolveCronDbPath()` (default `.cline/data/db/cron.db`). Schema is
+   bootstrapped from `cron-schema.ts` — sessions and cron live in separate
+   DBs so their lifecycles stay decoupled.
+3. **Reconciler** (`cron-reconciler.ts`): scans `.cline/cron/`, parses each
+   file independently, and upserts spec state. Invalid specs are recorded
+   with `parse_status='invalid'` so state is durable rather than silently
+   dropped. Files that disappear between scans get `removed=1` and their
+   queued runs are cancelled.
+4. **Watcher** (`cron-watcher.ts`): `node:fs watch({ recursive: true })`
+   with a ~250ms per-path debounce. Watcher events always trigger a
+   re-reconcile — the reconciler is always the source of truth, not the
+   watcher stream.
+5. **Materializer** (`cron-materializer.ts`): turns specs into queued
+   `cron_runs`. One-off: at most one queued|running|done run per
+   `(spec_id, revision)`. Schedule: "one overdue catch-up on startup then
+   advance" using timezone-aware `getNextCronTime`.
+6. **Runner** (`cron-runner.ts`): polls `cron.db`, atomically claims
+   queued runs, executes them via the existing `HubScheduleRuntimeHandlers`
+   (`startSession` → `sendSession` → `stopSession` / `abortSession`),
+   renews the run claim while execution is active, writes a markdown report
+   per run, and transactionally updates status. File specs can constrain
+   tool availability, config extension loading (`rules`, `skills`,
+   `plugins`), session source, and a notes directory that is injected into
+   the system prompt.
+7. **Reports** (`cron-report-writer.ts`): writes
+   `.cline/cron/reports/<run-id>.md` with run frontmatter plus
+   `## Summary`, `## Usage`, and `## Tool Calls` sections.
+8. **Service** (`cron-service.ts`): orchestrates all of the above and is
+   wired into `HubWebSocketServer` through the optional `cronOptions`
+   field. When provided, the hub starts reconciliation + watcher + runner
+   at `start()` and disposes them at `stop()`.
+
+The detached hub daemon passes its workspace root as `cronOptions`, so
+normal CLI/hub startup watches `${workspaceRoot}/.cline/cron/` without a
+custom host needing to opt in.
+
+The existing `HubScheduleService` and `SqliteHubScheduleStore`
+(sessions.db `schedules` table) remain available for programmatic
+schedule APIs; file-based cron does not disturb them. Event-driven
+triggers are defined in the shared spec types and recorded by the
+reconciler but are not materialized yet — Feature 2 owns that layer.
+
 ## Publishability Constraint
 
 This repo has both publishable SDK packages and internal workspace packages.

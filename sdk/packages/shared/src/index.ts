@@ -17,6 +17,19 @@ export {
 	ConnectorHookEventSchema,
 } from "./connectors/events";
 export type * from "./connectors/options";
+export type {
+	AutomationEventEnvelope,
+	CronEventSpec,
+	CronOneOffSpec,
+	CronScheduleSpec,
+	CronSpec,
+	CronSpecCommonFields,
+	CronSpecExtensionKind,
+	CronSpecMode,
+	CronSpecModelSelection,
+	CronSpecParseResult,
+	CronTriggerKind,
+} from "./cron";
 export type { Disposable } from "./dispose";
 export { disposeAll, registerDisposable } from "./dispose";
 export type {
@@ -329,6 +342,7 @@ export type {
 export { SESSION_STATUS_VALUES } from "./session/records";
 export type {
 	AgentMode,
+	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
 	SessionPromptConfig,
 	SessionWorkspaceConfig,

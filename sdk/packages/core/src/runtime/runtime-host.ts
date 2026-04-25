@@ -1,6 +1,7 @@
 import type * as LlmsProviders from "@clinebot/llms";
 import type {
 	AgentResult,
+	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@clinebot/shared";
@@ -50,6 +51,7 @@ export interface LocalRuntimeStartOptions {
 	configOverrides?: Partial<LocalRuntimeConfigOverrides>;
 	modelCatalogDefaults?: Partial<NonNullable<ProviderSettings["modelCatalog"]>>;
 	userInstructionWatcher?: import("../extensions/config").UserInstructionConfigWatcher;
+	configExtensions?: RuntimeConfigExtensionKind[];
 	onTeamRestored?: () => void;
 	defaultToolExecutors?: Partial<ToolExecutors>;
 }

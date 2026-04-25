@@ -79,7 +79,7 @@ export function createLocalHubScheduleRuntimeHandlers(
 		async startSession(request) {
 			const cwd = (request.cwd?.trim() || request.workspaceRoot).trim();
 			const started = await sessionHost.start({
-				source: SessionSource.CLI,
+				source: request.source?.trim() || SessionSource.CLI,
 				interactive: false,
 				config: {
 					providerId: normalizeProviderId(request.provider),
@@ -101,6 +101,9 @@ export function createLocalHubScheduleRuntimeHandlers(
 					"*": {
 						autoApprove: request.autoApproveTools !== false,
 					},
+				},
+				localRuntime: {
+					configExtensions: request.configExtensions,
 				},
 			});
 			return {
