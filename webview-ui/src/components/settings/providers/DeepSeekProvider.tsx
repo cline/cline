@@ -57,6 +57,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="high"
+							allowedEfforts={["high", "xhigh"]}
 							description="Controls reasoning depth for DeepSeek V4 Pro. Higher effort improves complex reasoning at the cost of more tokens."
 						/>
 					)}
