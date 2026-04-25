@@ -2121,7 +2121,16 @@ export const deepSeekModels = {
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
 	},
+	"deepseek-v4-flash": {
+		maxTokens: 8_000,
+		contextWindow: 64_000,
+		supportsImages: false,
+		supportsPromptCache: true,
+		inputPrice: 0,
+		outputPrice: 0.28,
+		cacheWritesPrice: 0.07,
 		cacheReadsPrice: 0.028,
+	},
 	"deepseek-v4-pro": {
 		maxTokens: 384_000,
 		contextWindow: 1_000_000,
