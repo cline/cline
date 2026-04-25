@@ -27,7 +27,7 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
 	const modelInfo = deepSeekModels[selectedModelId as keyof typeof deepSeekModels]
-	const showReasoningEffort = modelInfo?.supportsReasoningEffort === true
+	const showReasoningEffort = (modelInfo as any)?.supportsReasoningEffort === true
 
 	return (
 		<div>
@@ -57,7 +57,6 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 						<ReasoningEffortSelector
 							currentMode={currentMode}
 							defaultEffort="high"
-							allowedEfforts={["high", "xhigh"]}
 							description="Controls reasoning depth for DeepSeek V4 Pro. Higher effort improves complex reasoning at the cost of more tokens."
 						/>
 					)}
