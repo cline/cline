@@ -2099,7 +2099,7 @@ export const azureOpenAiDefaultApiVersion = "2024-08-01-preview"
 // DeepSeek
 // https://api-docs.deepseek.com/quick_start/pricing
 export type DeepSeekModelId = keyof typeof deepSeekModels
-export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-v4-pro"
+export const deepSeekDefaultModelId: DeepSeekModelId = "deepseek-chat"
 export const deepSeekModels = {
 	"deepseek-v4-pro": {
 		maxTokens: 384_000,
@@ -2108,9 +2108,9 @@ export const deepSeekModels = {
 		supportsPromptCache: true,
 		supportsReasoning: true,
 		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss
-		outputPrice: 0.87, // limited-time 75% off, regular $3.48
-		cacheWritesPrice: 0.435, // cache miss price (limited-time 75% off, regular $1.74)
-		cacheReadsPrice: 0.03625, // cache hit price (limited-time 75% off, regular $0.145)
+		outputPrice: 3.48,
+		cacheWritesPrice: 1.74,
+		cacheReadsPrice: 0.145,
 	},
 	"deepseek-v4-flash": {
 		maxTokens: 384_000,
