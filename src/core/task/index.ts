@@ -265,6 +265,7 @@ export class Task {
 	private readonly remoteWorkspaceDetectionPromise: Promise<void>
 	private readonly presentationScheduler: TaskPresentationScheduler
 	private readonly presentationSchedulingDisabled = isPresentationSchedulingDisabled()
+	private lastLoggedPresentationTrigger = ""
 
 	constructor(params: TaskParams) {
 		const {
@@ -606,8 +607,12 @@ export class Task {
 			return
 		}
 
-		// Immediate semantic boundaries: first visible token, tool transitions, finalization, and cleanup drains.
-		Logger.debug(`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`)
+		// Only log when trigger or priority changes to avoid log spam during streaming
+		const logKey = `${trigger}:${priority}`
+		if (this.lastLoggedPresentationTrigger !== logKey) {
+			this.lastLoggedPresentationTrigger = logKey
+			Logger.debug(`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`)
+		}
 		this.presentationScheduler.requestFlush(priority)
 	}
 
@@ -2770,6 +2775,7 @@ export class Task {
 			await this.diffViewProvider.reset()
 			this.streamHandler.reset()
 			this.presentationScheduler.reset()
+			this.lastLoggedPresentationTrigger = ""
 			this.taskState.toolUseIdMap.clear()
 
 			const { toolUseHandler, reasonsHandler } = this.streamHandler.getHandlers()
