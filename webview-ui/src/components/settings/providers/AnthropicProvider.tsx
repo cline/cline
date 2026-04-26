@@ -2,7 +2,6 @@ import { ANTHROPIC_FAST_MODE_SUFFIX, anthropicModelInfoSaneDefaults, anthropicMo
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
-import { useState } from "react"
 import styled from "styled-components"
 import { Label } from "@/components/ui/label"
 import { useExtensionState } from "@/context/ExtensionStateContext"
@@ -63,9 +62,8 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
-	const [useCustomModel, setUseCustomModel] = useState(
-		(modeFields.apiModelId && !(modeFields.apiModelId in anthropicModels)) || !!modeFields.anthropicModelInfo,
-	)
+	const useCustomModel =
+		(modeFields.apiModelId && !(modeFields.apiModelId in anthropicModels)) || !!modeFields.anthropicModelInfo
 
 	// Helper function for model switching
 	const handleModelChange = (modelId: string) => {
@@ -79,25 +77,24 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 		handleFieldsChange({
 			planModeApiModelId: currentMode === "plan" ? modeFields.apiModelId : apiConfiguration?.planModeApiModelId,
 			actModeApiModelId: currentMode === "act" ? modeFields.apiModelId : apiConfiguration?.actModeApiModelId,
-			planModeAnthropicModelInfo: updatedInfo,
-			actModeAnthropicModelInfo: updatedInfo,
+			planModeAnthropicModelInfo: currentMode === "plan" ? updatedInfo : apiConfiguration?.planModeAnthropicModelInfo,
+			actModeAnthropicModelInfo: currentMode === "act" ? updatedInfo : apiConfiguration?.actModeAnthropicModelInfo,
 		} as any)
 	}
 
 	const handleToggleCustomModel = (checked: boolean) => {
-		setUseCustomModel(checked)
 		if (checked) {
 			// Initialize with sane defaults if no model ID is set
 			if (!modeFields.apiModelId) {
 				handleModelChange("custom-model")
 			}
 		} else {
-			// Clear custom model info and switch to first predefined model
+			// Clear custom model info for CURRENT mode only, switch to first predefined model
+			const modeModelIdKey = currentMode === "plan" ? "planModeApiModelId" : "actModeApiModelId"
+			const modeModelInfoKey = currentMode === "plan" ? "planModeAnthropicModelInfo" : "actModeAnthropicModelInfo"
 			handleFieldsChange({
-				planModeAnthropicModelInfo: undefined,
-				actModeAnthropicModelInfo: undefined,
-				planModeApiModelId: Object.keys(anthropicModels)[0],
-				actModeApiModelId: Object.keys(anthropicModels)[0],
+				[modeModelInfoKey]: undefined,
+				[modeModelIdKey]: Object.keys(anthropicModels)[0],
 			} as any)
 		}
 	}
