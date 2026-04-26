@@ -90,5 +90,49 @@ describe("VercelAIGatewayHandler", () => {
 				},
 			])
 		})
+
+		it("should read Anthropic-style cache creation and read tokens from usage chunks", async () => {
+			const handler = new VercelAIGatewayHandler({
+				vercelAiGatewayApiKey: "test-api-key",
+			})
+			const fakeClient = {
+				chat: {
+					completions: {
+						create: sinon.stub().resolves(
+							createAsyncIterable([
+								{
+									choices: [{}],
+									usage: {
+										prompt_tokens: 1000,
+										completion_tokens: 200,
+										prompt_tokens_details: {
+											cached_tokens: 500,
+										},
+										cache_creation_input_tokens: 300,
+									},
+								},
+							]),
+						),
+					},
+				},
+			}
+			sinon.stub(handler as any, "ensureClient").returns(fakeClient as any)
+
+			const chunks: any[] = []
+			for await (const chunk of handler.createMessage("system", [{ role: "user", content: "hi" }])) {
+				chunks.push(chunk)
+			}
+
+			chunks.should.deepEqual([
+				{
+					type: "usage",
+					cacheWriteTokens: 300,
+					cacheReadTokens: 500,
+					inputTokens: 200,
+					outputTokens: 200,
+					totalCost: 0,
+				},
+			])
+		})
 	})
 })

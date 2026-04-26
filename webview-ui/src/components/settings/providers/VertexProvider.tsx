@@ -1,6 +1,7 @@
 import { vertexGlobalModels, vertexModels } from "@shared/api"
 import VertexData from "@shared/providers/vertex.json"
 import type { Mode } from "@shared/storage/types"
+import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { DROPDOWN_Z_INDEX, DropdownContainer } from "../ApiOptions"
@@ -10,7 +11,7 @@ import { ModelSelector } from "../common/ModelSelector"
 import { LockIcon, RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
 /**
@@ -24,15 +25,12 @@ interface VertexProviderProps {
 
 // Vertex models that support thinking
 const SUPPORTED_THINKING_MODELS = [
-	"claude-opus-4-6",
-	"claude-opus-4-6:1m",
 	"claude-sonnet-4-6",
 	"claude-sonnet-4-6:1m",
 	"claude-haiku-4-5@20251001",
 	"claude-sonnet-4-5@20250929",
 	"claude-3-7-sonnet@20250219",
 	"claude-sonnet-4@20250514",
-	"claude-opus-4-5@20251101",
 	"claude-opus-4@20250514",
 	"claude-opus-4-1@20250805",
 	"gemini-2.5-flash",
@@ -48,9 +46,13 @@ const REGIONS = VertexData.regions
 export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: VertexProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
+	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 
 	// Get the normalized configuration
 	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
+	const adaptiveThinkingDefaultEffort =
+		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
 	// Determine which models to use based on region
 	const modelsToUse = apiConfiguration?.vertexRegion === "global" ? vertexGlobalModels : vertexModels
@@ -137,9 +139,17 @@ export const VertexProvider = ({ showModelOptions, isPopup, currentMode }: Verte
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
+					{isAdaptiveThinkingModel ? (
+						<ReasoningEffortSelector
+							allowedEfforts={["none", "low", "medium", "high", "xhigh"] as const}
+							currentMode={currentMode}
+							defaultEffort={adaptiveThinkingDefaultEffort}
+							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
+							label="Adaptive Thinking"
+						/>
+					) : SUPPORTED_THINKING_MODELS.includes(selectedModelId) ? (
 						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
-					)}
+					) : null}
 
 					{selectedModelInfo.thinkingConfig?.supportsThinkingLevel && (
 						<ReasoningEffortSelector currentMode={currentMode} />

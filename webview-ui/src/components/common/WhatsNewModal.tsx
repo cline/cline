@@ -1,5 +1,5 @@
 import { BannerAction, BannerCardData } from "@shared/cline/banner"
-import React, { useCallback } from "react"
+import React from "react"
 import { useMount } from "react-use"
 import DiscordIcon from "@/assets/DiscordIcon"
 import GitHubIcon from "@/assets/GitHubIcon"
@@ -9,7 +9,6 @@ import XIcon from "@/assets/XIcon"
 import WhatsNewItems from "@/components/common/WhatsNewItems"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useApiConfigurationHandlers } from "../settings/utils/useApiConfigurationHandlers"
 
 interface WhatsNewModalProps {
 	open: boolean
@@ -20,32 +19,10 @@ interface WhatsNewModalProps {
 }
 
 export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, version, welcomeBanners, onBannerAction }) => {
-	const { openRouterModels, refreshOpenRouterModels, navigateToSettingsModelPicker } = useExtensionState()
-	const { handleFieldsChange } = useApiConfigurationHandlers()
+	const { refreshOpenRouterModels } = useExtensionState()
 
 	// Get latest model list in case user hits shortcut button to set model
 	useMount(refreshOpenRouterModels)
-
-	const navigateToModelPicker = useCallback(
-		(initialModelTab: "recommended" | "free", modelId?: string) => {
-			// Switch to Cline provider first so the model picker tab works
-			// Optionally also set the model if provided
-			const updates: Record<string, any> = {
-				planModeApiProvider: "cline",
-				actModeApiProvider: "cline",
-			}
-			if (modelId) {
-				updates.planModeOpenRouterModelId = modelId
-				updates.actModeOpenRouterModelId = modelId
-				updates.planModeOpenRouterModelInfo = openRouterModels[modelId]
-				updates.actModeOpenRouterModelInfo = openRouterModels[modelId]
-			}
-			handleFieldsChange(updates)
-			onClose()
-			navigateToSettingsModelPicker({ targetSection: "api-config", initialModelTab })
-		},
-		[handleFieldsChange, navigateToSettingsModelPicker, onClose, openRouterModels],
-	)
 
 	const inlineCodeStyle: React.CSSProperties = {
 		backgroundColor: "var(--vscode-textCodeBlock-background)",
@@ -73,7 +50,6 @@ export const WhatsNewModal: React.FC<WhatsNewModalProps> = ({ open, onClose, ver
 						inlineCodeStyle={inlineCodeStyle}
 						onBannerAction={onBannerAction}
 						onClose={onClose}
-						onNavigateToModelPicker={navigateToModelPicker}
 						welcomeBanners={welcomeBanners}
 					/>
 

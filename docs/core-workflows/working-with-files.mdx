@@ -1,10 +1,10 @@
 ---
 title: "Adding Context"
 sidebarTitle: "Adding Context"
-description: "Use @ mentions and drag & drop to bring files, terminal output, errors, git changes, and web content into your conversations."
+description: "Use @ mentions and drag & drop to bring files, errors, git changes, and web content into your conversations."
 ---
 
-Cline works best when it has the right context, not just more context. @ mentions let you pull in exactly the files, errors, terminal output, or documentation that matter for your task. No copying, no pasting, no context switching.
+Cline works best when it has the right context, not just more context. @ mentions let you pull in exactly the files, errors, git changes, or documentation that matter for your task. No copying, no pasting, no context switching.
 
 You can add context two ways:
 - Type `@` in the chat input and select what you want
@@ -21,7 +21,6 @@ You can add context two ways:
 | File content | `@/path/to/file` | `@/src/index.ts` |
 | Folder contents | `@/path/to/folder/` | `@/src/components/` |
 | Workspace errors | `@problems` | `@problems` |
-| Terminal output | `@terminal` | `@terminal` |
 | Uncommitted changes | `@git-changes` | `@git-changes` |
 | Specific commit | `@<commit-hash>` | `@a1b2c3d` |
 | Web page | `@<url>` | `@https://react.dev/learn` |
@@ -52,14 +51,6 @@ Use `@problems` to share all errors and warnings from your workspace's Problems 
 
 ```text
 @problems Can you fix these TypeScript errors?
-```
-
-## Terminal Mentions
-
-Use `@terminal` to share recent terminal output. Perfect for debugging build errors or test failures.
-
-```text
-@terminal The build is failing. What's wrong?
 ```
 
 ## Git Mentions
@@ -93,8 +84,6 @@ I'm getting these errors: @problems
 
 Here's my component: @/src/components/Form.jsx
 And the API endpoint: @/src/api/users.js
-
-The error happens when I submit: @terminal
 
 I think this commit might have caused it: @a1b2c3d
 ```

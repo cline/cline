@@ -2,7 +2,7 @@
 	"name": "claude-dev",
 	"displayName": "Cline",
 	"description": "Autonomous coding agent right in your IDE, capable of creating/editing files, running commands, using the browser, and more with your permission every step of the way.",
-	"version": "3.77.0",
+	"version": "3.81.0",
 	"icon": "assets/icons/icon.png",
 	"workspaces": [
 		".",
@@ -175,11 +175,6 @@
 				"category": "Cline"
 			},
 			{
-				"command": "cline.addTerminalOutputToChat",
-				"title": "Add to Cline",
-				"category": "Cline"
-			},
-			{
 				"command": "cline.focusChatInput",
 				"title": "Jump to Chat Input",
 				"category": "Cline"
@@ -307,12 +302,6 @@
 					"command": "cline.addToChat",
 					"group": "navigation",
 					"when": "editorHasSelection"
-				}
-			],
-			"terminal/context": [
-				{
-					"command": "cline.addTerminalOutputToChat",
-					"group": "navigation"
 				}
 			],
 			"scm/title": [
@@ -548,7 +537,7 @@
 		"@vscode/codicons": "^0.0.36",
 		"archiver": "^7.0.1",
 		"aws4fetch": "^1.0.20",
-		"axios": "1.13.6",
+		"axios": "1.15.0",
 		"better-sqlite3": "^12.4.1",
 		"cheerio": "^1.0.0",
 		"chokidar": "^4.0.1",
@@ -608,6 +597,7 @@
 		"vite": "^7.1.11",
 		"js-yaml": "^4.1.1",
 		"serialize-javascript": ">=7.0.3",
+		"protobufjs": "7.5.5",
 		"mocha": {
 			"diff": ">=8.0.3"
 		}

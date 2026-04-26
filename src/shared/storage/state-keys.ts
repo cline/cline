@@ -18,7 +18,7 @@ import { Mode } from "@shared/storage/types"
 import { TelemetrySetting } from "@shared/TelemetrySetting"
 import { UserInfo } from "@shared/UserInfo"
 import { LanguageModelChatSelector } from "vscode"
-import { BlobStoreSettings } from "./ClineBlobStorage"
+import { type BlobStoreSettings } from "./types"
 
 // ============================================================================
 // SINGLE SOURCE OF TRUTH FOR STORAGE KEYS
@@ -55,6 +55,7 @@ const REMOTE_CONFIG_EXTRA_FIELDS = {
 	previousRemoteMCPServers: { default: undefined as Array<{ name: string; url: string }> | undefined },
 	remoteGlobalRules: { default: undefined as GlobalInstructionsFile[] | undefined },
 	remoteGlobalWorkflows: { default: undefined as GlobalInstructionsFile[] | undefined },
+	remoteGlobalSkills: { default: undefined as GlobalInstructionsFile[] | undefined },
 	blockPersonalRemoteMCPServers: { default: false as boolean },
 	openTelemetryOtlpHeaders: { default: undefined as Record<string, string> | undefined },
 	otlpMetricsHeaders: { default: undefined as Record<string, string> | undefined },
@@ -72,10 +73,6 @@ const GLOBAL_STATE_FIELDS = {
 	favoritedModelIds: { default: [] as string[] },
 	mcpMarketplaceEnabled: { default: true as boolean },
 	mcpResponsesCollapsed: { default: false as boolean },
-	terminalReuseEnabled: { default: true as boolean },
-	vscodeTerminalExecutionMode: {
-		default: "vscodeTerminal" as "vscodeTerminal" | "backgroundExec",
-	},
 	isNewUser: { default: true as boolean },
 	welcomeViewCompleted: { default: undefined as boolean | undefined },
 	cliKanbanMigrationAnnouncementShown: { default: false as boolean },
@@ -89,6 +86,7 @@ const GLOBAL_STATE_FIELDS = {
 	nativeToolCallEnabled: { default: true as boolean },
 	remoteRulesToggles: { default: {} as ClineRulesToggles },
 	remoteWorkflowToggles: { default: {} as ClineRulesToggles },
+	remoteSkillsToggles: { default: {} as ClineRulesToggles },
 	dismissedBanners: { default: [] as Array<{ bannerId: string; dismissedAt: number }> },
 	// Path to worktree that should auto-open Cline sidebar when launched
 	worktreeAutoOpenPath: { default: undefined as string | undefined },
@@ -254,9 +252,6 @@ const USER_SETTINGS_FIELDS = {
 	telemetrySetting: { default: "unset" as TelemetrySetting },
 	planActSeparateModelsSetting: { default: false as boolean, isComputed: true },
 	enableCheckpointsSetting: { default: true as boolean },
-	shellIntegrationTimeout: { default: 4000 as number },
-	defaultTerminalProfile: { default: "default" as string },
-	terminalOutputLineLimit: { default: 500 as number },
 	maxConsecutiveMistakes: { default: 3 as number },
 	strictPlanModeEnabled: { default: false as boolean },
 	hooksEnabled: { default: true as boolean },

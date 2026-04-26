@@ -620,7 +620,11 @@ console.log(JSON.stringify({
 			result.errorMessage?.should.match(/Workspace error/)
 		})
 
-		it("should execute global hook from primary workspace root directory", async () => {
+		it("should execute global hook from primary workspace root directory", async function () {
+			if (process.platform === "win32") {
+				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
+			}
+
 			// Create a global hook script that outputs the current working directory
 			const globalHookPath = path.join(globalHooksDir, "PreToolUse")
 			const globalHookScript = `#!/usr/bin/env node
