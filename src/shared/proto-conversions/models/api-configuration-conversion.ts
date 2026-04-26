@@ -55,6 +55,7 @@ function convertModelInfoToProtoOpenRouter(info: ModelInfo | undefined): OpenRou
 		contextWindow: info.contextWindow,
 		supportsImages: info.supportsImages,
 		supportsPromptCache: info.supportsPromptCache ?? false,
+		supportsReasoning: info.supportsReasoning,
 		inputPrice: info.inputPrice,
 		outputPrice: info.outputPrice,
 		cacheWritesPrice: info.cacheWritesPrice,
@@ -77,6 +78,7 @@ function convertProtoToModelInfo(info: OpenRouterModelInfo | undefined): ModelIn
 		contextWindow: info.contextWindow,
 		supportsImages: info.supportsImages,
 		supportsPromptCache: info.supportsPromptCache,
+		supportsReasoning: info.supportsReasoning,
 		inputPrice: info.inputPrice,
 		outputPrice: info.outputPrice,
 		cacheWritesPrice: info.cacheWritesPrice,
@@ -558,6 +560,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		planModeNousResearchModelId: config.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: config.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.planModeVercelAiGatewayModelInfo),
+		planModeAnthropicModelInfo: convertModelInfoToProtoOpenRouter(config.planModeAnthropicModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider: config.actModeApiProvider ? convertApiProviderToProto(config.actModeApiProvider) : undefined,
@@ -602,6 +605,7 @@ export function convertApiConfigurationToProto(config: ApiConfiguration): ProtoA
 		actModeNousResearchModelId: config.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: config.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertModelInfoToProtoOpenRouter(config.actModeVercelAiGatewayModelInfo),
+		actModeAnthropicModelInfo: convertModelInfoToProtoOpenRouter(config.actModeAnthropicModelInfo),
 	}
 }
 
@@ -741,6 +745,7 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		planModeNousResearchModelId: protoConfig.planModeNousResearchModelId,
 		planModeVercelAiGatewayModelId: protoConfig.planModeVercelAiGatewayModelId,
 		planModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.planModeVercelAiGatewayModelInfo),
+		planModeAnthropicModelInfo: convertProtoToModelInfo(protoConfig.planModeAnthropicModelInfo),
 
 		// Act mode configurations
 		actModeApiProvider:
@@ -786,5 +791,6 @@ export function convertProtoToApiConfiguration(protoConfig: ProtoApiConfiguratio
 		actModeNousResearchModelId: protoConfig.actModeNousResearchModelId,
 		actModeVercelAiGatewayModelId: protoConfig.actModeVercelAiGatewayModelId,
 		actModeVercelAiGatewayModelInfo: convertProtoToModelInfo(protoConfig.actModeVercelAiGatewayModelInfo),
+		actModeAnthropicModelInfo: convertProtoToModelInfo(protoConfig.actModeAnthropicModelInfo),
 	}
 }

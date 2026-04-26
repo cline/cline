@@ -203,9 +203,35 @@ export function normalizeApiConfiguration(
 		}
 	}
 
+	const getAnthropicModelInfo = (): ModelInfo | undefined => {
+		return currentMode === "plan" ? apiConfiguration?.planModeAnthropicModelInfo : apiConfiguration?.actModeAnthropicModelInfo
+	}
+
 	switch (provider) {
-		case "anthropic":
-			return getProviderData(anthropicModels, anthropicDefaultModelId)
+		case "anthropic": {
+			const customModelInfo = getAnthropicModelInfo()
+			// If custom model info is explicitly stored, use it
+			if (customModelInfo && modelId) {
+				return {
+					selectedProvider: provider,
+					selectedModelId: modelId,
+					selectedModelInfo: customModelInfo,
+				}
+			}
+			// If model is in predefined list
+			if (modelId && modelId in anthropicModels) {
+				return {
+					selectedProvider: provider,
+					selectedModelId: modelId,
+					selectedModelInfo: anthropicModels[modelId as keyof typeof anthropicModels],
+				}
+			}
+			return {
+				selectedProvider: provider,
+				selectedModelId: anthropicDefaultModelId,
+				selectedModelInfo: anthropicModels[anthropicDefaultModelId],
+			}
+		}
 		case "claude-code":
 			return getProviderData(claudeCodeModels, claudeCodeDefaultModelId)
 		case "bedrock":
@@ -563,6 +589,7 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 			// Other mode-specific fields
 			thinkingBudgetTokens: undefined,
 			reasoningEffort: undefined,
+			anthropicModelInfo: undefined,
 		}
 	}
 
@@ -650,6 +677,8 @@ export function getModeSpecificFields(apiConfiguration: ApiConfiguration | undef
 		reasoningEffort: mode === "plan" ? apiConfiguration.planModeReasoningEffort : apiConfiguration.actModeReasoningEffort,
 		// Oracle Code Assist
 		ocaModelInfo: mode === "plan" ? apiConfiguration.planModeOcaModelInfo : apiConfiguration.actModeOcaModelInfo,
+		anthropicModelInfo:
+			mode === "plan" ? apiConfiguration.planModeAnthropicModelInfo : apiConfiguration.actModeAnthropicModelInfo,
 	}
 }
 
@@ -821,6 +850,12 @@ export async function syncModeConfigurations(
 
 		// Providers that use apiProvider + apiModelId fields
 		case "anthropic":
+			updates.planModeApiModelId = sourceFields.apiModelId
+			updates.actModeApiModelId = sourceFields.apiModelId
+			updates.planModeAnthropicModelInfo = sourceFields.anthropicModelInfo
+			updates.actModeAnthropicModelInfo = sourceFields.anthropicModelInfo
+			break
+
 		case "claude-code":
 		case "vertex":
 		case "gemini":

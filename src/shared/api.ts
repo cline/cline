@@ -159,6 +159,23 @@ export const hicapModelInfoSaneDefaults: HicapCompatibleModelInfo = {
 	temperature: 1,
 }
 
+export const anthropicModelInfoSaneDefaults: ModelInfo = {
+	name: "Deepseek V4 Pro",
+	maxTokens: 384000,
+	contextWindow: 1_000_000,
+	supportsImages: false,
+	supportsPromptCache: true,
+	supportsReasoning: true,
+	inputPrice: 1,
+	outputPrice: 2,
+	thinkingConfig: {
+		supportsThinkingLevel: true, // Whether the model supports thinking level (low/high)
+	},
+	cacheWritesPrice: 0.2,
+	cacheReadsPrice: 0.2,
+	description: "DeepSeek V4 Pro",
+}
+
 // Anthropic
 // https://docs.anthropic.com/en/docs/about-claude/models // prices updated 2025-01-02
 export type AnthropicModelId = keyof typeof anthropicModels

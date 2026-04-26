@@ -281,6 +281,8 @@ message Settings {
   optional OpenRouterModelInfo act_mode_cline_model_info = 181;
   optional bool show_feature_tips = 182;
   optional bool lazy_teammate_mode_enabled = 183;
+  optional OpenRouterModelInfo plan_mode_anthropic_model_info = 184;
+  optional OpenRouterModelInfo act_mode_anthropic_model_info = 185;
 }
 
 message State {
