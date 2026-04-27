@@ -167,26 +167,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
 		}
 
-		// Update focus chain settings
-		if (request.focusChainSettings !== undefined) {
-			{
-				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
-				const wasEnabled = currentSettings?.enabled ?? false
-				const isEnabled = request.focusChainSettings.enabled
-
-				const focusChainSettings = {
-					enabled: isEnabled,
-					remindClineInterval: request.focusChainSettings.remindClineInterval,
-				}
-				controller.stateManager.setGlobalState("focusChainSettings", focusChainSettings)
-
-				// Capture telemetry when setting changes
-				if (wasEnabled !== isEnabled) {
-					telemetryService.captureFocusChainToggle(isEnabled)
-				}
-			}
-		}
-
 		// Update custom prompt choice
 		if (request.customPrompt !== undefined) {
 			const value = request.customPrompt === "compact" ? "compact" : undefined

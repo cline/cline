@@ -1,12 +1,11 @@
 import { UpdateSettingsRequest } from "@shared/proto/cline/state"
-import { memo, type ReactNode, useCallback } from "react"
+import { memo, type ReactNode } from "react"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import Section from "../Section"
-import SettingsSlider from "../SettingsSlider"
 import { updateSetting } from "../utils/settingsHandlers"
 
 // Reusable checkbox component for feature settings
@@ -28,8 +27,6 @@ interface FeatureToggle {
 	description: ReactNode
 	settingKey: keyof UpdateSettingsRequest
 	stateKey: string
-	/** If set, the setting value is nested with this key (e.g., "enabled" -> { enabled: checked }) */
-	nestedKey?: string
 }
 
 const agentFeatures: FeatureToggle[] = [
@@ -67,14 +64,6 @@ const agentFeatures: FeatureToggle[] = [
 		description: "Automatically compress conversation history.",
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
-	},
-	{
-		id: "focus-chain",
-		label: "Focus Chain",
-		description: "Maintain context focus across interactions",
-		stateKey: "focusChainEnabled",
-		settingKey: "focusChainSettings",
-		nestedKey: "enabled",
 	},
 ]
 
@@ -219,7 +208,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		clineWebToolsEnabled,
 		worktreesEnabled,
-		focusChainSettings,
 		remoteConfigSettings,
 		nativeToolCallSetting,
 		enableParallelToolCalling,
@@ -228,13 +216,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		lazyTeammateModeEnabled,
 		showFeatureTips,
 	} = useExtensionState()
-
-	const handleFocusChainIntervalChange = useCallback(
-		(value: number) => {
-			updateSetting("focusChainSettings", { ...focusChainSettings, remindClineInterval: value })
-		},
-		[focusChainSettings],
-	)
 
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
 
@@ -245,7 +226,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		strictPlanModeEnabled,
 		hooksEnabled,
 		nativeToolCallSetting,
-		focusChainEnabled: focusChainSettings?.enabled,
 		useAutoCondense,
 		subagentsEnabled,
 		clineWebToolsEnabled: clineWebToolsEnabled?.user,
@@ -263,23 +243,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled: worktreesEnabled?.featureFlag,
 	}
 
-	// Handler for feature toggle changes, supports nested settings like focusChainSettings
-	const handleFeatureChange = useCallback(
-		(feature: FeatureToggle, checked: boolean) => {
-			if (feature.nestedKey) {
-				// For nested settings, spread the existing value and set the nested key
-				let currentValue = {}
-				if (feature.settingKey === "focusChainSettings") {
-					currentValue = focusChainSettings ?? {}
-				}
-				updateSetting(feature.settingKey, { ...currentValue, [feature.nestedKey]: checked })
-			} else {
-				updateSetting(feature.settingKey, checked)
-			}
-		},
-		[focusChainSettings],
-	)
-
 	return (
 		<div className="mb-2">
 			{renderSectionHeader("features")}
@@ -292,31 +255,14 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							className="relative p-3 pt-0 my-3 rounded-md border border-editor-widget-border/50"
 							id="agent-features">
 							{agentFeatures.map((feature) => (
-								<div key={feature.id}>
-									<FeatureRow
-										checked={featureState[feature.stateKey]}
-										description={feature.description}
-										isVisible={featureVisibility[feature.stateKey] ?? true}
-										key={feature.id}
-										label={feature.label}
-										onChange={(checked) =>
-											feature.nestedKey === "enabled"
-												? handleFeatureChange(feature, checked)
-												: updateSetting(feature.settingKey, checked)
-										}
-									/>
-									{feature.id === "focus-chain" && featureState[feature.stateKey] && (
-										<SettingsSlider
-											label="Reminder Interval (1-10)"
-											max={10}
-											min={1}
-											onChange={handleFocusChainIntervalChange}
-											step={1}
-											value={focusChainSettings?.remindClineInterval || 6}
-											valueWidth="w-6"
-										/>
-									)}
-								</div>
+								<FeatureRow
+									checked={featureState[feature.stateKey]}
+									description={feature.description}
+									isVisible={featureVisibility[feature.stateKey] ?? true}
+									key={feature.id}
+									label={feature.label}
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
+								/>
 							))}
 						</div>
 					</div>
@@ -334,7 +280,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
-									onChange={(checked) => handleFeatureChange(feature, checked)}
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
 						</div>
@@ -355,7 +301,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
-									onChange={(checked) => handleFeatureChange(feature, checked)}
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 									remoteTooltip="This setting is managed by your organization's remote configuration"
 								/>
 							))}
@@ -375,7 +321,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									isVisible={featureVisibility[feature.stateKey] ?? true}
 									key={feature.id}
 									label={feature.label}
-									onChange={(checked) => handleFeatureChange(feature, checked)}
+									onChange={(checked) => updateSetting(feature.settingKey, checked)}
 								/>
 							))}
 

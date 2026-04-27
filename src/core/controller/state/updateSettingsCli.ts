@@ -49,7 +49,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 				clineWebToolsEnabled,
 				worktreesEnabled,
 				subagentsEnabled,
-				focusChainSettings,
 				browserSettings,
 				...simpleSettings
 			} = request.settings
@@ -168,24 +167,6 @@ export async function updateSettingsCli(controller: Controller, request: UpdateS
 
 				if (wasEnabled !== isEnabled) {
 					telemetryService.captureSubagentToggle(isEnabled)
-				}
-			}
-
-			// Update focus chain settings (requires telemetry on state change)
-			if (focusChainSettings !== undefined) {
-				const currentSettings = controller.stateManager.getGlobalSettingsKey("focusChainSettings")
-				const wasEnabled = currentSettings?.enabled ?? false
-				const isEnabled = focusChainSettings.enabled
-
-				const newFocusChainSettings = {
-					enabled: isEnabled,
-					remindClineInterval: focusChainSettings.remindClineInterval,
-				}
-				controller.stateManager.setGlobalState("focusChainSettings", newFocusChainSettings)
-
-				// Capture telemetry when setting changes
-				if (wasEnabled !== isEnabled) {
-					telemetryService.captureFocusChainToggle(isEnabled)
 				}
 			}
 
