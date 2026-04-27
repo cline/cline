@@ -190,13 +190,22 @@ function coerceStringWithSchema(value: string, schema: JsonSchema): unknown {
 		return undefined
 	}
 	if (types.has("boolean")) {
-		return coerceStringToBoolean(value)
+		const coerced = coerceStringToBoolean(value)
+		if (coerced !== undefined) {
+			return coerced
+		}
 	}
 	if (types.has("integer")) {
-		return coerceStringToNumber(value, true)
+		const coerced = coerceStringToNumber(value, true)
+		if (coerced !== undefined) {
+			return coerced
+		}
 	}
 	if (types.has("number")) {
-		return coerceStringToNumber(value, false)
+		const coerced = coerceStringToNumber(value, false)
+		if (coerced !== undefined) {
+			return coerced
+		}
 	}
 
 	return coerceStringToComposedSchema(value, schema)

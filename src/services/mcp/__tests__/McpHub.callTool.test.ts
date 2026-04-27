@@ -38,6 +38,7 @@ describe("McpHub.callTool argument coercion", () => {
 				mode: { enum: [1, 2] },
 				literalLocation: { anyOf: [{ const: 0 }, { const: 1 }, { const: 8 }] },
 				literalFlag: { oneOf: [{ const: true }, { const: false }] },
+				unionType: { type: ["boolean", "integer"] },
 			},
 		})
 
@@ -53,6 +54,7 @@ describe("McpHub.callTool argument coercion", () => {
 				mode: "2",
 				literalLocation: "8",
 				literalFlag: "true",
+				unionType: "1",
 			},
 			"ulid-1",
 		)
@@ -65,10 +67,11 @@ describe("McpHub.callTool argument coercion", () => {
 			mode: 2,
 			literalLocation: 8,
 			literalFlag: true,
+			unionType: 1,
 		})
 	})
 
-	it("leaves invalid or ambiguous string values unchanged", async () => {
+	it("leaves invalid or ambiguous values unchanged while coercing nested properties", async () => {
 		const { hub, request } = createHub({
 			type: "object",
 			properties: {
