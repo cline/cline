@@ -234,6 +234,7 @@ Behavior:
 - attachments are preserved
 - interactive sessions automatically treat a new send as `delivery: "queue"` while a run is already in progress unless the caller explicitly requests another delivery mode
 - core emits queue-related events and should be treated as the source of truth
+- pending prompts can be listed, edited, steered, or removed through `pendingPrompts("list" | "update" | "delete", input)` before they are drained into a turn
 
 ### Telemetry
 

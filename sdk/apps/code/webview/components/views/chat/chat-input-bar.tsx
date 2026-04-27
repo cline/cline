@@ -3,12 +3,15 @@
 import {
 	ArrowUp,
 	Brain,
+	Check,
 	ChevronDown,
 	CircleStop,
 	Coins,
 	Mic,
 	Paperclip,
+	Pencil,
 	RotateCcw,
+	Undo2,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -162,7 +165,12 @@ type ChatInputBarProps = {
 	attachments: Array<{ id: string; name: string; isImage: boolean }>;
 	onAttachFiles: (files: File[]) => void;
 	onRemoveAttachment: (id: string) => void;
-	onSteerPromptInQueue: (promptId: string) => void;
+	onSteerPromptInQueue: (promptId: string) => Promise<void> | void;
+	onEditPromptInQueue: (
+		promptId: string,
+		prompt: string,
+	) => Promise<void> | void;
+	onUndoPromptInQueue: (item: PromptInQueue) => Promise<void> | void;
 	summary: {
 		toolCalls: number;
 		tokensIn: number;
@@ -192,6 +200,8 @@ export function ChatInputBar({
 	onAttachFiles,
 	onRemoveAttachment,
 	onSteerPromptInQueue,
+	onEditPromptInQueue,
+	onUndoPromptInQueue,
 	summary,
 }: ChatInputBarProps) {
 	const {
@@ -233,6 +243,13 @@ export function ChatInputBar({
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
 	const slashCommandsLoadedRef = useRef(false);
+	const [editingQueuedPromptId, setEditingQueuedPromptId] = useState<
+		string | null
+	>(null);
+	const [editingQueuedPromptValue, setEditingQueuedPromptValue] = useState("");
+	const [queueActionPendingId, setQueueActionPendingId] = useState<
+		string | null
+	>(null);
 
 	const tokensSummary = useMemo(() => {
 		const total = summary.tokensIn + summary.tokensOut;
@@ -249,9 +266,69 @@ export function ChatInputBar({
 		setEffortIndex((current) => (current + 1) % effortLevels.length);
 	}, [effortLevels.length, modelSupportsReasoning]);
 
+	const startQueuedPromptEdit = useCallback((item: PromptInQueue) => {
+		setEditingQueuedPromptId(item.id);
+		setEditingQueuedPromptValue(item.prompt);
+	}, []);
+
+	const cancelQueuedPromptEdit = useCallback(() => {
+		setEditingQueuedPromptId(null);
+		setEditingQueuedPromptValue("");
+	}, []);
+
+	const submitQueuedPromptEdit = useCallback(
+		async (item: PromptInQueue) => {
+			const nextPrompt = editingQueuedPromptValue.trim();
+			if (!nextPrompt || queueActionPendingId) {
+				return;
+			}
+			setQueueActionPendingId(item.id);
+			try {
+				await onEditPromptInQueue(item.id, nextPrompt);
+				cancelQueuedPromptEdit();
+			} finally {
+				setQueueActionPendingId(null);
+			}
+		},
+		[
+			cancelQueuedPromptEdit,
+			editingQueuedPromptValue,
+			onEditPromptInQueue,
+			queueActionPendingId,
+		],
+	);
+
+	const triggerQueuedPromptAction = useCallback(
+		async (item: PromptInQueue, action: "steer" | "undo") => {
+			if (queueActionPendingId) {
+				return;
+			}
+			setQueueActionPendingId(item.id);
+			try {
+				if (action === "steer") {
+					await onSteerPromptInQueue(item.id);
+				} else {
+					await onUndoPromptInQueue(item);
+				}
+			} finally {
+				setQueueActionPendingId(null);
+			}
+		},
+		[onSteerPromptInQueue, onUndoPromptInQueue, queueActionPendingId],
+	);
+
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
 	}, [promptInput.length]);
+
+	useEffect(() => {
+		if (
+			editingQueuedPromptId &&
+			!promptsInQueue.some((item) => item.id === editingQueuedPromptId)
+		) {
+			cancelQueuedPromptEdit();
+		}
+	}, [cancelQueuedPromptEdit, editingQueuedPromptId, promptsInQueue]);
 
 	useEffect(() => {
 		const input = promptInputRef.current;
@@ -468,44 +545,132 @@ export function ChatInputBar({
 							</div>
 						</div>
 						<div className="flex flex-col gap-1.5">
-							{promptsInQueue.map((item, index) => (
-								<div
-									className={cn(
-										"flex items-start justify-between gap-3 rounded-md border px-2.5 py-2",
-										item.steer
-											? "border-amber-300/60 bg-amber-500/8"
-											: "border-border/70 bg-muted/30",
-									)}
-									key={item.id}
-								>
-									<div className="min-w-0 flex-1">
-										<div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
-											<span>{item.steer ? "Steer" : `Queue ${index + 1}`}</span>
-											{item.steer ? (
-												<span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
-													Next turn
+							{promptsInQueue.map((item, index) => {
+								const isEditing = editingQueuedPromptId === item.id;
+								const isPending = queueActionPendingId === item.id;
+								const hasAttachments = (item.attachmentCount ?? 0) > 0;
+								return (
+									<div
+										className={cn(
+											"flex items-start justify-between gap-3 rounded-md border px-2.5 py-2",
+											item.steer
+												? "border-amber-300/60 bg-amber-500/8"
+												: "border-border/70 bg-muted/30",
+										)}
+										key={item.id}
+									>
+										<div className="min-w-0 flex-1">
+											<div className="mb-1 flex items-center gap-2 text-[10px] uppercase tracking-wide text-muted-foreground">
+												<span>
+													{item.steer ? "Steer" : `Queue ${index + 1}`}
 												</span>
-											) : null}
+												{item.steer ? (
+													<span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+														Next turn
+													</span>
+												) : null}
+												{hasAttachments ? (
+													<span>
+														{item.attachmentCount} attachment
+														{item.attachmentCount === 1 ? "" : "s"}
+													</span>
+												) : null}
+											</div>
+											{isEditing ? (
+												<textarea
+													className="min-h-16 w-full resize-y rounded-md border border-border bg-background px-2 py-1.5 text-xs leading-4 text-foreground outline-none focus:border-primary/50 focus:ring-1 focus:ring-primary/20"
+													disabled={isPending}
+													onChange={(event) =>
+														setEditingQueuedPromptValue(event.target.value)
+													}
+													onKeyDown={(event) => {
+														if (event.key === "Escape") {
+															event.preventDefault();
+															cancelQueuedPromptEdit();
+														}
+														if (event.key === "Enter" && !event.shiftKey) {
+															event.preventDefault();
+															void submitQueuedPromptEdit(item);
+														}
+													}}
+													rows={3}
+													value={editingQueuedPromptValue}
+												/>
+											) : (
+												<div className="line-clamp-2 whitespace-pre-wrap break-words text-xs text-foreground">
+													{item.prompt}
+												</div>
+											)}
 										</div>
-										<div className="line-clamp-2 text-xs text-foreground whitespace-pre-wrap wrap-break-word">
-											{item.prompt}
+										<div className="flex shrink-0 items-center gap-1">
+											{isEditing ? (
+												<>
+													<button
+														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														disabled={
+															isPending ||
+															editingQueuedPromptValue.trim().length === 0
+														}
+														onClick={() => void submitQueuedPromptEdit(item)}
+														type="button"
+													>
+														<Check className="h-3 w-3" />
+														Save
+													</button>
+													<button
+														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														disabled={isPending}
+														onClick={cancelQueuedPromptEdit}
+														type="button"
+													>
+														<X className="h-3 w-3" />
+														Cancel
+													</button>
+												</>
+											) : (
+												<>
+													{!item.steer ? (
+														<button
+															className="rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+															disabled={isPending}
+															onClick={() =>
+																void triggerQueuedPromptAction(item, "steer")
+															}
+															type="button"
+														>
+															Steer
+														</button>
+													) : (
+														<div className="px-1 text-[10px] text-amber-700">
+															Steering
+														</div>
+													)}
+													<button
+														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														disabled={isPending}
+														onClick={() => startQueuedPromptEdit(item)}
+														type="button"
+													>
+														<Pencil className="h-3 w-3" />
+														Edit
+													</button>
+													<button
+														className="inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+														disabled={isPending}
+														onClick={() =>
+															void triggerQueuedPromptAction(item, "undo")
+														}
+														type="button"
+													>
+														<Undo2 className="h-3 w-3" />
+														Undo
+													</button>
+												</>
+											)}
 										</div>
 									</div>
-									{!item.steer ? (
-										<button
-											className="shrink-0 rounded-md border border-border px-2 py-1 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
-											onClick={() => onSteerPromptInQueue(item.id)}
-											type="button"
-										>
-											Steer
-										</button>
-									) : (
-										<div className="shrink-0 text-[10px] text-amber-700">
-											Steering
-										</div>
-									)}
-								</div>
-							))}
+								);
+							})}
 						</div>
 					</div>
 				)}

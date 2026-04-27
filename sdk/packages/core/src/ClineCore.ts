@@ -11,6 +11,11 @@ import type { SessionBackend } from "./runtime/host";
 import { createRuntimeHost } from "./runtime/host";
 import type {
 	LocalRuntimeStartOptions,
+	PendingPromptMutationResult,
+	PendingPromptsAction,
+	PendingPromptsDeleteInput,
+	PendingPromptsListInput,
+	PendingPromptsUpdateInput,
 	RuntimeHost,
 	RuntimeHostMode,
 	RuntimeHostSubscribeOptions,
@@ -21,7 +26,7 @@ import { splitCoreSessionConfig } from "./runtime/runtime-host";
 import { CORE_TELEMETRY_EVENTS } from "./services/telemetry/core-events";
 import { SessionSource } from "./types/common";
 import type { CoreSessionConfig } from "./types/config";
-import type { CoreSessionEvent } from "./types/events";
+import type { CoreSessionEvent, SessionPendingPrompt } from "./types/events";
 import type { SessionMessagesArtifactUploader } from "./types/session";
 
 export interface HubOptions {
@@ -394,6 +399,43 @@ export class ClineCore implements RuntimeHost {
 	 * ```
 	 */
 	send: RuntimeHost["send"] = (...args) => this.host.send(...args);
+	pendingPrompts(
+		action: "list",
+		input: PendingPromptsListInput,
+	): Promise<SessionPendingPrompt[]>;
+	pendingPrompts(
+		action: "update",
+		input: PendingPromptsUpdateInput,
+	): Promise<PendingPromptMutationResult>;
+	pendingPrompts(
+		action: "delete",
+		input: PendingPromptsDeleteInput,
+	): Promise<PendingPromptMutationResult>;
+	pendingPrompts(
+		action: PendingPromptsAction,
+		input:
+			| PendingPromptsListInput
+			| PendingPromptsUpdateInput
+			| PendingPromptsDeleteInput,
+	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
+		switch (action) {
+			case "list":
+				return this.host.pendingPrompts(
+					"list",
+					input as PendingPromptsListInput,
+				);
+			case "update":
+				return this.host.pendingPrompts(
+					"update",
+					input as PendingPromptsUpdateInput,
+				);
+			case "delete":
+				return this.host.pendingPrompts(
+					"delete",
+					input as PendingPromptsDeleteInput,
+				);
+		}
+	}
 	/**
 	 * Retrieves accumulated token and cost usage for a session.
 	 *

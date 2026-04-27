@@ -81,6 +81,11 @@ export {
 } from "./extensions/tools";
 export type { SessionBackend } from "./runtime/host";
 export type {
+	PendingPromptMutationResult,
+	PendingPromptsAction,
+	PendingPromptsDeleteInput,
+	PendingPromptsListInput,
+	PendingPromptsUpdateInput,
 	RuntimeHost,
 	RuntimeHost as SessionHost,
 	RuntimeHostMode,
@@ -140,6 +145,9 @@ export type {
 	CoreSessionEvent,
 	SessionChunkEvent,
 	SessionEndedEvent,
+	SessionPendingPrompt,
+	SessionPendingPromptSubmittedEvent,
+	SessionPendingPromptsEvent,
 	SessionTeamProgressEvent,
 	SessionToolEvent,
 } from "./types/events";

@@ -27,6 +27,11 @@ import { createSpawnAgentTool, type TeamEvent } from "../extensions/tools/team";
 import type { HookEventPayload } from "../hooks";
 import { DefaultRuntimeBuilder } from "../runtime/runtime-builder";
 import type {
+	PendingPromptMutationResult,
+	PendingPromptsAction,
+	PendingPromptsDeleteInput,
+	PendingPromptsListInput,
+	PendingPromptsUpdateInput,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
@@ -97,8 +102,12 @@ import {
 } from "../session/session-team-coordination";
 import { SessionSource, type SessionStatus } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
-import type { CoreSessionEvent } from "../types/events";
-import type { ActiveSession, PreparedTurnInput } from "../types/session";
+import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
+import type {
+	ActiveSession,
+	PendingPrompt,
+	PreparedTurnInput,
+} from "../types/session";
 import type { SessionRecord } from "../types/sessions";
 import {
 	cloneAccumulatedUsage,
@@ -484,6 +493,122 @@ export class LocalRuntimeHost implements RuntimeHost {
 			await this.failSession(session);
 			throw error;
 		}
+	}
+
+	async pendingPrompts(
+		action: "list",
+		input: PendingPromptsListInput,
+	): Promise<SessionPendingPrompt[]>;
+	async pendingPrompts(
+		action: "update",
+		input: PendingPromptsUpdateInput,
+	): Promise<PendingPromptMutationResult>;
+	async pendingPrompts(
+		action: "delete",
+		input: PendingPromptsDeleteInput,
+	): Promise<PendingPromptMutationResult>;
+	async pendingPrompts(
+		action: PendingPromptsAction,
+		input:
+			| PendingPromptsListInput
+			| PendingPromptsUpdateInput
+			| PendingPromptsDeleteInput,
+	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
+		switch (action) {
+			case "list":
+				return this.listPendingPromptEntries(input.sessionId);
+			case "update":
+				return this.editPendingPromptEntry(input as PendingPromptsUpdateInput);
+			case "delete":
+				return this.deletePendingPromptEntry(
+					input as PendingPromptsDeleteInput,
+				);
+		}
+	}
+
+	private listPendingPromptEntries(sessionId: string): SessionPendingPrompt[] {
+		const session = this.sessions.get(sessionId);
+		return session ? this.snapshotPendingPrompts(session) : [];
+	}
+
+	private editPendingPromptEntry(
+		input: PendingPromptsUpdateInput,
+	): PendingPromptMutationResult {
+		const session = this.sessions.get(input.sessionId);
+		if (!session || session.aborting) {
+			return { sessionId: input.sessionId, prompts: [], updated: false };
+		}
+		const promptId = input.promptId.trim();
+		const index = session.pendingPrompts.findIndex(
+			(entry) => entry.id === promptId,
+		);
+		if (index < 0) {
+			return {
+				sessionId: input.sessionId,
+				prompts: this.snapshotPendingPrompts(session),
+				updated: false,
+			};
+		}
+
+		const existing = session.pendingPrompts[index]!;
+		const prompt =
+			input.prompt === undefined
+				? existing.prompt
+				: normalizeUserInput(input.prompt).trim();
+		if (!prompt) {
+			throw new Error("prompt cannot be empty");
+		}
+		const delivery = input.delivery ?? existing.delivery;
+		const next: PendingPrompt = {
+			...existing,
+			prompt,
+			delivery,
+		};
+		session.pendingPrompts.splice(index, 1);
+		if (delivery === "steer") {
+			session.pendingPrompts.unshift(next);
+		} else if (existing.delivery === "steer") {
+			session.pendingPrompts.push(next);
+		} else {
+			session.pendingPrompts.splice(index, 0, next);
+		}
+		this.emitPendingPrompts(session);
+		this.schedulePendingPromptDrain(input.sessionId, session);
+		return {
+			sessionId: input.sessionId,
+			prompts: this.snapshotPendingPrompts(session),
+			prompt: this.snapshotPendingPrompt(next),
+			updated: true,
+		};
+	}
+
+	private deletePendingPromptEntry(
+		input: PendingPromptsDeleteInput,
+	): PendingPromptMutationResult {
+		const session = this.sessions.get(input.sessionId);
+		if (!session || session.aborting) {
+			return { sessionId: input.sessionId, prompts: [], removed: false };
+		}
+		const promptId = input.promptId.trim();
+		const index = session.pendingPrompts.findIndex(
+			(entry) => entry.id === promptId,
+		);
+		if (index < 0) {
+			return {
+				sessionId: input.sessionId,
+				prompts: this.snapshotPendingPrompts(session),
+				removed: false,
+			};
+		}
+		const [removed] = session.pendingPrompts.splice(index, 1);
+		this.emitPendingPrompts(session);
+		this.schedulePendingPromptDrain(input.sessionId, session);
+		return {
+			sessionId: input.sessionId,
+			prompts: this.snapshotPendingPrompts(session),
+			prompt: removed ? this.snapshotPendingPrompt(removed) : undefined,
+			removed: true,
+		};
 	}
 
 	async getAccumulatedUsage(
@@ -1085,6 +1210,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 		}
 		this.emitPendingPrompts(session);
+		this.schedulePendingPromptDrain(sessionId, session);
+	}
+
+	private schedulePendingPromptDrain(
+		sessionId: string,
+		session: ActiveSession,
+	): void {
+		if (
+			session.pendingPrompts.length === 0 ||
+			session.aborting ||
+			session.drainingPendingPrompts ||
+			!session.agent.canStartRun()
+		) {
+			return;
+		}
 		queueMicrotask(() => {
 			void this.drainPendingPrompts(sessionId);
 		});
@@ -1177,15 +1317,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 			type: "pending_prompts",
 			payload: {
 				sessionId: session.sessionId,
-				prompts: session.pendingPrompts.map((entry) => ({
-					id: entry.id,
-					prompt: entry.prompt,
-					delivery: entry.delivery,
-					attachmentCount:
-						(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
-				})),
+				prompts: this.snapshotPendingPrompts(session),
 			},
 		});
+	}
+
+	private snapshotPendingPrompt(entry: PendingPrompt): SessionPendingPrompt {
+		return {
+			id: entry.id,
+			prompt: entry.prompt,
+			delivery: entry.delivery,
+			attachmentCount:
+				(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
+		};
+	}
+
+	private snapshotPendingPrompts(
+		session: ActiveSession,
+	): SessionPendingPrompt[] {
+		return session.pendingPrompts.map((entry) =>
+			this.snapshotPendingPrompt(entry),
+		);
 	}
 
 	private emitPendingPromptSubmitted(

@@ -34,7 +34,7 @@ import { SqliteSessionStore } from "../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../session/session-service";
 import { LocalRuntimeHost } from "../transports/local";
 import { readPersistedMessagesFile } from "../transports/runtime-host-support";
-import type { CoreSessionEvent } from "../types/events";
+import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
 import type { SessionRecord as LocalSessionRecord } from "../types/sessions";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import { verifyHubConnection } from "./client";
@@ -660,6 +660,12 @@ export class HubServerTransport implements NativeHubTransport {
 				return await this.handleSessionList(envelope);
 			case "session.update":
 				return await this.handleSessionUpdate(envelope);
+			case "session.pending_prompts":
+				return await this.handleSessionPendingPrompts(envelope);
+			case "session.update_pending_prompt":
+				return await this.handleSessionUpdatePendingPrompt(envelope);
+			case "session.remove_pending_prompt":
+				return await this.handleSessionRemovePendingPrompt(envelope);
 			case "session.delete":
 				return await this.handleSessionDelete(envelope);
 			case "session.hook":
@@ -1236,6 +1242,81 @@ export class HubServerTransport implements NativeHubTransport {
 		};
 	}
 
+	private async handleSessionPendingPrompts(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const prompts = await this.sessionHost.pendingPrompts("list", {
+			sessionId,
+		});
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: { sessionId, prompts },
+		};
+	}
+
+	private async handleSessionUpdatePendingPrompt(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const promptId =
+			typeof envelope.payload?.promptId === "string"
+				? envelope.payload.promptId.trim()
+				: "";
+		const prompt =
+			typeof envelope.payload?.prompt === "string"
+				? envelope.payload.prompt
+				: undefined;
+		const delivery =
+			envelope.payload?.delivery === "queue" ||
+			envelope.payload?.delivery === "steer"
+				? envelope.payload.delivery
+				: undefined;
+		const result = await this.sessionHost.pendingPrompts("update", {
+			sessionId,
+			promptId,
+			prompt,
+			delivery,
+		});
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: result as unknown as Record<string, JsonValue | undefined>,
+		};
+	}
+
+	private async handleSessionRemovePendingPrompt(
+		envelope: HubCommandEnvelope,
+	): Promise<HubReplyEnvelope> {
+		const sessionId =
+			typeof envelope.payload?.sessionId === "string"
+				? envelope.payload.sessionId.trim()
+				: envelope.sessionId?.trim() || "";
+		const promptId =
+			typeof envelope.payload?.promptId === "string"
+				? envelope.payload.promptId.trim()
+				: "";
+		const result = await this.sessionHost.pendingPrompts("delete", {
+			sessionId,
+			promptId,
+		});
+		return {
+			version: envelope.version,
+			requestId: envelope.requestId,
+			ok: true,
+			payload: result as unknown as Record<string, JsonValue | undefined>,
+		};
+	}
+
 	private async handleSessionDelete(
 		envelope: HubCommandEnvelope,
 	): Promise<HubReplyEnvelope> {
@@ -1706,6 +1787,35 @@ export class HubServerTransport implements NativeHubTransport {
 					this.buildEvent(
 						"team.progress",
 						projection as unknown as Record<string, unknown>,
+						event.payload.sessionId,
+					),
+				);
+				return;
+			}
+			case "pending_prompts": {
+				this.publish(
+					this.buildEvent(
+						"session.pending_prompts",
+						{
+							sessionId: event.payload.sessionId,
+							prompts: event.payload.prompts,
+						},
+						event.payload.sessionId,
+					),
+				);
+				return;
+			}
+			case "pending_prompt_submitted": {
+				const prompt: SessionPendingPrompt = {
+					id: event.payload.id,
+					prompt: event.payload.prompt,
+					delivery: event.payload.delivery,
+					attachmentCount: event.payload.attachmentCount,
+				};
+				this.publish(
+					this.buildEvent(
+						"session.pending_prompt_submitted",
+						{ sessionId: event.payload.sessionId, prompt },
 						event.payload.sessionId,
 					),
 				);

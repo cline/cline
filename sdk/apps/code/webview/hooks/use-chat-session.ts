@@ -272,6 +272,9 @@ export function useChatSession() {
 			ok?: boolean;
 			queued?: boolean;
 			promptsInQueue?: PromptInQueue[];
+			prompt?: PromptInQueue;
+			updated?: boolean;
+			removed?: boolean;
 		}>("chat_session_command", { request: body });
 	}, []);
 
@@ -1457,6 +1460,44 @@ export function useChatSession() {
 		[postSession],
 	);
 
+	const updatePromptInQueue = useCallback(
+		async (promptId: string, prompt: string) => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId || !promptId.trim()) {
+				return;
+			}
+			const payload = await postSession({
+				action: "update_pending_prompt",
+				sessionId: activeSessionId,
+				promptId,
+				prompt,
+			});
+			setPromptsInQueue(
+				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+			);
+		},
+		[postSession],
+	);
+
+	const removePromptInQueue = useCallback(
+		async (promptId: string): Promise<PromptInQueue | undefined> => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId || !promptId.trim()) {
+				return undefined;
+			}
+			const payload = await postSession({
+				action: "remove_pending_prompt",
+				sessionId: activeSessionId,
+				promptId,
+			});
+			setPromptsInQueue(
+				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
+			);
+			return payload.prompt;
+		},
+		[postSession],
+	);
+
 	const summary = useMemo(
 		() => ({
 			toolCalls,
@@ -1493,6 +1534,8 @@ export function useChatSession() {
 		hydrateSession,
 		sendPrompt,
 		steerPromptInQueue,
+		updatePromptInQueue,
+		removePromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
 		restoreCheckpoint,

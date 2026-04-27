@@ -8,6 +8,7 @@ import {
 	createUserInstructionConfigWatcher,
 	loadRulesForSystemPromptFromWatcher,
 	mergeRulesForSystemPrompt,
+	type SessionPendingPrompt,
 	SessionSource,
 	splitCoreSessionConfig,
 } from "@clinebot/core";
@@ -18,6 +19,7 @@ import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
 	LiveSession,
+	PromptInQueue,
 	SidecarContext,
 } from "./types";
 
@@ -301,6 +303,29 @@ function sendPromptsInQueueSnapshot(
 	});
 }
 
+function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
+	return {
+		id: item.id,
+		prompt: item.prompt,
+		steer: item.delivery === "steer",
+		attachmentCount: item.attachmentCount,
+	};
+}
+
+function applyPendingPrompts(
+	ctx: SidecarContext,
+	sessionId: string,
+	prompts: SessionPendingPrompt[],
+): PromptInQueue[] {
+	const mapped = prompts.map(mapPendingPrompt).filter((item) => item.id);
+	const session = ctx.liveSessions.get(sessionId);
+	if (session) {
+		session.promptsInQueue = mapped;
+	}
+	sendPromptsInQueueSnapshot(ctx, sessionId);
+	return mapped;
+}
+
 function getSessionManager(ctx: SidecarContext): ClineCore {
 	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
 	return ctx.sessionManager;
@@ -435,36 +460,25 @@ async function handleSend(
 		delivery = "queue";
 	}
 
-	// Optimistically track queued prompts in the sidecar's local queue for
-	// immediate UI feedback (prompts_in_queue_state), but only for "queue"
-	// delivery — Core will drain them and emit pending_prompts events back.
 	if (delivery === "queue") {
-		const queueId = `queued_${Date.now()}_${Math.random().toString(36).slice(2)}`;
 		if (session) {
 			session.prompt = prompt;
-			session.promptsInQueue.push({
-				id: queueId,
-				prompt,
-				steer: false,
-				attachmentCount: request.attachments?.userImages?.length ?? 0,
-			});
-			sendPromptsInQueueSnapshot(ctx, sessionId);
 		}
 		// Delegate queuing to Core — it will drain the prompt once the current
 		// turn finishes and emit pending_prompts / pending_prompt_submitted events.
-		manager
-			.send({
-				sessionId,
-				prompt,
-				delivery: "queue",
-				userImages: request.attachments?.userImages,
-			})
-			.catch((error) => {
-				console.error(
-					`[sidecar:handleSend] manager.send (queue) THREW sessionId=${sessionId} error=${error instanceof Error ? error.message : String(error)}`,
-				);
-			});
-		return { sessionId, ok: true, queued: true };
+		await manager.send({
+			sessionId,
+			prompt,
+			delivery: "queue",
+			userImages: request.attachments?.userImages,
+		});
+		const prompts = await manager.pendingPrompts("list", { sessionId });
+		return {
+			sessionId,
+			ok: true,
+			queued: true,
+			promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+		};
 	}
 
 	if (session) {
@@ -659,9 +673,12 @@ async function handlePendingPrompts(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
+	const prompts = await getSessionManager(ctx).pendingPrompts("list", {
+		sessionId,
+	});
 	return {
 		sessionId,
-		promptsInQueue: ctx.liveSessions.get(sessionId)?.promptsInQueue ?? [],
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
 	};
 }
 
@@ -673,19 +690,66 @@ async function handleSteerPrompt(
 	const promptId = request.promptId?.trim();
 	if (!sessionId || !promptId)
 		throw new Error("sessionId and promptId are required");
-	const session = ctx.liveSessions.get(sessionId);
-	if (!session) return { sessionId, promptsInQueue: [] };
-	const queueIdx = session.promptsInQueue.findIndex((t) => t.id === promptId);
-	const prompt =
-		queueIdx >= 0 ? session.promptsInQueue[queueIdx]?.prompt : undefined;
-	if (queueIdx >= 0) {
-		session.promptsInQueue.splice(queueIdx, 1);
+	const manager = getSessionManager(ctx);
+	const result = await manager.pendingPrompts("update", {
+		sessionId,
+		promptId,
+		delivery: "steer",
+	});
+	return {
+		sessionId,
+		updated: result.updated === true,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
+	};
+}
+
+async function handleUpdatePendingPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	const promptId = request.promptId?.trim();
+	const prompt = request.prompt?.trim();
+	if (!sessionId || !promptId) {
+		throw new Error("sessionId and promptId are required");
 	}
-	if (prompt)
-		getSessionManager(ctx)
-			.send({ sessionId, prompt, delivery: "steer" })
-			.catch(() => {});
-	return { sessionId, promptsInQueue: session.promptsInQueue };
+	if (!prompt) {
+		throw new Error("prompt is required");
+	}
+	const manager = getSessionManager(ctx);
+	const result = await manager.pendingPrompts("update", {
+		sessionId,
+		promptId,
+		prompt,
+	});
+	return {
+		sessionId,
+		updated: result.updated === true,
+		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
+	};
+}
+
+async function handleRemovePendingPrompt(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sessionId = request.sessionId?.trim();
+	const promptId = request.promptId?.trim();
+	if (!sessionId || !promptId) {
+		throw new Error("sessionId and promptId are required");
+	}
+	const manager = getSessionManager(ctx);
+	const result = await manager.pendingPrompts("delete", {
+		sessionId,
+		promptId,
+	});
+	return {
+		sessionId,
+		removed: result.removed === true,
+		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
+		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -705,6 +769,8 @@ const ACTION_HANDLERS: Record<
 	restore_checkpoint: handleRestoreCheckpoint,
 	pending_prompts: handlePendingPrompts,
 	steer_prompt: handleSteerPrompt,
+	update_pending_prompt: handleUpdatePendingPrompt,
+	remove_pending_prompt: handleRemovePendingPrompt,
 };
 
 export async function handleChatSessionCommand(

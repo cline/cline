@@ -1973,6 +1973,117 @@ describe("LocalRuntimeHost", () => {
 		).toBe(true);
 	});
 
+	it("updates and removes pending prompts by id", async () => {
+		const sessionId = "sess-edit-pending-queue";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-edit-queue.json",
+				messagesPath: "/tmp/messages-edit-queue.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run: vi.fn().mockResolvedValue(createResult({ text: "first" })),
+					continue: vi.fn().mockResolvedValue(createResult({ text: "next" })),
+					canStartRun: vi.fn(() => false),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+		const events: Array<unknown> = [];
+		manager.subscribe((event) => {
+			events.push(event);
+		});
+
+		await manager.start(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		await manager.send({
+			sessionId,
+			prompt: "queued first",
+			delivery: "queue",
+		});
+		await manager.send({
+			sessionId,
+			prompt: "queued second",
+			delivery: "queue",
+		});
+
+		const queued = await manager.pendingPrompts("list", { sessionId });
+		expect(queued.map((item) => item.prompt)).toEqual([
+			"queued first",
+			"queued second",
+		]);
+
+		const edited = await manager.pendingPrompts("update", {
+			sessionId,
+			promptId: queued[0]?.id,
+			prompt: "edited first",
+		});
+		expect(edited.updated).toBe(true);
+		expect(edited.prompts.map((item) => item.prompt)).toEqual([
+			"edited first",
+			"queued second",
+		]);
+
+		const steered = await manager.pendingPrompts("update", {
+			sessionId,
+			promptId: edited.prompts[1]?.id,
+			delivery: "steer",
+		});
+		expect(
+			steered.prompts.map(({ prompt, delivery }) => ({ prompt, delivery })),
+		).toEqual([
+			{ prompt: "queued second", delivery: "steer" },
+			{ prompt: "edited first", delivery: "queue" },
+		]);
+
+		const removed = await manager.pendingPrompts("delete", {
+			sessionId,
+			promptId: steered.prompts[0]?.id,
+		});
+		expect(removed.removed).toBe(true);
+		expect(removed.prompt?.prompt).toBe("queued second");
+		expect(removed.prompts.map((item) => item.prompt)).toEqual([
+			"edited first",
+		]);
+		expect(
+			events.some(
+				(event) =>
+					typeof event === "object" &&
+					event !== null &&
+					"type" in event &&
+					event.type === "pending_prompts",
+			),
+		).toBe(true);
+	});
+
 	it("returns undefined accumulated usage for unknown sessions", async () => {
 		const manager = new RuntimeHostUnderTest({
 			distinctId,

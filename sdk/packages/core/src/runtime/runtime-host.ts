@@ -11,7 +11,7 @@ import type { ProviderSettings } from "../llms/provider-settings";
 import type { SessionManifest } from "../session/session-manifest";
 import type { SessionSource } from "../types/common";
 import type { CoreSessionConfig } from "../types/config";
-import type { CoreSessionEvent } from "../types/events";
+import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
 
 type LocalOnlyCoreSessionConfigKeys =
@@ -166,6 +166,32 @@ export interface SessionAccumulatedUsage {
 	totalCost: number;
 }
 
+export interface PendingPromptMutationResult {
+	sessionId: string;
+	prompts: SessionPendingPrompt[];
+	prompt?: SessionPendingPrompt;
+	updated?: boolean;
+	removed?: boolean;
+}
+
+export type PendingPromptsAction = "list" | "update" | "delete";
+
+export interface PendingPromptsListInput {
+	sessionId: string;
+}
+
+export interface PendingPromptsUpdateInput {
+	sessionId: string;
+	promptId: string;
+	prompt?: string;
+	delivery?: "queue" | "steer";
+}
+
+export interface PendingPromptsDeleteInput {
+	sessionId: string;
+	promptId: string;
+}
+
 export interface RuntimeHostSubscribeOptions {
 	sessionId?: string;
 }
@@ -179,6 +205,18 @@ export interface RuntimeHost {
 	readonly runtimeAddress?: string;
 	start(input: StartSessionInput): Promise<StartSessionResult>;
 	send(input: SendSessionInput): Promise<AgentResult | undefined>;
+	pendingPrompts(
+		action: "list",
+		input: PendingPromptsListInput,
+	): Promise<SessionPendingPrompt[]>;
+	pendingPrompts(
+		action: "update",
+		input: PendingPromptsUpdateInput,
+	): Promise<PendingPromptMutationResult>;
+	pendingPrompts(
+		action: "delete",
+		input: PendingPromptsDeleteInput,
+	): Promise<PendingPromptMutationResult>;
 	getAccumulatedUsage(
 		sessionId: string,
 	): Promise<SessionAccumulatedUsage | undefined>;

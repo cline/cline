@@ -36,14 +36,16 @@ export interface SessionTeamProgressEvent {
 	summary: import("@clinebot/shared").TeamProgressSummary;
 }
 
+export interface SessionPendingPrompt {
+	id: string;
+	prompt: string;
+	delivery: "queue" | "steer";
+	attachmentCount: number;
+}
+
 export interface SessionPendingPromptsEvent {
 	sessionId: string;
-	prompts: Array<{
-		id: string;
-		prompt: string;
-		delivery: "queue" | "steer";
-		attachmentCount: number;
-	}>;
+	prompts: SessionPendingPrompt[];
 }
 
 export interface SessionPendingPromptSubmittedEvent {

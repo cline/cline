@@ -9,6 +9,9 @@ export type {
 	CoreSessionEvent,
 	SessionChunkEvent,
 	SessionEndedEvent,
+	SessionPendingPrompt,
+	SessionPendingPromptSubmittedEvent,
+	SessionPendingPromptsEvent,
 	SessionTeamProgressEvent,
 	SessionToolEvent,
 } from "./events";

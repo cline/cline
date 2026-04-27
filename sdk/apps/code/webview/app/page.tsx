@@ -24,6 +24,7 @@ import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { SettingsView } from "@/components/views/settings/settings-view";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
@@ -252,6 +253,8 @@ function ChatThreadPane({
 		setConfig,
 		sendPrompt,
 		steerPromptInQueue,
+		updatePromptInQueue,
+		removePromptInQueue,
 		approveToolApproval,
 		rejectToolApproval,
 		restoreCheckpoint,
@@ -589,6 +592,28 @@ function ChatThreadPane({
 		setPendingAttachments([]);
 		await sendPrompt(trimmed, toSend);
 	}, [pendingAttachments, promptInput, sendPrompt]);
+
+	const handleUndoQueuedPrompt = useCallback(
+		async (item: PromptInQueue) => {
+			const removed = await removePromptInQueue(item.id);
+			const prompt = removed?.prompt.trim();
+			if (!prompt) {
+				return;
+			}
+			const attachmentCount =
+				removed?.attachmentCount ?? item.attachmentCount ?? 0;
+			if (attachmentCount > 0) {
+				toast({
+					title: "Queued attachments removed",
+					description: "Reattach files before sending the restored message.",
+				});
+			}
+			setPromptInput((current) =>
+				current.trim().length > 0 ? `${current}\n\n${prompt}` : prompt,
+			);
+		},
+		[removePromptInQueue],
+	);
 	const handleApproveToolApproval = useCallback(
 		(requestId: string) => {
 			void approveToolApproval(requestId);
@@ -606,13 +631,15 @@ function ChatThreadPane({
 		const result = await forkSession();
 		// Open the forked session as a new thread in the sidebar.
 		if (onOpenSession) {
+			const workspaceRoot = config.workspaceRoot;
+			const cwd = config.cwd ?? workspaceRoot;
 			const forkedHistorySession: SessionHistoryItem = {
 				sessionId: result.newSessionId,
 				status: "completed",
 				provider: config.provider,
 				model: config.model,
-				cwd: config.cwd,
-				workspaceRoot: config.workspaceRoot,
+				cwd,
+				workspaceRoot,
 				startedAt: new Date().toISOString(),
 				metadata: {
 					fork: {
@@ -930,6 +957,12 @@ function ChatThreadPane({
 						onPromptInputChange={setPromptInput}
 						onSteerPromptInQueue={(promptId) => {
 							void steerPromptInQueue(promptId);
+						}}
+						onEditPromptInQueue={(promptId, prompt) => {
+							void updatePromptInQueue(promptId, prompt);
+						}}
+						onUndoPromptInQueue={(item) => {
+							void handleUndoQueuedPrompt(item);
 						}}
 						onProviderChange={(nextProvider) =>
 							setConfig((prev) => {

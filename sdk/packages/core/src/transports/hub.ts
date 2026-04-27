@@ -14,6 +14,11 @@ import type { ToolExecutors } from "../extensions/tools";
 import type { HookEventPayload } from "../hooks";
 import { NodeHubClient } from "../hub/client";
 import type {
+	PendingPromptMutationResult,
+	PendingPromptsAction,
+	PendingPromptsDeleteInput,
+	PendingPromptsListInput,
+	PendingPromptsUpdateInput,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
 	SendSessionInput,
@@ -26,7 +31,7 @@ import {
 	SessionManifestSchema,
 } from "../session/session-manifest";
 import { SessionSource, type SessionStatus } from "../types/common";
-import type { CoreSessionEvent } from "../types/events";
+import type { CoreSessionEvent, SessionPendingPrompt } from "../types/events";
 import type { SessionRecord } from "../types/sessions";
 import {
 	RuntimeHostEventBus,
@@ -322,11 +327,97 @@ export class HubRuntimeHost implements RuntimeHost {
 									: {}),
 							}
 						: undefined,
+				delivery: input.delivery,
 			},
 			input.sessionId,
 			{ timeoutMs: null },
 		);
 		return reply.payload?.result as AgentResult | undefined;
+	}
+
+	async pendingPrompts(
+		action: "list",
+		input: PendingPromptsListInput,
+	): Promise<SessionPendingPrompt[]>;
+	async pendingPrompts(
+		action: "update",
+		input: PendingPromptsUpdateInput,
+	): Promise<PendingPromptMutationResult>;
+	async pendingPrompts(
+		action: "delete",
+		input: PendingPromptsDeleteInput,
+	): Promise<PendingPromptMutationResult>;
+	async pendingPrompts(
+		action: PendingPromptsAction,
+		input:
+			| PendingPromptsListInput
+			| PendingPromptsUpdateInput
+			| PendingPromptsDeleteInput,
+	): Promise<SessionPendingPrompt[] | PendingPromptMutationResult> {
+		switch (action) {
+			case "list":
+				return await this.listPendingPromptEntries(input);
+			case "update":
+				return await this.editPendingPromptEntry(
+					input as PendingPromptsUpdateInput,
+				);
+			case "delete":
+				return await this.deletePendingPromptEntry(
+					input as PendingPromptsDeleteInput,
+				);
+		}
+	}
+
+	private async listPendingPromptEntries(
+		input: PendingPromptsListInput,
+	): Promise<SessionPendingPrompt[]> {
+		this.ensureSessionSubscription(input.sessionId);
+		const reply = await this.client.command(
+			"session.pending_prompts",
+			{ sessionId: input.sessionId },
+			input.sessionId,
+		);
+		return Array.isArray(reply.payload?.prompts)
+			? (reply.payload.prompts as SessionPendingPrompt[])
+			: [];
+	}
+
+	private async editPendingPromptEntry(
+		input: PendingPromptsUpdateInput,
+	): Promise<PendingPromptMutationResult> {
+		this.ensureSessionSubscription(input.sessionId);
+		const reply = await this.client.command(
+			"session.update_pending_prompt",
+			{ ...input },
+			input.sessionId,
+		);
+		return {
+			sessionId: input.sessionId,
+			prompts: Array.isArray(reply.payload?.prompts)
+				? (reply.payload.prompts as SessionPendingPrompt[])
+				: [],
+			prompt: reply.payload?.prompt as SessionPendingPrompt | undefined,
+			updated: reply.payload?.updated === true,
+		};
+	}
+
+	private async deletePendingPromptEntry(
+		input: PendingPromptsDeleteInput,
+	): Promise<PendingPromptMutationResult> {
+		this.ensureSessionSubscription(input.sessionId);
+		const reply = await this.client.command(
+			"session.remove_pending_prompt",
+			{ ...input },
+			input.sessionId,
+		);
+		return {
+			sessionId: input.sessionId,
+			prompts: Array.isArray(reply.payload?.prompts)
+				? (reply.payload.prompts as SessionPendingPrompt[])
+				: [],
+			prompt: reply.payload?.prompt as SessionPendingPrompt | undefined,
+			removed: reply.payload?.removed === true,
+		};
 	}
 
 	async getAccumulatedUsage(
@@ -577,6 +668,37 @@ export class HubRuntimeHost implements RuntimeHost {
 					payload: {
 						sessionId,
 						status: session?.status ?? "running",
+					},
+				});
+				return;
+			}
+			case "session.pending_prompts": {
+				this.events.emit({
+					type: "pending_prompts",
+					payload: {
+						sessionId,
+						prompts: Array.isArray(event.payload?.prompts)
+							? (event.payload.prompts as SessionPendingPrompt[])
+							: [],
+					},
+				});
+				return;
+			}
+			case "session.pending_prompt_submitted": {
+				const prompt = event.payload?.prompt as
+					| SessionPendingPrompt
+					| undefined;
+				if (!prompt) {
+					return;
+				}
+				this.events.emit({
+					type: "pending_prompt_submitted",
+					payload: {
+						sessionId,
+						id: prompt.id,
+						prompt: prompt.prompt,
+						delivery: prompt.delivery,
+						attachmentCount: prompt.attachmentCount,
 					},
 				});
 				return;

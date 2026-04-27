@@ -339,6 +339,11 @@ export {
 	DefaultRuntimeBuilder,
 } from "./runtime/runtime-builder";
 export type {
+	PendingPromptMutationResult,
+	PendingPromptsAction,
+	PendingPromptsDeleteInput,
+	PendingPromptsListInput,
+	PendingPromptsUpdateInput,
 	RuntimeHost,
 	RuntimeHost as SessionHost,
 	RuntimeHostMode,
@@ -629,6 +634,9 @@ export type {
 	CoreSessionEvent,
 	SessionChunkEvent,
 	SessionEndedEvent,
+	SessionPendingPrompt,
+	SessionPendingPromptSubmittedEvent,
+	SessionPendingPromptsEvent,
 	SessionTeamProgressEvent,
 	SessionToolEvent,
 } from "./types/events";

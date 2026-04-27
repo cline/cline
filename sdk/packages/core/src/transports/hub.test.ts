@@ -128,6 +128,7 @@ describe("HubRuntimeHost", () => {
 		const sent = await host.send({
 			sessionId: "sess-1",
 			prompt: "Hey",
+			delivery: "queue",
 		});
 
 		expect(subscribeMock).toHaveBeenCalledWith(expect.any(Function), {
@@ -135,7 +136,12 @@ describe("HubRuntimeHost", () => {
 		});
 		expect(commandMock).toHaveBeenCalledWith(
 			"run.start",
-			{ sessionId: "sess-1", input: "Hey", attachments: undefined },
+			{
+				sessionId: "sess-1",
+				input: "Hey",
+				attachments: undefined,
+				delivery: "queue",
+			},
 			"sess-1",
 			{ timeoutMs: null },
 		);
@@ -275,6 +281,7 @@ describe("HubRuntimeHost", () => {
 				attachments: {
 					userImages: ["data:image/png;base64,aGVsbG8="],
 				},
+				delivery: undefined,
 			},
 			"sess-1",
 			{ timeoutMs: null },
@@ -305,6 +312,7 @@ describe("HubRuntimeHost", () => {
 				attachments: {
 					userFiles: [{ name: "note.md", content: "# note\n" }],
 				},
+				delivery: undefined,
 			},
 			"sess-1",
 			{ timeoutMs: null },
