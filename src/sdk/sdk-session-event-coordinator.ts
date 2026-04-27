@@ -2,7 +2,7 @@ import type { CoreSessionEvent } from "@clinebot/core"
 import { refreshClineRecommendedModels } from "@/core/controller/models/refreshClineRecommendedModels"
 import type { StateManager } from "@/core/storage/StateManager"
 import { CLINE_RECOMMENDED_MODELS_FALLBACK } from "@/shared/cline/recommended-models"
-import type { ClineApiReqInfo } from "@/shared/ExtensionMessage"
+import type { ClineApiReqInfo, ClineMessage } from "@/shared/ExtensionMessage"
 import { Logger } from "@/shared/services/Logger"
 import type { MessageTranslatorState, TranslationResult } from "./message-translator"
 import { translateSessionEvent } from "./message-translator"
@@ -34,8 +34,16 @@ export interface SdkSessionEventCoordinatorOptions {
 export class SdkSessionEventCoordinator {
 	private readonly translateSessionEvent: (event: CoreSessionEvent, state: MessageTranslatorState) => TranslationResult
 
+	/** Tracks consecutive tool errors for mistake_limit_reached detection */
+	private consecutiveToolErrorCount = 0
+
 	constructor(private readonly options: SdkSessionEventCoordinatorOptions) {
 		this.translateSessionEvent = options.translateSessionEvent ?? translateSessionEvent
+	}
+
+	/** Reset the consecutive tool error counter (e.g. when a new task starts or user responds) */
+	resetConsecutiveToolErrorCount(): void {
+		this.consecutiveToolErrorCount = 0
 	}
 
 	async handleSessionEvent(event: CoreSessionEvent): Promise<void> {
@@ -53,6 +61,11 @@ export class SdkSessionEventCoordinator {
 				(m) => !(m.type === "ask" && (m.ask === "completion_result" || m.ask === "resume_completed_task")),
 			)
 		}
+
+		// Track consecutive tool errors and emit mistake_limit_reached when threshold is met.
+		// This mirrors the classic Task.recursivelyMakeClineRequests() behavior where
+		// consecutiveMistakeCount is checked against maxConsecutiveMistakes.
+		this.trackToolErrors(result)
 
 		if (result.messages.length > 0) {
 			this.options.messages.appendAndEmit(result.messages, event)
@@ -82,6 +95,51 @@ export class SdkSessionEventCoordinator {
 			this.options.postStateToWebview().catch((err) => {
 				Logger.error("[SdkController] Failed to post state after event:", err)
 			})
+		}
+	}
+
+	/**
+	 * Track consecutive tool errors. When the count reaches maxConsecutiveMistakes,
+	 * append an ask="mistake_limit_reached" message so the webview shows
+	 * "Proceed Anyways" / "Start New Task" buttons instead of tool approval buttons.
+	 */
+	private trackToolErrors(result: TranslationResult): void {
+		if (result.toolSuccess) {
+			// A tool succeeded — reset the consecutive error counter
+			this.consecutiveToolErrorCount = 0
+		}
+
+		if (result.toolError) {
+			this.consecutiveToolErrorCount++
+
+			const stateManager = this.options.stateManager
+			const maxConsecutiveMistakes = stateManager ? stateManager.getGlobalSettingsKey("maxConsecutiveMistakes") : 3 // default fallback
+
+			if (this.consecutiveToolErrorCount >= maxConsecutiveMistakes) {
+				Logger.log(
+					`[SdkController] Consecutive tool error count (${this.consecutiveToolErrorCount}) reached limit (${maxConsecutiveMistakes}), emitting mistake_limit_reached`,
+				)
+
+				// Determine the model-specific guidance message (mirrors classic Task behavior)
+				const modelId = this.getCurrentClineModelId() ?? ""
+				const guidanceMessage = modelId.includes("claude")
+					? `This may indicate a failure in Cline's thought process or inability to use a tool properly, which can be mitigated with some user guidance (e.g. "Try breaking down the task into smaller steps").`
+					: "Cline uses complex prompts and iterative task execution that may be challenging for less capable models. For best results, it's recommended to use Claude 4.5 Sonnet for its advanced agentic coding capabilities."
+
+				// Emit ask="mistake_limit_reached" message so the webview updates buttons
+				const mistakeLimitMessage: ClineMessage = {
+					ts: this.options.messageTranslatorState.nextTs(),
+					type: "ask",
+					ask: "mistake_limit_reached",
+					text: guidanceMessage,
+					partial: false,
+				}
+
+				result.messages.push(mistakeLimitMessage)
+
+				// Reset the counter after emitting so it can trigger again if the user continues
+				this.consecutiveToolErrorCount = 0
+			}
 		}
 	}
 
