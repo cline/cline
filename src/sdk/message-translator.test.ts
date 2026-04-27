@@ -1325,6 +1325,177 @@ describe("translateSessionEvent — accumulated text streaming (S6-21 fix)", () 
 })
 
 // ---------------------------------------------------------------------------
+// ENG-1867: run_commands with bare array input renders command text
+// ---------------------------------------------------------------------------
+
+describe("translateSessionEvent — run_commands bare array/string input (ENG-1867)", () => {
+	it("content_start with bare array input shows command text", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: ["biome check --write src/"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(1)
+		const msg = result.messages[0]
+		expect(msg.say).toBe("command")
+		expect(msg.text).toBe("biome check --write src/")
+		expect(msg.partial).toBe(true)
+	})
+
+	it("content_start with multi-element bare array joins with &&", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: ["npm install", "npm run build"],
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("npm install && npm run build")
+	})
+
+	it("content_start with bare string input shows command text", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "execute_command",
+					toolCallId: "c1",
+					input: "ls -la",
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].say).toBe("command")
+		expect(result.messages[0].text).toBe("ls -la")
+	})
+
+	it("content_end preserves bare array input from content_start", () => {
+		const state = new MessageTranslatorState()
+		// content_start with bare array
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						input: ["biome check --write src/"],
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		// content_end
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "run_commands",
+						toolCallId: "c1",
+						output: "Checked 2 files in 108ms. No fixes applied.",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		expect(endResult.messages).toHaveLength(1)
+		const msg = endResult.messages[0]
+		expect(msg.say).toBe("command")
+		expect(msg.text).toContain("biome check --write src/")
+		expect(msg.text).toContain("Output:")
+		expect(msg.text).toContain("Checked 2 files")
+		expect(msg.partial).toBe(false)
+	})
+
+	it("content_end with bare string input from content_start preserves command", () => {
+		const state = new MessageTranslatorState()
+		translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_start",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "c1",
+						input: "echo hello",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const endResult = translateSessionEvent(
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "s1",
+					event: {
+						type: "content_end",
+						contentType: "tool",
+						toolName: "execute_command",
+						toolCallId: "c1",
+						output: "hello\n",
+					} as AgentEvent,
+				},
+			},
+			state,
+		)
+		const msg = endResult.messages[0]
+		expect(msg.text).toContain("echo hello")
+		expect(msg.text).toContain("hello")
+	})
+
+	it("wrapped object input { commands: [...] } still works (regression)", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "run_commands",
+					toolCallId: "c1",
+					input: { commands: ["npm test"] },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].text).toBe("npm test")
+	})
+})
+
+// ---------------------------------------------------------------------------
 // S6-39: fetch_web_content renders URL (SDK input: { requests: [{ url, prompt }] })
 // S6-40: skills tool renders skill name (SDK input: { skill: "name" })
 // ---------------------------------------------------------------------------
