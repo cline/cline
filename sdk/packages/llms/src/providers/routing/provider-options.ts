@@ -52,6 +52,41 @@ function buildProviderAndAliasPatch(options: {
 	};
 }
 
+function isMoonshotKimiModel(modelId: string): boolean {
+	const normalized = modelId.toLowerCase();
+	return normalized.includes("moonshotai/kimi-");
+}
+
+function buildDeepSeekThinkingPatch(options: {
+	request: GatewayStreamRequest;
+	providerOptionsKey: string;
+}): ProviderOptionsPatch | undefined {
+	const { request, providerOptionsKey } = options;
+	if (request.providerId !== "deepseek") {
+		return undefined;
+	}
+	if (request.reasoning?.enabled === undefined) {
+		return undefined;
+	}
+
+	const bucketOptions = {
+		thinking: {
+			type: request.reasoning.enabled
+				? ("enabled" as const)
+				: ("disabled" as const),
+		},
+	};
+
+	return {
+		...buildProviderAndAliasPatch({
+			providerId: request.providerId,
+			providerOptionsKey,
+			bucketOptions,
+		}),
+		openaiCompatible: bucketOptions,
+	};
+}
+
 function buildCompatibleThinkingOptions(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -206,6 +241,35 @@ function buildGeminiProviderOptionsPatch(
 	};
 }
 
+function buildMoonshotKimiDisablePatch(options: {
+	request: GatewayStreamRequest;
+	providerOptionsKey: string;
+}): ProviderOptionsPatch | undefined {
+	const { request, providerOptionsKey } = options;
+	if (request.reasoning?.enabled !== false) {
+		return undefined;
+	}
+	if (!isMoonshotKimiModel(request.modelId)) {
+		return undefined;
+	}
+	if (request.providerId !== "cline" && request.providerId !== "openrouter") {
+		return undefined;
+	}
+
+	const bucketOptions = {
+		thinking: { type: "disabled" as const },
+	};
+
+	return {
+		...buildProviderAndAliasPatch({
+			providerId: request.providerId,
+			providerOptionsKey,
+			bucketOptions,
+		}),
+		openaiCompatible: bucketOptions,
+	};
+}
+
 /**
  * Compose AI SDK `providerOptions` from a small set of ordered patches.
  *
@@ -214,7 +278,9 @@ function buildGeminiProviderOptionsPatch(
  *  2. codex provider-specific override
  *  3. provider-id + alias fanout
  *  4. gemini-specific google bucket
- *  5. GLM/Z.AI overlay
+ *  5. DeepSeek thinking type patch
+ *  6. Moonshot Kimi disable patch
+ *  7. GLM/Z.AI overlay
  */
 export function composeAiSdkProviderOptions(
 	request: GatewayStreamRequest,
@@ -246,6 +312,8 @@ export function composeAiSdkProviderOptions(
 			compatibleOptions,
 		),
 		buildGeminiProviderOptionsPatch(request),
+		buildDeepSeekThinkingPatch({ request, providerOptionsKey }),
+		buildMoonshotKimiDisablePatch({ request, providerOptionsKey }),
 		buildGlmThinkingProviderOptionsPatch(request, context, providerOptionsKey),
 	]);
 }

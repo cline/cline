@@ -243,6 +243,96 @@ describe("composeAiSdkProviderOptions provider-specific overlays", () => {
 		);
 	});
 
+	it("routes cline kimi disable into thinking.type=disabled", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "cline",
+				modelId: "moonshotai/kimi-k2.6",
+				reasoning: { enabled: false },
+			}),
+			makeContext({ providerId: "cline", modelId: "moonshotai/kimi-k2.6" }),
+		);
+
+		expect(result.cline).toEqual(
+			expect.objectContaining({ thinking: { type: "disabled" } }),
+		);
+		expect(result.openaiCompatible).toEqual(
+			expect.objectContaining({ thinking: { type: "disabled" } }),
+		);
+	});
+
+	it("routes openrouter kimi disable into thinking.type=disabled", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "openrouter",
+				modelId: "moonshotai/kimi-k2.6",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "openrouter",
+				modelId: "moonshotai/kimi-k2.6",
+			}),
+		);
+
+		expect(result.openrouter).toEqual(
+			expect.objectContaining({ thinking: { type: "disabled" } }),
+		);
+		expect(result.openaiCompatible).toEqual(
+			expect.objectContaining({ thinking: { type: "disabled" } }),
+		);
+	});
+
+	it("preserves reasoning.enabled=false on the cline gateway bucket", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "cline",
+				modelId: "moonshotai/kimi-k2.6",
+				reasoning: { enabled: false },
+			}),
+			makeContext({ providerId: "cline", modelId: "moonshotai/kimi-k2.6" }),
+		);
+
+		expect(result.cline).toEqual(
+			expect.objectContaining({ reasoning: { enabled: false } }),
+		);
+	});
+
+	it("routes direct deepseek reasoning disable to thinking.type=disabled", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "deepseek",
+				modelId: "deepseek-v4-pro",
+				reasoning: { enabled: false },
+			}),
+			makeContext({ providerId: "deepseek", modelId: "deepseek-v4-pro" }),
+		);
+
+		expect(result.deepseek).toEqual(
+			expect.objectContaining({ thinking: { type: "disabled" } }),
+		);
+		expect(result.openaiCompatible).toEqual(
+			expect.objectContaining({ thinking: { type: "disabled" } }),
+		);
+	});
+
+	it("routes direct deepseek reasoning enable to thinking.type=enabled", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "deepseek",
+				modelId: "deepseek-v4-pro",
+				reasoning: { enabled: true },
+			}),
+			makeContext({ providerId: "deepseek", modelId: "deepseek-v4-pro" }),
+		);
+
+		expect(result.deepseek).toEqual(
+			expect.objectContaining({ thinking: { type: "enabled" } }),
+		);
+		expect(result.openaiCompatible).toEqual(
+			expect.objectContaining({ thinking: { type: "enabled" } }),
+		);
+	});
+
 	it("uses native Z.AI thinking shape on the provider-id bucket without the routed reasoning shape", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({

@@ -13,10 +13,34 @@
 				"requireUsage": true
 			}
 		},
+		"anthropic-opus-reasoning": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-opus-4-7",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
 		"openai-reasoning": {
 			"settings": {
 				"provider": "openai",
 				"model": "gpt-5.4",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"openai-gpt-5.3-codex-reasoning": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.3-codex",
 				"reasoning": {
 					"effort": "high"
 				}
@@ -37,10 +61,60 @@
 				"requireUsage": true
 			}
 		},
+		"deepseek-v4-pro-reasoning": {
+			"settings": {
+				"provider": "deepseek",
+				"model": "deepseek-v4-pro",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
 		"cline-reasoning": {
 			"settings": {
 				"provider": "cline",
 				"model": "anthropic/claude-sonnet-4.6",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"cline-opus-reasoning": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-opus-4.7",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"cline-gpt-5.4-reasoning": {
+			"settings": {
+				"provider": "cline",
+				"model": "openai/gpt-5.4",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"cline-gpt-5.3-codex-reasoning": {
+			"settings": {
+				"provider": "cline",
+				"model": "openai/gpt-5.3-codex",
 				"reasoning": {
 					"effort": "high"
 				}
@@ -61,6 +135,18 @@
 				"requireUsage": true
 			}
 		},
+		"openrouter-gpt-5.4-reasoning": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "openai/gpt-5.4",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
 		"vercel-reasoning": {
 			"settings": {
 				"provider": "vercel-ai-gateway",
@@ -71,6 +157,180 @@
 			},
 			"expectations": {
 				"requireUsage": true
+			}
+		},
+		"vercel-gpt-5.4-reasoning": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "openai/gpt-5.4",
+				"reasoning": {
+					"effort": "high"
+				}
+			},
+			"expectations": {
+				"requireUsage": true
+			}
+		},
+		"cline-glm-4.6-thinking-on": {
+			"settings": {
+				"provider": "cline",
+				"model": "z-ai/glm-4.6",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
+		"cline-glm-4.7-thinking-on": {
+			"settings": {
+				"provider": "cline",
+				"model": "z-ai/glm-4.7",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
+		"cline-glm-5-thinking-on": {
+			"settings": {
+				"provider": "cline",
+				"model": "z-ai/glm-5",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
+		"zai-glm-4.6-thinking-on": {
+			"settings": {
+				"provider": "zai",
+				"model": "glm-4.6",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningChunk": true
+			}
+		},
+		"zai-glm-4.7-thinking-on": {
+			"settings": {
+				"provider": "zai",
+				"model": "glm-4.7",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningChunk": true
+			}
+		},
+		"zai-glm-5-thinking-on": {
+			"settings": {
+				"provider": "zai",
+				"model": "glm-5",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningChunk": true
+			}
+		},
+		"openrouter-zai-glm-4.7-thinking-on": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "z-ai/glm-4.7",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
+		"openrouter-zai-glm-5-thinking-on": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "z-ai/glm-5",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
+		"openrouter-zai-glm-4.6-thinking-on": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "z-ai/glm-4.6",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningSignal": true
+			}
+		},
+		"cline-kimi-k2-thinking": {
+			"settings": {
+				"provider": "cline",
+				"model": "moonshotai/kimi-k2-thinking"
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningChunk": true
+			}
+		},
+		"cline-kimi-k2.6-thinking-on": {
+			"settings": {
+				"provider": "cline",
+				"model": "moonshotai/kimi-k2.6",
+				"reasoning": {
+					"enabled": true
+				}
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningChunk": true
+			}
+		},
+		"cline-qwen3-next-thinking": {
+			"settings": {
+				"provider": "cline",
+				"model": "qwen/qwen3-next-80b-a3b-thinking"
+			},
+			"prompt": "Solve this multi-step problem briefly: A shop has 17 boxes with 23 bolts each, sells 128 bolts, then receives 4 boxes with 19 bolts each. How many bolts are left? Give only the final arithmetic result and one short explanation.",
+			"expectations": {
+				"requireUsage": true,
+				"requireReasoningChunk": true
 			}
 		}
 	}

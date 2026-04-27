@@ -1,0 +1,394 @@
+{
+	"version": 1,
+	"providers": {
+		"cline-glm-4.6-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "z-ai/glm-4.6",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-glm-4.7-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "z-ai/glm-4.7",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-glm-5-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "z-ai/glm-5",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"zai-glm-4.6-thinking-off": {
+			"settings": {
+				"provider": "zai",
+				"model": "glm-4.6",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"zai-glm-4.7-thinking-off": {
+			"settings": {
+				"provider": "zai",
+				"model": "glm-4.7",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"zai-glm-5-thinking-off": {
+			"settings": {
+				"provider": "zai",
+				"model": "glm-5",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openrouter-glm-4.6-thinking-off": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "z-ai/glm-4.6",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openrouter-glm-4.7-thinking-off": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "z-ai/glm-4.7",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openrouter-glm-5-thinking-off": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "z-ai/glm-5",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"anthropic-claude-sonnet-thinking-off": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-sonnet-4-6",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"anthropic-claude-opus-thinking-off": {
+			"settings": {
+				"provider": "anthropic",
+				"model": "claude-opus-4-7",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openai-gpt-5.4-thinking-off": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.4",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openai-gpt-5.3-codex-thinking-off": {
+			"settings": {
+				"provider": "openai",
+				"model": "gpt-5.3-codex",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"gemini-flash-lite-thinking-off": {
+			"settings": {
+				"provider": "gemini",
+				"model": "gemini-3.1-flash-lite-preview",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-gpt-5.4-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "openai/gpt-5.4",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-gpt-5.3-codex-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "openai/gpt-5.3-codex",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openrouter-gpt-5.4-thinking-off": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "openai/gpt-5.4",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"openrouter-gpt-5.3-codex-thinking-off": {
+			"settings": {
+				"provider": "openrouter",
+				"model": "openai/gpt-5.3-codex",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"vercel-gpt-5.4-thinking-off": {
+			"settings": {
+				"provider": "vercel-ai-gateway",
+				"model": "openai/gpt-5.4",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"deepseek-v4-pro-thinking-off": {
+			"settings": {
+				"provider": "deepseek",
+				"model": "deepseek-v4-pro",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-deepseek-v3.2-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "deepseek/deepseek-v3.2",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-kimi-k2.6-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "moonshotai/kimi-k2.6",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-qwen3-next-instruct": {
+			"settings": {
+				"provider": "cline",
+				"model": "qwen/qwen3-next-80b-a3b-instruct"
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-grok-4.20-beta-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "x-ai/grok-4.20-beta",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-grok-4.1-fast-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "x-ai/grok-4.1-fast",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-mistral-medium-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "mistralai/mistral-medium-3.1",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-claude-sonnet-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "anthropic/claude-sonnet-4.6",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		},
+		"cline-gemini-flash-lite-thinking-off": {
+			"settings": {
+				"provider": "cline",
+				"model": "google/gemini-3.1-flash-lite-preview",
+				"reasoning": {
+					"enabled": false
+				}
+			},
+			"prompt": "Answer with only the number: what is 47*83?",
+			"expectations": {
+				"requireUsage": true,
+				"requireNoReasoningChunk": true
+			}
+		}
+	}
+}

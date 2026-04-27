@@ -248,7 +248,7 @@ export function buildGatewayReasoningOptions(
 	context: GatewayProviderContext,
 ) {
 	if (
-		!request.reasoning?.enabled &&
+		request.reasoning?.enabled === undefined &&
 		!request.reasoning?.effort &&
 		typeof request.reasoning?.budgetTokens !== "number"
 	) {
@@ -269,9 +269,13 @@ export function buildGatewayReasoningOptions(
 		: request.reasoning?.budgetTokens;
 
 	const reasoning: Record<string, unknown> = {
-		...(request.reasoning?.enabled === true || request.reasoning?.effort
+		...(request.reasoning?.enabled === true
 			? { enabled: true }
-			: {}),
+			: request.reasoning?.enabled === false
+				? { enabled: false }
+				: request.reasoning?.effort
+					? { enabled: true }
+					: {}),
 		...(request.reasoning?.effort ? { effort: request.reasoning.effort } : {}),
 	};
 

@@ -138,7 +138,14 @@ Per-provider live assertions are configured in the JSON via `expectations`:
 - `requireToolCall`: fail unless at least one `tool_calls` chunk is emitted.
 
 In reasoning suites, set `requireReasoningSignal: true` to require either a reasoning chunk or `thoughtsTokenCount > 0` (provider-dependent; can be flaky on some endpoints).
-For GLM/Z.AI thinking checks, use `packages/llms/scripts/live-providers.glm-reasoning.example.json`; it covers native `zai` and routed `openrouter` models with thinking-on and thinking-off expectations.
+To check that disabling reasoning actually suppresses reasoning output across models, use `packages/llms/scripts/live-providers.reasoning-disabled.example.json`; it covers direct and routed provider paths across `cline`, `openai`, `openrouter`, `anthropic`, `gemini`, `vercel-ai-gateway`, `zai`, and `deepseek` where model support exists, with `reasoning.enabled: false` and `requireNoReasoningChunk: true`.
+
+Common live failure classes:
+
+- `Overloaded`: provider/model capacity issue or transient upstream saturation.
+- `Insufficient Balance`: the provider account needs funds.
+- `Model Not Exist`: the model id is not available for that provider/account.
+- assertion failures such as `expected no reasoning chunks`: likely real SDK/provider-option behavior regressions.
 
 ### Adding A Model To Live Tests
 
@@ -146,7 +153,7 @@ Add a new entry under the `providers` object in either config file:
 
 - Cache/smoke suite: `packages/llms/scripts/live-providers.example.json`
 - Reasoning suite: `packages/llms/scripts/live-providers.reasoning.example.json`
-- GLM/Z.AI reasoning suite: `packages/llms/scripts/live-providers.glm-reasoning.example.json`
+- Reasoning-disabled suite (asserts no reasoning chunks when reasoning is off): `packages/llms/scripts/live-providers.reasoning-disabled.example.json`
 - Tool-use suite: `packages/llms/scripts/live-providers.tools.example.json`
 
 Minimal smoke/cache entry:
