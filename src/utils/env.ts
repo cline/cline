@@ -47,7 +47,7 @@ export async function readTextFromClipboard(): Promise<string> {
  */
 export async function openExternal(url: string): Promise<void> {
 	// Debug harness mode: capture URL instead of opening browser
-	if (process.env.CLINE_CAPTURE_BROWSER) {
+	if (process.env.CLINE_CAPTURE_BROWSER === "1" || process.env.CLINE_CAPTURE_BROWSER === "true") {
 		await captureBrowserUrl(url)
 		return
 	}
