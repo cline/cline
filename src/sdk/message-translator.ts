@@ -46,6 +46,10 @@ export interface TranslationResult {
 	sessionEnded: boolean
 	/** Whether the agent turn is complete */
 	turnComplete: boolean
+	/** Whether a tool call ended with an error (content_end with event.error) */
+	toolError?: boolean
+	/** Whether a tool call ended successfully (content_end without error) */
+	toolSuccess?: boolean
 	/** Usage info if available */
 	usage?: {
 		tokensIn: number
@@ -1025,6 +1029,17 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			}
 			if (event.payload.event.type === "error") {
 				result.turnComplete = true
+			}
+
+			// Track tool success/error for consecutive mistake counting.
+			// A content_end event with contentType "tool" signals a completed
+			// tool call — if event.error is set, the tool failed.
+			if (event.payload.event.type === "content_end" && event.payload.event.contentType === "tool") {
+				if (event.payload.event.error) {
+					result.toolError = true
+				} else {
+					result.toolSuccess = true
+				}
 			}
 
 			// Extract usage from usage events
