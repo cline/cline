@@ -26,7 +26,7 @@ export const ToolPresets = {
 		enableReadFiles: true,
 		enableSearch: true,
 		enableBash: true,
-		enableWebFetch: false,
+		enableWebFetch: true,
 		enableApplyPatch: false,
 		enableEditor: true,
 		enableSkills: true,
