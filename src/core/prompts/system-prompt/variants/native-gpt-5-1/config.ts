@@ -1,4 +1,4 @@
-import { isGPT51Model, isGPT52Model, isNextGenModelProvider } from "@utils/model-utils"
+import { isGPT51PlusModel, isNextGenModelProvider } from "@utils/model-utils"
 import { ModelFamily } from "@/shared/prompts"
 import { Logger } from "@/shared/services/Logger"
 import { ClineDefaultTool } from "@/shared/tools"
@@ -32,9 +32,9 @@ export const config = createVariant(ModelFamily.NATIVE_GPT_5_1)
 			return false
 		}
 
-		// GPT-5.1 and GPT-5.2 models (including codex variants) use extended reasoning
+		// GPT-5.1+ models (including codex variants) use extended reasoning
 		// and require reasoning blocks before function calls
-		return (isGPT51Model(modelId) || isGPT52Model(modelId)) && isNextGenModelProvider(providerInfo)
+		return isGPT51PlusModel(modelId) && isNextGenModelProvider(providerInfo)
 	})
 	.template(GPT_5_1_TEMPLATE_OVERRIDES.BASE)
 	.components(
