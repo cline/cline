@@ -22,6 +22,8 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { UserInfo } from "@shared/UserInfo"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
+import { fetchRemoteConfig } from "@/core/storage/remote-config/fetch"
+import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
 import { StateManager } from "@/core/storage/StateManager"
 import { type WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -100,6 +102,9 @@ export class Controller {
 	// Private state kept for stub compatibility
 	private backgroundCommandRunning = false
 	private backgroundCommandTaskId?: string
+
+	// Timer for periodic remote config fetching (enterprise policy enforcement)
+	private remoteConfigTimer?: NodeJS.Timeout
 
 	constructor(readonly context: ClineExtensionContext) {
 		// StateManager must be initialized before creating the Controller
@@ -304,15 +309,42 @@ export class Controller {
 		// Register the bridge as a session event listener
 		this.onSessionEvent(this.grpcBridge.createListener())
 
-		// Restore auth state from secrets on startup
-		this.authService.restoreRefreshTokenAndRetrieveAuthInfo().catch((err) => {
-			Logger.error("[SdkController] Failed to restore auth state:", err)
-		})
+		// Restore auth state from secrets on startup, then start the remote
+		// config polling timer (enterprise policy enforcement). The timer must
+		// start after auth is restored so fetchRemoteConfig() can identify
+		// the user's organization and apply org-level policies.
+		this.authService
+			.restoreRefreshTokenAndRetrieveAuthInfo()
+			.then(() => {
+				this.startRemoteConfigTimer()
+			})
+			.catch((err) => {
+				Logger.error("[SdkController] Failed to restore auth state:", err)
+			})
 
 		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge + auth services")
 	}
 
+	/**
+	 * Starts the periodic remote config fetching timer.
+	 * Fetches immediately and then every hour. Mirrors the classic
+	 * Controller.startRemoteConfigTimer() behavior for enterprise
+	 * policy enforcement (provider lockdown, MCP server management,
+	 * OpenTelemetry, etc.).
+	 */
+	private startRemoteConfigTimer(): void {
+		// Initial fetch
+		fetchRemoteConfig(this)
+		// Set up 1-hour interval
+		this.remoteConfigTimer = setInterval(() => fetchRemoteConfig(this), 3600000) // 1 hour
+	}
+
 	async dispose(): Promise<void> {
+		// Clear the remote config timer to prevent stale fetches
+		if (this.remoteConfigTimer) {
+			clearInterval(this.remoteConfigTimer)
+			this.remoteConfigTimer = undefined
+		}
 		this.messages.cancelPendingSave()
 		// Clear MCP tool list change callback before disposing McpHub
 		this.mcpHub?.clearToolListChangeCallback()
@@ -472,6 +504,11 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
+		// Fire-and-forget: ensure we have the latest remote config (enterprise
+		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
+		// blocking the UI. fetchRemoteConfig() catches all errors internally
+		// and calls postStateToWebview() when done.
+		fetchRemoteConfig(this)
 		return this.taskStart.initTask(task, images, files, historyItem, taskSettings)
 	}
 
@@ -549,6 +586,7 @@ export class Controller {
 
 	async handleSignOut(): Promise<void> {
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
+		clearRemoteConfig()
 		await this.postStateToWebview()
 	}
 
@@ -565,6 +603,9 @@ export class Controller {
 
 	async handleAuthCallback(customToken: string, provider: string | null = null): Promise<void> {
 		await this.authService.handleAuthCallback(customToken, provider ?? "cline")
+		// Fetch remote config immediately after login so enterprise policies
+		// (provider lockdown, MCP servers, OTel, etc.) are applied right away.
+		await fetchRemoteConfig(this)
 		await this.postStateToWebview()
 	}
 
