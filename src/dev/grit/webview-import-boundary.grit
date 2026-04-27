@@ -1,0 +1,33 @@
+// Enforce import boundaries for webview code.
+// The webview should only import from @shared/* and its own modules,
+// never from extension-only paths like @core/*, @hosts/*, @api/*, etc.
+// This maintains the architectural separation between webview and extension.
+
+or {
+	// Regular imports
+	`import $x from $source` where {
+		or {
+			$source <: includes "@core/",
+			$source <: includes "@hosts/",
+			$source <: includes "@api/",
+			$source <: includes "@services/",
+			$source <: includes "@integrations/",
+			$source <: includes "@packages/",
+			$source <: includes "@generated/"
+		},
+		register_diagnostic(span=$source, message="Webview cannot import from extension modules. Use @shared/* for shared types or communicate via gRPC bridge.")
+	},
+	// Type imports
+	`import type $x from $source` where {
+		or {
+			$source <: includes "@core/",
+			$source <: includes "@hosts/",
+			$source <: includes "@api/",
+			$source <: includes "@services/",
+			$source <: includes "@integrations/",
+			$source <: includes "@packages/",
+			$source <: includes "@generated/"
+		},
+		register_diagnostic(span=$source, message="Webview cannot import types from extension modules. Use @shared/* for shared types.")
+	}
+}
