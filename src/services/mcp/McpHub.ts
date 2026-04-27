@@ -48,6 +48,200 @@ import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { BaseConfigSchema, McpSettingsSchema, ServerConfigSchema } from "./schemas"
 import { McpConnection, McpServerConfig, Transport } from "./types"
+
+type JsonSchema = {
+	type?: unknown
+	properties?: Record<string, JsonSchema>
+	items?: JsonSchema | JsonSchema[]
+	const?: unknown
+	enum?: unknown
+	anyOf?: unknown
+	oneOf?: unknown
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value)
+}
+
+function coerceStringToBoolean(value: string): boolean | undefined {
+	if (value === "true") {
+		return true
+	}
+	if (value === "false") {
+		return false
+	}
+	return undefined
+}
+
+function coerceStringToNumber(value: string, requireInteger: boolean): number | undefined {
+	if (!/^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/.test(value)) {
+		return undefined
+	}
+
+	const numberValue = Number(value)
+	if (!Number.isFinite(numberValue)) {
+		return undefined
+	}
+
+	if (requireInteger && !Number.isInteger(numberValue)) {
+		return undefined
+	}
+
+	return numberValue
+}
+
+function coerceStringToLiteral(value: string, literal: unknown): unknown {
+	if (typeof literal === "boolean") {
+		return coerceStringToBoolean(value) === literal ? literal : undefined
+	}
+
+	if (typeof literal === "number") {
+		const coerced = coerceStringToNumber(value, Number.isInteger(literal))
+		return coerced === literal ? literal : undefined
+	}
+
+	return undefined
+}
+
+function coerceStringToEnum(value: string, enumValues: unknown[]): unknown {
+	const matchingValues = enumValues.filter((enumValue) => {
+		if (typeof enumValue === "string") {
+			return enumValue === value
+		}
+
+		return coerceStringToLiteral(value, enumValue) !== undefined
+	})
+
+	if (matchingValues.length !== 1 || typeof matchingValues[0] === "string") {
+		return undefined
+	}
+
+	return matchingValues[0]
+}
+
+function getSchemaBranches(branches: unknown): JsonSchema[] {
+	return Array.isArray(branches) ? branches.filter(isRecord) : []
+}
+
+function getSchemaTypes(schema: JsonSchema): Set<string> {
+	if (typeof schema.type === "string") {
+		return new Set([schema.type])
+	}
+
+	if (Array.isArray(schema.type)) {
+		return new Set(schema.type.filter((type): type is string => typeof type === "string"))
+	}
+
+	return new Set()
+}
+
+function schemaAllowsStringValue(value: string, schema: JsonSchema): boolean {
+	if (Object.hasOwn(schema, "const") && schema.const === value) {
+		return true
+	}
+
+	if (Array.isArray(schema.enum) && schema.enum.some((enumValue) => enumValue === value)) {
+		return true
+	}
+
+	return getSchemaTypes(schema).has("string")
+}
+
+function coerceStringToComposedSchema(value: string, schema: JsonSchema): unknown {
+	const matchingValues: unknown[] = []
+	let acceptsOriginalString = false
+
+	for (const branch of [...getSchemaBranches(schema.anyOf), ...getSchemaBranches(schema.oneOf)]) {
+		if (schemaAllowsStringValue(value, branch)) {
+			acceptsOriginalString = true
+			continue
+		}
+
+		const coerced = coerceStringWithSchema(value, branch)
+		if (coerced !== undefined && typeof coerced !== "string") {
+			matchingValues.push(coerced)
+		}
+	}
+
+	if (acceptsOriginalString || matchingValues.length !== 1) {
+		return undefined
+	}
+
+	return matchingValues[0]
+}
+
+function coerceStringWithSchema(value: string, schema: JsonSchema): unknown {
+	if (Object.hasOwn(schema, "const")) {
+		const coerced = coerceStringToLiteral(value, schema.const)
+		if (coerced !== undefined) {
+			return coerced
+		}
+	}
+
+	if (Array.isArray(schema.enum)) {
+		const coerced = coerceStringToEnum(value, schema.enum)
+		if (coerced !== undefined) {
+			return coerced
+		}
+	}
+
+	const types = getSchemaTypes(schema)
+	if (types.has("string")) {
+		return undefined
+	}
+	if (types.has("boolean")) {
+		const coerced = coerceStringToBoolean(value)
+		if (coerced !== undefined) {
+			return coerced
+		}
+	}
+	if (types.has("integer")) {
+		const coerced = coerceStringToNumber(value, true)
+		if (coerced !== undefined) {
+			return coerced
+		}
+	}
+	if (types.has("number")) {
+		const coerced = coerceStringToNumber(value, false)
+		if (coerced !== undefined) {
+			return coerced
+		}
+	}
+
+	return coerceStringToComposedSchema(value, schema)
+}
+
+function coerceValueForSchema(value: unknown, schema: JsonSchema): unknown {
+	if (typeof value === "string") {
+		return coerceStringWithSchema(value, schema) ?? value
+	}
+
+	if (Array.isArray(value) && schema.items && !Array.isArray(schema.items)) {
+		return value.map((item) => coerceValueForSchema(item, schema.items as JsonSchema))
+	}
+
+	if (isRecord(value) && schema.properties) {
+		return coerceMcpToolArguments(value, schema)
+	}
+
+	return value
+}
+
+function coerceMcpToolArguments(toolArguments: Record<string, unknown>, inputSchema: unknown): Record<string, unknown> {
+	if (!isRecord(inputSchema) || !isRecord(inputSchema.properties)) {
+		return toolArguments
+	}
+
+	const coercedArguments = { ...toolArguments }
+	for (const [name, propertySchema] of Object.entries(inputSchema.properties)) {
+		if (Object.hasOwn(coercedArguments, name) && isRecord(propertySchema)) {
+			coercedArguments[name] = coerceValueForSchema(coercedArguments[name], propertySchema)
+		}
+	}
+
+	return coercedArguments
+}
+
 export class McpHub {
 	getMcpServersPath: () => Promise<string>
 	private getSettingsDirectoryPath: () => Promise<string>
@@ -1257,13 +1451,16 @@ export class McpHub {
 			Logger.error(`Failed to parse timeout configuration for server ${serverName}: ${error}`)
 		}
 
+		const inputSchema = connection.server.tools?.find((tool) => tool.name === toolName)?.inputSchema
+		const requestArguments = toolArguments ? coerceMcpToolArguments(toolArguments, inputSchema) : undefined
+
 		this.telemetryService.captureMcpToolCall(
 			ulid,
 			serverName,
 			toolName,
 			"started",
 			undefined,
-			toolArguments ? Object.keys(toolArguments) : undefined,
+			requestArguments ? Object.keys(requestArguments) : undefined,
 		)
 
 		try {
@@ -1272,7 +1469,7 @@ export class McpHub {
 					method: "tools/call",
 					params: {
 						name: toolName,
-						arguments: toolArguments,
+						arguments: requestArguments,
 					},
 				},
 				CallToolResultSchema,
@@ -1287,7 +1484,7 @@ export class McpHub {
 				toolName,
 				"success",
 				undefined,
-				toolArguments ? Object.keys(toolArguments) : undefined,
+				requestArguments ? Object.keys(requestArguments) : undefined,
 			)
 
 			return {
@@ -1301,7 +1498,7 @@ export class McpHub {
 				toolName,
 				"error",
 				error instanceof Error ? error.message : String(error),
-				toolArguments ? Object.keys(toolArguments) : undefined,
+				requestArguments ? Object.keys(requestArguments) : undefined,
 			)
 			throw error
 		}
