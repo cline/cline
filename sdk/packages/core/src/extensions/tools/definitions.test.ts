@@ -571,6 +571,83 @@ describe("default read_files tool", () => {
 			}),
 		);
 	});
+
+	it("returns per-file errors for reversed ranges while executing valid batch entries", async () => {
+		const execute = vi.fn(async (request: { path: string }) => {
+			return `content for ${request.path}`;
+		});
+		const tool = createReadFilesTool(execute);
+
+		const result = await tool.execute(
+			{
+				files: [
+					{
+						path: "/tmp/valid-a.ts",
+						start_line: 1,
+						end_line: 2,
+					},
+					{
+						path: "/tmp/reversed.ts",
+						start_line: 5,
+						end_line: 3,
+					},
+					{
+						path: "/tmp/valid-b.ts",
+					},
+				],
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "/tmp/valid-a.ts:1-2",
+				result: "content for /tmp/valid-a.ts",
+				success: true,
+			},
+			{
+				query: "/tmp/reversed.ts:5-3",
+				result: "",
+				error:
+					"Invalid file range: start_line must be less than or equal to end_line (received start_line: 5, end_line: 3)",
+				success: false,
+			},
+			{
+				query: "/tmp/valid-b.ts",
+				result: "content for /tmp/valid-b.ts",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledTimes(2);
+		expect(execute).toHaveBeenNthCalledWith(
+			1,
+			{
+				path: "/tmp/valid-a.ts",
+				start_line: 1,
+				end_line: 2,
+			},
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+		expect(execute).toHaveBeenNthCalledWith(
+			2,
+			{
+				path: "/tmp/valid-b.ts",
+			},
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
 });
 
 describe("zod schema conversion", () => {

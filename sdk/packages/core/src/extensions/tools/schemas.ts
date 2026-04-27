@@ -37,14 +37,7 @@ export const ReadFileLineRangeSchema = z
 				"Optional one-based ending line number to read through; use null or omit for the end of the file",
 			),
 	})
-	.refine(
-		({ start_line, end_line }) =>
-			start_line == null || end_line == null || start_line <= end_line,
-		{
-			message: "start_line must be less than or equal to end_line",
-			path: ["end_line"],
-		},
-	);
+	.describe("Optional inclusive one-based file line range");
 
 export const ReadFileRequestSchema = z
 	.object({
@@ -52,13 +45,8 @@ export const ReadFileRequestSchema = z
 		start_line: ReadFileLineRangeSchema.shape.start_line,
 		end_line: ReadFileLineRangeSchema.shape.end_line,
 	})
-	.refine(
-		({ start_line, end_line }) =>
-			start_line == null || end_line == null || start_line <= end_line,
-		{
-			message: "start_line must be less than or equal to end_line",
-			path: ["end_line"],
-		},
+	.describe(
+		"A file read request with optional inclusive one-based line bounds",
 	);
 
 /**
@@ -213,7 +201,7 @@ export const EditFileInputSchema = z
 			.nullable()
 			.optional()
 			.describe(
-				"Optional one-based line index. When provided, the tool inserts new_text at that line instead of performing a replacement edit.",
+				"Optional positive one-based boundary line. When provided, the tool inserts new_text before that line instead of performing a replacement edit; use line_count + 1 to append at EOF.",
 			),
 	})
 	.describe(

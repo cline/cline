@@ -89,6 +89,15 @@ export function formatReadFileQuery(request: ReadFileRequest): string {
 	return `${path}:${start}-${end}`;
 }
 
+export function getReadFileRangeError(request: ReadFileRequest): string | null {
+	const { start_line, end_line } = request;
+	if (start_line == null || end_line == null || start_line <= end_line) {
+		return null;
+	}
+
+	return `start_line must be less than or equal to end_line (received start_line: ${start_line}, end_line: ${end_line})`;
+}
+
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {

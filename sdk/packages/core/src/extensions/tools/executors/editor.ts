@@ -157,14 +157,15 @@ async function insertInFile(
 ): Promise<string> {
 	const content = await fs.readFile(filePath, encoding);
 	const lines = content.split("\n");
-	const insertLine = insertLineOneBased - 1; // Convert to zero-based index
+	const maxBoundaryLine = lines.length + 1;
 
-	if (insertLine < 0 || insertLine > lines.length) {
+	if (insertLineOneBased < 1 || insertLineOneBased > maxBoundaryLine) {
 		throw new Error(
-			`Invalid line number: ${insertLineOneBased}. Valid range: 1-${lines.length}`,
+			`Invalid insert_line: ${insertLineOneBased}. insert_line must be a positive one-based boundary line in the range 1-${maxBoundaryLine}. Use ${maxBoundaryLine} to append at EOF.`,
 		);
 	}
 
+	const insertLine = insertLineOneBased - 1;
 	lines.splice(insertLine, 0, ...newStr.split("\n"));
 	await fs.writeFile(filePath, lines.join("\n"), { encoding });
 

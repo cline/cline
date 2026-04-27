@@ -32,4 +32,82 @@ describe("createEditorExecutor", () => {
 			await fs.rm(dir, { recursive: true, force: true });
 		}
 	});
+
+	it("inserts before a one-based line and appends at the EOF boundary", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
+		const filePath = path.join(dir, "example.txt");
+		await fs.writeFile(filePath, "one\ntwo", "utf-8");
+
+		try {
+			const editor = createEditorExecutor();
+			await editor(
+				{
+					path: filePath,
+					new_text: "inserted",
+					insert_line: 2,
+				},
+				dir,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\ninserted\ntwo",
+			);
+
+			await editor(
+				{
+					path: filePath,
+					new_text: "tail",
+					insert_line: 4,
+				},
+				dir,
+				{
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				},
+			);
+
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(
+				"one\ninserted\ntwo\ntail",
+			);
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("rejects insert_line 0 with the valid one-based boundary range", async () => {
+		const dir = await fs.mkdtemp(path.join(os.tmpdir(), "agents-editor-"));
+		const filePath = path.join(dir, "example.txt");
+		await fs.writeFile(filePath, "one\ntwo", "utf-8");
+
+		try {
+			const editor = createEditorExecutor();
+
+			await expect(
+				editor(
+					{
+						path: filePath,
+						new_text: "invalid",
+						insert_line: 0,
+					},
+					dir,
+					{
+						agentId: "agent-1",
+						conversationId: "conv-1",
+						iteration: 1,
+					},
+				),
+			).rejects.toThrow(
+				"Invalid insert_line: 0. insert_line must be a positive one-based boundary line in the range 1-3. Use 3 to append at EOF.",
+			);
+			await expect(fs.readFile(filePath, "utf-8")).resolves.toBe("one\ntwo");
+		} finally {
+			await fs.rm(dir, { recursive: true, force: true });
+		}
+	});
 });

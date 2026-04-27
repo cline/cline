@@ -15,6 +15,7 @@ import {
 	formatReadFileQuery,
 	formatRunCommandQuery,
 	getEditorSizeError,
+	getReadFileRangeError,
 	normalizeReadFileRequests,
 	normalizeRunCommandsInput,
 	withTimeout,
@@ -92,6 +93,16 @@ export function createReadFilesTool(
 
 			return Promise.all(
 				requests.map(async (request): Promise<ToolOperationResult> => {
+					const rangeError = getReadFileRangeError(request);
+					if (rangeError) {
+						return {
+							query: formatReadFileQuery(request),
+							result: "",
+							error: `Invalid file range: ${rangeError}`,
+							success: false,
+						};
+					}
+
 					try {
 						const content = await withTimeout(
 							executor(request, context),
