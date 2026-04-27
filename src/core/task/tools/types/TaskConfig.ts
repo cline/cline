@@ -34,7 +34,6 @@ export interface TaskConfig {
 	ulid: string
 	cwd: string
 	mode: Mode
-	strictPlanModeEnabled: boolean
 	yoloModeToggled: boolean
 	doubleCheckCompletionEnabled: boolean
 	enableParallelToolCalling: boolean
@@ -153,11 +152,6 @@ export function validateTaskConfig(config: any): asserts config is TaskConfig {
 		if (!(key in config)) {
 			throw new Error(`Missing ${key} in TaskConfig`)
 		}
-	}
-
-	// Special validation for boolean type
-	if (typeof config.strictPlanModeEnabled !== "boolean") {
-		throw new Error("strictPlanModeEnabled must be a boolean in TaskConfig")
 	}
 
 	// Validate services object

@@ -251,7 +251,6 @@ export const ExtensionStateContextProvider: React.FC<{
 		welcomeViewCompleted: false,
 		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
-		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		customPrompt: undefined,
 		useAutoCondense: false,

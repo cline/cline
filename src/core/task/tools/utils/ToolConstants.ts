@@ -14,7 +14,6 @@ export const TASK_CONFIG_KEYS = [
 	"ulid",
 	"cwd",
 	"mode",
-	"strictPlanModeEnabled",
 	"yoloModeToggled",
 	"doubleCheckCompletionEnabled",
 	"enableParallelToolCalling",

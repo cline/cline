@@ -105,12 +105,6 @@ const FEATURE_SETTINGS = {
 		label: "Web tools",
 		description: "Enable web search and fetch tools",
 	},
-	strictPlanMode: {
-		stateKey: "strictPlanModeEnabled",
-		default: true,
-		label: "Strict plan mode",
-		description: "Require explicit mode switching",
-	},
 	nativeToolCall: {
 		stateKey: "nativeToolCallEnabled",
 		default: true,

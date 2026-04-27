@@ -61,7 +61,6 @@ function createConfig() {
 		ulid: "ulid-1",
 		cwd: tmpDir,
 		mode: "act",
-		strictPlanModeEnabled: false,
 		yoloModeToggled: true,
 		doubleCheckCompletionEnabled: false,
 		enableParallelToolCalling: true,

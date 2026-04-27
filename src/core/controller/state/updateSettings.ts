@@ -109,11 +109,6 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("maxConsecutiveMistakes", Number(request.maxConsecutiveMistakes))
 		}
 
-		// Update strict plan mode setting
-		if (request.strictPlanModeEnabled !== undefined) {
-			controller.stateManager.setGlobalState("strictPlanModeEnabled", request.strictPlanModeEnabled)
-		}
-
 		if (request.hooksEnabled !== undefined) {
 			const wasEnabled = controller.stateManager.getGlobalSettingsKey("hooksEnabled") ?? true
 			const isEnabled = !!request.hooksEnabled

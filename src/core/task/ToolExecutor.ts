@@ -136,7 +136,6 @@ export class ToolExecutor {
 			taskId: this.taskId,
 			ulid: this.ulid,
 			mode: this.stateManager.getGlobalSettingsKey("mode"),
-			strictPlanModeEnabled: this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled"),
 			yoloModeToggled: this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			doubleCheckCompletionEnabled: this.stateManager.getGlobalSettingsKey("doubleCheckCompletionEnabled"),
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
@@ -284,23 +283,12 @@ export class ToolExecutor {
 	}
 
 	/**
-	 * Tools that are restricted in plan mode and can only be used in act mode
-	 */
-	private static readonly PLAN_MODE_RESTRICTED_TOOLS: ClineDefaultTool[] = [
-		ClineDefaultTool.FILE_NEW,
-		ClineDefaultTool.FILE_EDIT,
-		ClineDefaultTool.NEW_RULE,
-		ClineDefaultTool.APPLY_PATCH,
-	]
-
-	/**
 	 * Execute a tool through the coordinator if it's registered.
 	 *
 	 * This is the main entry point for tool execution, called by the Task class.
 	 * It handles:
 	 * - Checking if the tool is registered with the coordinator
 	 * - Validating tool execution is allowed (not rejected, not already used, etc.)
-	 * - Enforcing plan mode restrictions on file modification tools
 	 * - Delegating to partial or complete block handlers
 	 * - Error handling and checkpointing
 	 *
@@ -337,23 +325,6 @@ export class ToolExecutor {
 				return true
 			}
 
-			// Logic for plan-mode tool call restrictions
-			if (
-				this.stateManager.getGlobalSettingsKey("strictPlanModeEnabled") &&
-				this.stateManager.getGlobalSettingsKey("mode") === "plan" &&
-				block.name &&
-				this.isPlanModeToolRestricted(block.name)
-			) {
-				const errorMessage = `Tool '${block.name}' is not available in PLAN MODE. This tool is restricted to ACT MODE for file modifications. Only use tools available for PLAN MODE when in that mode.`
-				await this.removeLastPartialMessageIfExistsWithType("say", "error")
-				await this.say("error", errorMessage)
-				// Only push the final error message when the streaming is done.
-				if (!block.partial) {
-					this.pushToolResult(formatResponse.toolError(errorMessage), block)
-				}
-				return true
-			}
-
 			// Close browser for non-browser tools
 			if (block.name !== "browser_action") {
 				await this.browserSession.closeBrowser()
@@ -372,19 +343,6 @@ export class ToolExecutor {
 			await this.handleError(`executing ${block.name}`, error as Error, block)
 			return true
 		}
-	}
-
-	/**
-	 * Check if a tool is restricted in plan mode.
-	 *
-	 * In strict plan mode, file modification tools (write_to_file, editedExistingFile, etc.)
-	 * are blocked. The AI must switch to Act mode to use these tools.
-	 *
-	 * @param toolName The name of the tool to check
-	 * @returns true if the tool is restricted in plan mode, false otherwise
-	 */
-	private isPlanModeToolRestricted(toolName: ClineDefaultTool): boolean {
-		return ToolExecutor.PLAN_MODE_RESTRICTED_TOOLS.includes(toolName)
 	}
 
 	/**

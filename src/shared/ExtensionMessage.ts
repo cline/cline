@@ -74,7 +74,6 @@ export interface ExtensionState {
 	remoteWorkflowToggles?: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
-	strictPlanModeEnabled?: boolean
 	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	subagentsEnabled?: boolean

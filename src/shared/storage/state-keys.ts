@@ -253,7 +253,6 @@ const USER_SETTINGS_FIELDS = {
 	planActSeparateModelsSetting: { default: false as boolean, isComputed: true },
 	enableCheckpointsSetting: { default: true as boolean },
 	maxConsecutiveMistakes: { default: 3 as number },
-	strictPlanModeEnabled: { default: false as boolean },
 	hooksEnabled: { default: true as boolean },
 	yoloModeToggled: { default: false as boolean },
 	autoApproveAllToggled: { default: false as boolean },

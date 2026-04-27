@@ -244,7 +244,6 @@ message Settings {
   optional bool plan_act_separate_models_setting = 134;
   optional bool enable_checkpoints_setting = 135;
   optional int32 max_consecutive_mistakes = 139;
-  optional bool strict_plan_mode_enabled = 141;
   optional bool yolo_mode_toggled = 142;
   optional bool use_auto_condense = 143;
   optional bool cline_web_tools_enabled = 144;
@@ -383,7 +382,7 @@ message UpdateSettingsRequest {
   optional McpDisplayMode mcp_display_mode = 11;
   optional PlanActMode mode = 13;
   optional string preferred_language = 14;
-  optional bool strict_plan_mode_enabled = 16;
+  reserved 16; // was strict_plan_mode_enabled (removed)
   optional FocusChainSettings focus_chain_settings = 17;
   optional bool use_auto_condense = 18;
   optional string custom_prompt = 19;

@@ -10,7 +10,6 @@ vi.mock("@/context/ExtensionStateContext", () => ({
 		hooksEnabled: false,
 		showFeatureTips: false,
 		mcpDisplayMode: "rich",
-		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		useAutoCondense: false,
 		subagentsEnabled: false,

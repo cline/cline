@@ -52,13 +52,6 @@ const agentFeatures: FeatureToggle[] = [
 		settingKey: "enableParallelToolCalling",
 	},
 	{
-		id: "strict-plan-mode",
-		label: "Strict Plan Mode",
-		description: "Prevents file edits while in Plan mode",
-		stateKey: "strictPlanModeEnabled",
-		settingKey: "strictPlanModeEnabled",
-	},
-	{
 		id: "auto-compact",
 		label: "Auto Compact",
 		description: "Automatically compress conversation history.",
@@ -202,7 +195,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		enableCheckpointsSetting,
 		hooksEnabled,
 		mcpDisplayMode,
-		strictPlanModeEnabled,
 		yoloModeToggled,
 		useAutoCondense,
 		subagentsEnabled,
@@ -223,7 +215,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 	const featureState: Record<string, boolean | undefined> = {
 		showFeatureTips,
 		enableCheckpointsSetting,
-		strictPlanModeEnabled,
 		hooksEnabled,
 		nativeToolCallSetting,
 		useAutoCondense,
