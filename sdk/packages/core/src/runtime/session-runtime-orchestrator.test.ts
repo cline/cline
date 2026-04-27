@@ -23,6 +23,7 @@ import type {
 	AgentRuntimeEvent,
 	Tool,
 } from "@clinebot/shared";
+import { HookEngine } from "@clinebot/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	SessionRuntime,
@@ -323,6 +324,47 @@ describe("SessionRuntime.run", () => {
 		expect(result.startedAt).toBeInstanceOf(Date);
 		expect(result.endedAt).toBeInstanceOf(Date);
 		expect(typeof result.durationMs).toBe("number");
+	});
+
+	it("dispatches run_end hooks with the host-facing AgentResult shape", async () => {
+		const observed: unknown[] = [];
+		const { deps } = withFakeRuntime({
+			result: { outputText: "hello world", iterations: 2 },
+		});
+		const hookEngine = new HookEngine({
+			policies: { stages: { run_end: { mode: "blocking" } } },
+		});
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				hooks: {
+					onRunEnd: (ctx) => {
+						observed.push(ctx);
+					},
+				},
+			}),
+			{ ...deps, hookEngine },
+		);
+		const result = await session.run("Say hi");
+
+		expect(observed).toHaveLength(1);
+		expect(observed[0]).toMatchObject({
+			agentId: session.getAgentId(),
+			conversationId: session.getConversationId(),
+			parentAgentId: null,
+			result: {
+				text: "hello world",
+				finishReason: "completed",
+				iterations: 2,
+			},
+		});
+		expect((observed[0] as { result: unknown }).result).toBe(result);
+		expect(
+			"status" in (observed[0] as { result: Record<string, unknown> }).result,
+		).toBe(false);
+		expect(
+			"outputText" in
+				(observed[0] as { result: Record<string, unknown> }).result,
+		).toBe(false);
 	});
 
 	it("appends the user turn into the conversation store", async () => {

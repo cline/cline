@@ -17,6 +17,8 @@ export type {
 	AgentHooks,
 	AgentMode,
 	AgentResult,
+	AgentRunResult,
+	AgentRunStatus,
 	BasicLogger,
 	ChatRunTurnRequest,
 	ChatRuntimeConfig,

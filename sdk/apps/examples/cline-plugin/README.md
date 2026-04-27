@@ -5,7 +5,10 @@ Shows how to author a reusable plugin module that works in both the SDK and the 
 - **Register tools** — give the agent new capabilities it can invoke
 - **Hook into the lifecycle** — observe or influence execution at key points
 
-Code entrypoint: [apps/examples/cline-plugin/index.ts](./apps/examples/cline-plugin/index.ts)
+Example plugins:
+
+- [weathe-plugin.example.ts](./weathe-plugin.example.ts) - weather tool plus lifecycle metrics hooks
+- [mac-notify.example.ts](./mac-notify.example.ts) - macOS Notification Center alert on successful run completion
 
 ## Use It With The CLI
 
@@ -13,17 +16,28 @@ The CLI does not have a `--plugin` flag yet. It discovers plugin modules from `.
 
 ```bash
 mkdir -p .cline/plugins
-cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
+cp apps/examples/cline-plugin/weathe-plugin.example.ts .cline/plugins/weather-metrics.ts
 
 cline -i "What's the weather like in Tokyo and Paris?"
 ```
 
 The module exports `default` and `plugin`, so the CLI loader can import it directly.
 
+To send a macOS Notification Center alert when a run completes successfully:
+
+```bash
+mkdir -p .cline/plugins
+cp apps/examples/cline-plugin/mac-notify.example.ts .cline/plugins/mac-notify.ts
+
+cline -i "Run the test suite"
+```
+
+The notification example uses the `run_end` hook and `/usr/bin/osascript`. macOS may ask you to allow notifications for the terminal or host process the first time it fires.
+
 ## Run The Demo Directly
 
 ```bash
-ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
+ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/weathe-plugin.example.ts
 ```
 
 ## How it works
@@ -55,7 +69,7 @@ const myPlugin: Plugin = {
 Then pass it to the agent:
 
 ```ts
-import plugin from "./index";
+import plugin from "./weathe-plugin.example";
 
 const host = await ClineCore.create({});
 await host.start({

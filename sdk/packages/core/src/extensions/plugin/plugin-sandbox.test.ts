@@ -74,6 +74,23 @@ describe("plugin-sandbox", () => {
 		);
 
 		await writeFile(
+			join(dir, "plugin-run-end.mjs"),
+			[
+				"export default {",
+				"  name: 'sandbox-run-end',",
+				"  manifest: { capabilities: ['hooks'], hookStages: ['run_end'] },",
+				"  onRunEnd(ctx) {",
+				"    globalThis.__clinePluginHost?.emitEvent?.('run_end_hook', {",
+				"      finishReason: ctx.result?.finishReason,",
+				"      iterations: ctx.result?.iterations,",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		await writeFile(
 			join(dir, "plugin-ts.ts"),
 			[
 				"const TOOL_NAME: string = 'sandbox_ts_echo';",
@@ -337,6 +354,46 @@ describe("plugin-sandbox", () => {
 				payload: { value: "hello" },
 			},
 		]);
+	});
+
+	it("runs run_end hooks in sandbox process", async () => {
+		const events: Array<{ name: string; payload?: unknown }> = [];
+		const sandboxed = await loadSandboxedPlugins({
+			pluginPaths: [join(dir, "plugin-run-end.mjs")],
+			onEvent: (event) => {
+				events.push(event);
+			},
+		});
+
+		try {
+			const extension = sandboxed.extensions?.[0];
+			expect(typeof extension?.onRunEnd).toBe("function");
+			await extension?.onRunEnd?.({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				parentAgentId: null,
+				result: {
+					text: "done",
+					usage: { inputTokens: 1, outputTokens: 2 },
+					messages: [],
+					toolCalls: [],
+					iterations: 2,
+					finishReason: "completed",
+					model: { id: "test-model", provider: "test-provider" },
+					startedAt: new Date("2026-04-25T00:00:00.000Z"),
+					endedAt: new Date("2026-04-25T00:00:01.000Z"),
+					durationMs: 1000,
+				},
+			});
+			expect(events).toEqual([
+				{
+					name: "run_end_hook",
+					payload: { finishReason: "completed", iterations: 2 },
+				},
+			]);
+		} finally {
+			await sandboxed.shutdown();
+		}
 	});
 
 	it("loads TypeScript plugins in the sandbox process", async () => {

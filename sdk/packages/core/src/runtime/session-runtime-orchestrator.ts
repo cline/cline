@@ -728,7 +728,6 @@ export class SessionRuntime {
 				);
 			}
 			this.activeRuntime = null;
-			this.activeRunId = null;
 			this.running = false;
 			this.abortRequested = false;
 			this.abortReason = undefined;
@@ -746,12 +745,18 @@ export class SessionRuntime {
 		}
 
 		const endedAt = new Date();
-		return this.buildLegacyResult({
-			runResult,
-			thrownError,
-			startedAt,
-			endedAt,
-		});
+		try {
+			const result = this.buildLegacyResult({
+				runResult,
+				thrownError,
+				startedAt,
+				endedAt,
+			});
+			await this.dispatchRunEnd(result);
+			return result;
+		} finally {
+			this.activeRunId = null;
+		}
 	}
 
 	/**
@@ -1091,6 +1096,19 @@ export class SessionRuntime {
 			endedAt,
 			durationMs,
 		};
+	}
+
+	private async dispatchRunEnd(result: AgentResult): Promise<void> {
+		await this.hookBridge.dispatch("hook.run_end", {
+			stage: "run_end",
+			iteration: result.iterations,
+			payload: {
+				agentId: this.agentId,
+				conversationId: this.conversation.getConversationId(),
+				parentAgentId: this.parentAgentId ?? null,
+				result,
+			},
+		});
 	}
 }
 

@@ -12,11 +12,11 @@
  *
  * CLI usage:
  *   mkdir -p .cline/plugins
- *   cp apps/examples/cline-plugin/index.ts .cline/plugins/weather-metrics.ts
- *   clite -i "What's the weather like in Tokyo and Paris?"
+ *   cp apps/examples/cline-plugin/weathe-plugin.example.ts .cline/plugins/weather-metrics.ts
+ *   cline -i "What's the weather like in Tokyo and Paris?"
  *
  * Direct demo usage:
- *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/index.ts
+ *   ANTHROPIC_API_KEY=sk-... bun run apps/examples/cline-plugin/weathe-plugin.example.ts
  */
 
 import { type AgentPlugin, ClineCore, createTool } from "@clinebot/core";

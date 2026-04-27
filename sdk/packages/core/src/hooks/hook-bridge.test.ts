@@ -232,7 +232,7 @@ describe("HookBridge — constructor registration", () => {
 			});
 		});
 
-		it("afterRun → dispatches `run_end` with result payload", async () => {
+		it("afterRun does not dispatch `run_end`; SessionRuntime emits the host-facing result", async () => {
 			const { bridge, engine } = makeBridge();
 			const hooks = bridge.toRuntimeHooks();
 			const result = {
@@ -251,11 +251,7 @@ describe("HookBridge — constructor registration", () => {
 				},
 			} as AgentRunResult;
 			await hooks.afterRun?.({ snapshot: makeSnapshot(), result });
-			expect(engine.calls.map((c) => c.stage)).toEqual(["run_end"]);
-			const payload = engine.calls[0].payload as {
-				result: AgentRunResult;
-			};
-			expect(payload.result).toBe(result);
+			expect(engine.calls).toEqual([]);
 		});
 
 		it("beforeModel → dispatches BOTH `turn_start` THEN `before_agent_start` in order", async () => {
@@ -614,6 +610,18 @@ describe("HookBridge — constructor registration", () => {
 				payload: {},
 			});
 			expect(engine.calls.map((c) => c.stage)).toEqual(["session_shutdown"]);
+		});
+
+		it("dispatches `run_end` on demand", async () => {
+			const { bridge, engine } = makeBridge();
+			await bridge.dispatch("hook.run_end", {
+				stage: "run_end",
+				payload: { result: { finishReason: "completed" } },
+			});
+			expect(engine.calls.map((c) => c.stage)).toEqual(["run_end"]);
+			expect(engine.calls[0].payload).toEqual({
+				result: { finishReason: "completed" },
+			});
 		});
 
 		it("dispatches `input` on demand and returns the merged control", async () => {

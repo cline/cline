@@ -1,4 +1,9 @@
-export type { WorkspaceInfo, WorkspaceManifest } from "@clinebot/shared";
+export type {
+	AgentRunResult,
+	AgentRunStatus,
+	WorkspaceInfo,
+	WorkspaceManifest,
+} from "@clinebot/shared";
 export {
 	ClineCore,
 	type ClineCoreOptions,

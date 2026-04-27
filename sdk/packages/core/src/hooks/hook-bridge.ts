@@ -1,5 +1,5 @@
 /**
- * Bridges the flat 7-callback `AgentRuntimeHooks` bag consumed by the
+ * Bridges the flat `AgentRuntimeHooks` bag consumed by the
  * new `AgentRuntime` and the legacy 15-stage `HookEngine` + `AgentHooks`
  * + `AgentExtension[]` surface that `@clinebot/core` already speaks.
  *
@@ -16,7 +16,7 @@
  *     `HookEngine` once at construction (via `registerLifecycleHandlers`
  *     — moved verbatim from the old agents package).
  *  2. **Synthesize** an `AgentRuntimeHooks` bag via `toRuntimeHooks()`.
- *     Each of the 7 runtime hooks dispatches to the `HookEngine`'s
+ *     Each runtime hook dispatches to the `HookEngine`'s
  *     corresponding stage (or stages, e.g. `beforeModel` fires both
  *     `turn_start` **and** `before_agent_start` per §3.3.1).
  *  3. **Forward** `AgentRuntimeEvent`s via `onEvent` (part of the
@@ -26,8 +26,8 @@
  *  4. **Expose** imperative `dispatch(source, input)` for
  *     `SessionRuntime` to fire the *non*-runtime stages that live on
  *     the session boundary: `session_start`, `session_shutdown`,
- *     `input`, and `stop_error` (the bridge synthesizes these from
- *     session-level events, not from the new runtime's hooks).
+ *     `input`, `run_end`, and `stop_error` (the bridge synthesizes
+ *     these from session-level events, not from the new runtime's hooks).
  *  5. **Apply** hook-returned `control.context` by invoking
  *     `onHookContext(source, context)` so the caller (facade or
  *     session-runtime) can append `<hook_context source="…">…` user
@@ -94,8 +94,8 @@ export class HookBridge {
 
 	/**
 	 * Dispatch a lifecycle stage imperatively. `SessionRuntime` calls
-	 * this at `session_start`, `session_shutdown`, `input`, and
-	 * `stop_error` — stages that do not map onto any of the 7
+	 * this at `session_start`, `session_shutdown`, `input`, `run_end`, and
+	 * `stop_error` — stages that do not map cleanly onto the
 	 * `AgentRuntime` hooks (§3.3.1).
 	 *
 	 * Returns the merged `AgentHookControl` from the dispatched
@@ -152,7 +152,7 @@ export class HookBridge {
 	// -------------------------------------------------------------------
 
 	/**
-	 * Build the 7-callback `AgentRuntimeHooks` bag consumed by
+	 * Build the `AgentRuntimeHooks` bag consumed by
 	 * `AgentRuntime`. Each synthesized callback:
 	 *
 	 *  - invokes `hookEngine.dispatch(stage, payload)` for the
@@ -184,22 +184,6 @@ export class HookBridge {
 					},
 				});
 				return controlToStop(control);
-			},
-
-			afterRun: async (ctx) => {
-				await this.dispatch("hook.run_end", {
-					stage: "run_end",
-					iteration: ctx.snapshot.iteration,
-					payload: {
-						agentId: this.options.agentId,
-						agentRole: this.options.agentRole,
-						conversationId: this.options.conversationId,
-						parentAgentId: this.options.parentAgentId,
-						runId: this.options.getRunId(),
-						snapshot: ctx.snapshot,
-						result: ctx.result,
-					},
-				});
 			},
 
 			beforeModel: async (ctx) => {

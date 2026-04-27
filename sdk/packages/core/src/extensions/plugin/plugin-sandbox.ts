@@ -146,6 +146,21 @@ const HOOK_BINDINGS: Array<{
 		sandboxHookName: "onSessionStart",
 	},
 	{
+		stage: "run_start",
+		extensionKey: "onRunStart",
+		sandboxHookName: "onRunStart",
+	},
+	{
+		stage: "iteration_start",
+		extensionKey: "onIterationStart",
+		sandboxHookName: "onIterationStart",
+	},
+	{
+		stage: "turn_start",
+		extensionKey: "onTurnStart",
+		sandboxHookName: "onTurnStart",
+	},
+	{
 		stage: "before_agent_start",
 		extensionKey: "onBeforeAgentStart",
 		sandboxHookName: "onBeforeAgentStart",
@@ -164,6 +179,21 @@ const HOOK_BINDINGS: Array<{
 		stage: "turn_end",
 		extensionKey: "onTurnEnd",
 		sandboxHookName: "onTurnEnd",
+	},
+	{
+		stage: "stop_error",
+		extensionKey: "onAgentError",
+		sandboxHookName: "onAgentError",
+	},
+	{
+		stage: "iteration_end",
+		extensionKey: "onIterationEnd",
+		sandboxHookName: "onIterationEnd",
+	},
+	{
+		stage: "run_end",
+		extensionKey: "onRunEnd",
+		sandboxHookName: "onRunEnd",
 	},
 	{
 		stage: "session_shutdown",
