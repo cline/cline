@@ -617,8 +617,11 @@ export class Controller {
 		return this.taskHistory.getTaskWithId(id)
 	}
 
-	async exportTaskWithId(_id: string): Promise<void> {
-		stubWarn("exportTaskWithId")
+	async exportTaskWithId(id: string): Promise<void> {
+		const { taskDirPath } = await this.taskHistory.getTaskWithId(id)
+		Logger.log(`[EXPORT] Opening task directory: ${taskDirPath}`)
+		const open = (await import("open")).default
+		await open(taskDirPath)
 	}
 
 	async deleteTaskFromState(id: string): Promise<HistoryItem[]> {
