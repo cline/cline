@@ -50,7 +50,6 @@ function createConfig(options?: {
 		ulid: "ulid-1",
 		cwd: "/tmp",
 		mode: "act",
-		strictPlanModeEnabled: false,
 		yoloModeToggled: false,
 		vscodeTerminalExecutionMode: "backgroundExec",
 		enableParallelToolCalling: true,
