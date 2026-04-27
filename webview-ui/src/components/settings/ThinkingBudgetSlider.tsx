@@ -63,11 +63,12 @@ const RangeInput = styled.input<{ $value: number; $min: number; $max: number }>`
 
 interface ThinkingBudgetSliderProps {
 	maxBudget?: number
+	minBudget?: number
 	currentMode: Mode
 	showEnableToggle?: boolean
 }
 
-const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true }: ThinkingBudgetSliderProps) => {
+const ThinkingBudgetSlider = ({ currentMode, maxBudget, minBudget, showEnableToggle = true }: ThinkingBudgetSliderProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
@@ -78,17 +79,23 @@ const ThinkingBudgetSlider = ({ currentMode, maxBudget, showEnableToggle = true 
 
 	const [isEnabled, setIsEnabled] = useState<boolean>((modeFields.thinkingBudgetTokens || 0) > 0)
 
-	const onToggle = useCallback((isChecked: boolean) => {
-		const newThinkingBudgetValue = isChecked ? ANTHROPIC_MIN_THINKING_BUDGET : 0
-		setIsEnabled(isChecked)
-		setLocalValue(newThinkingBudgetValue)
+	// Minimum budget when enabling thinking: use provider-specific floor if provided, else default to ANTHROPIC_MIN_THINKING_BUDGET (1024)
+	const effectiveMinBudget = minBudget ?? ANTHROPIC_MIN_THINKING_BUDGET
 
-		handleModeFieldChange(
-			{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
-			newThinkingBudgetValue,
-			currentMode,
-		)
-	}, [])
+	const onToggle = useCallback(
+		(isChecked: boolean) => {
+			const newThinkingBudgetValue = isChecked ? effectiveMinBudget : 0
+			setIsEnabled(isChecked)
+			setLocalValue(newThinkingBudgetValue)
+
+			handleModeFieldChange(
+				{ plan: "planModeThinkingBudgetTokens", act: "actModeThinkingBudgetTokens" },
+				newThinkingBudgetValue,
+				currentMode,
+			)
+		},
+		[effectiveMinBudget],
+	)
 
 	useEffect(() => {
 		// Extremely hacky solution to handle the case where
