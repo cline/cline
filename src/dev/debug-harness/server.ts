@@ -17,6 +17,7 @@
  *   --auto-launch       Automatically launch VSCode on startup
  *   --workspace PATH    Workspace directory to open
  *   --port PORT         Server port (default: 19229)
+ *   --no-browser-capture  Let openExternal() open real browser windows (for interactive OAuth)
  *
  * Then send commands:
  *   curl localhost:19229/api -d '{"method":"launch"}'
@@ -54,6 +55,7 @@ const DEFAULT_WORKSPACE = path.join(os.tmpdir(), "cline-debug-workspace")
 const DEFAULT_CLINE_DIR = path.join(os.homedir(), ".cline2") // Separate profile from user's ~/.cline
 const SKIP_BUILD = args.includes("--skip-build")
 const AUTO_LAUNCH = args.includes("--auto-launch")
+const BROWSER_CAPTURE = !args.includes("--no-browser-capture")
 const WORKSPACE_ARG = getArg("--workspace")
 const CLINE_DIR_ARG = getArg("--cline-dir") // Override the isolated CLINE_DIR
 
@@ -390,8 +392,8 @@ class DebugHarness {
 					CLINE_ENVIRONMENT: "production",
 					// ── Data isolation: use separate profile from user's ~/.cline ──
 					CLINE_DIR: this.clineDir,
-					// ── Browser capture: intercept openExternal() for OAuth testing ──
-					CLINE_CAPTURE_BROWSER: "1",
+					// ── Browser capture: intercept openExternal() for OAuth testing unless explicitly disabled ──
+					CLINE_CAPTURE_BROWSER: BROWSER_CAPTURE ? "1" : "0",
 					CLINE_DEBUG_HARNESS_PORT: String(PORT),
 				},
 				timeout: 60000,
@@ -425,7 +427,7 @@ class DebugHarness {
 			extCdpConnected: this.extCdp.connected,
 			screenshotDir: SCREENSHOT_DIR,
 			clineDir: this.clineDir,
-			browserCapture: true,
+			browserCapture: BROWSER_CAPTURE,
 		}
 	}
 
