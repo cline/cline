@@ -636,13 +636,27 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// command tools use say="command" (not say="tool")
 					// because the webview renders commands differently
 					if (toolName === "run_commands" || toolName === "execute_command") {
-						const parsedInput = parseToolInput(input)
-						const commands = getArrayField(parsedInput, "commands")
-						const commandText =
-							commands?.join(" && ") ??
-							getStringField(parsedInput, "commands") ??
-							getStringField(parsedInput, "command") ??
-							""
+						// Handle multiple input formats from SDK run_commands:
+						//   1. { commands: string[] }  — standard wrapped object
+						//   2. string[]                — bare array (parseToolInput returns undefined)
+						//   3. { command: string }     — single command as object (execute_command compat)
+						//   4. string                  — bare string
+						let commandText = ""
+						if (Array.isArray(input)) {
+							// Case 2: bare array of command strings
+							commandText = (input as string[]).join(" && ")
+						} else if (typeof input === "string") {
+							// Case 4: bare string command
+							commandText = input
+						} else {
+							const parsedInput = parseToolInput(input)
+							const commands = getArrayField(parsedInput, "commands")
+							commandText =
+								commands?.join(" && ") ??
+								getStringField(parsedInput, "commands") ??
+								getStringField(parsedInput, "command") ??
+								""
+						}
 						messages.push({
 							ts: state.getStreamingToolTs(),
 							type: "say",
@@ -760,13 +774,25 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					// by combineCommandSequences in the chat pipeline).
 					if (toolName === "run_commands" || toolName === "execute_command") {
 						const storedInput = state.getStreamingToolInput()
-						const parsedInput = parseToolInput(storedInput)
-						const commands = getArrayField(parsedInput, "commands")
-						const commandText =
-							commands?.join(" && ") ??
-							getStringField(parsedInput, "commands") ??
-							getStringField(parsedInput, "command") ??
-							""
+						// Handle multiple input formats (same as content_start):
+						//   1. { commands: string[] }  — standard wrapped object
+						//   2. string[]                — bare array (parseToolInput returns undefined)
+						//   3. { command: string }     — single command as object (execute_command compat)
+						//   4. string                  — bare string
+						let commandText = ""
+						if (Array.isArray(storedInput)) {
+							commandText = (storedInput as string[]).join(" && ")
+						} else if (typeof storedInput === "string") {
+							commandText = storedInput
+						} else {
+							const parsedInput = parseToolInput(storedInput)
+							const commands = getArrayField(parsedInput, "commands")
+							commandText =
+								commands?.join(" && ") ??
+								getStringField(parsedInput, "commands") ??
+								getStringField(parsedInput, "command") ??
+								""
+						}
 						const outputStr = event.error ? `Error: ${event.error}` : extractToolOutputText(event.output)
 						const ts = state.clearStreamingTool()
 						messages.push({
