@@ -29,6 +29,8 @@ const ClineCommands = {
 	JupyterGenerateCell: prefix + ".jupyterGenerateCell",
 	JupyterExplainCell: prefix + ".jupyterExplainCell",
 	JupyterImproveCell: prefix + ".jupyterImproveCell",
+	RegisterMcpServer: prefix + ".registerMcpServer",
+	UnregisterMcpServer: prefix + ".unregisterMcpServer"
 }
 
 /**
