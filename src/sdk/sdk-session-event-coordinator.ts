@@ -137,6 +137,34 @@ export class SdkSessionEventCoordinator {
 
 				result.messages.push(mistakeLimitMessage)
 
+				// Mark the turn as complete so handleSessionEvent stops the session.
+				// In the classic Task path, ask("mistake_limit_reached") blocks the
+				// execution loop — the agent WAITS for user input. In the SDK path,
+				// the agent would otherwise continue running and append more messages,
+				// causing mistake_limit_reached to no longer be the last message (so
+				// the webview never shows the correct buttons).
+				result.turnComplete = true
+
+				// Abort the SDK session so the agent actually stops producing events.
+				// Without this, the SDK's internal loop continues making API calls and
+				// tool calls, flooding the message list past our mistake_limit_reached
+				// ask message.
+				const activeSession = this.options.sessions.getActiveSession()
+				if (activeSession) {
+					const { sessionManager, sessionId } = activeSession
+					sessionManager.abort(sessionId).catch((err) => {
+						// AbortError is expected — the session was intentionally stopped
+						if (
+							err instanceof Error &&
+							(err.name === "AbortError" || err.message.toLowerCase().includes("aborted"))
+						) {
+							Logger.debug(`[SdkController] Session abort after mistake_limit_reached (expected): ${sessionId}`)
+						} else {
+							Logger.error("[SdkController] Failed to abort session after mistake_limit_reached:", err)
+						}
+					})
+				}
+
 				// Reset the counter after emitting so it can trigger again if the user continues
 				this.consecutiveToolErrorCount = 0
 			}
