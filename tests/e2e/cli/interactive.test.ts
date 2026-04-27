@@ -41,7 +41,7 @@ test.describe("cline interactive basics", () => {
 		// Features tab
 		terminal.keyRight()
 		await assertFeaturesTab(terminal)
-		await expectVisible(terminal, ["Strict plan mode", "Native tool call", "Parallel tool calling"])
+		await expectVisible(terminal, ["Native tool call", "Parallel tool calling"])
 
 		// Account tab
 		terminal.keyRight()
