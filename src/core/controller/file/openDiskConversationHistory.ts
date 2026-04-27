@@ -4,16 +4,16 @@ import path from "path"
 import { HostProvider } from "@/hosts/host-provider"
 import { Controller } from ".."
 /**
- * Opens a file in the editor
+ * Opens the api_conversation_history.json file for a task in the editor
  * @param controller The controller instance
- * @param request The request message containing the file path in the 'value' field
+ * @param request The request message containing the task ID in the 'value' field
  * @returns Empty response
  */
 export async function openDiskConversationHistory(_controller: Controller, request: StringRequest): Promise<Empty> {
-	const globalStoragePath = HostProvider.get().globalStorageFsPath
-	const taskConversationHistoryPath = path.join(globalStoragePath, "tasks", request.value, "api_conversation_history.json")
 	if (request.value) {
-		openFileIntegration(taskConversationHistoryPath)
+		const globalStoragePath = HostProvider.get().globalStorageFsPath
+		const taskConversationHistoryPath = path.join(globalStoragePath, "tasks", request.value, "api_conversation_history.json")
+		await openFileIntegration(taskConversationHistoryPath)
 	}
 	return Empty.create()
 }
