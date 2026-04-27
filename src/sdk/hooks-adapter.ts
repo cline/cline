@@ -84,9 +84,10 @@ function buildHookStatusMessage(opts: {
 	hookName: string
 	status: "running" | "completed" | "failed" | "cancelled"
 	toolName?: string
+	ts?: number
 }): ClineMessage {
 	return {
-		ts: Date.now(),
+		ts: opts.ts ?? Date.now(),
 		type: "say",
 		say: "hook_status",
 		text: JSON.stringify({
@@ -115,6 +116,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 		// TaskStart → onSessionStart
 		// ---------------------------------------------------------------
 		async onSessionStart(ctx: AgentHookSessionStartContext): Promise<AgentHookControl | undefined> {
+			let runningTs: number | undefined
 			try {
 				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
 				if (!enabled) {
@@ -127,7 +129,9 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					return undefined
 				}
 
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "running" }))
+				const runningMsg = buildHookStatusMessage({ hookName: "TaskStart", status: "running" })
+				runningTs = runningMsg.ts
+				emitHookMessage?.(runningMsg)
 
 				const runner = await factory.create("TaskStart")
 				const result = await runner.run({
@@ -141,10 +145,10 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					},
 				})
 
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "completed" }))
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "completed", ts: runningTs }))
 				return mapHookResult(result)
 			} catch (error) {
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed" }))
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskStart", status: "failed", ts: runningTs }))
 				Logger.error("[HooksAdapter] onSessionStart hook failed:", error)
 				return undefined
 			}
@@ -154,6 +158,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 		// PreToolUse → onToolCallStart
 		// ---------------------------------------------------------------
 		async onToolCallStart(ctx: AgentHookToolCallStartContext): Promise<AgentHookControl | undefined> {
+			let runningTs: number | undefined
 			try {
 				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
 				if (!enabled) {
@@ -167,7 +172,9 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 				}
 
 				const toolName = ctx.call.name
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: "running" }))
+				const runningMsg = buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: "running" })
+				runningTs = runningMsg.ts
+				emitHookMessage?.(runningMsg)
 
 				const runner = await factory.create("PreToolUse")
 				const result = await runner.run({
@@ -179,10 +186,14 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 				})
 
 				const finalStatus = result.cancel ? "cancelled" : "completed"
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: finalStatus }))
+				emitHookMessage?.(
+					buildHookStatusMessage({ hookName: "PreToolUse", toolName, status: finalStatus, ts: runningTs }),
+				)
 				return mapHookResult(result)
 			} catch (error) {
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "PreToolUse", toolName: ctx.call.name, status: "failed" }))
+				emitHookMessage?.(
+					buildHookStatusMessage({ hookName: "PreToolUse", toolName: ctx.call.name, status: "failed", ts: runningTs }),
+				)
 				Logger.error("[HooksAdapter] onToolCallStart hook failed:", error)
 				return undefined
 			}
@@ -192,6 +203,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 		// PostToolUse → onToolCallEnd
 		// ---------------------------------------------------------------
 		async onToolCallEnd(ctx: AgentHookToolCallEndContext): Promise<AgentHookControl | undefined> {
+			let runningTs: number | undefined
 			try {
 				const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
 				if (!enabled) {
@@ -205,7 +217,9 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 				}
 
 				const toolName = ctx.record.name
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: "running" }))
+				const runningMsg = buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: "running" })
+				runningTs = runningMsg.ts
+				emitHookMessage?.(runningMsg)
 
 				const runner = await factory.create("PostToolUse")
 				const result = await runner.run({
@@ -220,11 +234,18 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 				})
 
 				const finalStatus = result.cancel ? "cancelled" : "completed"
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: finalStatus }))
+				emitHookMessage?.(
+					buildHookStatusMessage({ hookName: "PostToolUse", toolName, status: finalStatus, ts: runningTs }),
+				)
 				return mapHookResult(result)
 			} catch (error) {
 				emitHookMessage?.(
-					buildHookStatusMessage({ hookName: "PostToolUse", toolName: ctx.record.name, status: "failed" }),
+					buildHookStatusMessage({
+						hookName: "PostToolUse",
+						toolName: ctx.record.name,
+						status: "failed",
+						ts: runningTs,
+					}),
 				)
 				Logger.error("[HooksAdapter] onToolCallEnd hook failed:", error)
 				return undefined
@@ -235,6 +256,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 		// TaskComplete → onRunEnd (only when finishReason === 'completed')
 		// ---------------------------------------------------------------
 		async onRunEnd(ctx: AgentHookRunEndContext): Promise<void> {
+			let runningTs: number | undefined
 			try {
 				if (ctx.result.finishReason !== "completed") {
 					return
@@ -251,7 +273,9 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					return
 				}
 
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "running" }))
+				const runningMsg = buildHookStatusMessage({ hookName: "TaskComplete", status: "running" })
+				runningTs = runningMsg.ts
+				emitHookMessage?.(runningMsg)
 
 				const runner = await factory.create("TaskComplete")
 				await runner.run({
@@ -265,9 +289,9 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					},
 				})
 
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "completed" }))
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "completed", ts: runningTs }))
 			} catch (error) {
-				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "failed" }))
+				emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskComplete", status: "failed", ts: runningTs }))
 				Logger.error("[HooksAdapter] onRunEnd hook failed:", error)
 			}
 		},
@@ -307,6 +331,7 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 			// UserPromptSubmit → onInput
 			// ---------------------------------------------------------------
 			async onInput(ctx: AgentExtensionInputContext): Promise<AgentHookControl | undefined> {
+				let runningTs: number | undefined
 				try {
 					const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
 					if (!enabled) {
@@ -319,7 +344,9 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 						return undefined
 					}
 
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "running" }))
+					const runningMsg = buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "running" })
+					runningTs = runningMsg.ts
+					emitHookMessage?.(runningMsg)
 
 					const runner = await factory.create("UserPromptSubmit")
 					const result = await runner.run({
@@ -331,7 +358,9 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 					})
 
 					const finalStatus = result.cancel ? "cancelled" : "completed"
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: finalStatus }))
+					emitHookMessage?.(
+						buildHookStatusMessage({ hookName: "UserPromptSubmit", status: finalStatus, ts: runningTs }),
+					)
 
 					if (result.cancel) {
 						return { cancel: true }
@@ -344,7 +373,7 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 						context: result.contextModification || undefined,
 					}
 				} catch (error) {
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed" }))
+					emitHookMessage?.(buildHookStatusMessage({ hookName: "UserPromptSubmit", status: "failed", ts: runningTs }))
 					Logger.error("[HooksAdapter] onInput (UserPromptSubmit) hook failed:", error)
 					return undefined
 				}
@@ -359,6 +388,7 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 					return undefined
 				}
 
+				let runningTs: number | undefined
 				try {
 					const enabled = getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
 					if (!enabled) {
@@ -371,7 +401,9 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 						return undefined
 					}
 
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "running" }))
+					const runningMsg = buildHookStatusMessage({ hookName: "TaskCancel", status: "running" })
+					runningTs = runningMsg.ts
+					emitHookMessage?.(runningMsg)
 
 					const runner = await factory.create("TaskCancel")
 					await runner.run({
@@ -385,11 +417,11 @@ export function buildHookExtensions(stateManager: StateManager, emitHookMessage?
 						},
 					})
 
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "completed" }))
+					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "completed", ts: runningTs }))
 
 					return undefined // TaskCancel is fire-and-forget, don't block shutdown
 				} catch (error) {
-					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "failed" }))
+					emitHookMessage?.(buildHookStatusMessage({ hookName: "TaskCancel", status: "failed", ts: runningTs }))
 					Logger.error("[HooksAdapter] onSessionShutdown (TaskCancel) hook failed:", error)
 					return undefined
 				}
