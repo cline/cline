@@ -112,6 +112,7 @@ const API_HANDLER_SETTINGS_FIELDS = {
 	vertexProjectId: { default: undefined as string | undefined },
 	vertexRegion: { default: undefined as string | undefined },
 	openAiBaseUrl: { default: undefined as string | undefined },
+	deepSeekBaseUrl: { default: undefined as string | undefined },
 	ollamaBaseUrl: { default: undefined as string | undefined },
 	ollamaApiOptionsCtxNum: { default: undefined as string | undefined },
 	lmStudioBaseUrl: { default: undefined as string | undefined },
