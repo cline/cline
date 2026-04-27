@@ -133,6 +133,142 @@ describe("SdkSessionEventCoordinator", () => {
 			totalCost: 0,
 		})
 	})
+
+	describe("mistake_limit_reached", () => {
+		it("emits mistake_limit_reached and aborts session after reaching consecutive error limit", async () => {
+			const maxConsecutiveMistakes = 3
+			const stateManager = {
+				getGlobalSettingsKey: vi.fn((key: string) => {
+					if (key === "maxConsecutiveMistakes") return maxConsecutiveMistakes
+					if (key === "mode") return "act"
+					return undefined
+				}),
+				getApiConfiguration: vi.fn(() => ({
+					actModeApiProvider: "anthropic",
+					actModeClineModelId: "claude-sonnet-4-20250514",
+				})),
+			}
+			const abortFn = vi.fn().mockResolvedValue(undefined)
+			const activeSession = {
+				sessionId: "session-123",
+				sessionManager: { abort: abortFn },
+				unsubscribe: vi.fn(),
+				startResult: { sessionId: "session-123" },
+				isRunning: true,
+			}
+
+			let callCount = 0
+			const translateFn = vi.fn(() => {
+				callCount++
+				return {
+					messages: [{ ts: callCount, type: "say" as const, say: "tool" as const, text: "{}", partial: false }],
+					sessionEnded: false,
+					turnComplete: false,
+					toolError: true,
+				}
+			})
+
+			const options = {
+				messageTranslatorState: new MessageTranslatorState(),
+				sessions: { getActiveSession: vi.fn(() => activeSession), setRunning: vi.fn() },
+				messages: { appendAndEmit: vi.fn() },
+				mcpTools: { checkDeferredRestart: vi.fn() },
+				mode: { hasPendingModeChange: vi.fn(() => false), applyPendingModeChange: vi.fn().mockResolvedValue(undefined) },
+				taskHistory: { updateTaskUsage: vi.fn() },
+				getTask: vi.fn(() => ({ taskId: "task-1" })),
+				postStateToWebview: vi.fn().mockResolvedValue(undefined),
+				translateSessionEvent: translateFn,
+				stateManager,
+			} as unknown as SdkSessionEventCoordinatorOptions
+
+			const coordinator = new SdkSessionEventCoordinator(options)
+			const event = {
+				type: "agent_event",
+				payload: { sessionId: "session-123", event: { type: "content_end", contentType: "tool" } },
+			} as unknown as CoreSessionEvent
+
+			// First two tool errors — should NOT trigger mistake_limit_reached
+			await coordinator.handleSessionEvent(event)
+			await coordinator.handleSessionEvent(event)
+			for (const call of (options.messages as any).appendAndEmit.mock.calls.slice(0, 2)) {
+				const msgs = call[0] as ClineMessage[]
+				expect(msgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(false)
+			}
+
+			// Third tool error — should trigger mistake_limit_reached
+			await coordinator.handleSessionEvent(event)
+			const thirdCallMsgs = (options.messages as any).appendAndEmit.mock.calls[2][0] as ClineMessage[]
+			const mistakeMsg = thirdCallMsgs.find((m: ClineMessage) => m.ask === "mistake_limit_reached")
+			expect(mistakeMsg).toBeDefined()
+			expect(mistakeMsg!.type).toBe("ask")
+			expect(mistakeMsg!.partial).toBe(false)
+
+			// Session should be aborted and marked as not running
+			expect(abortFn).toHaveBeenCalledWith("session-123")
+			expect((options.sessions as any).setRunning).toHaveBeenCalledWith(false)
+		})
+
+		it("resets consecutive tool error count after emitting and on tool success", async () => {
+			const stateManager = {
+				getGlobalSettingsKey: vi.fn((key: string) => {
+					if (key === "maxConsecutiveMistakes") return 2
+					if (key === "mode") return "act"
+					return undefined
+				}),
+				getApiConfiguration: vi.fn(() => ({ actModeApiProvider: "anthropic", actModeClineModelId: "gpt-4" })),
+			}
+			const abortFn = vi.fn().mockResolvedValue(undefined)
+			const activeSession = {
+				sessionId: "s1",
+				sessionManager: { abort: abortFn },
+				unsubscribe: vi.fn(),
+				startResult: { sessionId: "s1" },
+				isRunning: true,
+			}
+			let callCount = 0
+			const options = {
+				messageTranslatorState: new MessageTranslatorState(),
+				sessions: { getActiveSession: vi.fn(() => activeSession), setRunning: vi.fn() },
+				messages: { appendAndEmit: vi.fn() },
+				mcpTools: { checkDeferredRestart: vi.fn() },
+				mode: { hasPendingModeChange: vi.fn(() => false), applyPendingModeChange: vi.fn().mockResolvedValue(undefined) },
+				taskHistory: { updateTaskUsage: vi.fn() },
+				getTask: vi.fn(() => ({ taskId: "t1" })),
+				postStateToWebview: vi.fn().mockResolvedValue(undefined),
+				translateSessionEvent: vi.fn(() => {
+					callCount++
+					return {
+						messages: [{ ts: callCount, type: "say" as const, say: "tool" as const, text: "{}", partial: false }],
+						sessionEnded: false,
+						turnComplete: false,
+						toolError: true,
+					}
+				}),
+				stateManager,
+			} as unknown as SdkSessionEventCoordinatorOptions
+
+			const coordinator = new SdkSessionEventCoordinator(options)
+			const event = {
+				type: "agent_event",
+				payload: { sessionId: "s1", event: { type: "content_end", contentType: "tool" } },
+			} as unknown as CoreSessionEvent
+
+			// Trigger limit (2 errors)
+			await coordinator.handleSessionEvent(event)
+			await coordinator.handleSessionEvent(event)
+			const secondMsgs = (options.messages as any).appendAndEmit.mock.calls[1][0] as ClineMessage[]
+			expect(secondMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(true)
+
+			// Counter was reset — need 2 more errors to trigger again
+			await coordinator.handleSessionEvent(event)
+			const thirdMsgs = (options.messages as any).appendAndEmit.mock.calls[2][0] as ClineMessage[]
+			expect(thirdMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(false)
+
+			await coordinator.handleSessionEvent(event)
+			const fourthMsgs = (options.messages as any).appendAndEmit.mock.calls[3][0] as ClineMessage[]
+			expect(fourthMsgs.some((m: ClineMessage) => m.ask === "mistake_limit_reached")).toBe(true)
+		})
+	})
 })
 
 function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
