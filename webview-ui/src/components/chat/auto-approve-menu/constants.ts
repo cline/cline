@@ -41,12 +41,6 @@ export const ACTION_METADATA: ActionMetadata[] = [
 		},
 	},
 	{
-		id: "useBrowser",
-		label: "Use the browser",
-		shortName: "Browser",
-		icon: "codicon-globe",
-	},
-	{
 		id: "useMcp",
 		label: "Use MCP servers",
 		shortName: "MCP",

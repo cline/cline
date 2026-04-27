@@ -1,16 +1,7 @@
 import type { ExtensionMessage } from "@shared/ExtensionMessage"
 import { ResetStateRequest } from "@shared/proto/cline/state"
 import { UserOrganization } from "@shared/proto/index.cline"
-import {
-	CheckCheck,
-	FlaskConical,
-	HardDriveDownload,
-	Info,
-	type LucideIcon,
-	SlidersHorizontal,
-	SquareMousePointer,
-	Wrench,
-} from "lucide-react"
+import { CheckCheck, FlaskConical, HardDriveDownload, Info, type LucideIcon, SlidersHorizontal, Wrench } from "lucide-react"
 import { useCallback, useEffect, useMemo, useState } from "react"
 import { useEvent } from "react-use"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -24,7 +15,6 @@ import ViewHeader from "../common/ViewHeader"
 import SectionHeader from "./SectionHeader"
 import AboutSection from "./sections/AboutSection"
 import ApiConfigurationSection from "./sections/ApiConfigurationSection"
-import BrowserSettingsSection from "./sections/BrowserSettingsSection"
 import DebugSection from "./sections/DebugSection"
 import FeatureSettingsSection from "./sections/FeatureSettingsSection"
 import GeneralSettingsSection from "./sections/GeneralSettingsSection"
@@ -33,7 +23,7 @@ import { RemoteConfigSection } from "./sections/RemoteConfigSection"
 const IS_DEV = process.env.IS_DEV
 
 // Tab definitions
-type SettingsTabID = "api-config" | "features" | "browser" | "general" | "about" | "debug" | "remote-config"
+type SettingsTabID = "api-config" | "features" | "general" | "about" | "debug" | "remote-config"
 interface SettingsTab {
 	id: SettingsTabID
 	name: string
@@ -57,13 +47,6 @@ export const SETTINGS_TABS: SettingsTab[] = [
 		tooltipText: "Feature Settings",
 		headerText: "Feature Settings",
 		icon: CheckCheck,
-	},
-	{
-		id: "browser",
-		name: "Browser",
-		tooltipText: "Browser Settings",
-		headerText: "Browser Settings",
-		icon: SquareMousePointer,
 	},
 	{
 		id: "general",
@@ -128,7 +111,6 @@ const SettingsView = ({ onDone, targetSection }: SettingsViewProps) => {
 			"api-config": ApiConfigurationSection,
 			general: GeneralSettingsSection,
 			features: FeatureSettingsSection,
-			browser: BrowserSettingsSection,
 			"remote-config": RemoteConfigSection,
 			about: AboutSection,
 			debug: DebugSection,
