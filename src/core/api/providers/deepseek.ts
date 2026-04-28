@@ -62,6 +62,7 @@ export class DeepSeekHandler implements ApiHandler {
 
 	abort(): void {
 		this.abortController?.abort()
+		this.abortController = null
 	}
 
 	/**
