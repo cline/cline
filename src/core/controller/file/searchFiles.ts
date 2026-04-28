@@ -104,9 +104,8 @@ export async function searchFiles(controller: Controller, request: FileSearchReq
 		// Return successful results
 		return { results: protoResults, mentionsRequestId: request.mentionsRequestId }
 	} catch (error) {
-		Logger.error("Error in searchFiles:", error)
-
 		const { errorReason, errorMessage } = classifyError(error)
+		Logger.error(`Error in searchFiles (errorReason=${errorReason}):`, error)
 
 		// Determine mention type based on the search request
 		const mentionType =
