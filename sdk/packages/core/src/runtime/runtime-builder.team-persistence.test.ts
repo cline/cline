@@ -31,6 +31,7 @@ class MockAgentTeamsRuntime {
 		outcomeFragments: [],
 	}));
 	markStaleRunsInterrupted = vi.fn();
+	recoverActiveRuns = vi.fn();
 	getTeammateIds = vi.fn(() => []);
 	shutdownTeammate = vi.fn();
 }
@@ -97,7 +98,7 @@ class MockTeamStore {
 				maxIterations: 4,
 			},
 		],
-		interruptedRunIds: ["run_00001"],
+		interruptedRunIds: [],
 	}));
 	handleTeamEvent = vi.fn();
 	persistRuntime = vi.fn();
@@ -158,7 +159,8 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 			throw new Error("Expected mocked runtime and team store instances");
 		}
 
-		expect(runtimeInstance.markStaleRunsInterrupted).toHaveBeenCalledWith(
+		expect(runtimeInstance.markStaleRunsInterrupted).not.toHaveBeenCalled();
+		expect(runtimeInstance.recoverActiveRuns).toHaveBeenCalledWith(
 			"runtime_recovered",
 		);
 
@@ -190,6 +192,46 @@ describe("DefaultRuntimeBuilder team persistence boundary", () => {
 				type: "teammate_shutdown",
 				agentId: "python-poet",
 			}),
+		);
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "python-poet" }),
+			]),
+		);
+
+		runtimeInstance.emit({
+			type: "teammate_shutdown",
+			agentId: "python-poet",
+			reason: "manual_restart",
+		});
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.not.arrayContaining([
+				expect.objectContaining({ agentId: "python-poet" }),
+			]),
+		);
+
+		runtimeInstance.emit({
+			type: "teammate_spawned",
+			agentId: "java-poet",
+			teammate: {
+				rolePrompt: "Write concise Java-focused haiku",
+			},
+		});
+		runtimeInstance.emit({
+			type: "teammate_shutdown",
+			agentId: "java-poet",
+			reason: "cli_run_shutdown",
+		});
+		expect(teamStoreInstance.persistRuntime).toHaveBeenLastCalledWith(
+			expect.any(String),
+			expect.any(Object),
+			expect.arrayContaining([
+				expect.objectContaining({ agentId: "java-poet" }),
+			]),
 		);
 	});
 

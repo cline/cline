@@ -624,7 +624,6 @@ export async function runCli(): Promise<void> {
 	const {
 		coreServer,
 		coreServer: {
-			createTeamName,
 			createUserInstructionConfigWatcher,
 			loadRulesForSystemPromptFromWatcher,
 		},
@@ -774,9 +773,7 @@ export async function runCli(): Promise<void> {
 				},
 				logger: loggerAdapter.core,
 			},
-			teamName: !isYoloMode
-				? args.teamName?.trim() || createTeamName()
-				: undefined,
+			teamName: !isYoloMode ? args.teamName?.trim() || undefined : undefined,
 		};
 		try {
 			// For OAuth providers, don't write the resolved key into apiKey;

@@ -539,7 +539,7 @@ describe("runCli lightweight command dispatch", () => {
 			'<user_command slash="team">spawn a team of agents for the following task: find the bug</user_command>',
 			expect.objectContaining({
 				enableAgentTeams: true,
-				teamName: "team-test",
+				teamName: undefined,
 			}),
 			expect.anything(),
 		);

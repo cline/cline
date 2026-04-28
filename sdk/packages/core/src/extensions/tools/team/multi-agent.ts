@@ -167,6 +167,11 @@ function isIntentionalShutdownAbort(
 // =============================================================================
 
 const TEAMMATE_API_TIMEOUT_MS = 10 * 60 * 1000; // 10 minutes
+const RECOVERED_QUEUED_ACTIVITY = "recovered_queued";
+
+function buildRecoveredRunMessage(run: TeamRunRecord): string {
+	return `This is an automatic recovery of interrupted team run ${run.id}. The previous process stopped before completion. Continue the task safely, inspect the current workspace state before making changes, and avoid duplicating completed work.\n\n${run.message}`;
+}
 
 export class AgentTeam {
 	private agents: Map<string, SessionRuntime> = new Map();
@@ -532,6 +537,7 @@ export class AgentTeamsRuntime {
 	private readonly runs: Map<string, TeamRunRecord & { result?: AgentResult }> =
 		new Map();
 	private readonly runQueue: string[] = [];
+	private queuedRunDispatchTimer: ReturnType<typeof setTimeout> | undefined;
 	private readonly outcomes: Map<string, TeamOutcome> = new Map();
 	private readonly outcomeFragments: Map<string, TeamOutcomeFragment> =
 		new Map();
@@ -717,6 +723,7 @@ export class AgentTeamsRuntime {
 	}
 
 	hydrateState(state: TeamRuntimeState): void {
+		this.clearQueuedRunDispatchTimer();
 		this.tasks.clear();
 		for (const task of state.tasks) {
 			this.tasks.set(task.id, { ...task });
@@ -1106,11 +1113,19 @@ export class AgentTeamsRuntime {
 	}
 
 	private dispatchQueuedRuns(): void {
+		this.clearQueuedRunDispatchTimer();
+		let nextDelayedAttemptAt: Date | undefined;
 		while (
 			this.countActiveRuns() < this.maxConcurrentRuns &&
 			this.runQueue.length > 0
 		) {
-			const nextRunIndex = this.selectNextQueuedRunIndex();
+			const nextRun = this.selectNextDispatchableQueuedRun();
+			nextDelayedAttemptAt = nextRun.nextDelayedAttemptAt;
+			const nextRunIndex = nextRun.index;
+			if (nextRunIndex < 0) {
+				this.scheduleQueuedRunDispatch(nextDelayedAttemptAt);
+				return;
+			}
 			const [runId] = this.runQueue.splice(nextRunIndex, 1);
 			const run = runId ? this.runs.get(runId) : undefined;
 			if (!run || run.status !== "queued") {
@@ -1118,14 +1133,26 @@ export class AgentTeamsRuntime {
 			}
 			void this.executeQueuedRun(run);
 		}
+		this.scheduleQueuedRunDispatch(nextDelayedAttemptAt);
 	}
 
-	private selectNextQueuedRunIndex(): number {
-		let selectedIndex = 0;
+	private selectNextDispatchableQueuedRun(): {
+		index: number;
+		nextDelayedAttemptAt?: Date;
+	} {
+		let selectedIndex = -1;
 		let bestPriority = Number.NEGATIVE_INFINITY;
+		let nextDelayedAttemptAt: Date | undefined;
+		const now = Date.now();
 		for (let index = 0; index < this.runQueue.length; index++) {
 			const run = this.runs.get(this.runQueue[index]);
 			if (!run || run.status !== "queued") {
+				continue;
+			}
+			if (run.nextAttemptAt && run.nextAttemptAt.getTime() > now) {
+				if (!nextDelayedAttemptAt || run.nextAttemptAt < nextDelayedAttemptAt) {
+					nextDelayedAttemptAt = run.nextAttemptAt;
+				}
 				continue;
 			}
 			if (run.priority > bestPriority) {
@@ -1133,7 +1160,26 @@ export class AgentTeamsRuntime {
 				selectedIndex = index;
 			}
 		}
-		return selectedIndex;
+		return { index: selectedIndex, nextDelayedAttemptAt };
+	}
+
+	private scheduleQueuedRunDispatch(nextAttemptAt: Date | undefined): void {
+		if (!nextAttemptAt) {
+			return;
+		}
+		const delayMs = Math.max(0, nextAttemptAt.getTime() - Date.now());
+		this.queuedRunDispatchTimer = setTimeout(() => {
+			this.queuedRunDispatchTimer = undefined;
+			this.dispatchQueuedRuns();
+		}, delayMs);
+	}
+
+	private clearQueuedRunDispatchTimer(): void {
+		if (!this.queuedRunDispatchTimer) {
+			return;
+		}
+		clearTimeout(this.queuedRunDispatchTimer);
+		this.queuedRunDispatchTimer = undefined;
 	}
 
 	private countActiveRuns(): number {
@@ -1149,6 +1195,8 @@ export class AgentTeamsRuntime {
 	private async executeQueuedRun(
 		run: TeamRunRecord & { result?: AgentResult },
 	): Promise<void> {
+		const recoveredRun = run.currentActivity === RECOVERED_QUEUED_ACTIVITY;
+		run.nextAttemptAt = undefined;
 		run.status = "running";
 		run.startedAt = new Date();
 		run.heartbeatAt = new Date();
@@ -1163,7 +1211,10 @@ export class AgentTeamsRuntime {
 		}, 2000);
 
 		try {
-			const result = await this.routeToTeammate(run.agentId, run.message, {
+			const runMessage = recoveredRun
+				? buildRecoveredRunMessage(run)
+				: run.message;
+			const result = await this.routeToTeammate(run.agentId, runMessage, {
 				taskId: run.taskId,
 				continueConversation: run.continueConversation,
 			});
@@ -1239,7 +1290,7 @@ export class AgentTeamsRuntime {
 		if (!run) {
 			throw new Error(`Run "${runId}" was not found`);
 		}
-		while (run.status === "running") {
+		while (run.status === "queued" || run.status === "running") {
 			await sleep(pollIntervalMs);
 		}
 		return { ...run };
@@ -1280,6 +1331,45 @@ export class AgentTeamsRuntime {
 		return { ...run };
 	}
 
+	recoverActiveRuns(reason = "runtime_recovered"): TeamRunRecord[] {
+		const recovered: TeamRunRecord[] = [];
+		for (const run of this.runs.values()) {
+			if (!["queued", "running"].includes(run.status)) {
+				continue;
+			}
+
+			const member = this.members.get(run.agentId);
+			if (!member || member.role !== "teammate" || !member.agent) {
+				run.status = "interrupted";
+				run.error = "teammate_unavailable_after_recovery";
+				run.endedAt = new Date();
+				run.currentActivity = "interrupted";
+				this.emitEvent({
+					type: TeamMessageType.RunInterrupted,
+					run: { ...run },
+					reason: run.error,
+				});
+				continue;
+			}
+
+			const now = new Date();
+			run.status = "queued";
+			run.error = undefined;
+			run.endedAt = undefined;
+			run.heartbeatAt = now;
+			run.lastProgressAt = now;
+			run.lastProgressMessage = reason;
+			run.currentActivity = RECOVERED_QUEUED_ACTIVITY;
+			if (!this.runQueue.includes(run.id)) {
+				this.runQueue.push(run.id);
+			}
+			recovered.push({ ...run });
+			this.emitEvent({ type: TeamMessageType.RunQueued, run: { ...run } });
+		}
+		this.dispatchQueuedRuns();
+		return recovered;
+	}
+
 	markStaleRunsInterrupted(reason = "runtime_recovered"): TeamRunRecord[] {
 		const interrupted: TeamRunRecord[] = [];
 		for (const run of this.runs.values()) {
@@ -1298,6 +1388,7 @@ export class AgentTeamsRuntime {
 			});
 		}
 		this.runQueue.length = 0;
+		this.clearQueuedRunDispatchTimer();
 		return interrupted;
 	}
 
@@ -1537,6 +1628,7 @@ export class AgentTeamsRuntime {
 		this.missionLog.length = 0;
 		this.runs.clear();
 		this.runQueue.length = 0;
+		this.clearQueuedRunDispatchTimer();
 		this.outcomes.clear();
 		this.outcomeFragments.clear();
 

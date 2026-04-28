@@ -441,6 +441,28 @@ function shutdownTeamRuntime(
 	}
 }
 
+function isRuntimeLifecycleShutdownReason(reason: string | undefined): boolean {
+	if (reason === undefined) {
+		return true;
+	}
+	switch (reason) {
+		case "session_stop":
+		case "session_complete":
+		case "session_error":
+		case "session_manager_dispose":
+		case "cli_run_shutdown":
+		case "cli_interactive_shutdown":
+		case "cli_interactive_startup_cancelled":
+		case "provider_change":
+		case "acp_shutdown":
+		case "hub_server_stop":
+		case "vscode_webview_dispose":
+			return true;
+		default:
+			return false;
+	}
+}
+
 function normalizeConfig(
 	config: CoreSessionConfig,
 ): Required<
@@ -587,6 +609,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			  }
 			| undefined;
 		let pendingLeadTeamTools: Tool[] = [];
+		let restoredStateHydratedIntoRuntime = false;
 		const delegatedAgentConfigProvider = createDelegatedAgentConfigProvider({
 			providerId: config.providerId,
 			modelId: config.modelId,
@@ -642,7 +665,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 								};
 								teammateSpecs.set(spec.agentId, spec);
 							}
-							if (event.type === "teammate_shutdown") {
+							if (
+								event.type === "teammate_shutdown" &&
+								!isRuntimeLifecycleShutdownReason(event.reason)
+							) {
 								teammateSpecs.delete(event.agentId);
 							}
 							teamStore.handleTeamEvent(teamStoreKey, event);
@@ -656,7 +682,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				});
 				if (restoredTeamState) {
 					teamRuntime.hydrateState(restoredTeamState);
-					teamRuntime.markStaleRunsInterrupted("runtime_recovered");
+					restoredStateHydratedIntoRuntime = true;
 				}
 				registryEntry.runtime = teamRuntime;
 			}
@@ -693,6 +719,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
 				});
+
+				if (restoredStateHydratedIntoRuntime) {
+					teamRuntime.recoverActiveRuns("runtime_recovered");
+				}
 
 				if (teamBootstrap.restoredFromPersistence) {
 					onTeamRestored?.();

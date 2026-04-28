@@ -359,14 +359,10 @@ export class SqliteTeamStore implements TeamStore {
 		const teammates = snapshotRow
 			? parseTeammatesJson(snapshotRow.teammates_json)
 			: [];
-		const interruptedRunIds = this.markInProgressRunsInterrupted(
-			safeTeamName,
-			"runtime_recovered",
-		);
 		return {
 			state,
 			teammates,
-			interruptedRunIds,
+			interruptedRunIds: [],
 		};
 	}
 

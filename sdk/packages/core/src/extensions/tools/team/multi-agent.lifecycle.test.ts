@@ -556,4 +556,94 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 			}),
 		);
 	});
+
+	it("honors pending retry backoff when recovering queued runs", async () => {
+		vi.useFakeTimers();
+		try {
+			const runMock = vi.fn(async (_message: string) => ({
+				text: "Recovered task completed",
+				iterations: 1,
+				finishReason: "end_turn",
+				durationMs: 100,
+				usage: {
+					inputTokens: 10,
+					outputTokens: 20,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: 0,
+				},
+				messages: [],
+			}));
+			// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+			createSessionRuntimeMock.mockImplementation(function () {
+				return {
+					abort: vi.fn(),
+					run: runMock,
+					continue: vi.fn(),
+					canStartRun: vi.fn(() => true),
+					getAgentId: vi.fn(() => "teammate-1"),
+					getConversationId: vi.fn(() => "conv-1"),
+					getMessages: vi.fn(() => []),
+					subscribeEvents: vi.fn(() => () => {}),
+				};
+			});
+
+			const originalRuntime = new AgentTeamsRuntime({ teamName: "test-team" });
+			originalRuntime.spawnTeammate({
+				agentId: "alice",
+				config: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-5-20250929",
+					systemPrompt: "Helper teammate",
+					tools: [],
+				},
+			});
+			const run = originalRuntime.startTeammateRun("alice", "Complete work", {
+				maxRetries: 1,
+			});
+			const retryAt = new Date(Date.now() + 5000);
+			const originalRuns = (
+				originalRuntime as unknown as {
+					runs: Map<string, { status: string; nextAttemptAt?: Date }>;
+				}
+			).runs;
+			const originalRun = originalRuns.get(run.id);
+			if (!originalRun) {
+				throw new Error("Expected test run to exist");
+			}
+			originalRun.status = "queued";
+			originalRun.nextAttemptAt = retryAt;
+			const persistedState = originalRuntime.exportState();
+			runMock.mockClear();
+
+			const recoveredRuntime = new AgentTeamsRuntime({ teamName: "test-team" });
+			recoveredRuntime.hydrateState(persistedState);
+			recoveredRuntime.spawnTeammate({
+				agentId: "alice",
+				config: {
+					providerId: "anthropic",
+					modelId: "claude-sonnet-4-5-20250929",
+					systemPrompt: "Helper teammate",
+					tools: [],
+				},
+			});
+
+			const recovered = recoveredRuntime.recoverActiveRuns("runtime_recovered");
+			expect(recovered).toHaveLength(1);
+			expect(recovered[0].nextAttemptAt).toEqual(retryAt);
+			expect(runMock).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(4999);
+			expect(runMock).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(1);
+			expect(runMock).toHaveBeenCalledTimes(1);
+			expect(runMock.mock.calls[0][0]).toContain(
+				"This is an automatic recovery of interrupted team run",
+			);
+			expect(runMock.mock.calls[0][0]).toContain("Complete work");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });

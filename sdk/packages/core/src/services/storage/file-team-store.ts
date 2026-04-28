@@ -138,16 +138,12 @@ export class FileTeamStore implements TeamStore {
 
 	loadRuntime(teamName: string): TeamRuntimeLoadResult {
 		const envelope = this.readEnvelope(teamName);
-		const interruptedRunIds = this.markInProgressRunsInterrupted(
-			teamName,
-			"runtime_recovered",
-		);
 		return {
 			state: envelope?.teamState
 				? reviveTeamRuntimeStateDates(envelope.teamState)
 				: undefined,
 			teammates: envelope?.teammates ?? [],
-			interruptedRunIds,
+			interruptedRunIds: [],
 		};
 	}
 

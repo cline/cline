@@ -357,6 +357,7 @@ export async function prepareLocalRuntimeBootstrap(
 	const baseConfig: CoreSessionConfig = {
 		...input.config,
 		...(configOverrides ?? {}),
+		sessionId,
 		hooks: baseHooks,
 		extensions,
 		extensionContext,
