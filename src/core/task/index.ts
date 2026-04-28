@@ -1161,7 +1161,7 @@ export class Task {
 			// Optionally, inform the user or handle the error appropriately
 		}
 
-		const savedClineMessages = await getSavedClineMessages(this.taskId)
+		let savedClineMessages = await getSavedClineMessages(this.taskId)
 
 		// Remove any resume messages that may have been added before
 
@@ -1172,6 +1172,9 @@ export class Task {
 		if (lastRelevantMessageIndex !== -1) {
 			savedClineMessages.splice(lastRelevantMessageIndex + 1)
 		}
+
+		// Remove any stale api_req_failed asks so resume doesn't immediately crash
+		savedClineMessages = savedClineMessages.filter((message) => message.ask !== "api_req_failed")
 
 		// since we don't use api_req_finished anymore, we need to check if the last api_req_started has a cost value, if it doesn't and no cancellation reason to present, then we remove it since it indicates an api request without any partial content streamed
 		const lastApiReqStartedIndex = findLastIndex(savedClineMessages, (m) => m.type === "say" && m.say === "api_req_started")
