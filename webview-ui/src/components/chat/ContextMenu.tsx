@@ -10,7 +10,7 @@ interface ContextMenuProps {
 	onMouseDown: () => void
 	selectedIndex: number
 	setSelectedIndex: (index: number) => void
-	selectedType: ContextMenuOptionType | null;
+	selectedType: ContextMenuOptionType | null
 	queryItems: ContextMenuQueryItem[]
 	dynamicSearchResults?: SearchResult[]
 	isLoading?: boolean

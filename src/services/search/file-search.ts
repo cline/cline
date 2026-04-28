@@ -141,14 +141,20 @@ export async function executeRipgrepForFiles(
 			finalise()
 		})
 
-		rgProcess.on("error", (error) =>
+		rgProcess.on("error", (error) => {
+			// Mark finalised so a subsequent (close, exit) pair can't try to
+			// settle the promise a second time. The double-reject would be a
+			// no-op (settled promises swallow further reject() calls), but
+			// keeping the guard semantics consistent makes the lifecycle of
+			// this Promise easier to reason about.
+			finalised = true
 			reject(
 				new RipgrepSpawnError(`ripgrep failed to spawn: ${error.message}`, {
 					cause: error,
 					exitCode: null,
 				}),
-			),
-		)
+			)
+		})
 	})
 }
 
