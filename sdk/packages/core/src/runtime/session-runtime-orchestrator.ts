@@ -56,7 +56,10 @@ import {
 	type ToolCallRecord,
 } from "@clinebot/shared";
 import { HookBridge } from "../hooks/hook-bridge";
-import { createHandlerFromConfig } from "../llms/handler-factory";
+import {
+	createHandlerFromConfig,
+	resolveKnownModelsFromConfig,
+} from "../llms/handler-factory";
 import { ConversationStore } from "../session/conversation-store";
 import { MessageBuilder } from "../session/message-builder";
 import {
@@ -660,11 +663,16 @@ export class SessionRuntime {
 			mergedToolsByName.set(tool.name, tool);
 		}
 		const conversationId = this.conversation.getConversationId();
+		const modelInfo = tryGetModelInfo(this.config);
 		const adaptedTools = toolsToAgentTools(
 			Array.from(mergedToolsByName.values()),
 			{
 				conversationId,
-				metadata: this.config.toolContextMetadata,
+				metadata: {
+					modelSupportsImages:
+						modelInfo?.capabilities?.includes("images") ?? true,
+					...this.config.toolContextMetadata,
+				},
 			},
 		);
 		// Seed initialMessages with the full prior transcript (including
@@ -1168,6 +1176,10 @@ async function buildUserTurnContent(
 function tryGetModelInfo(config: AgentConfig): ModelInfo | undefined {
 	if (config.knownModels?.[config.modelId]) {
 		return config.knownModels[config.modelId];
+	}
+	const resolvedKnownModels = resolveKnownModelsFromConfig(config);
+	if (resolvedKnownModels?.[config.modelId]) {
+		return resolvedKnownModels[config.modelId];
 	}
 	return undefined;
 }

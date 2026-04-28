@@ -392,15 +392,34 @@ export function agentMessagesToMessagesWithMetadata(
 export function agentMessagesToMessages(
 	messages: readonly AgentMessage[],
 ): Message[] {
-	return messages.map((message) => {
+	const out: Message[] = [];
+	for (const message of messages) {
 		const content = message.content
 			.map(agentPartToContentBlock)
 			.filter((block): block is ContentBlock => block !== undefined);
-		return {
-			role: message.role === "tool" ? "user" : message.role,
-			content,
-		};
-	});
+		const role = message.role === "tool" ? "user" : message.role;
+
+		// AI SDK validates that assistant tool calls are followed by a single
+		// tool-result message containing results for every call in that turn.
+		// The AgentRuntime stores each executed tool as its own role:"tool"
+		// message; merge adjacent tool messages back into one legacy user
+		// message so multi-tool turns round-trip correctly.
+		const previous = out[out.length - 1];
+		if (
+			role === "user" &&
+			content.length > 0 &&
+			content.every((block) => block.type === "tool_result") &&
+			previous?.role === "user" &&
+			Array.isArray(previous.content) &&
+			previous.content.every((block) => block.type === "tool_result")
+		) {
+			previous.content.push(...content);
+			continue;
+		}
+
+		out.push({ role, content });
+	}
+	return out;
 }
 
 /**

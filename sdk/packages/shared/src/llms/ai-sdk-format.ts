@@ -48,6 +48,105 @@ export type AiSdkMessage = {
 	content: string | AiSdkMessagePart[];
 };
 
+type AiSdkContentBlock =
+	| { type: "text"; text: string }
+	| { type: "image"; data: string; mediaType: string };
+type AiSdkImageContentBlock = Extract<AiSdkContentBlock, { type: "image" }>;
+
+function pushAiSdkMessage(result: AiSdkMessage[], message: AiSdkMessage): void {
+	const previous = result[result.length - 1];
+	if (
+		message.role === "tool" &&
+		previous?.role === "tool" &&
+		Array.isArray(previous.content) &&
+		Array.isArray(message.content)
+	) {
+		previous.content.push(...message.content);
+		return;
+	}
+
+	result.push(message);
+}
+
+/**
+ * Type guard for tool-output content blocks that should be passed to the model
+ * as native multimodal parts (rather than JSON-encoded). We accept the cline
+ * `image` and `text` block shapes used by `formatStructuredToolResult`.
+ */
+function isAiSdkContentBlockArray(
+	value: unknown,
+): value is AiSdkContentBlock[] {
+	if (!Array.isArray(value) || value.length === 0) {
+		return false;
+	}
+	return value.every((block) => {
+		if (!block || typeof block !== "object") {
+			return false;
+		}
+		const b = block as Record<string, unknown>;
+		if (b.type === "text") {
+			return typeof b.text === "string";
+		}
+		if (b.type === "image") {
+			return typeof b.data === "string" && typeof b.mediaType === "string";
+		}
+		return false;
+	});
+}
+
+/**
+ * Recursively walk a tool-result `output` value, removing any AI-SDK image
+ * content blocks (`{type:'image', data, mediaType}`) and collecting them
+ * into `images`. Inline-text blocks (`{type:'text', text}`) are unwrapped
+ * to bare strings so the resulting structure JSON-serialises cleanly for
+ * the model.
+ *
+ * Returns the stripped value with images removed (other structure
+ * preserved). The original input is not mutated.
+ */
+function stripImagesFromOutput(
+	value: unknown,
+	images: AiSdkImageContentBlock[],
+): unknown {
+	if (value == null || typeof value !== "object") {
+		return value;
+	}
+
+	if (Array.isArray(value)) {
+		const out: unknown[] = [];
+		for (const item of value) {
+			if (item && typeof item === "object") {
+				const obj = item as Record<string, unknown>;
+				if (
+					obj.type === "image" &&
+					typeof obj.data === "string" &&
+					typeof obj.mediaType === "string"
+				) {
+					images.push({
+						type: "image",
+						data: obj.data,
+						mediaType: obj.mediaType,
+					});
+					continue;
+				}
+				if (obj.type === "text" && typeof obj.text === "string") {
+					out.push(obj.text);
+					continue;
+				}
+			}
+			out.push(stripImagesFromOutput(item, images));
+		}
+		return out;
+	}
+
+	const obj = value as Record<string, unknown>;
+	const out: Record<string, unknown> = {};
+	for (const [k, v] of Object.entries(obj)) {
+		out[k] = stripImagesFromOutput(v, images);
+	}
+	return out;
+}
+
 export function toAiSdkToolResultOutput(
 	output: unknown,
 	isError = false,
@@ -57,6 +156,55 @@ export function toAiSdkToolResultOutput(
 			type: isError ? "error-text" : "text",
 			value: output,
 		};
+	}
+
+	// Arrays of `text` / `image` content blocks (e.g. from read_file image
+	// results) must be forwarded as AI SDK `content` parts so providers
+	// translate them into real multimodal inputs. Without this, the array
+	// falls through to the `json` branch below and the base64 image data
+	// is sent to the model as a JSON string — the model cannot see it and
+	// will hallucinate the image's contents.
+	if (!isError && isAiSdkContentBlockArray(output)) {
+		return {
+			type: "content",
+			value: output.map((block) =>
+				block.type === "image"
+					? {
+							type: "image-data",
+							data: block.data,
+							mediaType: block.mediaType,
+						}
+					: { type: "text", text: block.text },
+			),
+		};
+	}
+
+	// Structured outputs that contain nested image blocks (e.g. the
+	// `[{query, result: ['Successfully read image', {type:'image',...}], success}]`
+	// shape produced by `read_files` for image paths) must also reach the
+	// model as native multimodal parts. Walk the structure, pull the image
+	// blocks out, and forward the remaining metadata as a JSON-stringified
+	// text block followed by the extracted images. Without this, the wire
+	// converter JSON-serialises the whole tree and the model receives the
+	// base64 bytes as opaque text.
+	if (!isError && output !== null && typeof output === "object") {
+		const images: AiSdkImageContentBlock[] = [];
+		const stripped = stripImagesFromOutput(output, images);
+		if (images.length > 0) {
+			const headerText =
+				typeof stripped === "string" ? stripped : JSON.stringify(stripped);
+			return {
+				type: "content",
+				value: [
+					{ type: "text", text: headerText },
+					...images.map((image) => ({
+						type: "image-data",
+						data: image.data,
+						mediaType: image.mediaType,
+					})),
+				],
+			};
+		}
 	}
 
 	if (
@@ -93,14 +241,16 @@ export function formatMessagesForAiSdk(
 	}
 
 	for (const message of messages) {
-		if (typeof message.content === "string") {
-			result.push({ role: message.role, content: message.content });
+		const contentParts = message.content;
+
+		if (typeof contentParts === "string") {
+			result.push({ role: message.role, content: contentParts });
 			continue;
 		}
 
 		const messageParts: AiSdkMessagePart[] = [];
 		const toolResultParts: AiSdkMessagePart[] = [];
-		for (const part of message.content) {
+		for (const part of contentParts) {
 			switch (part.type) {
 				case "text":
 					messageParts.push({ type: "text", text: part.text });
@@ -152,10 +302,10 @@ export function formatMessagesForAiSdk(
 		}
 
 		if (messageParts.length > 0) {
-			result.push({ role: message.role, content: messageParts });
+			pushAiSdkMessage(result, { role: message.role, content: messageParts });
 		}
 		if (toolResultParts.length > 0) {
-			result.push({ role: "tool", content: toolResultParts });
+			pushAiSdkMessage(result, { role: "tool", content: toolResultParts });
 		}
 	}
 

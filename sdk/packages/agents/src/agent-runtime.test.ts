@@ -98,6 +98,54 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("done");
 	});
 
+	it("preserves structured multimodal tool results for the next model request", async () => {
+		const structuredOutput = [
+			{ type: "text", text: "Successfully read image" },
+			{ type: "image", data: "BASE64DATA", mediaType: "image/jpeg" },
+		];
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_img",
+					toolName: "read_file",
+					inputText: '{"path":"/tmp/image.jpg"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolMessage = request.messages.at(-1) as AgentMessage;
+				expect(toolMessage.role).toBe("tool");
+				expect(toolMessage.content[0]).toMatchObject({
+					type: "tool-result",
+					toolCallId: "call_img",
+					toolName: "read_file",
+					output: structuredOutput,
+				});
+				return [
+					{ type: "text-delta", text: "saw image" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "read_file",
+					description: "Read file",
+					inputSchema: { type: "object" },
+					execute: async () => ({ output: structuredOutput }),
+				},
+			],
+		});
+
+		const result = await runtime.run("Inspect image");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("saw image");
+	});
+
 	it("requests approval when a tool policy disables auto-approval", async () => {
 		const executeTool = vi.fn(async () => ({ output: { echoed: "hi" } }));
 		const requestToolApproval = vi.fn(async () => ({

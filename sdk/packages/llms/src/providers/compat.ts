@@ -295,7 +295,7 @@ function resolveProviderRegistrationSync(
 	};
 }
 
-function toGatewayRequestMessages(
+export function toGatewayRequestMessages(
 	messages: Message[],
 ): GatewayStreamRequest["messages"] {
 	const toolNames = new Map<string, string>();
@@ -313,86 +313,6 @@ function toGatewayRequestMessages(
 			}
 		}
 	}
-
-	const extractImageParts = (
-		value: unknown,
-	): Array<Record<string, unknown>> => {
-		if (!Array.isArray(value)) {
-			return [];
-		}
-		return value.flatMap((entry) => {
-			if (!entry || typeof entry !== "object") {
-				return [];
-			}
-			const record = entry as Record<string, unknown>;
-			if (
-				record.type === "image" &&
-				typeof record.mediaType === "string" &&
-				typeof record.data === "string"
-			) {
-				return [
-					{
-						type: "image" as const,
-						image: `data:${record.mediaType};base64,${record.data}`,
-						mediaType: record.mediaType,
-					},
-				];
-			}
-			if (
-				typeof record.query === "string" &&
-				typeof record.success === "boolean" &&
-				"result" in record
-			) {
-				return extractImageParts(record.result);
-			}
-			return [];
-		});
-	};
-
-	const normalizeToolResultValue = (value: unknown): unknown => {
-		if (typeof value === "string" || value == null) {
-			return value;
-		}
-		if (Array.isArray(value)) {
-			const normalized = value.flatMap((entry): unknown[] => {
-				if (!entry || typeof entry !== "object") {
-					return [entry];
-				}
-
-				const record = entry as Record<string, unknown>;
-
-				if (record.type === "image") {
-					return [];
-				}
-
-				if (record.type === "text" && typeof record.text === "string") {
-					return [record.text];
-				}
-
-				if (record.type === "file" && typeof record.content === "string") {
-					return [record.content];
-				}
-
-				if (
-					typeof record.query === "string" &&
-					typeof record.success === "boolean" &&
-					"result" in record
-				) {
-					return [
-						{
-							...record,
-							result: normalizeToolResultValue(record.result),
-						},
-					];
-				}
-
-				return [record];
-			});
-			return normalized;
-		}
-
-		return value;
-	};
 
 	return messages.map((message) => {
 		const content =
@@ -429,20 +349,25 @@ function toGatewayRequestMessages(
 											: undefined,
 									},
 								];
-							case "tool_result": {
-								const normalizedOutput = normalizeToolResultValue(part.content);
-								const imageParts = extractImageParts(part.content);
+							case "tool_result":
+								// Pass the raw tool-result content through unchanged.
+								// `formatMessagesForAiSdk` -> `toAiSdkToolResultOutput`
+								// downstream walks any structured `output` (including the
+								// `[{query, result, success}]` `ToolOperationResult` shape
+								// produced by `read_files`) and pulls nested image blocks
+								// out as `image-data` content parts. We don't need (and
+								// must not) detach images into sibling user messages here:
+								// that produces a malformed message stream where image
+								// parts are not attached to the originating tool call.
 								return [
 									{
 										type: "tool-result" as const,
 										toolCallId: part.tool_use_id,
 										toolName: toolNames.get(part.tool_use_id) ?? "tool",
-										output: normalizedOutput,
+										output: part.content,
 										isError: part.is_error ?? false,
 									},
-									...imageParts,
 								];
-							}
 							case "image":
 								return [
 									{

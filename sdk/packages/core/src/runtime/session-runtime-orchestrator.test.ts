@@ -14,13 +14,14 @@
  *  - `canStartRun` / `shutdown` guards enforce the lifecycle rules.
  */
 
-import type { AgentRuntime } from "@clinebot/agents";
+import type { AgentRuntime, AgentRuntimeConfig } from "@clinebot/agents";
 import type {
 	AgentConfig,
 	AgentEvent,
 	AgentMessage,
 	AgentRunResult,
 	AgentRuntimeEvent,
+	AgentToolContext,
 	Tool,
 } from "@clinebot/shared";
 import { HookEngine } from "@clinebot/shared";
@@ -175,6 +176,24 @@ function withFakeRuntime(script: FakeAgentRuntimeScript = {}): {
 	};
 }
 
+function withCapturingFakeRuntime(script: FakeAgentRuntimeScript = {}): {
+	deps: SessionRuntimeOrchestratorDeps;
+	configs: Parameters<
+		NonNullable<SessionRuntimeOrchestratorDeps["createAgentRuntimeImpl"]>
+	>[0][];
+} {
+	const configs: AgentRuntimeConfig[] = [];
+	return {
+		deps: {
+			createAgentRuntimeImpl: (config) => {
+				configs.push(config);
+				return makeFakeAgentRuntime(script).runtime;
+			},
+		},
+		configs,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Construction
 // ---------------------------------------------------------------------------
@@ -307,6 +326,69 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 // ---------------------------------------------------------------------------
 // run() / continue()
 // ---------------------------------------------------------------------------
+
+it("derives tool image support metadata from resolved provider model catalog", async () => {
+	const { deps, configs } = withCapturingFakeRuntime();
+	const execute = vi.fn(async () => "ok");
+	const session = new SessionRuntime(
+		makeAgentConfig({
+			providerId: "cline",
+			modelId: "anthropic/claude-sonnet-4.6",
+			tools: [
+				{
+					name: "read_file",
+					description: "read a file",
+					inputSchema: {},
+					execute,
+				},
+			],
+		}),
+		deps,
+	);
+
+	await session.run("inspect image");
+
+	expect(configs).toHaveLength(1);
+	const runtimeConfig = configs[0];
+	if (!runtimeConfig) {
+		throw new Error("Expected runtime config");
+	}
+	const tool = runtimeConfig.tools?.[0];
+	expect(tool?.execute).toBeDefined();
+	if (!tool?.execute) {
+		throw new Error("Expected adapted tool execute function");
+	}
+	const toolContext: AgentToolContext = {
+		agentId: "agent-1",
+		runId: "run-1",
+		iteration: 0,
+		toolCallId: "call-1",
+		snapshot: {
+			agentId: "agent-1",
+			status: "running",
+			iteration: 0,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		},
+		emitUpdate: () => {},
+	};
+	const result = await tool.execute({}, toolContext);
+	expect(result).toEqual({ output: "ok" });
+	expect(execute).toHaveBeenCalledTimes(1);
+	expect(execute.mock.calls[0]).toEqual([
+		expect.anything(),
+		expect.objectContaining({
+			metadata: expect.objectContaining({ modelSupportsImages: true }),
+		}),
+		expect.any(Function),
+	]);
+});
 
 describe("SessionRuntime.run", () => {
 	it("invokes the injected AgentRuntime and returns an AgentResult", async () => {

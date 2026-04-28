@@ -26,6 +26,14 @@ const codexExecSpy = vi.fn((modelId: string) => ({
 
 vi.mock("ai", () => ({
 	streamText: (input: unknown) => streamTextSpy(input),
+	// `wrapLanguageModel` is used by the openai-compatible and mistral
+	// vendors to attach `splitToolImagesMiddleware`. The middleware itself
+	// is exercised by its own unit tests; here we just need an identity
+	// pass-through so the vendor factories' downstream `model:` callbacks
+	// keep returning the spy-produced mock objects unchanged. (The mock
+	// objects don't satisfy the real `LanguageModelV3` interface, so we
+	// can't call the real `wrapLanguageModel` either way.)
+	wrapLanguageModel: ({ model }: { model: unknown }) => model,
 }));
 
 vi.mock("@ai-sdk/openai", () => ({

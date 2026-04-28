@@ -662,4 +662,87 @@ describe("agentMessagesToMessages", () => {
 		// with a tool_result content block.
 		expect(msgs[1].role).toBe("user");
 	});
+
+	it("merges adjacent tool messages so multi-tool turns have complete results", () => {
+		const agent: AgentMessage[] = [
+			{
+				id: "assistant",
+				role: "assistant",
+				content: [
+					{
+						type: "tool-call",
+						toolCallId: "call_text",
+						toolName: "read_file",
+						input: { path: "/tmp/a.txt" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_image",
+						toolName: "read_file",
+						input: { path: "/tmp/image.jpg" },
+					},
+				],
+				createdAt: 1,
+			},
+			{
+				id: "tool_text",
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_text",
+						toolName: "read_file",
+						output: "text contents",
+					},
+				],
+				createdAt: 2,
+			},
+			{
+				id: "tool_image",
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_image",
+						toolName: "read_file",
+						output: [
+							{ type: "text", text: "Successfully read image" },
+							{
+								type: "image",
+								data: "BASE64DATA",
+								mediaType: "image/jpeg",
+							},
+						],
+					},
+				],
+				createdAt: 3,
+			},
+		];
+
+		const msgs = agentMessagesToMessages(agent);
+
+		expect(msgs).toHaveLength(2);
+		expect(msgs[1].role).toBe("user");
+		expect(msgs[1].content).toEqual([
+			{
+				type: "tool_result",
+				tool_use_id: "call_text",
+				content: "text contents",
+				is_error: undefined,
+			},
+			{
+				type: "tool_result",
+				tool_use_id: "call_image",
+				content: [
+					{ type: "text", text: "Successfully read image" },
+					{
+						type: "image",
+						data: "BASE64DATA",
+						mediaType: "image/jpeg",
+					},
+				],
+				is_error: undefined,
+			},
+		]);
+	});
 });

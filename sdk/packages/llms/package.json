@@ -48,6 +48,7 @@
 		"@ai-sdk/mistral": "^3.0.28",
 		"@ai-sdk/openai": "^3.0.52",
 		"@ai-sdk/openai-compatible": "^2.0.38",
+		"@ai-sdk/provider": "^3.0.8",
 		"@aws-sdk/credential-providers": "^3.922.0",
 		"@clinebot/shared": "workspace:*",
 		"@langfuse/otel": "^4.0.0",
