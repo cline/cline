@@ -139,6 +139,13 @@ export function usePromptInputController(input: {
 					const newText =
 						text.slice(0, slash.slashIndex) + option.value + text.slice(offset);
 					ta.setText(newText);
+					if (option.commandExecution === "user-command") {
+						ta.extmarks.create({
+							start: slash.slashIndex,
+							end: slash.slashIndex + option.value.trimEnd().length,
+							virtual: true,
+						});
+					}
 					ta.cursorOffset = slash.slashIndex + option.value.length;
 				}
 			} else if (autocomplete.mode === "@") {
@@ -204,14 +211,14 @@ export function usePromptInputController(input: {
 				turnErrorReportedRef.current = false;
 				session.appendEntry({
 					kind: "user_submitted",
-					text: promptForSubmit,
+					text: prompt,
 				});
 			}
 			setInputKey((k) => k + 1);
 			setInputValue("");
 			clearPasteAttachments();
 			if (!delivery) {
-				inputHistory.recordHistoryEntry(promptForSubmit);
+				inputHistory.recordHistoryEntry(prompt);
 			}
 
 			const startedAt = performance.now();

@@ -107,11 +107,11 @@ describe("slash command registry", () => {
 		).toEqual(["review", "release"]);
 		const review = resolveSlashCommand(registry, "review");
 		expect(review ? formatSlashCommandAutocompleteValue(review) : "").toBe(
-			'<user_command slash="review">Review carefully</user_command>',
+			"/review ",
 		);
 	});
 
-	it("expands manually typed user commands before submission", () => {
+	it("expands user command tokens and manually typed user commands before submission", () => {
 		const registry = buildSlashCommandRegistry({
 			workflowSlashCommands: [
 				{
@@ -124,6 +124,17 @@ describe("slash command registry", () => {
 		});
 
 		expect(expandUserCommandPrompt("/review this file", registry)).toBe(
+			'<user_command slash="review">Review carefully</user_command> this file',
+		);
+		expect(expandUserCommandPrompt("please /review this file", registry)).toBe(
+			'please <user_command slash="review">Review carefully</user_command> this file',
+		);
+		expect(
+			expandUserCommandPrompt(
+				'<user_command slash="review">Review carefully</user_command> this file',
+				registry,
+			),
+		).toBe(
 			'<user_command slash="review">Review carefully</user_command> this file',
 		);
 		expect(expandUserCommandPrompt("/settings", registry)).toBe("/settings");

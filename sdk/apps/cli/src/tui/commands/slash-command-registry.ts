@@ -190,12 +190,11 @@ export function resolveSlashCommand(
 	return registry.byName.get(normalizeCommandName(commandName));
 }
 
+const USER_COMMAND_SLASH_PATTERN = /(^|\s)\/([a-zA-Z0-9_.-]+)(?=\s|$)/g;
+
 export function formatSlashCommandAutocompleteValue(
 	entry: SlashCommandRegistryEntry,
 ): string {
-	if (entry.execution === "user-command") {
-		return formatUserCommandBlock(entry.instructions, entry.name);
-	}
 	return `/${entry.name} `;
 }
 
@@ -203,6 +202,24 @@ export function expandUserCommandPrompt(
 	input: string,
 	registry: SlashCommandRegistry,
 ): string {
+	if (input.includes("<user_command")) {
+		return input;
+	}
+
+	const expandedSlashCommands = input.replace(
+		USER_COMMAND_SLASH_PATTERN,
+		(match, prefix: string, name: string) => {
+			const command = resolveSlashCommand(registry, name);
+			if (command?.execution !== "user-command") {
+				return match;
+			}
+			return `${prefix}${formatUserCommandBlock(command.instructions, command.name)}`;
+		},
+	);
+	if (expandedSlashCommands !== input) {
+		return expandedSlashCommands;
+	}
+
 	const match = /^\/([a-zA-Z0-9_.-]+)(\s+[\s\S]*)?$/.exec(input.trim());
 	if (!match) {
 		return input;

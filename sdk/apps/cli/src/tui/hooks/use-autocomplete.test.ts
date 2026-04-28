@@ -1,4 +1,3 @@
-import { formatUserCommandBlock } from "@clinebot/shared";
 import { describe, expect, it } from "vitest";
 import {
 	extractSlashQuery,
@@ -21,25 +20,17 @@ describe("TUI autocomplete slash command replacement", () => {
 		});
 	});
 
-	it("uses the shared user command wrapper for skill/workflow replacement values", () => {
-		expect(formatUserCommandBlock("Review carefully", "review")).toBe(
-			'<user_command slash="review">Review carefully</user_command>',
-		);
-	});
-
 	it("supports replacing only the slash token at the cursor", () => {
 		const text = "please /review this file";
 		const cursor = "please /review".length;
 		const slash = extractSlashQuery(text.slice(0, cursor));
-		const replacement = formatUserCommandBlock("Review carefully", "review");
+		const replacement = "/review ";
 
 		expect(slash.inSlashMode).toBe(true);
 		if (!slash.inSlashMode) return;
 		expect(
 			text.slice(0, slash.slashIndex) + replacement + text.slice(cursor),
-		).toBe(
-			'please <user_command slash="review">Review carefully</user_command> this file',
-		);
+		).toBe("please /review  this file");
 	});
 
 	it("selects the first command option instead of a section header", () => {
