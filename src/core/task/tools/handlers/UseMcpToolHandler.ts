@@ -74,6 +74,15 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 				await config.callbacks.say("error", `Cline tried to use ${tool_name} with an invalid JSON argument. Retrying...`)
 				return formatResponse.toolError(formatResponse.invalidMcpToolArgumentError(server_name, tool_name))
 			}
+
+			// Strip task_progress from arguments before sending to MCP server.
+			// The model includes task_progress with every tool call per system prompt,
+			// but MCP servers don't expect it and reject it, causing an infinite retry
+			// loop. We preserve task_progress at the block level for focus chain tracking.
+			// See #9684
+			if (parsedArguments && "task_progress" in parsedArguments) {
+				delete parsedArguments.task_progress
+			}
 		}
 
 		config.taskState.consecutiveMistakeCount = 0
@@ -128,18 +137,17 @@ export class UseMcpToolHandler implements IFullyManagedTool {
 					block.isNativeToolCall,
 				)
 				return formatResponse.toolDenied()
-			} else {
-				telemetryService.captureToolUsage(
-					config.ulid,
-					block.name,
-					config.api.getModel().id,
-					provider,
-					false,
-					true,
-					undefined,
-					block.isNativeToolCall,
-				)
 			}
+			telemetryService.captureToolUsage(
+				config.ulid,
+				block.name,
+				config.api.getModel().id,
+				provider,
+				false,
+				true,
+				undefined,
+				block.isNativeToolCall,
+			)
 		}
 
 		// Run PreToolUse hook after approval but before execution
