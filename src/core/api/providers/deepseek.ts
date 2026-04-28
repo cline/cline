@@ -143,7 +143,10 @@ export class DeepSeekHandler implements ApiHandler {
 		const isDeepseekV4Pro = modelInfo.supportsReasoningEffort === true
 
 		const convertedMessages = convertToOpenAiMessages(messages)
-		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = isDeepseekReasoner
+		// Models that support reasoning (R1 via isR1FormatRequired, V4 Pro via supportsReasoning)
+		// must pass reasoning_content back in subsequent turns to maintain chain continuity.
+		const needsReasoningContent = isDeepseekReasoner || modelInfo.supportsReasoning === true
+		const openAiMessages: OpenAI.Chat.ChatCompletionMessageParam[] = needsReasoningContent
 			? [{ role: "system", content: systemPrompt }, ...addReasoningContent(convertedMessages, messages)]
 			: [{ role: "system", content: systemPrompt }, ...convertedMessages]
 
