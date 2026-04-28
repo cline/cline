@@ -2198,7 +2198,7 @@ export const deepSeekModels = {
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this). Input is the sum of cache reads and writes
+		inputPrice: 0.27, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
 		outputPrice: 1.1,
 		cacheWritesPrice: 0.27,
 		cacheReadsPrice: 0.07,
@@ -2213,7 +2213,7 @@ export const deepSeekModels = {
 		contextWindow: 128_000,
 		supportsImages: false,
 		supportsPromptCache: true, // supports context caching, but not in the way anthropic does it (deepseek reports input tokens and reads/writes in the same usage report) FIXME: we need to show users cache stats how deepseek does it
-		inputPrice: 0, // technically there is no input price, it's all either a cache hit or miss (ApiOptions will not show this)
+		inputPrice: 0.55, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
 		outputPrice: 2.19,
 		cacheWritesPrice: 0.55,
 		cacheReadsPrice: 0.14,
@@ -2229,7 +2229,7 @@ export const deepSeekModels = {
 		contextWindow: 64_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0,
+		inputPrice: 0.07, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
 		outputPrice: 0.28,
 		cacheWritesPrice: 0.07,
 		cacheReadsPrice: 0.028,
@@ -2244,7 +2244,7 @@ export const deepSeekModels = {
 		contextWindow: 1_000_000,
 		supportsImages: false,
 		supportsPromptCache: true,
-		inputPrice: 0, // uses cache-based pricing
+		inputPrice: 1.74, // fallback for when cache breakdown fields are absent; normally all input is covered by cacheWritesPrice + cacheReadsPrice
 		outputPrice: 3.48,
 		cacheWritesPrice: 1.74,
 		cacheReadsPrice: 0.145,
