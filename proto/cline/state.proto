@@ -284,7 +284,7 @@ message Settings {
   optional bool hicap_use_responses_api = 184;
   optional string hicap_api_endpoint = 185;
   optional int32 hicap_max_output_tokens = 186;
-  optional int32 hicap_temperature = 187;
+  optional double hicap_temperature = 187;
 }
 
 message State {
